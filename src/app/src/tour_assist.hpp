@@ -27,7 +27,7 @@ namespace bpr::app {
 	/// \brief What the author or their agent asked to be written. The agent never supplies any of it at completion.
 	struct tour_assist_query
 	{
-		core::writing_hook                                     Hook = core::writing_hook::problem;
+		core::writing_hook                                     Hook = core::writing_hook::comment;
 		core::tour_stop_id                                     Stop;
 		std::optional<std::pair<std::uint64_t, std::uint64_t>> Range;
 		std::optional<std::string>                             Quote;

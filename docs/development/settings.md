@@ -225,10 +225,9 @@ first unless you untick it.
 
 ### Review preparation writing hooks
 
-The **Tour tab** system prompts (**Problem statement**, **Solution summary**,
-**Tour outline** and **Tour-stop comment**) hold the instructions an agent
-follows when it helps write a Review Tour's Problem, Solution, outline and
-stop comments. **Test saved prompt** tries one on a sample without
+The **Tour tab** system prompts (**Tour outline** and **Tour-stop comment**)
+hold the instructions an agent follows when it helps write a Review Tour's
+outline and stop comments. **Test saved prompt** tries one on a sample without
 publishing.
 
 > [!NOTE]

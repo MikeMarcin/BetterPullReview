@@ -285,8 +285,6 @@ namespace bpr::qt {
 			return text_of(aPurpose);
 		}
 		switch (*hook) {
-		case core::writing_hook::problem:               return QObject::tr("Problem statement");
-		case core::writing_hook::solution:              return QObject::tr("Solution summary");
 		case core::writing_hook::outline:               return QObject::tr("Tour outline");
 		case core::writing_hook::comment:               return QObject::tr("Tour-stop comment");
 		case core::writing_hook::feedback:              return QObject::tr("Review feedback");
@@ -2213,7 +2211,6 @@ namespace bpr::qt {
 			case core::prompt_place::agent_tab:    return QObject::tr("the Agent tab");
 			case core::prompt_place::conversation: return QObject::tr("a conversation");
 			case core::prompt_place::tour_stop:    return QObject::tr("a tour stop's chat");
-			case core::prompt_place::tour_part:    return QObject::tr("the tour's Problem or Solution chat");
 			case core::prompt_place::tour_whole:   return QObject::tr("the chat about the whole tour");
 			}
 			return { };

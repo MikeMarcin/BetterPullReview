@@ -14,7 +14,6 @@ namespace bpr::application {
 		using core::cycle_json_value;
 
 		inline constexpr std::size_t maximum_ask_answer_bytes  = 128U * 1024U;
-		inline constexpr std::size_t maximum_ask_field_bytes   = 8192U;
 		inline constexpr std::size_t maximum_ask_title_bytes   = 180U;
 		inline constexpr std::size_t maximum_ask_body_bytes    = 4096U;
 		inline constexpr std::size_t maximum_ask_files         = 300U;
@@ -65,23 +64,19 @@ namespace bpr::application {
 		auto field_name(const core::tour_passage_field aField) -> std::string_view
 		{
 			switch (aField) {
-			case core::tour_passage_field::problem:   return "problem";
-			case core::tour_passage_field::solution:  return "solution";
 			case core::tour_passage_field::stop:      return "stop";
 			case core::tour_passage_field::stop_code: return "stop_code";
 			}
-			return "solution";
+			return "stop";
 		}
 		/// [[BPR-1914]] v002. The part of the tour a turn was asked from, as
-		/// the agent is told it: the tour, the Problem, the Solution, or a
-		/// stop by its number in the tour so far.
+		/// the agent is told it: the tour, or a stop by its number in the
+		/// tour so far.
 		auto thread_of(const core::tour_thread& aThread, const core::review_tour& aDraft) -> std::string
 		{
 			switch (aThread.Kind) {
-			case core::tour_thread_kind::tour:     return "the tour";
-			case core::tour_thread_kind::problem:  return "the Problem";
-			case core::tour_thread_kind::solution: return "the Solution";
-			case core::tour_thread_kind::stop:     {
+			case core::tour_thread_kind::tour: return "the tour";
+			case core::tour_thread_kind::stop: {
 				const auto found = std::ranges::find(aDraft.Stops, aThread.Stop, &core::tour_stop::Id);
 				return found == aDraft.Stops.end() ? std::string{ "a stop no longer in the tour" } : "stop " + std::to_string(static_cast<std::size_t>(found - aDraft.Stops.begin()) + 1U);
 			}
@@ -236,7 +231,7 @@ namespace bpr::application {
 		}
 		auto members = cycle_json_value::object{
 			{ "pull_request", cycle_json_value{ cycle_json_value::object{ { "title", text(aTitle) }, { "description", text(aDescription.substr(0U, std::min<std::size_t>(aDescription.size(), 8192U))) }, { "files", cycle_json_value{ std::move(files) } } } } },
-			{ "tour_so_far", cycle_json_value{ cycle_json_value::object{ { "problem", text(aDraft.Problem) }, { "solution", text(aDraft.Solution) }, { "stops", cycle_json_value{ std::move(stops) } } } } },
+			{ "tour_so_far", cycle_json_value{ cycle_json_value::object{ { "stops", cycle_json_value{ std::move(stops) } } } } },
 			{ "earlier_turns", number(aConversation.Turns.size() + aConversation.Dropped) },
 			{ "earlier_turns_left_out", number(aConversation.Dropped) },
 			{ "conversation_so_far", cycle_json_value{ std::move(turns) } },
@@ -274,13 +269,13 @@ namespace bpr::application {
 			return std::nullopt;
 		}
 		auto prompt = std::string{
-			"You are the author's partner on the guided review tour of this pull request. A tour states the Problem the change solves, the Solution it takes, "
-			"and a short route of stops in the code, each with an explanation. The author is talking with you about the tour: they may ask what a passage means, "
+			"You are the author's partner on the guided review tour of this pull request. A tour is a short route of stops in the code, "
+			"each with an explanation, in the order a reviewer should read them. The author is talking with you about the tour: they may ask what a passage means, "
 			"ask about the change, or ask you to change the tour.\n"
 			"Your working directory is a private copy of the repository at the session's pinned revision (the execution binding). Read, search and use read-only git (log, show, blame, diff) "
 			"to check your answer against the code. You cannot edit, write, run builds or reach the network; do not try.\n"
 			"conversation_so_far holds the earlier turns, oldest first: what the author asked, the passage it was about, your reply, and the thread: the part of the tour "
-			"the turn was asked from (the tour, the Problem, the Solution, or a stop). Continue that conversation: a follow-up such as \"that\" or \"it\" refers first to "
+			"the turn was asked from (the tour, or a stop). Continue that conversation: a follow-up such as \"that\" or \"it\" refers first to "
 			"the latest turn in this_turn's thread. tour_so_far is the tour as the author has it now, which may have changed since those replies; trust it over them. "
 			"A stop_code passage is lines of the code the stop points at: read them at that path and those lines.\n"
 			"Answer this_turn's question in reply. About a passage, explain it in terms of the code: name the files and lines you read as `path:line` or `path:first-last`, "
@@ -289,13 +284,13 @@ namespace bpr::application {
 			// in the turn that asked; a question is answered in words.
 			"A question (what, why, whether, how) is answered in words, and changes nothing. A request to change the tour or this part (fewer stops, a merge, an order, a focus, "
 			"a rewrite, other wording) is answered with that change in the fields below, in this same answer: never describe a change in reply without making it, and never ask "
-			"whether to make it. Put a changed Problem or Solution in its field as the field's whole new text, a new stop in stops, "
+			"whether to make it. Put a new stop in stops, "
 			"and a new explanation for a stop of tour_so_far in stop_texts with that stop's number. Leave everything you do not change as an empty string or an empty list. "
 			"The author accepts or discards each change; say in one sentence of reply what you proposed.\n"
 		};
 		if (!wholeTour) {
 			prompt += "Answer with exactly one JSON object and nothing else, in this schema:\n"
-					  "{\"schema\":\"bpr.tour-ask.v1\",\"reply\":string,\"problem\":string,\"solution\":string,\"stops\":[{\"path\":string,\"first_line\":integer,\"last_line\":integer,\"title\":string,\"explanation\":string}],"
+					  "{\"schema\":\"bpr.tour-ask.v2\",\"reply\":string,\"stops\":[{\"path\":string,\"first_line\":integer,\"last_line\":integer,\"title\":string,\"explanation\":string}],"
 					  "\"stop_texts\":[{\"stop\":integer,\"explanation\":string}]}\n";
 		} else {
 			// [[BPR-1930]], owner 2026-11-07: "too many stops/too few stops
@@ -326,7 +321,7 @@ namespace bpr::application {
 					  "To change them (fewer, merged, reordered, refocused or rewritten), set replace_waiting_stops to true and put the whole revised list of new stops in stops; it replaces them. "
 					  "Otherwise leave replace_waiting_stops false, and stops holds only stops to add.\n"
 					  "Answer with exactly one JSON object and nothing else, in this schema:\n"
-					  "{\"schema\":\"bpr.tour-revise.v1\",\"reply\":string,\"problem\":string,\"solution\":string,\"stops\":[{\"path\":string,\"first_line\":integer,\"last_line\":integer,\"title\":string,\"explanation\":string}],"
+					  "{\"schema\":\"bpr.tour-revise.v2\",\"reply\":string,\"stops\":[{\"path\":string,\"first_line\":integer,\"last_line\":integer,\"title\":string,\"explanation\":string}],"
 					  "\"stop_texts\":[{\"stop\":integer,\"explanation\":string}],\"remove_stops\":[integer],\"merge_stops\":[{\"stops\":[integer],\"title\":string,\"explanation\":string}],"
 					  "\"split_stops\":[{\"stop\":integer,\"into\":[{\"path\":string,\"first_line\":integer,\"last_line\":integer,\"title\":string,\"explanation\":string}]}],\"order\":[integer],\"focus\":string,\"replace_waiting_stops\":boolean}\n";
 		}
@@ -342,19 +337,18 @@ namespace bpr::application {
 			// and 5 ... ask me in the chat"), so the plan never arrived.
 			prompt += "This turn is an update (this_turn.update is true): make every change to the tour this conversation agreed on, as one revision in the fields above. "
 					  "That includes its shape: stops to merge, remove or split go in merge_stops, remove_stops and split_stops, a new reading order in order, "
-					  "new stops in stops, and new text in problem, solution and stop_texts. An update is not limited to text. "
+					  "new stops in stops, and new text in stop_texts. An update is not limited to text. "
 					  "Use tour_so_far's numbers now; the earlier turns may have used other numbers before changes were accepted. "
 					  "Restate every part of waiting_revision you still want: this revision replaces it. Say in one sentence of reply what you proposed.\n";
 		} else if (aUpdate && aPassage && aPassage->Field != core::tour_passage_field::stop_code) {
 			// [[BPR-1995]], RFC-BPR-0100. Enhance on a selection rewrites only
 			// the selection; the app puts it back in its place.
 			prompt += "This turn is an update of one passage (this_turn.update is true and this_turn.passage is set): rewrite only this_turn.passage.text, which is part of " + thread_of(aThread, aDraft)
-				+ ", from this conversation and the code you read. Put only the passage's new text in the matching field (problem for the Problem, solution for the Solution, "
-				  "or stop_texts with that stop's number for a stop); it replaces exactly that passage and nothing else. Leave every other field empty, and say in one sentence of reply what you changed.\n";
+				+ ", from this conversation and the code you read. Put only the passage's new text in stop_texts with that stop's number; it replaces exactly that passage and nothing else. Leave every other field empty, and say in one sentence of reply what you changed.\n";
 		} else if (aUpdate) {
 			prompt += "This turn is an update (this_turn.update is true): rewrite " + thread_of(aThread, aDraft)
 				+ " as its whole new text, from this conversation and the code you read, keeping what the author wrote that the conversation did not change. "
-				  "Put it in the matching field: problem for the Problem, solution for the Solution, or stop_texts with that stop's number for a stop. "
+				  "Put it in stop_texts with that stop's number. "
 				  "Leave every other field empty, and say in one sentence of reply what you changed.\n";
 		}
 		prompt += tour_writing_style();
@@ -393,22 +387,20 @@ namespace bpr::application {
 		if (root == nullptr) {
 			return std::nullopt;
 		}
-		static constexpr auto keys       = std::array<std::string_view, 6>{ "schema", "reply", "problem", "solution", "stops", "stop_texts" };
-		static constexpr auto reviseKeys = std::array<std::string_view, 12>{ "schema", "reply", "problem", "solution", "stops", "stop_texts", "remove_stops", "merge_stops", "split_stops", "order", "focus", "replace_waiting_stops" };
+		static constexpr auto keys       = std::array<std::string_view, 4>{ "schema", "reply", "stops", "stop_texts" };
+		static constexpr auto reviseKeys = std::array<std::string_view, 10>{ "schema", "reply", "stops", "stop_texts", "remove_stops", "merge_stops", "split_stops", "order", "focus", "replace_waiting_stops" };
 		const auto            schema     = string_of(*root, "schema", 64U);
 		const auto            revise     = schema && *schema == tour_revise_schema;
 		if (!schema || (revise ? !core::has_exactly(*root, reviseKeys) : (!core::has_exactly(*root, keys) || *schema != tour_ask_schema))) {
 			return std::nullopt;
 		}
 		auto        reply    = string_of(*root, "reply", core::maximum_tour_reply_bytes);
-		auto        problem  = string_of(*root, "problem", maximum_ask_field_bytes);
-		auto        solution = string_of(*root, "solution", maximum_ask_field_bytes);
 		const auto* stops    = array_of(*root, "stops");
 		const auto* rewrites = array_of(*root, "stop_texts");
-		if (!reply || reply->find_first_not_of(" \t\r\n") == std::string::npos || !problem || !solution || stops == nullptr || stops->size() > core::maximum_proposed_tour_stops || rewrites == nullptr || rewrites->size() > maximum_ask_stop_rewrites) {
+		if (!reply || reply->find_first_not_of(" \t\r\n") == std::string::npos || stops == nullptr || stops->size() > core::maximum_proposed_tour_stops || rewrites == nullptr || rewrites->size() > maximum_ask_stop_rewrites) {
 			return std::nullopt;
 		}
-		auto                  answer   = core::tour_ask_answer{ .Reply = std::move(*reply), .Changes = { .Problem = std::move(problem), .Solution = std::move(solution) } };
+		auto                  answer   = core::tour_ask_answer{ .Reply = std::move(*reply) };
 		static constexpr auto stopKeys = std::array<std::string_view, 5>{ "path", "first_line", "last_line", "title", "explanation" };
 		const auto            stopOf   = [](const cycle_json_value& aElement) -> std::optional<core::proposed_tour_stop> {
 			const auto* stop = std::get_if<cycle_json_value::object>(&aElement.Value);

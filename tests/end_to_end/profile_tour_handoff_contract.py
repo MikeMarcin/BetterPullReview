@@ -76,50 +76,8 @@ def main():
             first = bpr("status")
             assert first.returncode == 0 and data(first)["draft_id"] == token, first.stdout
             start = data(first)["revision"]
-            # What the desktop author typed is what the CLI reads: nothing waits in a buffer.
-            ask("type Hello", "TYPED")
-            assert data(bpr("show", "problem"))["text"] == "Hello"
-            assert int(revision()) > int(start)
-            # A CLI edit reaches the open editor without moving the author's caret or taking focus.
-            ask("caret 2", "CARET_SET")
-            before = revision()
-            written = edit("problem", "Hello world", before, "cli-1")
-            assert written.returncode == 0, written.stdout
-            assert ask("problem", "PROBLEM ") == "PROBLEM Hello world"
-            state = ask("state", "STATE ")
-            assert "caret=2 anchor=2 focus=problem" in state, state
-            # An input method holding preedit text is neither flushed nor read past.
-            assert ask("compose 中", "COMPOSING") == "COMPOSING"
-            busy = bpr("status")
-            assert busy.returncode == 4 and code(busy) == "editor_busy", busy.stdout
-            refused = edit("problem", "must not land", before, "cli-busy")
-            assert refused.returncode == 4 and code(refused) == "editor_busy", refused.stdout
-            assert ask("problem", "PROBLEM ") == "PROBLEM Hello world"
-            assert ask("commit 中", "COMMITTED") == "COMMITTED"
-            settled = bpr("show", "problem")
-            assert settled.returncode == 0 and "中" in data(settled)["text"], settled.stdout
-            committed = data(settled)["text"]
-            # A stale CLI edit after the author kept typing keeps both texts and reports a conflict.
-            stale = revision()
-            ask("type !", "TYPED")
-            conflict = edit("problem", "stale candidate", stale, "cli-stale")
-            assert conflict.returncode == 4 and code(conflict) == "revision_conflict", conflict.stdout
-            assert ask("problem", "PROBLEM ") == "PROBLEM " + committed + "!"
-            # Independent fields both proceed, and a duplicate projection does not apply twice.
-            current = revision()
-            solved = edit("solution", "Retain a snapshot.", current, "cli-2")
-            assert solved.returncode == 0, solved.stdout
-            landed = data(solved)["revision"]
-            assert ask("solution", "SOLUTION ") == "SOLUTION Retain a snapshot."
-            assert ask("problem", "PROBLEM ") == "PROBLEM " + committed + "!"
-            duplicate = edit("solution", "Retain a snapshot.", current, "cli-2")
-            assert duplicate.returncode == 0 and data(duplicate)["revision"] == landed, duplicate.stdout
-            assert revision() == landed
-            # One shared history: the CLI undoes the latest committed transaction, whoever made it.
-            undone = bpr("undo", "--expected-revision", landed, "--request-id", "cli-undo")
-            assert undone.returncode == 0 and data(undone)["transaction_label"], undone.stdout
-            assert ask("solution", "SOLUTION") == "SOLUTION "
-            assert ask("problem", "PROBLEM ") == "PROBLEM " + committed + "!"
+            # [[BPR-2274]]. A tour is its stops: no field is typed live into both
+            # presentations, so the course starts with the route.
             # Structure follows stable stop IDs across presentations: another presentation's reorder,
             # removal and undo change the route but not the author's selected stop or any ID.
             ids = ask("stops 3", "STOPS ").split()[1].split(",")
@@ -147,36 +105,13 @@ def main():
                                     "--data-root", str(root)], capture_output=True, timeout=60)
             assert hooks.returncode == 0, hooks.stdout
             listed = json.loads(hooks.stdout)["data"]["hooks"]
-            assert [hook["name"] for hook in listed] == ["problem", "solution", "outline", "comment", "feedback", "enhance-stop",
+            assert [hook["name"] for hook in listed] == ["outline", "comment", "feedback", "enhance-stop",
                                                          "enhance-writing", "suggested-comment", "local-description",
                                                          "local-discussion", "local-commit-message", "review-latest-upload",
                                                          "review-proposed-fix", "review-explain-file",
                                                          "review-suggest-change", "local-run-check", "writing-style", "comment-labels"], hooks.stdout
-            assert all(hook["active"] for hook in listed[:4]) and listed[4]["active"] is False, hooks.stdout
-            assert listed[4]["version"] == "review-feedback-v3" and listed[4]["customized"] is False, hooks.stdout
-            assert ask("compose \u4e2d", "COMPOSING") == "COMPOSING"
-            busy = bpr("assist", "context", "--hook", "problem", "--field", "problem", "--quote", "world")
-            assert busy.returncode == 4 and code(busy) == "editor_busy", busy.stdout
-            assert ask("commit \u4e2d", "COMMITTED") == "COMMITTED"
-            before_text = data(bpr("show", "problem"))["text"]
-            assert before_text.count("world") == 1, before_text
-            ask("caret 2", "CARET_SET")
-            issued = bpr("assist", "context", "--hook", "problem", "--field", "problem", "--quote", "world")
-            assert issued.returncode == 0, issued.stdout
-            packet = data(issued)["assist"]
-            assert packet["selection"]["text"] == "world" and packet["hook"]["name"] == "problem", packet
-            applied = complete(packet["ticket"], "there")
-            assert applied.returncode == 0 and data(applied)["assist"]["applied"] is True, applied.stdout
-            expected_text = before_text.replace("world", "there")
-            assert ask("problem", "PROBLEM ") == "PROBLEM " + expected_text
-            state = ask("state", "STATE ")
-            assert "focus=problem" in state and "saved=yes" in state, state
-            # The author keeps typing while a request is outstanding: the answer is stale and both texts stay.
-            outstanding = data(bpr("assist", "context", "--hook", "problem", "--field", "problem"))["assist"]["ticket"]
-            ask("type ?", "TYPED")
-            stale_answer = complete(outstanding, "late")
-            assert stale_answer.returncode == 4 and code(stale_answer) == "stale", stale_answer.stdout
-            assert ask("problem", "PROBLEM ") == "PROBLEM " + expected_text + "?"
+            assert all(hook["active"] for hook in listed[:2]) and listed[2]["active"] is False, hooks.stdout
+            assert listed[2]["version"] == "review-feedback-v4" and listed[2]["customized"] is False, hooks.stdout
             # Assist takes no source evidence from a running desktop.
             sourced = bpr("assist", "context", "--hook", "outline", "--sources", "src/a.cpp:1-3")
             assert sourced.returncode == 3 and code(sourced) == "interaction_required", sourced.stdout
@@ -278,17 +213,15 @@ def main():
             assert acceptance(pressed) == "accepted", data(bpr("status"))["stops"]
             for stop_id, request_id in ((walked, "cli-naming-remove-1"), (pressed, "cli-naming-remove-2")):
                 assert bpr("remove", stop_id, "--expected-revision", revision(), "--request-id", request_id).returncode == 0
-            committed = expected_text
-            final = data(bpr("show", "problem"))["text"]
-            assert final == committed + "?", final
+            final = data(bpr("status"))["revision"]
             saved = ask("state", "STATE ")
             assert "saved=yes" in saved, saved
             signal.touch()
             await_line("OWNER_RELEASED", 60)
             assert desktop.wait(timeout=60) == 0
             # After the desktop drained, the next command runs standalone and reads what it committed.
-            standalone = bpr("show", "problem")
-            assert standalone.returncode == 0 and data(standalone)["text"] == final, standalone.stdout
+            standalone = bpr("status")
+            assert standalone.returncode == 0 and data(standalone)["revision"] == final, standalone.stdout
         finally:
             if desktop.poll() is None:
                 desktop.kill()

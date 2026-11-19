@@ -62,9 +62,9 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	const auto   prefix = argc > 1 ? std::string{ argv[1] } : std::string{ };
 
-	auto draft     = tests::review_tour_fixture();
-	draft.Problem  = { };
-	draft.Solution = { };
+	// [[BPR-2274]]. A tour is its stops: the request is a stop's own.
+	auto draft               = tests::review_tour_fixture();
+	draft.Stops.front().Body = { };
 	qt::review_tour_editor editor;
 	editor.set_dispatch([](core::tour_command) { }, [](qt::tour_editor_action) { });
 	auto asked = 0;
@@ -74,29 +74,29 @@ auto main(int argc, char** argv) -> int
 	editor.resize(380, 760);
 	editor.show();
 	editor.present({ .Draft = std::make_shared<const core::review_tour>(draft) });
-	editor.show_problem();
+	editor.show_stops();
+	editor.go_to_stop(draft.Stops.front().Id);
+	editor.begin_stop_edit();
 	QApplication::processEvents();
 
-	auto* const magic  = child<QPushButton>(editor, "tourProblemMagic");
-	auto* const notice = editor.agent_failure_notice(core::writing_hook::problem);
-	expect(notice != nullptr && !notice->isVisible() && editor.agent_failure_text(core::writing_hook::problem).isEmpty(), "nothing is said before a request fails");
-	for (const auto hook : { core::writing_hook::solution, core::writing_hook::comment }) {
-		expect(editor.agent_failure_notice(hook) != nullptr, "every agent request's control has its notice");
-	}
+	auto* const magic  = child<QPushButton>(editor, "tourStopMagic");
+	auto* const notice = editor.agent_failure_notice(core::writing_hook::comment);
+	expect(notice != nullptr && !notice->isVisible() && editor.agent_failure_text(core::writing_hook::comment).isEmpty(), "nothing is said before a request fails");
+	expect(editor.agent_failure_notice(core::writing_hook::outline) == nullptr, "[[BPR-2274]] only a stop's request has a notice");
 
 	// AC1. A failure: one line beside the helper, in the Agent tab's words.
 	magic->click();
 	expect(asked == 1, "the helper asks");
 	const auto why = qt::agent_tab_view::run_failure_words(application::agent_run_outcome::nonzero_exit, QStringLiteral("Claude Code"));
-	editor.show_agent_failure(core::writing_hook::problem, why);
+	editor.show_agent_failure(core::writing_hook::comment, why);
 	QApplication::processEvents();
 	expect(notice->isVisible(), "a failed request shows its notice on the Tour tab");
-	const auto said = editor.agent_failure_text(core::writing_hook::problem);
-	expect(said == QStringLiteral("Draft from PR context failed. ") + why, "it names the request as its control did and says why in the Agent tab's own words: " + said.toStdString());
-	expect(notice->parentWidget() == magic->parentWidget(), "the notice sits with the helper that made the request");
+	const auto said = editor.agent_failure_text(core::writing_hook::comment);
+	expect(said == QStringLiteral("Generate comment failed. ") + why, "it names the request as its control did and says why in the Agent tab's own words: " + said.toStdString());
+	// [[BPR-2274]]. The stop's notice sits in the stop's fields, with its helper.
+	expect(notice->parentWidget()->isAncestorOf(magic), "the notice sits with the helper that made the request");
 	const auto below = notice->mapTo(&editor, QPoint{ 0, 0 }).y() - (magic->mapTo(&editor, QPoint{ 0, 0 }).y() + magic->height());
-	expect(below >= 0 && below <= 16, "it sits right under the helper's row");
-	expect(!editor.agent_failure_notice(core::writing_hook::solution)->isVisible(), "the other controls say nothing");
+	expect(below >= 0, "it sits under the helper's row");
 	auto* const show = child<QPushButton>(*notice, "tourAgentFailureOpen");
 	// [[BPR-2000]]: showing the run starts none, so it is ordinary; the spark says agent.
 	expect(show->palette().color(QPalette::Active, QPalette::ButtonText) != qt::agent_accent(editor.palette()) && !show->icon().isNull(), "the way to the Agent tab is ordinary and keeps the spark");
@@ -106,7 +106,7 @@ auto main(int argc, char** argv) -> int
 	// opens the session's transcript on this tab, and the Agent tab is not
 	// asked for.
 	auto       session = core::tour_agent_session{ };
-	const auto run     = core::begin_tour_run(session, core::tour_agent_request::draft_field, core::tour_agent_tools::read_only, "Draft from PR context");
+	const auto run     = core::begin_tour_run(session, core::tour_agent_request::rewrite, core::tour_agent_tools::none, "Generate comment");
 	static_cast<void>(core::finish_tour_run(session, *run, core::tour_agent_run_state::failed, why.toStdString()));
 	editor.present_tour_session(session, std::nullopt);
 	expect(show->text() == QStringLiteral("Show the run"), "the notice's way is to the run");
@@ -119,13 +119,13 @@ auto main(int argc, char** argv) -> int
 
 	// AC3. Dismiss hides it; making the request again clears it.
 	child<QToolButton>(*notice, "tourAgentFailureDismiss")->click();
-	expect(!notice->isVisible() && editor.agent_failure_text(core::writing_hook::problem).isEmpty(), "Dismiss hides it");
-	editor.show_agent_failure(core::writing_hook::problem, why);
+	expect(!notice->isVisible() && editor.agent_failure_text(core::writing_hook::comment).isEmpty(), "Dismiss hides it");
+	editor.show_agent_failure(core::writing_hook::comment, why);
 	expect(notice->isVisible(), "a second failure shows again");
 	magic->click();
 	expect(asked == 2 && !notice->isVisible(), "making the request again clears it");
-	editor.show_agent_failure(core::writing_hook::problem, why);
-	editor.clear_agent_failure(core::writing_hook::problem);
+	editor.show_agent_failure(core::writing_hook::comment, why);
+	editor.clear_agent_failure(core::writing_hook::comment);
 	expect(!notice->isVisible(), "a success clears it");
 
 	// [[BPR-2013]], RFC-BPR-0106. Suggest an outline left the application,
@@ -134,8 +134,9 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	expect(editor.findChild<QPushButton*>(QStringLiteral("tourSuggestOutline")) == nullptr && editor.agent_failure_notice(core::writing_hook::outline) == nullptr, "no Suggest an outline, and no notice for it");
 
-	editor.show_problem();
-	editor.show_agent_failure(core::writing_hook::problem, why);
+	editor.go_to_stop(draft.Stops.front().Id);
+	editor.begin_stop_edit();
+	editor.show_agent_failure(core::writing_hook::comment, why);
 	QApplication::setPalette(dark_palette(QApplication::palette()));
 	QApplication::processEvents();
 	expect(child<QPushButton>(*notice, "tourAgentFailureOpen")->palette().color(QPalette::Active, QPalette::ButtonText) == editor.palette().color(QPalette::Active, QPalette::ButtonText),

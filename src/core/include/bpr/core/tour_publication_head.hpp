@@ -22,9 +22,8 @@ namespace bpr::core {
 
 	/// \brief How many parts of a published tour differ from what GitHub has:
 	/// each stop that is new or moved to other lines, each stop whose title or
-	/// explanation changed, each published stop removed from the route, and
-	/// Problem and Solution where their published text is known. Zero for a
-	/// tour that is not published.
+	/// explanation changed, and each published stop removed from the route.
+	/// Zero for a tour that is not published.
 	[[nodiscard]] auto tour_unpublished_changes(const review_tour& aTour) -> std::size_t;
 
 	/// \brief Where a publication of the tour stands, as the host reports it.
@@ -64,8 +63,6 @@ namespace bpr::core {
 		nothing,
 		/// The draft is busy with a saved-copy or website conflict.
 		conflict,
-		problem,
-		solution,
 		stops,
 		/// One or more stops are still to accept.
 		acceptance,

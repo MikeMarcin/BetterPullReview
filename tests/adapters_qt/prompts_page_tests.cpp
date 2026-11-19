@@ -502,7 +502,7 @@ namespace {
 			{ QStringLiteral("Pull request"), QStringLiteral("Ask menu"), QStringLiteral("Suggested chips") },
 			{ QStringLiteral("File"), QStringLiteral("Ask menu"), QStringLiteral("Suggested chips") },
 			{ QStringLiteral("Thread"), QStringLiteral("Ask menu"), QStringLiteral("Suggested chips") },
-			{ QStringLiteral("Tour"), QStringLiteral("Tour stop"), QStringLiteral("Tour part"), QStringLiteral("Whole tour") },
+			{ QStringLiteral("Tour"), QStringLiteral("Tour stop"), QStringLiteral("Whole tour") },
 			// [[BPR-2248]]. The Commits tab's selection menu.
 			{ QStringLiteral("Commits"), QStringLiteral("Selection menu") },
 		};
@@ -518,7 +518,7 @@ namespace {
 		}
 		// The tour surfaces are greyed for another chat's prompt, and say why
 		// under them as well as in their tooltips.
-		const auto tours = std::array{ core::prompt_surface::tour_stop, core::prompt_surface::tour_part, core::prompt_surface::whole_tour };
+		const auto tours = std::array{ core::prompt_surface::tour_stop, core::prompt_surface::whole_tour };
 		auto       why   = QString{ };
 		for (const auto tour : tours) {
 			const auto* const action = sub->findChild<QAction*>(QStringLiteral("promptsAddTo-%1").arg(QString::fromLatin1(core::stable_name(tour))));

@@ -203,14 +203,13 @@ namespace bpr::core {
 	/// Does not use a proposed mapping or change retained source ranges.
 	[[nodiscard]] auto published_tour_destination(const tour_stop& aStop) -> std::optional<tour_code_destination>;
 
-	enum class tour_conflict_field : std::uint8_t { problem,
-													solution,
-													stop,
-													route };
+	/// [[BPR-2274]]. Values 0 and 1 were the retired Problem and Solution.
+	enum class tour_conflict_field : std::uint8_t { stop  = 2,
+													route = 3 };
 	/// Durable exact versions of one unresolved website/local conflict.
 	struct tour_edit_conflict
 	{
-		tour_conflict_field Field = tour_conflict_field::problem;
+		tour_conflict_field Field = tour_conflict_field::stop;
 		tour_stop_id        Stop;
 		std::string         Baseline, Local, Remote;
 		tour_field_baseline Observation;
@@ -231,17 +230,13 @@ namespace bpr::core {
 	/// \brief A private draft; vector order is conceptual route order, never file or title order.
 	struct review_tour
 	{
-		tour_draft_id                      Id;
-		tour_owner                         Owner;
-		git_commit_oid                     Base;
-		git_commit_oid                     Head;
-		std::string                        Problem;
-		std::string                        Solution;
-		std::optional<tour_field_baseline> ProblemBaseline;
-		std::optional<tour_field_baseline> SolutionBaseline;
-		std::vector<tour_stop>             Stops;
-		std::uint64_t                      Revision   = 1;
-		std::uint64_t                      LastStopId = 0;
+		tour_draft_id          Id;
+		tour_owner             Owner;
+		git_commit_oid         Base;
+		git_commit_oid         Head;
+		std::vector<tour_stop> Stops;
+		std::uint64_t          Revision   = 1;
+		std::uint64_t          LastStopId = 0;
 		/// Native chat namespace; Undo restores the active value, never its high water.
 		std::uint64_t                      ChatGeneration     = 0U;
 		std::uint64_t                      LastChatGeneration = 0U;
@@ -264,9 +259,7 @@ namespace bpr::core {
 		auto                        operator==(const review_tour&) const -> bool = default;
 	};
 
-	enum class tour_command_kind : std::uint8_t { problem,
-												  solution,
-												  insert,
+	enum class tour_command_kind : std::uint8_t { insert,
 												  edit_stop,
 												  move,
 												  duplicate,
@@ -289,7 +282,7 @@ namespace bpr::core {
 		tour_draft_id                      Draft;
 		tour_owner                         Owner;
 		std::uint64_t                      ExpectedRevision = 0;
-		tour_command_kind                  Kind             = tour_command_kind::problem;
+		tour_command_kind                  Kind             = tour_command_kind::insert;
 		tour_stop_id                       Stop;
 		std::string                        Text;
 		tour_stop                          Value;

@@ -5,6 +5,7 @@
 #include <limits>
 #include <span>
 #include <type_traits>
+#include <vector>
 namespace bpr::adapters::sqlite::detail {
 	/// \brief Versioned bounded binary payload; lengths are admitted before allocation.
 	class tour_codec
@@ -14,7 +15,7 @@ namespace bpr::adapters::sqlite::detail {
 		std::span<const std::uint8_t> Input;
 		bool                          Reading = false;
 		bool                          Good    = true;
-		std::uint8_t                  Version = 12;
+		std::uint8_t                  Version = 13;
 		void                          byte(std::uint8_t& aValue)
 		{
 			if (!Good) {
@@ -238,7 +239,7 @@ namespace bpr::adapters::sqlite::detail {
 		void tour(core::review_tour& aTour)
 		{
 			byte(Version);
-			if (Version < 1 || Version > 12) {
+			if (Version < 1 || Version > 13) {
 				Good = false;
 				return;
 			}
@@ -252,10 +253,20 @@ namespace bpr::adapters::sqlite::detail {
 				number(aTour.ChatGeneration);
 				number(aTour.LastChatGeneration);
 			}
-			text(aTour.Problem);
-			text(aTour.Solution);
-			optional(aTour.ProblemBaseline, [&](auto& aValue) { baseline(aValue); });
-			optional(aTour.SolutionBaseline, [&](auto& aValue) { baseline(aValue); });
+			// [[BPR-2274]]. A tour is its stops: a draft saved before version
+			// 13 holds a Problem and Solution with their baselines, read and
+			// dropped (written empty in that older form). Published text
+			// stays where GitHub has it.
+			if (Version < 13) {
+				for (auto field = 0; field < 2; ++field) {
+					auto retired = std::string{ };
+					text(retired);
+				}
+				for (auto field = 0; field < 2; ++field) {
+					auto retired = std::optional<core::tour_field_baseline>{ };
+					optional(retired, [&](auto& aValue) { baseline(aValue); });
+				}
+			}
 			list(aTour.Stops, core::maximum_tour_stops, [&](auto& aStop) { stop(aStop); });
 			if (Version >= 2) {
 				optional(aTour.Remote, [&](auto& aValue) { remote(aValue); });
@@ -269,6 +280,11 @@ namespace bpr::adapters::sqlite::detail {
 			if (Version >= 5) {
 				list(aTour.Conflicts, core::maximum_tour_stops + 3, [&](auto& aConflict) {enumeration(aConflict.Field);id(aConflict.Stop);text(aConflict.Baseline);text(aConflict.Local);text(aConflict.Remote);baseline(aConflict.Observation); });
 				list(aTour.IncomingRoute, core::maximum_tour_stops, [&](auto& aValue) { stop(aValue); });
+				// [[BPR-2274]]. A conflict over the retired Problem or Solution
+				// (fields 0 and 1) goes with them.
+				if (Reading) {
+					std::erase_if(aTour.Conflicts, [](const auto& aConflict) { return aConflict.Field != core::tour_conflict_field::stop && aConflict.Field != core::tour_conflict_field::route; });
+				}
 				number(aTour.RemoteStale);
 			}
 			if (Version >= 6) {

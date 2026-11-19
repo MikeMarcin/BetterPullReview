@@ -20,13 +20,10 @@ namespace bpr::application {
 														 desktop,
 														 terminal,
 														 command_client };
-	enum class tour_section : std::uint8_t { problem,
-											 solution,
-											 stops };
 	/// \brief Optional resume position; never a mutation target or author visit.
+	/// [[BPR-2274]]. A tour is its stops, so the position is a stop alone.
 	struct tour_resume_hint
 	{
-		tour_section       Section = tour_section::problem;
 		core::tour_stop_id Stop;
 		auto               operator==(const tour_resume_hint&) const -> bool = default;
 	};

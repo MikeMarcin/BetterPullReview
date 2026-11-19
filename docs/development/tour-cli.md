@@ -104,7 +104,7 @@ by open. Every ID and revision is a decimal string (the opaque draft handle is a
 SHA-256 lookup key). The target catalog includes profile, host authority,
 account, repository, PR and draft; it contains no global last-opened pointer.
 A profile another process owns is not opened a second time: local draft commands are forwarded to that owner (see "Working while the desktop is open"). `status` pages stop
-summaries using `--cursor`; `show problem|solution|stop:ID` preserves raw Markdown
+summaries using `--cursor`; `show stop:ID` preserves raw Markdown
 in JSON and neutralizes terminal controls in human output. `show stop:ID --source` requests bounded pinned source; unavailable material is
 reported explicitly while the current comment remains readable. No worktree
 file is substituted. Source uses the same pinned endpoint/blob services exercised by the installed-Git fixture.
@@ -118,7 +118,7 @@ the result, and ordinary diff reads retain their existing authority checks.
 Existing non-private roots are refused, never chmodded into ownership. Local
 schemas 1 and 2 migrate atomically to schema 3 while retaining legacy tour
 payloads. Corrupt or unknown catalogs remain errors, not empty drafts.
-`edit problem|solution|stop:ID[:title|body] --file PATH|-` imports one exact
+`edit stop:ID[:title|body] --file PATH|-` imports one exact
 UTF-8 field (maximum 65536 bytes), retaining line endings. Machine edits require
 `--expected-revision` from the returned draft. The whole document revision is a
 conservative compare-and-swap boundary: even a different field changing requires
@@ -180,7 +180,8 @@ SIGINT cancel without supplying a decision. Ready in this attended flow records
 an observed response bound to the displayed revision/source. Merely printing
 source or JSON never sets a visit or readiness decision.
 
-`preview` pages the local narrative: Problem, Solution, then one stop per page.
+`preview` pages the local narrative: one stop per page ([[BPR-2274]]: a tour is
+only its stops).
 Follow `--cursor` for each next page. It uses the parent Markdown label and
 readiness/destination policies, reports incomplete or unqualified publication,
 and performs no provider reads or writes. `preview --refresh` explicitly reads
@@ -202,11 +203,10 @@ a dirty checkout cannot supply replacement text.
 ## Publication and read-first recovery
 
 `publish` refreshes the exact profile/account/PR and previews the shared desktop
-plan. As on the desktop, Problem and Solution go in the PR description by
-default and the tour comment lists only the route; `--no-description` keeps them
-in the tour comment and leaves the description alone (`--description` names the
-default explicitly; giving both is refused). A published tour keeps its brief
-where it was first published ([[BPR-1787]]). `--compatibility`
+plan. As on the desktop, the tour comment is one line and the route, and the
+PR description is never written ([[BPR-2274]]): a tour is only its stops. A tour
+published before keeps whatever text its comment and the description already
+hold; nothing strips it. `--compatibility`
 selects visible non-atomic comments where qualified. The preview names the actor,
 host, repository, head, text, source links and operations. Type `publish` in the
 terminal to authorize that finite plan. The profile lease and provider session
@@ -349,7 +349,7 @@ A draft no window has open answers `interaction_required` (exit 3); open the pul
 request in the desktop and retry. `open`, refresh, publish and recover answer
 `interaction_required` while a desktop owns the profile, and `assist --sources`
 and `labels counts` do too. The channel is a same-user local socket on macOS and Linux and an
-owner-private named pipe on Windows ([[BPR-1168]]), protocol 8; an owner of
+owner-private named pipe on Windows ([[BPR-1168]]), protocol 9; an owner of
 another protocol version answers `owner_protocol_unsupported` before anything is
 sent. The same channel
 carries `bpr cycle` commands ([Review Cycles terminal](cycle-cli.md)).
@@ -373,11 +373,10 @@ selected stop, and a stale edit is a `revision_conflict` that keeps both texts.
 ## Hooks and assistance for the active agent
 
 `hooks show [HOOK]`, `hooks edit HOOK [--file PATH|-]` and `hooks reset HOOK` read
-and change the profile's five writing hooks, the same overrides the desktop's Agents
-& context settings edit; each change advances the hook revision. Four are the tour's
-(problem, solution, outline, comment, version `review-preparation-v1`). The fifth,
-`feedback` ([[BPR-1090]]), is the review-feedback conventions guidance
-(`review-feedback-v1`): it writes no tour field, so `assist context --hook feedback`
+and change the profile's writing hooks, the same overrides the desktop's Agents
+& context settings edit; each change advances the hook revision. Two are the tour's
+(outline and comment; [[BPR-2274]] retired problem and solution). `feedback`
+([[BPR-1090]]) is the review-feedback conventions guidance (`review-feedback-v4`): it writes no tour field, so `assist context --hook feedback`
 is `invalid_hook`, and comment workshop requests carry it only while the label helper
 is on. Each listed hook gives its `version`, whether it is `customized` and whether it
 is `active`; the listing gives `label_helper`, and its text marks the feedback hook
@@ -391,8 +390,7 @@ desktop older than the feedback hook answers `hooks show feedback` with
 target, reads the draft, takes the effective hook and returns one JSON packet: the
 hook's name, version, revision and instructions, the parent result contract, the
 exact field and byte range, the bounded sources, what was omitted, and the full
-prompt the desktop would send. `--hook problem --field problem`, `--hook solution
---field solution` or `--hook comment --field stop:ID` name the field. With no
+prompt the desktop would send. `--hook comment --field stop:ID` names the field. With no
 selection the whole field is the target and an empty field is drafted. `--quote
 TEXT` resolves one exact current match (zero or several is an error, never widened)
 and `--range-bytes BEGIN:END` names half-open UTF-8 bytes that must sit on character
@@ -411,7 +409,7 @@ later process or another owner. `assist cancel` closes it explicitly.
 the JSON object the prompt describes. It supplies replacement text and notes only, never a target, range, hook,
 approval or ready flag, and any such field makes the result invalid. A valid result
 replaces only the ticketed bytes, at once, as one undoable transaction (`Rewrite
-Problem`, `Rewrite Solution`, `Rewrite comment`); an identical result changes nothing.
+comment`); an identical result changes nothing.
 Answering spends the ticket whether or not the result was usable. An outline answer
 is a body-free proposal, and `outline use PROPOSAL --indices 0,2 [--after STOP]`
 inserts the chosen suggestions as Suggested stops that are neither visited nor ready.
@@ -536,8 +534,8 @@ a confirmation. The context packet marks `agent_identity` as `unverified`; the
 accepts exactly the parent result contract: an extra key such as `target`, `range`,
 `approval`, `provider` or `ready`, a repeated key, or text after the object makes it
 invalid and spends the ticket. Untrusted text reaches the agent only as escaped strings
-inside the prompt's evidence JSON. The packet carries the draft's own problem and
-solution, the selected passage and its neighbours and, for a comment, that stop's own
+inside the prompt's evidence JSON. The packet carries the selected passage and its
+neighbours and, for a comment, that stop's own
 source; never another stop's comment, an outline's private prompts, earlier text or
 undo history, and it lists what it omitted. A request too large to send
 (`context_too_large`) is refused before it can disturb a pending one.

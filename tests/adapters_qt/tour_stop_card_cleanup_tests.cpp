@@ -1,6 +1,6 @@
 // [[BPR-1936]], owner 2026-11-08, on the author's Tour tab: the stop card
-// collapses by its number or its header's empty space (stops, Problem and
-// Solution alike) without moving the tour; it edits as the overview's
+// collapses by its number or its header's empty space without moving the
+// tour; it edits as the overview's
 // description does (the title wrapped and whole, no mode label, Cancel and
 // Save at the foot); Use selected lines lives only in the editor; Accept
 // (RFC-BPR-0106, once Ready, next) is never a permanently disabled primary button; no file chip sits on the
@@ -249,26 +249,9 @@ auto main(int argc, char** argv) -> int
 	outline->setCurrentRow(2, QItemSelectionModel::ClearAndSelect);
 	settle();
 	expect(!editor->stop_collapsed() && card_of(*editor) != nullptr, "another stop opens expanded");
-	// Problem and Solution collapse by their headers.
-	editor->open_step(core::tour_step::problem);
-	settle();
-	auto* const problemRow = editor->findChild<QAbstractButton*>(QStringLiteral("tourProblemRow"));
-	expect(editor->problem_editor()->isVisible(), "Problem opens");
-	problemRow->click();
-	settle();
-	expect(!editor->problem_editor()->isVisible() && editor->step_collapsed(), "its header collapses it");
-	problemRow->click();
-	settle();
-	expect(editor->problem_editor()->isVisible() && !editor->step_collapsed(), "and opens it again");
-	editor->open_step(core::tour_step::solution);
-	settle();
-	auto* const solutionRow = editor->findChild<QAbstractButton*>(QStringLiteral("tourSolutionRow"));
-	solutionRow->click();
-	settle();
-	expect(!editor->solution_editor()->isVisible(), "Solution collapses by its header too");
 	editor->show_stops();
 	settle();
-	expect(!editor->step_collapsed() && outline->isVisible(), "showing the stops opens them");
+	expect(outline->isVisible(), "showing the stops shows them");
 
 	// AC9. Remove is in every stop's menu, enabled, and the trash removes its own stop.
 	auto* const menu   = editor->findChild<QMenu*>(QStringLiteral("tourStopMenu"));

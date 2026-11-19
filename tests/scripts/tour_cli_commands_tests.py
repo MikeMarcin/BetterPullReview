@@ -52,10 +52,10 @@ if mode == "cancel": time.sleep(30)
         env = dict(os.environ, BPR_TOUR_EDITOR_ARGV=json.dumps([sys.executable, str(fixture), mode,
                    "$(touch NOT_EXECUTED); | & `literal`"]), CANDIDATE_RECORD=str(record),
                    CHILD_RECORD=str(child_record), OUTSIDE_FILE=str(outside),
-                   CONCURRENT_EDIT=json.dumps([binary, "tour", "edit", "problem", *select,
+                   CONCURRENT_EDIT=json.dumps([binary, "tour", "edit", "stop:1:body", *select,
                    "--expected-revision", expected, "--file", "-", "--json", "--data-root", str(root)]))
         master, slave = pty.openpty()
-        child = subprocess.Popen([binary, "tour", "edit", "problem", *select, "--expected-revision", expected,
+        child = subprocess.Popen([binary, "tour", "edit", "stop:1:body", *select, "--expected-revision", expected,
                                   "--data-root", str(root)], stdin=slave, stdout=slave, stderr=slave, env=env)
         os.close(slave)
         output = bytearray()
@@ -85,19 +85,19 @@ if mode == "cancel": time.sleep(30)
         return child.returncode, bytes(output), Path(record.read_text())
     for mode, code in [("success", 0), ("failure", 7), ("crash", 7), ("invalid", 2), ("symlink", 7), ("cancel", 130), ("conflict", 4)]:
         before = revision()
-        previous = json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"]
+        previous = json.loads(invoke("show", "stop:1", *select, "--json").stdout)["data"]["text"]
         actual, output, candidate = tty_editor(mode, before)
         assert actual == code, (mode, actual, output)
         assert b"\x1b" not in output
         if mode == "success":
             assert not candidate.exists()
-            assert json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"] == "editor α\r\n\r\n"
+            assert json.loads(invoke("show", "stop:1", *select, "--json").stdout)["data"]["text"] == "editor α\r\n\r\n"
             undone = invoke("undo", *select, "--expected-revision", revision(), "--json")
-            assert undone.returncode == 0 and json.loads(undone.stdout)["data"]["transaction_label"] == "Edit Problem"
-            assert json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"] == previous
+            assert undone.returncode == 0 and json.loads(undone.stdout)["data"]["transaction_label"] == "Edit stop"
+            assert json.loads(invoke("show", "stop:1", *select, "--json").stdout)["data"]["text"] == previous
         else:
             assert str(candidate).encode() in output and candidate.parent.exists()
-            current = json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"]
+            current = json.loads(invoke("show", "stop:1", *select, "--json").stdout)["data"]["text"]
             assert current == ("concurrent winner" if mode == "conflict" else previous)
             assert revision() != before if mode == "conflict" else revision() == before
             candidate.unlink()
@@ -155,27 +155,26 @@ def walk_checks(binary, root, select, invoke, temporary):
         assert b"\x1b" not in output, output
         return child.returncode, bytes(output)
     field = Path(temporary) / "manual field.md"
-    for name, content in [("problem", "Manual problem α\n"), ("solution", "Manual solution β\n")]:
-        field.write_text(content)
-        code, output = terminal_run(["edit", name, *select, "--file", str(field)])
-        assert code == 0, output
     field.write_text("Comment with OSC \x1b]52;c;ZXZpbA==\x07 and bidi \u202e literal\n")
     for path in ["資料 α.txt:1-1", "second.cpp:1-1"]:
         code, output = terminal_run(["add", path, *select, "--file", str(field)])
         assert code == 0, output
     status = json.loads(invoke("status", *select, "--json").stdout)["data"]
-    assert [x["stop_id"] for x in status["stops"]] == ["1", "2"]
+    ids = [x["stop_id"] for x in status["stops"]]
+    assert len(ids) == 2, ids
+    first, second = ids
     before_show = status["revision"]
-    source = json.loads(invoke("show", "stop:1", *select, "--source", "--json").stdout)["data"]
+    source = json.loads(invoke("show", "stop:" + first, *select, "--source", "--json").stdout)["data"]
     assert source["source_availability"] == "available" and source["text"] == field.read_text()
     assert json.loads(invoke("status", *select, "--json").stdout)["data"]["revision"] == before_show
-    code, output = terminal_run(["walk", *select], ["m after 2", "n", "p", "r", "r"])
+    code, output = terminal_run(["walk", *select], ["m after " + second, "n", "p", "r", "r"])
     assert code == 0 and b"1 | fixture source" in output and b"Source unavailable" not in output, output
     assert b"\\u001b" in output and "資料 α.txt".encode() in output, output
     status = json.loads(invoke("status", *select, "--json").stdout)["data"]
-    assert [x["stop_id"] for x in status["stops"]] == ["2", "1"]
+    assert [x["stop_id"] for x in status["stops"]] == [second, first]
     assert all(x["ready"] and x["completion_origin"] == "observed" for x in status["stops"])
-    for cursor, field_name in [(None, "Problem"), ("1", "Solution"), ("2", "Stop 2"), ("3", "Stop 1")]:
+    # [[BPR-2274]]. A page per stop: a tour is only its stops.
+    for cursor, field_name in [(None, "Stop " + second), ("1", "Stop " + first)]:
         command = ["preview", *select] + (["--cursor", cursor] if cursor else [])
         page = invoke(*command, "--json")
         assert page.returncode == 0, page.stdout
@@ -214,9 +213,9 @@ def owner_checks(binary, root, select, invoke, temporary):
     def revision():
         return json.loads(invoke("status", *select, "--json").stdout)["data"]["revision"]
     def problem():
-        return json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"]
+        return json.loads(invoke("show", "stop:1", *select, "--json").stdout)["data"]["text"]
     def edit(text, expected, request_id):
-        return invoke("edit", "problem", *select, "--expected-revision", expected, "--request-id", request_id,
+        return invoke("edit", "stop:1:body", *select, "--expected-revision", expected, "--request-id", request_id,
                       "--file", "-", "--json", data=text.encode())
     def owner(*extra):
         child = subprocess.Popen([binary, "--serve-owner", str(root), "1", *extra], stdout=subprocess.PIPE,
@@ -256,7 +255,7 @@ def owner_checks(binary, root, select, invoke, temporary):
     # The owner commits and dies before answering: the caller is told the outcome is unknown, the
     # request ID proves the commit, and a retry returns the stored outcome without a second edit.
     stalled = owner("--stall-after-commit")
-    caller = subprocess.Popen([binary, "tour", "edit", "problem", *select, "--expected-revision", current,
+    caller = subprocess.Popen([binary, "tour", "edit", "stop:1:body", *select, "--expected-revision", current,
                                "--request-id", "owner-3", "--file", "-", "--json", "--data-root", str(root)],
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
@@ -297,7 +296,7 @@ path.write_bytes("edited across an owner restart \u03b1\n".encode())
     env = dict(os.environ, BPR_TOUR_EDITOR_ARGV=json.dumps([sys.executable, str(fixture)]), FIRST_OWNER_PID=str(first_pid),
                SECOND_OWNER=json.dumps([binary, "--serve-owner", str(root), "1"]), SECOND_OWNER_PID=str(second_pid))
     master, slave = pty.openpty()
-    editing = subprocess.Popen([binary, "tour", "edit", "problem", *select, "--expected-revision", before_restart,
+    editing = subprocess.Popen([binary, "tour", "edit", "stop:1:body", *select, "--expected-revision", before_restart,
                                 "--request-id", "owner-restart-1", "--data-root", str(root)], stdin=slave, stdout=slave, stderr=slave, env=env)
     os.close(slave)
     try:
@@ -347,38 +346,42 @@ def main():
         target = json.loads(opened.stdout)["data"]
         select = ["--profile", "1", "--draft", target["draft_id"]]
         revision = target["revision"]
-        refused = invoke("edit", "problem", *select, "--expected-revision", revision, "--json")
+        # [[BPR-2274]]. A tour is its stops: the text these checks edit is a
+        # seeded stop's explanation, removed before the walk builds its own.
+        seeded = invoke("add", "資料 α.txt:1-1", *select, "--expected-revision", revision, "--file", "-", "--json", data=b"Seed\n")
+        assert seeded.returncode == 0, seeded.stdout
+        revision = json.loads(seeded.stdout)["data"]["revision"]
+        refused = invoke("edit", "stop:1:body", *select, "--expected-revision", revision, "--json")
         assert refused.returncode == 3 and json.loads(refused.stdout)["error"]["code"] == "interaction_required"
         raw = "Problem α\r\n\r\n".encode()
-        edited = invoke("edit", "problem", *select, "--expected-revision", revision,
+        edited = invoke("edit", "stop:1:body", *select, "--expected-revision", revision,
                         "--file", "-", "--json", data=raw)
         assert edited.returncode == 0 and not edited.stderr, edited.stdout
         revision = json.loads(edited.stdout)["data"]["revision"]
-        shown = invoke("show", "problem", *select, "--json")
+        shown = invoke("show", "stop:1", *select, "--json")
         assert json.loads(shown.stdout)["data"]["text"].encode() == raw
-        human = invoke("show", "problem", *select)
+        human = invoke("show", "stop:1", *select)
         assert human.returncode == 0 and not human.stdout.startswith(b"{")
         assert b"revision " + revision.encode() in human.stdout and b"Problem" in human.stdout
         # An explicit empty stream is an empty field, not a prompt or a guessed default.
-        cleared = invoke("edit", "solution", *select, "--expected-revision", revision,
+        cleared = invoke("edit", "stop:1:title", *select, "--expected-revision", revision,
                          "--file", "-", "--json", data=b"")
         assert cleared.returncode == 0
         revision = json.loads(cleared.stdout)["data"]["revision"]
         undone = invoke("undo", *select, "--expected-revision", revision, "--json")
         assert undone.returncode == 0, undone.stdout
-        assert json.loads(undone.stdout)["data"]["transaction_label"] == "Edit Problem"
+        assert json.loads(undone.stdout)["data"]["transaction_label"] == "Edit stop"
         revision = json.loads(undone.stdout)["data"]["revision"]
-        assert json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"] == ""
         redone = invoke("redo", *select, "--expected-revision", revision, "--json")
         assert redone.returncode == 0, redone.stdout
         revision = json.loads(redone.stdout)["data"]["revision"]
-        assert json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"].encode() == raw
+        assert json.loads(invoke("show", "stop:1", *select, "--json").stdout)["data"]["text"].encode() == raw
         for body, code in [(b"\xff", "invalid_utf8"), (b"a"*65537, "input_too_large")]:
-            failed = invoke("edit", "problem", *select, "--expected-revision", revision,
+            failed = invoke("edit", "stop:1:body", *select, "--expected-revision", revision,
                             "--file", "-", "--json", data=body)
             assert failed.returncode == 2 and json.loads(failed.stdout)["error"]["code"] == code
         if os.name != "nt":
-            command = [binary, "tour", "edit", "problem", *select, "--expected-revision", revision,
+            command = [binary, "tour", "edit", "stop:1:body", *select, "--expected-revision", revision,
                        "--file", "-", "--json", "--data-root", str(root)]
             waiting = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:
@@ -397,11 +400,14 @@ def main():
                     waiting.kill()
                     waiting.wait(timeout=10)
                 waiting.stdin.close()
-            assert json.loads(invoke("show", "problem", *select, "--json").stdout)["data"]["text"].encode() == raw
+            assert json.loads(invoke("show", "stop:1", *select, "--json").stdout)["data"]["text"].encode() == raw
         if os.name != "nt":
             editor_checks(binary, root, select, invoke, temporary)
-            walk_checks(binary, root, select, invoke, temporary)
             owner_checks(binary, root, select, invoke, temporary)
+            current = json.loads(invoke("status", *select, "--json").stdout)["data"]["revision"]
+            removed = invoke("remove", "1", *select, "--expected-revision", current, "--json")
+            assert removed.returncode == 0, removed.stdout
+            walk_checks(binary, root, select, invoke, temporary)
     print("tour-cli-process-commands:pass")
 
 

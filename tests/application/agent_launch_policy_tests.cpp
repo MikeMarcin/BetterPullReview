@@ -516,7 +516,7 @@ namespace {
 		expect(reading && reading->find("PATCH_MARKER") == std::string::npos && reading->find("read-only git") != std::string::npos, "the repository-reading draft is told to read");
 		const auto parts = application::split_tour_prompt(*upFront);
 		expect(parts.Instructions + parts.Message == *upFront && parts.Message.starts_with("Untrusted evidence JSON") && parts.Instructions.find("PATCH_MARKER") == std::string::npos
-				   && parts.Instructions.find("bpr.tour-draft.v1") != std::string::npos,
+				   && parts.Instructions.find("bpr.tour-draft.v2") != std::string::npos,
 			   "[[BPR-2140]] the instructions split from the evidence, and joined they are the prompt");
 		expect(parts.Instructions.size() <= core::maximum_system_prompt_argument_bytes, "Draft Tour's instructions fit the system prompt argument");
 		const auto diff = application::render_up_front_diff(files);

@@ -277,12 +277,17 @@ any particular private pull request can render.
 
 ## Review-tour preparation
 
-Authors can prepare and privately save Problem, Solution and an ordered source
-tour without AI. The [operator workflow](../development/review-tours.md) describes
-editing, exact source/fallback subjects, cold import, website conflicts and
-partial recovery. Explicit description updates are a narrow **body-only**
-extension; the original title, draft status and other PR-management state have
-no tour mutation operation. Production Tour publication is on by the
+Authors can prepare and privately save an ordered source tour without AI. A
+tour is only its stops ([[BPR-2274]], owner 2026-11-18): it has no Problem or
+Solution and no fixed sections. The [operator workflow](../development/review-tours.md)
+describes editing, exact source/fallback subjects, cold import, website
+conflicts and partial recovery. Publishing a tour posts its stops and never
+writes or edits the pull request description; text an earlier build put in a
+description stays as GitHub has it. The shipped prompt "Draft a description"
+drafts or rewrites the description from the diff, and from the tour's stops
+when there is one, as text the author applies; it publishes nothing. The
+original title, draft status and other PR-management state have no tour
+mutation operation. Production Tour publication is on by the
 [owner amendment of 2026-10-09](../issues/40-parked/BPR-1222-qualify-live-github-review-tours.md#owner-amendment-2026-10-09-publication-on-and-files-changed-links);
 each publish still needs its typed or dialog confirmation of the exact plan, and
 operations the BPR-Test course did not try stay listed as untried there.

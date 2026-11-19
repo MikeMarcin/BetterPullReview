@@ -165,9 +165,9 @@ namespace {
 		effects.drain();
 		decisions.drain();
 
-		published.Problem = std::string{ canary };
-		auto other        = published;
-		other.Head        = *core::parse_git_commit_oid("2222222222222222222222222222222222222222");
+		published.Stops.front().Body = std::string{ canary };
+		auto other                   = published;
+		other.Head                   = *core::parse_git_commit_oid("2222222222222222222222222222222222222222");
 		host.observe_imports({ { .Label = std::string{ canary }, .Draft = published }, { .Label = "/" + std::string{ canary }, .Draft = other } });
 		expect(log.Events.size() == 1U && log.Events[0].Outcome == diagnostic_outcome::succeeded && log.line(0U).starts_with("action=tour_observe_imports failure=none ")
 				   && core::parse_operation_diagnosis(log.line(0U))->Count == 2U,
@@ -180,7 +180,7 @@ namespace {
 		host.import_selected(0U);
 		const auto imported = core::parse_operation_diagnosis(log.last());
 		expect(log.Events.back().Outcome == diagnostic_outcome::succeeded && imported && imported->Action == core::operation_action::tour_import && imported->Count == 1U
-				   && host.presentation().Draft->Problem == canary,
+				   && host.presentation().Draft->Stops.front().Body == canary,
 			   "an import records its success and the offered stop count");
 		host.import_selected(0U);
 		expect(log.last().starts_with("action=tour_import failure=draft_exists "), "a second import cannot replace the private draft");

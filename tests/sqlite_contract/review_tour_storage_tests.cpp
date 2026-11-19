@@ -80,7 +80,7 @@ namespace {
 			core::review_tour again;
 			read11.tour(again);
 			expect(read11.Good && read11.Input.empty() && again == carried, "the current version keeps what was accepted exactly");
-			// Re-review finding 1: version 12 keeps the earlier observed heads a
+			// Re-review finding 1: version 12 (and [[BPR-2274]] 13) keeps the earlier observed heads a
 			// stop has its lines at; version 11 records none and reads back as such.
 			auto observed         = carried;
 			observed.ObservedHead = *core::parse_git_commit_oid("3333333333333333333333333333333333333333");
@@ -90,7 +90,7 @@ namespace {
 			auto              read12 = adapters::sqlite::detail::tour_codec{ .Input = version12.Bytes, .Reading = true };
 			core::review_tour heads;
 			read12.tour(heads);
-			expect(version12.Version == 12 && read12.Good && read12.Input.empty() && heads == observed, "version 12 keeps the earlier observed heads");
+			expect(version12.Version == 13 && read12.Good && read12.Input.empty() && heads == observed, "version 12 keeps the earlier observed heads");
 			adapters::sqlite::detail::tour_codec version11;
 			version11.Version = 11;
 			version11.tour(observed);
@@ -111,10 +111,9 @@ namespace {
 		core::review_tour restored2;
 		read2.tour(restored2);
 		expect(read2.Good && read2.Input.empty() && restored2 == original, "v2 remote draft remains exactly readable by v3");
-		original.Stops[0].Destination       = core::destination_of(*original.Stops[0].Original);
-		original.RemoteStale                = true;
-		original.ProblemBaseline->DraftText = "exact editor baseline";
-		original.Conflicts.push_back({ core::tour_conflict_field::problem, { }, "old raw α\r\n", "local desired α\r\n", "website raw α\r\n", *original.ProblemBaseline });
+		original.Stops[0].Destination = core::destination_of(*original.Stops[0].Original);
+		original.RemoteStale          = true;
+		original.Conflicts.push_back({ core::tour_conflict_field::stop, original.Stops[0].Id, "old raw α\r\n", "local desired α\r\n", "website raw α\r\n", core::tour_field_baseline{ .Raw = "website raw α\r\n", .RemoteEntity = "PR_fixture", .DraftText = "exact editor baseline" } });
 		original.IncomingRoute           = original.Stops;
 		original.ObservedHead            = original.Head;
 		original.Stops[0].ReaffirmedHead = original.Head;
@@ -246,7 +245,7 @@ namespace {
 		auto                                 store  = adapters::sqlite::make_review_tour_store(scratch.path(), before.Owner.Profile);
 		expect(store->save(before, 0, { }).has_value(), "save journal base");
 		const auto                           after = core::apply(before, tests::tour_edit(before, "raw α\r\n")).Accepted;
-		const application::tour_stored_state state{ after, { { before, before.Stops[0].Id, "Edit Problem", application::tour_presentation_origin::terminal } }, { }, { application::tour_section::stops, before.Stops[0].Id } };
+		const application::tour_stored_state state{ after, { { before, before.Stops[0].Id, "Edit stop", application::tour_presentation_origin::terminal } }, { }, { before.Stops[0].Id } };
 		expect(store->save_state(state, before.Revision, { }).has_value(), "current text and undo saved in one CAS record");
 		store.reset();
 		store = adapters::sqlite::make_review_tour_store(scratch.path(), before.Owner.Profile);
@@ -263,7 +262,7 @@ namespace {
 			sqlite3_auto_extension(reinterpret_cast<void (*)()>(install_kill));
 			auto next  = state;
 			next.Draft = core::apply(after, tests::tour_edit(after, "uncommitted replacement")).Accepted;
-			next.Undo.push_back({ after, { }, "Edit Problem" });
+			next.Undo.push_back({ after, { }, "Edit stop" });
 			static_cast<void>(store->save_state(next, after.Revision, { }));
 			_exit(74);
 		}
@@ -288,16 +287,16 @@ namespace {
 			return *host.presentation().Draft;
 		};
 		const auto undone = apply(false, after.Revision);
-		expect(undone.Problem == before.Problem && undone.Stops == before.Stops && undone.Revision > after.Revision, "undo restores exact content with a new invalidating revision");
+		expect(undone.Stops == before.Stops && undone.Revision > after.Revision, "undo restores exact content with a new invalidating revision");
 		const auto redone = apply(true, undone.Revision);
-		expect(redone.Problem == after.Problem && redone.Stops == after.Stops, "redo across host recreation restores exact stored bytes");
+		expect(redone.Stops == after.Stops, "redo across host recreation restores exact stored bytes");
 	}
 
 	void bounded_history()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "tour-bounds" };
 		auto                                 seed = tests::review_tour_fixture();
-		seed.Conflicts.push_back({ core::tour_conflict_field::solution, { }, "baseline", "private candidate", "website candidate", { } });
+		seed.Conflicts.push_back({ core::tour_conflict_field::stop, seed.Stops.front().Id, "baseline", "private candidate", "website candidate", { } });
 		application::manual_executor  effects, decisions;
 		application::review_tour_host host{ seed, adapters::sqlite::make_review_tour_store(scratch.path(), seed.Owner.Profile), effects, decisions, { } };
 		host.start();
@@ -313,7 +312,7 @@ namespace {
 		const auto before = store->load_state(seed.Owner, seed.Id, { }).value().value();
 		expect(before.Undo.size() == application::maximum_tour_history_entries && before.Draft.Conflicts == seed.Conflicts, "bounded history never evicts unresolved conflict candidates");
 		expect(before.Undo.back().Origin == application::tour_presentation_origin::command_client, "private origin survives real store reload");
-		expect(host.execute({ .Command = tests::tour_edit(*host.presentation().Draft, before.Draft.Problem) }).Status == application::tour_service_status::unchanged, "same text adds no journal transaction");
+		expect(host.execute({ .Command = tests::tour_edit(*host.presentation().Draft, before.Draft.Stops.front().Body) }).Status == application::tour_service_status::unchanged, "same text adds no journal transaction");
 		effects.drain();
 		decisions.drain();
 		expect(store->load_state(seed.Owner, seed.Id, { }).value().value() == before, "no-op leaves text, revision and history unchanged");
@@ -362,10 +361,10 @@ namespace {
 			replay.Command.ExpectedRevision = 1;
 			const auto again                = aHost.execute(replay);
 			expect(again.Replayed && again.Status == application::tour_service_status::accepted && again.Revision == first.first.Revision, "a duplicate after restart returns the stored outcome");
-			expect(aHost.presentation().Draft->Problem == "receipt text" && aHost.presentation().Draft->Revision == first.first.Revision, "the duplicate changed nothing");
+			expect(aHost.presentation().Draft->Stops.front().Body == "receipt text" && aHost.presentation().Draft->Revision == first.first.Revision, "the duplicate changed nothing");
 			const auto clash = aHost.execute(request(*aHost.presentation().Draft, "another payload", "req-a", 2));
 			expect(clash.Status == application::tour_service_status::refused && clash.Refusal == core::tour_refusal::identity && !clash.Replayed, "the same ID with another payload refuses");
-			expect(aHost.presentation().Draft->Problem == "receipt text", "the clash changed nothing");
+			expect(aHost.presentation().Draft->Stops.front().Body == "receipt text", "the clash changed nothing");
 			return 0;
 		});
 		// An unchanged or refused request also leaves a durable record, though the draft revision does not move.
@@ -401,8 +400,8 @@ namespace {
 		auto same = state->value();
 		same.Receipts.push_back({ "req-c", { }, 1, core::tour_refusal::none, same.Draft.Revision });
 		expect(store->save_state(same, same.Draft.Revision, { }).has_value(), "a receipt-only save at the current revision commits");
-		auto forged          = same;
-		forged.Draft.Problem = "changed without a revision";
+		auto forged                     = same;
+		forged.Draft.Stops.front().Body = "changed without a revision";
 		forged.Receipts.push_back({ "req-d", { }, 1, core::tour_refusal::none, forged.Draft.Revision });
 		const auto refused = store->save_state(forged, forged.Draft.Revision, { });
 		expect(!refused && refused.error().Failure == application::tour_store_failure::conflict, "same-revision content cannot be smuggled in beside a receipt");
@@ -412,8 +411,9 @@ namespace {
 	void durable_assist_tickets()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "tour-assist" };
-		const auto                           seed = tests::review_tour_fixture();
-		const auto                           run  = [&](auto&& aStep) {
+		auto                                 seed = tests::review_tour_fixture();
+		seed.Stops.front().Body                   = "Crash when reading data that's been concurrently deleted.";
+		const auto run                            = [&](auto&& aStep) {
 			application::manual_executor  effects, decisions;
 			application::review_tour_host host{ seed, adapters::sqlite::make_review_tour_store(scratch.path(), seed.Owner.Profile), effects, decisions, [](const auto&) { } };
 			host.start();
@@ -430,8 +430,8 @@ namespace {
 		const std::int64_t now    = 5000;
 		const auto         issued = run([&](application::review_tour_host& aHost) {
 			const auto                      draft = aHost.presentation().Draft;
-			application::tour_assist_ticket ticket{ .Hook = core::writing_hook::problem, .Scope = core::writing_scope::selection, .Begin = 6, .End = 11, .DraftRevision = draft->Revision, .HookRevision = 3, .Sources = { { "field-before", "Crash ", std::nullopt } }, .Session = "cli" };
-			ticket.RawDigest  = core::writing_digest(draft->Problem);
+			application::tour_assist_ticket ticket{ .Hook = core::writing_hook::comment, .Stop = draft->Stops.front().Id, .Scope = core::writing_scope::selection, .Begin = 6, .End = 11, .DraftRevision = draft->Revision, .HookRevision = 3, .Sources = { { "field-before", "Crash ", std::nullopt } }, .Session = "cli" };
+			ticket.RawDigest  = core::writing_digest(draft->Stops.front().Body);
 			const auto result = aHost.assist_issue(ticket, now);
 			expect(result.has_value(), "the first host issues a ticket");
 			return *result;
@@ -444,7 +444,7 @@ namespace {
 			application::tour_service_request request{ .Command = { .Draft = draft->Id, .Owner = draft->Owner }, .Operation = application::tour_service_operation::assist_complete, .Origin = application::tour_presentation_origin::command_client, .RequestId = "complete-1", .Assist = { .Id = issued.Id, .ResultJson = "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"ok\",\"replacement_text\":\"When\",\"notes\":[]}", .Now = now + 5, .CurrentHookRevision = 3 } };
 			request.Digest.fill(9);
 			const auto result = aHost.execute(request);
-			expect(result.Status == application::tour_service_status::accepted && aHost.presentation().Draft->Problem.starts_with("Crash When"), "a later process completes exactly the issued range");
+			expect(result.Status == application::tour_service_status::accepted && aHost.presentation().Draft->Stops.front().Body.starts_with("Crash When"), "a later process completes exactly the issued range");
 			return 0;
 		});
 		// Spending it was durable too, and a lost answer replays from the record.
@@ -462,7 +462,7 @@ namespace {
 		expect(state && state->has_value(), "the stored record");
 		auto invalid           = state->value();
 		invalid.AssistSequence = 5;
-		application::tour_assist_ticket good{ .Id = 2, .Hook = core::writing_hook::problem, .Scope = core::writing_scope::field, .Begin = 0, .End = 1, .DraftRevision = 1, .HookRevision = 1, .Session = "x" };
+		application::tour_assist_ticket good{ .Id = 2, .Hook = core::writing_hook::comment, .Stop = core::tour_stop_id{ 1 }, .Scope = core::writing_scope::field, .Begin = 0, .End = 1, .DraftRevision = 1, .HookRevision = 1, .Session = "x" };
 		invalid.Tickets.push_back(good);
 		expect(application::valid(invalid), "a bounded ticket is valid");
 		auto future                          = invalid;
@@ -478,7 +478,7 @@ namespace {
 		hostile.Tickets.front().Sources.push_back({ "s", std::string(4097, 'x'), std::nullopt });
 		expect(!application::valid(hostile), "an oversized source is not valid");
 		auto stopless                 = invalid;
-		stopless.Tickets.front().Hook = core::writing_hook::comment;
+		stopless.Tickets.front().Stop = core::tour_stop_id{ };
 		expect(!application::valid(stopless), "a comment ticket must name its stop and no other hook may");
 		expect(store->save_state(invalid, invalid.Draft.Revision, { }).has_value(), "a ticket-only save at the current revision commits");
 		auto reread = store->load_state(seed.Owner, seed.Id, { });
@@ -506,11 +506,11 @@ namespace {
 		second.dispatch(tests::tour_edit(*second.presentation().Draft, "other window text"));
 		effects.drain();
 		decisions.drain();
-		expect(second.presentation().Conflict && second.presentation().Conflict->Problem == "final coalesced" && second.presentation().Draft->Problem == "other window text", "two composed windows retain both conflicting texts");
+		expect(second.presentation().Conflict && second.presentation().Conflict->Stops.front().Body == "final coalesced" && second.presentation().Draft->Stops.front().Body == "other window text", "two composed windows retain both conflicting texts");
 		second.use_saved_copy();
-		expect(second.presentation().Draft->Problem == "final coalesced", "explicit conflict resolution");
+		expect(second.presentation().Draft->Stops.front().Body == "final coalesced", "explicit conflict resolution");
 		auto reopened = adapters::sqlite::make_review_tour_store(scratch.path(), seed.Owner.Profile);
-		expect(reopened->load(seed.Owner, seed.Id, { }).value()->Problem == "final coalesced", "restarted store returns final edit");
+		expect(reopened->load(seed.Owner, seed.Id, { }).value()->Stops.front().Body == "final coalesced", "restarted store returns final edit");
 		second.shutdown();
 	}
 }

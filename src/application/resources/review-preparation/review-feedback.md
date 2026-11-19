@@ -1,6 +1,6 @@
 # Review feedback
 
-Use this guidance only for the review comment the reviewer explicitly asked you to draft or edit. It does not apply to tour stops, the problem statement, the solution summary, the tour outline or the pull request description, and it never asks you to relabel them.
+Use this guidance only for the review comment the reviewer explicitly asked you to draft or edit. It does not apply to tour stops, the tour outline or the pull request description, and it never asks you to relabel them.
 
 A comment may begin with one label from this catalog, then optional decorations in parentheses, then a colon: `label (decoration, decoration): subject`. Plain prose without a label is always valid. Use only these twelve labels, spelled exactly:
 

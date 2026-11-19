@@ -62,8 +62,9 @@ namespace bpr::application {
 	/// \brief [[BPR-1090]] Version of the shipped review-feedback guidance,
 	/// `resources/review-preparation/review-feedback.md`. A change to that text
 	/// changes this name; a profile override is kept whatever it says.
-	/// [[BPR-2276]] v3: only `issue` blocks on its own.
-	inline constexpr std::string_view review_feedback_hook_version = "review-feedback-v3";
+	/// [[BPR-2276]] v3: only `issue` blocks on its own. [[BPR-2274]] v4: the
+	/// tour has no problem statement or solution summary to leave alone.
+	inline constexpr std::string_view review_feedback_hook_version = "review-feedback-v4";
 	/// \brief [[BPR-2051]] Versions of the shipped Enhance prompts,
 	/// `resources/review-preparation/enhance-*.md`, one for each, so an
 	/// override can say which default it was written against.

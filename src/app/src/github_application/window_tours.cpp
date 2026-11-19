@@ -221,7 +221,7 @@ namespace bpr::app {
 		// copies reachable by their immutable owner when that PR is reopened.
 		std::erase_if(RetiredTourHosts, [](const auto& aRetained) {
 			const auto p         = aRetained.Host->presentation();
-			const bool untouched = p.Draft && p.Draft->Revision == 1U && p.Draft->Problem.empty() && p.Draft->Solution.empty() && p.Draft->Stops.empty() && !p.Draft->ProblemBaseline && !p.Draft->SolutionBaseline;
+			const bool untouched = p.Draft && p.Draft->Revision == 1U && p.Draft->Stops.empty();
 			return aRetained.Host->is_quiescent() && !p.Failure && p.Draft && (p.SavedRevision == p.Draft->Revision || untouched);
 		});
 		Window->prepare_tour_action()->setEnabled(false);
@@ -396,7 +396,7 @@ namespace bpr::app {
 		}
 		const auto  shown   = TourHost->presentation();
 		const auto& draft   = shown.Draft;
-		const auto  replace = draft && (draft->Remote ? draft->Remote->Entity == aRoot.Entity : draft->Problem.empty() && draft->Solution.empty() && draft->Stops.empty());
+		const auto  replace = draft && (draft->Remote ? draft->Remote->Entity == aRoot.Entity : draft->Stops.empty());
 		PendingTourStart    = replace;
 		PendingTourStop.reset();
 		Window->open_review_tour();
@@ -462,20 +462,10 @@ namespace bpr::app {
 		}
 		TourOwner         = owner;
 		TourAttentionHead = { };
-		// RFC-BPR-0110 X19: a pull request made from a local draft keeps its
-		// accepted description; publishing its tour starts with the option off.
-		if (DraftDesktop && WindowRead->accepted_snapshot()) {
-			const auto& snapshot = *WindowRead->accepted_snapshot();
-			const auto& marks    = DraftDesktop->host().home().Marks;
-			const auto  local    = std::ranges::any_of(marks, [&snapshot](const application::local_draft_mark& aMark) {
-				return aMark.Owner == snapshot.Repository.Owner && aMark.Name == snapshot.Repository.Name && aMark.Number == snapshot.PullRequest.Number.value();
-			});
-			Window->tour_editor()->set_description_publication_default(core::update_description_by_default(local));
-		}
-		auto       seed = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = owner, .Base = aHandoff.Base, .Head = aHandoff.Head };
-		const auto weak = std::weak_ptr<const int>{ WindowLifetime };
-		TourHost        = std::make_unique<application::review_tour_host>(std::move(seed), adapters::sqlite::make_review_tour_store(ApplicationDataRoot, DraftWindow.Profile), WorkbenchEffects, DecisionLane,
-																		  [this, weak, owner](const application::tour_presentation& aProjection) {
+		auto       seed   = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = owner, .Base = aHandoff.Base, .Head = aHandoff.Head };
+		const auto weak   = std::weak_ptr<const int>{ WindowLifetime };
+		TourHost          = std::make_unique<application::review_tour_host>(std::move(seed), adapters::sqlite::make_review_tour_store(ApplicationDataRoot, DraftWindow.Profile), WorkbenchEffects, DecisionLane,
+																			[this, weak, owner](const application::tour_presentation& aProjection) {
 																	   if (weak.expired() || Closing || TourOwner != owner || !current(DraftWindow)) {
 																		   return;
 																	   }
@@ -836,15 +826,6 @@ namespace bpr::app {
 				}
 			}
 		}
-		const auto& draft = Window->tour_editor()->shown().Draft;
-		if (draft) {
-			if (aHook != core::writing_hook::problem) {
-				add("private-problem", draft->Problem, 1024);
-			}
-			if (aHook != core::writing_hook::solution) {
-				add("private-solution", draft->Solution, 1024);
-			}
-		}
 		if (aRequest.Scope == core::writing_scope::selection) {
 			add("field-before", std::string_view{ aRequest.Raw }.substr(0, aRequest.Selection.Begin), 512);
 			add("field-after", std::string_view{ aRequest.Raw }.substr(aRequest.Selection.End), 512);
@@ -887,28 +868,6 @@ namespace bpr::app {
 			return;
 		}
 		auto sources = writing_sources(aHook, *request);
-		// Recover an unambiguous existing author section before asking a model.
-		if (request->Scope == core::writing_scope::empty_field && (aHook == core::writing_hook::problem || aHook == core::writing_hook::solution)) {
-			const auto&                         description = WindowRead->accepted_snapshot()->PullRequest.Body;
-			const auto                          map         = core::map_tour_markdown(description);
-			std::optional<core::tour_text_span> recovered;
-			bool                                ambiguous = false;
-			for (const auto& section : map.Sections) {
-				if (section.Name == (aHook == core::writing_hook::problem ? "Problem" : "Solution")) {
-					if (recovered) {
-						ambiguous = true;
-					}
-					recovered = section.Content;
-				}
-			}
-			if (recovered && !ambiguous && map.Bounded) {
-				auto edit = WritingState.complete(request->Id, *target, request->Raw, description.substr(recovered->Begin, recovered->End - recovered->Begin));
-				if (edit && Window->tour_editor()->writing_editor(aHook)->apply(*edit)) {
-					Window->tour_editor()->show_writing_notice(QStringLiteral("Recovered — pr-description. Existing author text; no inference."));
-				}
-				return;
-			}
-		}
 		if (!writes_tool_free(target->Agent)) {
 			WritingState.cancel();
 			Window->tour_editor()->show_writing_notice(QStringLiteral("This agent has no qualified tool-free writing mode: writing needs one that speaks Claude Code's stream JSON. Add one in Settings › Agents, or keep writing manually."));
@@ -916,7 +875,7 @@ namespace bpr::app {
 		}
 		if (request->Scope == core::writing_scope::empty_field && (sources.empty() || (aHook == core::writing_hook::comment && std::ranges::find(sources, "stop-source", &application::writing_source::Id) == sources.end()))) {
 			WritingState.cancel();
-			Window->tour_editor()->show_writing_notice(QStringLiteral("Not enough approved context to draft an explanation. Add the author's problem or solution first."));
+			Window->tour_editor()->show_writing_notice(QStringLiteral("Not enough approved context to draft an explanation: the stop's code could not be read."));
 			return;
 		}
 		// [[BPR-2140]]. The built-in prompt's instructions apart from the material.
@@ -1709,12 +1668,6 @@ namespace bpr::app {
 				} else if (const auto drafted = application::decode_tour_draft_answer(saved.Answered); drafted) {
 					turn.Request = core::tour_agent_request::draft_tour;
 					turn.Reply   = "Draft Tour";
-					if (drafted->Problem) {
-						turn.Reply += "\n\nProblem: " + *drafted->Problem;
-					}
-					if (drafted->Solution) {
-						turn.Reply += "\n\nSolution: " + *drafted->Solution;
-					}
 					turn.Reply += "\n\nProposed stops: " + std::to_string(drafted->Stops.size()) + ". Retained history does not restore or accept a proposal.";
 				} else {
 					turn.Reply = saved.Answered;
@@ -2305,12 +2258,6 @@ namespace bpr::app {
 			return "An answer that isn't a tour this app can read.";
 		}
 		auto parts = std::vector<std::string>{ };
-		if (answer->Problem && !answer->Problem->empty()) {
-			parts.emplace_back("a Problem");
-		}
-		if (answer->Solution && !answer->Solution->empty()) {
-			parts.emplace_back("a Solution");
-		}
 		parts.push_back(std::to_string(answer->Stops.size()) + (answer->Stops.size() == 1U ? " stop" : " stops"));
 		auto words = std::string{ "Proposed " };
 		for (std::size_t index = 0U; index < parts.size(); ++index) {
@@ -2435,12 +2382,6 @@ namespace bpr::app {
 		core::remember_tour_proposal(TourAgent, TourProposal, proposed);
 		// [[BPR-2138]]. What the fresh first draft said, for Ask more.
 		TourDraftSeed = "Draft Tour";
-		if (answer->Problem) {
-			TourDraftSeed += "\n\nProblem: " + *answer->Problem;
-		}
-		if (answer->Solution) {
-			TourDraftSeed += "\n\nSolution: " + *answer->Solution;
-		}
 		TourDraftSeed += "\n\nProposed stops: " + std::to_string(answer->Stops.size()) + ".";
 		if (TourDraftSeed.size() > 8192U) {
 			TourDraftSeed.resize(8192U);
@@ -2538,8 +2479,7 @@ namespace bpr::app {
 				command.Value    = core::tour_stop_of(item.Stop, core::proposal_head(item, *draft));
 				command.Position = position;
 			} else {
-				command.Kind = item.Part == core::tour_proposal_part::problem ? core::tour_command_kind::problem : core::tour_command_kind::solution;
-				command.Text = item.Text;
+				return;
 			}
 			TourHost->dispatch(command);
 			if (!TourHost->presentation().Draft || TourHost->presentation().Refusal != core::tour_refusal::none) {
@@ -3324,7 +3264,7 @@ namespace bpr::app {
 			return;
 		}
 		const auto& draft = *aProjection.Draft;
-		if (!draft.Problem.empty() || !draft.Solution.empty() || !draft.Stops.empty() || draft.Remote || draft.ReadOnly) {
+		if (!draft.Stops.empty() || draft.Remote || draft.ReadOnly) {
 			TourCarryAsked = TourOwner;
 			return;
 		}
@@ -3344,7 +3284,7 @@ namespace bpr::app {
 				return;
 			}
 			const auto shown = TourHost->presentation();
-			if (!shown.Draft || !shown.Draft->Stops.empty() || !shown.Draft->Problem.empty() || !shown.Draft->Solution.empty()) {
+			if (!shown.Draft || !shown.Draft->Stops.empty()) {
 				// The author began this tour meanwhile: theirs stands.
 				return;
 			}
@@ -3501,23 +3441,6 @@ namespace bpr::app {
 			TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert, .Stop = selected ? selected->Id : core::tour_stop_id{ }, .Value = { .Original = source, .Mapping = core::tour_mapping::exact_original, .ReaffirmedHead = draft->ObservedHead.value_or(draft->Head) }, .Position = position });
 			Window->open_review_tour();
 			Window->tour_editor()->show_stops();
-			return;
-		}
-		case qt::tour_editor_action::map_problem:
-		case qt::tour_editor_action::map_solution: {
-			const auto draft = TourHost->presentation().Draft;
-			if (!draft) {
-				return;
-			}
-			const auto* view     = Window->overview_page()->body_view();
-			const auto  span     = view->selected_source_bytes();
-			const auto& snapshot = WindowRead->accepted_snapshot();
-			if (!span || !snapshot || view->original_body() != snapshot->PullRequest.Body) {
-				Window->tour_editor()->show_notice(QStringLiteral("Select text in the description's Source view first, or write your own explanation here."));
-				return;
-			}
-			const auto& raw = view->original_body();
-			TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = aAction == qt::tour_editor_action::map_problem ? core::tour_command_kind::problem : core::tour_command_kind::solution, .Text = raw.substr(span->first, span->second - span->first), .Baseline = core::tour_field_baseline{ .Raw = raw, .RemoteEntity = std::string{ snapshot->PullRequest.Node.value() }, .SourceSpan = span } });
 			return;
 		}
 		}

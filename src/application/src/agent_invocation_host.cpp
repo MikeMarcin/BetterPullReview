@@ -78,14 +78,8 @@ namespace bpr::application {
 				if (aTour) {
 					if (const auto parsed = decode_tour_ask_answer(answer)) {
 						answer = parsed->Reply;
-					} else if (const auto draft = decode_tour_draft_answer(answer)) {
+					} else if (decode_tour_draft_answer(answer)) {
 						answer = "Draft Tour proposal (history does not restore or accept proposals).";
-						if (draft->Problem) {
-							answer += "\nProblem: " + *draft->Problem;
-						}
-						if (draft->Solution) {
-							answer += "\nSolution: " + *draft->Solution;
-						}
 					}
 				}
 				turns.push_back({ saved.Asked, std::move(answer) });

@@ -7,7 +7,7 @@
 namespace bpr::core {
 	auto active_tour_thread(const review_tour& aDraft, const tour_thread& aThread) noexcept -> bool
 	{
-		return aThread.Kind == tour_thread_kind::tour || aThread.Kind == tour_thread_kind::problem || aThread.Kind == tour_thread_kind::solution || (aThread.Kind == tour_thread_kind::stop && std::ranges::any_of(aDraft.Stops, [&](const auto& aStop) { return aStop.Id == aThread.Stop; }));
+		return aThread.Kind == tour_thread_kind::tour || (aThread.Kind == tour_thread_kind::stop && std::ranges::any_of(aDraft.Stops, [&](const auto& aStop) { return aStop.Id == aThread.Stop; }));
 	}
 
 	namespace {
@@ -227,10 +227,9 @@ namespace bpr::core {
 	{
 		switch (aRequest) {
 		case tour_agent_request::draft_tour:
-		case tour_agent_request::draft_field:
 		case tour_agent_request::outline:
-		case tour_agent_request::ask:         return tour_agent_tools::read_only;
-		case tour_agent_request::rewrite:     return tour_agent_tools::none;
+		case tour_agent_request::ask:        return tour_agent_tools::read_only;
+		case tour_agent_request::rewrite:    return tour_agent_tools::none;
 		}
 		return tour_agent_tools::none;
 	}
@@ -245,13 +244,10 @@ namespace bpr::core {
 		return "up_front";
 	}
 
-	auto tour_request_of(const writing_hook aHook, const writing_scope aScope) noexcept -> tour_agent_request
+	auto tour_request_of(const writing_hook aHook, const writing_scope /*aScope*/) noexcept -> tour_agent_request
 	{
 		if (aHook == writing_hook::outline) {
 			return tour_agent_request::outline;
-		}
-		if ((aHook == writing_hook::problem || aHook == writing_hook::solution) && aScope == writing_scope::empty_field) {
-			return tour_agent_request::draft_field;
 		}
 		return tour_agent_request::rewrite;
 	}
@@ -407,13 +403,7 @@ namespace bpr::core {
 	auto propose_tour(const tour_agent_run_id aRun, const tour_draft_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft, const std::optional<git_commit_oid>& aReadHead) -> tour_proposal
 	{
 		auto proposal = tour_proposal{ .Run = aRun };
-		if (aAnswer.Problem && nonblank(*aAnswer.Problem)) {
-			proposal.Items.push_back({ .Part = tour_proposal_part::problem, .Text = *aAnswer.Problem, .ReplacesAuthorText = nonblank(aDraft.Problem), .Run = aRun });
-		}
-		if (aAnswer.Solution && nonblank(*aAnswer.Solution)) {
-			proposal.Items.push_back({ .Part = tour_proposal_part::solution, .Text = *aAnswer.Solution, .ReplacesAuthorText = nonblank(aDraft.Solution), .Run = aRun });
-		}
-		auto stops = std::vector<tour_proposal_item>{ };
+		auto stops    = std::vector<tour_proposal_item>{ };
 		for (std::size_t index = 0U; index < aAnswer.Stops.size() && index < maximum_proposed_tour_stops; ++index) {
 			const auto& stop    = aAnswer.Stops[index];
 			const auto  verdict = anchor_tour_stop(stop, aFiles);
@@ -756,14 +746,6 @@ namespace bpr::core {
 		auto        number = std::size_t{ 0U };
 		auto        given  = std::optional<std::string>{ };
 		switch (aThread.Kind) {
-		case tour_thread_kind::problem:
-			field = &aSubmitted.Problem;
-			given = std::move(aAnswer.Changes.Problem);
-			break;
-		case tour_thread_kind::solution:
-			field = &aSubmitted.Solution;
-			given = std::move(aAnswer.Changes.Solution);
-			break;
 		case tour_thread_kind::stop: {
 			const auto found = std::ranges::find(aSubmitted.Stops, aThread.Stop, &tour_stop::Id);
 			if (found == aSubmitted.Stops.end()) {
@@ -794,10 +776,8 @@ namespace bpr::core {
 		}
 		auto whole = std::string{ before } + std::string{ middle } + std::string{ after };
 		switch (aThread.Kind) {
-		case tour_thread_kind::problem:  result.Changes.Problem = std::move(whole); break;
-		case tour_thread_kind::solution: result.Changes.Solution = std::move(whole); break;
-		case tour_thread_kind::stop:     result.StopTexts.push_back({ number, std::move(whole) }); break;
-		case tour_thread_kind::tour:     break;
+		case tour_thread_kind::stop: result.StopTexts.push_back({ number, std::move(whole) }); break;
+		case tour_thread_kind::tour: break;
 		}
 		return result;
 	}
@@ -809,10 +789,8 @@ namespace bpr::core {
 		}
 		std::erase_if(aProposal.Items, [&aThread](const tour_proposal_item& aItem) {
 			switch (aThread.Kind) {
-			case tour_thread_kind::problem:  return aItem.Part != tour_proposal_part::problem;
-			case tour_thread_kind::solution: return aItem.Part != tour_proposal_part::solution;
-			case tour_thread_kind::stop:     return aItem.Part != tour_proposal_part::stop_text || aItem.StopId != aThread.Stop;
-			case tour_thread_kind::tour:     return false;
+			case tour_thread_kind::stop: return aItem.Part != tour_proposal_part::stop_text || aItem.StopId != aThread.Stop;
+			case tour_thread_kind::tour: return false;
 			}
 			return true;
 		});
@@ -1095,8 +1073,6 @@ namespace bpr::core {
 	auto tour_proposal_part_name(const tour_proposal_part aValue) noexcept -> std::string_view
 	{
 		switch (aValue) {
-		case tour_proposal_part::problem:     return "problem";
-		case tour_proposal_part::solution:    return "solution";
 		case tour_proposal_part::stop:        return "stop";
 		case tour_proposal_part::stop_text:   return "stop_text";
 		case tour_proposal_part::remove_stop: return "remove_stop";
@@ -1116,8 +1092,6 @@ namespace bpr::core {
 		};
 		for (auto& item : proposal.Items) {
 			const bool different = aSubmitted.Id != aCurrent.Id || aSubmitted.Owner != aCurrent.Owner
-				|| (item.Part == tour_proposal_part::problem && aSubmitted.Problem != aCurrent.Problem)
-				|| (item.Part == tour_proposal_part::solution && aSubmitted.Solution != aCurrent.Solution)
 				|| (item.StopId.value() && changed(item.StopId)) || std::ranges::any_of(item.Stops, changed);
 			if (different) {
 				item.Decision = tour_proposal_decision::discarded;
@@ -1177,8 +1151,6 @@ namespace bpr::core {
 				continue;
 			}
 			switch (item.Part) {
-			case tour_proposal_part::problem:     tally.Problem = true; break;
-			case tour_proposal_part::solution:    tally.Solution = true; break;
 			case tour_proposal_part::stop:        ++tally.Stops; break;
 			case tour_proposal_part::stop_text:   ++tally.StopTexts; break;
 			case tour_proposal_part::remove_stop: ++tally.Removals; break;
@@ -1226,7 +1198,7 @@ namespace bpr::core {
 						return std::ranges::any_of(named(aNew), [&mine](const tour_stop_id aStop) { return std::ranges::find(mine, aStop) != mine.end(); });
 					}
 					return aNew.Part == aItem.Part
-						&& (aItem.Part == tour_proposal_part::problem || aItem.Part == tour_proposal_part::solution || (aItem.Part == tour_proposal_part::stop_text && aNew.StopId == aItem.StopId));
+						&& aItem.Part == tour_proposal_part::stop_text && aNew.StopId == aItem.StopId;
 				});
 			};
 			for (const auto& item : aCurrent->Items) {
@@ -1507,15 +1479,11 @@ namespace bpr::core {
 			}
 		}
 		tour.Stops.clear();
-		tour.Problem.clear();
-		tour.Solution.clear();
-		tour.ProblemBaseline.reset();
-		tour.SolutionBaseline.reset();
 		return tour;
 	}
 	auto reset_tally_of(const review_tour& aDraft, const tour_agent_session& aSession, const std::optional<tour_proposal>& aProposal) -> tour_reset_tally
 	{
-		auto tally = tour_reset_tally{ .Problem = nonblank(aDraft.Problem), .Solution = nonblank(aDraft.Solution), .Stops = aDraft.Stops.size(), .Chats = chat_threads(aSession).size(), .Focus = !aSession.Focus.empty(), .Published = aDraft.Remote.has_value() };
+		auto tally = tour_reset_tally{ .Stops = aDraft.Stops.size(), .Chats = chat_threads(aSession).size(), .Focus = !aSession.Focus.empty(), .Published = aDraft.Remote.has_value() };
 		if (aProposal) {
 			tally.Proposals = static_cast<std::size_t>(std::ranges::count(aProposal->Items, tour_proposal_decision::pending, &tour_proposal_item::Decision));
 		}
@@ -1523,6 +1491,6 @@ namespace bpr::core {
 	}
 	auto resettable(const tour_reset_tally& aTally) noexcept -> bool
 	{
-		return aTally.Problem || aTally.Solution || aTally.Stops > 0U || aTally.Proposals > 0U || aTally.Chats > 0U || aTally.Focus;
+		return aTally.Stops > 0U || aTally.Proposals > 0U || aTally.Chats > 0U || aTally.Focus;
 	}
 }

@@ -1,7 +1,7 @@
 /// \file
 /// \brief RFC-BPR-0126 AC01 ([[BPR-2154]]). The tour chats' and the local
 /// draft discussion's queues in the window. Each tour part (the whole tour
-/// after its first draft, the Problem, the Solution, a stop) and each part of
+/// after its first draft, a stop) and each part of
 /// a local draft's discussion is a session of the profile's queue host; tour
 /// parts never share inputs. The window presents each part's pending list in
 /// the tour chat, forwards its controls to the host, and offers the runtime
@@ -528,7 +528,7 @@ namespace bpr::app {
 		if (Closing || Window == nullptr || !AgentQueue || !ChatQueueSending.empty()) {
 			return;
 		}
-		auto threads = std::vector<core::tour_thread>{ core::tour_thread{ }, { .Kind = core::tour_thread_kind::problem }, { .Kind = core::tour_thread_kind::solution } };
+		auto threads = std::vector<core::tour_thread>{ core::tour_thread{ } };
 		if (local_tour_shown()) {
 			for (const auto& thread : Window->tour_editor()->side_chat()->open_threads()) {
 				threads.push_back(thread);

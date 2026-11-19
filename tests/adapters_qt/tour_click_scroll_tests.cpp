@@ -63,10 +63,8 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 
-	auto draft     = tests::review_tour_fixture();
-	draft.Problem  = "Two views drew over each other.";
-	draft.Solution = "Each view clears its own target.";
-	auto stop      = draft.Stops.front();
+	auto draft = tests::review_tour_fixture();
+	auto stop  = draft.Stops.front();
 	draft.Stops.clear();
 	for (std::uint64_t index = 1U; index <= 6U; ++index) {
 		stop.Id    = core::tour_stop_id{ index };
@@ -84,12 +82,9 @@ auto main(int argc, char** argv) -> int
 	// step forward and the stop's lines into the code, and the host's
 	// presentation comes back with the stop selected.
 	editor->set_dispatch([](core::tour_command) { }, [editor](const qt::tour_editor_action aAction) {
-		// As v003's window did: the Problem opened first, then the stops,
-		// which moved the keyboard and the tab's height under the click.
-		// And, as the owner saw it on macOS, the drawer then sent to its end
-		// by what the window does next.
+		// As the owner saw it on macOS, the drawer then sent to its end by
+		// what the window does next.
 		if (aAction == qt::tour_editor_action::navigate_stop) {
-			editor->show_problem();
 			editor->show_stops();
 			QTimer::singleShot(20, editor, [editor] {
 				auto* const area = editor->route_scroll();

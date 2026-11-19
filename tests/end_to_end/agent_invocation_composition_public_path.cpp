@@ -1311,8 +1311,6 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "tour-native-open");
 			}
 			if (course == "tour-native") {
-				editor->problem_editor()->setPlainText(QStringLiteral("Accepted problem stays"));
-				editor->solution_editor()->setPlainText(QStringLiteral("Accepted solution stays"));
 				// [[BPR-1987]]. Change navigation prefers a base-side line when
 				// available. This scenario requires a current-head source that
 				// remains clear on reopen, not a historical line later mapped missing.
@@ -1354,7 +1352,7 @@ auto main(int argc, char** argv) -> int
 				if (!window.agent_tab()->choose_agent(profile.value())) {
 					return fail(*application, "tour-native-agent-choice");
 				}
-				for (const auto& thread : { core::tour_thread{ }, core::tour_thread{ core::tour_thread_kind::problem, { } }, core::tour_thread{ core::tour_thread_kind::solution, { } }, core::tour_thread{ core::tour_thread_kind::stop, stop } }) {
+				for (const auto& thread : { core::tour_thread{ }, core::tour_thread{ core::tour_thread_kind::stop, stop } }) {
 					editor->open_side_chat(thread);
 					if (!wait_until([&] { return chat->current() == std::optional{ thread } && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-history-loaded");
@@ -1524,7 +1522,7 @@ auto main(int argc, char** argv) -> int
 					if (!wait_until([&] { return chat->turn_count() >= prior + 2U && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-history-reopen", chat->chat_text().toStdString());
 					}
-					if (thread.Kind == core::tour_thread_kind::problem) {
+					if (thread.Kind == core::tour_thread_kind::tour) {
 						auto* replay = chat->findChild<QAction*>(QStringLiteral("tourTranscriptReplay"));
 						if (!replay) {
 							return fail(*application, "tour-replay-offer");
@@ -1560,7 +1558,7 @@ auto main(int argc, char** argv) -> int
 						|| !verify_native_fixture_identity(chat->reply(chat->turn_count() - 1U)->original_body(), identityKey, true, dataRoot.parent_path())) {
 						return fail(*application, "tour-native-history-exact-memory-resume");
 					}
-					if (editor->shown().Draft->Problem != original.Problem || editor->shown().Draft->Solution != original.Solution || editor->shown().Draft->Stops != acceptedBeforeNew.Stops) {
+					if (editor->shown().Draft->Stops != acceptedBeforeNew.Stops) {
 						return fail(*application, "tour-native-new-preserves-accepted");
 					}
 				}
@@ -1574,7 +1572,7 @@ auto main(int argc, char** argv) -> int
 				if (!window.agent_tab()->choose_agent(profile.value())) {
 					return fail(*application, "tour-native-return-agent");
 				}
-				for (const auto& thread : { core::tour_thread{ }, core::tour_thread{ core::tour_thread_kind::solution, { } }, core::tour_thread{ core::tour_thread_kind::problem, { } }, core::tour_thread{ core::tour_thread_kind::stop, stop } }) {
+				for (const auto& thread : { core::tour_thread{ }, core::tour_thread{ core::tour_thread_kind::stop, stop } }) {
 					editor->open_side_chat(thread);
 					if (!wait_until([&] { return chat->current() == std::optional{ thread } && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-return-ready");

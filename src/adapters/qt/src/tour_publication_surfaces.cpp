@@ -100,8 +100,6 @@ namespace bpr::qt {
 		switch (aHead.Missing) {
 		case missing::nothing:    return { };
 		case missing::conflict:   return QObject::tr("Settle the conflict with the saved copy or the website first.");
-		case missing::problem:    return QObject::tr("Write the Problem first.");
-		case missing::solution:   return QObject::tr("Write the Solution first.");
 		case missing::stops:      return QObject::tr("Add a stop first.");
 		case missing::acceptance: return aHead.ToAccept == 1U ? QObject::tr("Accept the remaining stop first: it needs confirmed lines and an explanation current at this head.")
 															  : QObject::tr("Accept the remaining %1 stops first: each needs confirmed lines and an explanation current at this head.").arg(aHead.ToAccept);

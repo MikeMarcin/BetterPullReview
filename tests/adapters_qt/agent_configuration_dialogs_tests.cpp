@@ -81,8 +81,8 @@ namespace {
 		auto lint                   = core::agent_entry{ .Id = 2U, .Name = "Lint bot", .Protocol = core::agent_protocol::external_terminal, .Program = "/opt/tools/lint-bot" };
 		lint.Identity               = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 		snapshot.Agents.Agents      = { work, lint };
-		snapshot.Hooks.Overrides[0] = "Say what is wrong today in two sentences. /team-style";
-		snapshot.WrittenAgainst[0]  = std::string{ application::writing_hook_version };
+		snapshot.Hooks.Overrides[1] = "Say what is wrong today in two sentences. /team-style";
+		snapshot.WrittenAgainst[1]  = std::string{ application::writing_hook_version };
 		return snapshot;
 	}
 
@@ -170,7 +170,7 @@ namespace {
 	[[nodiscard]] auto test_export(const std::string& aRoot) -> std::string
 	{
 		auto unsaved = std::array<bool, core::writing_hook_count + 1U>{ };
-		unsaved[1]   = true;
+		unsaved[0]   = true;
 		// [[BPR-2198]]. A profile signed in to github.com, remembering an
 		// enterprise server, with a saved and a followed repository.
 		auto facts         = core::profile_facts{ .ProfileName = "Work" };
@@ -203,7 +203,7 @@ namespace {
 		agents->setCheckState(0, Qt::Checked);
 		expect(dialog.agents() == std::vector<std::uint32_t>{ 1U, 2U }, "and ticking it ticks each again");
 		auto prompts = dialog.prompts();
-		expect(prompts.size() == 1U && prompts[0].Purpose == "tour.problem" && !prompts[0].BuiltIn, "the edited prompt starts chosen; built-in ones do not");
+		expect(prompts.size() == 1U && prompts[0].Purpose == "tour.stop-comment" && !prompts[0].BuiltIn, "the edited prompt starts chosen; built-in ones do not");
 		const auto& text = dialog.bytes();
 		expect(text.find("/Users/me") == std::string::npos && text.find("aaaaaaaa") == std::string::npos, "no path or identity in the exact text");
 		expect(dialog.exact_text()->toPlainText().toStdString() == text && dialog.exact_text()->isReadOnly(), "the exact text shown is what is written");
@@ -211,7 +211,7 @@ namespace {
 		// A prompt with unsaved edits cannot be chosen.
 		auto* unsavedRow = static_cast<QTreeWidgetItem*>(nullptr);
 		for (QTreeWidgetItemIterator it{ dialog.items() }; *it != nullptr; ++it) {
-			if ((*it)->text(0) == QStringLiteral("Solution summary")) {
+			if ((*it)->text(0) == QStringLiteral("Tour outline")) {
 				unsavedRow = *it;
 			}
 		}
@@ -324,13 +324,13 @@ namespace {
 	/// everything the file can bring starts chosen; each choice is one click.
 	void test_import(const std::string& aBytes, const std::string& aRoot)
 	{
-		// The recipient has its own Work Claude and an edited Problem statement.
+		// The recipient has its own Work Claude and an edited Stop comment prompt.
 		auto mine               = application::agent_configuration_snapshot{ };
 		auto work               = core::agent_entry{ .Id = 3U, .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/me/work-claude" };
 		work.Arguments          = { "--profile", "work" };
 		work.Identity           = "cccccccccccccccccccccccccccccccc";
 		mine.Agents.Agents      = { work };
-		mine.Hooks.Overrides[0] = "My own problem prompt.";
+		mine.Hooks.Overrides[1] = "My own problem prompt.";
 		auto preview            = application::agent_configuration_preview{ .Snapshot = mine, .Prompts = application::local_prompts(mine) };
 		auto decoded            = core::decode_agent_configuration(aBytes, preview.Prompts);
 		expect(decoded.has_value(), "the export reads back");
@@ -360,7 +360,7 @@ namespace {
 		expect(dialog.summary()->text().contains(QStringLiteral("1 agent waits for its program")), "the waiting agent is said");
 		auto problem = std::size_t{ 0U };
 		for (std::size_t index = 0U; index < preview.File.Prompts.size(); ++index) {
-			if (preview.File.Prompts[index].Prompt.Purpose == "tour.problem") {
+			if (preview.File.Prompts[index].Prompt.Purpose == "tour.stop-comment") {
 				problem = index;
 			}
 		}
@@ -635,7 +635,7 @@ namespace {
 			// [[BPR-2204]]. Export in the same language: its list and its
 			// file each sit on the Prompts page's panel, in this theme.
 			auto unsaved         = std::array<bool, core::writing_hook_count + 1U>{ };
-			unsaved[1]           = true;
+			unsaved[0]           = true;
 			auto facts           = core::profile_facts{ .ProfileName = "Work" };
 			facts.SignedIn       = { { .Host = "github.com", .Login = "octo" } };
 			facts.Repositories   = { { .Host = "github.com", .Repository = "octo/app", .Saved = true }, { .Repository = "octo/lib", .Followed = true } };

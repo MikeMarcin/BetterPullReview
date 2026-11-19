@@ -246,27 +246,9 @@ namespace bpr::qt {
 		});
 		column->addWidget(Head);
 		Invitation = prose(page, QStringLiteral("overviewTourInvitation"));
-		Invitation->setText(tr("Walk your reviewers through this change: the problem, your solution, and a route through the code, stop by stop. It stays private until you publish it."));
+		Invitation->setText(tr("Walk your reviewers through this change: a route through the code, stop by stop. It stays private until you publish it."));
 		column->addWidget(Invitation);
 		column->addSpacing(6);
-		ProblemHeading = heading(tr("Problem"), page, QStringLiteral("overviewTourProblemHeading"));
-		// [[BPR-1993]]. Tour text is authored as Markdown and read so, as the
-		// Tour tab reads it.
-		Problem = new markdown_body_view{ page };
-		Problem->setObjectName(QStringLiteral("overviewTourProblem"));
-		Problem->setAccessibleName(tr("Problem"));
-		Problem->set_empty_body_text(tr("Not written yet"));
-		SolutionHeading = heading(tr("Solution"), page, QStringLiteral("overviewTourSolutionHeading"));
-		Solution        = new markdown_body_view{ page };
-		Solution->setObjectName(QStringLiteral("overviewTourSolution"));
-		Solution->setAccessibleName(tr("Solution"));
-		Solution->set_empty_body_text(tr("Not written yet"));
-		column->addWidget(ProblemHeading);
-		column->addWidget(Problem);
-		column->addSpacing(8);
-		column->addWidget(SolutionHeading);
-		column->addWidget(Solution);
-		column->addSpacing(10);
 		StopsHeading = heading(QString{ }, page, QStringLiteral("overviewTourStopsHeading"));
 		column->addWidget(StopsHeading);
 		Route = new QWidget{ page };
@@ -300,9 +282,6 @@ namespace bpr::qt {
 	{
 		ReferenceFiles    = std::move(aFiles);
 		ReferenceNavigate = std::move(aNavigate);
-		for (auto* const view : { Problem, Solution }) {
-			view->set_link_dispatch([this](const std::string& aLink) { static_cast<void>(follow_agent_reference(this, QString::fromStdString(aLink), ReferenceNavigate)); });
-		}
 	}
 	void overview_tour_summary::set_dispatch(gesture_dispatch aDispatch)
 	{
@@ -345,23 +324,6 @@ namespace bpr::qt {
 									: QString{ });
 		State->setVisible(touring && !headed);
 		Invitation->setVisible(kind == core::overview_tour_kind::prepare);
-		// A writer sees an empty field as still to write; a reader sees only
-		// what was written.
-		const auto field = [this, writer](QLabel* aHeading, markdown_body_view* aBody, const std::string& aValue, const char* aKey) {
-			const auto empty = aValue.empty();
-			aBody->set_body(ReferenceFiles && ReferenceNavigate ? tour_markdown_with_references(aValue, ReferenceFiles(), { }) : aValue, std::string{ "overview-tour-" } + aKey);
-			const auto shown = writer || !empty;
-			aHeading->setVisible(shown);
-			aBody->setVisible(shown);
-		};
-		if (touring) {
-			field(ProblemHeading, Problem, Shown.Problem, "problem");
-			field(SolutionHeading, Solution, Shown.Solution, "solution");
-		} else {
-			for (auto* const part : std::initializer_list<QWidget*>{ ProblemHeading, Problem, SolutionHeading, Solution }) {
-				part->hide();
-			}
-		}
 		const auto count = static_cast<int>(Shown.Stops.size());
 		StopsHeading->setText(count == 0 ? tr("No stops yet") : count == 1 ? tr("1 stop")
 																		   : tr("%1 stops").arg(count));
@@ -376,7 +338,7 @@ namespace bpr::qt {
 																										  : tr("Start tour");
 		Action->setText(label);
 		Action->setAccessibleName(label);
-		Action->setToolTip(kind == core::overview_tour_kind::prepare ? tr("Open Review's Tour tab to write the problem, the solution and the stops")
+		Action->setToolTip(kind == core::overview_tour_kind::prepare ? tr("Open Review's Tour tab to write the stops")
 							   : writer                              ? tr("Open Review's Tour tab at the stop you were on")
 																	 : tr("Open Review at the tour's first stop"));
 		Action->setVisible(kind != core::overview_tour_kind::hidden);

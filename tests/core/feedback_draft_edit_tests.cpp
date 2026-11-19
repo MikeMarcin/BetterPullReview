@@ -204,7 +204,7 @@ namespace {
 		expect(outcome.Refusal == tour_refusal::none && outcome.Accepted.Revision == tour.Revision + 1U, "the tour owner accepts it");
 		const auto& edited = outcome.Accepted.Stops.front();
 		expect(edited.Body == "note: " + raw && edited.Title == tour.Stops.front().Title && edited.Original == tour.Stops.front().Original && edited.Related == tour.Stops.front().Related, "only the narrative's header changes");
-		expect(outcome.Accepted.Problem == tour.Problem && outcome.Accepted.Solution == tour.Solution, "the tour's other fields are untouched");
+		expect(outcome.Accepted.Stops.size() == tour.Stops.size(), "the tour's other stops are untouched");
 
 		const auto stale = plan_feedback_tour_stop_edit(outcome.Accepted, stop, *feedback_tour_stop_basis(tour, stop), remove());
 		expect(stale.Refusal == feedback_draft_edit_refusal::stale_draft && !stale.Command, "an older tour revision is stale");

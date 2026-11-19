@@ -47,9 +47,6 @@ namespace {
 		expect(head.State == state::not_publishable && head.ToAccept == 1U && head.Missing == core::tour_head_missing::acceptance && head.PublishDisabled, "a stop not accepted is still to accept");
 		draft.ObservedHead = *core::parse_git_commit_oid("2222222222222222222222222222222222222222");
 		expect(core::decide_tour_head(&draft, { }).ToAccept == 2U, "an explanation not current at the observed head is still to accept");
-		draft         = tour();
-		draft.Problem = "  ";
-		expect(core::decide_tour_head(&draft, { }).Missing == core::tour_head_missing::problem, "the Problem is named first");
 		draft = tour();
 		draft.Stops.clear();
 		expect(core::decide_tour_head(&draft, { }).Missing == core::tour_head_missing::stops, "no stops is named");
@@ -72,20 +69,18 @@ namespace {
 			stop.Remote   = core::tour_remote_binding{ .Kind = core::tour_remote_kind::line_comment, .Entity = "C" + std::to_string(stop.Id.value()), .WebUrl = "https://github.com/o/r/pull/5#discussion_r" + std::to_string(stop.Id.value()), .Own = true };
 			stop.Baseline = core::tour_field_baseline{ .Raw = stop.Body, .DraftText = stop.Body };
 		}
-		draft.ProblemBaseline->DraftText = draft.Problem;
-		auto head                        = core::decide_tour_head(&draft, { });
+		auto head = core::decide_tour_head(&draft, { });
 		expect(head.State == state::published && head.Changes == 0U && head.Actions == std::vector{ action::on_github }, "published and unchanged: On GitHub");
 		draft.Stops[0].Body = "Rewritten.";
-		draft.Problem       = "A new problem statement.";
 		head                = core::decide_tour_head(&draft, { });
-		expect(head.State == state::published_changed && head.Changes == 2U && head.Actions == std::vector{ action::update, action::on_github }, "a changed stop and a changed Problem are two changes not on GitHub");
+		expect(head.State == state::published_changed && head.Changes == 1U && head.Actions == std::vector{ action::update, action::on_github }, "a changed stop is a change not on GitHub");
 		auto added   = draft.Stops[1];
 		added.Id     = core::tour_stop_id{ 3U };
 		added.Remote = std::nullopt;
 		draft.Stops.push_back(added);
 		draft.LastStopId = 3U;
 		draft.Retired.push_back(draft.Stops[1]);
-		expect(core::decide_tour_head(&draft, { }).Changes == 4U, "a new stop and a removed published stop count too");
+		expect(core::decide_tour_head(&draft, { }).Changes == 3U, "a new stop and a removed published stop count too");
 		expect(core::decide_tour_head(&draft, { core::tour_publication_progress::publishing, 1U, 3U }).State == state::publishing, "an update under way is publishing");
 	}
 

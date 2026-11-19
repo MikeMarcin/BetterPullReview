@@ -953,7 +953,7 @@ namespace bpr::app {
 		/// This window's draft has feedback waiting in the tour's queue.
 		bool TourFeedbackQueued = false;
 		/// RFC-BPR-0126 AC01 ([[BPR-2154]]). Each tour part's chat (the whole
-		/// tour after its first draft, the Problem, the Solution, a stop) and
+		/// tour after its first draft, a stop) and
 		/// each part of a local draft's discussion queues on its own session.
 		/// This window runs them on its tour host or its local draft's lane,
 		/// through a runtime it offers the profile's runner; the queue host is

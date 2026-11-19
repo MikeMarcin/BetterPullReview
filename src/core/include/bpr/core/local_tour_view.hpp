@@ -83,8 +83,6 @@ namespace bpr::core {
 		/// The panel asked for something a local tour does not do (a split,
 		/// a duplicate, an outline): nothing changes.
 		none,
-		/// Problem and Solution, saved together.
-		brief,
 		/// A stop's title and text, saved as typed; not accepted.
 		stop_text,
 		accept,
@@ -97,8 +95,6 @@ namespace bpr::core {
 	{
 		local_tour_edit_kind Kind = local_tour_edit_kind::none;
 		std::uint64_t        Stop = 0;
-		std::string          Problem;
-		std::string          Solution;
 		std::string          Title;
 		std::string          Text;
 		std::size_t          Index                                            = 0;
@@ -108,7 +104,7 @@ namespace bpr::core {
 	/// "On publication"): the draft's tour as the pull request's own private
 	/// tour draft, `aTarget` (its owner, identity, base and head), mapped by
 	/// `map_local_publication` against the pull request's exact result.
-	/// \details The Problem and Solution come across. Every stop comes across
+	/// \details Every stop comes across
 	/// in route order: one whose lines are exactly at the pull request's head
 	/// gets that anchor, and keeps its acceptance when the author had accepted
 	/// it (accepted again there, at that head); any other keeps its title and

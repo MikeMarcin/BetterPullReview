@@ -151,7 +151,7 @@ namespace bpr::qt {
 			std::array{ prompt_surface::file_menu, prompt_surface::file_chips },
 			std::array{ prompt_surface::thread_menu, prompt_surface::thread_chips },
 		};
-		constexpr auto tour_surfaces = std::array{ prompt_surface::tour_stop, prompt_surface::tour_part, prompt_surface::whole_tour };
+		constexpr auto tour_surfaces = std::array{ prompt_surface::tour_stop, prompt_surface::whole_tour };
 
 		[[nodiscard]] auto index(const prompt_surface aSurface) -> std::size_t { return static_cast<std::size_t>(aSurface); }
 
@@ -170,7 +170,6 @@ namespace bpr::qt {
 			case thread_menu:
 			case thread_chips:       return prompts_page::tr("Thread");
 			case tour_stop:          return prompts_page::tr("Tour stop");
-			case tour_part:          return prompts_page::tr("Tour part");
 			case whole_tour:         return prompts_page::tr("Whole tour");
 			case commits_menu:       return prompts_page::tr("Commits");
 			}
@@ -569,7 +568,7 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto is_tour(const core::prompt_macro& aMacro) -> bool
 		{
-			return aMacro.Place == core::prompt_place::tour_stop || aMacro.Place == core::prompt_place::tour_part || aMacro.Place == core::prompt_place::tour_whole;
+			return aMacro.Place == core::prompt_place::tour_stop || aMacro.Place == core::prompt_place::tour_whole;
 		}
 	} // namespace
 

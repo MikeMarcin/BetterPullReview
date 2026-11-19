@@ -33,7 +33,7 @@
 /// T apart and lists starting work, improvements, deletions and what stays
 /// out; any edit after a plan makes its digest worthless. RC59-09: the
 /// published pull request is the association, the description is the
-/// reviewer's Problem and Solution in the form a Review Tour maps, nothing
+/// reviewer's own text ([[BPR-2274]]: no fixed sections), nothing
 /// private reaches GitHub, and a pull request published with one's own tools
 /// is linked only after a read of exactly it, as externally published.
 /// RC59-08: after the squashed publication and a reclaim, every revision,
@@ -264,12 +264,11 @@ namespace {
 			expect(depends && depends->Gap == core::outgoing_gap::depends_on_starting_work && work.sheet().Outgoing->Undecided == 1U, "a dependency is a decision, never a clean cherry-pick");
 			work.edit([](auto& aForm) { aForm.Mode = core::outgoing_selection_mode::starting_work_and_improvements; });
 
-			// The description reuses the manual Problem and Solution path.
+			// The description is the reviewer's own text.
 			work.edit([](auto& aForm) {
-				aForm.Title    = "Validate parser input";
-				aForm.Problem  = "Parsing accepted a null pointer.";
-				aForm.Solution = "Validate the text before checking it.";
-				aForm.Draft    = true;
+				aForm.Title       = "Validate parser input";
+				aForm.Description = "Parsing accepted a null pointer.\n\nValidate the text before checking it.";
+				aForm.Draft       = true;
 			});
 			expect(remote->writes() == 0, "no edit sends anything");
 
@@ -287,8 +286,8 @@ namespace {
 			expect(contains(planned.Preview, "Private cycle history, notes and rounds are not uploaded") && contains(planned.Preview, "From cycle revisions R1 to R3")
 					   && contains(planned.Preview, "New branch bpr/cycle-") && contains(planned.Preview, "as a draft") && contains(planned.Preview, planned.Digest),
 				   "the preview says what a confirmation authorizes and what stays private");
-			const auto body = *core::publication_body("Parsing accepted a null pointer.", "Validate the text before checking it.");
-			expect(planned.Current->Plan.PullBody == body && planned.Current->Plan.PullTitle == "Validate parser input", "the description is the Problem and Solution brief");
+			const auto body = *core::publication_body("Parsing accepted a null pointer.\n\nValidate the text before checking it.");
+			expect(planned.Current->Plan.PullBody == body && planned.Current->Plan.PullTitle == "Validate parser input", "the description is the reviewer's text, as written");
 			expect(planned.Current->Plan.Content.Author.Name == "octo-reviewer" && planned.Current->Plan.Content.Author.OffsetMinutes == -420 && remote->writes() == 0, "attribution as confirmed; nothing sent");
 			expect(tests::workspace_contract::snapshot(project) == before, "planning and building left the checkout byte-for-byte as it was");
 
@@ -329,9 +328,6 @@ namespace {
 			const auto sent = uploaded(*remote);
 			expect(!contains(sent, "PRIVATE-NOTE") && !contains(sent, "PRIVATE-REPLY") && !contains(sent, "scratch, unrelated"), "no note, reply or unselected file reached GitHub");
 			expect(!contains(linked.Current->Plan.Content.Message, "PRIVATE"), "nor the commit message");
-			const auto mapped = core::map_tour_markdown(remote->Drafts[0].Body);
-			expect(std::ranges::count_if(mapped.Sections, [](const core::tour_markdown_section& aSection) { return aSection.Name == "Problem" || aSection.Name == "Solution"; }) == 2,
-				   "a Review Tour prepared on the pull request finds Problem and Solution");
 
 			// External publication: a pull request made with one's own tools.
 			auto theirs    = remote->Pulls.front();

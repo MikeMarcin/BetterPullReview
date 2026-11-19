@@ -2239,7 +2239,7 @@ namespace {
 		input.Context.Selection.reset();
 		input.Context.Brief.reset();
 		input.Context.Files.clear();
-		test.Processes.AssistantItems = { "progress commentary", R"({"schema":"bpr.tour-ask.v1","reply":"terminal","problem":"","solution":"","stops":[],"stop_texts":[]})" };
+		test.Processes.AssistantItems = { "progress commentary", R"({"schema":"bpr.tour-ask.v2","reply":"terminal","stops":[],"stop_texts":[]})" };
 		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
 		test.settle();
 		test.Host.dispatch(input);

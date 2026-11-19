@@ -913,7 +913,7 @@ namespace bpr::adapters::sqlite {
 		using tour_failure                           = application::tour_channel_failure;
 		using tour_bytes                             = application::tour_channel_bytes;
 		using tour_hello                             = std::array<std::uint8_t, 64>;
-		constexpr std::uint8_t tour_protocol_version = 8U;
+		constexpr std::uint8_t tour_protocol_version = 9U; // [[BPR-2274]] tour commands lost Problem and Solution.
 		auto                   tour_endpoint(const std::filesystem::path& aRoot) -> std::optional<std::filesystem::path>
 		{
 			auto path = profile_activation_endpoint(aRoot);

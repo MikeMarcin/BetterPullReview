@@ -284,11 +284,8 @@ auto main(int argc, char** argv) -> int
 			std::cout << "review-tour-publication:push:pass\n";
 			return EXIT_SUCCESS;
 		}
-		accept_every_stop(editor);
-		button("tourPreparePublication")->click();
-		expect(!button("tourPublish")->isEnabled(), "unfinished draft cannot publish");
-		editor.problem_editor()->setPlainText(QStringLiteral("Avoid losing the original explanation."));
-		editor.solution_editor()->setPlainText(QStringLiteral("Keep exact sources and a readable route."));
+		// [[BPR-2274]]. With no Problem or Solution to write, a tour whose
+		// stops are accepted is finished; the course goes on to its mode.
 		if (mode == "compat") {
 			wait([&] { return editor.shown().Draft && editor.shown().Draft->Stops.size() == 2U; }, "compatibility fixture opens with its two stops");
 			select_file(window, "review.cpp");
@@ -356,7 +353,6 @@ auto main(int argc, char** argv) -> int
 			fileEditor.findChild<QAction*>(QStringLiteral("tourRedo"))->trigger();
 			expect(fileEditor.shown().Draft->Stops[1].FileCommentRequested, "file choice can be redone");
 			saved(fileEditor);
-			fileEditor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"))->setChecked(false);
 			accept_every_stop(fileEditor);
 			find("tourPreparePublication")->click();
 			wait([&] { return find("tourPublish")->isEnabled() && fileEditor.findChild<QLabel*>(QStringLiteral("tourPublicationForm"))->text().contains(QStringLiteral("file comment")); }, "with a file comment on offer, the plan chooses the mixed tour");
@@ -450,7 +446,6 @@ auto main(int argc, char** argv) -> int
 			// [[BPR-1992]]. No mode list: the plan chooses the mixed tour, says so with
 			// the stop that forced it, and offers the repairs under Keep it to one review.
 			expect(mixedEditor.findChild<QComboBox*>(QStringLiteral("tourPublicationMode")) == nullptr, "no mode list is offered");
-			mixedEditor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"))->setChecked(false);
 			accept_every_stop(mixedEditor);
 			find("tourPreparePublication")->click();
 			wait([&] { return find("tourPublish")->isEnabled(); }, "the chosen mixed preview is publishable");
@@ -633,7 +628,7 @@ auto main(int argc, char** argv) -> int
 			saved(repairedEditor);
 			{
 				const auto lock = std::scoped_lock{ server->Mutex };
-				expect(server->StagedWrites == 14U && server->StagedCreates == 1U && server->StagedSubmits == 1U && server->StagedComments.size() == 10U && server->CompatibilityComments.empty(), "text maintenance adds only one edit after thirteen initial writes");
+				expect(server->StagedWrites == 13U && server->StagedCreates == 1U && server->StagedSubmits == 1U && server->StagedComments.size() == 10U && server->CompatibilityComments.empty(), "text maintenance adds only one edit after twelve initial writes ([[BPR-2274]] no description write)");
 				expect(server->StagedComments.front().Body.contains("A maintained explanation at the repaired source.") && server->StagedWritePaths.back().ends_with("/pulls/comments/601"), "maintenance edits the repaired discussion rather than replacing it");
 			}
 			for (std::size_t i = 0; i < published.Stops.size(); ++i) {
@@ -675,12 +670,9 @@ auto main(int argc, char** argv) -> int
 			}
 		}
 		editor.roadmap()->setCurrentIndex(editor.roadmap()->count() - 1);
-		// [[BPR-1787]]. The brief goes in the description by default; the stop
-		// course keeps it in the tour comment instead.
-		auto* const describe = editor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"));
-		expect(describe->isChecked() && describe->toolTip().contains(QStringLiteral("Problem and Solution go in the PR description")), "Update PR description starts on and says where the brief goes");
-		const bool describing = mode != "stop";
-		describe->setChecked(describing);
+		// [[BPR-2274]]. A tour is its stops: nothing offers to write the description.
+		expect(editor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit")) == nullptr, "no description option");
+		const bool describing = false;
 		accept_every_stop(editor);
 		button("tourPreparePublication")->click();
 		if (mode == "unsupported") {
@@ -709,20 +701,15 @@ auto main(int argc, char** argv) -> int
 		}
 		auto* preview = editor.publication_preview();
 		expect(preview->original_body().contains("Actor:") && preview->original_body().contains("Head:"), "preview freezes identity");
-		if (describing) {
-			expect(preview->original_body().contains("Separate optional description edit") && preview->original_body().contains("Problem and Solution go in the PR description, not the tour comment.") && preview->original_body().contains(core::tour_brief_in_description_note), "preview says the brief goes in the description");
-		} else {
-			expect(preview->original_body().contains("Problem and Solution go in the tour comment.") && preview->original_body().contains("## Problem") && preview->original_body().contains("The PR description will not be edited."), "preview says the brief stays in the tour comment");
-		}
+		expect(preview->original_body().contains("The PR description will not be edited.") && !preview->original_body().contains("## Problem") && !preview->original_body().contains("Problem and Solution"), "[[BPR-2274]] the preview says the description is not edited");
 		if (mode == "compat") {
 			expect(preview->original_body().contains("non-atomic"), "explicit compatibility preview describes visible partial sequence");
 		}
 		{
 			std::scoped_lock lock{ server->Mutex };
 			expect(server->StagedWrites == 0 && server->Submissions == 0, "draft editing autosave navigation and preview perform zero remote writes");
-			server->StagedConflict          = mode == "conflict";
-			server->StagedRejectDescription = mode == "description";
-			server->StagedBlockNext         = mode == "stop";
+			server->StagedConflict  = mode == "conflict";
+			server->StagedBlockNext = mode == "stop";
 		}
 		if (mode == "compat" && !cliMode) {
 			expect(window.review_submission_editor_view()->shown_projection().Controls.Authored, "compatibility course publishes as the pull request author");
@@ -806,7 +793,7 @@ auto main(int argc, char** argv) -> int
 				}
 				button("tourPublish")->click();
 				wait([&] { return !button("tourStop")->isEnabled() && status->text().contains(QStringLiteral("draft is kept")); }, "typed tour acquisition refusal retains private draft");
-				expect(server->StagedWrites == 0U && editor.problem_editor()->toPlainText() == QStringLiteral("Avoid losing the original explanation."), "tour acquisition failure performs zero writes and keeps prose");
+				expect(server->StagedWrites == 0U, "tour acquisition failure performs zero writes and keeps prose");
 				if (failure != application::review_mutation_failure::cancelled) {
 					expect(status->text().contains(QStringLiteral("octo-reviewer")) && status->text().contains(QStringLiteral("github.com")), "tour failure names its captured account and host");
 				}
@@ -919,13 +906,6 @@ auto main(int argc, char** argv) -> int
 			expect(working->isHidden() && !banner->isHidden() && (banner->title()->text() == QStringLiteral("Not published") || banner->title()->text().startsWith(QStringLiteral("Publishing stopped at step"))) && banner->why()->text().contains(QStringLiteral("Publication conflict")) && banner->buttons().front()->text() == QStringLiteral("Check status") && button("tourPublish")->text() == QStringLiteral("Publish tour") && !button("tourStop")->isEnabled(), "a refused publication is a banner with Check status, and stops working");
 			std::scoped_lock lock{ server->Mutex };
 			expect(server->StagedWrites == 0, "existing website pending review is neither adopted nor modified");
-		} else if (mode == "description") {
-			wait([&] { return status->text().contains(QStringLiteral("Tour published; description update needs attention")); }, "description failure is separate from confirmed tour success");
-			expect(!editor.publication_banner()->isHidden() && editor.publication_banner()->title()->text().startsWith(QStringLiteral("Publishing stopped at step")) && button("tourReconcile")->isEnabled() && button("tourPublish")->text() == QStringLiteral("Publish tour"), "description attention is said in the banner with Check status");
-			button("tourReconcile")->click();
-			wait([&] { return !button("tourStop")->isEnabled(); }, "description reconciliation completes read-only");
-			std::scoped_lock lock{ server->Mutex };
-			expect(server->StagedCreates == 1 && server->StagedSubmits == 1 && server->StagedWrites == 4 && !server->StagedDescription, "description failure retains submitted review without reposting");
 		} else {
 			if (mode == "compat" && !cliMode) {
 				wait([&] { return !button("tourStop")->isEnabled(); }, "post-write read failure terminates with its witness");
@@ -946,10 +926,10 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return status->text().startsWith(mode == "compat" ? QStringLiteral("Published as compatibility") : QStringLiteral("Published:")); }, "normal Publish reaches verified success");
 			expect(working->isHidden() && !status->isHidden() && button("tourPublish")->text() == QStringLiteral("Published") && !button("tourStop")->isEnabled() && editor.findChild<QLabel*>(QStringLiteral("tourPublicationLink"))->text().contains(mode == "compat" ? QStringLiteral("#issuecomment-") : QStringLiteral("#pullrequestreview-")), "success says Published with where GitHub shows it");
 		}
-		if (mode != "conflict" && mode != "description") {
+		if (mode != "conflict") {
 			std::scoped_lock lock{ server->Mutex };
 			if (mode == "compat") {
-				expect(server->StagedCreates == 0 && server->StagedSubmits == 0 && server->CompatibilityComments.size() == 3 && server->StagedWrites == 6, "explicit compatibility emits three visible comments and two link edits, then description");
+				expect(server->StagedCreates == 0 && server->StagedSubmits == 0 && server->CompatibilityComments.size() == 3 && server->StagedWrites == 5, "explicit compatibility emits three visible comments and two link edits, and [[BPR-2274]] no description");
 			} else {
 				expect(server->StagedCreates == 1 && server->StagedSubmits == 1 && server->StagedComments.size() == 2 && server->StagedWrites == (describing ? 5U : 4U), "native app submits exactly one review after two navigation patches");
 				// [[BPR-1785]]. Each published stop says what to do when Next does not jump.
@@ -974,157 +954,8 @@ auto main(int argc, char** argv) -> int
 			}
 			// [[BPR-1787]]. The brief is published in exactly one place.
 			const auto& tourBody = mode == "compat" ? server->CompatibilityComments.back().Body : server->StagedReview->Body;
-			if (describing) {
-				expect(server->StagedDescription && server->StagedDescription->contains(mode == "compat" ? "#issuecomment-703" : "#pullrequestreview-501"), "description uses actual returned index link only after publication");
-				expect(server->StagedDescription->contains(originalTemplate), "first publication preserves original template bytes including CRLF");
-				// [[BPR-1786]]. The tour link leads the description.
-				expect(server->StagedDescription->starts_with("[Review tour](https://"), "the tour link is at the top of the description");
-				expect(server->StagedDescription->contains("## Problem\r\nAvoid losing the original explanation.") && server->StagedDescription->contains("## Solution\r\nKeep exact sources and a readable route."), "the brief is in the description");
-				expect(tourBody.starts_with(std::string{ core::tour_brief_in_description_note } + "\n\n## Review tour") && !tourBody.contains("## Problem") && !tourBody.contains("## Solution") && !tourBody.contains("Avoid losing the original explanation."), "the tour comment lists only the route");
-			} else {
-				expect(server->StagedDescription == originalTemplate, "the description is untouched when the brief stays in the tour comment");
-				expect(tourBody.starts_with("## Problem\n\nAvoid losing the original explanation.\n\n## Solution\n\nKeep exact sources and a readable route.\n\n## Review tour"), "the brief is in the tour comment");
-			}
-		}
-		if (mode == "reconciliation") {
-			saved(editor);
-			const auto rootEntity = editor.shown().Draft->Remote->Entity;
-			editor.problem_editor()->setPlainText("Local overlapping problem.");
-			saved(editor);
-			{
-				std::scoped_lock lock{ server->Mutex };
-				auto&            description = *server->StagedDescription;
-				description.replace(description.find("Avoid losing the original explanation."), std::string{ "Avoid losing the original explanation." }.size(), "Website overlapping problem.");
-				description.replace(description.find("Keep exact sources and a readable route."), std::string{ "Keep exact sources and a readable route." }.size(), "Website revised solution.");
-				description = "Website template preface.\n\n" + description + "\n\n## Testing\n\nKeep website template tail.\n";
-				server->StagedComments.front().Body.insert(0, "Website raw prefix.\n\n");
-				auto route = core::map_tour_markdown(server->StagedReview->Body).Lists.front();
-				std::reverse(route.Entries.begin(), route.Entries.end());
-				server->StagedReview->Body.replace(route.Source.Begin, route.Source.End - route.Source.Begin, *core::render_tour_index(route.Entries));
-			}
-			window.github_refresh_action()->trigger();
-			wait([&] { return editor.shown().Draft && editor.shown().Draft->Conflicts.size() == 1; }, "website/local overlap arrives through real snapshot parser");
-			expect(editor.problem_editor()->toPlainText() == "Local overlapping problem." && editor.solution_editor()->toPlainText().contains("Website revised solution."), "conflict preserves local problem and adopts unrelated website solution");
-			expect(editor.shown().Draft->Stops.front().Remote->DatabaseId == 602 && editor.shown().Draft->Stops.back().Baseline->Raw.starts_with("Website raw prefix."), "website index reorders stable comments and raw prefix survives");
-			expect(editor.shown().Draft->HasPriorObservation && !editor.shown().Draft->ObservedChanges.empty() && editor.findChild<QLabel*>(QStringLiteral("tourRevisionChanges"))->text().contains("Reordered"), "actual website observation exposes retained revision differences");
-			const auto beforeNavigation = access::review_mutation_evidence(*application);
-			editor.findChild<QPushButton*>(QStringLiteral("tourNextChanged"))->click();
-			expect(editor.selected_stop() != nullptr, "changed-stop action navigates actual outline");
-			const auto afterNavigation = access::review_mutation_evidence(*application);
-			expect(beforeNavigation.Submissions == afterNavigation.Submissions && beforeNavigation.Resolutions == afterNavigation.Resolutions && !access::review_ledger_receipt_present(*application), "changed-stop navigation has no review-status effect");
-			expect(editor.findChild<QPlainTextEdit*>(QStringLiteral("tourConflict"))->toPlainText().contains("Website overlapping problem."), "editor exposes the exact remote conflict version");
-			saved(editor);
-			editor.show_problem();
-			window.resize(1440, 1000);
-			QApplication::processEvents();
-			if (argc > 2) {
-				expect(window.grab().save(QString::fromUtf8(argv[2]) + "-conflict.png"), "actual B/L/R conflict capture saved");
-			}
-			if (argc > 3 && std::string_view{ argv[3] } == "--attended") {
-				editor.show_problem();
-				window.resize(1440, 1000);
-				window.setWindowTitle(QStringLiteral("Review tour conflict — synthetic website — close to finish"));
-				QApplication::setQuitOnLastWindowClosed(true);
-				QTimer::singleShot(30 * 60 * 1000, &qtApplication, &QApplication::quit);
-				std::cout << "review-tour-conflict-attended:ready\n"
-						  << std::flush;
-				const auto result = QApplication::exec();
-				shutdown(*application);
-				return result;
-			}
-			shutdown(*application);
-			application.reset();
-			application = make();
-			open(*application, cli);
-			auto& restored = *application->window().tour_editor();
-			wait([&] { return restored.shown().Draft && restored.shown().Draft->Conflicts.size() == 1; }, "unresolved B/L/R conflict survives real application restart");
-			restored.findChild<QPushButton*>(QStringLiteral("tourKeepLocalConflict"))->click();
-			saved(restored);
-			expect(restored.shown().Draft->Conflicts.empty() && restored.shown().Draft->Problem == "Local overlapping problem.", "explicit local choice retains desired text");
-			application->window().github_refresh_action()->trigger();
-			wait([&] { return restored.shown().Draft && !restored.shown().Draft->RemoteStale; }, "resolved versions require fresh website observation");
-			saved(restored);
-			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0, "refresh and conflict choice invoke no AI");
-			shutdown(*application);
-			application.reset();
-			currentDataRoot = e2e::private_data_root(coldData);
-			expect(currentDataRoot.has_value(), "clean private profile admitted");
-			application = make();
-			open(*application, cli);
-			auto& cold    = *application->window().tour_editor();
-			auto* choices = cold.findChild<QComboBox*>(QStringLiteral("tourImportChoices"));
-			wait([&] { return choices->count() > 0; }, "clean profile discovers the actual shared published index");
-			int selected = -1;
-			for (int i = 0; i < choices->count(); ++i) {
-				if (choices->itemText(i).contains(QString::fromStdString(rootEntity))) {
-					selected = i;
-				}
-			}
-			expect(selected >= 0, "cold profile selects exact published root");
-			choices->setCurrentIndex(selected);
-			cold.findChild<QPushButton*>(QStringLiteral("tourImport"))->click();
-			wait([&] { return cold.shown().Draft && cold.shown().Draft->Remote; }, "explicit cold import fills editors");
-			expect(cold.shown().Draft->Problem.contains("Website overlapping problem.") && !cold.shown().Draft->Problem.contains("Local overlapping problem.") && cold.shown().Draft->Stops.front().Remote->DatabaseId == 602, "cold import uses website truth and authoritative route");
-			expect(!cold.shown().Draft->HasPriorObservation && cold.shown().Draft->ObservedChanges.empty() && cold.findChild<QLabel*>(QStringLiteral("tourRevisionChanges"))->text().contains("No prior local"), "clean profile explicitly has unknown private tour history");
-			expect(!cold.shown().Draft->Stops.front().Original && cold.shown().Draft->Stops.front().Destination && cold.shown().Draft->Stops.front().Preparation == core::tour_preparation::editing, "cold profile fabricates no private preparation provenance");
-			saved(cold);
-			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0, "cold reconstruction uses no inference");
-			{
-				std::scoped_lock lock{ server->Mutex };
-				expect(server->StagedWrites == 5 && server->StagedCreates == 1 && server->StagedSubmits == 1, "refresh conflict resolution restart and cold import produce zero server mutations");
-			}
-			accept_every_stop(cold);
-			cold.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
-			expect(!cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "unchanged cold reimport cannot publish normalization edits");
-			cold.problem_editor()->setPlainText("Cold-profile deliberate revision.");
-			saved(cold);
-			// [[BPR-1787]]. The cold-imported brief lives in the description,
-			// so its revision goes there whatever the checkbox says.
-			cold.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"))->setChecked(false);
-			std::string coldReview;
-			{
-				std::scoped_lock lock{ server->Mutex };
-				coldReview = server->StagedReview->Body;
-			}
-			accept_every_stop(cold);
-			cold.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
-			expect(cold.publication_preview()->original_body().contains("Problem and Solution stay in the PR description, where they were published."), "the update preview says the brief stays in the description");
-			expect(cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "cold-profile author can explicitly edit the existing tour");
-			cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->click();
-			wait([&] { return cold.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().startsWith("Published:"); }, "cold-profile body update preserves imported actor and source binding");
-			saved(cold);
-			{
-				std::scoped_lock lock{ server->Mutex };
-				expect(server->StagedWrites == 6 && server->StagedCreates == 1 && server->StagedSubmits == 1 && server->StagedDescription->starts_with("Website template preface.") && server->StagedDescription->ends_with("Keep website template tail.\n"), "one narrow cold-profile description edit preserves template and every comment identity");
-				expect(server->StagedDescription->contains("Cold-profile deliberate revision.") && server->StagedReview->Body == coldReview, "the brief revision goes to the description and the tour comment is unchanged");
-			}
-			const auto originalStops = cold.shown().Draft->Stops;
-			expect(access::reaccept_fixture_revision(*application, true), "changed-head fixture enters actual accepted-revision path");
-			wait([&] { return cold.shown().Draft && cold.shown().Draft->ObservedHead && cold.shown().Draft->Stops.front().Preparation == core::tour_preparation::needs_attention; }, "changed head exposes explanation attention");
-			cold.outline()->setCurrentRow(0);
-			// [[BPR-2014]], RFC-BPR-0106. The stop was accepted before the push.
-			// This fixture's second head is a new handoff with no readable
-			// content, so the window cannot compare the accepted code with it:
-			// the stop stays yellow, "not compared yet", and is never left
-			// green on evidence nobody read.
-			const auto decided = [&] { return core::decide_tour_stop_acceptance(*cold.shown().Draft, cold.shown().Draft->Stops.front()); };
-			expect(originalStops.front().Acceptance.has_value(), "the stop was accepted before the push");
-			cold.go_to_stop(cold.shown().Draft->Stops.front().Id);
-			saved(cold);
-			expect(decided().State == core::tour_acceptance_state::changed && decided().Reason == core::tour_acceptance_reason::unchecked, "an uncompared push leaves the stop Changed since accepted, not compared yet");
-			// The stop's Accept, which replaces the Head changed chip. Critical
-			// review finding 3: pressed while its lines are not compared yet,
-			// it keeps them to compare and is never green on unread evidence.
-			cold.accept_stop(cold.shown().Draft->Stops.front().Id);
-			saved(cold);
-			const auto& kept = cold.shown().Draft->Stops.front();
-			expect(decided().Reason == core::tour_acceptance_reason::unchecked && kept.Acceptance && std::ranges::any_of(kept.Acceptance->Material, [](const auto& aMaterial) { return !aMaterial.Reference; }),
-				   "Accept while the stop's lines are not compared yet keeps them to compare");
-			expect(kept.Remote == originalStops.front().Remote && kept.Destination == originalStops.front().Destination, "accepting preserves the original imported subject and comment");
-			{
-				std::scoped_lock lock{ server->Mutex };
-				expect(server->StagedWrites == 6, "a new head and accepting a stop issue zero remote writes");
-			}
+			expect(server->StagedDescription == originalTemplate, "[[BPR-2274]] the description is never written");
+			expect(tourBody.starts_with(std::string{ core::tour_comment_lead } + "\n\n## Review tour") && !tourBody.contains("## Problem") && !tourBody.contains("## Solution"), "the tour comment is one line and the route");
 		}
 
 		if (mode == "maintenance" || mode == "manual") {
@@ -1141,9 +972,6 @@ auto main(int argc, char** argv) -> int
 				server->StagedComments.push_back(reply);
 				if (mode == "manual") {
 					server->StagedComments.front().Body.insert(0, "Website explanation prefix.\n\n");
-					auto& description = *server->StagedDescription;
-					description.replace(description.find("Keep exact sources and a readable route."), std::string{ "Keep exact sources and a readable route." }.size(), "Website-maintained solution.");
-					description += "\n\n## Testing\n\nPreserve website template.\n";
 				}
 			}
 			if (mode == "manual") {
@@ -1157,12 +985,11 @@ auto main(int argc, char** argv) -> int
 			const auto activeButton  = [&](const char* aName) { return activeEditor.findChild<QPushButton*>(QString::fromUtf8(aName)); };
 			auto*      activeStatus  = activeEditor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"));
 			auto*      activePreview = activeEditor.publication_preview();
-			activeEditor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"))->setChecked(false);
 			if (mode == "manual") {
-				wait([&] { return activeEditor.shown().Draft && activeEditor.shown().Draft->Solution.contains("Website-maintained solution.") && activeEditor.shown().Draft->Stops.front().Baseline->Raw.starts_with("Website explanation prefix."); }, "reopened application adopts website text and raw stop bytes");
+				wait([&] { return activeEditor.shown().Draft && activeEditor.shown().Draft->Stops.front().Baseline->Raw.starts_with("Website explanation prefix."); }, "reopened application adopts website text and raw stop bytes");
 				saved(activeEditor);
 				std::scoped_lock lock{ server->Mutex };
-				expect(server->StagedWrites == 5, "website reopen remains read-only");
+				expect(server->StagedWrites == 4, "website reopen remains read-only");
 			}
 
 			// [[BPR-2265]]. Two rereads that keep the pull request each renew
@@ -1185,7 +1012,7 @@ auto main(int argc, char** argv) -> int
 			saved(activeEditor);
 			{
 				std::scoped_lock lock{ server->Mutex };
-				expect(server->StagedWrites == 8 && server->StagedCreates == 1 && server->StagedSubmits == 1, "pure reorder only edits two bodies and original root");
+				expect(server->StagedWrites == 7 && server->StagedCreates == 1 && server->StagedSubmits == 1, "pure reorder only edits two bodies and original root");
 				expect(server->StagedComments.size() == 3 && server->StagedComments.back().Body == "Website reviewer discussion must survive.", "replies retain identity and bytes");
 				expect(server->StagedWritePaths.back().ends_with("/reviews/501"), "root update occurs last");
 			}
@@ -1213,7 +1040,7 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return !activeButton("tourStop")->isEnabled(); }, "maintenance stop drains effects");
 			{
 				std::scoped_lock lock{ server->Mutex };
-				expect(server->StagedWrites == 9 && server->StagedCreates == 2, "new destination created once before interruption");
+				expect(server->StagedWrites == 8 && server->StagedCreates == 2, "new destination created once before interruption");
 			}
 			shutdown(*application);
 			application.reset();
@@ -1224,7 +1051,7 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return restoredStatus->text().contains("Staged on GitHub"); }, "restart reconciles insertion read-only");
 			{
 				std::scoped_lock lock{ server->Mutex };
-				expect(server->StagedWrites == 9, "restart does not resume writes");
+				expect(server->StagedWrites == 8, "restart does not resume writes");
 			}
 			accept_every_stop(restored);
 			restored.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
@@ -1235,7 +1062,7 @@ auto main(int argc, char** argv) -> int
 			saved(restored);
 			{
 				std::scoped_lock lock{ server->Mutex };
-				expect(server->StagedCreates == 2 && server->StagedSubmits == 2 && server->StagedWrites == 14, "insertion creates one later batch then minimum navigation and original root edits");
+				expect(server->StagedCreates == 2 && server->StagedSubmits == 2 && server->StagedWrites == 13, "insertion creates one later batch then minimum navigation and original root edits");
 				expect(server->PreviousReviews.size() == 1 && server->PreviousReviews.front().Body.contains("Later batch insertion") && server->StagedWritePaths.back().ends_with("/reviews/501"), "route spans reviews and original index remains authoritative");
 				expect(std::ranges::any_of(server->PreviousComments, [](const auto& aC) { return aC.Id == 699 && aC.Body == "Website reviewer discussion must survive."; }), "interruption preserves existing reply");
 			}
@@ -1254,7 +1081,7 @@ auto main(int argc, char** argv) -> int
 			saved(restored);
 			{
 				std::scoped_lock lock{ server->Mutex };
-				expect(server->StagedCreates == 3 && server->StagedSubmits == 3 && server->StagedWrites == 20, "retarget creates only one replacement and minimal old-route edits");
+				expect(server->StagedCreates == 3 && server->StagedSubmits == 3 && server->StagedWrites == 19, "retarget creates only one replacement and minimal old-route edits");
 				expect(std::ranges::any_of(server->PreviousComments, [replacedId](const auto& aC) { return aC.Id == replacedId && aC.Body.contains("replacement stop"); }) && server->StagedComments.front().Body.contains("original discussion"), "old and new immutable subjects visibly link without deleting discussion");
 			}
 			restored.outline()->setCurrentRow(2);
@@ -1267,7 +1094,7 @@ auto main(int argc, char** argv) -> int
 			saved(restored);
 			{
 				std::scoped_lock lock{ server->Mutex };
-				expect(server->StagedWrites == 23 && server->StagedCreates == 3 && server->StagedSubmits == 3, "retirement edits membership/navigation without remote deletion");
+				expect(server->StagedWrites == 22 && server->StagedCreates == 3 && server->StagedSubmits == 3, "retirement edits membership/navigation without remote deletion");
 				expect(std::ranges::any_of(server->PreviousComments, [](const auto& aC) { return aC.Id == 699 && aC.Body == "Website reviewer discussion must survive."; }), "retiring root comment preserves its website reply");
 			}
 			if (mode == "manual") {
@@ -1296,7 +1123,7 @@ auto main(int argc, char** argv) -> int
 				for (std::size_t i = 0; i < completed.Stops.size(); ++i) {
 					expect(imported.Stops[i].Remote->Entity == completed.Stops[i].Remote->Entity && imported.Stops[i].Baseline->Raw == completed.Stops[i].Baseline->Raw, "cold route preserves exact remote ids/order/bodies across batches");
 				}
-				expect(!imported.HasPriorObservation && imported.ObservedChanges.empty() && imported.Solution.contains("Website-maintained solution."), "cold profile uses shared brief and declares unknown private history");
+				expect(!imported.HasPriorObservation && imported.ObservedChanges.empty(), "cold profile uses shared brief and declares unknown private history");
 				accept_every_stop(cold);
 				cold.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
 				expect(!cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "cold maintained route offers no normalization writes");
@@ -1308,7 +1135,7 @@ auto main(int argc, char** argv) -> int
 				}
 				saved(cold);
 				std::scoped_lock lock{ server->Mutex };
-				expect(server->StagedWrites == 23 && server->StagedCreates == 3 && server->StagedSubmits == 3 && server->DraftPullRequest && server->StagedDescription->ends_with("Preserve website template.\n"), "independent server counts preserve draft status and website template through complete manual course");
+				expect(server->StagedWrites == 22 && server->StagedCreates == 3 && server->StagedSubmits == 3 && server->DraftPullRequest && server->StagedDescription == originalTemplate, "independent server counts preserve draft status and website template through complete manual course");
 			}
 		}
 		if ((mode == "native" || mode == "compat") && !cliMode) {
@@ -1323,7 +1150,7 @@ auto main(int argc, char** argv) -> int
 			restored.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
 			expect(!restored.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "published draft cannot offer a duplicate publication");
 			std::scoped_lock lock{ server->Mutex };
-			expect(server->StagedWrites == (mode == "compat" ? 6 : 5), "completed restart and preview perform zero writes");
+			expect(server->StagedWrites == (mode == "compat" ? 5 : 4), "completed restart and preview perform zero writes");
 		}
 		// [[BPR-2116]], RFC-BPR-0100 AC06. A tour update that edits a published
 		// stop writes its references as a first publication does, and the
@@ -1392,7 +1219,7 @@ auto main(int argc, char** argv) -> int
 			expect(verificationMalformed && verificationDenied, "normal app logs preserve classified verification errors after baseline admission");
 			expect(logs.contains("tour_state=outcome_unknown") && logs.contains("tour_stage=recovery"), "post-write failure and read-only recovery are retained in the same correlated trace");
 			expect(attempts.size() == 1U && attempts.begin()->size() == 64U, "preview admission refusals wire operations and restart correlate to this exact authority/attempt");
-			for (const auto stage : { "preview", "admission", "publish", "factory", "baseline_read", "list_issue_comments", "create_issue_comment", "update_issue_comment", "update_description", "terminal" }) {
+			for (const auto stage : { "preview", "admission", "publish", "factory", "baseline_read", "list_issue_comments", "create_issue_comment", "update_issue_comment", "terminal" }) {
 				expect(logs.contains(std::string{ "tour_stage=" } + stage), "normal logs retain every relevant lifecycle stage");
 			}
 			expect(logs.contains("failure=refused_by_server") && logs.contains("tour_http=403") && logs.contains("failure=malformed_response") && !logs.contains("Avoid losing the original explanation.") && !logs.contains(originalTemplate), "logs keep classified refusal but omit private prose");

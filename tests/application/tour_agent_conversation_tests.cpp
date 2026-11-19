@@ -34,12 +34,10 @@ namespace {
 
 	void request()
 	{
-		auto tour     = core::review_tour{ };
-		tour.Problem  = "Two views drew over each other.";
-		tour.Solution = "Each view clears between begin and present.";
+		auto tour = core::review_tour{ };
 		tour.Stops.push_back(core::tour_stop{ .Id = core::tour_stop_id{ 4 }, .Title = "Where it starts", .Body = "Read `begin_frame()` first." });
 		const auto files        = std::vector<application::tour_draft_file>{ { "src/engine/renderer.cpp", "modified", std::vector<std::pair<std::uint32_t, std::uint32_t>>{ { 3U, 8U } } } };
-		const auto conversation = core::tour_conversation{ .Turns = { { "What does this mean?", core::tour_passage{ .Field = core::tour_passage_field::solution, .Text = "between begin and present" }, "EARLIER_REPLY_CANARY", core::tour_thread{ }, { } } }, .Dropped = 1U };
+		const auto conversation = core::tour_conversation{ .Turns = { { "What does this mean?", core::tour_passage{ .Field = core::tour_passage_field::stop, .Text = "between begin and present" }, "EARLIER_REPLY_CANARY", core::tour_thread{ }, { } } }, .Dropped = 1U };
 		const auto passage      = core::tour_passage{ .Field = core::tour_passage_field::stop, .Stop = 0U, .StopTitle = "Where it starts", .Text = "Read `begin_frame()` first." };
 		const auto prompt       = application::build_tour_ask_prompt("Fix overdraw", "Body", files, tour, conversation, core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 4 } }, passage, "Rewrite that so it says X");
 		expect(prompt.has_value(), "an ask request is built");
@@ -55,8 +53,8 @@ namespace {
 		expect(contains(*prompt, "\"thread\":\"stop 1\"") && contains(*prompt, "\"thread\":\"the tour\""), "this turn and the earlier one name their threads");
 		const auto code   = core::tour_passage{ .Field = core::tour_passage_field::stop_code, .Text = "clear();", .Path = "src/engine/renderer.cpp", .FirstLine = 4U, .LastLine = 5U };
 		const auto asked  = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 4 } }, code, "Why?");
-		const auto update = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::solution }, std::nullopt, "Update the Solution from our chat", true);
-		expect(update && contains(*update, "\"update\":true") && contains(*update, "rewrite the Solution as its whole new text"), "[[BPR-1914]] v003 an Update asks for the part rewritten from the chat");
+		const auto update = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 4 } }, std::nullopt, "Update this stop from our chat", true);
+		expect(update && contains(*update, "\"update\":true") && contains(*update, "rewrite stop 1 as its whole new text"), "[[BPR-1914]] v003 an Update asks for the part rewritten from the chat");
 		expect(!contains(*prompt, "This turn is an update"), "a question is not an update");
 		expect(asked && contains(*asked, "\"field\":\"stop_code\",\"first_line\":4,\"last_line\":5,\"path\":\"src/engine/renderer.cpp\""), "a code passage carries its path and lines: " + asked.value_or(""));
 		// [[BPR-1915]]. The drafting request carries the same section.
@@ -75,24 +73,24 @@ namespace {
 		auto       tour  = bpr::tests::review_tour_fixture();
 		const auto files = std::vector<application::tour_draft_file>{ { "src/engine/renderer.cpp", "modified" } };
 		const auto whole = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ }, std::nullopt, "Get it to 6 stops.");
-		const auto part  = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::problem }, std::nullopt, "Make it shorter.");
+		const auto part  = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = tour.Stops.front().Id }, std::nullopt, "Make it shorter.");
 		const auto draft = application::build_tour_draft_prompt("Fix overdraw", "Body", files, tour);
 		for (const auto* prompt : { &whole, &part }) {
 			expect(prompt->has_value() && contains(**prompt, "A request to change the tour or this part") && contains(**prompt, "in this same answer") && contains(**prompt, "A question (what, why, whether, how) is answered in words"),
 				   "every thread answers a request with its change in the turn and a question in words");
 		}
-		expect(contains(*whole, "never put off to a later turn") && contains(*whole, "A question about the tour is answered in words with every revision field empty") && contains(*whole, "bpr.tour-revise.v1"),
+		expect(contains(*whole, "never put off to a later turn") && contains(*whole, "A question about the tour is answered in words with every revision field empty") && contains(*whole, "bpr.tour-revise.v2"),
 			   "the whole tour's contract states it beside its schema");
 		for (const auto* prompt : { &whole, &part, &draft }) {
 			expect(prompt->has_value() && contains(**prompt, "cite code as `path:first-last`") && contains(**prompt, "Never restate a stop's own lines") && contains(**prompt, "the existing path is kept and where the condition is")
-					   && contains(**prompt, "do not describe what the existing path does") && contains(**prompt, "bpr.tour-guide.v2") && !contains(**prompt, "bpr.tour-guide.v1"),
+					   && contains(**prompt, "do not describe what the existing path does") && contains(**prompt, "bpr.tour-guide.v3") && !contains(**prompt, "bpr.tour-guide.v1"),
 				   "the drafting prompt and the conversation carry both rules under guide v2");
 		}
 		const auto hook = std::string{ application::default_writing_hook(core::writing_hook::comment) };
 		expect(contains(hook, "Cite code as `path:first-last`") && contains(hook, "the existing path is kept and where the condition is") && application::writing_hook_version_of(core::writing_hook::comment) == "tour-stop-comment-v2",
 			   "the stop-comment hook carries both rules and its version advanced from review-preparation-v1");
-		const auto selection = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::problem }, core::tour_passage{ .Field = core::tour_passage_field::problem, .Text = "The GPU stayed busy." },
-																  "Enhance the selected text of the Problem.", true);
+		const auto selection = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = tour.Stops.front().Id }, core::tour_passage{ .Field = core::tour_passage_field::stop, .Text = "The GPU stayed busy." },
+																  "Enhance the selected text of this stop.", true);
 		expect(selection && contains(*selection, "rewrite only this_turn.passage.text") && contains(*selection, "it replaces exactly that passage") && !contains(*selection, "as its whole new text"),
 			   "Enhance on a selection asks for the passage alone");
 	}
@@ -117,14 +115,12 @@ namespace {
 		};
 		const auto description = "DESCRIPTION_CANARY " + sentence("Each view now clears its own target before it draws. ", 3000U);
 		auto       tour        = core::review_tour{ };
-		tour.Problem           = sentence("Two views drew over each other when they cleared in the same frame. ", 600U);
-		tour.Solution          = sentence("Each view clears between begin and present, so its frame is its own. ", 700U);
 		for (std::uint64_t index = 1U; index <= 12U; ++index) {
 			tour.Stops.push_back(core::tour_stop{ .Id = core::tour_stop_id{ index }, .Title = "Stop " + std::to_string(index), .Body = sentence("This stop shows where the clear moved and why the draw follows it. ", 1000U) });
 		}
-		const auto passage      = core::tour_passage{ .Field = core::tour_passage_field::solution, .Text = "between begin and present" };
-		const auto conversation = core::tour_conversation{ .Turns = { { "What does this mean?", passage, sentence("It means the clear and the draw happen inside one frame. ", 1500U), core::tour_thread{ .Kind = core::tour_thread_kind::solution }, { } } } };
-		const auto thread       = core::tour_thread{ .Kind = core::tour_thread_kind::solution };
+		const auto passage      = core::tour_passage{ .Field = core::tour_passage_field::stop, .Text = "where the clear moved" };
+		const auto thread       = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 1 } };
+		const auto conversation = core::tour_conversation{ .Turns = { { "What does this mean?", passage, sentence("It means the clear and the draw happen inside one frame. ", 1500U), thread, { } } } };
 		const auto ask          = application::build_tour_ask_prompt("Fix overdraw", description, files, tour, conversation, thread, passage, "What does this mean?");
 		// The draft request carries the stops' titles only and the first 8 KiB
 		// of the description, so its fixture is a wider pull request: 150 files.
@@ -165,22 +161,24 @@ namespace {
 
 	void answer()
 	{
-		const auto plain = application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v1","reply":"It is `begin_frame()` to `present()`.\n\n- one\n- two","problem":"","solution":"","stops":[],"stop_texts":[]})");
-		expect(plain && plain->Reply == "It is `begin_frame()` to `present()`.\n\n- one\n- two" && plain->Changes.Solution == std::string{ } && plain->Changes.Stops.empty() && plain->StopTexts.empty(), "a reply alone is read, Markdown kept");
+		const auto plain = application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v2","reply":"It is `begin_frame()` to `present()`.\n\n- one\n- two","stops":[],"stop_texts":[]})");
+		expect(plain && plain->Reply == "It is `begin_frame()` to `present()`.\n\n- one\n- two" && plain->Changes.Stops.empty() && plain->StopTexts.empty(), "a reply alone is read, Markdown kept");
 		const auto change = application::decode_tour_ask_answer("```json\n"
-																R"({"schema":"bpr.tour-ask.v1","reply":"Proposed.","problem":"","solution":"New `x`.\n\n```cpp\nclear();\n```","stops":[{"path":"./src/a.cpp","first_line":2,"last_line":4,"title":"New","explanation":"Body."}],"stop_texts":[{"stop":1,"explanation":"New words."}]})"
+																R"({"schema":"bpr.tour-ask.v2","reply":"Proposed.","stops":[{"path":"./src/a.cpp","first_line":2,"last_line":4,"title":"New","explanation":"Body."}],"stop_texts":[{"stop":1,"explanation":"New `x`.\n\n```cpp\nclear();\n```"}]})"
 																"\n```");
-		expect(change && change->Changes.Solution == std::string{ "New `x`.\n\n```cpp\nclear();\n```" } && change->Changes.Stops.size() == 1U && change->Changes.Stops[0].Path == "src/a.cpp" && change->StopTexts == std::vector<core::proposed_stop_text>{ { 1U, "New words." } }, "a fenced answer whose field holds a fence is read");
-		const auto bare = application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v1","reply":"x","problem":"","solution":"```cpp\nclear();\n```","stops":[],"stop_texts":[]})");
-		expect(bare && bare->Changes.Solution == std::string{ "```cpp\nclear();\n```" }, "a bare answer whose field holds a fence is not mistaken for a fenced message");
-		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v1","reply":"x","problem":"","solution":"","stops":[]})"), "a missing key is refused");
-		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v1","reply":"x","problem":"","solution":"","stops":[],"stop_texts":[],"publish":true})"), "an extra key is refused");
-		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-draft.v1","reply":"x","problem":"","solution":"","stops":[],"stop_texts":[]})"), "another schema is refused");
-		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v1","reply":"  ","problem":"","solution":"","stops":[],"stop_texts":[]})"), "a blank reply is refused");
+		expect(change && change->Changes.Stops.size() == 1U && change->Changes.Stops[0].Path == "src/a.cpp" && change->StopTexts == std::vector<core::proposed_stop_text>{ { 1U, "New `x`.\n\n```cpp\nclear();\n```" } }, "a fenced answer whose field holds a fence is read");
+		const auto bare = application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v2","reply":"x","stops":[],"stop_texts":[{"stop":1,"explanation":"```cpp\nclear();\n```"}]})");
+		expect(bare && bare->StopTexts.size() == 1U && bare->StopTexts[0].Explanation == "```cpp\nclear();\n```", "a bare answer whose field holds a fence is not mistaken for a fenced message");
+		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v2","reply":"x","problem":"","solution":"","stops":[],"stop_texts":[]})"), "[[BPR-2274]] an answer with a Problem or Solution is refused");
+		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v2","reply":"x","stops":[]})"), "a missing key is refused");
+		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v2","reply":"x","stops":[],"stop_texts":[],"publish":true})"), "an extra key is refused");
+		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-draft.v2","reply":"x","stops":[],"stop_texts":[]})"), "another schema is refused");
+		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v2","reply":"  ","stops":[],"stop_texts":[]})"), "a blank reply is refused");
 		expect(!application::decode_tour_ask_answer("Sure! Here is my answer."), "prose is refused");
-		// [[BPR-1915]]. A whole-tour draft whose Solution holds a fenced block.
-		const auto drafted = application::decode_tour_draft_answer(R"({"schema":"bpr.tour-draft.v1","problem":"P.","solution":"S:\n\n```cpp\nclear();\n```","stops":[]})");
-		expect(drafted && drafted->Solution == std::string{ "S:\n\n```cpp\nclear();\n```" }, "a draft field may hold a fenced block");
+		// [[BPR-1915]]. A whole-tour draft whose stop holds a fenced block.
+		const auto drafted = application::decode_tour_draft_answer(R"({"schema":"bpr.tour-draft.v2","stops":[{"path":"src/a.cpp","first_line":1,"last_line":2,"title":"T","explanation":"S:\n\n```cpp\nclear();\n```"}]})");
+		expect(drafted && drafted->Stops.size() == 1U && drafted->Stops[0].Explanation == "S:\n\n```cpp\nclear();\n```", "a draft field may hold a fenced block");
+		expect(!application::decode_tour_draft_answer(R"({"schema":"bpr.tour-draft.v2","problem":"P.","solution":"S.","stops":[]})"), "[[BPR-2274]] a draft with a Problem or Solution is refused");
 	}
 
 	/// [[BPR-1930]]. The tour chat asks for a revision of the tour, sees the
@@ -194,26 +192,26 @@ namespace {
 		auto       waiting = core::tour_proposal{ };
 		waiting.Items      = { { .Part = core::tour_proposal_part::stop, .Text = "WAITING_CANARY", .Stop = { "src/engine/renderer.cpp", 3U, 8U, "Waiting", "WAITING_CANARY" } }, { .Part = core::tour_proposal_part::stop, .Text = "Gone", .Stop = { "src/a.cpp", 1U, 1U, "Decided", "Gone" }, .Decision = core::tour_proposal_decision::discarded } };
 		const auto whole   = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ }, std::nullopt, "Too many stops", false, waiting, "the renderer");
-		expect(whole && contains(*whole, "bpr.tour-revise.v1") && contains(*whole, "merge_stops") && contains(*whole, "replace_waiting_stops"), "the tour chat asks for a revision");
+		expect(whole && contains(*whole, "bpr.tour-revise.v2") && contains(*whole, "merge_stops") && contains(*whole, "replace_waiting_stops"), "the tour chat asks for a revision");
 		expect(contains(*whole, "\"waiting_stops\":[{\"explanation\":\"WAITING_CANARY\",\"first_line\":3,\"last_line\":8,\"number\":2,"), "the waiting stop is numbered on from the tour's: " + whole.value_or(""));
 		expect(!contains(whole->substr(whole->find("\"waiting_stops\":")), "Decided"), "a decided stop no longer waits");
 		expect(contains(*whole, "\"focus\":\"the renderer\"") && contains(*whole, "focus on what focus names"), "the focus rides every turn");
-		const auto part = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::solution }, std::nullopt, "Why?");
-		expect(part && contains(*part, "bpr.tour-ask.v1") && !contains(*part, "bpr.tour-revise.v1") && !contains(*part, "waiting_stops") && contains(*part, "\"focus\":\"\""), "a part's chat keeps its own schema");
+		const auto part = application::build_tour_ask_prompt("t", "b", files, tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 4 } }, std::nullopt, "Why?");
+		expect(part && contains(*part, "bpr.tour-ask.v2") && !contains(*part, "bpr.tour-revise.v2") && !contains(*part, "waiting_stops") && contains(*part, "\"focus\":\"\""), "a part's chat keeps its own schema");
 		const auto drafted = application::build_tour_draft_prompt("t", "b", files, tour, "the renderer");
 		expect(drafted && contains(*drafted, "\"focus\":\"the renderer\"") && contains(*drafted, "favour stops there"), "Draft the tour favours the focus");
 		expect(contains(*application::build_tour_draft_prompt("t", "b", files, tour), "\"focus\":\"\""), "without a focus, the authoritative snapshot says it is empty");
 
 		const auto read = application::decode_tour_ask_answer(
-			R"({"schema":"bpr.tour-revise.v1","reply":"Fewer.","problem":"","solution":"","stops":[],"stop_texts":[],"remove_stops":[5],"merge_stops":[{"stops":[2,3],"title":"Both","explanation":"One."}],"split_stops":[{"stop":1,"into":[{"path":"src/a.cpp","first_line":1,"last_line":2,"title":"A","explanation":"a"},{"path":"src/a.cpp","first_line":3,"last_line":4,"title":"B","explanation":"b"}]}],"order":[2,1],"focus":"the renderer","replace_waiting_stops":true})");
+			R"({"schema":"bpr.tour-revise.v2","reply":"Fewer.","stops":[],"stop_texts":[],"remove_stops":[5],"merge_stops":[{"stops":[2,3],"title":"Both","explanation":"One."}],"split_stops":[{"stop":1,"into":[{"path":"src/a.cpp","first_line":1,"last_line":2,"title":"A","explanation":"a"},{"path":"src/a.cpp","first_line":3,"last_line":4,"title":"B","explanation":"b"}]}],"order":[2,1],"focus":"the renderer","replace_waiting_stops":true})");
 		expect(read && read->Revision, "a revision is read");
 		const auto& revision = *read->Revision;
 		expect(revision.Remove == std::vector<std::size_t>{ 5U } && revision.Merges.size() == 1U && revision.Merges.front().Stops == std::vector<std::size_t>{ 2U, 3U } && revision.Merges.front().Title == "Both", "removals and merges are read");
 		expect(revision.Splits.size() == 1U && revision.Splits.front().Into.size() == 2U && revision.Order == std::vector<std::size_t>{ 2U, 1U } && revision.Focus == "the renderer" && revision.ReplaceWaitingStops, "splits, the order, the focus and the replacement are read");
-		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-revise.v1","reply":"x","problem":"","solution":"","stops":[],"stop_texts":[]})"), "a revision without its keys is refused");
-		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-revise.v1","reply":"x","problem":"","solution":"","stops":[],"stop_texts":[],"remove_stops":[-1],"merge_stops":[],"split_stops":[],"order":[],"focus":"","replace_waiting_stops":false})"), "a negative stop number is refused");
-		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-revise.v1","reply":"x","problem":"","solution":"","stops":[],"stop_texts":[],"remove_stops":[],"merge_stops":[{"stops":[1,2]}],"split_stops":[],"order":[],"focus":"","replace_waiting_stops":false})"), "a merge without its text is refused");
-		const auto plain = application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v1","reply":"x","problem":"","solution":"","stops":[],"stop_texts":[]})");
+		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-revise.v2","reply":"x","stops":[],"stop_texts":[]})"), "a revision without its keys is refused");
+		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-revise.v2","reply":"x","stops":[],"stop_texts":[],"remove_stops":[-1],"merge_stops":[],"split_stops":[],"order":[],"focus":"","replace_waiting_stops":false})"), "a negative stop number is refused");
+		expect(!application::decode_tour_ask_answer(R"({"schema":"bpr.tour-revise.v2","reply":"x","stops":[],"stop_texts":[],"remove_stops":[],"merge_stops":[{"stops":[1,2]}],"split_stops":[],"order":[],"focus":"","replace_waiting_stops":false})"), "a merge without its text is refused");
+		const auto plain = application::decode_tour_ask_answer(R"({"schema":"bpr.tour-ask.v2","reply":"x","stops":[],"stop_texts":[]})");
 		expect(plain && !plain->Revision, "an ask answer has no revision");
 	}
 }
@@ -290,7 +288,7 @@ namespace {
 	};
 	auto revise_answer(const std::string& aReply, const std::string& aMerges, const std::string& aRemovals = { }, const std::string& aOrder = { }) -> std::string
 	{
-		return R"({"schema":"bpr.tour-revise.v1","reply":")" + aReply + R"(","problem":"","solution":"","stops":[],"stop_texts":[],"remove_stops":[)" + aRemovals + R"(],"merge_stops":[)" + aMerges
+		return R"({"schema":"bpr.tour-revise.v2","reply":")" + aReply + R"(","stops":[],"stop_texts":[],"remove_stops":[)" + aRemovals + R"(],"merge_stops":[)" + aMerges
 			+ R"(],"split_stops":[],"order":[)" + aOrder + R"(],"focus":"","replace_waiting_stops":false})";
 	}
 	auto merge_of(const std::size_t aFirst, const std::size_t aSecond) -> std::string
@@ -391,8 +389,8 @@ namespace {
 			course.accept_all();
 			expect(ids() == std::vector{ before[0], before[1], before[2], before[3], before[5], before[7], before[8], before[6], before[9], before[10], before[11] }, "D. applying gives exactly the merge and the order");
 			// A part's own chat keeps its text-only Update.
-			const auto part = application::build_tour_ask_prompt("t", "b", std::vector<application::tour_draft_file>{ }, course.Tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::solution }, std::nullopt, "Update the Solution from our chat.", true);
-			expect(part && contains(*part, "rewrite the Solution as its whole new text") && contains(*part, "Leave every other field empty") && !contains(*part, "An update is not limited to text"), "D. a part's Update stays a rewrite of its text");
+			const auto part = application::build_tour_ask_prompt("t", "b", std::vector<application::tour_draft_file>{ }, course.Tour, { }, core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = course.Tour.Stops.front().Id }, std::nullopt, "Update this stop from our chat.", true);
+			expect(part && contains(*part, "rewrite stop 1 as its whole new text") && contains(*part, "Leave every other field empty") && !contains(*part, "An update is not limited to text"), "D. a part's Update stays a rewrite of its text");
 		}
 	}
 	void authoritative_context()
@@ -407,7 +405,7 @@ namespace {
 		context.PinnedHead   = tour.Head;
 		const auto snapshot  = [&] {const auto value=application::tour_agent_snapshot(tour,std::nullopt,session.Focus,core::cycle_json_value{},context);expect(value.has_value(),"complete small snapshot serializes");return *core::canonical_cycle_json(*value); };
 		const auto initial   = snapshot();
-		expect(contains(initial, "bpr.tour-context.v1") && contains(initial, "\"confirmed_lines\":true") && contains(initial, "\"source_attention\":false") && contains(initial, "\"related\":[{") && contains(initial, "\"first_line\":4"), "authoritative snapshot contains stable identity, confirmation and related source ranges");
+		expect(contains(initial, "bpr.tour-context.v2") && contains(initial, "\"confirmed_lines\":true") && contains(initial, "\"source_attention\":false") && contains(initial, "\"related\":[{") && contains(initial, "\"first_line\":4"), "authoritative snapshot contains stable identity, confirmation and related source ranges");
 		tour.Stops.front().Mapping = core::tour_mapping::ambiguous;
 		const auto ambiguous       = snapshot();
 		expect(ambiguous != initial && contains(ambiguous, "source_ambiguous") && contains(ambiguous, "\"draft_revision\":1"), "source observation changes snapshot without changing accepted revision");
@@ -436,7 +434,7 @@ namespace {
 			expect(encoded && contains(*encoded, "\"ready_eligible\":false") && contains(*encoded, "explanation_not_reaffirmed") && !contains(*encoded, "Ready, next"), "imported/remapped context agrees with core Ready refusal and offers reaffirmation separately from confirmed lines");
 		}
 		const auto prompt = application::build_tour_ask_prompt("t", "b", { }, tour, { }, { }, std::nullopt, "Why the source warning?", false, std::nullopt, { }, { }, context);
-		expect(prompt && contains(*prompt, "bpr.tour-guide.v2") && contains(*prompt, "bpr.tour-context.v1") && contains(*prompt, "Show in code") && contains(*prompt, "Ready, next") && contains(*prompt, "full_each_explicit_turn"), "every explicit native or replay turn has the current bootstrap and real corrective actions");
+		expect(prompt && contains(*prompt, "bpr.tour-guide.v3") && contains(*prompt, "bpr.tour-context.v2") && contains(*prompt, "Show in code") && contains(*prompt, "Ready, next") && contains(*prompt, "full_each_explicit_turn"), "every explicit native or replay turn has the current bootstrap and real corrective actions");
 		expect(application::build_tour_ask_prompt("t", "b", { }, tour, { }, { }, std::nullopt, std::string(16U * 1024U, 'x')).has_value(), "16 KiB typed question remains admitted");
 		expect(!application::build_tour_ask_prompt("t", "b", { }, tour, { }, { }, std::nullopt, std::string(16U * 1024U + 1U, 'x')), "typed question above 16 KiB is refused before send");
 		tour.Stops.front().Body = std::string(64U * 1024U, 'x');

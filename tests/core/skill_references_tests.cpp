@@ -115,7 +115,7 @@ namespace {
 		expect(labels != nullptr && labels->Editable && labels->BlankTurnsOff && !style->BlankTurnsOff && labels->Hook == writing_hook::comment_labels && feature_of_hook(writing_hook::comment_labels) == labels
 				   && referenced_features(std::array{ std::string_view{ "/bpr:comment-labels and /bpr:writing-style" } }) == std::vector<std::string>{ "comment-labels", "writing-style" },
 			   "comment-labels is the second editable Feature, named like the first");
-		expect(prompt_features().size() == 2U && !find_prompt_feature("suggested-comment") && !feature_of_hook(writing_hook::problem), "the registry holds only what ships");
+		expect(prompt_features().size() == 2U && !find_prompt_feature("suggested-comment") && !feature_of_hook(writing_hook::outline), "the registry holds only what ships");
 	}
 
 	void front_matter()

@@ -139,9 +139,9 @@ auto main(int aArgc, char** aArgv) -> int
 	std::cout << "TOUR_LIVE " << app::tour_draft_token(target) << "\n"
 			  << std::flush;
 	window.activateWindow();
-	auto* problem = editor.problem_editor();
-	problem->setFocus();
-	wait_for([&] { return problem->hasFocus(); }, "the author's caret is in the problem field");
+	// [[BPR-2274]]. A tour is its stops: the field the course reports is the
+	// open stop's text.
+	auto* problem = editor.stop_body();
 	say("OWNER_READY");
 	QElapsedTimer course;
 	course.start();
@@ -169,7 +169,7 @@ auto main(int aArgc, char** aArgv) -> int
 		words >> verb;
 		std::string argument;
 		std::getline(words >> std::ws, argument);
-		auto* solution = editor.solution_editor();
+		auto* solution = editor.stop_title();
 		if (verb == "type") {
 			problem->setFocus();
 			problem->moveCursor(QTextCursor::End);

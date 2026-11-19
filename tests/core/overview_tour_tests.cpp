@@ -44,23 +44,20 @@ namespace {
 
 	void test_my_draft()
 	{
-		auto draft     = core::review_tour{ };
-		draft.Problem  = "Slow start";
-		draft.Solution = "Cache it";
-		draft.Stops    = { stop(1, "The cache", core::tour_preparation::ready), stop(2, "", core::tour_preparation::needs_attention) };
+		auto draft  = core::review_tour{ };
+		draft.Stops = { stop(1, "The cache", core::tour_preparation::ready), stop(2, "", core::tour_preparation::needs_attention) };
 		for (const auto author : { true, false }) {
 			const auto shown = core::decide_overview_tour(&draft, nullptr, author);
 			expect(shown.Kind == overview_tour_kind::writer && !shown.Published, "a private draft is mine, whoever wrote the pull request");
-			expect(shown.Problem == "Slow start" && shown.Solution == "Cache it" && shown.Stops.size() == 2U, "the brief and every stop");
+			expect(shown.Stops.size() == 2U, "every stop");
 			expect(shown.Stops[0].Title == "The cache" && shown.Stops[0].Preparation == core::tour_preparation::ready
 					   && shown.Stops[1].Preparation == core::tour_preparation::needs_attention,
 				   "each stop with its readiness, in order");
 		}
 		draft.Remote = published(true);
 		expect(core::decide_overview_tour(&draft, nullptr, true).Published, "a tour I published says so");
-		auto brief    = core::review_tour{ };
-		brief.Problem = "Only a problem so far";
-		expect(core::decide_overview_tour(&brief, nullptr, true).Kind == overview_tour_kind::writer, "a draft with only its brief is begun");
+		const auto none = core::review_tour{ };
+		expect(core::decide_overview_tour(&none, nullptr, true).Kind == overview_tour_kind::prepare, "[[BPR-2274]] a draft with no stops is not begun");
 	}
 
 	void test_reader()
@@ -68,11 +65,10 @@ namespace {
 		auto offered     = core::review_tour{ };
 		offered.Remote   = published(false);
 		offered.Stops    = { stop(1, "Entry point", core::tour_preparation::ready) };
-		offered.Problem  = "Why";
 		const auto seed  = core::review_tour{ };
 		const auto shown = core::decide_overview_tour(&seed, &offered, false);
-		expect(shown.Kind == overview_tour_kind::reader && shown.Published && !shown.Imported && shown.Stops.size() == 1U && shown.Problem == "Why",
-			   "a published tour on offer is read-only, with its brief and stop titles");
+		expect(shown.Kind == overview_tour_kind::reader && shown.Published && !shown.Imported && shown.Stops.size() == 1U,
+			   "a published tour on offer is read-only, with its stop titles");
 		auto imported     = offered;
 		imported.ReadOnly = true;
 		const auto taken  = core::decide_overview_tour(&imported, &offered, false);
@@ -84,7 +80,7 @@ namespace {
 		empty.Stops = { };
 		expect(core::decide_overview_tour(&seed, &empty, false).Kind == overview_tour_kind::hidden, "an offer with no stops is no tour");
 		auto unresolved     = core::review_tour{ };
-		unresolved.Problem  = "Read only, unpublished";
+		unresolved.Stops    = { stop(1, "Read only, unpublished", core::tour_preparation::ready) };
 		unresolved.ReadOnly = true;
 		expect(core::decide_overview_tour(&unresolved, nullptr, false).Kind == overview_tour_kind::hidden, "a read-only draft with no published tour is no tour to show");
 	}

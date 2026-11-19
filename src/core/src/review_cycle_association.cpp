@@ -1,7 +1,5 @@
 #include "bpr/core/review_cycle_association.hpp"
 
-#include "bpr/core/review_tour_markdown.hpp"
-
 #include <algorithm>
 #include <array>
 #include <utility>
@@ -301,13 +299,12 @@ namespace bpr::core {
 		return association;
 	}
 
-	auto publication_body(const std::string_view aProblem, const std::string_view aSolution) -> std::optional<std::string>
+	auto publication_body(const std::string_view aDescription) -> std::optional<std::string>
 	{
-		auto body = insert_tour_brief({ }, 0U, aProblem, aSolution);
-		if (!body || body->size() > maximum_publication_body_bytes) {
+		if (aDescription.size() > maximum_publication_body_bytes) {
 			return std::nullopt;
 		}
-		return body;
+		return std::string{ aDescription };
 	}
 
 	auto suggested_publication_branch(const review_cycle_id aCycle, const cycle_source_revision_id aFinal) -> std::string

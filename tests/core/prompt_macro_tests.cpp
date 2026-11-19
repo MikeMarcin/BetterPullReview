@@ -69,6 +69,11 @@ namespace {
 			offer("Review " + *aFile, prompt_subject::open_file, true);
 		}
 		offer("What could this change break?", prompt_subject::pull_request, false);
+		for (const auto& builtin : shipped_prompt_macros()) {
+			if (builtin.Macro.Id == "agent-tab.draft-description") {
+				result.emplace_back("Draft a description", builtin.Macro.Body.Template, prompt_subject::pull_request, prompt_ask::question, false);
+			}
+		}
 		if (aLines && aFile) {
 			const auto [first, last] = *aLines;
 			offer(first == last ? "Explain " + *aFile + " line " + std::to_string(first)
@@ -101,7 +106,6 @@ namespace {
 		switch (aPlace) {
 		case prompt_place::tour_stop:
 			return { { .Text = "Explain the selected block", .Selection = true }, { .Text = "What does this code do?" }, { .Text = "Why does this change matter?" }, { .Text = "Rewrite this explanation more simply" }, { .Text = "Is this the right place for this stop?" } };
-		case prompt_place::tour_part: return { { .Text = "Explain the selected block", .Selection = true }, { .Text = "Make this clearer" }, { .Text = "What's missing?" }, { .Text = "Make it shorter" } };
 		case prompt_place::tour_whole:
 			return { { .Text = "Too many stops?" }, { .Text = "Suggest a better order" }, { .Text = "Focus on ", .Finish = true }, { .Text = "What's not covered?" } };
 		case prompt_place::agent_tab:
@@ -112,8 +116,7 @@ namespace {
 
 	auto subject_of(const prompt_place aPlace) -> prompt_subject
 	{
-		return aPlace == prompt_place::tour_stop ? prompt_subject::stop : aPlace == prompt_place::tour_part ? prompt_subject::part
-																											: prompt_subject::tour;
+		return aPlace == prompt_place::tour_stop ? prompt_subject::stop : prompt_subject::tour;
 	}
 
 	/// `tour_side_chat::prompt_labels` and `choose_prompt` today.
@@ -152,7 +155,20 @@ namespace {
 		// RFC-BPR-0128 added three action rows (What changed, Explain this file,
 		// Was this addressed?), which are never chips. [[BPR-2248]] added the
 		// Commits selection's two, which are never chips either.
-		expect(set.size() == 27U, "27 built-ins");
+		expect(set.size() == 24U, "24 built-ins");
+		// [[BPR-2274]]. Draft a description: a pull request question, plain
+		// text, asked from the diff and the tour's stops when there is one.
+		{
+			const auto all   = shipped_prompt_macros();
+			const auto found = std::ranges::find_if(all, [](const prompt_builtin& aBuiltin) { return aBuiltin.Macro.Id == "agent-tab.draft-description"; });
+			expect(found != all.end() && found->Macro.Place == prompt_place::agent_tab && found->Macro.Body.Subject == prompt_subject::pull_request && found->Macro.Body.Kind == prompt_ask::question
+					   && found->Macro.Body.Name == "Draft a description",
+				   "Draft a description is a shipped pull request question");
+			const auto& text = found->Macro.Body.Template;
+			expect(text.starts_with("Draft a description for this pull request") && text.find("diff") != std::string::npos && text.find("follow its stops") != std::string::npos
+					   && text.find("Without a tour, work from the diff alone") != std::string::npos && text.find("nothing is published") != std::string::npos,
+				   "it drafts from the diff, follows a tour's stops when there is one, works without one, and publishes nothing");
+		}
 		expect(std::ranges::all_of(set, [](const prompt_macro& aMacro) { return aMacro.BuiltIn && aMacro.On && prompt_macro_valid(aMacro); }), "every built-in is on and valid");
 		const auto lineChoices = std::vector<std::optional<prompt_line_range>>{ std::nullopt, prompt_line_range{ 34U, 34U }, prompt_line_range{ 34U, 36U } };
 		for (const auto& file : { std::optional<std::string>{ }, std::optional<std::string>{ "src/render/renderer.cpp" }, std::optional<std::string>{ "README.md" } }) {
@@ -176,8 +192,6 @@ namespace {
 		const auto parts = std::vector<prompt_tour_part>{
 			{ .Place = prompt_place::tour_stop, .Part = "Stop 1", .StopNumber = 1U, .StopTitle = "Parser" },
 			{ .Place = prompt_place::tour_stop, .Part = "Stop 2", .StopNumber = 2U, .StopTitle = "Cache" },
-			{ .Place = prompt_place::tour_part, .Part = "the Problem" },
-			{ .Place = prompt_place::tour_part, .Part = "the Solution" },
 		};
 		auto threads = parts;
 		threads.push_back({ .Place = prompt_place::tour_whole });
@@ -421,7 +435,7 @@ namespace {
 				agentTab.push_back(entry.Macro.Id);
 			}
 		}
-		expect(agentTab == std::vector<std::string>{ "own.1", "agent-tab.what-could-break", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.explain-line", "agent-tab.explain-block", "agent-tab.what-changed", "agent-tab.explain-file", "commits.explain", "commits.review" },
+		expect(agentTab == std::vector<std::string>{ "own.1", "agent-tab.what-could-break", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.draft-description", "agent-tab.explain-line", "agent-tab.explain-block", "agent-tab.what-changed", "agent-tab.explain-file", "commits.explain", "commits.review" },
 			   "the stored order, then the built-ins it does not name after the place's last built-in");
 		const auto entry = [&merged](const std::string_view aId) {
 			return *std::ranges::find_if(merged.Entries, [aId](const prompt_set_entry& aEntry) { return aEntry.Macro.Id == aId; });
@@ -443,7 +457,7 @@ namespace {
 				newPlace.push_back(item.Macro.Id);
 			}
 		}
-		expect(newPlace == std::vector<std::string>{ "agent-tab.explain-block", "own.1", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.what-could-break", "agent-tab.explain-line", "agent-tab.new", "agent-tab.what-changed", "agent-tab.explain-file", "commits.explain", "commits.review" },
+		expect(newPlace == std::vector<std::string>{ "agent-tab.explain-block", "own.1", "agent-tab.review-pull-request", "agent-tab.review-open-file", "agent-tab.what-could-break", "agent-tab.explain-line", "agent-tab.draft-description", "agent-tab.new", "agent-tab.what-changed", "agent-tab.explain-file", "commits.explain", "commits.review" },
 			   "a new built-in appears on, after its place's other built-ins");
 
 		// The profile bound.
@@ -479,7 +493,7 @@ namespace {
 		expect(suggested_subject_of(prompt_subject::pull_request) == agent_suggested_subject::pull_request && suggested_subject_of(prompt_subject::open_file) == agent_suggested_subject::open_file
 				   && suggested_subject_of(prompt_subject::selected_lines) == agent_suggested_subject::selected_lines,
 			   "the Agent tab's three subjects are RFC-BPR-0102's");
-		for (const auto subject : { prompt_subject::conversation, prompt_subject::stop, prompt_subject::part, prompt_subject::selected_text, prompt_subject::tour }) {
+		for (const auto subject : { prompt_subject::conversation, prompt_subject::stop, prompt_subject::selected_text, prompt_subject::tour }) {
 			expect(!suggested_subject_of(subject), "the other places' subjects name none");
 		}
 	}

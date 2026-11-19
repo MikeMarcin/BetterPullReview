@@ -230,8 +230,6 @@ namespace bpr::app {
 		pull_request_opener OpenPullRequest;
 		/// Whether each draft seen was linked when last published.
 		std::map<std::string, bool> LinkedSeen;
-		std::optional<std::string>  TypedProblem;
-		std::optional<std::string>  TypedSolution;
 		void                        queue_tour_edit(std::string aKey, std::function<void()> aApply);
 		void                        flush_tour_edits();
 		/// The view last presented, for the panel's proposals by index.

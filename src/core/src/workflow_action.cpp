@@ -38,15 +38,16 @@ namespace bpr::core::detail {
 	};
 	struct wire_record
 	{
-		std::string                  Action;
-		std::string                  State;
-		std::uint64_t                Invocation = 0;
-		std::uint64_t                Candidate  = 0;
-		std::string                  Revision;
-		std::uint64_t                TitleRevision       = 0;
-		std::uint64_t                DescriptionRevision = 0;
-		std::uint64_t                ProblemRevision     = 0;
-		std::uint64_t                SolutionRevision    = 0;
+		std::string   Action;
+		std::string   State;
+		std::uint64_t Invocation = 0;
+		std::uint64_t Candidate  = 0;
+		std::string   Revision;
+		std::uint64_t TitleRevision       = 0;
+		std::uint64_t DescriptionRevision = 0;
+		// [[BPR-2274]]. Read from a record saved before and dropped; never written.
+		std::uint64_t                LegacyProblemRevision  = 0;
+		std::uint64_t                LegacySolutionRevision = 0;
 		std::string                  PlanDigest;
 		std::string                  Answer;
 		std::string                  Question;
@@ -98,8 +99,6 @@ namespace bpr::core::detail {
 	{
 		std::string              Title;
 		std::string              Description;
-		std::string              Problem;
-		std::string              Solution;
 		std::vector<std::string> Notes;
 	};
 	struct wire_request_plan
@@ -197,10 +196,14 @@ struct glz::meta<bpr::core::detail::wire_reference>
 template <>
 struct glz::meta<bpr::core::detail::wire_record>
 {
-	using value_type            = bpr::core::detail::wire_record;
+	using value_type = bpr::core::detail::wire_record;
+	static constexpr auto skip(const std::string_view aKey, const meta_context& aContext) -> bool
+	{
+		return aContext.op == operation::serialize && (aKey == "problem_revision" || aKey == "solution_revision");
+	}
 	static constexpr auto value = object("action", &value_type::Action, "state", &value_type::State, "invocation", &value_type::Invocation, "candidate", &value_type::Candidate, "revision",
 										 &value_type::Revision, "title_revision", &value_type::TitleRevision, "description_revision", &value_type::DescriptionRevision, "problem_revision",
-										 &value_type::ProblemRevision, "solution_revision", &value_type::SolutionRevision, "plan_digest", &value_type::PlanDigest, "answer", &value_type::Answer,
+										 &value_type::LegacyProblemRevision, "solution_revision", &value_type::LegacySolutionRevision, "plan_digest", &value_type::PlanDigest, "answer", &value_type::Answer,
 										 "question", &value_type::Question, "message", &value_type::Message, "findings", &value_type::Findings, "limitations", &value_type::Limitations, "upstream",
 										 &value_type::Upstream, "references", &value_type::References, "proposals", &value_type::Proposals, "reconciled", &value_type::Reconciled, "at",
 										 &value_type::At);
@@ -236,8 +239,7 @@ template <>
 struct glz::meta<bpr::core::detail::wire_request_context>
 {
 	using value_type            = bpr::core::detail::wire_request_context;
-	static constexpr auto value = object("title", &value_type::Title, "description", &value_type::Description, "problem", &value_type::Problem, "solution", &value_type::Solution, "notes",
-										 &value_type::Notes);
+	static constexpr auto value = object("title", &value_type::Title, "description", &value_type::Description, "notes", &value_type::Notes);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_request_plan>
@@ -360,8 +362,6 @@ namespace bpr::core {
 			aRecord.Revision            = aDraft.Workflow->Revision;
 			aRecord.TitleRevision       = preparation.Description.TitleRevision;
 			aRecord.DescriptionRevision = preparation.Description.Revision;
-			aRecord.ProblemRevision     = preparation.Tour.ProblemRevision;
-			aRecord.SolutionRevision    = preparation.Tour.SolutionRevision;
 			aRecord.Question.clear();
 			aRecord.Message.clear();
 			aRecord.Findings.clear();
@@ -433,9 +433,9 @@ namespace bpr::core {
 
 		[[nodiscard]] auto proposal_target(const std::string_view aName) noexcept -> std::optional<local_proposal_target>
 		{
-			// A companion proposes the title, the description and the tour's
-			// brief; stops need the candidate's lines, which it is not sent.
-			for (const auto target : { local_proposal_target::title, local_proposal_target::description, local_proposal_target::problem, local_proposal_target::solution }) {
+			// A companion proposes the title and the description; stops need
+			// the candidate's lines, which it is not sent.
+			for (const auto target : { local_proposal_target::title, local_proposal_target::description }) {
 				if (name(target) == aName) {
 					return target;
 				}
@@ -448,8 +448,6 @@ namespace bpr::core {
 			switch (aTarget) {
 			case local_proposal_target::title:       return aRecord.TitleRevision;
 			case local_proposal_target::description: return aRecord.DescriptionRevision;
-			case local_proposal_target::problem:     return aRecord.ProblemRevision;
-			case local_proposal_target::solution:    return aRecord.SolutionRevision;
 			case local_proposal_target::stop:
 			case local_proposal_target::new_stop:    return 0U;
 			}
@@ -687,8 +685,6 @@ namespace bpr::core {
 											 .Revision            = record.Revision,
 											 .TitleRevision       = record.TitleRevision,
 											 .DescriptionRevision = record.DescriptionRevision,
-											 .ProblemRevision     = record.ProblemRevision,
-											 .SolutionRevision    = record.SolutionRevision,
 											 .PlanDigest          = record.PlanDigest,
 											 .Answer              = record.Answer,
 											 .Question            = record.Question,
@@ -750,8 +746,6 @@ namespace bpr::core {
 												  .Revision            = std::move(item.Revision),
 												  .TitleRevision       = item.TitleRevision,
 												  .DescriptionRevision = item.DescriptionRevision,
-												  .ProblemRevision     = item.ProblemRevision,
-												  .SolutionRevision    = item.SolutionRevision,
 												  .PlanDigest          = std::move(item.PlanDigest),
 												  .Answer              = std::move(item.Answer),
 												  .Question            = std::move(item.Question),
@@ -919,8 +913,6 @@ namespace bpr::core {
 
 		wire.Context.Title       = aDraft.Title;
 		wire.Context.Description = aDraft.Preparation.Description.Body;
-		wire.Context.Problem     = aDraft.Preparation.Tour.Problem;
-		wire.Context.Solution    = aDraft.Preparation.Tour.Solution;
 		std::ranges::transform(aDraft.Notes, std::back_inserter(wire.Context.Notes), &local_draft_note::Text);
 
 		wire.Guidance = workflow.Workflow.Guidance;

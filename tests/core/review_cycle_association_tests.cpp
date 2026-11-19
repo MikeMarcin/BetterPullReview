@@ -155,12 +155,10 @@ namespace {
 
 	void description()
 	{
-		const auto body = publication_body("Parsing accepted a truncated header.", "Validate the length before reading.");
-		expect(body && *body == "## Problem\nParsing accepted a truncated header.\n\n## Solution\nValidate the length before reading.\n\n", "the Problem and Solution brief");
-		const auto mapped = map_tour_markdown(*body);
-		expect(std::ranges::count_if(mapped.Sections, [](const tour_markdown_section& aSection) { return aSection.Name == "Problem" || aSection.Name == "Solution"; }) == 2,
-			   "a Review Tour maps both fields from the description");
-		expect(!publication_body(std::string(maximum_publication_body_bytes, 'x'), "").has_value(), "a description over its bound is refused, never cut");
+		const auto body = publication_body("Parsing accepted a truncated header; validate the length before reading.");
+		expect(body && *body == "Parsing accepted a truncated header; validate the length before reading.", "[[BPR-2274]] the description as written, with no fixed sections");
+		expect(publication_body("") == std::optional<std::string>{ "" }, "an empty description is allowed");
+		expect(!publication_body(std::string(maximum_publication_body_bytes + 1U, 'x')).has_value(), "a description over its bound is refused, never cut");
 		expect(suggested_publication_branch(review_cycle_id{ 2 }, cycle_source_revision_id{ 5 }) == "bpr/cycle-2-r5", "the suggested branch names the cycle and revision");
 		expect(valid_publication_branch(suggested_publication_branch(review_cycle_id{ 2 }, cycle_source_revision_id{ 5 })), "and is a valid new branch");
 	}

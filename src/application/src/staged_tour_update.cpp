@@ -198,12 +198,6 @@ namespace bpr::application {
 				result.Stops[ordinal].Baseline    = core::tour_field_baseline{ .Raw = aRecord.Comments[i].Body, .RemoteEntity = aRecord.Comments[i].NodeId, .DraftText = result.Stops[ordinal].Body };
 			}
 		}
-		if (aRecord.Plan.Description && aRecord.DescriptionDone) {
-			const auto body = staged_description_body(*aRecord.Plan.Description, result.Remote->WebUrl);
-			core::retain_tour_brief_baselines(result, body, aRecord.Plan.Submission.LiveBinding->Target.PullRequestNodeId);
-		} else if ((!result.ProblemBaseline && !result.SolutionBaseline) || (result.ProblemBaseline && result.ProblemBaseline->RemoteEntity == result.Remote->Entity)) {
-			core::retain_tour_brief_baselines(result, result.IndexBaseline->Raw, result.Remote->Entity);
-		}
 		return result;
 	}
 }

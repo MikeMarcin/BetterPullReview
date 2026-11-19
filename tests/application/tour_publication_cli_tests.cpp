@@ -110,6 +110,14 @@ namespace {
 	{
 		return [&aState](auto root, auto) { return std::make_unique<fixture_reader>(aState, std::move(root)); };
 	}
+	auto edit(app::tour_runtime& aRuntime, const app::tour_local_snapshot& aSnapshot, core::tour_command aCommand) -> app::tour_local_snapshot;
+	/// \brief [[BPR-2274]]. A text edit: the first stop's explanation.
+	auto edit_text(app::tour_runtime& aRuntime, const app::tour_local_snapshot& aSnapshot, std::string aText) -> app::tour_local_snapshot
+	{
+		auto value = aSnapshot.Draft.Stops.front();
+		value.Body = std::move(aText);
+		return edit(aRuntime, aSnapshot, { .Kind = core::tour_command_kind::edit_stop, .Stop = value.Id, .Value = std::move(value) });
+	}
 	auto edit(app::tour_runtime& aRuntime, const app::tour_local_snapshot& aSnapshot, core::tour_command aCommand) -> app::tour_local_snapshot
 	{
 		aCommand.ExpectedRevision = aSnapshot.Draft.Revision;
@@ -122,11 +130,9 @@ namespace {
 		auto opened = aRuntime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, { }, false);
 		expect(opened.has_value(), "public open");
 		auto snapshot = *opened;
-		if (!snapshot.Draft.Problem.empty()) {
+		if (!snapshot.Draft.Stops.empty()) {
 			return snapshot;
 		}
-		snapshot            = edit(aRuntime, snapshot, { .Kind = core::tour_command_kind::problem, .Text = "Explain a precise problem." });
-		snapshot            = edit(aRuntime, snapshot, { .Kind = core::tour_command_kind::solution, .Text = "Use a snapshot." });
 		auto stop           = tests::review_tour_fixture().Stops.front();
 		stop.Body           = "Retain exact source and discussion.";
 		stop.Original->Blob = *core::parse_git_blob_oid("2222222222222222222222222222222222222222");
@@ -193,13 +199,13 @@ namespace {
 			const auto        snapshot = seed(runtime);
 			token                      = app::tour_runtime::draft_token(snapshot.Target);
 			if (aMode == "edit") {
-				static_cast<void>(edit(runtime, snapshot, { .Kind = core::tour_command_kind::problem, .Text = "Concurrent terminal edit." }));
+				static_cast<void>(edit_text(runtime, snapshot, "Concurrent terminal edit."));
 				return 0;
 			}
 			if (aMode == "read") {
 				return 0;
 			}
-			const auto prepared = runtime.prepare_publication(token, false, { .Description = true });
+			const auto prepared = runtime.prepare_publication(token, false, { });
 			if (prepared && prepared->Plan) {
 				attempt = prepared->Plan->Submission.IdempotencyKey;
 			}
@@ -215,7 +221,7 @@ namespace {
 				checkpoint(aRoot);
 			}
 		};
-		QStringList args{ "tour", aMode == "recover" ? "recover" : "publish", "--data-root", QString::fromStdString((aRoot / "data").string()), "--profile", "1", "--draft", QString::fromStdString(token), "--description" };
+		QStringList args{ "tour", aMode == "recover" ? "recover" : "publish", "--data-root", QString::fromStdString((aRoot / "data").string()), "--profile", "1", "--draft", QString::fromStdString(token) };
 		if (aMode == "recover") {
 			args.append("--json");
 		}
@@ -253,9 +259,9 @@ namespace {
 			auto              opened = runtime.open("github.com", { "o", "r" }, core::pull_request_number{ 7 }, false, root, false);
 			expect(opened && opened->PublishedObservation == "complete", "fresh profile gets complete ordinary GitHub observation");
 			const auto& draft = opened->Draft;
-			expect(draft.Stops.size() == 4 && draft.Problem == "Website problem.\r\n" && draft.Solution == "Website solution.\r\n", "cold reconstruction preserves website brief and full route");
+			expect(draft.Stops.size() == 4 && draft.ImportNotice.find("mapping") == std::string::npos, "[[BPR-2274]] cold reconstruction reads the full route; the description's old brief is no field");
 			expect(draft.Stops[0].Remote->WebUrl == second && draft.Stops[1].Remote->WebUrl == first && draft.Stops[1].Body == server.PreviousComments.front().Body, "current website order and raw narrative override former publication order");
-			expect(draft.IndexBaseline->Raw == server.PreviousReviews.front().Body && draft.ProblemBaseline->Raw == *server.StagedDescription, "raw website baselines are exact");
+			expect(draft.IndexBaseline->Raw == server.PreviousReviews.front().Body && std::ranges::none_of(draft.Stops, [](const auto& aStop) { return aStop.Body.find("Website problem.") != std::string::npos; }), "raw website baselines are exact; the old brief becomes no stop");
 			expect(draft.Stops[0].Destination && draft.Stops[0].Destination->Path == "src/later.cpp" && draft.Stops[1].Destination && draft.Stops[1].Destination->Path == "src/item.cpp", "native subjects from different batches retain original sources");
 			expect(draft.Stops[2].Destination && draft.Stops[2].Destination->Side == core::diff_side::left && draft.Stops[2].Destination->FirstLine == 1 && draft.Stops[2].Destination->LastLine == 3, "same desktop scoped parser recovers compatibility left source");
 			expect(draft.Stops[3].Destination && core::canonical_hex(draft.Stops[3].Destination->Commit).view() == "3333333333333333333333333333333333333333", "historical pinned commit never replaced by current head");
@@ -357,21 +363,23 @@ namespace {
 			app::tour_runtime runtime{ scratch.path() / "data", "1", readers(state) };
 			auto              snapshot = seed(runtime);
 			token                      = app::tour_runtime::draft_token(snapshot.Target);
-			auto preview               = runtime.prepare_publication(token, false, { .Description = true });
+			auto preview               = runtime.prepare_publication(token, false, { });
 			if (preview && !preview->Plan) {
 				std::cerr << preview->Status << '\n';
 			}
 			expect(preview && preview->Plan && state.Server->StagedWrites == 0, "preview constructs shared finite plan with zero writes");
 			prepared = *preview;
-			snapshot = edit(runtime, snapshot, { .Kind = core::tour_command_kind::problem, .Text = "Changed after preview." });
+			snapshot = edit_text(runtime, snapshot, "Changed after preview.");
 			expect(!runtime.publish(prepared, false) && state.Server->StagedWrites == 0, "stale confirmation refuses");
+			// [[BPR-2274]]. The edit was to the stop, so the author accepts it again.
+			snapshot           = edit(runtime, snapshot, { .Kind = core::tour_command_kind::accept, .Stop = snapshot.Draft.Stops.front().Id });
 			state.WrongAccount = true;
 			expect(!runtime.prepare_publication(token, false, { }) && state.Server->StagedWrites == 0, "wrong current actor refuses");
 			state.WrongAccount = false;
 			state.Qualified    = false;
 			expect(!runtime.prepare_publication(token, false, { })->Plan && state.Server->StagedWrites == 0, "unqualified provider cannot construct authority");
 			state.Qualified = true;
-			prepared        = *runtime.prepare_publication(token, false, { .Description = true });
+			prepared        = *runtime.prepare_publication(token, false, { });
 		}
 		// Independent owners reobserve the same exact plan. No grant is serialized.
 		{
@@ -383,11 +391,11 @@ namespace {
 				std::cerr << published->Status << '\n';
 			}
 			expect(published && published->Result.State == application::staged_publication_state::published, "public runtime stages patches submits and attributes");
-			expect(state.Server->StagedCreates == 1 && state.Server->StagedSubmits == 1 && state.Server->StagedWrites == 4, "one create one patch one submit one description");
+			expect(state.Server->StagedCreates == 1 && state.Server->StagedSubmits == 1 && state.Server->StagedWrites == 3 && !state.Server->StagedDescription, "[[BPR-2274]] one create one patch one submit, and the description is never written");
 			auto recovered = runtime.prepare_publication(token, false, { }, { }, true);
-			expect(recovered && state.Server->StagedWrites == 4, "recovery is read-only after completion");
+			expect(recovered && state.Server->StagedWrites == 3, "recovery is read-only after completion");
 			auto receipt = runtime.prepare_publication(token, false, { }, prepared.Plan->Submission.IdempotencyKey, true);
-			expect(receipt && receipt->Result.Record && receipt->Result.State == application::staged_publication_state::published && state.Server->StagedWrites == 4, "explicit completed receipt survives local attribution revision and remains read-only");
+			expect(receipt && receipt->Result.Record && receipt->Result.State == application::staged_publication_state::published && state.Server->StagedWrites == 3, "explicit completed receipt survives local attribution revision and remains read-only");
 			auto snapshot = *runtime.load(token, true);
 			auto stop     = snapshot.Draft.Stops.front();
 			stop.Body     = "An explicit maintained explanation.";

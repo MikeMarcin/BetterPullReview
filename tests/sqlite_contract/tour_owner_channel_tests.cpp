@@ -64,12 +64,18 @@ namespace {
 		return encode_tour_request(load_request_value());
 	}
 
-	auto edit_request(std::string aId, std::string aText, core::tour_command_kind aKind = core::tour_command_kind::problem) -> tour_owner_request
+	auto edit_request(std::string aId, std::string aText, core::tour_command_kind aKind = core::tour_command_kind::edit_stop) -> tour_owner_request
 	{
 		tour_owner_request result{ .Operation = tour_owner_operation::mutate, .Draft = draft };
-		result.Edit.RequestId                = std::move(aId);
-		result.Edit.Command.Kind             = aKind;
-		result.Edit.Command.Text             = std::move(aText);
+		result.Edit.RequestId    = std::move(aId);
+		result.Edit.Command.Kind = aKind;
+		if (aKind == core::tour_command_kind::edit_stop) {
+			result.Edit.Command.Stop       = core::tour_stop_id{ 1 };
+			result.Edit.Command.Value.Id   = core::tour_stop_id{ 1 };
+			result.Edit.Command.Value.Body = std::move(aText);
+		} else {
+			result.Edit.Command.Text = std::move(aText);
+		}
 		result.Edit.Command.ExpectedRevision = 1U;
 		return result;
 	}
@@ -114,15 +120,15 @@ namespace {
 		expect(encode_tour_request({ .Operation = tour_owner_operation::load, .Draft = "not-a-token" }).empty(), "only an exact opaque draft selector is admitted");
 		// [[BPR-1064]]. The assist operations are finite; the caller supplies an answer or a query, nothing else.
 		application::tour_owner_request query{ .Operation = tour_owner_operation::assist_issue, .Draft = draft };
-		query.Assist            = { .Hook = core::writing_hook::problem, .HasQuote = true, .Quote = "stale\xc3\xa9", .Session = "cli" };
+		query.Assist            = { .Hook = core::writing_hook::comment, .Stop = core::tour_stop_id{ 1 }, .HasQuote = true, .Quote = "stale\xc3\xa9", .Session = "cli" };
 		const auto queryBytes   = encode_tour_request(query);
 		const auto decodedQuery = decode_tour_request(queryBytes);
-		expect(!queryBytes.empty() && decodedQuery && decodedQuery->Assist.Quote == query.Assist.Quote && decodedQuery->Assist.Hook == core::writing_hook::problem && decodedQuery->Assist.HasQuote, "an assist query round-trips");
+		expect(!queryBytes.empty() && decodedQuery && decodedQuery->Assist.Quote == query.Assist.Quote && decodedQuery->Assist.Hook == core::writing_hook::comment && decodedQuery->Assist.HasQuote, "an assist query round-trips");
 		auto badQuery            = query;
 		badQuery.Assist.HasRange = true;
 		expect(encode_tour_request(badQuery).empty(), "a quote and a range are not both accepted");
 		badQuery             = query;
-		badQuery.Assist.Hook = core::writing_hook::comment;
+		badQuery.Assist.Stop = core::tour_stop_id{ };
 		expect(encode_tour_request(badQuery).empty(), "a comment query must name its stop and no other hook may");
 		badQuery              = query;
 		badQuery.Assist.Quote = "\xff";

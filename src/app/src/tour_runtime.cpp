@@ -720,7 +720,7 @@ namespace bpr::app {
 			preview.Resume = true;
 			preview.Status = publication_status(preview.Result);
 		} else {
-			const auto prepared = prepare_tour_plan(loaded->Draft, context->Binding, read->Snapshot.PullRequest.Body, aOptions, context->Qualified);
+			const auto prepared = prepare_tour_plan(loaded->Draft, context->Binding, aOptions, context->Qualified);
 			preview.Plan        = prepared.Plan;
 			preview.Status      = prepared.Status;
 			if (read->Target.Head != loaded->Draft.ObservedHead.value_or(loaded->Draft.Head)) {

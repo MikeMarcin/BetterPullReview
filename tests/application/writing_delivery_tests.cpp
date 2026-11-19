@@ -26,7 +26,7 @@ int main()
 	using namespace bpr;
 	const std::vector<application::writing_source> sources = { { "pr-description", "Approved author explanation" } };
 	const std::string                              prefix  = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":)";
-	const auto                                     decode  = [&](std::string_view aValue, bool aEvidence = false) { return application::decode_writing_result(aValue, core::writing_hook::problem, sources, aEvidence); };
+	const auto                                     decode  = [&](std::string_view aValue, bool aEvidence = false) { return application::decode_writing_result(aValue, core::writing_hook::comment, sources, aEvidence); };
 	expect(decode(prefix + R"("safe\r\n😀","notes":[]})").has_value(), "bounded UTF8 rewrite decoded");
 	expect(!decode(prefix + R"("claim","notes":[]})", true), "empty field requires evidence");
 	expect(decode(prefix + R"("claim","notes":[{"kind":"recovered","text":"Existing statement","source_refs":["pr-description"]}]})", true).has_value(), "supplied provenance passes");
@@ -107,10 +107,10 @@ int main()
 			   && writingMetadata.metadata() == metadata,
 		   "runtime facts cannot admit a prohibited finding carrier or change on its refusal");
 	// [[BPR-1086]]. RFC-BPR-0048 "Tour compatibility" and R19: the tour's
-	// problem, solution, outline and stop hooks keep their own purposes. No
+	// outline and stop hooks keep their own purposes. No
 	// shipped default asks for a feedback label or a decoration, so a stop the
 	// agent drafts is plain unless its author labels it.
-	for (const auto hook : { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment }) {
+	for (const auto hook : { core::writing_hook::outline, core::writing_hook::comment }) {
 		const auto text = application::default_writing_hook(hook);
 		expect(!text.empty(), "every tour hook ships its default");
 		for (std::size_t label = 0; label < core::feedback_label_count; ++label) {
@@ -142,8 +142,8 @@ int main()
 			std::snprintf(pair, sizeof pair, "%02x", byte);
 			hex += pair;
 		}
-		expect(application::review_feedback_hook_version == "review-feedback-v3" && hex == "250c466b2676beb62f00e78df1775fbe13723e247c03a31a9f61e7e947abc771", "review-feedback-v3 names exactly this default text");
-		expect(application::writing_hook_version_of(core::writing_hook::feedback) == application::review_feedback_hook_version && application::writing_hook_version_of(core::writing_hook::comment) == application::tour_stop_comment_hook_version && application::writing_hook_version_of(core::writing_hook::problem) == application::writing_hook_version, "each hook reports its own default's version");
+		expect(application::review_feedback_hook_version == "review-feedback-v4" && hex == "ac6ec3a8c6b078e2beffec1645b4f944a3385a36d9f563faa652706592084e88", "review-feedback-v4 names exactly this default text");
+		expect(application::writing_hook_version_of(core::writing_hook::feedback) == application::review_feedback_hook_version && application::writing_hook_version_of(core::writing_hook::comment) == application::tour_stop_comment_hook_version && application::writing_hook_version_of(core::writing_hook::outline) == application::writing_hook_version, "each hook reports its own default's version");
 
 		core::writing_hook_settings settings;
 		expect(application::effective_writing_hook(settings, core::writing_hook::feedback) == feedback, "an empty override follows the shipped default");
@@ -177,7 +177,7 @@ int main()
 		expect(stop.starts_with("# Enhance a tour stop") && writing.starts_with("# Enhance writing") && writing.find("writing-kind") != std::string_view::npos, "each Enhance prompt ships its own default; the writing one reads which kind of text it is");
 		expect(application::writing_hook_version_of(core::writing_hook::enhance_stop) == "enhance-tour-stop-v1" && application::writing_hook_version_of(core::writing_hook::enhance_writing) == "enhance-writing-v1",
 			   "each Enhance prompt has its own built-in version");
-		const auto purposes = std::array<std::string_view, core::writing_hook_count>{ "tour.problem", "tour.solution", "tour.outline", "tour.stop-comment", "review.feedback", "enhance.tour-stop", "enhance.writing", "review.suggested-comment",
+		const auto purposes = std::array<std::string_view, core::writing_hook_count>{ "tour.outline", "tour.stop-comment", "review.feedback", "enhance.tour-stop", "enhance.writing", "review.suggested-comment",
 																					  "local.description", "local.discussion", "local.commit-message",
 																					  "review.latest-upload", "review.proposed-fix", "review.explain-file", "review.suggest-change", "local-draft.run-check",
 																					  "feature.writing-style", "feature.comment-labels" };

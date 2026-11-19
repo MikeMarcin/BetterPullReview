@@ -1,6 +1,4 @@
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/application-contract.md" WRITING_CONTRACT)
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/problem-statement.md" WRITING_PROBLEM)
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/solution-summary.md" WRITING_SOLUTION)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-outline.md" WRITING_OUTLINE)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-stop-comment.md" WRITING_COMMENT)
 # [[BPR-1090]] The review-feedback guidance, from the RFC-BPR-0051 pack fragment.
@@ -31,7 +29,7 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/writing-styl
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/comment-labels.md" WRITING_COMMENT_LABELS)
 # RFC-BPR-0128: the report shape the Agent tab's requests carry.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/report-templates.md" WRITING_REPORT_TEMPLATES)
-foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message review-latest-upload review-proposed-fix review-explain-file review-suggest-change local-run-check report-templates writing-style comment-labels)
+foreach(resource IN ITEMS application-contract tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message review-latest-upload review-proposed-fix review-explain-file review-suggest-change local-run-check report-templates writing-style comment-labels)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/${resource}.md")
 endforeach()
 configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)

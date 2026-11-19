@@ -55,7 +55,7 @@ namespace bpr::qt {
 	/// request's. Then what goes out: the two starting choices and every
 	/// changed path in its own words (starting work, the cycle's improvement,
 	/// both, added, deleted, needs a choice, stays out). Then where and as
-	/// whom, the title, the description's Problem and Solution and the draft
+	/// whom, the title, the description and the draft
 	/// choice; and a ledger of what goes to GitHub against what stays on this
 	/// computer. One default button moves the decision on: Review Plan,
 	/// Publish Pull Request (which names exactly the plan read), Check GitHub
@@ -99,8 +99,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto new_branch_field() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto account_words() const noexcept -> QLabel*;
 		[[nodiscard]] auto title_field() const noexcept -> QLineEdit*;
-		[[nodiscard]] auto problem_field() const noexcept -> QPlainTextEdit*;
-		[[nodiscard]] auto solution_field() const noexcept -> QPlainTextEdit*;
+		[[nodiscard]] auto description_field() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto draft_box() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto author_name_field() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto author_email_field() const noexcept -> QLineEdit*;
@@ -155,8 +154,7 @@ namespace bpr::qt {
 		QLineEdit*                                 NewBranch        = nullptr;
 		QLabel*                                    AccountWords     = nullptr;
 		QLineEdit*                                 PullTitle        = nullptr;
-		QPlainTextEdit*                            Problem          = nullptr;
-		QPlainTextEdit*                            Solution         = nullptr;
+		QPlainTextEdit*                            Description      = nullptr;
 		QCheckBox*                                 Draft            = nullptr;
 		QLineEdit*                                 AuthorName       = nullptr;
 		QLineEdit*                                 AuthorEmail      = nullptr;

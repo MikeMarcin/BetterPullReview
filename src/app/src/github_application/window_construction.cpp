@@ -1782,7 +1782,7 @@ namespace bpr::app {
 				if (local_tour_shown()) {
 					// Draft the tour, for a local draft: a whole-change question
 					// whose proposals wait in the tour.
-					DraftDesktop->tour_ask({ .Question = QStringLiteral("Draft the tour: propose a Problem, a Solution and stops on this candidate's lines.") });
+					DraftDesktop->tour_ask({ .Question = QStringLiteral("Draft the tour: propose stops on this candidate's lines.") });
 					return;
 				}
 				request_tour_draft();

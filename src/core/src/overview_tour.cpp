@@ -7,12 +7,12 @@ namespace bpr::core {
 	namespace {
 		[[nodiscard]] auto begun(const review_tour& aTour) -> bool
 		{
-			return !aTour.Problem.empty() || !aTour.Solution.empty() || !aTour.Stops.empty() || aTour.Remote.has_value();
+			return !aTour.Stops.empty() || aTour.Remote.has_value();
 		}
 
 		[[nodiscard]] auto summary_of(const review_tour& aTour, const overview_tour_kind aKind) -> overview_tour
 		{
-			auto result      = overview_tour{ .Kind = aKind, .Problem = aTour.Problem, .Solution = aTour.Solution };
+			auto result      = overview_tour{ .Kind = aKind };
 			result.Published = aTour.Remote.has_value();
 			result.Stops.reserve(aTour.Stops.size());
 			for (const auto& stop : aTour.Stops) {

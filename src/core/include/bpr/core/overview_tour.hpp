@@ -53,8 +53,6 @@ namespace bpr::core {
 	struct overview_tour
 	{
 		overview_tour_kind              Kind = overview_tour_kind::hidden;
-		std::string                     Problem;
-		std::string                     Solution;
 		std::vector<overview_tour_stop> Stops;
 		/// Whether the tour is on GitHub; a writer's draft that is not is private.
 		bool Published = false;

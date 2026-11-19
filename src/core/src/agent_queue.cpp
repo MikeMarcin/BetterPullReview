@@ -59,7 +59,37 @@ namespace bpr::core {
 		/// [[BPR-2248]]. With the commits an offer about selected commits
 		/// asks about, after its texts; `p1;` is read as before.
 		constexpr auto queued_prompt_commits_version = std::string_view{ "p2;" };
-		constexpr auto queued_claim_version          = std::string_view{ "c1;" };
+
+		// [[BPR-2274]]. A queued prompt keeps the numbers it was written with
+		// before the tour's Problem and Solution chat went: place 3 was that
+		// chat and subject 5 its part. An offer queued there is not read.
+		constexpr auto     retired_wire_place   = std::size_t{ 3U };
+		constexpr auto     retired_wire_subject = std::size_t{ 5U };
+		[[nodiscard]] auto wire_place(const prompt_place aPlace) noexcept -> std::size_t
+		{
+			const auto value = static_cast<std::size_t>(aPlace);
+			return value >= retired_wire_place ? value + 1U : value;
+		}
+		[[nodiscard]] auto wire_subject(const prompt_subject aSubject) noexcept -> std::size_t
+		{
+			const auto value = static_cast<std::size_t>(aSubject);
+			return value >= retired_wire_subject ? value + 1U : value;
+		}
+		[[nodiscard]] auto place_of_wire(const std::optional<std::size_t> aWire) noexcept -> std::optional<prompt_place>
+		{
+			if (!aWire || *aWire == retired_wire_place || *aWire > prompt_place_count) {
+				return std::nullopt;
+			}
+			return static_cast<prompt_place>(*aWire > retired_wire_place ? *aWire - 1U : *aWire);
+		}
+		[[nodiscard]] auto subject_of_wire(const std::optional<std::size_t> aWire) noexcept -> std::optional<prompt_subject>
+		{
+			if (!aWire || *aWire == retired_wire_subject || *aWire > prompt_subject_count) {
+				return std::nullopt;
+			}
+			return static_cast<prompt_subject>(*aWire > retired_wire_subject ? *aWire - 1U : *aWire);
+		}
+		constexpr auto queued_claim_version = std::string_view{ "c1;" };
 
 		/// One unsigned 64-bit decimal field and its `;`.
 		[[nodiscard]] auto take_wide(std::string_view& aFrom) -> std::optional<std::uint64_t>
@@ -696,10 +726,8 @@ namespace bpr::core {
 	auto tour_part_name(const tour_thread& aThread) -> std::string
 	{
 		switch (aThread.Kind) {
-		case tour_thread_kind::tour:     return "tour";
-		case tour_thread_kind::problem:  return "problem";
-		case tour_thread_kind::solution: return "solution";
-		case tour_thread_kind::stop:     return "stop-" + std::to_string(aThread.Stop.value());
+		case tour_thread_kind::tour: return "tour";
+		case tour_thread_kind::stop: return "stop-" + std::to_string(aThread.Stop.value());
 		}
 		return "tour";
 	}
@@ -708,12 +736,6 @@ namespace bpr::core {
 	{
 		if (aPart == "tour") {
 			return tour_thread{ };
-		}
-		if (aPart == "problem") {
-			return tour_thread{ .Kind = tour_thread_kind::problem };
-		}
-		if (aPart == "solution") {
-			return tour_thread{ .Kind = tour_thread_kind::solution };
 		}
 		constexpr auto stop = std::string_view{ "stop-" };
 		if (aPart.starts_with(stop) && all_digits(aPart.substr(stop.size())) && (aPart.size() == stop.size() + 1U || aPart[stop.size()] != '0')) {
@@ -737,8 +759,8 @@ namespace bpr::core {
 	auto encode_queued_prompt(const prompt_offer& aOffer) -> std::string
 	{
 		auto text = std::string{ aOffer.Commits.empty() ? queued_prompt_version : queued_prompt_commits_version };
-		put_number(text, static_cast<std::size_t>(aOffer.Place));
-		put_number(text, static_cast<std::size_t>(aOffer.Subject));
+		put_number(text, wire_place(aOffer.Place));
+		put_number(text, wire_subject(aOffer.Subject));
 		put_number(text, static_cast<std::size_t>(aOffer.Kind));
 		put_number(text, aOffer.Expansion.Cursor ? *aOffer.Expansion.Cursor + 1U : 0U);
 		put_number(text, aOffer.Expansion.Values.size());
@@ -767,18 +789,18 @@ namespace bpr::core {
 			return std::nullopt;
 		}
 		aText.remove_prefix(queued_prompt_version.size());
-		const auto place   = take_number(aText);
-		const auto subject = take_number(aText);
+		const auto place   = place_of_wire(take_number(aText));
+		const auto subject = subject_of_wire(take_number(aText));
 		const auto kind    = take_number(aText);
 		const auto cursor  = take_number(aText);
 		const auto values  = take_number(aText);
-		if (!place || *place >= prompt_place_count || !subject || *subject > static_cast<std::size_t>(prompt_subject::selected_commits) || !kind
+		if (!place || !subject || !kind
 			|| *kind > static_cast<std::size_t>(prompt_ask::review) || !cursor || !values || *values > aText.size()) {
 			return std::nullopt;
 		}
 		auto offer    = prompt_offer{ };
-		offer.Place   = static_cast<prompt_place>(*place);
-		offer.Subject = static_cast<prompt_subject>(*subject);
+		offer.Place   = *place;
+		offer.Subject = *subject;
 		offer.Kind    = static_cast<prompt_ask>(*kind);
 		for (auto index = std::size_t{ 0U }; index < *values; ++index) {
 			const auto begin = take_number(aText);

@@ -2,7 +2,7 @@
 
 Help the author write the full description of a pull request they are preparing locally, before it exists. The description is the one body the pull request will carry: write it for the reviewer who reads it first.
 
-Say what the change does and why, then what a reviewer should know to judge it: the approach, a non-obvious decision, what is left out. Use the author's words and the material supplied: the candidate's changed files and the tour's Problem and Solution. Do not invent intent, incidents, test outcomes or guarantees.
+Say what the change does and why, then what a reviewer should know to judge it: the approach, a non-obvious decision, what is left out. Use the author's words and the material supplied: the candidate's changed files and the tour's stops. Do not invent intent, incidents, test outcomes or guarantees.
 
 Keep the author's own structure, headings, template markers and checklist exactly where they are; change only what you were asked to. No enterprise tag, ticket or risk scale is required.
 

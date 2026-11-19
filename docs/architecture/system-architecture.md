@@ -2147,7 +2147,7 @@ immutable plan to the exact actor, head, sources, prose and allowed returned-lin
 slots. Each journaled write consumes its own one-use child grant. Stop or an
 identity/draft change revokes remaining authority; restart reconciles read-only
 and needs an explicit preview and Resume. Compatibility comments are explicitly
-non-atomic, and an optional description edit is a separately named operation.
+non-atomic, and a tour never writes the pull request description ([[BPR-2274]]).
 These Tour operations remain unavailable on an unqualified host/transport.
 
 RFC-BPR-0078's `strict-cli-publication-r2` amendment permits one transient

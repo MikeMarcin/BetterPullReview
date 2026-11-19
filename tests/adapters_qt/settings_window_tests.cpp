@@ -630,11 +630,11 @@ auto main(int argc, char** argv) -> int
 		unsigned                    tests = 0, saves = 0;
 		core::writing_hook_settings settings;
 		panel->set_dispatch([&](core::writing_hook aSelected, std::string aInstructions) { ++saves;settings.Overrides[static_cast<std::size_t>(aSelected)]=std::move(aInstructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
-		expect(hook->count() == 24 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments and notes" && hook->item(7)->text() == "Review feedback"
-				   && hook->item(8)->text() == "Enhance writing" && hook->item(9)->text() == "Local drafts" && hook->item(10)->text() == "Description writing"
-				   && hook->item(11)->text() == "Change discussion" && hook->item(12)->text() == "Commit message" && hook->item(13)->text() == "Plan and run a check" && hook->item(14)->text() == "Agent tab" && hook->item(15)->text() == "Suggested comments"
-				   && hook->item(16)->text() == "What changed" && hook->item(17)->text() == "Was this addressed" && hook->item(18)->text() == "Explain this file" && hook->item(19)->text() == "Suggest the change" && hook->item(20)->text() == "Review skill" && hook->item(21)->text() == "Features" && hook->item(22)->text() == "Writing style" && hook->item(23)->text() == "Comment labels" && !text->toPlainText().isEmpty(),
-			   "[[BPR-1917]], [[BPR-2051]], [[BPR-2059]], RFC-BPR-0110, RFC-BPR-0114, RFC-BPR-0116 every built-in prompt is listed under where it is used: four tour prompts and a stop's Enhance, review feedback and the one Enhance writing prompt (owner look 2026-11-10), the three local-authoring prompts, the suggested-comment format, the two returning questions and the review skill, then [[BPR-2264]] the Writing style Feature under Features");
+		expect(hook->count() == 22 && hook->item(0)->text() == "Tour tab" && hook->item(3)->text() == "Enhance a stop" && hook->item(4)->text() == "Comments and notes" && hook->item(5)->text() == "Review feedback"
+				   && hook->item(6)->text() == "Enhance writing" && hook->item(7)->text() == "Local drafts" && hook->item(8)->text() == "Description writing"
+				   && hook->item(9)->text() == "Change discussion" && hook->item(10)->text() == "Commit message" && hook->item(11)->text() == "Plan and run a check" && hook->item(12)->text() == "Agent tab" && hook->item(13)->text() == "Suggested comments"
+				   && hook->item(14)->text() == "What changed" && hook->item(15)->text() == "Was this addressed" && hook->item(16)->text() == "Explain this file" && hook->item(17)->text() == "Suggest the change" && hook->item(18)->text() == "Review skill" && hook->item(19)->text() == "Features" && hook->item(20)->text() == "Writing style" && hook->item(21)->text() == "Comment labels" && !text->toPlainText().isEmpty(),
+			   "[[BPR-1917]], [[BPR-2051]], [[BPR-2059]], RFC-BPR-0110, RFC-BPR-0114, RFC-BPR-0116 every built-in prompt is listed under where it is used: [[BPR-2274]] two tour prompts and a stop's Enhance, review feedback and the one Enhance writing prompt (owner look 2026-11-10), the three local-authoring prompts, the suggested-comment format, the two returning questions and the review skill, then [[BPR-2264]] the Writing style Feature under Features");
 		{
 			// [[BPR-2270]]. Comment labels shows the shipped convention;
 			// cleared and saved it is kept blank (no labels), not reset, and
@@ -654,15 +654,15 @@ auto main(int argc, char** argv) -> int
 			expect(settings.Overrides[index].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::comment_labels),
 				   "Reset to built-in brings the convention back");
 		}
-		const std::array<core::writing_hook, 4> tourHooks = { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment };
+		const std::array<core::writing_hook, 2> tourHooks = { core::writing_hook::outline, core::writing_hook::comment };
 		for (const auto tourHook : tourHooks) {
 			panel->select_hook(tourHook);
 			text->setPlainText("precise");
 			panel->findChild<QPushButton*>("writingHookSave")->click();
 		}
-		expect(tests == 0 && saves == 6, "loading and changing hooks never launches test: four tour prompts, and Comment labels blanked and reset");
+		expect(tests == 0 && saves == 4, "loading and changing hooks never launches test: two tour prompts, and Comment labels blanked and reset");
 		panel->findChild<QPushButton*>("writingHookReset")->click();
-		expect(settings.Overrides[3].empty() && settings.Overrides[0] == "precise", "restore only current hook");
+		expect(settings.Overrides[1].empty() && settings.Overrides[0] == "precise", "restore only current hook");
 		panel->findChild<QPushButton*>("writingHookTest")->click();
 		expect(tests == 1, "explicit test produces exactly one intent");
 		// [[BPR-1090]] The fifth hook: its own version, its own override, its reset, and a line that
@@ -674,7 +674,7 @@ auto main(int argc, char** argv) -> int
 		expect(scope->isHidden() && test->isEnabled() && source->text().contains("tour-stop-comment-v2"), "a tour hook shows no feedback line and can be tested");
 		panel->select_hook(core::writing_hook::feedback);
 		expect(panel->selected_hook() == core::writing_hook::feedback && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "the feedback row previews the shipped guidance");
-		expect(!scope->isHidden() && scope->text().startsWith("Off.") && source->text().contains("Built-in") && source->text().contains("review-feedback-v3"), "with the label helper off the row says the guidance is off");
+		expect(!scope->isHidden() && scope->text().startsWith("Off.") && source->text().contains("Built-in") && source->text().contains("review-feedback-v4"), "with the label helper off the row says the guidance is off");
 		expect(!test->isEnabled() && !test->toolTip().isEmpty(), "the tour-field test is unavailable for the feedback hook, with the reason");
 		test->click();
 		expect(tests == 1, "and clicking it asks for nothing");
@@ -682,9 +682,9 @@ auto main(int argc, char** argv) -> int
 		expect(scope->text().startsWith("On."), "turning the label helper on turns the guidance on");
 		text->setPlainText("Team rule");
 		panel->findChild<QPushButton*>("writingHookSave")->click();
-		expect(settings.Overrides[4] == "Team rule" && settings.Overrides[0] == "precise" && source->text().contains("Changed from built-in"), "the feedback override is its own");
+		expect(settings.Overrides[2] == "Team rule" && settings.Overrides[0] == "precise" && source->text().contains("Changed from built-in"), "the feedback override is its own");
 		panel->findChild<QPushButton*>("writingHookReset")->click();
-		expect(settings.Overrides[4].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "Restore default brings back the shipped guidance");
+		expect(settings.Overrides[2].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "Restore default brings back the shipped guidance");
 		panel->present_label_helper(application::review_label_helper::off);
 		expect(scope->text().startsWith("Off."), "and turning the helper off again says so");
 		// [[BPR-2051]] Each Enhance prompt: its own default and version, its
@@ -724,9 +724,9 @@ auto main(int argc, char** argv) -> int
 			panel->present_label_helper(application::review_label_helper::on);
 			QApplication::processEvents();
 			expect(panel->grab().save(directory + QStringLiteral("/writing-hooks-feedback-on.png")), "the feedback row render is saved");
-			panel->select_hook(core::writing_hook::problem);
+			panel->select_hook(core::writing_hook::outline);
 			QApplication::processEvents();
-			expect(panel->grab().save(directory + QStringLiteral("/writing-hooks-problem.png")), "the problem row render is saved");
+			expect(panel->grab().save(directory + QStringLiteral("/writing-hooks-outline.png")), "the outline row render is saved");
 			// [[BPR-2059]] The suggested-comment format, as shipped.
 			panel->select_hook(core::writing_hook::suggested_comment);
 			QApplication::processEvents();
@@ -758,8 +758,8 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-2179]]: in the Prompts library a system prompt saves as it is
 		// typed; until it does, it says so.
 		expect(save->isEnabled() && row_marker(1) == "Unsaved" && (state->text().startsWith("Unsaved") || state->text() == QStringLiteral("Saving\u2026")), "an edit is marked unsaved, in the list too");
-		panel->select_hook(core::writing_hook::solution);
-		panel->select_hook(core::writing_hook::problem);
+		panel->select_hook(core::writing_hook::comment);
+		panel->select_hook(core::writing_hook::outline);
 		expect(text->toPlainText().endsWith("Use /fixture-technical-writer.") && panel->unsaved_count() == 1U, "moving to another prompt keeps the unsaved edit");
 		save->click();
 		expect(badge->text() == "Changed from built-in" && row_marker(1) == "Changed" && !save->isEnabled() && reset->isEnabled() && panel->unsaved_count() == 0U, "a saved change is marked changed");
@@ -777,7 +777,7 @@ auto main(int argc, char** argv) -> int
 			if (!directory.isEmpty()) {
 				// [[BPR-2179]]: the system prompts are in Prompts' library.
 				window.settings()->present(qt::settings_page::prompts);
-				window.prompts()->select_system(static_cast<int>(core::writing_hook::problem));
+				window.prompts()->select_system(static_cast<int>(core::writing_hook::outline));
 				window.settings()->resize(1100, 900);
 				panel->resize(900, 640);
 				QApplication::processEvents();
@@ -789,7 +789,7 @@ auto main(int argc, char** argv) -> int
 		render(QStringLiteral("prompt-editor-changed.png"));
 		// Completion while typing, with each skill's source.
 		window.settings()->present(qt::settings_page::prompts);
-		window.prompts()->select_system(static_cast<int>(core::writing_hook::problem));
+		window.prompts()->select_system(static_cast<int>(core::writing_hook::outline));
 		window.settings()->show();
 		text->setFocus();
 		QApplication::processEvents();

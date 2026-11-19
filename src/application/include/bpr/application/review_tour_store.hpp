@@ -58,7 +58,7 @@ namespace bpr::application {
 	};
 	[[nodiscard]] inline auto valid(const tour_stored_state& aState) -> bool
 	{
-		if (core::validate(aState.Draft) != core::tour_refusal::none || aState.Resume.Section > tour_section::stops || (aState.Resume.Stop.value() && std::ranges::find(aState.Draft.Stops, aState.Resume.Stop, &core::tour_stop::Id) == aState.Draft.Stops.end())) {
+		if (core::validate(aState.Draft) != core::tour_refusal::none || (aState.Resume.Stop.value() && std::ranges::find(aState.Draft.Stops, aState.Resume.Stop, &core::tour_stop::Id) == aState.Draft.Stops.end())) {
 			return false;
 		}
 		if (aState.Receipts.size() > maximum_tour_request_receipts) {

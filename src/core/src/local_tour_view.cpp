@@ -145,22 +145,14 @@ namespace bpr::core {
 		if (const auto stop = stop_of(aThread)) {
 			return { .Kind = tour_thread_kind::stop, .Stop = tour_stop_id{ *stop } };
 		}
-		if (aThread == "problem") {
-			return { .Kind = tour_thread_kind::problem };
-		}
-		if (aThread == "solution") {
-			return { .Kind = tour_thread_kind::solution };
-		}
 		return { .Kind = tour_thread_kind::tour };
 	}
 
 	auto local_thread_of(const tour_thread& aThread) -> std::string
 	{
 		switch (aThread.Kind) {
-		case tour_thread_kind::stop:     return local_stop_thread(aThread.Stop.value());
-		case tour_thread_kind::problem:  return "problem";
-		case tour_thread_kind::solution: return "solution";
-		case tour_thread_kind::tour:     break;
+		case tour_thread_kind::stop: return local_stop_thread(aThread.Stop.value());
+		case tour_thread_kind::tour: break;
 		}
 		return std::string{ local_change_thread };
 	}
@@ -168,10 +160,8 @@ namespace bpr::core {
 	auto local_subject_of(const tour_thread& aThread) -> local_subject
 	{
 		switch (aThread.Kind) {
-		case tour_thread_kind::stop:     return local_subject::stop;
-		case tour_thread_kind::problem:  return local_subject::problem;
-		case tour_thread_kind::solution: return local_subject::solution;
-		case tour_thread_kind::tour:     break;
+		case tour_thread_kind::stop: return local_subject::stop;
+		case tour_thread_kind::tour: break;
 		}
 		return local_subject::whole_change;
 	}
@@ -189,8 +179,6 @@ namespace bpr::core {
 		tour.Owner          = local_tour_owner(id);
 		tour.Base           = local_tour_commit(id, std::numeric_limits<std::uint64_t>::max());
 		tour.Head           = head;
-		tour.Problem        = local.Problem;
-		tour.Solution       = local.Solution;
 		tour.Revision       = std::max<std::uint64_t>(aDraft.Version, 1U);
 		tour.LastStopId     = local.NextStop == 0U ? 0U : local.NextStop - 1U;
 		for (const auto& stop : local.Stops) {
@@ -289,8 +277,6 @@ namespace bpr::core {
 			const auto found = runOf.find(entry.Id);
 			auto       item  = tour_proposal_item{ .Run = found == runOf.end() ? tour_agent_run_id{ } : found->second };
 			switch (entry.Target) {
-			case local_proposal_target::problem:  item.Part = tour_proposal_part::problem; break;
-			case local_proposal_target::solution: item.Part = tour_proposal_part::solution; break;
 			case local_proposal_target::stop:
 				item.Part       = tour_proposal_part::stop_text;
 				item.StopId     = tour_stop_id{ entry.Stop };
@@ -350,8 +336,6 @@ namespace bpr::core {
 		auto        carry = local_tour_carry{ .Tour = aTarget, .Mapping = map_local_publication(aDraft, aResult) };
 		auto&       tour  = carry.Tour;
 		const auto& local = aDraft.Preparation.Tour;
-		tour.Problem      = local.Problem;
-		tour.Solution     = local.Solution;
 		tour.Stops.clear();
 		auto files = std::vector<std::string>{ };
 		for (const auto& file : aResult.Files) {
@@ -384,8 +368,6 @@ namespace bpr::core {
 		auto        edits = std::vector<local_tour_edit>{ };
 		const auto  stops = aCommand.Selection.empty() ? std::vector<tour_stop_id>{ aCommand.Stop } : aCommand.Selection;
 		switch (aCommand.Kind) {
-		case tour_command_kind::problem:  edits.push_back({ .Kind = local_tour_edit_kind::brief, .Problem = aCommand.Text, .Solution = tour.Solution }); break;
-		case tour_command_kind::solution: edits.push_back({ .Kind = local_tour_edit_kind::brief, .Problem = tour.Problem, .Solution = aCommand.Text }); break;
 		case tour_command_kind::edit_stop:
 			edits.push_back({ .Kind = local_tour_edit_kind::stop_text, .Stop = aCommand.Stop.value(), .Title = aCommand.Value.Title, .Text = aCommand.Value.Body });
 			break;
@@ -405,7 +387,7 @@ namespace bpr::core {
 		default: break;
 		}
 		std::erase_if(edits, [&tour](const local_tour_edit& aEdit) {
-			return aEdit.Kind != local_tour_edit_kind::brief && std::ranges::find(tour.Stops, aEdit.Stop, &local_tour_stop::Id) == tour.Stops.end();
+			return std::ranges::find(tour.Stops, aEdit.Stop, &local_tour_stop::Id) == tour.Stops.end();
 		});
 		return edits;
 	}

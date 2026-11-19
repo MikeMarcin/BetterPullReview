@@ -184,8 +184,8 @@ namespace {
 		const auto whole = tour_part_session(tab, tour_thread{ });
 		expect(session_key(whole) == "tour-part:github.com/o/r#7/tour" && session_key(whole) != session_key(part) && session_key(whole) != session_key(with_kind(tab, queued_session_kind::tour_feedback)),
 			   "the whole tour, a stop and the first draft's feedback are separate queues");
-		expect(tour_part_thread(part.Part) == std::optional{ stop } && tour_part_thread("problem") == std::optional{ tour_thread{ .Kind = tour_thread_kind::problem } }
-				   && tour_part_thread("solution") == std::optional{ tour_thread{ .Kind = tour_thread_kind::solution } } && !tour_part_thread("stop-") && !tour_part_thread("stop-07") && !tour_part_thread("tours"),
+		expect(tour_part_thread(part.Part) == std::optional{ stop } && !tour_part_thread("problem")
+				   && !tour_part_thread("solution") && !tour_part_thread("stop-") && !tour_part_thread("stop-07") && !tour_part_thread("tours"),
 			   "a part names its thread");
 		const auto draft = local_draft_session("d0a1", tour_thread{ });
 		expect(session_key(draft) == "local-draft:d0a1/tour" && parse_session_key(session_key(draft)) == std::optional{ draft }, "a local draft's discussion round-trips");

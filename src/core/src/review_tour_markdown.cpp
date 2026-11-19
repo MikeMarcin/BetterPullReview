@@ -190,22 +190,6 @@ namespace bpr::core {
 			}
 			return at + 2;
 		}
-		auto heading(std::string_view aText) -> std::pair<std::size_t, std::string_view>
-		{
-			std::size_t level = 0;
-			while (level < aText.size() && aText[level] == '#') {
-				++level;
-			}
-			if (!level || level > 6 || level == aText.size() || aText[level] != ' ') {
-				return { };
-			}
-			auto       title = trim(aText.substr(level));
-			const auto close = title.find_last_not_of('#');
-			if (close != std::string_view::npos && close + 1 < title.size() && title[close] == ' ') {
-				title = trim(title.substr(0, close));
-			}
-			return { level, title };
-		}
 		auto boundary(std::string_view aRaw, std::size_t aAt) -> bool
 		{
 			return aAt <= aRaw.size() && (aAt == aRaw.size() || (static_cast<unsigned char>(aRaw[aAt]) & 0xc0) != 0x80);
@@ -241,7 +225,6 @@ namespace bpr::core {
 			return result;
 		}
 		const auto                 rows = lines(aRaw);
-		std::optional<std::size_t> section;
 		std::optional<std::size_t> list;
 		for (const auto& row : rows) {
 			const auto text = trim(row.Text);
@@ -250,15 +233,6 @@ namespace bpr::core {
 					result.Lists[*list].MappingNeeded = true;
 				}
 				continue;
-			}
-			const auto [level, name] = heading(text);
-			if (section && level && level <= 2) {
-				result.Sections[*section].Content.End = row.Begin;
-				section.reset();
-			}
-			if (level == 2 && (name == "Problem" || name == "Solution")) {
-				result.Sections.push_back({ std::string{ name }, { row.End, aRaw.size() } });
-				section = result.Sections.size() - 1;
 			}
 			const auto prefix = ordered_prefix(text);
 			if (prefix) {
@@ -281,7 +255,7 @@ namespace bpr::core {
 			}
 			const auto found = links(text);
 			result.Links.insert(result.Links.end(), found.begin(), found.end());
-			if (result.Sections.size() + result.Lists.size() + result.Links.size() > 1024) {
+			if (result.Lists.size() + result.Links.size() > 1024) {
 				return { .Bounded = false };
 			}
 		}
@@ -358,17 +332,6 @@ namespace bpr::core {
 		}
 		result.append(aRaw.substr(at));
 		return result.size() <= maximum_tour_field_bytes ? std::optional{ std::move(result) } : std::nullopt;
-	}
-
-	auto insert_tour_brief(std::string_view aRaw, std::size_t aAt, std::string_view aProblem, std::string_view aSolution, std::string_view aNewline) -> std::optional<std::string>
-	{
-		if ((aNewline != "\n" && aNewline != "\r\n") || aProblem.size() > maximum_tour_field_bytes || aSolution.size() > maximum_tour_field_bytes) {
-			return { };
-		}
-		const auto           nl   = std::string{ aNewline };
-		const auto           body = "## Problem" + nl + std::string{ aProblem } + nl + nl + "## Solution" + nl + std::string{ aSolution } + nl + nl;
-		const tour_text_edit edit{ { aAt, aAt }, { }, body };
-		return edit_tour_markdown(aRaw, std::span{ &edit, 1U });
 	}
 
 	auto tour_markdown_label(std::string_view aLabel) -> std::string

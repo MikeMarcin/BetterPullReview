@@ -21,8 +21,6 @@ namespace bpr::core {
 		case tour_status_reason::explanation_not_reaffirmed: return "explanation_not_reaffirmed";
 		case tour_status_reason::read_only:                  return "read_only";
 		case tour_status_reason::invalid_tour:               return "invalid_tour";
-		case tour_status_reason::problem_missing:            return "problem_missing";
-		case tour_status_reason::solution_missing:           return "solution_missing";
 		case tour_status_reason::no_stops:                   return "no_stops";
 		case tour_status_reason::too_many_stops:             return "too_many_stops";
 		case tour_status_reason::remote_not_owned:           return "remote_not_owned";
@@ -140,9 +138,8 @@ namespace bpr::core {
 	}
 	auto tour_publication_reasons(const review_tour& aTour, const std::span<const tour_destination_plan> aDestinations, const bool aCompatibility, const tour_operation_support aBodyEdits) -> std::vector<tour_status_reason>
 	{
-		using reason      = tour_status_reason;
-		auto       result = std::vector<reason>{ };
-		const auto blank  = [](std::string_view aText) { return aText.find_first_not_of(" \r\n\t") == std::string_view::npos; };
+		using reason = tour_status_reason;
+		auto result  = std::vector<reason>{ };
 		if (validate(aTour) != tour_refusal::none || !aTour.Head.valid() || !aTour.Base.valid()) {
 			result.push_back(reason::invalid_tour);
 		}
@@ -154,13 +151,6 @@ namespace bpr::core {
 		}
 		if (!aTour.Remote && aTour.Stops.size() > 100U) {
 			result.push_back(reason::too_many_stops);
-		}
-		const bool newDestinations = !aTour.Remote || std::ranges::any_of(aTour.Stops, needs_tour_destination);
-		if (newDestinations && blank(aTour.Problem)) {
-			result.push_back(reason::problem_missing);
-		}
-		if (newDestinations && blank(aTour.Solution)) {
-			result.push_back(reason::solution_missing);
 		}
 		if (!aTour.Conflicts.empty()) {
 			result.push_back(reason::edit_conflict);
@@ -219,9 +209,8 @@ namespace bpr::core {
 	}
 	auto assess_tour_publication(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility, bool aMixed) noexcept -> tour_publication_readiness
 	{
-		using state      = tour_publication_readiness;
-		const auto blank = [](std::string_view aValue) { return aValue.find_first_not_of(" \r\n\t") == std::string_view::npos; };
-		if (validate(aTour) != tour_refusal::none || aTour.ReadOnly || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.Remote || !aTour.Head.valid() || !aTour.Base.valid() || aTour.Stops.empty() || aTour.Stops.size() > 100 || blank(aTour.Problem) || blank(aTour.Solution) || std::ranges::any_of(aTour.Stops, [&](const auto& aS) { return !tour_stop_publishable(aTour, aS); })) {
+		using state = tour_publication_readiness;
+		if (validate(aTour) != tour_refusal::none || aTour.ReadOnly || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.Remote || !aTour.Head.valid() || !aTour.Base.valid() || aTour.Stops.empty() || aTour.Stops.size() > 100 || std::ranges::any_of(aTour.Stops, [&](const auto& aS) { return !tour_stop_publishable(aTour, aS); })) {
 			return state::incomplete;
 		}
 		if (aDestinations.size() != aTour.Stops.size() || std::ranges::any_of(aDestinations, [](const auto& aD) { return aD.NeedsQualification || aD.IncompatibleBody || aD.Representation == tour_representation::unresolved; })) {

@@ -1,7 +1,10 @@
 # Review Tours
 
-A Review Tour walks reviewers through a pull request: a **Problem**, a
-**Solution**, and an ordered route of stops, each a comment on selected lines.
+A Review Tour walks reviewers through a pull request: an ordered route of
+stops, each a comment on selected lines. A tour is only its stops
+([[BPR-2274]]); the pull request's description is yours, and the shipped
+prompt **Draft a description** in the Agent tab drafts it from the diff and
+the tour's stops for you to apply.
 Reviewers need nothing installed; they see ordinary GitHub comments and a
 **Start here** comment with **Previous** and **Next** links. AI is optional.
 
@@ -29,10 +32,9 @@ Reading or collapsing the stop withholds that action; no code is copied.
 - GitHub accepts at most 100 line comments and 64 KiB per review.
   BetterPullReview never truncates a tour to fit, so a large tour may not
   publish.
-- With **Update PR description after publishing** on, Problem and Solution go
-  into the pull-request description under the tour link, and only its Problem
-  and Solution sections are edited. Off, they go in the tour comment and the
-  description is not touched.
+- Publishing never writes or edits the pull-request description. A tour
+  published by an earlier build keeps whatever its description and comment
+  already say.
 - Not yet tested against live GitHub: file-level stops, stops outside the
   diff, edits to the **Start here** comment, and GitHub Enterprise Server.
 
@@ -44,7 +46,7 @@ earlier staged or published work is retained. **Check status** reconciles a
 possibly sent operation, and **Resume** previews the captured plan before it
 continues.
 Use **Help > Export anonymized diagnostics…** to inspect the publication stages
-and classified failure without including your Problem, Solution or stop text.
+and classified failure without including your stop text.
 
 ## How the tour is published
 
@@ -131,7 +133,7 @@ The assist buttons rewrite a field or selection as one undoable edit; their
 instructions live in [Settings](settings.md#review-preparation-writing-hooks).
 AI text is never published without you, so check its claims.
 
-The whole tour, Problem, Solution and each stop have separate conversations for
+The whole tour and each stop have separate conversations for
 the selected agent. **Draft Tour** and that agent's whole-tour chat continue the
 same native session. Small writing hooks remain separate requests.
 

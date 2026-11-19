@@ -106,17 +106,17 @@ try {
 	sender_agents.Agents          = { work, claude };
 	sender_agents.PreferredAgent  = 2U;
 	expect(adapters::sqlite::make_agent_setup_store(sender)->store(sender_agents), "the sender's agents are stored");
-	store_hook(sender, core::writing_hook::problem, "State the problem in two sentences. /team-style");
+	store_hook(sender, core::writing_hook::comment, "State the problem in two sentences. /team-style");
 	const auto sender_store = adapters::sqlite::make_agent_configuration_store(sender);
-	expect(sender_store->record_written_against(core::writing_hook::problem, "State the problem in two sentences. /team-style", application::writing_hook_version), "provenance");
+	expect(sender_store->record_written_against(core::writing_hook::comment, "State the problem in two sentences. /team-style", application::writing_hook_version), "provenance");
 	store_hook(sender, core::writing_hook::enhance_writing, "Make it kind.");
 
 	auto sender_snapshot = sender_store->load();
 	expect(sender_snapshot.has_value(), "the sender's snapshot reads");
-	expect(sender_snapshot->WrittenAgainst[0] == std::string{ application::writing_hook_version } && !sender_snapshot->WrittenAgainst[6],
+	expect(sender_snapshot->WrittenAgainst[1] == std::string{ application::writing_hook_version } && !sender_snapshot->WrittenAgainst[4],
 		   "the store says which built-in an override was written against, and nothing for one it never recorded");
 	const auto agents  = std::vector<std::uint32_t>{ 1U, 2U };
-	const auto prompts = std::vector<application::exported_prompt>{ { .Purpose = "tour.problem" }, { .Purpose = "enhance.writing" }, { .Purpose = "review.feedback", .BuiltIn = true }, { .Purpose = "review.skill", .BuiltIn = true } };
+	const auto prompts = std::vector<application::exported_prompt>{ { .Purpose = "tour.stop-comment" }, { .Purpose = "enhance.writing" }, { .Purpose = "review.feedback", .BuiltIn = true }, { .Purpose = "review.skill", .BuiltIn = true } };
 	const auto bytes   = application::export_agent_configuration(*sender_snapshot, agents, prompts, "Team", "BetterPullReview test");
 	expect(bytes.has_value(), "the export encodes");
 	// AC02: nothing of the sender's machine.
@@ -163,7 +163,7 @@ try {
 	effects.drain();
 	decision.drain();
 	expect(preview && preview->File.Agents.size() == 2U && preview->File.Prompts.size() == 4U, "both agents and four prompts are previewed");
-	expect(adapters::sqlite::make_agent_setup_store(recipient)->load() == mine && hooks_of(recipient).Overrides[2] == "My outline prompt.", "a preview changes nothing");
+	expect(adapters::sqlite::make_agent_setup_store(recipient)->load() == mine && hooks_of(recipient).Overrides[0] == "My outline prompt.", "a preview changes nothing");
 
 	// AC01: bind the custom agent to this computer's program; Claude Code is
 	// found by setup. Relaxed checks and builds are not accepted.
@@ -188,11 +188,11 @@ try {
 	expect(after->Agents[2].Preset == core::setup_agent::claude_code && after->Agents[2].Program.empty(), "Claude Code is the recipient's own, looked for at launch");
 	expect(after->RunLimitMinutes == 5U && after->ScratchLimitMiB == 512U && after->PreferredAgent == 0U, "unrelated agent settings are kept");
 	const auto hooks = hooks_of(recipient);
-	expect(hooks.Overrides[0] == "State the problem in two sentences. /team-style" && hooks.Overrides[6] == "Make it kind." && hooks.Overrides[2] == "My outline prompt.",
+	expect(hooks.Overrides[1] == "State the problem in two sentences. /team-style" && hooks.Overrides[4] == "Make it kind." && hooks.Overrides[0] == "My outline prompt.",
 		   "imported prompts applied; the recipient's own kept");
-	expect(hooks.Overrides[4].empty(), "a shipped default imported as itself stays the default");
+	expect(hooks.Overrides[2].empty(), "a shipped default imported as itself stays the default");
 	const auto reloaded = store->load();
-	expect(reloaded->WrittenAgainst[0] == std::string{ application::writing_hook_version } && !reloaded->WrittenAgainst[6], "provenance travels with the override");
+	expect(reloaded->WrittenAgainst[1] == std::string{ application::writing_hook_version } && !reloaded->WrittenAgainst[4], "provenance travels with the override");
 	expect(!reloaded->ReviewSkill, "the shipped review skill imported as itself is no copy");
 	expect(launched == 2, "only identities were minted; no process, check or network");
 
@@ -200,7 +200,7 @@ try {
 	host.read(file, [&preview](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) { preview = std::move(*aPreview); });
 	effects.drain();
 	decision.drain();
-	store_hook(recipient, core::writing_hook::solution, "Edited through bpr meanwhile.");
+	store_hook(recipient, core::writing_hook::feedback, "Edited through bpr meanwhile.");
 	const auto replace = std::vector<core::agent_import_choice>{ { .Item = 0U, .Action = core::agent_import_action::replace, .Target = 2U } };
 	outcome.reset();
 	host.apply(*preview, replace, { }, [&outcome](application::agent_configuration_host::applied aApplied) { outcome = std::move(aApplied); });
@@ -217,15 +217,15 @@ try {
 		expect(sqlite3_open((recipient / "state/v1/agent-setup.sqlite3").string().c_str(), &db) == SQLITE_OK, "the file opens");
 		for (std::size_t index = 0U; index < core::writing_hook_count; ++index) {
 			const auto sql = "INSERT INTO configuration_import_journal VALUES(" + std::to_string(index) + "," + std::to_string(before_crash.Revision + 1U) + ",'"
-				+ (index == 0U ? std::string{ "Before the import." } : before_crash.Overrides[index]) + "')";
+				+ (index == 1U ? std::string{ "Before the import." } : before_crash.Overrides[index]) + "')";
 			expect(sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "a journal row");
 		}
 		sqlite3_close(db);
 	}
-	store_hook(recipient, core::writing_hook::problem, "Half-applied import text.");
+	store_hook(recipient, core::writing_hook::comment, "Half-applied import text.");
 	expect(store->recover(), "recovery runs");
 	const auto recovered = hooks_of(recipient);
-	expect(recovered.Overrides[0] == "Before the import." && recovered.Overrides[1] == "Edited through bpr meanwhile.", "the half-applied hooks are undone");
+	expect(recovered.Overrides[1] == "Before the import." && recovered.Overrides[2] == "Edited through bpr meanwhile.", "the half-applied hooks are undone");
 	expect(store->recover(), "an empty journal has nothing to do");
 
 	// A file that is not a configuration is named before any change.
@@ -312,25 +312,27 @@ try {
 		   "the blank override arrives blank, and the recipient sends no label guidance");
 
 	// RFC-BPR-0110: a store an earlier build made checks hooks 0 to 7; the
-	// next open rebuilds both hook tables for ten hooks, keeping their rows.
+	// next open rebuilds both hook tables, keeping their rows. [[BPR-2274]]:
+	// the retired Problem row (0) goes, and the outline's (2) is now 0.
 	{
 		auto* db = static_cast<sqlite3*>(nullptr);
 		expect(sqlite3_open((recipient / "state/v1/agent-setup.sqlite3").string().c_str(), &db) == SQLITE_OK, "the file opens");
 		const auto narrow = std::string{ "DROP TABLE prompt_provenance; CREATE TABLE prompt_provenance(hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 7),"
 										 "text_digest BLOB NOT NULL CHECK(length(text_digest)=32),version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)) STRICT;"
 										 "INSERT INTO prompt_provenance VALUES(0, zeroblob(32), 'review-preparation-v1');"
+										 "INSERT INTO prompt_provenance VALUES(2, zeroblob(32), 'review-preparation-v1');"
 										 "DROP TABLE configuration_import_journal; CREATE TABLE configuration_import_journal(hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 7),"
 										 "revision_after INTEGER NOT NULL CHECK(revision_after >= 1),text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)) STRICT" };
 		expect(sqlite3_exec(db, narrow.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "an earlier build's narrow hook tables");
 		sqlite3_close(db);
 	}
 	const auto widened = adapters::sqlite::make_agent_configuration_store(recipient);
-	expect(widened->record_written_against(core::writing_hook::local_discussion, "Be brief.", application::local_discussion_hook_version), "the widened table takes hook 9");
+	expect(widened->record_written_against(core::writing_hook::local_discussion, "Be brief.", application::local_discussion_hook_version), "the widened table takes hook 7");
 	{
 		auto* db = static_cast<sqlite3*>(nullptr);
 		expect(sqlite3_open((recipient / "state/v1/agent-setup.sqlite3").string().c_str(), &db) == SQLITE_OK, "the file opens again");
 		auto* statement = static_cast<sqlite3_stmt*>(nullptr);
-		expect(sqlite3_prepare_v2(db, "SELECT count(*) FROM prompt_provenance WHERE hook IN (0, 9)", -1, &statement, nullptr) == SQLITE_OK && sqlite3_step(statement) == SQLITE_ROW
+		expect(sqlite3_prepare_v2(db, "SELECT count(*) FROM prompt_provenance WHERE hook IN (0, 7)", -1, &statement, nullptr) == SQLITE_OK && sqlite3_step(statement) == SQLITE_ROW
 				   && sqlite3_column_int(statement, 0) == 2,
 			   "the earlier row is kept beside the new one");
 		sqlite3_finalize(statement);

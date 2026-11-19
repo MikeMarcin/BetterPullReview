@@ -14,7 +14,6 @@ namespace bpr::application {
 		using core::cycle_json_value;
 
 		inline constexpr std::size_t maximum_draft_answer_bytes = 128U * 1024U;
-		inline constexpr std::size_t maximum_draft_field_bytes  = 8192U;
 		inline constexpr std::size_t maximum_draft_title_bytes  = 180U;
 		inline constexpr std::size_t maximum_draft_body_bytes   = 4096U;
 		inline constexpr std::size_t maximum_draft_files        = 300U;
@@ -139,7 +138,7 @@ namespace bpr::application {
 		}
 		auto members = cycle_json_value::object{
 			{ "pull_request", cycle_json_value{ cycle_json_value::object{ { "title", text(aTitle) }, { "description", text(aDescription.substr(0U, std::min<std::size_t>(aDescription.size(), 8192U))) }, { "files", cycle_json_value{ std::move(files) } } } } },
-			{ "tour_so_far", cycle_json_value{ cycle_json_value::object{ { "problem", text(aDraft.Problem) }, { "solution", text(aDraft.Solution) }, { "stops", cycle_json_value{ std::move(stops) } } } } },
+			{ "tour_so_far", cycle_json_value{ cycle_json_value::object{ { "stops", cycle_json_value{ std::move(stops) } } } } },
 		};
 		// [[BPR-1930]]. The focus the author accepted for this tour.
 		if (!aFocus.empty()) {
@@ -155,8 +154,7 @@ namespace bpr::application {
 			return std::nullopt;
 		}
 		auto prompt = std::string{
-			"You are drafting a guided review tour of this pull request for its author. A tour states the Problem the change solves, the Solution it takes, "
-			"and a short route of stops: the places in the code a reviewer should read, in the order they should read them, each with an explanation.\n"
+			"You are drafting a guided review tour of this pull request for its author. A tour is a short route of stops: the places in the code a reviewer should read, in the order they should read them, each with an explanation.\n"
 		};
 		// [[BPR-2141]]. One tool-free call with the diff, or the repository.
 		prompt += aDiffUpFront ? "You have no tools and no files: each of the pull request's files carries its patch at the head (GitHub's unified diff, with a few lines of context) "
@@ -164,7 +162,7 @@ namespace bpr::application {
 							   : "Your working directory is a private copy of the repository at the session's pinned revision (the execution binding). Read, search and use read-only git (log, show, blame, diff) "
 								 "to understand the change before you answer. You cannot edit, write, run builds or reach the network; do not try.\n";
 		prompt += "Answer with exactly one JSON object and nothing else, in this schema:\n"
-				  "{\"schema\":\"bpr.tour-draft.v1\",\"problem\":string,\"solution\":string,\"stops\":[{\"path\":string,\"first_line\":integer,\"last_line\":integer,\"title\":string,\"explanation\":string}]}\n";
+				  "{\"schema\":\"bpr.tour-draft.v2\",\"stops\":[{\"path\":string,\"first_line\":integer,\"last_line\":integer,\"title\":string,\"explanation\":string}]}\n";
 		prompt += std::string{ "Rules: every stop's path is one of the pull request's files; first_line and last_line are one-based line numbers in that file at the head, " }
 			+ (aDiffUpFront ? "and you can see them in its patch. Strongly" : "and you have read them. Strongly")
 			+ " prefer stops on the change: a file's changed_lines are its diff hunks at the head (first and last line), and a stop "
@@ -172,8 +170,7 @@ namespace bpr::application {
 			  "and make the first sentence of its explanation say why it is worth reading there. At most "
 			+ std::to_string(requested_tour_stops)
 			+ " stops, in reading order; a title is a short phrase; an explanation says what the reader should notice there, in plain sentences. "
-			  "Write the Problem and Solution as the author would, two to four sentences each, without claims you did not check. "
-			  "Leave a field as an empty string when the evidence does not support it. The tour so far is the author's own work: do not repeat its stops.\n";
+			  "Make no claims you did not check. The tour so far is the author's own work: do not repeat its stops.\n";
 		if (!aFocus.empty()) {
 			prompt += "The author asked the tour to focus on what focus names: favour stops there, and keep stops elsewhere only where a reviewer needs them to follow it.\n";
 		}
@@ -211,14 +208,14 @@ namespace bpr::application {
 		if (root == nullptr) {
 			return std::nullopt;
 		}
-		static constexpr auto keys   = std::array<std::string_view, 4>{ "schema", "problem", "solution", "stops" };
+		static constexpr auto keys   = std::array<std::string_view, 2>{ "schema", "stops" };
 		const auto            schema = string_of(*root, "schema", 64U);
 		if (!core::has_exactly(*root, keys) || !schema || *schema != tour_draft_schema) {
 			return std::nullopt;
 		}
-		auto        answer = core::tour_draft_answer{ .Problem = string_of(*root, "problem", maximum_draft_field_bytes), .Solution = string_of(*root, "solution", maximum_draft_field_bytes) };
+		auto        answer = core::tour_draft_answer{ };
 		const auto* stops  = std::get_if<cycle_json_value::array>(&core::find_member(*root, "stops")->Value);
-		if (!answer.Problem || !answer.Solution || stops == nullptr || stops->size() > core::maximum_proposed_tour_stops) {
+		if (stops == nullptr || stops->size() > core::maximum_proposed_tour_stops) {
 			return std::nullopt;
 		}
 		static constexpr auto stopKeys = std::array<std::string_view, 5>{ "path", "first_line", "last_line", "title", "explanation" };

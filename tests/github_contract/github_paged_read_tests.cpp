@@ -5726,11 +5726,7 @@ namespace {
 		seed.Owner.Repository  = result->Repository.Repository;
 		seed.Owner.PullRequest = result->PullRequest.PullRequest;
 		seed.Stops.clear();
-		seed.LastStopId = 0;
-		seed.Problem.clear();
-		seed.Solution.clear();
-		seed.ProblemBaseline.reset();
-		seed.SolutionBaseline.reset();
+		seed.LastStopId     = 0;
 		const auto calls    = transport.Requests.size();
 		const auto imported = application::observe_review_tours(seed, *result, "github.com");
 		expect(imported.size() == 1 && imported[0].Draft.Stops.size() == 2 && !imported[0].Draft.ReadOnly, "real paged snapshot cold imports without private IDs or AI");

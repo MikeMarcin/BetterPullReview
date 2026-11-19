@@ -176,7 +176,6 @@ add_library(
         src/overview_tour.cpp
         src/tour_publication_head.cpp
         src/tour_stop_acceptance.cpp
-        src/tour_steps.cpp
         src/tour_agent_session.cpp
         src/skill_references.cpp
         src/prompt_features.cpp

@@ -136,7 +136,7 @@ namespace {
 		render(*panel.transcript(), aPrefix, "conversation-code-blocks");
 	}
 
-	/// [[BPR-1915]]. A proposed Solution and a stop's new explanation render
+	/// [[BPR-1915]]. A proposed stop and a stop's new explanation render
 	/// their Markdown; the source stays editable, and Accept sends it.
 	void formatted(qt::review_tour_editor& aEditor, const std::string& aPrefix)
 	{
@@ -146,14 +146,14 @@ namespace {
 		auto       tour     = tests::review_tour_fixture();
 		auto       session  = core::tour_agent_session{ };
 		const auto run      = core::begin_tour_run(session, core::tour_agent_request::draft_tour, core::tour_agent_tools::read_only, "Draft the tour");
-		const auto answer   = core::tour_ask_answer{ .Reply = "Done.", .Changes = { .Solution = std::string{ "Each view clears its own target.\n\n- `clear()` takes the view.\n- `draw()` draws only it." } }, .StopTexts = { { 1U, "Read `begin_frame()` first." } } };
-		const auto proposal = core::propose_tour_changes(*run, answer, { }, tour);
+		const auto answer   = core::tour_ask_answer{ .Reply = "Done.", .Changes = { .Stops = { { "src/item.cpp", 4U, 6U, "Each view", "Each view clears its own target.\n\n- `clear()` takes the view.\n- `draw()` draws only it." } } }, .StopTexts = { { 1U, "Read `begin_frame()` first." } } };
+		const auto proposal = core::propose_tour_changes(*run, answer, std::vector<core::tour_anchor_file>{ { "src/item.cpp", true, 40U, std::nullopt } }, tour);
 		aEditor.present_tour_session(session, proposal);
-		// [[BPR-1925]] v003. The proposed Solution waits on the Solution.
-		aEditor.open_step(core::tour_step::solution);
+		// [[BPR-1925]] v003. The proposed stop waits on the route.
+		aEditor.show_stops();
 		QApplication::processEvents();
 		auto* const reader = panel->proposal_reader(0);
-		expect(reader != nullptr && reader->isVisibleTo(&aEditor), "the proposed Solution shows rendered");
+		expect(reader != nullptr && reader->isVisibleTo(&aEditor), "the proposed stop shows rendered");
 		auto lists = 0;
 		for (auto block = reader->rendered_view()->document()->begin(); block.isValid(); block = block.next()) {
 			lists += block.textList() != nullptr ? 1 : 0;
@@ -180,24 +180,24 @@ namespace {
 		aEditor.set_tour_ask_dispatch([&asked](const qt::tour_ask& aAsk) { asked.push_back(aAsk.Question); });
 		chat->present_skills({ { .Name = "fixture-technical-writer", .Description = "Short paragraphs.", .Source = core::skill_source::personal, .Origin = "~/.claude/skills" },
 							   { .Name = "team-voice", .Description = "The team's.", .Source = core::skill_source::repository, .Origin = "this pull request's repository, .claude/skills at base 1a2b3c4" } });
-		chat->open(core::tour_thread{ .Kind = core::tour_thread_kind::solution });
+		chat->open(core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 1 } });
 		chat->show();
 		chat->activateWindow();
 		chat->composer()->setFocus();
 		QApplication::processEvents();
 		expect(chat->skill_completion() != nullptr, "the composer completes skills");
 		chat->composer()->clear();
-		chat->composer()->insertPlainText(QStringLiteral("Rewrite the Solution as /fix"));
+		chat->composer()->insertPlainText(QStringLiteral("Rewrite this stop as /fix"));
 		QApplication::processEvents();
 		const auto rows = chat->skill_completion()->rows();
 		expect(rows == QStringList{ QStringLiteral("/fixture-technical-writer (Personal, ~/.claude/skills)") }, "completion lists the matching skill with its source");
 		auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 		QApplication::sendEvent(chat->composer(), &enter);
-		expect(asked.empty() && chat->composer()->toPlainText() == QStringLiteral("Rewrite the Solution as /fixture-technical-writer "), "Return chooses the row and does not send yet");
+		expect(asked.empty() && chat->composer()->toPlainText() == QStringLiteral("Rewrite this stop as /fixture-technical-writer "), "Return chooses the row and does not send yet");
 		chat->composer()->insertPlainText(QStringLiteral("says."));
 		QApplication::processEvents();
 		QApplication::sendEvent(chat->composer(), &enter);
-		expect(asked.size() == 1U && asked[0] == QStringLiteral("Rewrite the Solution as /fixture-technical-writer says."), "the question carries the skill's name");
+		expect(asked.size() == 1U && asked[0] == QStringLiteral("Rewrite this stop as /fixture-technical-writer says."), "the question carries the skill's name");
 		chat->hide();
 	}
 }
@@ -273,7 +273,7 @@ namespace {
 		static_cast<void>(core::take_tour_feedback(session));
 		editor.set_tour_running(std::nullopt, false);
 		chat->composer()->setPlainText(QStringLiteral("Anything"));
-		editor.open_side_chat(core::tour_thread{ .Kind = core::tour_thread_kind::solution });
+		editor.open_side_chat(core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 1 } });
 		editor.set_tour_running(std::nullopt, true);
 		expect(!chat->send_button()->isEnabled(), "a part's chat still waits for the draft");
 		editor.set_tour_running(std::nullopt, false);
@@ -422,7 +422,7 @@ namespace {
 		reset->click();
 		expect(panel->reset_confirm()->isVisibleTo(&editor), "it asks first");
 		const auto sentence = panel->reset_sentence()->text();
-		expect(sentence.startsWith(QStringLiteral("Reset clears the Problem, the Solution, all 4 stops, 1 chat and the focus.")) && sentence.contains(QStringLiteral("only your local draft")), "the question names what is lost, and that GitHub's tour stays: " + sentence.toStdString());
+		expect(sentence.startsWith(QStringLiteral("Reset clears all 4 stops, 1 chat and the focus.")) && sentence.contains(QStringLiteral("only your local draft")), "the question names what is lost, and that GitHub's tour stays: " + sentence.toStdString());
 		render(editor, aPrefix, "reset-question");
 		panel->reset_cancel_button()->click();
 		expect(resets == 0 && !panel->reset_confirm()->isVisibleTo(&editor), "Keep the tour changes nothing");
@@ -447,9 +447,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	const auto   prefix = argc > 1 ? std::string{ argv[1] } : std::string{ };
 
-	auto draft     = tests::review_tour_fixture();
-	draft.Problem  = "The author's own problem.";
-	draft.Solution = { };
+	auto                   draft = tests::review_tour_fixture();
 	qt::review_tour_editor editor;
 	editor.set_dispatch([](core::tour_command) { }, [](qt::tour_editor_action) { });
 	auto cancelled = 0;
@@ -462,7 +460,7 @@ auto main(int argc, char** argv) -> int
 	editor.resize(380, 900);
 	editor.show();
 	editor.present({ .Draft = std::make_shared<const core::review_tour>(draft) });
-	editor.show_problem();
+	editor.show_stops();
 	QApplication::processEvents();
 
 	auto* const panel     = editor.tour_agent();
@@ -488,34 +486,22 @@ auto main(int argc, char** argv) -> int
 	editor.set_tour_running(std::nullopt, true);
 	editor.present_tour_session(session, std::nullopt);
 	expect(draftTour->text() == QStringLiteral("Stop drafting") && draftTour->isEnabled(), "its control says it is running");
-	expect(!editor.problem_editor()->isReadOnly(), "the author keeps writing");
-	editor.problem_editor()->setPlainText(QStringLiteral("Written while it drafts."));
-	expect(editor.problem_editor()->toPlainText() == QStringLiteral("Written while it drafts."), "an edit lands while it drafts");
+	expect(!editor.stop_body()->isReadOnly(), "the author keeps writing");
+	editor.stop_body()->setPlainText(QStringLiteral("Written while it drafts."));
+	expect(editor.stop_body()->toPlainText() == QStringLiteral("Written while it drafts."), "an edit lands while it drafts");
 	render(editor, prefix, "running");
 	draftTour->click();
 	expect(stopped == 1 && drafted == 1, "pressing it again stops it, from its own control");
-	// A Draft from PR context run: its own control says Stop drafting.
-	editor.set_tour_running(core::writing_hook::solution, false);
-	editor.open_step(core::tour_step::solution);
-	QApplication::processEvents();
-	auto* const solutionMagic = editor.findChild<QPushButton*>(QStringLiteral("tourSolutionMagic"));
-	expect(solutionMagic != nullptr && solutionMagic->text() == QStringLiteral("Stop drafting"), "a field's drafting run is shown on its own control");
-	expect(!draftTour->isEnabled(), "the session asks one thing at a time");
-	const auto before = cancelled;
-	solutionMagic->click();
-	expect(cancelled == before + 1, "and stopped from it");
 	editor.set_tour_running(std::nullopt, false);
 
 	// AC4. The transcript opens from the Tour tab, and says what it read.
 	static_cast<void>(core::record_tour_activity(session, *run, { { core::tour_transcript_kind::searched, "rg -n draw_scene src" }, { core::tour_transcript_kind::read, "src/renderer.cpp" } }));
-	static_cast<void>(core::finish_tour_run(session, *run, core::tour_agent_run_state::answered, "Proposed a Problem and 2 stops."));
+	static_cast<void>(core::finish_tour_run(session, *run, core::tour_agent_run_state::answered, "Proposed 3 stops."));
 
-	// AC8. The proposal: Problem (replacing the author's), and two stops,
-	// one of which does not anchor.
+	// AC8. The proposal: three stops, one of which does not anchor.
 	const auto files  = std::vector<core::tour_anchor_file>{ { "src/renderer.cpp", true, 40U, std::nullopt } };
 	const auto answer = core::tour_draft_answer{
-		.Problem = std::string{ "Two views drew over each other." },
-		.Stops   = { { "src/renderer.cpp", 2U, 5U, "Where drawing starts", "draw() is the one entry point." }, { "src/elsewhere.cpp", 1U, 2U, "Elsewhere", "Not here." }, { "src/renderer.cpp", 10U, 12U, "Resize keeps its size", "resize() stores what it was given." } },
+		.Stops = { { "src/renderer.cpp", 20U, 22U, "Where the frame ends", "present() ends the frame." }, { "src/renderer.cpp", 2U, 5U, "Where drawing starts", "draw() is the one entry point." }, { "src/elsewhere.cpp", 1U, 2U, "Elsewhere", "Not here." }, { "src/renderer.cpp", 10U, 12U, "Resize keeps its size", "resize() stores what it was given." } },
 	};
 	auto proposal = core::propose_tour(*run, answer, files, draft);
 	static_cast<void>(core::note_finished_tour_run(session, *run, core::left_out_entries(proposal)));
@@ -527,7 +513,7 @@ auto main(int argc, char** argv) -> int
 	expect(panel->transcript()->isVisible() && panel->transcript()->isWindow(), "it opens from the Tour tab, in its own window");
 	expect(editor.findChildren<QTextEdit*>(QStringLiteral("tourSessionRun")).size() == 1U && panel->transcript_view()->window() != editor.window(), "the editing column holds no transcript");
 	const auto said = panel->transcript_text();
-	expect(said.contains(QStringLiteral("Searched rg -n draw_scene src")) && said.contains(QStringLiteral("Read src/renderer.cpp")) && said.contains(QStringLiteral("Answered Proposed a Problem and 2 stops.")), "it says what it searched, read and answered: " + said.toStdString());
+	expect(said.contains(QStringLiteral("Searched rg -n draw_scene src")) && said.contains(QStringLiteral("Read src/renderer.cpp")) && said.contains(QStringLiteral("Answered Proposed 3 stops.")), "it says what it searched, read and answered: " + said.toStdString());
 	expect(said.contains(QStringLiteral("Left out \"Elsewhere\", src/elsewhere.cpp, lines 1 to 2: not a file of this pull request")), "it keeps the stop that was left out: " + said.toStdString());
 	panel->transcript()->hide();
 
@@ -611,7 +597,7 @@ auto main(int argc, char** argv) -> int
 	editor.present_tour_session(session, core::propose_tour(core::tour_agent_run_id{ 9 }, twice, files, draft));
 	expect(panel->left_out()->text() == QStringLiteral("2 suggested stops pointed outside this pull request and were left out."), "the plural for more");
 	auto none = answer;
-	none.Stops.erase(none.Stops.begin() + 1);
+	none.Stops.erase(none.Stops.begin() + 2);
 	editor.present_tour_session(session, core::propose_tour(core::tour_agent_run_id{ 10 }, none, files, draft));
 	expect(!panel->left_out()->isVisibleTo(&editor), "nothing when none were left out");
 	// [[BPR-1900]], owner 2026-11-06: "strongly prefer on hunk". A stop
@@ -643,7 +629,7 @@ auto main(int argc, char** argv) -> int
 		auto       failed = core::tour_agent_session{ };
 		const auto first  = core::begin_tour_run(failed, core::tour_agent_request::draft_tour, core::tour_agent_tools::read_only, "Draft the tour");
 		static_cast<void>(core::record_tour_activity(failed, *first, { { core::tour_transcript_kind::searched, "rg -n draw src" }, { core::tour_transcript_kind::read, "awk 'NR<3' notes.txt", core::tour_transcript_note::ran_outside_list } }));
-		static_cast<void>(core::finish_tour_run(failed, *first, core::tour_agent_run_state::answered, "Proposed a Problem and 1 stop."));
+		static_cast<void>(core::finish_tour_run(failed, *first, core::tour_agent_run_state::answered, "Proposed 1 stop."));
 		const auto again = core::begin_tour_run(failed, core::tour_agent_request::draft_tour, core::tour_agent_tools::read_only, "Draft the tour");
 		static_cast<void>(core::record_tour_activity(failed, *again, { { core::tour_transcript_kind::read, "src/renderer.cpp" }, { core::tour_transcript_kind::ran, "python3 -c 'print(42)'", core::tour_transcript_note::not_run } }));
 		static_cast<void>(core::finish_tour_run(failed, *again, core::tour_agent_run_state::failed, "It tried a tool a drafting run may not use, so the run was stopped."));

@@ -326,12 +326,12 @@ namespace {
 		// [[BPR-2154]]. A turn of a tour part's chat: the reply says which
 		// message it read, so a look and a course see each queued message go
 		// as its own turn, in order; it changes nothing in the tour.
-		if (holds(aRequest, "bpr.tour-revise.v1")) {
-			return R"({"schema":"bpr.tour-revise.v1","reply":")" + tour_reply(aRequest)
-				+ R"(","problem":"","solution":"","stops":[],"stop_texts":[],"remove_stops":[],"merge_stops":[],"split_stops":[],"order":[],"focus":"","replace_waiting_stops":false})";
+		if (holds(aRequest, "bpr.tour-revise.v2")) {
+			return R"({"schema":"bpr.tour-revise.v2","reply":")" + tour_reply(aRequest)
+				+ R"(","stops":[],"stop_texts":[],"remove_stops":[],"merge_stops":[],"split_stops":[],"order":[],"focus":"","replace_waiting_stops":false})";
 		}
-		if (holds(aRequest, "bpr.tour-ask.v1")) {
-			return R"({"schema":"bpr.tour-ask.v1","reply":")" + tour_reply(aRequest) + R"(","problem":"","solution":"","stops":[],"stop_texts":[]})";
+		if (holds(aRequest, "bpr.tour-ask.v2")) {
+			return R"({"schema":"bpr.tour-ask.v2","reply":")" + tour_reply(aRequest) + R"(","stops":[],"stop_texts":[]})";
 		}
 		if (slow(aRequest)) {
 			return "Took my time: twenty slow steps, about twenty seconds, so you could queue follow-ups while I worked. This is the fixture agent; nothing real ran.";
@@ -466,14 +466,24 @@ namespace {
 				   "## Not checked\n\n- Windows and Linux builds: only the macOS paths were read.\n\n"
 				   "_Fixture agent: a canned answer, nothing was spent._";
 		}
-		if (holds(aRequest, "bpr.tour-draft.v1")) {
+		// [[BPR-2274]]. Draft a description: plain text from the diff, and
+		// from the tour's stops when the request carries a published tour.
+		if (holds(aRequest, "Draft a description for this pull request")) {
+			auto text = std::string{ "Each view now clears and draws its own scene between `begin_frame()` and `present()`, so two views in one frame no longer draw over each other.\n\n"
+									 "`resize()` keeps the size it is given for the next frame instead of stalling at zero width." };
+			if (holds(aRequest, "Review tour")) {
+				text += "\n\nThe review tour reads it in order: where the change starts in `draw()`, then the new `resize()`.";
+			}
+			return text + "\n\n_Fixture agent: a canned answer, nothing was spent._";
+		}
+		if (holds(aRequest, "bpr.tour-draft.v2")) {
 			// Two stops on the fixture's renderer change, so each stop has a
 			// chat of its own ([[BPR-2154]]).
 			const auto stops = holds(aRequest, "src/engine/renderer.cpp")
 				? std::string{ R"({"path":"src/engine/renderer.cpp","first_line":3,"last_line":8,"title":"Where the change starts","explanation":"draw() now draws the scene between clear() and present()."},)"
 							   R"({"path":"src/engine/renderer.cpp","first_line":10,"last_line":14,"title":"The new resize","explanation":"resize() keeps the new size for the next frame."})" }
 				: std::string{ };
-			return R"({"schema":"bpr.tour-draft.v1","problem":"Two views that cleared in the same frame drew over each other.","solution":"Each view now clears and draws its own scene between begin and present.","stops":[)" + stops + "]}";
+			return R"({"schema":"bpr.tour-draft.v2","stops":[)" + stops + "]}";
 		}
 		if (holds(aRequest, "bpr.review-preparation")) {
 			return R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Fixture rewrite: the loop does the same work twice. Could it run once?","notes":[]})";

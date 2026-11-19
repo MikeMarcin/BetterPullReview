@@ -106,13 +106,17 @@ def main() -> int:
         "returning.operation\tlatest_upload": "# What changed since your review",
         "explain.path\tsrc/engine/renderer.cpp": "## How it works\n\n### resize()",
         "What could this change break?": "## Likely\n\n### A packaged build starts with no shaders",
-        "bpr.tour-draft.v1": '"schema":"bpr.tour-draft.v1"',
+        "bpr.tour-draft.v2": '"schema":"bpr.tour-draft.v2"',
         "bpr.review-preparation": '"kind":"rewrite"',
         "Write a commit message": "Clamp the resize",
         "Review this pull request; answer with a ```bpr-findings block": "```bpr-findings",
         "Review this pull request (findings in a ```bpr-findings block)": "## Must fix\n\n### issue (blocking): A zero height still asserts",
         "What is this? (findings go in a ```bpr-findings block)": "Fixture answer",
         "What does this change do?": "Fixture answer",
+        # [[BPR-2274]]. Draft a description: plain text from the diff, and with
+        # a published tour, its stops too.
+        "Draft a description for this pull request, or rewrite the one it has.": "Each view now clears and draws its own scene",
+        "Draft a description for this pull request.\nthreads.0.body\t## Review tour \u2014 Start here": "The review tour reads it in order",
     }
     for request, wanted in cases.items():
         done = run(claude, ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"], user(request))
@@ -124,6 +128,9 @@ def main() -> int:
         expect(answer.returncode == 0, f"codex answers {request!r}")
         messages = [frame["item"]["text"] for frame in frames(answer.stdout) if frame.get("type") == "item.completed" and frame["item"]["type"] == "agent_message"]
         expect(len(messages) == 1 and wanted in messages[0], f"codex answers {request!r} with {wanted!r}")
+    # [[BPR-2274]]. Without a tour the description says nothing of one.
+    plain = claude_answer(run(claude, ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"], user("Draft a description for this pull request, or rewrite the one it has.")).stdout)
+    expect("review tour" not in plain.lower() and "resize()" in plain, f"a description without a tour is drawn from the diff alone: {plain!r}")
     findings = claude_answer(run(claude, ["-p"], user("Review this pull request; answer with a ```bpr-findings block")).stdout)
     block = findings.split("```bpr-findings\n", 1)[1].split("\n```", 1)[0]
     expect(len(json.loads(block)["findings"]) == 2, "the findings block is JSON with two findings")

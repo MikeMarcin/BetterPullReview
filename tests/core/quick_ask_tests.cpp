@@ -145,8 +145,8 @@ namespace {
 		expect(menu.Sections.size() == 3U && menu.Sections[0].Scope == prompt_scope::pull_request && menu.Sections[1].Scope == prompt_scope::file && menu.Sections[2].Scope == prompt_scope::thread,
 			   "the pull request's, then the file's, then the thread's (Q2)");
 		expect(labels(menu.Sections[0])
-				   == std::vector<std::string>{ "What changed since my review", "Was this addressed?", "Review this pull request", "What could this change break?" },
-			   "the pull request: action rows first");
+				   == std::vector<std::string>{ "What changed since my review", "Was this addressed?", "Review this pull request", "What could this change break?", "Draft a description" },
+			   "the pull request: action rows first, [[BPR-2274]] then Draft a description");
 		expect(labels(menu.Sections[1]) == std::vector<std::string>{ "Explain this file", "Was this addressed?", "Review src/render/renderer.cpp" }, "the file");
 		expect(labels(menu.Sections[2])
 				   == std::vector<std::string>{ "Was this addressed?", "Summarize this conversation", "Is the concern raised here right?", "Draft a reply to this conversation" },

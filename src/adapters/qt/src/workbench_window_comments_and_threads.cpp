@@ -930,11 +930,10 @@ namespace bpr::qt {
 		}
 		const auto already = TrayTabs->currentIndex() == tray_tour_tab;
 		TrayTabs->setCurrentIndex(tray_tour_tab);
-		// [[BPR-1914]] v004. Going to a stop from the open Tour tab keeps the
-		// step it is on: opening the Problem first moved the keyboard and
-		// the tab's height, and the tab jumped.
+		// [[BPR-1914]] v004. Going to a stop from the open Tour tab keeps
+		// where it is: moving the keyboard first made the tab jump.
 		if (!aKeepStep || !already) {
-			TourEditor->show_problem();
+			TourEditor->show_stops();
 		}
 	}
 

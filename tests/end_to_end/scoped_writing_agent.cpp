@@ -155,7 +155,12 @@ namespace {
 		} else {
 			reply = "Following on from the window in which one frame is drawn: `present()` (`" + aTarget + ":8`) is the only call that shows anything, so whatever a view clears or draws before it stays hidden until then.";
 		}
-		answer_with(R"({"schema":"bpr.tour-ask.v1","reply":")" + escape(reply) + R"(","problem":"","solution":")" + escape(solution) + R"(","stops":[],"stop_texts":[)" + stopTexts + "]}");
+		// [[BPR-2274]]. A tour is its stops: a rewrite the chat asked for is
+		// the first stop's new explanation.
+		if (!solution.empty()) {
+			stopTexts += (stopTexts.empty() ? "" : ",") + std::string{ R"({"stop":1,"explanation":")" } + escape(solution) + "\"}";
+		}
+		answer_with(R"({"schema":"bpr.tour-ask.v2","reply":")" + escape(reply) + R"(","stops":[],"stop_texts":[)" + stopTexts + "]}");
 		return 0;
 	}
 	/// [[BPR-1900]]. The stops the drafting run proposes on the
@@ -273,7 +278,7 @@ namespace {
 		if (aInput.find("Earlier, in a separate run, the agent answered this") != std::string::npos) {
 			reply += " I started from the draft's own answer.";
 		}
-		answer_with(R"({"schema":"bpr.tour-revise.v1","reply":")" + escape(reply) + R"(","problem":"","solution":"","stops":[)" + stops + R"(],"stop_texts":[],"remove_stops":[)" + removed + R"(],"merge_stops":[)" + merges + R"(],"split_stops":[],"order":[],"focus":")" + escape(focus)
+		answer_with(R"({"schema":"bpr.tour-revise.v2","reply":")" + escape(reply) + R"(","stops":[)" + stops + R"(],"stop_texts":[],"remove_stops":[)" + removed + R"(],"merge_stops":[)" + merges + R"(],"split_stops":[],"order":[],"focus":")" + escape(focus)
 					+ R"(","replace_waiting_stops":)" + (replace ? "true" : "false") + "}");
 		return 0;
 	}
@@ -344,10 +349,10 @@ namespace {
 		};
 		pause();
 		const auto first = named.empty() ? std::string{ "." } : named.front().Relative;
-		if (input.find("bpr.tour-revise.v1") != std::string::npos) {
+		if (input.find("bpr.tour-revise.v2") != std::string::npos) {
 			return revise_in_workspace(input, first, pause);
 		}
-		if (input.find("bpr.tour-ask.v1") != std::string::npos) {
+		if (input.find("bpr.tour-ask.v2") != std::string::npos) {
 			const auto renderer = std::ranges::find(named, std::string{ "src/engine/renderer.cpp" }, &file::Relative) != named.end();
 			return ask_in_workspace(input, folder.generic_string(), renderer ? std::string{ "src/engine/renderer.cpp" } : first, pause);
 		}
@@ -378,7 +383,7 @@ namespace {
 		}
 		pause();
 		// Any other request is answered as a tool-free one is.
-		if (input.find("bpr.tour-draft.v1") == std::string::npos) {
+		if (input.find("bpr.tour-draft.v2") == std::string::npos) {
 			return std::nullopt;
 		}
 		std::string result;
@@ -403,7 +408,7 @@ namespace {
 			}
 			// One stop the core leaves out: not a file of this pull request.
 			stops += (stops.empty() ? "" : ",") + std::string{ R"({"path":"src/not_in_this_pull_request.cpp","first_line":3,"last_line":9,"title":"A file it imagined","explanation":"This file is not part of the change."})" };
-			result = R"({"schema":"bpr.tour-draft.v1","problem":"Two views that cleared in the same frame drew over each other, so the second view showed the first one's scene.\n\nIt happened whenever both views drew between one `begin_frame()` and its `present()`.","solution":"Each view now clears and draws its own scene between begin and present, so the frames no longer overlap.\n\n- `renderer::clear()` takes the view it clears.\n- `renderer::draw()` draws only that view's scene.\n\nThe order of calls in `src/engine/renderer.cpp` is unchanged.","stops":[)" + stops + "]}";
+			result = R"({"schema":"bpr.tour-draft.v2","stops":[)" + stops + "]}";
 		}
 		const auto encoded = escape(result);
 		std::cout << R"({"type":"assistant","session_id":"fixture","message":{"id":"msg-answer","role":"assistant","content":[{"type":"text","text":")" << encoded << "\"}]}}\n";
@@ -599,12 +604,12 @@ int main(int argc, char** argv)
 	// request's diff in its request: it answers with a tour from the files
 	// it was given (as `draft_in_workspace` does from the workspace), and in
 	// `attended-drafting-claude` takes a few seconds, so a look sees it run.
-	if (!readOnlyRun && input.find("bpr.tour-draft.v1") != std::string::npos) {
+	if (!readOnlyRun && input.find("bpr.tour-draft.v2") != std::string::npos) {
 		if (argc > 0 && std::filesystem::path{ argv[0] }.parent_path().filename() == "attended-drafting-claude") {
 			std::this_thread::sleep_for(std::chrono::seconds{ 3 });
 		}
 		const auto renderer = input.find("src/engine/renderer.cpp") != std::string::npos && input.find("src/engine/renderer.h") != std::string::npos && input.find("src/main.cpp") != std::string::npos;
-		result              = R"({"schema":"bpr.tour-draft.v1","problem":"Two views that cleared in the same frame drew over each other, so the second view showed the first one's scene.","solution":"Each view now clears and draws its own scene between begin and present, so the frames no longer overlap.","stops":[)"
+		result              = R"({"schema":"bpr.tour-draft.v2","stops":[)"
 			+ (renderer ? renderer_stops() : std::string{ }) + "]}";
 	}
 	if (!model.empty()) {

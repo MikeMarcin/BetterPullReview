@@ -13,12 +13,6 @@ namespace bpr::core {
 			return aValue.find_first_not_of(" \r\n\t") == std::string_view::npos;
 		}
 
-		/// A brief field's published text, when its baseline kept it.
-		[[nodiscard]] auto brief_changed(const std::optional<tour_field_baseline>& aBaseline, const std::string& aLocal) -> bool
-		{
-			return aBaseline && aBaseline->DraftText && *aBaseline->DraftText != aLocal;
-		}
-
 		[[nodiscard]] auto stop_text_changed(const tour_stop& aStop) -> bool
 		{
 			if (!aStop.Baseline) {
@@ -43,8 +37,6 @@ namespace bpr::core {
 			return 0U;
 		}
 		auto count = aTour.Retired.size();
-		count += brief_changed(aTour.ProblemBaseline, aTour.Problem) ? 1U : 0U;
-		count += brief_changed(aTour.SolutionBaseline, aTour.Solution) ? 1U : 0U;
 		for (const auto& stop : aTour.Stops) {
 			if (needs_tour_destination(stop) || stop_text_changed(stop)) {
 				++count;
@@ -95,8 +87,6 @@ namespace bpr::core {
 			return head;
 		}
 		head.Missing         = !aDraft->Conflicts.empty() || aDraft->RemoteStale ? tour_head_missing::conflict
-			: blank(aDraft->Problem)                                             ? tour_head_missing::problem
-			: blank(aDraft->Solution)                                            ? tour_head_missing::solution
 			: aDraft->Stops.empty()                                              ? tour_head_missing::stops
 			: head.ToAccept > 0U                                                 ? tour_head_missing::acceptance
 																				 : tour_head_missing::nothing;

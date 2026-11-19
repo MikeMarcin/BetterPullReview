@@ -45,17 +45,10 @@ namespace {
 	{
 		auto tour = draft();
 		expect(validate(tour) == tour_refusal::none, "empty draft is saved");
-		auto brief = command(tour, tour_command_kind::problem);
-		brief.Text = "Crash when reading data that's been concurrently deleted.";
-		apply_ok(tour, brief);
-		expect(apply(tour, brief).Refusal == tour_refusal::conflict, "stale writer refused");
-		brief      = command(tour, tour_command_kind::solution);
-		brief.Text = "Retain the snapshot.";
-		apply_ok(tour, brief);
-		expect(tour.Problem != tour.Solution, "brief fields independent");
-		auto add            = command(tour, tour_command_kind::insert);
-		add.Value           = { .Title = "Why", .Body = "first\nsecond", .Original = source(), .Mapping = tour_mapping::exact_original, .Related = { source(10, 20) } };
-		auto       result   = apply_ok(tour, add);
+		auto add    = command(tour, tour_command_kind::insert);
+		add.Value   = { .Title = "Why", .Body = "first\nsecond", .Original = source(), .Mapping = tour_mapping::exact_original, .Related = { source(10, 20) } };
+		auto result = apply_ok(tour, add);
+		expect(apply(tour, add).Refusal == tour_refusal::conflict, "stale writer refused");
 		const auto original = result.Selected;
 		auto       split    = command(tour, tour_command_kind::split);
 		split.Stop          = original;
@@ -106,7 +99,7 @@ namespace {
 		add.Value = before.Stops[0];
 		apply_ok(tour, add);
 		expect(tour.Stops[0].Id.value() > second.value(), "removed ID never reused");
-		auto wrong          = command(tour, tour_command_kind::problem);
+		auto wrong          = command(tour, tour_command_kind::insert);
 		wrong.Owner.Profile = bpr_profile_id{ 12 };
 		wrong.Text          = "overwrite";
 		expect(apply(tour, wrong).Refusal == tour_refusal::identity && apply(tour, wrong).Accepted == tour, "profile replacement refused");
@@ -172,8 +165,6 @@ namespace {
 	void check_outline_attention()
 	{
 		auto tour       = draft();
-		tour.Problem    = "Problem";
-		tour.Solution   = "Solution";
 		auto outline    = command(tour, tour_command_kind::insert_outline);
 		outline.Outline = { { "Decision", source(), { }, { "source", "Private reason", "Author question", true } }, { "Unresolved", { }, { }, { "description", "Explain intent", "" } } };
 		apply_ok(tour, outline);
@@ -264,12 +255,15 @@ namespace {
 		range.First.Side = range.Last.Side = diff_side::left;
 		expect(valid(range), "historical supporting source remains representable");
 		auto tour = draft();
-		auto edit = command(tour, tour_command_kind::problem);
-		edit.Text = std::string(maximum_tour_field_bytes, 'x');
-		apply_ok(tour, edit);
-		edit      = command(tour, tour_command_kind::problem);
-		edit.Text = std::string(maximum_tour_field_bytes + 1, 'x');
-		expect(apply(tour, edit).Refusal == tour_refusal::bounds, "field limit refuses without truncating");
+		{
+			auto bounded = tour;
+			auto edit    = command(bounded, tour_command_kind::insert);
+			edit.Value   = { .Title = "Why", .Body = std::string(maximum_tour_field_bytes, 'x'), .Original = source(), .Mapping = tour_mapping::exact_original };
+			apply_ok(bounded, edit);
+			edit            = command(bounded, tour_command_kind::insert);
+			edit.Value.Body = std::string(maximum_tour_field_bytes + 1, 'x');
+			expect(apply(bounded, edit).Refusal == tour_refusal::bounds, "field limit refuses without truncating");
+		}
 		for (std::size_t index = 0; index < maximum_tour_stops; ++index) {
 			auto add     = command(tour, tour_command_kind::insert);
 			add.Position = index;
@@ -282,8 +276,6 @@ namespace {
 		auto full       = draft();
 		full.Stops      = { tour.Stops.front() };
 		full.LastStopId = 1;
-		full.Problem    = std::string(maximum_tour_field_bytes, 'p');
-		full.Solution   = full.Problem;
 		while (retained_tour_bytes(full) + maximum_tour_field_bytes + 1024U <= maximum_tour_bytes) {
 			auto stop = full.Stops.front();
 			stop.Id   = tour_stop_id{ ++full.LastStopId };
@@ -305,7 +297,7 @@ namespace {
 		complete.Stop       = inserted.Selected;
 		expect(apply(tour, complete).Refusal == tour_refusal::incomplete, "skeleton saved but not completed");
 		tour.Revision = std::numeric_limits<std::uint64_t>::max();
-		expect(apply(tour, command(tour, tour_command_kind::problem)).Refusal == tour_refusal::exhausted, "generation overflow refused");
+		expect(apply(tour, command(tour, tour_command_kind::insert)).Refusal == tour_refusal::exhausted, "generation overflow refused");
 	}
 }
 int main()

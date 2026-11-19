@@ -6,7 +6,7 @@
 namespace bpr::app {
 	struct tour_publication_options
 	{
-		bool Compatibility = false, Description = false, Mixed = false;
+		bool Compatibility = false, Mixed = false;
 		/// [[BPR-1992]]. A stop outside the diff's lines may go as a file
 		/// comment without the author asking per stop: the application's
 		/// chosen form. The CLI keeps the explicit request.
@@ -39,8 +39,8 @@ namespace bpr::app {
 		/// No form carries the tour on this connection: refused before any write.
 		std::optional<application::tour_publication_banner> Refusal;
 	};
-	[[nodiscard]] auto choose_tour_plan(const core::review_tour&, const application::review_submission_live_binding&, std::string_view aDescription, bool aDescribe, bool aQualified, std::span<const core::tour_anchor_file> = { }, std::span<const core::tour_destination_observation> = { }) -> tour_plan_choice;
-	[[nodiscard]] auto prepare_tour_plan(const core::review_tour&, const application::review_submission_live_binding&, std::string_view, tour_publication_options, bool, std::span<const core::tour_anchor_file> = { }, std::span<const core::tour_destination_observation> = { }) -> tour_plan_preparation;
+	[[nodiscard]] auto choose_tour_plan(const core::review_tour&, const application::review_submission_live_binding&, bool aQualified, std::span<const core::tour_anchor_file> = { }, std::span<const core::tour_destination_observation> = { }) -> tour_plan_choice;
+	[[nodiscard]] auto prepare_tour_plan(const core::review_tour&, const application::review_submission_live_binding&, tour_publication_options, bool, std::span<const core::tour_anchor_file> = { }, std::span<const core::tour_destination_observation> = { }) -> tour_plan_preparation;
 	[[nodiscard]] auto tour_operation_observation(const core::review_tour&, const core::tour_stop&, bool, bool, std::span<const core::tour_destination_observation>) -> core::tour_destination_observation;
 	/// \brief Safe stage failure text that preserves known receipts and unknown outcomes.
 	[[nodiscard]] auto tour_publication_failure_text(const application::staged_publication_result&) -> std::string;

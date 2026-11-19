@@ -47,10 +47,6 @@ namespace bpr::qt {
 			const char*        UsedBy;
 		};
 		constexpr auto facts = std::array<prompt_facts, core::writing_hook_count>{ {
-			{ core::writing_hook::problem, "Problem statement", "Tour tab, Problem", "How the agent writes the tour's Problem: why this change is needed.",
-			  "Used by Draft from PR context and Enhance on the Tour tab's Problem field." },
-			{ core::writing_hook::solution, "Solution summary", "Tour tab, Solution", "How the agent writes the tour's Solution: what the change does and how it works.",
-			  "Used by Draft from PR context and Enhance on the Tour tab's Solution field." },
 			{ core::writing_hook::outline, "Tour outline", "Tour tab, Suggest an outline", "How the agent proposes the tour's stops.", "Used by Suggest an outline on the Tour tab." },
 			{ core::writing_hook::comment, "Tour-stop comment", "Tour tab, each stop", "How the agent writes one stop's comment.", "Used by Generate comment on an empty tour stop." },
 			{ core::writing_hook::feedback, "Review feedback", "Comment workshop", "Guidance the comment workshop follows when it helps you word a review comment.",
@@ -231,7 +227,7 @@ namespace bpr::qt {
 		Hook->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		Hook->setSelectionMode(QAbstractItemView::SingleSelection);
 		static_cast<void>(make_header(Hook, tr("Tour tab")));
-		for (const auto hook : { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment, core::writing_hook::enhance_stop }) {
+		for (const auto hook : { core::writing_hook::outline, core::writing_hook::comment, core::writing_hook::enhance_stop }) {
 			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
 			item->setData(hook_role, static_cast<int>(hook));
 			item->setData(usage_role, tr(facts_of(hook).Where));
@@ -501,7 +497,7 @@ namespace bpr::qt {
 	{
 		const auto* const item = Hook->currentItem();
 		const auto        role = item != nullptr ? item->data(hook_role) : QVariant{ };
-		return role.isValid() && role.toInt() < static_cast<int>(core::writing_hook_count) ? static_cast<core::writing_hook>(role.toInt()) : core::writing_hook::problem;
+		return role.isValid() && role.toInt() < static_cast<int>(core::writing_hook_count) ? static_cast<core::writing_hook>(role.toInt()) : core::writing_hook::outline;
 	}
 
 	void writing_hooks_panel::select_hook(const core::writing_hook aHook)

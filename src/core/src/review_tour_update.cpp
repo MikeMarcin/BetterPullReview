@@ -114,27 +114,6 @@ namespace bpr::core {
 			if (!std::ranges::equal(original->Entries, aEntries, same)) {
 				append_edit(edits, raw, *list, span_text(*rendered, generated.Lists.front().Source));
 			}
-			for (const auto& name : { std::string{ "Problem" }, std::string{ "Solution" } }) {
-				const auto count = std::ranges::count(map.Sections, name, &tour_markdown_section::Name);
-				if (count > 1) {
-					return { };
-				}
-				if (count == 1) {
-					const auto  section  = std::ranges::find(map.Sections, name, &tour_markdown_section::Name);
-					const auto& field    = name == "Problem" ? aTour.Problem : aTour.Solution;
-					const auto& baseline = name == "Problem" ? aTour.ProblemBaseline : aTour.SolutionBaseline;
-					if (baseline) {
-						const auto observed = baseline->DraftText.value_or(baseline->SourceSpan ? baseline->Raw.substr(baseline->SourceSpan->first, baseline->SourceSpan->second - baseline->SourceSpan->first) : baseline->Raw);
-						if (field == observed) {
-							continue;
-						}
-					}
-
-					if (trim(span_text(raw, section->Content)) != trim(field)) {
-						append_edit(edits, raw, section->Content, std::string{ newline(raw) } + std::string{ trim(field) } + std::string{ newline(raw) } + std::string{ newline(raw) });
-					}
-				}
-			}
 			return edit_tour_markdown(raw, edits);
 		}
 		void retain_edit(tour_update_bodies& aResult, const tour_remote_binding& aRemote, const std::string& aBaseline, const std::string& aDesired)

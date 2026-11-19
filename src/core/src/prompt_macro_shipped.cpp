@@ -74,11 +74,8 @@ namespace bpr::core {
 		facts.ChecksFailing    = false;
 		facts.ChatEmpty        = true;
 		facts.Commits          = { "9fceb02d0ae598e95dc970b74767f19372d61af8", "e83c5163316f89bfbde7d9ab23ca2e25604af290" };
-		if (aPlace == prompt_place::tour_stop || aPlace == prompt_place::tour_part || aPlace == prompt_place::tour_whole) {
-			facts.Thread = prompt_tour_part{ .Place = aPlace, .Part = aPlace == prompt_place::tour_stop ? "Stop 3" : aPlace == prompt_place::tour_part ? "the Problem"
-																																					   : "",
-											 .StopNumber = 3U,
-											 .StopTitle  = "The frame pool" };
+		if (aPlace == prompt_place::tour_stop || aPlace == prompt_place::tour_whole) {
+			facts.Thread = prompt_tour_part{ .Place = aPlace, .Part = aPlace == prompt_place::tour_stop ? "Stop 3" : "", .StopNumber = 3U, .StopTitle = "The frame pool" };
 		}
 		return facts;
 	}
@@ -112,6 +109,18 @@ namespace bpr::core {
 						  "Verdict: Needs changes when anything stands under Must fix, Ready with comments when only smaller things do, Ready to merge when nothing does.\n\n"
 						  "Tone: plain and specific, as one engineer writes to another. No praise that is not earned, and no hedging.";
 		}
+
+		/// [[BPR-2274]]. Draft a description: from the diff, and from the
+		/// tour's stops when the pull request has a tour; plain text.
+		constexpr auto draft_description_body = std::string_view{
+			"Draft a description for this pull request, or rewrite the one it has.\n\n"
+			"Read the change from its diff. If the pull request has a review tour (a review comment headed \"Review tour\" that links its stops), "
+			"follow its stops in order and let the description cover what they show. Without a tour, work from the diff alone.\n\n"
+			"Say what the change does and why, then what a reviewer should know to judge it: the approach, a decision that is not obvious, what is left out. "
+			"Keep the author's own words where the current description has them. Do not invent intent, incidents, test results or guarantees.\n\n"
+			"Answer with the description's text alone, as Markdown ready to paste, with no fixed sections and no preamble. "
+			"The author reads it and applies it; nothing is published from your answer."
+		};
 	} // namespace
 
 	auto shipped_prompt_macros() -> std::vector<prompt_builtin>
@@ -131,6 +140,11 @@ namespace bpr::core {
 						"Review {file}"),
 				  at_file),
 			quick(plain("agent-tab.what-could-break", prompt_place::agent_tab, "What could this change break?", pull_request), at_pull_request),
+			// [[BPR-2274]], owner 2026-11-18: a tour is only its stops, and the
+			// description is the author's. The agent drafts or rewrites it, as
+			// plain text the author applies; nothing is published by it. It
+			// starts in the pull request's Ask menu, not among the chips.
+			quick(named(plain("agent-tab.draft-description", prompt_place::agent_tab, std::string{ draft_description_body }, pull_request), "Draft a description"), at_pull_request),
 			plain("agent-tab.explain-line", prompt_place::agent_tab, "Explain {file} {lines}", selected_lines, { lines(prompt_lines_value::one) }),
 			plain("agent-tab.explain-block", prompt_place::agent_tab, "Explain the selected block ({file} {lines})", selected_lines, { lines(prompt_lines_value::several) }),
 			// RFC-BPR-0128 (Q13): the actions as built-in rows. The Ask menus
@@ -167,10 +181,6 @@ namespace bpr::core {
 			plain("tour-stop.why-it-matters", prompt_place::tour_stop, "Why does this change matter?", stop, empty()),
 			plain("tour-stop.rewrite-simply", prompt_place::tour_stop, "Rewrite this explanation more simply", stop, empty()),
 			plain("tour-stop.right-place", prompt_place::tour_stop, "Is this the right place for this stop?", stop, empty()),
-			plain("tour-part.explain-selection", prompt_place::tour_part, "Explain the selected block", selected_text),
-			plain("tour-part.make-clearer", prompt_place::tour_part, "Make this clearer", part, empty()),
-			plain("tour-part.whats-missing", prompt_place::tour_part, "What's missing?", part, empty()),
-			plain("tour-part.make-shorter", prompt_place::tour_part, "Make it shorter", part, empty()),
 			plain("tour.too-many-stops", prompt_place::tour_whole, "Too many stops?", tour, empty()),
 			plain("tour.better-order", prompt_place::tour_whole, "Suggest a better order", tour, empty()),
 			// Finished in the question field, so its name is not its text.

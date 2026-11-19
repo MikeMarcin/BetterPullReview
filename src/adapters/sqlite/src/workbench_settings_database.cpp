@@ -238,9 +238,11 @@ namespace bpr::adapters::sqlite::detail {
 		/// other column, [[BPR-2059]] the suggested-comment format after them.
 		/// Version twenty-seven: one Enhance writing prompt keeps the draft
 		/// comment's column (32); the note's (33) is retired, always empty.
+		/// [[BPR-2274]]: the tour's Problem and Solution columns (15 and 16)
+		/// are retired too, always empty; outline and comment keep 17 and 18.
 		[[nodiscard]] constexpr auto writing_hook_column(const std::size_t aHook) noexcept -> int
 		{
-			return aHook < core::review_preparation_hook_count                                 ? static_cast<int>(15 + aHook)
+			return aHook < core::review_preparation_hook_count                                 ? static_cast<int>(17 + aHook)
 				: aHook == static_cast<std::size_t>(core::writing_hook::feedback)              ? 24
 				: aHook == static_cast<std::size_t>(core::writing_hook::suggested_comment)     ? 34
 				: aHook == static_cast<std::size_t>(core::writing_hook::local_description)     ? 35
@@ -257,6 +259,8 @@ namespace bpr::adapters::sqlite::detail {
 		}
 		/// \brief The retired column of the note's own Enhance prompt.
 		constexpr int retired_enhance_note_column = 33;
+		/// \brief [[BPR-2274]]. The retired columns of the tour's Problem and Solution prompts.
+		constexpr auto retired_brief_columns = std::array{ 15, 16 };
 		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 14U, "a new hook needs its own column");
 		/// \brief Version twenty-seven folds the note's Enhance prompt into the
 		/// one Enhance writing prompt: a profile that changed only the note's
@@ -1261,6 +1265,11 @@ namespace bpr::adapters::sqlite::detail {
 		}
 		if (sqlite3_bind_text(statement->Value, retired_enhance_note_column + 1, "", 0, SQLITE_STATIC) != SQLITE_OK) {
 			return std::unexpected(failure::integrity_failure);
+		}
+		for (const auto column : retired_brief_columns) {
+			if (sqlite3_bind_text(statement->Value, column + 1, "", 0, SQLITE_STATIC) != SQLITE_OK) {
+				return std::unexpected(failure::integrity_failure);
+			}
 		}
 		// [[BPR-1088]]. `valid` above admitted the columns, so the text names
 		// each catalog label at most once.

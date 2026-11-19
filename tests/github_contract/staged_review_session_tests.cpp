@@ -1037,7 +1037,7 @@ namespace {
 	auto maintenance_plan(const application::staged_publication_record& aPublished) -> application::staged_review_plan
 	{
 		const auto        original = plan();
-		core::review_tour draft{ .Id = core::tour_draft_id{ 41 }, .Owner = original.Owner, .Base = target().BaseOid, .Head = target().Semantic.ExpectedHead, .Problem = "Problem", .Solution = "Solution", .Revision = original.Generation, .LastStopId = 2 };
+		core::review_tour draft{ .Id = core::tour_draft_id{ 41 }, .Owner = original.Owner, .Base = target().BaseOid, .Head = target().Semantic.ExpectedHead, .Revision = original.Generation, .LastStopId = 2 };
 		for (const auto& stop : original.Stops) {
 			draft.Stops.push_back({ .Id = stop.Id, .Title = stop.Title, .Body = stop.Narrative, .Destination = stop.Source });
 		}
@@ -1101,7 +1101,7 @@ namespace {
 				const auto& comments = result.Record->Comments;
 				expect(comments.size() == 3 && comments[0].Id == 601 && comments[1].Id == 602 && comments[2].Id == 601, "journal creation order retains both returned identity kinds");
 				expect(remote.Summary.find("/files#r601") < remote.Summary.find("#issuecomment-601") && remote.Summary.find("#issuecomment-601") < remote.Summary.find("/files#r602"), "overview restores original interleaved route order");
-				core::review_tour draft{ .Id = core::tour_draft_id{ 41 }, .Owner = input.Owner, .Base = target().BaseOid, .Head = target().Semantic.ExpectedHead, .Problem = "Problem", .Solution = "Solution", .Revision = input.Generation, .LastStopId = 3 };
+				core::review_tour draft{ .Id = core::tour_draft_id{ 41 }, .Owner = input.Owner, .Base = target().BaseOid, .Head = target().Semantic.ExpectedHead, .Revision = input.Generation, .LastStopId = 3 };
 				for (const auto& item : input.Stops) {
 					draft.Stops.push_back({ .Id = item.Id, .Title = item.Title, .Body = item.Narrative, .Destination = item.Source });
 				}
@@ -1490,48 +1490,6 @@ namespace {
 			expect(recovered.State == publication_state::partial && recovered.Record == pending->front() && remote.Writes == 6, "it reconciles read-only as part sent");
 			expect(provider->publish_tour(discovered->front(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 8, "Resume finishes it as it was sent");
 		}
-	}
-	// [[BPR-1787]]. A tour whose brief lives in the description is updated by
-	// the description alone: no comment changes, one write, published.
-	void test_description_only_update()
-	{
-		scratch root;
-		server  remote;
-		auto    provider               = session(remote, root.Path);
-		auto    input                  = plan();
-		input.Submission.Proposal.Body = std::string{ core::tour_brief_in_description_note };
-		input.Description              = application::staged_description_edit{ "Original description.", "## Problem\nProblem\n\n## Solution\nSolution\n\nOriginal description.", true };
-		expect(application::valid(input), "a plan with its brief in the description is valid");
-		const auto original = provider->publish_tour(input, { }, [](const auto&) { return true; });
-		expect(original.State == publication_state::published && original.Record && original.Record->DescriptionDone && remote.Writes == 5, "the new tour is published with its description");
-		expect(remote.Summary.starts_with(std::string{ core::tour_brief_in_description_note }) && !remote.Summary.contains("## Problem") && remote.Description.starts_with("[Review tour](") && remote.Description.contains("## Problem\nProblem\n"), "the brief is in the description, not the tour comment");
-		core::review_tour draft{ .Id = core::tour_draft_id{ 41 }, .Owner = input.Owner, .Base = target().BaseOid, .Head = target().Semantic.ExpectedHead, .Problem = "Problem", .Solution = "Solution", .Revision = input.Generation, .LastStopId = 2 };
-		for (const auto& stop : input.Stops) {
-			draft.Stops.push_back({ .Id = stop.Id, .Title = stop.Title, .Body = stop.Narrative, .Destination = stop.Source });
-		}
-		draft = *application::published_tour(*original.Record, draft);
-		expect(core::tour_brief_in_description(draft) && !core::tour_brief_in_comment(draft), "the published tour knows its brief is in the description");
-		draft.Problem = "Revised problem";
-		++draft.Revision;
-		const auto desired = core::propose_tour_description(draft, remote.Description);
-		expect(desired && desired->contains("## Problem\nRevised problem\n") && desired->starts_with("[Review tour]("), "the revision maps into the description in place");
-		auto update                        = input;
-		update.Submission.IdempotencyKey   = "description-only-1";
-		update.Submission.Proposal.Attempt = core::review_submission_attempt_id{ 8 };
-		update.Generation                  = draft.Revision;
-		update.Stops.clear();
-		update.Update      = draft;
-		update.Description = application::staged_description_edit{ remote.Description, *desired, false };
-		expect(application::valid(update), "a description-only update plan is valid");
-		const auto bodies = application::staged_update_bodies({ .Plan = update });
-		expect(bodies && bodies->Edits.empty(), "no tour comment changes");
-		const auto first = application::staged_initial_request(update);
-		expect(first && first->Operation == application::staged_review_operation::update_description, "the description is the update's only step");
-		const auto summary = remote.Summary;
-		remote.Maintenance = true;
-		const auto result  = provider->publish_tour(update, { }, [](const auto&) { return true; });
-		expect(result.State == publication_state::published && result.Record && result.Record->Published && result.Record->DescriptionDone && remote.Writes == 6, "one description write publishes the update");
-		expect(remote.Summary == summary && remote.Description == *desired, "the tour comment is unchanged and the description carries the revision");
 	}
 #if defined(__APPLE__)
 	void test_strict_tour_scope()
@@ -1950,7 +1908,7 @@ namespace {
 	auto course_update(const application::staged_review_plan& aPlan, const application::staged_publication_record& aPublished) -> application::staged_review_plan
 	{
 		const auto&       binding = aPlan.Submission.LiveBinding->Target;
-		core::review_tour draft{ .Id = core::tour_draft_id{ 41 }, .Owner = aPlan.Owner, .Base = binding.BaseOid, .Head = binding.Semantic.ExpectedHead, .Problem = "Header parsing accepted conflicting and negative lengths.", .Solution = "Keep repeated headers as lists and refuse a conflict or a negative length.", .Revision = aPlan.Generation, .LastStopId = 3 };
+		core::review_tour draft{ .Id = core::tour_draft_id{ 41 }, .Owner = aPlan.Owner, .Base = binding.BaseOid, .Head = binding.Semantic.ExpectedHead, .Revision = aPlan.Generation, .LastStopId = 3 };
 		for (const auto& stop : aPlan.Stops) {
 			draft.Stops.push_back({ .Id = stop.Id, .Title = stop.Title, .Body = stop.Narrative, .Destination = stop.Source });
 		}
@@ -2188,7 +2146,6 @@ try {
 		test_conversation_overview_namespace();
 		test_saved_legacy_retarget_receipt();
 		test_maintenance_sessions();
-		test_description_only_update();
 		std::cout << "staged-review-session-tests:pass\n";
 	}
 	return EXIT_SUCCESS;

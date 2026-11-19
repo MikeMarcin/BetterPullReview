@@ -140,7 +140,7 @@ namespace {
 		chosen.Behaviour.DrawerControls    = application::review_drawer_controls::shown;
 		chosen.Behaviour.CenterRibbonWidth = 56U;
 		chosen.WritingHooks.Revision       = 8;
-		chosen.WritingHooks.Overrides      = { "problem — preserve meaning", "solution", "outline", "comment" };
+		chosen.WritingHooks.Overrides      = { "outline — preserve meaning", "comment" };
 
 		{
 			auto opened = workbench_settings_database::open(path, { });
@@ -1650,8 +1650,8 @@ namespace {
 		chosen.Behaviour.DrawerControls   = application::review_drawer_controls::shown;
 		chosen.Behaviour.FeedbackMarks    = application::review_feedback_marks::letters;
 		chosen.WritingHooks.Revision      = 5U;
-		chosen.WritingHooks.Overrides[0]  = "Name the problem first.";
-		chosen.WritingHooks.Overrides[3]  = "One stop, one point.";
+		chosen.WritingHooks.Overrides[0]  = "Outline the change first.";
+		chosen.WritingHooks.Overrides[1]  = "One stop, one point.";
 		return chosen;
 	}
 
@@ -2267,7 +2267,7 @@ namespace {
 		const auto scratch                                                                    = scratch_directory{ };
 		const auto path                                                                       = scratch.file("enhance-v24.sqlite3");
 		auto       chosen                                                                     = settled_profile();
-		chosen.WritingHooks.Overrides[3]                                                      = "One stop, one point.";
+		chosen.WritingHooks.Overrides[1]                                                      = "One stop, one point.";
 		chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::feedback)] = "Label every comment.";
 		{
 			auto db = workbench_settings_database::open(path, { });
@@ -2311,7 +2311,7 @@ namespace {
 		const auto path                  = scratch.file("feedback-v15.sqlite3");
 		auto       chosen                = settled_profile();
 		chosen.WritingHooks.Overrides[1] = "Say what changed.";
-		chosen.WritingHooks.Overrides[2] = "Three stops at most.";
+		chosen.WritingHooks.Overrides[0] = "Three stops at most.";
 		auto window                      = application::workbench_window_layout{ };
 		window.SummaryFraction           = 4100U;
 		{
@@ -2324,7 +2324,7 @@ namespace {
 			expect(db.has_value(), "version15 migration opens");
 			expect(integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version, "and stamps the current version");
 			const auto loaded = db->load({ });
-			expect(loaded && *loaded == chosen, "the four tour overrides, their revision and every other field are kept exactly");
+			expect(loaded && *loaded == chosen, "[[BPR-2274]] the two tour overrides, their revision and every other field are kept exactly");
 			expect(loaded && loaded->WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::feedback)].empty(), "the migrated feedback hook follows the shipped default");
 			expect(db->load_window(core::bpr_window_id{ 1 }, { })->SummaryFraction == window.SummaryFraction, "each window keeps its summary fraction");
 		}
@@ -2342,7 +2342,7 @@ namespace {
 			const auto loaded = db->load({ });
 			expect(loaded && *loaded == chosen, "the override survives a reopen beside the tour overrides");
 		}
-		expect(stored_profile_text(path, "writing_feedback") == override && stored_profile_text(path, "writing_problem") == chosen.WritingHooks.Overrides[0], "the override is stored as written in its own column");
+		expect(stored_profile_text(path, "writing_feedback") == override && stored_profile_text(path, "writing_outline") == chosen.WritingHooks.Overrides[0] && stored_profile_text(path, "writing_problem") == std::string{ }, "the override is stored as written in its own column; [[BPR-2274]] the retired Problem column stays empty");
 		chosen.WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::feedback)].clear();
 		++chosen.WritingHooks.Revision;
 		{

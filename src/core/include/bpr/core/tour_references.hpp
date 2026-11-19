@@ -12,7 +12,7 @@
 
 /// \file
 /// \brief [[BPR-1996]], RFC-BPR-0100. Code references in a tour's own text.
-/// \details A stop's text, the Problem and the Solution cite code as
+/// \details A stop's text cites code as
 /// `path:first-last`, by the forms the agent replies' recogniser reads
 /// (RFC-BPR-0101). In the application a reference is a link to those lines in
 /// Review, and one alone on its line is a snippet of them; on GitHub it is a

@@ -14,7 +14,7 @@ namespace {
 	auto target() -> core::writing_target
 	{
 		const auto tour = tests::review_tour_fixture();
-		return { .Owner = tour.Owner, .Draft = tour.Id, .Window = { tour.Owner.Profile, core::bpr_window_id{ 1 }, core::bpr_window_generation{ 1 } }, .Session = core::application_session_id{ 1 }, .Agent = core::agent_profile_id{ 2 }, .HookRevision = 1, .TextGeneration = 1, .EditorGeneration = 1 };
+		return { .Owner = tour.Owner, .Draft = tour.Id, .Stop = tour.Stops.front().Id, .Hook = core::writing_hook::comment, .Window = { tour.Owner.Profile, core::bpr_window_id{ 1 }, core::bpr_window_generation{ 1 } }, .Session = core::application_session_id{ 1 }, .Agent = core::agent_profile_id{ 2 }, .HookRevision = 1, .TextGeneration = 1, .EditorGeneration = 1 };
 	}
 }
 int main()
@@ -52,7 +52,7 @@ int main()
 		case 1:  ++changed.EditorGeneration; break;
 		case 2:  ++changed.HookRevision; break;
 		case 3:  changed.Draft = core::tour_draft_id{ 2 }; break;
-		case 4:  changed.Stop = core::tour_stop_id{ 1 }; break;
+		case 4:  changed.Stop = core::tour_stop_id{ 2 }; break;
 		case 5:  changed.Owner.Account = core::github_account_id{ 2 }; break;
 		case 6:  changed.Owner.PullRequest = core::pull_request_id{ 2 }; break;
 		case 7:  changed.Window.Generation = core::bpr_window_generation{ 2 }; break;
@@ -75,6 +75,7 @@ int main()
 	state.cancel();
 	expect(!state.complete(r->Id, identity, raw, "late"), "cancel retires authority");
 	identity.Hook = core::writing_hook::outline;
+	identity.Stop = core::tour_stop_id{ };
 	r             = state.begin(identity, { }, { });
 	expect(r && !state.complete(r->Id, identity, { }, "body"), "outline capture can never return a prose replacement");
 	r                   = state.begin(identity, { }, { });
@@ -107,7 +108,7 @@ int main()
 			   && core::writing_instructions_for(core::writing_hook::comment, core::writing_scope::selection) == core::writing_hook::enhance_stop
 			   && core::writing_instructions_for(core::writing_hook::comment, core::writing_scope::empty_field) == core::writing_hook::comment,
 		   "a stop's Enhance and Generate comment take their own prompts");
-	expect(core::writing_instructions_for(core::writing_hook::problem, core::writing_scope::field) == core::writing_hook::problem
+	expect(core::writing_instructions_for(core::writing_hook::outline, core::writing_scope::field) == core::writing_hook::outline
 			   && core::writing_instructions_for(core::writing_hook::enhance_writing, core::writing_scope::selection) == core::writing_hook::enhance_writing
 			   && core::writing_instructions_for(core::writing_hook::enhance_writing, core::writing_scope::field) == core::writing_hook::enhance_writing,
 		   "every other target sends its own prompt");

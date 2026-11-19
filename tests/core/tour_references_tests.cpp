@@ -60,23 +60,17 @@ namespace {
 
 	void test_enhance_selection_replaces_only_the_selection()
 	{
-		auto draft    = core::review_tour{ };
-		draft.Problem = "Every frame redrew every layer. The GPU stayed busy.";
-		auto stop     = core::tour_stop{ };
-		stop.Id       = core::tour_stop_id{ 7U };
-		stop.Body     = "First part. Middle part. Last part.";
+		auto draft = core::review_tour{ };
+		auto stop  = core::tour_stop{ };
+		stop.Id    = core::tour_stop_id{ 7U };
+		stop.Body  = "First part. Middle part. Last part.";
 		draft.Stops.push_back(stop);
-		const auto passage = core::tour_passage{ .Field = core::tour_passage_field::problem, .Text = "The GPU stayed busy." };
-		auto       answer  = core::tour_ask_answer{ .Reply = "Tightened.", .Changes = { .Problem = "An idle window kept the GPU busy.", .Solution = "Stray." } };
-		auto       kept    = core::confine_to_passage(answer, draft, core::tour_thread{ .Kind = core::tour_thread_kind::problem }, passage);
-		expect(kept.Changes.Problem == std::optional<std::string>{ "Every frame redrew every layer. An idle window kept the GPU busy." } && !kept.Changes.Solution && kept.Reply == "Tightened.",
-			   "the passage's new text takes its place; other fields go");
-		answer.Changes.Problem = "Every frame redrew every layer. An idle window kept the GPU busy.";
-		kept                   = core::confine_to_passage(answer, draft, core::tour_thread{ .Kind = core::tour_thread_kind::problem }, passage);
-		expect(kept.Changes.Problem == std::optional<std::string>{ "Every frame redrew every layer. An idle window kept the GPU busy." }, "a whole part given back unchanged outside the passage is read as the passage");
-		answer.Changes.Problem = "Something else entirely.";
-		kept                   = core::confine_to_passage(answer, draft, core::tour_thread{ .Kind = core::tour_thread_kind::problem }, core::tour_passage{ .Field = core::tour_passage_field::problem, .Text = "not there" });
-		expect(!kept.Changes.Problem, "a passage no longer in the part proposes nothing");
+		auto stray = core::tour_ask_answer{ .Reply = "Tightened.", .Changes = { .Stops = { { "a.cpp", 1U, 2U, "Stray", "Stray." } } }, .StopTexts = { { 1U, "First part. Centre part. Last part." } } };
+		auto kept  = core::confine_to_passage(stray, draft, core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop.Id }, core::tour_passage{ .Field = core::tour_passage_field::stop, .Text = "Middle part." });
+		expect(kept.StopTexts.size() == 1U && kept.StopTexts[0].Explanation == "First part. Centre part. Last part." && kept.Changes.Stops.empty() && kept.Reply == "Tightened.",
+			   "a whole part given back unchanged outside the passage is read as the passage; other fields go");
+		kept = core::confine_to_passage(stray, draft, core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop.Id }, core::tour_passage{ .Field = core::tour_passage_field::stop, .Text = "not there" });
+		expect(kept.StopTexts.empty(), "a passage no longer in the part proposes nothing");
 		auto stopAnswer = core::tour_ask_answer{ .Reply = "Done.", .StopTexts = { { 1U, "Centre part." } } };
 		kept            = core::confine_to_passage(stopAnswer, draft, core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop.Id }, core::tour_passage{ .Field = core::tour_passage_field::stop, .Text = "Middle part." });
 		expect(kept.StopTexts.size() == 1U && kept.StopTexts[0].Stop == 1U && kept.StopTexts[0].Explanation == "First part. Centre part. Last part.", "a stop's selection is replaced in the stop's text");

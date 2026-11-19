@@ -28,8 +28,6 @@ namespace bpr::application {
 		case core::writing_hook::writing_style:         return writing_style_hook_version;
 		case core::writing_hook::comment_labels:        return comment_labels_hook_version;
 		case core::writing_hook::comment:               return tour_stop_comment_hook_version;
-		case core::writing_hook::problem:
-		case core::writing_hook::solution:
 		case core::writing_hook::outline:               return writing_hook_version;
 		}
 		return writing_hook_version;
@@ -38,8 +36,7 @@ namespace bpr::application {
 		/// [[BPR-2051]] Indexed by `core::writing_hook`. Written out, never
 		/// derived from names or order: an ID once shipped is kept.
 		constexpr auto Purposes = std::array<std::string_view, core::writing_hook_count>{
-			"tour.problem",
-			"tour.solution",
+			// [[BPR-2274]] "tour.problem" and "tour.solution" are retired.
 			"tour.outline",
 			"tour.stop-comment",
 			"review.feedback",

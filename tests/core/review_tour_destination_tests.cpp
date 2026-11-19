@@ -168,7 +168,7 @@ int main()
 	expect(core::assess_tour_publication(draft, decisions, true) == readiness::compatibility_comments, "explicit qualified conversation plan permitted");
 	decisions[0].NeedsQualification = true;
 	expect(core::assess_tour_publication(draft, decisions, true) == readiness::unavailable, "user choice cannot create missing capability");
-	draft.Problem = " ";
+	draft.Stops.front().Body = " ";
 	expect(core::assess_tour_publication(draft, decisions, true) == readiness::incomplete, "unfinished prose blocks publishing but remains saveable");
 	std::cout << "tour-destinations:pass\n";
 }

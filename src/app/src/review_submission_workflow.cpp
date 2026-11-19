@@ -1280,7 +1280,7 @@ namespace bpr::app {
 		LastFailure.reset();
 		// [[BPR-1992]]. The plan chooses the form: one review, a mixed tour or
 		// compatibility comments, the first that carries every stop.
-		const auto prepared = choose_tour_plan(*Draft.Draft, *Binding, Description, Editor.description_publication(), Qualified, AnchorHead == Draft.Draft->ObservedHead.value_or(Draft.Draft->Head) ? std::span<const core::tour_anchor_file>{ AnchorFiles } : std::span<const core::tour_anchor_file>{ }, factsCurrent ? std::span<const core::tour_destination_observation>{ DestinationFacts->Observations } : std::span<const core::tour_destination_observation>{ });
+		const auto prepared = choose_tour_plan(*Draft.Draft, *Binding, Qualified, AnchorHead == Draft.Draft->ObservedHead.value_or(Draft.Draft->Head) ? std::span<const core::tour_anchor_file>{ AnchorFiles } : std::span<const core::tour_anchor_file>{ }, factsCurrent ? std::span<const core::tour_destination_observation>{ DestinationFacts->Observations } : std::span<const core::tour_destination_observation>{ });
 		DestinationsChecked = true;
 		Plan                = prepared.Plan;
 		Form                = prepared.Form;
@@ -1338,7 +1338,7 @@ namespace bpr::app {
 			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, &*Plan, nullptr, false, core::operation_failure::preview_stale);
 			return;
 		}
-		if (!Record && (!Draft.Draft || Plan->Generation != Draft.Draft->Revision || (!Plan->Update && Plan->Description.has_value() != Editor.description_publication()))) {
+		if (!Record && (!Draft.Draft || Plan->Generation != Draft.Draft->Revision)) {
 			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, &*Plan, nullptr, false, core::operation_failure::preview_stale);
 			return;
 		}

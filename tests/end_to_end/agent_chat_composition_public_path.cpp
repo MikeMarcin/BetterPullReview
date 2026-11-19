@@ -484,7 +484,7 @@ namespace {
 		// pull request, written out whole for the owner to judge.
 		if (aFlagMove) {
 			const auto& drafted = *editor->shown().Draft;
-			auto        text    = "# Drafted tour of bpr-fixtures/flag-move#41 (" + aModel + ")\n\n## Problem\n\n" + drafted.Problem + "\n\n## Solution\n\n" + drafted.Solution + "\n";
+			auto        text    = "# Drafted tour of bpr-fixtures/flag-move#41 (" + aModel + ")\n";
 			for (std::size_t index = 0U; index < drafted.Stops.size(); ++index) {
 				const auto& stop   = drafted.Stops[index];
 				const auto& source = stop.Mapped ? stop.Mapped : stop.Original;
