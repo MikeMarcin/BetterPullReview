@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <map>
 #include <ranges>
 #include <set>
 #include <utility>
@@ -62,6 +63,13 @@ namespace bpr::core::detail {
 		bool                       Saved    = false;
 		bool                       Followed = false;
 	};
+	/// [[BPR-2283]]. The Theme section: the base by name and each role's
+	/// colour, keyed by the role's stable identifier.
+	struct wire_theme
+	{
+		std::string                        Base;
+		std::map<std::string, std::string> Colors;
+	};
 	struct wire_file
 	{
 		std::string                Format;
@@ -74,8 +82,10 @@ namespace bpr::core::detail {
 		std::optional<glz::raw_json>                        Workflows;
 		std::optional<wire_profile_identity>                Identity;
 		std::optional<std::vector<wire_profile_repository>> Repositories;
-		/// RFC-BPR-0125 AC24. Version 2 only.
+		/// RFC-BPR-0125 AC24.
 		std::optional<glz::raw_json> PromptPack;
+		/// [[BPR-2283]].
+		std::optional<wire_theme> Theme;
 	};
 	/// Only the head, read first so a newer or foreign file is named as such.
 	struct wire_head
@@ -120,11 +130,18 @@ struct glz::meta<bpr::core::detail::wire_profile_repository>
 	static constexpr auto value = object("host", &value_type::Host, "repository", &value_type::Repository, "saved", &value_type::Saved, "followed", &value_type::Followed);
 };
 template <>
+struct glz::meta<bpr::core::detail::wire_theme>
+{
+	using value_type            = bpr::core::detail::wire_theme;
+	static constexpr auto value = object("base", &value_type::Base, "colors", &value_type::Colors);
+};
+template <>
 struct glz::meta<bpr::core::detail::wire_file>
 {
 	using value_type            = bpr::core::detail::wire_file;
 	static constexpr auto value = object("format", &value_type::Format, "version", &value_type::Version, "label", &value_type::Label, "exported_by", &value_type::ExportedBy, "agents", &value_type::Agents,
-										 "prompts", &value_type::Prompts, "workflows", &value_type::Workflows, "identity", &value_type::Identity, "repositories", &value_type::Repositories, "prompt_pack", &value_type::PromptPack);
+										 "prompts", &value_type::Prompts, "workflows", &value_type::Workflows, "identity", &value_type::Identity, "repositories", &value_type::Repositories, "prompt_pack", &value_type::PromptPack,
+										 "theme", &value_type::Theme);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_head>
@@ -328,6 +345,7 @@ namespace bpr::core {
 		case profile_settings_section::workflows:    return "workflows";
 		case profile_settings_section::identity:     return "identity";
 		case profile_settings_section::repositories: return "repositories";
+		case profile_settings_section::theme:        return "theme";
 		}
 		return "agents";
 	}
@@ -542,10 +560,9 @@ namespace bpr::core {
 	{
 		auto file       = detail::wire_file{ };
 		file.Format     = std::string{ agent_configuration_format };
-		file.Version    = agent_configuration_version_without_prompt_pack;
+		file.Version    = agent_configuration_version;
 		file.ExportedBy = aConfiguration.ExportedBy;
-		// RFC-BPR-0125 AC24. Only a file with a prompt pack is version 2, so
-		// every other export reads in builds that know version 1 alone.
+		// RFC-BPR-0125 AC24. The pack is left out when it holds no prompt.
 		if (!aConfiguration.PromptMacros.empty()) {
 			auto pack = encode_prompt_pack(aConfiguration.PromptPack, aConfiguration.PromptMacros);
 			if (!pack) {
@@ -559,7 +576,6 @@ namespace bpr::core {
 					indented.append("   ");
 				}
 			}
-			file.Version    = agent_configuration_version;
 			file.PromptPack = glz::raw_json{ std::move(indented) };
 		}
 		if (!aConfiguration.Label.empty()) {
@@ -618,6 +634,13 @@ namespace bpr::core {
 			}
 			file.Repositories = std::move(repositories);
 		}
+		if (aConfiguration.Theme) {
+			auto theme = detail::wire_theme{ .Base = std::string{ stable_name(aConfiguration.Theme->Base) }, .Colors = { } };
+			for (auto& entry : theme_entries(aConfiguration.Theme->Palette)) {
+				theme.Colors.emplace(std::move(entry.Role), std::move(entry.Color));
+			}
+			file.Theme = std::move(theme);
+		}
 		auto bytes = std::string{ };
 		if (glz::write<write_options>(file, bytes) || bytes.size() + 1U > maximum_agent_configuration_bytes) {
 			return std::nullopt;
@@ -635,9 +658,15 @@ namespace bpr::core {
 			return std::unexpected(configuration_file_refusal::not_text);
 		}
 		// RFC-BPR-0125 AC24: a prompt's condition patterns sit eleven deep.
-		const auto limits = json_preflight_limits{ .Depth = 12U, .ObjectMembers = 32U, .ArrayElements = maximum_configuration_repositories, .Values = 50'000U, .StringBytes = maximum_review_skill_bytes * 6U };
+		// [[BPR-2283]]: the Theme's colours are one object of a member a role.
+		const auto limits = json_preflight_limits{ .Depth = 12U, .ObjectMembers = appearance_role_count + 32U, .ArrayElements = maximum_configuration_repositories, .Values = 50'000U, .StringBytes = maximum_review_skill_bytes * 6U };
 		if (const auto report = json_preflight(aBytes, limits); report.Result != json_preflight_result::valid) {
-			return std::unexpected(report.Result == json_preflight_result::structural_limit ? configuration_file_refusal::too_many_items : configuration_file_refusal::malformed);
+			if (report.Result == json_preflight_result::structural_limit) {
+				return std::unexpected(configuration_file_refusal::too_many_items);
+			}
+			// [[BPR-2283]]. Text that is not JSON and never names the format
+			// (a `.bprtheme` document, a note) is not Profile Settings at all.
+			return std::unexpected(aBytes.find(agent_configuration_format) == std::string_view::npos ? configuration_file_refusal::not_a_configuration : configuration_file_refusal::malformed);
 		}
 		auto head = detail::wire_head{ };
 		if (glz::read<head_options>(head, aBytes)) {
@@ -646,8 +675,13 @@ namespace bpr::core {
 		if (head.Format != agent_configuration_format) {
 			return std::unexpected(configuration_file_refusal::not_a_configuration);
 		}
-		if (head.Version != agent_configuration_version && head.Version != agent_configuration_version_without_prompt_pack) {
+		// [[BPR-2283]] (owner, 2026-11-19: "don't keep legacy support"). A
+		// file written before version 3 is not one this version reads.
+		if (head.Version > agent_configuration_version) {
 			return std::unexpected(configuration_file_refusal::unsupported_version);
+		}
+		if (head.Version != agent_configuration_version) {
+			return std::unexpected(configuration_file_refusal::not_a_configuration);
 		}
 		auto file = detail::wire_file{ };
 		if (glz::read<strict_options>(file, aBytes)) {
@@ -660,10 +694,10 @@ namespace bpr::core {
 		}
 		auto decoded    = decoded_configuration{ };
 		decoded.Version = head.Version;
-		// RFC-BPR-0125 AC24. A prompt pack is version 2's; one in a version 1
-		// file, or one this version cannot read, makes the file malformed.
+		// RFC-BPR-0125 AC24. A prompt pack this version cannot read makes the
+		// file malformed.
 		if (file.PromptPack) {
-			auto pack = head.Version == agent_configuration_version ? decode_prompt_pack(file.PromptPack->str) : std::nullopt;
+			auto pack = decode_prompt_pack(file.PromptPack->str);
 			if (!pack) {
 				return std::unexpected(configuration_file_refusal::malformed);
 			}
@@ -778,7 +812,39 @@ namespace bpr::core {
 			}
 			decoded.Repositories.push_back({ .Host = host, .Repository = wire.Repository, .Saved = wire.Saved, .Followed = wire.Followed });
 		}
+		// [[BPR-2283]]. A theme the theme reader refuses is listed refused.
+		if (file.Theme) {
+			auto entries = std::vector<theme_entry>{ };
+			for (const auto& [role, color] : file.Theme->Colors) {
+				entries.push_back({ .Role = role, .Color = color });
+			}
+			auto read  = import_theme_entries(file.Theme->Base, entries);
+			auto theme = decoded_theme{ .Theme = std::nullopt, .Rejections = std::move(read.Rejections) };
+			if (theme.Rejections.empty() && read.Palette && read.Base) {
+				theme.Theme = portable_theme{ .Base = *read.Base, .Palette = *read.Palette };
+			}
+			decoded.Theme = std::move(theme);
+		}
 		return decoded;
+	}
+
+	auto plan_theme_import(const decoded_theme& aFile, const std::optional<appearance_palette>& aReadable, const appearance_palette& aHere) -> theme_import_plan
+	{
+		if (!aFile.Theme || !aReadable) {
+			return { .Standing = import_standing::refused, .Default = false };
+		}
+		if (*aReadable == aHere) {
+			return { .Standing = import_standing::unchanged, .Default = false };
+		}
+		return { .Standing = import_standing::updated, .Default = true };
+	}
+
+	auto encode_theme_settings(const portable_theme& aTheme, std::string aExportedBy) -> std::optional<std::string>
+	{
+		auto file       = agent_configuration{ };
+		file.ExportedBy = std::move(aExportedBy);
+		file.Theme      = aTheme;
+		return encode_agent_configuration(file);
 	}
 
 	auto colliding_agent(const std::span<const agent_entry> aAgents, const portable_agent& aAgent) noexcept -> const agent_entry*

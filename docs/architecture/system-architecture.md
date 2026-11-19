@@ -1399,15 +1399,18 @@ resolve to that variant's built-in defaults. Existing values and stored flags
 survive without a palette reset. Scoped palette reset removes one variant's
 overrides without deleting other appearance preferences.
 
-An exported theme is a version-2 document whose `base` line names the variant
-it customises ([[BPR-1479]]). The store's per-slot documents stay version 1,
-because the slot is their base. Theme import fills the additive roles a
-document omits from its base's built-in palette before checking contrast, so
-what is previewed is what Keep changes stores and a later export writes. A
-version-1 document's base is inferred from its code background (Light or Dark,
-never high contrast). The core parses and decides the base; the composition
-hands the host the four built-in palettes, which Qt owns, and the host
-performs the fill. The theme on screen plays no part.
+An exported theme is the Theme section of a version-3 Profile Settings file
+(`.bprsettings`, [[BPR-2283]]) whose `base` names the variant it customises
+([[BPR-1479]]); the section is read by the theme format's rules, laid out as
+a version-2 theme document. The store's per-slot documents stay version-1
+theme documents, because the slot is their base. Importing a Theme fills the
+additive roles it omits from its base's built-in palette before checking
+contrast (`appearance_application_host::resolve_theme`), so what the import
+dialog offers is what Import stores and a later export writes. The core
+parses and decides the base; the composition hands the host the four
+built-in palettes, which Qt owns, and the host performs the fill. The theme
+on screen plays no part in the fill; it is the variant Import keeps the
+colours on.
 
 Migration files the version-6 palette under exactly the variant that row
 recorded, keeping its document bytes, and leaves the other three uncustomized,

@@ -57,8 +57,6 @@ namespace bpr::app {
 			= std::function<void(const application::token_span_publication&)>;
 		using presentation_sink     = std::function<void(
 			const application::appearance_presentation_invalidation&)>;
-		using theme_preview_sink    = std::function<void(
-			const application::theme_preview_publication&)>;
 		using palette_adoption_sink = std::function<void(
 			const application::palette_adoption_publication&)>;
 		using refusal_sink          = std::function<void(
@@ -67,8 +65,6 @@ namespace bpr::app {
 		void set_span_sink(span_sink aSink);
 
 		void set_presentation_sink(presentation_sink aSink);
-
-		void set_theme_preview_sink(theme_preview_sink aSink);
 
 		void set_refusal_sink(refusal_sink aSink);
 
@@ -88,7 +84,6 @@ namespace bpr::app {
 		std::function<void()> ThemeExportSink;
 		span_sink             SpanSink;
 		presentation_sink     PresentationSink;
-		theme_preview_sink    ThemePreviewSink;
 		refusal_sink          RefusalSink;
 		palette_adoption_sink PaletteAdoptionSink;
 		std::size_t           Published = 0U;

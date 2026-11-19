@@ -133,11 +133,11 @@ namespace {
 		const auto before = core::agent_differences(core::agent_entry{ }, imported);
 		expect(std::ranges::find(before, core::agent_field::mcp_servers) != before.end() && std::ranges::find(before, core::agent_field::instructions) != before.end(), "a replacement shows them among its differences");
 		const auto older = core::decode_agent_configuration(
-			R"({"format":"bpr.profile-settings","version":1,"exported_by":"x","agents":[{"id":"c","name":"C","protocol":"claude_stream_json","program_name":"c","arguments":[],"check_arguments":[],"model":"","effort":"","strict_run_checks":true,"scratch_starts":true,"builds_and_tests":false}],"prompts":[]})",
+			R"({"format":"bpr.profile-settings","version":3,"exported_by":"x","agents":[{"id":"c","name":"C","protocol":"claude_stream_json","program_name":"c","arguments":[],"check_arguments":[],"model":"","effort":"","strict_run_checks":true,"scratch_starts":true,"builds_and_tests":false}],"prompts":[]})",
 			local);
 		expect(!older && older.error() == core::configuration_file_refusal::malformed, "an agent without them is not read as an older format");
 		const auto unknown = core::decode_agent_configuration(
-			R"({"format":"bpr.profile-settings","version":1,"exported_by":"x","agents":[{"id":"c","name":"C","protocol":"claude_stream_json","program_name":"c","arguments":[],"check_arguments":[],"model":"","effort":"","strict_run_checks":true,"scratch_starts":true,"builds_and_tests":false,"mcp_servers":"all"}],"prompts":[]})",
+			R"({"format":"bpr.profile-settings","version":3,"exported_by":"x","agents":[{"id":"c","name":"C","protocol":"claude_stream_json","program_name":"c","arguments":[],"check_arguments":[],"model":"","effort":"","strict_run_checks":true,"scratch_starts":true,"builds_and_tests":false,"mcp_servers":"all"}],"prompts":[]})",
 			local);
 		expect(!unknown && unknown.error() == core::configuration_file_refusal::malformed, "a value this version does not know refuses the file");
 	}
@@ -147,14 +147,15 @@ namespace {
 		const auto local = prompts();
 		expect(core::decode_agent_configuration(std::string(core::maximum_agent_configuration_bytes + 1U, ' '), local).error() == core::configuration_file_refusal::too_large, "over 1 MiB");
 		expect(core::decode_agent_configuration("\xff", local).error() == core::configuration_file_refusal::not_text, "not UTF-8");
-		expect(core::decode_agent_configuration("{\"format\":", local).error() == core::configuration_file_refusal::malformed, "malformed");
+		expect(core::decode_agent_configuration("{\"format\":", local).error() == core::configuration_file_refusal::not_a_configuration, "broken JSON that never names the format is not Profile Settings");
+		expect(core::decode_agent_configuration("{\"format\":\"bpr.profile-settings\",", local).error() == core::configuration_file_refusal::malformed, "malformed");
 		expect(core::decode_agent_configuration(R"({"format":"x","version":1})", local).error() == core::configuration_file_refusal::not_a_configuration, "foreign");
-		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":3,"future":[]})", local).error() == core::configuration_file_refusal::unsupported_version,
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":4,"future":[]})", local).error() == core::configuration_file_refusal::unsupported_version,
 			   "newer");
-		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":1,"exported_by":"","agents":[],"prompts":[],"secret":"x"})", local).error()
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":3,"exported_by":"","agents":[],"prompts":[],"secret":"x"})", local).error()
 				   == core::configuration_file_refusal::malformed,
 			   "a field this version does not know is not silently dropped");
-		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","format":"bpr.profile-settings","version":1})", local).error()
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","format":"bpr.profile-settings","version":3})", local).error()
 				   == core::configuration_file_refusal::malformed,
 			   "a duplicate key");
 	}
@@ -162,7 +163,7 @@ namespace {
 	void test_item_problems()
 	{
 		const auto local   = prompts();
-		const auto bytes   = std::string{ R"({"format":"bpr.profile-settings","version":1,"exported_by":"t","agents":[
+		const auto bytes   = std::string{ R"({"format":"bpr.profile-settings","version":3,"exported_by":"t","agents":[
 			{"id":"a","name":"A","protocol":"future_protocol","arguments":[],"check_arguments":[],"model":"","effort":"","strict_run_checks":true,"scratch_starts":true,"builds_and_tests":false,"mcp_servers":"off","instructions":"system-prompt"},
 			{"id":"b","name":"B","protocol":"claude_stream_json","program_name":"b","arguments":[""],"check_arguments":[],"model":"","effort":"","strict_run_checks":true,"scratch_starts":true,"builds_and_tests":false,"mcp_servers":"off","instructions":"system-prompt"},
 			{"id":"c","name":"C","protocol":"claude_stream_json","program_name":"c","arguments":[],"check_arguments":[],"model":"","effort":"","strict_run_checks":true,"scratch_starts":true,"builds_and_tests":false,"mcp_servers":"off","instructions":"system-prompt"},
@@ -340,18 +341,24 @@ namespace {
 		expect(clash.Agents[0].Standing == core::import_standing::updated && clash.Agents[0].Default.Action == core::agent_import_action::leave, "another kind of the same name starts left out");
 	}
 
-	/// [[BPR-2198]] (owner, 2026-11-15). One format marker. RFC-BPR-0125 AC24:
-	/// version 2 is the file with a prompt pack; a file of a later version is
-	/// refused as newer.
+	/// [[BPR-2198]] (owner, 2026-11-15). One format marker. [[BPR-2283]]: one
+	/// version; a later one is refused as newer, an earlier one, and a theme
+	/// document, as not Profile Settings.
 	void test_one_format()
 	{
 		const auto local = prompts();
 		const auto bytes = core::encode_agent_configuration(core::agent_configuration{ .Label = "x" }).value();
-		expect(bytes.find("\"format\": \"bpr.profile-settings\"") != std::string::npos && bytes.find("\"version\": 1") != std::string::npos, "the file names its one format and version");
-		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":3,"exported_by":"","agents":[],"prompts":[]})", local).error() == core::configuration_file_refusal::unsupported_version,
+		expect(bytes.find("\"format\": \"bpr.profile-settings\"") != std::string::npos && bytes.find("\"version\": 3") != std::string::npos, "the file names its one format and version");
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":4,"exported_by":"","agents":[],"prompts":[]})", local).error() == core::configuration_file_refusal::unsupported_version,
 			   "a later version is refused");
 		expect(core::decode_agent_configuration(R"({"format":"bpr.agent-configuration","version":1,"exported_by":"","agents":[],"prompts":[]})", local).error() == core::configuration_file_refusal::not_a_configuration,
 			   "the unreleased agent-configuration format is not read");
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":1,"exported_by":"","agents":[],"prompts":[]})", local).error() == core::configuration_file_refusal::not_a_configuration,
+			   "a version 1 file is not read");
+		expect(core::decode_agent_configuration("bpr-theme 2\nbase dark\ncode_background #000000ff\n", local).error() == core::configuration_file_refusal::not_a_configuration,
+			   "a .bprtheme document is not Profile Settings");
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":3,)", local).error() == core::configuration_file_refusal::malformed,
+			   "broken JSON that names the format is malformed Profile Settings");
 		expect(bytes.find("identity") == std::string::npos && bytes.find("repositories") == std::string::npos && bytes.find("workflows") == std::string::npos, "an unchosen section is left out");
 	}
 
@@ -414,13 +421,13 @@ namespace {
 			   "a profile that already is what the file says is unchanged");
 
 		// A credential has no field to ride in: an unknown key refuses the file.
-		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":1,"exported_by":"","agents":[],"prompts":[],"identity":{"profile_name":"W","accounts":[{"host":"github.com","login":"octo","token":"gho_x"}]}})", local).error()
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":3,"exported_by":"","agents":[],"prompts":[],"identity":{"profile_name":"W","accounts":[{"host":"github.com","login":"octo","token":"gho_x"}]}})", local).error()
 				   == core::configuration_file_refusal::malformed,
 			   "an account with any other field is refused");
-		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":1,"exported_by":"","agents":[],"prompts":[],"repositories":[{"host":"github.com","repository":"../x","saved":true,"followed":false}]})", local).error()
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":3,"exported_by":"","agents":[],"prompts":[],"repositories":[{"host":"github.com","repository":"../x","saved":true,"followed":false}]})", local).error()
 				   == core::configuration_file_refusal::malformed,
 			   "a repository name that is a path is refused");
-		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":1,"exported_by":"","agents":[],"prompts":[],"repositories":[{"repository":"a/b","saved":true,"followed":false}]})", local).error()
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":3,"exported_by":"","agents":[],"prompts":[],"repositories":[{"repository":"a/b","saved":true,"followed":false}]})", local).error()
 				   == core::configuration_file_refusal::malformed,
 			   "a saved repository names its host");
 	}
@@ -432,6 +439,60 @@ namespace {
 		expect(ids == std::vector<std::string>{ "work-claude", "work-claude-2", "agent", "n-code" }, "portable IDs are slugs, unique in the file");
 	}
 } // namespace
+
+/// [[BPR-2283]] (owner, 2026-11-19: "Can we unify themes into the same
+/// thing"). A theme rides the file as its Theme section: alone, as
+/// Appearance's Export… writes it, or beside the rest of the profile.
+void test_theme_section()
+{
+	const auto local   = prompts();
+	auto       palette = core::appearance_palette{ };
+	for (std::size_t index = 0U; index < core::appearance_role_count; ++index) {
+		palette[index] = core::appearance_color{ .Red = static_cast<std::uint8_t>(index), .Green = 0x40U, .Blue = 0x80U, .Alpha = 0xFFU };
+	}
+	const auto theme = core::portable_theme{ .Base = core::appearance_variant::dark, .Palette = palette };
+	expect(core::exported_by_default(core::profile_settings_section::theme) && core::stable_name(core::profile_settings_section::theme) == "theme", "Theme is a section, ticked to begin with");
+
+	// Theme alone.
+	const auto alone = core::encode_theme_settings(theme, "BetterPullReview");
+	expect(alone && alone->find("\"theme\": {") != std::string::npos && alone->find("\"base\": \"dark\"") != std::string::npos && alone->find("\"code_background\": \"#") != std::string::npos,
+		   "a theme-only file names its base and each role's colour");
+	const auto aloneRead = core::decode_agent_configuration(*alone, local);
+	expect(aloneRead && aloneRead->Agents.empty() && aloneRead->Prompts.empty() && aloneRead->Theme && aloneRead->Theme->Rejections.empty() && aloneRead->Theme->Theme == theme,
+		   "a theme-only file round-trips exactly");
+
+	// The whole profile with a theme.
+	auto full = core::agent_configuration{ .Label = "Team" };
+	full.Agents.push_back(core::portable_agent{ .PortableId = "c", .Name = "C", .ProgramName = "c" });
+	full.Theme      = theme;
+	const auto both = core::encode_agent_configuration(full);
+	const auto read = both ? core::decode_agent_configuration(*both, local) : std::unexpected(core::configuration_file_refusal::malformed);
+	expect(read && read->Agents.size() == 1U && read->Theme && read->Theme->Theme == theme, "the profile's file carries the theme beside its agents");
+	const auto none = core::encode_agent_configuration(core::agent_configuration{ .Label = "x" });
+	expect(none && none->find("\"theme\"") == std::string::npos, "an unchosen Theme is left out");
+
+	// A refused theme is listed; the rest of the file still reads.
+	auto broken = *both;
+	broken.replace(broken.find("\"code_background\""), 17U, "\"code_backdrop\"");
+	const auto refused = core::decode_agent_configuration(broken, local);
+	expect(refused && refused->Agents.size() == 1U && refused->Theme && !refused->Theme->Theme && !refused->Theme->Rejections.empty(), "a theme the reader refuses is listed refused, the agents still read");
+	expect(std::ranges::any_of(refused->Theme->Rejections, [](const core::theme_import_rejection& aRejection) { return aRejection.Reason == core::theme_import_reason::unknown_field && aRejection.Subject == "code_backdrop"; }),
+		   "the refusal names the unknown role");
+	auto injected = *alone;
+	injected.replace(injected.find("\"base\": \"dark\""), 14U, "\"base\": \"dark\\ncode_background #000000ff\"");
+	const auto smuggled = core::decode_agent_configuration(injected, local);
+	expect(smuggled && smuggled->Theme && !smuggled->Theme->Theme, "a line break in a value cannot add an entry");
+
+	// The plan against the theme on screen.
+	const auto& decoded = *aloneRead->Theme;
+	expect(core::plan_theme_import(decoded, palette, palette).Standing == core::import_standing::unchanged, "the same colours: unchanged");
+	auto here                                                        = palette;
+	here[core::index_of(core::appearance_role::code_background)].Red = 0x99U;
+	const auto updated                                               = core::plan_theme_import(decoded, palette, here);
+	expect(updated.Standing == core::import_standing::updated && updated.Default, "other colours: updated, starts chosen");
+	expect(core::plan_theme_import(decoded, std::nullopt, here).Standing == core::import_standing::refused, "unreadable on a theme: refused");
+	expect(core::plan_theme_import(*refused->Theme, palette, here).Standing == core::import_standing::refused, "a refused theme: refused");
+}
 
 auto main() -> int
 {
@@ -447,6 +508,7 @@ auto main() -> int
 	test_mcp_and_instructions_ride_the_agent();
 	test_one_format();
 	test_identity_and_repositories();
+	test_theme_section();
 	std::cout << "agent-configuration-tests:pass\n";
 	return EXIT_SUCCESS;
 }

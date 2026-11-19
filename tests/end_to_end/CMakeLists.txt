@@ -2922,7 +2922,7 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-theme-customization-root"
-        "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/contrast-safe-theme.bprtheme"
+        "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/contrast-safe-theme.bprsettings"
         # RFC-BPR-0128. The theme predates the three tones, so the import
         # fills them from its base's (Dark's) built-ins.
         "-DBPR_THEME_FILLED_ROLES=report_verdict_open #ec7f6eff,report_verdict_partial #e4c27aff,report_verdict_done #8fcaa0ff"
@@ -2954,7 +2954,7 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-older-theme-root"
-        "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/older-theme.bprtheme"
+        "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/older-theme.bprsettings"
         "-DBPR_THEME_FILLED_ROLES=syntax_namespace #b8d7a3ff,syntax_enum_member #d6a05aff,find_match_background #5c4214ff,find_current_match_background #754d00ff,agent_accent #a3a0ffff,report_verdict_open #ec7f6eff,report_verdict_partial #e4c27aff,report_verdict_done #8fcaa0ff"
         "-DBPR_RUN_BUDGET_MS=${bpr_appearance_theme_budget_ms}"
         -P

@@ -1554,16 +1554,11 @@ namespace bpr::app {
 		// prompts: the file and the stores on the effect lane, no process.
 		AgentConfigurationStore = adapters::sqlite::make_agent_configuration_store(ApplicationDataRoot);
 		{
-			auto dependencies     = application::agent_configuration_dependencies{ };
-			dependencies.Store    = AgentConfigurationStore.get();
-			dependencies.ReadFile = [](const std::string& aPath, const std::size_t aLimit) -> std::optional<std::string> {
-				auto file = QFile{ QString::fromStdString(aPath) };
-				if (!file.open(QIODevice::ReadOnly)) {
-					return std::nullopt;
-				}
-				const auto bytes = file.read(static_cast<qint64>(aLimit) + 1);
-				return std::string{ bytes.constData(), static_cast<std::size_t>(bytes.size()) };
-			};
+			auto dependencies  = application::agent_configuration_dependencies{ };
+			dependencies.Store = AgentConfigurationStore.get();
+			// [[BPR-2283]]. A regular file only: a FIFO or a folder dropped or
+			// chosen is refused, never waited on.
+			dependencies.ReadFile  = [](const std::string& aPath, const std::size_t aLimit) { return read_bounded_regular_file(aPath, aLimit + 1U); };
 			dependencies.WriteFile = [](const std::string& aPath, const std::string& aBytes) {
 				auto file = QSaveFile{ QString::fromStdString(aPath) };
 				return file.open(QIODevice::WriteOnly) && file.write(aBytes.data(), static_cast<qint64>(aBytes.size())) == static_cast<qint64>(aBytes.size()) && file.commit();
@@ -2029,10 +2024,6 @@ namespace bpr::app {
 		AppearanceProjections.set_palette_adoption_sink(
 			[this](const application::palette_adoption_publication&) {
 				adopt_appearance_settings(true);
-			});
-		AppearanceProjections.set_theme_preview_sink(
-			[this](const application::theme_preview_publication& aPreview) {
-				preview_imported_theme(aPreview.Palette);
 			});
 		AppearanceProjections.set_theme_export_sink([this] {
 			if (!Closing && Window != nullptr && Window->appearance_settings() != nullptr) {

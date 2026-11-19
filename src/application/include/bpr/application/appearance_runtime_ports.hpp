@@ -264,23 +264,18 @@ namespace bpr::application {
 	template <typename Value>
 	using theme_document_result = std::expected<Value, theme_document_error>;
 
-	/// \brief Exchanges local theme documents for the appearance host.
+	/// \brief Writes the theme Appearance's Export… saves, for the appearance host.
 	///
 	/// \details The composition owns the filesystem effect. Qt selects a path but
-	/// never opens it. `MaximumBytes` is inclusive of the one overflow byte the
-	/// core parser needs in order to return its typed `document_too_large`
-	/// rejection rather than accepting a truncated document.
+	/// never opens it. [[BPR-2283]]: the file is a Profile Settings file holding
+	/// only the Theme; a theme is imported through Import Profile Settings, so
+	/// this port reads nothing.
 	class theme_document_port
 	{
 	public:
 		virtual ~theme_document_port() = default;
 
-		[[nodiscard]] virtual auto read(
-			std::string_view aPath,
-			std::size_t      aMaximumBytes,
-			std::stop_token  aStop) -> theme_document_result<std::string> = 0;
-
-		/// \brief Atomically replaces one bounded theme document on the effect executor.
+		/// \brief Atomically replaces one bounded file on the effect executor.
 		[[nodiscard]] virtual auto write(
 			std::string_view, std::string_view, std::stop_token)
 			-> theme_document_result<void>
@@ -466,12 +461,18 @@ namespace bpr::application {
 		auto operator<=>(const appearance_contrast_rejection&) const = default;
 	};
 
-	/// \brief Publishes one imported, validated total palette for preview only.
-	struct theme_preview_publication
+	/// \brief [[BPR-2283]]. A Theme section's colours as an import would keep
+	/// them.
+	///
+	/// \details The roles the file predates are filled from its base's
+	/// built-in theme. `Palette` is set exactly when every pair reads on every
+	/// theme; otherwise `Unreadable` names each pair that does not.
+	struct imported_theme
 	{
-		core::appearance_palette Palette{ };
+		std::optional<core::appearance_palette>    Palette;
+		std::vector<appearance_contrast_rejection> Unreadable;
 
-		auto operator<=>(const theme_preview_publication&) const = default;
+		auto operator<=>(const imported_theme&) const = default;
 	};
 
 	/// \brief Acknowledges one host-accepted palette commit intent.
@@ -504,7 +505,6 @@ namespace bpr::application {
 		appearance_request_context                          Context;
 		std::optional<appearance_presentation_invalidation> Presentation;
 		std::optional<token_span_publication>               Spans;
-		std::optional<theme_preview_publication>            ThemePreview;
 		std::optional<palette_adoption_publication>         PaletteAdoption;
 		bool                                                ThemeExported = false;
 	};
@@ -515,15 +515,12 @@ namespace bpr::application {
 	{
 		return !aProjection.Presentation.has_value()
 			&& !aProjection.Spans.has_value()
-			&& !aProjection.ThemePreview.has_value()
 			&& !aProjection.PaletteAdoption.has_value() && !aProjection.ThemeExported;
 	}
 
 	enum class appearance_host_failure : std::uint8_t {
 		settings_unavailable,
 		settings_rejected,
-		theme_document_unavailable,
-		theme_import_rejected,
 		theme_export_unavailable,
 		palette_contrast_rejected,
 		unknown_appearance_mode,
@@ -547,7 +544,6 @@ namespace bpr::application {
 		appearance_request_context                   Context;
 		appearance_host_failure                      Failure = appearance_host_failure::host_failure;
 		std::vector<core::typography_rejection>      Rejections;
-		std::vector<core::theme_import_rejection>    ThemeRejections;
 		std::vector<appearance_contrast_rejection>   ContrastRejections;
 		std::vector<core::known_namespace_rejection> NamespaceRejections;
 
@@ -635,14 +631,6 @@ namespace bpr::application {
 			= default;
 	};
 
-	/// \brief Requests a bounded host-owned read of one local theme document.
-	struct import_appearance_theme_intent
-	{
-		std::string Path;
-
-		auto operator<=>(const import_appearance_theme_intent&) const = default;
-	};
-
 	/// \brief Identifies an independently resettable durable appearance group.
 	enum class appearance_reset_scope : std::uint8_t { dif,
 													   mode,
@@ -697,7 +685,7 @@ namespace bpr::application {
 										   preview_appearance_palette_intent,
 										   commit_appearance_palette_intent,
 										   cancel_appearance_palette_preview_intent,
-										   import_appearance_theme_intent, reset_appearance_intent, export_appearance_theme_intent,
+										   reset_appearance_intent, export_appearance_theme_intent,
 										   apply_known_namespaces_intent, apply_avatar_style_intent>;
 
 	using appearance_intent_dispatch = std::function<void(appearance_intent)>;

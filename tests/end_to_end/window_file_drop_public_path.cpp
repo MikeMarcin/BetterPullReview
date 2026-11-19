@@ -38,6 +38,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace {
 	using namespace bpr;
@@ -196,6 +197,19 @@ namespace {
 		std::cout << "WINDOW_FILE_DROP:unknown=" << said.toStdString() << '\n';
 		expect(said.contains(QStringLiteral("not a BetterPullReview Profile Settings file")) && said.endsWith(QStringLiteral("Nothing was imported.")), "the word names why");
 		expect(open_dialogs().isEmpty(), "an unknown file opens nothing");
+
+		// [[BPR-2283]] (owner: "don't keep legacy support"). A .bprtheme theme
+		// and a version 1 Profile Settings export are not Profile Settings.
+		for (const auto& [name, bytes] : { std::pair{ QStringLiteral("old.bprtheme"), std::string{ "bpr-theme 2\nbase dark\ncode_background #000000ff\n" } },
+										   std::pair{ QStringLiteral("old.bpr-config.json"), std::string{ R"({"format":"bpr.profile-settings","version":1,"exported_by":"x","agents":[],"prompts":[]})" } } }) {
+			const auto legacy = aFiles.filePath(name);
+			write(legacy, bytes);
+			window.statusBar()->clearMessage();
+			expect(drag_and_drop(window, { legacy }), "a legacy file is taken: only its content says what it is");
+			wait([&] { return !window.statusBar()->currentMessage().isEmpty(); }, "the window says why the legacy file was not opened");
+			expect(window.statusBar()->currentMessage() == QStringLiteral("The file is not a BetterPullReview Profile Settings file. Nothing was imported."), "a legacy file is not Profile Settings");
+			expect(open_dialogs().isEmpty(), "a legacy file opens nothing");
+		}
 
 		// Two files: refused at the door.
 		window.statusBar()->clearMessage();

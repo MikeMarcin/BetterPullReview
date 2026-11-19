@@ -2169,8 +2169,6 @@ namespace bpr::app {
 
 		void adopt_appearance_settings(const bool aPaletteCommitted = false);
 
-		void preview_imported_theme(const core::appearance_palette& aPalette);
-
 		void report_appearance_refusal(
 			const application::appearance_failure_publication& aFailure);
 

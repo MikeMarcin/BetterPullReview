@@ -8,6 +8,7 @@
 	#include "bpr/application/appearance_application_host.hpp"
 	#include "bpr/core/appearance_model.hpp"
 	#include "bpr/core/diff_model.hpp"
+	#include "bpr/qt/agent_configuration_dialogs.hpp"
 	#include "bpr/qt/appearance_profile.hpp"
 	#include "bpr/qt/appearance_settings_panel.hpp"
 	#include "bpr/qt/colour_role_list.hpp"
@@ -19,6 +20,7 @@
 	#include "github_application/window_probe_states.hpp"
 	#include "github_application_fixture_access.hpp"
 	#include <QAbstractButton>
+	#include <QApplication>
 	#include <QCheckBox>
 	#include <QColor>
 	#include <QComboBox>
@@ -30,6 +32,7 @@
 	#include <QList>
 	#include <QObject>
 	#include <QPushButton>
+	#include <QStatusBar>
 	#include <QString>
 	#include <QTextStream>
 	#include <QWidget>
@@ -280,13 +283,26 @@ namespace bpr::app {
 			}
 			return "unknown";
 		};
-		// What an imported theme's preview depends on.
-		const auto previewFacts = [&](QTextStream& aStream) {
-			aStream << "previewing=" << truth(implementation->AppearanceProfile->previewing_palette())
-					<< " panel_preview=" << present(panel->preview_palette().has_value())
-					<< " profile_generation=" << static_cast<qulonglong>(implementation->AppearanceProfile->generation())
-					<< " baseline_generation=" << static_cast<qulonglong>(probe.ProfileGeneration)
-					<< " status=\"" << panel->status_text() << '"';
+
+		// [[BPR-2283]]. A theme is imported through Import Profile Settings:
+		// the file is read as a dropped file is, and the one import dialog
+		// shows its Theme. Nothing is kept until Import.
+		const auto importDialog = []() -> qt::agent_configuration_import_dialog* {
+			for (auto* const widget : QApplication::topLevelWidgets()) {
+				if (auto* const dialog = dynamic_cast<qt::agent_configuration_import_dialog*>(widget); dialog != nullptr && dialog->isVisible()) {
+					return dialog;
+				}
+			}
+			return nullptr;
+		};
+		const auto requestImport = [&]() {
+	#if defined(BPR_AGENT_INTEGRATIONS)
+			implementation->import_agent_configuration(QString::fromStdString(probe.Path));
+	#endif
+		};
+		const auto importRefused = [&]() { return implementation->Window->statusBar()->currentMessage().contains(QStringLiteral("Nothing was imported")); };
+		const auto dialogFacts   = [&](QTextStream& aStream) {
+			aStream << "import_dialog=" << present(importDialog() != nullptr) << " status=\"" << implementation->Window->statusBar()->currentMessage() << '"';
 		};
 
 		// Every phase reads the comparison and its spans, and none may run while
@@ -546,7 +562,7 @@ namespace bpr::app {
 			probe.ProfileGeneration
 				= implementation->AppearanceProfile->generation();
 			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_first_preview);
-			panel->request_theme_import(QString::fromStdString(probe.Path));
+			requestImport();
 			reportStage("import-requested");
 			return result::pending;
 		}
@@ -554,47 +570,44 @@ namespace bpr::app {
 		if (probe.Phase
 			== appearance_theme_probe_state::
 				phase::awaiting_first_preview) {
-			if (!implementation->AppearanceProfile->previewing_palette()) {
-				if (panel->status_text().contains(QStringLiteral("refused"), Qt::CaseInsensitive)
-					|| panel->status_text().contains(QStringLiteral("failed"), Qt::CaseInsensitive)) {
+			auto* const dialog = importDialog();
+			if (dialog == nullptr) {
+				if (importRefused()) {
 					return fail();
 				}
-				return wait("APPEARANCE_THEME_FIRST_PREVIEW_STALLED", previewFacts);
+				return wait("APPEARANCE_THEME_FIRST_PREVIEW_STALLED", dialogFacts);
 			}
-			if (!panel->preview_palette().has_value()) {
+			const auto chosen = dialog->theme_choice();
+			if (!chosen.has_value()) {
 				return fail();
 			}
-			probe.Candidate = implementation->AppearanceProfile->palette();
+			probe.Candidate = *chosen;
 			reportStage("first-preview");
-			const auto statistics       = workbench->statistics();
 			const auto candidateChanged = probe.Candidate != probe.BeforePalette;
-			const auto panelMatches     = *panel->preview_palette() == probe.Candidate;
+			const auto themeUpdated     = dialog->theme_plan().has_value() && dialog->theme_plan()->Standing == core::import_standing::updated;
 			const auto settingsUnchanged
 				= implementation->AppearanceHost->settings() == probe.BeforeSettings;
 			const auto writesUnchanged
 				= implementation->AppearanceHost->persisted_settings()
 				== probe.PersistedSettings;
-			const auto generationChanged
-				= implementation->AppearanceProfile->generation()
-				> probe.ProfileGeneration;
-			const auto paintChanged = statistics.SyntaxBlocksFormatted
-				> probe.Statistics.SyntaxBlocksFormatted;
+			const auto notPreviewing     = !implementation->AppearanceProfile->previewing_palette();
+			const auto paletteUnchanged  = implementation->AppearanceProfile->palette() == probe.BeforePalette;
 			const auto identityUnchanged = unchanged();
 			reportIdentity();
 			{
 				QTextStream stream{ stdout };
 				stream << "APPEARANCE_THEME_PROBE_FIRST_FACTS:"
-					   << candidateChanged << panelMatches << settingsUnchanged
-					   << writesUnchanged << generationChanged << paintChanged
+					   << candidateChanged << themeUpdated << settingsUnchanged
+					   << writesUnchanged << notPreviewing << paletteUnchanged
 					   << identityUnchanged << '\n';
 				stream.flush();
 			}
-			if (!candidateChanged || !panelMatches || !settingsUnchanged
-				|| !writesUnchanged || !generationChanged || !paintChanged
+			if (!candidateChanged || !themeUpdated || !settingsUnchanged
+				|| !writesUnchanged || !notPreviewing || !paletteUnchanged
 				|| !identityUnchanged) {
 				return fail();
 			}
-			panel->cancel_changes_button()->click();
+			dialog->reject();
 			reportStage("cancelled");
 			if (implementation->AppearanceProfile->previewing_palette()
 				|| panel->preview_palette().has_value()
@@ -607,19 +620,27 @@ namespace bpr::app {
 				return fail();
 			}
 			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_second_preview);
-			panel->request_theme_import(QString::fromStdString(probe.Path));
-			reportStage("second-import-requested");
 			return result::pending;
 		}
 
 		if (probe.Phase
 			== appearance_theme_probe_state::
 				phase::awaiting_second_preview) {
-			if (!implementation->AppearanceProfile->previewing_palette()) {
-				return wait("APPEARANCE_THEME_SECOND_PREVIEW_STALLED", previewFacts);
+			if (importDialog() == nullptr && !probe.SecondImportRequested) {
+				// The cancelled dialog closes on its own turn; then once more.
+				probe.SecondImportRequested = true;
+				requestImport();
+				reportStage("second-import-requested");
+				return result::pending;
 			}
-			if (!panel->preview_palette().has_value()
-				|| *panel->preview_palette() != probe.Candidate
+			auto* const dialog = importDialog();
+			if (dialog == nullptr) {
+				if (importRefused()) {
+					return fail();
+				}
+				return wait("APPEARANCE_THEME_SECOND_PREVIEW_STALLED", dialogFacts);
+			}
+			if (dialog->theme_choice() != std::optional{ probe.Candidate }
 				|| implementation->AppearanceHost->settings() != probe.BeforeSettings
 				|| implementation->AppearanceHost->persisted_settings()
 					!= probe.PersistedSettings
@@ -628,8 +649,25 @@ namespace bpr::app {
 			}
 			reportStage("second-preview");
 			probe.CustomisedVariant = implementation->AppearanceProfile->variant();
-			panel->keep_changes_button()->click();
+			dialog->apply_button()->click();
 			reportStage("commit-dispatched");
+			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_store);
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== appearance_theme_probe_state::
+				phase::awaiting_store) {
+			if (implementation->AppearanceHost->persisted_settings()
+				== probe.PersistedSettings) {
+				return wait("APPEARANCE_THEME_STORE_STALLED", [&](QTextStream& aStream) {
+					aStream << "persisted_settings=" << static_cast<qulonglong>(implementation->AppearanceHost->persisted_settings())
+							<< " expected_persisted_settings=" << static_cast<qulonglong>(probe.PersistedSettings) + 1U
+							<< " stored=" << truth(application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Stored)
+							<< " previewing=" << truth(implementation->AppearanceProfile->previewing_palette())
+							<< " panel_preview=" << present(panel->preview_palette().has_value());
+				});
+			}
 			const auto committed   = application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant);
 			const auto commitFacts = std::array{
 				!implementation->AppearanceProfile->previewing_palette(),
@@ -651,39 +689,15 @@ namespace bpr::app {
 				const auto variant = core::stable_name(probe.CustomisedVariant);
 				stream << "APPEARANCE_THEME_PROBE_CUSTOMISED_VARIANT:"
 					   << QString::fromUtf8(variant.data(), static_cast<qsizetype>(variant.size())) << '\n';
-				// A refused commit says why only in the panel, as a contrast
-				// rejection naming each role.
 				if (!std::ranges::all_of(commitFacts, std::identity{ })) {
 					stream << "APPEARANCE_THEME_PROBE_COMMIT_STATUS:" << panel->status_text().simplified() << '\n';
 				}
 				stream.flush();
 			}
-			if (!std::ranges::all_of(commitFacts, std::identity{ })) {
+			if (!std::ranges::all_of(commitFacts, std::identity{ })
+				|| implementation->AppearanceHost->persisted_settings()
+					!= probe.PersistedSettings + 1U) {
 				reportIdentity();
-				return fail();
-			}
-			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_store);
-			return result::pending;
-		}
-
-		if (probe.Phase
-			== appearance_theme_probe_state::
-				phase::awaiting_store) {
-			if (implementation->AppearanceHost->persisted_settings()
-				== probe.PersistedSettings) {
-				return wait("APPEARANCE_THEME_STORE_STALLED", [&](QTextStream& aStream) {
-					aStream << "persisted_settings=" << static_cast<qulonglong>(implementation->AppearanceHost->persisted_settings())
-							<< " expected_persisted_settings=" << static_cast<qulonglong>(probe.PersistedSettings) + 1U
-							<< " stored=" << truth(application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Stored)
-							<< " previewing=" << truth(implementation->AppearanceProfile->previewing_palette())
-							<< " panel_preview=" << present(panel->preview_palette().has_value());
-				});
-			}
-			if (implementation->AppearanceHost->persisted_settings()
-					!= probe.PersistedSettings + 1U
-				|| application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
-					!= probe.Candidate
-				|| !unchanged()) {
 				return fail();
 			}
 			reportStage("persisted");
@@ -795,19 +809,28 @@ namespace bpr::app {
 			}
 			reportStage("stored-palette-preview-cancelled");
 			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_equal_stored_preview);
-			panel->request_theme_import(QString::fromStdString(probe.Path));
-			reportStage("equal-stored-import-requested");
 			return result::pending;
 		}
 
 		if (probe.Phase
 			== appearance_theme_probe_state::
 				phase::awaiting_equal_stored_preview) {
-			if (!implementation->AppearanceProfile->previewing_palette()
-				|| implementation->AppearanceProfile->palette() != probe.Candidate
-				|| panel->preview_palette() != std::optional{ probe.Candidate }
-				|| panel->preview_bar() == nullptr
-				|| panel->keep_changes_button() == nullptr
+			if (importDialog() == nullptr && !probe.EqualImportRequested) {
+				probe.EqualImportRequested = true;
+				requestImport();
+				reportStage("equal-stored-import-requested");
+				return result::pending;
+			}
+			auto* const dialog = importDialog();
+			if (dialog == nullptr) {
+				if (importRefused()) {
+					return fail();
+				}
+				return wait("APPEARANCE_THEME_EQUAL_PREVIEW_STALLED", dialogFacts);
+			}
+			// The stored colours are the file's: Same as yours, nothing to choose.
+			if (!dialog->theme_plan().has_value() || dialog->theme_plan()->Standing != core::import_standing::unchanged
+				|| dialog->theme_choice().has_value()
 				|| application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
 					!= probe.Candidate
 				|| implementation->AppearanceHost->persisted_settings()
@@ -815,7 +838,7 @@ namespace bpr::app {
 				|| !unchanged()) {
 				return fail();
 			}
-			panel->keep_changes_button()->click();
+			dialog->reject();
 			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_equal_stored_commit);
 			reportStage("equal-stored-commit-dispatched");
 			return result::pending;
@@ -848,7 +871,7 @@ namespace bpr::app {
 		using phase = appearance_theme_probe_state::phase;
 		if (probe.Phase == phase::awaiting_equal_stored_commit) {
 			enter_phase(probe.Phase, probe.Wait, phase::awaiting_export);
-			panel->request_theme_export(QString::fromStdString(probe.Path + ".exported.bprtheme"));
+			panel->request_theme_export(QString::fromStdString(probe.Path + ".exported.bprsettings"));
 			return result::pending;
 		}
 		if (probe.Phase == phase::awaiting_export) {

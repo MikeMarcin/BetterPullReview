@@ -80,7 +80,7 @@ namespace bpr::application {
 	auto export_agent_configuration(const agent_configuration_snapshot& aSnapshot, const std::span<const std::uint32_t> aAgents, const std::span<const exported_prompt> aPrompts,
 									std::string aLabel, std::string aExportedBy, const std::span<const std::string> aWorkflows,
 									const core::portable_identity* const aIdentity, const std::span<const core::portable_repository> aRepositories,
-									const core::prompt_pack_export* const aPack) -> std::optional<std::string>
+									const core::prompt_pack_export* const aPack, const core::portable_theme* const aTheme) -> std::optional<std::string>
 	{
 		// [[BPR-2032]]. A chosen workflow's agents travel with it.
 		auto workflows = std::vector<const core::local_workflow*>{ };
@@ -110,6 +110,9 @@ namespace bpr::application {
 			configuration.Identity = *aIdentity;
 		}
 		configuration.Repositories.assign(aRepositories.begin(), aRepositories.end());
+		if (aTheme != nullptr) {
+			configuration.Theme = *aTheme;
+		}
 		for (std::size_t index = 0U; index < chosen.size(); ++index) {
 			configuration.Agents.push_back(core::portable_agent_of(*chosen[index], ids[index]));
 		}

@@ -1145,7 +1145,6 @@ namespace bpr::app {
 				} else if constexpr (std::is_same_v<
 										 intent,
 										 application::cancel_appearance_palette_preview_intent>) {
-					AppearanceHost->cancel_theme_import();
 					if (AppearanceProfile) {
 						AppearanceProfile->cancel_palette_preview();
 					}
@@ -1155,15 +1154,14 @@ namespace bpr::app {
 					AppearanceHost->apply(std::move(aValue.Namespaces));
 				} else if constexpr (std::is_same_v<intent, application::apply_avatar_style_intent>) {
 					AppearanceHost->apply(aValue.Style);
-				} else if constexpr (std::is_same_v<intent, application::export_appearance_theme_intent>) {
+				} else {
+					static_assert(std::is_same_v<intent, application::export_appearance_theme_intent>);
 					// The theme on screen, built-in colours included. The
 					// record holds only what a reviewer customised, so
 					// exporting its slot alone would write a document of the
 					// roles they never touched as transparent. That theme is
 					// the document's base ([[BPR-1479]]).
 					AppearanceHost->export_theme_file(std::move(aValue.Path), AppearanceProfile->palette_for(variant), variant);
-				} else {
-					AppearanceHost->import_theme_file(std::move(aValue.Path));
 				}
 			},
 			std::move(aIntent));
@@ -1231,17 +1229,6 @@ namespace bpr::app {
 		}
 	}
 
-	void github_application::implementation::preview_imported_theme(const core::appearance_palette& aPalette)
-	{
-		if (Closing || !AppearanceProfile || Window == nullptr) {
-			return;
-		}
-		AppearanceProfile->preview_palette(aPalette);
-		if (auto* const panel = Window->appearance_settings(); panel != nullptr) {
-			panel->preview_import(aPalette);
-		}
-	}
-
 	void github_application::implementation::report_appearance_refusal(
 		const application::appearance_failure_publication& aFailure)
 	{
@@ -1271,12 +1258,6 @@ namespace bpr::app {
 				break;
 			case application::appearance_host_failure::theme_export_unavailable:
 				panel->report_theme_export(false);
-				break;
-			case application::appearance_host_failure::theme_document_unavailable:
-				panel->report_theme_document_unavailable();
-				break;
-			case application::appearance_host_failure::theme_import_rejected:
-				panel->report(aFailure.ThemeRejections);
 				break;
 			case application::appearance_host_failure::palette_contrast_rejected:
 				panel->report(aFailure.ContrastRejections);

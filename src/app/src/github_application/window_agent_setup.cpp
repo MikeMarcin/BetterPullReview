@@ -1917,6 +1917,11 @@ namespace bpr::app {
 		// [[BPR-2198]] (owner, 2026-11-15). Import Profile Settings… and
 		// Export Profile Settings… are on Settings › Profiles.
 		Window->profiles_settings()->set_share_handlers([this] { import_agent_configuration(); }, [this] { export_agent_configuration(); });
+		// [[BPR-2283]] (owner, 2026-11-19). Appearance's Import… is the same
+		// import: a theme rides a .bprsettings file.
+		if (auto* const appearance = Window->appearance_settings(); appearance != nullptr) {
+			appearance->set_import_handler([this] { import_agent_configuration(); });
+		}
 		// [[BPR-2282]] (owner, 2026-11-19). A file dropped onto the window
 		// opens the same import, over the window.
 		new qt::window_file_drop{ *Window, { .Admit = dropped_file, .Dropped = [this](const QString& aPath) { import_agent_configuration(aPath); }, .Say = [this](const QString& aText) {
@@ -2735,9 +2740,15 @@ namespace bpr::app {
 			for (std::size_t index = 0U; index < core::writing_hook_count; ++index) {
 				unsaved[index] = Window->writing_hooks()->has_unsaved(static_cast<core::writing_hook>(index));
 			}
+			// [[BPR-2283]]. The theme on screen is the Theme section.
+			auto theme = std::optional<core::portable_theme>{ };
+			if (AppearanceProfile) {
+				const auto variant = AppearanceProfile->variant();
+				theme              = core::portable_theme{ .Base = variant, .Palette = AppearanceProfile->palette_for(variant) };
+			}
 			auto* const dialog = new qt::agent_configuration_export_dialog{ std::move(*aSnapshot), unsaved,
 																			("BetterPullReview " + QCoreApplication::applicationVersion()).trimmed().toStdString(), profile_settings_facts(),
-																			Window->profiles_settings()->window() };
+																			Window->profiles_settings()->window(), std::move(theme) };
 			dialog->setAttribute(Qt::WA_DeleteOnClose);
 			// RFC-BPR-0125 AC24. The host mints every UUID an export may need:
 			// a new pack's, and one for each own prompt made before UUIDs.
@@ -2756,7 +2767,12 @@ namespace bpr::app {
 				}
 	#endif
 				const auto folder = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-				return QFileDialog::getSaveFileName(dialog, QObject::tr("Export Profile Settings"), folder + QStringLiteral("/profile-settings.bpr-config.json"), QObject::tr("Profile Settings (*.json)"));
+				// [[BPR-2283]]. Every export is a .bprsettings file.
+				auto path = QFileDialog::getSaveFileName(dialog, QObject::tr("Export Profile Settings"), folder + QStringLiteral("/profile.bprsettings"), QObject::tr("BetterPullReview settings (*.bprsettings)"));
+				if (!path.isEmpty() && !path.endsWith(QStringLiteral(".bprsettings"), Qt::CaseInsensitive)) {
+					path += QStringLiteral(".bprsettings");
+				}
+				return path;
 			});
 			QObject::connect(dialog, &QDialog::accepted, Window.get(), [this, dialog] {
 				if (Closing || !AgentConfiguration) {
@@ -2852,7 +2868,7 @@ namespace bpr::app {
 	#endif
 		if (path.isEmpty()) {
 			path = QFileDialog::getOpenFileName(Window->profiles_settings()->window(), QObject::tr("Import Profile Settings"), QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
-												QObject::tr("Profile Settings (*.json);;All files (*)"));
+												QObject::tr("BetterPullReview settings (*.bprsettings)"));
 		}
 		if (path.isEmpty()) {
 			return;
@@ -2876,7 +2892,15 @@ namespace bpr::app {
 					facts.Found.push_back(row.Agent);
 				}
 			}
-			aPreview->Here     = profile_settings_facts();
+			aPreview->Here = profile_settings_facts();
+			// [[BPR-2283]]. The file's Theme as the appearance host would keep
+			// it, against the theme on screen.
+			if (aPreview->File.Theme && aPreview->File.Theme->Theme && AppearanceHost && AppearanceProfile) {
+				const auto variant = AppearanceProfile->variant();
+				aPreview->Theme    = application::agent_configuration_preview::theme_against_here{
+					.OnScreen = variant, .Here = AppearanceProfile->palette_for(variant), .Imported = AppearanceHost->resolve_theme(*aPreview->File.Theme->Theme)
+				};
+			}
 			auto* const dialog = new qt::agent_configuration_import_dialog{ std::move(*aPreview), std::move(facts), dropped ? static_cast<QWidget*>(Window.get()) : Window->profiles_settings()->window() };
 			dialog->setAttribute(Qt::WA_DeleteOnClose);
 			dialog->set_program_chooser([dialog](const QString& aHint) {
@@ -2928,12 +2952,20 @@ namespace bpr::app {
 		// [[BPR-2198]]. Identity and Repositories go through the profile's own
 		// durable paths once the rest is stored: the core says what changes.
 		auto profileChanges = core::profile_changes(aDialog.preview().File, aDialog.plan(), aDialog.identity_choice(), aDialog.repository_choices(), profile_settings_facts());
-		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, say, agents = aDialog.agent_choices().size(), changes = std::move(profileChanges)](application::agent_configuration_host::applied aApplied) {
+		// [[BPR-2283]]. The Theme, when chosen, is kept on the theme it was
+		// planned against, through the appearance host's own commit, once
+		// the rest of the file is stored.
+		auto       chosenTheme  = aDialog.theme_choice();
+		const auto themeVariant = aDialog.preview().Theme ? aDialog.preview().Theme->OnScreen : core::appearance_variant::light;
+		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, say, agents = aDialog.agent_choices().size(), changes = std::move(profileChanges), theme = std::move(chosenTheme), themeVariant](application::agent_configuration_host::applied aApplied) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
 			if (aApplied && aApplied->first == application::agent_configuration_outcome::applied) {
 				apply_profile_changes(changes);
+				if (theme && AppearanceHost) {
+					AppearanceHost->apply(*theme, themeVariant);
+				}
 			}
 			if (!aApplied) {
 				const auto why = aApplied.error().PromptPack ? core::stable_name(*aApplied.error().PromptPack) : core::stable_name(aApplied.error().Refusal);

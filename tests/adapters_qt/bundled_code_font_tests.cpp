@@ -87,12 +87,6 @@ namespace {
 	class no_theme_documents final : public application::theme_document_port
 	{
 	public:
-		[[nodiscard]] auto read(const std::string_view, const std::size_t, const std::stop_token)
-			-> application::theme_document_result<std::string> override
-		{
-			return std::unexpected{ application::theme_document_error{ } };
-		}
-
 		[[nodiscard]] auto write(const std::string_view, const std::string_view, const std::stop_token)
 			-> application::theme_document_result<void> override
 		{

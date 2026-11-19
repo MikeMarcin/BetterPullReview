@@ -3,8 +3,10 @@
 #include "../support/qt_ink_raster.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
+#include "bpr/core/agent_configuration.hpp"
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/theme_exchange.hpp"
+#include "bpr/qt/agent_configuration_dialogs.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -15,19 +17,24 @@
 #include <QAction>
 #include <QApplication>
 #include <QDir>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
 #include <QLineEdit>
+#include <QMimeData>
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
+#include <QStatusBar>
 #include <QTemporaryDir>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextLayout>
 #include <QThread>
+#include <QUrl>
 #include <sqlite3.h>
 
 #include <algorithm>
@@ -94,10 +101,10 @@ namespace {
 		// These pre-existing overrides remain distinguishable from plain ink.
 		palette[at(role::syntax_comment)]  = color(light ? 0x333333U : 0xDDDDDDU);
 		palette[at(role::syntax_function)] = color(light ? 0x004040U : 0xCCFFFFU);
-		// [[BPR-1479]]. The older document omits both categories, and the import
-		// fills them from the document's own base, not from the theme on
-		// screen. A version-1 document's base is its code canvas: white makes
-		// it Light and black makes it Dark, high-contrast theme or not.
+		// [[BPR-1479]]. The older theme omits both categories, and the import
+		// fills them from the theme's own base, not from the theme on screen:
+		// Light for a white canvas and Dark for a black one, high-contrast
+		// theme or not ([[BPR-2283]]: the Theme section names it).
 		const auto base = light ? core::appearance_variant::light : core::appearance_variant::dark;
 		for (const auto category : { role::syntax_namespace, role::syntax_enum_member }) {
 			palette[at(category)] = qt::builtin_appearance_palette(base)[at(category)];
@@ -131,6 +138,26 @@ namespace {
 			settings.Palettes[index] = { .Palette = legacy_palette(variants[index]), .Stored = index % 2U == 0U };
 		}
 		return settings;
+	}
+
+	/// [[BPR-2283]]. A .bprsettings file holding only a Theme of `aPalette`
+	/// that predates the two identifier roles, under the base its canvas
+	/// makes it.
+	auto old_settings(const core::appearance_palette& aPalette, const core::appearance_variant aVariant) -> std::string
+	{
+		const auto light = aVariant == core::appearance_variant::light || aVariant == core::appearance_variant::high_contrast_light;
+		const auto file  = core::encode_theme_settings({ .Base = light ? core::appearance_variant::light : core::appearance_variant::dark, .Palette = aPalette }, "BetterPullReview");
+		expect(file.has_value(), "the theme fixture encodes");
+		auto result = std::string{ };
+		for (const auto& line : std::views::split(*file, '\n')) {
+			const auto text = std::string_view{ line.begin(), line.end() };
+			if (text.find("\"syntax_namespace\"") == std::string_view::npos && text.find("\"syntax_enum_member\"") == std::string_view::npos) {
+				result.append(text);
+				result.push_back('\n');
+			}
+		}
+		result.pop_back();
+		return result;
 	}
 
 	auto old_document(const core::appearance_palette& aPalette) -> std::string
@@ -177,7 +204,7 @@ namespace {
 			expect(::sqlite3_prepare_v2(database, sql.c_str(), -1, &statement, nullptr) == SQLITE_OK, "old palette fixture update prepares");
 			expect(::sqlite3_bind_text(statement, 1, document.data(), static_cast<int>(document.size()), SQLITE_TRANSIENT) == SQLITE_OK && ::sqlite3_step(statement) == SQLITE_DONE, "only new role lines are omitted, all old columns and flags retained");
 			::sqlite3_finalize(statement);
-			write_document(aRoot / (std::string{ core::stable_name(variants[index]) } + "-old.bprtheme"), old_document(imported_palette(variants[index])));
+			write_document(aRoot / (std::string{ core::stable_name(variants[index]) } + "-old.bprsettings"), old_settings(imported_palette(variants[index]), variants[index]));
 		}
 		expect(::sqlite3_close(database) == SQLITE_OK, "seed database closes before next OS process");
 	}
@@ -374,6 +401,49 @@ namespace {
 		wait_for([&] { return !panel->preview_palette() && panel->adopted().Palettes[static_cast<std::size_t>(*panel->resolved_variant())].Palette == aPalette; }, "Keep changes commits exact palette through host");
 	}
 
+	/// [[BPR-2283]]. A theme file dropped onto the window opens Import
+	/// Profile Settings; its Theme is planned against the theme on screen and
+	/// kept by Import.
+	void import_theme(app::github_application& aApplication, const std::filesystem::path& aFile, const core::appearance_palette& aPalette)
+	{
+		auto& window = aApplication.window();
+		auto* panel  = window.appearance_settings();
+		auto  mime   = QMimeData{ };
+		mime.setUrls({ QUrl::fromLocalFile(QString::fromStdString(aFile.string())) });
+		const auto at      = QPointF{ window.rect().center() };
+		const auto actions = Qt::CopyAction | Qt::MoveAction;
+		auto       enter   = QDragEnterEvent{ at, actions, &mime, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(&window, &enter);
+		auto drop = QDropEvent{ at, actions, &mime, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(&window, &drop);
+		expect(enter.isAccepted() && drop.isAccepted(), "the window takes the dropped theme file");
+		auto* dialog = static_cast<qt::agent_configuration_import_dialog*>(nullptr);
+		wait_for([&] {
+			for (auto* const widget : QApplication::topLevelWidgets()) {
+				if (auto* const found = dynamic_cast<qt::agent_configuration_import_dialog*>(widget); found != nullptr && found->isVisible()) {
+					dialog = found;
+				}
+			}
+			return dialog != nullptr;
+		},
+				 "the import dialog opens with the dropped theme");
+		const auto variant = static_cast<std::size_t>(*panel->resolved_variant());
+		if (dialog->theme_plan() && dialog->theme_plan()->Standing == core::import_standing::unchanged) {
+			// Already these colours: Same as yours, nothing to choose.
+			expect(panel->adopted().Palettes[variant].Palette == aPalette, "an unchanged theme is the palette already kept");
+			dialog->reject();
+			wait_for([&] { return !dialog->isVisible(); }, "Cancel closes the import");
+			return;
+		}
+		if (dialog->theme_choice() != std::optional{ aPalette }) {
+			std::cerr << "theme-plan:" << (dialog->theme_plan() ? static_cast<int>(dialog->theme_plan()->Standing) : -1) << ":status=" << window.statusBar()->currentMessage().toStdString() << '\n';
+		}
+		expect(dialog->theme_choice() == std::optional{ aPalette }, "the real host fills and checks the exact palette before Import");
+		expect(!panel->preview_palette(), "nothing is previewed or kept before Import");
+		dialog->apply_button()->click();
+		wait_for([&] { return panel->adopted().Palettes[variant].Palette == aPalette; }, "Import keeps the exact palette through the host");
+	}
+
 	void edit_role(app::github_application& aApplication, const role aRole, const core::appearance_palette& aExpected)
 	{
 		auto*      panel   = aApplication.window().appearance_settings();
@@ -399,8 +469,7 @@ namespace {
 			wait_for([&] { return panel->resolved_variant() == variants[index]; }, "selected theme owns colors and exchange");
 			const auto beforeImport = panel->adopted();
 			const auto stem         = std::string{ core::stable_name(variants[index]) };
-			panel->request_theme_import(QString::fromStdString((aRoot / (stem + (aImportNew ? "-new.bprtheme" : "-old.bprtheme"))).string()));
-			commit_preview(aApplication, aImportNew ? customized_palette(variants[index]) : imported_palette(variants[index]));
+			import_theme(aApplication, aRoot / (stem + (aImportNew ? "-new.bprsettings" : "-old.bprsettings")), aImportNew ? customized_palette(variants[index]) : imported_palette(variants[index]));
 			for (std::size_t other = 0; other < variants.size(); ++other) {
 				if (other != index) {
 					expect(panel->adopted().Palettes[other] == beforeImport.Palettes[other], "old and new theme import preserve every other variant's customized values and stored flag");
@@ -412,12 +481,13 @@ namespace {
 				edit_role(aApplication, role::syntax_namespace, namespaceOnly);
 				expect(panel->adopted().Palettes[index].Palette[at(role::syntax_enum_member)] == imported_palette(variants[index])[at(role::syntax_enum_member)], "namespace edit does not borrow or change enum-member slot");
 				edit_role(aApplication, role::syntax_enum_member, customized_palette(variants[index]));
-				const auto path = aRoot / (stem + "-new.bprtheme");
+				const auto path = aRoot / (stem + "-new.bprsettings");
 				panel->request_theme_export(QString::fromStdString(path.string()));
 				wait_for([&] { return std::filesystem::exists(path); }, "real host atomically exports selected committed palette");
 				const auto document = read_document(path);
-				expect(document.find("syntax_namespace ") != std::string::npos && document.find("syntax_enum_member ") != std::string::npos, "new export includes both stable identities");
-				expect(core::import_theme(document).Palette == customized_palette(variants[index]), "new export/import preserves all 62 role values exactly");
+				expect(document.find("\"syntax_namespace\"") != std::string::npos && document.find("\"syntax_enum_member\"") != std::string::npos, "new export includes both stable identities");
+				const auto exported = core::decode_agent_configuration(document, { });
+				expect(exported && exported->Theme && exported->Theme->Theme && exported->Theme->Theme->Palette == customized_palette(variants[index]), "new export/import preserves every role value exactly");
 			}
 		}
 	}

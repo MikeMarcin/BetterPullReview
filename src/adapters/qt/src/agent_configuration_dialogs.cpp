@@ -23,6 +23,7 @@
 #include <QListWidget>
 #include <QLocale>
 #include <QMenu>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QResizeEvent>
@@ -55,6 +56,85 @@ namespace bpr::qt {
 		/// its section's row.
 		constexpr int SuggestedKind        = 7;
 		constexpr int SuggestedSectionKind = 8;
+		/// [[BPR-2283]]. The Theme's own row.
+		constexpr int ThemeKind = 9;
+
+		/// [[BPR-2283]]. A built-in theme as Settings › Appearance names it.
+		[[nodiscard]] auto variant_name(const core::appearance_variant aVariant) -> QString
+		{
+			switch (aVariant) {
+			case core::appearance_variant::light:               return QObject::tr("Light");
+			case core::appearance_variant::dark:                return QObject::tr("Dark");
+			case core::appearance_variant::high_contrast_light: return QObject::tr("High contrast light");
+			case core::appearance_variant::high_contrast_dark:  return QObject::tr("High contrast dark");
+			}
+			return QObject::tr("the theme on screen");
+		}
+
+		/// [[BPR-2283]]. Why the theme reader refused a role or value.
+		[[nodiscard]] auto theme_reason_text(const core::theme_import_reason aReason) -> QString
+		{
+			switch (aReason) {
+			case core::theme_import_reason::document_too_large:  return QObject::tr("the theme is larger than the safe limit");
+			case core::theme_import_reason::malformed_document:  return QObject::tr("an entry is not one role and one colour");
+			case core::theme_import_reason::unsupported_version: return QObject::tr("the theme's version is unsupported");
+			case core::theme_import_reason::unknown_field:       return QObject::tr("no such colour role");
+			case core::theme_import_reason::duplicate_field:     return QObject::tr("a role is given twice");
+			case core::theme_import_reason::missing_field:       return QObject::tr("a required colour is missing");
+			case core::theme_import_reason::external_reference:  return QObject::tr("external references are not allowed");
+			case core::theme_import_reason::include_directive:   return QObject::tr("include directives are not allowed");
+			case core::theme_import_reason::style_payload:       return QObject::tr("style sheets are not allowed");
+			case core::theme_import_reason::executable_payload:  return QObject::tr("executable content is not allowed");
+			case core::theme_import_reason::malformed_color:     return QObject::tr("not a #rrggbb or #rrggbbaa colour");
+			case core::theme_import_reason::unknown_base:        return QObject::tr("the base names no built-in theme");
+			}
+			return QObject::tr("the theme was refused");
+		}
+
+		/// [[BPR-2283]]. A row of a palette's telling colours: the code canvas
+		/// and its text, a selection, and the change and comment tints, each a
+		/// small rounded square, so a theme reads at a glance beside another.
+		class palette_swatches final : public QWidget
+		{
+		public:
+			palette_swatches(const core::appearance_palette& aPalette, QWidget* const aParent)
+				: QWidget{ aParent }
+			{
+				for (const auto role : roles) {
+					const auto colour = aPalette[core::index_of(role)];
+					Colours.emplace_back(colour.Red, colour.Green, colour.Blue, colour.Alpha);
+				}
+				setMinimumHeight(swatch + 2);
+				setMinimumWidth(static_cast<int>(roles.size()) * (swatch + gap));
+				setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override { return { static_cast<int>(roles.size()) * (swatch + gap), swatch + 2 }; }
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing);
+				auto edge = palette().color(QPalette::WindowText);
+				edge.setAlpha(60);
+				painter.setPen(QPen{ edge, 1.0 });
+				auto left = 0.5;
+				for (const auto& colour : Colours) {
+					painter.setBrush(colour);
+					painter.drawRoundedRect(QRectF{ left, 0.5, static_cast<qreal>(swatch), static_cast<qreal>(swatch) }, 4.0, 4.0);
+					left += swatch + gap;
+				}
+			}
+
+		private:
+			static constexpr int  swatch = 18;
+			static constexpr int  gap    = 4;
+			static constexpr auto roles  = std::array{ core::appearance_role::code_background, core::appearance_role::syntax_normal, core::appearance_role::code_selection_background,
+													   core::appearance_role::diff_added_background, core::appearance_role::diff_removed_background, core::appearance_role::syntax_keyword,
+													   core::appearance_role::syntax_string, core::appearance_role::syntax_comment };
+			std::vector<QColor>   Colours;
+		};
 
 		/// \brief A section's row: ticking it ticks every item under it, and
 		/// unticking it unticks them; its tick says whether all, some or none
@@ -308,13 +388,14 @@ namespace bpr::qt {
 	// ----- Export -----
 
 	agent_configuration_export_dialog::agent_configuration_export_dialog(application::agent_configuration_snapshot aSnapshot, const std::array<bool, core::writing_hook_count + 1U> aUnsaved,
-																		 std::string aExportedBy, core::profile_facts aProfile, QWidget* const aParent)
+																		 std::string aExportedBy, core::profile_facts aProfile, QWidget* const aParent, std::optional<core::portable_theme> aTheme)
 		: QDialog{ aParent }
 		, Snapshot{ std::move(aSnapshot) }
 		, Local{ application::local_prompts(Snapshot) }
 		, ExportedBy{ std::move(aExportedBy) }
 		, Identity{ core::portable_identity_of(aProfile) }
 		, Repositories{ core::portable_repositories_of(aProfile) }
+		, Theme{ std::move(aTheme) }
 	{
 		using core::profile_settings_section;
 		adopt_opener_look(*this, aParent);
@@ -458,6 +539,13 @@ namespace bpr::qt {
 		}
 		if (Repositories.empty()) {
 			repositories->setFlags(Qt::ItemIsEnabled);
+		}
+		// [[BPR-2283]] (owner, 2026-11-19). The theme on screen, ticked as one.
+		if (Theme) {
+			auto* const theme = section_row(Items, tr("Theme"), tr("The colours of %1, the theme on screen").arg(variant_name(Theme->Base)), profile_settings_section::theme);
+			theme->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable);
+			theme->setData(0, ItemRole, ThemeKind);
+			theme->setCheckState(0, ticked(profile_settings_section::theme));
 		}
 		Items->expandAll();
 		identity->setExpanded(true);
@@ -641,6 +729,16 @@ namespace bpr::qt {
 		return false;
 	}
 
+	auto agent_configuration_export_dialog::theme_chosen() const -> bool
+	{
+		for (QTreeWidgetItemIterator it{ Items }; *it != nullptr; ++it) {
+			if ((*it)->data(0, ItemRole).toInt() == ThemeKind) {
+				return Theme.has_value() && (*it)->checkState(0) == Qt::Checked;
+			}
+		}
+		return false;
+	}
+
 	auto agent_configuration_export_dialog::repositories() const -> std::vector<core::portable_repository>
 	{
 		auto chosen = std::vector<core::portable_repository>{ };
@@ -656,7 +754,7 @@ namespace bpr::qt {
 	{
 		for (auto index = 0; index < Items->topLevelItemCount(); ++index) {
 			auto* const row = Items->topLevelItem(index);
-			if (row->data(0, IndexRole).toInt() == static_cast<int>(aSection) && (row->data(0, ItemRole).toInt() == SectionKind || row->data(0, ItemRole).toInt() == IdentityKind)) {
+			if (row->data(0, IndexRole).toInt() == static_cast<int>(aSection) && (row->data(0, ItemRole).toInt() == SectionKind || row->data(0, ItemRole).toInt() == IdentityKind || row->data(0, ItemRole).toInt() == ThemeKind)) {
 				return row;
 			}
 		}
@@ -670,6 +768,7 @@ namespace bpr::qt {
 		const auto chosenWorkflows = workflows();
 		const auto chosenIdentity  = identity_chosen();
 		const auto chosenRepos     = repositories();
+		const auto chosenTheme     = theme_chosen();
 		// RFC-BPR-0125 AC24. The core decides the pack's identity and what the
 		// export records; the dialog only says which pack and which prompts.
 		const auto chosenSuggested = suggested_prompts();
@@ -684,10 +783,10 @@ namespace bpr::qt {
 			Pack                = core::export_prompt_pack(Snapshot.PromptMacros.Differences, *identity, chosenSuggested, Fresh);
 		}
 		const auto encoded = application::export_agent_configuration(Snapshot, chosenAgents, chosenPrompts, Label->text().trimmed().toStdString(), ExportedBy, chosenWorkflows,
-																	 chosenIdentity ? &Identity : nullptr, chosenRepos, Pack ? &*Pack : nullptr);
+																	 chosenIdentity ? &Identity : nullptr, chosenRepos, Pack ? &*Pack : nullptr, chosenTheme ? &*Theme : nullptr);
 		Bytes              = encoded.value_or(std::string{ });
 		Exact->setPlainText(text_of(Bytes));
-		const auto nothing = chosenAgents.empty() && chosenPrompts.empty() && chosenWorkflows.empty() && !chosenIdentity && chosenRepos.empty() && chosenSuggested.empty();
+		const auto nothing = chosenAgents.empty() && chosenPrompts.empty() && chosenWorkflows.empty() && !chosenIdentity && chosenRepos.empty() && chosenSuggested.empty() && !chosenTheme;
 		auto       parts   = QStringList{ };
 		if (!chosenAgents.empty()) {
 			parts.push_back(counted(chosenAgents.size(), tr("1 agent"), tr("%1 agents")));
@@ -706,6 +805,9 @@ namespace bpr::qt {
 		}
 		if (!chosenRepos.empty()) {
 			parts.push_back(counted(chosenRepos.size(), tr("1 repository"), tr("%1 repositories")));
+		}
+		if (chosenTheme) {
+			parts.push_back(tr("the %1 theme").arg(variant_name(Theme->Base)));
 		}
 		const auto unnamed = !chosenSuggested.empty() && !Pack;
 		Size->setText(unnamed        ? (NewPack.empty() ? tr("Suggested prompts cannot be exported from here.") : tr("Name the prompt pack."))
@@ -851,6 +953,12 @@ namespace bpr::qt {
 		}
 		// [[BPR-2198]]. Identity starts unchosen; repositories as the core says.
 		IdentityChosen = Plan.Identity && Plan.Identity->Default;
+		// [[BPR-2283]]. The Theme against the theme on screen.
+		if (Preview.File.Theme) {
+			const auto readable = Preview.Theme ? Preview.Theme->Imported.Palette : std::nullopt;
+			ThemePlan           = core::plan_theme_import(*Preview.File.Theme, readable, Preview.Theme ? Preview.Theme->Here : core::appearance_palette{ });
+			ThemeChosen         = ThemePlan->Default;
+		}
 		for (std::size_t index = 0U; index < Repositories.size(); ++index) {
 			Repositories[index] = Plan.Repositories[index].Default;
 		}
@@ -1036,6 +1144,7 @@ namespace bpr::qt {
 			}
 			return core::import_standing::refused;
 		case item_kind::dropped: return core::import_standing::updated;
+		case item_kind::theme:   return ThemePlan ? ThemePlan->Standing : core::import_standing::refused;
 		}
 		return core::import_standing::refused;
 	}
@@ -1050,6 +1159,7 @@ namespace bpr::qt {
 		case item_kind::repository: return Repositories[aItem];
 		case item_kind::suggested:  return Suggested[aItem];
 		case item_kind::dropped:    return Removed[aItem];
+		case item_kind::theme:      return ThemeChosen;
 		}
 		return false;
 	}
@@ -1135,6 +1245,12 @@ namespace bpr::qt {
 		}
 		if (stood == core::import_standing::unchanged) {
 			return tr("Same as yours");
+		}
+		if (aKind == item_kind::theme) {
+			if (stood == core::import_standing::refused) {
+				return theme_problem();
+			}
+			return ThemeChosen ? tr("Replaces the colours of %1").arg(variant_name(Preview.Theme->OnScreen)) : tr("Left out");
 		}
 		if (aKind == item_kind::identity) {
 			if (!IdentityChosen) {
@@ -1228,6 +1344,12 @@ namespace bpr::qt {
 		// [[BPR-2198]]. Identity and Repositories, as Export lists them.
 		section(tr("Identity"), item_kind::identity, Plan.Identity ? 1U : 0U, [this](std::size_t) { return text_of(Preview.File.Identity->ProfileName); });
 		section(tr("Repositories"), item_kind::repository, Repositories.size(), [this](const std::size_t aIndex) { return text_of(Preview.File.Repositories[aIndex].Repository); });
+		// [[BPR-2283]]. The Theme, named for the built-in theme it was made on.
+		const auto themeName = [this](std::size_t) {
+			const auto& theme = Preview.File.Theme->Theme;
+			return theme ? tr("%1 colours").arg(variant_name(theme->Base)) : tr("Theme");
+		};
+		section(tr("Theme"), item_kind::theme, ThemePlan ? 1U : 0U, themeName);
 		// RFC-BPR-0125 AC24. The pack's prompts, then the prompts here it dropped.
 		const auto suggestedName = [this](const std::size_t aIndex) { return text_of(Preview.File.PromptPack->Macros[aIndex].Macro.Body.Name); };
 		const auto packTitle     = Preview.File.PromptPack ? tr("Suggested prompts: %1, version %2").arg(text_of(Preview.File.PromptPack->Pack.Label)).arg(Preview.File.PromptPack->Pack.Version) : QString{ };
@@ -1255,6 +1377,7 @@ namespace bpr::qt {
 		refused(item_kind::workflow, Workflows.size(), workflowName);
 		refused(item_kind::prompt, Prompts.size(), promptName);
 		refused(item_kind::suggested, Suggested.size(), suggestedName);
+		refused(item_kind::theme, ThemePlan ? 1U : 0U, themeName);
 		Filling = false;
 	}
 
@@ -1363,6 +1486,10 @@ namespace bpr::qt {
 		if (IdentityChosen) {
 			updates << tr("this profile's identity");
 		}
+		const auto theme = theme_choice().has_value();
+		if (theme) {
+			updates << tr("the colours of %1").arg(variant_name(Preview.Theme->OnScreen));
+		}
 		auto parts = QStringList{ };
 		if (!adds.isEmpty()) {
 			parts << tr("adds %1").arg(adds.join(tr(" and ")));
@@ -1405,7 +1532,7 @@ namespace bpr::qt {
 				+ QLatin1Char(' ') + words;
 		}
 		Summary->setText(words);
-		ApplyButton->setEnabled(!agent_choices().empty() || prompts > 0U || !workflow_choices().empty() || IdentityChosen || repositories > 0U || !pack.Take.empty() || !pack.Remove.empty());
+		ApplyButton->setEnabled(!agent_choices().empty() || prompts > 0U || !workflow_choices().empty() || IdentityChosen || repositories > 0U || !pack.Take.empty() || !pack.Remove.empty() || theme);
 	}
 
 	void agent_configuration_import_dialog::select(const item_kind aKind, const std::size_t aItem)
@@ -1424,6 +1551,7 @@ namespace bpr::qt {
 	void agent_configuration_import_dialog::select_prompt(const std::size_t aItem) { select(item_kind::prompt, aItem); }
 	void agent_configuration_import_dialog::select_workflow(const std::size_t aItem) { select(item_kind::workflow, aItem); }
 	void agent_configuration_import_dialog::select_identity() { select(item_kind::identity, 0U); }
+	void agent_configuration_import_dialog::select_theme() { select(item_kind::theme, 0U); }
 	void agent_configuration_import_dialog::select_repository(const std::size_t aItem) { select(item_kind::repository, aItem); }
 	void agent_configuration_import_dialog::select_suggested(const std::size_t aItem) { select(item_kind::suggested, aItem); }
 	void agent_configuration_import_dialog::select_dropped(const std::size_t aItem) { select(item_kind::dropped, aItem); }
@@ -1440,6 +1568,38 @@ namespace bpr::qt {
 	}
 
 	auto agent_configuration_import_dialog::identity_choice() const -> bool { return IdentityChosen && Plan.Identity && Plan.Identity->Standing == core::import_standing::updated; }
+
+	auto agent_configuration_import_dialog::theme_choice() const -> std::optional<core::appearance_palette>
+	{
+		if (!ThemeChosen || !ThemePlan || ThemePlan->Standing != core::import_standing::updated || !Preview.Theme) {
+			return std::nullopt;
+		}
+		return Preview.Theme->Imported.Palette;
+	}
+
+	/// [[BPR-2283]]. Why the Theme cannot be imported: the roles or values the
+	/// reader refused, or the pairs that would not read on a theme.
+	auto agent_configuration_import_dialog::theme_problem() const -> QString
+	{
+		const auto& file = *Preview.File.Theme;
+		auto        why  = QStringList{ };
+		for (const auto& rejection : file.Rejections | std::views::take(4)) {
+			why << (rejection.Subject.empty() ? theme_reason_text(rejection.Reason) : tr("%1: %2").arg(text_of(rejection.Subject), theme_reason_text(rejection.Reason)));
+		}
+		if (file.Rejections.empty() && Preview.Theme) {
+			for (const auto& pair : Preview.Theme->Imported.Unreadable | std::views::take(4)) {
+				why << tr("%1 on %2 is %3:1 on %4; %5:1 is needed")
+						   .arg(text_of(core::stable_name(pair.Finding.Pair.Foreground)), text_of(core::stable_name(pair.Finding.Pair.Background)))
+						   .arg(static_cast<double>(pair.Finding.RatioHundredths) / 100.0, 0, 'f', 2)
+						   .arg(variant_name(pair.Variant))
+						   .arg(static_cast<double>(pair.Finding.MinimumHundredths) / 100.0, 0, 'f', 2);
+			}
+		}
+		if (why.isEmpty()) {
+			return tr("Themes cannot be imported into this window.");
+		}
+		return why.join(QStringLiteral("; ")) + QLatin1Char('.');
+	}
 
 	auto agent_configuration_import_dialog::choice_buttons() const -> QList<QToolButton*>
 	{
@@ -1482,6 +1642,7 @@ namespace bpr::qt {
 		case item_kind::repository: Repositories[aItem] = aPart == TakePart; break;
 		case item_kind::suggested:  Suggested[aItem] = aPart == TakePart; break;
 		case item_kind::dropped:    Removed[aItem] = aPart == TakePart; break;
+		case item_kind::theme:      ThemeChosen = aPart == TakePart; break;
 		case item_kind::workflow:
 			Workflows[aItem].Action = aPart != TakePart ? core::workflow_import_action::leave
 				: Plan.Workflows[aItem].Local           ? core::workflow_import_action::replace
@@ -1537,6 +1698,8 @@ namespace bpr::qt {
 			show_suggested(Shown->second, *Detail);
 		} else if (Shown->first == item_kind::dropped) {
 			show_dropped(Shown->second, *Detail);
+		} else if (Shown->first == item_kind::theme) {
+			show_theme(*Detail);
 		} else {
 			show_workflow(Shown->second, *Detail);
 		}
@@ -2171,6 +2334,47 @@ namespace bpr::qt {
 			row->addWidget(state);
 			rows->addLayout(row);
 		}
+		column.addWidget(frame);
+	}
+
+	/// [[BPR-2283]] (owner, 2026-11-19). The Theme: the file's colours beside
+	/// the theme on screen's. Importing replaces that theme's colours whole.
+	void agent_configuration_import_dialog::show_theme(QWidget& aPage)
+	{
+		const auto& plan = *ThemePlan;
+		if (plan.Standing == core::import_standing::refused) {
+			show_refused(tr("Theme"), theme_problem(), aPage);
+			return;
+		}
+		auto&       column = *static_cast<QVBoxLayout*>(aPage.layout());
+		const auto& theme  = *Preview.File.Theme->Theme;
+		const auto& here   = *Preview.Theme;
+		title_row(column, tr("%1 colours").arg(variant_name(theme.Base)), standing_tag(plan.Standing), standing_tone(plan.Standing), aPage);
+		if (plan.Standing == core::import_standing::updated) {
+			choice_row(item_kind::theme, 0U, tr("Import"), aPage);
+		}
+		const auto onScreen = variant_name(here.OnScreen);
+		auto       words    = QStringList{ };
+		if (plan.Standing == core::import_standing::unchanged) {
+			words << tr("%1, the theme on screen, already has these colours.").arg(onScreen);
+		} else {
+			words << tr("Importing replaces every colour of %1, the theme on screen, with the file's. The other themes keep theirs.").arg(onScreen);
+		}
+		words << tr("The file was made on %1; a colour it predates takes %1's own.").arg(variant_name(theme.Base));
+		Outcome = note(words.join(QLatin1Char(' ')), &aPage);
+		Outcome->setObjectName(QStringLiteral("agentConfigurationThemeNote"));
+		column.addWidget(Outcome);
+		auto [frame, rows] = group_box(&aPage);
+		frame->setObjectName(QStringLiteral("agentConfigurationThemeSwatches"));
+		const auto line = [&](const QString& aLabel, const core::appearance_palette& aPalette) {
+			auto* const row   = new QHBoxLayout{ };
+			auto* const label = new QLabel{ aLabel, frame };
+			row->addWidget(label, 1);
+			row->addWidget(new palette_swatches{ aPalette, frame });
+			rows->addLayout(row);
+		};
+		line(tr("Yours (%1)").arg(onScreen), here.Here);
+		line(tr("The file's"), *here.Imported.Palette);
 		column.addWidget(frame);
 	}
 

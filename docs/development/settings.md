@@ -23,9 +23,9 @@ with Profiles alone: the same list and actions, without the sharing below,
 because no profile is open to import into.
 
 **Share profile settings** holds **Import Profile Settings…** and **Export
-Profile Settings…**: a file with this profile's agents, prompts and
-workflows, to move to another computer or share. The file has five sections,
-each ticked or unticked as a whole or item by item:
+Profile Settings…**: a `.bprsettings` file with this profile's agents,
+prompts, workflows and theme, to move to another computer or share. The file
+has six sections, each ticked or unticked as a whole or item by item:
 
 - **Agents**, **Prompts** and **Workflows**: what each is set to. A
   program's location on this computer is never written; an imported custom
@@ -34,6 +34,15 @@ each ticked or unticked as a whole or item by item:
   it uses, each by host and login.
 - **Repositories** (ticked): saved and followed repositories, by host and
   owner/name. No local folder or clone location is written.
+- **Theme** (ticked): the colours of the theme on screen and the built-in
+  theme they were made on ([[BPR-2283]]). Importing it replaces that
+  theme's colours on the theme on screen here. **Settings › Appearance**'s
+  Export… writes a file holding only this section, and its Import… is this
+  import.
+
+Every export is a `.bprsettings` file, and only a version 3 file is read: an
+older Profile Settings `.json` export or a `.bprtheme` theme is not Profile
+Settings ([[BPR-2283]], owner, 2026-11-19: "don't keep legacy support").
 
 The file never holds a sign-in: no token, keychain item, `gh` sign-in, cookie
 or other secret. **Import Profile Settings…** imports into the profile whose
@@ -46,7 +55,7 @@ signed in here also says **Sign in to use**; a followed one needs no account.
 Nothing runs, and an imported agent keeps strict run checks on and Build and
 run tests off unless you tick them.
 
-Dropping a Profile Settings file (a prompt pack is one too) onto a window
+Dropping a `.bprsettings` file (a prompt pack or a theme is one too) onto a window
 opens the same import preview over that window, read the same way; nothing
 is imported until you confirm it. The window shows a quiet highlight while
 one file hovers; two or more files are refused ("Drop one file at a time."),

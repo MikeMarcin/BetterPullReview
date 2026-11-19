@@ -3,27 +3,30 @@
 #include "bpr/application/appearance_runtime_ports.hpp"
 
 #include <cstddef>
+#include <optional>
 #include <stop_token>
 #include <string>
 #include <string_view>
 
 namespace bpr::app {
-	/// \brief Performs the only local filesystem read in theme import.
+	/// \brief [[BPR-2283]]. Reads at most `aMaximumBytes` of a regular file,
+	/// as Import Profile Settings… and a dropped file read it.
 	///
-	/// \details Qt supplies a path and the application host supplies the byte
-	/// bound. Reading one byte beyond the core limit is intentional: the core
-	/// parser then returns its typed `document_too_large` refusal instead of
-	/// receiving a silently truncated document.
+	/// \details A path names no authority to stream from: the file is opened
+	/// without blocking and identified from the opened descriptor, so a FIFO,
+	/// a device or a folder is refused rather than waited on. None when the
+	/// file cannot be read.
+	[[nodiscard]] auto read_bounded_regular_file(std::string_view aPath, std::size_t aMaximumBytes) -> std::optional<std::string>;
+
+	/// \brief Writes the file Appearance's Export… saves.
+	///
+	/// \details Qt supplies a path. [[BPR-2283]]: the file is a Profile
+	/// Settings file holding only the Theme, replaced whole; a theme is read
+	/// through Import Profile Settings, so nothing here reads.
 	class bounded_theme_document_reader final
 		: public application::theme_document_port
 	{
 	public:
-		[[nodiscard]] auto read(
-			const std::string_view aPath,
-			const std::size_t      aMaximumBytes,
-			const std::stop_token  aStop)
-			-> application::theme_document_result<std::string> override;
-
 		[[nodiscard]] auto write(const std::string_view aPath,
 								 const std::string_view aDocument, const std::stop_token aStop)
 			-> application::theme_document_result<void> override;

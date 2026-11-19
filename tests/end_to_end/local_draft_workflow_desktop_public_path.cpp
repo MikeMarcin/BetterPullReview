@@ -323,7 +323,7 @@ try {
 	expect(before.has_value(), "the profile's settings");
 	auto bytes = std::string{ };
 	{
-		auto file = std::ifstream{ fixture / "synthetic-org.bpr-config.json", std::ios::binary };
+		auto file = std::ifstream{ fixture / "synthetic-org.bprsettings", std::ios::binary };
 		bytes.assign(std::istreambuf_iterator<char>{ file }, { });
 	}
 	auto preview    = application::agent_configuration_preview{ .Snapshot = *before };

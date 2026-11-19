@@ -1860,9 +1860,11 @@ and a version-1 document carrying one, infers a version-1 base from its code
 background on both sides of the white/black text crossover, and fills only the
 roles a document omits.
 
-`tests/fixtures/appearance/older-theme.bprtheme` is `contrast-safe-theme`
-as it stood before RFC-BPR-0072: version 1, black code canvas, no namespace or
-enum-member colour and, since [[BPR-1503]], no Find wash.
+`tests/fixtures/appearance/older-theme.bprsettings` is `contrast-safe-theme`
+as it stood before RFC-BPR-0072: a Profile Settings Theme ([[BPR-2283]];
+both fixtures were `.bprtheme` documents until then) with base Dark, a black
+code canvas, no namespace or enum-member colour and, since [[BPR-1503]], no
+Find wash.
 `application_appearance_older_theme_contract` runs the theme-customization
 course over it with `BPR_THEME_FILLED_ROLES` naming `syntax_namespace`,
 `syntax_enum_member`, `find_match_background` and

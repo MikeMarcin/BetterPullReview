@@ -11,7 +11,7 @@ needs no enterprise account, script or service.
   (the companion reports their SHA-256 as the upstream fingerprint), and
   `helpers/validate` is a helper it can call on its own. A
   `SELF_REVIEWED` file is the marker only the upstream tool writes.
-- `synthetic-org.bpr-config.json` is the shared configuration: one
+- `synthetic-org.bprsettings` is the shared configuration: one
   workflow and the agent its description action asks.
 
 The companion owns the organization's rules; BetterPullReview holds none of

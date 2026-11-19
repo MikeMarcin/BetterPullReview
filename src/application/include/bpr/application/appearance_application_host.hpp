@@ -80,15 +80,11 @@ namespace bpr::application {
 		void apply(core::known_namespaces aNamespaces);
 		/// \brief [[BPR-1807]]. Chooses what people's avatars show; see the preferences host.
 		void apply(core::identity_avatar_style aStyle);
-		/// \brief Imports one local document into a preview candidate.
-		///
-		/// \details The effect reads through the bounded document port, calls the
-		/// core parser, and validates the result against every appearance variant.
-		/// Success publishes a candidate and never changes or persists settings.
-		void import_theme_file(std::string aPath);
-		/// Retires only the pending preview import; accepted durable work continues.
-		void cancel_theme_import();
-		/// \brief Writes a theme document whose base is `aVariant`, the theme on screen.
+		/// \brief [[BPR-2283]]. A Theme section's colours as an import would keep
+		/// them; see the preferences host. Changes nothing.
+		[[nodiscard]] auto resolve_theme(const core::portable_theme& aTheme) const -> imported_theme;
+		/// \brief Writes a Profile Settings file holding only the Theme, whose
+		/// base is `aVariant`, the theme on screen ([[BPR-2283]]).
 		void export_theme_file(std::string aPath, core::appearance_palette aPalette, core::appearance_variant aVariant);
 		/// \brief Resets one durable group; `palette` resets the named variant only.
 		void reset(appearance_reset_scope aScope, core::appearance_variant aVariant);

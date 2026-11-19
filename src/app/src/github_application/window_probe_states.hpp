@@ -88,6 +88,9 @@ namespace bpr::app {
 		std::uint64_t                                   ProfileGeneration         = 0U;
 		std::size_t                                     ClassificationSubmissions = 0U;
 		std::size_t                                     PersistedSettings         = 0U;
+		/// [[BPR-2283]]. Each import is asked for once its dialog has closed.
+		bool SecondImportRequested = false;
+		bool EqualImportRequested  = false;
 	};
 
 	struct workbench_composition_probe_state

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -192,6 +193,26 @@ namespace bpr::core {
 	/// order; and only when all of those are clean, a version-2 document's
 	/// missing `base` and every role the document failed to assign.
 	[[nodiscard]] auto import_theme(std::string_view aDocument) -> theme_import_result;
+
+	/// \brief [[BPR-2283]]. One colour of a Profile Settings file's Theme
+	/// section: a role's stable identifier and its `#rrggbbaa` value.
+	struct theme_entry
+	{
+		std::string Role;
+		std::string Color;
+
+		auto operator<=>(const theme_entry&) const = default;
+	};
+
+	/// \brief [[BPR-2283]]. A palette's colours as the Theme section writes
+	/// them, one per role in vocabulary order, alpha always written.
+	[[nodiscard]] auto theme_entries(const appearance_palette& aPalette) -> std::vector<theme_entry>;
+
+	/// \brief [[BPR-2283]]. Reads a Theme section's base and colours by the
+	/// same rules as a version-2 theme document, which they are laid out as:
+	/// every check and refusal `import_theme` makes, with `Line` counted from
+	/// the base (1) and then each entry in the section's order.
+	[[nodiscard]] auto import_theme_entries(std::string_view aBase, std::span<const theme_entry> aEntries) -> theme_import_result;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_THEME_EXCHANGE_HPP

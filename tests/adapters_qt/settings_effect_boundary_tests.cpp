@@ -184,33 +184,12 @@ namespace {
 		capability_log& Log;
 	};
 
-	[[nodiscard]] auto contrast_safe_palette() -> core::appearance_palette
-	{
-		auto palette = core::appearance_palette{ };
-		palette.fill(core::appearance_color{ .Alpha = 255U });
-		for (const auto& pair : core::required_contrast_pairs()) {
-			palette[core::index_of(pair.Background)] = core::appearance_color{ .Alpha = 255U };
-			if (pair.Wash.has_value()) {
-				palette[core::index_of(*pair.Wash)] = core::appearance_color{ .Alpha = 255U };
-			}
-			palette[core::index_of(pair.Foreground)] = { .Red = 255U, .Green = 255U, .Blue = 255U, .Alpha = 255U };
-		}
-		return palette;
-	}
-
 	class documents final : public application::theme_document_port
 	{
 	public:
 		explicit documents(capability_log& aLog)
 			: Log{ aLog }
 		{ }
-		auto read(const std::string_view aPath, const std::size_t aMaximumBytes, std::stop_token) -> application::theme_document_result<std::string> override
-		{
-			Log.enter("document.read");
-			expect(aPath == "fixture.theme", "the selected import path reaches the document port");
-			expect(aMaximumBytes == core::theme_document_byte_limit + 1U, "import read retains the parser overflow byte bound");
-			return core::export_theme(contrast_safe_palette());
-		}
 		auto write(const std::string_view aPath, const std::string_view aDocument, std::stop_token) -> application::theme_document_result<void> override
 		{
 			Log.enter("document.write");
@@ -243,9 +222,6 @@ namespace {
 		{
 			expect(std::this_thread::get_id() == Gui, "appearance publication returns on the GUI decision lane");
 			++Publications;
-			if (aProjection.ThemePreview) {
-				Panel.preview_import(aProjection.ThemePreview->Palette);
-			}
 			if (aProjection.ThemeExported) {
 				++Exports;
 				Panel.report_theme_export(true);
@@ -269,12 +245,10 @@ namespace {
 			using intent = std::decay_t<decltype(aValue)>;
 			if constexpr (std::is_same_v<intent, application::select_appearance_mode_intent>) {
 				aHost.select(aValue.Mode);
-			} else if constexpr (std::is_same_v<intent, application::import_appearance_theme_intent>) {
-				aHost.import_theme_file(std::move(aValue.Path));
 			} else if constexpr (std::is_same_v<intent, application::export_appearance_theme_intent>) {
 				aHost.export_theme_file(std::move(aValue.Path), application::customisation_of(aHost.settings(), aHost.resolution().Variant).Palette, aHost.resolution().Variant);
 			} else if constexpr (std::is_same_v<intent, application::cancel_appearance_palette_preview_intent>) {
-				aHost.cancel_theme_import();
+				// [[BPR-2283]]. A preview has no import to cancel.
 			} else {
 				expect(false, "fixture receives only its named Settings gestures");
 			}
@@ -340,15 +314,6 @@ namespace {
 		lane.drain();
 		expect(host.persisted_settings() == 1 && store.Stored->Mode == core::appearance_mode::dark, "decision lane acknowledges appearance persistence");
 
-		const auto beforeImport  = log.Calls.size();
-		const auto beforePreview = projection.Publications;
-		panel->request_theme_import(QStringLiteral("fixture.theme"));
-		expect(log.Calls.size() == beforeImport && !panel->preview_palette(), "path-selection gesture does not read a document inline");
-		effects.run_one();
-		expect(log.Calls.back() == "document.read" && projection.Publications == beforePreview && !panel->preview_palette(), "worker import cannot expose a preview before decision drain");
-		lane.drain();
-		expect(panel->preview_palette().has_value() && host.persisted_settings() == 1, "decision lane publishes import preview without persisting it");
-
 		const auto beforeExport = log.Calls.size();
 		panel->request_theme_export(QStringLiteral("export.theme"));
 		expect(log.Calls.size() == beforeExport && projection.Exports == 0, "export gesture queues document write");
@@ -357,14 +322,11 @@ namespace {
 		lane.drain();
 		expect(projection.Exports == 1, "export acknowledgement returns through decision lane");
 
-		panel->request_theme_import(QStringLiteral("fixture.theme"));
-		effects.run_one();
-		const auto beforeClose            = log.Calls.size();
-		const auto beforeCancelledPreview = projection.Publications;
+		const auto beforeClose = log.Calls.size();
 		window.settings()->close();
 		expect(log.Calls.size() == beforeClose && !panel->preview_palette(), "Settings close cancels preview without capability entry or worker wait");
 		lane.drain();
-		expect(projection.Publications == beforeCancelledPreview && !panel->preview_palette() && host.outstanding_requests() == 0, "cancelled staged import cannot repaint the hidden Settings window");
+		expect(host.outstanding_requests() == 0, "nothing is left outstanding once Settings closes");
 		host.shutdown();
 		expect(host.is_quiescent(), "appearance host finishes shutdown after all worker terminals");
 		panel->set_dispatch({ });

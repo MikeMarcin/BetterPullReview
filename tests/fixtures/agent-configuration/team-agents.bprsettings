@@ -1,6 +1,6 @@
 {
   "format": "bpr.profile-settings",
-  "version": 1,
+  "version": 3,
   "label": "Fixture team agents",
   "exported_by": "BetterPullReview fixture",
   "agents": [

@@ -193,13 +193,19 @@ namespace {
 		auto* const          panel    = workbench.appearance_settings();
 		auto                 cancels  = 0U;
 		panel->set_dispatch([&](application::appearance_intent aIntent) {
+			if (std::holds_alternative<application::preview_appearance_palette_intent>(aIntent)) {
+				return;
+			}
 			expect(std::holds_alternative<application::cancel_appearance_palette_preview_intent>(aIntent),
 				   "closing emits only the preview cancellation intent");
 			++cancels;
 		});
 		settings->present(qt::settings_page::appearance);
 		QApplication::processEvents();
-		panel->preview_import(qt::builtin_appearance_palette(core::appearance_variant::dark));
+		// A palette previewed by a picked colour; the picker is a seam.
+		panel->set_colour_picker([](const qt::colour_pick_request&) -> std::optional<QColor> { return QColor{ 0x1a, 0x4a, 0x2e }; });
+		panel->colours()->swatch_of(core::appearance_role::diff_added_background)->click();
+		QApplication::processEvents();
 		QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
 		QApplication::sendEvent(settings, &escape);
 		expect(!settings->isVisible() && !panel->preview_palette().has_value() && cancels == 1U,
@@ -207,7 +213,7 @@ namespace {
 		settings->present(qt::settings_page::appearance);
 		settings->close();
 		expect(cancels == 2U && workbench.appearance_settings() == panel,
-			   "native close also cancels pending imports before a preview arrives and keeps the same controls");
+			   "native close also cancels the preview and keeps the same controls");
 	}
 
 	void test_the_workbench_mounts_settings_with_the_preferences_shortcut()

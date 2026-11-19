@@ -61,11 +61,12 @@ file(MAKE_DIRECTORY "${BPR_ROOT}")
 # The root doubles as the profile registry root since BPR-0695 (47de7ae8),
 # which refuses a root it did not narrow itself (BPR-0723).
 bpr_narrow_owner_private("${BPR_ROOT}")
-file(COPY_FILE "${BPR_THEME}" "${BPR_ROOT}/theme.bprtheme")
+file(COPY_FILE "${BPR_THEME}" "${BPR_ROOT}/theme.bprsettings")
 
 # Process one uses the real fixture-selected workbench and the real local-file
-# import path. The application probe refuses success unless preview and cancel
-# wrote nothing, commit wrote exactly once, and the selected comparison kept
+# import path: [[BPR-2283]] Import Profile Settings, whose dialog shows the
+# file's Theme. The application probe refuses success unless the dialog and
+# Cancel wrote nothing, Import wrote exactly once, and the selected comparison kept
 # its result, context, semantic selection, span identities, classification
 # count, comparison position, semantic index, and measured geometry.
 run_phase(
@@ -81,7 +82,7 @@ run_phase(
     --diff-interaction-evidence
     "${BPR_ROOT}/diff-evidence"
     --appearance-theme-customization-probe
-    "${BPR_ROOT}/theme.bprtheme"
+    "${BPR_ROOT}/theme.bprsettings"
     --render-evidence
     "${BPR_ROOT}/customized-window.png"
 )
@@ -118,12 +119,13 @@ require_regex(
     "APPEARANCE_OBSERVED:[a-z]+:[a-z-]+:[1-9][0-9]*"
 )
 
-# [[BPR-1479]]. Export writes a version-2 document: a base line naming the
-# theme the colours were kept on, then every role. BPR_THEME is a version-1
-# document. A role it predates was filled at import from its own base, which
-# its code background makes Dark, so BPR_THEME_FILLED_ROLES lists those roles
-# with Dark's built-in colours ("role #rrggbbaa", comma-separated, in
-# vocabulary order). The export must carry them as kept, never unassigned.
+# [[BPR-1479]], [[BPR-2283]]. Export writes a Profile Settings file holding
+# only the Theme: its base names the theme the colours were kept on, then
+# every role. BPR_THEME's Theme leaves out roles it predates; each was filled
+# at import from its base, Dark, so BPR_THEME_FILLED_ROLES lists those roles
+# with Dark's built-in colours ("role #rrggbbaa", comma-separated). The export
+# must carry every role of BPR_THEME as it was and the filled ones as kept,
+# never unassigned.
 string(REGEX MATCH
     "APPEARANCE_THEME_PROBE_CUSTOMISED_VARIANT:([a-z_]+)"
     variant_line
@@ -136,26 +138,37 @@ if(variant_line STREQUAL "")
     )
 endif()
 set(customised_variant "${CMAKE_MATCH_1}")
-file(READ "${BPR_ROOT}/theme.bprtheme" original_theme)
-string(FIND "${original_theme}" "bpr-theme 1\n" signature_at)
-if(NOT signature_at EQUAL 0)
-    message(FATAL_ERROR "BPR_THEME must be a version-1 theme document")
+file(READ "${BPR_ROOT}/theme.bprsettings" original_theme)
+file(READ "${BPR_ROOT}/theme.bprsettings.exported.bprsettings" exported_theme)
+string(JSON exported_format GET "${exported_theme}" format)
+string(JSON exported_base GET "${exported_theme}" theme base)
+if(NOT exported_format STREQUAL "bpr.profile-settings" OR NOT exported_base STREQUAL customised_variant)
+    message(FATAL_ERROR
+        "Export must write a Profile Settings Theme under its base ${customised_variant}\n"
+        "exported:\n${exported_theme}"
+    )
 endif()
-string(SUBSTRING "${original_theme}" 12 -1 original_roles)
-set(expected_theme "bpr-theme 2\nbase ${customised_variant}\n${original_roles}")
+string(JSON original_count LENGTH "${original_theme}" theme colors)
+math(EXPR original_last "${original_count} - 1")
+foreach(index RANGE ${original_last})
+    string(JSON role MEMBER "${original_theme}" theme colors ${index})
+    string(JSON expected GET "${original_theme}" theme colors ${role})
+    string(JSON actual ERROR_VARIABLE missing GET "${exported_theme}" theme colors ${role})
+    if(NOT actual STREQUAL expected)
+        message(FATAL_ERROR "Export changed ${role}: expected ${expected}, wrote ${actual}${missing}")
+    endif()
+endforeach()
 if(DEFINED BPR_THEME_FILLED_ROLES)
     string(REPLACE "," ";" filled_roles "${BPR_THEME_FILLED_ROLES}")
     foreach(filled IN LISTS filled_roles)
-        string(APPEND expected_theme "${filled}\n")
+        string(REPLACE " " ";" filled_pair "${filled}")
+        list(GET filled_pair 0 role)
+        list(GET filled_pair 1 expected)
+        string(JSON actual ERROR_VARIABLE missing GET "${exported_theme}" theme colors ${role})
+        if(NOT actual STREQUAL expected)
+            message(FATAL_ERROR "Export must keep the filled ${role} as ${expected}, wrote ${actual}${missing}")
+        endif()
     endforeach()
-endif()
-file(READ "${BPR_ROOT}/theme.bprtheme.exported.bprtheme" exported_theme)
-if(NOT expected_theme STREQUAL exported_theme)
-    message(FATAL_ERROR
-        "Export must write the kept palette under its base\n"
-        "expected:\n${expected_theme}\n"
-        "exported:\n${exported_theme}"
-    )
 endif()
 message("APPEARANCE_THEME_EXPORT_BASE:${customised_variant}")
 

@@ -610,12 +610,6 @@ namespace {
 
 	class no_theme_documents final : public application::theme_document_port
 	{
-	public:
-		[[nodiscard]] auto read(std::string_view, std::size_t, std::stop_token)
-			-> application::theme_document_result<std::string> override
-		{
-			return std::unexpected{ application::theme_document_error{ } };
-		}
 	};
 
 	/// \brief Stands in for the application's composition: it shows each

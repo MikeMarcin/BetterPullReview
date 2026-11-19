@@ -576,7 +576,8 @@ namespace {
 
 		// Editing: a previewed palette is the state in which the Colours card
 		// carries its one bar, and C5 makes that bar's presence the evidence.
-		panel->preview_import(qt::builtin_appearance_palette(core::appearance_variant::dark));
+		panel->set_colour_picker([](const qt::colour_pick_request&) -> std::optional<QColor> { return QColor{ 0x1a, 0x4a, 0x2e }; });
+		panel->colours()->swatch_of(core::appearance_role::diff_added_background)->click();
 		process_events();
 		expect(
 			panel->preview_bar() != nullptr && panel->preview_palette().has_value()
