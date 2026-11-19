@@ -7,7 +7,9 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -15,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -1010,8 +1013,55 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-2215]]. A review opens the mutation, off-hunk and submission
+	/// journals, which share one file, from several threads at once. On
+	/// Windows a review intermittently found its journal refused
+	/// (invalid_permissions) in the full suite; every concurrent first open
+	/// of a new journal must succeed.
+	void test_concurrent_first_opens_of_one_journal()
+	{
+		for (auto round = 0; round < 40; ++round) {
+			temporary_directory directory;
+			expect(directory.Private, "concurrent opens: the root is owner-private");
+			const auto config  = configuration(directory);
+			auto       start   = std::atomic_bool{ false };
+			auto       results = std::array<int, 3U>{ };
+			auto       workers = std::vector<std::thread>{ };
+			for (auto index = 0U; index < results.size(); ++index) {
+				workers.emplace_back([&, index] {
+					while (!start.load()) {
+						std::this_thread::yield();
+					}
+					if (index == 0U) {
+						const auto opened = adapters::sqlite::make_review_mutation_recovery_store(config);
+						results[index]    = opened ? -1 : static_cast<int>(opened.error());
+					} else if (index == 1U) {
+						const auto opened = adapters::sqlite::make_off_hunk_fact_store(config);
+						results[index]    = opened ? -1 : static_cast<int>(opened.error());
+					} else {
+						const auto opened = adapters::sqlite::make_review_submission_recovery_store(config);
+						results[index]    = opened ? -1 : static_cast<int>(opened.error());
+					}
+				});
+			}
+			start = true;
+			for (auto& worker : workers) {
+				worker.join();
+			}
+			for (auto index = 0U; index < results.size(); ++index) {
+				if (results[index] != -1) {
+					std::cerr << "concurrent-journal-open: round " << round << " opener " << index << " failure " << results[index] << '\n';
+				}
+			}
+			expect(std::ranges::all_of(results, [](const int aResult) { return aResult == -1; }), "every concurrent first open of one journal succeeds");
+		}
+	}
+} // namespace
+
 auto main() -> int
 try {
+	test_concurrent_first_opens_of_one_journal();
 	test_logical_publication_transitions_and_restart();
 	test_a_base_side_publication_keeps_its_side();
 	test_a_placed_publication_keeps_its_remote_line();
