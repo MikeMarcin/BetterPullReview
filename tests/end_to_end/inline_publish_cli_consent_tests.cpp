@@ -276,6 +276,20 @@ namespace {
 
 		wait_for([&] { return github_application_fixture_access::reveal_fixture_file(*application, "review.cpp") == app::detail::fixture_file_reveal_result::shown; },
 				 "review.cpp is shown in Review");
+		if (aCourse == course::published) {
+			// [[BPR-2265]]. Inline publishing reads the window's lease at
+			// each publication: after two rereads renew it, Publish is
+			// unchanged.
+			for (auto round = 0; round < 2; ++round) {
+				const auto lease = github_application_fixture_access::publication_lease(*application);
+				expect(github_application_fixture_access::reread_pull_request(*application), "the pull request is read again");
+				wait_for([&] {
+					const auto now = github_application_fixture_access::publication_lease(*application);
+					return now.Lease == nullptr || (now.Lease != lease.Lease && now.Active);
+				},
+						 "the reread renews the window's publishing lease");
+			}
+		}
 		const auto body = std::string{ "BPR-1329: published from the drawer after the GitHub CLI confirmation." };
 		wait_for([&] {
 			const auto seeded = github_application_fixture_access::seed_attended_comment_draft(*application, core::diff_side::right, body);

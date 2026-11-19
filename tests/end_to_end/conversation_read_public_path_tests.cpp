@@ -341,6 +341,27 @@ int main(int aArgc, char** aArgv)
 		expect(!server->CompatibilityComments.empty() && server->CompatibilityComments.back().Body == "BPR-1781 a comment of its own", "the new comment is its words alone, with no quote");
 	}
 	wait_for([&] { return panel->new_comment_editor()->toPlainText().isEmpty() && !panel->new_comment_send()->isEnabled(); }, "the composer starts again empty once posted");
+	// [[BPR-2265]]. Two rereads that keep the pull request each renew the
+	// window's publishing lease; a reply's Send still reaches the server.
+	for (auto round = 0; round < 2; ++round) {
+		const auto lease = access::publication_lease(*application);
+		expect(access::reread_pull_request(*application), "the pull request is read again");
+		wait_for([&] {
+			const auto now = access::publication_lease(*application);
+			return now.Lease == nullptr || (now.Lease != lease.Lease && now.Active);
+		},
+				 "the reread renews the window's publishing lease");
+	}
+	wait_for([&] { return replyWindow.showing_overview() && panel->new_comment()->isVisible() && !panel->new_comment_editor()->isReadOnly(); }, "Overview's Comments still offers a new comment after the rereads");
+	panel->new_comment_editor()->setFocus();
+	panel->new_comment_editor()->setPlainText(QStringLiteral("Sent after two rereads"));
+	wait_for([&] { return panel->new_comment_send()->isEnabled(); }, "the comment written after the rereads is saved");
+	panel->new_comment_send()->click();
+	wait_for([&] {std::scoped_lock lock{server->Mutex};return server->StagedWrites==3U; }, "after two rereads Send posts the comment exactly once");
+	{
+		std::scoped_lock lock{ server->Mutex };
+		expect(server->CompatibilityComments.back().Body == "Sent after two rereads", "the comment sent after the rereads is its words");
+	}
 	stop();
 	std::cout << "CONVERSATION_READ_PUBLIC_PATH_OK\n";
 	return EXIT_SUCCESS;

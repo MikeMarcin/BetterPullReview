@@ -1165,6 +1165,18 @@ auto main(int argc, char** argv) -> int
 				expect(server->StagedWrites == 5, "website reopen remains read-only");
 			}
 
+			// [[BPR-2265]]. Two rereads that keep the pull request each renew
+			// the window's publishing lease; the tour's Publish below still
+			// reaches the server.
+			for (auto round = 0; round < 2; ++round) {
+				const auto lease = access::publication_lease(*application);
+				expect(access::reread_pull_request(*application), "the pull request is read again");
+				wait([&] {
+					const auto now = access::publication_lease(*application);
+					return now.Lease == nullptr || (now.Lease != lease.Lease && now.Active);
+				},
+					 "the reread renews the window's publishing lease");
+			}
 			activeEditor.outline()->setCurrentRow(1);
 			activeEditor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();
 			saved(activeEditor);
