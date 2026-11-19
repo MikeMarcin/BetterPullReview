@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2293",
+    "BPR-2294"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-2291 split: retained workspace expiry and Settings size (AC6); large-head workspace checkout cost (AC5 seconds)",
+  "created": "2026-11-19T22:43:43.236531+00:00",
+  "base": "7706cf34b10fa5a354efea623b8fe45925584f7b"
+}
