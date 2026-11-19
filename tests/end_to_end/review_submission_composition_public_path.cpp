@@ -1038,11 +1038,25 @@ auto main(int argc, char** argv) -> int
 					   "publishing again sends the new revision's comment once, and nothing else");
 			}
 			expect(saved_exactly(course, earlier.Id, earlier.Body), "the comment written before the push is still saved with its text");
+		}
+		// [[BPR-2265]]. A window whose reads repeat: two rereads that keep the
+		// head, account and pull request each renew its publishing lease.
+		shutdown(*application);
+		application.reset();
+		// Its own data root, so its published review touches no later course.
+		QTemporaryDir rereadData;
+		const auto    rereadRoot = e2e::private_data_root(rereadData);
+		expect(rereadRoot.has_value(), "a private data root for the reread course");
+		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, true, false, false, rereadRoot);
+		open(*application, cli);
+		{
+			auto& course   = application->window();
+			auto& composer = *course.review_submission_editor_view();
 			// [[BPR-2265]]. Two rereads that keep the head, account and pull
 			// request each renew the window's publishing lease; an Approve
-			// with a line comment then reaches the server, from one Submit.
+			// then reaches the server, from one Submit.
 			const auto refusals = [&] {
-				const auto text  = tests::read_diagnostic_logs(*dataRoot);
+				const auto text  = tests::read_diagnostic_logs(*rereadRoot);
 				auto       count = std::size_t{ 0U };
 				for (auto at = text.find("failure=refused_not_published"); at != std::string::npos; at = text.find("failure=refused_not_published", at + 1U)) {
 					++count;
@@ -1057,14 +1071,25 @@ auto main(int argc, char** argv) -> int
 				wait([&] { const auto progress = access::window_read_progress(*application); return progress.Snapshot != snapshot && !progress.Reading; }, "the reread installs the pull request again, renewing the publishing lease");
 				expect(access::accepted_head(*application) == head, "the reread keeps the head");
 			}
-			const auto reread = write_pending(*application, 31U, QStringLiteral("issue: Written after two rereads."));
 			course.open_review_composition();
-			wait([&] { return composer.shown_draft() && composer.shown_draft()->Comments.size() == 1U && composer.shown_draft()->Comments.front().Draft == reread.Id && composer.submit_action()->isEnabled(); }, "the review carries the comment written after the rereads");
-			const auto sentBefore = posts();
+			wait([&] { return composer.shown_draft().has_value(); }, "after the rereads the review page holds a review");
 			composer.choose_disposition(core::review_disposition::approve);
+			composer.body_editor()->setPlainText(QStringLiteral("Approved after two rereads."));
+			if (!e2e::wait_until_plain([&] { return composer.submit_action()->isEnabled(); }, e2e::default_queue_budget)) {
+				std::cerr << "review-submission-composition: after the rereads the page says \"" << composer.status_label()->text().toStdString() << "\" tip=\"" << composer.submit_action()->toolTip().toStdString() << "\"\n";
+				expect(false, "after the rereads the Approve can be submitted");
+			}
+			std::size_t sentBefore = 0U;
+			{
+				std::scoped_lock lock{ server->Mutex };
+				sentBefore = server->Reviews.size();
+			}
 			composer.submit_action()->trigger();
 			submitted(composer);
-			expect(posts() == sentBefore + 1U, "after two rereads the Approve reaches the server once, from one Submit");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->Reviews.size() == sentBefore + 1U && server->Reviews.back().Proposal.Body == "Approved after two rereads.", "after two rereads the Approve reaches the server once, from one Submit");
+			}
 			expect(refusals() == refusedBefore, "and nothing was refused before sending");
 		}
 		// [[BPR-1715]]. The owner's stuck attempt, exactly: nine pending

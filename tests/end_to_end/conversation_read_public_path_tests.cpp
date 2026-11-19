@@ -321,6 +321,13 @@ int main(int aArgc, char** aArgv)
 		std::scoped_lock lock{ server->Mutex };
 		expect(server->StagedComments.empty(), "a PR reply creates no file review comments");
 	}
+	// [[BPR-2265]]. Two rereads that keep the pull request each renew the
+	// window's publishing lease; the new comment's Send below still reaches the server.
+	for (auto round = 0; round < 2; ++round) {
+		const auto snapshot = access::window_read_progress(*application).Snapshot;
+		expect(access::reread_pull_request(*application), "the pull request is read again");
+		wait_for([&] { const auto progress = access::window_read_progress(*application); return progress.Snapshot != snapshot && !progress.Reading; }, "the reread installs the pull request again, renewing the publishing lease");
+	}
 	// [[BPR-1781]]. A new comment of its own, under the conversation on
 	// Overview's Comments: saved as a reply is, posted only by Comment, and
 	// sent as its words alone, without a quote.
@@ -341,23 +348,6 @@ int main(int aArgc, char** aArgv)
 		expect(!server->CompatibilityComments.empty() && server->CompatibilityComments.back().Body == "BPR-1781 a comment of its own", "the new comment is its words alone, with no quote");
 	}
 	wait_for([&] { return panel->new_comment_editor()->toPlainText().isEmpty() && !panel->new_comment_send()->isEnabled(); }, "the composer starts again empty once posted");
-	// [[BPR-2265]]. Two rereads that keep the pull request each renew the
-	// window's publishing lease; a reply's Send still reaches the server.
-	for (auto round = 0; round < 2; ++round) {
-		const auto snapshot = access::window_read_progress(*application).Snapshot;
-		expect(access::reread_pull_request(*application), "the pull request is read again");
-		wait_for([&] { const auto progress = access::window_read_progress(*application); return progress.Snapshot != snapshot && !progress.Reading; }, "the reread installs the pull request again, renewing the publishing lease");
-	}
-	wait_for([&] { return replyWindow.showing_overview() && panel->new_comment()->isVisible() && !panel->new_comment_editor()->isReadOnly(); }, "Overview's Comments still offers a new comment after the rereads");
-	panel->new_comment_editor()->setFocus();
-	panel->new_comment_editor()->setPlainText(QStringLiteral("Sent after two rereads"));
-	wait_for([&] { return panel->new_comment_send()->isEnabled(); }, "the comment written after the rereads is saved");
-	panel->new_comment_send()->click();
-	wait_for([&] {std::scoped_lock lock{server->Mutex};return server->StagedWrites==3U; }, "after two rereads Send posts the comment exactly once");
-	{
-		std::scoped_lock lock{ server->Mutex };
-		expect(server->CompatibilityComments.back().Body == "Sent after two rereads", "the comment sent after the rereads is its words");
-	}
 	stop();
 	std::cout << "CONVERSATION_READ_PUBLIC_PATH_OK\n";
 	return EXIT_SUCCESS;
