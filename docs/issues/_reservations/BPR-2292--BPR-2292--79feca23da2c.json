@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2292"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "nested scroll: vertical gesture over a sideways-only suggestion scrolls the outer area",
+  "created": "2026-11-19T21:30:59.590768+00:00",
+  "base": "89c4d154f88020361aceb04ea34a32c4380bce61"
+}
