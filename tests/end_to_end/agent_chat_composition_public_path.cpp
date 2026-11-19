@@ -1485,7 +1485,15 @@ auto main(int argc, char** argv) -> int
 		// Re-review N2: the refusal read from the configuration reached the
 		// launch through the turn's grant: no permissions profile among the
 		// arguments and no scratch folder in the frame.
-		const auto grantWords = std::string{ grantRefused ? "BPR_GRANT_2007 permissions=no scratch=no end" : "BPR_GRANT_2007 permissions=yes scratch=yes end" };
+		// A grant names POSIX paths (valid_agent_grant_path), so on Windows no
+		// scratch folder or build workspace can be granted and the turn runs
+		// without one, as a refused grant does.
+#if defined(_WIN32)
+		constexpr auto grantable = false;
+#else
+		constexpr auto grantable = true;
+#endif
+		const auto grantWords = std::string{ grantRefused || !grantable ? "BPR_GRANT_2007 permissions=no scratch=no end" : "BPR_GRANT_2007 permissions=yes scratch=yes end" };
 		const auto grantSeen  = finding.QueuedClaim.find(grantWords) != std::string::npos;
 		const auto passed     = grantSeen && afterSend.ChatHostComposed && afterSend.Statistics.Turns == 1U && afterSend.Statistics.Replies == 1U
 			&& afterSend.Statistics.Refusals == 0U && afterSend.LastTurn.has_value() && afterSend.LastTurn->Session.Profile == customSlot
