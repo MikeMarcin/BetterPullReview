@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2269"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Approve with a line comment after rereads stops at the pending-comment hold",
+  "created": "2026-11-19T01:14:32.684476+00:00",
+  "base": "5f3663df6472204994c51efc970e912647b6b804"
+}
