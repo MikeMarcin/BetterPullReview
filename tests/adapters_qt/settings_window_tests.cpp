@@ -674,7 +674,7 @@ auto main(int argc, char** argv) -> int
 		expect(scope->isHidden() && test->isEnabled() && source->text().contains("tour-stop-comment-v2"), "a tour hook shows no feedback line and can be tested");
 		panel->select_hook(core::writing_hook::feedback);
 		expect(panel->selected_hook() == core::writing_hook::feedback && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "the feedback row previews the shipped guidance");
-		expect(!scope->isHidden() && scope->text().startsWith("Off.") && source->text().contains("Built-in") && source->text().contains("review-feedback-v2"), "with the label helper off the row says the guidance is off");
+		expect(!scope->isHidden() && scope->text().startsWith("Off.") && source->text().contains("Built-in") && source->text().contains("review-feedback-v3"), "with the label helper off the row says the guidance is off");
 		expect(!test->isEnabled() && !test->toolTip().isEmpty(), "the tour-field test is unavailable for the feedback hook, with the reason");
 		test->click();
 		expect(tests == 1, "and clicking it asks for nothing");

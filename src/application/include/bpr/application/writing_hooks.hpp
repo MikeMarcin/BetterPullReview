@@ -62,7 +62,8 @@ namespace bpr::application {
 	/// \brief [[BPR-1090]] Version of the shipped review-feedback guidance,
 	/// `resources/review-preparation/review-feedback.md`. A change to that text
 	/// changes this name; a profile override is kept whatever it says.
-	inline constexpr std::string_view review_feedback_hook_version = "review-feedback-v2";
+	/// [[BPR-2276]] v3: only `issue` blocks on its own.
+	inline constexpr std::string_view review_feedback_hook_version = "review-feedback-v3";
 	/// \brief [[BPR-2051]] Versions of the shipped Enhance prompts,
 	/// `resources/review-preparation/enhance-*.md`, one for each, so an
 	/// override can say which default it was written against.
@@ -101,7 +102,8 @@ namespace bpr::application {
 	inline constexpr std::string_view writing_style_hook_version = "writing-style-v1";
 	/// \brief [[BPR-2270]]. Version of the Comment labels Feature's shipped
 	/// text, `resources/review-preparation/comment-labels.md`.
-	inline constexpr std::string_view comment_labels_hook_version = "comment-labels-v1";
+	/// [[BPR-2276]] v2: only `issue` blocks on its own.
+	inline constexpr std::string_view comment_labels_hook_version = "comment-labels-v2";
 	/// \brief [[BPR-2051]] The stable purpose ID of one prompt, as
 	/// RFC-BPR-0107's exchange names it: it never changes with the prompt's
 	/// text, version, position in this enumeration or display name.

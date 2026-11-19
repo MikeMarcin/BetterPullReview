@@ -101,7 +101,11 @@ namespace {
 		expect_labelled({ .Text = "**issue (blocking)**: x", .Label = feedback_label::issue, .Body = "issue: x" });
 		expect_labelled({ .Text = "**Issue** (Blocking): x", .Label = feedback_label::issue, .Body = "issue: x" });
 		expect_labelled({ .Text = "question (non-blocking): x", .Label = feedback_label::question, .Body = "question (non-blocking): x", .NonBlocking = true });
-		expect_labelled({ .Text = "todo( non blocking ):x", .Label = feedback_label::todo, .Body = "todo (non-blocking): x", .NonBlocking = true });
+		// [[BPR-2276]] A todo does not block on its own: `(non-blocking)` adds
+		// nothing to it, and `(blocking)` does.
+		expect_labelled({ .Text = "todo( non blocking ):x", .Label = feedback_label::todo, .Body = "todo: x" });
+		expect_labelled({ .Text = "todo (blocking): add the clamp", .Label = feedback_label::todo, .Body = "todo (blocking): add the clamp", .Blocking = true });
+		expect_labelled({ .Text = "typo (non-blocking): recieve", .Label = feedback_label::typo, .Body = "typo: recieve" });
 		expect_labelled({ .Text = "chore (if_minor) : x", .Label = feedback_label::chore, .Body = "chore (if-minor): x", .IfMinor = true });
 		// A custom decoration is kept as written, in the order written.
 		expect_labelled({ .Text = "issue (Security, blocking): x", .Label = feedback_label::issue, .Body = "issue (Security): x", .Custom = { "Security" } });

@@ -422,7 +422,7 @@ namespace {
 			expect(listed[6].toObject()["purpose"] == "enhance.writing" && listed[6].toObject()["version"] == "enhance-writing-v1" && listed[3].toObject()["purpose"] == "tour.stop-comment",
 				   "[[BPR-2051]] each hook names its stable purpose and its own default's version");
 			const auto shipped = listed[4].toObject();
-			expect(shipped["version"] == "review-feedback-v2" && listed[0].toObject()["version"] == "review-preparation-v1", "each hook names its own default's version");
+			expect(shipped["version"] == "review-feedback-v3" && listed[0].toObject()["version"] == "review-preparation-v1", "each hook names its own default's version");
 			expect(shipped["customized"] == false && shipped["active"] == false && hooks.json()["data"].toObject()["label_helper"] == "off", "a new profile follows the default, and with the label helper off it is not sent");
 			expect(shipped["instructions"].toString().contains("`quibble`: ") && shipped["instructions"].toString().contains("GitHub suggested change"), "the shipped guidance is the default conventions text");
 			const auto human = call({ "tour", "hooks", "show", "feedback", "--profile", "1" });

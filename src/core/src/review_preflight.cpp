@@ -55,7 +55,7 @@ namespace bpr::core {
 				return std::nullopt;
 			}
 			const auto guidance = definition_of(*aLabel).Guidance;
-			if (guidance == feedback_label_guidance::necessary_change || guidance == feedback_label_guidance::required_before_acceptance) {
+			if (guidance == feedback_label_guidance::asks_for_change || guidance == feedback_label_guidance::asks_for_process_work) {
 				return guidance;
 			}
 			return std::nullopt;
@@ -63,11 +63,12 @@ namespace bpr::core {
 
 		/// [[BPR-2267]]. Whether a header blocks: what its decorations say,
 		/// else its label's implied weight (`issue:` blocks; `suggestion:`
-		/// and `nitpick:` do not). An undecorated label whose guidance asks
-		/// for work (`todo`, `typo`, `chore`) stays guidance, never a blocker.
+		/// and `nitpick:` do not). [[BPR-2276]] An undecorated label whose
+		/// guidance asks for work (`todo`, `typo`, `chore`) weighs
+		/// non-blocking and stays guidance; `todo (blocking):` blocks.
 		[[nodiscard]] auto blocks(const std::optional<feedback_label> aLabel, const feedback_expectation aWritten) -> bool
 		{
-			return !advisory(aLabel, aWritten) && effective_expectation(aLabel, aWritten) == feedback_expectation::blocking;
+			return effective_expectation(aLabel, aWritten) == feedback_expectation::blocking;
 		}
 	} // namespace
 

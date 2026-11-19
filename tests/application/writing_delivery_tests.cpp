@@ -142,7 +142,7 @@ int main()
 			std::snprintf(pair, sizeof pair, "%02x", byte);
 			hex += pair;
 		}
-		expect(application::review_feedback_hook_version == "review-feedback-v2" && hex == "2b8448f3dddb140b0183a282e00364807570b0cfac4513fb1801b2096093c258", "review-feedback-v2 names exactly this default text");
+		expect(application::review_feedback_hook_version == "review-feedback-v3" && hex == "250c466b2676beb62f00e78df1775fbe13723e247c03a31a9f61e7e947abc771", "review-feedback-v3 names exactly this default text");
 		expect(application::writing_hook_version_of(core::writing_hook::feedback) == application::review_feedback_hook_version && application::writing_hook_version_of(core::writing_hook::comment) == application::tour_stop_comment_hook_version && application::writing_hook_version_of(core::writing_hook::problem) == application::writing_hook_version, "each hook reports its own default's version");
 
 		core::writing_hook_settings settings;
@@ -297,8 +297,10 @@ int main()
 				   "the convention names each label, and each is one the app recognizes");
 		}
 		expect(shipped.find("Add `(blocking)` or `(non-blocking)` after the label only when the weight differs from the label's") != std::string_view::npos
-				   && shipped.find("Never write `issue (blocking)` or `suggestion (non-blocking)`") != std::string_view::npos,
+				   && shipped.find("Never write `issue (blocking)`, `todo (non-blocking)` or `suggestion (non-blocking)`") != std::string_view::npos,
 			   "it decorates only where the weight differs from the label's ([[BPR-2267]])");
+		expect(shipped.find("only `issue` blocks the merge; `todo`, `chore`, `typo`,") != std::string_view::npos && shipped.find("necessary") == std::string_view::npos,
+			   "only issue blocks on its own; a todo, chore or typo does not ([[BPR-2276]])");
 		expect(application::writing_hook_purpose(core::writing_hook::comment_labels) == "feature.comment-labels"
 				   && application::writing_hook_of_purpose("feature.comment-labels") == core::writing_hook::comment_labels
 				   && application::writing_hook_version_of(core::writing_hook::comment_labels) == application::comment_labels_hook_version,

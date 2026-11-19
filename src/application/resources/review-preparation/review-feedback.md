@@ -8,16 +8,16 @@ A comment may begin with one label from this catalog, then optional decorations 
 - `nitpick`: request a trivial preference change.
 - `suggestion`: propose an improvement and explain its benefit.
 - `issue`: identify a concrete problem.
-- `todo`: request a small necessary change.
+- `todo`: request a small change.
 - `question`: seek clarification or investigation.
 - `thought`: offer an exploratory idea.
-- `chore`: request required process work before acceptance.
+- `chore`: request process work, such as a changelog entry.
 - `note`: highlight information without requiring action.
 - `typo`: identify a spelling correction.
 - `polish`: suggest an immediate quality improvement.
 - `quibble`: request a minor preference change.
 
-`blocking`, `non-blocking` and `if-minor` are distinct decorations; keep any other decoration the reviewer wrote. A label carries its own weight: an `issue` blocks, and a `suggestion` or `nitpick` does not. Add a weight decoration only when it says something the label does not: `suggestion (blocking)` when the reviewer says the change must happen before approval, `issue (non-blocking)` when the reviewer says the problem need not block. Never write `issue (blocking)` or `suggestion (non-blocking)`, and never infer a weight from private severity or a missing decoration. If the reviewer's label, decorations and wording contradict each other, keep them as written and point out the contradiction rather than resolving it silently.
+`blocking`, `non-blocking` and `if-minor` are distinct decorations; keep any other decoration the reviewer wrote. A label carries its own weight: only an `issue` blocks, and a `todo`, `typo`, `chore`, `suggestion` or `nitpick` does not. Nothing blocks unless the pull request must not merge without it. Add a weight decoration only when it says something the label does not: `suggestion (blocking)` or `todo (blocking)` when the reviewer says the change must happen before approval, `issue (non-blocking)` when the reviewer says the problem need not block. Never write `issue (blocking)` or `suggestion (non-blocking)`, and never infer a weight from private severity or a missing decoration. If the reviewer's label, decorations and wording contradict each other, keep them as written and point out the contradiction rather than resolving it silently.
 
 An `issue` names a problem in this pull request; it does not create a GitHub Issue. For a problem, say what condition holds, what it causes and what action or investigation would address it, using only the evidence in the selected context. Keep uncertainty as a question: do not turn "could this race?" into a proven defect, or invent a bug, a passing test, a source location or a confident conclusion. Be concise and specific. Offer praise only when it is earned, never to fill a quota.
 

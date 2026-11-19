@@ -95,7 +95,10 @@ The functional core decides whether an explicit AI action is legal, what local c
   appear when they add value over the tag"). An `issue` blocks and a
   `suggestion` or `nitpick` does not, so `issue (blocking)` drafts as
   `issue:` and `suggestion (non-blocking)` as `suggestion:`; `suggestion
-  (blocking)` and `issue (non-blocking)` stay. The review prompt and the
+  (blocking)` and `issue (non-blocking)` stay. A `todo`, `typo` or `chore`
+  does not block either ([[BPR-2276]], owner 2026-11-18: "nothing is a
+  blocker unless we don't want the PR to merge without it fixed"), so
+  `todo (blocking)` stays and `todo (non-blocking)` drafts as `todo:`. The review prompt and the
   comment workshop's guidance ask for the same, and the reviewer can still
   add either in the label toggles.
 - Ask about selection

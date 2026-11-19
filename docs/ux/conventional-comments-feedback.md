@@ -103,7 +103,7 @@ also typed codes, `:qu:` for question; the owner removed the codes on
   still says both); any `if-minor` fills the corner. So `(non-blocking,
   if-minor)`, which the grammar reports as `conflicting`, is the open mark
   with the corner. Custom decorations change no style. Built-in guidance,
-  such as a todo's `necessary_change`, never decorates a mark: it is not an
+  such as a todo's `asks_for_change`, never decorates a mark: it is not an
   explicit decoration (RFC-BPR-0048). Code: `feedback_mark_emphasis_of` in
   `feedback_label_marks`.
 - **Which bodies get a mark** (derived from the owner's "plain posts get a
@@ -640,8 +640,11 @@ Consumer: `review_submission_editor`.
   with links to them. An item blocks by its written decoration, or with none
   by its label's implied weight (BPR-2267, after BPR-2264 stopped writing a
   weight the label implies): `issue:` blocks, `suggestion:` and `nitpick:`
-  do not, and `suggestion (blocking):` does. Uncertainty has its own row. An
-  undecorated chore and other label guidance appear separately and never as
+  do not, and `suggestion (blocking):` does. Since BPR-2276 (owner,
+  2026-11-18: "nothing is a blocker unless we don't want the PR to merge
+  without it fixed") `todo:`, `typo:` and `chore:` do not block either, and
+  `todo (blocking):` does. Uncertainty has its own row. An undecorated
+  todo, typo or chore appears separately as label guidance and never as
   blocking. Other reviewers' items stay under "Others".
 - **Approve.** It carries an amber dot while I have open blocking feedback.
   Its tooltip says that approving does not resolve it.

@@ -153,7 +153,7 @@ def main():
                                                          "review-proposed-fix", "review-explain-file",
                                                          "review-suggest-change", "local-run-check", "writing-style", "comment-labels"], hooks.stdout
             assert all(hook["active"] for hook in listed[:4]) and listed[4]["active"] is False, hooks.stdout
-            assert listed[4]["version"] == "review-feedback-v2" and listed[4]["customized"] is False, hooks.stdout
+            assert listed[4]["version"] == "review-feedback-v3" and listed[4]["customized"] is False, hooks.stdout
             assert ask("compose \u4e2d", "COMPOSING") == "COMPOSING"
             busy = bpr("assist", "context", "--hook", "problem", "--field", "problem", "--quote", "world")
             assert busy.returncode == 4 and code(busy) == "editor_busy", busy.stdout

@@ -99,7 +99,7 @@ namespace bpr::core {
 	struct review_preflight_guidance
 	{
 		feedback_label          Label                                                      = feedback_label::todo;
-		feedback_label_guidance Guidance                                                   = feedback_label_guidance::necessary_change;
+		feedback_label_guidance Guidance                                                   = feedback_label_guidance::asks_for_change;
 		std::size_t             Published                                                  = 0U;
 		std::size_t             Pending                                                    = 0U;
 		auto                    operator==(const review_preflight_guidance&) const -> bool = default;

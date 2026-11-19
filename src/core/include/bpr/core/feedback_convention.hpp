@@ -39,12 +39,16 @@ namespace bpr::core {
 	/// \brief The built-in convention's advice about a label. It is BPR
 	/// product policy, separate from any decoration the author wrote, and is
 	/// never presented as an explicit `(blocking)` or `(non-blocking)`.
+	/// [[BPR-2276]] (owner, 2026-11-18: "nothing is a blocker unless we don't
+	/// want the PR to merge without it fixed"): `asks_for_change` (`todo`,
+	/// `typo`) and `asks_for_process_work` (`chore`) ask for work without
+	/// blocking; either decoration agrees with them.
 	enum class feedback_label_guidance : std::uint8_t {
 		positive,
 		non_blocking_by_nature,
 		unspecified,
-		necessary_change,
-		required_before_acceptance,
+		asks_for_change,
+		asks_for_process_work,
 		always_non_blocking,
 	};
 
@@ -73,7 +77,9 @@ namespace bpr::core {
 	};
 
 	/// \brief Revision of `bpr.feedback-label-catalog.v1` this catalog equals.
-	inline constexpr std::uint32_t feedback_catalog_revision = 1U;
+	/// [[BPR-2276]] 2: `todo`, `typo` and `chore` ask for work without
+	/// blocking, under renamed guidance and descriptions.
+	inline constexpr std::uint32_t feedback_catalog_revision = 2U;
 
 	/// \brief The complete catalog in its stable order.
 	[[nodiscard]] auto feedback_label_catalog() noexcept -> std::span<const feedback_label_definition, feedback_label_count>;
@@ -109,8 +115,8 @@ namespace bpr::core {
 	/// \brief [[BPR-2264]] (owner, 2026-11-18: "They should only appear when
 	/// they add value over the tag"). The weight a label carries on its own,
 	/// which a `(blocking)` or `(non-blocking)` decoration need not repeat:
-	/// `issue`, `todo`, `typo` and `chore` block; `suggestion`, `nitpick`,
-	/// `quibble`, `thought`, `note` and `praise` do not; `question` and
+	/// `issue` blocks; [[BPR-2276]] `todo`, `typo`, `chore`, `suggestion`,
+	/// `nitpick`, `quibble`, `thought`, `note` and `praise` do not; `question` and
 	/// `polish` carry none (`unspecified`). A decoration that says the other
 	/// weight, as in `suggestion (blocking)` or `issue (non-blocking)`, adds
 	/// information and is kept.

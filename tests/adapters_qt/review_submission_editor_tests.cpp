@@ -329,7 +329,7 @@ auto main(int argc, char** argv) -> int
 	preflight.Blockers                    = { { .Conversation = "review-thread:T1", .Label = core::feedback_label::issue, .Resolution = core::feedback_resolution::unresolved },
 											  { .Conversation = "review-thread:T2", .Label = core::feedback_label::todo, .Resolution = core::feedback_resolution::unknown } };
 	preflight.Pending                     = { { .Draft = "draft:9", .Label = core::feedback_label::issue } };
-	preflight.Guidance                    = { { .Label = core::feedback_label::chore, .Guidance = core::feedback_label_guidance::required_before_acceptance, .Published = 1U } };
+	preflight.Guidance                    = { { .Label = core::feedback_label::chore, .Guidance = core::feedback_label_guidance::asks_for_process_work, .Published = 1U } };
 	preflight.Uncertain.ResolutionUnknown = 1U;
 	preflight.Others                      = 2U;
 	withPreflight.Preflight               = std::move(preflight);

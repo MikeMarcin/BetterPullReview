@@ -15,12 +15,12 @@ namespace bpr::core {
 			{ nitpick, "nitpick", "Request a trivial preference change.", non_blocking_by_nature, "feedback.label.nitpick", feedback_expectation::non_blocking },
 			{ suggestion, "suggestion", "Propose an improvement and explain its benefit.", unspecified, "feedback.label.suggestion", feedback_expectation::non_blocking },
 			{ issue, "issue", "Identify a concrete problem.", unspecified, "feedback.label.issue", feedback_expectation::blocking },
-			{ todo, "todo", "Request a small necessary change.", necessary_change, "feedback.label.todo", feedback_expectation::blocking },
+			{ todo, "todo", "Request a small change.", asks_for_change, "feedback.label.todo", feedback_expectation::non_blocking },
 			{ question, "question", "Seek clarification or investigation.", unspecified, "feedback.label.question", feedback_expectation::unspecified },
 			{ thought, "thought", "Offer an exploratory idea.", non_blocking_by_nature, "feedback.label.thought", feedback_expectation::non_blocking },
-			{ chore, "chore", "Request required process work before acceptance.", required_before_acceptance, "feedback.label.chore", feedback_expectation::blocking },
+			{ chore, "chore", "Request process work, such as a changelog entry.", asks_for_process_work, "feedback.label.chore", feedback_expectation::non_blocking },
 			{ note, "note", "Highlight information without requiring action.", always_non_blocking, "feedback.label.note", feedback_expectation::non_blocking },
-			{ typo, "typo", "Identify a spelling correction.", necessary_change, "feedback.label.typo", feedback_expectation::blocking },
+			{ typo, "typo", "Identify a spelling correction.", asks_for_change, "feedback.label.typo", feedback_expectation::non_blocking },
 			{ polish, "polish", "Suggest an immediate quality improvement.", unspecified, "feedback.label.polish", feedback_expectation::unspecified },
 			{ quibble, "quibble", "Request a minor preference change.", non_blocking_by_nature, "feedback.label.quibble", feedback_expectation::non_blocking },
 		} };
@@ -387,9 +387,8 @@ namespace bpr::core {
 				return aExpectation == feedback_expectation::blocking;
 			case feedback_label_guidance::always_non_blocking:
 				return aExpectation == feedback_expectation::blocking || aExpectation == feedback_expectation::if_minor;
-			case feedback_label_guidance::necessary_change:
-			case feedback_label_guidance::required_before_acceptance:
-				return aExpectation == feedback_expectation::non_blocking;
+			case feedback_label_guidance::asks_for_change:
+			case feedback_label_guidance::asks_for_process_work:
 			case feedback_label_guidance::unspecified:
 				return false;
 			}
@@ -536,10 +535,10 @@ namespace bpr::core {
 			return "non_blocking_by_nature";
 		case feedback_label_guidance::unspecified:
 			return "unspecified";
-		case feedback_label_guidance::necessary_change:
-			return "necessary_change";
-		case feedback_label_guidance::required_before_acceptance:
-			return "required_before_acceptance";
+		case feedback_label_guidance::asks_for_change:
+			return "asks_for_change";
+		case feedback_label_guidance::asks_for_process_work:
+			return "asks_for_process_work";
 		case feedback_label_guidance::always_non_blocking:
 			return "always_non_blocking";
 		}
