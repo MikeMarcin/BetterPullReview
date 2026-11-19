@@ -1582,7 +1582,8 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1861]]. The fixture answered with a bold, title-cased
 		// Conventional Comments header. The reply opens with that label
 		// chosen in the label control and the header in the editor's own
-		// spelling, followed by the agent's words.
+		// spelling, followed by the agent's words. [[BPR-2272]]: without the
+		// weight its label implies ([[BPR-2264]]).
 		const auto labelledAnswer = answerText.startsWith(QStringLiteral("**Suggestion (Non-Blocking):** "));
 		if (labelledAnswer && draftButton != nullptr && !draftButton->isHidden() && draftButton->isEnabled() && draftButton->text() == QStringLiteral("Draft")) {
 			draftButton->click();
@@ -1593,8 +1594,8 @@ auto main(int argc, char** argv) -> int
 				const auto* labels = window.review_editor()->label_controls();
 				return aTerms.require("reply-open", shown.has_value() && shown->ReplyToThread.has_value())
 					&& aTerms.require("reply-written",
-									  window.review_editor()->body_editor()->toPlainText() == QStringLiteral("suggestion (non-blocking): finding-canary-complete name the exhausted retry"))
-					&& aTerms.require("label-chosen", labels != nullptr && labels->state().Label == core::feedback_label::suggestion && labels->state().NonBlocking && !labels->state().Blocking)
+									  window.review_editor()->body_editor()->toPlainText() == QStringLiteral("suggestion: finding-canary-complete name the exhausted retry"))
+					&& aTerms.require("label-chosen", labels != nullptr && labels->state().Label == core::feedback_label::suggestion && !labels->state().Blocking)
 					&& aTerms.require("go-to-draft", draftButton->text() == QStringLiteral("Go to draft"));
 			});
 			if (!drafted) {
