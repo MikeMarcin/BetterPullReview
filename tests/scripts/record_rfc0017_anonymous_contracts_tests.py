@@ -293,8 +293,10 @@ def run_scratch_git(arguments, *, cwd: Path) -> bytes:
     environment = dict(os.environ)
     environment.update(SCRATCH_GIT_ENVIRONMENT)
     completed = subprocess.run(
+        # core.autocrlf=false: Git for Windows' default converts the
+        # captures' line endings, and a binding names exact bytes.
         ["git", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=",
-         *arguments],
+         "-c", "core.autocrlf=false", *arguments],
         cwd=str(cwd), capture_output=True, env=environment, check=False)
     if completed.returncode != 0:
         raise AssertionError(
