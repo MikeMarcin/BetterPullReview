@@ -17,6 +17,7 @@ add_library(
         src/local_draft_publication_area.cpp
         src/local_draft_workflow_area.cpp
         src/wrapping_row.cpp
+        src/line_bounded_label.cpp
         src/application_menu_wording.cpp
         src/workbench_window_author_mode.cpp
         src/author_description_editor.cpp

@@ -24,6 +24,7 @@
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/line_bounded_label.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
@@ -45,6 +46,7 @@
 #include <QFrame>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QHelpEvent>
 #include <QInputDialog>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
@@ -72,6 +74,7 @@
 #include <QTextCursor>
 #include <QTimer>
 #include <QToolButton>
+#include <QToolTip>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -274,12 +277,14 @@ namespace bpr::qt {
 				row->setContentsMargins(8 + 24 + 10, 7, 8 + 16, 7);
 				auto* const words = new QVBoxLayout{ };
 				words->setSpacing(1);
-				Title = new QLabel{ this };
+				// [[BPR-2297]]. Two whole lines at most, the second ending in
+				// "…" when the title goes on. A maximum height of two lines,
+				// taken before the title was made semibold, let a title that
+				// is its answer's whole first line wrap to three lines in a
+				// two-line box, which cut the first and last through.
+				Title = new line_bounded_label{ 2, this };
 				Title->setObjectName(QStringLiteral("agentTurnReportTitle"));
-				Title->setTextFormat(Qt::PlainText);
-				Title->setWordWrap(true);
 				Title->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-				Title->setMaximumHeight(2 * Title->fontMetrics().lineSpacing() + 2);
 				auto semibold = Title->font();
 				semibold.setWeight(QFont::DemiBold);
 				Title->setFont(semibold);
@@ -299,7 +304,7 @@ namespace bpr::qt {
 				row->addStrut(30);
 			}
 
-			[[nodiscard]] auto title() const noexcept -> QLabel* { return Title; }
+			[[nodiscard]] auto title() const noexcept -> line_bounded_label* { return Title; }
 			[[nodiscard]] auto meta() const noexcept -> QLabel* { return Meta; }
 
 			void set_selected(const bool aSelected)
@@ -382,10 +387,20 @@ namespace bpr::qt {
 				QPushButton::keyPressEvent(aEvent);
 			}
 
+			/// [[BPR-2297]]. A shortened title is whole in the tooltip.
+			auto event(QEvent* aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::ToolTip && Title->elided(Title->contentsRect().width())) {
+					QToolTip::showText(static_cast<QHelpEvent*>(aEvent)->globalPos(), tr("Open report: %1").arg(Title->text()), this);
+					return true;
+				}
+				return QPushButton::event(aEvent);
+			}
+
 		private:
-			QLabel* Title    = nullptr;
-			QLabel* Meta     = nullptr;
-			bool    Selected = false;
+			line_bounded_label* Title    = nullptr;
+			QLabel*             Meta     = nullptr;
+			bool                Selected = false;
 		};
 
 		/// \brief Owner look v003 ("Timestamp would also be nice"): a time

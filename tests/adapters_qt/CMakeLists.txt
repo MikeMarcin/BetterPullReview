@@ -2277,6 +2277,24 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
     bpr_enable_warnings(test_agent_restored_byline)
     bpr_add_network_isolated_test(NAME qt_agent_restored_byline COMMAND test_agent_restored_byline)
     set_tests_properties(qt_agent_restored_byline PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-restored-byline:pass" TIMEOUT 60)
+    # [[BPR-2297]]. A report attachment's title is whole or shortened on
+    # whole lines, at 1.0, 1.25 and 2.0 scale.
+    bpr_add_executable(test_report_attachment_title report_attachment_title_tests.cpp)
+    target_link_libraries(test_report_attachment_title PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_report_attachment_title)
+    bpr_enable_warnings(test_report_attachment_title)
+    foreach(bpr_report_title_scale IN ITEMS 100 125 200)
+        math(EXPR bpr_report_title_whole "${bpr_report_title_scale} / 100")
+        math(EXPR bpr_report_title_fraction "${bpr_report_title_scale} % 100")
+        bpr_add_network_isolated_test(NAME qt_report_attachment_title_scale_${bpr_report_title_scale} COMMAND test_report_attachment_title)
+        set_tests_properties(
+            qt_report_attachment_title_scale_${bpr_report_title_scale}
+            PROPERTIES
+                ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_report_title_whole}.${bpr_report_title_fraction}"
+                PASS_REGULAR_EXPRESSION "report-attachment-title:pass"
+                TIMEOUT 60
+        )
+    endforeach()
     # RFC-BPR-0125 milestone 2 ([[BPR-2145]]). The Agent tab's chips are the core's offers.
     bpr_add_executable(test_prompt_macro_chips prompt_macro_chips_tests.cpp)
     # [[BPR-2205]]. An owner-private scratch root (tests/support/scratch_directory.hpp).
