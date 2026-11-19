@@ -137,6 +137,10 @@ namespace bpr::adapters::github::detail {
 			-> github_wire_transport_factory_result override;
 	};
 
+	/// Opens the foreground PR pager's operation, verifying a freshly acquired CLI credential.
+	[[nodiscard]] auto begin_github_pull_request_operation(github_wire_transport_port&                              aTransport,
+														   const application::github_pull_request_provider_request& aRequest, std::stop_token aStop) -> github_wire_operation;
+
 	enum class github_provider_configuration_failure : std::uint8_t {
 		no_profiles,
 		invalid_profile,

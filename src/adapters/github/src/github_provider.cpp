@@ -1,4 +1,5 @@
 #include "github_provider.hpp"
+#include "gh_cli_transport.hpp"
 #include "github_anonymous_read_admission.hpp"
 #include "github_notifications_read.hpp"
 #include "github_paged_read.hpp"
@@ -1195,6 +1196,32 @@ namespace bpr::adapters::github::detail {
 				}
 				return std::shared_ptr<github_wire_transport_port>{ std::move(scope) };
 			}
+			[[nodiscard]] auto begin_pull_request(const application::github_pull_request_provider_request& aRequest, std::stop_token aStop) -> github_wire_operation
+			{
+				const auto& context   = aRequest.Context;
+				const auto& session   = std::get<core::github_session_request_context>(Viewer.Correlation.Parent);
+				const auto& authority = aRequest.ProfileAuthority;
+				if (Mismatch.load() || context.Mode != core::github_access_mode::authenticated || context.Account != Account || context.Profile != session.Profile || context.Host != Viewer.Correlation.Host
+					|| context.IdentityGeneration != session.IdentityGeneration || aRequest.AuthenticationSession.value_or(context.ApplicationSession) != session.ApplicationSession
+					|| authority.Authentication != application::github_authentication_transport::github_cli
+					|| authority.Profile != context.Profile || authority.Host != context.Host || authority.ProfileRevision != Viewer.Correlation.ProfileRevision) {
+					return std::unexpected{ provider_error(application::github_provider_failure::authentication) };
+				}
+				// begin_operation returns our own fresh wrapper only after /user has
+				// validated the numeric account and login using the acquired bytes.
+				auto operation = begin_operation(aStop);
+				if (operation && *operation) {
+					auto        scope = std::static_pointer_cast<cli_observed_account_transport>(*operation);
+					const auto* gh    = dynamic_cast<const gh_cli_transport*>(scope->Transport.get());
+					if (gh) {
+						if (!gh->holds_named_credential(authority, Login)) {
+							return std::unexpected{ provider_error(application::github_provider_failure::authentication) };
+						}
+						scope->VerifiedPullRequest = checked_pull_request{ context, aRequest.AuthenticationSession };
+					}
+				}
+				return operation;
+			}
 			[[nodiscard]] auto background_lanes() const noexcept -> std::size_t override { return Mismatch.load() ? 0U : Transport->background_lanes(); }
 			/// [[BPR-1846]]. Avatars go to the gh transport's avatar helper,
 			/// pinned to this lease's host and account; a lease whose account
@@ -1270,6 +1297,15 @@ namespace bpr::adapters::github::detail {
 
 			auto perform(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion override
 			{
+				if (VerifiedPullRequest) {
+					const auto& correlation = aRequest.Correlation;
+					const auto* parent      = std::get_if<core::pull_request_request_context>(&correlation.Parent);
+					if (!parent || *parent != VerifiedPullRequest->Context || correlation.ProfileRevision != Viewer.Correlation.ProfileRevision
+						|| correlation.Host != Viewer.Correlation.Host || correlation.AuthenticationSession != VerifiedPullRequest->AuthenticationSession) {
+						return github_wire_error{ .Correlation = correlation, .Error = provider_error(application::github_provider_failure::authentication) };
+					}
+					return perform_in_checked_operation(aRequest, aStop);
+				}
 				const auto& viewer = Viewer;
 				if (auto error = check(viewer, aStop)) {
 					if (aStop.stop_requested()) {
@@ -1397,11 +1433,9 @@ namespace bpr::adapters::github::detail {
 				return result;
 			}
 
-			/// [[BPR-1850]]. One notification poll in an operation whose account
-			/// `begin_operation` has just read. The operation holds one pinned
-			/// credential, which cannot answer as another account, so the poll is
-			/// not bracketed by two more account reads: each is a `/user` request
-			/// that spends the rate limit, and the poll runs every minute.
+			/// A read with one verified, operation-owned credential. Notifications
+			/// use this for a single poll (BPR-1850). The foreground PR pager
+			/// additionally binds every page to its exact request and session.
 			auto perform_in_checked_operation(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion
 			{
 				if (Mismatch.load()) {
@@ -1487,7 +1521,13 @@ namespace bpr::adapters::github::detail {
 			server_contract                             Server;
 			core::github_account_id                     Account;
 			std::string                                 Login;
-			std::atomic_bool                            Mismatch = false;
+			struct checked_pull_request
+			{
+				core::pull_request_request_context          Context;
+				std::optional<core::application_session_id> AuthenticationSession;
+			};
+			std::optional<checked_pull_request> VerifiedPullRequest;
+			std::atomic_bool                    Mismatch = false;
 		};
 
 		[[nodiscard]] auto
@@ -2801,7 +2841,7 @@ namespace bpr::adapters::github::detail {
 									response_limit));
 							return;
 						}
-						auto operation = readTransport->begin_operation(job->Stop.get_token());
+						auto operation = begin_github_pull_request_operation(*readTransport, aRequest, job->Stop.get_token());
 						if (!operation) {
 							failed(operation.error());
 							return;
@@ -4086,6 +4126,15 @@ namespace bpr::adapters::github::detail {
 	{
 		return make_github_provider_from_pointers(
 			aProfiles, aEffects, std::move(aTransportFactory), aReadAuthority, std::move(aLog));
+	}
+
+	auto begin_github_pull_request_operation(github_wire_transport_port& aTransport, const application::github_pull_request_provider_request& aRequest,
+											 std::stop_token aStop) -> github_wire_operation
+	{
+		if (auto* observed = dynamic_cast<cli_observed_account_transport*>(&aTransport)) {
+			return observed->begin_pull_request(aRequest, aStop);
+		}
+		return aTransport.begin_operation(aStop);
 	}
 
 	auto make_cli_observed_account_transport_for_testing(

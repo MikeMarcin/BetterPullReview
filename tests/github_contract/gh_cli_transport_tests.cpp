@@ -9,6 +9,7 @@
 #include "bpr/core/description_edit.hpp"
 #include "gh_cli_transport.hpp"
 #include "github_paged_read.hpp"
+#include "github_provider.hpp"
 
 #include <algorithm>
 #include <array>
@@ -571,7 +572,7 @@ namespace {
 											 std::shared_ptr<const void> = { }) -> cli_sensitive_result override
 		{
 			++Acquisitions;
-			expect(gh_arguments(aRequest) == std::vector<std::string>{ "auth", "token", "--hostname", "github.com", "--user", "fixture-reviewer" }, "recovery operation acquires only its exact named credential");
+			expect(gh_arguments(aRequest) == std::vector<std::string>{ "auth", "token", "--hostname", ExpectedHost, "--user", ExpectedLogin }, "recovery operation acquires only its exact named credential");
 			if (MissingCredential || aStop.stop_requested()) {
 				return std::unexpected{ aStop.stop_requested() ? github_cli_process_failure::cancelled : github_cli_process_failure::nonzero_exit };
 			}
@@ -584,18 +585,21 @@ namespace {
 		}
 
 		[[nodiscard]] auto run_credentialed(const github_cli_process_request& aRequest, cli_transient_credential aCredential,
-											cli_credential_environment, std::stop_token                          aStop) -> github_cli_process_result override
+											cli_credential_environment aEnvironment, std::stop_token aStop) -> github_cli_process_result override
 		{
 			expect(aCredential != nullptr, "compiler unit seam receives a scoped credential separately");
 			if (Acquisitions != 0U) {
+				expect(aEnvironment == ExpectedEnvironment, "the selected credential reaches the host-specific primary token slot");
 				expect(aCredential.get() == AcquiredCredential.lock().get(), "all requests in the operation use exactly the acquired owner");
 			}
 			return run(aRequest, aStop);
 		}
 
-		bool                                      EnableAcquisition = false;
-		std::size_t                               Acquisitions      = 0U;
-		bool                                      MissingCredential = false;
+		std::string                               ExpectedHost = "github.com", ExpectedLogin = "fixture-reviewer";
+		cli_credential_environment                ExpectedEnvironment = cli_credential_environment::github;
+		bool                                      EnableAcquisition   = false;
+		std::size_t                               Acquisitions        = 0U;
+		bool                                      MissingCredential   = false;
 		std::optional<github_cli_process_failure> AcquisitionFailure;
 		std::optional<github_cli_process_failure> ProbeFailure;
 		std::weak_ptr<const cli_sensitive_bytes>  AcquiredCredential;
@@ -1705,6 +1709,122 @@ namespace {
 	class fixture_mutation_lease final : public application::review_mutation_transport_lease
 	{ };
 
+	void test_verified_cli_pr_scope()
+	{
+		for (auto candidate : { cloud_candidate(), enterprise_candidate() }) {
+			const bool enterprise     = candidate.Hostname != "github.com";
+			candidate.CliAccountLogin = enterprise ? "enterprise-reviewer" : "fixture-reviewer";
+			temporary_layout            layout;
+			const auto                  config  = validate_gh_cli_configuration(configuration_candidate(layout));
+			const auto                  profile = validate_github_host_profile(candidate);
+			const auto                  pin     = pin_gh_cli_configuration(*config, profile->hostname(), candidate.CliAccountLogin);
+			successful_counting_process process;
+			process.EnableAcquisition   = true;
+			process.ExpectedHost        = candidate.Hostname;
+			process.ExpectedLogin       = candidate.CliAccountLogin;
+			process.ExpectedEnvironment = enterprise ? cli_credential_environment::enterprise : cli_credential_environment::github;
+
+			application::github_pull_request_provider_request request;
+			request.Context                          = pull_request_parent(*profile);
+			request.ProfileAuthority.Profile         = profile->profile();
+			request.ProfileAuthority.ProfileRevision = profile->revision();
+			request.ProfileAuthority.Host            = profile->host();
+			request.ProfileAuthority.Hostname        = application::github_canonical_hostname{ profile->hostname() };
+			request.ProfileAuthority.ServerContract  = profile->server_contract();
+			request.ProfileAuthority.Authentication  = application::github_authentication_transport::github_cli;
+			const application::github_credential_operation_context context{
+				.Request            = request.Context.Request,
+				.ApplicationSession = request.Context.ApplicationSession,
+				.Authority          = { .Profile = profile->profile(), .ProfileRevision = profile->revision(), .Host = profile->host(), .Hostname = request.ProfileAuthority.Hostname, .Account = request.Context.Account, .ServerContract = profile->server_contract() },
+				.IdentityGeneration = request.Context.IdentityGeneration,
+			};
+			bool                     wrongId = false, wrongLogin = false;
+			std::vector<std::string> endpoints;
+			process.OnRun = [&] {
+				const auto args = gh_arguments(*process.LastRequest);
+				expect(args.size() >= 7 && args[0] == "api" && args[2] == "--hostname" && args[3] == candidate.Hostname, "every API child uses its selected host");
+				endpoints.push_back(args[1]);
+				const auto login = wrongLogin ? std::string{ "other-reviewer" } : candidate.CliAccountLogin;
+				const auto body  = args[1] == "user" ? "{\"id\":" + std::to_string(wrongId ? 104U : request.Context.Account.value())
+						+ ",\"name\":null,\"node_id\":\"U_viewer\",\"login\":\"" + login + "\",\"type\":\"User\"}"
+													: "{}";
+				process.Result   = github_cli_process_success{ .StandardOutput = "HTTP/2.0 200 OK\nContent-Type: application/json\r\nX-RateLimit-Limit: 5000\r\nX-RateLimit-Remaining: 4000\r\nX-RateLimit-Reset: 1999999999\r\nX-RateLimit-Resource: core\r\n\r\n" + body };
+			};
+			auto inner = std::make_shared<gh_cli_transport>(*profile, *pin, process);
+			auto root  = std::dynamic_pointer_cast<github_wire_transport_port>(make_cli_observed_account_transport_for_testing(inner, context, candidate.CliAccountLogin));
+			auto op    = begin_github_pull_request_operation(*root, request, { });
+			expect(op && *op && process.Acquisitions == 1 && endpoints == std::vector<std::string>{ "user" }, "a fresh PR operation verifies its named credential once");
+			const auto wire = wire_request_for(*profile, read_operation::get_repository);
+			for (int i = 0; i < 2; ++i) {
+				expect(std::holds_alternative<github_wire_success>((*op)->perform(wire, { })), "same credential serves successive scoped PR reads");
+			}
+			expect(endpoints == std::vector<std::string>{ "user", "repos/octo-org/review-repository", "repos/octo-org/review-repository" }, "verified reads have no duplicate viewer checks");
+			for (int changed = 0; changed < 4; ++changed) {
+				auto  foreign = wire;
+				auto& parent  = std::get<core::pull_request_request_context>(foreign.Correlation.Parent);
+				if (changed == 0) {
+					parent.Account = core::github_account_id{ 77 };
+				}
+				if (changed == 1) {
+					parent.Number = core::pull_request_number{ 88 };
+				}
+				if (changed == 2) {
+					foreign.Correlation.Host = core::git_host_id{ 99 };
+				}
+				if (changed == 3) {
+					foreign.Correlation.AuthenticationSession = core::application_session_id{ 999 };
+				}
+				expect(std::holds_alternative<github_wire_error>((*op)->perform(foreign, { })) && endpoints.size() == 3, "foreign correlation refuses without a child");
+			}
+			op = github_wire_operation{ std::shared_ptr<github_wire_transport_port>{ } };
+			expect(process.AcquiredCredential.expired(), "ending the PR drops its acquired credential");
+			for (int mismatch = 0; mismatch < 2; ++mismatch) {
+				wrongId    = mismatch == 0;
+				wrongLogin = mismatch == 1;
+				endpoints.clear();
+				auto refused = begin_github_pull_request_operation(*root, request, { });
+				expect(!refused && refused.error().Failure == application::github_provider_failure::authentication && endpoints == std::vector<std::string>{ "user" }, "misbound fresh credential refuses before PR data");
+			}
+			// An already credentialed object returned no fresh scope. It still
+			// needs observations around each read through its unverified wrapper.
+			wrongId    = false;
+			wrongLogin = false;
+			endpoints.clear();
+			auto preheld         = std::make_shared<gh_cli_transport>(*profile, *pin, process, synthetic_operation_credential());
+			auto legacy          = std::dynamic_pointer_cast<github_wire_transport_port>(make_cli_observed_account_transport_for_testing(preheld, context, candidate.CliAccountLogin));
+			auto noScope         = begin_github_pull_request_operation(*legacy, request, { });
+			process.Acquisitions = 0; // A separate test credential was supplied above.
+			expect(noScope && !*noScope && std::holds_alternative<github_wire_success>(legacy->perform(wire, { }))
+					   && endpoints == std::vector<std::string>{ "user", "repos/octo-org/review-repository", "user" },
+				   "unverified transport retains both account observations");
+		}
+	}
+
+	void test_named_enterprise_read()
+	{
+		temporary_layout layout;
+		const auto       configuration      = validate_gh_cli_configuration(configuration_candidate(layout));
+		auto             candidate          = enterprise_candidate();
+		candidate.CliAccountLogin           = "selected-enterprise-reviewer";
+		const auto                  profile = validate_github_host_profile(candidate);
+		const auto                  pinned  = pin_gh_cli_configuration(*configuration, profile->hostname(), candidate.CliAccountLogin);
+		successful_counting_process process;
+		process.EnableAcquisition   = true;
+		process.ExpectedHost        = candidate.Hostname;
+		process.ExpectedLogin       = candidate.CliAccountLogin;
+		process.ExpectedEnvironment = cli_credential_environment::enterprise;
+		gh_cli_transport root{ *profile, *pinned, process };
+		auto             operation = root.begin_operation({ });
+		expect(operation && *operation && process.Acquisitions == 1, "traditional GHES acquires the exact host and selected user once");
+		(void)(*operation)->perform(wire_request_for(*profile, read_operation::get_repository), { });
+		expect(process.Calls == 1 && process.LastRequest.has_value(), "enterprise API read used the acquired credential");
+		const auto args = gh_arguments(*process.LastRequest);
+		auto       host = std::ranges::find(args, "--hostname");
+		expect(host != args.end() && std::next(host) != args.end() && *std::next(host) == candidate.Hostname, "the API child is scoped to the same traditional enterprise host");
+		for (const auto& entry : process.LastRequest->Environment) {
+			expect(entry.Name != "GH_TOKEN" && entry.Name != "GITHUB_TOKEN" && entry.Name != "GH_ENTERPRISE_TOKEN" && entry.Name != "GITHUB_ENTERPRISE_TOKEN", "generic environment cannot override the separately supplied enterprise credential");
+		}
+	}
 	[[maybe_unused]] void test_strict_acquisition_failures()
 	{
 		temporary_layout layout;
@@ -2970,6 +3090,8 @@ try {
 	test_configuration_file_metadata_changes();
 	// [[BPR-1791]]. Windows makes the private account configuration too, so
 	// every host runs pinned dispatch, strict acquisition and recovery.
+	test_verified_cli_pr_scope();
+	test_named_enterprise_read();
 	test_strict_acquisition_failures();
 	test_cli_mutation_session_recovery();
 	test_thread_replies_publish_over_the_cli_connection();
