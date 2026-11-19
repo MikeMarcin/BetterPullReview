@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2282",
+    "BPR-2283"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Window file drop opens settings import; unify themes into .bprsettings",
+  "created": "2026-11-19T16:41:06.159000+00:00",
+  "base": "7ab6354dc5bc79139b154fa2d9c783d7657b1568"
+}
