@@ -89,11 +89,14 @@ namespace bpr::qt {
 		/// removed, 2 merged, 3 split, 4 moved) and its grey pill's words.
 		constexpr int revision_role      = Qt::UserRole + 11;
 		constexpr int revision_note_role = Qt::UserRole + 12;
-		/// The route's measures: the grip, the circle's column, the text.
-		constexpr int grip_width = 18;
-		constexpr int ring_left  = 22;
-		constexpr int ring_size  = 22;
-		constexpr int text_left  = ring_left + ring_size + 10;
+		/// The route's measures: the card's left, the circle's column, the
+		/// text. [[BPR-2278]]: the card starts at the route's left, the
+		/// drawer's content edge (its border a pixel in), with the grip
+		/// inside it before the circle.
+		constexpr int card_left = 1;
+		constexpr int ring_left = 16;
+		constexpr int ring_size = 22;
+		constexpr int text_left = ring_left + ring_size + 10;
 		/// [[BPR-1925]] v002. How far a stop's text box reaches round the
 		/// words, into the card's margin: sideways, and up and down (the
 		/// fields are six pixels apart).
@@ -363,7 +366,7 @@ namespace bpr::qt {
 				painter.setRenderHint(QPainter::Antialiasing, true);
 				const auto base   = palette().color(QPalette::Active, QPalette::Base);
 				const auto grey   = route_grey(palette());
-				const auto ground = QRectF{ rect().adjusted(grip_width - 4, 2, -2, -2) };
+				const auto ground = QRectF{ rect().adjusted(card_left, 2, -2, -2) };
 				painter.setPen(QPen{ mixed(base, grey, 0.55), 1.0, Qt::DashLine });
 				painter.setBrush(Qt::NoBrush);
 				painter.drawRoundedRect(ground, 8.0, 8.0);
@@ -787,7 +790,7 @@ namespace bpr::qt {
 				const auto agent     = agent_accent(palette);
 				const auto discussed = aIndex.data(discussed_role).toBool();
 				if (discussed) {
-					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2, -2, -2) };
+					const auto ground = QRectF{ rect.adjusted(card_left, 2, -2, -2) };
 					aPainter->setPen(QPen{ mixed(base, agent, 0.45), 1.0 });
 					aPainter->setBrush(mixed(base, agent, 0.10));
 					aPainter->drawRoundedRect(ground, 8.0, 8.0);
@@ -801,7 +804,7 @@ namespace bpr::qt {
 				const auto revision = current ? 0 : aIndex.data(revision_role).toInt();
 				const auto grey     = route_grey(palette);
 				if (!discussed && revision != 0) {
-					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2, -2, -2) };
+					const auto ground = QRectF{ rect.adjusted(card_left, 2, -2, -2) };
 					aPainter->setPen(QPen{ mixed(base, grey, 0.55), 1.0, Qt::DashLine });
 					aPainter->setBrush(hovered || selected ? QBrush{ mixed(window, ink, 0.04) } : QBrush{ Qt::NoBrush });
 					aPainter->drawRoundedRect(ground, 8.0, 8.0);
@@ -811,7 +814,7 @@ namespace bpr::qt {
 				}
 				// The current stop's ground, and the selection's.
 				if (!discussed && revision == 0 && (current || selected || hovered)) {
-					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2, -2, -2) };
+					const auto ground = QRectF{ rect.adjusted(card_left, 2, -2, -2) };
 					aPainter->setPen(current ? QPen{ mixed(base, amber, 0.55), 1.0 } : Qt::NoPen);
 					aPainter->setBrush(current ? base : mixed(window, ink, selected ? 0.07 : 0.04));
 					aPainter->drawRoundedRect(ground, 8.0, 8.0);
@@ -967,7 +970,7 @@ namespace bpr::qt {
 				if (aOption.state.testFlag(QStyle::State_HasFocus) && aOption.widget != nullptr && aOption.widget->hasFocus()) {
 					aPainter->setPen(QPen{ palette.color(QPalette::Active, QPalette::Highlight), 2.0 });
 					aPainter->setBrush(Qt::NoBrush);
-					aPainter->drawRoundedRect(QRectF{ rect.adjusted(grip_width - 3, 3, -3, -3) }, 8.0, 8.0);
+					aPainter->drawRoundedRect(QRectF{ rect.adjusted(card_left + 1, 3, -3, -3) }, 8.0, 8.0);
 				}
 				aPainter->restore();
 			}
@@ -1511,8 +1514,10 @@ namespace bpr::qt {
 		briefCol->setSpacing(4);
 		StopsSlot        = new QWidget{ Brief };
 		auto* const body = new QVBoxLayout{ StopsSlot };
-		// The route keeps the drawer's width: its grip, not an indent, sets it in.
-		body->setContentsMargins(8, 0, 0, 8);
+		// [[BPR-2278]]. The route starts at the drawer's left content edge,
+		// where Draft Tour starts: no indent is left from the Problem and
+		// Solution it once sat under.
+		body->setContentsMargins(0, 0, 0, 8);
 		body->setSpacing(6);
 		briefCol->addWidget(StopsSlot);
 		build_stops();

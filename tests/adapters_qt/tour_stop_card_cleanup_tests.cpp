@@ -10,6 +10,7 @@
 #include "../support/review_tour_fixture.hpp"
 #include "../support/window_system_keys.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
 
 #include <QAbstractButton>
 #include <QAction>
@@ -147,6 +148,26 @@ auto main(int argc, char** argv) -> int
 	settle();
 	auto* const outline = editor->outline();
 	auto* const bar     = scroll.verticalScrollBar();
+
+	// [[BPR-2278]] (owner, 2026-11-19: "stops are still started off shifted
+	// to the right like they were when there was a parent section, they can
+	// start on the left of the drawer now"). The route, its rail, cards and
+	// Add stop, starts at the drawer's left content edge, where Draft Tour
+	// starts.
+	{
+		auto* const draftTour = editor->findChild<QWidget*>(QStringLiteral("tourDraftTour"));
+		auto* const addStop   = editor->findChild<QWidget*>(QStringLiteral("tourAddStop"));
+		auto* const panel     = editor->tour_agent();
+		expect(draftTour != nullptr && addStop != nullptr && addStop->isVisible() && panel != nullptr && panel->layout() != nullptr, "the route offers Add stop under the tour's agent row");
+		const auto edge   = draftTour->isVisible() ? draftTour->mapTo(editor, QPoint{ 0, 0 }).x() : panel->mapTo(editor, QPoint{ 0, 0 }).x() + panel->layout()->contentsMargins().left();
+		const auto route  = outline->viewport()->mapTo(editor, QPoint{ 0, 0 }).x() + outline->visualItemRect(outline->item(0)).left();
+		const auto adding = addStop->mapTo(editor, QPoint{ 0, 0 }).x();
+		std::cout << "BPR-2278 left edges: Draft Tour " << edge << (draftTour->isVisible() ? "" : " (its row's content edge)") << ", route " << route << ", Add stop " << adding << '\n';
+		expect(route == edge, "the stops' rail starts at the drawer's left content edge (" + std::to_string(route) + " vs " + std::to_string(edge) + ")");
+		auto* const opened = card_of(*editor);
+		expect(opened != nullptr && opened->mapTo(editor, QPoint{ 0, 0 }).x() == edge, "and the open stop's card");
+		expect(adding == edge, "Add stop starts there too (" + std::to_string(adding) + " vs " + std::to_string(edge) + ")");
+	}
 
 	// AC6. The open card starts at its row's top: its title at the ring's
 	// height, no band above it.
