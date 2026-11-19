@@ -139,9 +139,24 @@ auto main(int aArgc, char** aArgv) -> int
 	std::cout << "TOUR_LIVE " << app::tour_draft_token(target) << "\n"
 			  << std::flush;
 	window.activateWindow();
-	// [[BPR-2274]]. A tour is its stops: the field the course reports is the
-	// open stop's text.
-	auto* problem = editor.stop_body();
+	// [[BPR-2275]]. A tour is its stops ([[BPR-2274]]): the field typed into
+	// live is a stop's text, and the field beside it is the stop's title.
+	// The stop starts with neither.
+	select_file(window, "review.cpp");
+	select_range(window, 2, 4);
+	window.add_tour_stop_action()->trigger();
+	QApplication::processEvents();
+	wait_for([&] { return editor.shown().Draft->Stops.size() == 1U && editor.shown().SavedRevision == editor.shown().Draft->Revision; }, "the course's stop is saved");
+	auto*      problem  = editor.stop_body();
+	const auto writable = [&] {
+		if (editor.stop_view().Mode == core::tour_stop_view_mode::read) {
+			editor.begin_stop_edit();
+			QApplication::processEvents();
+		}
+	};
+	writable();
+	problem->setFocus();
+	wait_for([&] { return problem->hasFocus(); }, "the author's caret is in the stop's text");
 	say("OWNER_READY");
 	QElapsedTimer course;
 	course.start();
@@ -171,16 +186,19 @@ auto main(int aArgc, char** aArgv) -> int
 		std::getline(words >> std::ws, argument);
 		auto* solution = editor.stop_title();
 		if (verb == "type") {
+			writable();
 			problem->setFocus();
 			problem->moveCursor(QTextCursor::End);
 			problem->insertPlainText(QString::fromStdString(argument));
 			say("TYPED");
 		} else if (verb == "caret") {
+			writable();
 			auto cursor = problem->textCursor();
 			cursor.setPosition(std::stoi(argument));
 			problem->setTextCursor(cursor);
 			say("CARET_SET");
 		} else if (verb == "compose") {
+			writable();
 			problem->setFocus();
 			QInputMethodEvent event{ QString::fromStdString(argument), { } };
 			QApplication::sendEvent(problem, &event);

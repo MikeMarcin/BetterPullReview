@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2275"
 title: "Re-cover the tour UI courses that ran on the Problem and Solution, on a stop"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-2274"]
 priority: "P2"
@@ -40,3 +40,36 @@ published text. BPR-2274 trimmed what could not be moved in the same change.
   chat; reconciliation of a website edit to a published stop; typing in a
   stop while `bpr tour` edits it.
 - AC2. The restored courses pass on macOS.
+
+## Re-covered
+
+- `qt_tour_side_chat`: the whole scenario runs again, on a second stop's
+  chat where it ran on the Solution's: the glyph and its count, the quoted
+  passage and the selected-block prompt, the readiness gate, Return, the
+  live run line and activity block, retirement, Copy and Copy chat, the
+  Update link and its proposal, code colours and boxes, references,
+  switching to Stop 1 and the whole tour, Resend and Delete on a failed turn
+  (Stop 1), the Draft Tour line, the session foot, Enhance and Ask more, the
+  revision card and reference links.
+- `application_review_tour_publication_reconciliation` is back in the course
+  list. A website edit to a published stop meets a local edit to the same
+  stop: one conflict, the local text kept, the website's unrelated raw
+  prefix and route order adopted, the conflict surviving a restart, Keep my
+  proposed version, a cold profile importing the website's text, and one
+  narrow comment edit with the tour comment and the description untouched.
+- `application_profile_tour_handoff`: the desktop adds the course's stop
+  first; live typing, the caret, input-method preedit (`editor_busy`), a
+  stale CLI edit, an independent field (the stop's title) with a duplicate
+  request, the shared undo, and assist on a quoted passage with a stale
+  answer, all on that stop's text.
+- `application_review_tour_composition_public_path`: Tab to the assistance
+  control and back, input-method preedit and commit, paste, native undo and
+  redo across the asynchronous save, preview, revisit, the restored editor,
+  the failure and owner-cleared states and the removed-wire control, on a
+  stop's text.
+
+## Verification
+
+macOS, dev preset, after [[BPR-2274]] on main: the four courses above pass,
+with all 72 rows matching `tour`, `side_chat` or `handoff`; the build,
+`coding-format-check` and `verify_documentation.py` pass.

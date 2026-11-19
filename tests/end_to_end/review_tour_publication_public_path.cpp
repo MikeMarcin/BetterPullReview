@@ -958,6 +958,178 @@ auto main(int argc, char** argv) -> int
 			expect(tourBody.starts_with(std::string{ core::tour_comment_lead } + "\n\n## Review tour") && !tourBody.contains("## Problem") && !tourBody.contains("## Solution"), "the tour comment is one line and the route");
 		}
 
+		// [[BPR-2275]]. A website edit to a published stop, reconciled with a
+		// local edit to the same stop. Before [[BPR-2274]] this course ran on
+		// the Problem and Solution in the description.
+		if (mode == "reconciliation") {
+			saved(editor);
+			const auto rootEntity = editor.shown().Draft->Remote->Entity;
+			const auto stopOf     = [](const core::review_tour& aTour, const std::uint64_t aComment) -> const core::tour_stop* {
+				const auto found = std::ranges::find_if(aTour.Stops, [aComment](const core::tour_stop& aStop) { return aStop.Remote && aStop.Remote->DatabaseId == aComment; });
+				return found == aTour.Stops.end() ? nullptr : &*found;
+			};
+			const auto showComment = [&](qt::review_tour_editor& aEditor, const std::uint64_t aComment) {
+				const auto& stops = aEditor.shown().Draft->Stops;
+				for (std::size_t row = 0; row < stops.size(); ++row) {
+					if (stops[row].Remote && stops[row].Remote->DatabaseId == aComment) {
+						aEditor.outline()->setCurrentRow(static_cast<int>(row));
+					}
+				}
+				QApplication::processEvents();
+			};
+			showComment(editor, 602);
+			wait([&] { return editor.stop_title()->toPlainText() == QStringLiteral("Use the retained source"); }, "the second published stop is open");
+			editor.stop_body()->setPlainText(QStringLiteral("Local overlapping stop."));
+			saved(editor);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				for (auto& comment : server->StagedComments) {
+					if (comment.Id == 602) {
+						const auto at = comment.Body.find("Connect the explanation to the original decision.");
+						expect(at != std::string::npos, "the second stop's comment holds its published explanation");
+						comment.Body.replace(at, std::string{ "Connect the explanation to the original decision." }.size(), "Website overlapping stop.");
+					} else if (comment.Id == 601) {
+						comment.Body.insert(0, "Website raw prefix.\n\n");
+					}
+				}
+				auto route = core::map_tour_markdown(server->StagedReview->Body).Lists.front();
+				std::reverse(route.Entries.begin(), route.Entries.end());
+				server->StagedReview->Body.replace(route.Source.Begin, route.Source.End - route.Source.Begin, *core::render_tour_index(route.Entries));
+			}
+			window.github_refresh_action()->trigger();
+			wait([&] { return editor.shown().Draft && editor.shown().Draft->Conflicts.size() == 1; }, "website/local overlap arrives through real snapshot parser");
+			expect(stopOf(*editor.shown().Draft, 602) != nullptr && stopOf(*editor.shown().Draft, 602)->Body == "Local overlapping stop.", "the conflict keeps the local stop text");
+			expect(editor.shown().Draft->Stops.front().Remote->DatabaseId == 602 && editor.shown().Draft->Stops.back().Baseline->Raw.starts_with("Website raw prefix."), "website index reorders stable comments and raw prefix survives");
+			expect(editor.shown().Draft->HasPriorObservation && !editor.shown().Draft->ObservedChanges.empty() && editor.findChild<QLabel*>(QStringLiteral("tourRevisionChanges"))->text().contains("Reordered"), "actual website observation exposes retained revision differences");
+			const auto beforeNavigation = access::review_mutation_evidence(*application);
+			editor.findChild<QPushButton*>(QStringLiteral("tourNextChanged"))->click();
+			expect(editor.selected_stop() != nullptr, "changed-stop action navigates actual outline");
+			const auto afterNavigation = access::review_mutation_evidence(*application);
+			expect(beforeNavigation.Submissions == afterNavigation.Submissions && beforeNavigation.Resolutions == afterNavigation.Resolutions && !access::review_ledger_receipt_present(*application), "changed-stop navigation has no review-status effect");
+			showComment(editor, 602);
+			wait([&] { const auto* conflict = editor.findChild<QPlainTextEdit*>(QStringLiteral("tourConflict")); return conflict != nullptr && conflict->toPlainText().contains("Website overlapping stop."); }, "editor exposes the exact remote conflict version");
+			saved(editor);
+			window.resize(1440, 1000);
+			QApplication::processEvents();
+			if (argc > 2) {
+				expect(window.grab().save(QString::fromUtf8(argv[2]) + "-conflict.png"), "actual B/L/R conflict capture saved");
+			}
+			if (argc > 3 && std::string_view{ argv[3] } == "--attended") {
+				window.resize(1440, 1000);
+				window.setWindowTitle(QStringLiteral("Review tour conflict — synthetic website — close to finish"));
+				QApplication::setQuitOnLastWindowClosed(true);
+				QTimer::singleShot(30 * 60 * 1000, &qtApplication, &QApplication::quit);
+				std::cout << "review-tour-conflict-attended:ready\n"
+						  << std::flush;
+				const auto result = QApplication::exec();
+				shutdown(*application);
+				return result;
+			}
+			shutdown(*application);
+			application.reset();
+			application = make();
+			open(*application, cli);
+			auto& restored = *application->window().tour_editor();
+			wait([&] { return restored.shown().Draft && restored.shown().Draft->Conflicts.size() == 1; }, "unresolved B/L/R conflict survives real application restart");
+			showComment(restored, 602);
+			wait([&] { return restored.findChild<QPushButton*>(QStringLiteral("tourKeepLocalConflict")) != nullptr; }, "the conflicting stop offers Keep local");
+			restored.findChild<QPushButton*>(QStringLiteral("tourKeepLocalConflict"))->click();
+			saved(restored);
+			// A published stop's text is the comment's narrative span, blank
+			// lines around it included; only the words are compared.
+			expect(restored.shown().Draft->Conflicts.empty() && stopOf(*restored.shown().Draft, 602)->Body.contains("Local overlapping stop.") && !stopOf(*restored.shown().Draft, 602)->Body.contains("Website overlapping stop."), "explicit local choice retains desired text");
+			application->window().github_refresh_action()->trigger();
+			wait([&] { return restored.shown().Draft && !restored.shown().Draft->RemoteStale; }, "resolved versions require fresh website observation");
+			saved(restored);
+			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0, "refresh and conflict choice invoke no AI");
+			shutdown(*application);
+			application.reset();
+			currentDataRoot = e2e::private_data_root(coldData);
+			expect(currentDataRoot.has_value(), "clean private profile admitted");
+			application = make();
+			open(*application, cli);
+			auto& cold    = *application->window().tour_editor();
+			auto* choices = cold.findChild<QComboBox*>(QStringLiteral("tourImportChoices"));
+			wait([&] { return choices->count() > 0; }, "clean profile discovers the actual shared published index");
+			int selected = -1;
+			for (int i = 0; i < choices->count(); ++i) {
+				if (choices->itemText(i).contains(QString::fromStdString(rootEntity))) {
+					selected = i;
+				}
+			}
+			expect(selected >= 0, "cold profile selects exact published root");
+			choices->setCurrentIndex(selected);
+			cold.findChild<QPushButton*>(QStringLiteral("tourImport"))->click();
+			wait([&] { return cold.shown().Draft && cold.shown().Draft->Remote; }, "explicit cold import fills editors");
+			const auto* const website = stopOf(*cold.shown().Draft, 602);
+			expect(website != nullptr && website->Body.contains("Website overlapping stop.") && !website->Body.contains("Local overlapping stop.") && cold.shown().Draft->Stops.front().Remote->DatabaseId == 602, "cold import uses website truth and authoritative route");
+			expect(!cold.shown().Draft->HasPriorObservation && cold.shown().Draft->ObservedChanges.empty() && cold.findChild<QLabel*>(QStringLiteral("tourRevisionChanges"))->text().contains("No prior local"), "clean profile explicitly has unknown private tour history");
+			expect(!cold.shown().Draft->Stops.front().Original && cold.shown().Draft->Stops.front().Destination && cold.shown().Draft->Stops.front().Preparation == core::tour_preparation::editing, "cold profile fabricates no private preparation provenance");
+			saved(cold);
+			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0, "cold reconstruction uses no inference");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedWrites == 4 && server->StagedCreates == 1 && server->StagedSubmits == 1, "refresh conflict resolution restart and cold import produce zero server mutations");
+			}
+			accept_every_stop(cold);
+			cold.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
+			expect(!cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "unchanged cold reimport cannot publish normalization edits");
+			showComment(cold, 602);
+			wait([&] { return cold.stop_title()->toPlainText() == QStringLiteral("Use the retained source"); }, "the cold profile opens the website-edited stop");
+			if (cold.stop_view().Mode == core::tour_stop_view_mode::read) {
+				cold.begin_stop_edit();
+				QApplication::processEvents();
+			}
+			cold.stop_body()->setPlainText(QStringLiteral("Cold-profile deliberate revision."));
+			saved(cold);
+			std::string coldReview;
+			{
+				std::scoped_lock lock{ server->Mutex };
+				coldReview = server->StagedReview->Body;
+			}
+			accept_every_stop(cold);
+			cold.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
+			expect(cold.publication_preview()->original_body().contains("The PR description will not be edited."), "the update preview says the description is left alone");
+			expect(cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "cold-profile author can explicitly edit the existing tour");
+			cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->click();
+			wait([&] { return cold.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().startsWith("Published:"); }, "cold-profile stop update preserves imported actor and source binding");
+			saved(cold);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				const auto       edited = std::ranges::find_if(server->StagedComments, [](const auto& aComment) { return aComment.Id == 602; });
+				expect(server->StagedWrites == 5 && server->StagedCreates == 1 && server->StagedSubmits == 1 && edited != server->StagedComments.end() && edited->Body.contains("Cold-profile deliberate revision.") && server->StagedWritePaths.back().ends_with("/pulls/comments/602"),
+					   "one narrow cold-profile edit of the stop's comment keeps every comment identity");
+				expect(server->StagedReview->Body == coldReview && server->StagedDescription == originalTemplate, "the tour comment and the description are unchanged");
+			}
+			const auto originalStops = cold.shown().Draft->Stops;
+			expect(access::reaccept_fixture_revision(*application, true), "changed-head fixture enters actual accepted-revision path");
+			wait([&] { return cold.shown().Draft && cold.shown().Draft->ObservedHead && cold.shown().Draft->Stops.front().Preparation == core::tour_preparation::needs_attention; }, "changed head exposes explanation attention");
+			cold.outline()->setCurrentRow(0);
+			// [[BPR-2014]], RFC-BPR-0106. The stop was accepted before the push.
+			// This fixture's second head is a new handoff with no readable
+			// content, so the window cannot compare the accepted code with it:
+			// the stop stays yellow, "not compared yet", and is never left
+			// green on evidence nobody read.
+			const auto decided = [&] { return core::decide_tour_stop_acceptance(*cold.shown().Draft, cold.shown().Draft->Stops.front()); };
+			expect(originalStops.front().Acceptance.has_value(), "the stop was accepted before the push");
+			cold.go_to_stop(cold.shown().Draft->Stops.front().Id);
+			saved(cold);
+			expect(decided().State == core::tour_acceptance_state::changed && decided().Reason == core::tour_acceptance_reason::unchecked, "an uncompared push leaves the stop Changed since accepted, not compared yet");
+			// The stop's Accept, which replaces the Head changed chip. Critical
+			// review finding 3: pressed while its lines are not compared yet,
+			// it keeps them to compare and is never green on unread evidence.
+			cold.accept_stop(cold.shown().Draft->Stops.front().Id);
+			saved(cold);
+			const auto& kept = cold.shown().Draft->Stops.front();
+			expect(decided().Reason == core::tour_acceptance_reason::unchecked && kept.Acceptance && std::ranges::any_of(kept.Acceptance->Material, [](const auto& aMaterial) { return !aMaterial.Reference; }),
+				   "Accept while the stop's lines are not compared yet keeps them to compare");
+			expect(kept.Remote == originalStops.front().Remote && kept.Destination == originalStops.front().Destination, "accepting preserves the original imported subject and comment");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->StagedWrites == 5, "a new head and accepting a stop issue zero remote writes");
+			}
+		}
+
 		if (mode == "maintenance" || mode == "manual") {
 			saved(editor);
 			{

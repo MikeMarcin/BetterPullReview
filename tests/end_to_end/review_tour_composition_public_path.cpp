@@ -1584,6 +1584,50 @@ auto main(int argc, char** argv) -> int
 		expect(editor.selected_stop()->Body.empty() && editor.shown().Draft->Stops.size() == 1, "later typing gives standard Undo back to the native text editor");
 		key(write(editor), QKeySequence{ QKeySequence::Redo }[0]);
 		expect(editor.selected_stop()->Body == "First thought.\n\nSecond thought.", "native redo replays prose without another structural action");
+		// [[BPR-2275]]. What the course checked on the Problem and Solution
+		// before [[BPR-2274]], on the stop's text: Tab reaches the assistance
+		// control and comes back, an input method's preedit is not committed,
+		// a commit and a paste keep Unicode Markdown, and native undo
+		// survives the asynchronous save.
+		{
+			auto* const body = write(editor);
+#if defined(BPR_AGENT_INTEGRATIONS)
+			// [[BPR-1894]]. Tab reaches the assistance control once the setup
+			// has finished; finishing it launches no agent request.
+			expect(stubSearch.has_value(), "the default course is given a stub claude (BPR_TOUR_COURSE_CLAUDE)");
+			agent_ready(window);
+			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0U, "finishing the setup launches no agent request");
+			body->moveCursor(QTextCursor::End);
+			key(body, QKeyCombination{ Qt::Key_Tab });
+			expect(QApplication::focusWidget() == editor.findChild<QPushButton*>(QStringLiteral("tourStopMagic")), "Tab from the stop's text reaches the visible assistance control");
+			visible_focus(editor);
+			key(QApplication::focusWidget(), QKeyCombination{ Qt::ShiftModifier, Qt::Key_Backtab });
+			expect(body->hasFocus(), "reverse Tab returns from assistance to the stop's text");
+#endif
+			const auto written = editor.selected_stop()->Body;
+			body->setFocus();
+			body->moveCursor(QTextCursor::End);
+			QInputMethodEvent preedit{ QStringLiteral("に"), { } };
+			QApplication::sendEvent(body, &preedit);
+			expect(editor.selected_stop()->Body == written, "IME preedit is not committed into the draft");
+			QInputMethodEvent commit;
+			commit.setCommitString(QStringLiteral("\n\n日本語 — "));
+			QApplication::sendEvent(body, &commit);
+			QApplication::clipboard()->setText(QStringLiteral("**central approach**\n\n[read more](https://example.invalid/)"));
+			body->paste();
+			saved(editor);
+			const auto pasted = editor.selected_stop()->Body;
+			expect(QString::fromStdString(pasted).endsWith(QStringLiteral("日本語 — **central approach**\n\n[read more](https://example.invalid/)")), "native IME commit and clipboard preserve Unicode Markdown");
+			body->undo();
+			saved(editor);
+			expect(editor.selected_stop()->Body != pasted, "native undo survives asynchronous save acknowledgement");
+			body->redo();
+			saved(editor);
+			expect(editor.selected_stop()->Body == pasted, "native redo restores exact Markdown source");
+			body->selectAll();
+			body->insertPlainText(QStringLiteral("First thought.\n\nSecond thought."));
+			saved(editor);
+		}
 		select_range(window, core::diff_side::left, 1, 1);
 		editor.findChild<QPushButton*>(QStringLiteral("tourAddRelated"))->click();
 		expect(editor.selected_stop()->Related.size() == 1 && editor.selected_stop()->Related.front().First.Side == core::diff_side::left, "related base source is retained without new native write authority");
@@ -1751,9 +1795,12 @@ auto main(int argc, char** argv) -> int
 		preparation_icons(editor.shown(), argc > 1 ? QString::fromLocal8Bit(argv[1]) : QString{ });
 		const auto accepted = *editor.shown().Draft;
 		editor.roadmap()->setCurrentIndex(editor.roadmap()->count() - 1);
+		expect(std::ranges::all_of(accepted.Stops, [&editor](const core::tour_stop& aStop) { return editor.preview()->original_body().find(aStop.Title) != std::string::npos; }), "[[BPR-2275]] preview retains every stop without rendering feedback into draft");
 		editor.preview()->show_source(true);
 		expect(*editor.shown().Draft == accepted, "preview Source toggle is read-only");
 		editor.roadmap()->setCurrentIndex(0);
+		const auto revisited = editor.stop_body()->toPlainText();
+		expect(editor.selected_stop() != nullptr && revisited.toStdString() == editor.selected_stop()->Body, "[[BPR-2275]] free section revisit preserves the stop's text");
 		if (argc > 1) {
 			window.resize(1280, 900);
 			QApplication::processEvents();
@@ -1780,18 +1827,28 @@ auto main(int argc, char** argv) -> int
 		open(*application);
 		auto& restored = *application->window().tour_editor();
 		expect(*restored.shown().Draft == accepted, "actual application reconstruction restores exact tour from admitted SQLite root");
+		restored.show_stops();
+		restored.go_to_stop(accepted.Stops.front().Id);
+		QApplication::processEvents();
+		const auto restoredText = restored.stop_body()->toPlainText();
+		expect(restoredText.toStdString() == accepted.Stops.front().Body, "[[BPR-2275]] the restored editor shows the stop's exact text");
 		// Failures are already exercised at the real host/store seam. Verify the
 		// native surface keeps the accepted editor and exposes explicit recovery.
 		auto failure    = restored.shown();
 		failure.Failure = application::tour_store_failure::unavailable;
 		restored.present(failure);
-		expect(restored.findChild<QLabel*>(QStringLiteral("tourSaveStatus"))->text().contains(QStringLiteral("not yet durable")), "local failure preserves source and explains durability");
+		expect(restored.stop_body()->toPlainText() == restoredText && restored.findChild<QLabel*>(QStringLiteral("tourSaveStatus"))->text().contains(QStringLiteral("not yet durable")), "local failure preserves source and explains durability");
 		restored.present({ });
-		expect(restored.stop_body()->isReadOnly(), "unavailable owner clears prior account text");
+		expect(restored.stop_body()->isReadOnly() && restored.stop_body()->toPlainText().isEmpty(), "unavailable owner clears prior account text");
 		restored.present(failure);
 		// A missing product wire must be detectable: typing cannot masquerade as
 		// durable success solely because a native editor displays the candidate.
 		restored.set_dispatch({ }, { });
+		restored.go_to_stop(accepted.Stops.front().Id);
+		restored.begin_stop_edit();
+		QApplication::processEvents();
+		restored.stop_body()->insertPlainText(QStringLiteral("unsaved wire negative control"));
+		expect(restored.stop_body()->toPlainText().toStdString() != restored.shown().Draft->Stops.front().Body, "[[BPR-2275]] removed dispatch wire is detected by accepted-state oracle");
 		shutdown(*application);
 		std::cout << "review-tour-composition:pass\n";
 		return EXIT_SUCCESS;
