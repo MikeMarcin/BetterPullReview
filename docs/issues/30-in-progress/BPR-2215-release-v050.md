@@ -398,3 +398,24 @@ These are still open on Windows:
 | `cb200dfa9` Ubuntu (Lima) Release, full suite | 1066 | 1054 passed, 12 failed (10 large-review timing judged on WSL2; `review_submission_scale_125`, `review_tour_publication_reconciliation`) |
 | `cb200dfa9` Windows Release, full suite | 1050 | 1030 passed, 20 failed |
 | `6afbf3268` Windows Release, 21 review and agent rows | 21 | 10 passed, 11 failed |
+
+## Seventh round: stopped for more build changes (2026-11-19)
+
+Stopped at the owner's word ("more changes are coming into the build"),
+with no new suite started. Since the sixth round:
+
+- **Review recovery race, confirmed.** A probe in
+  `sqlite_review_mutation_recovery_storage` opens the one new journal from
+  three threads at once (the mutation, off-hunk and submission stores a review
+  opens together). On Windows at `166fe62f7`, two of the three openers failed
+  with `integrity_failure` in the first of forty rounds: the schema was half
+  made by another opener. The journal's opens and schema are now serialized
+  in-process. The fix has not been run on Windows yet. The app's own log in
+  the failing review courses showed `invalid_permissions` at open, which may
+  be a second face of the same concurrent first open; that is unconfirmed.
+- **Custom agent on Windows.** A grant names POSIX paths, so on Windows the
+  turn runs without one; the course now expects that there.
+- **Native agent workspace on Windows.** The course now relays the app's
+  diagnostic log when the workspace check fails. The cause is still unknown.
+- Not done: measuring `sqlite_prompt_pack_storage` on Windows, the WSL2 i9
+  load-phase stall, and the full Release and Debug suites at the lane head.
