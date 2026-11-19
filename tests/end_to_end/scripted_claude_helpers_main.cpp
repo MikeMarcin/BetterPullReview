@@ -10,13 +10,18 @@
 // report, so the running block can be seen with helpers out, then replays to
 // the end and waits for its input to close. `BPR_SCRIPT_ATTENDED`, for the
 // owner's look, replays slowly and sends nothing for 130 seconds before its
-// last part, so the quiet notice shows.
+// last part, so the quiet notice shows. `BPR_SCRIPT_HELD` ([[BPR-2261]])
+// writes its third part's message as a review report and stops after that
+// part's result: every helper has ended and the last one's report back is
+// unanswered, so the turn is held for a part that never comes, as the
+// owner's build-68 turn was, until its input closes.
 
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <thread>
 
 #if !defined(BPR_AGENT_TRACE_DIR)
@@ -40,7 +45,17 @@ auto main() -> int
 	constexpr auto quiet   = part;
 #endif
 	auto parts = 0;
+#if defined(BPR_SCRIPT_HELD)
+	auto results = 0;
+#endif
 	for (auto line = std::string{ }; std::getline(trace, line);) {
+#if defined(BPR_SCRIPT_HELD)
+		constexpr auto said   = std::string_view{ "c.txt has 31 lines. Still waiting on b.txt." };
+		constexpr auto report = std::string_view{ "# Review of the line counts\\n\\n## Summary\\n\\nTwo of the three files were counted.\\n\\n## Findings\\n\\n- a.txt has 25 lines.\\n- c.txt has 31 lines." };
+		if (const auto at = line.find(said); at != std::string::npos && line.find("\"type\":\"assistant\"") != std::string::npos) {
+			line.replace(at, said.size(), report);
+		}
+#endif
 		const auto init   = line.find("\"subtype\":\"init\"") != std::string::npos;
 		const auto result = line.find("\"type\":\"result\"") != std::string::npos;
 		if (init && parts++ > 0) {
@@ -53,6 +68,10 @@ auto main() -> int
 #if defined(BPR_SCRIPT_UNFINISHED)
 		if (result) {
 			return EXIT_SUCCESS;
+		}
+#elif defined(BPR_SCRIPT_HELD)
+		if (result && ++results == 3) {
+			break;
 		}
 #else
 		static_cast<void>(result);

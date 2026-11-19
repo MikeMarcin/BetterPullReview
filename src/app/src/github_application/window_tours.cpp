@@ -1361,6 +1361,14 @@ namespace bpr::app {
 			return;
 		}
 		auto live = *TourLive;
+		// [[BPR-2261]]. Its kept workspace is checked, not made.
+		if (aEvent.Kind == application::agent_stream_kind::workspace_check) {
+			if (qt::agent_run_before_start(live.Stage)) {
+				live.Stage = qt::agent_run_stage::checking;
+				present_tour_live(std::move(live));
+			}
+			return;
+		}
 		// [[BPR-2005]], RFC-BPR-0103. The side chat's running block hears
 		// what the agent and its helpers do, and every frame.
 		const auto at = static_cast<std::uint64_t>(std::max<qint64>(0, qt::agent_activity_clock_ms() - live.ActivityStartedMs));

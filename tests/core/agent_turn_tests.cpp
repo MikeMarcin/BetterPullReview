@@ -63,7 +63,7 @@ namespace {
 			for (const auto latest : { false, true }) {
 				for (const auto working : { false, true }) {
 					const auto actions = core::decide_agent_turn_actions({ .Outcome = outcome, .HasText = true, .Latest = latest, .Working = working });
-					expect(actions.Error, "every non-answer is an error");
+					expect(actions.Error == (outcome != agent_turn_outcome::closed_with_app), "every non-answer but a turn the app's closing stopped is an error");
 					expect(!actions.Keep, "an error never offers the keep action");
 					expect(actions.Copy, "an error with words keeps Copy, for a report");
 					expect((actions.Recovery != agent_turn_recovery::none) == (latest && !working), "only the latest error, while nothing runs, offers a recovery");
@@ -78,7 +78,8 @@ namespace {
 		// [[BPR-1876]]. A start or workspace failure resends too: the new
 		// run starts the agent and makes its workspace, which is the check.
 		for (const auto outcome : { agent_turn_outcome::failed_to_start, agent_turn_outcome::workspace_unavailable, agent_turn_outcome::exited_with_error, agent_turn_outcome::history_unavailable,
-									agent_turn_outcome::stopped, agent_turn_outcome::timed_out, agent_turn_outcome::set_aside, agent_turn_outcome::ended_without_answer }) {
+									agent_turn_outcome::stopped, agent_turn_outcome::timed_out, agent_turn_outcome::set_aside, agent_turn_outcome::ended_without_answer,
+									agent_turn_outcome::closed_with_app }) {
 			expect(recovery(outcome) == agent_turn_recovery::resend, "any other ending resends");
 		}
 	}
@@ -135,6 +136,21 @@ namespace {
 				expect(!core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::answered, .HasText = hasText, .Latest = latest }).Delete, "an answer never offers Delete");
 			}
 		}
+	}
+
+	/// [[BPR-2261]]. A turn reloaded as answered (the app closed after its
+	/// result arrived) has no error, no Delete and no recovery; one the
+	/// app's closing stopped before it answered is not an error either, and
+	/// offers Resend and Delete, never the keep action.
+	void test_reloaded_turns_after_quit()
+	{
+		const auto answered = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::answered, .HasText = true, .Latest = true });
+		expect(!answered.Error && !answered.Delete && answered.Recovery == agent_turn_recovery::none && answered.Keep, "a reloaded answer is an answer");
+		const auto closed = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::closed_with_app, .HasText = true, .Latest = true });
+		expect(!closed.Error && closed.Copy && !closed.Keep && closed.Delete && closed.Recovery == agent_turn_recovery::resend && !closed.FixedSince,
+			   "a turn the app's closing stopped is said plainly, with Resend and Delete");
+		expect(core::stable_name(agent_turn_outcome::closed_with_app) == "closed_with_app", "its stable name");
+		expect(!core::agent_turn_never_sent(agent_turn_outcome::closed_with_app), "the agent had it");
 	}
 
 	void test_suggestions()
@@ -205,6 +221,7 @@ auto main() -> int
 	test_error_actions();
 	test_fixed_since();
 	test_delete_never_sent();
+	test_reloaded_turns_after_quit();
 	test_suggestions();
 	test_suggestion_press();
 	std::cout << "agent-turn-tests:pass\n";

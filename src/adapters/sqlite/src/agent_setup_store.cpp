@@ -27,7 +27,7 @@
 
 namespace bpr::adapters::sqlite {
 	// [[BPR-1847]]. The outcome column's check names every declared outcome.
-	static_assert(core::agent_turn_outcome_count == 10U, "agent_conversation_outcomes' CHECK must cover every turn outcome");
+	static_assert(core::agent_turn_outcome_count == 11U, "agent_conversation_outcomes' CHECK must cover every turn outcome");
 	// agent_finding_cards' CHECKs: every kept disposition (open is no row), the
 	// reason bound and the remembered-card bound.
 	static_assert(core::agent_finding_card_disposition_count == 5U && static_cast<int>(core::agent_finding_card_disposition::refused) == 4,
@@ -116,6 +116,18 @@ namespace bpr::adapters::sqlite {
 			"conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL,"
 			" seconds INTEGER CHECK(seconds IS NULL OR seconds BETWEEN 0 AND 4294967295), PRIMARY KEY(conversation,ordinal)"
 		};
+		/// [[BPR-1847]]. How each kept turn ended; [[BPR-2261]] added
+		/// `closed_with_app` (10).
+		constexpr auto agent_conversation_outcomes_columns = std::string_view{
+			"host TEXT NOT NULL,"
+			"owner TEXT NOT NULL,"
+			"name TEXT NOT NULL,"
+			"number INTEGER NOT NULL,"
+			"agent INTEGER NOT NULL,"
+			"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 49),"
+			"outcome INTEGER NOT NULL CHECK(outcome BETWEEN 0 AND 10),"
+			"PRIMARY KEY(host, owner, name, number, agent, position)"
+		};
 		constexpr auto agent_queue_entries_columns = std::string_view{
 			"session TEXT NOT NULL REFERENCES agent_queues(session),"
 			"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 15),"
@@ -155,10 +167,9 @@ namespace bpr::adapters::sqlite {
 		/// rolled back and the file is as it was. A store never adds a column
 		/// with ALTER TABLE: `detail::prepare` (sqlite_connection.cpp) says why.
 		///
-		/// Foreign keys stay on. The two tables rebuilt here reference
-		/// another table and are referenced by none, so dropping the old one
-		/// orphans nothing, and each copied row is checked against the table
-		/// it references as it is inserted.
+		/// Foreign keys stay on. The tables rebuilt here are referenced by
+		/// none, so dropping the old one orphans nothing, and each copied row
+		/// is checked against any table it references as it is inserted.
 		[[nodiscard]] auto rebuild_table(sqlite3* const aDatabase, const std::string_view aTable, const std::string_view aColumns, const std::string_view aCopied) -> bool
 		{
 			const auto statement = [](const std::initializer_list<std::string_view> aParts) {
@@ -213,6 +224,18 @@ namespace bpr::adapters::sqlite {
 				return false;
 			}
 			return *present != 0 || rebuild_table(aDatabase, "native_agent_turns", native_agent_turns_columns, "conversation,ordinal,asked,answered,ending,outcome");
+		}
+
+		/// [[BPR-2261]]. A file made before `closed_with_app` checks the
+		/// outcome against the outcomes before it; its table is rebuilt.
+		/// Build 68 and earlier wrote such files.
+		[[nodiscard]] auto complete_conversation_outcomes(sqlite3* const aDatabase) -> bool
+		{
+			const auto current = detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='agent_conversation_outcomes' AND sql LIKE '%outcome BETWEEN 0 AND 10)%'");
+			if (!current) {
+				return false;
+			}
+			return *current != 0 || rebuild_table(aDatabase, "agent_conversation_outcomes", agent_conversation_outcomes_columns, "host,owner,name,number,agent,position,outcome");
 		}
 
 		void bind_seconds(sqlite3_stmt* const aRow, const int aColumn, const std::optional<std::uint32_t> aSeconds)
@@ -391,6 +414,12 @@ namespace bpr::adapters::sqlite {
 									"state INTEGER NOT NULL CHECK(state IN (2,3)),"
 									"failure INTEGER NOT NULL CHECK(failure BETWEEN -1 AND 7),"
 									"version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) <= 128)) STRICT")
+				// [[BPR-2261]]. The pull request workspaces whose check passed,
+				// by the key their retained workspace is kept under, latest last.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_workspace_checks("
+									"position INTEGER PRIMARY KEY CHECK(position BETWEEN 0 AND 15),"
+									"key TEXT NOT NULL UNIQUE CHECK(length(CAST(key AS BLOB)) BETWEEN 1 AND 1024)) STRICT")
 				// [[BPR-2016]], RFC-BPR-0107. The built-in version each writing
 				// hook's override was written against, for the override whose
 				// SHA-256 is `text_digest`: a row for other text says nothing.
@@ -475,16 +504,7 @@ namespace bpr::adapters::sqlite {
 									"PRIMARY KEY(host, owner, name, number, agent, position)) STRICT")
 				// [[BPR-1847]]. How each turn ended, beside it: a turn stored
 				// before this table has no row and reads back from its ending.
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS agent_conversation_outcomes("
-									"host TEXT NOT NULL,"
-									"owner TEXT NOT NULL,"
-									"name TEXT NOT NULL,"
-									"number INTEGER NOT NULL,"
-									"agent INTEGER NOT NULL,"
-									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 49),"
-									"outcome INTEGER NOT NULL CHECK(outcome BETWEEN 0 AND 9),"
-									"PRIMARY KEY(host, owner, name, number, agent, position)) STRICT")
+				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS agent_conversation_outcomes(" } + std::string{ agent_conversation_outcomes_columns } + ") STRICT")
 				// Owner report 2026-11-10, after BPR-2052. What was done with each
 				// finding card of a stored answer, by the SHA-256 of the answer's
 				// findings block and the card's place in it; an open card has no
@@ -536,6 +556,7 @@ namespace bpr::adapters::sqlite {
 				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS agent_queue_entries(" } + std::string{ agent_queue_entries_columns } + ") STRICT")
 				|| !complete_queue_entries(db)
 				|| !complete_native_turns(db)
+				|| !complete_conversation_outcomes(db)
 				// [[BPR-2179]]. Each surface the reviewer changed: its list
 				// and what it took off, identities one a line. `layer` is
 				// empty for every repository, else the repository's, whose
@@ -812,6 +833,18 @@ namespace bpr::adapters::sqlite {
 					sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(record.Check.State));
 					sqlite3_bind_int64(row->Value, 3, record.Check.Failure ? static_cast<std::int64_t>(*record.Check.Failure) : -1);
 					bind_text(row->Value, 4, record.Check.Version);
+					committed = sqlite3_step(row->Value) == SQLITE_DONE;
+				}
+			}
+			if (committed) {
+				committed = detail::execute(aDatabase, "DELETE FROM agent_workspace_checks").has_value();
+			}
+			for (std::size_t index = 0U; committed && index < aPreferences.WorkspaceChecks.size(); ++index) {
+				auto row  = detail::prepare(aDatabase, "INSERT INTO agent_workspace_checks VALUES(?1,?2)");
+				committed = row.has_value();
+				if (committed) {
+					sqlite3_bind_int64(row->Value, 1, static_cast<std::int64_t>(index));
+					bind_text(row->Value, 2, aPreferences.WorkspaceChecks[index]);
 					committed = sqlite3_step(row->Value) == SQLITE_DONE;
 				}
 			}
@@ -1239,6 +1272,14 @@ namespace bpr::adapters::sqlite {
 							record.Check.Version = column_text(checks->Value, 3).value_or(std::string{ });
 							if (std::ranges::find(loaded.Agents, record.Id, &core::agent_entry::Id) != loaded.Agents.end()) {
 								loaded.EntryChecks.push_back(std::move(record));
+							}
+						}
+					}
+					// [[BPR-2261]]. The kept workspace checks, latest last.
+					if (auto checks = detail::prepare(store->Database.get(), "SELECT key FROM agent_workspace_checks ORDER BY position LIMIT 16"); checks) {
+						while (sqlite3_step(checks->Value) == SQLITE_ROW) {
+							if (auto key = column_text(checks->Value, 0); key && !key->empty() && key->size() <= application::maximum_workspace_check_key_bytes) {
+								loaded.WorkspaceChecks.push_back(std::move(*key));
 							}
 						}
 					}

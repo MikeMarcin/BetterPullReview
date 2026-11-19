@@ -37,6 +37,13 @@ namespace {
 		expect(family(operation_action::workspace_cleanup) == operation_diagnosis_family::agent_workspace && family(operation_action::agent_program_check) == operation_diagnosis_family::agent_setup
 				   && family(operation_action::resolve_thread) == operation_diagnosis_family::review_mutation,
 			   "each action belongs to its family");
+		// [[BPR-2261]]. A retained workspace checked, not made: its own line,
+		// with its duration, among the workspace lines.
+		const auto verified     = operation_diagnosis{ .Action = operation_action::workspace_verify, .DurationMilliseconds = 117000U };
+		const auto verifiedLine = describe(verified);
+		expect(verifiedLine.starts_with("action=workspace_verify failure=none") && verifiedLine.find("duration_ms=117000") != std::string::npos && parse_operation_diagnosis(verifiedLine) == verified,
+			   "a workspace check reads back as itself: " + verifiedLine);
+		expect(family(operation_action::workspace_verify) == operation_diagnosis_family::agent_workspace, "and is an agent workspace line");
 	}
 
 	void test_tour_publication_trace()

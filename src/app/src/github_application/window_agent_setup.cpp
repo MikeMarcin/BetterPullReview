@@ -1541,9 +1541,12 @@ namespace bpr::app {
 		AgentSetupWorkspaceStop = std::stop_source{ };
 		const auto generation   = ++AgentSetupWorkspaceGeneration;
 		const auto stop         = AgentSetupWorkspaceStop.get_token();
+		// [[BPR-2261]]. The result is kept under the key the pull request's
+		// workspace is kept under, across restarts.
+		auto workspaceKey = application::agent_workspace_key(authority, binding);
 		LastWorkspaceProbeReason.reset();
 		AgentSetup->set_workspace_check({ .State = core::setup_check_state::running });
-		AgentHost->probe_workspace(state.ApplicationSession, authority, std::move(binding), linked_history_clone(false), [this, failed, stop, generation](std::expected<application::prepared_workspace, application::agent_workspace_error> aProbed) {
+		AgentHost->probe_workspace(state.ApplicationSession, authority, std::move(binding), linked_history_clone(false), [this, failed, stop, generation, key = std::move(workspaceKey)](std::expected<application::prepared_workspace, application::agent_workspace_error> aProbed) {
 									   if (Closing || !AgentSetup || generation != AgentSetupWorkspaceGeneration) {
 										   return;
 									   }
@@ -1554,9 +1557,10 @@ namespace bpr::app {
 									   }
 									   if (aProbed) {
 										   LastWorkspaceProbeReason.reset();
-										   AgentSetup->set_workspace_check({ .State = core::setup_check_state::passed });
+										   AgentSetup->settle_workspace_check(key, { .State = core::setup_check_state::passed });
 										   return;
 									   }
+									   AgentSetup->settle_workspace_check(key, core::fail_check(core::agent_setup_failure::workspace_unavailable));
 									   failed(aProbed.error().Code == application::agent_workspace_failure::unavailable ? std::optional{ aProbed.error().Reason } : std::nullopt, aProbed.error().Detail); }, stop);
 	}
 

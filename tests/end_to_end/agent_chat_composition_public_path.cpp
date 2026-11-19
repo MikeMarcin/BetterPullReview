@@ -685,6 +685,140 @@ namespace {
 		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
 	}
 
+	/// [[BPR-2261]], AC2, AC3. The owner's build-68 turn: a scripted Claude
+	/// replays the installed runtime's frames for three background helpers,
+	/// writes its last part's message as a review report and stops after that
+	/// part's result, with every helper ended and the last report back
+	/// unanswered. The turn is held; the app quits while it is; reopened on
+	/// the same profile, the turn is answered, with its report card, and its
+	/// narration and report are separate paragraphs.
+	[[nodiscard]] auto held_turn_course(const char* const aClaude) -> int
+	{
+		const auto marker = std::string{ "agent-chat-held-turn" };
+		auto       data   = QTemporaryDir{ };
+		const auto root   = data.isValid() ? e2e::private_data_root(data) : std::nullopt;
+		if (!root) {
+			return EXIT_FAILURE;
+		}
+		{
+			auto preferences        = application::agent_setup_preferences{ };
+			preferences.AgentsMoved = true;
+			auto entry              = core::agent_entry{ };
+			entry.Id                = 1U;
+			entry.Name              = "Claude Code";
+			entry.Protocol          = core::agent_protocol::claude_stream_json;
+			entry.Program           = aClaude;
+			entry.Identity          = std::string(32U, 'c');
+			preferences.Agents.push_back(std::move(entry));
+			preferences.PreferredAgent = 1U;
+			if (!adapters::sqlite::make_agent_setup_store(*root)->store(preferences)) {
+				return EXIT_FAILURE;
+			}
+		}
+		const auto seconds = [](const int aSeconds) { return std::chrono::milliseconds{ aSeconds * 1'000 }; };
+		// One window on the profile: started, connected, the pull request open
+		// on the Agent tab with the scripted Claude chosen.
+		const auto open = [&](std::unique_ptr<app::github_application>& aApplication, const std::string_view aStage) -> bool {
+			auto terminal = false;
+			auto startup  = app::detail::github_application_fixture_access::start(
+				app::detail::github_public_path_fixture::nested_folders_v1,
+				{ .ApplicationDataRoot = root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
+				[&](auto aResult) {
+					terminal = true;
+					if (aResult) {
+						aApplication = std::move(*aResult);
+					}
+				});
+			if (!e2e::wait_until_plain([&] { return terminal && startup && startup->is_quiescent(); }, seconds(60)) || !aApplication) {
+				std::cerr << marker << " failure:" << aStage << "-start\n";
+				return false;
+			}
+			aApplication->show();
+			auto& window = aApplication->window();
+			window.resize(1'280, 860);
+			window.github_connect_action()->trigger();
+			if (!e2e::wait_until_plain([&] { return window.github_open_action()->isEnabled(); }, seconds(60))) {
+				std::cerr << marker << " failure:" << aStage << "-connect\n";
+				return false;
+			}
+			window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
+			window.home_open_action()->trigger();
+			auto* const panel = window.agent_panel();
+			if (!e2e::wait_until_plain([&] { return window.files_drawer()->contents_view()->model()->rowCount() >= 5 && panel->profile_selector()->count() > 0; }, seconds(60))) {
+				std::cerr << marker << " failure:" << aStage << "-open\n";
+				return false;
+			}
+			const auto claude = panel->profile_selector()->findData(QVariant::fromValue<qulonglong>(core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U).value()));
+			if (claude < 0) {
+				std::cerr << marker << " failure:" << aStage << "-offered\n";
+				return false;
+			}
+			panel->profile_selector()->setCurrentIndex(claude);
+			auto* const files = window.files_drawer()->contents_view();
+			files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+			window.choose_modality(qt::review_modality::review);
+			window.tray_tabs()->setCurrentIndex(2);
+			static_cast<void>(e2e::wait_until_plain([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*aApplication).Quiescent; }, seconds(60)));
+			return true;
+		};
+
+		auto first = std::unique_ptr<app::github_application>{ };
+		if (!open(first, "first")) {
+			if (first) {
+				static_cast<void>(shutdown(*first));
+			}
+			return EXIT_FAILURE;
+		}
+		auto* tab = first->window().agent_tab();
+		if (!e2e::wait_until_plain(
+				[&] {
+					if (tab->turn_count() == 0U && tab->state() != qt::agent_tab_state::working) {
+						tab->send_prompt(QStringLiteral("Review this pull request"));
+					}
+					return tab->turn_count() == 1U;
+				},
+				seconds(30))) {
+			return fail(*first, "held-sent", tab->send_refusal_text().toStdString());
+		}
+		// Held: the report is shown, every helper has ended, and the turn
+		// still runs, finishing.
+		const auto held       = e2e::wait_until_plain([&] { return tab->state() == qt::agent_tab_state::working && tab->turn_answer(0U).contains(QStringLiteral("# Review of the line counts")) && tab->turn_footer(0U).contains(QStringLiteral("is finishing")); }, seconds(60));
+		const auto liveFooter = tab->turn_footer(0U);
+		const auto stillHeld  = tab->state() == qt::agent_tab_state::working;
+		if (!held) {
+			return fail(*first, "held-not-held", liveFooter.toStdString());
+		}
+		if (!shutdown(*first)) {
+			return EXIT_FAILURE;
+		}
+		first.reset();
+
+		// Reopened on the same profile.
+		auto second = std::unique_ptr<app::github_application>{ };
+		if (!open(second, "second")) {
+			if (second) {
+				static_cast<void>(shutdown(*second));
+			}
+			return EXIT_FAILURE;
+		}
+		tab                = second->window().agent_tab();
+		const auto loaded  = e2e::wait_until_plain([&] { return tab->turn_count() == 1U && tab->turn_outcome(0U).has_value(); }, seconds(60));
+		const auto outcome = loaded ? tab->turn_outcome(0U) : std::nullopt;
+		const auto answer  = loaded ? tab->turn_answer(0U) : QString{ };
+		auto*      card    = loaded ? tab->turn_report_card(0U) : nullptr;
+		const auto footer  = loaded ? tab->turn_footer(0U) : QString{ };
+		std::cout << marker << ": held-at-quit=" << stillHeld << " live=\"" << liveFooter.toStdString() << "\" restored=" << (outcome ? core::stable_name(*outcome) : std::string_view{ "none" }) << " card=" << (card != nullptr && card->isVisibleTo(&second->window()))
+				  << " footer=\"" << footer.toStdString() << "\"\n";
+		std::cout << marker << " answer: " << answer.left(1200).toStdString() << "\n";
+		const auto passed = loaded && outcome == core::agent_turn_outcome::answered && card != nullptr && card->isVisibleTo(&second->window()) && answer.contains(QStringLiteral("I started three reviewers"))
+			&& answer.contains(QStringLiteral("\n\n# Review of the line counts")) && !footer.contains(QStringLiteral("Stopped"));
+		if (!shutdown(*second)) {
+			return EXIT_FAILURE;
+		}
+		std::cout << marker << (passed ? ":pass\n" : ":fail\n");
+		return passed ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
+
 	/// \brief The setup-list course, from a window whose Settings already added
 	/// "Fixture agent": the setup's Agent step follows Settings' list.
 	[[nodiscard]] auto setup_list_course(app::github_application& aApplication, qt::workbench_window& aWindow) -> int
@@ -815,6 +949,9 @@ auto main(int argc, char** argv) -> int
 	}
 	if (course == "helpers" || course == "helpers-unfinished") {
 		return helpers_course(argv[2], course == "helpers-unfinished");
+	}
+	if (course == "held-turn") {
+		return held_turn_course(argv[2]);
 	}
 	if (
 		course != "positive" && course != "stale" && course != "continued"

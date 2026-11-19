@@ -3,6 +3,7 @@
 /// doing and when it last did anything, a row per helper, the quiet notice and
 /// its two choices, and the folded line after the turn.
 
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 
 #include <QApplication>
@@ -71,6 +72,15 @@ auto main(int argc, char** argv) -> int
 		expect(at == QStringLiteral("● Claude is thinking, 1:12 · $1.84."), "the thinking line with its cost: " + at.toStdString());
 		bare.Stage = qt::agent_run_stage::preparing;
 		expect(!qt::agent_run_status_words(bare, 3).contains(QLatin1Char{ '$' }), "no cost while the workspace is made");
+		// [[BPR-2261]], AC5. Making is said only while a workspace is made;
+		// the retained one is checked.
+		expect(qt::agent_run_status_words(bare, 3) == QStringLiteral("● Claude is making its workspace at the head, 0:03."), "a workspace being made");
+		bare.Stage = qt::agent_run_stage::checking;
+		expect(qt::agent_run_status_words(bare, 3) == QStringLiteral("● Claude is checking its workspace at the head, 0:03."), "the retained workspace being checked: " + qt::agent_run_status_words(bare, 3).toStdString());
+		expect(qt::agent_footer_doing_words(bare) == QStringLiteral("checking its workspace"), "and the footer says the same");
+		// [[BPR-2261]]. A turn the app's closing stopped says so on reload.
+		expect(qt::agent_turn_ending_words(QStringLiteral("Claude Code"), core::agent_turn_outcome::closed_with_app, 1006) == QStringLiteral("Stopped when the app closed, after 16:46"), "a turn stopped by the app closing");
+		expect(qt::agent_turn_ending_words(QStringLiteral("Claude Code"), core::agent_turn_outcome::answered, 1006) == QStringLiteral("Claude answered in 16:46"), "an answered turn, reloaded");
 		bare.Cost.reset();
 		bare.Stage = qt::agent_run_stage::thinking;
 		expect(qt::agent_run_status_words(bare, 72) == QStringLiteral("● Claude is thinking, 1:12."), "no cost reported, none said");

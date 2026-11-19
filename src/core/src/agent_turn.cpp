@@ -14,6 +14,7 @@ namespace bpr::core {
 		case agent_turn_outcome::timed_out:             return "timed_out";
 		case agent_turn_outcome::set_aside:             return "set_aside";
 		case agent_turn_outcome::ended_without_answer:  return "ended_without_answer";
+		case agent_turn_outcome::closed_with_app:       return "closed_with_app";
 		}
 		return { };
 	}
@@ -63,7 +64,8 @@ namespace bpr::core {
 		case agent_turn_outcome::stopped:
 		case agent_turn_outcome::timed_out:
 		case agent_turn_outcome::set_aside:
-		case agent_turn_outcome::ended_without_answer:  return agent_turn_cause::none;
+		case agent_turn_outcome::ended_without_answer:
+		case agent_turn_outcome::closed_with_app:       return agent_turn_cause::none;
 		}
 		return agent_turn_cause::none;
 	}
@@ -80,7 +82,8 @@ namespace bpr::core {
 		case agent_turn_outcome::stopped:
 		case agent_turn_outcome::timed_out:
 		case agent_turn_outcome::set_aside:
-		case agent_turn_outcome::ended_without_answer:  return false;
+		case agent_turn_outcome::ended_without_answer:
+		case agent_turn_outcome::closed_with_app:       return false;
 		}
 		return false;
 	}
@@ -90,7 +93,7 @@ namespace bpr::core {
 		if (aFacts.Outcome == agent_turn_outcome::answered) {
 			return { .Error = false, .Copy = aFacts.HasText, .Keep = aFacts.HasText, .Recovery = agent_turn_recovery::none };
 		}
-		auto actions       = agent_turn_actions{ .Error = true, .Copy = aFacts.HasText };
+		auto actions       = agent_turn_actions{ .Error = aFacts.Outcome != agent_turn_outcome::closed_with_app, .Copy = aFacts.HasText };
 		actions.FixedSince = aFacts.CausePassedSince && agent_turn_cause_of(aFacts.Outcome) != agent_turn_cause::none;
 		actions.Delete     = !aFacts.Working;
 		if (!aFacts.Latest || aFacts.Working) {
@@ -105,7 +108,8 @@ namespace bpr::core {
 		case agent_turn_outcome::stopped:
 		case agent_turn_outcome::timed_out:
 		case agent_turn_outcome::set_aside:
-		case agent_turn_outcome::ended_without_answer:  actions.Recovery = agent_turn_recovery::resend; break;
+		case agent_turn_outcome::ended_without_answer:
+		case agent_turn_outcome::closed_with_app:       actions.Recovery = agent_turn_recovery::resend; break;
 		case agent_turn_outcome::answered:              break;
 		}
 		return actions;

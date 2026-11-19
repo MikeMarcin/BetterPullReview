@@ -134,13 +134,13 @@ namespace bpr::qt {
 		// [[BPR-2252]]. The turn's cost so far follows its time, as the
 		// settled line's does: "3:12 · $0.41".
 		auto elapsed = agent_elapsed_words(aSeconds);
-		if (aStatus.Cost && aStatus.Stage != agent_run_stage::preparing) {
+		if (aStatus.Cost && !agent_run_before_start(aStatus.Stage)) {
 			elapsed += QStringLiteral(" · ") + QString::fromStdString(core::agent_cost_words(*aStatus.Cost));
 		}
 		auto line = QString{ };
 		// [[BPR-2005]]. The runtime's own events say what it is doing, and
 		// when it last sent anything.
-		if (aStatus.Activity && aStatus.Stage != agent_run_stage::preparing) {
+		if (aStatus.Activity && !agent_run_before_start(aStatus.Stage)) {
 			const auto since = agent_activity_clock_ms() - aStatus.ActivityStartedMs - static_cast<qint64>(aStatus.Activity->LastFrameMs);
 			line             = QObject::tr("%1 %2, %3 · %4.").arg(aStatus.Agent, agent_doing_words(*aStatus.Activity), elapsed, agent_last_activity_words(since));
 			if (aStatus.FilesOnly) {
@@ -150,6 +150,7 @@ namespace bpr::qt {
 		}
 		switch (aStatus.Stage) {
 		case agent_run_stage::preparing: line = QObject::tr("%1 is making its workspace at the head, %2.").arg(aStatus.Agent, elapsed); break;
+		case agent_run_stage::checking:  line = QObject::tr("%1 is checking its workspace at the head, %2.").arg(aStatus.Agent, elapsed); break;
 		case agent_run_stage::thinking:
 			line = QObject::tr("%1 is thinking, %2.").arg(aStatus.Agent, elapsed);
 			if (!aStatus.Latest.isEmpty()) {
@@ -159,7 +160,7 @@ namespace bpr::qt {
 		case agent_run_stage::writing: line = QObject::tr("%1 is writing, %2.").arg(aStatus.Agent, elapsed); break;
 		}
 		// [[BPR-1873]]. A sparse review with no clone: said while it runs.
-		if (aStatus.FilesOnly && aStatus.Stage != agent_run_stage::preparing) {
+		if (aStatus.FilesOnly && !agent_run_before_start(aStatus.Stage)) {
 			line += QStringLiteral(" ") + QObject::tr("It sees only this pull request's files.");
 		}
 		return QStringLiteral("● ") + line;
@@ -181,6 +182,14 @@ namespace bpr::qt {
 			return aSeconds ? agent_run_answered_words(agent_short_name(aAgent), *aSeconds) : QObject::tr("%1 answered").arg(agent_short_name(aAgent));
 		}
 		return aSeconds ? agent_run_stopped_words(*aSeconds) : QObject::tr("Stopped");
+	}
+
+	auto agent_turn_ending_words(const QString& aAgent, const core::agent_turn_outcome aOutcome, const std::optional<qint64> aSeconds) -> QString
+	{
+		if (aOutcome == core::agent_turn_outcome::closed_with_app) {
+			return aSeconds ? QObject::tr("Stopped when the app closed, after %1").arg(agent_elapsed_words(*aSeconds)) : QObject::tr("Stopped when the app closed");
+		}
+		return agent_turn_ending_words(aAgent, aOutcome == core::agent_turn_outcome::answered, aSeconds);
 	}
 
 	agent_run_status_line::agent_run_status_line(QWidget* aParent)

@@ -160,6 +160,11 @@ namespace bpr::application {
 		auto operator<=>(const agent_session_catalog_projection&) const = default;
 	};
 
+	/// \brief The key a pull request's shared (retained) workspace is kept
+	/// under: its authority and the base and head it was made at. The setup's
+	/// workspace check is kept under it too ([[BPR-2261]]).
+	[[nodiscard]] auto agent_workspace_key(const core::pull_request_authority& aAuthority, const core::agent_revision_binding& aBinding) -> std::string;
+
 	class agent_invocation_projection_port
 	{
 	public:
@@ -284,6 +289,10 @@ namespace bpr::application {
 		/// \brief [[BPR-1751]], RFC-BPR-0092 Check it works. Makes the
 		/// workspace an Ask on this binding would make, through the same
 		/// workspace port, then removes it, and answers on the decision lane.
+		/// [[BPR-2261]]. When the pull request's retained workspace is kept
+		/// for this binding, it is checked as a reattaching turn checks it
+		/// instead, and nothing is made or removed; one a turn holds now
+		/// passes as it is.
 		/// \details No session is admitted and no agent runs: the probe's
 		/// session identity is from a reserved range no durable session uses.
 		/// It counts toward quiescence until it answers.

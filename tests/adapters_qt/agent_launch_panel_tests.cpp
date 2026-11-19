@@ -594,6 +594,27 @@ namespace {
 		expect(signIn.contains(QStringLiteral("The line it ended at:\n{\"type\":\"system\",\"subtype\":\"api_retry\"")) && !signIn.contains(QStringLiteral("couldn't read")),
 			   "a failed sign-in names the line it ended at");
 	}
+
+	/// [[BPR-2261]], AC5. While it prepares, a run that checks the retained
+	/// workspace says so; making is said only for a workspace being made,
+	/// and the check is not a frame of the agent's.
+	void test_a_retained_workspace_check_is_said_as_one()
+	{
+		auto       panel    = qt::agent_launch_panel{ };
+		const auto identity = application::agent_invocation_projection_identity{
+			.ApplicationSession   = core::application_session_id{ 1U },
+			.Session              = { .Id = core::agent_session_id{ 2U } },
+			.InvocationGeneration = 1U,
+		};
+		panel.admit(identity);
+		expect(panel.current_phase() == qt::agent_launch_panel::phase::preparing && !panel.workspace_checking(), "a run prepares by making its workspace until told otherwise");
+		panel.stream(identity, { .Session = identity.Session.Id, .Kind = application::agent_stream_kind::workspace_check });
+		expect(panel.workspace_checking() && panel.activity().LastFrameMs == 0U && panel.output_text().isEmpty(), "the retained workspace is being checked; nothing the agent said");
+		panel.start(identity, application::prepared_workspace{ .Path = "/tmp/exact-agent-head" });
+		expect(!panel.workspace_checking() && panel.current_phase() == qt::agent_launch_panel::phase::running, "once the run starts, it is no longer checking");
+		panel.admit(identity);
+		expect(!panel.workspace_checking(), "a new run starts over");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -611,6 +632,7 @@ auto main(int argc, char** argv) -> int
 	test_projection_uses_the_shipped_visible_controls();
 	test_prestart_terminals_keep_the_exact_admitted_identity();
 	test_a_failed_run_log_says_what_happened();
+	test_a_retained_workspace_check_is_said_as_one();
 	std::cout << "agent-launch-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }

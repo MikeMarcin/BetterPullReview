@@ -329,6 +329,12 @@ namespace {
 				AfterStart();
 				LastStopRequested = aStop.stop_requested();
 			}
+			// [[BPR-2261]]. A run that ends as the shared loop said it ended.
+			if (Returned) {
+				auto result    = *Returned;
+				result.Session = aRequest.Session;
+				return result;
+			}
 			if (LastStopRequested) {
 				return {
 					.Session = aRequest.Session,
@@ -386,6 +392,7 @@ namespace {
 		mutable std::vector<application::agent_steer_request> SupportAsked;
 		std::vector<application::agent_steer_request>         Steered;
 		std::vector<std::string>                              AssistantItems;
+		std::optional<application::agent_run_result>          Returned;
 		std::size_t                                           Starts            = 0U;
 		std::size_t                                           Cancels           = 0U;
 		int                                                   LastTimeout       = 0;
@@ -1999,6 +2006,84 @@ namespace {
 }
 
 namespace {
+	/// [[BPR-2261]]. An Agent tab turn on a native session, as the tab asks.
+	[[nodiscard]] auto agent_tab_turn() -> application::agent_invocation_request
+	{
+		auto input                = request(core::git_host_id{ 1U }, core::claude_stream_json_profile_id);
+		input.NativeAgentIdentity = "incarnation";
+		input.NativeScope         = "agent-tab";
+		return input;
+	}
+
+	[[nodiscard]] auto kept_turn(application::agent_run_result aReturned, const bool aQuit) -> application::agent_conversation_turn
+	{
+		auto       test         = harness{ };
+		const auto input        = agent_tab_turn();
+		test.Processes.Returned = std::move(aReturned);
+		if (aQuit) {
+			test.Processes.AfterStart = [&test] { test.Host.shutdown(); };
+		}
+		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		test.settle();
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == 1U && test.NativeSessions.Appended.size() == 1U, "the turn ran and was kept");
+		return test.NativeSessions.Appended.front();
+	}
+
+	/// [[BPR-2261]], AC2, AC3. A turn is kept as it ended: one that received
+	/// its answer is answered whatever stopped its run later; one the app's
+	/// closing stopped before is kept as that, with its words; the
+	/// narration and the report are separate paragraphs, as the live turn
+	/// showed them.
+	void test_a_turn_is_kept_as_it_ended()
+	{
+		const auto items    = std::vector<std::string>{ "I asked a helper about the loop.", "# Review of the loop\n\nIt ends." };
+		const auto answered = kept_turn({ .Outcome = application::agent_run_outcome::success, .AssistantItems = items }, false);
+		expect(answered.Outcome == core::agent_turn_outcome::answered && answered.Answered == "I asked a helper about the loop.\n\n# Review of the loop\n\nIt ends.",
+			   "the report starts its own paragraph: " + answered.Answered);
+
+		auto stopped               = application::agent_run_result{ .Outcome = application::agent_run_outcome::success, .AssistantItems = items };
+		stopped.StoppedAfterAnswer = true;
+		const auto quitAnswered    = kept_turn(stopped, true);
+		expect(quitAnswered.Outcome == core::agent_turn_outcome::answered && quitAnswered.Ending == "success", "quitting after the answer arrived keeps it answered");
+
+		const auto quitWorking = kept_turn({ .Outcome = application::agent_run_outcome::cancelled, .AssistantItems = items }, true);
+		expect(quitWorking.Outcome == core::agent_turn_outcome::closed_with_app && quitWorking.Answered.find("# Review of the loop") != std::string::npos,
+			   "quitting with a helper still out keeps the turn as closed with the app, and its words");
+
+		const auto reviewerStopped = kept_turn({ .Outcome = application::agent_run_outcome::cancelled, .AssistantItems = items }, false);
+		expect(reviewerStopped.Outcome == core::agent_turn_outcome::ended_without_answer, "Stop before the answer is still a stop");
+	}
+
+	/// [[BPR-2261]], AC4. With the pull request's retained workspace kept,
+	/// Check it works checks it as a reattaching turn does: nothing is
+	/// cloned or removed.
+	void test_workspace_probe_checks_a_retained_workspace_without_cloning()
+	{
+		auto       test   = harness{ };
+		const auto hostId = core::git_host_id{ 1U };
+		auto       kept   = application::owned_agent_workspace{
+			.Workspace         = application::prepared_workspace{ .Policy = core::agent_workspace_policy::disposable_review_workspace, .PinnedHead = binding(hostId).HeadOid, .Path = "/tmp/bpr-agent-owned/retained" },
+			.OwnershipMarker   = "owned",
+			.DirectoryIdentity = { .Opaque = { 2U, 1U, 0U, 1U } },
+		};
+		test.NativeSessions.SharedWorkspaces.emplace(application::agent_workspace_key(authority(hostId), binding(hostId)), kept);
+		auto answer = std::optional<std::expected<application::prepared_workspace, application::agent_workspace_error>>{ };
+		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, [&answer](auto aProbed) { answer = std::move(aProbed); });
+		test.settle();
+		expect(answer && answer->has_value() && (*answer)->Path == "/tmp/bpr-agent-owned/retained", "the check passes on the retained workspace");
+		expect(test.Workspaces.Starts == 0U && test.Workspaces.Cleanups == 0U && test.Workspaces.Inspections == 1U, "it is checked, never cloned again or removed");
+
+		test.Workspaces.InspectFails = true;
+		answer.reset();
+		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, [&answer](auto aProbed) { answer = std::move(aProbed); });
+		test.settle();
+		expect(answer && !answer->has_value() && test.Workspaces.Starts == 0U, "a retained workspace that fails its check fails the row");
+	}
+}
+
+namespace {
 	/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 AC01, AC03, AC04, AC06. The
 	/// host makes the turn's scratch folder, launches with its grant, reports
 	/// what the turn wrote there and removes a turn's own folder; builds are
@@ -2646,6 +2731,8 @@ auto main(const int aCount, char** aArguments) -> int
 	test_a_fresh_turn_under_the_same_binding_change_is_superseded();
 	test_a_promoted_finding_reaches_only_the_note_authority();
 	test_workspace_probe_makes_and_removes_a_workspace_without_a_session();
+	test_workspace_probe_checks_a_retained_workspace_without_cloning();
+	test_a_turn_is_kept_as_it_ended();
 	test_the_brief_names_the_workspace_that_was_made();
 	test_a_run_has_no_time_limit_unless_one_is_set();
 	test_a_tour_prompt_past_the_chat_bound_reaches_the_agent_once();

@@ -26,6 +26,11 @@ namespace bpr::application {
 		auto operator<=>(const agent_entry_check_record&) const = default;
 	};
 
+	/// \brief [[BPR-2261]]. How many pull request workspaces' passed checks
+	/// are kept, the latest last; the longest key one may have.
+	inline constexpr std::size_t maximum_kept_workspace_checks     = 16U;
+	inline constexpr std::size_t maximum_workspace_check_key_bytes = 1024U;
+
 	/// \brief The longest version a kept check may say.
 	inline constexpr std::size_t maximum_agent_check_version_bytes = 128U;
 
@@ -72,6 +77,12 @@ namespace bpr::application {
 		bool FollowUpSteer = false;
 		/// [[BPR-2051]]. Each added agent's last check, by entry id.
 		std::vector<agent_entry_check_record> EntryChecks;
+		/// [[BPR-2261]]. The pull request workspaces whose check passed, by
+		/// the key their retained workspace is kept under (its authority and
+		/// base and head, `agent_workspace_key`), the latest last; at most
+		/// `maximum_kept_workspace_checks`. Beside the agents' own checks, so
+		/// setup does not ask for Check again after every restart.
+		std::vector<std::string> WorkspaceChecks;
 		/// RFC-BPR-0104 as amended 2026-11-11 (owner look e97c6a3d). The
 		/// scratch folder limit in MiB, and the days an unused folder is kept
 		/// (0: kept until cleared).
@@ -96,6 +107,8 @@ namespace bpr::application {
 			&& aPreferences.RunLimitMinutes <= maximum_run_limit_minutes && aPreferences.EntryChecks.size() <= core::maximum_agent_entry_id
 			&& aPreferences.ScratchLimitMiB >= core::minimum_agent_scratch_limit_mib && aPreferences.ScratchLimitMiB <= core::maximum_agent_scratch_limit_mib
 			&& aPreferences.ScratchKeepDays <= core::maximum_agent_scratch_keep_days
+			&& aPreferences.WorkspaceChecks.size() <= maximum_kept_workspace_checks
+			&& std::ranges::all_of(aPreferences.WorkspaceChecks, [](const std::string& aKey) { return !aKey.empty() && aKey.size() <= maximum_workspace_check_key_bytes; })
 			&& std::ranges::all_of(aPreferences.EntryChecks, [](const agent_entry_check_record& aRecord) {
 				   return aRecord.Id >= 1U && aRecord.Id <= core::maximum_agent_entry_id && (aRecord.Check.State == core::setup_check_state::passed || aRecord.Check.State == core::setup_check_state::failed)
 					   && aRecord.Check.Version.size() <= maximum_agent_check_version_bytes && (aRecord.Check.State == core::setup_check_state::failed) == aRecord.Check.Failure.has_value();

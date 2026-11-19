@@ -481,6 +481,7 @@ namespace bpr::qt {
 		LastFailure.reset();
 		LastUnfinished.clear();
 		RunningTurnCost.reset();
+		WorkspaceChecking = false;
 		Activity          = { };
 		ActivityReported  = false;
 		ActivityStartedMs = agent_activity_clock_ms();
@@ -524,6 +525,7 @@ namespace bpr::qt {
 				.arg(QString::fromStdString(aWorkspace.Path)));
 		PullRequestFilesOnly = aWorkspace.Shallow;
 		Phase                = phase::running;
+		WorkspaceChecking    = false;
 		// [[BPR-2005]]. The block's times count from the agent's start.
 		Activity          = { };
 		ActivityStartedMs = agent_activity_clock_ms();
@@ -538,6 +540,13 @@ namespace bpr::qt {
 		if (
 			ActiveInvocation != std::optional{ aIdentity }
 			|| aEvent.Session != aIdentity.Session.Id) {
+			return;
+		}
+		// [[BPR-2261]]. Before the run: its kept workspace is being checked.
+		// No frame of the agent's.
+		if (aEvent.Kind == application::agent_stream_kind::workspace_check) {
+			WorkspaceChecking = Phase == phase::preparing;
+			progressed();
 			return;
 		}
 		// [[BPR-2005]]. Every event is a frame; an activity says what the
