@@ -777,6 +777,7 @@ class ConfiguredManifestTests(unittest.TestCase):
                 "prompt-turn-name-store-predicate-failed",
                 "agent-finding-card-store-predicate-failed",
                 "scratch-git-init-failed",
+                "prompt-pack-store-predicate-failed",
                 "profile-root-refused",
                 "child-exit-3-without-output",
                 "application-startup-refused",

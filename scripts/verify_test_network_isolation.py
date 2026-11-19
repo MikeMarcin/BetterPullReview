@@ -379,9 +379,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_review_seen_stays_public_path": "private-desktop-root-refused",
     "application_review_seen_fails_public_path": "private-desktop-root-refused",
     "application_commit_asks_public_path": "unmeasured (registered on macOS)",
-    # [[BPR-2149]]. The prompt-pack store's course, registered with the
-    # prompt-pack work on main; Windows measures it next.
-    "sqlite_prompt_pack_storage": "unmeasured (registered on macOS)",
+    # [[BPR-2149]]. The prompt-pack store's course, measured contained at
+    # fb60e393e: "FAILED: the sender's prompts are stored".
+    "sqlite_prompt_pack_storage": "prompt-pack-store-predicate-failed",
     # [[BPR-2215]], measured contained at cb200dfa9: the agent setup store's
     # restart reads nothing back ("AC07 the store gives the name back after a
     # restart"; "the fresh host reads the one kept card back").
@@ -391,11 +391,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # '--quiet'] failed: cannot lock ref 'HEAD'".
     "record_rfc0017_anonymous_contracts_recorder": "scratch-git-init-failed",
     # [[BPR-2280]], [[BPR-2281]]. Draft Description with the fixture agent
-    # and Save in Author.
+    # and Save in Author. Registered only off Windows (`if(APPLE OR UNIX)`).
     "application_draft_description_public_path": "unmeasured (registered on macOS)",
-    # [[BPR-2261]]. A held turn restored after quit, registered on main
-    # without an entry.
-    "application_agent_chat_held_turn_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-2261]]. A held turn restored after quit, the agent-chat course's
+    # own binary; measured contained at fb60e393e it exits silently, as its
+    # sibling helpers courses do when the private test root is refused.
+    "application_agent_chat_held_turn_public_path": "private-test-root-refused",
     # Registered on main without an entry.
     "application_window_file_drop_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.

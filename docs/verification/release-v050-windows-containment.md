@@ -186,3 +186,16 @@ suites (`f5343b1e1`, `cb200dfa9`): Git for Windows' `git init --quiet` could
 not create `.git/HEAD` in the AppContainer's temporary folder ("cannot lock
 ref 'HEAD'"). It is registered `WINDOWS_UNCONTAINED`, pinned
 `scratch-git-init-failed`.
+
+## Rows main added by `392dffc6f` — measured at `fb60e393e`
+
+| Course | Direct exit | Contained exit | First contained observation |
+| --- | --- | --- | --- |
+| `sqlite_prompt_pack_storage` | 0 | 8 | `FAILED: the sender's prompts are stored` |
+| `application_agent_chat_held_turn_public_path` | 0 | 8 | no output (exits as the agent-chat helpers courses do when the private test root is refused) |
+
+Pinned `prompt-pack-store-predicate-failed` and `private-test-root-refused`.
+`application_draft_description_public_path` is registered only off Windows
+and stays unmeasured, as do the commit-asks and report courses.
+`application_window_file_drop_public_path` is pinned unmeasured until the next
+Windows measurement.
