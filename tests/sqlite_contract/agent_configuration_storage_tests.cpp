@@ -8,6 +8,7 @@
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/application/agent_configuration_exchange.hpp"
 #include "bpr/application/writing_hooks.hpp"
+#include "bpr/core/prompt_features.hpp"
 #include "scratch_root.hpp"
 
 #include <sqlite3.h>
@@ -279,6 +280,36 @@ try {
 	expect(style_outcome && style_outcome->has_value() && style_hooks.Overrides[static_cast<std::size_t>(core::writing_hook::writing_style)] == "Follow my house-style skill."
 			   && application::writing_style_for(style_hooks, true).ends_with("Follow my house-style skill."),
 		   "the import applies the override, and it is what a request sends");
+
+	// [[BPR-2270]]. Comment labels exports under its own purpose ID, and a
+	// blank override (the person's plain comments) travels as blank: the
+	// recipient then sends no label guidance.
+	store_hook(sender, core::writing_hook::comment_labels, std::string{ core::blank_feature_override });
+	const auto labels_snapshot = sender_store->load();
+	const auto labels_prompts  = std::vector<application::exported_prompt>{ { .Purpose = "feature.comment-labels" } };
+	const auto labels_bytes    = application::export_agent_configuration(*labels_snapshot, { }, labels_prompts, "Labels", "BetterPullReview test");
+	expect(labels_bytes && labels_bytes->find("feature.comment-labels") != std::string::npos, "Comment labels exports under its purpose ID");
+	auto labels_written = false;
+	host.write(file, *labels_bytes, [&labels_written](const bool aWritten) { labels_written = aWritten; });
+	effects.drain();
+	decision.drain();
+	auto labels_preview = std::optional<application::agent_configuration_preview>{ };
+	host.read(file, [&labels_preview](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) {
+		if (aPreview) {
+			labels_preview = std::move(*aPreview);
+		}
+	});
+	effects.drain();
+	decision.drain();
+	expect(labels_written && labels_preview && labels_preview->File.Prompts.size() == 1U && !labels_preview->File.Prompts[0].Problem, "this version recognizes Comment labels on import");
+	auto labels_outcome = std::optional<application::agent_configuration_host::applied>{ };
+	host.apply(*labels_preview, { }, { 0U }, [&labels_outcome](application::agent_configuration_host::applied aApplied) { labels_outcome = std::move(aApplied); });
+	effects.drain();
+	decision.drain();
+	const auto labels_hooks = hooks_of(recipient);
+	expect(labels_outcome && labels_outcome->has_value() && labels_hooks.Overrides[static_cast<std::size_t>(core::writing_hook::comment_labels)] == core::blank_feature_override
+			   && application::comment_labels_instructions(labels_hooks).empty(),
+		   "the blank override arrives blank, and the recipient sends no label guidance");
 
 	// RFC-BPR-0110: a store an earlier build made checks hooks 0 to 7; the
 	// next open rebuilds both hook tables for ten hooks, keeping their rows.

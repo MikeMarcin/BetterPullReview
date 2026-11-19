@@ -102,7 +102,8 @@ namespace bpr::adapters::sqlite::detail {
 	/// version twenty-six's; a migrated row keeps the comment's override, or
 	/// the note's when only that was changed, and the note's column is empty.
 	/// Thirty-four since [[BPR-2264]]: the Writing style Feature's override.
-	inline constexpr std::int64_t workbench_settings_schema_version = 34;
+	/// Thirty-five since [[BPR-2270]]: the Comment labels Feature's override.
+	inline constexpr std::int64_t workbench_settings_schema_version = 35;
 
 	/// \brief Owns the durable workbench layout database.
 	///

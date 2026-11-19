@@ -2027,6 +2027,22 @@ once. Values substituted from pull request data are never read for
 references. The text is sent as written; it may name a skill installed for
 the agent, which is not inlined.
 
+### The Comment labels Feature (BPR-2270)
+
+`/bpr:comment-labels` is the second editable Feature. Its text is the
+profile's `feature.comment-labels` override, or the shipped
+`resources/review-preparation/comment-labels.md` (the Conventional Comments
+convention), behind a fixed preamble that confines it to comments written for
+the reviewer to post. `application::prompt_features_for`, the helper
+`writing_style_for` now delegates to, puts it before the Writing style when
+the request may write such a comment (`launch_agent_invocation`: every turn
+that is not a tour run, Explain this file or Suggest the change) or its own
+text names it. A blank override (`core::blank_feature_override`, distinct
+from the empty override that means the shipped text) sends nothing. The
+suggested-comment format asks for a label only when Comment labels is sent;
+the app adds none (`core::read_agent_comment_suggestion` only reads the
+agent's).
+
 ### Writing request and result bounds
 
 Moved from the Settings guide. Writing hooks hold text instructions only and

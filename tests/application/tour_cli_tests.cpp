@@ -393,7 +393,7 @@ namespace {
 		expect(more.Exit == 0 && more.json()["data"].toObject()["assist"].toObject()["reason"] == "insufficient_context" && problem() == text, "insufficient context is reported and changes nothing");
 		// Hooks are shared settings: what the CLI shows and edits is what the desktop uses.
 		auto hooks = call({ "tour", "hooks", "show", "--profile", "1", "--json" });
-		expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 17, "the four tour hooks, review feedback, the two Enhance prompts, [[BPR-2059]] the suggested-comment format, RFC-BPR-0110's three local-authoring prompts and RFC-BPR-0116's two returning questions and RFC-BPR-0117's Explain this file and RFC-BPR-0118's Suggest the change and RFC-BPR-0120's check and [[BPR-2264]]'s Writing style");
+		expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 18, "the four tour hooks, review feedback, the two Enhance prompts, [[BPR-2059]] the suggested-comment format, RFC-BPR-0110's three local-authoring prompts and RFC-BPR-0116's two returning questions and RFC-BPR-0117's Explain this file and RFC-BPR-0118's Suggest the change and RFC-BPR-0120's check and [[BPR-2264]]'s Writing style");
 		const auto beforeHooks = hooks.json()["data"].toObject()["hooks_revision"].toString();
 		auto       pending     = context({ "--hook", "problem", "--field", "problem" });
 		auto       custom      = call({ "tour", "hooks", "edit", "problem", "--file", put("hook.txt", "Write tersely."), "--profile", "1", "--json" });
@@ -416,9 +416,9 @@ namespace {
 			for (const auto& entry : listed) {
 				names.append(entry.toObject()["name"].toString());
 			}
-			expect(names == QStringList{ "problem", "solution", "outline", "comment", "feedback", "enhance-stop", "enhance-writing", "suggested-comment", "local-description", "local-discussion", "local-commit-message", "review-latest-upload", "review-proposed-fix", "review-explain-file", "review-suggest-change", "local-run-check", "writing-style" },
+			expect(names == QStringList{ "problem", "solution", "outline", "comment", "feedback", "enhance-stop", "enhance-writing", "suggested-comment", "local-description", "local-discussion", "local-commit-message", "review-latest-upload", "review-proposed-fix", "review-explain-file", "review-suggest-change", "local-run-check", "writing-style", "comment-labels" },
 				   "the hooks are listed in their stable order, [[BPR-2051]] the Enhance prompts, [[BPR-2059]] the suggested-comment format and RFC-BPR-0110's local-authoring prompts last");
-			expect(listed[7].toObject()["purpose"] == "review.suggested-comment" && listed[7].toObject()["version"] == "suggested-comment-v2", "[[BPR-2059]] the format names its purpose and version");
+			expect(listed[7].toObject()["purpose"] == "review.suggested-comment" && listed[7].toObject()["version"] == "suggested-comment-v3", "[[BPR-2059]] the format names its purpose and version");
 			expect(listed[6].toObject()["purpose"] == "enhance.writing" && listed[6].toObject()["version"] == "enhance-writing-v1" && listed[3].toObject()["purpose"] == "tour.stop-comment",
 				   "[[BPR-2051]] each hook names its stable purpose and its own default's version");
 			const auto shipped = listed[4].toObject();
@@ -525,7 +525,7 @@ namespace {
 			expect(binding.has_value(), "the holder owns the profile");
 			owner_thread serving{ *binding };
 			auto         hooks = call({ "tour", "hooks", "show", "--profile", "1", "--json" });
-			expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 17, "the owner answers every hook from its own settings");
+			expect(hooks.Exit == 0 && hooks.json()["data"].toObject()["hooks"].toArray().size() == 18, "the owner answers every hook from its own settings");
 			// [[BPR-1090]] The owner channel carries the fifth hook and the label helper with it.
 			const auto owned = call({ "tour", "hooks", "show", "feedback", "--profile", "1", "--json" }).json()["data"].toObject();
 			expect(owned["label_helper"] == "off" && owned["hooks"].toArray()[4].toObject()["name"] == "feedback" && owned["hooks"].toArray()[4].toObject()["active"] == false, "the owner lists the feedback hook and that it is off");

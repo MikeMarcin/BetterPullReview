@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <string_view>
 namespace {
 	using namespace bpr;
@@ -179,7 +180,7 @@ int main()
 		const auto purposes = std::array<std::string_view, core::writing_hook_count>{ "tour.problem", "tour.solution", "tour.outline", "tour.stop-comment", "review.feedback", "enhance.tour-stop", "enhance.writing", "review.suggested-comment",
 																					  "local.description", "local.discussion", "local.commit-message",
 																					  "review.latest-upload", "review.proposed-fix", "review.explain-file", "review.suggest-change", "local-draft.run-check",
-																					  "feature.writing-style" };
+																					  "feature.writing-style", "feature.comment-labels" };
 		for (std::size_t index = 0; index < core::writing_hook_count; ++index) {
 			const auto hook = static_cast<core::writing_hook>(index);
 			expect(application::writing_hook_purpose(hook) == purposes[index] && application::writing_hook_of_purpose(purposes[index]) == hook, "every prompt has one stable purpose ID, and the ID names it");
@@ -193,10 +194,10 @@ int main()
 		{
 			auto hooks = core::writing_hook_settings{ };
 			expect(application::default_writing_hook(core::writing_hook::suggested_comment).starts_with("# Suggested comments")
-					   && application::writing_hook_version_of(core::writing_hook::suggested_comment) == "suggested-comment-v2" && !core::enhance_hook(core::writing_hook::suggested_comment),
+					   && application::writing_hook_version_of(core::writing_hook::suggested_comment) == "suggested-comment-v3" && !core::enhance_hook(core::writing_hook::suggested_comment),
 				   "the suggested-comment format ships its own default and version, and is not an Enhance prompt");
 			const auto shipped = application::suggested_comment_format(hooks);
-			expect(shipped && shipped->Source == core::feedback_guidance_source::shipped && shipped->Version == "suggested-comment-v2"
+			expect(shipped && shipped->Source == core::feedback_guidance_source::shipped && shipped->Version == "suggested-comment-v3"
 					   && shipped->Text == application::default_writing_hook(core::writing_hook::suggested_comment),
 				   "with no override the brief carries the shipped default");
 			hooks.Overrides[static_cast<std::size_t>(core::writing_hook::suggested_comment)] = "Use Conventional Comments labels.";
@@ -283,6 +284,57 @@ int main()
 			   "the shipped review asks for a decoration only where it differs from the label");
 		const auto format = application::default_writing_hook(core::writing_hook::suggested_comment);
 		expect(format.find("the problem in one sentence, what goes wrong because of it, then the fix") != std::string_view::npos, "a suggested comment is the problem, its consequence and the fix");
+	}
+	// [[BPR-2270]]. The Comment labels Feature: the shipped convention, the
+	// one helper that attaches it to a request that posts comments (once,
+	// even when named), an override, and a blank override that sends nothing.
+	{
+		const auto labelsHook = static_cast<std::size_t>(core::writing_hook::comment_labels);
+		const auto shipped    = application::default_writing_hook(core::writing_hook::comment_labels);
+		expect(!shipped.empty() && shipped.size() <= 2048U, "the shipped Comment labels is under 2 KiB");
+		for (const auto label : { "praise", "nitpick", "suggestion", "issue", "todo", "question", "thought", "chore", "note", "typo" }) {
+			expect(shipped.find(std::string{ "`" } + label + "`") != std::string_view::npos && core::find_feedback_label(label).has_value(),
+				   "the convention names each label, and each is one the app recognizes");
+		}
+		expect(shipped.find("Add `(blocking)` or `(non-blocking)` after the label only when the weight differs from the label's") != std::string_view::npos
+				   && shipped.find("Never write `issue (blocking)` or `suggestion (non-blocking)`") != std::string_view::npos,
+			   "it decorates only where the weight differs from the label's ([[BPR-2267]])");
+		expect(application::writing_hook_purpose(core::writing_hook::comment_labels) == "feature.comment-labels"
+				   && application::writing_hook_of_purpose("feature.comment-labels") == core::writing_hook::comment_labels
+				   && application::writing_hook_version_of(core::writing_hook::comment_labels) == application::comment_labels_hook_version,
+			   "it travels under its own purpose ID and version");
+		const auto* const feature = core::find_prompt_feature(core::comment_labels_feature);
+		expect(feature != nullptr && feature->Editable && feature->BlankTurnsOff && feature->Hook == core::writing_hook::comment_labels, "comment-labels is an editable Feature a blank turns off");
+		const auto defaults = core::writing_hook_settings{ };
+		const auto labels   = application::comment_labels_instructions(defaults);
+		expect(labels.starts_with(application::comment_labels_preamble()) && labels.ends_with(shipped), "it is sent as the fixed preamble, then the text");
+		const auto style  = application::writing_style_for(defaults, true);
+		const auto posted = application::prompt_features_for(defaults, { .HumanAudience = true, .PostedComments = true });
+		expect(posted == labels + "\n\n" + style, "a request that posts comments carries Comment labels, then the Writing style last");
+		expect(style.find("Comment labels (the") == std::string::npos, "a request that writes no comment carries no Comment labels");
+		expect(application::prompt_features_for(defaults, { .PostedComments = true }) == labels, "with no reader, only Comment labels");
+		const auto own = std::array{ std::string_view{ "Draft it. /bpr:comment-labels" }, std::string_view{ "again /bpr:comment-labels" } };
+		expect(application::writing_style_for(defaults, false, own) == labels, "a prompt that names /bpr:comment-labels gets it");
+		const auto named = application::prompt_features_for(defaults, { .HumanAudience = true, .PostedComments = true }, own);
+		expect(named == posted && named.find(application::comment_labels_preamble(), 1U) == std::string::npos, "named and attached, it is still sent once");
+		auto hooks                  = core::writing_hook_settings{ };
+		hooks.Overrides[labelsHook] = "Start each comment with one of: blocker, idea.";
+		const auto overridden       = application::prompt_features_for(hooks, { .PostedComments = true });
+		expect(overridden == std::string{ application::comment_labels_preamble() } + "Start each comment with one of: blocker, idea." && overridden.find("`nitpick`") == std::string::npos,
+			   "an override replaces the shipped convention in what is sent");
+		hooks.Overrides[labelsHook] = std::string{ core::blank_feature_override };
+		expect(core::valid(hooks) && application::comment_labels_instructions(hooks).empty() && application::prompt_features_for(hooks, { .PostedComments = true }).empty()
+				   && application::prompt_features_for(hooks, { .PostedComments = true }, own).empty()
+				   && application::prompt_features_for(hooks, { .HumanAudience = true, .PostedComments = true }) == style,
+			   "a blank override (the owner's plain comments) sends no label guidance, even where it is named");
+		hooks.Overrides[labelsHook] = " \n\t";
+		expect(application::comment_labels_instructions(hooks).empty(), "any blank override is no labels");
+		// The suggested-comment format asks for a label only when Comment
+		// labels is sent, so a blanked convention leaves comments plain.
+		const auto format = application::default_writing_hook(core::writing_hook::suggested_comment);
+		expect(format.find("When the request carries Comment labels (/bpr:comment-labels), open with the label it asks for") != std::string_view::npos
+				   && format.find("Without it, start with the problem and no label") != std::string_view::npos && format.find("chooses a label in the comment editor") == std::string_view::npos,
+			   "the suggested-comment format defers the label to Comment labels");
 	}
 	std::cout << "writing-delivery-tests:pass\n";
 }

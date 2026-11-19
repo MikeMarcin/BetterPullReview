@@ -151,7 +151,7 @@ def main():
                                                          "enhance-writing", "suggested-comment", "local-description",
                                                          "local-discussion", "local-commit-message", "review-latest-upload",
                                                          "review-proposed-fix", "review-explain-file",
-                                                         "review-suggest-change", "local-run-check", "writing-style"], hooks.stdout
+                                                         "review-suggest-change", "local-run-check", "writing-style", "comment-labels"], hooks.stdout
             assert all(hook["active"] for hook in listed[:4]) and listed[4]["active"] is False, hooks.stdout
             assert listed[4]["version"] == "review-feedback-v2" and listed[4]["customized"] is False, hooks.stdout
             assert ask("compose \u4e2d", "COMPOSING") == "COMPOSING"

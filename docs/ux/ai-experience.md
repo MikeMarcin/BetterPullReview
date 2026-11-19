@@ -75,6 +75,21 @@ The functional core decides whether an explicit AI action is legal, what local c
   `feature.writing-style`. Its text is sent as written, so it can simply
   point at a skill installed for the agent. A prompt or skill that names
   `/bpr:writing-style` still sends it once.
+- **Comment labels** ([[BPR-2270]], owner 2026-11-18: "Maybe the comment tag
+  is another editable feature defaulted to our conventional comments"). The
+  second editable Feature, `/bpr:comment-labels`, says how the agent labels
+  each comment it writes for the reviewer to post: suggested comments in
+  reviews and reports, replies, and the comment workshop's drafts. Built in,
+  it is the Conventional Comments convention, with a weight decoration only
+  where it differs from the label's. It is edited under Features beside the
+  Writing style and travels as `feature.comment-labels`. Cleared, it is kept
+  blank and sends nothing, so comments stay plain (owner: "could be a user
+  just blanks that out because they want all plain comments"); Reset to
+  built-in brings the convention back. The app never adds a label of its
+  own: Draft comment, Draft all, Keep local and Draft comment on an answer
+  keep the agent's text, with a catalog label read into the label control
+  and any other label left as written. The app recognizes Conventional
+  Comments labels for its label controls and blocker count.
 - A drafted suggestion carries a `(blocking)` or `(non-blocking)` only where
   it adds to the label ([[BPR-2264]], owner 2026-11-18: "They should only
   appear when they add value over the tag"). An `issue` blocks and a

@@ -86,12 +86,14 @@ namespace bpr::qt {
 		void changeEvent(QEvent* aEvent) override;
 
 	private:
-		void                                                             show_hook();
-		void                                                             refresh_state();
-		void                                                             refresh_rows();
-		void                                                             refresh_preview();
-		void                                                             apply_fonts();
-		[[nodiscard]] auto                                               saved_text(core::writing_hook aHook) const -> std::string;
+		void               show_hook();
+		void               refresh_state();
+		void               refresh_rows();
+		void               refresh_preview();
+		void               apply_fonts();
+		[[nodiscard]] auto saved_text(core::writing_hook aHook) const -> std::string;
+		/// [[BPR-2270]]. A Feature whose override is blank, so nothing is sent for it.
+		[[nodiscard]] auto                                               blanked(core::writing_hook aHook) const -> bool;
 		[[nodiscard]] auto                                               shown_text(core::writing_hook aHook) const -> std::string;
 		core::writing_hook_settings                                      Settings;
 		application::review_label_helper                                 LabelHelper = application::review_label_helper::off;

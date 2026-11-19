@@ -73,7 +73,9 @@ namespace bpr::application {
 	/// \brief [[BPR-2059]] Version of the shipped suggested-comment format,
 	/// `resources/review-preparation/suggested-comment.md`.
 	/// [[BPR-2264]] v2: the problem, what goes wrong, then the fix.
-	inline constexpr std::string_view suggested_comment_hook_version = "suggested-comment-v2";
+	/// [[BPR-2270]] v3: a label as the Comment labels Feature asks, when the
+	/// request carries it; otherwise none.
+	inline constexpr std::string_view suggested_comment_hook_version = "suggested-comment-v3";
 	/// \brief RFC-BPR-0110 ([[BPR-2026]]) Versions of the shipped
 	/// local-authoring prompts, `resources/review-preparation/local-*.md`.
 	inline constexpr std::string_view local_description_hook_version = "local-description-v1";
@@ -97,6 +99,9 @@ namespace bpr::application {
 	/// \brief [[BPR-2264]]. Version of the Writing style Feature's shipped
 	/// text, `resources/review-preparation/writing-style.md`.
 	inline constexpr std::string_view writing_style_hook_version = "writing-style-v1";
+	/// \brief [[BPR-2270]]. Version of the Comment labels Feature's shipped
+	/// text, `resources/review-preparation/comment-labels.md`.
+	inline constexpr std::string_view comment_labels_hook_version = "comment-labels-v1";
 	/// \brief [[BPR-2051]] The stable purpose ID of one prompt, as
 	/// RFC-BPR-0107's exchange names it: it never changes with the prompt's
 	/// text, version, position in this enumeration or display name.
@@ -150,11 +155,40 @@ namespace bpr::application {
 	/// (\p aHumanAudience) or when the request's own text (\p aOwnTexts: its
 	/// template, override or the person's typed words, never values
 	/// substituted from pull request data) names `/bpr:writing-style`;
-	/// otherwise nothing. Once, however often it is named.
+	/// otherwise nothing. Once, however often it is named. It is
+	/// `prompt_features_for` with no posted comments, so own text that names
+	/// `/bpr:comment-labels` brings Comment labels too.
 	[[nodiscard]] auto writing_style_for(const core::writing_hook_settings& aSettings, bool aHumanAudience, std::span<const std::string_view> aOwnTexts = { }) -> std::string;
 	/// \brief The first line of `writing_style_instructions`, which a
 	/// request's style always starts with.
 	[[nodiscard]] auto writing_style_preamble() noexcept -> std::string_view;
+	/// \brief [[BPR-2270]]. The Comment labels Feature
+	/// (`/bpr:comment-labels`) as a request carries it: a fixed line that
+	/// confines it to the comments written for the reviewer to post, then the
+	/// profile's override, or the shipped text. A blank override
+	/// (`core::blank_feature_override`) turns it off: nothing.
+	[[nodiscard]] auto comment_labels_instructions(const core::writing_hook_settings& aSettings) -> std::string;
+	/// \brief The first line of `comment_labels_instructions`.
+	[[nodiscard]] auto comment_labels_preamble() noexcept -> std::string_view;
+	/// \brief [[BPR-2270]]. Who reads what a request writes, which decides the
+	/// Features it carries.
+	struct prompt_feature_audience
+	{
+		/// A person reads the answer: the Writing style.
+		bool HumanAudience = false;
+		/// The answer may hold a comment written for the reviewer to post (a
+		/// suggested comment, a reply, a comment workshop's draft): Comment
+		/// labels.
+		bool PostedComments = false;
+	};
+	/// \brief [[BPR-2264]], [[BPR-2270]]. The one helper every agent request
+	/// goes through for its Features: Comment labels when \p aAudience posts
+	/// comments or the request's own text names `/bpr:comment-labels`, then
+	/// the Writing style when a person reads the answer or the own text names
+	/// `/bpr:writing-style`, each once however often it is named. The
+	/// Writing style stays last.
+	[[nodiscard]] auto prompt_features_for(const core::writing_hook_settings& aSettings, prompt_feature_audience aAudience, std::span<const std::string_view> aOwnTexts = { })
+		-> std::string;
 	[[nodiscard]] auto workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>;
 }
 #endif

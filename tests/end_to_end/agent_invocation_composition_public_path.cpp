@@ -3008,14 +3008,17 @@ auto main(int argc, char** argv) -> int
 			&& field("brief.skill.version") == "5"
 			&& (field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos || (field("brief.skill.text") == "<absent>" && field("brief.skill.location") == "system_prompt"))
 			// [[BPR-2059]]. The shipped suggested-comment format rides the brief.
-			&& field("brief.comment_format.source") == "shipped" && field("brief.comment_format.version") == "suggested-comment-v2"
+			&& field("brief.comment_format.source") == "shipped" && field("brief.comment_format.version") == "suggested-comment-v3"
 			&& field("brief.comment_format.text").find("the problem in one sentence, what goes wrong because of it, then the fix.") != std::string::npos
 			// [[BPR-1753]], owner decision (b): the first turn about this
 			// pull request carries no earlier one.
 			&& field("brief.conversation.count") == "0" && field("brief.conversation.omitted") == "0"
 			// [[BPR-2264]]. An Agent tab question carries the Writing style:
 			// this agent takes no system prompt, so it is the last field.
-			&& field("writing_style").starts_with("Writing style (the /bpr:writing-style Feature).") && field("writing_style").find("Put the point first") != std::string::npos;
+			// [[BPR-2270]]: Comment labels comes first in it, since an Agent
+			// tab answer may hold comments for the reviewer to post.
+			&& field("writing_style").starts_with("Comment labels (the /bpr:comment-labels Feature).") && field("writing_style").find("`suggestion`: a proposed improvement") != std::string::npos
+			&& field("writing_style").find("Writing style (the /bpr:writing-style Feature).") > field("writing_style").find("`typo`") && field("writing_style").find("Put the point first") != std::string::npos;
 		for (const auto& [name, value] : *actualFields) {
 			if (name.starts_with("brief.") || name == "writing_style") {
 				expectedFields->emplace(name, value);

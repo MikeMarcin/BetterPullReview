@@ -846,7 +846,15 @@ namespace bpr::app {
 			if (Profile && Profile->WorkbenchPreferences && Profile->WorkbenchPreferences->accepted()) {
 				hooks = Profile->WorkbenchPreferences->accepted()->WritingHooks;
 			}
-			invocation.WritingStyle = application::writing_style_for(hooks, true);
+			// [[BPR-2270]]. Comment labels rides on every turn that may
+			// write a comment for the reviewer to post: the Agent tab (a
+			// review, a report, a reply, Draft comment on an answer), the
+			// comment workshop and the returning questions. Explain this file
+			// and Suggest the change write none, nor does a tour run.
+			const auto entry          = invocation.Context.EntryPoint;
+			const auto postedComments = !aWritingOnly && entry != core::agent_entry_point::analyze_current_file
+				&& !(entry == core::agent_entry_point::workshop_comment && invocation.Context.WorkshopOperation == std::optional{ core::workshop_operation::suggest_change });
+			invocation.WritingStyle = application::prompt_features_for(hooks, { .HumanAudience = true, .PostedComments = postedComments });
 		}
 		// [[BPR-1900]]. Every tour writing run is the tour session's, never
 		// the Agent tab's: a drafting run in the review's workspace with

@@ -190,6 +190,28 @@ namespace {
 		expect(withLabel.Body.find("`cache_.at(key)`") != std::string::npos, "the code span keeps its backticks");
 		expect(withLabel.Body.find("\n\n```cpp\nauto found = cache_.find(key);\n```\n") != std::string::npos, "the fence and its line breaks are kept");
 	}
+
+	/// [[BPR-2270]] (owner, 2026-11-18: "I don't think we need that safety
+	/// net"). A drafted comment is the agent's text: the label Comment labels
+	/// asked for is kept, a plain comment (a blanked convention) stays plain,
+	/// and a label from the person's own convention is neither replaced nor
+	/// given a second one.
+	void test_drafts_follow_the_comment_labels_feature()
+	{
+		const auto labelled = read_agent_comment_suggestion("**Issue:** `begin_frame` resets `Retry_` every frame, so the retry loop never ends.");
+		expect(labelled.Reading == agent_comment_reading::labelled && labelled.Label == feedback_label::issue
+				   && labelled.Body == "issue: `begin_frame` resets `Retry_` every frame, so the retry loop never ends.",
+			   "the agent's label is kept, in the label control's spelling");
+		const auto weighted = read_agent_comment_suggestion("suggestion (blocking): Reset it once per request.");
+		expect(weighted.Label == feedback_label::suggestion && weighted.Blocking && weighted.Body == "suggestion (blocking): Reset it once per request.",
+			   "a weight that differs from the label's is kept");
+		const auto plain = std::string_view{ "`begin_frame` resets `Retry_` every frame. Reset it once per request instead." };
+		const auto none  = read_agent_comment_suggestion(plain);
+		expect(none.Reading == agent_comment_reading::unlabelled && !none.Label && none.Body == plain, "a plain comment stays plain: the app adds no label of its own");
+		const auto custom = std::string_view{ "blocker: `begin_frame` resets `Retry_` every frame." };
+		const auto own    = read_agent_comment_suggestion(custom);
+		expect(own.Reading == agent_comment_reading::unknown_label && !own.Label && own.Body == custom, "a label outside the catalog stays as written, with no second label");
+	}
 } // namespace
 
 auto main() -> int
@@ -201,6 +223,7 @@ auto main() -> int
 	test_headers_kept_as_written();
 	test_canonical_text_is_a_fixed_point();
 	test_markdown_survives_into_the_draft();
+	test_drafts_follow_the_comment_labels_feature();
 	std::cout << "agent-comment-suggestion-tests:pass\n";
 	return EXIT_SUCCESS;
 }

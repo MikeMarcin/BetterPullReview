@@ -568,6 +568,20 @@ library to edit them."
 - This RFC's other Features (`suggested-comment`, `suggested-change`,
   `proposed-fix`) join the same registry, immutable, when M1 builds them.
 
+### Amendment (owner, 2026-11-18): Comment labels is the second editable Feature
+
+[[BPR-2270]]. The owner: "Maybe the comment tag is another editable feature
+defaulted to our conventional comments", then "I don't think we need that
+safety net, could be a user just blanks that out because they want all plain
+comments". `comment-labels` (`/bpr:comment-labels`, `feature.comment-labels`)
+ships the Conventional Comments convention with [[BPR-2267]]'s decoration
+rule. The same helper attaches it, before the Writing style, to every request
+that may write a comment to post (Agent tab turns, the comment workshop, the
+returning questions; not Explain this file or Suggest the change). A blank
+override turns it off. The app adds no label of its own: a drafted comment
+is the agent's text, its catalog label read into the label control. This
+narrows O3: the workshop's label helper still chooses its own guidance.
+
 ## Questions
 
 ### Resolved (2026-11-16)

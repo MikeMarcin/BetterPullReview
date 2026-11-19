@@ -26,6 +26,7 @@ namespace bpr::application {
 		case core::writing_hook::review_suggest_change: return review_suggest_change_hook_version;
 		case core::writing_hook::local_run_check:       return local_run_check_hook_version;
 		case core::writing_hook::writing_style:         return writing_style_hook_version;
+		case core::writing_hook::comment_labels:        return comment_labels_hook_version;
 		case core::writing_hook::comment:               return tour_stop_comment_hook_version;
 		case core::writing_hook::problem:
 		case core::writing_hook::solution:
@@ -55,6 +56,8 @@ namespace bpr::application {
 			"local-draft.run-check",
 			// [[BPR-2264]] A Feature's text, by the Feature's name.
 			"feature.writing-style",
+			// [[BPR-2270]]
+			"feature.comment-labels",
 		};
 	}
 	auto writing_hook_purpose(const core::writing_hook aHook) noexcept -> std::string_view
@@ -124,11 +127,35 @@ namespace bpr::application {
 	}
 	auto writing_style_for(const core::writing_hook_settings& aSettings, const bool aHumanAudience, const std::span<const std::string_view> aOwnTexts) -> std::string
 	{
-		const auto named = core::referenced_features(aOwnTexts);
-		if (aHumanAudience || std::ranges::find(named, core::writing_style_feature) != named.end()) {
-			return writing_style_instructions(aSettings);
+		return prompt_features_for(aSettings, { .HumanAudience = aHumanAudience }, aOwnTexts);
+	}
+	auto comment_labels_preamble() noexcept -> std::string_view
+	{
+		return "Comment labels (the /bpr:comment-labels Feature). It governs how each comment you write for the reviewer to post begins: a finding's suggested comment, "
+			   "a reply written to be posted, a comment you draft or edit. It does not apply to the rest of your answer.\n\n";
+	}
+	auto comment_labels_instructions(const core::writing_hook_settings& aSettings) -> std::string
+	{
+		const auto index = static_cast<std::size_t>(core::writing_hook::comment_labels);
+		// [[BPR-2270]], owner 2026-11-18: a blanked convention is plain comments.
+		if (!core::valid(aSettings) || (!aSettings.Overrides[index].empty() && core::writing_blank(aSettings.Overrides[index]))) {
+			return { };
 		}
-		return { };
+		return std::string{ comment_labels_preamble() } + std::string{ effective_writing_hook(aSettings, core::writing_hook::comment_labels) };
+	}
+	auto prompt_features_for(const core::writing_hook_settings& aSettings, const prompt_feature_audience aAudience, const std::span<const std::string_view> aOwnTexts) -> std::string
+	{
+		const auto named  = core::referenced_features(aOwnTexts);
+		const auto names  = [&named](const std::string_view aFeature) { return std::ranges::find(named, aFeature) != named.end(); };
+		auto       text   = std::string{ };
+		const auto labels = aAudience.PostedComments || names(core::comment_labels_feature) ? comment_labels_instructions(aSettings) : std::string{ };
+		const auto style  = aAudience.HumanAudience || names(core::writing_style_feature) ? writing_style_instructions(aSettings) : std::string{ };
+		for (const auto* const part : { &labels, &style }) {
+			if (!part->empty()) {
+				text += text.empty() ? *part : "\n\n" + *part;
+			}
+		}
+		return text;
 	}
 	auto workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>
 	{

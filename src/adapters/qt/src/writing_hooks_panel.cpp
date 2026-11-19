@@ -4,6 +4,8 @@
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/skill_completer.hpp"
 
+#include "bpr/core/prompt_features.hpp"
+
 #include <QApplication>
 #include <QButtonGroup>
 #include <QEvent>
@@ -97,6 +99,12 @@ namespace bpr::qt {
 			  "the agent, as in \"Follow my house-style skill.\"",
 			  "A Feature. Sent with every request whose answer you read, after that request's own format, which wins where they disagree. A prompt or skill that names "
 			  "/bpr:writing-style still sends it once." },
+			// [[BPR-2270]]. The second editable Feature.
+			{ core::writing_hook::comment_labels, "Comment labels", "Comments the agent writes for you to post, /bpr:comment-labels",
+			  "How the agent labels each comment it writes for you to post: suggested comments in reviews and reports, replies, and the comment workshop's drafts. "
+			  "Built in: Conventional Comments. Clear the text for plain comments with no label.",
+			  "A Feature. Sent with every request that may write a comment for you to post; a prompt or skill that names /bpr:comment-labels still sends it once. "
+			  "The app recognizes Conventional Comments labels for its label controls and blocker count; a label outside them stays in the text as written." },
 		} };
 
 		[[nodiscard]] auto facts_of(const core::writing_hook aHook) -> const prompt_facts& { return facts[static_cast<std::size_t>(aHook)]; }
@@ -262,10 +270,13 @@ namespace bpr::qt {
 		// [[BPR-2264]] Features, after every group; the review skill joins the
 		// Agent tab's group above this heading.
 		FeaturesHeader = make_header(Hook, tr("Features"));
-		{
-			auto* const item = new QListWidgetItem{ tr(facts_of(core::writing_hook::writing_style).Name), Hook };
-			item->setData(hook_role, static_cast<int>(core::writing_hook::writing_style));
-			item->setData(usage_role, tr(facts_of(core::writing_hook::writing_style).Where));
+		for (const auto& feature : core::prompt_features()) {
+			if (!feature.Editable || !feature.Hook) {
+				continue;
+			}
+			auto* const item = new QListWidgetItem{ tr(facts_of(*feature.Hook).Name), Hook };
+			item->setData(hook_role, static_cast<int>(*feature.Hook));
+			item->setData(usage_role, tr(facts_of(*feature.Hook).Where));
 		}
 		body->addWidget(Hook, 0);
 
@@ -371,7 +382,12 @@ namespace bpr::qt {
 			const auto hook = selected_hook();
 			Undo.reset();
 			show_notice("Saving the prompt for this profile…");
-			if (!Save || !Save(hook, Instructions->toPlainText().toUtf8().toStdString())) {
+			auto text = Instructions->toPlainText().toUtf8().toStdString();
+			// [[BPR-2270]]. A Feature cleared on purpose is kept blank, not reset.
+			if (const auto* const feature = core::feature_of_hook(hook); text.empty() && feature != nullptr && feature->BlankTurnsOff) {
+				text = core::blank_feature_override;
+			}
+			if (!Save || !Save(hook, std::move(text))) {
 				show_notice("The prompt could not be saved. Use valid text up to 8192 UTF-8 bytes; your edits are still here.");
 			}
 			refresh_state();
@@ -409,7 +425,7 @@ namespace bpr::qt {
 		connect(TestButton, &QPushButton::clicked, this, [this] {
 			if (Test && selected_hook() != core::writing_hook::feedback && selected_hook() != core::writing_hook::suggested_comment && selected_hook() != core::writing_hook::local_description
 				&& selected_hook() != core::writing_hook::local_discussion && selected_hook() != core::writing_hook::local_commit_message && selected_hook() != core::writing_hook::local_run_check
-				&& selected_hook() != core::writing_hook::writing_style && !returning_hook(selected_hook())) {
+				&& selected_hook() != core::writing_hook::writing_style && selected_hook() != core::writing_hook::comment_labels && !returning_hook(selected_hook())) {
 				Test(selected_hook());
 			}
 		});
@@ -629,7 +645,21 @@ namespace bpr::qt {
 		}
 	}
 
-	auto writing_hooks_panel::saved_text(const core::writing_hook aHook) const -> std::string { return std::string{ application::effective_writing_hook(Settings, aHook) }; }
+	auto writing_hooks_panel::saved_text(const core::writing_hook aHook) const -> std::string
+	{
+		// [[BPR-2270]]. A blanked Feature shows as the empty text it was saved from.
+		if (blanked(aHook)) {
+			return { };
+		}
+		return std::string{ application::effective_writing_hook(Settings, aHook) };
+	}
+
+	auto writing_hooks_panel::blanked(const core::writing_hook aHook) const -> bool
+	{
+		const auto* const feature  = core::feature_of_hook(aHook);
+		const auto&       override = Settings.Overrides[static_cast<std::size_t>(aHook)];
+		return feature != nullptr && feature->BlankTurnsOff && !override.empty() && core::writing_blank(override);
+	}
 
 	auto writing_hooks_panel::shown_text(const core::writing_hook aHook) const -> std::string
 	{
@@ -680,7 +710,8 @@ namespace bpr::qt {
 		// RFC-BPR-0116. The returning questions are tried on a returning pull request.
 		const bool returning = returning_hook(hook);
 		// [[BPR-2264]] The Writing style rides on every request: any of them tries it.
-		const bool style = hook == core::writing_hook::writing_style;
+		// [[BPR-2270]] So does Comment labels, on any request that writes a comment.
+		const bool style = hook == core::writing_hook::writing_style || hook == core::writing_hook::comment_labels;
 		TestButton->setEnabled(!feedback && !suggested && !local && !returning && !style);
 		TestButton->setToolTip(feedback                                                ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.")
 								   : suggested                                         ? tr("Test uses a tour field. Ask the agent a question in the Agent tab to try this format.")
@@ -688,6 +719,7 @@ namespace bpr::qt {
 								   : hook == core::writing_hook::review_suggest_change ? tr("Test uses a tour field. Press Suggest the change on a draft comment to try this prompt.")
 								   : returning                                         ? tr("Test uses a tour field. Ask it on a pull request with commits since your review to try this prompt.")
 								   : local                                             ? tr("Test uses a tour field. Ask in a local draft's conversation to try this prompt.")
+								   : hook == core::writing_hook::comment_labels        ? tr("Test uses a tour field. Ask the agent for a review to try these labels.")
 								   : style                                             ? tr("Test uses a tour field. Ask the agent anything to try this style.")
 																					   : tr("Runs the saved prompt on a sample passage. Nothing is inserted or published."));
 		refresh_state();
@@ -708,8 +740,10 @@ namespace bpr::qt {
 		Badge->setFont(badgeFont);
 		Source->setText(changed ? tr("Changed from built-in %1, profile revision %2").arg(text_of(version)).arg(Settings.Revision)
 								: tr("Built-in %1, profile revision %2").arg(text_of(version)).arg(Settings.Revision));
-		SaveState->setText(unsaved ? (AutoSave != nullptr ? tr("Saving\u2026") : tr("Unsaved changes. They stay here until you save or discard them.")) : changed ? tr("Saved for this profile.")
-																																								  : tr("Using the built-in text."));
+		SaveState->setText(unsaved             ? (AutoSave != nullptr ? tr("Saving\u2026") : tr("Unsaved changes. They stay here until you save or discard them."))
+							   : blanked(hook) ? tr("Blank for this profile: nothing is sent, so comments stay plain.")
+							   : changed       ? tr("Saved for this profile.")
+											   : tr("Using the built-in text."));
 		auto stateFont = font();
 		stateFont.setWeight(unsaved ? QFont::DemiBold : QFont::Normal);
 		SaveState->setFont(stateFont);

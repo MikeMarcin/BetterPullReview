@@ -109,7 +109,13 @@ namespace {
 		expect(unknown.Resolved.empty() && unknown.Unknown.empty(), "no skill named bpr is resolved and no unknown is noted");
 		const auto* const style = find_prompt_feature(writing_style_feature);
 		expect(style != nullptr && style->Editable && style->Hook == writing_hook::writing_style && feature_of_hook(writing_hook::writing_style) == style, "writing-style is the editable Feature, kept as the writing_style override");
-		expect(prompt_features().size() == 1U && !find_prompt_feature("suggested-comment") && !feature_of_hook(writing_hook::problem), "the registry holds only what ships");
+		// [[BPR-2270]]. Comment labels is the second editable Feature, and
+		// the only one a blank override turns off.
+		const auto* const labels = find_prompt_feature(comment_labels_feature);
+		expect(labels != nullptr && labels->Editable && labels->BlankTurnsOff && !style->BlankTurnsOff && labels->Hook == writing_hook::comment_labels && feature_of_hook(writing_hook::comment_labels) == labels
+				   && referenced_features(std::array{ std::string_view{ "/bpr:comment-labels and /bpr:writing-style" } }) == std::vector<std::string>{ "comment-labels", "writing-style" },
+			   "comment-labels is the second editable Feature, named like the first");
+		expect(prompt_features().size() == 2U && !find_prompt_feature("suggested-comment") && !feature_of_hook(writing_hook::problem), "the registry holds only what ships");
 	}
 
 	void front_matter()

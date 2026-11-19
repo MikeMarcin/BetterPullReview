@@ -19,7 +19,7 @@
 /// to edit them." Every Feature is immutable unless this registry marks it
 /// editable; an editable Feature's text is one of the profile's prompt
 /// overrides (`Hook`), edited in Settings › Prompts. `writing-style` is the
-/// first and, for now, only Feature. A reference stays in the text as
+/// first Feature; [[BPR-2270]] `comment-labels` is the second. A reference stays in the text as
 /// written; the Feature's text rides after the request's own instructions,
 /// once however often it is named. Only the person's own text (a template,
 /// an override, a skill they installed) can name one: values substituted
@@ -27,6 +27,10 @@
 namespace bpr::core {
 	/// \brief The Writing style Feature's name.
 	inline constexpr std::string_view writing_style_feature = "writing-style";
+	/// \brief [[BPR-2270]]. The Comment labels Feature's name.
+	/// \details Owner, 2026-11-18: "Maybe the comment tag is another editable
+	/// feature defaulted to our conventional comments".
+	inline constexpr std::string_view comment_labels_feature = "comment-labels";
 
 	/// \brief One Feature.
 	struct prompt_feature
@@ -37,7 +41,17 @@ namespace bpr::core {
 		/// Where an editable Feature's text is kept: one of the profile's
 		/// prompt overrides. None for an immutable Feature.
 		std::optional<writing_hook> Hook;
+		/// [[BPR-2270]]. A blank override (`writing_blank`, not empty) turns
+		/// the Feature off, so nothing is sent for it; empty is the shipped
+		/// text. Owner, 2026-11-18: "could be a user just blanks that out
+		/// because they want all plain comments".
+		bool BlankTurnsOff = false;
 	};
+
+	/// \brief [[BPR-2270]]. What a Feature that `BlankTurnsOff` keeps when the
+	/// person clears its text: blank, so it is not the empty override that
+	/// means the shipped text.
+	inline constexpr std::string_view blank_feature_override = "\n";
 
 	/// \brief Every Feature, in the order the Prompts library lists them.
 	[[nodiscard]] auto prompt_features() noexcept -> std::span<const prompt_feature>;

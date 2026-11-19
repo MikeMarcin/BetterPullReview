@@ -355,6 +355,8 @@ namespace bpr::application {
 		/// gives it; empty: none. It follows every other instruction: at the
 		/// end of the system prompt, or, where the instructions are pasted,
 		/// as the request's last field, `writing_style`.
+		/// [[BPR-2270]]: `prompt_features_for` puts Comment labels before the
+		/// Writing style here, when the request carries both.
 		std::string WritingStyle;
 	};
 

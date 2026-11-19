@@ -91,6 +91,8 @@ namespace bpr::app {
 		case core::writing_hook::local_run_check: return "local-run-check";
 		// [[BPR-2264]] The Writing style Feature.
 		case core::writing_hook::writing_style: return "writing-style";
+		// [[BPR-2270]] The Comment labels Feature.
+		case core::writing_hook::comment_labels: return "comment-labels";
 		}
 		return "problem";
 	}

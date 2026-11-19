@@ -7,6 +7,7 @@ namespace bpr::core {
 	namespace {
 		constexpr auto Features = std::array{
 			prompt_feature{ .Name = writing_style_feature, .Editable = true, .Hook = writing_hook::writing_style },
+			prompt_feature{ .Name = comment_labels_feature, .Editable = true, .Hook = writing_hook::comment_labels, .BlankTurnsOff = true },
 		};
 	}
 

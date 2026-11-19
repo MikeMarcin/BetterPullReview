@@ -1,5 +1,7 @@
 /// \file
 /// \brief Proves the Settings window places panels and holds no state of its own.
+#include "bpr/application/writing_hooks.hpp"
+#include "bpr/core/prompt_features.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
@@ -628,18 +630,37 @@ auto main(int argc, char** argv) -> int
 		unsigned                    tests = 0, saves = 0;
 		core::writing_hook_settings settings;
 		panel->set_dispatch([&](core::writing_hook aSelected, std::string aInstructions) { ++saves;settings.Overrides[static_cast<std::size_t>(aSelected)]=std::move(aInstructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
-		expect(hook->count() == 23 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments and notes" && hook->item(7)->text() == "Review feedback"
+		expect(hook->count() == 24 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments and notes" && hook->item(7)->text() == "Review feedback"
 				   && hook->item(8)->text() == "Enhance writing" && hook->item(9)->text() == "Local drafts" && hook->item(10)->text() == "Description writing"
 				   && hook->item(11)->text() == "Change discussion" && hook->item(12)->text() == "Commit message" && hook->item(13)->text() == "Plan and run a check" && hook->item(14)->text() == "Agent tab" && hook->item(15)->text() == "Suggested comments"
-				   && hook->item(16)->text() == "What changed" && hook->item(17)->text() == "Was this addressed" && hook->item(18)->text() == "Explain this file" && hook->item(19)->text() == "Suggest the change" && hook->item(20)->text() == "Review skill" && hook->item(21)->text() == "Features" && hook->item(22)->text() == "Writing style" && !text->toPlainText().isEmpty(),
+				   && hook->item(16)->text() == "What changed" && hook->item(17)->text() == "Was this addressed" && hook->item(18)->text() == "Explain this file" && hook->item(19)->text() == "Suggest the change" && hook->item(20)->text() == "Review skill" && hook->item(21)->text() == "Features" && hook->item(22)->text() == "Writing style" && hook->item(23)->text() == "Comment labels" && !text->toPlainText().isEmpty(),
 			   "[[BPR-1917]], [[BPR-2051]], [[BPR-2059]], RFC-BPR-0110, RFC-BPR-0114, RFC-BPR-0116 every built-in prompt is listed under where it is used: four tour prompts and a stop's Enhance, review feedback and the one Enhance writing prompt (owner look 2026-11-10), the three local-authoring prompts, the suggested-comment format, the two returning questions and the review skill, then [[BPR-2264]] the Writing style Feature under Features");
+		{
+			// [[BPR-2270]]. Comment labels shows the shipped convention;
+			// cleared and saved it is kept blank (no labels), not reset, and
+			// Reset brings the convention back.
+			panel->select_hook(core::writing_hook::comment_labels);
+			const auto index = static_cast<std::size_t>(core::writing_hook::comment_labels);
+			expect(text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::comment_labels) && text->toPlainText().contains(QStringLiteral("`suggestion`"))
+					   && !panel->findChild<QPushButton*>("writingHookTest")->isEnabled(),
+				   "Comment labels shows the Conventional Comments convention and is tried by asking the agent");
+			text->setPlainText(QString{ });
+			panel->findChild<QPushButton*>("writingHookSave")->click();
+			expect(settings.Overrides[index] == core::blank_feature_override && text->toPlainText().isEmpty()
+					   && panel->findChild<QLabel*>("writingHookSaveState")->text().startsWith(QStringLiteral("Blank for this profile")),
+				   "cleared and saved, Comment labels is kept blank and says nothing is sent");
+			expect(application::comment_labels_instructions(settings).empty(), "and a blank Comment labels sends nothing");
+			panel->findChild<QPushButton*>("writingHookReset")->click();
+			expect(settings.Overrides[index].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::comment_labels),
+				   "Reset to built-in brings the convention back");
+		}
 		const std::array<core::writing_hook, 4> tourHooks = { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment };
 		for (const auto tourHook : tourHooks) {
 			panel->select_hook(tourHook);
 			text->setPlainText("precise");
 			panel->findChild<QPushButton*>("writingHookSave")->click();
 		}
-		expect(tests == 0 && saves == 4, "loading and changing hooks never launches test");
+		expect(tests == 0 && saves == 6, "loading and changing hooks never launches test: four tour prompts, and Comment labels blanked and reset");
 		panel->findChild<QPushButton*>("writingHookReset")->click();
 		expect(settings.Overrides[3].empty() && settings.Overrides[0] == "precise", "restore only current hook");
 		panel->findChild<QPushButton*>("writingHookTest")->click();
@@ -684,7 +705,7 @@ auto main(int argc, char** argv) -> int
 		{
 			const auto index = static_cast<std::size_t>(core::writing_hook::suggested_comment);
 			panel->select_hook(core::writing_hook::suggested_comment);
-			expect(text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::suggested_comment) && source->text().contains(QStringLiteral("suggested-comment-v2"))
+			expect(text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::suggested_comment) && source->text().contains(QStringLiteral("suggested-comment-v3"))
 					   && !test->isEnabled(),
 				   "the suggested-comment format shows its shipped text and version");
 			text->setPlainText("Short comments");

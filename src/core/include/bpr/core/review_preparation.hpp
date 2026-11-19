@@ -53,6 +53,11 @@ namespace bpr::core {
 	/// `/bpr:writing-style` (`prompt_features.hpp`): how the agent writes any
 	/// prose a person reads. It writes no field and is never a target; every
 	/// request whose answer a person reads carries it.
+	///
+	/// [[BPR-2270]]: `comment_labels`, the editable Feature
+	/// `/bpr:comment-labels`: how the agent labels a comment it writes for the
+	/// reviewer to post. A blank override (`writing_blank`, not empty) means no
+	/// labels.
 	enum class writing_hook : std::uint8_t { problem,
 											 solution,
 											 outline,
@@ -69,8 +74,9 @@ namespace bpr::core {
 											 review_explain_file,
 											 review_suggest_change,
 											 local_run_check,
-											 writing_style };
-	inline constexpr std::size_t writing_hook_count = 17;
+											 writing_style,
+											 comment_labels };
+	inline constexpr std::size_t writing_hook_count = 18;
 	/// \brief [[BPR-2051]] Whether the hook is one of the Enhance prompts.
 	[[nodiscard]] constexpr auto enhance_hook(const writing_hook aHook) noexcept -> bool { return aHook >= writing_hook::enhance_stop && aHook <= writing_hook::enhance_writing; }
 	/// \brief The review-preparation hooks, `problem` to `comment`.
