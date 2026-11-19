@@ -1,3 +1,4 @@
+#include "../support/diagnostic_files.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
@@ -66,6 +67,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -1074,7 +1076,16 @@ auto main(int argc, char** argv) -> int
 		}
 		setup->findChild<QPushButton*>(QStringLiteral("agentSetupCheck"))->click();
 		if (!wait_until([&] { return !setup->needed() && window.agent_tab()->state() != qt::agent_tab_state::setting_up; }, extended_agent_budget)) {
-			return fail(*application, "native-setup-ready", setup->step_text().toStdString());
+			const auto code = fail(*application, "native-setup-ready", setup->step_text().toStdString());
+			// The workspace check's own log says why the copy was not made.
+			application.reset();
+			auto records = std::istringstream{ bpr::tests::read_diagnostic_logs(dataRoot) };
+			for (std::string record; std::getline(records, record);) {
+				if (record.find("\"severity\":\"info\"") == std::string::npos) {
+					std::cerr << "native-setup-diagnostic:" << record << '\n';
+				}
+			}
+			return code;
 		}
 		if (replayCourse) {
 			const auto profile = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
