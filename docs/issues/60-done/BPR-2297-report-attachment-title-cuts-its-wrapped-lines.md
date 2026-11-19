@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2297"
 title: "A report attachment's title cuts its wrapped lines through"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -70,4 +70,19 @@ card with a capped wrapping title in `src/adapters/qt/src` (searched for
 
 ## Evidence
 
-Recorded at close.
+Candidate `6d808722c` (the fix and the test), macOS arm64, dev (Debug);
+rebased onto main after BPR-2296 as `5935a2027`, where the three scale rows,
+the cocoa run and the documentation gate were repeated and passed.
+
+| Criterion | Check | Result |
+| --- | --- | --- |
+| AC-a | `test_report_attachment_title` against the old row (only `agent_tab_view.cpp` reverted to `056125b0f`) | Failed, as it should: "long title, narrow drawer: every line of the title is whole, 32 px for 105 px of wrapped lines (7 lines of 15 px)" at every scale |
+| AC-a, AC-b | `ctest --preset dev -R qt_report_attachment_title` | 3 of 3 passed (`_scale_100`, `_125`, `_200`, offscreen) |
+| AC-c | the test with `QT_QPA_PLATFORM=cocoa BPR_NATIVE_LOOK=1`, dark and light, `QT_SCALE_FACTOR` 1, 1.25 and 2.0 | 6 of 6 passed |
+| Look | cocoa renders of the card (dark, 1.0 and 2.0, narrow and wide drawer, larger font), viewed and discarded | Two whole semibold lines, the second ending "word…", the kind line whole below; a short title on one line, unshortened |
+
+Format check passed on the four touched C++ files; clang-tidy passed on
+`line_bounded_label.cpp` and the test. `agent_tab_view.cpp` reports two
+findings that are on main unchanged (`press_offer`'s parameter names, the
+copy of `aChosen`), outside this change. `verify_documentation.py` passed.
+The `frontend-design` skill was loaded for this Qt surface.
