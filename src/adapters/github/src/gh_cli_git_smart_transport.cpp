@@ -1047,24 +1047,7 @@ namespace bpr::adapters::github::detail {
 				if (Context.AcquisitionMode != git_smart_acquisition_mode::complete_closure || !Context.HistoryClone) {
 					return std::nullopt;
 				}
-				std::error_code error;
-				const auto      clone = std::filesystem::canonical(*Context.HistoryClone, error);
-				if (error || !std::filesystem::is_directory(clone, error) || error) {
-					return std::nullopt;
-				}
-				auto gitDirectory = clone / ".git";
-				if (!std::filesystem::is_directory(gitDirectory, error) || error) {
-					error.clear();
-					if (!std::filesystem::is_directory(clone / "objects", error) || error || !std::filesystem::is_regular_file(clone / "HEAD", error) || error) {
-						return std::nullopt;
-					}
-					gitDirectory = clone;
-				}
-				const auto objects = gitDirectory / "objects";
-				if (std::filesystem::exists(gitDirectory / "shallow", error) || error || !std::filesystem::is_directory(objects, error) || error) {
-					return std::nullopt;
-				}
-				return std::pair{ clone, objects };
+				return gh_cli_linked_clone_objects(*Context.HistoryClone);
 			}
 
 			/// \brief [[BPR-2290]]. The bare store the pack is made from: no refs,

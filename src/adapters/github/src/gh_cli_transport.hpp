@@ -15,6 +15,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -497,6 +498,12 @@ namespace bpr::adapters::github::detail {
 	/// \brief Names the bare store that clone \p aIndex writes under \p aRoot.
 	[[nodiscard]] auto gh_cli_git_clone_store(const std::filesystem::path& aRoot, std::size_t aIndex)
 		-> std::filesystem::path;
+
+	/// \brief [[BPR-2290]]. A linked clone a complete acquisition may read:
+	/// its canonical folder and objects folder, or nothing when it is missing,
+	/// not a Git repository, or shallow.
+	[[nodiscard]] auto gh_cli_linked_clone_objects(const std::filesystem::path& aClone)
+		-> std::optional<std::pair<std::filesystem::path, std::filesystem::path>>;
 
 	/// \brief Names the Git directory inside a managed clone working folder.
 	[[nodiscard]] auto gh_cli_git_kept_clone_directory(const std::filesystem::path& aClone)

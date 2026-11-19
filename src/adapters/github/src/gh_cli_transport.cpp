@@ -1830,6 +1830,31 @@ namespace bpr::adapters::github::detail {
 		return aRoot / ("clone-" + std::to_string(aIndex) + ".git");
 	}
 
+	auto gh_cli_linked_clone_objects(const std::filesystem::path& aClone)
+		-> std::optional<std::pair<std::filesystem::path, std::filesystem::path>>
+	{
+		std::error_code error;
+		const auto      clone = std::filesystem::canonical(aClone, error);
+		if (error || !std::filesystem::is_directory(clone, error) || error) {
+			return std::nullopt;
+		}
+		auto gitDirectory = clone / ".git";
+		if (!std::filesystem::is_directory(gitDirectory, error) || error) {
+			error.clear();
+			if (!std::filesystem::is_directory(clone / "objects", error) || error || !std::filesystem::is_regular_file(clone / "HEAD", error) || error) {
+				return std::nullopt;
+			}
+			gitDirectory = clone;
+		}
+		// A shallow clone's history stops at its boundary, and Git refuses
+		// it as a `--reference`.
+		const auto objects = gitDirectory / "objects";
+		if (std::filesystem::exists(gitDirectory / "shallow", error) || error || !std::filesystem::is_directory(objects, error) || error) {
+			return std::nullopt;
+		}
+		return std::pair{ clone, objects };
+	}
+
 	auto gh_cli_git_kept_clone_directory(const std::filesystem::path& aClone)
 		-> std::filesystem::path
 	{
