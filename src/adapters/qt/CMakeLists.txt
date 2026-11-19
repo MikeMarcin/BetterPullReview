@@ -19,6 +19,7 @@ add_library(
         src/wrapping_row.cpp
         src/application_menu_wording.cpp
         src/workbench_window_author_mode.cpp
+        src/author_description_editor.cpp
         src/local_draft_parts.cpp
         src/review_cycle_share_sheet.cpp
         src/review_cycle_share_marks.cpp

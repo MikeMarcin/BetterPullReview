@@ -138,6 +138,7 @@ class QVBoxLayout;
 
 namespace bpr::qt {
 	class compose_review_sheet;
+	class author_description_editor;
 	class commit_filter_chip;
 	class generated_files_row;
 	class split_diff_strip;
@@ -1508,6 +1509,16 @@ namespace bpr::qt {
 		void set_worktree_chooser(std::function<void()> aChoose);
 		/// \brief [[BPR-2196]]. Author's drawer tabs: Workflow, Tour and Agent.
 		[[nodiscard]] auto author_tabs() const noexcept -> QTabBar*;
+		/// \brief [[BPR-2280]]. The pull request's description in Author's
+		/// Workflow tab: read, edited and saved by its author.
+		[[nodiscard]] auto author_description() const noexcept -> author_description_editor* { return AuthorDescription; }
+		/// \brief [[BPR-2280]]. The host's word on whether the viewer can save
+		/// the description on this connection: the Author editor's Edit and
+		/// the Agent tab's Use as description follow it.
+		void set_author_description_editable(bool aEditable);
+		/// \brief [[BPR-2280]]. Use as description: Author opens on Workflow
+		/// with `aMarkdown` in the description editor. Nothing is sent.
+		auto use_as_description(const QString& aMarkdown) -> bool;
 		/// \brief The draft's projection: its files fill the Files tree and
 		/// Overview, its parts are presented.
 		void present_local_draft(const application::local_draft_workbench_projection& aProjection);
@@ -3213,10 +3224,14 @@ namespace bpr::qt {
 		/// \brief Chooses a view as the picker's segment would, once the event that asked has finished.
 		void                               pick_author_view(review_view aView);
 		std::optional<core::author_case>   PullRequestAuthorCase;
-		QWidget*                           AuthorHeader         = nullptr;
-		QTabBar*                           AuthorTabs           = nullptr;
-		QWidget*                           AuthorWorkflowHolder = nullptr;
-		QWidget*                           AuthorAskPage        = nullptr;
+		QWidget*                           AuthorHeader              = nullptr;
+		QTabBar*                           AuthorTabs                = nullptr;
+		QWidget*                           AuthorWorkflowHolder      = nullptr;
+		author_description_editor*         AuthorDescription         = nullptr;
+		bool                               AuthorDescriptionEditable = false;
+		QString                            AuthorDescriptionFor;
+		void                               present_author_description_offer();
+		QWidget*                           AuthorAskPage = nullptr;
 		std::function<void()>              WorktreeChooser;
 		std::map<QString, author_memory>   AuthorMemory;
 		std::map<QString, review_modality> ModeLeftIn;

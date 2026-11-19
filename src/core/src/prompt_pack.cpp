@@ -147,7 +147,7 @@ namespace bpr::core {
 		}
 
 		constexpr std::size_t subject_count    = prompt_subject_count;
-		constexpr std::size_t ask_count        = 2U;
+		constexpr std::size_t ask_count        = prompt_ask_count;
 		constexpr std::size_t match_count      = 3U;
 		constexpr std::size_t when_unmet_count = 2U;
 

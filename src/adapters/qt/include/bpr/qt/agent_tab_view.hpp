@@ -650,6 +650,14 @@ namespace bpr::qt {
 		/// a new draft.
 		void               release_answer_draft(const std::string& aKey);
 		[[nodiscard]] auto turn_draft_button(std::size_t aTurn) const -> QPushButton*;
+		/// \brief [[BPR-2280]]. Use as description on a description's answer
+		/// (`core::agent_question::Description`), in Draft's place: where a
+		/// press sends the answer's Markdown, and whether the window can take
+		/// it now (and if not, why, said in its tooltip).
+		void               set_description_use(std::function<void(const QString&)> aUse);
+		void               set_description_usable(bool aUsable, const QString& aWhy);
+		[[nodiscard]] auto turn_use_as_description_button(std::size_t aTurn) const -> QPushButton*;
+		[[nodiscard]] auto turn_is_description(std::size_t aTurn) const -> bool;
 		/// \brief What a turn was asked about, as the line above its question
 		/// names it; empty for a turn about the pull request.
 		[[nodiscard]] auto turn_about(std::size_t aTurn) const -> QString;
@@ -910,6 +918,10 @@ namespace bpr::qt {
 			std::optional<agent_answer_draft_target> DraftTarget;
 			QPointer<QPushButton>                    Draft;
 			bool                                     Drafted = false;
+			/// [[BPR-2280]]. The answer is the pull request's description: no
+			/// report, no Draft; Use as description instead.
+			bool                  Description = false;
+			QPointer<QPushButton> UseAsDescription;
 			/// RFC-BPR-0127, owner look v006. Whether the answer offers its
 			/// one keep action, Draft.
 			bool KeepOffered = false;
@@ -1048,7 +1060,8 @@ namespace bpr::qt {
 		/// [[BPR-1773]]. The conversation chip shown when it was sent.
 		std::optional<agent_conversation_chip>   PendingAbout;
 		std::optional<agent_answer_draft_target> PendingDraftTarget;
-		int                                      LastPhase = 0;
+		bool                                     PendingDescription = false;
+		int                                      LastPhase          = 0;
 		/// How many times findings were presented, and the count when the
 		/// running turn began: a turn names only the findings it brought.
 		std::uint64_t FindingsPresented = 0U;
@@ -1106,7 +1119,8 @@ namespace bpr::qt {
 			QString                                      Key;
 			QString                                      Name;
 			std::optional<core::agent_suggested_subject> Subject;
-			bool                                         Review = false;
+			bool                                         Review      = false;
+			bool                                         Description = false;
 			std::optional<std::string>                   SkillText;
 			/// [[BPR-2237]]. The text the prompt put in the field.
 			QString Expansion;
@@ -1160,6 +1174,9 @@ namespace bpr::qt {
 		std::function<void()>                               ConversationDismiss;
 		std::function<agent_answer_draft_target()>          DraftTargetSource;
 		agent_answer_draft_dispatch                         DraftDispatch;
+		std::function<void(const QString&)>                 DescriptionUse;
+		bool                                                DescriptionUsable = false;
+		QString                                             DescriptionWhy;
 		agent_answer_draft_navigation                       DraftNavigate;
 		QLabel*                                             Log      = nullptr;
 		bool                                                LogShown = false;

@@ -64,8 +64,11 @@ namespace bpr::core {
 			switch (*aFacts.Suggested) {
 			case agent_suggested_subject::pull_request:
 				return agent_question{
-					.Subject    = agent_question_subject::pull_request,
-					.EntryPoint = aFacts.Review ? agent_entry_point::run_ai_review : agent_entry_point::open_full_agent_session,
+					.Subject     = agent_question_subject::pull_request,
+					.EntryPoint  = aFacts.Review ? agent_entry_point::run_ai_review : agent_entry_point::open_full_agent_session,
+					.File        = { },
+					.Operation   = std::nullopt,
+					.Description = aFacts.Description && !aFacts.Review,
 				};
 			case agent_suggested_subject::open_file:
 				if (aFacts.OpenFile.empty()) {

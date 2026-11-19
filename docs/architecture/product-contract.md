@@ -285,7 +285,10 @@ conflicts and partial recovery. Publishing a tour posts its stops and never
 writes or edits the pull request description; text an earlier build put in a
 description stays as GitHub has it. The shipped prompt "Draft a description"
 drafts or rewrites the description from the diff, and from the tour's stops
-when there is one, as text the author applies; it publishes nothing. The
+when there is one; it publishes nothing. It is asked as a description
+([[BPR-2280]]): its answer is title-free Markdown (Summary, What changed, How
+to test), carries no comment guidance, is never a report or a draft comment,
+and offers Use as description, which puts it in Author's description editor. The
 original title, draft status and other PR-management state have no tour
 mutation operation. Production Tour publication is on by the
 [owner amendment of 2026-10-09](../issues/40-parked/BPR-1222-qualify-live-github-review-tours.md#owner-amendment-2026-10-09-publication-on-and-files-changed-links);
@@ -309,7 +312,8 @@ targets refused. No agent flag grants source confirmation, Ready or publication.
 
 The pull request's author can edit its description (body only) in Overview:
 Edit opens the app's Markdown editor in the reader's place, and nothing is
-sent until Save ([[BPR-1774]]). A body changed on GitHub since editing began is
+sent until Save ([[BPR-1774]]). Author's Workflow tab holds the same editor
+above the checklist, where Use as description lands ([[BPR-2280]]). A body changed on GitHub since editing began is
 never overwritten: the editor says so and offers GitHub's newer text. The
 mutation's contract is in the
 [provider contract](github-provider-contract.md#normalized-provider-surface).

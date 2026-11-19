@@ -1299,7 +1299,13 @@ namespace bpr::app {
 
 		void present_description_offer();
 
-		void save_description(const qt::overview_description_save& aSave);
+		/// [[BPR-2280]]. Which description editor a save came from.
+		enum class description_editor : std::uint8_t {
+			overview,
+			author,
+		};
+		void save_description(const qt::overview_description_save& aSave, description_editor aFrom = description_editor::overview);
+		void present_description_status(const QString& aText, bool aSaving = false);
 
 		void               publish_description(const application::review_description_terminal& aTerminal) override;
 		[[nodiscard]] auto comment_edit_cards() const -> qt::conversation_cards_view*;
@@ -2552,6 +2558,7 @@ namespace bpr::app {
 		std::size_t                                         ReactionFailures    = 0U;
 		/// [[BPR-1774]]. The description save in flight, and what came of saves.
 		std::optional<application::review_mutation_request_context> PendingDescriptionEdit;
+		description_editor                                          DescriptionEditFrom        = description_editor::overview;
 		std::size_t                                                 DescriptionEditGestures    = 0U;
 		std::size_t                                                 DescriptionEditRefusals    = 0U;
 		std::size_t                                                 DescriptionEditCompletions = 0U;

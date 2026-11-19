@@ -2091,6 +2091,9 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto large_review_snapshot(const github_application& aApplication, core::bpr_window_context aContext) -> std::optional<application::github_pull_request_snapshot>;
 		/// Change fake remote records; the course must still issue a public Refresh.
 		static void stage_server_conversation(github_application& aApplication, std::string aThread, bool aAddedAndResolved);
+		/// [[BPR-2280]]. Another client changes the pull request's description
+		/// (with `EditsDescription`).
+		static void stage_server_description(github_application& aApplication, std::string aBody);
 		/// [[BPR-1085]]. Change one thread's root body, resolution or root author
 		/// on the fake server; the course must still issue a public Refresh.
 		static void stage_server_root(github_application& aApplication, std::string aThread, std::optional<std::string> aRootBody, std::optional<bool> aResolved,

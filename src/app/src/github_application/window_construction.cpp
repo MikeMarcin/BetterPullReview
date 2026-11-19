@@ -24,6 +24,7 @@
 #include "bpr/core/review_queue_attention.hpp"
 #include "bpr/core/view_filter_memory.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/author_description_editor.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
@@ -358,6 +359,9 @@ namespace bpr::app {
 				}
 				save_description(aSave);
 			});
+		// [[BPR-2280]]. Save in Author's description editor: the same write.
+		Window->author_description()->set_save_dispatch(
+			[this](const qt::overview_description_save& aSave) { save_description(aSave, description_editor::author); });
 		// [[BPR-1852]]. Ready for review and Convert to draft, from Overview
 		// and the Pull Request menu.
 		Window->set_draft_state_dispatch(

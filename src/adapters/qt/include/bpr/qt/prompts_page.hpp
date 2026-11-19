@@ -262,6 +262,7 @@ namespace bpr::qt {
 		QLabel*         BuiltInTag    = nullptr;
 		QToolButton*    AsQuestion    = nullptr;
 		QToolButton*    AsFindings    = nullptr;
+		QToolButton*    AsDescription = nullptr;
 		QPlainTextEdit* Text          = nullptr;
 		QWidget*        ResultBox     = nullptr;
 		QToolButton*    ResultToggle  = nullptr;

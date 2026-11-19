@@ -2,6 +2,7 @@
 // shipped set equal to today's lists, the template scan and expansion, the
 // conditions, order and the five-chip limit, validation, and the merge of
 // the shipped set with stored differences.
+#include "bpr/core/agent_question.hpp"
 #include "bpr/core/prompt_macro.hpp"
 #include "bpr/core/review_cycle_ignore.hpp"
 #include "bpr/core/skill_references.hpp"
@@ -71,7 +72,7 @@ namespace {
 		offer("What could this change break?", prompt_subject::pull_request, false);
 		for (const auto& builtin : shipped_prompt_macros()) {
 			if (builtin.Macro.Id == "agent-tab.draft-description") {
-				result.emplace_back("Draft a description", builtin.Macro.Body.Template, prompt_subject::pull_request, prompt_ask::question, false);
+				result.emplace_back("Draft a description", builtin.Macro.Body.Template, prompt_subject::pull_request, prompt_ask::description, false);
 			}
 		}
 		if (aLines && aFile) {
@@ -156,18 +157,36 @@ namespace {
 		// Was this addressed?), which are never chips. [[BPR-2248]] added the
 		// Commits selection's two, which are never chips either.
 		expect(set.size() == 24U, "24 built-ins");
-		// [[BPR-2274]]. Draft a description: a pull request question, plain
-		// text, asked from the diff and the tour's stops when there is one.
+		// [[BPR-2274]]. Draft a description, asked from the diff and the
+		// tour's stops when there is one. [[BPR-2280]]: asked as a
+		// description, about the pull request; its answer is the body in
+		// three parts, with no comment around it.
 		{
 			const auto all   = shipped_prompt_macros();
 			const auto found = std::ranges::find_if(all, [](const prompt_builtin& aBuiltin) { return aBuiltin.Macro.Id == "agent-tab.draft-description"; });
-			expect(found != all.end() && found->Macro.Place == prompt_place::agent_tab && found->Macro.Body.Subject == prompt_subject::pull_request && found->Macro.Body.Kind == prompt_ask::question
-					   && found->Macro.Body.Name == "Draft a description",
-				   "Draft a description is a shipped pull request question");
+			expect(found != all.end() && found->Macro.Place == prompt_place::agent_tab && found->Macro.Body.Subject == prompt_subject::pull_request
+					   && found->Macro.Body.Kind == prompt_ask::description && found->Macro.Body.Name == "Draft a description",
+				   "Draft a description is a shipped pull request description ask");
 			const auto& text = found->Macro.Body.Template;
-			expect(text.starts_with("Draft a description for this pull request") && text.find("diff") != std::string::npos && text.find("follow its stops") != std::string::npos
-					   && text.find("Without a tour, work from the diff alone") != std::string::npos && text.find("nothing is published") != std::string::npos,
-				   "it drafts from the diff, follows a tour's stops when there is one, works without one, and publishes nothing");
+			expect(text.starts_with("Write the description of this pull request") && text.find("diff") != std::string::npos && text.find("follow its") != std::string::npos
+					   && text.find("Without a tour, work from the diff alone") != std::string::npos,
+				   "it drafts from the diff, follows a tour's stops when there is one, and works without one");
+			expect(text.find("## Summary") != std::string::npos && text.find("## What changed") != std::string::npos && text.find("## How to test") != std::string::npos
+					   && text.find("no title") != std::string::npos && text.find("no comment label") != std::string::npos && text.find("It is not a comment") != std::string::npos,
+				   "it asks for a title-free description in three parts, not a comment");
+			expect(stable_name(prompt_ask::description) == "description", "the kind's stable name");
+			expect(prompt_ask_allowed(prompt_place::agent_tab, prompt_subject::pull_request, prompt_ask::description)
+					   && !prompt_ask_allowed(prompt_place::agent_tab, prompt_subject::open_file, prompt_ask::description)
+					   && !prompt_ask_allowed(prompt_place::agent_tab, prompt_subject::selected_commits, prompt_ask::description)
+					   && !prompt_ask_allowed(prompt_place::conversation, prompt_subject::conversation, prompt_ask::description),
+				   "a description is asked about the pull request in the Agent tab only");
+			const auto question = decide_agent_question({ .Suggested = agent_suggested_subject::pull_request, .Description = true });
+			expect(question && question->Description && question->Subject == agent_question_subject::pull_request && question->EntryPoint == agent_entry_point::open_full_agent_session,
+				   "a description suggestion is a question about the pull request whose answer is a description");
+			const auto typed = decide_agent_question({ });
+			expect(typed && !typed->Description, "a typed question is not a description");
+			const auto review = decide_agent_question({ .Suggested = agent_suggested_subject::pull_request, .Review = true, .Description = true });
+			expect(review && !review->Description && review->EntryPoint == agent_entry_point::run_ai_review, "a review is never a description");
 		}
 		expect(std::ranges::all_of(set, [](const prompt_macro& aMacro) { return aMacro.BuiltIn && aMacro.On && prompt_macro_valid(aMacro); }), "every built-in is on and valid");
 		const auto lineChoices = std::vector<std::optional<prompt_line_range>>{ std::nullopt, prompt_line_range{ 34U, 34U }, prompt_line_range{ 34U, 36U } };

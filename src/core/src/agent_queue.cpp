@@ -795,7 +795,7 @@ namespace bpr::core {
 		const auto cursor  = take_number(aText);
 		const auto values  = take_number(aText);
 		if (!place || !subject || !kind
-			|| *kind > static_cast<std::size_t>(prompt_ask::review) || !cursor || !values || *values > aText.size()) {
+			|| *kind >= prompt_ask_count || !cursor || !values || *values > aText.size()) {
 			return std::nullopt;
 		}
 		auto offer    = prompt_offer{ };

@@ -653,6 +653,15 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "pull-request-overview-page-tests:pass"
         TIMEOUT 120
 )
+# [[BPR-2280]]. The pull request's description in Author's Workflow tab.
+bpr_add_executable(test_better_pull_review_qt_author_description_editor_tests author_description_editor_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_author_description_editor_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_author_description_editor_tests)
+bpr_enable_warnings(test_better_pull_review_qt_author_description_editor_tests)
+bpr_add_network_isolated_test(NAME qt_author_description_editor COMMAND test_better_pull_review_qt_author_description_editor_tests)
+set_tests_properties(qt_author_description_editor PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
+    PASS_REGULAR_EXPRESSION "author-description-editor-tests:pass" TIMEOUT 120)
 # [[BPR-1094]]. The Overview's chips at 125% and 200%: every built-in theme,
 # Icons and Letters, identity, ?, Open and All, whole counts, +n, the keyboard
 # route and scrolling. The 100% row above runs the same test.

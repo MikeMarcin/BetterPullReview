@@ -154,6 +154,12 @@ namespace bpr::application {
 		}
 		return text;
 	}
+	auto agent_turn_audience(const agent_turn_kind& aTurn) noexcept -> prompt_feature_audience
+	{
+		const auto suggestsChange = aTurn.EntryPoint == core::agent_entry_point::workshop_comment && aTurn.Operation == std::optional{ core::workshop_operation::suggest_change };
+		const auto posted         = !aTurn.WritingOnly && !aTurn.Description && aTurn.EntryPoint != core::agent_entry_point::analyze_current_file && !suggestsChange;
+		return { .HumanAudience = true, .PostedComments = posted };
+	}
 	auto workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>
 	{
 		const auto text = workshop_feedback_guidance(aSettings, aHelper);

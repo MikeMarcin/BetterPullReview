@@ -489,8 +489,9 @@ namespace bpr::core {
 	auto stable_name(const prompt_ask aKind) noexcept -> std::string_view
 	{
 		switch (aKind) {
-		case prompt_ask::question: return "question";
-		case prompt_ask::review:   return "review";
+		case prompt_ask::question:    return "question";
+		case prompt_ask::review:      return "review";
+		case prompt_ask::description: return "description";
 		}
 		return "unknown";
 	}
@@ -576,8 +577,14 @@ namespace bpr::core {
 		if (!prompt_subject_allowed(aPlace, aSubject)) {
 			return false;
 		}
-		return aKind == prompt_ask::question
-			|| (aPlace == prompt_place::agent_tab && (aSubject == prompt_subject::pull_request || aSubject == prompt_subject::open_file || aSubject == prompt_subject::selected_commits));
+		switch (aKind) {
+		case prompt_ask::question: return true;
+		case prompt_ask::review:
+			return aPlace == prompt_place::agent_tab && (aSubject == prompt_subject::pull_request || aSubject == prompt_subject::open_file || aSubject == prompt_subject::selected_commits);
+		// [[BPR-2280]]. A description is the pull request's.
+		case prompt_ask::description: return aPlace == prompt_place::agent_tab && aSubject == prompt_subject::pull_request;
+		}
+		return false;
 	}
 
 	auto stable_name(const prompt_fact aFact) noexcept -> std::string_view

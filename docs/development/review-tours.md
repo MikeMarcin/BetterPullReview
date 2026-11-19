@@ -4,7 +4,9 @@ A Review Tour walks reviewers through a pull request: an ordered route of
 stops, each a comment on selected lines. A tour is only its stops
 ([[BPR-2274]]); the pull request's description is yours, and the shipped
 prompt **Draft a description** in the Agent tab drafts it from the diff and
-the tour's stops for you to apply.
+the tour's stops. **Use as description** on its answer puts it in the
+description editor in Author's Workflow tab, where you edit it and **Save**
+([[BPR-2280]]).
 Reviewers need nothing installed; they see ordinary GitHub comments and a
 **Start here** comment with **Previous** and **Next** links. AI is optional.
 
