@@ -1927,9 +1927,26 @@ namespace bpr::adapters::github::detail {
 					cloneProcess->set_insights_channel(Insights);
 					// [[BPR-1373]]. Pinned, the clone and the credential helper it
 					// launches read the same private configuration.
-					const auto result = run_gh_cli(*cloneProcess, Configuration, *invocation, aStop, *aNetwork->Credential);
+					auto result = github_cli_process_result{ std::unexpected{ github_cli_process_failure::cancelled } };
+					{
+						// [[BPR-2291]]. What the clone has received, sampled twice a
+						// second while it runs, so the wait can say so; the sampler
+						// ends before the result is read.
+						auto sampler = std::jthread{ [&aConsumer, root](const std::stop_token aSampling) {
+							std::mutex                  waiting;
+							std::condition_variable_any wake;
+							auto                        held = std::unique_lock{ waiting };
+							while (!aSampling.stop_requested()) {
+								static_cast<void>(wake.wait_for(held, aSampling, std::chrono::milliseconds{ 500 }, [] { return false; }));
+								if (!aSampling.stop_requested()) {
+									aConsumer.received(received_bytes(root));
+								}
+							}
+						} };
+						result = run_gh_cli(*cloneProcess, Configuration, *invocation, aStop, *aNetwork->Credential);
+					}
 					if (!result) {
-						return std::unexpected{ git_smart_transport_error{ process_error(result.error()) } };
+						return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : process_error(result.error()) } };
 					}
 					if (result->ExitCode != 0) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };

@@ -1795,8 +1795,11 @@ namespace bpr::adapters::github::detail {
 									   .StandardErrorLimit  = maximum_standard_error_bytes,
 									   // [[BPR-1879]]. A kept clone runs on its own runner,
 									   // whose deadline is the kept clone's longer bound.
-									   .Timeout                 = std::chrono::minutes{ 2 },
+									   // [[BPR-2291]]. Every other clone is bounded by its
+									   // progress: stalled for a minute, it stops.
+									   .Timeout                 = managed ? std::chrono::milliseconds{ std::chrono::minutes{ 2 } } : std::chrono::milliseconds{ gh_cli_clone_ceiling },
 									   .ReapTimeout             = process_reap_timeout,
+									   .IdleTimeout             = managed ? std::chrono::milliseconds{ } : std::chrono::milliseconds{ gh_cli_clone_stall_bound },
 									   .PreserveCompletedOutput = true,
 								   },
 								   path_bytes(root));

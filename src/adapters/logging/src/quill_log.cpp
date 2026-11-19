@@ -160,23 +160,24 @@ namespace bpr::adapters::logging {
 		auto failure_name(core::epoch_failure aFailure) noexcept -> std::string_view
 		{
 			switch (aFailure) {
-			case core::epoch_failure::unavailable:           return "unavailable";
-			case core::epoch_failure::malformed_observation: return "malformed_observation";
-			case core::epoch_failure::catalog_conflict:      return "catalog_conflict";
-			case core::epoch_failure::quota_exceeded:        return "quota_exceeded";
-			case core::epoch_failure::ordinal_exhausted:     return "ordinal_exhausted";
-			case core::epoch_failure::repair_required:       return "repair_required";
-			case core::epoch_failure::process_failure:       return "process_failure";
-			case core::epoch_failure::unsupported_object:    return "unsupported_object";
-			case core::epoch_failure::git_tool_unsupported:  return "git_tool_unsupported";
-			case core::epoch_failure::git_tool_probe_failed: return "git_tool_probe_failed";
-			case core::epoch_failure::gh_tool_unsupported:   return "gh_tool_unsupported";
-			case core::epoch_failure::gh_tool_probe_failed:  return "gh_tool_probe_failed";
-			case core::epoch_failure::fetch_sign_in_refused: return "fetch_sign_in_refused";
-			case core::epoch_failure::fetch_network:         return "fetch_network";
-			case core::epoch_failure::fetch_limit:           return "fetch_limit";
-			case core::epoch_failure::fetch_failed:          return "fetch_failed";
-			case core::epoch_failure::fetch_storage:         return "fetch_storage";
+			case core::epoch_failure::unavailable:             return "unavailable";
+			case core::epoch_failure::malformed_observation:   return "malformed_observation";
+			case core::epoch_failure::catalog_conflict:        return "catalog_conflict";
+			case core::epoch_failure::quota_exceeded:          return "quota_exceeded";
+			case core::epoch_failure::ordinal_exhausted:       return "ordinal_exhausted";
+			case core::epoch_failure::repair_required:         return "repair_required";
+			case core::epoch_failure::process_failure:         return "process_failure";
+			case core::epoch_failure::unsupported_object:      return "unsupported_object";
+			case core::epoch_failure::git_tool_unsupported:    return "git_tool_unsupported";
+			case core::epoch_failure::git_tool_probe_failed:   return "git_tool_probe_failed";
+			case core::epoch_failure::gh_tool_unsupported:     return "gh_tool_unsupported";
+			case core::epoch_failure::gh_tool_probe_failed:    return "gh_tool_probe_failed";
+			case core::epoch_failure::fetch_sign_in_refused:   return "fetch_sign_in_refused";
+			case core::epoch_failure::fetch_network:           return "fetch_network";
+			case core::epoch_failure::fetch_limit:             return "fetch_limit";
+			case core::epoch_failure::fetch_failed:            return "fetch_failed";
+			case core::epoch_failure::fetch_storage:           return "fetch_storage";
+			case core::epoch_failure::fetch_history_too_large: return "fetch_history_too_large";
 			}
 			return "unknown";
 		}

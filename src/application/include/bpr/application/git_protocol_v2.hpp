@@ -235,7 +235,10 @@ namespace bpr::application {
 		std::span<const git_protocol_v2_have> aHaves,
 		git_pack_stream_sink&                 aSink,
 		git_protocol_v2_fetch_limits          aLimits,
-		std::stop_token                       aStop)
+		std::stop_token                       aStop,
+		/// [[BPR-2291]]. Bytes received so far, while the fetch runs; called on
+		/// the fetching thread.
+		const git_smart_clone_progress& aReceived = { })
 		-> git_protocol_v2_client_result<git_protocol_v2_acquisition_result>;
 	/// \brief Fetches one evidenced historical head under the accepted live PR authority.
 	/// \details Advertisement still verifies the accepted live head. Only the want

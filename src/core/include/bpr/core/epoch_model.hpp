@@ -954,6 +954,12 @@ namespace bpr::core {
 		/// \brief [[BPR-1857]]. The local folder the fetch writes into could
 		/// not be made or written, or its helper process could not start.
 		fetch_storage,
+		/// \brief [[BPR-2291]]. The review needs the repository's whole
+		/// history (its pull request is past GitHub's file or commit limits and
+		/// its connection cannot load selected objects), and the repository is
+		/// larger than a whole-history fetch may be. Nothing was asked of the
+		/// host.
+		fetch_history_too_large,
 	};
 
 	/// \brief Describes the epoch catalog load failed event record.
@@ -1447,6 +1453,8 @@ namespace bpr::core {
 		fetch_limit,
 		fetch_failed,
 		fetch_storage,
+		/// [[BPR-2291]].
+		fetch_history_too_large,
 	};
 
 	/// \brief Computes the reason for result.

@@ -833,6 +833,17 @@ namespace bpr::qt {
 		// as the Overview's plate names one; the status line above says its
 		// whole path.
 		const auto name = WaitingPath.section(QLatin1Char('/'), -1);
+		// [[BPR-2291]]. A wait on a fetch from the host says so, how much has
+		// come, and offers Cancel; any other wait offers none.
+		const auto fetching = !WaitingFetch.isEmpty() && WaitingFailure.isEmpty()
+			&& ((ComparisonLoading && CurrentContext.has_value()) || (!WaitingPath.isEmpty() && !CurrentContext.has_value()));
+		Veil->set_cancel(fetching ? WaitingCancel : std::function<void()>{ });
+		if (fetching) {
+			Veil->present(core::pending_activity::loading, false, false,
+						  { .Loading = WaitingFetch,
+							.Waiting = WaitingReceived.isEmpty() ? QStringLiteral("Nothing has arrived yet. %1 opens when it does.").arg(name.isEmpty() ? QStringLiteral("The file") : name) : WaitingReceived });
+			return;
+		}
 		if (!WaitingFailure.isEmpty() && !CurrentContext.has_value()) {
 			Veil->present(core::pending_activity::failed, false, false, { .Failure = WaitingFailure });
 			return;

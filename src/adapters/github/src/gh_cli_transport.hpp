@@ -9,6 +9,7 @@
 #include "github_wire_transport.hpp"
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -488,6 +489,13 @@ namespace bpr::adapters::github::detail {
 	/// \brief RFC-BPR-0089. The deepest sparse clone: 250 listed commits and
 	/// the commit the chain grew from.
 	inline constexpr std::uint32_t maximum_gh_cli_clone_depth = 251U;
+	/// [[BPR-2291]]. A clone from the host is bounded by its progress, not its
+	/// total time: it is stopped once its store has not grown for
+	/// `gh_cli_clone_stall_bound`, and runs at most `gh_cli_clone_ceiling`
+	/// while it keeps receiving. The old two-minute total bound killed a
+	/// clone that was still working, and the next event started it again.
+	inline constexpr auto gh_cli_clone_stall_bound = std::chrono::seconds{ 60 };
+	inline constexpr auto gh_cli_clone_ceiling     = std::chrono::minutes{ 30 };
 
 	/// \brief [[BPR-1857]]. The one directory a clone root may sit directly in:
 	/// `/private/tmp` on macOS, where the write denial names it, and the

@@ -19,9 +19,11 @@
 #include "bpr/core/epoch_transition.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace bpr::application {
@@ -237,6 +239,10 @@ namespace bpr::application {
 		/// a commit the clone holds from it with no host request, and borrows
 		/// it for what it lacks. Callable from any thread.
 		void set_history_clone(core::repository_id aRepository, std::optional<std::filesystem::path> aClone);
+		/// \brief [[BPR-2291]]. The review's commits being fetched from the
+		/// host now, or none. Callable from any thread; Cancel is
+		/// `core::cancel_epoch_refresh_intent`.
+		[[nodiscard]] auto history_fetch() const -> std::optional<epoch_history_fetch>;
 		/// \brief RFC-BPR-0089. Answers which paths each first-parent commit
 		/// changes, from local tree diffs of the retained objects.
 		/// \details Never fetches. A step whose commit or parent tree is not

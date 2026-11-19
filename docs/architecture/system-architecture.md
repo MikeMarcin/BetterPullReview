@@ -2116,7 +2116,18 @@ clone lacks. A shallow clone is not used. The local pack leaves out what the
 cache's haves reach, and the background import of a force-pushed head offers
 the live base and head as haves, runs at preparation priority, is logged as
 the `historical_acquire` epoch stage (mode, source, haves, bytes, duration)
-and, after a timeout or size limit, starts no further background import. A tests-disabled macOS fixture
+and, after a timeout or size limit, starts no further background import.
+[[BPR-2291]]: a clone from the host is bounded by its progress, not its
+total time: it stops once its store and output have not grown for a minute,
+and runs at most thirty minutes while it keeps receiving. A complete closure
+is the repository's whole history, so a review loads one only for a
+repository GitHub reports within 32 MiB (or of unknown size); past that it
+loads selected objects whatever its pull request's counts, and a connection
+that cannot load selected objects refuses with `fetch_history_too_large`
+before asking the host. While a live fetch runs, the epoch host's
+`history_fetch()` says which commits it fetches, from which host and the
+bytes received so far; the window's waiting file says so with Cancel
+(`cancel_epoch_refresh_intent`). A tests-disabled macOS fixture
 now renders a full PR diff through the CLI profile; an isolated build with
 the process adapter removed from composition visibly refuses the same healthy
 fixture. A macOS native read-only probe now verifies one official `gh` HTTPS clone of a

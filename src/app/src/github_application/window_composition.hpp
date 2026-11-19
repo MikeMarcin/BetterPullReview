@@ -2853,6 +2853,12 @@ namespace bpr::app {
 		std::uint64_t                             TourIdleObservationGeneration = 0U;
 		const application::agent_invocation_host* TourIdleObservedHost          = nullptr;
 		QPointer<qt::review_tour_editor>          TourIdleObservedEditor;
+		/// [[BPR-2291]]. Reads the review's fetch from the host twice a second
+		/// while a review is open, so a waiting file says what it fetches and
+		/// how much has come. Destroyed before the epoch host it reads.
+		std::unique_ptr<QTimer>                         HistoryFetchObservation;
+		std::optional<application::epoch_history_fetch> PresentedHistoryFetch;
+		void                                            observe_history_fetch();
 		/// [[BPR-1900]]. The session's runs and transcript, the run in
 		/// flight with its invocation, the workspace it ran in, and the
 		/// whole-tour proposal waiting on the author.

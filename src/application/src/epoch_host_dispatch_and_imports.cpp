@@ -394,9 +394,10 @@ namespace bpr::application {
 		auto* const entropy = &Entropy;
 		auto* const clock   = &Clock;
 		auto* const clones  = &HistoryClones;
+		auto* const fetches = &HistoryFetch;
 		auto        actor   = context->Actor;
 		submit_effect(
-			[context, aRequest, caches, entropy, clock, clones, diagnostics = epoch_diagnostics{ DiagnosticLog, aRequest.Context.Request.value(), aRequest.Context.ApplicationSession.value() }](
+			[context, aRequest, caches, entropy, clock, clones, fetches, diagnostics = epoch_diagnostics{ DiagnosticLog, aRequest.Context.Request.value(), aRequest.Context.ApplicationSession.value() }](
 				const std::stop_token aStop) -> worker_completion {
 				const auto cancelled = [aRequest]() -> worker_completion {
 					return [aRequest](implementation& aHost) {
@@ -698,6 +699,14 @@ namespace bpr::application {
 					|| context->Handoff.SmartGit->revoked()) {
 					return failPrepared(core::epoch_failure::unavailable);
 				}
+				// [[BPR-2291]]. A complete closure is the repository's whole
+				// history. A connection that cannot load selected objects is never
+				// asked for that of a repository past the whole-history size: it
+				// would count and send gigabytes, or stall, to show one change.
+				if (!(object_loading_for(context->Handoff.Shape) == pull_request_object_loading::selected_objects && context->Handoff.SmartGit->supports_sparse_commit_trees())
+					&& complete_closure_too_large(context->Handoff.Shape)) {
+					return failPrepared(core::epoch_failure::fetch_history_too_large);
+				}
 				bool                                 receivingWitnessed      = false;
 				bool                                 invalidReceivingWitness = false;
 				std::optional<epoch_catalog_failure> receivingFailure;
@@ -818,6 +827,20 @@ namespace bpr::application {
 						snapshot->LatestLive->Head,
 						snapshot->LatestLive->HeadAvailability);
 				}
+				// [[BPR-2291]]. A file waiting on this fetch says what it fetches,
+				// from where, and how much has come, until it ends.
+				const auto held = [&](const core::git_commit_oid aCommit) {
+					return std::ranges::any_of(haves, [&](const auto& aHave) { return aHave.Commit == aCommit; });
+				};
+				fetches->write(epoch_history_fetch{
+					.Base  = !held(aRequest.Context.Revision.Base),
+					.Head  = !held(aRequest.Context.Revision.Head),
+					.Host  = std::string{ context->Handoff.Hostname.value() },
+					.Bytes = std::nullopt,
+				});
+				// Said until the fetch ends, however it ends.
+				const auto ended       = std::unique_ptr<history_fetch_cell, void (*)(history_fetch_cell*)>{ fetches, [](history_fetch_cell* const aCell) { aCell->write(std::nullopt); } };
+				const auto received    = git_smart_clone_progress{ [fetches](const std::uint64_t aBytes) { fetches->received(aBytes); } };
 				const auto acquisition = diagnostics.perform(
 					diagnostic_epoch_stage::protocol_acquire,
 					[&] { return acquire_git_protocol_v2_pack(
@@ -831,7 +854,8 @@ namespace bpr::application {
 								  .MaximumProgressBytes = maximum_git_protocol_v2_progress_bytes,
 								  .MaximumPackets       = maximum_git_protocol_v2_fetch_packets,
 							  },
-							  aStop); });
+							  aStop, received); });
+				fetches->write(std::nullopt);
 				if (!acquisition) {
 					(*transport)->revoke();
 					const auto wasCancelled = aStop.stop_requested()

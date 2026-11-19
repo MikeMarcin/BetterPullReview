@@ -405,6 +405,32 @@ namespace bpr::application {
 			std::optional<std::filesystem::path> Clone;
 		};
 
+		/// \brief [[BPR-2291]]. The live fetch running now, written by its
+		/// worker and read by the window.
+		struct history_fetch_cell final
+		{
+			[[nodiscard]] auto read() const -> std::optional<epoch_history_fetch>
+			{
+				std::scoped_lock lock{ Mutex };
+				return Fetch;
+			}
+			void write(std::optional<epoch_history_fetch> aFetch)
+			{
+				std::scoped_lock lock{ Mutex };
+				Fetch = std::move(aFetch);
+			}
+			void received(const std::uint64_t aBytes)
+			{
+				std::scoped_lock lock{ Mutex };
+				if (Fetch && (!Fetch->Bytes || *Fetch->Bytes < aBytes)) {
+					Fetch->Bytes = aBytes;
+				}
+			}
+
+			mutable std::mutex                 Mutex;
+			std::optional<epoch_history_fetch> Fetch;
+		};
+
 		struct completion_gate final
 		{
 			std::recursive_mutex         Barrier;
@@ -1370,6 +1396,7 @@ namespace bpr::application {
 		epoch_host_limits                             Limits;
 		std::shared_ptr<diagnostic_log_port>          DiagnosticLog;
 		history_clone_cell                            HistoryClones;
+		history_fetch_cell                            HistoryFetch;
 		std::shared_ptr<completion_gate>              CompletionGate;
 		std::shared_ptr<profile_epoch_actor_consumer> Consumer;
 		const core::application_session_id            WindowApplicationSession;

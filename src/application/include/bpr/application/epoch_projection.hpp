@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -25,6 +26,20 @@ namespace bpr::application {
 		core::cancel_epoch_refresh_intent,
 		core::cancel_comparison_resolution_intent>;
 	using epoch_intent_dispatch = std::function<void(epoch_intent)>;
+
+	/// \brief [[BPR-2291]]. A fetch of the review's commits from the host
+	/// that a waiting file can name: which commits, from where, and how much
+	/// has arrived. Present only while the fetch runs.
+	struct epoch_history_fetch
+	{
+		bool        Base = false;
+		bool        Head = false;
+		std::string Host;
+		/// Bytes received so far; none until the transport says.
+		std::optional<std::uint64_t> Bytes;
+
+		auto operator==(const epoch_history_fetch&) const -> bool = default;
+	};
 
 	// This is the presentation form of an accepted revision. The host-owned
 	// source-observation identity deliberately stops before the projection edge.

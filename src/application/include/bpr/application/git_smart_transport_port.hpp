@@ -415,6 +415,13 @@ namespace bpr::application {
 
 		[[nodiscard]] virtual auto consume(
 			std::span<const std::byte> aBytes) noexcept -> bool = 0;
+		/// \brief [[BPR-2291]]. How many bytes the transport has received for
+		/// this fetch so far, before any reaches `consume`: a clone writing its
+		/// pack locally says so while it runs. Never a limit or an outcome.
+		virtual void received(std::uint64_t aBytes) noexcept
+		{
+			static_cast<void>(aBytes);
+		}
 	};
 
 	/// \brief [[BPR-2290]]. Where a fetch's objects came from.

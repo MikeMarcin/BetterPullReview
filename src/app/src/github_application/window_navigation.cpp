@@ -1083,6 +1083,33 @@ namespace bpr::app {
 									facts.FileFailed || facts.ComparisonRefused ? std::optional{ OpenedFileFailure->Failure } : std::nullopt);
 	}
 
+	/// \brief [[BPR-2291]]. The owner, 2026-11-19: a file waited minutes
+	/// on a clone and "showed no reason". While the review's commits are
+	/// fetched from the host, a waiting file says which, from where and how
+	/// much has come, and Cancel stops the fetch.
+	void github_application::implementation::observe_history_fetch()
+	{
+		if (Closing || Window == nullptr || EpochHost == nullptr) {
+			return;
+		}
+		if (!HistoryFetchObservation) {
+			HistoryFetchObservation = std::make_unique<QTimer>();
+			HistoryFetchObservation->setInterval(500);
+			QObject::connect(HistoryFetchObservation.get(), &QTimer::timeout, [this] { observe_history_fetch(); });
+			HistoryFetchObservation->start();
+		}
+		auto fetch = EpochHost->history_fetch();
+		if (fetch == PresentedHistoryFetch) {
+			return;
+		}
+		PresentedHistoryFetch = fetch;
+		Window->present_history_fetch(fetch, [this] {
+			if (!Closing && EpochHost != nullptr) {
+				EpochHost->dispatch(core::cancel_epoch_refresh_intent{ });
+			}
+		});
+	}
+
 	void github_application::implementation::restoration_notice(const QString& aText)
 	{
 		if (Closing || !Window) {

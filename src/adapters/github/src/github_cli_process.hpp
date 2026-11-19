@@ -27,7 +27,10 @@ namespace bpr::adapters::github::detail {
 	inline constexpr std::size_t github_cli_process_max_standard_output_bytes   = 32U * 1024U * 1024U;
 	inline constexpr std::size_t github_cli_process_max_standard_error_bytes    = 64U * 1024U;
 	inline constexpr auto        github_cli_process_max_timeout                 = std::chrono::minutes{ 5 };
-	inline constexpr auto        github_cli_process_max_reap_timeout            = std::chrono::seconds{ 5 };
+	/// [[BPR-2291]]. The ceiling of a request bounded by its progress
+	/// (`IdleTimeout`): a fetch still receiving data runs this long at most.
+	inline constexpr auto github_cli_process_max_progress_bounded_timeout = std::chrono::minutes{ 60 };
+	inline constexpr auto github_cli_process_max_reap_timeout             = std::chrono::seconds{ 5 };
 
 	struct github_cli_process_environment_entry
 	{
@@ -58,6 +61,11 @@ namespace bpr::adapters::github::detail {
 		std::size_t                                       StandardErrorLimit  = 0;
 		std::chrono::milliseconds                         Timeout{ };
 		std::chrono::milliseconds                         ReapTimeout{ };
+		/// [[BPR-2291]]. When set, the request is bounded by its progress: it
+		/// ends as `timeout` once its output and the runner's supervised store
+		/// have not grown for this long. `Timeout` is then only the ceiling,
+		/// up to `github_cli_process_max_progress_bounded_timeout`.
+		std::chrono::milliseconds IdleTimeout{ };
 
 		// Only gh API response parsing and the bounded local Git clone-help probe
 		// opt in to completed nonzero output. Failed/partial output remains unavailable.

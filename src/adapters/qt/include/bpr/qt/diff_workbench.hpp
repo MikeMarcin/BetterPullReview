@@ -252,6 +252,15 @@ namespace bpr::qt {
 		/// it, by name, in place of "No file open". `aHistory` says the pull
 		/// request's history is still being fetched, which the slow line names.
 		void set_waiting(QString aPath, bool aHistory);
+		/// \brief [[BPR-2291]]. What the wait fetches from the host
+		/// (`aFetching`: "Fetching the base commit from github.com…") and how
+		/// much has come (`aReceived`), with Cancel; empty when the wait fetches
+		/// nothing. Said in place of the plain loading words while a file
+		/// waits, by name or under its own request.
+		void set_waiting_fetch(QString aFetching, QString aReceived);
+		/// \brief [[BPR-2291]]. What a fetching wait's Cancel does.
+		void               set_waiting_cancel(std::function<void()> aCancel);
+		[[nodiscard]] auto waiting_fetch() const noexcept -> const QString& { return WaitingFetch; }
 		/// \brief [[BPR-2180]]. Holds the wait for a file the reviewer asked for
 		/// before it can be asked of the comparison: until the comparison is
 		/// asked for (`set_loading`) or the hold is released with an empty
@@ -767,10 +776,14 @@ namespace bpr::qt {
 		bool          ComparisonLoading = false;
 		/// [[BPR-1871]]. The opened file the wait names, whether the pull
 		/// request's history is what it waits on, and why it cannot open.
-		QString                   WaitingPath;
-		QString                   HeldWaitingPath;
-		bool                      WaitingHistory = false;
-		QString                   WaitingFailure;
+		QString WaitingPath;
+		QString HeldWaitingPath;
+		bool    WaitingHistory = false;
+		QString WaitingFailure;
+		/// [[BPR-2291]]. The fetch the wait names, how much has come, and Cancel.
+		QString                   WaitingFetch;
+		QString                   WaitingReceived;
+		std::function<void()>     WaitingCancel;
 		std::array<bool, 2>       SyntaxAwaited{ };
 		QStackedLayout*           PanesSlot     = nullptr;
 		QLabel*                   IdleTitle     = nullptr;

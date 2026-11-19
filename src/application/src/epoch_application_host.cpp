@@ -298,6 +298,11 @@ namespace bpr::application {
 		cell.Clone      = aClone && aClone->is_absolute() ? std::move(aClone) : std::nullopt;
 	}
 
+	auto epoch_application_host::history_fetch() const -> std::optional<epoch_history_fetch>
+	{
+		return Implementation->HistoryFetch.read();
+	}
+
 	auto epoch_application_host::resolve_commit_filter_touches(
 		commit_filter_touches_request    aRequest,
 		commit_filter_touches_completion aCompletion) -> bool

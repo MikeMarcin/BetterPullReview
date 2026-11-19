@@ -32,6 +32,7 @@
 #include <QPlainTextEdit>
 #include <QPointingDevice>
 #include <QProxyStyle>
+#include <QPushButton>
 #include <QScreen>
 #include <QScrollBar>
 #include <QSplitter>
@@ -520,6 +521,43 @@ namespace {
 			   "a file that cannot open says why in its place");
 		workbench.clear();
 		expect(workbench.idle() && workbench.waiting_path().isEmpty() && !veil->busy(), "closing the file takes the wait away");
+	}
+
+	/// \brief [[BPR-2291]]. A file waiting on a fetch from the host says what
+	/// is fetched, from where and how much has come, and Cancel stops it; a
+	/// wait on anything else offers no Cancel.
+	void test_a_file_waiting_on_a_fetch_says_so_and_cancels()
+	{
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(900, 600);
+		workbench.show();
+		process_events();
+		auto* const veil = workbench.comparison_veil();
+		auto        now  = std::int64_t{ 0 };
+		veil->set_clock([&now] { return now; });
+		auto cancelled = 0;
+		workbench.set_waiting_cancel([&cancelled] { ++cancelled; });
+		workbench.set_waiting(QStringLiteral("src/engine/render.cpp"), true);
+		now = 60'000;
+		veil->advance();
+		expect(veil->busy() && !veil->cancel_button()->isVisible(), "a wait on no fetch offers no Cancel");
+		workbench.set_waiting_fetch(QStringLiteral("Fetching the base commit from github.com…"), { });
+		veil->advance();
+		expect(veil->words().Loading == QStringLiteral("Fetching the base commit from github.com…")
+				   && veil->words().Waiting.contains(QStringLiteral("Nothing has arrived yet")),
+			   "the plate says which commit is fetched from which host, and that nothing has come yet");
+		expect(veil->look() == core::pending_look::loading_slow && veil->cancel_button()->isVisible() && veil->cancel_button()->geometry().top() > 2 * veil->fontMetrics().height(),
+			   "and offers Cancel under its two lines of words");
+		workbench.set_waiting_fetch(QStringLiteral("Fetching the base commit from github.com…"), QStringLiteral("12.4 MB received so far."));
+		expect(veil->words().Waiting == QStringLiteral("12.4 MB received so far."), "the slow line says how much has come");
+		veil->cancel_button()->click();
+		expect(cancelled == 1, "Cancel stops the fetch");
+		workbench.set_waiting_fetch({ }, { });
+		expect(!veil->cancel_button()->isVisible() && veil->words().Loading == QStringLiteral("Loading render.cpp…"),
+			   "once the fetch ends the plain wait returns, with no Cancel");
+		workbench.set_waiting_failed(QStringLiteral("src/engine/render.cpp"),
+									 QStringLiteral("No exact comparison is ready for this file. Fetching the pull request's commits did not reach GitHub."));
+		expect(veil->look() == core::pending_look::failed && !veil->cancel_button()->isVisible(), "a stalled fetch ends in a sentence that says why, with no Cancel");
 	}
 
 	/// \brief Proves the panes number their own lines, visibly.
@@ -6944,6 +6982,7 @@ auto main(int argc, char** argv) -> int
 	}
 	test_source_overlay_scrollbar_keeps_viewport_extent();
 	test_an_opened_file_waits_by_name();
+	test_a_file_waiting_on_a_fetch_says_so_and_cancels();
 
 	test_divider_drag_keeps_fractional_viewport();
 	if (argc > 1 && std::string_view{ argv[1] } == "--divider-resize-only") {

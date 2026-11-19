@@ -260,6 +260,8 @@ namespace bpr::core {
 			return epoch_reason_code::fetch_failed;
 		case epoch_failure::fetch_storage:
 			return epoch_reason_code::fetch_storage;
+		case epoch_failure::fetch_history_too_large:
+			return epoch_reason_code::fetch_history_too_large;
 		}
 		return epoch_reason_code::invalid_observation;
 	}

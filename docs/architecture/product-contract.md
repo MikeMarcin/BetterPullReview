@@ -216,7 +216,10 @@ ceiling and supervised 96 MiB/128-entry temporary-store abort threshold
 remain; the aggregate threshold is not a hard disk quota. For every validated PR shape, a
 sparse-capable CLI connection retains the exact base/head commit trees and
 loads only the selected file blobs. A small PR does not imply a small repository
-history; connections without sparse support keep complete acquisition. Local
+history; connections without sparse support keep complete acquisition. No
+review fetches the whole history of a repository GitHub reports past 32 MiB
+([[BPR-2291]]): it loads selected objects, or, without sparse support, says
+the history is too large before asking the host. Local
 refs reflect the accepted API snapshot, not fresh remote advertisement. A tests-disabled macOS fixture
 now renders a full PR diff through the CLI profile; an isolated build with
 the process adapter removed from composition visibly refuses the same healthy
