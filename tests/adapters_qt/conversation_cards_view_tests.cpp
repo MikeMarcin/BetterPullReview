@@ -4018,6 +4018,165 @@ namespace {
 	/// Esc and Cancel close it and send nothing; while GitHub is asked the
 	/// text is held; a conflict keeps the typed text and offers GitHub's
 	/// newer text; a withdrawn offer closes it.
+
+	/// \brief Runs the event loop long enough for the card's deferred refits.
+	void settle_card()
+	{
+		for (auto spin = 0; spin < 30; ++spin) {
+			QApplication::processEvents();
+			QThread::msleep(2);
+		}
+	}
+
+	/// \brief Opens my draft on line 1 of `src/a.cpp` as its composer.
+	void open_composer(qt::conversation_cards_view& aView, const std::string& aBody)
+	{
+		aView.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return aLine == 1U ? std::optional{ 40 } : std::nullopt; });
+		aView.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		aView.adopt({ });
+		const auto comparison = core::file_comparison_digest{ };
+		aView.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 0U }, .Body = aBody },
+						comparison);
+		QApplication::processEvents();
+		const auto draft = std::ranges::find_if(aView.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; });
+		expect(draft != aView.cards().end(), "my draft has a note");
+		aView.open_thread(draft->Id);
+		settle_card();
+	}
+
+	[[nodiscard]] auto wheel_at(QWidget& aTarget, const QPoint aPixels, const QPoint aAngle) -> QWheelEvent
+	{
+		const auto centre = QPointF{ aTarget.rect().center() };
+		return QWheelEvent{ centre, aTarget.mapToGlobal(centre), aPixels, aAngle, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+	}
+
+	/// \brief [[BPR-2271]]. The owner: "Suggested changes diffs in the
+	/// comments drawer should scroll like code blocks there do". What a
+	/// suggestion changes keeps its long line whole and scrolls sideways in
+	/// its own box; the card stays the drawer's width; a sideways wheel and
+	/// Left, Right, Home and End move it, and a vertical wheel is the drawer's.
+	auto test_a_suggested_change_scrolls_sideways_in_its_box(const QString& aDirectory) -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(320, 760);
+		view.show();
+		QApplication::processEvents();
+		const auto longLine = std::string{ "\tconst auto widest = measure(first_column, second_column, third_column, fourth_column, fifth_column, sixth_column);" };
+		const auto body     = "```suggestion\n" + longLine + "\n```";
+		open_composer(view, body);
+		view.present_draft(qt::draft_composer_presentation{
+			.Body        = QString::fromStdString(body),
+			.Publishable = true,
+			.Lines       = QStringLiteral("Line 1"),
+			.Change      = core::suggested_change{ .Fenced = true, .Removed = { "\tconst auto widest = measure(first_column);" }, .Added = { longLine } },
+		});
+		settle_card();
+		auto* const card   = view.open_card();
+		auto* const change = card != nullptr ? card->findChild<QWidget*>(QStringLiteral("threadDraftChange")) : nullptr;
+		auto* const rows   = card != nullptr ? card->findChild<QAbstractScrollArea*>(QStringLiteral("threadDraftChangeRows")) : nullptr;
+		if (!aDirectory.isEmpty()) {
+			expect(view.grab().save(aDirectory + QStringLiteral("/suggested-change-diff.png")), "render the drawer's suggested change");
+		}
+		expect(change != nullptr && change->isVisible() && rows != nullptr && rows->isVisible(), "the suggestion shows what it changes in its own scrolling box");
+		auto* const bar = rows->horizontalScrollBar();
+		expect(bar->maximum() > 0, "a line longer than the drawer gives the diff a horizontal scroll range");
+		expect(rows->verticalScrollBar()->maximum() == 0, "every row of the diff shows; it never scrolls up and down");
+		expect(card->width() <= view.viewport()->width() && change->mapTo(card, QPoint{ change->width(), 0 }).x() <= card->width(),
+			   "the card and its diff stay the drawer's width");
+		bar->setValue(0);
+		auto side = wheel_at(*rows->viewport(), QPoint{ -40, 0 }, QPoint{ -120, 0 });
+		QApplication::sendEvent(rows->viewport(), &side);
+		expect(bar->value() > 0, "a sideways wheel scrolls the diff");
+		const auto at   = bar->value();
+		auto       down = wheel_at(*rows->viewport(), QPoint{ 0, -40 }, QPoint{ 0, -120 });
+		QApplication::sendEvent(rows->viewport(), &down);
+		expect(bar->value() == at, "a vertical wheel leaves the diff where it is: it is the drawer's");
+		bar->setValue(0);
+		expect(rows->focusPolicy() != Qt::NoFocus, "a diff that scrolls takes focus, as a wide code block's text does");
+		rows->setFocus(Qt::OtherFocusReason);
+		key(*rows, Qt::Key_Right);
+		expect(bar->value() > 0, "Right scrolls the focused diff");
+		key(*rows, Qt::Key_End);
+		expect(bar->value() == bar->maximum(), "End shows the ends of its lines");
+		key(*rows, Qt::Key_Home);
+		expect(bar->value() == 0, "Home shows their starts");
+		// A short change has nothing to scroll and takes no focus.
+		view.present_draft(qt::draft_composer_presentation{
+			.Body        = QStringLiteral("```suggestion\nint b = 2;\n```"),
+			.Publishable = true,
+			.Lines       = QStringLiteral("Line 1"),
+			.Change      = core::suggested_change{ .Fenced = true, .Removed = { "int b = 1;" }, .Added = { "int b = 2;" } },
+		});
+		settle_card();
+		expect(bar->maximum() == 0 && rows->focusPolicy() == Qt::NoFocus, "a short change has no horizontal range and no tab stop");
+	}
+
+	/// \brief [[BPR-2273]]. The owner: "A long draft comment neither scrolls
+	/// with 2 finger MacBook gestures (scroll wheel) nor expands to fit the
+	/// contents". The composer grows with its text to about 60% of the
+	/// drawer, then scrolls inside by wheel and by trackpad pixels; at its end
+	/// the drawer takes the wheel. Closed, the long draft ends in an
+	/// ellipsis and opens whole.
+	auto test_a_long_draft_grows_then_scrolls(const QString& aDirectory) -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(320, 700);
+		view.show();
+		QApplication::processEvents();
+		auto paragraph = std::string{ };
+		for (auto line = 0; line < 40; ++line) {
+			paragraph += "The budget is reset on every call, so per-frame work is never bounded (" + std::to_string(line) + ").\n";
+		}
+		open_composer(view, paragraph);
+		view.present_draft(qt::draft_composer_presentation{ .Body = QStringLiteral("short"), .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		settle_card();
+		auto* const text = view.draft_editor();
+		expect(text != nullptr, "the composer has its field");
+		const auto shortHeight = text->height();
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(paragraph), .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		settle_card();
+		if (!aDirectory.isEmpty()) {
+			expect(view.grab().save(aDirectory + QStringLiteral("/long-draft-composer.png")), "render the long composer");
+		}
+		const auto maximum = view.viewport()->height() * 3 / 5;
+		auto*      bar     = text->verticalScrollBar();
+		std::cout << "long draft: field " << shortHeight << " -> " << text->height() << " of " << maximum << ", range " << bar->maximum() << '\n';
+		expect(text->height() > shortHeight + 200 && text->height() <= maximum && text->height() >= maximum - text->fontMetrics().lineSpacing() - 4,
+			   "a long draft grows its field to about 60% of the drawer");
+		expect(bar->maximum() > 0, "past its maximum the field has a vertical scroll range");
+		auto forwarded = 0;
+		view.set_scroll_forward([&forwarded](QWheelEvent&) {
+			++forwarded;
+			return true;
+		});
+		bar->setValue(0);
+		auto angle = wheel_at(*text->viewport(), QPoint{ }, QPoint{ 0, -120 });
+		QApplication::sendEvent(text->viewport(), &angle);
+		expect(bar->value() > 0 && forwarded == 0, "a wheel's angle delta scrolls the field, and the drawer does not take it");
+		const auto afterAngle = bar->value();
+		auto       pixels     = wheel_at(*text->viewport(), QPoint{ 0, -3 * text->fontMetrics().lineSpacing() }, QPoint{ });
+		QApplication::sendEvent(text->viewport(), &pixels);
+		expect(bar->value() > afterAngle && forwarded == 0, "a trackpad's pixel delta scrolls the field");
+		auto up = wheel_at(*text->viewport(), QPoint{ 0, 3 * text->fontMetrics().lineSpacing() }, QPoint{ 0, 120 });
+		QApplication::sendEvent(text->viewport(), &up);
+		expect(bar->value() < afterAngle + 3, "scrolling back up moves the field back");
+		bar->setValue(bar->maximum());
+		auto past = wheel_at(*text->viewport(), QPoint{ 0, -40 }, QPoint{ 0, -120 });
+		QApplication::sendEvent(text->viewport(), &past);
+		expect(bar->value() == bar->maximum() && forwarded == 1, "at its end the field hands the wheel to the drawer");
+		// Closed, the note says words were left out, and opening it shows them all.
+		view.end_draft();
+		settle_card();
+		const auto note = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; });
+		expect(note != view.cards().end() && !note->Posts.empty() && note->Posts.front().Body.toStdString() == paragraph, "the closed draft keeps all its words");
+		const auto preview = view.closed_preview(note->Id);
+		std::cout << "closed long draft: " << preview.toStdString() << '\n';
+		expect(preview.endsWith(QChar{ 0x2026 }) && preview.size() < static_cast<qsizetype>(paragraph.size()), "a closed long draft ends in an ellipsis, never cut off silently");
+		if (!aDirectory.isEmpty()) {
+			expect(view.grab().save(aDirectory + QStringLiteral("/long-draft-closed.png")), "render the closed long draft");
+		}
+	}
+
 	auto test_my_comments_are_edited_in_place() -> void
 	{
 		qt::conversation_cards_view view;
@@ -4173,6 +4332,16 @@ auto main(int argc, char** argv) -> int
 		std::cout << "render-bpr-1775:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-bpr-2271") {
+		test_a_suggested_change_scrolls_sideways_in_its_box(QString::fromLocal8Bit(argv[2]));
+		std::cout << "render-bpr-2271:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-bpr-2273") {
+		test_a_long_draft_grows_then_scrolls(QString::fromLocal8Bit(argv[2]));
+		std::cout << "render-bpr-2273:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc > 1 && std::string_view{ argv[1] } == "--publication-status-geometry") {
 
 		test_wrapped_publication_status_is_fully_visible();
@@ -4227,6 +4396,8 @@ auto main(int argc, char** argv) -> int
 	test_conversation_lists_comments_not_reviews();
 	test_a_review_body_is_a_comment_in_its_bundle();
 	test_my_comments_are_edited_in_place();
+	test_a_suggested_change_scrolls_sideways_in_its_box({ });
+	test_a_long_draft_grows_then_scrolls({ });
 	std::cout << "conversation-cards-view-tests:pass\n";
 
 	return EXIT_SUCCESS;

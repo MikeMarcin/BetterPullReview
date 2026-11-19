@@ -1127,6 +1127,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto overflow() const -> int;
 		/// \brief One note's rectangle in viewport coordinates, or empty.
 		[[nodiscard]] auto note_rect(const std::string& aId) const -> QRect;
+		/// \brief [[BPR-2273]]. The words a closed note shows, as painted:
+		/// ending in an ellipsis when words were left out; empty for none.
+		[[nodiscard]] auto closed_preview(const std::string& aId) const -> QString;
 		/// \brief The thread whose note is under the pointer, if any.
 		[[nodiscard]] auto hovered_thread() const noexcept -> const std::string&;
 
@@ -1474,11 +1477,13 @@ namespace bpr::qt {
 		};
 		mutable std::unordered_map<std::string, preview_entry> Previews;
 		[[nodiscard]] auto                                     preview_for(const thread_card& aCard) const -> const detail::note_preview&;
-		open_thread_card*                                      OpenCard = nullptr;
-		std::vector<QAbstractButton*>                          Chips;
-		std::size_t                                            ChipsShown = 0U;
-		QWidget*                                               BandAbove  = nullptr;
-		QWidget*                                               BandBelow  = nullptr;
+		/// [[BPR-2273]]. The height a comment field grows to before it scrolls.
+		[[nodiscard]] auto            field_share() const -> int;
+		open_thread_card*             OpenCard = nullptr;
+		std::vector<QAbstractButton*> Chips;
+		std::size_t                   ChipsShown = 0U;
+		QWidget*                      BandAbove  = nullptr;
+		QWidget*                      BandBelow  = nullptr;
 	};
 } // namespace bpr::qt
 

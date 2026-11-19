@@ -2453,6 +2453,24 @@ namespace bpr::qt {
 		return index.has_value() ? to_viewport(Cards[*index].Rect) : QRect{ };
 	}
 
+	auto conversation_cards_view::closed_preview(const std::string& aId) const -> QString
+	{
+		const auto index = card_index(aId);
+		if (!index.has_value() || Cards[*index].Posts.empty()) {
+			return { };
+		}
+		const auto& card    = Cards[*index];
+		const auto* measure = closed_measure_of(card);
+		if (measure == nullptr || measure->Lines <= 0) {
+			return { };
+		}
+		// As `paint_closed` lays the note's words out.
+		const auto  colours = note_colours_of(palette(), Accent, Marker, CodeTheme ? CodeTheme->Variant : core::appearance_variant::light);
+		const auto& preview = preview_for(card);
+		const auto  wide    = std::max(40, card.Rect.width() - text_left - note_right);
+		return clamp_lines(display_of(card.Posts.front(), preview, font(), CodeFont, colours.Hover), preview.Omitted, font(), wide, measure->Lines, tokens_width(preview.Tokens, font())).Text;
+	}
+
 	auto conversation_cards_view::card_index(const std::string& aId) const -> std::optional<std::size_t>
 	{
 		if (aId.empty()) {
@@ -3858,6 +3876,7 @@ namespace bpr::qt {
 			style.Suggestions = std::move(shown);
 		}
 		OpenCard = new open_thread_card{ card, style, viewport() };
+		OpenCard->set_field_maximum(field_share());
 		OpenCard->setProperty("threadKey", key);
 		if (OpenCard->label_controls() != nullptr) {
 			bind_reference(*OpenCard->label_controls());
@@ -4925,9 +4944,18 @@ namespace bpr::qt {
 		return QAbstractScrollArea::viewportEvent(aEvent);
 	}
 
+	auto conversation_cards_view::field_share() const -> int
+	{
+		// [[BPR-2273]]. A comment field grows to about 60% of the drawer.
+		return viewport()->height() * 3 / 5;
+	}
+
 	void conversation_cards_view::resizeEvent(QResizeEvent* const aEvent)
 	{
 		QAbstractScrollArea::resizeEvent(aEvent);
+		if (OpenCard != nullptr) {
+			OpenCard->set_field_maximum(field_share());
+		}
 		relayout();
 		// [[BPR-1740]]. A notice under the drawer takes its height from
 		// it: the open thread's focused control stays in view rather than
@@ -5731,6 +5759,11 @@ namespace bpr::qt {
 			const auto delta = wheel->pixelDelta().isNull() ? wheel->angleDelta() : wheel->pixelDelta();
 			if (std::abs(delta.x()) > std::abs(delta.y())) {
 				return false;
+			}
+			// [[BPR-2273]]. A comment field taller than its share scrolls
+			// first; at its end the drawer takes the wheel.
+			if (OpenCard->scroll_field(aWatched, *wheel)) {
+				return true;
 			}
 			wheelEvent(wheel);
 			return true;
