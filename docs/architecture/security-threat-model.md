@@ -242,7 +242,7 @@ tests-disabled Release seam, dependency, runtime, and ELF audits passed.
   is the second and last: a separate same-user AF_UNIX rendezvous (on Windows an
   owner-private local named pipe that rejects remote clients, [[BPR-1168]])
   bound only under the exact-root lease, with a versioned owner binding
-  (protocol 8), 5 MiB frames and a closed command set the owner runs against its
+  (protocol 9), 5 MiB frames and a closed command set the owner runs against its
   own store: local tour draft, hook and assist commands, and since RFC-BPR-0058
   the finite `bpr cycle` registry, each with only that command's own options,
   and since RFC-BPR-0108 `bpr draft open`, which opens or resumes one
@@ -1758,7 +1758,11 @@ person's own Claude account sign-in, never a paid API key
   this app's. Refusing every such run protected little: the memory folder is
   keyed to the run's fresh empty working folder, so nothing from another run
   or project loads; with no tool nothing in the run can write it; at most an
-  empty folder is left under `~/.claude/projects/`. The `agent.run` line
+  empty folder is left under `~/.claude/projects/`. The reverse order costs a
+  sign-in: a custom agent whose own settings come first (its saved arguments,
+  or a wrapper that adds them before what it passes on) lost them, and the
+  `apiKeyHelper` in them, to this app's ([[BPR-2259]]). A custom agent's
+  launch is therefore given no `--settings` of this app's. The `agent.run` line
   reads `memory=on`, never the path. A writing launch also sets
   `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, which Claude reads over any settings
   value (2.1.310: through a wrapper that replaced the settings with

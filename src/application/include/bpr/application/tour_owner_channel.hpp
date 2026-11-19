@@ -26,7 +26,7 @@ namespace bpr::application {
 	/// and hook itself; no context, range offsets beyond these or target ever arrive from the caller.
 	struct tour_owner_assist_query
 	{
-		core::writing_hook Hook = core::writing_hook::problem;
+		core::writing_hook Hook = core::writing_hook::comment;
 		core::tour_stop_id Stop;
 		bool               HasRange = false, HasQuote = false;
 		std::uint64_t      Begin = 0, End = 0;

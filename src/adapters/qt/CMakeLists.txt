@@ -19,6 +19,7 @@ add_library(
         src/wrapping_row.cpp
         src/application_menu_wording.cpp
         src/workbench_window_author_mode.cpp
+        src/author_description_editor.cpp
         src/local_draft_parts.cpp
         src/review_cycle_share_sheet.cpp
         src/review_cycle_share_marks.cpp
@@ -114,6 +115,7 @@ add_library(
         src/document_tab_strip.cpp
         src/native_window_chrome.cpp
         src/resize_handle_cursor.cpp
+        src/window_file_drop.cpp
         src/epoch_line.cpp
         src/workbench_landing.cpp
         src/markdown_body_view.cpp
@@ -156,6 +158,7 @@ add_library(
         src/info_glyph.cpp
         src/server_card.cpp
         src/comparison_scroll_controller.cpp
+        src/nested_scroll_latch.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp
 		src/diff_workbench_find_and_editing.cpp

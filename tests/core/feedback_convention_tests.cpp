@@ -259,10 +259,13 @@ namespace {
 		const auto note = recognize_checked("note: The snapshot is immutable.");
 		expect(note.Guidance == feedback_label_guidance::always_non_blocking && note.Expectation == feedback_expectation::unspecified && note.Diagnostics.empty(), "guidance never becomes an explicit decoration");
 		const auto chore = recognize_checked("chore: Run the release script.");
-		expect(chore.Guidance == feedback_label_guidance::required_before_acceptance && chore.Expectation == feedback_expectation::unspecified, "required-before-acceptance guidance is not blocking");
+		expect(chore.Guidance == feedback_label_guidance::asks_for_process_work && chore.Expectation == feedback_expectation::unspecified, "process-work guidance is not an explicit decoration");
 		const auto contradiction = recognize_checked("note (blocking): Clarify.");
 		expect(contradiction.Status == feedback_prefix_status::recognized && contradiction.Expectation == feedback_expectation::blocking && contradiction.Guidance == feedback_label_guidance::always_non_blocking, "contradiction keeps both facts");
-		expect(has(recognize_checked("chore (non-blocking): Later.\n"), feedback_diagnostic::label_expectation_conflict), "required work declared non-blocking is advisory");
+		// [[BPR-2276]]. A chore, todo or typo asks for work without blocking, so
+		// either weight agrees with it.
+		expect(!has(recognize_checked("chore (non-blocking): Later.\n"), feedback_diagnostic::label_expectation_conflict) && !has(recognize_checked("todo (blocking): Guard.\n"), feedback_diagnostic::label_expectation_conflict),
+			   "work a label asks for may be declared blocking or not");
 		expect(has(recognize_checked("nitpick (blocking): Rename.\n"), feedback_diagnostic::label_expectation_conflict), "blocking nitpick is advisory");
 		expect(!has(recognize_checked("issue (blocking): Guard.\n"), feedback_diagnostic::label_expectation_conflict), "unspecified guidance never conflicts");
 		const auto conditional = recognize_checked("polish (if-minor): Simplify.");
@@ -397,6 +400,34 @@ namespace {
 		expect(slice(unicode, wide.Subject) == "Does café_東京 retain its identity?" && wide.Subject->End == unicode.size() - 1U, "UTF-8 subject spans whole bytes");
 		const std::string bare = "todo: Only a subject";
 		expect(!recognize_checked(bare).Discussion && recognize_checked(bare).Subject->End == bare.size(), "no discussion without a line terminator");
+	}
+
+	/// [[BPR-2264]] (owner, 2026-11-18). The weight each label carries on
+	/// its own: a decoration repeating it adds nothing over the label.
+	void implied_weights()
+	{
+		// [[BPR-2276]] (owner, 2026-11-18: "nothing is a blocker unless we
+		// don't want the PR to merge without it fixed"): only issue blocks.
+		expect(implied_expectation(feedback_label::issue) == feedback_expectation::blocking, "issue blocks on its own");
+		for (const auto label : { feedback_label::todo, feedback_label::typo, feedback_label::chore, feedback_label::suggestion, feedback_label::nitpick, feedback_label::quibble, feedback_label::thought, feedback_label::note, feedback_label::praise }) {
+			expect(implied_expectation(label) == feedback_expectation::non_blocking, std::string{ stable_name(label) } + " does not block on its own");
+		}
+		expect(implied_expectation(feedback_label::question) == feedback_expectation::unspecified && implied_expectation(feedback_label::polish) == feedback_expectation::unspecified,
+			   "question and polish carry no weight of their own");
+		// [[BPR-2267]]. The catalog carries the weight; a written decoration
+		// wins over it, and with no catalog label only what is written counts.
+		for (const auto& definition : feedback_label_catalog()) {
+			expect(implied_expectation(definition.Label) == definition.Weight, std::string{ definition.Id } + ": the implied weight is the catalog's");
+		}
+		expect(effective_expectation(feedback_label::issue, feedback_expectation::unspecified) == feedback_expectation::blocking
+				   && effective_expectation(feedback_label::issue, feedback_expectation::non_blocking) == feedback_expectation::non_blocking
+				   && effective_expectation(feedback_label::suggestion, feedback_expectation::unspecified) == feedback_expectation::non_blocking
+				   && effective_expectation(feedback_label::suggestion, feedback_expectation::blocking) == feedback_expectation::blocking
+				   && effective_expectation(feedback_label::nitpick, feedback_expectation::unspecified) == feedback_expectation::non_blocking
+				   && effective_expectation(feedback_label::todo, feedback_expectation::unspecified) == feedback_expectation::non_blocking
+				   && effective_expectation(feedback_label::todo, feedback_expectation::blocking) == feedback_expectation::blocking
+				   && effective_expectation(std::nullopt, feedback_expectation::unspecified) == feedback_expectation::unspecified,
+			   "the effective weight is the decoration when written, else the label's");
 	}
 
 	auto padded_header(std::size_t aSubjectBegin) -> std::string
@@ -591,6 +622,7 @@ int main(int aArgc, char** aArgv)
 	malformed_and_unknown();
 	false_positives();
 	spans_and_line_endings();
+	implied_weights();
 	budgets();
 	pathological();
 	generated_properties();

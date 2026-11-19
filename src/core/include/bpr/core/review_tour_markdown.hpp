@@ -19,24 +19,20 @@ namespace bpr::core {
 		std::string Destination;
 		auto        operator==(const tour_markdown_link&) const -> bool = default;
 	};
-	struct tour_markdown_section
-	{
-		std::string    Name;
-		tour_text_span Content;
-	};
 	struct tour_markdown_list
 	{
 		tour_text_span                  Source;
 		std::vector<tour_markdown_link> Entries;
 		bool                            MappingNeeded = false;
 	};
-	/// \brief Conservative structural mapping; duplicate fields/lists stay separate for manual choice.
+	/// \brief Conservative structural mapping; duplicate lists stay separate for manual choice.
+	/// [[BPR-2274]]. A tour is its stops: `## Problem` and `## Solution`
+	/// headings an older build wrote are ordinary text here.
 	struct tour_markdown_map
 	{
-		std::vector<tour_markdown_section> Sections;
-		std::vector<tour_markdown_list>    Lists;
-		std::vector<tour_markdown_link>    Links;
-		bool                               Bounded = true;
+		std::vector<tour_markdown_list> Lists;
+		std::vector<tour_markdown_link> Links;
+		bool                            Bounded = true;
 	};
 	struct tour_stop_markdown
 	{
@@ -51,15 +47,17 @@ namespace bpr::core {
 		std::string    Expected;
 		std::string    Replacement;
 	};
-	/// \brief Scan top-level sections/lists, excluding code, quotes, nested items and HTML regions.
+	/// \brief Scan top-level lists, excluding code, quotes, nested items and HTML regions.
 	[[nodiscard]] auto map_tour_markdown(std::string_view aRaw) -> tour_markdown_map;
 	/// \brief Recognize only the generated heading and an exact final navigation paragraph.
 	[[nodiscard]] auto map_tour_stop(std::string_view aRaw) -> tour_stop_markdown;
 	/// \brief Apply disjoint explicitly selected spans against their exact baseline; preserve every other byte.
 	[[nodiscard]] auto edit_tour_markdown(std::string_view aRaw, std::span<const tour_text_edit> aEdits) -> std::optional<std::string>;
-	/// \brief Preview insertion into an unstructured description at an explicitly chosen byte boundary.
-	[[nodiscard]] auto insert_tour_brief(std::string_view aRaw, std::size_t aAt, std::string_view aProblem, std::string_view aSolution, std::string_view aNewline = "\n") -> std::optional<std::string>;
 	[[nodiscard]] auto tour_markdown_label(std::string_view aLabel) -> std::string;
+	/// \brief [[BPR-2274]]. The tour comment's one line ahead of its route: a
+	/// tour is its stops, so the comment says nothing else. A review needs a
+	/// summary, so the line is never empty.
+	inline constexpr std::string_view tour_comment_lead = "A guided tour of this change, stop by stop.";
 	/// \brief [[BPR-1222]]. Where a tour's index and Previous/Next take a
 	/// reader: a review comment's Files changed anchor. GitHub returns a review
 	/// comment as `…/pull/N#discussion_rID` (the Conversation tab); the Files

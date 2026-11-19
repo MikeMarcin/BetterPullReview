@@ -2049,14 +2049,6 @@ namespace bpr::application {
 		}
 	}
 
-	void local_draft_workbench::save_brief(std::string aProblem, std::string aSolution)
-	{
-		auto& self = *Implementation;
-		if (self.Projection.Draft) {
-			self.prepare(core::edit_tour_brief(*self.Projection.Draft, self.Projection.Draft->Version, std::move(aProblem), std::move(aSolution), self.Now()));
-		}
-	}
-
 	void local_draft_workbench::transfer_to_description(std::string aPassage)
 	{
 		auto& self = *Implementation;

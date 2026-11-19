@@ -448,7 +448,7 @@ namespace {
 		expect(gestures == std::vector{ qt::overview_tour_gesture::prepare }, "Prepare reports its gesture");
 		save(window, QStringLiteral("overview-tour-prepare"));
 
-		auto writer  = core::overview_tour{ .Kind = core::overview_tour_kind::writer, .Problem = "Startup reads every file twice.", .Solution = "" };
+		auto writer  = core::overview_tour{ .Kind = core::overview_tour_kind::writer };
 		writer.Stops = { stop(1, "The cache", core::tour_preparation::ready), stop(2, "", core::tour_preparation::editing), stop(3, "Invalidation", core::tour_preparation::needs_attention),
 						 stop(4, "Tests", core::tour_preparation::suggested) };
 		summary->present(writer);
@@ -458,11 +458,8 @@ namespace {
 		expect(summary->stop_readiness() == QStringList{ QStringLiteral("Accepted"), QStringLiteral("Not accepted yet"), QStringLiteral("Changed since accepted"), QStringLiteral("Not accepted yet") },
 			   "each with its acceptance as the route shows it");
 		expect(summary->state_label()->text().startsWith(QStringLiteral("A private draft")), "a private draft says so");
-		// Since 3d97ea548 Problem and Solution are Markdown views; an empty
-		// one shows its empty-body text in a label of its own.
-		auto* const solution = dynamic_cast<qt::markdown_body_view*>(summary->findChild<QWidget*>(QStringLiteral("overviewTourSolution")));
-		expect(solution != nullptr && solution->isVisible() && std::ranges::any_of(solution->findChildren<QLabel*>(), [](const auto* aLabel) { return !aLabel->isHidden() && aLabel->text() == QStringLiteral("Not written yet"); }),
-			   "a writer sees an empty field as still to write");
+		expect(summary->findChild<QWidget*>(QStringLiteral("overviewTourProblem")) == nullptr && summary->findChild<QWidget*>(QStringLiteral("overviewTourSolution")) == nullptr,
+			   "[[BPR-2274]] the tour is its stops: no Problem or Solution");
 		expect(summary->action()->text() == QStringLiteral("Continue in Review"), "and continues in Review");
 		auto* const firstRow = summary->findChild<QWidget*>(QStringLiteral("overviewTourStop"));
 		summary->present(writer);
@@ -474,7 +471,7 @@ namespace {
 		summary->present(writer);
 		expect(summary->state_label()->text().startsWith(QStringLiteral("Published")), "a published tour says so");
 
-		auto reader      = core::overview_tour{ .Kind = core::overview_tour_kind::reader, .Problem = "Startup reads every file twice.", .Solution = "Read once and cache." };
+		auto reader      = core::overview_tour{ .Kind = core::overview_tour_kind::reader };
 		reader.Stops     = { stop(1, "The cache", core::tour_preparation::ready), stop(2, "Invalidation", core::tour_preparation::needs_attention) };
 		reader.Published = true;
 		summary->present(reader);
@@ -484,9 +481,6 @@ namespace {
 		summary->action()->click();
 		expect(gestures.back() == qt::overview_tour_gesture::start_tour, "Start tour reports its gesture");
 		save(window, QStringLiteral("overview-tour-reader"));
-		reader.Solution = "";
-		summary->present(reader);
-		expect(!solution->isVisible(), "a reader sees only what was written");
 		expect(qt::drawer_principle_violations(*summary).isEmpty(), "the Tour tab keeps the principles");
 
 		summary->present({ });

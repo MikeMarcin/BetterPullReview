@@ -23,8 +23,8 @@
 /// \details The preparation belongs to the local draft, never to an account,
 /// host or pull request: its stops bind to a candidate's exact lines by
 /// ordinal, path and bytes, never to a guessed future commit. The full
-/// description is the publication body's one authority; the tour's Problem
-/// and Solution never overwrite it and it never overwrites them. Agent
+/// description is the publication body's one authority; the tour is its
+/// stops and never writes the description ([[BPR-2274]]). Agent
 /// proposals are inspectable records an author accepts or rejects; one made
 /// against an earlier field revision or an earlier candidate is stale and
 /// changes nothing. Conversations are scoped to the draft, the candidate,
@@ -141,10 +141,6 @@ namespace bpr::core {
 
 	struct local_tour
 	{
-		std::string                  Problem;
-		std::string                  Solution;
-		std::uint64_t                ProblemRevision  = 1;
-		std::uint64_t                SolutionRevision = 1;
 		std::vector<local_tour_stop> Stops;
 		std::uint64_t                NextStop                             = 1;
 		auto                         operator<=>(const local_tour&) const = default;
@@ -165,8 +161,6 @@ namespace bpr::core {
 	enum class local_proposal_target : std::uint8_t {
 		title,
 		description,
-		problem,
-		solution,
 		/// A stop's text (and title, when given).
 		stop,
 		/// A new stop at `Source`.
@@ -213,8 +207,6 @@ namespace bpr::core {
 		whole_change,
 		title,
 		description,
-		problem,
-		solution,
 		stop,
 		/// Attached lines of the candidate.
 		lines,
@@ -247,7 +239,7 @@ namespace bpr::core {
 	{
 		std::uint64_t Id        = 0;
 		std::uint64_t Candidate = 0;
-		/// `change`, `problem`, `solution`, or `stop:N` for a stop's own chat.
+		/// `change`, or `stop:N` for a stop's own chat.
 		std::string Thread;
 		/// The agent entry's identity and its name when the session began.
 		std::string Agent;
@@ -317,9 +309,6 @@ namespace bpr::core {
 
 	/// \brief Saves the title and the full description body as one explicit edit.
 	[[nodiscard]] auto edit_description(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::string aTitle, std::string aBody, std::int64_t aNow)
-		-> preparation_result<local_draft>;
-	/// \brief Saves the tour's Problem and Solution; the description is untouched.
-	[[nodiscard]] auto edit_tour_brief(const local_draft& aDraft, std::uint64_t aExpectedVersion, std::string aProblem, std::string aSolution, std::int64_t aNow)
 		-> preparation_result<local_draft>;
 	/// \brief Copies a passage the author chose into the description, at its
 	/// end: the deliberate transfer. Nothing moves the other way implicitly.
@@ -572,11 +561,6 @@ namespace bpr::core {
 	/// lines are not exactly there stays local with its reason; none is
 	/// dropped or anchored elsewhere.
 	[[nodiscard]] auto map_local_publication(const local_draft& aDraft, const local_publication_result& aResult) -> local_publication_mapping;
-
-	/// \brief RFC-BPR-0110 X19: "Update PR description after publishing"
-	/// starts off for a pull request associated with a local draft, on for
-	/// every other.
-	[[nodiscard]] constexpr auto update_description_by_default(const bool aAssociatedWithLocalDraft) noexcept -> bool { return !aAssociatedWithLocalDraft; }
 }
 
 #endif

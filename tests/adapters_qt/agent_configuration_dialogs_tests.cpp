@@ -81,8 +81,8 @@ namespace {
 		auto lint                   = core::agent_entry{ .Id = 2U, .Name = "Lint bot", .Protocol = core::agent_protocol::external_terminal, .Program = "/opt/tools/lint-bot" };
 		lint.Identity               = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 		snapshot.Agents.Agents      = { work, lint };
-		snapshot.Hooks.Overrides[0] = "Say what is wrong today in two sentences. /team-style";
-		snapshot.WrittenAgainst[0]  = std::string{ application::writing_hook_version };
+		snapshot.Hooks.Overrides[1] = "Say what is wrong today in two sentences. /team-style";
+		snapshot.WrittenAgainst[1]  = std::string{ application::writing_hook_version };
 		return snapshot;
 	}
 
@@ -170,7 +170,7 @@ namespace {
 	[[nodiscard]] auto test_export(const std::string& aRoot) -> std::string
 	{
 		auto unsaved = std::array<bool, core::writing_hook_count + 1U>{ };
-		unsaved[1]   = true;
+		unsaved[0]   = true;
 		// [[BPR-2198]]. A profile signed in to github.com, remembering an
 		// enterprise server, with a saved and a followed repository.
 		auto facts         = core::profile_facts{ .ProfileName = "Work" };
@@ -203,7 +203,7 @@ namespace {
 		agents->setCheckState(0, Qt::Checked);
 		expect(dialog.agents() == std::vector<std::uint32_t>{ 1U, 2U }, "and ticking it ticks each again");
 		auto prompts = dialog.prompts();
-		expect(prompts.size() == 1U && prompts[0].Purpose == "tour.problem" && !prompts[0].BuiltIn, "the edited prompt starts chosen; built-in ones do not");
+		expect(prompts.size() == 1U && prompts[0].Purpose == "tour.stop-comment" && !prompts[0].BuiltIn, "the edited prompt starts chosen; built-in ones do not");
 		const auto& text = dialog.bytes();
 		expect(text.find("/Users/me") == std::string::npos && text.find("aaaaaaaa") == std::string::npos, "no path or identity in the exact text");
 		expect(dialog.exact_text()->toPlainText().toStdString() == text && dialog.exact_text()->isReadOnly(), "the exact text shown is what is written");
@@ -211,7 +211,7 @@ namespace {
 		// A prompt with unsaved edits cannot be chosen.
 		auto* unsavedRow = static_cast<QTreeWidgetItem*>(nullptr);
 		for (QTreeWidgetItemIterator it{ dialog.items() }; *it != nullptr; ++it) {
-			if ((*it)->text(0) == QStringLiteral("Solution summary")) {
+			if ((*it)->text(0) == QStringLiteral("Tour outline")) {
 				unsavedRow = *it;
 			}
 		}
@@ -324,13 +324,13 @@ namespace {
 	/// everything the file can bring starts chosen; each choice is one click.
 	void test_import(const std::string& aBytes, const std::string& aRoot)
 	{
-		// The recipient has its own Work Claude and an edited Problem statement.
+		// The recipient has its own Work Claude and an edited Stop comment prompt.
 		auto mine               = application::agent_configuration_snapshot{ };
 		auto work               = core::agent_entry{ .Id = 3U, .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/me/work-claude" };
 		work.Arguments          = { "--profile", "work" };
 		work.Identity           = "cccccccccccccccccccccccccccccccc";
 		mine.Agents.Agents      = { work };
-		mine.Hooks.Overrides[0] = "My own problem prompt.";
+		mine.Hooks.Overrides[1] = "My own problem prompt.";
 		auto preview            = application::agent_configuration_preview{ .Snapshot = mine, .Prompts = application::local_prompts(mine) };
 		auto decoded            = core::decode_agent_configuration(aBytes, preview.Prompts);
 		expect(decoded.has_value(), "the export reads back");
@@ -360,7 +360,7 @@ namespace {
 		expect(dialog.summary()->text().contains(QStringLiteral("1 agent waits for its program")), "the waiting agent is said");
 		auto problem = std::size_t{ 0U };
 		for (std::size_t index = 0U; index < preview.File.Prompts.size(); ++index) {
-			if (preview.File.Prompts[index].Prompt.Purpose == "tour.problem") {
+			if (preview.File.Prompts[index].Prompt.Purpose == "tour.stop-comment") {
 				problem = index;
 			}
 		}
@@ -451,7 +451,7 @@ namespace {
 		expect(workflowRow != nullptr && workflowRow->checkState(0) == Qt::Checked, "a workflow is offered for export, ticked with its section");
 		workflowRow->setCheckState(0, Qt::Checked);
 		const auto bytes = exporter.bytes();
-		expect(bytes.find("\"version\": 1") != std::string::npos && bytes.find("\"Work Claude\"") != std::string::npos && bytes.find("/opt/org") == std::string::npos,
+		expect(bytes.find("\"version\": 3") != std::string::npos && bytes.find("\"Work Claude\"") != std::string::npos && bytes.find("/opt/org") == std::string::npos,
 			   "the workflow travels with the agent it asks, without its program path");
 		render(exporter, aRoot, QStringLiteral("export-workflow"));
 
@@ -635,7 +635,7 @@ namespace {
 			// [[BPR-2204]]. Export in the same language: its list and its
 			// file each sit on the Prompts page's panel, in this theme.
 			auto unsaved         = std::array<bool, core::writing_hook_count + 1U>{ };
-			unsaved[1]           = true;
+			unsaved[0]           = true;
 			auto facts           = core::profile_facts{ .ProfileName = "Work" };
 			facts.SignedIn       = { { .Host = "github.com", .Login = "octo" } };
 			facts.Repositories   = { { .Host = "github.com", .Repository = "octo/app", .Saved = true }, { .Repository = "octo/lib", .Followed = true } };
@@ -680,7 +680,7 @@ namespace {
 		return macro;
 	}
 
-	/// Export: suggested prompts start unticked (version 1); ticked, they go
+	/// Export: suggested prompts start unticked (no pack); ticked, they go
 	/// out as a named pack, new or a later version of one held here.
 	void test_export_prompt_pack(const std::string& aRoot)
 	{
@@ -688,8 +688,8 @@ namespace {
 		snapshot.PromptMacros.Differences.Own = { suggested("own.0123456789abcdef0123456789abcdef", "Look again", "Look again at {pr.title}."),
 												  linked_to_pack(a_uuid, "Risks", "What could this break?", 2U) };
 		auto dialog                           = qt::agent_configuration_export_dialog{ snapshot, { }, "BetterPullReview test" };
-		expect(dialog.suggested_prompts().empty() && dialog.bytes().find("\"version\": 1") != std::string::npos && dialog.bytes().find("prompt_pack") == std::string::npos,
-			   "no suggested prompt starts ticked, so the file stays version 1");
+		expect(dialog.suggested_prompts().empty() && dialog.bytes().find("\"version\": 3") != std::string::npos && dialog.bytes().find("prompt_pack") == std::string::npos,
+			   "no suggested prompt starts ticked, so the file holds no pack");
 		dialog.set_minted_identities(std::string{ pack_uuid }.replace(0U, 1U, "1"), { std::string{ fresh_uuid } });
 		auto* section = static_cast<QTreeWidgetItem*>(nullptr);
 		for (QTreeWidgetItemIterator it{ dialog.items() }; *it != nullptr; ++it) {
@@ -704,9 +704,9 @@ namespace {
 		expect(dialog.findChild<QLabel*>(QStringLiteral("agentConfigurationExportSummary"))->text() == QStringLiteral("Name the prompt pack."), "and says so");
 		dialog.pack_name()->setText(QStringLiteral("Review kit"));
 		expect(dialog.prompt_pack() && dialog.prompt_pack()->Pack.Version == 1U && dialog.prompt_pack()->Pack.Label == "Review kit", "a new pack is version 1");
-		expect(dialog.bytes().find("\"version\": 2") != std::string::npos && dialog.bytes().find(std::string{ fresh_uuid }) != std::string::npos
+		expect(dialog.bytes().find("\"prompt_pack\"") != std::string::npos && dialog.bytes().find(std::string{ fresh_uuid }) != std::string::npos
 				   && dialog.bytes().find("own.0123") == std::string::npos,
-			   "version 2; the prompt made before UUIDs goes out under the minted one");
+			   "a pack; the prompt made before UUIDs goes out under the minted one");
 		expect(dialog.exact_text()->toPlainText().contains(QStringLiteral("Look again at {pr.title}.")), "the exact text shows each prompt's template");
 		dialog.pack_choice()->setCurrentIndex(1);
 		expect(dialog.pack_name()->text() == QStringLiteral("Team prompts") && dialog.prompt_pack() && dialog.prompt_pack()->Pack.Id == pack_uuid && dialog.prompt_pack()->Pack.Version == 3U,
@@ -795,6 +795,66 @@ namespace {
 		expect(older.pack_plan().Older && older.summary()->text().startsWith(QStringLiteral("This is version 1 of “Team prompts”; version 2 is already here")), "an older pack is flagged first");
 		expect(older.prompt_pack_choices().Take == std::vector<std::size_t>{ 2U } && older.prompt_pack_choices().Remove.empty(), "and its updates and removals start left out");
 	}
+
+	/// [[BPR-2283]] (owner, 2026-11-19: "Can we unify themes into the same
+	/// thing"). The Theme is a section of both dialogs: Export ticks the theme
+	/// on screen; Import plans the file's against it, shows both, and keeps
+	/// nothing it is not told to.
+	void test_theme_section(const std::string& aRoot)
+	{
+		const auto palette = qt::builtin_appearance_palette(core::appearance_variant::dark);
+		auto       here    = qt::builtin_appearance_palette(core::appearance_variant::light);
+
+		auto        exporter = qt::agent_configuration_export_dialog{ sender(), { }, "BetterPullReview test", { }, nullptr, core::portable_theme{ .Base = core::appearance_variant::dark, .Palette = palette } };
+		auto* const themeRow = exporter.section(core::profile_settings_section::theme);
+		expect(themeRow != nullptr && themeRow->checkState(0) == Qt::Checked && exporter.theme_chosen(), "Export offers the theme on screen, ticked");
+		expect(exporter.bytes().find("\"theme\": {") != std::string::npos && exporter.bytes().find("\"base\": \"dark\"") != std::string::npos, "the file carries the Theme");
+		themeRow->setCheckState(0, Qt::Unchecked);
+		expect(!exporter.theme_chosen() && exporter.bytes().find("\"theme\"") == std::string::npos, "unticked, the Theme is left out");
+		auto bare = qt::agent_configuration_export_dialog{ sender(), { }, "BetterPullReview test" };
+		expect(bare.section(core::profile_settings_section::theme) == nullptr, "with no theme given there is no Theme section");
+
+		const auto previewOf = [&](const core::appearance_palette& aFile, const bool aReadable) {
+			auto       preview              = application::agent_configuration_preview{ };
+			const auto file                 = core::portable_theme{ .Base = core::appearance_variant::dark, .Palette = aFile };
+			preview.File.Theme              = core::decoded_theme{ .Theme = file, .Rejections = { } };
+			preview.Theme                   = application::agent_configuration_preview::theme_against_here{ .OnScreen = core::appearance_variant::light, .Here = here, .Imported = { } };
+			preview.Theme->Imported.Palette = aReadable ? std::optional{ aFile } : std::nullopt;
+			if (!aReadable) {
+				preview.Theme->Imported.Unreadable.push_back(application::appearance_contrast_rejection{
+					.Variant = core::appearance_variant::light,
+					.Finding = core::contrast_finding{ .Pair = core::contrast_pair{ .Foreground = core::appearance_role::syntax_keyword, .Background = core::appearance_role::code_background }, .RatioHundredths = 120U, .MinimumHundredths = 450U } });
+			}
+			return preview;
+		};
+
+		auto        importer = qt::agent_configuration_import_dialog{ previewOf(palette, true), { } };
+		auto* const row      = row_named(importer, QStringLiteral("Dark colours"));
+		expect(row != nullptr && row->text().contains(QStringLiteral("Updated")) && row->text().contains(QStringLiteral("Replaces the colours of Light")) && row->checkState() == Qt::Checked,
+			   "the file's theme is listed Updated, ticked, and says which theme it replaces");
+		expect(importer.theme_choice() == std::optional{ palette } && importer.apply_button()->isEnabled(), "Import keeps the file's colours");
+		expect(importer.summary()->text().contains(QStringLiteral("the colours of Light")), "the footer says it");
+		importer.select_theme();
+		settle();
+		expect(importer.findChild<QWidget*>(QStringLiteral("agentConfigurationThemeSwatches")) != nullptr && importer.outcome() != nullptr
+				   && importer.outcome()->text().contains(QStringLiteral("replaces every colour of Light")),
+			   "the detail shows yours beside the file's and says what Import replaces");
+		render(importer, aRoot, QStringLiteral("import-theme"));
+		auto* const leave = part(importer, QStringLiteral("Leave out"));
+		expect(leave != nullptr, "the Theme can be left out");
+		press_space(leave);
+		settle();
+		expect(!importer.theme_choice() && !importer.apply_button()->isEnabled(), "left out, nothing is imported");
+
+		auto same = qt::agent_configuration_import_dialog{ previewOf(here, true), { } };
+		expect(same.theme_plan() && same.theme_plan()->Standing == core::import_standing::unchanged && !same.theme_choice(), "the same colours: Unchanged, nothing to choose");
+
+		auto        refused = qt::agent_configuration_import_dialog{ previewOf(palette, false), { } };
+		auto* const theme   = row_named(refused, QStringLiteral("Dark colours"));
+		expect(theme != nullptr && theme->data(Qt::CheckStateRole).isNull() && theme->text().contains(QStringLiteral("syntax_keyword on code_background is 1.20:1 on Light")),
+			   "a theme unreadable on a theme cannot be imported, and says which pair");
+		expect(!refused.theme_choice(), "and nothing is kept");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -807,6 +867,7 @@ auto main(int argc, char** argv) -> int
 	test_theme_matches_prompts(update, root);
 	test_export_prompt_pack(root);
 	test_import_prompt_pack(root);
+	test_theme_section(root);
 	std::cout << "agent-configuration-dialogs:pass\n";
 	return EXIT_SUCCESS;
 }

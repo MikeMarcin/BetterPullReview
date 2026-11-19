@@ -231,9 +231,8 @@ namespace bpr::application {
 		/// The branch to create; it must not exist.
 		std::string NewBranch;
 		std::string Title;
-		/// The description's two fields, as a Review Tour maps them.
-		std::string Problem;
-		std::string Solution;
+		/// The pull request's description, as written ([[BPR-2274]]).
+		std::string Description;
 		bool        Draft = false;
 		/// The commit's author and committer, as the reviewer confirms them.
 		std::string                          AuthorName;

@@ -4,6 +4,10 @@
 #include "bpr/application/port.hpp"
 #include "bpr/core/profile_window.hpp"
 #include <span>
+
+namespace bpr::core {
+	struct portable_theme;
+}
 namespace bpr::application {
 	struct appearance_consumer_id_tag;
 	using appearance_consumer_id = core::strong_id<appearance_consumer_id_tag>;
@@ -69,9 +73,11 @@ namespace bpr::application {
 		/// \details Persisted and published as the `Avatars` invalidation; a value
 		/// outside the vocabulary is a host failure and changes nothing.
 		void apply(appearance_consumer_id aConsumer, core::identity_avatar_style aStyle);
-		void import_theme_file(appearance_consumer_id aConsumer, std::string aPath);
-		void cancel_theme_import(appearance_consumer_id aConsumer);
-		/// \brief Writes a theme document whose base is `aVariant`, the theme the palette customises.
+		/// \brief [[BPR-2283]]. A Theme section's colours as an import would keep
+		/// them: filled from its base's built-in theme and checked on every theme.
+		[[nodiscard]] auto resolve_theme(const core::portable_theme& aTheme) const -> imported_theme;
+		/// \brief Writes a Profile Settings file holding only a Theme whose base
+		/// is `aVariant`, the theme the palette customises ([[BPR-2283]]).
 		void export_theme_file(appearance_consumer_id aConsumer, std::string aPath, core::appearance_palette aPalette, core::appearance_variant aVariant);
 		/// \brief Resets one durable group; `palette` resets the named variant only.
 		void               reset(appearance_consumer_id aConsumer, appearance_reset_scope aScope, core::appearance_variant aVariant);

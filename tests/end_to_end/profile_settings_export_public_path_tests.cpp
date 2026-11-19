@@ -107,7 +107,7 @@ namespace {
 		press(*setup, QStringLiteral("accountSetupFinish"));
 
 		// Settings › Profiles › Export Profile Settings…, every section ticked.
-		const auto file = temporary.filePath(QStringLiteral("profile-settings.bpr-config.json"));
+		const auto file = temporary.filePath(QStringLiteral("profile.bprsettings"));
 		qputenv("BPR_ATTENDED_CONFIGURATION_FILE", file.toUtf8());
 		window.present_profiles_settings();
 		expect(window.settings()->current_page() == qt::settings_page::profiles, "Manage Profiles… opens Settings on Profiles");
@@ -136,6 +136,8 @@ namespace {
 			}
 		}
 		expect(exporter->identity_chosen(), "Identity is ticked for this export");
+		// [[BPR-2283]]. The theme on screen rides the same file.
+		expect(exporter->theme_chosen(), "the theme on screen is ticked for this export");
 		exporter->export_button()->click();
 		wait_for([&] { return share->exchange_note()->text().startsWith(QStringLiteral("Exported")); }, "the page says the file was written");
 
@@ -158,7 +160,8 @@ namespace {
 			expect(text.find(secret) == std::string::npos, "no credential is written into Profile Settings");
 		}
 		// And it reads back as the one format.
-		expect(core::decode_agent_configuration(bytes, { }).has_value(), "the file is Profile Settings");
+		const auto decoded = core::decode_agent_configuration(bytes, { });
+		expect(decoded.has_value() && decoded->Theme && decoded->Theme->Theme, "the file is Profile Settings, the theme on screen in it");
 
 		application->begin_shutdown();
 		wait_for([&] { return application->status().ShutdownComplete; }, "the hosts quiesce");

@@ -1,13 +1,16 @@
 #include "bpr/core/conversation_reply.hpp"
 #include "bpr/core/review_submission.hpp"
+#include "bpr/core/review_submission_refusal.hpp"
 #include "bpr/core/review_submission_unknown.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr::core;
@@ -352,6 +355,93 @@ namespace {
 			expect(!parse_review_submission_unknown(text), "anything but the exact line is not read");
 		}
 	}
+	/// [[BPR-2263]]. Every refusal before sending has its check, reason and
+	/// part, its log line reads back, the core decides what the window
+	/// repairs, and each reason has its own sentence that never blames the
+	/// review for a cause outside it.
+	void test_refusals()
+	{
+		using reason = review_submission_refusal_reason;
+		using part   = review_submission_refusal_part;
+		using check  = review_submission_refusal_check;
+		using repair = review_submission_repair;
+		for (auto index = std::size_t{ 0U }; index < review_submission_refusal_reason_count; ++index) {
+			const auto value = static_cast<reason>(index);
+			expect(!name(value).empty() && review_submission_refusal_reason_named(name(value)) == value, "every reason has a name that reads back");
+		}
+		for (auto index = std::size_t{ 0U }; index < review_submission_refusal_part_count; ++index) {
+			const auto value = static_cast<part>(index);
+			expect(!name(value).empty() && review_submission_refusal_part_named(name(value)) == value, "every part has a name that reads back");
+		}
+		expect(name(static_cast<reason>(review_submission_refusal_reason_count)).empty() && !review_submission_refusal_reason_named("other"), "nothing outside the set is named");
+		expect(!valid(review_submission_refusal{ .Reason = reason::stale_head, .Part = part::summary_missing }), "a part only with an invalid request");
+		expect(!valid(review_submission_refusal{ .Reason = reason::invalid_request, .Part = part::summary_missing, .Comment = 1U }), "a comment only with a comment's part");
+
+		// Which part GitHub's request cannot carry.
+		const auto comment = [](const std::uint64_t aDraft, std::string aBody) {
+			return review_submission_comment{ .Draft = review_draft_id{ aDraft }, .DraftRevision = 1U, .Path = "src/sample.cpp", .Line = 11U, .Body = std::move(aBody) };
+		};
+		const auto blank = std::vector{ comment(1U, "Fine."), comment(2U, "  ") };
+		expect(review_submission_content_refusal("", review_disposition::approve, blank) == review_submission_refusal{ .Check = check::session, .Reason = reason::invalid_request, .Part = part::comment_body_missing, .Comment = 2U }, "a blank comment is named by its place");
+		expect(review_submission_content_refusal("", review_disposition::request_changes, { }).Part == part::summary_missing, "a verdict that needs a summary and has none");
+		expect(review_submission_content_refusal(std::string(maximum_review_submission_body_bytes + 1U, 'x'), review_disposition::comment, { }).Part == part::summary_too_long, "a summary too long");
+		expect(review_submission_content_refusal("\xff", review_disposition::comment, { }).Part == part::summary_not_text, "a summary that is not text");
+		auto backwards      = comment(1U, "Range.");
+		backwards.StartLine = 20U;
+		expect(review_submission_content_refusal("", review_disposition::approve, std::vector{ backwards }).Part == part::comment_place, "a range that does not hold together");
+		expect(review_submission_content_refusal("", review_disposition::approve, std::vector{ comment(1U, "One."), comment(1U, "Twice.") }).Part == part::comment_place, "a comment riding twice");
+		auto pathless = comment(1U, "No file.");
+		pathless.Path.clear();
+		expect(review_submission_content_refusal("", review_disposition::approve, std::vector{ pathless }).Part == part::comment_path, "a comment with no path");
+		expect(review_submission_content_refusal("", review_disposition::approve, std::vector(maximum_review_submission_comments + 1U, comment(1U, "Many."))).Part == part::too_many_comments, "too many comments");
+		auto large = std::vector<review_submission_comment>{ };
+		for (auto index = 1U; index <= 8U; ++index) {
+			large.push_back(comment(index, std::string(8U * 1024U, 'w')));
+		}
+		expect(review_submission_content_refusal("", review_disposition::approve, large).Part == part::review_too_large, "a review too long for one request");
+		expect(review_submission_content_refusal("Ship it.", review_disposition::approve, std::vector{ comment(1U, "Fine.") }).Part == part::none, "a review that holds every rule has no part");
+
+		// What the window repairs: its own connection, once, for the same
+		// account and pull request; a moved commit is read again and confirmed.
+		for (const auto owned : { reason::grant_inactive, reason::provider_unavailable, reason::connection_lease_inactive, reason::connection_unavailable, reason::identity_mismatch_account, reason::identity_mismatch_pull_request }) {
+			const auto refusal = review_submission_refusal{ .Check = check::host, .Reason = owned };
+			expect(decide_review_submission_repair(refusal, false, true) == repair::reconnect_and_retry, "a cause the application owns is repaired");
+			expect(decide_review_submission_repair(refusal, true, true) == repair::none, "and retried once, never again");
+			expect(decide_review_submission_repair(refusal, false, false) == repair::none, "never for another account or pull request");
+		}
+		for (const auto moved : { reason::stale_head, reason::target_moved }) {
+			expect(decide_review_submission_repair({ .Reason = moved }, false, true) == repair::reread_and_confirm && decide_review_submission_repair({ .Reason = moved }, true, true) == repair::reread_and_confirm,
+				   "a moved commit is read again for the reviewer to confirm, never retried");
+		}
+		for (const auto own : { reason::request_stopped, reason::invalid_request, reason::recovery_record_unavailable, reason::review_list_unavailable, reason::binding_changed, reason::comments_not_held, reason::admission_refused }) {
+			expect(decide_review_submission_repair({ .Reason = own, .Part = own == reason::invalid_request ? part::request : part::none }, false, true) == repair::none, "anything else is told to the reviewer");
+		}
+
+		// One sentence per reason; an application cause never blames the review.
+		for (auto index = std::size_t{ 0U }; index < review_submission_refusal_reason_count; ++index) {
+			const auto value = static_cast<reason>(index);
+			const auto text  = sentence({ .Check = check::host, .Reason = value, .Part = value == reason::invalid_request ? part::request : part::none }, { .Comments = blank });
+			expect(text.starts_with("Not published: ") && text.find("check them") == std::string::npos, "each reason's sentence says it was not published and never blames the review's contents");
+		}
+		expect(sentence({ .Reason = reason::invalid_request, .Part = part::comment_body_missing, .Comment = 2U }, { .Comments = blank }) == "Not published: the comment on src/sample.cpp:12 has no text. Write it or delete it, then submit again.", "an invalid comment is named by its file and line");
+		expect(sentence({ .Reason = reason::invalid_request, .Part = part::request }, { }).find("Copy diagnostics") != std::string::npos, "a refusal the page cannot explain points to Copy diagnostics");
+		// [[BPR-2265]]. Provider admission refusing a replaced lease says so.
+		for (const auto replaced : { reason::provider_unavailable, reason::connection_lease_inactive }) {
+			expect(sentence({ .Check = check::host, .Reason = replaced }, { }) == "Not published: the publishing connection was replaced while this review was open. Your review is kept.", "a replaced publishing connection has its own sentence");
+		}
+		expect(sentence({ .Reason = reason::stale_head }, { .Rereading = true }).find("reading the pull request again") != std::string::npos, "a moved head says it is read again");
+		expect(sentence({ .Reason = reason::identity_mismatch_pull_request }, { .Subject = review_submission_refusal_subject::comment }).find("this comment") != std::string::npos, "inline publishing words it for a comment");
+
+		// The log line names the check and reason, and reads back.
+		const auto ended = review_submission_ending_diagnosis{ .Ending = review_submission_ending::not_sent, .Stop = review_submission_stop::unavailable, .Comments = 1U, .Cause = review_submission_refusal{ .Check = check::host, .Reason = reason::provider_unavailable } };
+		expect(describe(ended) == "review_submission_ending=not_sent run=submit post=not_sent post_class=0 refusal=none stop=unavailable comments=1 duplicate=0 check=host reason=provider_unavailable part=none comment=0", "an ending names the check and reason that refused it");
+		expect(parse_review_submission_ending(describe(ended)) == ended, "and reads back exactly");
+		auto published   = ended;
+		published.Ending = review_submission_ending::published;
+		published.Stop   = review_submission_stop::none;
+		expect(!valid(published), "a cause only for a run that sent nothing");
+		expect(!parse_review_submission_ending(describe(ended) + " extra=1"), "nothing after the cause is read");
+	}
 	/// [[BPR-1722]]. A known ending is one line of fixed keys, enums
 	/// and counts that reads back exactly; nothing else is read.
 	void test_ending_lines()
@@ -540,6 +630,7 @@ int main()
 	test_unknown_reasons();
 	test_unknown_notices();
 	test_ending_lines();
+	test_refusals();
 	test_post_answers_settle();
 	test_decided_controls();
 	test_author_controls();

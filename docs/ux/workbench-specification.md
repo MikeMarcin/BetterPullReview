@@ -2602,6 +2602,14 @@ Under the list, **Share profile settings** has **Import Profile Settings…**
 and **Export Profile Settings…** with one line: "A file with this profile's
 agents, prompts and workflows, to move to another computer or share."
 
+A file dropped onto a workbench window opens the same import over that
+window ([[BPR-2282]]). While one local file hovers, the window draws a 2 px
+rounded edge in the palette's highlight inset 5 px from its border over a
+7% highlight wash, with a highlight pill at the foot reading "Drop to
+preview the import". Two or more files get the not-accepted cursor and
+"Drop one file at a time." in the status bar; while a modal dialog is open a
+file drag is refused and draws nothing.
+
 Both dialogs are drawn as the accepted import design B
 ([workflow-import-v1](../design/workflow-import-v1/README.md), [[BPR-2204]]):
 a semibold title close over a secondary sentence that wraps short of the

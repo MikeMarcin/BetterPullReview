@@ -549,10 +549,7 @@ def native_paths(course: Course, root: Path, server: FakeGitHub) -> None:
                  and source.get("source", {}).get("text") == SOURCE_TEXT, "source")
 
     # Local authoring completes the draft, so publication reaches its own gate.
-    for name, text in (("problem", "Loopback problem\n"), ("solution", "Loopback solution\n")):
-        field.write_text(text, encoding="utf-8")
-        prepared(course.run(f"edit-{name}", ["edit", name, *select_draft, "--expected-revision", revision(),
-                                             "--file", str(field), "--json"], seed=True))
+    # [[BPR-2274]]: a tour is its stops; its one stop is made ready.
     prepared(course.run("ready", ["ready", "1", *select_draft, "--expected-revision", revision(), "--json"],
                         seed=True))
 

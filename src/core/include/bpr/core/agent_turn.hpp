@@ -37,11 +37,15 @@ namespace bpr::core {
 		/// A turn kept before outcomes were kept, whose ending says it
 		/// stopped without an answer; why is not known.
 		ended_without_answer,
+		/// [[BPR-2261]]. The application closed while it worked, before it
+		/// answered or with a helper still out; what it wrote is kept. Not an
+		/// error: nothing went wrong that the reviewer must explain.
+		closed_with_app,
 	};
 
-	inline constexpr std::size_t agent_turn_outcome_count = 10U;
+	inline constexpr std::size_t agent_turn_outcome_count = 11U;
 
-	static_assert(static_cast<std::size_t>(agent_turn_outcome::ended_without_answer) + 1U == agent_turn_outcome_count,
+	static_assert(static_cast<std::size_t>(agent_turn_outcome::closed_with_app) + 1U == agent_turn_outcome_count,
 				  "agent_turn_outcome_count must cover every declared outcome");
 
 	[[nodiscard]] auto stable_name(agent_turn_outcome aOutcome) noexcept -> std::string_view;
@@ -151,6 +155,10 @@ namespace bpr::core {
 	/// it is forgetting it: an Agent tab run resumes no session of the
 	/// agent's own, and what it remembers of earlier turns is the kept
 	/// thread its request carries, which no longer holds the deleted turn.
+	/// [[BPR-2261]]. A turn the application's closing stopped is not an
+	/// error: it keeps Copy when it has words, never offers the keep action
+	/// (it is no finished answer), and offers Delete while nothing runs and,
+	/// on the latest turn, Resend.
 	[[nodiscard]] auto decide_agent_turn_actions(const agent_turn_facts& aFacts) noexcept -> agent_turn_actions;
 
 	/// \brief What the Agent tab knows when it would show suggested prompts.

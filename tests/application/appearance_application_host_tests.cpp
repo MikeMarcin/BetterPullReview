@@ -1,6 +1,7 @@
 #include "../support/insights_observer.hpp"
 #include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/core/agent_configuration.hpp"
 
 #include <algorithm>
 #include <array>
@@ -211,25 +212,6 @@ namespace {
 	class fake_theme_documents final : public application::theme_document_port
 	{
 	public:
-		[[nodiscard]] auto read(
-			const std::string_view aPath,
-			const std::size_t      aMaximumBytes,
-			const std::stop_token  aStop)
-			-> application::theme_document_result<std::string> override
-		{
-			++Reads;
-			Path         = aPath;
-			MaximumBytes = aMaximumBytes;
-			if (!Available || aStop.stop_requested()) {
-				return std::unexpected{ application::theme_document_error{
-					.Failure = aStop.stop_requested()
-						? application::theme_document_failure::cancelled
-						: application::theme_document_failure::unavailable,
-				} };
-			}
-			return Document;
-		}
-
 		[[nodiscard]] auto write(const std::string_view aPath, const std::string_view aDocument,
 								 const std::stop_token aStop) -> application::theme_document_result<void> override
 		{
@@ -245,9 +227,7 @@ namespace {
 		std::size_t Writes = 0U;
 		std::string Document;
 		std::string Path;
-		std::size_t MaximumBytes = 0U;
-		std::size_t Reads        = 0U;
-		bool        Available    = true;
+		bool        Available = true;
 	};
 
 	/// \brief Counts every lexical classification the host could not avoid.
@@ -920,15 +900,17 @@ namespace {
 		}
 	}
 
-	/// \brief Returns a document without the two roles RFC-BPR-0072 appended.
-	[[nodiscard]] auto without_identifier_roles(std::string aDocument) -> std::string
+	/// \brief [[BPR-2283]]. A Theme section of `aPalette` under `aBase`, read
+	/// as an import reads it, without the two roles RFC-BPR-0072 appended.
+	[[nodiscard]] auto older_theme(const core::appearance_palette& aPalette, const std::string_view aBase) -> core::portable_theme
 	{
-		for (const auto role : { core::appearance_role::syntax_namespace, core::appearance_role::syntax_enum_member }) {
-			const auto begin = aDocument.find(std::string{ core::stable_name(role) } + ' ');
-			expect(begin != std::string::npos, "a theme export includes the identifier roles");
-			aDocument.erase(begin, aDocument.find('\n', begin) + 1U - begin);
-		}
-		return aDocument;
+		auto entries = core::theme_entries(aPalette);
+		std::erase_if(entries, [](const core::theme_entry& aEntry) {
+			return aEntry.Role == core::stable_name(core::appearance_role::syntax_namespace) || aEntry.Role == core::stable_name(core::appearance_role::syntax_enum_member);
+		});
+		const auto read = core::import_theme_entries(aBase, entries);
+		expect(read.Rejections.empty() && read.Palette && read.Base, "a Theme without the identifier roles reads");
+		return core::portable_theme{ .Base = *read.Base, .Palette = *read.Palette };
 	}
 
 	void test_older_theme_takes_omitted_roles_from_its_base()
@@ -936,7 +918,8 @@ namespace {
 		// [[BPR-1479]]. The reported case: a theme written before the namespace
 		// and enum-member roles, on a black code canvas, imported while Light
 		// is on screen. Filled from Light, its namespace ink measured 2.88:1
-		// and Keep changes was refused.
+		// and Keep changes was refused. [[BPR-2283]]: the import dialog asks
+		// the host what it would keep before anything is.
 		auto        h        = harness{ };
 		const auto  builtins = builtin_palettes();
 		const auto& dark     = builtins[application::variant_index(core::appearance_variant::dark)];
@@ -944,85 +927,43 @@ namespace {
 		for (const auto role : { core::appearance_role::syntax_namespace, core::appearance_role::syntax_enum_member }) {
 			expected[core::index_of(role)] = dark[core::index_of(role)];
 		}
-		h.ThemeDocuments.Document = without_identifier_roles(core::export_theme(contrast_safe_palette()));
-		h.Host.import_theme_file("older-dark.theme");
+		const auto resolved = h.Host.resolve_theme(older_theme(contrast_safe_palette(), "dark"));
+		expect(resolved.Unreadable.empty() && resolved.Palette == expected, "a Dark theme takes the omitted roles in Dark's built-in colours");
 		h.settle();
-		expect(h.Projections.Failed.empty() && h.Projections.Published.size() == 1U
-				   && h.Projections.Published.back().ThemePreview && h.Projections.Published.back().ThemePreview->Palette == expected,
-			   "a version-1 theme on a dark canvas previews the omitted roles in Dark's built-in colours");
-		expect(h.Settings.Stores == 0U && h.Host.settings() == base_settings(), "the import is preview-only");
+		expect(h.Settings.Stores == 0U && h.Host.settings() == base_settings() && h.Projections.Published.empty(), "resolving changes, stores and publishes nothing");
 
-		h.Host.apply(h.Projections.Published.back().ThemePreview->Palette, core::appearance_variant::light);
+		h.Host.apply(*resolved.Palette, core::appearance_variant::light);
 		h.settle();
 		expect(h.Projections.Failed.empty() && h.Settings.Stores == 1U
 				   && application::customisation_of(h.Host.settings(), core::appearance_variant::light).Palette == expected,
 			   "keeping it on Light stores the filled colours, which a later export writes as they are");
 
-		h.Projections.Published.clear();
-		h.ThemeDocuments.Document = without_identifier_roles(core::export_theme(contrast_safe_palette(), core::appearance_variant::light));
-		h.Host.import_theme_file("declared-light.theme");
-		h.settle();
-		expect(h.Projections.Published.empty() && h.Projections.Failed.size() == 1U
-				   && h.Projections.Failed.back().Failure == application::appearance_host_failure::palette_contrast_rejected
-				   && std::ranges::any_of(h.Projections.Failed.back().ContrastRejections, [](const auto& aRejection) { return aRejection.Finding.Pair.Foreground == core::appearance_role::syntax_namespace; }),
-			   "a declared base is honoured over the canvas, and a fill that cannot be read is refused at import rather than at Keep changes");
+		const auto light = h.Host.resolve_theme(older_theme(contrast_safe_palette(), "light"));
+		expect(!light.Palette && std::ranges::any_of(light.Unreadable, [](const auto& aRejection) { return aRejection.Finding.Pair.Foreground == core::appearance_role::syntax_namespace; }),
+			   "a declared base is honoured over the canvas, and a fill that cannot be read is refused before Import");
 
 		auto palette                                                     = contrast_safe_palette();
 		palette[core::index_of(core::appearance_role::syntax_namespace)] = core::appearance_color{ .Alpha = 255U };
-		h.ThemeDocuments.Document                                        = core::export_theme(palette, core::appearance_variant::dark);
-		h.Host.import_theme_file("explicit-unreadable-namespace.theme");
+		const auto explicitInk                                           = h.Host.resolve_theme(core::portable_theme{ .Base = core::appearance_variant::dark, .Palette = palette });
+		expect(!explicitInk.Palette && std::ranges::any_of(explicitInk.Unreadable, [](const auto& aRejection) { return aRejection.Finding.Pair.Foreground == core::appearance_role::syntax_namespace; }),
+			   "explicit unreadable identifier ink is refused; the base fills only what the theme omits");
 		h.settle();
-		expect(h.Projections.Published.empty() && h.Projections.Failed.size() == 2U
-				   && h.Projections.Failed.back().Failure == application::appearance_host_failure::palette_contrast_rejected
-				   && std::ranges::any_of(h.Projections.Failed.back().ContrastRejections, [](const auto& aRejection) { return aRejection.Finding.Pair.Foreground == core::appearance_role::syntax_namespace; }),
-			   "explicit unreadable identifier ink is rejected; the base fills only what the document omits");
-		expect(h.Settings.Stores == 1U, "a refused import performs no durable write");
+		expect(h.Settings.Stores == 1U, "a refused theme performs no durable write");
 	}
 
-	void test_theme_import_is_bounded_typed_and_preview_only()
+	void test_theme_resolution_is_checked_and_writes_nothing()
 	{
-		auto       harnessed              = harness{ };
-		const auto palette                = contrast_safe_palette();
-		harnessed.ThemeDocuments.Document = core::export_theme(palette);
-		harnessed.Host.import_theme_file("fixture-safe.theme");
-		harnessed.settle();
-
-		expect(harnessed.ThemeDocuments.Reads == 1U
-				   && harnessed.ThemeDocuments.Path == "fixture-safe.theme",
-			   "theme import reads the selected path through the effect port once");
-		expect(harnessed.ThemeDocuments.MaximumBytes
-				   == core::theme_document_byte_limit + 1U,
-			   "theme import reads only the core limit plus its overflow byte");
-		expect(harnessed.Projections.Published.size() == 1U
-				   && harnessed.Projections.Published.front().ThemePreview.has_value()
-				   && harnessed.Projections.Published.front().ThemePreview->Palette
-					   == palette,
-			   "a parsed and contrast-safe import publishes the total preview palette");
-		expect(harnessed.Host.settings() == base_settings()
-				   && harnessed.Settings.Stores == 0U,
-			   "import preview changes and persists no adopted setting");
-
-		harnessed.Projections.Published.clear();
-		harnessed.ThemeDocuments.Document = "not a theme document";
-		harnessed.Host.import_theme_file("fixture-malformed.theme");
-		harnessed.settle();
-		expect(harnessed.Projections.Failed.size() == 1U
-				   && harnessed.Projections.Failed.back().Failure
-					   == application::appearance_host_failure::theme_import_rejected
-				   && !harnessed.Projections.Failed.back().ThemeRejections.empty(),
-			   "a malformed import preserves the core parser's typed rejection");
-
-		harnessed.ThemeDocuments.Document = core::export_theme(
-			core::appearance_palette{ });
-		harnessed.Host.import_theme_file("fixture-low-contrast.theme");
-		harnessed.settle();
-		expect(harnessed.Projections.Failed.size() == 2U
-				   && harnessed.Projections.Failed.back().Failure
-					   == application::appearance_host_failure::palette_contrast_rejected
-				   && !harnessed.Projections.Failed.back().ContrastRejections.empty(),
-			   "a structurally valid low-contrast import is refused with typed findings");
-		expect(harnessed.Settings.Stores == 0U,
-			   "every refused import performs zero durable writes");
+		auto       h       = harness{ };
+		const auto palette = contrast_safe_palette();
+		const auto safe    = h.Host.resolve_theme(core::portable_theme{ .Base = core::appearance_variant::dark, .Palette = palette });
+		expect(safe.Unreadable.empty() && safe.Palette == palette, "a complete readable theme is kept as it is");
+		auto black = core::appearance_palette{ };
+		black.fill(core::appearance_color{ .Alpha = 255U });
+		const auto unreadable = h.Host.resolve_theme(core::portable_theme{ .Base = core::appearance_variant::dark, .Palette = black });
+		expect(!unreadable.Palette && !unreadable.Unreadable.empty(), "a theme that cannot be read is refused with typed findings");
+		h.settle();
+		expect(h.Settings.Stores == 0U && h.Host.settings() == base_settings() && h.Projections.Published.empty() && h.Projections.Failed.empty(),
+			   "resolving performs no durable write and publishes nothing");
 	}
 
 	void test_system_mode_follows_the_observation_and_explicit_mode_does_not()
@@ -1331,10 +1272,12 @@ namespace {
 		h.Host.export_theme_file("chosen.json", palette, core::appearance_variant::high_contrast_dark);
 		expect(h.ThemeDocuments.Writes == 0U, "export performs no synchronous file effect");
 		h.settle();
-		const auto exported = core::import_theme(h.ThemeDocuments.Document);
-		expect(h.ThemeDocuments.Path == "chosen.json" && exported.Palette == palette
-				   && exported.Base == core::appearance_variant::high_contrast_dark,
-			   "exported complete palette round-trips through the core parser with the theme it customises as its base");
+		// [[BPR-2283]]. A Profile Settings file holding only the Theme.
+		const auto exported = core::decode_agent_configuration(h.ThemeDocuments.Document, { });
+		expect(h.ThemeDocuments.Path == "chosen.json" && exported && exported->Theme && exported->Theme->Theme
+				   && exported->Theme->Theme->Palette == palette && exported->Theme->Theme->Base == core::appearance_variant::high_contrast_dark
+				   && exported->Agents.empty() && exported->Prompts.empty(),
+			   "exported complete palette round-trips as a Theme with the theme it customises as its base");
 		expect(h.Projections.Published.back().ThemeExported, "success is acknowledged after write completion");
 		expect(h.Settings.Stores == 0U && h.Host.settings() == base_settings(), "export changes no durable settings");
 		h.ThemeDocuments.Available = false;
@@ -1352,7 +1295,7 @@ namespace {
 			   "cancel before effect prevents a write and suppresses its terminal");
 	}
 
-	void test_resets_are_scoped_durable_and_retire_import()
+	void test_resets_are_scoped_and_durable()
 	{
 		auto       h                = harness{ };
 		const auto defaults         = base_settings();
@@ -1386,47 +1329,17 @@ namespace {
 		expect(h.Host.settings().Typography == defaults.Typography && h.Host.settings().Mode == defaults.Mode
 				   && customised(),
 			   "code and mode resets preserve palette");
-		h.ThemeDocuments.Document = core::export_theme(contrast_safe_palette());
-		h.Host.import_theme_file("late.json");
-		h.Effects.drain();
 		h.Host.reset(
 			application::appearance_reset_scope::palette,
 			core::appearance_variant::dark);
 		h.settle();
 		expect(h.Host.settings() == defaults && h.Settings.Stored == defaults,
 			   "palette reset persists the absence of overrides and exact composed defaults");
-		expect(h.Host.last_rejection() == application::appearance_terminal_rejection::superseded,
-			   "reset prevents late import from recreating a preview");
-		expect(std::ranges::none_of(h.Projections.Published, [](const auto& aProjection) { return aProjection.ThemePreview.has_value(); }),
-			   "the retired import never reaches presentation");
 		auto restarted            = harness{ };
 		restarted.Settings.Stored = h.Settings.Stored;
 		restarted.Host.restore();
 		restarted.settle();
 		expect(restarted.Host.settings() == defaults, "reset survives a new host lifetime");
-	}
-
-	void test_preview_cancellation_retires_only_import()
-	{
-		auto h                    = harness{ };
-		h.ThemeDocuments.Document = core::export_theme(contrast_safe_palette());
-		h.Host.import_theme_file("late-preview.json");
-		h.Effects.drain();
-		h.Host.select(core::appearance_mode::dark);
-		h.Host.classify(key(1U));
-		h.Host.cancel_theme_import();
-		h.settle();
-		expect(h.Host.last_rejection() == application::appearance_terminal_rejection::cancelled,
-			   "closing rejects an already staged import terminal");
-		expect(std::ranges::none_of(h.Projections.Published, [](const auto& aProjection) { return aProjection.ThemePreview.has_value(); }),
-			   "no late preview reaches the closed Settings surface");
-		expect(h.Settings.Stored.has_value() && h.Settings.Stored->Mode == core::appearance_mode::dark
-				   && h.Host.cached(key(1U)) != nullptr,
-			   "accepted preference writes and unrelated syntax work survive closing Settings");
-		h.Host.import_theme_file("new-preview.json");
-		h.settle();
-		expect(h.Projections.Published.back().ThemePreview.has_value(),
-			   "a new import after reopening has a fresh accepted identity");
 	}
 
 	void test_shutdown_withholds_publication_and_quiesces()
@@ -1462,7 +1375,7 @@ auto main() -> int
 	test_an_adopted_palette_records_the_variant_it_customises();
 	test_a_palette_reset_names_one_variant_and_spares_the_others();
 	test_palette_commit_refuses_contrast_failures_without_writing();
-	test_theme_import_is_bounded_typed_and_preview_only();
+	test_theme_resolution_is_checked_and_writes_nothing();
 	test_older_theme_takes_omitted_roles_from_its_base();
 	test_system_mode_follows_the_observation_and_explicit_mode_does_not();
 	test_classification_misses_once_then_hits();
@@ -1474,8 +1387,7 @@ auto main() -> int
 	test_cancellation_refuses_the_terminal_and_keeps_the_cache();
 	test_classification_cancellation_resubmits_and_spares_other_work();
 	test_export_round_trip_refusal_and_cancellation();
-	test_resets_are_scoped_durable_and_retire_import();
-	test_preview_cancellation_retires_only_import();
+	test_resets_are_scoped_and_durable();
 	test_shutdown_withholds_publication_and_quiesces();
 	std::cout << "appearance application host tests passed\n";
 	return EXIT_SUCCESS;

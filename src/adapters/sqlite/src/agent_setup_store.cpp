@@ -23,11 +23,12 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 namespace bpr::adapters::sqlite {
 	// [[BPR-1847]]. The outcome column's check names every declared outcome.
-	static_assert(core::agent_turn_outcome_count == 10U, "agent_conversation_outcomes' CHECK must cover every turn outcome");
+	static_assert(core::agent_turn_outcome_count == 11U, "agent_conversation_outcomes' CHECK must cover every turn outcome");
 	// agent_finding_cards' CHECKs: every kept disposition (open is no row), the
 	// reason bound and the remembered-card bound.
 	static_assert(core::agent_finding_card_disposition_count == 5U && static_cast<int>(core::agent_finding_card_disposition::refused) == 4,
@@ -116,6 +117,18 @@ namespace bpr::adapters::sqlite {
 			"conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL,"
 			" seconds INTEGER CHECK(seconds IS NULL OR seconds BETWEEN 0 AND 4294967295), PRIMARY KEY(conversation,ordinal)"
 		};
+		/// [[BPR-1847]]. How each kept turn ended; [[BPR-2261]] added
+		/// `closed_with_app` (10).
+		constexpr auto agent_conversation_outcomes_columns = std::string_view{
+			"host TEXT NOT NULL,"
+			"owner TEXT NOT NULL,"
+			"name TEXT NOT NULL,"
+			"number INTEGER NOT NULL,"
+			"agent INTEGER NOT NULL,"
+			"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 49),"
+			"outcome INTEGER NOT NULL CHECK(outcome BETWEEN 0 AND 10),"
+			"PRIMARY KEY(host, owner, name, number, agent, position)"
+		};
 		constexpr auto agent_queue_entries_columns = std::string_view{
 			"session TEXT NOT NULL REFERENCES agent_queues(session),"
 			"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 15),"
@@ -155,10 +168,9 @@ namespace bpr::adapters::sqlite {
 		/// rolled back and the file is as it was. A store never adds a column
 		/// with ALTER TABLE: `detail::prepare` (sqlite_connection.cpp) says why.
 		///
-		/// Foreign keys stay on. The two tables rebuilt here reference
-		/// another table and are referenced by none, so dropping the old one
-		/// orphans nothing, and each copied row is checked against the table
-		/// it references as it is inserted.
+		/// Foreign keys stay on. The tables rebuilt here are referenced by
+		/// none, so dropping the old one orphans nothing, and each copied row
+		/// is checked against any table it references as it is inserted.
 		[[nodiscard]] auto rebuild_table(sqlite3* const aDatabase, const std::string_view aTable, const std::string_view aColumns, const std::string_view aCopied) -> bool
 		{
 			const auto statement = [](const std::initializer_list<std::string_view> aParts) {
@@ -213,6 +225,18 @@ namespace bpr::adapters::sqlite {
 				return false;
 			}
 			return *present != 0 || rebuild_table(aDatabase, "native_agent_turns", native_agent_turns_columns, "conversation,ordinal,asked,answered,ending,outcome");
+		}
+
+		/// [[BPR-2261]]. A file made before `closed_with_app` checks the
+		/// outcome against the outcomes before it; its table is rebuilt.
+		/// Build 68 and earlier wrote such files.
+		[[nodiscard]] auto complete_conversation_outcomes(sqlite3* const aDatabase) -> bool
+		{
+			const auto current = detail::scalar_integer(aDatabase, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='agent_conversation_outcomes' AND sql LIKE '%outcome BETWEEN 0 AND 10)%'");
+			if (!current) {
+				return false;
+			}
+			return *current != 0 || rebuild_table(aDatabase, "agent_conversation_outcomes", agent_conversation_outcomes_columns, "host,owner,name,number,agent,position,outcome");
 		}
 
 		void bind_seconds(sqlite3_stmt* const aRow, const int aColumn, const std::optional<std::uint32_t> aSeconds)
@@ -391,12 +415,18 @@ namespace bpr::adapters::sqlite {
 									"state INTEGER NOT NULL CHECK(state IN (2,3)),"
 									"failure INTEGER NOT NULL CHECK(failure BETWEEN -1 AND 7),"
 									"version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) <= 128)) STRICT")
+				// [[BPR-2261]]. The pull request workspaces whose check passed,
+				// by the key their retained workspace is kept under, latest last.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_workspace_checks("
+									"position INTEGER PRIMARY KEY CHECK(position BETWEEN 0 AND 15),"
+									"key TEXT NOT NULL UNIQUE CHECK(length(CAST(key AS BLOB)) BETWEEN 1 AND 1024)) STRICT")
 				// [[BPR-2016]], RFC-BPR-0107. The built-in version each writing
 				// hook's override was written against, for the override whose
 				// SHA-256 is `text_digest`: a row for other text says nothing.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS prompt_provenance("
-									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 15),"
+									"hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 15),"
 									"text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
 									"version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)) STRICT")
 				// [[BPR-2016]]. An import's hooks before it, kept while the
@@ -404,7 +434,7 @@ namespace bpr::adapters::sqlite {
 				// crash between them is undone at the next start.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS configuration_import_journal("
-									"hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 15),"
+									"hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 15),"
 									"revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
 									"text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)) STRICT")
 				// [[BPR-2032]], RFC-BPR-0112. The profile's optional workflows,
@@ -475,16 +505,7 @@ namespace bpr::adapters::sqlite {
 									"PRIMARY KEY(host, owner, name, number, agent, position)) STRICT")
 				// [[BPR-1847]]. How each turn ended, beside it: a turn stored
 				// before this table has no row and reads back from its ending.
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS agent_conversation_outcomes("
-									"host TEXT NOT NULL,"
-									"owner TEXT NOT NULL,"
-									"name TEXT NOT NULL,"
-									"number INTEGER NOT NULL,"
-									"agent INTEGER NOT NULL,"
-									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 49),"
-									"outcome INTEGER NOT NULL CHECK(outcome BETWEEN 0 AND 9),"
-									"PRIMARY KEY(host, owner, name, number, agent, position)) STRICT")
+				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS agent_conversation_outcomes(" } + std::string{ agent_conversation_outcomes_columns } + ") STRICT")
 				// Owner report 2026-11-10, after BPR-2052. What was done with each
 				// finding card of a stored answer, by the SHA-256 of the answer's
 				// findings block and the card's place in it; an open card has no
@@ -536,6 +557,7 @@ namespace bpr::adapters::sqlite {
 				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS agent_queue_entries(" } + std::string{ agent_queue_entries_columns } + ") STRICT")
 				|| !complete_queue_entries(db)
 				|| !complete_native_turns(db)
+				|| !complete_conversation_outcomes(db)
 				// [[BPR-2179]]. Each surface the reviewer changed: its list
 				// and what it took off, identities one a line. `layer` is
 				// empty for every repository, else the repository's, whose
@@ -574,18 +596,25 @@ namespace bpr::adapters::sqlite {
 			// in one transaction.
 			// RFC-BPR-0116: two more, to 0 to 12.
 			// RFC-BPR-0117: one more, to 0 to 13. RFC-BPR-0118: one more, to 0 to 14.
-			// RFC-BPR-0120: one more, to 0 to 15.
+			// RFC-BPR-0120: one more, to 0 to 15. [[BPR-2264]]: one more, to 0 to 16.
+			// [[BPR-2270]]: one more, to 0 to 17.
+			// [[BPR-2274]]: the tour's Problem and Solution hooks, 0 and 1, are
+			// retired, so every other hook is two lower, 0 to 15, checked in a
+			// new form. A table any earlier build made (any other check) is rebuilt
+			// with its rows for 0 and 1 dropped and the rest renumbered.
 			static_assert(core::writing_hook_count == 16U, "the hook tables' check names the last hook");
-			for (const auto& [table, definition] : std::array{
-					 std::pair{ std::string_view{ "prompt_provenance" },
-								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 15),text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
-												  "version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)" } },
-					 std::pair{ std::string_view{ "configuration_import_journal" },
-								std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook BETWEEN 0 AND 15),revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
-												  "text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)" } } }) {
+			for (const auto& [table, definition, columns] : std::array{
+					 std::tuple{ std::string_view{ "prompt_provenance" },
+								 std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 15),text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
+												   "version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)" },
+								 std::string_view{ "text_digest,version" } },
+					 std::tuple{ std::string_view{ "configuration_import_journal" },
+								 std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 15),revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
+												   "text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)" },
+								 std::string_view{ "revision_after,text" } } }) {
 				auto query = std::string{ "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='" };
 				query += table;
-				query += "' AND (sql LIKE '%hook BETWEEN 0 AND 7)%' OR sql LIKE '%hook BETWEEN 0 AND 9)%' OR sql LIKE '%hook BETWEEN 0 AND 10)%' OR sql LIKE '%hook BETWEEN 0 AND 12)%' OR sql LIKE '%hook BETWEEN 0 AND 13)%' OR sql LIKE '%hook BETWEEN 0 AND 14)%')";
+				query += "' AND sql NOT LIKE '%hook >= 0 AND hook <= 15)%'";
 				const auto narrow = detail::scalar_integer(db, query);
 				if (!narrow) {
 					return { };
@@ -601,8 +630,12 @@ namespace bpr::adapters::sqlite {
 				};
 				auto rename = statement("ALTER TABLE ", " RENAME TO narrow_", { });
 				rename += table;
-				auto copy = statement("INSERT INTO ", " SELECT * FROM narrow_", { });
+				auto copy = statement("INSERT INTO ", "(hook,", columns);
+				copy += ") SELECT hook - 2,";
+				copy += columns;
+				copy += " FROM narrow_";
 				copy += table;
+				copy += " WHERE hook >= 2";
 				if (!detail::execute(db, "BEGIN IMMEDIATE") || !detail::execute(db, rename) || !detail::execute(db, statement("CREATE TABLE ", "(", definition) + ") STRICT")
 					|| !detail::execute(db, copy) || !detail::execute(db, statement("DROP TABLE narrow_", { }, { })) || !detail::execute(db, "COMMIT")) {
 					static_cast<void>(detail::execute(db, "ROLLBACK"));
@@ -812,6 +845,18 @@ namespace bpr::adapters::sqlite {
 					sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(record.Check.State));
 					sqlite3_bind_int64(row->Value, 3, record.Check.Failure ? static_cast<std::int64_t>(*record.Check.Failure) : -1);
 					bind_text(row->Value, 4, record.Check.Version);
+					committed = sqlite3_step(row->Value) == SQLITE_DONE;
+				}
+			}
+			if (committed) {
+				committed = detail::execute(aDatabase, "DELETE FROM agent_workspace_checks").has_value();
+			}
+			for (std::size_t index = 0U; committed && index < aPreferences.WorkspaceChecks.size(); ++index) {
+				auto row  = detail::prepare(aDatabase, "INSERT INTO agent_workspace_checks VALUES(?1,?2)");
+				committed = row.has_value();
+				if (committed) {
+					sqlite3_bind_int64(row->Value, 1, static_cast<std::int64_t>(index));
+					bind_text(row->Value, 2, aPreferences.WorkspaceChecks[index]);
 					committed = sqlite3_step(row->Value) == SQLITE_DONE;
 				}
 			}
@@ -1239,6 +1284,14 @@ namespace bpr::adapters::sqlite {
 							record.Check.Version = column_text(checks->Value, 3).value_or(std::string{ });
 							if (std::ranges::find(loaded.Agents, record.Id, &core::agent_entry::Id) != loaded.Agents.end()) {
 								loaded.EntryChecks.push_back(std::move(record));
+							}
+						}
+					}
+					// [[BPR-2261]]. The kept workspace checks, latest last.
+					if (auto checks = detail::prepare(store->Database.get(), "SELECT key FROM agent_workspace_checks ORDER BY position LIMIT 16"); checks) {
+						while (sqlite3_step(checks->Value) == SQLITE_ROW) {
+							if (auto key = column_text(checks->Value, 0); key && !key->empty() && key->size() <= application::maximum_workspace_check_key_bytes) {
+								loaded.WorkspaceChecks.push_back(std::move(*key));
 							}
 						}
 					}
@@ -2564,6 +2617,14 @@ namespace bpr::adapters::sqlite {
 			return std::nullopt;
 		}
 
+		/// [[BPR-2281]]. A prompt's Answer as. `description` was a kind for a
+		/// few hours of 0.5.0's development ([[BPR-2280]]); the description is
+		/// now drafted by its own button, so such a prompt reads as a question.
+		[[nodiscard]] auto stored_ask(const std::string_view aName) -> std::optional<core::prompt_ask>
+		{
+			return aName == "description" ? std::optional{ core::prompt_ask::question } : named_value<core::prompt_ask>(aName, 2U);
+		}
+
 		[[nodiscard]] auto lines_name(const core::prompt_lines_value aLines) -> std::string_view
 		{
 			switch (aLines) {
@@ -2917,8 +2978,8 @@ namespace bpr::adapters::sqlite {
 					if (body) {
 						macro.Body.Name       = column_text(row->Value, 4).value_or(std::string{ });
 						macro.Body.Template   = column_text(row->Value, 5).value_or(std::string{ });
-						const auto subject    = named_value<core::prompt_subject>(column_text(row->Value, 6).value_or(std::string{ }), 9U);
-						const auto ask        = named_value<core::prompt_ask>(column_text(row->Value, 7).value_or(std::string{ }), 2U);
+						const auto subject    = named_value<core::prompt_subject>(column_text(row->Value, 6).value_or(std::string{ }), core::prompt_subject_count);
+						const auto ask        = stored_ask(column_text(row->Value, 7).value_or(std::string{ }));
 						auto       match      = core::prompt_match::all;
 						auto       groups     = std::vector<core::prompt_condition_group>{ };
 						auto       unmet      = std::optional<core::prompt_when_unmet>{ };
@@ -3073,7 +3134,7 @@ namespace bpr::adapters::sqlite {
 					auto       groups     = std::vector<core::prompt_condition_group>{ };
 					auto       unmet      = std::optional<core::prompt_when_unmet>{ };
 					auto       conditions = when ? decode_conditions(*when, nullptr, &groups, &unmet) : std::optional{ std::vector<core::prompt_condition>{ } };
-					const auto kindValue  = ask ? named_value<core::prompt_ask>(*ask, 2U) : std::optional{ core::prompt_ask::question };
+					const auto kindValue  = ask ? stored_ask(*ask) : std::optional{ core::prompt_ask::question };
 					if (!conditions || !kindValue || repository.empty()) {
 						continue;
 					}
@@ -3094,7 +3155,7 @@ namespace bpr::adapters::sqlite {
 						continue;
 					}
 					const auto place   = named_value<core::prompt_place>(column_text(prompts->Value, 3).value_or(std::string{ }), core::prompt_place_count);
-					const auto subject = named_value<core::prompt_subject>(column_text(prompts->Value, 4).value_or(std::string{ }), 9U);
+					const auto subject = named_value<core::prompt_subject>(column_text(prompts->Value, 4).value_or(std::string{ }), core::prompt_subject_count);
 					if (!place || !subject) {
 						continue;
 					}
@@ -3273,8 +3334,8 @@ namespace bpr::adapters::sqlite {
 					auto link          = core::prompt_pack_link{ .Pack = column_text(row->Value, 1).value_or(std::string{ }), .Label = column_text(row->Value, 2).value_or(std::string{ }) };
 					link.Version       = static_cast<std::uint32_t>(sqlite3_column_int64(row->Value, 3));
 					const auto place   = named_value<core::prompt_place>(column_text(row->Value, 4).value_or(std::string{ }), core::prompt_place_count);
-					const auto subject = named_value<core::prompt_subject>(column_text(row->Value, 7).value_or(std::string{ }), 9U);
-					const auto ask     = named_value<core::prompt_ask>(column_text(row->Value, 8).value_or(std::string{ }), 2U);
+					const auto subject = named_value<core::prompt_subject>(column_text(row->Value, 7).value_or(std::string{ }), core::prompt_subject_count);
+					const auto ask     = stored_ask(column_text(row->Value, 8).value_or(std::string{ }));
 					auto       match   = core::prompt_match::all;
 					auto       groups  = std::vector<core::prompt_condition_group>{ };
 					auto       unmet   = std::optional<core::prompt_when_unmet>{ };

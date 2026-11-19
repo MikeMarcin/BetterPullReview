@@ -587,7 +587,7 @@ namespace bpr::app {
 					ready = false;
 				} else {
 					// A draft nobody has touched is never persisted, so there is nothing to wait for.
-					const bool untouched = shown.SavedRevision == 0U && shown.Draft->Revision == 1U && shown.Draft->Problem.empty() && shown.Draft->Solution.empty() && shown.Draft->Stops.empty() && !shown.Draft->ProblemBaseline && !shown.Draft->SolutionBaseline;
+					const bool untouched = shown.SavedRevision == 0U && shown.Draft->Revision == 1U && shown.Draft->Stops.empty();
 					if (!untouched && (shown.Saving || shown.SavedRevision != shown.Draft->Revision || !seen.Host->is_quiescent())) {
 						ready = false;
 					}

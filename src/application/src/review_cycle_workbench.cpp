@@ -2160,23 +2160,17 @@ namespace bpr::application {
 				return;
 			}
 			const auto& form = view.Form;
-			auto        body = std::optional<std::string>{ std::string{ } };
-			if (!form.Problem.empty() || !form.Solution.empty()) {
-				body = core::publication_body(form.Problem, form.Solution);
-			}
+			auto        body = core::publication_body(form.Description);
 			if (!body) {
 				view.Status = "The description is longer than a pull request takes; shorten it.";
 				publish();
 				return;
 			}
-			auto now        = Publishing.Now ? Publishing.Now() : core::git_signature{ };
-			now.Name        = form.AuthorName;
-			now.Email       = form.AuthorEmail;
-			auto commitBody = form.Problem;
-			if (!form.Solution.empty()) {
-				commitBody += (commitBody.empty() ? "" : "\n\n") + form.Solution;
-			}
-			auto request = cycle_publication_request{
+			auto now               = Publishing.Now ? Publishing.Now() : core::git_signature{ };
+			now.Name               = form.AuthorName;
+			now.Email              = form.AuthorEmail;
+			const auto& commitBody = form.Description;
+			auto        request    = cycle_publication_request{
 				.Candidate   = { .Outgoing  = outgoing_request(form),
 								 .Candidate = { .NormalizeLineEndings = form.NormalizeLineEndings, .Metadata = { .Author = now, .Committer = now, .Title = form.Title, .Body = commitBody } } },
 				.Destination = { .Host = acting->Host, .Account = acting->Account, .Login = acting->Login, .Owner = form.Owner, .Repository = form.Repository, .BaseBranch = form.BaseBranch, .NewBranch = form.NewBranch },

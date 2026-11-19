@@ -686,6 +686,108 @@ namespace bpr::core {
 		return best == tallies.end() ? std::string{ } : std::string{ best->Selector };
 	}
 
+	namespace {
+		[[nodiscard]] constexpr auto identifier_start(const char aCharacter) noexcept -> bool
+		{
+			return (aCharacter >= 'a' && aCharacter <= 'z') || (aCharacter >= 'A' && aCharacter <= 'Z') || aCharacter == '_';
+		}
+
+		[[nodiscard]] constexpr auto identifier_part(const char aCharacter) noexcept -> bool
+		{
+			return identifier_start(aCharacter) || (aCharacter >= '0' && aCharacter <= '9');
+		}
+
+		/// `README.md`, `renderer.cpp`, `notes.txt`: a file's name, not an
+		/// object's member.
+		[[nodiscard]] auto names_a_file(const std::string_view aText) -> bool
+		{
+			if (aText.find_first_of("/\\") != std::string_view::npos) {
+				return true;
+			}
+			if (!std::ranges::all_of(aText, [](const char aCharacter) { return identifier_part(aCharacter) || aCharacter == '.' || aCharacter == '-'; })) {
+				return false;
+			}
+			const auto dot = aText.find_last_of('.');
+			if (dot == std::string_view::npos || dot + 1U == aText.size()) {
+				return false;
+			}
+			const auto     extension = lower(aText.substr(dot + 1U));
+			constexpr auto files     = std::to_array<std::string_view>({ "h", "txt", "log", "lock", "png", "svg", "jpg", "jpeg", "gif", "cfg", "conf", "in", "frag", "vert" });
+			return std::ranges::find(files, extension) != files.end() || markdown_code_language_of(extension).Kind == markdown_code_kind::language;
+		}
+	} // namespace
+
+	auto markdown_inline_code_members(const std::string_view aText, const token_span_list& aSpans) -> token_span_list
+	{
+		if (aText.find('\n') != std::string_view::npos || names_a_file(aText)) {
+			return aSpans;
+		}
+		const auto coloured = [&aSpans](const std::size_t aBegin, const std::size_t aEnd) {
+			return std::ranges::any_of(aSpans, [&](const token_span& aSpan) {
+				return aSpan.Line == 0U && aSpan.Role != appearance_role::syntax_normal && aSpan.Column < aEnd && aBegin < std::size_t{ aSpan.Column } + aSpan.Length;
+			});
+		};
+		const auto blank = [](const char aCharacter) { return aCharacter == ' ' || aCharacter == '\t'; };
+		// The access just before `aAt`, skipping blanks: `.` (not `..`) or `->`.
+		const auto before = [&](std::size_t aAt) {
+			while (aAt > 0U && blank(aText[aAt - 1U])) {
+				--aAt;
+			}
+			if (aAt >= 1U && aText[aAt - 1U] == '.') {
+				return aAt < 2U || aText[aAt - 2U] != '.';
+			}
+			return aAt >= 2U && aText[aAt - 2U] == '-' && aText[aAt - 1U] == '>';
+		};
+		// The access just after `aAt`, then a name.
+		const auto after = [&](std::size_t aAt) {
+			while (aAt < aText.size() && blank(aText[aAt])) {
+				++aAt;
+			}
+			auto next = aAt;
+			if (aText.substr(aAt, 2U) == "->") {
+				next += 2U;
+			} else if (aAt < aText.size() && aText[aAt] == '.') {
+				next += 1U;
+			} else {
+				return false;
+			}
+			while (next < aText.size() && blank(aText[next])) {
+				++next;
+			}
+			return next < aText.size() && identifier_start(aText[next]);
+		};
+		auto members = token_span_list{ };
+		for (auto at = std::size_t{ 0U }; at < aText.size();) {
+			// A name, not the letters inside a number such as `1.5e3`.
+			if (!identifier_start(aText[at]) || (at > 0U && identifier_part(aText[at - 1U]))) {
+				++at;
+				continue;
+			}
+			auto end = at + 1U;
+			while (end < aText.size() && identifier_part(aText[end])) {
+				++end;
+			}
+			if ((before(at) || after(end)) && !coloured(at, end)) {
+				members.push_back({ .Line = 0U, .Column = static_cast<std::uint32_t>(at), .Length = static_cast<std::uint32_t>(end - at), .Role = appearance_role::syntax_variable });
+			}
+			at = end;
+		}
+		if (members.empty()) {
+			return aSpans;
+		}
+		auto result = token_span_list{ };
+		result.reserve(aSpans.size() + members.size());
+		for (const auto& span : aSpans) {
+			const auto under = std::ranges::any_of(members, [&span](const token_span& aMember) { return span.Line == 0U && span.Column < aMember.Column + aMember.Length && aMember.Column < span.Column + span.Length; });
+			if (!under) {
+				result.push_back(span);
+			}
+		}
+		result.insert(result.end(), members.begin(), members.end());
+		std::ranges::sort(result, [](const token_span& aLeft, const token_span& aRight) { return std::pair{ aLeft.Line, aLeft.Column } < std::pair{ aRight.Line, aRight.Column }; });
+		return result;
+	}
+
 	auto markdown_diff_marks(const std::string_view aLine) -> std::vector<markdown_diff_mark>
 	{
 		const auto whole = [&aLine](const markdown_diff_mark_kind aKind) {

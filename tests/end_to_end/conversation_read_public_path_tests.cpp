@@ -321,6 +321,13 @@ int main(int aArgc, char** aArgv)
 		std::scoped_lock lock{ server->Mutex };
 		expect(server->StagedComments.empty(), "a PR reply creates no file review comments");
 	}
+	// [[BPR-2265]]. Two rereads that keep the pull request each renew the
+	// window's publishing lease; the new comment's Send below still reaches the server.
+	for (auto round = 0; round < 2; ++round) {
+		const auto snapshot = access::window_read_progress(*application).Snapshot;
+		expect(access::reread_pull_request(*application), "the pull request is read again");
+		wait_for([&] { const auto progress = access::window_read_progress(*application); return progress.Snapshot != snapshot && !progress.Reading; }, "the reread installs the pull request again, renewing the publishing lease");
+	}
 	// [[BPR-1781]]. A new comment of its own, under the conversation on
 	// Overview's Comments: saved as a reply is, posted only by Comment, and
 	// sent as its words alone, without a quote.

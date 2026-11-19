@@ -223,6 +223,17 @@ namespace bpr::core {
 				return as_written(agent_comment_reading::kept_as_written, aText);
 			}
 		}
+		// [[BPR-2264]]. A weight the label already carries is left out: the
+		// draft says `suggestion:`, not `suggestion (non-blocking):`. A weight
+		// that differs from the label's, as in `issue (non-blocking)`, stays.
+		{
+			const auto weight  = std::ranges::find_if(tokens.rbegin(), tokens.rend(), [](const std::string& aToken) { return aToken == "blocking" || aToken == "non-blocking"; });
+			const auto implied = implied_expectation(*label);
+			if (weight != tokens.rend()
+				&& ((*weight == "blocking" && implied == feedback_expectation::blocking) || (*weight == "non-blocking" && implied == feedback_expectation::non_blocking))) {
+				std::erase_if(tokens, [](const std::string& aToken) { return aToken == "blocking" || aToken == "non-blocking"; });
+			}
+		}
 		// The subject is the rest of the first line, or, when the header
 		// stands alone on it, the next line that is not blank.
 		auto subject = scanned.SubjectBegin;

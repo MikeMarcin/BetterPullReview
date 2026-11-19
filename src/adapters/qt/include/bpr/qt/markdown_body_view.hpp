@@ -24,6 +24,7 @@ class QPushButton;
 class QStackedWidget;
 class QTextEdit;
 class QTextCursor;
+class QTextDocument;
 class QTimer;
 
 namespace bpr::application {
@@ -152,6 +153,10 @@ namespace bpr::qt {
 		/// through the same dispatch as fenced code. Empty, the default for
 		/// every body that does not ask, leaves inline code plain.
 		void set_inline_code_selector(std::string aSelector);
+		/// \brief [[BPR-2266]]. Colours the inline code (fixed-pitch runs) of
+		/// another document that shows this body's text, as this body colours
+		/// its own: a report's page drawn from the same Markdown.
+		void style_inline_code_of(QTextDocument& aDocument) const;
 		/// \brief [[BPR-1564]]. Shows `suggestion` blocks as a Suggested change,
 		/// or as plain code without a presentation (descriptions, issue
 		/// comments, review summaries), as GitHub does.
@@ -240,6 +245,7 @@ namespace bpr::qt {
 		void               dispatch_code();
 		void               dispatch_permalinks();
 		void               style_code();
+		[[nodiscard]] auto code_theme() const -> markdown_code_theme;
 		[[nodiscard]] auto selected_markdown(const QTextCursor& aCursor) const -> QString;
 		void               schedule_animation();
 		[[nodiscard]] auto dark_palette() const -> bool;

@@ -38,6 +38,9 @@ namespace bpr::app {
 		void shutdown();
 		auto is_quiescent() const noexcept -> bool;
 		auto binding() const -> std::optional<core::private_review_binding>;
+		/// [[BPR-2269]]. Whether the open store is \p aConfiguration's pull
+		/// request's, for this profile, host and account.
+		auto serves(const adapters::sqlite::private_review_configuration& aConfiguration) const -> bool;
 		auto default_run(const core::agent_revision_binding&, bool aConversation) const -> std::optional<application::private_run_intent>;
 		void restore(draft_completion);
 		void select_draft(core::source_line_ref, draft_completion);

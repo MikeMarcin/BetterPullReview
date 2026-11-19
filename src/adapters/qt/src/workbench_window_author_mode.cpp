@@ -12,6 +12,7 @@
 /// (`bpr/core/author_mode.hpp`); this file presents them.
 
 #include "bpr/core/author_mode.hpp"
+#include "bpr/qt/author_description_editor.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/local_changes_panel.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
@@ -164,6 +165,7 @@ namespace bpr::qt {
 		}
 		const auto offered = author_case().has_value();
 		Modality->set_author_offered(offered);
+		present_author_description_offer();
 		if (!offered && Modality->current() == review_modality::author) {
 			choose_modality(LocalDraftShown ? review_modality::review : review_modality::overview);
 		}
@@ -203,7 +205,14 @@ namespace bpr::qt {
 		AuthorWorkflowHolder->setObjectName(QStringLiteral("workbenchAuthorWorkflow"));
 		auto* const holding = new QVBoxLayout{ AuthorWorkflowHolder };
 		holding->setContentsMargins(0, 0, 0, 0);
+		holding->setSpacing(0);
+		// [[BPR-2280]]. A pull request's description, above its checklist:
+		// the author reads it, edits it and saves it here.
+		AuthorDescription = new author_description_editor{ AuthorWorkflowHolder };
+		AuthorDescription->hide();
+		holding->addWidget(AuthorDescription);
 		holding->addWidget(LocalDraft->workflow_page(), 1);
+
 		LocalDraft->workflow_page()->show();
 		TrayPages->addWidget(AuthorWorkflowHolder);
 		connect(tabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
@@ -262,6 +271,23 @@ namespace bpr::qt {
 				LocalDraft->local_changes()->push_button()->click();
 			}
 		};
+	}
+
+	void workbench_window::set_author_description_editable(const bool aEditable)
+	{
+		AuthorDescriptionEditable = aEditable;
+		present_author_description_offer();
+	}
+
+	void workbench_window::present_author_description_offer()
+	{
+		// A local draft's description is its own (Workflow's publication);
+		// this one is the pull request's on GitHub.
+		const auto offered = AuthorDescriptionEditable && !LocalDraftShown;
+		if (AuthorDescription != nullptr) {
+			AuthorDescription->set_editable(offered);
+			AuthorDescription->setVisible(!LocalDraftShown && author_case().has_value());
+		}
 	}
 
 	void workbench_window::show_author_tab(const int aIndex)
@@ -499,6 +525,7 @@ namespace bpr::qt {
 				TourTools->setVisible(index == tray_tour_tab);
 			}
 		}
+		present_author_description_offer();
 		// Overview: a local draft has no Status tab until its pull request exists.
 		if (OverviewPage != nullptr && OverviewPage->status_drawer() != nullptr) {
 			const auto unlinked = LocalDraftShown && !local_linked(*LocalDraft);

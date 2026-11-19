@@ -6,6 +6,9 @@
 #include <QColor>
 #include <QString>
 
+class QTextDocument;
+
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -150,6 +153,13 @@ namespace bpr::qt {
 		band,
 		plain,
 	};
+
+	/// \brief [[BPR-2266]]. Marks the inline code of a page `report_page_html`
+	/// drew fixed pitch, as the Markdown reader's inline code is, so the
+	/// reader's colours can find it: each run in the code font that is not a
+	/// link (a place or a link's words are). HTML cannot say fixed pitch.
+	/// \returns How many runs it marked.
+	auto mark_report_inline_code(QTextDocument& aDocument) -> std::size_t;
 
 	/// \brief The page's HTML. Each code block is a marker paragraph, its
 	/// slot appended to `aSlots`.

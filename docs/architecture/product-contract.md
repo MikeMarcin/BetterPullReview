@@ -277,12 +277,20 @@ any particular private pull request can render.
 
 ## Review-tour preparation
 
-Authors can prepare and privately save Problem, Solution and an ordered source
-tour without AI. The [operator workflow](../development/review-tours.md) describes
-editing, exact source/fallback subjects, cold import, website conflicts and
-partial recovery. Explicit description updates are a narrow **body-only**
-extension; the original title, draft status and other PR-management state have
-no tour mutation operation. Production Tour publication is on by the
+Authors can prepare and privately save an ordered source tour without AI. A
+tour is only its stops ([[BPR-2274]], owner 2026-11-18): it has no Problem or
+Solution and no fixed sections. The [operator workflow](../development/review-tours.md)
+describes editing, exact source/fallback subjects, cold import, website
+conflicts and partial recovery. Publishing a tour posts its stops and never
+writes or edits the pull request description; text an earlier build put in a
+description stays as GitHub has it. **Draft Description**, beside the
+description in Author's Workflow tab ([[BPR-2281]]), drafts or rewrites the
+description from the pull request's title, description and change with the
+**Description writing** system prompt; it publishes nothing. Its answer is
+title-free Markdown (Summary, What changed, How to test) that lands in the
+description editor as one undoable edit, to edit and save. The
+original title, draft status and other PR-management state have no tour
+mutation operation. Production Tour publication is on by the
 [owner amendment of 2026-10-09](../issues/40-parked/BPR-1222-qualify-live-github-review-tours.md#owner-amendment-2026-10-09-publication-on-and-files-changed-links);
 each publish still needs its typed or dialog confirmation of the exact plan, and
 operations the BPR-Test course did not try stay listed as untried there.
@@ -304,7 +312,9 @@ targets refused. No agent flag grants source confirmation, Ready or publication.
 
 The pull request's author can edit its description (body only) in Overview:
 Edit opens the app's Markdown editor in the reader's place, and nothing is
-sent until Save ([[BPR-1774]]). A body changed on GitHub since editing began is
+sent until Save ([[BPR-1774]]). Author's Workflow tab holds the same editor
+above the checklist, with Draft Description beside it ([[BPR-2280]],
+[[BPR-2281]]). A body changed on GitHub since editing began is
 never overwritten: the editor says so and offers GitHub's newer text. The
 mutation's contract is in the
 [provider contract](github-provider-contract.md#normalized-provider-surface).

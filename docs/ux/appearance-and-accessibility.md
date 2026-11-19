@@ -273,8 +273,8 @@ the previous overrides. Everything scoped now names the theme on screen, which
 the composition supplies and Qt never guesses: the Colours card is titled for
 it ("Colours for Dark") under the subtitle "Edits change Dark only. Each theme
 keeps its own colours."; a commit changes that variant's customisation and no
-other; Import previews into it and says so; Export writes it and says which
-theme was written; Reset all resets it. A theme's customised-colour count is
+other; Import keeps an imported theme's colours on it and says so; Export
+writes it and says which theme was written; Reset all resets it. A theme's customised-colour count is
 the number of roles whose override differs from that variant's built-in colour,
 which is the comparison the profile already makes, and it is the count the
 theme tiles caption.
@@ -315,21 +315,39 @@ flight, that newer local mutation supersedes the read before its terminal can
 adopt. The stale record therefore cannot overwrite the visible session after
 the newer record has been queued for persistence.
 
-Qt owns only local-file selection. It dispatches the selected path and never
-opens or parses the file. Composition supplies a narrow document reader that
-opens the selected path without following a stream protocol, verifies the
-opened operating-system handle is a regular disk file, and reads at most
-`theme_document_byte_limit + 1` bytes on the appearance effect lane. The extra
-byte lets `core::import_theme` distinguish an oversized document from a
-truncated one. FIFOs, pipes, devices, directories, and other special files are
-refused as unavailable before a blocking read. The core parser remains the
-authority for the versioned format and retains its typed refusals for malformed
-documents, unknown or duplicate fields, external references, include
-directives, executable/style payloads, malformed colours, and unsupported
-forward versions. A structurally valid palette is still refused, with the
-variant and exact `contrast_finding` preserved, if any of the four variants
-fails the conservative contrast gate. Import success publishes a preview
-candidate and performs no store write until the reviewer commits it.
+**A theme travels as Profile Settings** ([[BPR-2283]]; owner, 2026-11-19:
+"Can we unify themes into the same thing. And can we change the extension to
+.bprsettings", then "don't keep legacy support"). A theme is the Theme section
+of a `.bprsettings` file: its base, the built-in theme it was made on, and
+each role's `#rrggbbaa` colour by the role's stable name. **Export…** on the
+Colours card writes a file holding only the theme on screen, named for it
+(`dark.bprsettings`); Export Profile Settings… carries the same section beside
+the rest of the profile. **Import…** is Import Profile Settings…: the one
+import dialog lists the file's Theme beside its other sections, with the
+file's colours shown beside yours, and keeps nothing until **Import**. A
+`.bprtheme` theme document and a Profile Settings file written before version 3
+are not read: the dialog and a drop say the file is not Profile Settings. A
+build without agent integrations has no Profile Settings import, so it offers
+no Import….
+
+Qt owns only local-file selection. It hands the selected or dropped path on
+and never opens or parses the file. Composition reads it through a narrow
+reader that opens the path without following a stream protocol, verifies the
+opened operating-system handle is a regular disk file, and reads at most the
+Profile Settings bound plus one byte; FIFOs, pipes, devices, directories, and
+other special files are refused as unavailable before a blocking read. The
+core reads the Theme by the theme format's rules (the section is laid out as a
+version-2 theme document), so its typed refusals still name malformed entries,
+unknown or duplicate roles, external references, include directives,
+executable/style payloads, malformed colours and an unknown base, and a
+refused Theme is listed as Cannot be imported while the rest of the file can
+be. The appearance host fills the roles the theme predates from its base's
+built-in palette and checks every pair on all four variants before the dialog
+opens (`appearance_application_host::resolve_theme`), so a theme that would be
+unreadable on any variant is refused, with the variant and exact
+`contrast_finding` named, and the dialog offers only what Import would keep.
+Import commits the palette to the theme on screen through the host's ordinary
+palette commit, once the rest of the file is stored.
 
 The page around the editor is three cards in the shared row language, under the
 lede "Changes apply as you make them and show in the review window behind this

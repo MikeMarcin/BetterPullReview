@@ -172,7 +172,7 @@ namespace bpr::application {
 		{
 			return aRecord.Operation == operation::discover_tours || (aRecord.Plan && !aRecord.Plan->ConversationReply);
 		}
-		static auto refused(const record& aRecord, review_mutation_failure aFailure, bool aBeforeEffect) -> review_submission_host_terminal
+		static auto refused(const record& aRecord, review_mutation_failure aFailure, bool aBeforeEffect, const core::review_submission_refusal_reason aReason = core::review_submission_refusal_reason::request_stopped) -> review_submission_host_terminal
 		{
 			if (aRecord.Operation == operation::observe_tour_destinations) {
 				return { aRecord.Context, tour_destination_observations{ std::unexpected(aFailure) } };
@@ -189,7 +189,24 @@ namespace bpr::application {
 			if (aRecord.Operation == operation::lookup) {
 				return { aRecord.Context, review_submission_lookup{ .Key = aRecord.Key, .Request = std::unexpected(aFailure) } };
 			}
-			return { aRecord.Context, review_submission_result{ .Request = *aRecord.Request, .Publication = aBeforeEffect && aRecord.Operation == operation::submit ? review_submission_publication::definitely_not_published : review_submission_publication::indeterminate, .Failure = aFailure } };
+			auto result = review_submission_result{ .Request = *aRecord.Request, .Publication = aBeforeEffect && aRecord.Operation == operation::submit ? review_submission_publication::definitely_not_published : review_submission_publication::indeterminate, .Failure = aFailure };
+			if (aBeforeEffect) {
+				result.Refused = core::review_submission_refusal{ .Check = core::review_submission_refusal_check::host, .Reason = aReason };
+			}
+			return { aRecord.Context, std::move(result) };
+		}
+		/// [[BPR-2263]]. A submission or check refused here before the
+		/// provider ran: logged as its ending, with the check and reason.
+		auto refuse(const record& aRecord, const review_mutation_failure aFailure, const core::review_submission_refusal_reason aReason) -> review_submission_host_terminal
+		{
+			// [[BPR-2265]]. A provider the factory could not build is logged
+			// for every operation; a tour's own trace already says it.
+			const auto submission = aRecord.Request && (aRecord.Operation == operation::submit || aRecord.Operation == operation::reconcile);
+			if (submission || (aReason == core::review_submission_refusal_reason::provider_unavailable && !tour(aRecord))) {
+				const auto comments = aRecord.Request ? aRecord.Request->Proposal.Comments.size() : std::size_t{ 0U };
+				record_review_submission_ending(Log.get(), { .Ending = core::review_submission_ending::not_sent, .Run = aRecord.Operation == operation::submit ? core::review_submission_run::submit : core::review_submission_run::check, .Stop = review_submission_stop_of(aFailure), .Comments = static_cast<std::uint16_t>(std::min<std::size_t>(comments, core::maximum_review_submission_comments)), .Cause = core::review_submission_refusal{ .Check = core::review_submission_refusal_check::host, .Reason = aReason } });
+			}
+			return refused(aRecord, aFailure, true, aReason);
 		}
 		void complete(const std::shared_ptr<record>& aRecord, review_submission_host_terminal aTerminal)
 		{
@@ -321,25 +338,36 @@ namespace bpr::application {
 																																											   : core::tour_publication_stage::publish;
 				record_tour_publication(Log.get(), stage, aRecord->Plan ? &*aRecord->Plan : nullptr, nullptr, true);
 			}
-			if (aRecord->Stop.stop_requested() || (aRecord->Grant && !aRecord->Grant->active())) {
-				return refused(*aRecord, review_mutation_failure::cancelled, true);
+			if (aRecord->Stop.stop_requested()) {
+				return refuse(*aRecord, review_mutation_failure::cancelled, core::review_submission_refusal_reason::request_stopped);
+			}
+			if (aRecord->Grant && !aRecord->Grant->active()) {
+				return refuse(*aRecord, review_mutation_failure::cancelled, core::review_submission_refusal_reason::grant_inactive);
 			}
 			// Each operation opens and closes its provider on this effect lane.
 			// Recovery is durable; no storage destructor runs on the UI lane.
 			if (tour(*aRecord)) {
 				record_tour_publication(Log.get(), core::tour_publication_stage::factory, aRecord->Plan ? &*aRecord->Plan : nullptr, nullptr, true);
 			}
-			auto created = Factory();
+			auto factory = review_submission_provider_factory{ };
+			{
+				std::scoped_lock lock{ Mutex };
+				factory = Factory;
+			}
+			auto created = factory ? factory() : std::expected<std::unique_ptr<review_submission_port>, review_mutation_failure>{ std::unexpected(review_mutation_failure::unavailable) };
 			if (tour(*aRecord)) {
 				record_tour_publication(Log.get(), core::tour_publication_stage::factory, aRecord->Plan ? &*aRecord->Plan : nullptr, nullptr, false, !created ? operation_failure_of(created.error()) : !*created ? core::operation_failure::unavailable
 																																																				  : core::operation_failure::none);
 			}
 			if (!created || !*created) {
-				return refused(*aRecord, created ? review_mutation_failure::unavailable : created.error(), true);
+				return refuse(*aRecord, created ? review_mutation_failure::unavailable : created.error(), core::review_submission_refusal_reason::provider_unavailable);
 			}
 			auto provider = std::move(*created);
-			if (aRecord->Stop.stop_requested() || (aRecord->Grant && !aRecord->Grant->active())) {
-				return refused(*aRecord, review_mutation_failure::cancelled, true);
+			if (aRecord->Stop.stop_requested()) {
+				return refuse(*aRecord, review_mutation_failure::cancelled, core::review_submission_refusal_reason::request_stopped);
+			}
+			if (aRecord->Grant && !aRecord->Grant->active()) {
+				return refuse(*aRecord, review_mutation_failure::cancelled, core::review_submission_refusal_reason::grant_inactive);
 			}
 			if (aRecord->Operation == operation::observe_tour_destinations) {
 				auto        observed = provider->tour_destinations(*aRecord->DestinationQuery, aRecord->Stop.get_token());
@@ -506,7 +534,7 @@ namespace bpr::application {
 					self->terminal(request, std::move(outcome));
 				});
 			} catch (...) {
-				terminal(request, refused(*request, review_mutation_failure::unavailable, true));
+				terminal(request, refused(*request, review_mutation_failure::unavailable, true, core::review_submission_refusal_reason::admission_refused));
 			}
 			return request->Context;
 		}
@@ -538,6 +566,14 @@ namespace bpr::application {
 		}
 	}
 	auto review_submission_application_host::abandon(review_submission_host_context aContext) -> bool { return Implementation->abandon(aContext); }
+	void review_submission_application_host::renew(review_submission_provider_factory aFactory)
+	{
+		if (!aFactory) {
+			return;
+		}
+		std::scoped_lock lock{ Implementation->Mutex };
+		Implementation->Factory = std::move(aFactory);
+	}
 	void review_submission_application_host::shutdown() noexcept
 	{
 		std::scoped_lock lock{ Implementation->Mutex };

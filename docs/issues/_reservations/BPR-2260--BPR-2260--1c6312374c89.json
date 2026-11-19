@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2260"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Draft note stays drawn after clicking away",
+  "created": "2026-11-18T22:30:58.647770+00:00",
+  "base": "7bb3daef42f4f60cee77c4e2b5406f5a0c650517"
+}

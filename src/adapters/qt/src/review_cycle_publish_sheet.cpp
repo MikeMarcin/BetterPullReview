@@ -182,11 +182,8 @@ namespace bpr::qt {
 			lines.append(QStringLiteral("Into %1 on %2, from the new branch %3, %4.")
 							 .arg(text_of(destination.BaseBranch), repository, text_of(destination.NewBranch), plan.Draft ? QStringLiteral("as a draft pull request") : QStringLiteral("ready for review")));
 			lines.append(QStringLiteral("Title: %1").arg(text_of(plan.PullTitle)));
-			if (!aView.Form.Problem.empty()) {
-				lines.append(QStringLiteral("Problem: %1").arg(text_of(aView.Form.Problem)));
-			}
-			if (!aView.Form.Solution.empty()) {
-				lines.append(QStringLiteral("Solution: %1").arg(text_of(aView.Form.Solution)));
+			if (!aView.Form.Description.empty()) {
+				lines.append(QStringLiteral("Description: %1").arg(text_of(aView.Form.Description)));
 			}
 			// A plan read back between sends says what GitHub already holds ([[BPR-1178]]).
 			if (aView.Stage == application::review_cycle_publication_stage::stopped || aView.Stage == application::review_cycle_publication_stage::publishing
@@ -343,20 +340,13 @@ namespace bpr::qt {
 		auto* const text = new QFormLayout{ };
 		PullTitle        = line_edit(Form, QStringLiteral("cyclePublishTitleField"), QStringLiteral("Pull request title"));
 		text->addRow(QStringLiteral("Title"), PullTitle);
-		Problem = new QPlainTextEdit{ Form };
-		Problem->setObjectName(QStringLiteral("cyclePublishProblem"));
-		Problem->setAccessibleName(QStringLiteral("Problem"));
-		Problem->setPlaceholderText(QStringLiteral("What was wrong, for a reader of the pull request"));
-		Problem->setTabChangesFocus(true);
-		Problem->setFixedHeight(Problem->fontMetrics().lineSpacing() * 3 + 12);
-		text->addRow(QStringLiteral("Problem"), Problem);
-		Solution = new QPlainTextEdit{ Form };
-		Solution->setObjectName(QStringLiteral("cyclePublishSolution"));
-		Solution->setAccessibleName(QStringLiteral("Solution"));
-		Solution->setPlaceholderText(QStringLiteral("What this change does about it"));
-		Solution->setTabChangesFocus(true);
-		Solution->setFixedHeight(Solution->fontMetrics().lineSpacing() * 3 + 12);
-		text->addRow(QStringLiteral("Solution"), Solution);
+		Description = new QPlainTextEdit{ Form };
+		Description->setObjectName(QStringLiteral("cyclePublishDescription"));
+		Description->setAccessibleName(QStringLiteral("Description"));
+		Description->setPlaceholderText(QStringLiteral("What this change does and why, for a reader of the pull request"));
+		Description->setTabChangesFocus(true);
+		Description->setFixedHeight(Description->fontMetrics().lineSpacing() * 6 + 12);
+		text->addRow(QStringLiteral("Description"), Description);
 		Draft = new QCheckBox{ QStringLiteral("Open as a draft"), Form };
 		Draft->setObjectName(QStringLiteral("cyclePublishDraft"));
 		text->addRow(QString{ }, Draft);
@@ -554,8 +544,7 @@ namespace bpr::qt {
 		form.BaseBranch  = utf8(BaseBranch->text().trimmed());
 		form.NewBranch   = utf8(NewBranch->text().trimmed());
 		form.Title       = utf8(PullTitle->text().trimmed());
-		form.Problem     = utf8(Problem->toPlainText());
-		form.Solution    = utf8(Solution->toPlainText());
+		form.Description = utf8(Description->toPlainText());
 		form.Draft       = Draft->isChecked();
 		form.AuthorName  = utf8(AuthorName->text().trimmed());
 		form.AuthorEmail = utf8(AuthorEmail->text().trimmed());
@@ -732,16 +721,13 @@ namespace bpr::qt {
 		setText(PullTitle, form.Title);
 		setText(AuthorName, form.AuthorName);
 		setText(AuthorEmail, form.AuthorEmail);
-		if (!Problem->hasFocus() && utf8(Problem->toPlainText()) != form.Problem) {
-			Problem->setPlainText(text_of(form.Problem));
-		}
-		if (!Solution->hasFocus() && utf8(Solution->toPlainText()) != form.Solution) {
-			Solution->setPlainText(text_of(form.Solution));
+		if (!Description->hasFocus() && utf8(Description->toPlainText()) != form.Description) {
+			Description->setPlainText(text_of(form.Description));
 		}
 		Draft->setChecked(form.Draft);
 		// Choosing shows the form; a plan or a pull request shows its short account instead.
 		const auto choosing = stage == application::review_cycle_publication_stage::choosing;
-		for (auto* const field : std::initializer_list<QWidget*>{ Base, Target, BothMode, ImprovementsMode, Owner, Repository, BaseBranch, NewBranch, PullTitle, Problem, Solution, Draft, AuthorName, AuthorEmail }) {
+		for (auto* const field : std::initializer_list<QWidget*>{ Base, Target, BothMode, ImprovementsMode, Owner, Repository, BaseBranch, NewBranch, PullTitle, Description, Draft, AuthorName, AuthorEmail }) {
 			field->setEnabled(choosing && !aView.Busy);
 		}
 		for (auto* const choice : Paths->findChildren<QCheckBox*>(QStringLiteral("cyclePublishPathChoice"))) {
@@ -982,13 +968,9 @@ namespace bpr::qt {
 	{
 		return PullTitle;
 	}
-	auto review_cycle_publish_sheet::problem_field() const noexcept -> QPlainTextEdit*
+	auto review_cycle_publish_sheet::description_field() const noexcept -> QPlainTextEdit*
 	{
-		return Problem;
-	}
-	auto review_cycle_publish_sheet::solution_field() const noexcept -> QPlainTextEdit*
-	{
-		return Solution;
+		return Description;
 	}
 	auto review_cycle_publish_sheet::draft_box() const noexcept -> QCheckBox*
 	{

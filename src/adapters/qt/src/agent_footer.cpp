@@ -89,7 +89,7 @@ namespace bpr::qt {
 
 	auto agent_footer_run_quiet(const agent_run_status& aStatus) -> bool
 	{
-		return aStatus.Activity.has_value() && aStatus.Stage != agent_run_stage::preparing && core::agent_run_is_quiet(static_cast<std::uint64_t>(since_frame_ms(aStatus)), std::nullopt);
+		return aStatus.Activity.has_value() && !agent_run_before_start(aStatus.Stage) && core::agent_run_is_quiet(static_cast<std::uint64_t>(since_frame_ms(aStatus)), std::nullopt);
 	}
 
 	auto agent_footer_doing_words(const agent_run_status& aStatus) -> QString
@@ -97,7 +97,7 @@ namespace bpr::qt {
 		if (agent_footer_run_quiet(aStatus)) {
 			return QObject::tr("no activity for %1 min").arg(std::max<qint64>(2, since_frame_ms(aStatus) / 60000));
 		}
-		if (aStatus.Activity && aStatus.Stage != agent_run_stage::preparing) {
+		if (aStatus.Activity && !agent_run_before_start(aStatus.Stage)) {
 			auto words = agent_doing_words(*aStatus.Activity);
 			if (words.startsWith(QStringLiteral("is "))) {
 				words.remove(0, 3);
@@ -106,6 +106,7 @@ namespace bpr::qt {
 		}
 		switch (aStatus.Stage) {
 		case agent_run_stage::preparing: return QObject::tr("making its workspace");
+		case agent_run_stage::checking:  return QObject::tr("checking its workspace");
 		case agent_run_stage::thinking:  return QObject::tr("thinking");
 		case agent_run_stage::writing:   return QObject::tr("writing");
 		}

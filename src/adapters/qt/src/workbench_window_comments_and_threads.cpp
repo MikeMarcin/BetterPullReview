@@ -930,11 +930,10 @@ namespace bpr::qt {
 		}
 		const auto already = TrayTabs->currentIndex() == tray_tour_tab;
 		TrayTabs->setCurrentIndex(tray_tour_tab);
-		// [[BPR-1914]] v004. Going to a stop from the open Tour tab keeps the
-		// step it is on: opening the Problem first moved the keyboard and
-		// the tab's height, and the tab jumped.
+		// [[BPR-1914]] v004. Going to a stop from the open Tour tab keeps
+		// where it is: moving the keyboard first made the tab jump.
 		if (!aKeepStep || !already) {
-			TourEditor->show_problem();
+			TourEditor->show_stops();
 		}
 	}
 
@@ -1338,7 +1337,8 @@ namespace bpr::qt {
 
 	void workbench_window::present_document_tabs()
 	{
-		if (DocumentTabs == nullptr) {
+		// [[BPR-2258]]. A held report keeps the strip as it was drawn.
+		if (DocumentTabs == nullptr || ReportHeld) {
 			return;
 		}
 		auto tabs = std::vector<document_tab_presentation>{ };
@@ -1416,8 +1416,24 @@ namespace bpr::qt {
 	/// RFC-BPR-0128 ([[BPR-2166]]). While a report is the active tab it
 	/// stands where the comparison stands, and the review bar's file controls
 	/// stay where they are, off (Q9); the drawers keep their places.
+	void workbench_window::hold_report(const bool aHeld)
+	{
+		const auto held = aHeld && ReportShown;
+		if (held == ReportHeld) {
+			return;
+		}
+		ReportHeld = held;
+		if (!held) {
+			present_document_tabs();
+		}
+	}
+
 	void workbench_window::apply_report_surface()
 	{
+		// [[BPR-2258]]. The report stays in front while it is held.
+		if (ReportHeld) {
+			return;
+		}
 		auto key = std::string{ };
 		if (TabsProjection) {
 			for (const auto& entry : TabsProjection->Tabs) {

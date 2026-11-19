@@ -199,6 +199,54 @@ namespace bpr::application {
 		return failure::unavailable;
 	}
 
+	auto review_submission_stop_of(const review_mutation_failure aFailure) noexcept -> core::review_submission_stop
+	{
+		using stop = core::review_submission_stop;
+		switch (aFailure) {
+		case review_mutation_failure::stale_head:             return stop::stale_head;
+		case review_mutation_failure::target_moved:           return stop::target_moved;
+		case review_mutation_failure::cancelled:              return stop::cancelled;
+		case review_mutation_failure::undesignated_target:    return stop::undesignated_target;
+		case review_mutation_failure::unavailable:            return stop::unavailable;
+		case review_mutation_failure::credential_unavailable: return stop::credential_unavailable;
+		case review_mutation_failure::credential_tool_failed: return stop::credential_tool_failed;
+		case review_mutation_failure::unsupported:            return stop::unsupported;
+		case review_mutation_failure::target_unavailable:     return stop::target_unavailable;
+		case review_mutation_failure::malformed_response:     return stop::malformed_response;
+		case review_mutation_failure::refused_by_server:      return stop::refused_by_server;
+		default:                                              return stop::other;
+		}
+	}
+
+	void record_review_submission_ending(diagnostic_log_port* const aLog, const core::review_submission_ending_diagnosis& aEnding, const std::uint16_t aHttpStatus) noexcept
+	{
+		if (aLog == nullptr) {
+			return;
+		}
+		try {
+			const auto published = aEnding.Ending == core::review_submission_ending::published;
+			auto       event     = diagnostic_event{
+				.Operation  = diagnostic_operation::review_submission,
+				.Outcome    = published ? diagnostic_outcome::succeeded : aEnding.Stop == core::review_submission_stop::cancelled ? diagnostic_outcome::cancelled
+																																  : diagnostic_outcome::failed,
+				.HttpStatus = aHttpStatus,
+			};
+			auto text = core::describe(aEnding);
+			if (!text.empty() && text.size() <= event.Summary.Text.size()) {
+				event.ReviewEnding = aEnding;
+			} else {
+				text          = "review_submission_ending=unrecorded";
+				event.Outcome = diagnostic_outcome::failed;
+			}
+			std::ranges::copy(text, event.Summary.Text.begin());
+			event.Summary.Size  = static_cast<std::uint16_t>(text.size());
+			event.Summary.State = diagnostic_summary_state::sanitized;
+			static_cast<void>(aLog->record(event));
+		} catch (...) {
+			// Logging never changes what the submission does.
+		}
+	}
+
 	auto operation_process_of(const agent_run_outcome aOutcome) noexcept -> core::operation_process
 	{
 		using process = core::operation_process;

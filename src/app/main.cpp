@@ -20,6 +20,7 @@
 #include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/local_changes_panel.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
+#include "bpr/qt/nested_scroll_latch.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -5968,7 +5969,7 @@ namespace {
 
 	// [[BPR-1916]], [[BPR-1917]]. `--attended-prompt-editor`: once the file
 	// shows, Settings opens on Agents with the built-in prompts,
-	// and Problem statement is changed through its own Save to name the
+	// and Tour outline is changed through its own Save to name the
 	// fixture home's `/fixture-technical-writer`, so the look starts on a
 	// changed prompt whose Reset and Preview the person tries. The skill
 	// catalog is the fixture home's (`--attended-skill-home`), never the
@@ -6009,7 +6010,7 @@ namespace {
 				}
 				window.settings_action()->trigger();
 				window.settings()->present(bpr::qt::settings_page::agents_and_context);
-				hooks->select_hook(bpr::core::writing_hook::problem);
+				hooks->select_hook(bpr::core::writing_hook::outline);
 				hooks->show_preview(false);
 				text->setPlainText(text->toPlainText() + QStringLiteral("\n\nWrite it the way /fixture-technical-writer says: short paragraphs, a list where steps are a list."));
 				save->click();
@@ -6202,7 +6203,7 @@ namespace {
 						agents->add_agent(std::nullopt);
 					}
 					agents->set_editor(bpr::qt::default_agent_entry_editor());
-					hooks->select_hook(bpr::core::writing_hook::problem);
+					hooks->select_hook(bpr::core::writing_hook::outline);
 					hooks->show_preview(false);
 					text->setPlainText(QStringLiteral("Say what is wrong today in two sentences: who meets it and what it costs them. Name the ticket if there is one."));
 					save->click();
@@ -6222,7 +6223,7 @@ namespace {
 			// improved in the file, imported back and becomes the edited prompt.
 			const auto file = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE");
 			if (qEnvironmentVariable("BPR_ATTENDED_SHARE_CHECK") != QStringLiteral("1") || file.isEmpty()) {
-				hooks->select_hook(bpr::core::writing_hook::problem);
+				hooks->select_hook(bpr::core::writing_hook::outline);
 				window.settings()->present(bpr::qt::settings_page::profiles);
 				share->import_button()->setFocus();
 				finish(QStringLiteral("ATTENDED_SHARE_SHOWN:agents=%1").arg(agents->agent_list()->count()));
@@ -6704,8 +6705,7 @@ namespace {
 	/// RFC-BPR-0110 as amended (owner: "stick with the PR view and just
 	/// augment it"). Through the pull request window's own surfaces, as an
 	/// author would: include the working README, refresh, write the
-	/// description in Overview and the tour's Problem and Solution in the Tour
-	/// panel, add a stop on src/search.cpp and accept it with Save, add one on
+	/// description in Overview, add a stop on src/search.cpp and accept it with Save, add one on
 	/// the README left to accept, and ask the scripted agent in the side chat.
 	void prepare_attended_local_draft_tour(bpr::app::github_application& aApplication, QTimer* const aTimer)
 	{
@@ -6778,26 +6778,13 @@ namespace {
 				}
 				window.choose_modality(bpr::qt::review_modality::review);
 				window.tray_tabs()->setCurrentIndex(1);
-				tour->open_step(bpr::core::tour_step::problem);
-				tour->problem_editor()->setPlainText(QStringLiteral("An empty query made search() read the byte after the string."));
-				*stage = 4;
-				return;
-			case 4:
-				if (prep.Tour.Problem.empty()) {
-					return;
-				}
-				tour->open_step(bpr::core::tour_step::solution);
-				tour->solution_editor()->setPlainText(QStringLiteral("search() checks for the empty query first; engine() calls it."));
 				*stage = 5;
 				return;
 			case 5:
-				if (prep.Tour.Solution.empty()) {
-					return;
-				}
 				open("src/search.cpp");
 				if (shown("src/search.cpp")) {
 					select(1U, 4U);
-					tour->open_step(bpr::core::tour_step::stops);
+					tour->show_stops();
 					tour->trigger(bpr::qt::tour_editor_action::add_stop);
 					*stage = 6;
 				}
@@ -7128,15 +7115,9 @@ namespace {
 	// its own under the question field's tools
 	// (ATTENDED_AGENT_PICKER_SHOWN:wrapped=1). The Tour tab beside it ends on
 	// the same picker, bare on its bar.
-	constexpr const char* attended_failure_problem = "A second view drew over the first when both cleared in the same frame.";
-	// [[BPR-1900]]. What the author writes while Draft the tour runs.
-	constexpr const char* attended_drafting_problem = "Two views drew over each other when they cleared in the same frame.";
-	// [[BPR-1914]]. The passage of the drafted Solution the conversation look
-	// asks about, its question, and the follow-up that asks for a rewrite.
-	constexpr const char* attended_conversation_passage   = "between begin and present";
-	constexpr const char* attended_conversation_question  = "What does this mean?";
-	constexpr const char* attended_conversation_follow_up = "So does that mean each view gets its own frame?";
-	constexpr const char* attended_conversation_code      = "Why does clear() come before draw() here?";
+	// [[BPR-1914]]. The question the conversation look asks the tour.
+	constexpr const char* attended_conversation_question = "What does this mean?";
+	constexpr const char* attended_conversation_code     = "Why does clear() come before draw() here?";
 	// [[BPR-1930]]. Feedback while the draft runs, and the round on the tour.
 	constexpr const char* attended_revision_while_drafting = "Start at the header that declares the change, give resize its own stop, and drop the stops off the change.";
 	constexpr const char* attended_revision_round          = "Too many stops. Merge 2 and 3, and focus on the renderer changes.";
@@ -7150,8 +7131,7 @@ namespace {
 		const auto drafting = QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-drafting"));
 		const auto picker   = QCoreApplication::arguments().contains(QStringLiteral("--attended-agent-picker"));
 		// [[BPR-1914]], [[BPR-1915]]. After the draft: accept its formatted
-		// Problem and Solution, ask about a Solution passage, follow up with a
-		// rewrite, and accept the rewrite.
+		// stops, then a stop's side chat ([[BPR-2274]]: a tour is its stops).
 		const auto conversation = drafting && QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-conversation"));
 		// [[BPR-1930]], [[BPR-1931]]. Feedback on the whole tour while it
 		// drafts, then a "too many stops" round shown in place with its focus
@@ -7240,9 +7220,9 @@ namespace {
 						done(QStringLiteral("ATTENDED_TOUR_FAILED:failure-agent-not-ready:readiness=%1").arg(static_cast<int>(editor->agent_readiness())));
 						return;
 					}
-					editor->show_problem();
-					editor->problem_editor()->setPlainText(QString::fromUtf8(attended_failure_problem));
-					*step = 3;
+					// [[BPR-2274]]. The look wrote a Problem and pressed its
+					// Enhance; a tour has no Problem now.
+					done(QStringLiteral("ATTENDED_TOUR_FAILED:failure-look-retired"));
 					return;
 				}
 				if (picker) {
@@ -7318,7 +7298,7 @@ namespace {
 					if (panel->draft_button()->text() != QStringLiteral("Stop drafting")) {
 						return;
 					}
-					editor->show_problem();
+					editor->show_stops();
 					// [[BPR-1931]] follow-up. Reset is not offered while it drafts,
 					// and the tour stays empty but for what the draft proposes.
 					if (resetting) {
@@ -7327,8 +7307,6 @@ namespace {
 							done(QStringLiteral("ATTENDED_TOUR_FAILED:reset-while-drafting"));
 							return;
 						}
-					} else {
-						editor->problem_editor()->setPlainText(QString::fromUtf8(attended_drafting_problem));
 					}
 					QCoreApplication::processEvents();
 					// [[BPR-1930]] AC3. Feedback on the whole tour while it drafts:
@@ -7404,7 +7382,7 @@ namespace {
 					panel->transcript()->hide();
 					QTextStream{ stdout } << "ATTENDED_TOUR_DRAFTING_SHOWN\n";
 					QTextStream{ stdout }.flush();
-					// [[BPR-1915]]. The formatted Problem and Solution, accepted.
+					// [[BPR-1915]]. The formatted proposal, accepted.
 					panel->accept_button(0)->click();
 					if (auto* const solution = panel->accept_button(1); solution != nullptr) {
 						solution->click();
@@ -7416,13 +7394,13 @@ namespace {
 				return;
 			}
 			if (*step >= 90 && *step <= 93) {
-				// [[BPR-1941]]. The Solution's chat: answered, failed, running.
+				// [[BPR-1941]]. The tour's chat: answered, failed, running.
 				const auto& shown = editor->shown();
 				if (!shown.Draft || shown.Saving) {
 					return;
 				}
 				auto* const chat    = editor->side_chat();
-				const auto  thread  = bpr::core::tour_thread{ .Kind = bpr::core::tour_thread_kind::solution };
+				const auto  thread  = bpr::core::tour_thread{ };
 				const auto& session = editor->tour_agent()->session();
 				const auto  runs    = bpr::core::thread_runs(session, thread);
 				const auto  ended   = static_cast<std::size_t>(std::ranges::count_if(runs, [](const bpr::core::tour_agent_run* aRun) { return aRun->State != bpr::core::tour_agent_run_state::running; }));
@@ -7525,8 +7503,7 @@ namespace {
 					auto* const list = chat->suggestions();
 					return list == nullptr || !list->isVisibleTo(chat) ? QStringList{ } : list->prompts();
 				};
-				const auto stop     = offered(bpr::core::tour_thread{ .Kind = bpr::core::tour_thread_kind::stop, .Stop = shown.Draft->Stops.front().Id });
-				const auto solution = offered(bpr::core::tour_thread{ .Kind = bpr::core::tour_thread_kind::solution });
+				const auto stop = offered(bpr::core::tour_thread{ .Kind = bpr::core::tour_thread_kind::stop, .Stop = shown.Draft->Stops.front().Id });
 				editor->tour_agent()->chat_button()->click();
 				QCoreApplication::processEvents();
 				auto* const list = chat->suggestions();
@@ -7536,20 +7513,21 @@ namespace {
 					QCoreApplication::processEvents();
 					static_cast<void>(chat->grab().save(root + QStringLiteral("/tour-chat-prompts") + theme + QStringLiteral(".png"), "PNG"));
 				}
-				QTextStream{ stdout } << "ATTENDED_TOUR_PROMPTS:stop=" << stop.join(QLatin1Char('|')) << ":solution=" << solution.join(QLatin1Char('|')) << ":tour=" << tour.join(QLatin1Char('|')) << '\n';
-				// [[BPR-1934]] v002. The Solution's first sentence selected, and
+				QTextStream{ stdout } << "ATTENDED_TOUR_PROMPTS:stop=" << stop.join(QLatin1Char('|')) << ":tour=" << tour.join(QLatin1Char('|')) << '\n';
+				// [[BPR-1934]] v002. The first stop's first sentence selected, and
 				// its chat open offering Explain the selected block, for the
 				// person to press.
-				editor->open_step(bpr::core::tour_step::solution);
+				editor->go_to_stop(shown.Draft->Stops.front().Id);
+				editor->begin_stop_edit();
 				QCoreApplication::processEvents();
-				auto* const field = editor->solution_editor();
+				auto* const field = editor->stop_body();
 				const auto  words = field->toPlainText();
 				const auto  end   = words.indexOf(QLatin1Char('.'));
 				auto        block = field->textCursor();
 				block.setPosition(0);
 				block.setPosition(static_cast<int>(end > 0 ? end + 1 : std::min<qsizetype>(words.size(), 60)), QTextCursor::KeepAnchor);
 				field->setTextCursor(block);
-				chat->open(bpr::core::tour_thread{ .Kind = bpr::core::tour_thread_kind::solution }, std::nullopt, false);
+				chat->open(bpr::core::tour_thread{ .Kind = bpr::core::tour_thread_kind::stop, .Stop = shown.Draft->Stops.front().Id }, std::nullopt, false);
 				QCoreApplication::processEvents();
 				auto* const explain = chat->suggestions();
 				const auto  labels  = explain == nullptr || !explain->isVisibleTo(chat) ? QStringList{ } : explain->prompts();
@@ -7559,7 +7537,7 @@ namespace {
 					static_cast<void>(window.grab().save(root + QStringLiteral("/app-tour-explain-selection") + theme + QStringLiteral(".png"), "PNG"));
 					static_cast<void>(chat->grab().save(root + QStringLiteral("/tour-chat-explain-selection") + theme + QStringLiteral(".png"), "PNG"));
 				}
-				const auto shownAll = stop.size() == 4 && solution.size() == 3 && tour.size() == 4 && !labels.isEmpty() && labels.front() == QStringLiteral("Explain the selected block");
+				const auto shownAll = stop.size() == 4 && tour.size() == 4 && !labels.isEmpty() && labels.front() == QStringLiteral("Explain the selected block");
 				done(shownAll ? QStringLiteral("ATTENDED_TOUR_PROMPTS_SHOWN") : QStringLiteral("ATTENDED_TOUR_FAILED:prompts"));
 				return;
 			}
@@ -7807,7 +7785,7 @@ namespace {
 					if (!shown.Draft || shown.Saving || !shown.Draft->Stops.empty() || !panel->reset_done()->isVisibleTo(panel)) {
 						return;
 					}
-					QTextStream{ stdout } << "ATTENDED_TOUR_RESET_DONE:stops=0:problem=" << (shown.Draft->Problem.empty() ? 0 : 1) << ":chats=" << bpr::core::chat_threads(panel->session()).size() << ":focus=" << (panel->focus_chip()->isVisibleTo(panel) ? 1 : 0)
+					QTextStream{ stdout } << "ATTENDED_TOUR_RESET_DONE:stops=0:chats=" << bpr::core::chat_threads(panel->session()).size() << ":focus=" << (panel->focus_chip()->isVisibleTo(panel) ? 1 : 0)
 										  << ":proposal=" << (panel->proposal()->isVisible() ? 1 : 0) << ":accepts=" << shownAccepts() << ":marks=" << routeMarks() << '\n';
 					if (shownAccepts() + routeMarks() != 0) {
 						done(QStringLiteral("ATTENDED_TOUR_FAILED:revision-survives-reset"));
@@ -7825,9 +7803,8 @@ namespace {
 				return;
 			}
 			if (*step >= 20 && *step <= 28) {
-				// [[BPR-1914]] v003. Side chats: the Solution's (a question, a
-				// follow-up, Update the Solution from this chat, Accept), then a
-				// stop's, on its code, with its lines in the diff.
+				// [[BPR-1914]] v003. Side chats: a stop's, on its code, with its
+				// lines in the diff.
 				auto* const panel = editor->tour_agent();
 				auto* const chat  = editor->side_chat();
 				const auto& shown = editor->shown();
@@ -7861,87 +7838,11 @@ namespace {
 					}
 				};
 				if (*step == 20) {
-					if (!shown.Draft || shown.Saving || shown.Draft->Solution.find(attended_conversation_passage) == std::string::npos) {
+					// [[BPR-2274]]. A tour is its stops: the side chat's look
+					// starts at the draft's first stop, accepted.
+					if (!shown.Draft || shown.Saving) {
 						return;
 					}
-					editor->open_step(bpr::core::tour_step::solution);
-					QCoreApplication::processEvents();
-					auto* const solution = editor->findChild<QPlainTextEdit*>(QStringLiteral("tourSolution"));
-					const auto  text     = solution->toPlainText();
-					const auto  at       = text.indexOf(QString::fromUtf8(attended_conversation_passage));
-					auto        cursor   = solution->textCursor();
-					cursor.setPosition(static_cast<int>(at));
-					cursor.setPosition(static_cast<int>(at + QString::fromUtf8(attended_conversation_passage).size()), QTextCursor::KeepAnchor);
-					solution->setTextCursor(cursor);
-					QCoreApplication::processEvents();
-					auto* const glyph = editor->findChild<QToolButton*>(QStringLiteral("tourSolutionChat"));
-					if (glyph == nullptr || !glyph->isVisible()) {
-						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-side-chat-glyph"));
-						return;
-					}
-					draw(QStringLiteral("app-tour-side-chat-glyph"));
-					glyph->click();
-					QCoreApplication::processEvents();
-					if (!chat->isVisible()) {
-						done(QStringLiteral("ATTENDED_TOUR_FAILED:side-chat-not-shown"));
-						return;
-					}
-					ask(attended_conversation_question);
-					*step = 21;
-					return;
-				}
-				if (*step == 21) {
-					if (!answered(1U)) {
-						return;
-					}
-					draw(QStringLiteral("app-tour-side-chat-answer"));
-					closeUp(QStringLiteral("tour-side-chat-answer"));
-					QTextStream{ stdout } << "ATTENDED_TOUR_ANSWER:" << QString::fromStdString(panel->session().Runs.back().Reply).replace(QLatin1Char('\n'), QStringLiteral(" | ")) << '\n';
-					ask(attended_conversation_follow_up);
-					*step = 22;
-					return;
-				}
-				if (*step == 22) {
-					if (!answered(2U)) {
-						return;
-					}
-					QTextStream{ stdout } << "ATTENDED_TOUR_FOLLOW_UP:" << QString::fromStdString(panel->session().Runs.back().Reply).replace(QLatin1Char('\n'), QStringLiteral(" | ")) << '\n';
-					if (!chat->request_update()) {
-						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-update"));
-						return;
-					}
-					*step = 23;
-					return;
-				}
-				if (*step == 23) {
-					if (!answered(3U)) {
-						return;
-					}
-					const auto& last = panel->session().Runs.back();
-					QTextStream{ stdout } << "ATTENDED_TOUR_UPDATE:" << QString::fromStdString(last.Reply) << '\n';
-					QPushButton* accept = nullptr;
-					for (std::size_t index = 0U; index < 64U && accept == nullptr; ++index) {
-						accept = chat->accept_button(index);
-					}
-					if (!last.Update || !last.Proposed.Solution || accept == nullptr) {
-						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-update-proposal"));
-						return;
-					}
-					draw(QStringLiteral("app-tour-side-chat-update"));
-					closeUp(QStringLiteral("tour-side-chat-update"));
-					accept->click();
-					*step = 24;
-					return;
-				}
-				if (*step == 24) {
-					if (!shown.Draft || shown.Saving || !shown.Draft->Solution.starts_with("Both views still draw")) {
-						return;
-					}
-					editor->open_step(bpr::core::tour_step::solution);
-					QCoreApplication::processEvents();
-					draw(QStringLiteral("app-tour-side-chat-accepted"));
-					QTextStream{ stdout } << "ATTENDED_TOUR_SOLUTION:" << QString::fromStdString(shown.Draft->Solution).replace(QLatin1Char('\n'), QStringLiteral(" | ")) << '\n';
-					// The draft's first stop, accepted, for its own chat.
 					if (auto* const stop = panel->accept_button(1); stop != nullptr) {
 						stop->click();
 					}
@@ -7988,38 +7889,6 @@ namespace {
 				done(QStringLiteral("ATTENDED_TOUR_CONVERSATION_SHOWN"));
 				return;
 			}
-			if (*step == 3) {
-				// The problem saved first: an edit still saving would cancel the request.
-				const auto& shown = editor->shown();
-				if (!shown.Draft || shown.Saving || shown.Draft->Problem != attended_failure_problem) {
-					return;
-				}
-				auto* const magic = editor->findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
-				if (magic == nullptr || !magic->isEnabled()) {
-					done(QStringLiteral("ATTENDED_TOUR_FAILED:no-enhance"));
-					return;
-				}
-				magic->click();
-				*step = 2;
-				return;
-			}
-			if (*step == 2) {
-				// Waiting for the failure beside Enhance problem statement.
-				if (editor->agent_failure_text(bpr::core::writing_hook::problem).isEmpty()) {
-					return;
-				}
-				draw(QStringLiteral("app-tour-agent-failure"));
-				if (!root.isEmpty()) {
-					if (auto* const show = editor->agent_failure_notice(bpr::core::writing_hook::problem)->findChild<QPushButton*>(QStringLiteral("tourAgentFailureOpen")); show != nullptr) {
-						show->click();
-						QCoreApplication::processEvents();
-						draw(QStringLiteral("app-tour-agent-failure-agent-tab"));
-					}
-				}
-				QTextStream{ stdout } << "ATTENDED_TOUR_AGENT_FAILURE:" << editor->agent_failure_text(bpr::core::writing_hook::problem) << '\n';
-				done(QStringLiteral("ATTENDED_TOUR_AGENT_FAILURE_SHOWN"));
-				return;
-			}
 			if (!static_cast<QWidget*>(window.agent_setup())->isVisible()) {
 				return;
 			}
@@ -8031,7 +7900,7 @@ namespace {
 
 	// [[BPR-1593]]. `--attended-tour-look`: on conventional-comments-v1, once
 	// the file shows, Prepare review tour opens the Tour tab and a private
-	// tour is written through its own gestures: the brief, then three stops
+	// tour is written through its own gestures: three stops
 	// on lines of renderer.cpp (select the line, Add stop, write), the first
 	// marked Ready. The route is left showing the second stop open, for the
 	// person. Nothing reaches GitHub.
@@ -8100,7 +7969,7 @@ namespace {
 						static_cast<void>(source->Dispatch(bpr::core::claude_stream_json_profile_id.value(), std::nullopt, std::string{ "high" }));
 					}
 	#endif
-					editor->show_problem();
+					editor->show_stops();
 					QCoreApplication::processEvents();
 					if (const auto root = qEnvironmentVariable("BPR_ATTENDED_TOUR_RENDER"); !root.isEmpty()) {
 						static_cast<void>(window.grab().save(root + QStringLiteral("/app-tour-authoring.png"), "PNG"));
@@ -8110,8 +7979,6 @@ namespace {
 					schedule_attended_tour_setup_look(aApplication);
 					return;
 				}
-				editor->problem_editor()->setPlainText(QStringLiteral("A second view drew over the first when both cleared in the same frame, and resizing to zero width stalled the frame."));
-				editor->solution_editor()->setPlainText(QStringLiteral("Draw each view's scene between its clear and present, and keep the size a resize gives, so the next frame corrects itself."));
 				*step = 2;
 				return;
 			}
@@ -12020,6 +11887,9 @@ auto main(int argc, char** argv) -> int
 	// where Qt's Cocoa integration otherwise says Preferences…. Before any
 	// menu bar is built.
 	bpr::qt::install_application_menu_wording(qtApplication);
+	// [[BPR-2279]]. A trackpad gesture moves only the scroller it began in,
+	// momentum included, wherever one scroller sits in another.
+	bpr::qt::nested_scroll_latch::install();
 	// [[BPR-1437]]. Read once, now that QApplication has taken its own options.
 	const auto launchLine = bpr::app::command_line::parse(QCoreApplication::arguments().mid(1), launch_options());
 	if (!launchLine || !launchLine->words().isEmpty()) {

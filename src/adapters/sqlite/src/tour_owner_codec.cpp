@@ -34,7 +34,7 @@ namespace bpr::adapters::sqlite {
 				aCodec.number(a.Position);
 				// The caller supplies the answer only. The receiver reads the clock and the hook itself, and
 				// the command is built from the stored ticket: nothing else may ride along.
-				if (a.Now != 0 || a.CurrentHookRevision != 0 || c.Kind != core::tour_command_kind::problem || !c.Text.empty() || c.Stop.value() != 0 || !(c.Value == core::tour_stop{ }) || c.Position != 0 || c.SplitByte != 0 || c.Baseline || !c.Selection.empty() || c.ExpectedRevision != 0) {
+				if (a.Now != 0 || a.CurrentHookRevision != 0 || c.Kind != core::tour_command_kind::insert || !c.Text.empty() || c.Stop.value() != 0 || !(c.Value == core::tour_stop{ }) || c.Position != 0 || c.SplitByte != 0 || c.Baseline || !c.Selection.empty() || c.ExpectedRevision != 0) {
 					aCodec.Good = false;
 				}
 			}
@@ -177,7 +177,6 @@ namespace bpr::adapters::sqlite {
 			aCodec.optional(aResponse.Draft, [&](auto& aValue) { aCodec.tour(aValue); });
 			aCodec.text(aResponse.UndoLabel, 128);
 			aCodec.text(aResponse.RedoLabel, 128);
-			aCodec.enumeration(aResponse.Resume.Section);
 			aCodec.id(aResponse.Resume.Stop);
 			aCodec.optional(aResponse.Receipt, [&](auto& aReceipt) { aCodec.text(aReceipt.Id,64); for(auto& aValue:aReceipt.Digest){aCodec.byte(aValue);} aCodec.byte(aReceipt.Status); aCodec.enumeration(aReceipt.Refusal); aCodec.number(aReceipt.Revision); });
 			aCodec.text(aResponse.Error, 128);

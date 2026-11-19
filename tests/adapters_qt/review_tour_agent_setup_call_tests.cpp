@@ -91,7 +91,7 @@ namespace {
 			}
 		}
 		// The ordinary controls keep the palette's own words.
-		auto* const map = child<QPushButton>(aEditor, "tourProblemMap");
+		auto* const map = child<QPushButton>(aEditor, "tourStopCancel");
 		expect(map->palette().color(QPalette::Active, QPalette::ButtonText) != accent, std::string{ aWhen } + ": an ordinary control does not wear the accent");
 	}
 }
@@ -102,9 +102,8 @@ auto main(int argc, char** argv) -> int
 	const auto   prefix = argc > 1 ? std::string{ argv[1] } : std::string{ };
 	QApplication::setPalette(light_palette(QApplication::palette()));
 
-	auto draft     = tests::review_tour_fixture();
-	draft.Problem  = { };
-	draft.Solution = { };
+	auto draft               = tests::review_tour_fixture();
+	draft.Stops.front().Body = { };
 	qt::review_tour_editor editor;
 	auto                   actions = 0;
 	editor.set_dispatch([](core::tour_command) { }, [&actions](qt::tour_editor_action) { ++actions; });
@@ -113,12 +112,14 @@ auto main(int argc, char** argv) -> int
 	editor.resize(380, 760);
 	editor.show();
 	editor.present({ .Draft = std::make_shared<const core::review_tour>(draft) });
-	editor.show_problem();
+	editor.show_stops();
+	editor.go_to_stop(draft.Stops.front().Id);
+	editor.begin_stop_edit();
 	QApplication::processEvents();
 
-	auto* const magic = child<QPushButton>(editor, "tourProblemMagic");
+	auto* const magic = child<QPushButton>(editor, "tourStopMagic");
 	expect(editor.agent_readiness() == qt::agent_setup_readiness::ready && magic->isEnabled(), "until told otherwise the agent is ready");
-	expect(editor.agent_features().size() >= 3U, "the drafting helpers and Draft the tour are agent features");
+	expect(editor.agent_features().size() >= 2U, "[[BPR-2274]] the stop's helper and Draft the tour are agent features");
 	// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): the Tour tab
 	// has no picker and no setup band; the window's footer holds both.
 	for (const auto* name : { "tourAgentSetupCall", "tourAgentSetupOpen", "tourAgentBar", "tourAgentField", "agentRunSettings" }) {
@@ -132,7 +133,7 @@ auto main(int argc, char** argv) -> int
 		expect(!feature->isEnabled(), feature->objectName().toStdString() + " waits for the setup");
 		expect(feature->toolTip().contains(QStringLiteral("not set up")) && feature->toolTip().contains(QStringLiteral("footer")), feature->objectName().toStdString() + "'s tooltip says why and where to go");
 	}
-	expect(!editor.problem_editor()->isReadOnly() && child<QPushButton>(editor, "tourProblemMap")->isEnabled(), "writing by hand stays open");
+	expect(!editor.stop_body()->isReadOnly(), "writing by hand stays open");
 	magic->click();
 	expect(asked == 0, "a waiting helper asks nothing");
 	expect(magic->palette().color(QPalette::Disabled, QPalette::ButtonText) == qt::agent_accent_disabled(editor.palette()), "a waiting helper's words are the accent, faded");
@@ -157,11 +158,14 @@ auto main(int argc, char** argv) -> int
 	for (auto* const feature : editor.agent_features()) {
 		expect(feature->isEnabled() && !feature->toolTip().contains(QStringLiteral("not set up")), feature->objectName().toStdString() + " can be used once set up");
 	}
-	expect(magic->text() == QStringLiteral("Draft from PR context") && magic->toolTip().contains(QStringLiteral("drafting agent")), "the helper says what it does again");
+	expect(magic->text() == QStringLiteral("Generate comment") && magic->toolTip().contains(QStringLiteral("drafting agent")), "the helper says what it does again");
+	// [[BPR-2274]]. Going to the stop may itself ask the window for its code;
+	// the helper's click adds no editor action of its own.
+	const auto actionsBefore = actions;
 	magic->click();
 	// [[BPR-2013]]. Suggest an outline left the application.
 	expect(editor.findChild<QPushButton*>(QStringLiteral("tourSuggestOutline")) == nullptr, "no Suggest an outline");
-	expect(asked == 1 && actions == 0, "set up, the helper asks");
+	expect(asked == 1 && actions == actionsBefore, "set up, the helper asks");
 	expect_accent(editor, "dark, after setup");
 	render(editor, prefix, "after-setup-dark");
 	QApplication::setPalette(light_palette(QApplication::palette()));

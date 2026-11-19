@@ -2091,6 +2091,9 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto large_review_snapshot(const github_application& aApplication, core::bpr_window_context aContext) -> std::optional<application::github_pull_request_snapshot>;
 		/// Change fake remote records; the course must still issue a public Refresh.
 		static void stage_server_conversation(github_application& aApplication, std::string aThread, bool aAddedAndResolved);
+		/// [[BPR-2280]]. Another client changes the pull request's description
+		/// (with `EditsDescription`).
+		static void stage_server_description(github_application& aApplication, std::string aBody);
 		/// [[BPR-1085]]. Change one thread's root body, resolution or root author
 		/// on the fake server; the course must still issue a public Refresh.
 		static void stage_server_root(github_application& aApplication, std::string aThread, std::optional<std::string> aRootBody, std::optional<bool> aResolved,
@@ -2265,6 +2268,14 @@ namespace bpr::app::detail {
 		/// \brief [[BPR-1573]]. The review the window's composition holds.
 		[[nodiscard]] static auto close_review(
 			const github_application& aApplication) -> close_review_evidence;
+		/// \brief [[BPR-2265]]. Reads the open pull request again through the
+		/// window's read, as after a publication: the accepted snapshot is
+		/// installed again and the publishing lease renewed.
+		[[nodiscard]] static auto reread_pull_request(github_application& aApplication) -> bool;
+		/// \brief [[BPR-2269]]. While \p aHold, the window reads no saved
+		/// drafts into its draft owner, as a slow store or comparison would
+		/// leave it; releasing it lets the next observation read them.
+		[[nodiscard]] static auto hold_draft_restore(github_application& aApplication, bool aHold) -> bool;
 		/// \brief Replays an accepted metadata-only or changed-head fixture handoff.
 		[[nodiscard]] static auto reaccept_fixture_revision(
 			github_application& aApplication,

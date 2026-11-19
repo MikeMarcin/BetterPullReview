@@ -541,6 +541,16 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto begin_mutation_operation(std::stop_token) -> github_mutation_operation override;
 		[[nodiscard]] auto strict_cli() const noexcept -> bool override { return true; }
 
+		/// True only on the operation-owned transport that supplies the same
+		/// explicit credential and private host/login configuration to every child.
+		[[nodiscard]] auto holds_named_credential(const application::github_profile_authority& aAuthority, std::string_view aLogin) const noexcept -> bool
+		{
+			return Credential && Configuration.pin() && Configuration.pin()->Hostname == aAuthority.Hostname.value() && Configuration.pin()->Login == aLogin
+				&& Profile.hostname() == aAuthority.Hostname.value() && Profile.cli_account_login() == aLogin
+				&& Profile.profile() == aAuthority.Profile && Profile.host() == aAuthority.Host && Profile.revision() == aAuthority.ProfileRevision
+				&& Profile.server_contract() == aAuthority.ServerContract && Profile.authentication_transport() == aAuthority.Authentication;
+		}
+
 		[[nodiscard]] auto availability_reasons() const noexcept
 			-> std::array<gh_cli_availability_reason, 8>;
 

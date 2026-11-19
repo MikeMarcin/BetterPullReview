@@ -614,14 +614,13 @@ namespace {
 		}
 
 		work.Host->open_publication();
-		auto form       = work.sheet().Form;
-		form.Owner      = server.Owner;
-		form.Repository = server.Repository;
-		form.Target     = "refs/remotes/origin/main";
-		form.NewBranch  = std::string{ new_branch };
-		form.Title      = "Validate parser input";
-		form.Problem    = "Parsing accepted a null pointer.";
-		form.Solution   = "Validate the text before checking it.";
+		auto form        = work.sheet().Form;
+		form.Owner       = server.Owner;
+		form.Repository  = server.Repository;
+		form.Target      = "refs/remotes/origin/main";
+		form.NewBranch   = std::string{ new_branch };
+		form.Title       = "Validate parser input";
+		form.Description = "Parsing accepted a null pointer.\n\nValidate the text before checking it.";
 		work.Host->edit_publication(form);
 		work.Lanes.drain();
 		work.Host->prepare_publication();

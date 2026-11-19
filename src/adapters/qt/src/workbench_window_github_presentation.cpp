@@ -1929,7 +1929,7 @@ namespace bpr::qt {
 			}
 		}
 		for (const auto* name : { "reviewWorkshopOriginal", "reviewWorkshopProposal", "reviewWorkshopOperation", "reviewWorkshopCandidate",
-								  "tourProblemMagic", "tourSolutionMagic", "tourStopMagic", "tourSuggestOutline", "tourSuggestedOutline", "tourInsertOutline",
+								  "tourStopMagic", "tourSuggestOutline", "tourSuggestedOutline", "tourInsertOutline",
 								  "privateAgentProfile", "privateRequestedModel", "privateRequestedEffort", "privateAskAgent", "privateCompositionAsk",
 								  "noteEnhance", "noteEnhanceSuggestion" }) {
 			for (auto* const widget : findChildren<QWidget*>(QString::fromLatin1(name))) {

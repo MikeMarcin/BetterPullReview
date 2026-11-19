@@ -1,8 +1,10 @@
 // [[BPR-1774]]. The description edit's decisions, without Qt or a provider.
+#include "bpr/core/description_draft.hpp"
 #include "bpr/core/description_edit.hpp"
 
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -74,6 +76,36 @@ namespace {
 			   "refusal names");
 		expect(core::name(description_save_outcome::already_saved) == "already_saved" && core::name(description_save_outcome::write) == "write", "outcome names");
 	}
+
+	/// [[BPR-2281]]. Draft with agent's material and the answer it reads.
+	void test_a_description_draft_is_composed_and_read()
+	{
+		using namespace bpr::core;
+		auto material = description_draft_material{
+			.Title = "  Clamp the resize  ",
+			.Body  = "",
+			.Files = { { .Path = "src/a.cpp", .Change = "modified", .Patch = std::string{ "@@ -1 +1 @@\n-old\n+new" } }, { .Path = "logo.png", .Change = "added", .Patch = std::nullopt } },
+		};
+		const auto plain = compose_description_draft(material);
+		expect(plain.starts_with(description_draft_marker) && plain.find("Title: Clamp the resize\n") != std::string::npos && plain.find("has no description yet") != std::string::npos,
+			   "the marker, the title and an empty description");
+		expect(plain.find("src/a.cpp (modified)\n```diff\n@@ -1 +1 @@\n-old\n+new\n```") != std::string::npos && plain.find("logo.png (added)\n(no patch") != std::string::npos,
+			   "each file with its patch, or that it has none");
+		expect(compose_description_draft(material) == plain, "equal material, equal message");
+		material.Body = "## Why\n\nKeep me.";
+		expect(compose_description_draft(material).find("```markdown\n## Why\n\nKeep me.\n```") != std::string::npos, "the current description, to rewrite");
+		material.Files.push_back({ .Path = "big.cpp", .Change = "modified", .Patch = std::string(maximum_description_draft_diff_bytes, 'x') });
+		material.Files.push_back({ .Path = "after.cpp", .Change = "modified", .Patch = std::string{ "+x" } });
+		const auto bounded = compose_description_draft(material);
+		expect(bounded.find("Left out, past what one request carries: big.cpp after.cpp") != std::string::npos && bounded.find("big.cpp (modified)") == std::string::npos,
+			   "past the diff bound, the rest of the files are named and left out");
+
+		expect(read_description_draft("  ## Summary\n\nIt clamps.\n ") == std::optional<std::string>{ "## Summary\n\nIt clamps." }, "an answer is trimmed");
+		expect(read_description_draft("```markdown\n## Summary\n\nIt clamps.\n```") == std::optional<std::string>{ "## Summary\n\nIt clamps." }, "one fence around the whole answer is unwrapped");
+		const auto withCode = std::string{ "```cpp\nint a;\n```\n\nThen text.\n\n```cpp\nint b;\n```" };
+		expect(read_description_draft(withCode) == std::optional{ withCode }, "fences inside the description stay");
+		expect(!read_description_draft(" \n\t") && !read_description_draft(std::string(maximum_description_characters + 1U, 'a')), "empty or too long reads as nothing");
+	}
 } // namespace
 
 auto main() -> int
@@ -82,6 +114,7 @@ auto main() -> int
 	test_a_save_gesture_is_decided_in_order();
 	test_a_save_is_decided_on_githubs_answer();
 	test_names_are_stable();
+	test_a_description_draft_is_composed_and_read();
 	std::cout << "description edit core tests passed\n";
 	return EXIT_SUCCESS;
 }

@@ -1,6 +1,7 @@
 #include "bpr/core/local_presentation.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/thread_reply.hpp"
+#include "bpr/qt/author_description_editor.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
@@ -1712,6 +1713,17 @@ namespace bpr::qt {
 		const auto unchanged = PresentedOverview.has_value() && *PresentedOverview == aProjection;
 		if (!unchanged) {
 			OverviewPage->present(aProjection);
+			// [[BPR-2280]]. Author's description reads what Overview reads.
+			// Another pull request's description never inherits an edit.
+			if (AuthorDescription != nullptr) {
+				if (const auto key = overview_review_key(); key != AuthorDescriptionFor) {
+					AuthorDescriptionFor = key;
+					if (AuthorDescription->editing() && !AuthorDescription->saving()) {
+						AuthorDescription->close_editor();
+					}
+				}
+				AuthorDescription->present_body(aProjection.Body);
+			}
 			present_new_threads();
 			// [[BPR-1781]]. Whether I wrote it decides the Tour tab.
 			refresh_overview_tour();

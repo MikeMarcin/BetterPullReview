@@ -237,6 +237,13 @@ namespace bpr::app {
 		}
 	}
 
+	void detail::github_application_fixture_access::stage_server_description(github_application& aApplication, std::string aBody)
+	{
+		if (aApplication.Implementation->Fixture) {
+			aApplication.Implementation->Fixture->stage_server_description(std::move(aBody));
+		}
+	}
+
 	void detail::github_application_fixture_access::stage_server_root(github_application& aApplication, std::string aThread, std::optional<std::string> aRootBody,
 																	  std::optional<bool> aResolved, std::optional<std::pair<std::string, std::string>> aRootAuthor)
 	{

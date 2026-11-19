@@ -334,8 +334,8 @@ int main()
 		other.restore();
 		effects.drain();
 		decision.drain();
-		expect(owner.apply_writing_hook(core::writing_hook::problem, "keep precise"), "hook override admitted");
-		expect(owner.apply_writing_hook(core::writing_hook::solution, "keep qualified"), "pending hook edits coalesce");
+		expect(owner.apply_writing_hook(core::writing_hook::outline, "keep precise"), "hook override admitted");
+		expect(owner.apply_writing_hook(core::writing_hook::comment, "keep qualified"), "pending hook edits coalesce");
 		effects.drain();
 		decision.drain();
 		effects.drain();
@@ -343,7 +343,7 @@ int main()
 		expect(firstState.Preferences.WritingHooks.Revision == 3 && firstState.Preferences.WritingHooks.Overrides[0] == "keep precise" && firstState.Preferences.WritingHooks.Overrides[1] == "keep qualified", "distinct hook overrides survive coalesced store");
 		expect(otherState.Preferences.WritingHooks == core::writing_hook_settings{ }, "sibling profile unaffected");
 		expect(!owner.apply_writing_hook(core::writing_hook::outline, std::string(8193, 'x')) && !owner.apply_writing_hook(core::writing_hook::comment, std::string(1, static_cast<char>(0xff))), "oversize and malformed instructions refused");
-		expect(owner.apply_writing_hook(core::writing_hook::problem, { }), "reset selected hook");
+		expect(owner.apply_writing_hook(core::writing_hook::outline, { }), "reset selected hook");
 		effects.drain();
 		decision.drain();
 		expect(firstState.Preferences.WritingHooks.Overrides[0].empty() && firstState.Preferences.WritingHooks.Overrides[1] == "keep qualified", "reset preserves other hooks");

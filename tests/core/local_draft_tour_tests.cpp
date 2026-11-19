@@ -76,8 +76,6 @@ namespace {
 		expect(draft.Title == "Cancel searches promptly" && draft.Preparation.Description.Revision == 2U, "title and body are one explicit edit");
 		expect(core::edit_description(draft, draft.Version, "t", std::string(core::maximum_local_description_bytes + 1U, 'x'), 102).error() == core::preparation_refusal::too_long,
 			   "a body past GitHub's bound is refused, never cut");
-		draft = ok(core::edit_tour_brief(draft, draft.Version, "Searches outlived cancel.", "Cancel stops the worker.", 103), "the brief saves");
-		expect(draft.Preparation.Description.Body == "## Why\n\nSearches kept running.\n", "the tour's brief never writes the description");
 		draft            = ok(core::add_local_stop(draft, draft.Version, "Cancel stops", "Cancel now stops the worker.", file(first_text), core::diff_side::right, 2U, 4U, 104), "a stop on the candidate");
 		const auto& stop = draft.Preparation.Tour.Stops.front();
 		expect(stop.Source.Candidate == 1U && stop.Source.Excerpt == "void cancel() {\n  stop();\n}\n", "the stop binds the candidate's exact lines");
@@ -89,6 +87,7 @@ namespace {
 		expect(!draft.Association, "nothing names a pull request");
 		const auto text = core::encode_local_draft(draft);
 		expect(text.find("account") == std::string::npos, "the stored form names no account");
+		expect(text.find("\"problem\"") == std::string::npos && text.find("\"solution\"") == std::string::npos, "[[BPR-2274]] the stored form has no Problem or Solution");
 		const auto back = core::decode_local_draft(text);
 		expect(back && *back == draft, "the preparation survives a restart through the stored form");
 		draft.Preparation.Description.Body = std::string(core::maximum_local_description_bytes + 1U, 'x');
@@ -208,7 +207,7 @@ namespace {
 			{ .Target = core::local_proposal_target::description, .Text = "Agent body." },
 			{ .Target = core::local_proposal_target::new_stop, .Title = "Worker", .Text = "The worker stops.", .Path = "src/search.cpp", .FirstLine = 3U, .LastLine = 3U },
 			{ .Target = core::local_proposal_target::new_stop, .Title = "Helper", .Text = "A live helper.", .Path = "src/helper.cpp", .FirstLine = 1U, .LastLine = 2U },
-			{ .Target = core::local_proposal_target::problem, .Text = "Searches outlive cancel." },
+			{ .Target = core::local_proposal_target::title, .Text = "Searches outlive cancel." },
 		};
 		const auto readings  = std::vector{ file(first_text) };
 		auto [recorded, ids] = ok(core::record_proposals(draft, draft.Version, 1U, 1U, drafts, readings, "Claude", "local-discussion-v1", 102), "proposals recorded");
@@ -216,9 +215,9 @@ namespace {
 		expect(ids.size() == 4U, "every proposal is recorded");
 		expect(draft.Preparation.Proposals[2].State == core::local_proposal_state::outside_candidate, "lines outside the candidate are recorded as such");
 		expect(core::accept_proposal(draft, draft.Version, ids[2], 103).error() == core::preparation_refusal::outside_candidate, "and are never accepted as written");
-		expect(draft.Preparation.Tour.Problem.empty(), "nothing changes before acceptance");
+		expect(draft.Title == "Cancel", "nothing changes before acceptance");
 		draft = ok(core::reject_proposal(draft, draft.Version, ids[3], 105), "reject one");
-		expect(draft.Preparation.Proposals[3].State == core::local_proposal_state::rejected && draft.Preparation.Tour.Problem.empty(), "a rejected proposal changes nothing");
+		expect(draft.Preparation.Proposals[3].State == core::local_proposal_state::rejected && draft.Title == "Cancel", "a rejected proposal changes nothing");
 		draft = ok(core::edit_description(draft, draft.Version, "Cancel", "Author body, edited later.", 107), "a later author edit");
 		expect(core::proposal_stale(draft, draft.Preparation.Proposals[0]), "the description proposal is stale");
 		expect(core::accept_proposal(draft, draft.Version, ids[0], 108).error() == core::preparation_refusal::proposal_stale, "a stale proposal cannot overwrite the later edit");
@@ -280,7 +279,6 @@ namespace {
 		auto other = result;
 		other.Body = "## Problem\n...";
 		expect(!core::map_local_publication(draft, other).DescriptionPreserved, "a replaced body is reported");
-		expect(!core::update_description_by_default(true) && core::update_description_by_default(false), "the description option starts off only for a local draft's pull request");
 	}
 
 	void test_request_and_answer()
@@ -314,9 +312,9 @@ namespace {
 				   "a resumed turn sends the question, not the history or the files again");
 		}
 		const auto answer = core::parse_local_answer(
-			"The timer path.\n\n```bpr-proposals\n[{\"target\":\"problem\",\"text\":\"The timer outlives cancel.\"},"
+			"The timer path.\n\n```bpr-proposals\n[{\"target\":\"title\",\"text\":\"The timer outlives cancel.\"},"
 			"{\"target\":\"new_stop\",\"path\":\"src/search.cpp\",\"first\":2,\"last\":4,\"title\":\"Cancel\",\"text\":\"Here.\"}]\n```\n");
-		expect(answer.Prose == "The timer path." && answer.Proposals.size() == 2U && answer.Proposals[0].Target == core::local_proposal_target::problem
+		expect(answer.Prose == "The timer path." && answer.Proposals.size() == 2U && answer.Proposals[0].Target == core::local_proposal_target::title
 				   && answer.Proposals[1].FirstLine == 2U && !answer.Malformed,
 			   "the answer's proposals are read and its prose kept");
 		const auto claim = core::parse_local_answer("So.\n```bpr-proposals\n[{\"target\":\"claim\",\"text\":\"It works.\"}]\n```");
@@ -330,9 +328,8 @@ namespace {
 	{
 		auto draft = make_draft();
 		draft      = ok(core::edit_description(draft, draft.Version, "Cancel", "Body.", 101), "body");
-		draft      = ok(core::edit_tour_brief(draft, draft.Version, "Problem text.", "", 102), "brief");
-		draft      = ok(core::transfer_to_description(draft, draft.Version, "Problem text.", 103), "a deliberate transfer");
-		expect(draft.Preparation.Description.Body == "Body.\n\nProblem text." && draft.Preparation.Tour.Problem == "Problem text.", "the transfer copies one way, on request");
+		draft      = ok(core::transfer_to_description(draft, draft.Version, "Passage text.", 103), "a deliberate transfer");
+		expect(draft.Preparation.Description.Body == "Body.\n\nPassage text.", "the transfer copies one way, on request");
 	}
 
 	/// The pull request window's Tour panel shows a local tour: rings from
@@ -342,7 +339,6 @@ namespace {
 	void test_panel_view()
 	{
 		auto draft = make_draft();
-		draft      = ok(core::edit_tour_brief(draft, draft.Version, "Searches outlived cancel.", "Cancel stops the worker.", 101), "brief");
 		draft      = ok(core::add_local_stop(draft, draft.Version, "Cancel", "Stops.", file(first_text), core::diff_side::right, 2U, 4U, 102), "stop 1");
 		draft      = ok(core::add_local_stop(draft, draft.Version, "Fields", "Two ints.", file(first_text), core::diff_side::right, 1U, 1U, 103), "stop 2");
 		draft      = ok(core::add_local_stop(draft, draft.Version, "", "", file(first_text), core::diff_side::right, 5U, 5U, 104), "stop 3, empty");
@@ -351,7 +347,7 @@ namespace {
 		}
 		const auto ring = [](const core::local_tour_view& aView, const std::size_t aIndex) { return core::decide_tour_stop_acceptance(aView.Tour, aView.Tour.Stops[aIndex]).State; };
 		auto       view = core::view_local_tour(draft);
-		expect(view.Tour.Problem == "Searches outlived cancel." && view.Tour.Stops.size() == 3U && view.Files == std::vector<std::string>{ "src/search.cpp" }, "the panel reads the draft's tour");
+		expect(view.Tour.Stops.size() == 3U && view.Files == std::vector<std::string>{ "src/search.cpp" }, "the panel reads the draft's tour");
 		expect(ring(view, 0U) == core::tour_acceptance_state::accepted && ring(view, 2U) == core::tour_acceptance_state::not_accepted, "green and yellow as the draft decides");
 		expect(view.Tour.Stops[0].Destination && view.Tour.Stops[0].Destination->FirstLine == 1U && view.Tour.Stops[0].Destination->LastLine == 3U
 				   && view.Tour.Stops[0].Destination->Commit == core::local_tour_commit(draft.Id.Value, 1U),
@@ -372,7 +368,7 @@ namespace {
 		auto [d1, conversation] = ok(core::append_turn(next, next.Version, core::local_stop_thread(next.Preparation.Tour.Stops[0].Id), "agent-1", "Claude",
 													   { .Author = true, .Subject = core::local_subject::stop, .Text = "Say why." }, 106),
 									 "a question on a stop");
-		const auto proposals    = std::vector<core::local_proposal_draft>{ { .Target = core::local_proposal_target::problem, .Text = "Searches outlive cancel." },
+		const auto proposals    = std::vector<core::local_proposal_draft>{ { .Target = core::local_proposal_target::stop, .Stop = next.Preparation.Tour.Stops[0].Id, .Title = "Cancel", .Text = "Searches outlive cancel." },
 																		   { .Target = core::local_proposal_target::description, .Text = "Body." } };
 		const auto readings     = std::vector{ file("int a2;\nvoid cancel() {\n  stop();\n}\nint b;\n") };
 		auto [d2, ids]          = ok(core::record_proposals(d1, d1.Version, conversation, 2U, proposals, readings, "Claude", "v1", 107), "proposals");
@@ -384,20 +380,17 @@ namespace {
 		expect(view.Session.Runs.size() == 2U && view.Session.Runs[0].Thread.Kind == core::tour_thread_kind::stop && view.Session.Runs[0].Reply == "Because."
 				   && view.Session.Runs[0].Cost == 20000000U && view.Session.Runs[1].State == core::tour_agent_run_state::running,
 			   "the side chat reads each turn, its cost, and the run in flight");
-		expect(view.Proposal && view.Proposal->Items.size() == 1U && view.Proposal->Items[0].Part == core::tour_proposal_part::problem && view.ProposalItems == std::vector{ ids[0] }
+		expect(view.Proposal && view.Proposal->Items.size() == 1U && view.Proposal->Items[0].Part == core::tour_proposal_part::stop_text && view.ProposalItems == std::vector{ ids[0] }
 				   && view.Proposal->Items[0].Run == view.Session.Runs[0].Id,
-			   "the Problem's proposal waits on the panel with its turn; the description's belongs to Overview");
-		auto edited = ok(core::edit_tour_brief(d3, d3.Version, "The author's own.", "Cancel stops the worker.", 109), "a later edit");
+			   "the stop's proposal waits on the panel with its turn; the description's belongs to Overview");
+		auto edited = ok(core::edit_local_stop(d3, d3.Version, next.Preparation.Tour.Stops[0].Id, "Cancel", "The author's own.", std::nullopt, core::diff_side::right, 0U, 0U, 109), "a later edit");
 		view        = core::view_local_tour(edited);
 		expect(view.Proposal && view.Proposal->Items[0].Decision == core::tour_proposal_decision::discarded && !view.Proposal->Items[0].Refusal.empty(),
 			   "a stale proposal stays readable and refused");
 
 		// Commands.
 		const auto stop    = core::tour_stop_id{ next.Preparation.Tour.Stops[1].Id };
-		auto       command = core::tour_command{ .Kind = core::tour_command_kind::solution, .Text = "New solution." };
-		expect(core::translate_local_tour_command(next, command) == std::vector{ core::local_tour_edit{ .Kind = core::local_tour_edit_kind::brief, .Problem = "Searches outlived cancel.", .Solution = "New solution." } },
-			   "the Solution saves with the Problem as it is");
-		command = { .Kind = core::tour_command_kind::edit_stop, .Stop = stop, .Value = core::tour_stop{ .Id = stop, .Title = "Fields", .Body = "Renamed." } };
+		auto       command = core::tour_command{ .Kind = core::tour_command_kind::edit_stop, .Stop = stop, .Value = core::tour_stop{ .Id = stop, .Title = "Fields", .Body = "Renamed." } };
 		expect(core::translate_local_tour_command(next, command).front().Kind == core::local_tour_edit_kind::stop_text, "a stop's text as typed");
 		command = { .Kind = core::tour_command_kind::split, .Stop = stop };
 		expect(core::translate_local_tour_command(next, command).empty(), "a split is not a local edit");

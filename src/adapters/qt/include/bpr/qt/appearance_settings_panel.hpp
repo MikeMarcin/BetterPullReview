@@ -13,6 +13,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <span>
 
@@ -152,7 +153,7 @@ namespace bpr::qt {
 		/// are now the control: there is no combo box index to set. It marks the
 		/// chosen tile and dispatches the same intent.
 		void choose_mode(core::appearance_mode aMode);
-		/// Cancels visible preview and pending import, even before a preview arrives.
+		/// Cancels the visible palette preview.
 		void cancel_preview();
 		/// \brief Reports that an accepted session change could not be persisted.
 		void report_persistence_unavailable();
@@ -185,10 +186,6 @@ namespace bpr::qt {
 		/// \brief Shows why an offered record was refused, and restores the
 		/// controls to the last adopted one.
 		void report(std::span<const core::typography_rejection> aRejections);
-		/// \brief Mirrors a host-validated imported palette and marks it preview-only.
-		void preview_import(const core::appearance_palette& aPalette);
-		/// \brief Shows the core parser's exact structural refusal.
-		void report(std::span<const core::theme_import_rejection> aRejections);
 		/// \brief Shows the core contrast findings without substituting colours.
 		void report(
 			std::span<const application::appearance_contrast_rejection> aRejections);
@@ -197,11 +194,15 @@ namespace bpr::qt {
 		/// \details The indices are the offered list's; the field keeps the text it
 		/// was offered from so the reviewer can correct it.
 		void report(std::span<const core::known_namespace_rejection> aRejections);
-		void report_theme_document_unavailable();
 		void report_theme_export(bool aSucceeded);
 		/// \brief Dispatches a path selected by Qt; this widget never opens it.
-		void request_theme_import(const QString& aPath);
 		void request_theme_export(const QString& aPath);
+		/// \brief [[BPR-2283]]. What Import… does: the composition's Import
+		/// Profile Settings…, whose dialog shows a file's Theme.
+		void set_import_handler(std::function<void()> aImport);
+		/// \brief [[BPR-2283]]. The name Export… offers: the theme on screen,
+		/// as `dark.bprsettings`.
+		[[nodiscard]] auto theme_file_name() const -> QString;
 
 		/// \brief The six theme tiles, which are the Theme card's control.
 		[[nodiscard]] auto theme_previews() const noexcept -> theme_preview_strip*;
@@ -348,7 +349,8 @@ namespace bpr::qt {
 		bool NamespacesHeld = false;
 		/// \brief The list the field last showed from an adoption.
 		core::known_namespaces ShownNamespaces;
-		QPushButton*           ImportButton   = nullptr;
+		QPushButton*           ImportButton = nullptr;
+		std::function<void()>  Import;
 		QPushButton*           ExportButton   = nullptr;
 		QCheckBox*             DifVisibility  = nullptr;
 		QComboBox*             MotionSelector = nullptr;

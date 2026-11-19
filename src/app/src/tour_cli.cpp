@@ -106,8 +106,6 @@ namespace bpr::app {
 			command_line_option{ .Name = "source" },
 			command_line_option{ .Name = "refresh" },
 			command_line_option{ .Name = "compatibility" },
-			command_line_option{ .Name = "description" },
-			command_line_option{ .Name = "no-description" },
 			command_line_option{ .Name = "published" },
 			command_line_option{ .Name = "profile", .TakesValue = true },
 			command_line_option{ .Name = "draft", .TakesValue = true },
@@ -232,7 +230,7 @@ namespace bpr::app {
 				allowed.append("--draft");
 			}
 			if (result.Command == "preview" || result.Command == "publish" || result.Command == "recover") {
-				allowed.append({ "--transport", "--compatibility", "--description", "--no-description" });
+				allowed.append({ "--transport", "--compatibility" });
 			}
 			if (result.Command == "preview") {
 				allowed.append("--refresh");
@@ -386,11 +384,7 @@ namespace bpr::app {
 			if (aOptions.Command == "show") {
 				const auto field = aOptions.Positional[0];
 				QString    value;
-				if (field == "problem") {
-					value = text(draft.Problem);
-				} else if (field == "solution") {
-					value = text(draft.Solution);
-				} else if (field.startsWith("stop:") && field.split(':').size() >= 2 && field.split(':').size() <= 3 && number(field.split(':')[1]) && (field.split(':').size() == 2 || field.split(':')[2] == "title" || field.split(':')[2] == "body")) {
+				if (field.startsWith("stop:") && field.split(':').size() >= 2 && field.split(':').size() <= 3 && number(field.split(':')[1]) && (field.split(':').size() == 2 || field.split(':')[2] == "title" || field.split(':')[2] == "body")) {
 					const auto stop = std::ranges::find(draft.Stops, core::tour_stop_id{ *number(field.split(':')[1]) }, &core::tour_stop::Id);
 					if (stop == draft.Stops.end()) {
 						return refuse("unknown_stop", "No stop has that stable ID.");
@@ -402,7 +396,7 @@ namespace bpr::app {
 					result.Data["remote"]          = remote_identity(stop->Remote);
 					result.Data["source_binding"]  = source_binding(*stop);
 				} else {
-					return refuse("invalid_field", "Use problem, solution or stop:ID.");
+					return refuse("invalid_field", "Use stop:ID.");
 				}
 				result.Data["field"] = field;
 				result.Data["text"]  = value;
@@ -496,15 +490,11 @@ namespace bpr::app {
 				return command;
 			}
 			const auto argument = aOptions.Positional[0];
-			if (aOptions.Command == "edit" && (argument == "problem" || argument == "solution")) {
-				command.Kind = argument == "problem" ? core::tour_command_kind::problem : core::tour_command_kind::solution;
-				return command;
-			}
-			const auto parts   = argument.split(':');
-			const bool editing = aOptions.Command == "edit";
-			const auto id      = editing && (parts.size() == 2 || parts.size() == 3) && parts[0] == "stop" ? number(parts[1]) : (editing ? std::nullopt : number(argument));
+			const auto parts    = argument.split(':');
+			const bool editing  = aOptions.Command == "edit";
+			const auto id       = editing && (parts.size() == 2 || parts.size() == 3) && parts[0] == "stop" ? number(parts[1]) : (editing ? std::nullopt : number(argument));
 			if (!id || (editing && parts.size() == 3 && parts[2] != "title" && parts[2] != "body")) {
-				return refuse("invalid_field", "Use problem, solution, stop:ID[:title|body], or a stable numeric stop ID for move/remove/ready.");
+				return refuse("invalid_field", "Use stop:ID[:title|body], or a stable numeric stop ID for move/remove/ready.");
 			}
 			const auto stop = std::ranges::find(aDraft.Stops, core::tour_stop_id{ *id }, &core::tour_stop::Id);
 			if (stop == aDraft.Stops.end()) {
@@ -553,7 +543,8 @@ namespace bpr::app {
 			std::size_t cursor = 0;
 			if (aOptions.Values.contains("--cursor")) {
 				const auto parsed = number(aOptions.Values["--cursor"]);
-				if (!parsed || *parsed >= draft.Stops.size() + 2) {
+				// [[BPR-2274]]. A page per stop; a tour with none has one page saying so.
+				if (!parsed || *parsed >= std::max<std::size_t>(draft.Stops.size(), 1U)) {
 					return refuse("invalid_cursor", "The preview cursor is invalid.");
 				}
 				cursor = static_cast<std::size_t>(*parsed);
@@ -571,14 +562,15 @@ namespace bpr::app {
 			data["publication_authorized"] = false;
 			data["preview_scope"]          = "local_narrative";
 			data["page"]                   = QString::number(cursor);
-			data["next_cursor"]            = cursor + 1 < draft.Stops.size() + 2 ? QJsonValue{ QString::number(cursor + 1) } : QJsonValue{ QJsonValue::Null };
-			data["complete"]               = cursor + 1 == draft.Stops.size() + 2;
+			const auto pages               = std::max<std::size_t>(draft.Stops.size(), 1U);
+			data["next_cursor"]            = cursor + 1 < pages ? QJsonValue{ QString::number(cursor + 1) } : QJsonValue{ QJsonValue::Null };
+			data["complete"]               = cursor + 1 == pages;
 			QString body, heading;
-			if (cursor < 2) {
-				heading = cursor ? "Solution" : "Problem";
-				body    = text(cursor ? draft.Solution : draft.Problem);
+			if (draft.Stops.empty()) {
+				heading = "Stops";
+				body    = "No stops yet.";
 			} else {
-				const auto& stop = draft.Stops[cursor - 2];
+				const auto& stop = draft.Stops[cursor];
 				heading          = "Stop " + QString::number(stop.Id.value());
 				body             = "### " + text(core::tour_markdown_label(stop.Title)) + "\n\n" + text(stop.Body);
 				data["stop_id"]  = QString::number(stop.Id.value());
@@ -588,7 +580,7 @@ namespace bpr::app {
 			data["markdown"] = body;
 			QString human    = "Local preview · revision " + QString::number(draft.Revision) + "\n" + heading + "\n" + body + "\n";
 			human += "Publication operations require current qualification and a separate explicit approval.\n";
-			if (cursor + 1 < draft.Stops.size() + 2) {
+			if (cursor + 1 < pages) {
 				human += "Next preview page: --cursor " + QString::number(cursor + 1) + "\n";
 			}
 			return presentation{ data, human, { } };
@@ -668,10 +660,8 @@ namespace bpr::app {
 			if (aOptions.Command == "publish" && !aOptions.Interactive) {
 				auto    quote   = [](QString aValue) { aValue.replace("'", "'\\''"); return "'" + aValue + "'"; };
 				QString command = "bpr tour publish --data-root " + quote(aBase) + " --profile " + QString::number(aSnapshot.Target.Owner.Profile.value()) + " --draft " + text(token) + " --transport " + (aGh ? "gh" : "native");
-				for (const auto& flag : QStringList{ "--description", "--no-description", "--compatibility" }) {
-					if (aOptions.Values.contains(flag)) {
-						command += " " + flag;
-					}
+				if (aOptions.Values.contains("--compatibility")) {
+					command += " --compatibility";
 				}
 				if (aOptions.Values.contains("--resume")) {
 					command += " --resume " + quote(aOptions.Values["--resume"]);
@@ -679,12 +669,8 @@ namespace bpr::app {
 				return refuse("interaction_required", "Run in a terminal: " + command.toStdString() + "\nJSON, readiness, stdin yes and plan files do not authorize writes.", 3);
 			}
 			const auto attempt = aOptions.Values.value(aOptions.Command == "publish" ? "--resume" : "--attempt").toStdString();
-			if (aOptions.Values.contains("--description") && aOptions.Values.contains("--no-description")) {
-				return refuse("invalid_input", "Choose --description or --no-description, not both.");
-			}
-			// [[BPR-1787]]. As on the desktop, the brief goes in the description
-			// unless --no-description keeps it in the tour comment.
-			auto prepared = aRuntime->prepare_publication(token, aGh, { aOptions.Values.contains("--compatibility"), !aOptions.Values.contains("--no-description") }, attempt, aOptions.Command == "recover");
+			// [[BPR-2274]]. Publishing posts the stops; it never writes the description.
+			auto prepared = aRuntime->prepare_publication(token, aGh, { .Compatibility = aOptions.Values.contains("--compatibility") }, attempt, aOptions.Command == "recover");
 			if (!prepared) {
 				return std::unexpected(prepared.error());
 			}
@@ -740,7 +726,7 @@ namespace bpr::app {
 				const char* const exportPolicy = tour_assist_policy() == tour_assist_export_policy::open
 					? "open"
 					: (tour_assist_policy() == tour_assist_export_policy::manual_only ? "manual_only" : "invalid");
-				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", true }, { "publication_gate", "publish in a terminal, typing publish for each exact plan" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "same-user local channel v8 (a named pipe on Windows) for local draft commands, assist and pinned source reads; owner_protocol_unsupported without one" }, { "assist", QJsonObject{ { "hooks", QJsonArray{ "problem", "solution", "outline", "comment" } }, { "hook_version", QString::fromUtf8(application::writing_hook_version.data(), static_cast<qsizetype>(application::writing_hook_version.size())) }, { "profile_hooks", QJsonArray{ "problem", "solution", "outline", "comment", "feedback" } }, { "feedback_hook_version", QString::fromUtf8(application::review_feedback_hook_version.data(), static_cast<qsizetype>(application::review_feedback_hook_version.size())) }, { "ticket_lifetime_seconds", "1800" }, { "max_result_bytes", "32768" }, { "max_sources", "8" }, { "model_launched_by_bpr", false }, { "verified_agent_identity", "unavailable" }, { "export_policy", exportPolicy } } }, { "labels", QJsonObject{ { "subcommands", QJsonArray{ "catalog", "parse", "edit", "counts" } }, { "catalog", "bpr.feedback-label-catalog.v1" }, { "catalog_revision", QString::number(core::feedback_catalog_revision) }, { "parser_revision", QString::number(core::feedback_parser_revision) }, { "edit_targets", QJsonArray{ "stop:ID" } }, { "comment_drafts", "unavailable: review comment drafts have no headless owner; label them in the desktop's comment editor" }, { "counts_source", "one read of the draft's pull request through the existing reader; interaction_required while a desktop owns the profile" }, { "counts_unit", "conversation" } } }, { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in on macOS, Windows and Linux; gh file writes are denied on macOS only" }, { "platform", platform_status() } },
+				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", true }, { "publication_gate", "publish in a terminal, typing publish for each exact plan" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "same-user local channel v9 (a named pipe on Windows) for local draft commands, assist and pinned source reads; owner_protocol_unsupported without one" }, { "assist", QJsonObject{ { "hooks", QJsonArray{ "outline", "comment" } }, { "hook_version", QString::fromUtf8(application::writing_hook_version.data(), static_cast<qsizetype>(application::writing_hook_version.size())) }, { "profile_hooks", QJsonArray{ "outline", "comment", "feedback" } }, { "feedback_hook_version", QString::fromUtf8(application::review_feedback_hook_version.data(), static_cast<qsizetype>(application::review_feedback_hook_version.size())) }, { "ticket_lifetime_seconds", "1800" }, { "max_result_bytes", "32768" }, { "max_sources", "8" }, { "model_launched_by_bpr", false }, { "verified_agent_identity", "unavailable" }, { "export_policy", exportPolicy } } }, { "labels", QJsonObject{ { "subcommands", QJsonArray{ "catalog", "parse", "edit", "counts" } }, { "catalog", "bpr.feedback-label-catalog.v1" }, { "catalog_revision", QString::number(core::feedback_catalog_revision) }, { "parser_revision", QString::number(core::feedback_parser_revision) }, { "edit_targets", QJsonArray{ "stop:ID" } }, { "comment_drafts", "unavailable: review comment drafts have no headless owner; label them in the desktop's comment editor" }, { "counts_source", "one read of the draft's pull request through the existing reader; interaction_required while a desktop owns the profile" }, { "counts_unit", "conversation" } } }, { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in on macOS, Windows and Linux; gh file writes are denied on macOS only" }, { "platform", platform_status() } },
 									 "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo, walk, preview, publish, recover, hooks, assist, outline, labels\nNo GUI or AI provider required.\nPlatform: " + platform_status()["os"].toString() + ", " + platform_status()["qualification"].toString() + ". Native vault: " + platform_status()["native_vault"].toString() + ". gh transport: " + platform_status()["gh_transport"].toString() + ".\n",
 									 { } };
 			}
@@ -827,13 +813,7 @@ namespace bpr::app {
 						return refuse("interaction_required", "Non-interactive edits require --file PATH or --file -.", 3);
 					}
 					std::string original;
-					if (command->Kind == core::tour_command_kind::problem) {
-						original = result->Draft.Problem;
-					} else if (command->Kind == core::tour_command_kind::solution) {
-						original = result->Draft.Solution;
-					} else {
-						original = aOptions.Positional[0].endsWith(":title") ? command->Value.Title : command->Value.Body;
-					}
+					original = aOptions.Positional[0].endsWith(":title") ? command->Value.Title : command->Value.Body;
 					runtime.reset();
 					tour_cli_result<std::string> input;
 					if (fromFile) {
@@ -1033,7 +1013,7 @@ namespace bpr::app {
 			if (aOptions.Positional.size() == 2) {
 				hook = parse_tour_hook(aOptions.Positional[1].toStdString());
 				if (!hook) {
-					return refuse("invalid_hook", "Use problem, solution, outline, comment or feedback.");
+					return refuse("invalid_hook", "Use outline, comment or feedback.");
 				}
 			}
 			auto shown = aRuntime->hooks_show();
@@ -1154,7 +1134,7 @@ namespace bpr::app {
 				const auto hook = parse_tour_hook(aOptions.Values.value("--hook").toStdString());
 				// [[BPR-1090]] The feedback hook is guidance for comment workshop requests; it writes no tour field.
 				if (!hook || *hook >= core::writing_hook::feedback) {
-					return refuse("invalid_hook", "Use --hook problem, solution, outline or comment.");
+					return refuse("invalid_hook", "Use --hook outline or comment.");
 				}
 				tour_assist_query query{ .Hook = *hook, .Session = aOptions.Values.value("--session", "cli").toStdString() };
 				const auto        field = aOptions.Values.value("--field");
@@ -1162,15 +1142,13 @@ namespace bpr::app {
 					if (!field.isEmpty() || aOptions.Values.contains("--range-bytes") || aOptions.Values.contains("--quote")) {
 						return refuse("invalid_input", "An outline is for the whole draft: omit --field, --range-bytes and --quote.");
 					}
-				} else if (*hook == core::writing_hook::comment) {
+				} else {
 					const auto parts = field.split(':');
 					const auto id    = parts.size() == 2 && parts[0] == "stop" ? number(parts[1]) : std::nullopt;
 					if (!id) {
 						return refuse("invalid_field", "The comment hook writes one stop's body: use --field stop:ID with a stable stop ID.");
 					}
 					query.Stop = core::tour_stop_id{ *id };
-				} else if (field != QString::fromStdString(std::string{ tour_hook_name(*hook) })) {
-					return refuse("invalid_field", "Use --field problem with the problem hook and --field solution with the solution hook.");
 				}
 				if (aOptions.Values.contains("--range-bytes")) {
 					query.Range = parse_byte_range(aOptions.Values["--range-bytes"]);

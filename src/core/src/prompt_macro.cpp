@@ -14,6 +14,7 @@ namespace bpr::core {
 	static_assert(maximum_prompt_expansion_bytes == maximum_chat_message_bytes, "an expansion is bounded as a chat message is");
 	static_assert(maximum_prompt_expansion_bytes == maximum_tour_question_bytes, "an expansion is bounded as a tour question is");
 	static_assert(static_cast<std::size_t>(prompt_place::tour_whole) + 1U == prompt_place_count, "prompt_place_count covers every place");
+	static_assert(static_cast<std::size_t>(prompt_subject::selected_commits) + 1U == prompt_subject_count, "prompt_subject_count covers every subject");
 	static_assert(static_cast<std::size_t>(prompt_fact::replies_since_mine) + 1U == prompt_fact_count, "prompt_fact_count covers every fact");
 	static_assert(static_cast<std::size_t>(prompt_variable::cursor) + 1U == prompt_variable_count, "prompt_variable_count covers every variable");
 
@@ -41,7 +42,7 @@ namespace bpr::core {
 
 		auto is_tour(const prompt_place aPlace) noexcept -> bool
 		{
-			return aPlace == prompt_place::tour_stop || aPlace == prompt_place::tour_part || aPlace == prompt_place::tour_whole;
+			return aPlace == prompt_place::tour_stop || aPlace == prompt_place::tour_whole;
 		}
 
 		auto is_lower(const char aValue) noexcept -> bool { return aValue >= 'a' && aValue <= 'z'; }
@@ -150,7 +151,6 @@ namespace bpr::core {
 			case prompt_subject::pull_request:
 			case prompt_subject::conversation:
 			case prompt_subject::stop:
-			case prompt_subject::part:
 			case prompt_subject::tour:             return std::nullopt;
 			}
 			return std::nullopt;
@@ -466,7 +466,6 @@ namespace bpr::core {
 		case prompt_place::agent_tab:    return "agent-tab";
 		case prompt_place::conversation: return "conversation";
 		case prompt_place::tour_stop:    return "tour-stop";
-		case prompt_place::tour_part:    return "tour-part";
 		case prompt_place::tour_whole:   return "tour";
 		}
 		return "unknown";
@@ -480,7 +479,6 @@ namespace bpr::core {
 		case prompt_subject::selected_lines:   return "selected-lines";
 		case prompt_subject::conversation:     return "conversation";
 		case prompt_subject::stop:             return "stop";
-		case prompt_subject::part:             return "part";
 		case prompt_subject::selected_text:    return "selected-text";
 		case prompt_subject::tour:             return "tour";
 		case prompt_subject::selected_commits: return "selected-commits";
@@ -545,7 +543,6 @@ namespace bpr::core {
 		case prompt_subject::pull_request:     return prompt_scope::pull_request;
 		case prompt_subject::selected_lines:
 		case prompt_subject::stop:
-		case prompt_subject::part:
 		case prompt_subject::selected_text:
 		case prompt_subject::tour:
 		case prompt_subject::selected_commits: return std::nullopt;
@@ -569,7 +566,6 @@ namespace bpr::core {
 			return aSubject == prompt_subject::pull_request || aSubject == prompt_subject::open_file || aSubject == prompt_subject::selected_lines || aSubject == prompt_subject::selected_commits;
 		case prompt_place::conversation: return aSubject == prompt_subject::conversation;
 		case prompt_place::tour_stop:    return aSubject == prompt_subject::stop || aSubject == prompt_subject::selected_text;
-		case prompt_place::tour_part:    return aSubject == prompt_subject::part || aSubject == prompt_subject::selected_text;
 		case prompt_place::tour_whole:   return aSubject == prompt_subject::tour;
 		}
 		return false;
@@ -818,7 +814,6 @@ namespace bpr::core {
 		case prompt_subject::selected_lines: return agent_suggested_subject::selected_lines;
 		case prompt_subject::conversation:
 		case prompt_subject::stop:
-		case prompt_subject::part:
 		case prompt_subject::selected_text:
 		case prompt_subject::tour:           break;
 		// [[BPR-2248]]. Asked as the pull request's question; the commits

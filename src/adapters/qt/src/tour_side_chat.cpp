@@ -84,9 +84,7 @@ namespace bpr::qt {
 		auto passage_heading(const core::tour_passage& aPassage) -> QString
 		{
 			switch (aPassage.Field) {
-			case core::tour_passage_field::problem:  return QObject::tr("From the Problem");
-			case core::tour_passage_field::solution: return QObject::tr("From the Solution");
-			case core::tour_passage_field::stop:     return QObject::tr("From the stop's explanation");
+			case core::tour_passage_field::stop: return QObject::tr("From the stop's explanation");
 			case core::tour_passage_field::stop_code:
 				return aPassage.Path.empty() ? QObject::tr("The stop's code")
 											 : QObject::tr("%1, lines %2 to %3").arg(QString::fromStdString(aPassage.Path)).arg(aPassage.FirstLine).arg(aPassage.LastLine);
@@ -1152,10 +1150,8 @@ namespace bpr::qt {
 	auto tour_side_chat::name_of(const core::tour_thread& aThread) const -> QString
 	{
 		switch (aThread.Kind) {
-		case core::tour_thread_kind::tour:     return tr("Tour");
-		case core::tour_thread_kind::problem:  return tr("Problem");
-		case core::tour_thread_kind::solution: return tr("Solution");
-		case core::tour_thread_kind::stop:     {
+		case core::tour_thread_kind::tour: return tr("Tour");
+		case core::tour_thread_kind::stop: {
 			if (Draft) {
 				const auto found = std::ranges::find(Draft->Stops, aThread.Stop, &core::tour_stop::Id);
 				if (found != Draft->Stops.end()) {
@@ -1181,16 +1177,6 @@ namespace bpr::qt {
 		switch (thread->Kind) {
 		case core::tour_thread_kind::tour:
 			Subject->setText(tr("The whole tour"));
-			break;
-		case core::tour_thread_kind::problem:
-			Subject->setText(tr("Problem"));
-			quote = Draft ? QString::fromStdString(Draft->Problem) : QString{ };
-			ShowPart->setToolTip(tr("Show the Problem in the Tour tab"));
-			break;
-		case core::tour_thread_kind::solution:
-			Subject->setText(tr("Solution"));
-			quote = Draft ? QString::fromStdString(Draft->Solution) : QString{ };
-			ShowPart->setToolTip(tr("Show the Solution in the Tour tab"));
 			break;
 		case core::tour_thread_kind::stop: {
 			const core::tour_stop* stop = nullptr;
@@ -1345,14 +1331,6 @@ namespace bpr::qt {
 		auto part = core::prompt_tour_part{ };
 		switch (aThread.Kind) {
 		case core::tour_thread_kind::tour: part.Place = core::prompt_place::tour_whole; break;
-		case core::tour_thread_kind::problem:
-			part.Place = core::prompt_place::tour_part;
-			part.Part  = tr("the Problem").toStdString();
-			break;
-		case core::tour_thread_kind::solution:
-			part.Place = core::prompt_place::tour_part;
-			part.Part  = tr("the Solution").toStdString();
-			break;
 		case core::tour_thread_kind::stop:
 			part.Place = core::prompt_place::tour_stop;
 			part.Part  = name_of(aThread).toStdString();
@@ -1507,11 +1485,9 @@ namespace bpr::qt {
 	auto tour_side_chat::part_words() const -> QString
 	{
 		const auto thread = current();
-		return !thread                                         ? QString{ }
-			: thread->Kind == core::tour_thread_kind::stop     ? tr("this stop")
-			: thread->Kind == core::tour_thread_kind::problem  ? tr("the Problem")
-			: thread->Kind == core::tour_thread_kind::solution ? tr("the Solution")
-															   : tr("the tour");
+		return !thread                                     ? QString{ }
+			: thread->Kind == core::tour_thread_kind::stop ? tr("this stop")
+														   : tr("the tour");
 	}
 
 	auto tour_side_chat::update_question() const -> QString
@@ -1550,10 +1526,7 @@ namespace bpr::qt {
 			return false;
 		}
 		const auto selection = aPassage && !aPassage->Text.empty();
-		const auto part      = aThread.Kind == core::tour_thread_kind::stop ? tr("this stop")
-			: aThread.Kind == core::tour_thread_kind::problem               ? tr("the Problem")
-			: aThread.Kind == core::tour_thread_kind::solution              ? tr("the Solution")
-																			: tr("the tour");
+		const auto part      = aThread.Kind == core::tour_thread_kind::stop ? tr("this stop") : tr("the tour");
 		const auto question  = selection ? tr("Enhance the selected text of %1.").arg(part)
 										 : tr("Enhance the writing of %1.").arg(aThread.Kind == core::tour_thread_kind::stop ? tr("this stop's explanation") : part);
 		AskDispatch(tour_ask{ .Thread = aThread, .Passage = selection ? std::move(aPassage) : std::nullopt, .Question = question, .Update = true, .Fresh = true });
@@ -1598,8 +1571,6 @@ namespace bpr::qt {
 			}
 			auto line = QString{ };
 			switch (item.Part) {
-			case core::tour_proposal_part::problem:     line = tr("Rewrite the Problem"); break;
-			case core::tour_proposal_part::solution:    line = tr("Rewrite the Solution"); break;
 			case core::tour_proposal_part::stop_text:   line = tr("Rewrite stop %1, %2").arg(number(item.StopId), quoted(item.Stop.Title)); break;
 			case core::tour_proposal_part::stop:        line = tr("New stop %1 (%2, lines %3 to %4)").arg(quoted(item.Stop.Title), QString::fromStdString(item.Stop.Path)).arg(item.Stop.FirstLine).arg(item.Stop.LastLine); break;
 			case core::tour_proposal_part::remove_stop: line = tr("Remove stop %1").arg(number(item.StopId)); break;
@@ -2208,8 +2179,6 @@ namespace bpr::qt {
 					lines->setSpacing(4);
 					auto heading = QString{ };
 					switch (item.Part) {
-					case core::tour_proposal_part::problem:   heading = tr("Proposed Problem"); break;
-					case core::tour_proposal_part::solution:  heading = tr("Proposed Solution"); break;
 					case core::tour_proposal_part::stop_text: heading = tr("Proposed explanation for %1").arg(QString::fromStdString(item.Stop.Title)); break;
 					case core::tour_proposal_part::stop:      heading = tr("Proposed stop: %1 (%2, lines %3 to %4)").arg(QString::fromStdString(item.Stop.Title), QString::fromStdString(item.Stop.Path)).arg(item.Stop.FirstLine).arg(item.Stop.LastLine); break;
 					// [[BPR-1930]]. Only the tour's chat proposes these, and they

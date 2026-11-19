@@ -209,8 +209,15 @@ namespace bpr::application {
 	auto epoch_application_host::inspect_agent_workspace(const owned_agent_workspace& aWorkspace, const std::stop_token aStop)
 		-> std::expected<owned_agent_workspace, agent_workspace_error>
 	{
-		auto reattached = owned_agent_workspace{ };
-		auto inspected  = Implementation->cleanup_agent_workspace(aWorkspace, aStop, &reattached);
+		// [[BPR-2261]]. Reattaching checks the retained workspace and makes
+		// nothing; on a large repository it can take minutes, so it leaves
+		// its own start and end rather than a silence before the run.
+		auto* const log        = Implementation->DiagnosticLog.get();
+		const auto  watch      = operation_stopwatch{ };
+		auto        reattached = owned_agent_workspace{ };
+		record_operation(log, { .Action = core::operation_action::workspace_verify }, true);
+		auto inspected = Implementation->cleanup_agent_workspace(aWorkspace, aStop, &reattached);
+		record_operation(log, { .Action = core::operation_action::workspace_verify, .Failure = inspected ? core::operation_failure::none : operation_failure_of(inspected.error()), .DurationMilliseconds = watch.milliseconds() });
 		if (!inspected) {
 			return std::unexpected{ std::move(inspected.error()) };
 		}

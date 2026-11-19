@@ -1,6 +1,6 @@
 {
   "format": "bpr.profile-settings",
-  "version": 1,
+  "version": 3,
   "label": "Fixture team agents",
   "exported_by": "BetterPullReview fixture",
   "agents": [
@@ -72,7 +72,7 @@
       "text": "Lead with what matters to the author: the risk first, then the fix. One point per comment. Say \"nit:\" for anything they may ignore."
     },
     {
-      "purpose": "tour.problem",
+      "purpose": "tour.stop-comment",
       "origin": "edited",
       "written_against": "review-preparation-v0",
       "text": "State the problem as the on-call engineer met it, in one paragraph."

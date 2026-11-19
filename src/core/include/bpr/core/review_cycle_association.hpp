@@ -132,11 +132,9 @@ namespace bpr::core {
 	[[nodiscard]] auto encode_association(const cycle_pull_association& aAssociation) -> std::vector<std::uint8_t>;
 	[[nodiscard]] auto decode_association(std::span<const std::uint8_t> aBytes) -> std::optional<cycle_pull_association>;
 
-	/// \brief The pull request's description from the reviewer's Problem and
-	/// Solution, in the form a Review Tour maps (`insert_tour_brief`), so a
-	/// tour prepared on the pull request later finds them. Absent when either
-	/// is over its bound or the result is over the publication body bound.
-	[[nodiscard]] auto publication_body(std::string_view aProblem, std::string_view aSolution) -> std::optional<std::string>;
+	/// \brief The pull request's description as the reviewer wrote it.
+	/// Absent when it is over the publication body bound; never cut.
+	[[nodiscard]] auto publication_body(std::string_view aDescription) -> std::optional<std::string>;
 
 	/// \brief A new branch name for publishing revision `aFinal` of cycle
 	/// `aCycle`; the reviewer may change it.

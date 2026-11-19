@@ -20,7 +20,7 @@ section to "Agents" is separate work; these frames already draw it.
 [index.html](index.html) is standalone HTML with a Light and Dark link at its
 top right. `png/` holds headless renders of its five frames in both themes,
 not screen captures. The file drawn is the repository's fixture
-`tests/fixtures/workflow_companion/synthetic-org.bpr-config.json`, with three
+`tests/fixtures/workflow_companion/synthetic-org.bprsettings`, with three
 things invented so that every state shows: an earlier revision of the
 workflow already on this computer (`9b1e44`, without the last action and
 without the ticket change), a prompt that is the same as yours, and a second

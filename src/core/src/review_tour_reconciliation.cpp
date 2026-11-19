@@ -22,76 +22,6 @@ namespace bpr::core {
 			}
 			return { { prefix, aBase.size() - suffix }, std::string{ aBase.substr(prefix, aBase.size() - prefix - suffix) }, std::string{ aValue.substr(prefix, aValue.size() - prefix - suffix) } };
 		}
-		auto value_of(const tour_field_baseline& aField) -> std::string
-		{
-			if (aField.DraftText) {
-				return *aField.DraftText;
-			}
-			return aField.SourceSpan ? aField.Raw.substr(aField.SourceSpan->first, aField.SourceSpan->second - aField.SourceSpan->first) : aField.Raw;
-		}
-		auto field_baseline(std::string_view aRaw, std::string_view aName, std::string_view aEntity) -> std::optional<tour_field_baseline>
-		{
-			const auto mapping = map_tour_markdown(aRaw);
-			if (!mapping.Bounded || std::ranges::count(mapping.Sections, aName, &tour_markdown_section::Name) != 1) {
-				return { };
-			}
-			const auto span = std::ranges::find(mapping.Sections, aName, &tour_markdown_section::Name)->Content;
-			return tour_field_baseline{ .Raw = std::string{ aRaw }, .RemoteEntity = std::string{ aEntity }, .SourceSpan = std::pair{ span.Begin, span.End } };
-		}
-		auto remote_field_value(const tour_field_baseline& aBase, const tour_field_baseline& aRemote) -> std::string
-		{
-			auto result = value_of(aRemote);
-			if (aBase.DraftText && aBase.SourceSpan) {
-				const auto raw = aBase.Raw.substr(aBase.SourceSpan->first, aBase.SourceSpan->second - aBase.SourceSpan->first);
-				const auto at  = raw.find(*aBase.DraftText);
-				if (at != std::string::npos) {
-					const auto prefix = raw.substr(0, at), suffix = raw.substr(at + aBase.DraftText->size());
-					if (result.size() >= prefix.size() + suffix.size() && result.starts_with(prefix) && result.ends_with(suffix)) {
-						result = result.substr(prefix.size(), result.size() - prefix.size() - suffix.size());
-					}
-				}
-			}
-			return result;
-		}
-		void reconcile_brief(review_tour& aResult, const review_tour& aRemote, bool aProblem)
-		{
-			const auto name     = aProblem ? "Problem" : "Solution";
-			auto&      local    = aProblem ? aResult.Problem : aResult.Solution;
-			auto&      baseline = aProblem ? aResult.ProblemBaseline : aResult.SolutionBaseline;
-			auto       observed = aProblem ? aRemote.ProblemBaseline : aRemote.SolutionBaseline;
-			if (baseline && aResult.Remote && baseline->RemoteEntity == aResult.Remote->Entity && aRemote.IndexBaseline) {
-				observed = field_baseline(aRemote.IndexBaseline->Raw, name, aRemote.Remote->Entity);
-			}
-			// [[BPR-1787]]. A brief is compared only with the place it was
-			// published: the description is never matched against the comment.
-			if (observed && baseline && baseline->RemoteEntity != observed->RemoteEntity) {
-				observed.reset();
-			}
-			if (!observed) {
-				aResult.RemoteStale = true;
-				aResult.ImportNotice += "Website brief requires source mapping. ";
-				return;
-			}
-			if (!baseline && aResult.IndexBaseline) {
-				baseline = field_baseline(aResult.IndexBaseline->Raw, name, aResult.Remote->Entity);
-			}
-			if (!baseline) {
-				aResult.RemoteStale = true;
-				return;
-			}
-			if (baseline->Raw == observed->Raw) {
-				return;
-			}
-			const auto before = value_of(*baseline), remote = remote_field_value(*baseline, *observed);
-			observed->DraftText = remote;
-			const auto merged   = merge_tour_text(before, local, remote);
-			if (merged) {
-				local    = *merged;
-				baseline = std::move(observed);
-			} else {
-				aResult.Conflicts.push_back({ aProblem ? tour_conflict_field::problem : tour_conflict_field::solution, { }, before, local, remote, *observed });
-			}
-		}
 		auto route(const review_tour& aTour) -> std::vector<std::string>
 		{
 			std::vector<std::string> result;
@@ -199,8 +129,6 @@ namespace bpr::core {
 		}
 		result.RemoteStale  = false;
 		result.ImportNotice = aRemote.ImportNotice;
-		reconcile_brief(result, aRemote, true);
-		reconcile_brief(result, aRemote, false);
 		for (auto& stop : result.Stops) {
 			if (!stop.Remote) {
 				continue;
@@ -256,18 +184,6 @@ namespace bpr::core {
 		const auto conflict = result.Conflicts[aIndex];
 
 		switch (conflict.Field) {
-		case tour_conflict_field::problem:
-			if (aUseRemote) {
-				result.Problem = conflict.Remote;
-			}
-			result.ProblemBaseline = conflict.Observation;
-			break;
-		case tour_conflict_field::solution:
-			if (aUseRemote) {
-				result.Solution = conflict.Remote;
-			}
-			result.SolutionBaseline = conflict.Observation;
-			break;
 		case tour_conflict_field::stop: {
 			const auto stop = std::ranges::find(result.Stops, conflict.Stop, &tour_stop::Id);
 			if (stop == result.Stops.end()) {
@@ -301,87 +217,5 @@ namespace bpr::core {
 			return { };
 		}
 		return result;
-	}
-	void retain_tour_brief_baselines(review_tour& aTour, std::string_view aRaw, std::string_view aEntity)
-	{
-		for (const auto problem : { true, false }) {
-			auto field = field_baseline(aRaw, problem ? "Problem" : "Solution", aEntity);
-			if (field) {
-				field->DraftText                                           = problem ? aTour.Problem : aTour.Solution;
-				(problem ? aTour.ProblemBaseline : aTour.SolutionBaseline) = std::move(field);
-			}
-		}
-	}
-	auto propose_tour_description(const review_tour& aTour, std::string_view aRaw) -> std::optional<std::string>
-	{
-		if (!aTour.Remote) {
-			const auto mapped   = map_tour_markdown(aRaw);
-			const bool hasBrief = std::ranges::any_of(mapped.Sections, [](const auto& aSection) { return aSection.Name == "Problem" || aSection.Name == "Solution"; });
-			if (mapped.Bounded && !hasBrief) {
-				const auto newline = aRaw.find("\r\n") == std::string_view::npos ? "\n" : "\r\n";
-				return insert_tour_brief(aRaw, 0, aTour.Problem, aTour.Solution, newline);
-			}
-		}
-		std::vector<tour_text_edit> edits;
-		for (const auto problem : { true, false }) {
-			const auto field = field_baseline(aRaw, problem ? "Problem" : "Solution", { });
-			if (!field) {
-				return { };
-			}
-			const auto& baseline = problem ? aTour.ProblemBaseline : aTour.SolutionBaseline;
-			const auto& desired  = problem ? aTour.Problem : aTour.Solution;
-			auto        before = value_of(*field), replacement = desired;
-			if (baseline && baseline->DraftText && baseline->SourceSpan) {
-				const auto content  = baseline->Raw.substr(baseline->SourceSpan->first, baseline->SourceSpan->second - baseline->SourceSpan->first);
-				const auto position = content.find(*baseline->DraftText);
-				if (position == std::string::npos) {
-					return { };
-				}
-				const auto prefix = content.substr(0, position), suffix = content.substr(position + baseline->DraftText->size());
-				replacement = prefix;
-				replacement += desired;
-				replacement += suffix;
-			} else if (baseline && baseline->SourceSpan) {
-				// [[BPR-1787]]. A cold import holds the exact section text: an
-				// unchanged field writes nothing, and a revision keeps the
-				// section's own blank lines around it.
-				const auto content = baseline->Raw.substr(baseline->SourceSpan->first, baseline->SourceSpan->second - baseline->SourceSpan->first);
-				const auto first   = content.find_first_not_of(" \t\r\n");
-				const auto begin   = desired.find_first_not_of(" \t\r\n");
-				if (desired != content && first != std::string::npos && begin != std::string::npos) {
-					replacement = content.substr(0, first) + desired.substr(begin, desired.find_last_not_of(" \t\r\n") - begin + 1) + content.substr(content.find_last_not_of(" \t\r\n") + 1);
-				} else if (desired != content) {
-					const auto nl = aRaw.find("\r\n") == std::string_view::npos ? "\n" : "\r\n";
-					replacement   = std::string{ nl } + desired + nl + nl;
-				}
-			} else if (!desired.starts_with('\n') && !desired.starts_with("\r\n")) {
-				const auto nl = aRaw.find("\r\n") == std::string_view::npos ? "\n" : "\r\n";
-				replacement   = std::string{ nl } + desired + nl + nl;
-			}
-			if (before != replacement) {
-				edits.push_back({ { field->SourceSpan->first, field->SourceSpan->second }, before, replacement });
-			}
-		}
-		return edit_tour_markdown(aRaw, edits);
-	}
-	auto tour_comment_lead(const review_tour& aTour, bool aBriefInDescription) -> std::string
-	{
-		if (aBriefInDescription) {
-			return std::string{ tour_brief_in_description_note };
-		}
-		return "## Problem\n\n" + aTour.Problem + "\n\n## Solution\n\n" + aTour.Solution;
-	}
-	auto tour_brief_in_comment(const review_tour& aTour) -> bool
-	{
-		if (!aTour.IndexBaseline) {
-			return false;
-		}
-		const auto mapped = map_tour_markdown(aTour.IndexBaseline->Raw);
-		return std::ranges::any_of(mapped.Sections, [](const auto& aSection) { return aSection.Name == "Problem" || aSection.Name == "Solution"; });
-	}
-	auto tour_brief_in_description(const review_tour& aTour) -> bool
-	{
-		const auto elsewhere = [&](const std::optional<tour_field_baseline>& aBaseline) { return aBaseline && aTour.Remote && aBaseline->RemoteEntity != aTour.Remote->Entity; };
-		return elsewhere(aTour.ProblemBaseline) || elsewhere(aTour.SolutionBaseline);
 	}
 }

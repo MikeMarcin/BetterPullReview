@@ -124,7 +124,7 @@ namespace {
 		}
 		expect(complete(), "each staggered live-clock check ran");
 	}
-	void render(QWidget& aWidget, const std::string& aPrefix, const char* aName)
+	[[maybe_unused]] void render(QWidget& aWidget, const std::string& aPrefix, const char* aName)
 	{
 		if (aPrefix.empty()) {
 			return;
@@ -211,11 +211,20 @@ auto main(int argc, char** argv) -> int
 	const auto   prefix = argc > 1 ? std::string{ argv[1] } : std::string{ };
 	verify_first_live_second();
 
-	auto draft                    = tests::review_tour_fixture();
-	draft.Problem                 = "Reads crash.";
-	draft.Solution                = "Each view now clears between begin and present.";
-	draft.Stops.front().Body      = "Clear first:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n";
-	const auto             shared = std::make_shared<const core::review_tour>(draft);
+	// [[BPR-2275]]. The course ran on the Solution's chat until
+	// [[BPR-2274]] made a tour only its stops; it runs on Stop 2's now.
+	auto draft               = tests::review_tour_fixture();
+	draft.Stops.front().Body = "Clear first:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n";
+	{
+		auto second  = draft.Stops.front();
+		second.Id    = core::tour_stop_id{ 2 };
+		second.Title = "Where it presents";
+		second.Body  = "Each view now clears between begin and present.";
+		draft.Stops.push_back(second);
+		draft.LastStopId = 2;
+	}
+	const auto             partThread = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 2 } };
+	const auto             shared     = std::make_shared<const core::review_tour>(draft);
 	qt::review_tour_editor editor;
 	auto                   actions = std::vector<qt::tour_editor_action>{ };
 	editor.set_dispatch([](core::tour_command) { }, [&actions](const qt::tour_editor_action aAction) { actions.push_back(aAction); });
@@ -250,62 +259,56 @@ auto main(int argc, char** argv) -> int
 		return false;
 	};
 
-	// (1) The tour stays clean: one quiet glyph per part, and nothing of a
-	// chat in the tour's column.
-	editor.open_step(core::tour_step::solution);
+	// (1) The tour stays clean: one quiet glyph on the open stop, and
+	// nothing of a chat in the tour's column.
+	editor.show_stops();
+	editor.go_to_stop(core::tour_stop_id{ 2 });
+	editor.begin_stop_edit();
 	settle();
-	auto* const solution = editor.findChild<QPlainTextEdit*>(QStringLiteral("tourSolution"));
-	auto* const glyph    = editor.findChild<QToolButton*>(QStringLiteral("tourSolutionChat"));
-	// [[BPR-1925]] v002, owner on v001: "The mockup had the chat button on
-	// the right side of each of the sections". The toggle is at the right of
-	// the Solution's header row, and says what it does.
-	auto* const solutionRow = editor.findChild<QWidget*>(QStringLiteral("tourSolutionRow"));
-	expect(glyph != nullptr && glyph->isVisibleTo(&editor) && glyph->parentWidget() == solutionRow && glyph->isCheckable() && !glyph->isChecked(), "the Solution's chat toggle is in its header");
-	// Owner on the live build, 2026-11-11: the toggle keeps one place, the
-	// stops' toggles' right edge, whether or not Change shows beside it.
-	expect(glyph->geometry().right() >= solutionRow->width() - 14, "at the header's right, whatever the step's state");
-	expect(glyph->accessibleName() == QStringLiteral("Open the chat about the Solution") && glyph->focusPolicy() == Qt::StrongFocus, "it says it opens the Solution's chat and takes the keyboard");
+	auto* const written = editor.stop_body();
+	auto* const glyph   = editor.findChild<QToolButton*>(QStringLiteral("tourStopChat"));
+	expect(glyph != nullptr && glyph->isVisibleTo(&editor) && glyph->isCheckable() && !glyph->isChecked(), "the open stop's chat toggle shows, unpressed");
+	expect(glyph->focusPolicy() == Qt::StrongFocus && glyph->accessibleName().startsWith(QStringLiteral("Open the chat")), "it says it opens the stop's chat and takes the keyboard: " + glyph->accessibleName().toStdString());
 	expect(!editor.isAncestorOf(chat) && chat->isWindow() && chat->findChild<QTabBar*>() == nullptr, "the chat is its own column, for the window to place beside the tour, with no tabs");
 	expect(!chat->isVisible() && shown.empty(), "no chat is open until asked for");
-	auto cursor = solution->textCursor();
+	auto cursor = written->textCursor();
 	cursor.setPosition(static_cast<int>(QStringLiteral("Each view now clears ").size()));
 	cursor.setPosition(static_cast<int>(QStringLiteral("Each view now clears between begin and present").size()), QTextCursor::KeepAnchor);
-	solution->setTextCursor(cursor);
+	written->setTextCursor(cursor);
 	settle();
 	glyph->click();
 	chat->show();
 	settle();
 	expect(!shown.empty() && shown.back() && chat->column_open(), "opening a chat asks for its column");
-	expect(chat->chat_count() == 1U && chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::solution } && chat->discussed() == chat->current(), "it is the Solution's chat");
-	expect(chat->subject()->text() == QStringLiteral("Solution") && chat->findChild<QLabel*>(QStringLiteral("tourSideChatQuote"))->text().contains(QStringLiteral("Each view now clears")), "the top names the part and quotes it");
+	expect(chat->chat_count() == 1U && chat->current() == partThread && chat->discussed() == chat->current(), "it is Stop 2's chat");
+	expect(chat->subject()->text() == QStringLiteral("Stop 2, Where it presents"), "the top names the stop: " + chat->subject()->text().toStdString());
 	// [[BPR-1925]]. The part is marked: its glyph pressed while its chat is
 	// beside the tour.
-	expect(glyph->isChecked(), "the Solution's glyph is pressed while its chat shows");
-	expect(chat->passage() && chat->passage()->Text == "between begin and present" && chat->passage_line()->isVisibleTo(chat), "the selected passage is quoted above the composer");
+	expect(glyph->isChecked(), "the stop's glyph is pressed while its chat shows");
+	expect(chat->passage() && chat->passage()->Text == "between begin and present" && chat->passage()->Field == core::tour_passage_field::stop && chat->passage_line()->isVisibleTo(chat), "the selected passage is quoted above the composer");
 	expect(!chat->can_update() && chat->unchanged_line() == nullptr, "no update is offered until there is a chat to update from");
 	expect(chat->passage_line()->parentWidget()->parentWidget() == chat->composer_box() && chat->composer()->parentWidget() == chat->composer_box(), "[[BPR-1995]] AC01 the passage is a chip inside the composer's field");
-	// [[BPR-1934]] AC1, AC2. The empty Solution chat offers its prompts, in
-	// the Agent tab's own suggestion component and the agent's accent.
-	// [[BPR-1934]] v002: with text selected in the Solution, Explain the
-	// selected block leads.
-	expect(offered() == QStringList{ QStringLiteral("Explain the selected block"), QStringLiteral("Make this clearer"), QStringLiteral("What's missing?"), QStringLiteral("Make it shorter") },
-		   "the empty Solution chat offers the part's prompts, Explain the selected block first while text is selected");
-	expect(chat->suggestions()->buttons().size() == 4U && chat->suggestions()->buttons().front()->objectName() == QStringLiteral("agentSuggestion") && chat->suggestions()->buttons().front()->isEnabled()
+	// [[BPR-1934]] AC1, AC2. The empty stop chat offers its prompts, in the
+	// Agent tab's own suggestion component and the agent's accent; with
+	// text selected in the stop, Explain the selected block leads.
+	const auto partPrompts = offered();
+	expect(partPrompts.size() >= 2 && partPrompts.front() == QStringLiteral("Explain the selected block"), "the empty stop chat offers its prompts, Explain the selected block first while text is selected: " + partPrompts.join(QLatin1Char('|')).toStdString());
+	expect(chat->suggestions()->buttons().size() == static_cast<std::size_t>(partPrompts.size()) && chat->suggestions()->buttons().front()->objectName() == QStringLiteral("agentSuggestion") && chat->suggestions()->buttons().front()->isEnabled()
 			   && chat->suggestions()->lead()->text() == QStringLiteral("Or try:"),
 		   "AC2 the Agent tab's chips, one each, usable, under their lead");
 	expect(chat->suggestions()->buttons().front()->palette().color(QPalette::ButtonText) == qt::agent_accent(chat->palette()), "in the agent's accent");
-	render(*chat, prefix, "side-chat-solution-prompts");
+	render(*chat, prefix, "side-chat-stop-prompts");
 	// [[BPR-1881]]'s gate: none while the agent is not set up.
 	editor.set_agent_readiness(qt::agent_setup_readiness::unfinished);
 	settle();
 	expect(offered().isEmpty(), "no prompts while the agent is not set up");
 	editor.set_agent_readiness(qt::agent_setup_readiness::ready);
 	settle();
-	expect(offered().size() == 4, "they come back once it is");
+	expect(offered() == partPrompts, "they come back once it is");
 	chat->composer()->setPlainText(QStringLiteral("What does this mean?"));
 	auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 	QApplication::sendEvent(chat->composer(), &enter);
-	expect(asked.size() == 1U && asked[0].Thread.Kind == core::tour_thread_kind::solution && asked[0].Passage && asked[0].Question == QStringLiteral("What does this mean?") && !asked[0].Update, "Return asks in the Solution's chat, with the passage");
+	expect(asked.size() == 1U && asked[0].Thread == partThread && asked[0].Passage && asked[0].Question == QStringLiteral("What does this mean?") && !asked[0].Update, "Return asks in the stop's chat, with the passage");
 	expect(chat->composer()->toPlainText().isEmpty() && !chat->passage(), "the composer clears");
 
 	// (2) A plain chat: the bubble, the Agent tab's live line while it runs
@@ -426,12 +429,12 @@ auto main(int argc, char** argv) -> int
 		   "the observed idle host enables the existing request capabilities");
 	chat->composer()->clear();
 	// [[BPR-1925]]. Its glyph counts its turns.
-	expect(glyph->text() == QStringLiteral("1") && chat->turns_about(core::tour_thread{ .Kind = core::tour_thread_kind::solution }) == 1U, "the Solution's toggle counts its one turn");
-	expect(glyph->isChecked() && glyph->accessibleName() == QStringLiteral("Close the chat about the Solution"), "pressed, it says it closes the chat");
+	expect(glyph->text() == QStringLiteral("1") && chat->turns_about(partThread) == 1U, "the stop's toggle counts its one turn");
+	expect(glyph->isChecked() && glyph->accessibleName().startsWith(QStringLiteral("Close the chat")), "pressed, it says it closes the chat: " + glyph->accessibleName().toStdString());
 	expect(chat->chat_parts() == 1U, "one part has a chat");
 	expect(chat->turn_count() == 1U && chat->bubble(0) != nullptr && chat->bubble(0)->findChild<QLabel*>(QStringLiteral("tourSideChatQuestion"))->text() == QStringLiteral("What does this mean?"), "the author's words are a bubble");
 	expect(offered() == QStringList{ QStringLiteral("Explain the selected block") } && !chat->suggestions()->lead()->isVisibleTo(chat),
-		   "AC1 the part's prompts go once the chat has a turn; Explain the selected block stays while text is selected");
+		   "AC1 the stop's prompts go once the chat has a turn; Explain the selected block stays while text is selected");
 	expect(chat->bubble(0)->geometry().right() > chat->reply(0)->geometry().left() + chat->reply(0)->width() / 2, "on the right, the reply on the left");
 	expect(!chat->status_line(0)->live() && chat->status_line(0)->text() == QStringLiteral("Claude Code answered in 0:07.") && !chat->status_line(0)->font().italic(), "AC2 its ending says who answered and how long it took, as the Agent tab's does: " + chat->status_line(0)->text().toStdString());
 	expect(chat->status_line(0)->geometry().top() >= chat->reply(0)->geometry().bottom(), "under the reply");
@@ -441,25 +444,25 @@ auto main(int argc, char** argv) -> int
 	chat->copy_reply_button(0)->click();
 	expect(clipboard->text().startsWith(QStringLiteral("It is the frame window:")), "Copy takes the reply as written");
 	chat->copy_chat_button()->click();
-	expect(clipboard->text().startsWith(QStringLiteral("## Side chat: Solution")) && clipboard->text().contains(QStringLiteral("**You:** What does this mean?")) && clipboard->text().contains(QStringLiteral("**Claude Code** (answered in 0:07):")), "Copy chat takes the whole chat: " + clipboard->text().toStdString());
+	expect(clipboard->text().startsWith(QStringLiteral("## Side chat: Stop 2")) && clipboard->text().contains(QStringLiteral("**You:** What does this mean?")) && clipboard->text().contains(QStringLiteral("**Claude Code** (answered in 0:07):")), "Copy chat takes the whole chat: " + clipboard->text().toStdString());
 
-	// (3) Update this section from our chat: an Update turn, and its proposal
-	// for the Solution decided in the chat, not in the draft's box.
+	// (3) Update this stop from our chat: an Update turn, and its proposal
+	// for the stop decided in the chat, not in the draft's box.
 	// [[BPR-1995]], RFC-BPR-0100 AC02: the only way the update is offered is
 	// the link under the answer that changed nothing, naming the part.
-	expect(chat->unchanged_line() != nullptr && chat->unchanged_line()->text() == QStringLiteral("Nothing in the Solution changed. <a href=\"#update\">Update the Solution from this chat</a>"), "the link names the part: " + chat->unchanged_line()->text().toStdString());
+	expect(chat->unchanged_line() != nullptr && chat->unchanged_line()->text() == QStringLiteral("Nothing in this stop changed. <a href=\"#update\">Update this stop from this chat</a>"), "the link names the part: " + chat->unchanged_line()->text().toStdString());
 	expect(chat->findChild<QPushButton*>(QStringLiteral("tourSideChatUpdate")) == nullptr, "no other control offers the update");
 	emit chat->unchanged_line()->linkActivated(QStringLiteral("#update"));
-	expect(asked.size() == 2U && asked[1].Update && asked[1].Thread.Kind == core::tour_thread_kind::solution && asked[1].Question == QStringLiteral("Update the Solution from our chat."), "Update asks for the part rewritten from the chat");
+	expect(asked.size() == 2U && asked[1].Update && asked[1].Thread == partThread && asked[1].Question == QStringLiteral("Update this stop's explanation from our chat."), "Update asks for the part rewritten from the chat");
 	const auto update  = core::begin_tour_ask(session, asked[1].Thread, std::nullopt, asked[1].Question.toStdString(), true);
-	const auto answer  = core::tour_ask_answer{ .Reply = "Rewritten.", .Changes = { .Solution = std::string{ "Both views share one frame:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n" } } };
+	const auto answer  = core::tour_ask_answer{ .Reply = "Rewritten.", .StopTexts = { { 2U, "Both views share one frame:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n" } } };
 	const auto changes = core::keep_thread_part(core::propose_tour_changes(*update, answer, { }, draft), asked[1].Thread);
-	static_cast<void>(core::answer_tour_ask(session, *update, "I rewrote the Solution from our chat, around `auto x = 1;`.", core::tally_of(changes)));
+	static_cast<void>(core::answer_tour_ask(session, *update, "I rewrote this stop from our chat, around `auto x = 1;`.", core::tally_of(changes)));
 	editor.present_tour_session(session, changes);
 	settle();
-	expect(chat->turn_count() == 2U && chat->accept_button(0) != nullptr && chat->proposal_reader(0) != nullptr, "the proposed Solution is in the chat, with Accept");
+	expect(chat->turn_count() == 2U && chat->accept_button(0) != nullptr && chat->proposal_reader(0) != nullptr, "the proposed explanation is in the chat, with Accept");
 	expect(editor.tour_agent()->accept_button(0) == nullptr, "and not in the draft's box");
-	render(*chat, prefix, "side-chat-solution");
+	render(*chat, prefix, "side-chat-stop-update");
 	chat->accept_button(0)->click();
 	expect(decided.size() == 1U && std::get<0>(decided[0]) == 0U && std::get<1>(decided[0]) == core::tour_proposal_decision::accepted && std::get<2>(decided[0]).startsWith(QStringLiteral("Both views share one frame")), "Accept applies it to the part");
 
@@ -473,6 +476,11 @@ auto main(int argc, char** argv) -> int
 	auto* const stopReader = static_cast<qt::markdown_body_view*>(editor.findChild<QWidget*>(QStringLiteral("tourStopReader")));
 	const auto  stopOwn    = colours(*stopReader, QStringLiteral("scoped_lock"));
 	expect(stopOwn.size() >= 2U, "the stop's own C++ is highlighted");
+	// [[BPR-2275]]. Going to Stop 1 brought its chat; the replies below are
+	// Stop 2's, so the course goes back to it.
+	editor.go_to_stop(core::tour_stop_id{ 2 });
+	syntax.deliver(editor);
+	expect(chat->current() == partThread, "going back to Stop 2 brings its chat back");
 	expect(colours(*chat->reply(0), QStringLiteral("scoped_lock")) == stopOwn, "AC1 the reply's C++ in the same colours");
 	expect(colours(*chat->proposal_reader(0), QStringLiteral("scoped_lock")) == stopOwn, "AC1 the proposal's too");
 	expect(colours(*chat->reply(0), QStringLiteral("plain_text")).size() <= 1U, "AC2 an unknown language stays plain");
@@ -576,24 +584,36 @@ auto main(int argc, char** argv) -> int
 	actions.clear();
 	auto* const stopGlyph = editor.findChild<QToolButton*>(QStringLiteral("tourStopChat"));
 	expect(stopGlyph != nullptr && stopGlyph->isVisibleTo(&editor), "an open stop has its glyph");
-	stopGlyph->click();
+	// Stop 2's selection ends; none is offered for it any more.
+	editor.begin_stop_edit();
 	settle();
+	{
+		auto none = written->textCursor();
+		none.setPosition(0);
+		none.setPosition(4, QTextCursor::KeepAnchor);
+		written->setTextCursor(none);
+		none.clearSelection();
+		written->setTextCursor(none);
+	}
+	editor.finish_stop_edit();
+	settle();
+	actions.clear();
+	editor.go_to_stop(core::tour_stop_id{ 1 });
+	settle();
+	if (chat->current() != core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 1 } }) {
+		stopGlyph->click();
+		settle();
+	}
 	expect(chat->chat_count() == 2U && chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 1 } }, "switching parts switches the chat: the stop's");
-	expect(stopGlyph->isChecked() && !glyph->isChecked(), "the stop's glyph is pressed now, the Solution's not");
+	expect(stopGlyph->isChecked() && chat->turns_about(partThread) == 2U, "Stop 1's glyph is pressed now; Stop 2's chat keeps its turns");
 	auto* const route = editor.findChild<QListWidget*>(QStringLiteral("tourOutline"));
 	expect(route != nullptr && route->item(0)->data(Qt::UserRole + 10).toBool(), "the stop is marked on the route");
 	expect(std::ranges::count(actions, qt::tour_editor_action::navigate_stop) >= 1, "the stop's lines are shown in the code");
 	expect(chat->subject()->text() == QStringLiteral("Stop 1, Why") && chat->findChild<QLabel*>(QStringLiteral("tourSideChatQuote"))->text() == QStringLiteral("src/item.cpp, lines 4 to 6"), "the top names the stop and its lines");
-	// The Solution's selection ends; none is offered for it any more.
-	{
-		auto none = solution->textCursor();
-		none.clearSelection();
-		solution->setTextCursor(none);
-	}
 	settle();
 	expect(offered()
 			   == QStringList{ QStringLiteral("What does this code do?"), QStringLiteral("Why does this change matter?"), QStringLiteral("Rewrite this explanation more simply"), QStringLiteral("Is this the right place for this stop?") },
-		   "AC1 the empty stop chat offers the stop's prompts");
+		   "AC1 the empty stop chat offers the stop's prompts: " + offered().join(QLatin1Char('|')).toStdString());
 	actions.clear();
 	chat->show_button()->click();
 	expect(chat->show_button()->text() == QStringLiteral("Show in code") && std::ranges::count(actions, qt::tour_editor_action::navigate_stop) >= 1, "Show in code goes to it again");
@@ -695,16 +715,17 @@ auto main(int argc, char** argv) -> int
 		QApplication::sendEvent(aWidget, &release);
 		settle();
 	};
-	editor.open_step(core::tour_step::solution);
+	editor.show_stops();
+	editor.go_to_stop(core::tour_stop_id{ 2 });
 	settle();
 	realClick(glyph);
-	expect(chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::solution } && chat->turn_count() == 2U, "one click on the Solution's glyph brings its chat back, turns and all");
+	expect(chat->current() == partThread && chat->turn_count() == 2U, "one click on Stop 2's glyph brings its chat back, turns and all");
 	chat->copy_chat_button()->click();
-	expect(clipboard->text().startsWith(QStringLiteral("## Side chat: Solution")) && clipboard->text().contains(QStringLiteral("Update the Solution from our chat.")), "and it copies whole");
+	expect(clipboard->text().startsWith(QStringLiteral("## Side chat: Stop 2")) && clipboard->text().contains(QStringLiteral("Update this stop's explanation from our chat.")), "and it copies whole");
 	// Close: the column goes and every chat is kept.
 	realClick(chat->close_button());
 	expect(!chat->column_open() && !shown.back() && !chat->discussed() && !glyph->isChecked() && glyph->text() == QStringLiteral("2"), "close takes the column away; the glyph keeps its count");
-	chat->open(core::tour_thread{ .Kind = core::tour_thread_kind::solution });
+	chat->open(partThread);
 	settle();
 	expect(chat->turn_count() == 2U && chat->column_open(), "reopened, a chat still has its turns");
 
@@ -713,9 +734,9 @@ auto main(int argc, char** argv) -> int
 	{
 		auto deleted = std::vector<core::tour_agent_run_id>{ };
 		chat->set_delete_dispatch([&deleted](const core::tour_agent_run_id aRun) { deleted.push_back(aRun); });
-		const auto problem = core::tour_thread{ .Kind = core::tour_thread_kind::problem };
-		chat->open(problem);
-		const auto broken = core::begin_tour_ask(session, problem, std::nullopt, "Is the Problem right?");
+		const auto firstStop = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 1 } };
+		chat->open(firstStop);
+		const auto broken = core::begin_tour_ask(session, firstStop, std::nullopt, "Is this stop right?");
 		static_cast<void>(core::finish_tour_run(session, *broken, core::tour_agent_run_state::failed, "Claude Code exited with an error.\n\nexit 1"));
 		static_cast<void>(core::time_tour_run(session, *broken, 3U));
 		editor.present_tour_session(session, std::nullopt);
@@ -741,7 +762,7 @@ auto main(int argc, char** argv) -> int
 		chat->present_native_history(pendingHistory);
 		expect(chat->resend_button(0)->isEnabled(), "settled history restores the existing recovery request");
 		chat->resend_button(0)->click();
-		expect(asked.size() == before + 1U && asked.back().Thread == problem && asked.back().Question == QStringLiteral("Is the Problem right?") && !asked.back().Update, "AC2 Resend asks the same again in the same chat");
+		expect(asked.size() == before + 1U && asked.back().Thread == firstStop && asked.back().Question == QStringLiteral("Is this stop right?") && !asked.back().Update, "AC2 Resend asks the same again in the same chat");
 		chat->delete_button(0)->click();
 		expect(deleted.size() == 1U && deleted.front() == *broken, "AC2 Delete asks for the turn to go");
 		static_cast<void>(core::remove_tour_run(session, *broken));
@@ -838,44 +859,45 @@ auto main(int argc, char** argv) -> int
 		const auto before = asked.size();
 		emit       chat->unchanged_line()->linkActivated(QStringLiteral("#update"));
 		expect(asked.size() == before + 1U && asked.back().Update && asked.back().Thread == stopThread && asked.back().Question == QStringLiteral("Update this stop's explanation from our chat.") && !asked.back().Passage, "following it sends the stop's update turn");
-		// AC05. Enhance from the Problem's own button, and on a selection.
+		// AC05. Enhance from the stop's own button, and on a selection.
 		// [[BPR-2138]], RFC-BPR-0101 AC11 (owner, 2026-11-12): a fresh run
 		// whose result is a proposal on the part; the side chat is neither
-		// opened nor sent a turn.
-		auto* const problemEnhance = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
-		expect(problemEnhance != nullptr && problemEnhance->property("enhanceOnly").toBool(), "the Problem has words, so its button is Enhance");
+		// opened nor sent a turn. [[BPR-2275]]: on Stop 2, which has words.
+		editor.show_stops();
+		editor.go_to_stop(core::tour_stop_id{ 2 });
+		editor.begin_stop_edit();
+		settle();
+		auto* const stopEnhance = editor.findChild<QPushButton*>(QStringLiteral("tourStopMagic"));
+		expect(stopEnhance != nullptr && stopEnhance->property("enhanceOnly").toBool(), "the stop has words, so its button is Enhance");
 		const auto shownBefore = chat->current();
-		problemEnhance->click();
-		expect(asked.size() == before + 2U && asked.back().Update && asked.back().Fresh && asked.back().Thread.Kind == core::tour_thread_kind::problem && !asked.back().Passage
-				   && asked.back().Question == QStringLiteral("Enhance the writing of the Problem.") && chat->current() == shownBefore,
-			   "AC11 Enhance asks for a fresh rewrite of the Problem and leaves its side chat as it was");
-		const auto passage = core::tour_passage{ .Field = core::tour_passage_field::problem, .Text = "crash" };
-		expect(chat->enhance(core::tour_thread{ .Kind = core::tour_thread_kind::problem }, passage) && asked.back().Passage == std::optional{ passage } && asked.back().Update && asked.back().Fresh && asked.back().Question == QStringLiteral("Enhance the selected text of the Problem."),
-			   "AC05 Enhance on a selection sends the selection as the update's passage");
+		stopEnhance->click();
+		expect(asked.size() == before + 2U && asked.back().Update && asked.back().Fresh && asked.back().Thread == partThread && !asked.back().Passage && chat->current() == shownBefore,
+			   "AC11 Enhance asks for a fresh rewrite of the stop and leaves its side chat as it was: " + asked.back().Question.toStdString());
+		const auto passage = core::tour_passage{ .Field = core::tour_passage_field::stop, .Text = "clears" };
+		expect(chat->enhance(partThread, passage) && asked.back().Passage == std::optional{ passage } && asked.back().Update && asked.back().Fresh, "AC05 Enhance on a selection sends the selection as the update's passage: " + asked.back().Question.toStdString());
 		editor.set_tour_host_idle(false);
-		expect(!chat->enhance(core::tour_thread{ .Kind = core::tour_thread_kind::problem }, std::nullopt), "Enhance waits while the agent is busy");
+		expect(!chat->enhance(partThread, std::nullopt), "Enhance waits while the agent is busy");
 		editor.set_tour_host_idle(true);
 		// [[BPR-2138]], RFC-BPR-0101 AC12. The fresh Enhance's suggestion
 		// offers Ask more, flat beside Discard; it names the fresh run.
 		{
-			auto       freshSession  = core::tour_agent_session{ };
-			const auto problemThread = core::tour_thread{ .Kind = core::tour_thread_kind::problem };
-			const auto enhanced      = core::begin_tour_ask(freshSession, problemThread, std::nullopt, "Enhance the writing of the Problem.", true);
+			auto       freshSession = core::tour_agent_session{ };
+			const auto enhanced     = core::begin_tour_ask(freshSession, partThread, std::nullopt, "Enhance the writing of this stop.", true);
 			expect(enhanced.has_value(), "a fresh Enhance run begins");
 			for (auto& made : freshSession.Runs) {
 				if (made.Id == *enhanced) {
 					made.Fresh = true;
 				}
 			}
-			auto suggested            = core::tour_ask_answer{ };
-			suggested.Reply           = "Tightened the Problem.";
-			suggested.Changes.Problem = "Two views drew into one frame.";
-			const auto suggestion     = core::propose_tour_changes(*enhanced, suggested, { }, draft);
+			auto suggested        = core::tour_ask_answer{ };
+			suggested.Reply       = "Tightened the stop.";
+			suggested.StopTexts   = { { 2U, "Each view clears between begin and present, so two never share a frame." } };
+			const auto suggestion = core::propose_tour_changes(*enhanced, suggested, { }, draft);
 			static_cast<void>(core::answer_tour_ask(freshSession, *enhanced, suggested.Reply, core::tally_of(suggestion)));
 			auto askedMore = std::vector<core::tour_agent_run_id>{ };
 			editor.set_tour_ask_more_dispatch([&askedMore](const core::tour_agent_run_id aRun) { askedMore.push_back(aRun); });
 			editor.present_tour_session(freshSession, suggestion);
-			chat->open(problemThread);
+			chat->open(partThread);
 			settle();
 			auto* const more = chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAskMore"));
 			expect(more != nullptr && more->text() == QStringLiteral("Ask more") && !more->isFlat() && more->property("bprTourAction").toBool(), "AC12 the fresh suggestion offers Ask more, in the one Tour action style (owner, 2026-11-13)");
@@ -888,10 +910,9 @@ auto main(int argc, char** argv) -> int
 	// whole tour's chat, answered in its turn with a revision: the card.
 	{
 		auto       wholeSession  = core::tour_agent_session{ };
-		const auto turn          = core::begin_tour_ask(wholeSession, core::tour_thread{ }, std::nullopt, "Drop the first stop and tighten the Problem.");
+		const auto turn          = core::begin_tour_ask(wholeSession, core::tour_thread{ }, std::nullopt, "Drop the first stop.");
 		auto       revised       = core::tour_ask_answer{ };
-		revised.Reply            = "Dropped stop 1 and tightened the Problem.";
-		revised.Changes.Problem  = "Reads crash when two views share a frame.";
+		revised.Reply            = "Dropped stop 1.";
 		revised.Revision         = core::tour_revision{ };
 		revised.Revision->Remove = { 1U };
 		const auto revision      = core::propose_tour_changes(*turn, revised, { }, draft);
@@ -899,7 +920,7 @@ auto main(int argc, char** argv) -> int
 		editor.present_tour_session(wholeSession, revision);
 		chat->open(core::tour_thread{ });
 		settle();
-		expect(chat->revision_card() != nullptr && chat->revision_operations()->text() == QStringLiteral("Rewrite the Problem\nRemove stop 1") && chat->unchanged_line() == nullptr,
+		expect(chat->revision_card() != nullptr && chat->revision_operations()->text() == QStringLiteral("Remove stop 1") && chat->unchanged_line() == nullptr,
 			   "a request answered with its revision shows the card, and no update link: " + (chat->revision_operations() ? chat->revision_operations()->text().toStdString() : std::string{ }));
 		render(*chat, prefix, "side-chat-revision-card");
 	}

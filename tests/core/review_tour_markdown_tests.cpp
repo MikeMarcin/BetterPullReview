@@ -32,9 +32,10 @@ namespace {
 			}
 			raw.append("## Problem").append(nl).append("A & B").append(nl).append(nl).append("## Solution").append(nl).append("Use snapshots").append(nl).append("## Checks").append(nl).append("- [ ] later").append(nl);
 			const auto mapped = map_tour_markdown(raw);
-			expect(mapped.Bounded && mapped.Sections.size() == 2 && mapped.Lists.empty(), "code/quote/disclosure cannot map fields or lists");
+			expect(mapped.Bounded && mapped.Lists.empty(), "code/quote/disclosure cannot map lists; [[BPR-2274]] Problem and Solution headings are text");
 			expect(edit_tour_markdown(raw, { }).value() == raw, "unchanged source byte round trip");
-			const auto       span = mapped.Sections[0].Content;
+			const auto       at   = raw.find("A & B");
+			const auto       span = tour_text_span{ at, at + 5U + nl.size() + nl.size() };
 			const auto       text = slice(raw, span);
 			const std::array edits{ tour_text_edit{ span, text, std::string{ "Changed" }.append(nl).append(nl) } };
 			const auto       changed = edit_tour_markdown(raw, edits);
@@ -45,9 +46,6 @@ namespace {
 			const std::array duplicate{ edits[0], edits[0] };
 			expect(!edit_tour_markdown(raw, duplicate), "overlapping mapping refused");
 		}
-		expect(insert_tour_brief("JIRA\r\n", 6, "broken", "fix", "\r\n") == "JIRA\r\n## Problem\r\nbroken\r\n\r\n## Solution\r\nfix\r\n\r\n", "explicit insert preview preserves template bytes");
-		const auto duplicate = map_tour_markdown("## Problem\na\n## Problem\nb\n## Solution\nc\n");
-		expect(duplicate.Sections.size() == 3, "duplicate fields remain choice, not newest wins");
 		const auto nested = map_tour_markdown("1. [first](https://example.com/1)\n   1. [nested](https://example.com/2)\n1. [second](https://example.com/3)\n\nAnother route\n1) [last](https://example.com/4)\n");
 		expect(nested.Lists.size() == 2 && nested.Lists[0].Entries.size() == 2 && nested.Lists[0].MappingNeeded, "nested entries never become stops; lists remain separately selectable");
 		expect(!edit_tour_markdown("é", std::array{ tour_text_edit{ { 1, 2 }, "\xa9", "x" } }), "manual mapping cannot split UTF8");

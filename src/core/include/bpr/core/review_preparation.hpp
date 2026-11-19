@@ -48,9 +48,17 @@ namespace bpr::core {
 	///
 	/// RFC-BPR-0120 ([[BPR-2189]]): `local_run_check`, when they ask the
 	/// agent to plan and run a check on a local draft.
-	enum class writing_hook : std::uint8_t { problem,
-											 solution,
-											 outline,
+	///
+	/// [[BPR-2264]]: `writing_style`, the editable Feature
+	/// `/bpr:writing-style` (`prompt_features.hpp`): how the agent writes any
+	/// prose a person reads. It writes no field and is never a target; every
+	/// request whose answer a person reads carries it.
+	///
+	/// [[BPR-2270]]: `comment_labels`, the editable Feature
+	/// `/bpr:comment-labels`: how the agent labels a comment it writes for the
+	/// reviewer to post. A blank override (`writing_blank`, not empty) means no
+	/// labels.
+	enum class writing_hook : std::uint8_t { outline,
 											 comment,
 											 feedback,
 											 enhance_stop,
@@ -63,12 +71,15 @@ namespace bpr::core {
 											 review_proposed_fix,
 											 review_explain_file,
 											 review_suggest_change,
-											 local_run_check };
+											 local_run_check,
+											 writing_style,
+											 comment_labels };
 	inline constexpr std::size_t writing_hook_count = 16;
 	/// \brief [[BPR-2051]] Whether the hook is one of the Enhance prompts.
 	[[nodiscard]] constexpr auto enhance_hook(const writing_hook aHook) noexcept -> bool { return aHook >= writing_hook::enhance_stop && aHook <= writing_hook::enhance_writing; }
-	/// \brief The review-preparation hooks, `problem` to `comment`.
-	inline constexpr std::size_t review_preparation_hook_count     = 4;
+	/// \brief The review-preparation hooks, `outline` and `comment`. [[BPR-2274]]
+	/// retired the tour's Problem and Solution hooks that came before them.
+	inline constexpr std::size_t review_preparation_hook_count     = 2;
 	inline constexpr std::size_t maximum_writing_instruction_bytes = 8192;
 	/// \brief Profile-owned text overrides; empty selects the shipped version.
 	struct writing_hook_settings
@@ -96,7 +107,7 @@ namespace bpr::core {
 		tour_owner                   Owner;
 		tour_draft_id                Draft;
 		tour_stop_id                 Stop;
-		writing_hook                 Hook = writing_hook::problem;
+		writing_hook                 Hook = writing_hook::outline;
 		bpr_window_context           Window;
 		application_session_id       Session;
 		agent_profile_id             Agent;

@@ -66,8 +66,6 @@ namespace bpr::app {
 	auto tour_hook_name(core::writing_hook aHook) -> std::string_view
 	{
 		switch (aHook) {
-		case core::writing_hook::problem:  return "problem";
-		case core::writing_hook::solution: return "solution";
 		case core::writing_hook::outline:  return "outline";
 		case core::writing_hook::comment:  return "comment";
 		case core::writing_hook::feedback: return "feedback";
@@ -89,8 +87,12 @@ namespace bpr::app {
 		case core::writing_hook::review_suggest_change: return "review-suggest-change";
 		// RFC-BPR-0120 a local draft's check.
 		case core::writing_hook::local_run_check: return "local-run-check";
+		// [[BPR-2264]] The Writing style Feature.
+		case core::writing_hook::writing_style: return "writing-style";
+		// [[BPR-2270]] The Comment labels Feature.
+		case core::writing_hook::comment_labels: return "comment-labels";
 		}
-		return "problem";
+		return "outline";
 	}
 	auto parse_tour_hook(std::string_view aName) -> std::optional<core::writing_hook>
 	{
@@ -104,7 +106,7 @@ namespace bpr::app {
 	auto tour_assist_issue(application::review_tour_host& aHost, const core::writing_hook_settings& aSettings, const tour_assist_query& aQuery, std::vector<application::writing_source> aExtra, std::int64_t aNow) -> tour_cli_result<tour_assist_issued>
 	{
 		if (aQuery.Hook >= core::writing_hook::feedback) {
-			return refuse("invalid_hook", "The feedback hook writes no tour field. Use problem, solution, outline or comment.", 2);
+			return refuse("invalid_hook", "The feedback hook writes no tour field. Use outline or comment.", 2);
 		}
 		const auto shown = aHost.presentation();
 		if (!shown.Draft || shown.Loading) {
@@ -116,11 +118,7 @@ namespace bpr::app {
 		std::size_t begin = 0, end = 0;
 		if (!outline) {
 			const std::string* field = nullptr;
-			if (aQuery.Hook == core::writing_hook::problem) {
-				field = &draft.Problem;
-			} else if (aQuery.Hook == core::writing_hook::solution) {
-				field = &draft.Solution;
-			} else if (const auto stop = std::ranges::find(draft.Stops, aQuery.Stop, &core::tour_stop::Id); stop != draft.Stops.end()) {
+			if (const auto stop = std::ranges::find(draft.Stops, aQuery.Stop, &core::tour_stop::Id); stop != draft.Stops.end()) {
 				field = &stop->Body;
 			}
 			if (!field) {
@@ -175,12 +173,6 @@ namespace bpr::app {
 		for (auto& extra : aExtra) {
 			add(extra.Id, extra.Text, 4096, extra.Source);
 		}
-		if (aQuery.Hook != core::writing_hook::problem) {
-			add("private-problem", draft.Problem, 1024);
-		}
-		if (aQuery.Hook != core::writing_hook::solution) {
-			add("private-solution", draft.Solution, 1024);
-		}
 		if (scope == core::writing_scope::selection) {
 			add("field-before", std::string_view{ raw }.substr(0, begin), 512);
 			add("field-after", std::string_view{ raw }.substr(end), 512);
@@ -189,7 +181,7 @@ namespace bpr::app {
 			omitted.emplace_back("stop-source");
 		}
 		if (scope == core::writing_scope::empty_field && !outline && (sources.empty() || (aQuery.Hook == core::writing_hook::comment && std::ranges::find(sources, "stop-source", &application::writing_source::Id) == sources.end()))) {
-			return refuse("insufficient_context", "Not enough approved context to draft this. Add the author's problem or solution first; a stop's source needs a session that can read it.", 2);
+			return refuse("insufficient_context", "Not enough approved context to draft this: a stop's source needs a session that can read it.", 2);
 		}
 		if (outline && std::ranges::none_of(sources, [](const auto& aSource) { return aSource.Source.has_value(); })) {
 			return refuse("insufficient_context", "An outline needs at least one source destination. Add the code ranges to outline with --source PATH:LINES.", 2);
@@ -213,7 +205,13 @@ namespace bpr::app {
 		request.Selection.Begin     = begin;
 		request.Selection.End       = end;
 		request.Raw                 = raw;
-		const auto prompt           = application::build_writing_prompt(aSettings, request, sources);
+		// [[BPR-2264]]. The agent that completes the ticket writes a tour
+		// field a person reads, so the prompt carries the Writing style after
+		// the hook's instructions and format, before the evidence.
+		auto prompt = std::optional<std::string>{ };
+		if (auto parts = application::build_writing_prompt_parts(aSettings, request, sources)) {
+			prompt = parts->Instructions + application::writing_style_for(aSettings, true) + "\n" + parts->Message;
+		}
 		if (!prompt) {
 			return refuse("context_too_large", "This request exceeds the writing context limit. Select a smaller passage or shorten the hook instructions.", 2);
 		}

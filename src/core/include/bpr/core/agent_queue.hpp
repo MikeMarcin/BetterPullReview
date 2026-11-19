@@ -85,8 +85,8 @@ namespace bpr::core {
 		/// Feedback waiting for the pull request's tour draft.
 		tour_feedback,
 		/// [[BPR-2154]]. One part's conversation of the pull request's tour
-		/// (the whole tour after its first draft, the Problem, the Solution
-		/// or a stop): tour parts never share inputs.
+		/// (the whole tour after its first draft, or a stop): tour parts
+		/// never share inputs.
 		tour_part,
 		/// [[BPR-2154]] (Q2). One part's conversation of a local draft's
 		/// discussion, keyed by the draft's identity, not a pull request.
@@ -120,7 +120,7 @@ namespace bpr::core {
 	/// \brief The same pull request's session of another kind.
 	[[nodiscard]] auto with_kind(queued_session aSession, queued_session_kind aKind) -> queued_session;
 	/// \brief [[BPR-2154]]. A tour thread's part as a session key names it:
-	/// `tour`, `problem`, `solution` or `stop-ID`.
+	/// `tour` or `stop-ID`.
 	[[nodiscard]] auto tour_part_name(const tour_thread& aThread) -> std::string;
 	/// \brief The tour thread a part name names; none for one
 	/// `tour_part_name` does not make.

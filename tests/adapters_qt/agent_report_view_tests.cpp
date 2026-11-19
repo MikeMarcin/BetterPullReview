@@ -10,6 +10,8 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/report_page.hpp"
 
+#include "bpr/application/markdown_code_syntax.hpp"
+
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QDir>
@@ -29,6 +31,7 @@
 #include <QUuid>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <map>
@@ -96,6 +99,116 @@ namespace {
 		return found;
 	}
 
+	/// The page's layout formats of the block holding `aText`, and where in
+	/// that block it starts.
+	[[nodiscard]] auto formats_at(QTextEdit& aPage, const QString& aText) -> std::pair<QList<QTextLayout::FormatRange>, int>
+	{
+		for (auto block = aPage.document()->begin(); block.isValid(); block = block.next()) {
+			if (const auto at = block.text().indexOf(aText); at >= 0) {
+				return { block.layout() != nullptr ? block.layout()->formats() : QList<QTextLayout::FormatRange>{ }, static_cast<int>(at) };
+			}
+		}
+		return { { }, -1 };
+	}
+
+	/// [[BPR-2266]] (owner, 2026-11-18: "Seems like we lost syntax
+	/// highlights for inline code on reports"). The page's inline code is
+	/// coloured as the Agent tab's answers colour theirs: asked for as the
+	/// pull request's language through the same dispatch, coloured when the
+	/// spans arrive; a place stays a link.
+	void check_inline_code()
+	{
+		auto view = bpr::qt::agent_report_view{ };
+		view.resize(820, 700);
+		view.show();
+		auto asked = std::vector<bpr::application::markdown_code_syntax_request>{ };
+		view.set_dresser([&asked](bpr::qt::markdown_body_view& aView) {
+			aView.set_inline_code_selector("code.cpp");
+			aView.set_code_syntax_dispatch([&asked](std::vector<bpr::application::markdown_code_syntax_request> aRequests) { asked.insert(asked.end(), aRequests.begin(), aRequests.end()); });
+		});
+		const auto markdown = QStringLiteral("# Review of #4\n\n**Verdict:** Needs changes\n\nThe summary names `resize_target(width)`.\n\n## Must fix\n\n### issue: A zero height\n\n"
+											 "`src/engine/renderer.cpp:12`\n\nThe height from `window_extent()` is used unchecked.\n");
+		view.present({ .Turn = 1U, .Title = QStringLiteral("Review of #4"), .Markdown = markdown, .Question = QStringLiteral("Review this pull request"), .Byline = { } });
+		QApplication::processEvents();
+		expect(view.dressed_shown(), "the report is a page");
+		const auto wanted = [&asked](const std::string& aText) {
+			return std::ranges::any_of(asked, [&aText](const bpr::application::markdown_code_syntax_request& aRequest) { return aRequest.Selector == "code.cpp" && aRequest.Text && *aRequest.Text == aText; });
+		};
+		expect(wanted("resize_target(width)") && wanted("window_extent()"), "the report's inline code is asked for as the pull request's language");
+		auto* const page = view.dressed_view();
+		expect(formats_at(*page, QStringLiteral("window_extent()")).first.isEmpty(), "plain until the spans arrive");
+		const auto keyword = [](const std::string& aText, const std::uint32_t aLength) {
+			return bpr::application::markdown_code_syntax_publication{
+				.Selector = "code.cpp",
+				.Text     = std::make_shared<const std::string>(aText),
+				.Spans    = std::make_shared<const bpr::application::token_span_list>(bpr::application::token_span_list{ { .Line = 0U, .Column = 0U, .Length = aLength, .Role = bpr::core::appearance_role::syntax_keyword } }),
+			};
+		};
+		view.apply_code_syntax(keyword("window_extent()", 13U));
+		view.apply_code_syntax(keyword("resize_target(width)", 13U));
+		for (const auto& text : { QStringLiteral("window_extent()"), QStringLiteral("resize_target(width)") }) {
+			const auto [formats, at] = formats_at(*page, text);
+			expect(at >= 0 && !formats.isEmpty() && std::ranges::all_of(formats, [&](const QTextLayout::FormatRange& aRange) { return aRange.start >= at && aRange.start + aRange.length <= at + text.size(); })
+					   && std::ranges::any_of(formats, [&](const QTextLayout::FormatRange& aRange) { return aRange.start == at && aRange.length == 13 && aRange.format.foreground().style() != Qt::NoBrush; }),
+				   "the page colours its inline code, and only inside the span: " + text.toStdString());
+		}
+		expect(formats_at(*page, QStringLiteral("src/engine/renderer.cpp:12")).first.isEmpty(), "a place stays a link, not code to colour");
+		// A render again (a keep's state, a width) keeps the colours.
+		view.resize(600, 700);
+		view.refresh_keeps();
+		QApplication::processEvents();
+		expect(!formats_at(*view.dressed_view(), QStringLiteral("window_extent()")).first.isEmpty(), "a page drawn again keeps its colours");
+	}
+
+	/// [[BPR-2268]] (owner, 2026-11-18: "Draft comment button in a report
+	/// doesn't look good when the description text to its right line
+	/// wraps"). At a narrow width, with the words beside it on several
+	/// lines, the chip keeps the height it has beside one line, its words on
+	/// one line, its text level with the words' first line.
+	void check_keep_chip()
+	{
+		auto view = bpr::qt::agent_report_view{ };
+		view.show();
+		view.set_draft_dispatch([](const bpr::qt::report_draft&, bpr::qt::report_draft_done) { });
+		const auto markdown = QStringLiteral("# Review of #5\n\nOne fix.\n\n## Must fix\n\n### issue: A zero height reaches the swap chain\n\n`src/a.cpp:12`\n\nClamp it.\n");
+		// The chip's box and its words' line, and the words beside it, as the
+		// page laid them out.
+		struct measured
+		{
+			QRectF Box;
+			QRectF Chip;
+			QRectF Words;
+			qreal  Line = 0.0;
+		};
+		const auto measure = [&view](const int aWidth) {
+			view.resize(aWidth, 900);
+			QApplication::processEvents();
+			auto* const document = view.dressed_view()->document();
+			auto* const layout   = document->documentLayout();
+			const auto  link     = document->find(QStringLiteral("Draft comment"));
+			const auto  words    = document->find(QStringLiteral("at a.cpp:12"), link);
+			expect(!link.isNull() && !words.isNull() && link.currentTable() != nullptr, "the finding offers Draft comment beside its words");
+			const auto chip = layout->blockBoundingRect(link.block());
+			return measured{ .Box   = layout->frameBoundingRect(link.currentTable()),
+							 .Chip  = chip,
+							 .Words = layout->blockBoundingRect(words.block()),
+							 .Line  = link.block().layout()->lineCount() > 0 ? link.block().layout()->lineAt(0).height() : 0.0 };
+		};
+		view.present({ .Turn = 1U, .Title = QStringLiteral("Review of #5"), .Markdown = markdown, .Question = QStringLiteral("Review this pull request"), .Byline = { } });
+		const auto wide = measure(1400);
+		expect(wide.Words.height() < 2.0 * wide.Line, "wide, the words take one line");
+		for (const auto width : { 300, 340 }) {
+			const auto narrow = measure(width);
+			std::cout << "BPR-2268 width " << width << ": chip box " << narrow.Box.height() << " (one line beside: " << wide.Box.height() << "), chip text top " << narrow.Chip.top() << ", words top "
+					  << narrow.Words.top() << ", words " << narrow.Words.height() << " high\n";
+			expect(narrow.Words.height() >= 2.0 * narrow.Line, "narrow, the words wrap at " + std::to_string(width));
+			expect(narrow.Chip.height() < 1.5 * narrow.Line, "Draft comment stays on one line at " + std::to_string(width));
+			expect(narrow.Box.height() == wide.Box.height() && narrow.Box.height() <= narrow.Chip.height() + 12.0,
+				   "the chip keeps its natural height, its one line and padding, beside wrapped words at " + std::to_string(width));
+			expect(std::abs(narrow.Chip.top() - narrow.Words.top()) <= 1.0, "the chip's words are level with the first line beside it at " + std::to_string(width));
+		}
+	}
+
 	void click(QTextEdit& aPage, const QPoint aAt)
 	{
 		QMouseEvent press{ QEvent::MouseButtonPress, QPointF{ aAt }, aPage.viewport()->mapToGlobal(QPointF{ aAt }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
@@ -141,7 +254,8 @@ try {
 	if (const auto source = qEnvironmentVariable("BPR_REPORT_RENDER_MARKDOWN"); !source.isEmpty()) {
 		QFile file{ source };
 		expect(file.open(QIODevice::ReadOnly), "the report to draw opens");
-		view.resize(820, 900);
+		// [[BPR-2268]]: BPR_REPORT_RENDER_WIDTH draws it at another width.
+		view.resize(qEnvironmentVariableIntValue("BPR_REPORT_RENDER_WIDTH") > 0 ? qEnvironmentVariableIntValue("BPR_REPORT_RENDER_WIDTH") : 820, 900);
 		// The design round's renders: which look, and the dark theme's
 		// verdict colours when the palette is dark.
 		const auto look = qEnvironmentVariable("BPR_REPORT_RENDER_LOOK");
@@ -368,6 +482,8 @@ try {
 			   && view.keep_state(view.findings()[2].Outline).Phase == bpr::qt::report_keep_phase::refused && said.contains(QStringLiteral("resolve the draft open")),
 		   "it says how many were drafted and which were not, and the refused one says why: " + view.draft_all_said().toStdString());
 	expect(view.draft_all_offered() == 1U && said.contains(QStringLiteral("Draft all (1)")), "the refused one is still offered");
+	check_inline_code();
+	check_keep_chip();
 	std::cout << "AGENT_REPORT_VIEW_OK\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {

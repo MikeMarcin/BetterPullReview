@@ -97,13 +97,15 @@ namespace bpr::core::preparation_wire {
 	};
 	struct preparation
 	{
-		std::string                              Body;
-		std::uint64_t                            BodyRevision  = 1;
-		std::uint64_t                            TitleRevision = 1;
-		std::string                              Problem;
-		std::string                              Solution;
-		std::uint64_t                            ProblemRevision  = 1;
-		std::uint64_t                            SolutionRevision = 1;
+		std::string   Body;
+		std::uint64_t BodyRevision  = 1;
+		std::uint64_t TitleRevision = 1;
+		// [[BPR-2274]]. A tour is its stops. A draft saved before keeps these
+		// four keys; they are read and dropped, and never written.
+		std::string                              LegacyProblem;
+		std::string                              LegacySolution;
+		std::uint64_t                            LegacyProblemRevision  = 1;
+		std::uint64_t                            LegacySolutionRevision = 1;
 		std::vector<stop>                        Stops;
 		std::uint64_t                            NextStop = 1;
 		std::vector<proposal>                    Proposals;
@@ -183,9 +185,13 @@ struct glz::meta<pw::conversation>
 template <>
 struct glz::meta<pw::preparation>
 {
-	using value_type            = pw::preparation;
-	static constexpr auto value = object("body", &value_type::Body, "body_revision", &value_type::BodyRevision, "title_revision", &value_type::TitleRevision, "problem", &value_type::Problem, "solution", &value_type::Solution,
-										 "problem_revision", &value_type::ProblemRevision, "solution_revision", &value_type::SolutionRevision, "stops", &value_type::Stops, "next_stop", &value_type::NextStop, "proposals",
+	using value_type = pw::preparation;
+	static constexpr auto skip(const std::string_view aKey, const meta_context& aContext) -> bool
+	{
+		return aContext.op == operation::serialize && (aKey == "problem" || aKey == "solution" || aKey == "problem_revision" || aKey == "solution_revision");
+	}
+	static constexpr auto value = object("body", &value_type::Body, "body_revision", &value_type::BodyRevision, "title_revision", &value_type::TitleRevision, "problem", &value_type::LegacyProblem,
+										 "solution", &value_type::LegacySolution, "problem_revision", &value_type::LegacyProblemRevision, "solution_revision", &value_type::LegacySolutionRevision, "stops", &value_type::Stops, "next_stop", &value_type::NextStop, "proposals",
 										 &value_type::Proposals, "next_proposal", &value_type::NextProposal, "conversations", &value_type::Conversations, "next_conversation", &value_type::NextConversation,
 										 "check_grants", &value_type::CheckGrants);
 };
@@ -196,11 +202,11 @@ namespace bpr::core {
 
 		constexpr auto all_correspondences = std::array{ local_correspondence::exact, local_correspondence::changed, local_correspondence::ambiguous, local_correspondence::missing,
 														 local_correspondence::unavailable };
-		constexpr auto all_targets         = std::array{ local_proposal_target::title, local_proposal_target::description, local_proposal_target::problem,
-														 local_proposal_target::solution, local_proposal_target::stop, local_proposal_target::new_stop };
+		constexpr auto all_targets         = std::array{ local_proposal_target::title, local_proposal_target::description, local_proposal_target::stop, local_proposal_target::new_stop };
 		constexpr auto all_states          = std::array{ local_proposal_state::pending, local_proposal_state::accepted, local_proposal_state::rejected, local_proposal_state::outside_candidate };
-		constexpr auto all_subjects        = std::array{ local_subject::whole_change, local_subject::title, local_subject::description, local_subject::problem,
-														 local_subject::solution, local_subject::stop, local_subject::lines };
+		constexpr auto all_subjects        = std::array{ local_subject::whole_change, local_subject::title, local_subject::description, local_subject::stop, local_subject::lines };
+		/// [[BPR-2274]]. The retired Problem and Solution, as a stored draft names them.
+		[[nodiscard]] auto retired_brief(const std::string_view aName) -> bool { return aName == "problem" || aName == "solution"; }
 
 		template <typename TEnum, std::size_t TCount>
 		[[nodiscard]] auto enum_from(const std::string_view aName, const std::array<TEnum, TCount>& aValues) -> std::optional<TEnum>
@@ -354,8 +360,6 @@ namespace bpr::core {
 			switch (aTarget) {
 			case local_proposal_target::title:       return preparation.Description.TitleRevision;
 			case local_proposal_target::description: return preparation.Description.Revision;
-			case local_proposal_target::problem:     return preparation.Tour.ProblemRevision;
-			case local_proposal_target::solution:    return preparation.Tour.SolutionRevision;
 			case local_proposal_target::stop:        {
 				const auto* stop = find_stop(aDraft, aStop);
 				return stop == nullptr ? std::nullopt : std::optional{ stop->Revision };
@@ -367,8 +371,7 @@ namespace bpr::core {
 
 		[[nodiscard]] auto thread_ok(const std::string_view aThread) -> bool
 		{
-			// The Tour panel's Problem and Solution have chats of their own.
-			if (aThread == local_change_thread || aThread == "problem" || aThread == "solution") {
+			if (aThread == local_change_thread) {
 				return true;
 			}
 			constexpr auto prefix = std::string_view{ "stop:" };
@@ -416,8 +419,6 @@ namespace bpr::core {
 		switch (aTarget) {
 		case local_proposal_target::title:       return "title";
 		case local_proposal_target::description: return "description";
-		case local_proposal_target::problem:     return "problem";
-		case local_proposal_target::solution:    return "solution";
 		case local_proposal_target::stop:        return "stop";
 		case local_proposal_target::new_stop:    return "new_stop";
 		}
@@ -441,8 +442,6 @@ namespace bpr::core {
 		case local_subject::whole_change: return "whole_change";
 		case local_subject::title:        return "title";
 		case local_subject::description:  return "description";
-		case local_subject::problem:      return "problem";
-		case local_subject::solution:     return "solution";
 		case local_subject::stop:         return "stop";
 		case local_subject::lines:        return "lines";
 		}
@@ -575,12 +574,11 @@ namespace bpr::core {
 		const auto& tour        = aPreparation.Tour;
 		const auto& description = aPreparation.Description;
 		if (!text_ok(description.Body, maximum_local_description_bytes) || description.Revision == 0U || description.TitleRevision == 0U
-			|| !text_ok(tour.Problem, maximum_tour_field_bytes) || !text_ok(tour.Solution, maximum_tour_field_bytes) || tour.ProblemRevision == 0U || tour.SolutionRevision == 0U
 			|| tour.Stops.size() > maximum_tour_stops || aPreparation.Proposals.size() > maximum_local_proposals
 			|| aPreparation.Conversations.size() > maximum_local_conversations) {
 			return false;
 		}
-		auto total = tour.Problem.size() + tour.Solution.size();
+		auto total = std::size_t{ 0U };
 		auto stops = std::set<std::uint64_t>{ };
 		for (const auto& stop : tour.Stops) {
 			if (stop.Id == 0U || stop.Id >= tour.NextStop || !stops.insert(stop.Id).second || !line_ok(stop.Title, maximum_tour_field_bytes) || !text_ok(stop.Text, maximum_tour_field_bytes)
@@ -627,10 +625,6 @@ namespace bpr::core {
 		auto wire = pw::preparation{ .Body             = aPreparation.Description.Body,
 									 .BodyRevision     = aPreparation.Description.Revision,
 									 .TitleRevision    = aPreparation.Description.TitleRevision,
-									 .Problem          = aPreparation.Tour.Problem,
-									 .Solution         = aPreparation.Tour.Solution,
-									 .ProblemRevision  = aPreparation.Tour.ProblemRevision,
-									 .SolutionRevision = aPreparation.Tour.SolutionRevision,
 									 .NextStop         = aPreparation.Tour.NextStop,
 									 .NextProposal     = aPreparation.NextProposal,
 									 .NextConversation = aPreparation.NextConversation };
@@ -720,7 +714,7 @@ namespace bpr::core {
 		};
 		auto preparation = local_draft_preparation{
 			.Description      = { .Body = wire.Body, .Revision = wire.BodyRevision, .TitleRevision = wire.TitleRevision },
-			.Tour             = { .Problem = wire.Problem, .Solution = wire.Solution, .ProblemRevision = wire.ProblemRevision, .SolutionRevision = wire.SolutionRevision, .NextStop = wire.NextStop },
+			.Tour             = { .NextStop = wire.NextStop },
 			.NextProposal     = wire.NextProposal,
 			.NextConversation = wire.NextConversation,
 		};
@@ -769,7 +763,7 @@ namespace bpr::core {
 		// the turns' references to it.
 		auto dropped = std::set<std::uint64_t>{ };
 		for (const auto& entry : wire.Proposals) {
-			if (entry.Target == "claim" || entry.Target == "check") {
+			if (entry.Target == "claim" || entry.Target == "check" || retired_brief(entry.Target)) {
 				dropped.insert(entry.Id);
 				continue;
 			}
@@ -792,11 +786,15 @@ namespace bpr::core {
 											  .State        = *state });
 		}
 		for (const auto& entry : wire.Conversations) {
+			// [[BPR-2274]]. The retired Problem and Solution chats go with them.
+			if (retired_brief(entry.Thread)) {
+				continue;
+			}
 			auto conversation = local_conversation{
 				.Id = entry.Id, .Candidate = entry.Candidate, .Thread = entry.Thread, .Agent = entry.Agent, .AgentName = entry.AgentName, .Handle = entry.Handle, .Ended = entry.Ended
 			};
 			for (const auto& turn : entry.Turns) {
-				const auto subject = enum_from(turn.Subject, all_subjects);
+				const auto subject = retired_brief(turn.Subject) ? std::optional{ local_subject::whole_change } : enum_from(turn.Subject, all_subjects);
 				if (!subject) {
 					return std::nullopt;
 				}
@@ -846,34 +844,6 @@ namespace bpr::core {
 		if (description.Body != aBody) {
 			description.Body = std::move(aBody);
 			++description.Revision;
-		}
-		return next;
-	}
-
-	auto edit_tour_brief(const local_draft& aDraft, const std::uint64_t aExpectedVersion, std::string aProblem, std::string aSolution, const std::int64_t aNow)
-		-> preparation_result<local_draft>
-	{
-		if (aDraft.Version != aExpectedVersion) {
-			return std::unexpected{ preparation_refusal::stale };
-		}
-		if (aProblem.size() > maximum_tour_field_bytes || aSolution.size() > maximum_tour_field_bytes) {
-			return std::unexpected{ preparation_refusal::too_long };
-		}
-		if (!text_ok(aProblem, maximum_tour_field_bytes) || !text_ok(aSolution, maximum_tour_field_bytes)) {
-			return std::unexpected{ preparation_refusal::invalid };
-		}
-		auto  next = advanced(aDraft, aNow);
-		auto& tour = next.Preparation.Tour;
-		if (tour.Problem != aProblem) {
-			tour.Problem = std::move(aProblem);
-			++tour.ProblemRevision;
-		}
-		if (tour.Solution != aSolution) {
-			tour.Solution = std::move(aSolution);
-			++tour.SolutionRevision;
-		}
-		if (!valid(next.Preparation)) {
-			return std::unexpected{ preparation_refusal::too_long };
 		}
 		return next;
 	}
@@ -1220,14 +1190,6 @@ namespace bpr::core {
 			prep.Description.Body = proposal.Text;
 			++prep.Description.Revision;
 			break;
-		case local_proposal_target::problem:
-			prep.Tour.Problem = proposal.Text;
-			++prep.Tour.ProblemRevision;
-			break;
-		case local_proposal_target::solution:
-			prep.Tour.Solution = proposal.Text;
-			++prep.Tour.SolutionRevision;
-			break;
 		case local_proposal_target::stop: {
 			auto* stop = find_stop(next, proposal.Stop);
 			if (stop == nullptr) {
@@ -1483,7 +1445,7 @@ namespace bpr::core {
 		request.Resumed      = aConversation != nullptr && !aConversation->Handle.empty();
 		request.Instructions = aQuestion.Instructions;
 		request.Instructions += "\n\n## Answer format\n\nAnswer in prose. To propose a change, end with one fenced block whose info string is bpr-proposals, holding a JSON array of "
-								"objects: {\"target\": \"title\"|\"description\"|\"problem\"|\"solution\", \"text\": the whole new text}, {\"target\": \"stop\", \"stop\": its number, "
+								"objects: {\"target\": \"title\"|\"description\", \"text\": the whole new text}, {\"target\": \"stop\", \"stop\": its number, "
 								"\"title\", \"text\"} or {\"target\": \"new_stop\", \"path\", \"first\", \"last\" (lines of this candidate), \"title\", \"text\"}. "
 								"The author accepts or rejects each.\n";
 		auto& out = request.Text;
@@ -1494,14 +1456,8 @@ namespace bpr::core {
 		if (!prep.Description.Body.empty()) {
 			out += "\n## Description\n\n" + prep.Description.Body + "\n";
 		}
-		if (!prep.Tour.Problem.empty() || !prep.Tour.Solution.empty() || !prep.Tour.Stops.empty()) {
+		if (!prep.Tour.Stops.empty()) {
 			out += "\n## Tour\n";
-			if (!prep.Tour.Problem.empty()) {
-				out += "\nProblem:\n" + prep.Tour.Problem + "\n";
-			}
-			if (!prep.Tour.Solution.empty()) {
-				out += "\nSolution:\n" + prep.Tour.Solution + "\n";
-			}
 			for (const auto& stop : prep.Tour.Stops) {
 				const auto exact = stop.Current.Correspondence == local_correspondence::exact;
 				out += "\nStop " + std::to_string(stop.Id) + ": " + stop.Title + " (" + stop.Source.Path + ":"
@@ -1530,8 +1486,6 @@ namespace bpr::core {
 		case local_subject::whole_change: question += "the whole change."; break;
 		case local_subject::title:        question += "the title."; break;
 		case local_subject::description:  question += "the description."; break;
-		case local_subject::problem:      question += "the tour's Problem."; break;
-		case local_subject::solution:     question += "the tour's Solution."; break;
 		case local_subject::stop:         question += "stop " + std::to_string(aQuestion.Stop) + "."; break;
 		case local_subject::lines:
 			question += aQuestion.Lines ? "these lines, " + aQuestion.Lines->Path + ":" + std::to_string(aQuestion.Lines->FirstLine) + "-" + std::to_string(aQuestion.Lines->LastLine)
@@ -1639,13 +1593,7 @@ namespace bpr::core {
 		auto        preview = local_publication_preview{ .Title = aDraft.Title, .Body = aDraft.Preparation.Description.Body };
 		const auto& tour    = aDraft.Preparation.Tour;
 		auto&       out     = preview.Tour;
-		if (!tour.Problem.empty()) {
-			out += "## Problem\n\n" + tour.Problem + "\n\n";
-		}
-		if (!tour.Solution.empty()) {
-			out += "## Solution\n\n" + tour.Solution + "\n\n";
-		}
-		auto index = std::size_t{ 0U };
+		auto        index   = std::size_t{ 0U };
 		for (const auto& stop : tour.Stops) {
 			++index;
 			if (decide_local_stop(stop).State != tour_acceptance_state::accepted) {

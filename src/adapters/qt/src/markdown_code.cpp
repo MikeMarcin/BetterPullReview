@@ -306,7 +306,7 @@ namespace bpr::qt::detail {
 				if (utf8.empty() || utf8.find('\n') != std::string::npos || std::ranges::any_of(Inline, [&utf8](const inline_code& aCode) { return *aCode.Text == utf8; })) {
 					return;
 				}
-				Inline.push_back({ .Text = std::make_shared<const std::string>(std::move(utf8)), .Spans = { } });
+				Inline.push_back({ .Text = std::make_shared<const std::string>(std::move(utf8)), .Spans = { }, .Arrived = { } });
 			});
 		}
 	}
@@ -646,9 +646,10 @@ namespace bpr::qt::detail {
 		}
 		if (aSpans.Selector == InlineSelector) {
 			for (auto& code : Inline) {
-				if (*code.Text == *aSpans.Text && code.Spans != aSpans.Spans) {
-					code.Spans = aSpans.Spans;
-					taken      = true;
+				if (*code.Text == *aSpans.Text && code.Arrived != aSpans.Spans) {
+					code.Arrived = aSpans.Spans;
+					code.Spans   = std::make_shared<const application::token_span_list>(core::markdown_inline_code_members(*code.Text, *aSpans.Spans));
+					taken        = true;
 				}
 			}
 		}

@@ -362,38 +362,6 @@ namespace bpr::qt {
 			return { };
 		}
 
-		[[nodiscard]] auto theme_reason_text(const core::theme_import_reason aReason)
-			-> QString
-		{
-			switch (aReason) {
-			case core::theme_import_reason::document_too_large:
-				return QStringLiteral("the document is larger than the safe limit");
-			case core::theme_import_reason::malformed_document:
-				return QStringLiteral("the document structure is malformed");
-			case core::theme_import_reason::unsupported_version:
-				return QStringLiteral("the theme version is unsupported");
-			case core::theme_import_reason::unknown_field:
-				return QStringLiteral("the document contains an unknown field");
-			case core::theme_import_reason::duplicate_field:
-				return QStringLiteral("the document repeats a field");
-			case core::theme_import_reason::missing_field:
-				return QStringLiteral("the document omits a required field");
-			case core::theme_import_reason::external_reference:
-				return QStringLiteral("external references are not allowed");
-			case core::theme_import_reason::include_directive:
-				return QStringLiteral("include directives are not allowed");
-			case core::theme_import_reason::style_payload:
-				return QStringLiteral("style payloads are not allowed");
-			case core::theme_import_reason::executable_payload:
-				return QStringLiteral("executable payloads are not allowed");
-			case core::theme_import_reason::malformed_color:
-				return QStringLiteral("a semantic colour is malformed");
-			case core::theme_import_reason::unknown_base:
-				return QStringLiteral("the base names no built-in theme");
-			}
-			return QStringLiteral("the document was refused");
-		}
-
 		[[nodiscard]] auto variant_text(const core::appearance_variant aVariant)
 			-> QString
 		{
@@ -757,7 +725,7 @@ namespace bpr::qt {
 		ImportButton = make_header_button(
 			colours.Frame,
 			QStringLiteral("Import…"),
-			QStringLiteral("Import theme"),
+			QStringLiteral("Import settings"),
 			QStringLiteral("appearanceImportTheme"));
 		ExportButton = make_header_button(
 			colours.Frame,
@@ -770,6 +738,7 @@ namespace bpr::qt {
 			QStringLiteral("Reset all colours"),
 			QStringLiteral("appearanceColoursReset"));
 		colours.Header->addWidget(ImportButton);
+		ImportButton->setVisible(false);
 		colours.Header->addWidget(ExportButton);
 		colours.Header->addWidget(coloursReset);
 		QObject::connect(ImportButton, &QPushButton::clicked, this, [this] {
@@ -1234,38 +1203,6 @@ namespace bpr::qt {
 				: QStringLiteral("Appearance settings are in effect.")));
 	}
 
-	void appearance_settings_panel::preview_import(
-		const core::appearance_palette& aPalette)
-	{
-		PendingPreview.reset();
-		// [[BPR-1479]]. Roles an older theme omits arrive filled from the
-		// theme's own base, so the preview is exactly what Keep changes saves.
-		PreviewPalette = aPalette;
-		refresh_colours();
-		refresh_preview_bar();
-		// Names the theme it previews into, because it previews into exactly one
-		// and keeping the changes changes only that one.
-		Status->setText(with_persistence_status(
-			QStringLiteral("Imported theme is previewed into %1 only; Keep changes "
-						   "saves it.")
-				.arg(theme_text())));
-	}
-
-	void appearance_settings_panel::report(
-		const std::span<const core::theme_import_rejection> aRejections)
-	{
-		++Statistics.Rejections;
-		auto text = QStringLiteral(
-			"Theme import refused; the committed palette is unchanged:");
-		for (const auto& rejection : aRejections) {
-			text += QStringLiteral("\n· Line %1, %2: %3")
-						.arg(static_cast<qulonglong>(rejection.Line))
-						.arg(QString::fromStdString(rejection.Subject))
-						.arg(theme_reason_text(rejection.Reason));
-		}
-		Status->setText(with_persistence_status(std::move(text)));
-	}
-
 	void appearance_settings_panel::report(
 		const std::span<const application::appearance_contrast_rejection>
 			aRejections)
@@ -1323,28 +1260,6 @@ namespace bpr::qt {
 					  .arg(theme_text())
 				: QStringLiteral("Theme export failed. Choose a writable regular "
 								 "file and try again.")));
-	}
-
-	void appearance_settings_panel::report_theme_document_unavailable()
-	{
-		++Statistics.Rejections;
-		Status->setText(with_persistence_status(QStringLiteral(
-			"Theme import failed because the selected local file could not be read; "
-			"the committed palette is unchanged.")));
-	}
-
-	void appearance_settings_panel::request_theme_import(const QString& aPath)
-	{
-		if (aPath.isEmpty()) {
-			return;
-		}
-		PendingPreview.reset();
-		++Statistics.ThemeImports;
-		if (Dispatch) {
-			Dispatch(application::import_appearance_theme_intent{
-				.Path = aPath.toStdString(),
-			});
-		}
 	}
 
 	void appearance_settings_panel::report(
@@ -1739,23 +1654,42 @@ namespace bpr::qt {
 		}
 	}
 
+	void appearance_settings_panel::set_import_handler(std::function<void()> aImport)
+	{
+		Import = std::move(aImport);
+		// A build without Import Profile Settings has nothing to import into.
+		ImportButton->setVisible(static_cast<bool>(Import));
+	}
+
+	/// \brief [[BPR-2283]]. Import… is Import Profile Settings…: a theme rides
+	/// a `.bprsettings` file, and the one import dialog shows what it holds.
 	void appearance_settings_panel::select_theme_file()
 	{
-		request_theme_import(QFileDialog::getOpenFileName(
-			this,
-			QStringLiteral("Import appearance theme"),
-			{ },
-			QStringLiteral(
-				"BetterPullReview themes (*.bprtheme *.theme);;All files (*)")));
+		++Statistics.ThemeImports;
+		if (Import) {
+			Import();
+		}
 	}
 
 	void appearance_settings_panel::select_theme_destination()
 	{
-		request_theme_export(QFileDialog::getSaveFileName(
+		auto path = QFileDialog::getSaveFileName(
 			this,
 			QStringLiteral("Export saved theme"),
-			QStringLiteral("theme.bprtheme"),
-			QStringLiteral("Theme files (*.bprtheme)")));
+			theme_file_name(),
+			QStringLiteral("BetterPullReview settings (*.bprsettings)"));
+		if (!path.isEmpty() && !path.endsWith(QStringLiteral(".bprsettings"), Qt::CaseInsensitive)) {
+			path += QStringLiteral(".bprsettings");
+		}
+		request_theme_export(path);
+	}
+
+	auto appearance_settings_panel::theme_file_name() const -> QString
+	{
+		// "High contrast dark" is high-contrast-dark.bprsettings.
+		auto name = theme_text().toLower();
+		name.replace(QLatin1Char(' '), QLatin1Char('-'));
+		return (ResolvedVariant.has_value() ? name : QStringLiteral("theme")) + QStringLiteral(".bprsettings");
 	}
 
 	/// \brief [[BPR-1336]]. The zoom the row shows, or the record's own when

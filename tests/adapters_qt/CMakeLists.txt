@@ -653,6 +653,15 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "pull-request-overview-page-tests:pass"
         TIMEOUT 120
 )
+# [[BPR-2280]]. The pull request's description in Author's Workflow tab.
+bpr_add_executable(test_better_pull_review_qt_author_description_editor_tests author_description_editor_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_author_description_editor_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_author_description_editor_tests)
+bpr_enable_warnings(test_better_pull_review_qt_author_description_editor_tests)
+bpr_add_network_isolated_test(NAME qt_author_description_editor COMMAND test_better_pull_review_qt_author_description_editor_tests)
+set_tests_properties(qt_author_description_editor PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
+    PASS_REGULAR_EXPRESSION "author-description-editor-tests:pass" TIMEOUT 120)
 # [[BPR-1094]]. The Overview's chips at 125% and 200%: every built-in theme,
 # Icons and Letters, identity, ?, Open and All, whole counts, +n, the keyboard
 # route and scrolling. The 100% row above runs the same test.
@@ -1337,6 +1346,10 @@ if(NOT bpr_qtgui_private_header_count EQUAL 1)
     message(FATAL_ERROR "Expected one versioned QtGui private header directory, found: ${bpr_qtgui_private_headers}")
 endif()
 target_include_directories(test_better_pull_review_qt_workbench_window_tests SYSTEM PRIVATE
+    "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
+# [[BPR-2279]]. The drawer's course hands in a trackpad's phased wheels the
+# same way.
+target_include_directories(test_better_pull_review_qt_conversation_cards_view_tests SYSTEM PRIVATE
     "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
 
 foreach(bpr_ribbon_scale IN ITEMS 1.0 1.25 2.0)
@@ -2200,12 +2213,6 @@ bpr_enable_warnings(test_review_tour_publication_working)
 bpr_add_network_isolated_test(NAME qt_review_tour_publication_working COMMAND test_review_tour_publication_working)
 set_tests_properties(qt_review_tour_publication_working PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "review-tour-publication-working:pass" TIMEOUT 30)
 
-bpr_add_executable(test_review_tour_steps review_tour_steps_tests.cpp) # [[BPR-1784]]
-target_link_libraries(test_review_tour_steps PRIVATE BetterPullReview::AdapterQt)
-bpr_enable_hardening(test_review_tour_steps)
-bpr_enable_warnings(test_review_tour_steps)
-bpr_add_network_isolated_test(NAME qt_review_tour_steps COMMAND test_review_tour_steps)
-set_tests_properties(qt_review_tour_steps PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "review-tour-steps:pass" TIMEOUT 30)
 bpr_add_executable(test_review_tour_agent_help review_tour_agent_help_tests.cpp) # [[BPR-1878]]
 target_link_libraries(test_review_tour_agent_help PRIVATE BetterPullReview::AdapterQt)
 bpr_enable_hardening(test_review_tour_agent_help)
@@ -2920,6 +2927,25 @@ bpr_enable_hardening(test_tour_stop_card_cleanup)
 bpr_enable_warnings(test_tour_stop_card_cleanup)
 bpr_add_network_isolated_test(NAME qt_tour_stop_card_cleanup COMMAND test_tour_stop_card_cleanup)
 set_tests_properties(qt_tour_stop_card_cleanup PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "tour-stop-card-cleanup:pass" TIMEOUT 60)
+# [[BPR-2279]]. A trackpad gesture moves only the scroller it began in,
+# momentum included; phased wheels go in through QWindowSystemInterface.
+bpr_add_executable(test_nested_scroll_latch nested_scroll_latch_tests.cpp)
+target_link_libraries(test_nested_scroll_latch PRIVATE BetterPullReview::AdapterQt)
+target_include_directories(test_nested_scroll_latch SYSTEM PRIVATE
+    "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
+bpr_enable_hardening(test_nested_scroll_latch)
+bpr_enable_warnings(test_nested_scroll_latch)
+bpr_add_network_isolated_test(NAME qt_nested_scroll_latch COMMAND test_nested_scroll_latch)
+set_tests_properties(qt_nested_scroll_latch PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "nested-scroll-latch:pass" TIMEOUT 60)
+# [[BPR-2282]]. A file dropped onto a window: one file is handed on, two are
+# refused with a word, a drag with no file is left to the widget, a modal
+# dialog refuses it, and the highlight shows only while a file hovers.
+bpr_add_executable(test_window_file_drop window_file_drop_tests.cpp)
+target_link_libraries(test_window_file_drop PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_window_file_drop)
+bpr_enable_warnings(test_window_file_drop)
+bpr_add_network_isolated_test(NAME qt_window_file_drop COMMAND test_window_file_drop)
+set_tests_properties(qt_window_file_drop PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "window-file-drop:pass" TIMEOUT 60)
 # [[BPR-2017]], RFC-BPR-0107. Import configuration… and Export configuration….
 bpr_add_executable(test_agent_configuration_dialogs agent_configuration_dialogs_tests.cpp)
 target_link_libraries(test_agent_configuration_dialogs PRIVATE BetterPullReview::AdapterQt)

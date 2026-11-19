@@ -3,6 +3,7 @@
 
 #include "bpr/core/agent_entry.hpp"
 #include "bpr/core/prompt_pack.hpp"
+#include "bpr/core/theme_exchange.hpp"
 #include "bpr/core/workflow_configuration.hpp"
 
 #include <array>
@@ -29,19 +30,25 @@
 /// local folder, numeric agent ID, host-minted identity, workspace or
 /// history.
 ///
-/// RFC-BPR-0125 AC24 ([[BPR-2149]]): version 2 adds one prompt pack, the
+/// RFC-BPR-0125 AC24 ([[BPR-2149]]): a file may hold one prompt pack, the
 /// reviewer's own suggested prompts under their UUIDs (the one host-minted
-/// identity a file carries, since an import matches by it). A file with no
-/// prompt pack is written as version 1, exactly as before, and both versions
-/// are read.
+/// identity a file carries, since an import matches by it).
+///
+/// [[BPR-2283]] (owner, 2026-11-19: "Can we unify themes into the same
+/// thing. And can we change the extension to .bprsettings"; then "don't keep
+/// legacy support"). Version 3 adds a Theme section and is the one version
+/// written and read: an earlier file, and a `.bprtheme` theme document, are
+/// not Profile Settings. Every export is a `.bprsettings` file; what a file
+/// is comes from its content, never its name.
 namespace bpr::core {
-	/// [[BPR-2198]]. The one format marker and the newest version; a file of
-	/// a version above it is refused as newer.
+	/// [[BPR-2198]]. The one format marker and the one version; a file of a
+	/// version above it is refused as newer, and one below it ([[BPR-2283]])
+	/// as not Profile Settings.
 	inline constexpr std::string_view agent_configuration_format  = "bpr.profile-settings";
-	inline constexpr std::uint32_t    agent_configuration_version = 2U;
-	/// RFC-BPR-0125 AC24. The version a file with no prompt pack is written as.
-	inline constexpr std::uint32_t agent_configuration_version_without_prompt_pack = 1U;
-	inline constexpr std::size_t   maximum_agent_configuration_bytes               = 1024U * 1024U;
+	inline constexpr std::uint32_t    agent_configuration_version = 3U;
+	/// [[BPR-2283]]. The file name extension every export is written with.
+	inline constexpr std::string_view profile_settings_extension        = "bprsettings";
+	inline constexpr std::size_t      maximum_agent_configuration_bytes = 1024U * 1024U;
 	/// The free-text label an exporter gives the file, and its own name.
 	inline constexpr std::size_t maximum_agent_configuration_label_bytes = 128U;
 	inline constexpr std::size_t maximum_portable_id_bytes               = 64U;
@@ -70,8 +77,11 @@ namespace bpr::core {
 		/// Saved and followed repositories by host and owner/name; never a
 		/// local folder.
 		repositories,
+		/// [[BPR-2283]]. The colours of the theme on screen and the built-in
+		/// theme they were made against.
+		theme,
 	};
-	inline constexpr std::size_t profile_settings_section_count = 5U;
+	inline constexpr std::size_t profile_settings_section_count = 6U;
 	[[nodiscard]] auto           stable_name(profile_settings_section aSection) noexcept -> std::string_view;
 	/// \brief Whether Export starts with a section ticked: every section but
 	/// Identity, which a reviewer shares only on purpose.
@@ -129,6 +139,28 @@ namespace bpr::core {
 	/// followed repository once each, in a stable order.
 	[[nodiscard]] auto portable_identity_of(const profile_facts& aFacts) -> portable_identity;
 	[[nodiscard]] auto portable_repositories_of(const profile_facts& aFacts) -> std::vector<portable_repository>;
+
+	/// \brief [[BPR-2283]]. The Theme section: one theme's colours, every
+	/// role, and the built-in theme they were made against.
+	struct portable_theme
+	{
+		appearance_variant Base = appearance_variant::light;
+		appearance_palette Palette{ };
+
+		auto operator<=>(const portable_theme&) const = default;
+	};
+	/// \brief [[BPR-2283]]. The Theme section as read. `Theme` holds the
+	/// colours exactly when `Rejections` is empty; a role the file predates is
+	/// `unassigned_appearance_color` there until the host fills it from the
+	/// base (`with_base_defaults`). A refused theme is listed and cannot be
+	/// imported; the rest of the file still can.
+	struct decoded_theme
+	{
+		std::optional<portable_theme>       Theme;
+		std::vector<theme_import_rejection> Rejections;
+
+		auto operator<=>(const decoded_theme&) const = default;
+	};
 
 	/// \brief One agent as the file carries it: everything an entry keeps but
 	/// where its program is, its numeric ID and its identity.
@@ -191,10 +223,11 @@ namespace bpr::core {
 		/// [[BPR-2198]]. Absent unless Identity was chosen.
 		std::optional<portable_identity> Identity;
 		std::vector<portable_repository> Repositories;
-		/// RFC-BPR-0125 AC24. The prompt pack; with no prompt in it the file
-		/// is version 1.
+		/// RFC-BPR-0125 AC24. The prompt pack; left out with no prompt in it.
 		prompt_pack_identity               PromptPack;
 		std::vector<portable_prompt_macro> PromptMacros;
+		/// [[BPR-2283]]. Absent unless Theme was chosen.
+		std::optional<portable_theme> Theme;
 
 		auto operator<=>(const agent_configuration&) const = default;
 	};
@@ -298,10 +331,11 @@ namespace bpr::core {
 		/// [[BPR-2198]].
 		std::optional<portable_identity> Identity;
 		std::vector<portable_repository> Repositories;
-		/// RFC-BPR-0125 AC24. The file's version, and its prompt pack (version
-		/// 2 only).
-		std::uint32_t                      Version = agent_configuration_version_without_prompt_pack;
+		/// RFC-BPR-0125 AC24. The file's version, and its prompt pack.
+		std::uint32_t                      Version = agent_configuration_version;
 		std::optional<decoded_prompt_pack> PromptPack;
+		/// [[BPR-2283]].
+		std::optional<decoded_theme> Theme;
 
 		auto operator<=>(const decoded_configuration&) const = default;
 	};
@@ -516,6 +550,25 @@ namespace bpr::core {
 
 		auto operator<=>(const repository_import_plan&) const = default;
 	};
+	/// \brief [[BPR-2283]]. The file's Theme against the theme on screen. It
+	/// starts chosen when it changes the colours; it replaces the on-screen
+	/// theme's colours whole.
+	struct theme_import_plan
+	{
+		import_standing Standing = import_standing::refused;
+		bool            Default  = false;
+
+		auto operator<=>(const theme_import_plan&) const = default;
+	};
+	/// \brief [[BPR-2283]]. The Theme's standing: refused when the file's
+	/// theme was refused, or `aReadable` (the host's filled palette, none when
+	/// it is not readable on every theme) is none; unchanged when it equals
+	/// `aHere`, the on-screen theme's colours; updated otherwise.
+	[[nodiscard]] auto plan_theme_import(const decoded_theme& aFile, const std::optional<appearance_palette>& aReadable, const appearance_palette& aHere) -> theme_import_plan;
+	/// \brief [[BPR-2283]]. A file holding only `aTheme`: what Appearance's
+	/// Export… writes. None when it cannot be written.
+	[[nodiscard]] auto encode_theme_settings(const portable_theme& aTheme, std::string aExportedBy) -> std::optional<std::string>;
+
 	struct configuration_import_plan
 	{
 		std::vector<agent_import_plan>      Agents;

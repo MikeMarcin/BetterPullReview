@@ -435,6 +435,61 @@ namespace {
 		expect(appServer && appServer->DeferredContext.find("SKILL-RULE") != std::string::npos, "the App Server keeps it in the message");
 	}
 
+	/// [[BPR-2264]]. The Writing style comes after every other instruction:
+	/// last in the system prompt, or the request's last field where the
+	/// instructions are pasted. Named in the question too, it is sent once,
+	/// and an override is what every route sends.
+	void test_the_writing_style_follows_every_other_instruction()
+	{
+		const auto count = [](const std::string& aText, const std::string_view aNeedle) {
+			auto found = std::size_t{ 0U };
+			for (auto at = aText.find(aNeedle); at != std::string::npos; at = aText.find(aNeedle, at + 1U)) {
+				++found;
+			}
+			return found;
+		};
+		const auto sent = [&count](const application::agent_launch_request& aLaunch, const std::string_view aNeedle) {
+			auto all = aLaunch.Input + aLaunch.DeferredContext;
+			for (const auto& argument : aLaunch.Arguments) {
+				all += argument;
+			}
+			return count(all, aNeedle);
+		};
+		const auto defaults = core::writing_hook_settings{ };
+		const auto style    = application::writing_style_for(defaults, true);
+		const auto marker   = std::string_view{ "Writing style (the /bpr:writing-style Feature)." };
+		auto       value    = supplement("Explain the cache. /bpr:writing-style");
+		value.Brief         = core::supplement_brief{ .Title = "Cache", .BaseBranch = "main", .Skill = core::brief_review_skill{ .Text = "SKILL-RULE: review the cache's eviction first." } };
+		const auto claude   = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), value, reader(), { .Path = core::agent_run_path::agent_tab, .WritingStyle = style });
+		expect(claude && has(claude->Arguments, "--append-system-prompt"), "a Claude Agent tab turn has a system prompt");
+		const auto& system = claude->Arguments[index_of(claude->Arguments, "--append-system-prompt") + 1U];
+		expect(system.starts_with("SKILL-RULE") && system.ends_with(style) && sent(*claude, marker) == 1U, "Claude: the skill, then the style, last and once, though the question names it");
+		const auto writing = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement(), reader(),
+															 { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = "Return JSON only.", .WritingStyle = style });
+		expect(writing && writing->Arguments[index_of(writing->Arguments, "--append-system-prompt") + 1U] == "Return JSON only.\n\n" + style, "a JSON writing run: its format first, the style after it");
+		const auto exec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), value, reader(), { .Path = core::agent_run_path::agent_tab, .WritingStyle = style });
+		expect(exec && std::ranges::any_of(exec->Arguments, [](const std::string& aArgument) { return aArgument.starts_with("developer_instructions=") && aArgument.find("Writing style (the") != std::string::npos; })
+				   && exec->Input.find("writing_style") == std::string::npos,
+			   "Codex exec: in developer_instructions");
+		const auto appServer = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), value, reader(), { .Path = core::agent_run_path::agent_tab, .WritingStyle = style });
+		expect(appServer && appServer->InstructionsRoute == application::agent_instructions_route::pasted && appServer->DeferredContext.find("writing_style\t") != std::string::npos
+				   && sent(*appServer, marker) == 1U,
+			   "the App Server: the request's writing_style field, once");
+		auto hooks                                                                   = core::writing_hook_settings{ };
+		hooks.Overrides[static_cast<std::size_t>(core::writing_hook::writing_style)] = "STYLE-OVERRIDE: follow my house-style skill.";
+		const auto overridden                                                        = application::writing_style_for(hooks, true);
+		for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_jsonl_exec, core::agent_protocol::codex_app_server }) {
+			const auto launch = application::build_agent_launch(profile(protocol), value, reader(), { .Path = core::agent_run_path::agent_tab, .WritingStyle = overridden });
+			expect(launch && sent(*launch, "STYLE-OVERRIDE") == 1U && sent(*launch, "Put the point first") == 0U, "an override is what every route sends, in place of the shipped text");
+		}
+		hooks.Overrides[static_cast<std::size_t>(core::writing_hook::writing_style)] = std::string(core::maximum_writing_instruction_bytes, 'x');
+		const auto longest                                                           = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), value, reader(),
+																													   { .Path = core::agent_run_path::agent_tab, .WritingStyle = application::writing_style_for(hooks, true) });
+		expect(longest.has_value(), "the longest override a profile keeps still launches");
+		const auto none = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement(), reader());
+		expect(none && sent(*none, marker) == 0U, "a launch given no style carries none");
+	}
+
 	/// [[BPR-2141]], RFC-BPR-0101 AC13. Draft Tour, a field's draft and an
 	/// outline are one tool-free call with the diff up front, within a
 	/// budget; past it, or with an agent that has no tool-free mode, they
@@ -461,7 +516,7 @@ namespace {
 		expect(reading && reading->find("PATCH_MARKER") == std::string::npos && reading->find("read-only git") != std::string::npos, "the repository-reading draft is told to read");
 		const auto parts = application::split_tour_prompt(*upFront);
 		expect(parts.Instructions + parts.Message == *upFront && parts.Message.starts_with("Untrusted evidence JSON") && parts.Instructions.find("PATCH_MARKER") == std::string::npos
-				   && parts.Instructions.find("bpr.tour-draft.v1") != std::string::npos,
+				   && parts.Instructions.find("bpr.tour-draft.v2") != std::string::npos,
 			   "[[BPR-2140]] the instructions split from the evidence, and joined they are the prompt");
 		expect(parts.Instructions.size() <= core::maximum_system_prompt_argument_bytes, "Draft Tour's instructions fit the system prompt argument");
 		const auto diff = application::render_up_front_diff(files);
@@ -623,6 +678,7 @@ auto main(const int aCount, char** aArguments) -> int
 	test_the_writing_prompt_splits_into_instructions_and_material();
 	test_a_local_draft_discussion_resumes_its_native_session();
 	test_the_review_skill_rides_the_system_prompt();
+	test_the_writing_style_follows_every_other_instruction();
 	test_a_fresh_draft_carries_its_diff_up_front();
 	test_a_failed_sign_in_ends_the_run_at_once();
 	test_every_harness_run_reads_the_users_sign_in();

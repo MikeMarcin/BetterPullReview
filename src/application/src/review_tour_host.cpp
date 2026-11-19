@@ -206,7 +206,7 @@ namespace bpr::application {
 				record_import(core::operation_failure::none, stopwatch, stops);
 				return;
 			}
-			if (!draft.Problem.empty() || !draft.Solution.empty() || !draft.Stops.empty() || draft.Remote) {
+			if (!draft.Stops.empty() || draft.Remote) {
 				State.ImportNotice = "A private draft already exists. Its text is preserved; importing cannot replace it.";
 				notify();
 				record_import(core::operation_failure::draft_exists, stopwatch, stops);
@@ -289,8 +289,6 @@ namespace bpr::application {
 		static auto label(core::tour_command_kind aKind) -> std::string
 		{
 			switch (aKind) {
-			case core::tour_command_kind::problem:   return "Edit Problem";
-			case core::tour_command_kind::solution:  return "Edit Solution";
 			case core::tour_command_kind::edit_stop: return "Edit stop";
 			case core::tour_command_kind::insert:    return "Add stop";
 			case core::tour_command_kind::move:      return "Move stop";
@@ -312,7 +310,7 @@ namespace bpr::application {
 				// author is on stays selected unless the edit removed it.
 				const bool foreign = Origin != tour_presentation_origin::desktop && aCommand.Kind != core::tour_command_kind::observe_head;
 				const bool kept    = foreign && (!State.Selected.value() || std::ranges::find(outcome.Accepted.Stops, State.Selected, &core::tour_stop::Id) != outcome.Accepted.Stops.end());
-				const bool text    = aCommand.Kind == core::tour_command_kind::problem || aCommand.Kind == core::tour_command_kind::solution || aCommand.Kind == core::tour_command_kind::edit_stop;
+				const bool text    = aCommand.Kind == core::tour_command_kind::edit_stop;
 				if (aCommand.Kind == core::tour_command_kind::observe_head) {
 					Undo.clear();
 					Redo.clear();
@@ -327,9 +325,7 @@ namespace bpr::application {
 				if (!kept) {
 					State.Selected = outcome.Selected;
 				}
-				State.Resume = { aCommand.Kind == core::tour_command_kind::problem ? tour_section::problem : aCommand.Kind == core::tour_command_kind::solution ? tour_section::solution
-																																								: tour_section::stops,
-								 outcome.Selected };
+				State.Resume = { outcome.Selected };
 				pump();
 			}
 			notify();
@@ -368,12 +364,6 @@ namespace bpr::application {
 		};
 		static auto assist_field(const core::review_tour& aDraft, core::writing_hook aHook, core::tour_stop_id aStop) -> const std::string*
 		{
-			if (aHook == core::writing_hook::problem) {
-				return &aDraft.Problem;
-			}
-			if (aHook == core::writing_hook::solution) {
-				return &aDraft.Solution;
-			}
 			if (aHook == core::writing_hook::comment) {
 				const auto stop = std::ranges::find(aDraft.Stops, aStop, &core::tour_stop::Id);
 				return stop == aDraft.Stops.end() ? nullptr : &stop->Body;
@@ -466,19 +456,17 @@ namespace bpr::application {
 				}
 				return refused_assist(std::move(out), "invalid_result", "The result cannot be applied to the captured text. Your text is unchanged.", core::tour_refusal::invalid_command);
 			}
-			core::tour_command command{ .Draft = State.Draft->Id, .Owner = State.Draft->Owner, .ExpectedRevision = State.Draft->Revision };
-			if (ticket.Hook == core::writing_hook::comment) {
-				const auto stop    = std::ranges::find(State.Draft->Stops, ticket.Stop, &core::tour_stop::Id);
-				command.Kind       = core::tour_command_kind::edit_stop;
-				command.Stop       = ticket.Stop;
-				command.Value      = *stop;
-				command.Value.Body = *text;
-			} else {
-				command.Kind = ticket.Hook == core::writing_hook::problem ? core::tour_command_kind::problem : core::tour_command_kind::solution;
-				command.Text = *text;
+			// [[BPR-2274]]. A stop's comment is the one field a writing hook rewrites.
+			const auto stop = std::ranges::find(State.Draft->Stops, ticket.Stop, &core::tour_stop::Id);
+			if (ticket.Hook != core::writing_hook::comment || stop == State.Draft->Stops.end()) {
+				return refused_assist(std::move(out), "invalid_result", "The result cannot be applied to the captured text. Your text is unchanged.", core::tour_refusal::invalid_command);
 			}
-			LabelOverride = ticket.Hook == core::writing_hook::problem ? "Rewrite Problem" : ticket.Hook == core::writing_hook::solution ? "Rewrite Solution"
-																																		 : "Rewrite comment";
+			core::tour_command command{ .Draft = State.Draft->Id, .Owner = State.Draft->Owner, .ExpectedRevision = State.Draft->Revision };
+			command.Kind       = core::tour_command_kind::edit_stop;
+			command.Stop       = ticket.Stop;
+			command.Value      = *stop;
+			command.Value.Body = *text;
+			LabelOverride      = "Rewrite comment";
 			dispatch(command);
 			LabelOverride.clear();
 			out.Notes = decoded->Notes;
@@ -777,7 +765,7 @@ namespace bpr::application {
 			Implementation->Closing = true;
 			Implementation->Publish = { };
 			const auto& state       = Implementation->State;
-			const bool  untouched   = state.Draft && state.SavedRevision == 0U && state.Draft->Revision == 1U && state.Draft->Problem.empty() && state.Draft->Solution.empty() && state.Draft->Stops.empty() && !state.Draft->ProblemBaseline && !state.Draft->SolutionBaseline;
+			const bool  untouched   = state.Draft && state.SavedRevision == 0U && state.Draft->Revision == 1U && state.Draft->Stops.empty();
 			// Opening a PR observes its optional tour; it does not consume a
 			// durable draft slot unless the author actually changes something.
 			if (!untouched) {

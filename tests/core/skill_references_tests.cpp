@@ -1,13 +1,16 @@
 // [[BPR-1916]]. `/skill-name` references in a prompt, without Qt: where they
 // are, which skill each names (personal over repository unless `/repo:`), the
 // quiet note for unknown names, and completion with each skill's source.
+#include "bpr/core/prompt_features.hpp"
 #include "bpr/core/review_skill.hpp"
 #include "bpr/core/skill_references.hpp"
 
 #include <array>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr::core;
@@ -91,6 +94,30 @@ namespace {
 		expect(qualified.size() == 1U && qualified[0].Insert == "repo:technical-writing", "a qualifier lists only its source");
 	}
 
+	/// [[BPR-2264]]. `/bpr:<name>` names a Feature, never a skill.
+	void features()
+	{
+		const auto text = std::string_view{ "Follow /bpr:writing-style and /tidy-voice, then /bpr:writing-style again and /bpr:unknown-one. Not a/bpr:writing-style." };
+		const auto refs = find_skill_references(text);
+		expect(refs.size() == 1U && refs[0].Name == "tidy-voice", "a Feature reference is not a skill reference");
+		const auto named = find_feature_references(text);
+		expect(named == std::vector<std::string>{ "writing-style", "writing-style", "unknown-one" }, "every /bpr: reference, in order, by the skill boundaries");
+		const auto texts = std::array{ text, std::string_view{ "(/bpr:writing-style)" } };
+		expect(referenced_features(texts) == std::vector<std::string>{ "writing-style" }, "the Features named, each once, unknown names left out");
+		const auto catalog = std::array{ skill_entry{ .Name = "bpr", .Source = skill_source::personal } };
+		const auto unknown = resolve_skill_references(std::array{ std::string_view{ "/bpr:writing-style" } }, catalog);
+		expect(unknown.Resolved.empty() && unknown.Unknown.empty(), "no skill named bpr is resolved and no unknown is noted");
+		const auto* const style = find_prompt_feature(writing_style_feature);
+		expect(style != nullptr && style->Editable && style->Hook == writing_hook::writing_style && feature_of_hook(writing_hook::writing_style) == style, "writing-style is the editable Feature, kept as the writing_style override");
+		// [[BPR-2270]]. Comment labels is the second editable Feature, and
+		// the only one a blank override turns off.
+		const auto* const labels = find_prompt_feature(comment_labels_feature);
+		expect(labels != nullptr && labels->Editable && labels->BlankTurnsOff && !style->BlankTurnsOff && labels->Hook == writing_hook::comment_labels && feature_of_hook(writing_hook::comment_labels) == labels
+				   && referenced_features(std::array{ std::string_view{ "/bpr:comment-labels and /bpr:writing-style" } }) == std::vector<std::string>{ "comment-labels", "writing-style" },
+			   "comment-labels is the second editable Feature, named like the first");
+		expect(prompt_features().size() == 2U && !find_prompt_feature("suggested-comment") && !feature_of_hook(writing_hook::outline), "the registry holds only what ships");
+	}
+
 	void front_matter()
 	{
 		const auto facts = read_skill_front_matter("---\nname: fixture-voice\ndescription: \"A fixture, quoted.\"\nmetadata:\n  x: y\n---\nBody\n");
@@ -105,6 +132,7 @@ auto main() -> int
 	references();
 	resolution();
 	completion();
+	features();
 	front_matter();
 	std::cout << "skill-references:pass\n";
 	return EXIT_SUCCESS;

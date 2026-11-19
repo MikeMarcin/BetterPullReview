@@ -548,6 +548,40 @@ owner amendment, and the amendment keeps every obligation it does not name.
 | RFC-BPR-0126 | Queued entries store a Result and take contracts at dispatch. | M1 ([[BPR-2222]]) |
 | RFC-BPR-0128 | `report-templates.md` splits into the Report and Findings report contracts and the prompts' text. Was this addressed? is the Thread claims Result. | M2 ([[BPR-2224]]) |
 
+### Amendment (owner, 2026-11-18): Writing style ships first as an editable Feature
+
+[[BPR-2264]] ships one Feature ahead of this RFC, in 0.5.0, and this RFC
+adopts it. The owner: "build the writing style hook at a Feature I think.
+That way all the skills can reference it easily ... there should be mostly
+immutable features but we can have some editable features using the prompt
+library to edit them."
+
+- Features are immutable by default. A registry (`core/prompt_features.hpp`)
+  marks a Feature editable; an editable Feature is edited in Settings ›
+  Prompts, under Features, like a built-in prompt, and travels in the
+  settings exchange under `feature.<name>`.
+- `writing-style` is the first Feature and the only editable one. Unlike the
+  Features above, it is appended to every request whose answer a person
+  reads, after that request's own instructions and format, which win where
+  they disagree; a reference to it in a prompt or skill sends it once.
+- `bpr:` is already reserved: `/bpr:<name>` is never a skill reference.
+- This RFC's other Features (`suggested-comment`, `suggested-change`,
+  `proposed-fix`) join the same registry, immutable, when M1 builds them.
+
+### Amendment (owner, 2026-11-18): Comment labels is the second editable Feature
+
+[[BPR-2270]]. The owner: "Maybe the comment tag is another editable feature
+defaulted to our conventional comments", then "I don't think we need that
+safety net, could be a user just blanks that out because they want all plain
+comments". `comment-labels` (`/bpr:comment-labels`, `feature.comment-labels`)
+ships the Conventional Comments convention with [[BPR-2267]]'s decoration
+rule. The same helper attaches it, before the Writing style, to every request
+that may write a comment to post (Agent tab turns, the comment workshop, the
+returning questions; not Explain this file or Suggest the change). A blank
+override turns it off. The app adds no label of its own: a drafted comment
+is the agent's text, its catalog label read into the label control. This
+narrows O3: the workshop's label helper still chooses its own guidance.
+
 ## Questions
 
 ### Resolved (2026-11-16)

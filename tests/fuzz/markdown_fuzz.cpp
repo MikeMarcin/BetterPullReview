@@ -181,9 +181,6 @@ namespace {
 	auto tour(const std::string_view aRaw, const std::uint8_t aChoice) -> void
 	{
 		const auto map = core::map_tour_markdown(aRaw);
-		for (const auto& section : map.Sections) {
-			fuzz::require(within(section.Content, aRaw));
-		}
 		for (const auto& list : map.Lists) {
 			fuzz::require(within(list.Source, aRaw));
 		}
@@ -195,9 +192,9 @@ namespace {
 		// Replacing what the map found with a fixed text keeps every byte the
 		// edit did not select.
 		std::vector<core::tour_text_edit> edits;
-		for (const auto& section : map.Sections) {
-			if (edits.size() < 4U && (edits.empty() || section.Content.Begin >= edits.back().Span.End)) {
-				const auto span = section.Content;
+		for (const auto& list : map.Lists) {
+			if (edits.size() < 4U && (edits.empty() || list.Source.Begin >= edits.back().Span.End)) {
+				const auto span = list.Source;
 				edits.push_back({ span, std::string{ aRaw.substr(span.Begin, span.End - span.Begin) }, "replacement\n" });
 			}
 		}
@@ -206,7 +203,6 @@ namespace {
 			fuzz::require(edited->starts_with(aRaw.substr(0U, first.Begin)));
 			fuzz::require(edited->ends_with(aRaw.substr(edits.back().Span.End)));
 		}
-		static_cast<void>(core::insert_tour_brief(aRaw, aChoice % (aRaw.size() + 1U), "problem", "solution", (aChoice & 1U) != 0U ? "\r\n" : "\n"));
 
 		// Labels and links the map read are rendered back without injecting
 		// Markdown, and the rendering maps again.

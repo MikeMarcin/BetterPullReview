@@ -4,7 +4,6 @@
 #include "bpr/application/review_tour_projection.hpp"
 #include "bpr/core/tour_agent_session.hpp"
 #include "bpr/core/tour_publication_head.hpp"
-#include "bpr/core/tour_steps.hpp"
 #include "bpr/core/tour_stop_acceptance.hpp"
 #include "bpr/core/tour_stop_view.hpp"
 #include "bpr/qt/agent_feature.hpp"
@@ -56,8 +55,6 @@ namespace bpr::qt {
 												   use_saved_copy,
 												   keep_local_conflict,
 												   use_remote_conflict,
-												   map_problem,
-												   map_solution,
 												   add_stop,
 												   insert_after,
 												   add_related,
@@ -123,14 +120,6 @@ namespace bpr::qt {
 		/// \brief [[BPR-1593]]. The code around a stop's lines, when the window
 		/// has it.
 		void set_excerpt_source(std::function<std::optional<tour_excerpt>(const core::tour_source_range&)> aSource);
-		/// \brief [[BPR-1593]]. The brief's fields open in place in the route.
-		[[nodiscard]] auto brief_open() const noexcept -> int { return BriefOpen; }
-		/// \brief [[BPR-1784]]. The three steps as last presented: each one's
-		/// state and the step that is open.
-		[[nodiscard]] auto steps() const noexcept -> const core::tour_steps& { return Steps; }
-		/// \brief [[BPR-1784]]. Opens a step, as its header, Change or Next
-		/// does, and puts the keyboard in its first field.
-		void open_step(core::tour_step aStep);
 		/// \brief [[BPR-1593]]. The publication column of the tour page.
 		[[nodiscard]] auto publication_panel() const noexcept -> QWidget* { return PublicationPanel; }
 		/// \brief [[BPR-1593]]. The private draft's save state.
@@ -159,16 +148,10 @@ namespace bpr::qt {
 		void               present_publication(const application::tour_publication_presentation& aProjection);
 		void               set_repair_dispatch(std::function<void(core::tour_stop_id, tour_repair_action)>);
 		void               present_repair_preview(core::tour_stop_id, const core::tour_source_range&, std::string_view, std::uint64_t);
-		[[nodiscard]] auto description_publication() const -> bool;
-		/// \brief RFC-BPR-0110 X19: where "Update PR description after publishing"
-		/// starts for this pull request: off for one associated with a local
-		/// draft. Turning it on asks for a new Preview, as every change does.
-		void set_description_publication_default(bool aOn);
 		/// \brief RFC-BPR-0110. A local draft's words while its tour shows;
 		/// none for a pull request's.
 		void               set_local_words(std::optional<tour_local_words> aWords);
 		[[nodiscard]] auto local_words() const noexcept -> bool { return LocalWords.has_value(); }
-		void               show_problem();
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
 		void               show_writing_notice(const QString& aText);
@@ -343,8 +326,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto accept_reason() const -> QLabel* { return AcceptReason; }
 		/// [[BPR-2013]]. The stop's context menu.
 		[[nodiscard]] auto stop_menu() const -> QMenu* { return StopMenu; }
-		[[nodiscard]] auto problem_editor() const -> QPlainTextEdit* { return Problem; }
-		[[nodiscard]] auto solution_editor() const -> QPlainTextEdit* { return Solution; }
 		[[nodiscard]] auto roadmap() const -> QTabWidget* { return Roadmap; }
 		[[nodiscard]] auto preview() const -> markdown_body_view* { return Preview; }
 		[[nodiscard]] auto publication_preview() const -> markdown_body_view* { return PublicationPreview; }
@@ -392,10 +373,6 @@ namespace bpr::qt {
 		void                                                                       move_selection(int aOffset);
 		void                                                                       next_stop(int aOffset);
 		void                                                                       next_changed_stop();
-		void                                                                       open_brief(int aField);
-		void                                                                       choose_step(int aField);
-		void                                                                       refresh_steps();
-		void                                                                       focus_step();
 		void                                                                       place_stop_card();
 		void                                                                       place_stop_card_now();
 		void                                                                       fit_route();
@@ -412,27 +389,20 @@ namespace bpr::qt {
 		std::function<void(bool)>                                                  ExpandDispatch;
 		std::function<void()>                                                      CollapseDispatch;
 		std::function<std::optional<tour_excerpt>(const core::tour_source_range&)> ExcerptSource;
-		int                                                                        BriefOpen      = -1;
-		QWidget*                                                                   Brief          = nullptr;
-		QWidget*                                                                   BriefSlots[2]  = { nullptr, nullptr };
-		QWidget*                                                                   BriefPanels[2] = { nullptr, nullptr };
-		QWidget*                                                                   BriefHosts[2]  = { nullptr, nullptr };
-		/// [[BPR-1784]]. The steps' headers, and the Stops step's body, which
-		/// holds the route in the drawer.
-		QWidget*         StepRows[3] = { nullptr, nullptr, nullptr };
-		QWidget*         StopsSlot   = nullptr;
-		core::tour_steps Steps;
-		QWidget*         RouteColumn      = nullptr;
-		QWidget*         PageColumns      = nullptr;
-		QWidget*         PageLeft         = nullptr;
-		QWidget*         PageRight        = nullptr;
-		QWidget*         StopsHost        = nullptr;
-		QWidget*         StopHeader       = nullptr;
-		QLabel*          StopHeading      = nullptr;
-		QWidget*         Excerpt          = nullptr;
-		QWidget*         PublicationPanel = nullptr;
-		QWidget*         OutlineTools     = nullptr;
-		QWidget*         Notices          = nullptr;
+		QWidget*                                                                   Brief = nullptr;
+		/// [[BPR-2274]]. The route's body in the drawer.
+		QWidget* StopsSlot        = nullptr;
+		QWidget* RouteColumn      = nullptr;
+		QWidget* PageColumns      = nullptr;
+		QWidget* PageLeft         = nullptr;
+		QWidget* PageRight        = nullptr;
+		QWidget* StopsHost        = nullptr;
+		QWidget* StopHeader       = nullptr;
+		QLabel*  StopHeading      = nullptr;
+		QWidget* Excerpt          = nullptr;
+		QWidget* PublicationPanel = nullptr;
+		QWidget* OutlineTools     = nullptr;
+		QWidget* Notices          = nullptr;
 		/// [[BPR-1878]]. The tab's bottom bar, its field, and the picker in it.
 		/// [[BPR-1881]]. The call to action, its button, and the setup's
 		/// readiness; the helpers' labels, run again when it changes.
@@ -489,8 +459,7 @@ namespace bpr::qt {
 		QWidget*          DraftFailure   = nullptr;
 		/// [[BPR-1925]] v003. The proposal waits in the tour, on the parts it
 		/// changes: proposed stops under the route, grey until accepted; a
-		/// stop's new explanation on its card; the Problem's and the
-		/// Solution's under their own text.
+		/// stop's new explanation on its card.
 		QWidget* ProposedStops = nullptr;
 		/// [[BPR-1930]]. A stop's waiting parts (a new explanation, its
 		/// removal, a merge or a split it leads), shown on its card while open.
@@ -501,7 +470,6 @@ namespace bpr::qt {
 		std::map<std::uint64_t, std::pair<int, QString>>            RouteMarks;
 		bool                                                        StructureProposed = false;
 		void                                                        apply_route_marks();
-		std::array<bool, 2>                                         PartProposed{ false, false };
 		std::size_t                                                 ProposedStopCount = 0U;
 		bool                                                        ShowsStopProposal = false;
 		QVBoxLayout*                                                StopFieldsLayout  = nullptr;
@@ -548,7 +516,6 @@ namespace bpr::qt {
 		core::tour_head_progress                   HeadProgress;
 		std::function<void()>                      HeadObserver;
 		void                                       follow_remedy(application::tour_publication_remedy aRemedy, core::tour_stop_id aStop);
-		QCheckBox*                                 DescriptionEdit    = nullptr;
 		QLabel*                                    PublicationStatus  = nullptr;
 		markdown_body_view*                        PublicationPreview = nullptr;
 		QPushButton*                               PublishTour        = nullptr;
@@ -612,18 +579,10 @@ namespace bpr::qt {
 			std::string        Body;
 		};
 		std::optional<stop_edit_origin> EditOrigin;
-		/// [[BPR-1936]]. The stop whose card is collapsed on the route, and
-		/// whether the open step (Problem, Solution or Stops) is closed.
+		/// [[BPR-1936]]. The stop whose card is collapsed on the route.
 		core::tour_stop_id CollapsedStop;
-		bool               StepCollapsed = false;
-
-	public:
-		/// [[BPR-1936]]. The open step's body is closed by its header.
-		[[nodiscard]] auto step_collapsed() const noexcept -> bool { return StepCollapsed; }
-
-	private:
-		QWidget* StopMagic        = nullptr;
-		bool     StopPlacePending = false;
+		QWidget*           StopMagic        = nullptr;
+		bool               StopPlacePending = false;
 		/// [[BPR-1805]] repair. The readers' code font, once the window
 		/// hands the profile's; and applying it to every reader.
 		std::optional<QFont>                         ReaderCodeFont;
@@ -642,8 +601,6 @@ namespace bpr::qt {
 		application::tour_presentation               Shown;
 		std::function<void(core::tour_command)>      Dispatch;
 		std::function<void(tour_editor_action)>      Action;
-		scoped_prose_editor*                         Problem         = nullptr;
-		scoped_prose_editor*                         Solution        = nullptr;
 		QPlainTextEdit*                              Conflict        = nullptr;
 		QTabWidget*                                  Roadmap         = nullptr;
 		markdown_body_view*                          Preview         = nullptr;

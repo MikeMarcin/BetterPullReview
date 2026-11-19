@@ -92,9 +92,10 @@ namespace bpr::app {
 		, Log{ std::move(aLog) }
 	{ }
 
-	void review_submission_workflow::note(const core::operation_action aAction, const core::review_submission_note aNote, const std::chrono::steady_clock::time_point aSince, const std::uint32_t aCount, const core::operation_failure aFailure) const
+	void review_submission_workflow::note(const core::operation_action aAction, const core::review_submission_note aNote, const std::chrono::steady_clock::time_point aSince, const std::uint32_t aCount, const core::operation_failure aFailure,
+										  const std::optional<core::review_submission_refusal> aRefusal) const
 	{
-		application::record_operation(Log.get(), { .Action = aAction, .Failure = aFailure, .DurationMilliseconds = since(aSince), .Count = aCount, .Submission = aNote });
+		application::record_operation(Log.get(), { .Action = aAction, .Failure = aFailure, .DurationMilliseconds = since(aSince), .Count = aCount, .Submission = aNote, .Refusal = aRefusal });
 	}
 
 	void review_submission_workflow::begin_attempt(const application::review_submission_request& aRequest, const core::review_submission_note aWaiting)
@@ -121,7 +122,7 @@ namespace bpr::app {
 		Attempt->WaitStarted = std::chrono::steady_clock::now();
 	}
 
-	void review_submission_workflow::end_attempt(const core::review_submission_note aEnding)
+	void review_submission_workflow::end_attempt(const core::review_submission_note aEnding, const std::optional<core::review_submission_refusal> aRefusal, const std::optional<core::operation_failure> aFailure)
 	{
 		if (!Attempt) {
 			return;
@@ -129,11 +130,16 @@ namespace bpr::app {
 		if (!Attempt->Sending) {
 			note(core::operation_action::review_submit_wait, Attempt->Waiting, Attempt->WaitStarted);
 		}
-		const auto failure = aEnding == core::review_submission_note::published ? core::operation_failure::none
-			: aEnding == core::review_submission_note::wait_expired             ? core::operation_failure::cancelled
-			: aEnding == core::review_submission_note::outcome_unknown          ? core::operation_failure::not_confirmed
-																				: core::operation_failure::refused_not_published;
-		note(core::operation_action::review_submit_end, aEnding, Attempt->Pressed, 0U, failure);
+		auto failure = aEnding == core::review_submission_note::published ? core::operation_failure::none
+			: aEnding == core::review_submission_note::wait_expired       ? core::operation_failure::cancelled
+			: aEnding == core::review_submission_note::outcome_unknown    ? core::operation_failure::not_confirmed
+																		  : core::operation_failure::refused_not_published;
+		// [[BPR-2263]]. Not folded: the failure it came with, and the check
+		// and reason that refused it.
+		if (aFailure && *aFailure != core::operation_failure::none && aEnding != core::review_submission_note::published) {
+			failure = *aFailure;
+		}
+		note(core::operation_action::review_submit_end, aEnding, Attempt->Pressed, 0U, failure, aRefusal);
 		Attempt.reset();
 	}
 
@@ -192,6 +198,14 @@ namespace bpr::app {
 		aAuthority.Snapshot              = { };
 		aAuthority.PullRequestGeneration = { };
 		if (Host && (Ready || Context) && Current && Current->Binding == aBinding && Current->Authority == aAuthority) {
+			// [[BPR-2263]]. The same review over a renewed connection: every
+			// reread replaces the window's publishing lease, so the next
+			// operation builds its provider over the new one. Keeping the old
+			// factory refused every Submit with a revoked lease.
+			if (aFactory) {
+				Current->Factory = aFactory;
+				Host->renew(std::move(aFactory));
+			}
 			return;
 		}
 		Next = selection{ std::move(aBinding), std::move(aAuthority), std::move(aFactory), std::move(aInsights) };
@@ -256,7 +270,7 @@ namespace bpr::app {
 		Generation = core::request_generation{ Generation.value() + 1U };
 		Lane       = MakeLane ? MakeLane() : nullptr;
 		Host       = std::make_unique<application::review_submission_application_host>(Current->Factory, Current->Binding,
-																					   Current->Authority.ApplicationSession, Generation, Lane ? *Lane : Effects, Decisions, *this, Current->Insights);
+																					   Current->Authority.ApplicationSession, Generation, Lane ? *Lane : Effects, Decisions, *this, Current->Insights, Log);
 		Status     = QStringLiteral("Checking for an unfinished review…");
 		Context    = Host->discover();
 		if (!Context) {
@@ -329,6 +343,51 @@ namespace bpr::app {
 	void review_submission_workflow::set_publication_observer(publication_observer aObserver) { PublicationObserved = std::move(aObserver); }
 	void review_submission_workflow::set_unplaceable_refusal_observer(unplaceable_refusal_observer aObserver) { UnplaceableRefusalObserved = std::move(aObserver); }
 	void review_submission_workflow::set_finish_settings(finish_settings aSettings) { FinishSettings = std::move(aSettings); }
+	void review_submission_workflow::set_connection_renewal(connection_renewal aRenew) { Renew = std::move(aRenew); }
+	void review_submission_workflow::set_reread_request(reread_request aReread) { Reread = std::move(aReread); }
+
+	auto review_submission_workflow::repair(const application::review_submission_result& aResult) -> bool
+	{
+		if (aResult.Publication != application::review_submission_publication::definitely_not_published || !aResult.Refused || !Attempt || !Pending
+			|| Attempt->Key != aResult.Request.IdempotencyKey || aResult.Request != *Pending) {
+			return false;
+		}
+		const auto same     = Current && Pending->LiveBinding && *Pending->LiveBinding == Current->Binding;
+		const auto decision = core::decide_review_submission_repair(*aResult.Refused, Attempt->Repaired, same);
+		const auto failure  = application::operation_failure_of(aResult.Failure);
+		if (decision == core::review_submission_repair::reread_and_confirm) {
+			// The commit under the review changed: read again, and the
+			// reviewer confirms on what is read. Never sent from here.
+			Rereading = static_cast<bool>(Reread);
+			if (Reread) {
+				Reread();
+			}
+			return false;
+		}
+		if (decision != core::review_submission_repair::reconnect_and_retry) {
+			return false;
+		}
+		note(core::operation_action::review_submit_repair, core::review_submission_note::repairing, Attempt->Pressed, 0U, failure, aResult.Refused);
+		Attempt->Repaired = true;
+		auto renewed      = Renew ? Renew(Current->Binding) : std::nullopt;
+		if (renewed && *renewed && Host && !Context) {
+			Current->Factory = *renewed;
+			Host->renew(std::move(*renewed));
+			// The same request, under the same idempotency key: nothing of
+			// the refused attempt left, and a second send is never a second
+			// review.
+			Context = Host->submit(*Pending, IssueGrant(Current->Authority.ApplicationSession, Generation, *Pending));
+		}
+		if (!Context) {
+			note(core::operation_action::review_submit_repair, core::review_submission_note::repair_failed, Attempt->Pressed, 0U, failure, aResult.Refused);
+			return false;
+		}
+		Attempt->Sent = Context;
+		SubmittedKey  = Pending->IdempotencyKey;
+		note(core::operation_action::review_submit_repair, core::review_submission_note::repaired, Attempt->Pressed);
+		Status = QStringLiteral("Reconnecting to GitHub and sending the same review again…");
+		return true;
+	}
 
 	auto review_submission_workflow::finish(const application::review_submission_request& aRequest, const core::review_finish_answer aAnswer) const -> core::review_finish_transition
 	{
@@ -774,7 +833,7 @@ namespace bpr::app {
 							Pending.reset();
 							answer(request, application::review_submission_publication::definitely_not_published);
 							Status = QStringLiteral("Not submitted: a pending comment changed or could not be held for this review. Check the comments and submit again.");
-							end_attempt(core::review_submission_note::not_published);
+							end_attempt(core::review_submission_note::not_published, core::review_submission_refusal{ .Check = core::review_submission_refusal_check::workflow, .Reason = core::review_submission_refusal_reason::comments_not_held });
 							present();
 							return;
 						}
@@ -817,8 +876,14 @@ namespace bpr::app {
 			complete(command_kind::fail_submit);
 			Pending.reset();
 			answer(aRequest, application::review_submission_publication::definitely_not_published);
-			Status = QStringLiteral("Not published. The current account or pull request changed. Your draft is kept.");
-			end_attempt(core::review_submission_note::not_published);
+			// [[BPR-2263]]. Which check refused it, and why.
+			const auto changed = admission.error() == application::review_mutation_failure::undesignated_target;
+			const auto refusal = core::review_submission_refusal{ .Check = core::review_submission_refusal_check::workflow, .Reason = changed ? core::review_submission_refusal_reason::binding_changed : core::review_submission_refusal_reason::connection_unavailable };
+			Status             = changed || !aRequest.LiveBinding ? QString{ } : qt::github_cli_publication_failure_text(admission.error(), QString::fromStdString(aRequest.LiveBinding->ActingIdentity.Login), QString::fromStdString(std::string{ aRequest.LiveBinding->Target.Hostname.value() }));
+			if (Status.isEmpty()) {
+				Status = QString::fromStdString(core::sentence(refusal, { .Comments = aRequest.Proposal.Comments }));
+			}
+			end_attempt(core::review_submission_note::not_published, refusal, application::operation_failure_of(admission.error()));
 			return;
 		}
 		Context = Host ? Host->submit(aRequest, IssueGrant(Current->Authority.ApplicationSession, Generation, aRequest)) : std::nullopt;
@@ -834,7 +899,7 @@ namespace bpr::app {
 		Pending.reset();
 		answer(aRequest, application::review_submission_publication::definitely_not_published);
 		Status = QStringLiteral("Review was not submitted. Refresh the pull request and try again.");
-		end_attempt(core::review_submission_note::not_published);
+		end_attempt(core::review_submission_note::not_published, core::review_submission_refusal{ .Check = core::review_submission_refusal_check::workflow, .Reason = core::review_submission_refusal_reason::admission_refused });
 		RetryOffered = true;
 	}
 
@@ -888,15 +953,24 @@ namespace bpr::app {
 			apply_review_comments();
 			std::erase_if(Unresolved, [&refused](const auto& aRequest) { return aRequest.IdempotencyKey == refused.IdempotencyKey; });
 			Pending.reset();
-			Status                 = refused.Proposal.Comments.empty()
-				? QStringLiteral("Review was not published. Your summary is retained.")
-				: QStringLiteral("Review was not published. Your summary and its pending comments are kept; check them and submit again.");
+			// [[BPR-2263]]. Never "check them" for a cause outside the review.
+			Status                 = refused.Proposal.Comments.empty() ? QStringLiteral("Review was not published. Your summary is retained.")
+				: aResult.Failure == application::review_mutation_failure::refused_by_server
+				? QStringLiteral("Review was not published. Your summary and its pending comments are kept; check them and submit again.")
+				: QStringLiteral("Review was not published. Your summary and its pending comments are kept. Copy diagnostics says why.");
 			const auto failureText = refused.LiveBinding ? qt::github_cli_publication_failure_text(aResult.Failure,
 																								   QString::fromStdString(refused.LiveBinding->ActingIdentity.Login), QString::fromStdString(std::string{ refused.LiveBinding->Target.Hostname.value() }))
 														 : QString{ };
 			if (!failureText.isEmpty()) {
 				Status = failureText;
 			}
+			// [[BPR-2263]]. A refusal before sending says, in the core's one
+			// sentence, what happened and what the reviewer can do. GitHub
+			// CLI's own sign-in words still name the account and host.
+			if (aResult.Refused && failureText.isEmpty()) {
+				Status = QString::fromStdString(core::sentence(*aResult.Refused, { .Comments = refused.Proposal.Comments, .Rereading = Rereading }));
+			}
+			Rereading = false;
 			// [[BPR-1715]]. Why GitHub refused it, as far as its answer
 			// says. It names no comment, so neither does the page.
 			if (aResult.Refusal == application::review_submission_refusal::unplaceable_line) {
@@ -914,7 +988,7 @@ namespace bpr::app {
 			if (expired) {
 				Status = QStringLiteral("Not published. Still waiting for %1. Your review is kept.").arg(waiting_words(Attempt->Waiting));
 			}
-			end_attempt(expired ? core::review_submission_note::wait_expired : core::review_submission_note::not_published);
+			end_attempt(expired ? core::review_submission_note::wait_expired : core::review_submission_note::not_published, aResult.Refused, application::operation_failure_of(aResult.Failure));
 			RetryOffered = true;
 			answer(refused, application::review_submission_publication::definitely_not_published);
 			if (aResult.Refusal == application::review_submission_refusal::unplaceable_line && UnplaceableRefusalObserved) {
@@ -928,7 +1002,7 @@ namespace bpr::app {
 			Status = QStringLiteral("Review status is unknown. Check status to reconcile this attempt; do not submit it again.");
 			// [[BPR-1541]]. Each answer replaces the reason.
 			Unknown = aResult.Unknown;
-			end_attempt(core::review_submission_note::outcome_unknown);
+			end_attempt(core::review_submission_note::outcome_unknown, aResult.Refused);
 		}
 	}
 
@@ -1039,6 +1113,12 @@ namespace bpr::app {
 				present();
 				return;
 			}
+			// [[BPR-2263]]. A refusal the application owns is repaired and
+			// the same review sent again once, with no second Submit.
+			if (repair(*result)) {
+				present();
+				return;
+			}
 			settle(*result, confirmed, transition);
 		}
 		if (!Context) {
@@ -1098,6 +1178,9 @@ namespace bpr::app {
 		aAuthority.PullRequestGeneration = { };
 		if (Binding == aBinding && Authority == aAuthority && Host) {
 			Description = std::move(aDescription);
+			// [[BPR-2265]]. The same tour target over the window's newest
+			// factory: no factory from before a reread is kept.
+			Host->renew(std::move(aFactory));
 			return;
 		}
 		invalidate();
@@ -1197,7 +1280,7 @@ namespace bpr::app {
 		LastFailure.reset();
 		// [[BPR-1992]]. The plan chooses the form: one review, a mixed tour or
 		// compatibility comments, the first that carries every stop.
-		const auto prepared = choose_tour_plan(*Draft.Draft, *Binding, Description, Editor.description_publication(), Qualified, AnchorHead == Draft.Draft->ObservedHead.value_or(Draft.Draft->Head) ? std::span<const core::tour_anchor_file>{ AnchorFiles } : std::span<const core::tour_anchor_file>{ }, factsCurrent ? std::span<const core::tour_destination_observation>{ DestinationFacts->Observations } : std::span<const core::tour_destination_observation>{ });
+		const auto prepared = choose_tour_plan(*Draft.Draft, *Binding, Qualified, AnchorHead == Draft.Draft->ObservedHead.value_or(Draft.Draft->Head) ? std::span<const core::tour_anchor_file>{ AnchorFiles } : std::span<const core::tour_anchor_file>{ }, factsCurrent ? std::span<const core::tour_destination_observation>{ DestinationFacts->Observations } : std::span<const core::tour_destination_observation>{ });
 		DestinationsChecked = true;
 		Plan                = prepared.Plan;
 		Form                = prepared.Form;
@@ -1255,7 +1338,7 @@ namespace bpr::app {
 			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, &*Plan, nullptr, false, core::operation_failure::preview_stale);
 			return;
 		}
-		if (!Record && (!Draft.Draft || Plan->Generation != Draft.Draft->Revision || (!Plan->Update && Plan->Description.has_value() != Editor.description_publication()))) {
+		if (!Record && (!Draft.Draft || Plan->Generation != Draft.Draft->Revision)) {
 			application::record_tour_publication(Log.get(), core::tour_publication_stage::admission, &*Plan, nullptr, false, core::operation_failure::preview_stale);
 			return;
 		}
@@ -1578,7 +1661,13 @@ namespace bpr::app {
 	{
 		aAuthority.Snapshot              = { };
 		aAuthority.PullRequestGeneration = { };
-		if (Closing || (Binding == aBinding && Authority == aAuthority && Host)) {
+		if (Closing) {
+			return;
+		}
+		if (Binding == aBinding && Authority == aAuthority && Host) {
+			// [[BPR-2265]]. The same reply target over the window's newest
+			// factory: no factory from before a reread is kept.
+			Host->renew(std::move(aFactory));
 			return;
 		}
 		invalidate();

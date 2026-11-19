@@ -101,7 +101,6 @@ namespace {
 		switch (aPlace) {
 		case prompt_place::tour_stop:
 			return { { .Text = "Explain the selected block", .Selection = true }, { .Text = "What does this code do?" }, { .Text = "Why does this change matter?" }, { .Text = "Rewrite this explanation more simply" }, { .Text = "Is this the right place for this stop?" } };
-		case prompt_place::tour_part: return { { .Text = "Explain the selected block", .Selection = true }, { .Text = "Make this clearer" }, { .Text = "What's missing?" }, { .Text = "Make it shorter" } };
 		case prompt_place::tour_whole:
 			return { { .Text = "Too many stops?" }, { .Text = "Suggest a better order" }, { .Text = "Focus on ", .Finish = true }, { .Text = "What's not covered?" } };
 		case prompt_place::agent_tab:
@@ -112,8 +111,7 @@ namespace {
 
 	auto subject_of(const prompt_place aPlace) -> prompt_subject
 	{
-		return aPlace == prompt_place::tour_stop ? prompt_subject::stop : aPlace == prompt_place::tour_part ? prompt_subject::part
-																											: prompt_subject::tour;
+		return aPlace == prompt_place::tour_stop ? prompt_subject::stop : prompt_subject::tour;
 	}
 
 	/// `tour_side_chat::prompt_labels` and `choose_prompt` today.
@@ -152,7 +150,12 @@ namespace {
 		// RFC-BPR-0128 added three action rows (What changed, Explain this file,
 		// Was this addressed?), which are never chips. [[BPR-2248]] added the
 		// Commits selection's two, which are never chips either.
-		expect(set.size() == 27U, "27 built-ins");
+		expect(set.size() == 23U, "23 built-ins");
+		// [[BPR-2281]] (owner, 2026-11-19). The description is drafted by
+		// Draft with agent in Author, from a system prompt: no shipped
+		// prompt drafts it.
+		expect(std::ranges::none_of(shipped_prompt_macros(), [](const prompt_builtin& aBuiltin) { return aBuiltin.Macro.Id == "agent-tab.draft-description"; }),
+			   "no shipped prompt drafts the description");
 		expect(std::ranges::all_of(set, [](const prompt_macro& aMacro) { return aMacro.BuiltIn && aMacro.On && prompt_macro_valid(aMacro); }), "every built-in is on and valid");
 		const auto lineChoices = std::vector<std::optional<prompt_line_range>>{ std::nullopt, prompt_line_range{ 34U, 34U }, prompt_line_range{ 34U, 36U } };
 		for (const auto& file : { std::optional<std::string>{ }, std::optional<std::string>{ "src/render/renderer.cpp" }, std::optional<std::string>{ "README.md" } }) {
@@ -176,8 +179,6 @@ namespace {
 		const auto parts = std::vector<prompt_tour_part>{
 			{ .Place = prompt_place::tour_stop, .Part = "Stop 1", .StopNumber = 1U, .StopTitle = "Parser" },
 			{ .Place = prompt_place::tour_stop, .Part = "Stop 2", .StopNumber = 2U, .StopTitle = "Cache" },
-			{ .Place = prompt_place::tour_part, .Part = "the Problem" },
-			{ .Place = prompt_place::tour_part, .Part = "the Solution" },
 		};
 		auto threads = parts;
 		threads.push_back({ .Place = prompt_place::tour_whole });
@@ -479,7 +480,7 @@ namespace {
 		expect(suggested_subject_of(prompt_subject::pull_request) == agent_suggested_subject::pull_request && suggested_subject_of(prompt_subject::open_file) == agent_suggested_subject::open_file
 				   && suggested_subject_of(prompt_subject::selected_lines) == agent_suggested_subject::selected_lines,
 			   "the Agent tab's three subjects are RFC-BPR-0102's");
-		for (const auto subject : { prompt_subject::conversation, prompt_subject::stop, prompt_subject::part, prompt_subject::selected_text, prompt_subject::tour }) {
+		for (const auto subject : { prompt_subject::conversation, prompt_subject::stop, prompt_subject::selected_text, prompt_subject::tour }) {
 			expect(!suggested_subject_of(subject), "the other places' subjects name none");
 		}
 	}

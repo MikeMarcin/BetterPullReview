@@ -92,6 +92,10 @@ namespace bpr::core {
 			auto       start     = slash + 1U;
 			auto       qualifier = std::optional<skill_source>{ };
 			const auto rest      = aText.substr(start);
+			// [[BPR-2264]] A Feature is never a skill.
+			if (rest.starts_with(feature_qualifier)) {
+				continue;
+			}
 			if (rest.starts_with(repository_skill_qualifier)) {
 				qualifier = skill_source::repository;
 				start += repository_skill_qualifier.size();
@@ -108,6 +112,26 @@ namespace bpr::core {
 				continue;
 			}
 			found.push_back({ .Begin = slash, .End = end, .Name = std::string{ name }, .Qualifier = qualifier });
+		}
+		return found;
+	}
+
+	auto find_feature_references(const std::string_view aText) -> std::vector<std::string>
+	{
+		auto found = std::vector<std::string>{ };
+		for (auto slash = aText.find('/'); slash != std::string_view::npos; slash = aText.find('/', slash + 1U)) {
+			if (!opens_reference(aText, slash) || !aText.substr(slash + 1U).starts_with(feature_qualifier)) {
+				continue;
+			}
+			const auto start = slash + 1U + feature_qualifier.size();
+			auto       end   = start;
+			while (end < aText.size() && name_character(aText[end])) {
+				++end;
+			}
+			const auto name = aText.substr(start, end - start);
+			if (valid_skill_name(name) && closes_reference(aText, end)) {
+				found.emplace_back(name);
+			}
 		}
 		return found;
 	}

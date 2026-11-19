@@ -1,6 +1,4 @@
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/application-contract.md" WRITING_CONTRACT)
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/problem-statement.md" WRITING_PROBLEM)
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/solution-summary.md" WRITING_SOLUTION)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-outline.md" WRITING_OUTLINE)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/tour-stop-comment.md" WRITING_COMMENT)
 # [[BPR-1090]] The review-feedback guidance, from the RFC-BPR-0051 pack fragment.
@@ -25,9 +23,13 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-expla
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-suggest-change.md" WRITING_REVIEW_SUGGEST_CHANGE)
 # RFC-BPR-0120: a local draft's check prompt.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/local-run-check.md" WRITING_LOCAL_RUN_CHECK)
+# [[BPR-2264]]: the Writing style Feature's shipped text.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/writing-style.md" WRITING_STYLE)
+# [[BPR-2270]]: the Comment labels Feature's shipped text.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/comment-labels.md" WRITING_COMMENT_LABELS)
 # RFC-BPR-0128: the report shape the Agent tab's requests carry.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/report-templates.md" WRITING_REPORT_TEMPLATES)
-foreach(resource IN ITEMS application-contract problem-statement solution-summary tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message review-latest-upload review-proposed-fix review-explain-file review-suggest-change local-run-check report-templates)
+foreach(resource IN ITEMS application-contract tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message review-latest-upload review-proposed-fix review-explain-file review-suggest-change local-run-check report-templates writing-style comment-labels)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/${resource}.md")
 endforeach()
 configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)
@@ -60,6 +62,7 @@ add_library(
         src/local_draft_discovery.cpp
         src/local_draft_publishing.cpp
         src/local_changes_host.cpp
+        src/description_draft_host.cpp
         src/local_draft_workbench.cpp
         src/local_presentation.cpp
         src/review_cycle_comparison.cpp

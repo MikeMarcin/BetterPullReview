@@ -2,11 +2,11 @@
 
 ## Resume before interviewing
 
-On restart or an interface change, read the current shared draft. Say what is saved locally and what came from GitHub. Ask about only the next missing point. Existing Problem or Solution text is not rewritten because it sounds generic, and a linked issue or ticket is not permission for a company-wide search.
+On restart or an interface change, read the current shared draft. Say what is saved locally and what came from GitHub. Ask about only the next missing point. An existing stop's text is not rewritten because it sounds generic, and a linked issue or ticket is not permission for a company-wide search.
 
 ## Explicit scope
 
-"Improve the problem statement" permits that field's rewrite, not the solution or the stops. "Tighten only the last sentence" permits that exact sentence: resolve it with `--quote`, and when it matches more than once ask one clarifying question. Show the updated wording; there is no Apply or Dismiss step. An identical result is reported as no change, not as a new undo entry.
+"Improve this stop" permits that stop's rewrite, not the other stops. "Tighten only the last sentence" permits that exact sentence: resolve it with `--quote`, and when it matches more than once ask one clarifying question. Show the updated wording; there is no Apply or Dismiss step. An identical result is reported as no change, not as a new undo entry.
 
 An answer that arrives after the text, the hook or the draft changed is stale. Respect the refusal. Do not reissue the completion with a new target, an older revision or a different ticket to get it accepted: read the draft again and follow the author's next instruction.
 

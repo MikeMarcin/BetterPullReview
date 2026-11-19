@@ -46,7 +46,7 @@
 /// on a real Git worktree, signed out, with a scripted agent runner in place
 /// of an installed agent. The local draft's tour is the window's own Tour
 /// panel and its description is Overview's: the description written in
-/// Overview's editor; the Problem and Solution typed in the panel; a stop
+/// Overview's editor; a stop
 /// added from lines selected in Review and accepted with Save (the green
 /// ring); no Publish in its head; arriving at the stop reveals its lines; a
 /// whole-change question in the panel's side chat whose request holds the
@@ -279,26 +279,19 @@ try {
 			   "[[BPR-2196]]: a local draft has no Status tab until its pull request exists");
 		capture(window, QStringLiteral("local-draft-overview-description"));
 
-		// AC01, AC05: the Problem and Solution typed in the Tour panel.
+		// AC01, AC05: the Tour panel; [[BPR-2274]] a tour is only its stops
+		// and never writes the description.
 		window.choose_modality(qt::review_modality::review);
 		window.tray_tabs()->setCurrentIndex(1);
 		settle(s.Lanes);
-		tour->open_step(core::tour_step::problem);
-		tour->problem_editor()->setPlainText(QStringLiteral("Searches kept running after Cancel."));
-		settle(s.Lanes);
-		tour->open_step(core::tour_step::solution);
-		tour->solution_editor()->setPlainText(QStringLiteral("Cancel stops and joins the worker."));
-		settle(s.Lanes);
-		expect(page->projection().Draft->Preparation.Tour.Problem == "Searches kept running after Cancel." && page->projection().Draft->Preparation.Tour.Solution == "Cancel stops and joins the worker."
-				   && page->projection().Draft->Preparation.Description.Body.starts_with("<!-- team-template v3 -->"),
-			   "AC05: the brief is saved as typed and never writes the description");
+		expect(page->projection().Draft->Preparation.Description.Body.starts_with("<!-- team-template v3 -->"), "AC05: the tour never writes the description");
 
 		// AC08: a stop on lines selected in Review; Save accepts it.
 		expect(window.open_local_file(QStringLiteral("src/search.cpp")), "the file is in Files");
 		settle(s.Lanes);
 		expect(page->projection().File && page->projection().File->Path == "src/search.cpp", "the changed file is shown");
 		select_new_lines(window, 6U, 10U);
-		tour->open_step(core::tour_step::stops);
+		tour->show_stops();
 		tour->trigger(qt::tour_editor_action::add_stop);
 		settle(s.Lanes);
 		expect(page->projection().Draft->Preparation.Tour.Stops.size() == 1U, "AC01: a stop is added from the panel");
@@ -331,10 +324,10 @@ try {
 		// carries the candidate; the live helper edit cannot reach it.
 		write_file(worktree / "src/helper.cpp", "int helper()\n{\n\treturn LIVE_HELPER_EDIT;\n}\n");
 		s.Answer = "The join can block if the worker waits on the UI.\n\n```bpr-proposals\n"
-				   "[{\"target\":\"problem\",\"text\":\"A cancelled search kept its worker running.\"},"
-				   "{\"target\":\"problem\",\"text\":\"Searches never stopped.\"},"
+				   "[{\"target\":\"title\",\"text\":\"A cancelled search kept its worker running.\"},"
+				   "{\"target\":\"title\",\"text\":\"Searches never stopped.\"},"
 				   "{\"target\":\"new_stop\",\"path\":\"src/helper.cpp\",\"first\":1,\"last\":3,\"title\":\"Helper\",\"text\":\"The live helper.\"},"
-				   "{\"target\":\"solution\",\"text\":\"Cancel stops the worker and waits for it.\"}]\n```";
+				   "{\"target\":\"description\",\"text\":\"Cancel stops the worker and waits for it.\"}]\n```";
 		// The agent is set up (the Agent tab's readiness, which this course has no setup for).
 		tour->set_agent_readiness(qt::agent_setup_readiness::ready);
 		tour->open_side_chat(core::tour_thread{ });
@@ -367,21 +360,10 @@ try {
 				   "[[BPR-2138]] the follow-up resumes the native session instead of replaying the transcript");
 			s.Answer = keep;
 		}
-		// The proposals wait in the panel; the stop outside the candidate is
-		// recorded and never offered; one Problem is accepted.
+		// The proposals wait; the stop outside the candidate is recorded and
+		// never offered. [[BPR-2274]]: the title and description proposals
+		// belong to Overview, not to the tour.
 		expect(page->projection().Draft->Preparation.Proposals[2].State == core::local_proposal_state::outside_candidate, "AC03: a stop outside the candidate is recorded as such, never offered");
-		// A whole-change answer's proposals wait in the tour, on the parts they change.
-		auto* firstAccept = static_cast<QPushButton*>(nullptr);
-		for (auto* const button : tour->findChildren<QPushButton*>(QStringLiteral("tourProposalAccept"))) {
-			const auto* const text = button->parentWidget() != nullptr ? button->parentWidget()->findChild<QPlainTextEdit*>(QStringLiteral("tourProposalText")) : nullptr;
-			if (text != nullptr && text->toPlainText().startsWith(QStringLiteral("A cancelled search"))) {
-				firstAccept = button;
-			}
-		}
-		expect(firstAccept != nullptr, "the Problem's proposal waits under the Problem, with Accept");
-		firstAccept->click();
-		settle(s.Lanes);
-		expect(page->projection().Draft->Preparation.Tour.Problem == "A cancelled search kept its worker running.", "the accepted proposal is in the tour");
 		capture(window, QStringLiteral("local-draft-tour-proposals"));
 		// The owner, rejecting the local Overview on 2026-11-13: "the other
 		// mode's drawers aren't being closed when going to overview." With
@@ -404,18 +386,10 @@ try {
 			settle(s.Lanes);
 			expect(files->isVisible() && conversations->isVisible() && tour->side_chat()->isVisible(), "Review brings its drawers and the tour's chat back");
 		}
-		// A late proposal cannot overwrite a later author edit.
-		tour->open_step(core::tour_step::solution);
-		tour->solution_editor()->setPlainText(QStringLiteral("Cancel stops and joins the worker, on any thread."));
-		settle(s.Lanes);
-		const auto stale = std::ranges::find(page->projection().Draft->Preparation.Proposals, core::local_proposal_target::solution, &core::local_proposal::Target);
-		expect(stale != page->projection().Draft->Preparation.Proposals.end() && core::proposal_stale(*page->projection().Draft, *stale), "AC03: the Solution proposal is stale after the author's edit");
-		expect(page->projection().Draft->Preparation.Tour.Solution == "Cancel stops and joins the worker, on any thread.", "the author's edit stands");
-
 		// AC02, AC05: the exact preview carries the description byte for byte
 		// and the tour; nothing private.
 		const auto preview = core::compose_local_publication(*page->projection().Draft);
-		expect(preview.Body.starts_with("<!-- team-template v3 -->") && preview.Tour.find("Cancel stops and joins") != std::string::npos
+		expect(preview.Body.starts_with("<!-- team-template v3 -->") && preview.Tour.find("src/search.cpp") != std::string::npos
 				   && preview.Tour.find("The join can block") == std::string::npos && preview.Body.find("The join can block") == std::string::npos,
 			   "AC02: the preview carries the description and tour; the conversation stays private");
 
@@ -473,14 +447,6 @@ try {
 		expect(tour->shown().Draft && tour->shown().Draft->Stops.size() == 1U && chat_of(*tour).contains(QStringLiteral("Anything else?")),
 			   "AC04: the panel and the open conversation resume without a process");
 		capture(window, QStringLiteral("local-draft-tour-restarted"));
-	}
-	{
-		// AC09 (X19): the pull request tour's description option starts on for
-		// an ordinary pull request and off for one made from a local draft.
-		auto editor = qt::review_tour_editor{ };
-		expect(editor.description_publication() == core::update_description_by_default(false), "AC09: the existing default stands");
-		editor.set_description_publication_default(core::update_description_by_default(true));
-		expect(!editor.description_publication(), "AC09: off for a pull request associated with a local draft");
 	}
 	std::cout << "local-draft-tour-desktop-public-path:pass\n";
 	return EXIT_SUCCESS;

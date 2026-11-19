@@ -406,24 +406,6 @@ namespace bpr::core {
 				return mutate_selection(aTour, aCommand, aSelected);
 			}
 			switch (aCommand.Kind) {
-			case tour_command_kind::problem:
-			case tour_command_kind::solution: {
-				auto& field    = aCommand.Kind == tour_command_kind::problem ? aTour.Problem : aTour.Solution;
-				auto& baseline = aCommand.Kind == tour_command_kind::problem ? aTour.ProblemBaseline : aTour.SolutionBaseline;
-				if (aCommand.Baseline) {
-					const auto& observed = *aCommand.Baseline;
-					if (!baseline_ok(observed) || !observed.SourceSpan) {
-						return tour_refusal::invalid_command;
-					}
-					const auto [begin, end] = *observed.SourceSpan;
-					if (!utf8_boundary(observed.Raw, begin) || !utf8_boundary(observed.Raw, end) || observed.Raw.substr(begin, end - begin) != aCommand.Text) {
-						return tour_refusal::invalid_command;
-					}
-					baseline = observed;
-				}
-				field = aCommand.Text;
-				return tour_refusal::none;
-			}
 			case tour_command_kind::insert:         return insert_stop(aTour, aCommand, aSelected);
 			case tour_command_kind::insert_outline: return insert_outline(aTour, aCommand, aSelected);
 			case tour_command_kind::observe_head:
@@ -532,7 +514,7 @@ namespace bpr::core {
 	}
 	auto retained_tour_bytes(const review_tour& aTour) noexcept -> std::size_t
 	{
-		auto size = 256U + aTour.Problem.size() + aTour.Solution.size() + baseline_bytes(aTour.ProblemBaseline) + baseline_bytes(aTour.SolutionBaseline) + baseline_bytes(aTour.IndexBaseline) + remote_bytes(aTour.Remote) + aTour.ImportNotice.size();
+		auto size = 256U + baseline_bytes(aTour.IndexBaseline) + remote_bytes(aTour.Remote) + aTour.ImportNotice.size();
 		for (const auto& stop : aTour.Stops) {
 			size += stop_bytes(stop);
 		}
@@ -600,8 +582,7 @@ namespace bpr::core {
 		if (!valid(aTour.Owner) || !aTour.Id.value() || !aTour.Revision || aTour.ChatGeneration > aTour.LastChatGeneration) {
 			return tour_refusal::identity;
 		}
-		if (!field_ok(aTour.Problem) || !field_ok(aTour.Solution) || !baseline_ok(aTour.ProblemBaseline) || !baseline_ok(aTour.SolutionBaseline)
-			|| !baseline_ok(aTour.IndexBaseline) || !remote_ok(aTour.Remote) || !field_ok(aTour.ImportNotice)
+		if (!baseline_ok(aTour.IndexBaseline) || !remote_ok(aTour.Remote) || !field_ok(aTour.ImportNotice)
 			|| (aTour.ObservedHead && !aTour.ObservedHead->valid()) || aTour.EarlierHeads.size() > maximum_tour_stops || !std::ranges::all_of(aTour.EarlierHeads, [](const auto& aHead) { return aHead.valid(); }) || aTour.ObservedChanges.size() > maximum_tour_stops * 4 + 2 || aTour.IncomingRoute.size() > maximum_tour_stops || aTour.Conflicts.size() > maximum_tour_stops + 3 || aTour.Retired.size() > maximum_tour_stops || aTour.Stops.size() > maximum_tour_stops || retained_tour_bytes(aTour) > maximum_tour_bytes) {
 			return tour_refusal::bounds;
 		}

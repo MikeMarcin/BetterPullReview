@@ -160,16 +160,16 @@ def tour_owner_course(tour_application, root, start, wait_marker, quit_owner):
         return json.loads(result.stdout)["data"][name]
     status = bpr("status")
     assert status.returncode == 0 and field(status, "draft_id") == draft and field(status, "revision") == revision, status.stdout
-    edited = bpr("edit", "problem", "--expected-revision", revision, "--request-id", "desktop-1", "--file", "-",
+    edited = bpr("edit", "stop:1:body", "--expected-revision", revision, "--request-id", "desktop-1", "--file", "-",
                  data="Forwarded to the real desktop α\n".encode())
     assert edited.returncode == 0, edited.stdout
     after = field(edited, "revision")
     assert after != revision
-    assert json.loads(bpr("show", "problem").stdout)["data"]["text"] == "Forwarded to the real desktop α\n"
-    duplicate = bpr("edit", "problem", "--expected-revision", revision, "--request-id", "desktop-1", "--file", "-",
+    assert json.loads(bpr("show", "stop:1").stdout)["data"]["text"] == "Forwarded to the real desktop α\n"
+    duplicate = bpr("edit", "stop:1:body", "--expected-revision", revision, "--request-id", "desktop-1", "--file", "-",
                     data="Forwarded to the real desktop α\n".encode())
     assert duplicate.returncode == 0 and field(duplicate, "revision") == after, duplicate.stdout
-    clash = bpr("edit", "problem", "--expected-revision", revision, "--request-id", "desktop-1", "--file", "-",
+    clash = bpr("edit", "stop:1:body", "--expected-revision", revision, "--request-id", "desktop-1", "--file", "-",
                 data=b"another payload")
     assert clash.returncode != 0 and json.loads(clash.stdout)["error"]["code"] == "command_refused", clash.stdout
     recorded = bpr("status", "--request-id", "desktop-1")
@@ -177,7 +177,7 @@ def tour_owner_course(tour_application, root, start, wait_marker, quit_owner):
     assert owner[0].poll() is None
     quit_owner(owner)
     # The owner drained: the committed text is durable and the next command runs standalone.
-    standalone = bpr("show", "problem")
+    standalone = bpr("show", "stop:1")
     assert standalone.returncode == 0 and json.loads(standalone.stdout)["data"]["text"] == "Forwarded to the real desktop α\n"
     print("PROFILE_TOUR_FORWARDING_OK")
 

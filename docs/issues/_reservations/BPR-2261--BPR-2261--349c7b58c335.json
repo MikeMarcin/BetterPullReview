@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2261"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Finished agent turn reloads as stopped",
+  "created": "2026-11-18T22:33:54.165609+00:00",
+  "base": "88fa0e8aa4f532526690142dca3b97a2402202e9"
+}

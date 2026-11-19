@@ -1732,8 +1732,6 @@ namespace {
 				fail("the selection on " + aPath + " is not lines " + std::to_string(aFirst + 1U) + "-" + std::to_string(aLast + 1U));
 			}
 		};
-		editor->problem_editor()->setPlainText(QStringLiteral("The retry delay doubled without a bound on the shift, and the second helper repeated it."));
-		editor->solution_editor()->setPlainText(QStringLiteral("Bound the doubling in one place and keep the second helper's arithmetic beside it."));
 		selectLines(aOptions.Path, aOptions.FirstStop, aOptions.FirstStop + 1U);
 		aWindow.add_tour_stop_action()->trigger();
 		editor->stop_title()->setPlainText(QStringLiteral("Bound the doubling"));
@@ -1805,7 +1803,7 @@ namespace {
 				}
 			}
 			return "\"status\":" + json_text(text(status->text())) + ",\"form\":" + json_text(text(form->text())) + ",\"publish_enabled\":" + (find("tourPublish") && find("tourPublish")->isEnabled() ? "true" : "false")
-				+ ",\"description\":" + (editor->description_publication() ? "true" : "false") + ",\"repairs\":[" + repairs + "]";
+				+ ",\"repairs\":[" + repairs + "]";
 		};
 		find("tourPreparePublication")->click();
 		if (!wait_for([&] { return find("tourPublish")->isEnabled(); }, "Publish is offered", std::chrono::seconds{ 180 })) {

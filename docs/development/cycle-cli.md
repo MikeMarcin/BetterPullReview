@@ -155,7 +155,7 @@ observation never means the round was received, read or accepted.
 
 A profile has one writer at a time. If the desktop (or another BetterPullReview
 process) holds the profile, the command is sent to that process over a same-user
-channel (protocol 8), and gives the same answers. Prompts, the editor and output
+channel (protocol 9), and gives the same answers. Prompts, the editor and output
 stay in the terminal. A message to the owner is at most 5 MiB, and a response
 read from standard input reaches the owner only up to 4 MiB; for a larger
 response, give `--file PATH` instead of standard input.

@@ -52,8 +52,10 @@ namespace bpr::qt {
 	class agent_configuration_export_dialog final : public QDialog
 	{
 	public:
+		/// \details [[BPR-2283]]: `aTheme`, the theme on screen, is the Theme
+		/// section; none leaves the section out.
 		agent_configuration_export_dialog(application::agent_configuration_snapshot aSnapshot, std::array<bool, core::writing_hook_count + 1U> aUnsaved, std::string aExportedBy,
-										  core::profile_facts aProfile = { }, QWidget* aParent = nullptr);
+										  core::profile_facts aProfile = { }, QWidget* aParent = nullptr, std::optional<core::portable_theme> aTheme = std::nullopt);
 		/// \brief How Export… asks for the file; none answers cancelled.
 		void set_file_chooser(std::function<QString()> aChooser);
 		/// \brief RFC-BPR-0125 AC24. The UUIDs the host minted for this export:
@@ -77,6 +79,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-2198]]. Whether Identity is ticked, and the repositories ticked.
 		[[nodiscard]] auto identity_chosen() const -> bool;
 		[[nodiscard]] auto repositories() const -> std::vector<core::portable_repository>;
+		/// \brief [[BPR-2283]]. Whether the Theme is ticked.
+		[[nodiscard]] auto theme_chosen() const -> bool;
 		/// \brief A section's row; ticking it ticks the section.
 		[[nodiscard]] auto section(core::profile_settings_section aSection) const -> QTreeWidgetItem*;
 		/// \brief The exact bytes the current choice writes; empty when over the bound.
@@ -96,6 +100,7 @@ namespace bpr::qt {
 		std::string                               ExportedBy;
 		core::portable_identity                   Identity;
 		std::vector<core::portable_repository>    Repositories;
+		std::optional<core::portable_theme>       Theme;
 		std::string                               Bytes;
 		QString                                   Path;
 		std::function<QString()>                  Chooser;
@@ -158,6 +163,11 @@ namespace bpr::qt {
 		/// applies them through `core::profile_changes`.
 		[[nodiscard]] auto identity_choice() const -> bool;
 		[[nodiscard]] auto repository_choices() const -> std::vector<std::size_t>;
+		/// \brief [[BPR-2283]]. The palette Import keeps for the theme on screen
+		/// (`preview().Theme->OnScreen`); none when the Theme is not chosen.
+		[[nodiscard]] auto theme_choice() const -> std::optional<core::appearance_palette>;
+		/// \brief [[BPR-2283]]. The Theme's plan; none when the file has none.
+		[[nodiscard]] auto theme_plan() const -> const std::optional<core::theme_import_plan>& { return ThemePlan; }
 		[[nodiscard]] auto preview() const -> const application::agent_configuration_preview& { return Preview; }
 		[[nodiscard]] auto plan() const -> const core::configuration_import_plan& { return Plan; }
 		/// \brief RFC-BPR-0125 AC24. The prompt pack's plan (empty without
@@ -171,6 +181,8 @@ namespace bpr::qt {
 		void select_workflow(std::size_t aItem);
 		void select_identity();
 		void select_repository(std::size_t aItem);
+		/// [[BPR-2283]]. The file's Theme.
+		void select_theme();
 		/// RFC-BPR-0125 AC24. One suggested prompt of the file; one the pack dropped.
 		void select_suggested(std::size_t aItem);
 		void select_dropped(std::size_t aItem);
@@ -213,6 +225,8 @@ namespace bpr::qt {
 			suggested,
 			/// A prompt here that the pack dropped.
 			dropped,
+			/// [[BPR-2283]]. The file's Theme.
+			theme,
 		};
 		struct agent_state
 		{
@@ -241,6 +255,7 @@ namespace bpr::qt {
 		void               show_repository(std::size_t aItem, QWidget& aPage);
 		void               show_suggested(std::size_t aItem, QWidget& aPage);
 		void               show_dropped(std::size_t aItem, QWidget& aPage);
+		void               show_theme(QWidget& aPage);
 		void               choice_row(item_kind aKind, std::size_t aItem, const QString& aTake, QWidget& aPage, const QString& aLeave = { });
 		[[nodiscard]] auto tag(item_kind aKind, std::size_t aItem) const -> QString;
 		[[nodiscard]] auto tone(item_kind aKind, std::size_t aItem) const -> int;
@@ -248,6 +263,7 @@ namespace bpr::qt {
 		void               select(item_kind aKind, std::size_t aItem);
 		[[nodiscard]] auto row_line(item_kind aKind, std::size_t aItem) const -> QString;
 		[[nodiscard]] auto standing(item_kind aKind, std::size_t aItem) const -> core::import_standing;
+		[[nodiscard]] auto theme_problem() const -> QString;
 		[[nodiscard]] auto chosen(item_kind aKind, std::size_t aItem) const -> bool;
 		[[nodiscard]] auto bound(std::size_t aItem) const -> bool;
 		[[nodiscard]] auto local_name(std::uint32_t aId) const -> QString;
@@ -261,10 +277,13 @@ namespace bpr::qt {
 		std::vector<workflow_state>              Workflows;
 		std::vector<bool>                        Repositories;
 		/// RFC-BPR-0125 AC24.
-		core::prompt_pack_import_plan                    PackPlan;
-		std::vector<bool>                                Suggested;
-		std::vector<bool>                                Removed;
-		bool                                             IdentityChosen = false;
+		core::prompt_pack_import_plan PackPlan;
+		std::vector<bool>             Suggested;
+		std::vector<bool>             Removed;
+		bool                          IdentityChosen = false;
+		/// [[BPR-2283]].
+		std::optional<core::theme_import_plan>           ThemePlan;
+		bool                                             ThemeChosen = false;
 		std::optional<std::pair<item_kind, std::size_t>> Shown;
 		/// [[BPR-2204]]. The item the detail was last built for.
 		std::optional<std::pair<item_kind, std::size_t>> Built;

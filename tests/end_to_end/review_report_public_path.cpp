@@ -21,6 +21,7 @@
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/prompts_page.hpp"
@@ -157,6 +158,17 @@ auto main(int argc, char** argv) -> int
 		expect(verdict != nullptr && verdict->isVisibleTo(tab) && verdict->text().contains(QStringLiteral("Needs changes")), "the verdict stands over the summary");
 		render(window, QStringLiteral("review-report-card"));
 
+		// [[BPR-2258]]. Another file is on screen, so the issue's own file is
+		// not and Draft comment has to open it.
+		const auto other = QStringLiteral("src/engine/renderer.h");
+		expect(window.go_to_file_line(other, 1U, false), "another file is asked for");
+		wait([&] {
+			const auto* const comparison = window.comparison_surface();
+			const auto        context    = comparison != nullptr ? comparison->current_context() : std::nullopt;
+			return window.active_document_path() == other && context.has_value() && context->Key.File == core::file_identity_of(other.toStdString()) && comparison->current_result() != nullptr;
+		},
+			 "another file is on screen");
+
 		// The opened report: a report, not a transcript.
 		auto* const row = card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"));
 		expect(row != nullptr, "the card has its Open report row");
@@ -196,14 +208,41 @@ auto main(int argc, char** argv) -> int
 		render(*report, QStringLiteral("review-report-offered"));
 
 		// Draft comment: a private draft at the finding's lines.
+		// [[BPR-2258]], owner 2026-11-18: "I'd rather stay on the report".
+		// The draft is made behind the report: the report stays the active
+		// tab and on screen throughout, the file tabs keep their files, and
+		// focus stays on the report.
+		const auto strip = [&window] {
+			auto said = std::string{ };
+			for (const auto& each : window.document_tabs()->tabs()) {
+				said += (each.Report ? std::string{ "report" } : each.Path.toStdString()) + (each.Active ? "*" : "") + ";";
+			}
+			return said;
+		};
+		auto       stayed   = true;
+		const auto onReport = [&] {
+			stayed = stayed && window.report_shown() && report->isVisible() && window.active_document_path().isEmpty();
+			return stayed;
+		};
+		const auto tabsBefore = strip();
+		expect(onReport() && tabsBefore.find("report*") != std::string::npos && tabsBefore.find(other.toStdString() + ";") != std::string::npos, "the report is the active tab beside another file's: " + tabsBefore);
+		report->dressed_view()->setFocus(Qt::OtherFocusReason);
+		QApplication::processEvents();
 		const auto mutation = access::review_mutation_evidence(*application);
 		expect(report->press(issue.Outline, qt::report_link::keep), "Draft comment is pressed");
 		wait([&] {
+			static_cast<void>(onReport());
 			const auto phase = report->keep_state(issue.Outline).Phase;
 			return phase == qt::report_keep_phase::kept || phase == qt::report_keep_phase::refused;
 		},
 			 "Draft comment is answered");
 		expect(report->keep_state(issue.Outline).Phase == qt::report_keep_phase::kept, "the finding is drafted: " + report->keep_state(issue.Outline).Why.toStdString());
+		QApplication::processEvents();
+		expect(onReport(), "the report stayed in front while the draft was made");
+		expect(strip() == tabsBefore, "the tabs and their files are as they were: " + strip() + " (was " + tabsBefore + ")");
+		expect(report->isAncestorOf(QApplication::focusWidget()), "focus stays on the report");
+		expect(report->last_announcement() == QStringLiteral("Draft comment made on src/engine/renderer.cpp, lines 12 to 13. Go to draft opens it."),
+			   "a screen reader hears the draft was made: " + report->last_announcement().toStdString());
 		// The draft is one of my conversations: a draft on the file, at the
 		// finding's first line.
 		auto* const cards   = window.conversation_panel()->cards();
@@ -262,8 +301,16 @@ auto main(int argc, char** argv) -> int
 		page = report->dressed_view()->toPlainText();
 		expect(report->draft_all_offered() == 2U && page.contains(QStringLiteral("Draft all (2)")), "the report offers Draft all for the two left: " + std::to_string(report->draft_all_offered()));
 		render(*report, QStringLiteral("review-report-draft-all-offered"));
+		const auto tabsBeforeAll = strip();
+		stayed                   = true;
 		expect(report->press_draft_all(), "Draft all is pressed");
-		wait([&] { return !report->draft_all_said().startsWith(QStringLiteral("Drafting")) && !report->draft_all_said().isEmpty(); }, "Draft all ends");
+		wait([&] {
+			static_cast<void>(onReport());
+			return !report->draft_all_said().startsWith(QStringLiteral("Drafting")) && !report->draft_all_said().isEmpty();
+		},
+			 "Draft all ends");
+		QApplication::processEvents();
+		expect(onReport() && strip() == tabsBeforeAll, "Draft all drafts behind the report too, the tabs as they were: " + strip() + " (was " + tabsBeforeAll + ")");
 		expect(report->draft_all_said() == QStringLiteral("Drafted 2 private drafts. Skipped 2: 2 already drafted."), "it says how many were drafted and which were not: " + report->draft_all_said().toStdString());
 		expect(report->keep_state(findings[2].Outline).Phase == qt::report_keep_phase::kept && report->keep_state(findings[4].Outline).Phase == qt::report_keep_phase::kept && report->draft_all_offered() == 0U,
 			   "both read Drafted, and nothing is left to draft");

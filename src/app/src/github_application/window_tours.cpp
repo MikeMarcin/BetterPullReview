@@ -29,6 +29,7 @@
 #include <array>
 #include <chrono>
 #include <iterator>
+#include <mutex>
 #include <string_view>
 #include <variant>
 #include <vector>
@@ -220,7 +221,7 @@ namespace bpr::app {
 		// copies reachable by their immutable owner when that PR is reopened.
 		std::erase_if(RetiredTourHosts, [](const auto& aRetained) {
 			const auto p         = aRetained.Host->presentation();
-			const bool untouched = p.Draft && p.Draft->Revision == 1U && p.Draft->Problem.empty() && p.Draft->Solution.empty() && p.Draft->Stops.empty() && !p.Draft->ProblemBaseline && !p.Draft->SolutionBaseline;
+			const bool untouched = p.Draft && p.Draft->Revision == 1U && p.Draft->Stops.empty();
 			return aRetained.Host->is_quiescent() && !p.Failure && p.Draft && (p.SavedRevision == p.Draft->Revision || untouched);
 		});
 		Window->prepare_tour_action()->setEnabled(false);
@@ -395,7 +396,7 @@ namespace bpr::app {
 		}
 		const auto  shown   = TourHost->presentation();
 		const auto& draft   = shown.Draft;
-		const auto  replace = draft && (draft->Remote ? draft->Remote->Entity == aRoot.Entity : draft->Problem.empty() && draft->Solution.empty() && draft->Stops.empty());
+		const auto  replace = draft && (draft->Remote ? draft->Remote->Entity == aRoot.Entity : draft->Stops.empty());
 		PendingTourStart    = replace;
 		PendingTourStop.reset();
 		Window->open_review_tour();
@@ -461,20 +462,10 @@ namespace bpr::app {
 		}
 		TourOwner         = owner;
 		TourAttentionHead = { };
-		// RFC-BPR-0110 X19: a pull request made from a local draft keeps its
-		// accepted description; publishing its tour starts with the option off.
-		if (DraftDesktop && WindowRead->accepted_snapshot()) {
-			const auto& snapshot = *WindowRead->accepted_snapshot();
-			const auto& marks    = DraftDesktop->host().home().Marks;
-			const auto  local    = std::ranges::any_of(marks, [&snapshot](const application::local_draft_mark& aMark) {
-				return aMark.Owner == snapshot.Repository.Owner && aMark.Name == snapshot.Repository.Name && aMark.Number == snapshot.PullRequest.Number.value();
-			});
-			Window->tour_editor()->set_description_publication_default(core::update_description_by_default(local));
-		}
-		auto       seed = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = owner, .Base = aHandoff.Base, .Head = aHandoff.Head };
-		const auto weak = std::weak_ptr<const int>{ WindowLifetime };
-		TourHost        = std::make_unique<application::review_tour_host>(std::move(seed), adapters::sqlite::make_review_tour_store(ApplicationDataRoot, DraftWindow.Profile), WorkbenchEffects, DecisionLane,
-																		  [this, weak, owner](const application::tour_presentation& aProjection) {
+		auto       seed   = core::review_tour{ .Id = core::tour_draft_id{ 1 }, .Owner = owner, .Base = aHandoff.Base, .Head = aHandoff.Head };
+		const auto weak   = std::weak_ptr<const int>{ WindowLifetime };
+		TourHost          = std::make_unique<application::review_tour_host>(std::move(seed), adapters::sqlite::make_review_tour_store(ApplicationDataRoot, DraftWindow.Profile), WorkbenchEffects, DecisionLane,
+																			[this, weak, owner](const application::tour_presentation& aProjection) {
 																	   if (weak.expired() || Closing || TourOwner != owner || !current(DraftWindow)) {
 																		   return;
 																	   }
@@ -735,6 +726,14 @@ namespace bpr::app {
 		return row >= 0 ? menu->itemText(row) : QStringLiteral("The agent");
 	}
 
+	/// \brief [[BPR-2259]]. What a writing run that ended on a failed sign-in
+	/// says: the agent that ran, by its name in the agent menus, and never a
+	/// stock CLI's sign-in command (a custom agent signs in its own way).
+	auto github_application::implementation::sign_in_failure_words(const core::agent_profile_id aProfile, const QString& aThen) const -> QString
+	{
+		return QStringLiteral("%1 isn't signed in, or its wrapper couldn't get a sign-in token. Sign it in again in a terminal, then %2. Your text is unchanged.").arg(agent_display_name(aProfile), aThen);
+	}
+
 	/// Whether a profile may run tool-free writing: Claude's stream JSON.
 	auto github_application::implementation::writes_tool_free(const core::agent_profile_id aProfile) const -> bool
 	{
@@ -827,15 +826,6 @@ namespace bpr::app {
 				}
 			}
 		}
-		const auto& draft = Window->tour_editor()->shown().Draft;
-		if (draft) {
-			if (aHook != core::writing_hook::problem) {
-				add("private-problem", draft->Problem, 1024);
-			}
-			if (aHook != core::writing_hook::solution) {
-				add("private-solution", draft->Solution, 1024);
-			}
-		}
 		if (aRequest.Scope == core::writing_scope::selection) {
 			add("field-before", std::string_view{ aRequest.Raw }.substr(0, aRequest.Selection.Begin), 512);
 			add("field-after", std::string_view{ aRequest.Raw }.substr(aRequest.Selection.End), 512);
@@ -878,28 +868,6 @@ namespace bpr::app {
 			return;
 		}
 		auto sources = writing_sources(aHook, *request);
-		// Recover an unambiguous existing author section before asking a model.
-		if (request->Scope == core::writing_scope::empty_field && (aHook == core::writing_hook::problem || aHook == core::writing_hook::solution)) {
-			const auto&                         description = WindowRead->accepted_snapshot()->PullRequest.Body;
-			const auto                          map         = core::map_tour_markdown(description);
-			std::optional<core::tour_text_span> recovered;
-			bool                                ambiguous = false;
-			for (const auto& section : map.Sections) {
-				if (section.Name == (aHook == core::writing_hook::problem ? "Problem" : "Solution")) {
-					if (recovered) {
-						ambiguous = true;
-					}
-					recovered = section.Content;
-				}
-			}
-			if (recovered && !ambiguous && map.Bounded) {
-				auto edit = WritingState.complete(request->Id, *target, request->Raw, description.substr(recovered->Begin, recovered->End - recovered->Begin));
-				if (edit && Window->tour_editor()->writing_editor(aHook)->apply(*edit)) {
-					Window->tour_editor()->show_writing_notice(QStringLiteral("Recovered — pr-description. Existing author text; no inference."));
-				}
-				return;
-			}
-		}
 		if (!writes_tool_free(target->Agent)) {
 			WritingState.cancel();
 			Window->tour_editor()->show_writing_notice(QStringLiteral("This agent has no qualified tool-free writing mode: writing needs one that speaks Claude Code's stream JSON. Add one in Settings › Agents, or keep writing manually."));
@@ -907,7 +875,7 @@ namespace bpr::app {
 		}
 		if (request->Scope == core::writing_scope::empty_field && (sources.empty() || (aHook == core::writing_hook::comment && std::ranges::find(sources, "stop-source", &application::writing_source::Id) == sources.end()))) {
 			WritingState.cancel();
-			Window->tour_editor()->show_writing_notice(QStringLiteral("Not enough approved context to draft an explanation. Add the author's problem or solution first."));
+			Window->tour_editor()->show_writing_notice(QStringLiteral("Not enough approved context to draft an explanation: the stop's code could not be read."));
 			return;
 		}
 		// [[BPR-2140]]. The built-in prompt's instructions apart from the material.
@@ -1040,8 +1008,19 @@ namespace bpr::app {
 																						locate_agent_program());
 		LocalDraftEntryProcess   = std::make_unique<application::agent_entry_process>(*LocalDraftProcess, *LocalDraftLocatedProcess, AgentEntries, &adapters::agent::inspect_claude_process_wrapper,
 																					  locate_claude(), locate_agent_program());
-		auto runner              = [profiles = std::make_shared<const std::vector<core::agent_profile>>(aProfiles), process = LocalDraftEntryProcess.get(), root = ApplicationDataRoot](
-									   const application::local_draft_agent_run& aRun, const std::stop_token aStop) -> application::local_draft_agent_answer {
+		// [[BPR-2264]]. A person reads every answer a local draft's agent
+		// gives (description, discussion, commit message, a check's plan and
+		// report), so every run carries the Writing style. The chooser, on
+		// this thread, reads it from the saved prompts before each request;
+		// the runner, on the agent lane, appends it to the launch.
+		struct local_writing_style
+		{
+			std::mutex  Lock;
+			std::string Text;
+		};
+		auto style  = std::make_shared<local_writing_style>();
+		auto runner = [profiles = std::make_shared<const std::vector<core::agent_profile>>(aProfiles), process = LocalDraftEntryProcess.get(), root = ApplicationDataRoot, style](
+						  const application::local_draft_agent_run& aRun, const std::stop_token aStop) -> application::local_draft_agent_answer {
 			const auto profile = std::ranges::find_if(*profiles, [&aRun](const core::agent_profile& aProfile) { return aProfile.Id.value() == aRun.Profile; });
 			if (profile == profiles->end()) {
 				return { .Failure = "That agent is no longer set up. Choose one with the agent picker." };
@@ -1050,6 +1029,10 @@ namespace bpr::app {
 			supplement.Session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile->Id };
 			supplement.Message = aRun.Prompt;
 			auto options       = application::agent_launch_options{ .WritingOnly = true, .Path = aRun.Path, .SystemInstructions = aRun.Instructions, .Instructions = aRun.Delivery };
+			{
+				const auto lock      = std::scoped_lock{ style->Lock };
+				options.WritingStyle = style->Text;
+			}
 			// RFC-BPR-0120. A check runs in the candidate's check copy, never
 			// the worktree: its plan with read-only tools, its run with the
 			// draft's grants for this agent (RFC-BPR-0104). The copy's own
@@ -1165,12 +1148,37 @@ namespace bpr::app {
 			}
 			return answer;
 		};
-		DraftDesktop->set_agent(std::move(runner), &TourAgentEffects, [this]() -> std::optional<local_draft_desktop::agent_choice> {
+		// [[BPR-2281]]. Draft Description runs on the same agent runner, one
+		// fresh, tool-free run, on a lane of its own.
+		if (!DescriptionDraftLane) {
+			DescriptionDraftLane = std::make_unique<worker_executor>();
+		}
+		if (!DescriptionDraft) {
+			DescriptionDraft = std::make_unique<application::description_draft_host>(*DescriptionDraftLane, DecisionLane,
+																					 [this](const application::description_draft_projection& aProjection) { present_description_draft(aProjection); });
+		}
+		DescriptionDraft->set_runner([runner, style](const application::description_draft_agent& aAgent, const std::string& aMessage, const std::stop_token aStop) -> std::expected<std::string, std::string> {
+			{
+				const auto lock = std::scoped_lock{ style->Lock };
+				style->Text     = aAgent.WritingStyle;
+			}
+			auto answer = runner({ .Agent = aAgent.Agent, .AgentName = aAgent.AgentName, .Profile = aAgent.Profile, .Prompt = aMessage, .Instructions = aAgent.Instructions, .Path = core::agent_run_path::local_description_first_draft, .Delivery = aAgent.Delivery },
+								 aStop);
+			if (!answer.Answered) {
+				return std::unexpected{ answer.Failure.empty() ? std::string{ "The agent did not answer." } : answer.Failure };
+			}
+			return answer.Text;
+		});
+		DraftDesktop->set_agent(std::move(runner), &TourAgentEffects, [this, style]() -> std::optional<local_draft_desktop::agent_choice> {
 			const auto  profile = writing_agent();
 			const auto& prefs   = Profile->WorkbenchPreferences->accepted();
 			if (Closing || !profile || !writes_tool_free(*profile) || !prefs) {
 				Window->tour_editor()->show_notice(QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker, or keep writing yourself."));
 				return std::nullopt;
+			}
+			{
+				const auto lock = std::scoped_lock{ style->Lock };
+				style->Text     = application::writing_style_for(prefs->WritingHooks, true);
 			}
 			auto identity = tour_native_agent();
 			if (identity.empty()) {
@@ -1353,6 +1361,14 @@ namespace bpr::app {
 			return;
 		}
 		auto live = *TourLive;
+		// [[BPR-2261]]. Its kept workspace is checked, not made.
+		if (aEvent.Kind == application::agent_stream_kind::workspace_check) {
+			if (qt::agent_run_before_start(live.Stage)) {
+				live.Stage = qt::agent_run_stage::checking;
+				present_tour_live(std::move(live));
+			}
+			return;
+		}
 		// [[BPR-2005]], RFC-BPR-0103. The side chat's running block hears
 		// what the agent and its helpers do, and every frame.
 		const auto at = static_cast<std::uint64_t>(std::max<qint64>(0, qt::agent_activity_clock_ms() - live.ActivityStartedMs));
@@ -1673,12 +1689,6 @@ namespace bpr::app {
 				} else if (const auto drafted = application::decode_tour_draft_answer(saved.Answered); drafted) {
 					turn.Request = core::tour_agent_request::draft_tour;
 					turn.Reply   = "Draft Tour";
-					if (drafted->Problem) {
-						turn.Reply += "\n\nProblem: " + *drafted->Problem;
-					}
-					if (drafted->Solution) {
-						turn.Reply += "\n\nSolution: " + *drafted->Solution;
-					}
 					turn.Reply += "\n\nProposed stops: " + std::to_string(drafted->Stops.size()) + ". Retained history does not restore or accept a proposal.";
 				} else {
 					turn.Reply = saved.Answered;
@@ -2269,12 +2279,6 @@ namespace bpr::app {
 			return "An answer that isn't a tour this app can read.";
 		}
 		auto parts = std::vector<std::string>{ };
-		if (answer->Problem && !answer->Problem->empty()) {
-			parts.emplace_back("a Problem");
-		}
-		if (answer->Solution && !answer->Solution->empty()) {
-			parts.emplace_back("a Solution");
-		}
 		parts.push_back(std::to_string(answer->Stops.size()) + (answer->Stops.size() == 1U ? " stop" : " stops"));
 		auto words = std::string{ "Proposed " };
 		for (std::size_t index = 0U; index < parts.size(); ++index) {
@@ -2399,12 +2403,6 @@ namespace bpr::app {
 		core::remember_tour_proposal(TourAgent, TourProposal, proposed);
 		// [[BPR-2138]]. What the fresh first draft said, for Ask more.
 		TourDraftSeed = "Draft Tour";
-		if (answer->Problem) {
-			TourDraftSeed += "\n\nProblem: " + *answer->Problem;
-		}
-		if (answer->Solution) {
-			TourDraftSeed += "\n\nSolution: " + *answer->Solution;
-		}
 		TourDraftSeed += "\n\nProposed stops: " + std::to_string(answer->Stops.size()) + ".";
 		if (TourDraftSeed.size() > 8192U) {
 			TourDraftSeed.resize(8192U);
@@ -2502,8 +2500,7 @@ namespace bpr::app {
 				command.Value    = core::tour_stop_of(item.Stop, core::proposal_head(item, *draft));
 				command.Position = position;
 			} else {
-				command.Kind = item.Part == core::tour_proposal_part::problem ? core::tour_command_kind::problem : core::tour_command_kind::solution;
-				command.Text = item.Text;
+				return;
 			}
 			TourHost->dispatch(command);
 			if (!TourHost->presentation().Draft || TourHost->presentation().Refusal != core::tour_refusal::none) {
@@ -2712,7 +2709,8 @@ namespace bpr::app {
 								   result ? QStringLiteral("The pull request changed while Enhance ran. Your text is unchanged; Enhance again.")
 										  : QStringLiteral("The agent's answer could not be used. Your text is unchanged."));
 			} else if (aResult.ProtocolFailure == application::agent_protocol_failure::not_signed_in) {
-				answer_enhancement(id, std::nullopt, QStringLiteral("Claude isn't signed in. Run claude auth login in a terminal, then try again. Your text is unchanged."));
+				// [[BPR-2259]]. The agent that ran, never a CLI it didn't run.
+				answer_enhancement(id, std::nullopt, sign_in_failure_words(operation.Request.Target.Agent, QStringLiteral("Enhance again")));
 			} else {
 #if defined(BPR_AGENT_INTEGRATIONS)
 				answer_enhancement(id, std::nullopt, qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(operation.Request.Target.Agent)) + QStringLiteral(" Your text is unchanged."));
@@ -2727,8 +2725,9 @@ namespace bpr::app {
 		} else if (aResult.Outcome == application::agent_run_outcome::success) {
 			message = "Assistance returned an invalid, unsupported or stale result. Your text is unchanged.";
 		} else if (aResult.ProtocolFailure == application::agent_protocol_failure::not_signed_in) {
-			// [[BPR-1375]]. Writing runs only Claude, on its own sign-in.
-			message = "Claude isn't signed in. Run claude auth login in a terminal, then try again. Your text is unchanged.";
+			// [[BPR-1375]], [[BPR-2259]]. Writing runs the chosen agent, on its
+			// own sign-in, and says so by that agent's name.
+			message = sign_in_failure_words(operation.Request.Target.Agent, QStringLiteral("try again")).toStdString();
 		}
 		WritingState.cancel();
 		if (operation.Test) {
@@ -3286,7 +3285,7 @@ namespace bpr::app {
 			return;
 		}
 		const auto& draft = *aProjection.Draft;
-		if (!draft.Problem.empty() || !draft.Solution.empty() || !draft.Stops.empty() || draft.Remote || draft.ReadOnly) {
+		if (!draft.Stops.empty() || draft.Remote || draft.ReadOnly) {
 			TourCarryAsked = TourOwner;
 			return;
 		}
@@ -3306,7 +3305,7 @@ namespace bpr::app {
 				return;
 			}
 			const auto shown = TourHost->presentation();
-			if (!shown.Draft || !shown.Draft->Stops.empty() || !shown.Draft->Problem.empty() || !shown.Draft->Solution.empty()) {
+			if (!shown.Draft || !shown.Draft->Stops.empty()) {
 				// The author began this tour meanwhile: theirs stands.
 				return;
 			}
@@ -3463,23 +3462,6 @@ namespace bpr::app {
 			TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::insert, .Stop = selected ? selected->Id : core::tour_stop_id{ }, .Value = { .Original = source, .Mapping = core::tour_mapping::exact_original, .ReaffirmedHead = draft->ObservedHead.value_or(draft->Head) }, .Position = position });
 			Window->open_review_tour();
 			Window->tour_editor()->show_stops();
-			return;
-		}
-		case qt::tour_editor_action::map_problem:
-		case qt::tour_editor_action::map_solution: {
-			const auto draft = TourHost->presentation().Draft;
-			if (!draft) {
-				return;
-			}
-			const auto* view     = Window->overview_page()->body_view();
-			const auto  span     = view->selected_source_bytes();
-			const auto& snapshot = WindowRead->accepted_snapshot();
-			if (!span || !snapshot || view->original_body() != snapshot->PullRequest.Body) {
-				Window->tour_editor()->show_notice(QStringLiteral("Select text in the description's Source view first, or write your own explanation here."));
-				return;
-			}
-			const auto& raw = view->original_body();
-			TourHost->dispatch({ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = aAction == qt::tour_editor_action::map_problem ? core::tour_command_kind::problem : core::tour_command_kind::solution, .Text = raw.substr(span->first, span->second - span->first), .Baseline = core::tour_field_baseline{ .Raw = raw, .RemoteEntity = std::string{ snapshot->PullRequest.Node.value() }, .SourceSpan = span } });
 			return;
 		}
 		}

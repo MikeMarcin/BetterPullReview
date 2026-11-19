@@ -20,7 +20,7 @@ namespace bpr::application {
 	struct tour_assist_ticket
 	{
 		std::uint64_t                Id   = 0;
-		core::writing_hook           Hook = core::writing_hook::problem;
+		core::writing_hook           Hook = core::writing_hook::comment;
 		core::tour_stop_id           Stop;
 		core::writing_scope          Scope = core::writing_scope::field;
 		std::uint64_t                Begin = 0, End = 0;

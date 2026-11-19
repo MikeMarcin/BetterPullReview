@@ -63,6 +63,28 @@ namespace bpr::adapters::github::detail {
 			default: return { .Answer = core::review_submission_post_answer::no_answer, .RecordedUtcMs = aNow };
 			}
 		}
+		/// [[BPR-2263]]. `aResult`, refused by this session before its request
+		/// could leave, for `aReason`.
+		auto refused(application::review_submission_result aResult, const core::review_submission_refusal_reason aReason, const core::review_submission_refusal_part aPart = core::review_submission_refusal_part::none, const std::uint16_t aComment = 0U) -> application::review_submission_result
+		{
+			aResult.Refused = core::review_submission_refusal{ .Check = core::review_submission_refusal_check::session, .Reason = aReason, .Part = aPart, .Comment = aComment };
+			return aResult;
+		}
+		/// [[BPR-2263]]. Why a read before the POST refused the review, by
+		/// the failure it ended with and the reason the session noted.
+		auto read_refusal(const application::review_mutation_failure aFailure, const std::optional<core::review_submission_unknown_diagnosis>& aWhy) -> core::review_submission_refusal_reason
+		{
+			using why = core::review_submission_refusal_reason;
+			switch (aFailure) {
+			case application::review_mutation_failure::stale_head:   return why::stale_head;
+			case application::review_mutation_failure::target_moved: return why::target_moved;
+			case application::review_mutation_failure::cancelled:    return why::request_stopped;
+			case application::review_mutation_failure::undesignated_target:
+				return aWhy && aWhy->Reason == reason::account_mismatch ? why::identity_mismatch_account : aWhy && aWhy->Reason == reason::pull_request_mismatch ? why::identity_mismatch_pull_request
+																																								 : why::connection_unavailable;
+			default: return why::connection_unavailable;
+			}
+		}
 		auto receipt(const review_submission_observation& aReview) -> application::review_submission_receipt { return { .ReviewDatabaseId = application::review_database_id{ aReview.ReviewDatabaseId }, .ReviewNodeId = aReview.ReviewNodeId, .Target = aReview.Target.Semantic, .ActingAccount = aReview.Author.Account, .Disposition = aReview.Disposition }; }
 	}
 	review_submission_session::review_submission_session(github_mutation_wire_transport& aTransport, live_review_mutation_configuration aConfiguration, application::review_mutation_transport aLease, std::unique_ptr<application::review_submission_recovery_port> aRecovery,
@@ -128,7 +150,6 @@ namespace bpr::adapters::github::detail {
 	void review_submission_session::log_ending(const application::review_submission_result& aResult)
 	{
 		using ending = core::review_submission_ending;
-		using stop   = core::review_submission_stop;
 		if (!Log) {
 			return;
 		}
@@ -159,31 +180,13 @@ namespace bpr::adapters::github::detail {
 		if (refused) {
 			diagnosis.Refusal = aResult.Refusal == application::review_submission_refusal::unplaceable_line ? core::review_submission_ending_refusal::unplaceable_line : core::review_submission_ending_refusal::review;
 		}
+		// [[BPR-2263]]. Each failure its own stop, and the check that
+		// refused it with its reason.
 		if (diagnosis.Ending == ending::not_sent) {
-			switch (aResult.Failure) {
-			case application::review_mutation_failure::stale_head:          diagnosis.Stop = stop::stale_head; break;
-			case application::review_mutation_failure::target_moved:        diagnosis.Stop = stop::target_moved; break;
-			case application::review_mutation_failure::cancelled:           diagnosis.Stop = stop::cancelled; break;
-			case application::review_mutation_failure::undesignated_target: diagnosis.Stop = stop::undesignated_target; break;
-			case application::review_mutation_failure::unavailable:         diagnosis.Stop = stop::unavailable; break;
-			default:                                                        diagnosis.Stop = stop::other; break;
-			}
+			diagnosis.Stop  = application::review_submission_stop_of(aResult.Failure);
+			diagnosis.Cause = aResult.Refused;
 		}
-		const auto text  = core::describe(diagnosis);
-		auto       event = application::diagnostic_event{
-			.Operation  = application::diagnostic_operation::review_submission,
-			.Outcome    = published ? application::diagnostic_outcome::succeeded : diagnosis.Stop == stop::cancelled ? application::diagnostic_outcome::cancelled
-																													 : application::diagnostic_outcome::failed,
-			.HttpStatus = PostStatus,
-		};
-		if (text.empty() || text.size() > event.Summary.Text.size()) {
-			return;
-		}
-		std::ranges::copy(text, event.Summary.Text.begin());
-		event.Summary.Size  = static_cast<std::uint16_t>(text.size());
-		event.Summary.State = application::diagnostic_summary_state::sanitized;
-		event.ReviewEnding  = diagnosis;
-		static_cast<void>(Log->record(event));
+		application::record_review_submission_ending(Log.get(), diagnosis, PostStatus);
 	}
 	void review_submission_session::explain(application::review_submission_result& aResult)
 	{
@@ -705,28 +708,40 @@ namespace bpr::adapters::github::detail {
 	{
 		using publication = application::review_submission_publication;
 		{
-			if (!application::valid(aRequest) || !aRequest.LiveBinding || !application::same_review_submission_identity(*aRequest.LiveBinding, { .Target = Configuration.Target, .ActingIdentity = Configuration.ActingIdentity })) {
-				note(aRequest.LiveBinding && aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity ? reason::account_mismatch : reason::pull_request_mismatch);
-				return result(aRequest, aAllowNew ? publication::definitely_not_published : publication::indeterminate, application::review_mutation_failure::undesignated_target);
+			using why = core::review_submission_refusal_reason;
+			if (!application::valid(aRequest) || !aRequest.LiveBinding) {
+				// [[BPR-2263]]. Which part, when the review's own rules say.
+				const auto content = core::review_submission_content_refusal(aRequest.Proposal.Body, aRequest.Proposal.Disposition, aRequest.Proposal.Comments);
+				note(reason::pull_request_mismatch);
+				return refused(result(aRequest, aAllowNew ? publication::definitely_not_published : publication::indeterminate, application::review_mutation_failure::undesignated_target), why::invalid_request,
+							   content.Part == core::review_submission_refusal_part::none ? core::review_submission_refusal_part::request : content.Part, content.Comment);
+			}
+			if (!application::same_review_submission_identity(*aRequest.LiveBinding, { .Target = Configuration.Target, .ActingIdentity = Configuration.ActingIdentity })) {
+				const auto account = aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity;
+				note(account ? reason::account_mismatch : reason::pull_request_mismatch);
+				return refused(result(aRequest, aAllowNew ? publication::definitely_not_published : publication::indeterminate, application::review_mutation_failure::undesignated_target),
+							   account ? why::identity_mismatch_account : why::identity_mismatch_pull_request);
 			}
 			if (!Recovery) {
 				note(reason::local_record_unavailable);
-				return result(aRequest);
+				return refused(result(aRequest), why::recovery_record_unavailable);
 			}
 			if (!Lease || !Lease->active() || !valid(Configuration)) {
 				note(reason::connection_unavailable);
-				return result(aRequest);
+				return refused(result(aRequest), why::connection_lease_inactive);
 			}
 			auto wire = compile_review_submission_request(wire_input(aRequest), Configuration.Target.ServerContract);
 			if (!wire) {
-				return result(aRequest, publication::definitely_not_published);
+				// [[BPR-2263]]. Which part GitHub's request cannot carry.
+				const auto invalid = diagnose_review_submission_request(wire_input(aRequest), Configuration.Target.ServerContract);
+				return refused(result(aRequest, publication::definitely_not_published), why::invalid_request, invalid.Part, invalid.Comment);
 			}
 			const auto fingerprint = application::review_submission_request_fingerprint(aRequest);
 			const auto authority   = application::review_submission_authority_fingerprint(*aRequest.LiveBinding);
 			auto       loaded      = Recovery->load(aRequest.IdempotencyKey);
 			if (!loaded) {
 				note(reason::local_record_unavailable);
-				return result(aRequest);
+				return refused(result(aRequest), why::recovery_record_unavailable);
 			}
 			// A later credential refusal cannot erase an earlier durable write.
 			// Confirmed and unwitnessed records need no provider operation at all.
@@ -734,7 +749,7 @@ namespace bpr::adapters::github::detail {
 				const auto& known = **loaded;
 				if (!application::valid(known) || known.Request != aRequest || known.RequestFingerprint != fingerprint || known.AuthorityFingerprint != authority) {
 					note(reason::local_record_unavailable);
-					return result(aRequest);
+					return refused(result(aRequest), why::recovery_record_unavailable);
 				}
 				if (known.Receipt || known.Transmission != application::review_mutation_recovery_transmission::possibly_transmitted) {
 					return finish_known(known, aStop, true);
@@ -746,8 +761,9 @@ namespace bpr::adapters::github::detail {
 			}
 			github_mutation_operation_scope operation{ Transport, aStop };
 			if (!operation.valid()) {
-				note(operation.failure() == application::review_mutation_failure::cancelled ? reason::cancelled : reason::connection_unavailable);
-				return result(aRequest, *loaded ? publication::indeterminate : publication::definitely_not_published, operation.failure());
+				const auto cancelled = operation.failure() == application::review_mutation_failure::cancelled;
+				note(cancelled ? reason::cancelled : reason::connection_unavailable);
+				return refused(result(aRequest, *loaded ? publication::indeterminate : publication::definitely_not_published, operation.failure()), cancelled ? why::request_stopped : why::connection_unavailable);
 			}
 			if (*loaded) {
 				const auto& known = **loaded;
@@ -761,20 +777,23 @@ namespace bpr::adapters::github::detail {
 				return finish_known(known, aStop, true);
 			}
 			if (aRequest.LiveBinding->Target != Configuration.Target || aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
-				return result(aRequest, publication::definitely_not_published, application::review_mutation_failure::stale_head);
+				const auto head = aRequest.LiveBinding->Target.Semantic.ExpectedHead != Configuration.Target.Semantic.ExpectedHead;
+				return refused(result(aRequest, publication::definitely_not_published, application::review_mutation_failure::stale_head),
+							   head ? why::stale_head : aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity ? why::identity_mismatch_account
+																															 : why::identity_mismatch_pull_request);
 			}
 			if (aStop.stop_requested()) {
-				return result(aRequest, publication::definitely_not_published, application::review_mutation_failure::cancelled);
+				return refused(result(aRequest, publication::definitely_not_published, application::review_mutation_failure::cancelled), why::request_stopped);
 			}
 			const auto baseline = observe_reviews(aRequest, aStop);
 			if (!baseline) {
-				return result(aRequest, publication::definitely_not_published);
+				return refused(result(aRequest, publication::definitely_not_published), why::review_list_unavailable);
 			}
 			auto expected = application::review_submission_recovery_record{ .Request = aRequest, .RequestFingerprint = fingerprint, .AuthorityFingerprint = authority, .BaselineReviewIds = baseline->ReviewIds, .Transmission = application::review_mutation_recovery_transmission::prepared };
 			auto admitted = Recovery->admit(expected);
 			if (!admitted || !application::valid(admitted->Record) || admitted->Record.Request != aRequest || admitted->Record.RequestFingerprint != fingerprint || admitted->Record.AuthorityFingerprint != authority) {
 				note(reason::local_record_unavailable);
-				return result(aRequest);
+				return refused(result(aRequest), why::recovery_record_unavailable);
 			}
 			if (!admitted->Inserted) {
 				if (!admitted->Record.Receipt
@@ -799,10 +818,10 @@ namespace bpr::adapters::github::detail {
 			});
 			const auto current  = observe_exact(aStop, false, leftLine);
 			if (!current) {
-				return withdrawn(result(aRequest, publication::definitely_not_published, current.error()));
+				return withdrawn(refused(result(aRequest, publication::definitely_not_published, current.error()), read_refusal(current.error(), Why)));
 			}
 			if (aStop.stop_requested() || !Lease->active()) {
-				return withdrawn(result(aRequest, publication::definitely_not_published, application::review_mutation_failure::cancelled));
+				return withdrawn(refused(result(aRequest, publication::definitely_not_published, application::review_mutation_failure::cancelled), aStop.stop_requested() ? why::request_stopped : why::connection_lease_inactive));
 			}
 			auto witnessed  = std::make_shared<std::atomic_bool>(false);
 			auto completion = github_mutation_wire_completion{ github_mutation_wire_error{ .Transmission = github_mutation_transmission::indeterminate } };
@@ -862,11 +881,11 @@ namespace bpr::adapters::github::detail {
 				// [[BPR-1572]]. A transport that refused the write before sending
 				// it (the GitHub CLI account wrapper finding the pull request
 				// moved) says why; the reason reaches the caller.
-				const auto* refused = std::get_if<github_mutation_wire_error>(&completion);
-				const auto  why     = refused != nullptr && (refused->Failure == application::review_mutation_failure::target_moved || refused->Failure == application::review_mutation_failure::stale_head)
-					? refused->Failure
+				const auto* declined = std::get_if<github_mutation_wire_error>(&completion);
+				const auto  failure  = declined != nullptr && (declined->Failure == application::review_mutation_failure::target_moved || declined->Failure == application::review_mutation_failure::stale_head)
+					? declined->Failure
 					: application::review_mutation_failure::unavailable;
-				return withdrawn(result(aRequest, publication::definitely_not_published, why));
+				return withdrawn(refused(result(aRequest, publication::definitely_not_published, failure), read_refusal(failure, std::nullopt)));
 			}
 			const auto persisted = Recovery->load(aRequest.IdempotencyKey);
 			if (!persisted || !*persisted || !application::valid(**persisted) || (**persisted).Request != aRequest || (**persisted).BaselineReviewIds != expected.BaselineReviewIds || (**persisted).Transmission != application::review_mutation_recovery_transmission::possibly_transmitted || !observed) {

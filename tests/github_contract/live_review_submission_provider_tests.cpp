@@ -2329,6 +2329,45 @@ namespace {
 				   "and logged as settled with the answer it kept, or as unknown");
 		}
 	}
+	/// [[BPR-2263]]. Each early return before the first request names its
+	/// own reason, and the session logs an ending for each.
+	void test_early_refusals_are_named_and_logged()
+	{
+		using why           = core::review_submission_refusal_reason;
+		using part          = core::review_submission_refusal_part;
+		const auto refuseAs = [](application::review_submission_request aRequest, const why aReason, const part aPart, const std::uint16_t aComment, const char* aWhat) {
+			temporary_directory       root;
+			transport                 wire;
+			auto                      log = std::make_shared<recording_log>();
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path), log };
+			const auto                result = session.submit_and_reconcile(aRequest);
+			expect(result.Publication == application::review_submission_publication::definitely_not_published && wire.Trace.empty() && wire.Posts == 0U, aWhat);
+			expect(result.Refused == core::review_submission_refusal{ .Check = core::review_submission_refusal_check::session, .Reason = aReason, .Part = aPart, .Comment = aComment }, aWhat);
+			expect(log->Events.size() == 1U && log->Events.front().ReviewEnding && log->Events.front().ReviewEnding->Ending == core::review_submission_ending::not_sent && log->Events.front().ReviewEnding->Cause == result.Refused
+					   && log->Events.front().Summary.text().find(std::string{ "reason=" } + std::string{ core::name(aReason) }) != std::string::npos,
+				   "the session logs that it sent nothing, and why");
+		};
+		auto other                                = request();
+		other.Proposal.ActingAccount              = core::github_account_id{ 99U };
+		other.LiveBinding->ActingIdentity.Account = core::github_account_id{ 99U };
+		refuseAs(other, why::identity_mismatch_account, part::none, 0U, "a review written as another account is refused before any request");
+		auto moved                       = request();
+		moved.LiveBinding->Target.Number = core::pull_request_number{ 2U };
+		refuseAs(moved, why::identity_mismatch_pull_request, part::none, 0U, "a review written for another pull request is refused before any request");
+		auto comment                 = core::review_submission_comment{ .Draft = core::review_draft_id{ 7U }, .DraftRevision = 1U, .Path = "src/sample.cpp", .Line = 3U, .Body = "Kept words." };
+		auto blank                   = comment;
+		blank.Draft                  = core::review_draft_id{ 8U };
+		blank.Body                   = " ";
+		auto invalid                 = request();
+		invalid.Proposal.Disposition = core::review_disposition::approve;
+		invalid.Proposal.Body        = { };
+		invalid.Proposal.Comments    = { comment, blank };
+		refuseAs(invalid, why::invalid_request, part::comment_body_missing, 2U, "a review whose second comment has no text names that comment");
+		auto summaryless                 = request();
+		summaryless.Proposal.Disposition = core::review_disposition::request_changes;
+		summaryless.Proposal.Body        = { };
+		refuseAs(summaryless, why::invalid_request, part::summary_missing, 0U, "a verdict that needs a summary and has none names the summary");
+	}
 	struct row
 	{
 		std::string_view Name;
@@ -2344,6 +2383,7 @@ namespace {
 		row{ "review_with_comments_reconciles_on_a_busy_pull_request", &test_a_review_with_comments_reconciles_on_a_busy_pull_request },
 		row{ "unknown_reasons_are_named_kept_and_logged", &test_unknown_reasons_are_named_kept_and_logged },
 		row{ "refused_and_lost_reviews_settle", &test_refused_and_lost_reviews_settle },
+		row{ "early_refusals_are_named_and_logged", &test_early_refusals_are_named_and_logged },
 	};
 }
 auto main(int aArgc, char** aArgv) -> int

@@ -3,6 +3,7 @@
 
 #include "bpr/core/agent_activity.hpp"
 #include "bpr/core/agent_cost.hpp"
+#include "bpr/core/agent_turn.hpp"
 
 #include <QElapsedTimer>
 #include <QLabel>
@@ -22,13 +23,24 @@ class QVBoxLayout;
 
 namespace bpr::qt {
 	/// \brief [[BPR-1941]]. What a running agent is doing now, as the Agent
-	/// tab's turn says it: making its workspace, thinking (nothing written
-	/// yet), or writing its answer.
+	/// tab's turn says it: making its workspace, checking the workspace it
+	/// kept ([[BPR-2261]]), thinking (nothing written yet), or writing its
+	/// answer.
 	enum class agent_run_stage : std::uint8_t {
 		preparing,
 		thinking,
 		writing,
+		/// [[BPR-2261]]. Before the run, the pull request's retained
+		/// workspace is checked; nothing is made.
+		checking,
 	};
+
+	/// \brief [[BPR-2261]]. The run has not started: its workspace is being
+	/// made or checked.
+	[[nodiscard]] constexpr auto agent_run_before_start(const agent_run_stage aStage) noexcept -> bool
+	{
+		return aStage == agent_run_stage::preparing || aStage == agent_run_stage::checking;
+	}
 
 	/// \brief [[BPR-1941]]. One running request, as its live line says it.
 	struct agent_run_status
@@ -90,6 +102,10 @@ namespace bpr::qt {
 	/// answered, else `agent_run_stopped_words`. A turn restored without its
 	/// duration says "Claude answered" or "Stopped".
 	[[nodiscard]] auto agent_turn_ending_words(const QString& aAgent, bool aAnswered, std::optional<qint64> aSeconds) -> QString;
+	/// \brief [[BPR-2261]]. As above, for a turn kept with how it ended: one
+	/// the application's closing stopped says so, "Stopped when the app
+	/// closed, after 16:46", rather than only "Stopped after 16:46".
+	[[nodiscard]] auto agent_turn_ending_words(const QString& aAgent, core::agent_turn_outcome aOutcome, std::optional<qint64> aSeconds) -> QString;
 
 	/// \brief [[BPR-1941]], owner 2026-11-08: "the '<agent> is thinking
 	/// <elapsed time>' ... is much better than the tour side chat's little

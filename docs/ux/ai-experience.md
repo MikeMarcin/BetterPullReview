@@ -61,6 +61,46 @@ The functional core decides whether an explicit AI action is legal, what local c
   edited prompt cannot break Draft comment; a report without an optional
   part (no verdict, other section names, another severity scheme) still
   shows and still drafts.
+- **Writing style** ([[BPR-2264]], owner 2026-11-18: "a feature that is
+  built-in but editable"). One Feature, `/bpr:writing-style`, sets how the
+  agent words everything a person reads: Agent tab answers, reports and
+  suggested comments, the comment workshop, the returning questions,
+  Explain this file, Suggest the change, every tour run and tour chat,
+  Enhance, and a local draft's description, discussion, commit message and
+  check. Every such request carries it after its own instructions and
+  format, which win where they disagree; in a JSON answer it governs only
+  the text inside string values. It is edited in Settings › Prompts, under
+  Features, like a built-in prompt (Changed from built-in, Reset to
+  built-in, the version it was written against), and travels in the settings exchange as
+  `feature.writing-style`. Its text is sent as written, so it can simply
+  point at a skill installed for the agent. A prompt or skill that names
+  `/bpr:writing-style` still sends it once.
+- **Comment labels** ([[BPR-2270]], owner 2026-11-18: "Maybe the comment tag
+  is another editable feature defaulted to our conventional comments"). The
+  second editable Feature, `/bpr:comment-labels`, says how the agent labels
+  each comment it writes for the reviewer to post: suggested comments in
+  reviews and reports, replies, and the comment workshop's drafts. Built in,
+  it is the Conventional Comments convention, with a weight decoration only
+  where it differs from the label's. It is edited under Features beside the
+  Writing style and travels as `feature.comment-labels`. Cleared, it is kept
+  blank and sends nothing, so comments stay plain (owner: "could be a user
+  just blanks that out because they want all plain comments"); Reset to
+  built-in brings the convention back. The app never adds a label of its
+  own: Draft comment, Draft all, Keep local and Draft comment on an answer
+  keep the agent's text, with a catalog label read into the label control
+  and any other label left as written. The app recognizes Conventional
+  Comments labels for its label controls and blocker count.
+- A drafted suggestion carries a `(blocking)` or `(non-blocking)` only where
+  it adds to the label ([[BPR-2264]], owner 2026-11-18: "They should only
+  appear when they add value over the tag"). An `issue` blocks and a
+  `suggestion` or `nitpick` does not, so `issue (blocking)` drafts as
+  `issue:` and `suggestion (non-blocking)` as `suggestion:`; `suggestion
+  (blocking)` and `issue (non-blocking)` stay. A `todo`, `typo` or `chore`
+  does not block either ([[BPR-2276]], owner 2026-11-18: "nothing is a
+  blocker unless we don't want the PR to merge without it fixed"), so
+  `todo (blocking)` stays and `todo (non-blocking)` drafts as `todo:`. The review prompt and the
+  comment workshop's guidance ask for the same, and the reviewer can still
+  add either in the label toggles.
 - Ask about selection
 - Analyze current file: **Explain this file** (RFC-BPR-0117, [[BPR-2076]]).
   Its subject is the file open in Review, never a selection: the control at

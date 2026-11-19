@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2284"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "workbench window course still names BPR-2274's removed Problem/Solution controls",
+  "created": "2026-11-19T17:45:35.172059+00:00",
+  "base": "143e6f0ef3090602a45157569dbe0e1aa79122cc"
+}

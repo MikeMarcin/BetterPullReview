@@ -147,8 +147,7 @@ namespace bpr::qt {
 	/// too in the way and noisy. I think I need something more like a side
 	/// chat ... On each part I can pop open a side chat, ask some questions and
 	/// then ... ask the agent to update the section based on our chat." So the
-	/// tour stays as it was, and each part (the tour as a whole, the Problem,
-	/// the Solution, a stop) has its own chat here, one tab each, opened from
+	/// tour stays as it was, and each part (the tour as a whole, a stop) has its own chat here, one tab each, opened from
 	/// a small affordance on the part or its context menu, or from "+". The
 	/// top says which part a chat is about and Show takes the tour (and a
 	/// stop's code in the diff) there. The chat itself is plain: the author's

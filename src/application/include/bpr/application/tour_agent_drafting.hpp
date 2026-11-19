@@ -18,7 +18,7 @@
 /// its transcript.
 namespace bpr::application {
 	/// \brief The schema a whole-tour draft answers in.
-	inline constexpr std::string_view tour_draft_schema = "bpr.tour-draft.v1";
+	inline constexpr std::string_view tour_draft_schema = "bpr.tour-draft.v2";
 	/// \brief The most stops a draft is asked for.
 	inline constexpr std::size_t requested_tour_stops = 12U;
 

@@ -143,25 +143,6 @@ namespace {
 	class fake_theme_documents final : public application::theme_document_port
 	{
 	public:
-		[[nodiscard]] auto read(
-			const std::string_view aPath,
-			const std::size_t      aMaximumBytes,
-			const std::stop_token  aStop)
-			-> application::theme_document_result<std::string> override
-		{
-			++Reads;
-			Path         = aPath;
-			MaximumBytes = aMaximumBytes;
-			if (!Available || aStop.stop_requested()) {
-				return std::unexpected{ application::theme_document_error{
-					.Failure = aStop.stop_requested()
-						? application::theme_document_failure::cancelled
-						: application::theme_document_failure::unavailable,
-				} };
-			}
-			return Document;
-		}
-
 		[[nodiscard]] auto write(const std::string_view aPath, const std::string_view aDocument,
 								 const std::stop_token aStop) -> application::theme_document_result<void> override
 		{
@@ -177,9 +158,7 @@ namespace {
 		std::size_t Writes = 0U;
 		std::string Document;
 		std::string Path;
-		std::size_t MaximumBytes = 0U;
-		std::size_t Reads        = 0U;
-		bool        Available    = true;
+		bool        Available = true;
 	};
 
 	/// \brief Counts every lexical classification the host could not avoid.
@@ -354,21 +333,19 @@ namespace {
 		recording_projections                    pa, pb;
 		application::appearance_application_host first{ h.Preferences, ca, h.Effects, h.Lane, pa, core::application_session_id{ 31U } };
 		application::appearance_application_host second{ h.Preferences, cb, h.Effects, h.Lane, pb, core::application_session_id{ 32U } };
-		h.Documents.Document = core::export_theme(contrast_safe_palette());
-		const auto countB    = pb.Published.size();
-		first.import_theme_file("first.json");
-		h.settle();
-		expect(pa.Published.back().ThemePreview.has_value() && pb.Published.size() == countB, "import preview reaches its origin only");
+		const auto                               countB = pb.Published.size();
 		first.export_theme_file("first-out.json", contrast_safe_palette(), core::appearance_variant::dark);
 		h.settle();
 		expect(pa.Published.back().ThemeExported && pb.Published.size() == countB, "export completion reaches its origin only");
-		first.import_theme_file("retired.json");
-		second.import_theme_file("live.json");
+		// [[BPR-2283]]. A late export of a detached window is fenced; its
+		// sibling's export still completes.
+		first.export_theme_file("retired.json", contrast_safe_palette(), core::appearance_variant::dark);
+		second.export_theme_file("live.json", contrast_safe_palette(), core::appearance_variant::dark);
 		h.Effects.drain();
 		const auto countA = pa.Published.size();
 		first.shutdown();
 		h.Lane.drain();
-		expect(pa.Published.size() == countA && pb.Published.back().ThemePreview.has_value(), "detaching preview origin fences late result without cancelling sibling import");
+		expect(pa.Published.size() == countA && pb.Published.back().ThemeExported, "detaching an export's origin fences its late result without cancelling the sibling's");
 		second.shutdown();
 		h.settle();
 	}

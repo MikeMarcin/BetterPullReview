@@ -222,15 +222,6 @@ namespace bpr::core {
 				result.push_back({ tour_change_kind::removed, stop.Id, stop.Title });
 			}
 		}
-		for (const auto problem : { true, false }) {
-			const auto& old = problem ? aBefore.ProblemBaseline : aBefore.SolutionBaseline;
-			const auto& now = problem ? aAfter.ProblemBaseline : aAfter.SolutionBaseline;
-			// A local manual mapping can differ from the importer's heading span.
-			// Identical remote bytes are never a website edit.
-			if (old && now && old->Raw != now->Raw && old->SourceSpan && now->SourceSpan && old->Raw.substr(old->SourceSpan->first, old->SourceSpan->second - old->SourceSpan->first) != now->Raw.substr(now->SourceSpan->first, now->SourceSpan->second - now->SourceSpan->first)) {
-				result.push_back({ tour_change_kind::text, { }, problem ? "Problem" : "Solution" });
-			}
-		}
 		return result;
 	}
 }

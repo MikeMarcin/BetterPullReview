@@ -19,12 +19,12 @@
 /// earlier prose. Responses remain author-decided proposals.
 namespace bpr::application {
 	/// \brief The schema an ask turn answers in.
-	inline constexpr std::string_view tour_ask_schema = "bpr.tour-ask.v1";
+	inline constexpr std::string_view tour_ask_schema = "bpr.tour-ask.v2";
 	/// \brief [[BPR-1930]]. The schema a turn of the tour chat answers in: an
 	/// ask turn's keys, and the revision of the tour's structure (stops to
 	/// remove, merge and split, a new order, a focus) and whether its stops
 	/// replace the proposed stops still waiting.
-	inline constexpr std::string_view tour_revise_schema = "bpr.tour-revise.v1";
+	inline constexpr std::string_view tour_revise_schema = "bpr.tour-revise.v2";
 
 	/// \brief The request of one ask turn. Nothing when the evidence is not
 	/// valid UTF-8 or too large.

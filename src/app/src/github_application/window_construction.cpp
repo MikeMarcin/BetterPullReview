@@ -24,6 +24,7 @@
 #include "bpr/core/review_queue_attention.hpp"
 #include "bpr/core/view_filter_memory.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/author_description_editor.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
@@ -310,6 +311,10 @@ namespace bpr::app {
 			[this](const std::vector<core::review_submission_comment>& aCarried, const core::git_commit_oid& aHead) { discard_review_comments(aCarried, aHead); });
 		ReviewSubmission->set_publication_observer([this] { reread_after_publication(); });
 		ReviewSubmission->set_unplaceable_refusal_observer([this](const application::review_submission_request& aRefused) { demote_off_hunk_fact(aRefused); });
+		// [[BPR-2263]]. A refusal the application owns is repaired over the
+		// window's connection as it is now; a moved commit is read again.
+		ReviewSubmission->set_connection_renewal([this](const application::review_submission_live_binding& aBinding) { return Closing ? std::nullopt : review_submission_factory(aBinding); });
+		ReviewSubmission->set_reread_request([this] { reread_after_publication(); });
 		// [[BPR-1816]]. Where a finished review goes is the profile's
 		// accepted choice when GitHub answers, not the window's.
 		ReviewSubmission->set_finish_settings([this] {
@@ -354,6 +359,16 @@ namespace bpr::app {
 				}
 				save_description(aSave);
 			});
+		// [[BPR-2280]]. Save in Author's description editor: the same write.
+		Window->author_description()->set_save_dispatch(
+			[this](const qt::overview_description_save& aSave) { save_description(aSave, description_editor::author); });
+		// [[BPR-2281]]. Draft Description beside it, and Stop drafting.
+		Window->author_description()->set_draft_dispatch([this] { request_description_draft(); },
+														 [this] {
+															 if (DescriptionDraft) {
+																 DescriptionDraft->stop();
+															 }
+														 });
 		// [[BPR-1852]]. Ready for review and Convert to draft, from Overview
 		// and the Pull Request menu.
 		Window->set_draft_state_dispatch(
@@ -1539,16 +1554,11 @@ namespace bpr::app {
 		// prompts: the file and the stores on the effect lane, no process.
 		AgentConfigurationStore = adapters::sqlite::make_agent_configuration_store(ApplicationDataRoot);
 		{
-			auto dependencies     = application::agent_configuration_dependencies{ };
-			dependencies.Store    = AgentConfigurationStore.get();
-			dependencies.ReadFile = [](const std::string& aPath, const std::size_t aLimit) -> std::optional<std::string> {
-				auto file = QFile{ QString::fromStdString(aPath) };
-				if (!file.open(QIODevice::ReadOnly)) {
-					return std::nullopt;
-				}
-				const auto bytes = file.read(static_cast<qint64>(aLimit) + 1);
-				return std::string{ bytes.constData(), static_cast<std::size_t>(bytes.size()) };
-			};
+			auto dependencies  = application::agent_configuration_dependencies{ };
+			dependencies.Store = AgentConfigurationStore.get();
+			// [[BPR-2283]]. A regular file only: a FIFO or a folder dropped or
+			// chosen is refused, never waited on.
+			dependencies.ReadFile  = [](const std::string& aPath, const std::size_t aLimit) { return read_bounded_regular_file(aPath, aLimit + 1U); };
 			dependencies.WriteFile = [](const std::string& aPath, const std::string& aBytes) {
 				auto file = QSaveFile{ QString::fromStdString(aPath) };
 				return file.open(QIODevice::WriteOnly) && file.write(aBytes.data(), static_cast<qint64>(aBytes.size())) == static_cast<qint64>(aBytes.size()) && file.commit();
@@ -1778,7 +1788,7 @@ namespace bpr::app {
 				if (local_tour_shown()) {
 					// Draft the tour, for a local draft: a whole-change question
 					// whose proposals wait in the tour.
-					DraftDesktop->tour_ask({ .Question = QStringLiteral("Draft the tour: propose a Problem, a Solution and stops on this candidate's lines.") });
+					DraftDesktop->tour_ask({ .Question = QStringLiteral("Draft the tour: propose stops on this candidate's lines.") });
 					return;
 				}
 				request_tour_draft();
@@ -2014,10 +2024,6 @@ namespace bpr::app {
 		AppearanceProjections.set_palette_adoption_sink(
 			[this](const application::palette_adoption_publication&) {
 				adopt_appearance_settings(true);
-			});
-		AppearanceProjections.set_theme_preview_sink(
-			[this](const application::theme_preview_publication& aPreview) {
-				preview_imported_theme(aPreview.Palette);
 			});
 		AppearanceProjections.set_theme_export_sink([this] {
 			if (!Closing && Window != nullptr && Window->appearance_settings() != nullptr) {

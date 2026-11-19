@@ -146,7 +146,7 @@ namespace bpr::core {
 			return named<Enum>(aName, aCount, [](const Enum aValue) { return stable_name(aValue); });
 		}
 
-		constexpr std::size_t subject_count    = 9U;
+		constexpr std::size_t subject_count    = prompt_subject_count;
 		constexpr std::size_t ask_count        = 2U;
 		constexpr std::size_t match_count      = 3U;
 		constexpr std::size_t when_unmet_count = 2U;
@@ -265,9 +265,11 @@ namespace bpr::core {
 			};
 			const auto place   = by_stable_name<prompt_place>(aWire.Place, prompt_place_count);
 			const auto subject = by_stable_name<prompt_subject>(aWire.About, subject_count);
-			const auto ask     = by_stable_name<prompt_ask>(aWire.Ask, ask_count);
-			const auto match   = by_stable_name<prompt_match>(aWire.Match, match_count);
-			const auto unmet   = by_stable_name<prompt_when_unmet>(aWire.WhenUnmet, when_unmet_count);
+			// [[BPR-2281]]. A pack written while `description` was a kind
+			// ([[BPR-2280]]) reads it as a question.
+			const auto ask   = aWire.Ask == "description" ? std::optional{ prompt_ask::question } : by_stable_name<prompt_ask>(aWire.Ask, ask_count);
+			const auto match = by_stable_name<prompt_match>(aWire.Match, match_count);
+			const auto unmet = by_stable_name<prompt_when_unmet>(aWire.WhenUnmet, when_unmet_count);
 			note(place.has_value(), aWire.Place);
 			note(subject.has_value(), aWire.About);
 			note(ask.has_value(), aWire.Ask);

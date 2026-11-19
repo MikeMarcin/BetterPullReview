@@ -55,10 +55,20 @@ namespace bpr::core {
 				return std::nullopt;
 			}
 			const auto guidance = definition_of(*aLabel).Guidance;
-			if (guidance == feedback_label_guidance::necessary_change || guidance == feedback_label_guidance::required_before_acceptance) {
+			if (guidance == feedback_label_guidance::asks_for_change || guidance == feedback_label_guidance::asks_for_process_work) {
 				return guidance;
 			}
 			return std::nullopt;
+		}
+
+		/// [[BPR-2267]]. Whether a header blocks: what its decorations say,
+		/// else its label's implied weight (`issue:` blocks; `suggestion:`
+		/// and `nitpick:` do not). [[BPR-2276]] An undecorated label whose
+		/// guidance asks for work (`todo`, `typo`, `chore`) weighs
+		/// non-blocking and stays guidance; `todo (blocking):` blocks.
+		[[nodiscard]] auto blocks(const std::optional<feedback_label> aLabel, const feedback_expectation aWritten) -> bool
+		{
+			return effective_expectation(aLabel, aWritten) == feedback_expectation::blocking;
 		}
 	} // namespace
 
@@ -156,7 +166,7 @@ namespace bpr::core {
 			const auto  known      = classification_known(unit.Root);
 			const auto* annotation = known ? root_annotation(aAnnotations, unit.Id) : nullptr;
 			const auto  written    = annotation ? written_expectation(*annotation) : feedback_expectation::unspecified;
-			const auto  blocking   = known && written == feedback_expectation::blocking;
+			const auto  blocking   = known && blocks(annotation != nullptr && annotation->Status == feedback_prefix_status::recognized ? annotation->Label : std::nullopt, written);
 			const auto  author     = authors.find(unit.Id);
 			const auto  whose      = author == authors.end() || !*author->second ? review_preflight_author::unknown
 				: **author->second == aSubmitter                                 ? review_preflight_author::submitter
@@ -194,7 +204,7 @@ namespace bpr::core {
 			const auto annotation = recognize_feedback_prefix(draft->Body);
 			switch (annotation.Status) {
 			case feedback_prefix_status::recognized:
-				if (annotation.Expectation == feedback_expectation::blocking) {
+				if (blocks(annotation.Label, annotation.Expectation)) {
 					result.Pending.push_back({ .Draft = draft->Id, .Label = *annotation.Label });
 				} else if (const auto advice = advisory(annotation.Label, annotation.Expectation)) {
 					++advise(*annotation.Label, *advice).Pending;

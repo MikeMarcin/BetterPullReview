@@ -214,8 +214,6 @@ auto main(int argc, char** argv) -> int
 
 	// Two written stops, as the host keeps the draft: each edit applied in core and presented.
 	auto draft       = tests::review_tour_fixture();
-	draft.Problem    = "Readers need the change's context before its details.";
-	draft.Solution   = "Explain the boundary first, then follow the source.";
 	draft.Stops      = { stop(1, "Where the cache is filled", "The parser fills the cache **once**, on first use.\n\n- Later reads take the cached copy\n- `reset()` empties it"),
 						 stop(2, "Where it is emptied", "A reset empties the cache so the next read parses again.") };
 	draft.LastStopId = 2;

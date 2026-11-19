@@ -8,30 +8,6 @@ namespace bpr::core {
 		{
 			return { std::string{ aRaw }, std::string{ aEntity }, std::string{ aVersion }, aSpan ? std::optional{ std::pair{ aSpan->Begin, aSpan->End } } : std::nullopt, 0 };
 		}
-		// [[BPR-1787]]. The brief is read from the description first, where a
-		// tour publishes it by default, then from the tour's own comment, where
-		// tours published before BPR-1787 (or with the description left alone)
-		// carry it.
-		void map_brief(review_tour& aDraft, std::string_view aRaw, std::string_view aEntity, const tour_remote_object& aRoot)
-		{
-			const auto mapping = map_tour_markdown(aRaw);
-			const auto comment = map_tour_markdown(aRoot.Raw);
-			for (const auto name : { "Problem", "Solution" }) {
-				const auto exact           = [&](const tour_markdown_map& aMap) { return std::ranges::count(aMap.Sections, std::string{ name }, &tour_markdown_section::Name) == 1; };
-				const bool fromDescription = exact(mapping);
-				if (!fromDescription && !exact(comment)) {
-					aDraft.ImportNotice += std::string{ name } + " requires source mapping. ";
-					continue;
-				}
-				const auto& source   = fromDescription ? mapping : comment;
-				const auto  raw      = fromDescription ? aRaw : std::string_view{ aRoot.Raw };
-				const auto  span     = std::ranges::find(source.Sections, std::string{ name }, &tour_markdown_section::Name)->Content;
-				auto&       field    = std::string_view{ name } == "Problem" ? aDraft.Problem : aDraft.Solution;
-				auto&       original = std::string_view{ name } == "Problem" ? aDraft.ProblemBaseline : aDraft.SolutionBaseline;
-				field                = raw.substr(span.Begin, span.End - span.Begin);
-				original             = fromDescription ? baseline(aRaw, aEntity, { }, span) : baseline(aRoot.Raw, aRoot.Binding.Entity, aRoot.Version, span);
-			}
-		}
 		void add_entries(review_tour& aDraft, const tour_markdown_list& aList, std::span<const tour_remote_object> aObjects)
 		{
 			std::unordered_set<std::string> seen;
@@ -68,13 +44,15 @@ namespace bpr::core {
 			}
 		}
 	}
-	auto discover_tours(const review_tour& aSeed, std::string_view aDescription, std::string_view aDescriptionEntity,
+	auto discover_tours(const review_tour& aSeed, std::string_view aDescription, std::string_view /*aDescriptionEntity*/,
 						std::span<const tour_remote_object> aObjects, bool aComplete) -> std::vector<tour_import_candidate>
 	{
 		std::vector<tour_import_candidate> result;
 		if (validate(aSeed) != tour_refusal::none || aDescription.size() > maximum_tour_field_bytes || aObjects.size() > 4096) {
 			return result;
 		}
+		// [[BPR-2274]]. A tour is its stops. A description that an older build
+		// wrote a Problem and Solution into is only read for a link to the tour.
 		const auto brief = map_tour_markdown(aDescription);
 		for (const auto& root : aObjects) {
 			if (!root.Root || !root.Available || !root.ValidDestination) {
@@ -101,7 +79,6 @@ namespace bpr::core {
 				if (!root.Binding.Own) {
 					draft.ImportNotice += "Index belongs to another author: read-only. ";
 				}
-				map_brief(draft, aDescription, aDescriptionEntity, root);
 				add_entries(draft, list, aObjects);
 				if (validate(draft) != tour_refusal::none) {
 					continue;

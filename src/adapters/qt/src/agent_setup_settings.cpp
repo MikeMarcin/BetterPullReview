@@ -889,7 +889,7 @@ namespace bpr::qt {
 				: setup.ChecksWrapper          ? tr("Asks your Claude process wrapper for its sign-in status and version. No question or code is sent.")
 											   : tr("Runs %1, which sends no question and no code.").arg(status_command(agent));
 			said += QStringLiteral(" ")
-				+ (aCheck.Decision.ChecksWorkspace ? tr("It also makes the open pull request's workspace once, then removes it.") : tr("Open a pull request to check its workspace too."));
+				+ (aCheck.Decision.ChecksWorkspace ? tr("It also checks the open pull request's workspace: the one kept for it, or one made once and removed.") : tr("Open a pull request to check its workspace too."));
 			break;
 		}
 		case core::agent_check_offer::running:

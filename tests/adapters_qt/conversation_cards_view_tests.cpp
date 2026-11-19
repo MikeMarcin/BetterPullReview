@@ -49,7 +49,9 @@
 #include <QToolButton>
 #include <QWheelEvent>
 
+#include "bpr/qt/nested_scroll_latch.hpp"
 #include <glaze/json.hpp>
+#include <qpa/qwindowsysteminterface.h>
 
 #include <tuple>
 
@@ -1376,6 +1378,145 @@ namespace {
 				   && view.open_card()->findChild<QLabel*>(QStringLiteral("threadMakeDraftWhy")) == nullptr,
 			   "a Local comment's refused Draft says why in its tooltip alone");
 		expect(view.open_card()->findChild<QWidget*>(QStringLiteral("conversationPullRequestHeader")) == nullptr, "a Local comment on a line never says Pull request");
+	}
+
+	/// \brief The owner: "I have a draft comment sometimes not rendering
+	/// when I click away from it." My draft was written in the drawer, then
+	/// another thread was opened: the view still took the draft for its
+	/// composer, so its closed note carried no post and was drawn as an
+	/// empty dashed frame, no author and no words. Clicked away, the draft
+	/// is a closed note like any saved one, its author and words painted.
+	auto test_a_draft_clicked_away_from_paints_its_words() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(380, 700);
+		view.set_viewer_login(QStringLiteral("reviewer"));
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> {
+			return aLine == 754U ? std::optional{ 80 } : aLine == 760U ? std::optional{ 260 }
+																	   : std::nullopt;
+		});
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		auto root = thread("review-thread:T1", "src/a.cpp", 760U);
+		auto post = reply("c-1", "review-thread:T1", "reviewer-bot", "issue: the pair table is rebuilt on every frame.");
+		post.Line = 760U;
+		view.adopt({ root, post });
+		const auto comparison = core::file_comparison_digest{ };
+		const auto body       = std::string{ "suggestion (non-blocking): the cache is rebuilt even when nothing it holds has changed." };
+		view.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 753U }, .Body = body }, comparison);
+		view.begin_draft();
+		QApplication::processEvents();
+		expect(view.writing_draft(), "my draft is written in the drawer");
+		const auto draftCard = [&view]() -> const qt::thread_card* {
+			const auto found = std::ranges::find(view.cards(), qt::conversation_cards_view::draft_identity(), &qt::thread_card::Id);
+			return found == view.cards().end() ? nullptr : &*found;
+		};
+		// Clicked away: the thread under it is pressed open.
+		const auto thread = std::ranges::find(view.cards(), std::string{ "review-thread:T1" }, &qt::thread_card::Id);
+		expect(thread != view.cards().end(), "the thread under my draft has a note");
+		press_at(view, thread->Rect.translated(0, -view.verticalScrollBar()->value()).center());
+		QApplication::processEvents();
+		expect(view.open_thread_id() == "review-thread:T1" && !view.writing_draft(), "the thread is open and my draft is no longer written");
+		const auto* const card = draftCard();
+		expect(card != nullptr, "my draft keeps its note");
+		expect(!card->Writing && !card->Posts.empty() && card->Posts.front().Author == QStringLiteral("reviewer") && card->Posts.front().Body.startsWith(QStringLiteral("suggestion")),
+			   "my draft's note carries its author and words, not an empty composer");
+		// Its height is a note's with its words, as a fresh view measures it.
+		qt::conversation_cards_view fresh;
+		fresh.resize(380, 700);
+		fresh.set_viewer_login(QStringLiteral("reviewer"));
+		fresh.show();
+		QApplication::processEvents();
+		fresh.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> {
+			return aLine == 754U ? std::optional{ 80 } : aLine == 760U ? std::optional{ 260 }
+																	   : std::nullopt;
+		});
+		fresh.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		fresh.adopt({ root, post });
+		fresh.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 753U }, .Body = body }, comparison);
+		QApplication::processEvents();
+		const auto freshCard = std::ranges::find(fresh.cards(), qt::conversation_cards_view::draft_identity(), &qt::thread_card::Id);
+		expect(freshCard != fresh.cards().end() && freshCard->Rect.height() == card->Rect.height(),
+			   "my draft's note is as tall as a fresh view draws it (" + std::to_string(card->Rect.height()) + " px)");
+		// Painted: inside its dashed frame there is ink, its avatar, author
+		// and words.
+		const auto image = view.viewport()->grab().toImage();
+		const auto ratio = image.devicePixelRatio();
+		const auto box   = card->Rect.translated(0, -view.verticalScrollBar()->value()).adjusted(6, 6, -6, -6);
+		const auto paper = image.pixelColor(static_cast<int>((box.left() - 3) * ratio), static_cast<int>((box.center().y()) * ratio));
+		auto       inked = 0;
+		for (auto y = static_cast<int>(box.top() * ratio); y < static_cast<int>(box.bottom() * ratio) && y < image.height(); ++y) {
+			for (auto x = static_cast<int>(box.left() * ratio); x < static_cast<int>(box.right() * ratio) && x < image.width(); ++x) {
+				const auto colour = image.pixelColor(x, y);
+				if (std::abs(colour.red() - paper.red()) + std::abs(colour.green() - paper.green()) + std::abs(colour.blue() - paper.blue()) > 60) {
+					++inked;
+				}
+			}
+		}
+		expect(inked > 300, "my draft's note paints its avatar, author and words (" + std::to_string(inked) + " inked pixels)");
+		// Closing the thread leaves it so.
+		view.close_thread();
+		QApplication::processEvents();
+		expect(draftCard() != nullptr && !draftCard()->Posts.empty(), "closing the thread leaves my draft's note its words");
+		// And opening it again makes it the composer once more.
+		view.begin_draft();
+		QApplication::processEvents();
+		expect(view.writing_draft() && draftCard() != nullptr && draftCard()->Writing, "my draft opens as its composer again");
+	}
+
+	/// \brief [[BPR-2262]]. Every way the open card moves off my draft ends
+	/// writing it: here the pull request's conversation shown and the lines
+	/// shown again, which moved the open card without asking. The draft comes
+	/// back as its note with my name and words, never as an open composer
+	/// the window did not begin, and its note follows its words.
+	auto test_a_draft_left_by_the_conversation_keeps_its_words() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(380, 700);
+		view.set_viewer_login(QStringLiteral("reviewer"));
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> {
+			return aLine == 41U ? std::optional{ 80 } : aLine == 60U ? std::optional{ 260 }
+																	 : std::nullopt;
+		});
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		auto root = thread("review-thread:T1", "src/a.cpp", 60U);
+		auto post = reply("c-1", "review-thread:T1", "someone", "question: is this needed?");
+		post.Line = 60U;
+		view.adopt({ root, post });
+		const auto comparison = core::file_comparison_digest{ };
+		auto       draft      = core::review_comment_draft{ };
+		draft.Id              = core::review_draft_id{ 1U };
+		draft.Anchor          = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 40U };
+		draft.Body            = "nit: a draft being written";
+		view.set_draft(draft, comparison);
+		view.begin_draft();
+		QApplication::processEvents();
+		expect(view.writing_draft() && view.draft_editor() != nullptr, "my draft is written in the drawer");
+		const auto draftCard = [&view]() -> std::optional<qt::thread_card> {
+			const auto found = std::ranges::find(view.cards(), qt::conversation_cards_view::draft_identity(), &qt::thread_card::Id);
+			return found == view.cards().end() ? std::nullopt : std::optional{ *found };
+		};
+		view.show_pull_request_comments(true);
+		QApplication::processEvents();
+		expect(!view.writing_draft() && view.draft_editor() == nullptr, "showing the conversation ends writing my draft");
+		view.show_pull_request_comments(false);
+		QApplication::processEvents();
+		const auto card = draftCard();
+		expect(!view.writing_draft() && view.draft_editor() == nullptr && view.open_thread_id().empty() && card.has_value() && !card->Writing
+				   && !card->Posts.empty() && card->Posts.front().Author == QStringLiteral("reviewer") && card->Posts.front().Body.startsWith(QStringLiteral("nit:")),
+			   "back on the lines, my draft is its note with my name and words, not an open composer");
+		// Its note follows its words once it is no longer written.
+		draft.Body = "nit: a draft with more words";
+		view.set_draft(draft, comparison);
+		QApplication::processEvents();
+		const auto changed = draftCard();
+		expect(changed.has_value() && !changed->Posts.empty() && changed->Posts.front().Body.contains(QStringLiteral("more words")), "my draft's note shows its new words");
+		view.begin_draft();
+		QApplication::processEvents();
+		expect(view.writing_draft() && view.draft_editor() != nullptr, "my draft opens as its composer again");
 	}
 
 	/// \brief [[BPR-2173]]. The owner, on look v007 of RFC-BPR-0127: "going
@@ -3879,6 +4020,197 @@ namespace {
 	/// Esc and Cancel close it and send nothing; while GitHub is asked the
 	/// text is held; a conflict keeps the typed text and offers GitHub's
 	/// newer text; a withdrawn offer closes it.
+
+	/// \brief Runs the event loop long enough for the card's deferred refits.
+	void settle_card()
+	{
+		for (auto spin = 0; spin < 30; ++spin) {
+			QApplication::processEvents();
+			QThread::msleep(2);
+		}
+	}
+
+	/// \brief Opens my draft on line 1 of `src/a.cpp` as its composer.
+	void open_composer(qt::conversation_cards_view& aView, const std::string& aBody)
+	{
+		aView.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return aLine == 1U ? std::optional{ 40 } : std::nullopt; });
+		aView.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		aView.adopt({ });
+		const auto comparison = core::file_comparison_digest{ };
+		aView.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 0U }, .Body = aBody },
+						comparison);
+		QApplication::processEvents();
+		const auto draft = std::ranges::find_if(aView.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; });
+		expect(draft != aView.cards().end(), "my draft has a note");
+		aView.open_thread(draft->Id);
+		settle_card();
+	}
+
+	[[nodiscard]] auto wheel_at(QWidget& aTarget, const QPoint aPixels, const QPoint aAngle) -> QWheelEvent
+	{
+		const auto centre = QPointF{ aTarget.rect().center() };
+		return QWheelEvent{ centre, aTarget.mapToGlobal(centre), aPixels, aAngle, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+	}
+
+	/// \brief [[BPR-2271]]. The owner: "Suggested changes diffs in the
+	/// comments drawer should scroll like code blocks there do". What a
+	/// suggestion changes keeps its long line whole and scrolls sideways in
+	/// its own box; the card stays the drawer's width; a sideways wheel and
+	/// Left, Right, Home and End move it, and a vertical wheel is the drawer's.
+	auto test_a_suggested_change_scrolls_sideways_in_its_box(const QString& aDirectory) -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(320, 760);
+		view.show();
+		QApplication::processEvents();
+		const auto longLine = std::string{ "\tconst auto widest = measure(first_column, second_column, third_column, fourth_column, fifth_column, sixth_column);" };
+		const auto body     = "```suggestion\n" + longLine + "\n```";
+		open_composer(view, body);
+		view.present_draft(qt::draft_composer_presentation{
+			.Body        = QString::fromStdString(body),
+			.Publishable = true,
+			.Lines       = QStringLiteral("Line 1"),
+			.Change      = core::suggested_change{ .Fenced = true, .Removed = { "\tconst auto widest = measure(first_column);" }, .Added = { longLine } },
+		});
+		settle_card();
+		auto* const card   = view.open_card();
+		auto* const change = card != nullptr ? card->findChild<QWidget*>(QStringLiteral("threadDraftChange")) : nullptr;
+		auto* const rows   = card != nullptr ? card->findChild<QAbstractScrollArea*>(QStringLiteral("threadDraftChangeRows")) : nullptr;
+		if (!aDirectory.isEmpty()) {
+			expect(view.grab().save(aDirectory + QStringLiteral("/suggested-change-diff.png")), "render the drawer's suggested change");
+		}
+		expect(change != nullptr && change->isVisible() && rows != nullptr && rows->isVisible(), "the suggestion shows what it changes in its own scrolling box");
+		auto* const bar = rows->horizontalScrollBar();
+		expect(bar->maximum() > 0, "a line longer than the drawer gives the diff a horizontal scroll range");
+		expect(rows->verticalScrollBar()->maximum() == 0, "every row of the diff shows; it never scrolls up and down");
+		expect(card->width() <= view.viewport()->width() && change->mapTo(card, QPoint{ change->width(), 0 }).x() <= card->width(),
+			   "the card and its diff stay the drawer's width");
+		bar->setValue(0);
+		auto side = wheel_at(*rows->viewport(), QPoint{ -40, 0 }, QPoint{ -120, 0 });
+		QApplication::sendEvent(rows->viewport(), &side);
+		expect(bar->value() > 0, "a sideways wheel scrolls the diff");
+		const auto at   = bar->value();
+		auto       down = wheel_at(*rows->viewport(), QPoint{ 0, -40 }, QPoint{ 0, -120 });
+		QApplication::sendEvent(rows->viewport(), &down);
+		expect(bar->value() == at, "a vertical wheel leaves the diff where it is: it is the drawer's");
+		bar->setValue(0);
+		expect(rows->focusPolicy() != Qt::NoFocus, "a diff that scrolls takes focus, as a wide code block's text does");
+		rows->setFocus(Qt::OtherFocusReason);
+		key(*rows, Qt::Key_Right);
+		expect(bar->value() > 0, "Right scrolls the focused diff");
+		key(*rows, Qt::Key_End);
+		expect(bar->value() == bar->maximum(), "End shows the ends of its lines");
+		key(*rows, Qt::Key_Home);
+		expect(bar->value() == 0, "Home shows their starts");
+		// A short change has nothing to scroll and takes no focus.
+		view.present_draft(qt::draft_composer_presentation{
+			.Body        = QStringLiteral("```suggestion\nint b = 2;\n```"),
+			.Publishable = true,
+			.Lines       = QStringLiteral("Line 1"),
+			.Change      = core::suggested_change{ .Fenced = true, .Removed = { "int b = 1;" }, .Added = { "int b = 2;" } },
+		});
+		settle_card();
+		expect(bar->maximum() == 0 && rows->focusPolicy() == Qt::NoFocus, "a short change has no horizontal range and no tab stop");
+	}
+
+	/// \brief [[BPR-2273]]. The owner: "A long draft comment neither scrolls
+	/// with 2 finger MacBook gestures (scroll wheel) nor expands to fit the
+	/// contents". The composer grows with its text to about 60% of the
+	/// drawer, then scrolls inside by wheel and by trackpad pixels; at its end
+	/// the drawer takes the wheel. Closed, the long draft ends in an
+	/// ellipsis and opens whole.
+	auto test_a_long_draft_grows_then_scrolls(const QString& aDirectory) -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(320, 700);
+		view.show();
+		QApplication::processEvents();
+		auto paragraph = std::string{ };
+		for (auto line = 0; line < 40; ++line) {
+			paragraph += "The budget is reset on every call, so per-frame work is never bounded (" + std::to_string(line) + ").\n";
+		}
+		open_composer(view, paragraph);
+		view.present_draft(qt::draft_composer_presentation{ .Body = QStringLiteral("short"), .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		settle_card();
+		auto* const text = view.draft_editor();
+		expect(text != nullptr, "the composer has its field");
+		const auto shortHeight = text->height();
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(paragraph), .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		settle_card();
+		if (!aDirectory.isEmpty()) {
+			expect(view.grab().save(aDirectory + QStringLiteral("/long-draft-composer.png")), "render the long composer");
+		}
+		const auto maximum = view.viewport()->height() * 3 / 5;
+		auto*      bar     = text->verticalScrollBar();
+		std::cout << "long draft: field " << shortHeight << " -> " << text->height() << " of " << maximum << ", range " << bar->maximum() << '\n';
+		expect(text->height() > shortHeight + 200 && text->height() <= maximum && text->height() >= maximum - text->fontMetrics().lineSpacing() - 4,
+			   "a long draft grows its field to about 60% of the drawer");
+		expect(bar->maximum() > 0, "past its maximum the field has a vertical scroll range");
+		auto forwarded = 0;
+		view.set_scroll_forward([&forwarded](QWheelEvent&) {
+			++forwarded;
+			return true;
+		});
+		bar->setValue(0);
+		auto angle = wheel_at(*text->viewport(), QPoint{ }, QPoint{ 0, -120 });
+		QApplication::sendEvent(text->viewport(), &angle);
+		expect(bar->value() > 0 && forwarded == 0, "a wheel's angle delta scrolls the field, and the drawer does not take it");
+		const auto afterAngle = bar->value();
+		auto       pixels     = wheel_at(*text->viewport(), QPoint{ 0, -3 * text->fontMetrics().lineSpacing() }, QPoint{ });
+		QApplication::sendEvent(text->viewport(), &pixels);
+		expect(bar->value() > afterAngle && forwarded == 0, "a trackpad's pixel delta scrolls the field");
+		auto up = wheel_at(*text->viewport(), QPoint{ 0, 3 * text->fontMetrics().lineSpacing() }, QPoint{ 0, 120 });
+		QApplication::sendEvent(text->viewport(), &up);
+		expect(bar->value() < afterAngle + 3, "scrolling back up moves the field back");
+		bar->setValue(bar->maximum());
+		auto past = wheel_at(*text->viewport(), QPoint{ 0, -40 }, QPoint{ 0, -120 });
+		QApplication::sendEvent(text->viewport(), &past);
+		expect(bar->value() == bar->maximum() && forwarded == 1, "at its end the field hands the wheel to the drawer");
+		// [[BPR-2279]] (owner, 2026-11-19: "momentum scrolling that reaches
+		// the end of a nested scroll window won't scroll the outer window
+		// without an additional gesture"). A trackpad gesture begun in the
+		// field stays the field's to its end, momentum included; the next
+		// gesture goes to the drawer.
+		{
+			const auto global = text->viewport()->mapToGlobal(text->viewport()->rect().center());
+			// A trackpad's pixels, and the angle the platform gives with them.
+			const auto phased = [&view, global](const Qt::ScrollPhase aPhase, const QPoint aPixels) {
+				auto* const handle = view.window()->windowHandle();
+				QWindowSystemInterface::handleWheelEvent(handle, handle->mapFromGlobal(global), global, aPixels, aPixels * 8, Qt::NoModifier, aPhase);
+				QWindowSystemInterface::flushWindowSystemEvents();
+				QApplication::processEvents();
+			};
+			const auto step = QPoint{ 0, -text->fontMetrics().lineSpacing() };
+			forwarded       = 0;
+			bar->setValue(bar->maximum() - 2);
+			phased(Qt::ScrollBegin, { });
+			for (auto move = 0; move < 4; ++move) {
+				phased(Qt::ScrollUpdate, step);
+			}
+			for (auto coast = 0; coast < 8; ++coast) {
+				phased(Qt::ScrollMomentum, step);
+			}
+			phased(Qt::ScrollEnd, { });
+			std::cout << "BPR-2279 drawer: field " << bar->value() << "/" << bar->maximum() << ", handed to the drawer " << forwarded << '\n';
+			expect(bar->value() == bar->maximum() && forwarded == 0, "a gesture begun in the field scrolls it to its end and its momentum never reaches the drawer");
+			phased(Qt::ScrollBegin, { });
+			phased(Qt::ScrollUpdate, step);
+			phased(Qt::ScrollEnd, { });
+			expect(forwarded > 0 && bar->value() == bar->maximum() && bpr::qt::nested_scroll_latch::owner() == &view, "the next gesture, at the field's end, goes to the drawer");
+		}
+		// Closed, the note says words were left out, and opening it shows them all.
+		view.end_draft();
+		settle_card();
+		const auto note = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; });
+		expect(note != view.cards().end() && !note->Posts.empty() && note->Posts.front().Body.toStdString() == paragraph, "the closed draft keeps all its words");
+		const auto preview = view.closed_preview(note->Id);
+		std::cout << "closed long draft: " << preview.toStdString() << '\n';
+		expect(preview.endsWith(QChar{ 0x2026 }) && preview.size() < static_cast<qsizetype>(paragraph.size()), "a closed long draft ends in an ellipsis, never cut off silently");
+		if (!aDirectory.isEmpty()) {
+			expect(view.grab().save(aDirectory + QStringLiteral("/long-draft-closed.png")), "render the closed long draft");
+		}
+	}
+
 	auto test_my_comments_are_edited_in_place() -> void
 	{
 		qt::conversation_cards_view view;
@@ -4034,6 +4366,16 @@ auto main(int argc, char** argv) -> int
 		std::cout << "render-bpr-1775:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-bpr-2271") {
+		test_a_suggested_change_scrolls_sideways_in_its_box(QString::fromLocal8Bit(argv[2]));
+		std::cout << "render-bpr-2271:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-bpr-2273") {
+		test_a_long_draft_grows_then_scrolls(QString::fromLocal8Bit(argv[2]));
+		std::cout << "render-bpr-2273:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc > 1 && std::string_view{ argv[1] } == "--publication-status-geometry") {
 
 		test_wrapped_publication_status_is_fully_visible();
@@ -4061,6 +4403,8 @@ auto main(int argc, char** argv) -> int
 	test_composer_notice_keeps_rows_apart();
 	test_placement_notice_is_a_warning_mark();
 	test_look_v002_rework();
+	test_a_draft_clicked_away_from_paints_its_words();
+	test_a_draft_left_by_the_conversation_keeps_its_words();
 	test_opening_the_card_below_an_open_thread_shows_it_whole();
 	test_chips_wheel_and_overflow();
 	test_reply_in_place_and_next_new();
@@ -4086,6 +4430,8 @@ auto main(int argc, char** argv) -> int
 	test_conversation_lists_comments_not_reviews();
 	test_a_review_body_is_a_comment_in_its_bundle();
 	test_my_comments_are_edited_in_place();
+	test_a_suggested_change_scrolls_sideways_in_its_box({ });
+	test_a_long_draft_grows_then_scrolls({ });
 	std::cout << "conversation-cards-view-tests:pass\n";
 
 	return EXIT_SUCCESS;

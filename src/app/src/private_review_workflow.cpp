@@ -205,6 +205,15 @@ namespace bpr::app {
 		}
 	}
 	auto private_review_workflow::binding() const -> std::optional<core::private_review_binding> { return Binding; }
+	auto private_review_workflow::serves(const adapters::sqlite::private_review_configuration& aConfiguration) const -> bool
+	{
+		if (Closing || !Current) {
+			return false;
+		}
+		const auto& open = Current->Configuration;
+		return open.Profile == aConfiguration.Profile && open.Host == aConfiguration.Host && open.Account == aConfiguration.Account
+			&& open.Repository == aConfiguration.Repository && open.PullRequest == aConfiguration.PullRequest && open.Ledger.StorageRoot == aConfiguration.Ledger.StorageRoot;
+	}
 	auto private_review_workflow::default_run(const core::agent_revision_binding& aRevision, bool aConversation) const -> std::optional<application::private_run_intent>
 	{
 		if (Closing || !Current || !Binding) {

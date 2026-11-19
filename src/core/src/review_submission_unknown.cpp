@@ -212,10 +212,11 @@ namespace bpr::core {
 	}
 
 	namespace {
-		constexpr std::array<std::string_view, 4> ending_names{ "published", "refused", "settled", "not_sent" };
-		constexpr std::array<std::string_view, 2> run_names{ "submit", "check" };
-		constexpr std::array<std::string_view, 3> refusal_names{ "none", "review", "unplaceable_line" };
-		constexpr std::array<std::string_view, 7> stop_names{ "none", "stale_head", "target_moved", "cancelled", "undesignated_target", "unavailable", "other" };
+		constexpr std::array<std::string_view, 4>  ending_names{ "published", "refused", "settled", "not_sent" };
+		constexpr std::array<std::string_view, 2>  run_names{ "submit", "check" };
+		constexpr std::array<std::string_view, 3>  refusal_names{ "none", "review", "unplaceable_line" };
+		constexpr std::array<std::string_view, 13> stop_names{ "none", "stale_head", "target_moved", "cancelled", "undesignated_target", "unavailable", "other", "credential_unavailable", "credential_tool_failed", "unsupported", "target_unavailable", "malformed_response", "refused_by_server" };
+		static_assert(stop_names.size() == static_cast<std::size_t>(review_submission_stop::refused_by_server) + 1U);
 
 		template <std::size_t N>
 		[[nodiscard]] auto named(const std::array<std::string_view, N>& aNames, const auto aValue) noexcept -> std::string_view
@@ -240,6 +241,7 @@ namespace bpr::core {
 			&& (aDiagnosis.Refusal == review_submission_ending_refusal::none || aDiagnosis.Ending == review_submission_ending::refused)
 			&& (aDiagnosis.Stop == review_submission_stop::none || aDiagnosis.Ending == review_submission_ending::not_sent)
 			&& (!aDiagnosis.Duplicate || aDiagnosis.Ending == review_submission_ending::published)
+			&& (!aDiagnosis.Cause || (aDiagnosis.Ending == review_submission_ending::not_sent && valid(*aDiagnosis.Cause)))
 			&& aDiagnosis.Comments <= maximum_review_submission_comments;
 	}
 
@@ -261,6 +263,15 @@ namespace bpr::core {
 		text += named(stop_names, aDiagnosis.Stop);
 		text += " comments=" + std::to_string(aDiagnosis.Comments);
 		text += aDiagnosis.Duplicate ? " duplicate=1" : " duplicate=0";
+		if (aDiagnosis.Cause) {
+			text += " check=";
+			text += name(aDiagnosis.Cause->Check);
+			text += " reason=";
+			text += name(aDiagnosis.Cause->Reason);
+			text += " part=";
+			text += name(aDiagnosis.Cause->Part);
+			text += " comment=" + std::to_string(aDiagnosis.Cause->Comment);
+		}
 		return text;
 	}
 
@@ -274,17 +285,33 @@ namespace bpr::core {
 		const auto stop     = refusal ? lookup<review_submission_stop>(stop_names, word(aText, "stop")) : std::nullopt;
 		const auto comments = stop ? number(aText, "comments", std::numeric_limits<std::uint16_t>::max()) : std::nullopt;
 		const auto again    = comments ? number(aText, "duplicate", 1U) : std::nullopt;
-		if (!again || !aText.empty()) {
+		if (!again) {
 			return std::nullopt;
 		}
-		const auto result = review_submission_ending_diagnosis{ .Ending          = *ending,
-																.Run             = *run,
-																.PostAnswer      = *answer,
-																.PostStatusClass = static_cast<std::uint8_t>(*post),
-																.Refusal         = *refusal,
-																.Stop            = *stop,
-																.Comments        = static_cast<std::uint16_t>(*comments),
-																.Duplicate       = *again == 1U };
+		// [[BPR-2263]]. The cause, when the line carries one.
+		auto cause = std::optional<review_submission_refusal>{ };
+		if (!aText.empty()) {
+			const auto check   = word(aText, "check");
+			const auto checked = check ? review_submission_refusal_check_named(*check) : std::nullopt;
+			const auto reason  = checked ? word(aText, "reason") : std::nullopt;
+			const auto why     = reason ? review_submission_refusal_reason_named(*reason) : std::nullopt;
+			const auto part    = why ? word(aText, "part") : std::nullopt;
+			const auto which   = part ? review_submission_refusal_part_named(*part) : std::nullopt;
+			const auto comment = which ? number(aText, "comment", maximum_review_submission_comments) : std::nullopt;
+			if (!comment || !aText.empty()) {
+				return std::nullopt;
+			}
+			cause = review_submission_refusal{ .Check = *checked, .Reason = *why, .Part = *which, .Comment = static_cast<std::uint16_t>(*comment) };
+		}
+		auto result  = review_submission_ending_diagnosis{ .Ending          = *ending,
+														   .Run             = *run,
+														   .PostAnswer      = *answer,
+														   .PostStatusClass = static_cast<std::uint8_t>(*post),
+														   .Refusal         = *refusal,
+														   .Stop            = *stop,
+														   .Comments        = static_cast<std::uint16_t>(*comments),
+														   .Duplicate       = *again == 1U };
+		result.Cause = cause;
 		return valid(result) ? std::optional{ result } : std::nullopt;
 	}
 } // namespace bpr::core

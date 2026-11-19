@@ -134,8 +134,11 @@ namespace {
 			reply,
 			mine("T12", "security (blocking): A custom label declares no expectation (grammar revision 1)."),
 			mine("T13", "note (blocking): An explicit decoration wins over guidance."),
-			mine("T14", "issue: No decoration, and issue gives no guidance."),
+			mine("T14", "issue: No decoration; issue blocks by its implied weight ([[BPR-2267]])."),
 			theirs("T15", "todo: Their todo is not my guidance."),
+			// [[BPR-2276]] A todo blocks only when its decoration says so.
+			mine("T16", "todo (blocking): This must land with the change."),
+			mine("T17", "typo: recieve."),
 		};
 	}
 
@@ -167,29 +170,70 @@ auto main() -> int
 		{ .Id = "D5", .Body = "issue (blocking: malformed draft.", .Selected = true },
 	};
 	const auto preflight = project(sampleWorld, drafts);
-	expect(blockers(preflight) == std::vector<std::string>{ "T01", "T03", "T13" }, "only my open, explicitly blocking roots are my published blockers");
+	expect(blockers(preflight) == std::vector<std::string>{ "T01", "T03", "T13", "T14", "T16" }, "only my open, blocking roots are my published blockers");
 	expect(preflight.Blockers[0].Label == feedback_label::issue && preflight.Blockers[0].Resolution == feedback_resolution::unresolved, "a blocker keeps its label and state");
 	expect(preflight.Blockers[1].Resolution == feedback_resolution::unknown, "an unknown resolution is shown as unknown, never as open or resolved");
 	expect(preflight.Blockers[2].Label == feedback_label::note, "an explicit note (blocking) is a blocker by its decoration; a custom label is not");
+	expect(preflight.Blockers[3].Label == feedback_label::issue, "[[BPR-2267]] an undecorated issue blocks by its label's implied weight");
+	expect(preflight.Blockers[4].Label == feedback_label::todo, "[[BPR-2276]] a todo (blocking) blocks by its decoration");
 	expect(preflight.Pending.size() == 1U && preflight.Pending.front().Draft == "D1" && preflight.Pending.front().Label == feedback_label::issue,
 		   "only a selected, explicitly blocking draft is pending; an unselected one is not read");
 	const auto todo  = guidance(preflight, feedback_label::todo);
 	const auto chore = guidance(preflight, feedback_label::chore);
-	expect(todo && todo->Published == 1U && todo->Pending == 1U && todo->Guidance == feedback_label_guidance::necessary_change,
+	expect(todo && todo->Published == 1U && todo->Pending == 1U && todo->Guidance == feedback_label_guidance::asks_for_change,
 		   "an undecorated todo of mine is guidance, published and pending, never a blocker");
-	expect(chore && chore->Published == 1U && chore->Pending == 0U && chore->Guidance == feedback_label_guidance::required_before_acceptance,
+	expect(chore && chore->Published == 1U && chore->Pending == 0U && chore->Guidance == feedback_label_guidance::asks_for_process_work,
 		   "a chore is guidance, apart from the blockers");
-	expect(preflight.Guidance.size() == 2U, "issue, note and decorated todos give no guidance");
+	const auto typo = guidance(preflight, feedback_label::typo);
+	expect(typo && typo->Published == 1U && typo->Guidance == feedback_label_guidance::asks_for_change, "[[BPR-2276]] an undecorated typo is guidance, never a blocker");
+	expect(preflight.Guidance.size() == 3U, "issue, note and decorated todos give no guidance");
 	expect(preflight.Others == 1U, "other reviewers' blockers are counted apart and never attributed to the submitter");
 	expect(preflight.Uncertain.UnknownAuthor == 1U, "an unknown author's blocker is uncertainty, never mine and never theirs");
 	expect(preflight.Uncertain.Unclassified == 2U, "my malformed root and my malformed selected draft are uncertainty");
 	expect(preflight.Uncertain.ResolutionUnknown == 1U && preflight.Uncertain.Collection == feedback_collection::complete, "unknown resolution is counted as uncertainty");
-	expect(!preflight.Exact && uncertain(preflight) == 4U && open_blocking(preflight) == 4U, "an uncertain preflight is never exact");
+	expect(!preflight.Exact && uncertain(preflight) == 4U && open_blocking(preflight) == 6U, "an uncertain preflight is never exact");
+
+	// --- [[BPR-2267]] Effective weight -------------------------------------------
+	{
+		// BPR-2264 writes no weight a label implies, so a draft blocks by its
+		// decoration when it has one and otherwise by its label.
+		const auto weighed = project(build({ }), std::vector<review_preflight_draft>{
+													 { .Id = "W1", .Body = "issue: Blocks by its label.", .Selected = true },
+													 { .Id = "W2", .Body = "issue (non-blocking): Says otherwise.", .Selected = true },
+													 { .Id = "W3", .Body = "suggestion: Does not block.", .Selected = true },
+													 { .Id = "W4", .Body = "suggestion (blocking): Says it blocks.", .Selected = true },
+													 { .Id = "W5", .Body = "nitpick: Does not block.", .Selected = true },
+													 { .Id = "W6", .Body = "question: Carries no weight.", .Selected = true },
+												 });
+		auto       pending = std::vector<std::string>{ };
+		for (const auto& entry : weighed.Pending) {
+			pending.push_back(entry.Draft);
+		}
+		expect(pending == std::vector<std::string>{ "W1", "W4" } && weighed.Pending[0].Label == feedback_label::issue && weighed.Pending[1].Label == feedback_label::suggestion,
+			   "issue: and suggestion (blocking): are pending blockers; issue (non-blocking):, suggestion:, nitpick: and question: are not");
+		expect(open_blocking(weighed) == 2U && weighed.Guidance.empty(), "the chip's count is the drafts that block");
+		// [[BPR-2276]] (owner, 2026-11-18: "nothing is a blocker unless we
+		// don't want the PR to merge without it fixed").
+		const auto work = project(build({ }), std::vector<review_preflight_draft>{
+												  { .Id = "X1", .Body = "todo: Add the clamp.", .Selected = true },
+												  { .Id = "X2", .Body = "typo: recieve.", .Selected = true },
+												  { .Id = "X3", .Body = "chore: Add a changelog entry.", .Selected = true },
+											  });
+		expect(open_blocking(work) == 0U && work.Pending.empty() && work.Guidance.size() == 3U, "an undecorated todo, typo or chore counts no blocker");
+		const auto decided = project(build({ }), std::vector<review_preflight_draft>{
+													 { .Id = "X4", .Body = "todo (blocking): Add the clamp.", .Selected = true },
+													 { .Id = "X5", .Body = "todo (non-blocking): Later.", .Selected = true },
+												 });
+		expect(open_blocking(decided) == 1U && decided.Pending.size() == 1U && decided.Pending.front().Draft == "X4" && decided.Guidance.empty(),
+			   "todo (blocking) counts one blocker; todo (non-blocking) none");
+		const auto published = project(build({ mine("P1", "issue: Mine."), mine("P2", "suggestion: Mine."), theirs("P3", "issue: Theirs.") }));
+		expect(blockers(published) == std::vector<std::string>{ "P1" } && published.Others == 1U, "a published issue: blocks too, mine or theirs");
+	}
 
 	// --- Attribution and coverage -------------------------------------------------
 	{
 		const auto asOther = project(sampleWorld, drafts, other);
-		expect(blockers(asOther) == std::vector<std::string>{ "T07" } && asOther.Others == 3U,
+		expect(blockers(asOther) == std::vector<std::string>{ "T07" } && asOther.Others == 5U,
 			   "submitting as the other reviewer swaps the groups: their blocker is theirs, mine are others'");
 		expect(guidance(asOther, feedback_label::todo)->Published == 1U && !guidance(asOther, feedback_label::chore).has_value(), "guidance follows the submitter too");
 	}

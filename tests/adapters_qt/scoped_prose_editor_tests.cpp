@@ -18,7 +18,7 @@ namespace {
 	auto target(const qt::prose_capture& aC) -> core::writing_target
 	{
 		const auto t = tests::review_tour_fixture();
-		return { .Owner = t.Owner, .Draft = t.Id, .Hook = core::writing_hook::problem, .Window = { core::bpr_profile_id{ 1 }, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } }, .Session = core::application_session_id{ 1 }, .Agent = core::agent_profile_id{ 1 }, .HookRevision = 1, .TextGeneration = aC.TextGeneration, .EditorGeneration = aC.EditorGeneration };
+		return { .Owner = t.Owner, .Draft = t.Id, .Stop = t.Stops.front().Id, .Hook = core::writing_hook::comment, .Window = { core::bpr_profile_id{ 1 }, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } }, .Session = core::application_session_id{ 1 }, .Agent = core::agent_profile_id{ 1 }, .HookRevision = 1, .TextGeneration = aC.TextGeneration, .EditorGeneration = aC.EditorGeneration };
 	}
 	auto rewrite(qt::scoped_prose_editor& aE, std::string aText) -> bool
 	{
@@ -175,8 +175,9 @@ namespace {
 		p.Draft = std::make_shared<const core::review_tour>(tests::review_tour_fixture());
 		editor.present(p);
 		editor.show();
-		editor.show_problem();
-		auto* problem = editor.problem_editor();
+		editor.go_to_stop(tests::review_tour_fixture().Stops.front().Id);
+		editor.begin_stop_edit();
+		auto* problem = editor.stop_body();
 		problem->setFocus();
 		expect(!editor.composing(), "an idle editor holds no preedit");
 		QInputMethodEvent preedit{ QStringLiteral("仮"), { } };
@@ -197,32 +198,34 @@ namespace {
 		qt::review_tour_editor         editor;
 		application::tour_presentation p;
 		auto                           draft = tests::review_tour_fixture();
-		draft.Problem                        = "A\r\n  \tB";
+		draft.Stops.front().Body             = "A\r\n  \tB";
 		p.Draft                              = std::make_shared<const core::review_tour>(draft);
 		editor.present(p);
 		editor.show();
-		editor.show_problem();
+		editor.go_to_stop(draft.Stops.front().Id);
+		editor.begin_stop_edit();
 		unsigned                         calls         = 0;
 		unsigned                         cancellations = 0;
 		std::optional<qt::prose_capture> captured;
-		editor.set_writing_dispatch([&](core::writing_hook aHook, qt::prose_capture aC) {expect(aHook==core::writing_hook::problem,"clicked field owns request");++calls;captured=std::move(aC); }, [&] { ++cancellations; });
-		auto* prose  = editor.writing_editor(core::writing_hook::problem);
+		editor.set_writing_dispatch([&](core::writing_hook aHook, qt::prose_capture aC) {expect(aHook==core::writing_hook::comment,"clicked field owns request");++calls;captured=std::move(aC); }, [&] { ++cancellations; });
+		auto* prose  = editor.writing_editor(core::writing_hook::comment);
 		auto  cursor = prose->textCursor();
 		cursor.setPosition(2);
 		cursor.setPosition(5, QTextCursor::KeepAnchor);
 		prose->setTextCursor(cursor);
-		auto* magic = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
+		auto* magic = editor.findChild<QPushButton*>(QStringLiteral("tourStopMagic"));
 		expect(magic && magic->text().isEmpty() && magic->accessibleName() == QStringLiteral("Enhance selection") && magic->toolTip().contains(QStringLiteral("only the selection changes")), "whitespace has the selection's tooltip");
 		// [[BPR-1995]]. Enhance runs in the side chat; the one-shot request
 		// (kept for the CLI's hooks) still captures the exact selection.
-		editor.request_field_writing(core::writing_hook::problem);
+		editor.request_field_writing(core::writing_hook::comment);
 		expect(calls == 1 && captured && captured->Raw.substr(captured->Selection.Begin, captured->Selection.End - captured->Selection.Begin) == "  \t", "toolbar preserves captured whitespace selection");
 		editor.roadmap()->setCurrentIndex(1);
 		editor.present(p);
 		expect(calls == 1, "navigation and projection never invoke assistance");
 		std::string persisted;
-		editor.set_dispatch([&](core::tour_command aCmd) { persisted = aCmd.Text; }, [](qt::tour_editor_action) { });
-		editor.show_problem();
+		editor.set_dispatch([&](core::tour_command aCmd) { persisted = aCmd.Value.Body; }, [](qt::tour_editor_action) { });
+		editor.go_to_stop(draft.Stops.front().Id);
+		editor.begin_stop_edit();
 		prose->moveCursor(QTextCursor::End);
 		prose->insertPlainText("x");
 		expect(persisted == "A\r\n  \tBx", "manual native edits persist untouched CRLF");

@@ -56,7 +56,7 @@ namespace {
 			expect(text != QStringLiteral("Next") && text != QStringLiteral("Recover explanation") && text != QStringLiteral("Use selected description text") && text != QStringLiteral("Enhance text"),
 				   std::string{ aWhen } + ": no visible button reads " + text.toStdString());
 		}
-		for (const char* const name : { "tourProblemMagic", "tourProblemMap", "tourProblemNext" }) {
+		for (const char* const name : { "tourStopMagic" }) {
 			auto* const button = child<QPushButton>(aEditor, name);
 			expect(!button->toolTip().isEmpty(), std::string{ aWhen } + ": " + name + " says what it does");
 		}
@@ -70,9 +70,9 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	const auto   prefix = argc > 1 ? std::string{ argv[1] } : std::string{ };
 
-	auto draft     = tests::review_tour_fixture();
-	draft.Problem  = { };
-	draft.Solution = { };
+	// [[BPR-2274]]. A tour is its stops: the help is a stop's own.
+	auto draft               = tests::review_tour_fixture();
+	draft.Stops.front().Body = { };
 	qt::review_tour_editor editor;
 	editor.set_dispatch([](core::tour_command) { }, [](qt::tour_editor_action) { });
 	std::optional<core::writing_hook> asked;
@@ -81,12 +81,12 @@ auto main(int argc, char** argv) -> int
 	editor.show();
 	editor.activateWindow();
 	editor.present({ .Draft = std::make_shared<const core::review_tour>(draft) });
-	editor.show_problem();
+	editor.show_stops();
+	editor.go_to_stop(draft.Stops.front().Id);
+	editor.begin_stop_edit();
 	QApplication::processEvents();
 
-	auto* const magic = child<QPushButton>(editor, "tourProblemMagic");
-	auto* const map   = child<QPushButton>(editor, "tourProblemMap");
-	auto* const next  = child<QPushButton>(editor, "tourProblemNext");
+	auto* const magic = child<QPushButton>(editor, "tourStopMagic");
 
 	// [[BPR-2051]]. No picker, no agent bar: the window's footer has them.
 	for (const auto* name : { "agentRunSettings", "tourAgentBar", "tourAgentField", "tourAgentSetupCall" }) {
@@ -94,17 +94,16 @@ auto main(int argc, char** argv) -> int
 	}
 	render(editor, prefix, "agent-offered");
 
-	// Starting help: the empty Problem's button drafts it, and says so.
-	expect(magic->text() == QStringLiteral("Draft from PR context") && magic->toolTip().contains(QStringLiteral("drafting agent")), "an empty field's helper says it drafts from the pull request");
+	// Starting help: the empty stop's button drafts its comment, and says so.
+	expect(magic->text() == QStringLiteral("Generate comment") && magic->toolTip().contains(QStringLiteral("drafting agent")), "an empty stop's helper says it drafts from the code");
 	magic->click();
-	expect(asked == core::writing_hook::problem, "Draft from PR context asks for help with the Problem");
-	expect(map->text() == QStringLiteral("Copy selected description text") && next->text() == QStringLiteral("Next: Solution"), "the other controls say their effect and where Next goes");
+	expect(asked == core::writing_hook::comment, "Generate comment asks for help with the stop");
 	expect_plain_labels(editor, "agents offered");
-	editor.problem_editor()->setPlainText(QStringLiteral("Reading can crash."));
+	editor.stop_body()->setPlainText(QStringLiteral("Reading can crash."));
 	QApplication::processEvents();
 	// Owner look 2026-11-11: "We also don't need the \"Enhance\" label if
 	// we're using the new enhance icon." The nib alone, named and explained.
-	expect(magic->text().isEmpty() && !magic->icon().isNull() && magic->accessibleName() == QStringLiteral("Enhance problem statement") && magic->toolTip().contains(QStringLiteral("Enhance the Problem. The suggestion waits for you to accept it.")),
+	expect(magic->text().isEmpty() && !magic->icon().isNull() && magic->accessibleName() == QStringLiteral("Enhance comment") && magic->toolTip().contains(QStringLiteral("Enhance this stop. The suggestion waits for you to accept it.")),
 		   "a written field's helper is Enhance: its icon, its name and its tooltip");
 	// [[BPR-1995]], RFC-BPR-0100 AC05, as amended by [[BPR-2138]] (RFC-BPR-0101
 	// AC11): Enhance is a fresh update whose suggestion waits on the part; it
@@ -115,11 +114,11 @@ auto main(int argc, char** argv) -> int
 	editor.set_tour_ask_dispatch([&chatAsked](const qt::tour_ask& aAsk) { chatAsked.push_back(aAsk); });
 	const auto shownBefore = editor.side_chat()->current();
 	magic->click();
-	expect(!asked && chatAsked.size() == 1U && chatAsked[0].Update && chatAsked[0].Fresh && chatAsked[0].Thread.Kind == core::tour_thread_kind::problem && editor.side_chat()->current() == shownBefore,
-		   "Enhance asks for a fresh update of the Problem and leaves the side chat as it was");
-	editor.request_field_writing(core::writing_hook::problem);
-	expect(asked == core::writing_hook::problem && editor.request_name(core::writing_hook::problem) == QStringLiteral("Enhance problem statement"), "the one-shot request keeps its whole name");
-	expect(!editor.problem_editor()->isReadOnly(), "writing by hand stays open");
+	expect(!asked && chatAsked.size() == 1U && chatAsked[0].Update && chatAsked[0].Fresh && chatAsked[0].Thread.Kind == core::tour_thread_kind::stop && editor.side_chat()->current() == shownBefore,
+		   "Enhance asks for a fresh update of the stop and leaves the side chat as it was");
+	editor.request_field_writing(core::writing_hook::comment);
+	expect(asked == core::writing_hook::comment && editor.request_name(core::writing_hook::comment) == QStringLiteral("Enhance comment"), "the one-shot request keeps its whole name");
+	expect(!editor.stop_body()->isReadOnly(), "writing by hand stays open");
 	expect_plain_labels(editor, "written");
 	render(editor, prefix, "written");
 

@@ -11,9 +11,14 @@
 #include <QRegularExpression>
 #include <QScopeGuard>
 #include <QStringList>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
+#include <vector>
 
 namespace bpr::qt {
 	namespace {
@@ -123,10 +128,24 @@ namespace bpr::qt {
 
 		/// [[BPR-2219]]. A button-shaped link of the page's own text: a
 		/// bordered cell, so Tab and Return reach it as they reach any link.
+		/// [[BPR-2268]] (owner, 2026-11-18: "Draft comment button in a report
+		/// doesn't look good when the description text to its right line
+		/// wraps"): the bordered cell is a table of its own in a top-aligned
+		/// cell, its words never wrapped, so it keeps its one line's height
+		/// and width however many lines the words beside it take.
 		[[nodiscard]] auto chip(const QString& aLink, const QString& aWords, const QString& aInk, const palette& aPalette) -> QString
 		{
-			return QStringLiteral("<td style=\"border:1px solid %1;background-color:%2;padding:4px 10px\"><a href=\"%3\" style=\"text-decoration:none;font-weight:600;color:%4\">%5</a></td>")
+			return QStringLiteral("<td valign=\"top\"><table cellspacing=\"0\" cellpadding=\"0\" style=\"border-collapse:collapse\"><tr>"
+								  "<td style=\"border:1px solid %1;background-color:%2;padding:4px 10px;white-space:nowrap\"><a href=\"%3\" style=\"text-decoration:none;font-weight:600;color:%4\">%5</a></td>"
+								  "</tr></table></td>")
 				.arg(aPalette.Strong, aPalette.Wash, aLink.toHtmlEscaped(), aInk, aWords.toHtmlEscaped());
+		}
+
+		/// [[BPR-2268]]. Words beside a chip: top-aligned, their first line
+		/// level with the chip's (its border and padding, 5 px, above it).
+		[[nodiscard]] auto beside(const QString& aText, const QString& aColour, const bool aStrong = false) -> QString
+		{
+			return QStringLiteral("<td valign=\"top\" style=\"padding:5px 12px 4px 0;color:%1;%2\">%3</td>").arg(aColour, aStrong ? QStringLiteral("font-weight:600;") : QString{ }, aText.toHtmlEscaped());
 		}
 
 		/// One keep action's row: the chip and what it does, or what became
@@ -136,23 +155,20 @@ namespace bpr::qt {
 			if (Actions == nullptr || !Actions->Link || aKeep == core::report_keep::none) {
 				return { };
 			}
-			const auto found = Actions->States.find(aOutline);
-			const auto state = found == Actions->States.end() ? report_keep_state{ } : found->second;
-			const auto draft = aKeep == core::report_keep::draft_comment;
-			const auto words = [&](const QString& aText, const QString& aColour, const bool aStrong) {
-				return QStringLiteral("<td style=\"padding:4px 12px 4px 0;color:%1;%2\">%3</td>").arg(aColour, aStrong ? QStringLiteral("font-weight:600;") : QString{ }, aText.toHtmlEscaped());
-			};
+			const auto found  = Actions->States.find(aOutline);
+			const auto state  = found == Actions->States.end() ? report_keep_state{ } : found->second;
+			const auto draft  = aKeep == core::report_keep::draft_comment;
 			const auto spacer = QStringLiteral("<td width=\"12\"></td>");
 			const auto unsent = QObject::tr("Nothing is published");
 			auto       cells  = QString{ };
 			switch (state.Phase) {
-			case report_keep_phase::working: cells = words(draft ? QObject::tr("Drafting\u2026") : QObject::tr("Keeping\u2026"), aPalette.Faint, false); break;
+			case report_keep_phase::working: cells = beside(draft ? QObject::tr("Drafting\u2026") : QObject::tr("Keeping\u2026"), aPalette.Faint, false); break;
 			case report_keep_phase::kept:
-				cells = words(draft ? QObject::tr("Drafted") : QObject::tr("Kept"), aPalette.Roles.Tones.Done.name(), true);
+				cells = beside(draft ? QObject::tr("Drafted") : QObject::tr("Kept"), aPalette.Roles.Tones.Done.name(), true);
 				if (aGoes) {
 					cells += chip(Actions->Link(aOutline, report_link::go), draft ? QObject::tr("Go to draft") : QObject::tr("Go to comment"), aPalette.Link, aPalette) + spacer;
 				}
-				cells += words(aOutline == 0U ? QObject::tr("A local comment on the pull request. %1").arg(unsent) : unsent, aPalette.Faint, false);
+				cells += beside(aOutline == 0U ? QObject::tr("A local comment on the pull request. %1").arg(unsent) : unsent, aPalette.Faint, false);
 				break;
 			case report_keep_phase::refused:
 			case report_keep_phase::offered:
@@ -160,7 +176,7 @@ namespace bpr::qt {
 																															  : QObject::tr("Keep local"),
 							 aPalette.Ink, aPalette)
 					+ spacer;
-				cells += state.Phase == report_keep_phase::refused ? words(state.Why, aPalette.Roles.Tones.Open.name(), false) : words(QStringLiteral("%1. %2").arg(aWhere, unsent), aPalette.Faint, false);
+				cells += state.Phase == report_keep_phase::refused ? beside(state.Why, aPalette.Roles.Tones.Open.name(), false) : beside(QStringLiteral("%1. %2").arg(aWhere, unsent), aPalette.Faint, false);
 				break;
 			}
 			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells);
@@ -173,13 +189,12 @@ namespace bpr::qt {
 			if (Actions == nullptr || !Actions->Link || (Actions->DraftAll == 0U && !Actions->DraftAllBusy && Actions->DraftAllSaid.isEmpty())) {
 				return { };
 			}
-			const auto words = [](const QString& aText, const QString& aColour) { return QStringLiteral("<td style=\"padding:4px 12px 4px 0;color:%1\">%2</td>").arg(aColour, aText.toHtmlEscaped()); };
-			auto       cells = QString{ };
+			auto cells = QString{ };
 			if (Actions->DraftAll > 0U && !Actions->DraftAllBusy) {
 				cells += chip(Actions->Link(0U, report_link::draft_all), QObject::tr("Draft all (%1)").arg(Actions->DraftAll), aPalette.Ink, aPalette) + QStringLiteral("<td width=\"12\"></td>");
 			}
-			cells += Actions->DraftAllSaid.isEmpty() ? words(QObject::tr("Each finding not yet drafted, at its lines. Nothing is published"), aPalette.Faint)
-													 : words(Actions->DraftAllSaid, Actions->DraftAllBusy ? aPalette.Faint : aPalette.Dim);
+			cells += Actions->DraftAllSaid.isEmpty() ? beside(QObject::tr("Each finding not yet drafted, at its lines. Nothing is published"), aPalette.Faint)
+													 : beside(Actions->DraftAllSaid, Actions->DraftAllBusy ? aPalette.Faint : aPalette.Dim);
 			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells);
 		}
 
@@ -451,6 +466,30 @@ namespace bpr::qt {
 	auto report_tone_colour(const core::report_tone aTone, const report_colours& aColours) -> QColor
 	{
 		return tone_colour(aTone, aColours.Tones).value_or(QColor{ palette_of(aColours).Strong });
+	}
+
+	auto mark_report_inline_code(QTextDocument& aDocument) -> std::size_t
+	{
+		// Found first, then marked: a merge rewrites the fragments.
+		auto runs = std::vector<std::pair<int, int>>{ };
+		for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
+			for (auto it = block.begin(); !it.atEnd(); ++it) {
+				const auto fragment = it.fragment();
+				const auto format   = fragment.charFormat();
+				if (!format.isAnchor() && !format.fontFixedPitch() && format.fontFamilies().toStringList().contains(QStringLiteral("monospace"))) {
+					runs.emplace_back(fragment.position(), fragment.position() + fragment.length());
+				}
+			}
+		}
+		auto fixed = QTextCharFormat{ };
+		fixed.setFontFixedPitch(true);
+		auto cursor = QTextCursor{ &aDocument };
+		for (const auto& [from, to] : runs) {
+			cursor.setPosition(from);
+			cursor.setPosition(to, QTextCursor::KeepAnchor);
+			cursor.mergeCharFormat(fixed);
+		}
+		return runs.size();
 	}
 
 	auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const report_page_actions& aActions, std::vector<report_code_slot>* aSlots, const report_look aLook) -> QString

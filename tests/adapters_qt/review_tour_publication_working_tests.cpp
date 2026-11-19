@@ -87,7 +87,7 @@ namespace {
 		editor.resize(380, 620);
 		editor.show();
 		editor.present({ .Draft = std::make_shared<const core::review_tour>(draft) });
-		editor.open_step(core::tour_step::stops);
+		editor.show_stops();
 		QApplication::processEvents();
 		auto* const head   = editor.head_bar();
 		auto* const scroll = editor.route_scroll();
@@ -185,7 +185,6 @@ namespace {
 		auto* const stop     = child<QPushButton>(editor, "tourStop");
 		auto* const resume   = child<QPushButton>(editor, "tourResume");
 		auto* const check    = child<QPushButton>(editor, "tourReconcile");
-		auto* const describe = child<QCheckBox>(editor, "tourDescriptionEdit");
 		auto* const status   = child<QLabel>(editor, "tourPublicationStatus");
 		auto* const panel    = child<QWidget>(editor, "tourPublicationWorking");
 		auto* const title    = child<QLabel>(editor, "tourPublicationWorkingTitle");
@@ -198,8 +197,8 @@ namespace {
 		auto* const list     = editor.publication_steps();
 		expect(editor.findChild<QComboBox*>(QStringLiteral("tourPublicationMode")) == nullptr, "AC03: no mode list is offered");
 
-		// [[BPR-1787]]. The brief goes in the description unless the author says otherwise.
-		expect(describe->isChecked() && describe->toolTip().contains(QStringLiteral("Problem and Solution go in the PR description")), "Update PR description starts on and says where the brief goes");
+		// [[BPR-2274]]. Publishing never edits the pull request description: no choice is offered.
+		expect(editor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit")) == nullptr, "no Update PR description choice is offered");
 
 		// Admitted: the chosen form in one sentence, with the stops that forced it.
 		editor.present_publication({ .Status        = "Preview ready.",
@@ -234,7 +233,7 @@ namespace {
 			expect(sent == 0U || list->row_texts()[static_cast<qsizetype>(sent - 1U)].startsWith(QStringLiteral("Sent:")), "AC04: the steps before it are sent");
 			expect(count->text() == QStringLiteral("Step %1 of 3").arg(sent + 1U) && editor.head().Step == sent + 1U && editor.head().Steps == 3U, "AC04: the head's count agrees with the panel's");
 		}
-		expect(publish->text() == QStringLiteral("Publishing…") && !publish->isEnabled() && !preview->isEnabled() && !describe->isEnabled(), "in flight: nothing that would change what is sent can be used");
+		expect(publish->text() == QStringLiteral("Publishing…") && !publish->isEnabled() && !preview->isEnabled(), "in flight: nothing that would change what is sent can be used");
 		expect(stop->isEnabled() && !resume->isEnabled() && !check->isEnabled(), "in flight: Stop stays available");
 		expect(!panel->isHidden() && status->isHidden() && title->text() == QStringLiteral("Publishing the tour to GitHub…") && !form->isVisible(), "in flight: the waiting panel says it; the status line steps aside");
 		save(editor, aPrefix, "-in-flight.png");

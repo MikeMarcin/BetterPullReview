@@ -1322,8 +1322,6 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "tour-native-open");
 			}
 			if (course == "tour-native") {
-				editor->problem_editor()->setPlainText(QStringLiteral("Accepted problem stays"));
-				editor->solution_editor()->setPlainText(QStringLiteral("Accepted solution stays"));
 				// [[BPR-1987]]. Change navigation prefers a base-side line when
 				// available. This scenario requires a current-head source that
 				// remains clear on reopen, not a historical line later mapped missing.
@@ -1365,7 +1363,7 @@ auto main(int argc, char** argv) -> int
 				if (!window.agent_tab()->choose_agent(profile.value())) {
 					return fail(*application, "tour-native-agent-choice");
 				}
-				for (const auto& thread : { core::tour_thread{ }, core::tour_thread{ core::tour_thread_kind::problem, { } }, core::tour_thread{ core::tour_thread_kind::solution, { } }, core::tour_thread{ core::tour_thread_kind::stop, stop } }) {
+				for (const auto& thread : { core::tour_thread{ }, core::tour_thread{ core::tour_thread_kind::stop, stop } }) {
 					editor->open_side_chat(thread);
 					if (!wait_until([&] { return chat->current() == std::optional{ thread } && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-history-loaded");
@@ -1535,7 +1533,7 @@ auto main(int argc, char** argv) -> int
 					if (!wait_until([&] { return chat->turn_count() >= prior + 2U && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-history-reopen", chat->chat_text().toStdString());
 					}
-					if (thread.Kind == core::tour_thread_kind::problem) {
+					if (thread.Kind == core::tour_thread_kind::tour) {
 						auto* replay = chat->findChild<QAction*>(QStringLiteral("tourTranscriptReplay"));
 						if (!replay) {
 							return fail(*application, "tour-replay-offer");
@@ -1571,7 +1569,7 @@ auto main(int argc, char** argv) -> int
 						|| !verify_native_fixture_identity(chat->reply(chat->turn_count() - 1U)->original_body(), identityKey, true, dataRoot.parent_path())) {
 						return fail(*application, "tour-native-history-exact-memory-resume");
 					}
-					if (editor->shown().Draft->Problem != original.Problem || editor->shown().Draft->Solution != original.Solution || editor->shown().Draft->Stops != acceptedBeforeNew.Stops) {
+					if (editor->shown().Draft->Stops != acceptedBeforeNew.Stops) {
 						return fail(*application, "tour-native-new-preserves-accepted");
 					}
 				}
@@ -1585,7 +1583,7 @@ auto main(int argc, char** argv) -> int
 				if (!window.agent_tab()->choose_agent(profile.value())) {
 					return fail(*application, "tour-native-return-agent");
 				}
-				for (const auto& thread : { core::tour_thread{ }, core::tour_thread{ core::tour_thread_kind::solution, { } }, core::tour_thread{ core::tour_thread_kind::problem, { } }, core::tour_thread{ core::tour_thread_kind::stop, stop } }) {
+				for (const auto& thread : { core::tour_thread{ }, core::tour_thread{ core::tour_thread_kind::stop, stop } }) {
 					editor->open_side_chat(thread);
 					if (!wait_until([&] { return chat->current() == std::optional{ thread } && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-return-ready");
@@ -3019,13 +3017,19 @@ auto main(int argc, char** argv) -> int
 			&& field("brief.skill.version") == "5"
 			&& (field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos || (field("brief.skill.text") == "<absent>" && field("brief.skill.location") == "system_prompt"))
 			// [[BPR-2059]]. The shipped suggested-comment format rides the brief.
-			&& field("brief.comment_format.source") == "shipped" && field("brief.comment_format.version") == "suggested-comment-v1"
-			&& field("brief.comment_format.text").find("Say the problem in one sentence, then the fix.") != std::string::npos
+			&& field("brief.comment_format.source") == "shipped" && field("brief.comment_format.version") == "suggested-comment-v3"
+			&& field("brief.comment_format.text").find("the problem in one sentence, what goes wrong because of it, then the fix.") != std::string::npos
 			// [[BPR-1753]], owner decision (b): the first turn about this
 			// pull request carries no earlier one.
-			&& field("brief.conversation.count") == "0" && field("brief.conversation.omitted") == "0";
+			&& field("brief.conversation.count") == "0" && field("brief.conversation.omitted") == "0"
+			// [[BPR-2264]]. An Agent tab question carries the Writing style:
+			// this agent takes no system prompt, so it is the last field.
+			// [[BPR-2270]]: Comment labels comes first in it, since an Agent
+			// tab answer may hold comments for the reviewer to post.
+			&& field("writing_style").starts_with("Comment labels (the /bpr:comment-labels Feature).") && field("writing_style").find("`suggestion`: a proposed improvement") != std::string::npos
+			&& field("writing_style").find("Writing style (the /bpr:writing-style Feature).") > field("writing_style").find("`typo`") && field("writing_style").find("Put the point first") != std::string::npos;
 		for (const auto& [name, value] : *actualFields) {
-			if (name.starts_with("brief.")) {
+			if (name.starts_with("brief.") || name == "writing_style") {
 				expectedFields->emplace(name, value);
 			}
 		}

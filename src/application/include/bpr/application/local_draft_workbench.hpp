@@ -511,7 +511,6 @@ namespace bpr::application {
 		void rename(std::string aTitle);
 		// RFC-BPR-0110: the description and the tour. Nothing here publishes.
 		void save_description(std::string aTitle, std::string aBody);
-		void save_brief(std::string aProblem, std::string aSolution);
 		/// \brief Copies a passage into the description, deliberately.
 		void transfer_to_description(std::string aPassage);
 		/// \brief A stop on lines of the latest candidate's new side.

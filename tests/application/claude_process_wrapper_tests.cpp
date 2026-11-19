@@ -269,7 +269,7 @@ namespace {
 		behaviour.MarkRead = behaviour.MarkRead == application::review_mark_read_behaviour::by_hand ? application::review_mark_read_behaviour::when_fully_seen
 																									: application::review_mark_read_behaviour::by_hand;
 		expect(host.apply_behaviour(behaviour), "another preference is written");
-		expect(host.apply_writing_hook(core::writing_hook::problem, "Be brief."), "a writing hook is written");
+		expect(host.apply_writing_hook(core::writing_hook::outline, "Be brief."), "a writing hook is written");
 		effects.drain();
 		decision.drain();
 		effects.drain();

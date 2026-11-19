@@ -1327,6 +1327,35 @@ namespace bpr::application {
 		host.publish();
 	}
 
+	void agent_setup_host::settle_workspace_check(const std::string& aKey, core::setup_check aCheck, std::string aDetail)
+	{
+		auto&      host   = *Implementation;
+		auto&      kept   = host.Projection.Preferences.WorkspaceChecks;
+		const auto before = kept;
+		if (!aKey.empty() && aKey.size() <= maximum_workspace_check_key_bytes && (aCheck.State == core::setup_check_state::passed || aCheck.State == core::setup_check_state::failed)) {
+			std::erase(kept, aKey);
+			if (aCheck.State == core::setup_check_state::passed) {
+				kept.push_back(aKey);
+				if (kept.size() > maximum_kept_workspace_checks) {
+					kept.erase(kept.begin(), kept.end() - static_cast<std::ptrdiff_t>(maximum_kept_workspace_checks));
+				}
+			}
+		}
+		if (kept != before) {
+			host.save();
+		}
+		set_workspace_check(std::move(aCheck), std::move(aDetail));
+	}
+
+	void agent_setup_host::restore_workspace_check(const std::string& aKey)
+	{
+		auto& host = *Implementation;
+		if (host.Projection.State.WorkspaceCheck.State != core::setup_check_state::not_run || std::ranges::find(host.Projection.Preferences.WorkspaceChecks, aKey) == host.Projection.Preferences.WorkspaceChecks.end()) {
+			return;
+		}
+		set_workspace_check({ .State = core::setup_check_state::passed });
+	}
+
 	void agent_setup_host::restart()
 	{
 		auto& host = *Implementation;

@@ -1744,6 +1744,19 @@ gets past the init check; hooks are off while this app's `--settings` holds),
 and their permission rules, which can widen what a read-only run is approved
 to run as a wrapper's can (below).
 
+**A custom agent keeps its own settings ([[BPR-2259]], owner, 2026-11-18).**
+Claude keeps only the last `--settings` it is given. A custom agent's own
+settings come first, in its saved arguments or from a wrapper that puts its
+own before the arguments it passes on, so this app's `--settings` replaced
+them, and with them the sign-in they carried: Enhance failed with a 401 on
+a comment the same agent had just drafted in the Agent tab. A launch through
+a custom Claude agent (`agent_entry_process`) therefore drops this app's
+`--settings` pair, as its Agent tab runs never had it; Claude Code added as
+itself keeps it. Hooks, plugins and auto-memory are then the custom agent's
+own, as they already were for a wrapper whose settings replace this app's;
+`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` still holds memory off, and the init
+check still refuses any tool or MCP server.
+
 The process starts in an empty folder of its own (`bpr-writing-XXXXXX` under
 the temporary folder), made by the agent adapter and removed when the request
 ends, never the review workspace, so nothing from the reviewed repository is
@@ -1990,6 +2003,45 @@ The Agent tab's chat still runs Claude with the person's own settings
 (unchanged): a skill its question names is carried inline as above, and
 Claude may also load skills natively there, from the person's folders and
 from the workspace, which is the pull request's head.
+
+### The Writing style Feature (BPR-2264)
+
+`/bpr:writing-style` is a Feature, not a skill: `bpr:` is reserved, so such a
+reference is never resolved against the skill catalog or noted as unknown
+(`core/skill_references.hpp`, `core/prompt_features.hpp`). Its text is the
+profile's `feature.writing-style` override, or the shipped
+`resources/review-preparation/writing-style.md`, behind a fixed preamble that
+keeps the request's own instructions and format in charge and confines the
+style to string values in a JSON answer.
+
+One helper, `application::writing_style_for`, gives every request its style:
+the PR window's `launch_agent_invocation` (every Agent tab turn, returning
+question, Explain this file, Suggest the change, comment workshop press and
+tour run) and the local draft runner (description, discussion, commit message,
+a check's plan and run) call it, and `bpr tour assist context` puts it in the
+prompt it hands out. `build_agent_launch` places it after every other
+instruction: last in the system prompt or `developer_instructions`, or, where
+the instructions are pasted, as the request's last field, `writing_style`. A
+prompt or skill that names the Feature adds nothing more: the text is sent
+once. Values substituted from pull request data are never read for
+references. The text is sent as written; it may name a skill installed for
+the agent, which is not inlined.
+
+### The Comment labels Feature (BPR-2270)
+
+`/bpr:comment-labels` is the second editable Feature. Its text is the
+profile's `feature.comment-labels` override, or the shipped
+`resources/review-preparation/comment-labels.md` (the Conventional Comments
+convention), behind a fixed preamble that confines it to comments written for
+the reviewer to post. `application::prompt_features_for`, the helper
+`writing_style_for` now delegates to, puts it before the Writing style when
+the request may write such a comment (`launch_agent_invocation`: every turn
+that is not a tour run, Explain this file or Suggest the change) or its own
+text names it. A blank override (`core::blank_feature_override`, distinct
+from the empty override that means the shipped text) sends nothing. The
+suggested-comment format asks for a label only when Comment labels is sent;
+the app adds none (`core::read_agent_comment_suggestion` only reads the
+agent's).
 
 ### Writing request and result bounds
 

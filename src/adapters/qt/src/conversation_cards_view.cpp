@@ -12,6 +12,7 @@
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/nested_scroll_latch.hpp"
 #include "bpr/qt/thread_pick_gestures.hpp"
 
 #include "bpr/core/feedback_conversation.hpp"
@@ -686,6 +687,8 @@ namespace bpr::qt {
 		, CodeFont{ to_presentation_font(default_typography_settings().Code) }
 	{
 		setObjectName(QStringLiteral("conversationCards"));
+		// [[BPR-2279]]. A gesture over a field nested in the drawer stays the field's.
+		nested_scroll_latch::install();
 		MarkTheme = default_feedback_mark_theme(palette());
 		setAccessibleName(QStringLiteral("Threads in this file"));
 		setFocusPolicy(Qt::StrongFocus);
@@ -1004,7 +1007,7 @@ namespace bpr::qt {
 		index_retained();
 		Draft.reset();
 		Current.clear();
-		Open.clear();
+		set_open({ });
 		Picked.clear();
 		PickedNext.clear();
 		Hovered.clear();
@@ -1187,7 +1190,7 @@ namespace bpr::qt {
 		auto affects = noted(Draft) || noted(aDraft) || CurrentComparison != aCurrentComparison;
 		// [[BPR-1212]]. While the draft is written in the drawer its composer
 		// shows the text, so typing it changes no note either.
-		if (Writing && Draft.has_value() && aDraft.has_value() && CurrentComparison == aCurrentComparison
+		if (writing_draft() && Draft.has_value() && aDraft.has_value() && CurrentComparison == aCurrentComparison
 			&& Draft->Id == aDraft->Id && Draft->Anchor == aDraft->Anchor && Draft->ReplyToThread == aDraft->ReplyToThread
 			&& Draft->State == aDraft->State) {
 			affects = false;
@@ -2107,6 +2110,46 @@ namespace bpr::qt {
 		return ids;
 	}
 
+	auto conversation_cards_view::comments_in_file_order() const -> std::vector<comment_stop>
+	{
+		auto stops = std::vector<comment_stop>{ };
+		for (const auto& node : Retained) {
+			if (node.Kind == application::github_conversation_kind::review_thread && !node.ParentId.has_value() && !node.Deleted && !node.Path.empty()) {
+				auto stop   = comment_stop{ };
+				stop.Thread = node.Id;
+				stop.Path   = QString::fromStdString(node.Path);
+				stop.Side   = node.DiffSide == application::github_conversation_diff_side::left ? core::diff_side::left : core::diff_side::right;
+				stop.Line   = node.Line.value_or(1U) > 0U ? node.Line.value_or(1U) - 1U : 0U;
+				stops.push_back(std::move(stop));
+			}
+		}
+		// My drafts on a line of a file, as the drawer shows them: the
+		// editor's (being written, or with words) and every other saved one
+		// with words. A reply is its thread's; a published draft is a thread.
+		const auto add = [&stops](const core::review_comment_draft& aDraft, const bool aWriting) {
+			if (aDraft.shared() || aDraft.ReplyToThread.has_value() || (aDraft.Body.empty() && !aWriting) || !aDraft.Place.has_value() || aDraft.Place->Path.empty()
+				|| std::ranges::any_of(stops, [&aDraft](const comment_stop& aStop) { return aStop.Draft == std::optional{ aDraft.Id }; })) {
+				return;
+			}
+			auto stop  = comment_stop{ };
+			stop.Draft = aDraft.Id;
+			stop.Path  = QString::fromStdString(aDraft.Place->Path);
+			stop.Side  = aDraft.Anchor.Side;
+			stop.Line  = aDraft.Anchor.Line;
+			stops.push_back(std::move(stop));
+		};
+		if (Draft.has_value()) {
+			add(*Draft, writing_draft());
+		}
+		for (const auto& saved : SavedDrafts) {
+			add(saved, false);
+		}
+		std::ranges::stable_sort(stops, [](const comment_stop& aLeft, const comment_stop& aRight) {
+			return std::pair{ aLeft.Path, aLeft.Line } < std::pair{ aRight.Path, aRight.Line };
+		});
+		return stops;
+	}
+
 	auto conversation_cards_view::unread_conversations_in_navigation_order() const -> const std::vector<std::string>&
 	{
 		if (UnreadConversations.has_value()) {
@@ -2413,6 +2456,24 @@ namespace bpr::qt {
 		return index.has_value() ? to_viewport(Cards[*index].Rect) : QRect{ };
 	}
 
+	auto conversation_cards_view::closed_preview(const std::string& aId) const -> QString
+	{
+		const auto index = card_index(aId);
+		if (!index.has_value() || Cards[*index].Posts.empty()) {
+			return { };
+		}
+		const auto& card    = Cards[*index];
+		const auto* measure = closed_measure_of(card);
+		if (measure == nullptr || measure->Lines <= 0) {
+			return { };
+		}
+		// As `paint_closed` lays the note's words out.
+		const auto  colours = note_colours_of(palette(), Accent, Marker, CodeTheme ? CodeTheme->Variant : core::appearance_variant::light);
+		const auto& preview = preview_for(card);
+		const auto  wide    = std::max(40, card.Rect.width() - text_left - note_right);
+		return clamp_lines(display_of(card.Posts.front(), preview, font(), CodeFont, colours.Hover), preview.Omitted, font(), wide, measure->Lines, tokens_width(preview.Tokens, font())).Text;
+	}
+
 	auto conversation_cards_view::card_index(const std::string& aId) const -> std::optional<std::size_t>
 	{
 		if (aId.empty()) {
@@ -2457,7 +2518,7 @@ namespace bpr::qt {
 		PullRequestComments = aShown;
 		setVerticalScrollBarPolicy(aShown ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
 		const auto& entering = aShown ? ConversationPlace : LinesPlace;
-		Open.clear();
+		set_open({ });
 		Current.clear();
 		Picked.clear();
 		NewConversationBoundary.clear();
@@ -2467,8 +2528,10 @@ namespace bpr::qt {
 		if (present(entering.Current)) {
 			Current = entering.Current;
 		}
-		if (present(entering.Open)) {
-			Open = entering.Open;
+		// My draft is written only once the window begins it again: it
+		// comes back as its note, not as an open card with no composer.
+		if (present(entering.Open) && entering.Open != draft_card_id) {
+			set_open(entering.Open);
 			relayout();
 		}
 		// [[BPR-1779]]. The New rule stands over the first comment, in time
@@ -3585,7 +3648,7 @@ namespace bpr::qt {
 				&& !aDraft.shared() && !aDraft.ReplyToThread.has_value() && (!aDraft.Body.empty() || aWriting);
 		};
 		auto drafts = std::vector<std::pair<std::string, const core::review_comment_draft*>>{ };
-		if (Draft.has_value() && noted(*Draft, Writing)) {
+		if (Draft.has_value() && noted(*Draft, writing_draft())) {
 			drafts.emplace_back(std::string{ draft_card_id }, &*Draft);
 		}
 		for (const auto& saved : SavedDrafts) {
@@ -3600,7 +3663,7 @@ namespace bpr::qt {
 			card.Draft = true;
 			// [[BPR-1212]]. Written in the drawer, the draft is its composer
 			// and carries no post.
-			const auto writing = Writing && id == draft_card_id;
+			const auto writing = writing_draft() && id == draft_card_id;
 			card.Writing       = writing;
 			// [[BPR-1345]]. Pending in my review, or held by its submission.
 			card.Pending = core::pending_in_review(*draft) || core::held_by_review(*draft);
@@ -3662,8 +3725,7 @@ namespace bpr::qt {
 			card.ProjectionOrder = order++;
 		}
 		if (!Open.empty() && !card_index(Open).has_value()) {
-			Writing = Writing && Open != draft_card_id;
-			Open.clear();
+			set_open({ });
 			Picked.clear();
 			Replying.clear();
 		}
@@ -3817,6 +3879,7 @@ namespace bpr::qt {
 			style.Suggestions = std::move(shown);
 		}
 		OpenCard = new open_thread_card{ card, style, viewport() };
+		OpenCard->set_field_maximum(field_share());
 		OpenCard->setProperty("threadKey", key);
 		if (OpenCard->label_controls() != nullptr) {
 			bind_reference(*OpenCard->label_controls());
@@ -4884,9 +4947,18 @@ namespace bpr::qt {
 		return QAbstractScrollArea::viewportEvent(aEvent);
 	}
 
+	auto conversation_cards_view::field_share() const -> int
+	{
+		// [[BPR-2273]]. A comment field grows to about 60% of the drawer.
+		return viewport()->height() * 3 / 5;
+	}
+
 	void conversation_cards_view::resizeEvent(QResizeEvent* const aEvent)
 	{
 		QAbstractScrollArea::resizeEvent(aEvent);
+		if (OpenCard != nullptr) {
+			OpenCard->set_field_maximum(field_share());
+		}
 		relayout();
 		// [[BPR-1740]]. A notice under the drawer takes its height from
 		// it: the open thread's focused control stays in view rather than
@@ -4924,7 +4996,7 @@ namespace bpr::qt {
 			const auto chosen = Cards[aCard].Id;
 			Current           = chosen;
 			if (aOpen && Open != chosen) {
-				Open = chosen;
+				set_open(chosen);
 				Picked.clear();
 				Replying.clear();
 				relayout();
@@ -4951,7 +5023,7 @@ namespace bpr::qt {
 		// [[BPR-1293]]. A pick names its post; any other opening drops it.
 		auto picked = std::exchange(PickedNext, std::string{ });
 		if (aOpen && (Open != chosen || picked != Picked)) {
-			Open   = chosen;
+			set_open(chosen);
 			Picked = std::move(picked);
 			if (Replying != chosen) {
 				Replying.clear();
@@ -5107,8 +5179,7 @@ namespace bpr::qt {
 		if (Open.empty()) {
 			return;
 		}
-		Writing = Writing && Open != draft_card_id;
-		Open.clear();
+		set_open({ });
 		Picked.clear();
 		RevealPicked = false;
 		Replying.clear();
@@ -5120,7 +5191,7 @@ namespace bpr::qt {
 	{
 		if (Open != aThread) {
 			if (const auto index = card_index(aThread); index.has_value()) {
-				Open    = aThread;
+				set_open(aThread);
 				Current = aThread;
 				relayout();
 			}
@@ -5151,9 +5222,9 @@ namespace bpr::qt {
 
 	void conversation_cards_view::begin_draft()
 	{
-		if (!Writing || Open != draft_card_id) {
+		if (!writing_draft()) {
+			set_open(std::string{ draft_card_id });
 			Writing = true;
-			Open    = std::string{ draft_card_id };
 			Picked.clear();
 			Replying.clear();
 			relayout();
@@ -5176,10 +5247,21 @@ namespace bpr::qt {
 		}
 		Writing = false;
 		if (Open == draft_card_id) {
-			Open.clear();
+			set_open({ });
 		}
 		forget_measurements_if([](const std::string& aId) { return aId == draft_card_id; });
 		relayout();
+	}
+
+	void conversation_cards_view::set_open(std::string aId)
+	{
+		// The draft is written in the drawer only while its card is open:
+		// opening or closing anything else leaves it a closed note with its
+		// words, never an empty composer's frame (the owner: "a draft
+		// comment sometimes not rendering when I click away from it", and
+		// "next comment seems to also break the draft comment").
+		Writing = Writing && aId == draft_card_id;
+		Open    = std::move(aId);
 	}
 
 	auto conversation_cards_view::writing_draft() const noexcept -> bool
@@ -5205,7 +5287,7 @@ namespace bpr::qt {
 
 	auto conversation_cards_view::draft_editor() const -> QPlainTextEdit*
 	{
-		return OpenCard != nullptr && Open == draft_card_id && Writing ? OpenCard->reply_editor() : nullptr;
+		return OpenCard != nullptr && writing_draft() ? OpenCard->reply_editor() : nullptr;
 	}
 
 	auto conversation_cards_view::draft_identity() -> const std::string&
@@ -5679,6 +5761,17 @@ namespace bpr::qt {
 			auto*      wheel = static_cast<QWheelEvent*>(aEvent);
 			const auto delta = wheel->pixelDelta().isNull() ? wheel->angleDelta() : wheel->pixelDelta();
 			if (std::abs(delta.x()) > std::abs(delta.y())) {
+				return false;
+			}
+			// [[BPR-2273]]. A comment field taller than its share scrolls
+			// first; at its end the drawer takes the wheel.
+			if (OpenCard->scroll_field(aWatched, *wheel)) {
+				return true;
+			}
+			// [[BPR-2279]]. Unless a trackpad gesture is latched to the
+			// field: then what it cannot take stays with it, momentum
+			// included, and the next gesture moves the drawer.
+			if (nested_scroll_latch::delivering()) {
 				return false;
 			}
 			wheelEvent(wheel);

@@ -184,8 +184,8 @@ namespace {
 		const auto whole = tour_part_session(tab, tour_thread{ });
 		expect(session_key(whole) == "tour-part:github.com/o/r#7/tour" && session_key(whole) != session_key(part) && session_key(whole) != session_key(with_kind(tab, queued_session_kind::tour_feedback)),
 			   "the whole tour, a stop and the first draft's feedback are separate queues");
-		expect(tour_part_thread(part.Part) == std::optional{ stop } && tour_part_thread("problem") == std::optional{ tour_thread{ .Kind = tour_thread_kind::problem } }
-				   && tour_part_thread("solution") == std::optional{ tour_thread{ .Kind = tour_thread_kind::solution } } && !tour_part_thread("stop-") && !tour_part_thread("stop-07") && !tour_part_thread("tours"),
+		expect(tour_part_thread(part.Part) == std::optional{ stop } && !tour_part_thread("problem")
+				   && !tour_part_thread("solution") && !tour_part_thread("stop-") && !tour_part_thread("stop-07") && !tour_part_thread("tours"),
 			   "a part names its thread");
 		const auto draft = local_draft_session("d0a1", tour_thread{ });
 		expect(session_key(draft) == "local-draft:d0a1/tour" && parse_session_key(session_key(draft)) == std::optional{ draft }, "a local draft's discussion round-trips");
@@ -242,6 +242,12 @@ namespace {
 		offer.Expansion.Cursor.reset();
 		offer.Expansion.Values.clear();
 		expect(decode_queued_prompt(encode_queued_prompt(offer)) == std::optional{ offer }, "no cursor and no values read back as none");
+		// [[BPR-2281]]. A prompt queued while kind 2 was `description`
+		// ([[BPR-2280]]) is read back as a question.
+		auto retired    = offer;
+		retired.Kind    = static_cast<prompt_ask>(2U);
+		const auto read = decode_queued_prompt(encode_queued_prompt(retired));
+		expect(read && read->Kind == prompt_ask::question, "a retired description kind reads as a question");
 		const auto text = encode_queued_prompt(offer);
 		expect(!decode_queued_prompt(text.substr(0U, text.size() - 1U)) && !decode_queued_prompt(text + "x") && !decode_queued_prompt("p2;" + text.substr(3U)) && !decode_queued_prompt(""),
 			   "a cut, padded or other version's value is none");

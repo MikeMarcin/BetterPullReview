@@ -1,5 +1,7 @@
 #include "bpr/application/appearance_preferences_application_host.hpp"
 
+#include "bpr/core/agent_configuration.hpp"
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -23,15 +25,7 @@ namespace bpr::application {
 		enum class appearance_request_domain : std::uint8_t {
 			settings_load,
 			settings_store,
-			theme_import,
 			theme_export,
-		};
-
-		struct theme_import_attempt
-		{
-			std::optional<core::appearance_palette>    Palette;
-			std::vector<core::theme_import_rejection>  ThemeRejections;
-			std::vector<appearance_contrast_rejection> ContrastRejections;
 		};
 
 		struct staged_settings_load
@@ -44,12 +38,6 @@ namespace bpr::application {
 		{
 			appearance_request_context       Context;
 			appearance_settings_result<void> Result;
-		};
-
-		struct staged_theme_import
-		{
-			appearance_request_context                  Context;
-			theme_document_result<theme_import_attempt> Result;
 		};
 
 		struct deferred_appearance_restore
@@ -107,11 +95,6 @@ namespace bpr::application {
 			core::identity_avatar_style Style = core::identity_avatar_style::github;
 		};
 
-		struct deferred_appearance_theme_import
-		{
-			std::string Path;
-		};
-
 		struct deferred_appearance_theme_export
 		{
 			std::string              Path;
@@ -141,12 +124,10 @@ namespace bpr::application {
 														 deferred_appearance_zoom,
 														 deferred_known_namespaces,
 														 deferred_avatar_style,
-														 deferred_appearance_theme_import,
 														 deferred_appearance_cancel,
 														 deferred_appearance_shutdown,
 														 staged_settings_load,
-														 staged_settings_store,
-														 staged_theme_import>;
+														 staged_settings_store>;
 
 		struct queued_preferences_ingress
 		{
@@ -346,7 +327,6 @@ namespace bpr::application {
 					using ingress_type = std::decay_t<decltype(aTyped)>;
 					if constexpr (!std::is_same_v<ingress_type, staged_settings_load>
 								  && !std::is_same_v<ingress_type, staged_settings_store>
-								  && !std::is_same_v<ingress_type, staged_theme_import>
 								  && !std::is_same_v<ingress_type, staged_theme_export>
 								  && !std::is_same_v<ingress_type, deferred_appearance_cancel>
 								  && !std::is_same_v<ingress_type, deferred_appearance_shutdown>) {
@@ -371,7 +351,8 @@ namespace bpr::application {
 							publish_consumer_changes(consumer, local_context(), { });
 						}
 					} else if constexpr (std::is_same_v<ingress_type, cancel_appearance_palette_preview_intent>) {
-						retire(appearance_request_domain::theme_import, appearance_terminal_rejection::cancelled);
+						// [[BPR-2283]]. A theme is imported through Import Profile
+						// Settings, so a palette preview has no import to cancel.
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_reset>) {
 						reset_now(aTyped.Scope, aTyped.Variant);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_theme_export>) {
@@ -405,8 +386,6 @@ namespace bpr::application {
 						apply_known_namespaces_now(std::move(aTyped.Namespaces));
 					} else if constexpr (std::is_same_v<ingress_type, deferred_avatar_style>) {
 						apply_avatar_style_now(aTyped.Style);
-					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_theme_import>) {
-						import_theme_now(std::move(aTyped.Path));
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_cancel>) {
 						cancel_now();
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_shutdown>) {
@@ -415,8 +394,6 @@ namespace bpr::application {
 						finish_settings_load(aTyped.Context, std::move(aTyped.Result));
 					} else if constexpr (std::is_same_v<ingress_type, staged_settings_store>) {
 						finish_settings_store(aTyped.Context, aTyped.Result);
-					} else if constexpr (std::is_same_v<ingress_type, staged_theme_import>) {
-						finish_theme_import(aTyped.Context, std::move(aTyped.Result));
 					}
 				},
 				std::move(aIngress.Value));
@@ -511,8 +488,7 @@ namespace bpr::application {
 					const appearance_terminal_rejection aRejection) noexcept
 		{
 			for (auto& record : Outstanding) {
-				if ((aDomain == appearance_request_domain::theme_import || aDomain == appearance_request_domain::theme_export)
-					&& record.Consumer != CurrentConsumer) {
+				if (aDomain == appearance_request_domain::theme_export && record.Consumer != CurrentConsumer) {
 					continue;
 				}
 				if (record.Domain != aDomain
@@ -749,7 +725,12 @@ namespace bpr::application {
 				return std::unexpected{ theme_document_error{ } };
 			}
 			try {
-				return aPort.write(aPath, core::export_theme(aPalette, aBase), std::move(aStop));
+				// [[BPR-2283]]. A Profile Settings file holding only the Theme.
+				const auto bytes = core::encode_theme_settings(core::portable_theme{ .Base = aBase, .Palette = aPalette }, "BetterPullReview");
+				if (!bytes) {
+					return std::unexpected{ theme_document_error{ } };
+				}
+				return aPort.write(aPath, *bytes, std::move(aStop));
 			} catch (...) {
 				return std::unexpected{ theme_document_error{ } };
 			}
@@ -796,7 +777,6 @@ namespace bpr::application {
 					publish_failure(local_context(), appearance_host_failure::host_failure);
 					return;
 				}
-				retire(appearance_request_domain::theme_import, appearance_terminal_rejection::superseded);
 				customisation_of(next, aVariant) = customisation_of(Defaults, aVariant);
 				acknowledgement                  = palette_adoption_publication{
 					.Palette = customisation_of(next, aVariant).Palette,
@@ -806,80 +786,6 @@ namespace bpr::application {
 			default: return;
 			}
 			adopt(std::move(next), acknowledgement);
-		}
-
-		void submit_theme_import(std::string aPath)
-		{
-			retire(appearance_request_domain::theme_import,
-				   appearance_terminal_rejection::superseded);
-			auto* const record = reserve(appearance_request_domain::theme_import);
-			if (record == nullptr) {
-				publish_failure(local_context(), appearance_host_failure::host_failure);
-				return;
-			}
-			const auto  context = record->Context;
-			const auto  stop    = record->Stop.get_token();
-			const auto  gate    = std::weak_ptr<completion_gate>{ Gate };
-			auto* const port    = &ThemeDocuments;
-			auto* const lane    = &DecisionLane;
-			try {
-				Effects.post([gate, lane, port, context, path = std::move(aPath), builtins = Builtins, stop] {
-					auto staged = staged_theme_import{
-						.Context = context,
-						.Result  = perform_theme_import(*port, path, builtins, stop),
-					};
-					lane->post([gate, stagedTerminal = std::move(staged)]() mutable {
-						deliver_terminal(gate, std::move(stagedTerminal));
-					});
-				});
-			} catch (...) {
-				abandon(context.Request);
-				publish_failure(context,
-								appearance_host_failure::theme_document_unavailable);
-			}
-		}
-
-		[[nodiscard]] static auto perform_theme_import(
-			theme_document_port&               aPort,
-			const std::string&                 aPath,
-			const appearance_builtin_palettes& aBuiltins,
-			std::stop_token                    aStop)
-			-> theme_document_result<theme_import_attempt>
-		{
-			if (aStop.stop_requested()) {
-				return std::unexpected{ theme_document_error{
-					.Failure = theme_document_failure::cancelled } };
-			}
-			try {
-				auto document = aPort.read(
-					aPath, core::theme_document_byte_limit + 1U, aStop);
-				if (!document.has_value()) {
-					return std::unexpected{ document.error() };
-				}
-				if (aStop.stop_requested()) {
-					return std::unexpected{ theme_document_error{
-						.Failure = theme_document_failure::cancelled } };
-				}
-				auto parsed  = core::import_theme(*document);
-				auto attempt = theme_import_attempt{
-					.ThemeRejections = std::move(parsed.Rejections),
-				};
-				if (parsed.Palette.has_value() && parsed.Base.has_value()) {
-					// [[BPR-1479]]. Roles the document predates take its own base's
-					// built-in colours here, before the check, so the palette that
-					// is checked is the one previewed, kept and exported again.
-					auto palette = core::with_base_defaults(
-						*parsed.Palette, aBuiltins[variant_index(*parsed.Base)]);
-					attempt.ContrastRejections = contrast_rejections(palette);
-					if (attempt.ContrastRejections.empty()) {
-						attempt.Palette = std::move(palette);
-					}
-				}
-				return attempt;
-			} catch (...) {
-				return std::unexpected{ theme_document_error{
-					.Failure = theme_document_failure::unavailable } };
-			}
 		}
 
 		void restore_now()
@@ -983,14 +889,6 @@ namespace bpr::application {
 			adopt(
 				std::move(next),
 				palette_adoption_publication{ .Palette = aPalette, .Variant = aVariant });
-		}
-
-		void import_theme_now(std::string aPath)
-		{
-			if (Closing) {
-				return;
-			}
-			submit_theme_import(std::move(aPath));
 		}
 
 		/// \brief Adopts typography the core accepts and refuses what it rejects.
@@ -1142,37 +1040,6 @@ namespace bpr::application {
 			++PersistedSettings;
 		}
 
-		void finish_theme_import(
-			const appearance_request_context&           aContext,
-			theme_document_result<theme_import_attempt> aResult)
-		{
-			const auto claimed = claim(aContext,
-									   appearance_request_domain::theme_import);
-			if (claimed.Rejection != appearance_terminal_rejection::none) {
-				refuse(claimed.Rejection);
-				return;
-			}
-			if (!aResult.has_value()) {
-				publish_failure(aContext,
-								appearance_host_failure::theme_document_unavailable);
-				return;
-			}
-			if (!aResult->ThemeRejections.empty()) {
-				publish_theme_rejection(aContext, aResult->ThemeRejections);
-				return;
-			}
-			if (!aResult->ContrastRejections.empty()) {
-				publish_contrast_rejection(
-					aContext, aResult->ContrastRejections);
-				return;
-			}
-			if (!aResult->Palette.has_value()) {
-				publish_failure(aContext, appearance_host_failure::host_failure);
-				return;
-			}
-			publish_theme_preview(aContext, *aResult->Palette);
-		}
-
 		// --- Publication -----------------------------------------------------------
 
 		/// \brief Publishes exactly the presentation domains whose meaning changed.
@@ -1257,21 +1124,6 @@ namespace bpr::application {
 				[&aConsumer, &projection] { aConsumer->Port->publish(projection); });
 		}
 
-		void publish_theme_preview(
-			const appearance_request_context& aContext,
-			const core::appearance_palette&   aPalette)
-		{
-			if (Closing) {
-				return;
-			}
-			const auto projection = appearance_projection{
-				.Context      = aContext,
-				.ThemePreview = theme_preview_publication{ .Palette = aPalette },
-			};
-			deliver_projection(
-				[this, &projection] { publish_to_consumer(projection); });
-		}
-
 		void publish_persistence_failure(const std::shared_ptr<consumer_state>& aConsumer, const appearance_request_context& aContext, const bool aRepeat = false)
 		{
 			if (PersistenceUnavailable && aConsumer->Active && (aRepeat || !aConsumer->PersistenceFailurePublished)) {
@@ -1331,22 +1183,6 @@ namespace bpr::application {
 					.Context             = aContext,
 					.Failure             = appearance_host_failure::invalid_known_namespaces,
 					.NamespaceRejections = std::move(aRejections),
-				});
-			});
-		}
-
-		void publish_theme_rejection(
-			const appearance_request_context&                aContext,
-			const std::vector<core::theme_import_rejection>& aRejections)
-		{
-			if (Closing) {
-				return;
-			}
-			deliver_projection([this, &aContext, &aRejections] {
-				fail_consumer(appearance_failure_publication{
-					.Context         = aContext,
-					.Failure         = appearance_host_failure::theme_import_rejected,
-					.ThemeRejections = aRejections,
 				});
 			});
 		}
@@ -1450,7 +1286,7 @@ namespace bpr::application {
 		consumer->Active = false;
 		std::erase(host.Consumers, consumer);
 		for (auto& record : host.Outstanding) {
-			if (record.Consumer == aConsumer && (record.Domain == appearance_request_domain::theme_import || record.Domain == appearance_request_domain::theme_export)) {
+			if (record.Consumer == aConsumer && record.Domain == appearance_request_domain::theme_export) {
 				record.Retirement = appearance_terminal_rejection::cancelled;
 				record.Stop.request_stop();
 			}
@@ -1514,15 +1350,16 @@ namespace bpr::application {
 		Implementation->enqueue(deferred_avatar_style{ .Style = aStyle }, aConsumer);
 	}
 
-	void appearance_preferences_application_host::import_theme_file(appearance_consumer_id aConsumer, std::string aPath)
+	auto appearance_preferences_application_host::resolve_theme(const core::portable_theme& aTheme) const -> imported_theme
 	{
-		Implementation->enqueue(
-			deferred_appearance_theme_import{ .Path = std::move(aPath) }, aConsumer);
-	}
-
-	void appearance_preferences_application_host::cancel_theme_import(appearance_consumer_id aConsumer)
-	{
-		Implementation->enqueue(cancel_appearance_palette_preview_intent{ }, aConsumer);
+		// [[BPR-1479]]. Roles the theme predates take its own base's built-in
+		// colours, before the check, so what is checked is what is kept.
+		auto palette = core::with_base_defaults(aTheme.Palette, Implementation->Builtins[variant_index(aTheme.Base)]);
+		auto result  = imported_theme{ .Palette = std::nullopt, .Unreadable = contrast_rejections(palette) };
+		if (result.Unreadable.empty()) {
+			result.Palette = std::move(palette);
+		}
+		return result;
 	}
 
 	void appearance_preferences_application_host::export_theme_file(appearance_consumer_id aConsumer, std::string aPath, core::appearance_palette aPalette, const core::appearance_variant aVariant)

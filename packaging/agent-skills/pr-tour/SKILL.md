@@ -9,7 +9,7 @@ metadata:
 
 # PR tour
 
-Help the author explain the problem, the solution, and the important code decisions in a useful order. The `bpr tour` CLI owns draft state, GitHub interpretation, source bindings, hooks, publication and recovery. Do not reimplement any of it.
+Help the author walk reviewers through the change: a route of stops, each on the code it explains, in a useful order. A tour is only its stops; the pull request description is the author's own and the tour never writes it. The `bpr tour` CLI owns draft state, GitHub interpretation, source bindings, hooks, publication and recovery. Do not reimplement any of it.
 
 ## Get the CLI
 
@@ -23,7 +23,7 @@ Run `bpr tour capabilities --json` once per binary/session and stop if `cli_cont
 
 ## Author the explanation
 
-Work Problem → Solution → individual stops, letting the author jump or reorder. Save the author's own wording as they give it, with `edit ... --file -` and the revision you just read. Ask one useful missing question at a time; reuse what the author or the draft already said. Do not invent rationale, impact, alternatives, guarantees or test results.
+Work stop by stop, letting the author jump or reorder. Save the author's own wording as they give it, with `edit ... --file -` and the revision you just read. Ask one useful missing question at a time; reuse what the author or the draft already said. Do not invent rationale, impact, alternatives, guarantees or test results.
 
 AI rewriting is optional and scoped. Only when the author asks ("tighten that sentence", "draft a comment here"): `assist context` for that exact field and passage, write the result with this agent, return it through `assist complete`. The CLI applies a valid rewrite in place as one undoable edit; show the new wording, with no Apply/Dismiss step. Undo is `undo`, never a model reconstruction. A repeated quote is ambiguous: ask which one; never widen it. After a stale refusal, reread and follow the author's next instruction. Do not launch another model or keep a second copy of the hooks.
 

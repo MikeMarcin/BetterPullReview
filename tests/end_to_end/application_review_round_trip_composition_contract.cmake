@@ -3868,8 +3868,16 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-2256]] reseal: the Agent drawer waits in a loading state for the
 	# host policy, and the workspace check waits for the comparison, merged
 	# from main. No review mutation or submission path changed.
+	# [[BPR-2269]] reseal: a reread that keeps the head keeps the private
+	# review open, bound and restored (window_review_ledger.cpp,
+	# private_review_workflow), so a submission's pending comments stay
+	# holdable; a replaced draft owner reads its drafts again. Also seals
+	# BPR-2265's unsealed app changes. The submission path is unchanged; its
+	# comment hold now finds the private store.
+	# [[BPR-2215]] reseal: this lane's app changes above and main's at
+	# 392dffc6f together. No review mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "20f438684f9f823db5cccaf187df4b2de0fa636384834404b840d273bfb2e756"
+        "db411f6f100b0eb9d35a42f4430f3275e62e3132514108291977232e188efe2b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

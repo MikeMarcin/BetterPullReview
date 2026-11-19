@@ -31,6 +31,13 @@ namespace bpr::application {
 			+ std::to_string(static_cast<unsigned>(aAuthority.Mode)) + ":" + aAgent + ":" + aThread;
 	}
 
+	auto agent_workspace_key(const core::pull_request_authority& aAuthority, const core::agent_revision_binding& aBinding) -> std::string
+	{
+		return native_scope_key(aAuthority, "", "") + ":" + std::to_string(aAuthority.Number.value()) + ":" + core::lower_hex(aAuthority.HostAuthority.bytes()) + ":"
+			+ core::lower_hex(aAuthority.Cache.bytes()) + ":" + core::lower_hex(aAuthority.Scope.bytes()) + ":" + std::string{ core::canonical_hex(aBinding.BaseOid).view() } + ":"
+			+ std::string{ core::canonical_hex(aBinding.HeadOid).view() };
+	}
+
 	namespace {
 		/// [[BPR-2153]]. The messages steered into a run, as its stored turn
 		/// keeps them: each where it went in, as bytes of the stored answer
@@ -71,14 +78,8 @@ namespace bpr::application {
 				if (aTour) {
 					if (const auto parsed = decode_tour_ask_answer(answer)) {
 						answer = parsed->Reply;
-					} else if (const auto draft = decode_tour_draft_answer(answer)) {
+					} else if (decode_tour_draft_answer(answer)) {
 						answer = "Draft Tour proposal (history does not restore or accept proposals).";
-						if (draft->Problem) {
-							answer += "\nProblem: " + *draft->Problem;
-						}
-						if (draft->Solution) {
-							answer += "\nSolution: " + *draft->Solution;
-						}
 					}
 				}
 				turns.push_back({ saved.Asked, std::move(answer) });
@@ -862,12 +863,7 @@ namespace bpr::application {
 					finish_run({ .Session = aInvocation->Identity.Session.Id, .Outcome = aOutcome, .StandardError = aReason, .WorkspaceReason = aWorkspaceReason, .RefusalReason = aReason }, aInvocation);
 				};
 				auto       workspaceLease = std::unique_ptr<agent_workspace_turn_lease>{ };
-				const auto workspaceKey   = native ? native_scope_key(aRequest.Authority, "", "") + ":"
-						+ std::to_string(aRequest.Authority.Number.value()) + ":" + core::lower_hex(aRequest.Authority.HostAuthority.bytes())
-						+ ":" + core::lower_hex(aRequest.Authority.Cache.bytes()) + ":" + core::lower_hex(aRequest.Authority.Scope.bytes()) + ":"
-						+ std::string{ core::canonical_hex(aInvocation->Identity.Session.Binding.BaseOid).view() } + ":"
-						+ std::string{ core::canonical_hex(aInvocation->Identity.Session.Binding.HeadOid).view() }
-												 : std::string{ };
+				const auto workspaceKey   = native ? agent_workspace_key(aRequest.Authority, aInvocation->Identity.Session.Binding) : std::string{ };
 				if (native) {
 					workspaceLease = NativeSessions->try_lock_workspace(workspaceKey);
 					if (!workspaceLease) {
@@ -933,7 +929,10 @@ namespace bpr::application {
 					auto retained               = *aInvocation->Native->Workspace;
 					retained.Authority          = aRequest.Authority;
 					retained.ApplicationSession = aRequest.ApplicationSession;
-					const auto inspected        = Workspaces.inspect_agent_workspace(retained, aInvocation->Stop->get_token());
+					// [[BPR-2261]]. The turn says it checks its workspace,
+					// not that it makes one: nothing is made.
+					post_stream(aInvocation, { .Session = aInvocation->Identity.Session.Id, .Run = core::agent_run_id{ aInvocation->DurableRun.load(std::memory_order_acquire) }, .Kind = agent_stream_kind::workspace_check });
+					const auto inspected = Workspaces.inspect_agent_workspace(retained, aInvocation->Stop->get_token());
 					if (!inspected) {
 						if (inspected.error().Code == agent_workspace_failure::cancelled) {
 							refuseNative("The retained workspace check was stopped. No question was sent.", core::operation_failure::cancelled, agent_run_outcome::cancelled);
@@ -1004,6 +1003,7 @@ namespace bpr::application {
 				options.McpServers         = aRequest.McpServers;
 				options.SystemInstructions = aRequest.SystemInstructions;
 				options.Instructions       = aRequest.Instructions;
+				options.WritingStyle       = aRequest.WritingStyle;
 				// [[BPR-1752]]. The brief says what the workspace that
 				// was just made is, so the agent knows whether history and the
 				// base are there to compare with.
@@ -1205,7 +1205,14 @@ namespace bpr::application {
 					if (aRequest.ReadOnlyTools && !result.AssistantItems.empty()) {
 						answer = result.AssistantItems.back();
 					} else {
+						// [[BPR-2261]]. Each item is its own paragraph, as the
+						// live turn showed it ([[BPR-2219]]): joined with
+						// nothing, the narration ran into the report's title
+						// and a reload drew no report card.
 						for (const auto& item : result.AssistantItems) {
+							if (!answer.empty() && !item.empty() && item.front() != '\n') {
+								answer += "\n\n";
+							}
 							answer += item;
 						}
 					}
@@ -1219,9 +1226,14 @@ namespace bpr::application {
 					turn.Steered  = steered_messages(result, aRequest.ReadOnlyTools && !result.AssistantItems.empty(), answer);
 					turn.Answered = std::move(answer);
 					turn.Ending   = std::string{ name(result.Outcome) };
-					turn.Outcome  = result.Outcome == agent_run_outcome::success ? core::agent_turn_outcome::answered : core::agent_turn_outcome::ended_without_answer;
-					turn.Seconds  = agent_turn_seconds(aInvocation->Admitted);
-					auto bounded  = bound_conversation({ std::move(turn) });
+					// [[BPR-2261]]. A run the app's closing stopped is kept as
+					// that, not as an error to explain. One stopped after it
+					// answered with no helper out is already a success.
+					turn.Outcome = result.Outcome == agent_run_outcome::success                                     ? core::agent_turn_outcome::answered
+						: Closing.load(std::memory_order_acquire) && result.Outcome == agent_run_outcome::cancelled ? core::agent_turn_outcome::closed_with_app
+																													: core::agent_turn_outcome::ended_without_answer;
+					turn.Seconds = agent_turn_seconds(aInvocation->Admitted);
+					auto bounded = bound_conversation({ std::move(turn) });
 					for (auto& steered : bounded.front().Steered) {
 						steered.At = std::min(steered.At, bounded.front().Answered.size());
 					}
@@ -2077,12 +2089,44 @@ namespace bpr::application {
 				auto guard  = implementation::callback_guard{ self };
 				auto result = std::expected<prepared_workspace, agent_workspace_error>{ std::unexpected(agent_workspace_error{ agent_workspace_failure::invalid_request }) };
 				try {
-					auto made = self->Workspaces.materialize_agent_workspace(probe, stop);
-					if (made) {
-						result = made->Workspace;
-						static_cast<void>(self->Workspaces.cleanup_agent_workspace(*made, { }));
+					// [[BPR-2261]]. The pull request's retained workspace, when
+					// there is one, is checked as a turn reattaching checks
+					// it, and nothing is cloned again; one a turn holds now is
+					// in use, and that turn checked it. Only with none is one
+					// made, and removed again.
+					auto retained = std::optional<owned_agent_workspace>{ };
+					auto busy     = false;
+					auto lease    = std::unique_ptr<agent_workspace_turn_lease>{ };
+					if (self->NativeSessions != nullptr) {
+						const auto key = agent_workspace_key(probe.Authority, probe.Session.Binding);
+						lease          = self->NativeSessions->try_lock_workspace(key);
+						auto bound     = native_agent_session{ };
+						bound.Binding  = probe.Session.Binding;
+						if (auto shared = self->NativeSessions->shared_workspace(key, bound); shared && *shared) {
+							retained = std::move(**shared);
+							busy     = lease == nullptr;
+						}
+					}
+					if (retained && busy) {
+						result = retained->Workspace;
+					} else if (retained) {
+						retained->Authority          = probe.Authority;
+						retained->ApplicationSession = probe.ApplicationSession;
+						auto checked                 = self->Workspaces.inspect_agent_workspace(*retained, stop);
+						if (checked) {
+							result = checked->Workspace;
+						} else {
+							result = std::unexpected(std::move(checked.error()));
+						}
 					} else {
-						result = std::unexpected(std::move(made.error()));
+						lease.reset();
+						auto made = self->Workspaces.materialize_agent_workspace(probe, stop);
+						if (made) {
+							result = made->Workspace;
+							static_cast<void>(self->Workspaces.cleanup_agent_workspace(*made, { }));
+						} else {
+							result = std::unexpected(std::move(made.error()));
+						}
 					}
 				} catch (...) { }
 				try {

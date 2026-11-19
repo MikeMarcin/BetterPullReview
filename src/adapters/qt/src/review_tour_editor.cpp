@@ -3,7 +3,6 @@
 #include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
 
-#include "bpr/core/tour_steps.hpp"
 #include "bpr/core/tour_stop_acceptance.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
@@ -90,11 +89,14 @@ namespace bpr::qt {
 		/// removed, 2 merged, 3 split, 4 moved) and its grey pill's words.
 		constexpr int revision_role      = Qt::UserRole + 11;
 		constexpr int revision_note_role = Qt::UserRole + 12;
-		/// The route's measures: the grip, the circle's column, the text.
-		constexpr int grip_width = 18;
-		constexpr int ring_left  = 22;
-		constexpr int ring_size  = 22;
-		constexpr int text_left  = ring_left + ring_size + 10;
+		/// The route's measures: the card's left, the circle's column, the
+		/// text. [[BPR-2278]]: the card starts at the route's left, the
+		/// drawer's content edge (its border a pixel in), with the grip
+		/// inside it before the circle.
+		constexpr int card_left = 1;
+		constexpr int ring_left = 16;
+		constexpr int ring_size = 22;
+		constexpr int text_left = ring_left + ring_size + 10;
 		/// [[BPR-1925]] v002. How far a stop's text box reaches round the
 		/// words, into the card's margin: sideways, and up and down (the
 		/// fields are six pixels apart).
@@ -364,7 +366,7 @@ namespace bpr::qt {
 				painter.setRenderHint(QPainter::Antialiasing, true);
 				const auto base   = palette().color(QPalette::Active, QPalette::Base);
 				const auto grey   = route_grey(palette());
-				const auto ground = QRectF{ rect().adjusted(grip_width - 4, 2, -2, -2) };
+				const auto ground = QRectF{ rect().adjusted(card_left, 2, -2, -2) };
 				painter.setPen(QPen{ mixed(base, grey, 0.55), 1.0, Qt::DashLine });
 				painter.setBrush(Qt::NoBrush);
 				painter.drawRoundedRect(ground, 8.0, 8.0);
@@ -788,7 +790,7 @@ namespace bpr::qt {
 				const auto agent     = agent_accent(palette);
 				const auto discussed = aIndex.data(discussed_role).toBool();
 				if (discussed) {
-					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2, -2, -2) };
+					const auto ground = QRectF{ rect.adjusted(card_left, 2, -2, -2) };
 					aPainter->setPen(QPen{ mixed(base, agent, 0.45), 1.0 });
 					aPainter->setBrush(mixed(base, agent, 0.10));
 					aPainter->drawRoundedRect(ground, 8.0, 8.0);
@@ -802,7 +804,7 @@ namespace bpr::qt {
 				const auto revision = current ? 0 : aIndex.data(revision_role).toInt();
 				const auto grey     = route_grey(palette);
 				if (!discussed && revision != 0) {
-					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2, -2, -2) };
+					const auto ground = QRectF{ rect.adjusted(card_left, 2, -2, -2) };
 					aPainter->setPen(QPen{ mixed(base, grey, 0.55), 1.0, Qt::DashLine });
 					aPainter->setBrush(hovered || selected ? QBrush{ mixed(window, ink, 0.04) } : QBrush{ Qt::NoBrush });
 					aPainter->drawRoundedRect(ground, 8.0, 8.0);
@@ -812,7 +814,7 @@ namespace bpr::qt {
 				}
 				// The current stop's ground, and the selection's.
 				if (!discussed && revision == 0 && (current || selected || hovered)) {
-					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2, -2, -2) };
+					const auto ground = QRectF{ rect.adjusted(card_left, 2, -2, -2) };
 					aPainter->setPen(current ? QPen{ mixed(base, amber, 0.55), 1.0 } : Qt::NoPen);
 					aPainter->setBrush(current ? base : mixed(window, ink, selected ? 0.07 : 0.04));
 					aPainter->drawRoundedRect(ground, 8.0, 8.0);
@@ -895,8 +897,7 @@ namespace bpr::qt {
 				const auto left = rect.left() + text_left;
 				int        right;
 				// [[BPR-1925]] v002. Every stop's chat toggle at the right of its
-				// title, as the Problem's and the Solution's sit in their
-				// headers: pressed while its chat is in the column. A click on
+				// title: pressed while its chat is in the column. A click on
 				// it is the outline's (`route_chat_box`).
 				{
 					const auto turns = static_cast<std::size_t>(std::max(0, aIndex.data(chat_role).toInt()));
@@ -969,19 +970,13 @@ namespace bpr::qt {
 				if (aOption.state.testFlag(QStyle::State_HasFocus) && aOption.widget != nullptr && aOption.widget->hasFocus()) {
 					aPainter->setPen(QPen{ palette.color(QPalette::Active, QPalette::Highlight), 2.0 });
 					aPainter->setBrush(Qt::NoBrush);
-					aPainter->drawRoundedRect(QRectF{ rect.adjusted(grip_width - 3, 3, -3, -3) }, 8.0, 8.0);
+					aPainter->drawRoundedRect(QRectF{ rect.adjusted(card_left + 1, 3, -3, -3) }, 8.0, 8.0);
 				}
 				aPainter->restore();
 			}
 		};
 
-		[[nodiscard]] auto attention_red(const QPalette& aPalette) -> QColor
-		{
-			const auto dark = aPalette.color(QPalette::Window).lightness() < 128;
-			return dark ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E };
-		}
-
-		/// \brief [[BPR-1784]]. Change, as the agent setup draws it: words in
+		/// \brief [[BPR-1784]]. A quiet link, as the agent setup draws Change: words in
 		/// the accent, no frame, a focus ring when the keyboard is on it.
 		class step_change final : public QPushButton
 		{
@@ -1008,255 +1003,6 @@ namespace bpr::qt {
 					painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Highlight), 1.5 });
 					painter.setBrush(Qt::NoBrush);
 					painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0), 5.0, 5.0);
-				}
-			}
-		};
-
-		/// \brief [[BPR-1784]]. One step's header, in the agent setup's
-		/// language (RFC-BPR-0092): a numbered circle, the step's name, and
-		/// once done what was written and Change. The circle is the accent
-		/// while open, green with a tick once done, a red ring with "!" when
-		/// it needs the author, and quiet ahead; never the stops' amber.
-		class tour_step_row final : public QAbstractButton
-		{
-		public:
-			static constexpr int marker = 24;
-			static constexpr int indent = marker + 10;
-
-			tour_step_row(const int aNumber, const QString& aName, QWidget* aParent)
-				: QAbstractButton{ aParent }
-				, Number{ aNumber }
-				, Name{ aName }
-			{
-				setFocusPolicy(Qt::StrongFocus);
-				setCursor(Qt::PointingHandCursor);
-				setAttribute(Qt::WA_Hover, true);
-				setCheckable(true);
-				setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-				Change = new step_change{ tr("Change"), this };
-				Change->setAccessibleName(tr("Change the %1").arg(aName.toLower()));
-				Change->setCursor(Qt::PointingHandCursor);
-				Change->hide();
-				present(core::tour_step_state::to_do, { });
-			}
-			int                   Number;
-			QString               Name;
-			QString               Summary;
-			core::tour_step_state State  = core::tour_step_state::to_do;
-			step_change*          Change = nullptr;
-			/// [[BPR-1925]] v002. The part's chat toggle, at the header's right.
-			QWidget* Chat = nullptr;
-			/// [[BPR-1925]] v003. A proposed part waits on this step, grey
-			/// until accepted: a quiet pill says so in the header.
-			bool Proposed = false;
-			void set_proposed(const bool aProposed)
-			{
-				if (Proposed != aProposed) {
-					Proposed = aProposed;
-					update();
-				}
-			}
-			void set_chat(QWidget* aChat)
-			{
-				Chat = aChat;
-				Chat->setParent(this);
-				Chat->show();
-				place_change();
-			}
-
-			void present(const core::tour_step_state aState, const QString& aSummary)
-			{
-				State   = aState;
-				Summary = aSummary;
-				Change->setVisible(aState == core::tour_step_state::done);
-				auto said = QString{ };
-				switch (aState) {
-				case core::tour_step_state::to_do:           said = tr("to do"); break;
-				case core::tour_step_state::current:         said = tr("open"); break;
-				case core::tour_step_state::done:            said = tr("done"); break;
-				case core::tour_step_state::needs_attention: said = tr("needs attention"); break;
-				}
-				setAccessibleName(tr("Step %1, %2, %3").arg(Number).arg(Name, said));
-				setAccessibleDescription(aSummary);
-				setToolTip(aState == core::tour_step_state::current ? QString{ } : aState == core::tour_step_state::done ? tr("Change the %1").arg(Name.toLower())
-																														 : tr("Open the %1").arg(Name.toLower()));
-				place_change();
-				update();
-			}
-			[[nodiscard]] auto sizeHint() const -> QSize override { return { 200, std::max(marker, QFontMetrics{ font() }.lineSpacing()) + 8 }; }
-			[[nodiscard]] auto minimumSizeHint() const -> QSize override { return { 120, sizeHint().height() }; }
-
-		protected:
-			void resizeEvent(QResizeEvent* aEvent) override
-			{
-				QAbstractButton::resizeEvent(aEvent);
-				place_change();
-			}
-			void keyPressEvent(QKeyEvent* aEvent) override
-			{
-				if (aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) {
-					click();
-					return;
-				}
-				QAbstractButton::keyPressEvent(aEvent);
-			}
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto ink    = palette().color(QPalette::Active, QPalette::WindowText);
-				const auto window = palette().color(QPalette::Active, QPalette::Window);
-				const auto accent = palette().color(QPalette::Active, QPalette::Highlight);
-				if (underMouse() && State != core::tour_step_state::current) {
-					painter.setPen(Qt::NoPen);
-					painter.setBrush(mixed(window, ink, 0.04));
-					painter.drawRoundedRect(QRectF{ rect() }, 6.0, 6.0);
-				}
-				const auto box    = QRectF{ 1.0, (height() - marker) / 2.0 + 1.0, marker - 2.0, marker - 2.0 };
-				auto       number = font();
-				number.setWeight(QFont::DemiBold);
-				number.setPointSizeF(std::max(1.0, number.pointSizeF() * 0.85));
-				switch (State) {
-				case core::tour_step_state::done: {
-					painter.setPen(Qt::NoPen);
-					painter.setBrush(route_green(palette()));
-					painter.drawEllipse(box);
-					auto tick = QPen{ QColor{ Qt::white }, 2.0 };
-					tick.setCapStyle(Qt::RoundCap);
-					tick.setJoinStyle(Qt::RoundJoin);
-					painter.setPen(tick);
-					const auto c = box.center();
-					painter.drawPolyline(std::array{ QPointF{ c.x() - 4.5, c.y() }, QPointF{ c.x() - 1.5, c.y() + 3.0 }, QPointF{ c.x() + 4.5, c.y() - 3.5 } }.data(), 3);
-					break;
-				}
-				case core::tour_step_state::current:
-					painter.setPen(Qt::NoPen);
-					painter.setBrush(accent);
-					painter.drawEllipse(box);
-					painter.setFont(number);
-					painter.setPen(palette().color(QPalette::Active, QPalette::HighlightedText));
-					painter.drawText(box, Qt::AlignCenter, QString::number(Number));
-					break;
-				case core::tour_step_state::needs_attention: {
-					const auto red = attention_red(palette());
-					painter.setPen(QPen{ red, 1.5 });
-					painter.setBrush(Qt::NoBrush);
-					painter.drawEllipse(box.adjusted(0.5, 0.5, -0.5, -0.5));
-					painter.setFont(number);
-					painter.drawText(box, Qt::AlignCenter, QStringLiteral("!"));
-					break;
-				}
-				case core::tour_step_state::to_do:
-					painter.setPen(QPen{ mixed(window, ink, 0.35), 1.2 });
-					painter.setBrush(Qt::NoBrush);
-					painter.drawEllipse(box);
-					painter.setFont(number);
-					painter.setPen(mixed(window, ink, 0.55));
-					painter.drawText(box, Qt::AlignCenter, QString::number(Number));
-					break;
-				}
-				auto bold = font();
-				bold.setWeight(QFont::DemiBold);
-				const auto nameWidth = QFontMetrics{ bold }.horizontalAdvance(Name);
-				painter.setFont(bold);
-				painter.setPen(State == core::tour_step_state::to_do ? mixed(window, ink, 0.55) : ink);
-				painter.drawText(QRect{ indent, 0, nameWidth + 2, height() }, Qt::AlignLeft | Qt::AlignVCenter, Name);
-				if (!Summary.isEmpty()) {
-					const auto left  = indent + nameWidth + 10;
-					auto       right = Change->isVisible() ? Change->x() - 6 : Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6
-																													: width() - 6;
-					right -= Proposed ? proposed_pill_width() + 6 : 0;
-					painter.setFont(font());
-					painter.setPen(State == core::tour_step_state::needs_attention ? attention_red(palette()) : mixed(ink, window, 0.35));
-					const auto flat = QString{ Summary }.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' }).simplified();
-					painter.drawText(QRect{ left, 0, std::max(0, right - left), height() }, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ font() }.elidedText(flat, Qt::ElideRight, std::max(0, right - left)));
-				}
-				if (Proposed) {
-					// Grey, as a proposed stop's rail is, until it is accepted.
-					auto small = font();
-					small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
-					const auto right = Change->isVisible() ? Change->x() - 6 : Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6
-																													: width() - 6;
-					const auto pill  = QRectF{ static_cast<qreal>(right - proposed_pill_width()), (height() - QFontMetrics{ small }.height() - 4) / 2.0, static_cast<qreal>(proposed_pill_width()), QFontMetrics{ small }.height() + 4.0 };
-					const auto grey  = route_grey(palette());
-					painter.setPen(QPen{ grey, 1.0 });
-					painter.setBrush(Qt::NoBrush);
-					painter.drawRoundedRect(pill.adjusted(0.5, 0.5, -0.5, -0.5), pill.height() / 2.0, pill.height() / 2.0);
-					painter.setFont(small);
-					painter.setPen(grey);
-					painter.drawText(pill, Qt::AlignCenter, tr("Proposed"));
-				}
-				if (hasFocus()) {
-					painter.setPen(QPen{ accent, 2.0 });
-					painter.setBrush(Qt::NoBrush);
-					painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0), 6.0, 6.0);
-				}
-			}
-			[[nodiscard]] auto proposed_pill_width() const -> int
-			{
-				auto small = font();
-				small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
-				return QFontMetrics{ small }.horizontalAdvance(tr("Proposed")) + 14;
-			}
-
-		private:
-			void place_change()
-			{
-				// Owner on the live build, 2026-11-11: "Things are moving around
-				// as I click them". The chat toggle keeps one place, the right
-				// edge of the stops' own toggles, whatever the step's state;
-				// Change, when the step is done, sits to its left.
-				auto right = width() - chat_inset;
-				if (Chat != nullptr) {
-					const auto chat = Chat->sizeHint();
-					Chat->setGeometry(right - chat.width(), (height() - chat.height()) / 2, chat.width(), chat.height());
-					right = Chat->x() - 6;
-				}
-				const auto hint = Change->sizeHint();
-				Change->setGeometry(right - hint.width(), (height() - hint.height()) / 2, hint.width(), hint.height());
-			}
-			/// The stop card's inner margin, so every chat toggle on the route
-			/// shares one right edge.
-			static constexpr int chat_inset = 12;
-			bool                 event(QEvent* aEvent) override
-			{
-				// The toggle's count changes its width: it is placed again.
-				if (aEvent->type() == QEvent::LayoutRequest) {
-					place_change();
-				}
-				return QAbstractButton::event(aEvent);
-			}
-		};
-
-		/// \brief [[BPR-1784]]. The three steps, joined as the agent setup
-		/// joins its own: a quiet rail from each circle to the next.
-		class tour_steps_frame final : public QWidget
-		{
-		public:
-			explicit tour_steps_frame(QWidget* aParent)
-				: QWidget{ aParent }
-			{
-				setObjectName(QStringLiteral("tourSteps"));
-				setAccessibleName(tr("Tour steps"));
-			}
-			std::array<tour_step_row*, core::tour_step_count> Rows{ };
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto       painter = QPainter{ this };
-				const auto ink     = palette().color(QPalette::Active, QPalette::WindowText);
-				const auto window  = palette().color(QPalette::Active, QPalette::Window);
-				painter.setPen(QPen{ mixed(window, ink, 0.16), 1.5 });
-				for (std::size_t index = 0U; index + 1U < Rows.size(); ++index) {
-					if (Rows[index] == nullptr || Rows[index + 1U] == nullptr || !Rows[index]->isVisible()) {
-						continue;
-					}
-					const auto from = Rows[index]->mapTo(this, QPoint{ tour_step_row::marker / 2, (Rows[index]->height() + tour_step_row::marker) / 2 + 2 });
-					const auto to   = Rows[index + 1U]->mapTo(this, QPoint{ tour_step_row::marker / 2, (Rows[index + 1U]->height() - tour_step_row::marker) / 2 - 2 });
-					if (to.y() > from.y()) {
-						painter.drawLine(QPointF{ from.x() + 0.5, static_cast<qreal>(from.y()) }, QPointF{ from.x() + 0.5, static_cast<qreal>(to.y()) });
-					}
 				}
 			}
 		};
@@ -1759,120 +1505,21 @@ namespace bpr::qt {
 		Roadmap->tabBar()->hide();
 		Roadmap->setDocumentMode(true);
 
-		// [[BPR-1784]]. The tour's three steps, as the agent setup draws its
-		// own: 1 Problem, 2 Solution, 3 Stops, each a header that opens its
-		// step in place. Problem and Solution hold their fields; Stops holds
-		// the route.
-		auto* const frame    = new tour_steps_frame{ this };
-		Brief                = frame;
+		// [[BPR-2274]]. A tour is its stops: the route is the tab's one body,
+		// with no steps before it.
+		Brief = new QWidget{ this };
+		Brief->setObjectName(QStringLiteral("tourStops"));
 		auto* const briefCol = new QVBoxLayout{ Brief };
 		briefCol->setContentsMargins(0, 0, 0, 0);
 		briefCol->setSpacing(4);
-		const auto block = [&](const int aIndex, const QString& aTitle, const QString& aName) {
-			auto* const step = new QWidget{ Brief };
-			step->setObjectName(QStringLiteral("tourStep%1").arg(aIndex + 1));
-			auto* const column = new QVBoxLayout{ step };
-			column->setContentsMargins(0, 0, 0, 0);
-			column->setSpacing(4);
-			auto* const row = new tour_step_row{ aIndex + 1, aTitle, step };
-			row->setObjectName(aName + QStringLiteral("Row"));
-			row->Change->setObjectName(aName + QStringLiteral("Change"));
-			column->addWidget(row);
-			frame->Rows[static_cast<std::size_t>(aIndex)] = row;
-			StepRows[aIndex]                              = row;
-			const auto open                               = [this, aIndex] {
-				choose_step(aIndex == 2 ? -1 : aIndex);
-			};
-			// [[BPR-1936]], owner: "You also cant collapse a tour stop (or
-			// problem/solution for that matter)". The open step's header, its
-			// number or its empty space, closes it, and opens it again.
-			connect(row, &QAbstractButton::clicked, this, [this, aIndex, open] {
-				if ((aIndex == 2 ? BriefOpen < 0 : BriefOpen == aIndex)) {
-					hold_scroll();
-					StepCollapsed = !StepCollapsed;
-					open_brief(BriefOpen);
-					if (!StepCollapsed) {
-						focus_step();
-					}
-					return;
-				}
-				open();
-			});
-			connect(row->Change, &QPushButton::clicked, this, open);
-			auto* const slot = new QWidget{ step };
-			auto* const body = new QVBoxLayout{ slot };
-			// The route keeps the drawer's width: its grip, not an indent, sets it in.
-			body->setContentsMargins(aIndex == 2 ? 8 : tour_step_row::indent, 0, 0, 8);
-			body->setSpacing(6);
-			column->addWidget(slot);
-			slot->hide();
-			briefCol->addWidget(step);
-			return slot;
-		};
-		const auto field = [&](const int aIndex, const QString& aTitle, const QString& aPrompt, const QString& aHelp, const QString& aName, core::tour_command_kind aKind, tour_editor_action aMapping) {
-			BriefSlots[aIndex] = block(aIndex, aTitle, aName);
-			auto* const slot   = static_cast<QVBoxLayout*>(BriefSlots[aIndex]->layout());
-			auto* const host   = new QWidget{ Roadmap };
-			auto* const hold   = new QVBoxLayout{ host };
-			hold->setContentsMargins(0, 0, 0, 0);
-			BriefHosts[aIndex] = host;
-			Roadmap->addTab(host, aTitle);
-			auto* const panel  = new QWidget{ BriefSlots[aIndex] };
-			auto* const column = new QVBoxLayout{ panel };
-			// [[BPR-1925]]. Room inside the panel for the agent's mark while
-			// this part's chat is beside the tour.
-			column->setContentsMargins(8, 6, 6, 6);
-			mark_part(panel, [aKind]() -> std::optional<core::tour_thread> {
-				return core::tour_thread{ .Kind = aKind == core::tour_command_kind::problem ? core::tour_thread_kind::problem : core::tour_thread_kind::solution };
-			});
-			column->setSpacing(6);
-			BriefPanels[aIndex] = panel;
-			slot->addWidget(panel);
-			auto* editor = new scoped_prose_editor{ panel };
-			editor->setObjectName(aName);
-			editor->setAccessibleName(aTitle + tr(" Markdown source"));
-			editor->setAccessibleDescription(aHelp);
-			editor->setPlaceholderText(aPrompt);
-			editor->setTabChangesFocus(true);
-			editor->setMinimumHeight(110);
-			column->addWidget(editor, 1);
-			// [[BPR-1878]]. The helpers first, each saying what it does, then
-			// moving on on its own row, named for where it goes: the owner
-			// read a bare Next among the helpers as one of them.
-			auto* const first = new QHBoxLayout{ };
-			first->setSpacing(6);
-			const auto hook = aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution;
-			add_writing_button(editor, hook, first);
-			first->addStretch(1);
-			column->addLayout(first);
-			column->addWidget(add_failure_notice(hook, panel));
-			auto* const tools = new QHBoxLayout{ };
-			tools->setSpacing(6);
-			auto* map = new quiet_push_button{ tr("Copy selected description text"), panel };
-			map->setObjectName(aName + QStringLiteral("Map"));
-			map->setToolTip(tr("Copies the text you selected in the pull request description (Overview, Source view) into this field, replacing what is here."));
-			tools->addWidget(map);
-			tools->addStretch(1);
-			column->addLayout(tools);
-			// Moving on is explicit: Next, or the key that marks a stop Ready
-			// and goes on.
-			auto* const onward = new QHBoxLayout{ };
-			onward->setContentsMargins(0, 4, 0, 0);
-			onward->addStretch(1);
-			auto* const next = new QPushButton{ aIndex == 0 ? tr("Next: Solution") : tr("Next: Stops"), panel };
-			next->setObjectName(aName + QStringLiteral("Next"));
-			next->setShortcut(shortcut_key(shortcut_command::tour_ready_next));
-			next->setToolTip((aIndex == 0 ? tr("Go on to step 2, the solution (%1). This text stays saved.") : tr("Go on to step 3, the stops (%1). This text stays saved.")).arg(next->shortcut().toString(QKeySequence::NativeText)));
-			onward->addWidget(next);
-			column->addLayout(onward);
-			connect(map, &QPushButton::clicked, this, [this, aMapping] { trigger(aMapping); });
-			connect(next, &QPushButton::clicked, this, [this, aIndex] { choose_step(aIndex == 0 ? 1 : -1); });
-			connect(editor, &QPlainTextEdit::textChanged, this, [this, editor, aKind] { edit(aKind, editor->raw()); });
-			return editor;
-		};
-		Problem   = field(0, tr("Problem"), tr("What problem does this change solve?"), tr("Describe what was wrong, missing, or unnecessarily difficult before this change."), QStringLiteral("tourProblem"), core::tour_command_kind::problem, tour_editor_action::map_problem);
-		Solution  = field(1, tr("Solution"), tr("How does this change solve the problem?"), tr("Explain the central approach and any important limits. Save detailed implementation decisions for the tour."), QStringLiteral("tourSolution"), core::tour_command_kind::solution, tour_editor_action::map_solution);
-		StopsSlot = block(2, tr("Stops"), QStringLiteral("tourStops"));
+		StopsSlot        = new QWidget{ Brief };
+		auto* const body = new QVBoxLayout{ StopsSlot };
+		// [[BPR-2278]]. The route starts at the drawer's left content edge,
+		// where Draft Tour starts: no indent is left from the Problem and
+		// Solution it once sat under.
+		body->setContentsMargins(0, 0, 0, 8);
+		body->setSpacing(6);
+		briefCol->addWidget(StopsSlot);
 		build_stops();
 		Preview = new markdown_body_view{ Roadmap };
 		Preview->setObjectName(QStringLiteral("tourPreview"));
@@ -1882,15 +1529,9 @@ namespace bpr::qt {
 		previewLayout->addWidget(paragraph(tr("Local preview. Nothing is sent. GitHub may draw HTML and disclosures differently; the Markdown is the source."), previewPage));
 		previewLayout->addWidget(Preview, 1);
 		Roadmap->addTab(previewPage, tr("Preview"));
-		connect(Roadmap, &QTabWidget::currentChanged, this, [this](const int aIndex) {
+		connect(Roadmap, &QTabWidget::currentChanged, this, [this](const int /*aIndex*/) {
 			if (WritingCancel) {
 				WritingCancel();
-			}
-			// [[BPR-1593]]. Choosing a section opens it where this mode shows
-			// it: the brief's field in place on the route.
-			const auto chosen = aIndex < 2 ? aIndex : -1;
-			if (BriefOpen != chosen && (aIndex < 3 || Mode == tour_editor_mode::page)) {
-				open_brief(chosen);
 			}
 			refresh_preview();
 		});
@@ -2044,13 +1685,6 @@ namespace bpr::qt {
 		repairPreviewLayout->addLayout(repairButtons);
 		RepairPreview->hide();
 		publication->insertWidget(publication->indexOf(RepairList) + 1, RepairPreview);
-		DescriptionEdit = new QCheckBox{ tr("Update PR description after publishing"), PublicationPanel };
-		DescriptionEdit->setObjectName(QStringLiteral("tourDescriptionEdit"));
-		// [[BPR-1787]]. The brief is published in one place, the description
-		// by default; the tooltip says where it goes either way.
-		DescriptionEdit->setChecked(true);
-		DescriptionEdit->setToolTip(tr("On: Problem and Solution go in the PR description, under the tour link at its top, and the tour comment lists only the route. Matching Problem and Solution headings are updated in place; other description text is kept. Off: Problem and Solution go in the tour comment and the description is not edited. A tour already on GitHub keeps them where they were first published. Compatibility comments become visible one at a time; interrupted publication may remain partial."));
-		publication->addWidget(DescriptionEdit);
 		auto* const sendRow = new QHBoxLayout{ };
 		sendRow->setSpacing(6);
 		const auto button = [&](const QString& aLabel, const QString& aName, tour_editor_action aAction) {
@@ -2085,7 +1719,6 @@ namespace bpr::qt {
 		StopTour->setToolTip(tr("Stop publication"));
 		recoverRow->addStretch(1);
 		publication->addLayout(recoverRow);
-		connect(DescriptionEdit, &QCheckBox::toggled, this, [this] { PublishTour->setEnabled(false); });
 		present_publication({ });
 
 		// The foot: the private draft's save state. [[BPR-1991]]: Publish… is
@@ -2186,12 +1819,6 @@ namespace bpr::qt {
 		RepairPreview->show();
 		ApplyRepair->setFocus();
 		reveal_focus(RepairPreview);
-	}
-	auto review_tour_editor::description_publication() const -> bool { return DescriptionEdit->isChecked(); }
-	void review_tour_editor::set_description_publication_default(const bool aOn)
-	{
-		const auto blocker = QSignalBlocker{ DescriptionEdit };
-		DescriptionEdit->setChecked(aOn);
 	}
 	void review_tour_editor::present_publication(const application::tour_publication_presentation& aProjection)
 	{
@@ -2321,7 +1948,6 @@ namespace bpr::qt {
 																										 : tr("Publish tour"));
 		PublishTour->setEnabled(aProjection.Publish && !publishing);
 		PreparePublication->setEnabled(!publishing);
-		DescriptionEdit->setEnabled(!publishing);
 		ResumeTour->setEnabled(aProjection.Resume);
 		ReconcileTour->setEnabled(aProjection.Reconcile);
 		StopTour->setEnabled(aProjection.Stop);
@@ -2417,17 +2043,8 @@ namespace bpr::qt {
 		Shown               = aProjection;
 		const bool editable = Shown.Draft && !Shown.Loading && !Shown.Draft->ReadOnly;
 		const bool bounded  = same && Shown.Refusal == core::tour_refusal::bounds;
-		Problem->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::problem));
-		Solution->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::solution));
 		Title->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::edit_stop));
 		Body->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::edit_stop));
-		if (Shown.Draft && (Shown.Refusal == core::tour_refusal::none || !same)) {
-			Problem->present(Shown.Draft->Problem, !same);
-			Solution->present(Shown.Draft->Solution, !same);
-		} else if (!Shown.Draft) {
-			Problem->present({ }, !same);
-			Solution->present({ }, !same);
-		}
 		auto status = tr("Open a pull request with an accepted account to prepare a private tour.");
 		if (Shown.Loading) {
 			status = tr("Loading private tour…");
@@ -2500,21 +2117,13 @@ namespace bpr::qt {
 		}
 		if (Shown.Conflict) {
 			Conflict->setAccessibleName(tr("Saved copy from another window"));
-			auto text = "## Problem\n" + Shown.Conflict->Problem + "\n\n## Solution\n" + Shown.Conflict->Solution;
+			auto text = std::string{ };
 			for (const auto& stop : Shown.Conflict->Stops) {
-				text += "\n\n### " + stop.Title + "\n" + stop.Body;
+				text += (text.empty() ? "### " : "\n\n### ") + stop.Title + "\n" + stop.Body;
 			}
 			update_text(Conflict, text);
 		}
 		present_stops(!same);
-		// [[BPR-1784]]. Another draft opens on its first step not yet
-		// written; after that, only the author moves between steps.
-		if (!same) {
-			const auto first = core::decide_tour_steps(Shown.Draft.get(), std::nullopt).Current;
-			open_brief(first == core::tour_step::problem ? 0 : first == core::tour_step::solution ? 1
-																								  : -1);
-		}
-		refresh_steps();
 		refresh_preview();
 		place_stop_card();
 		refresh_excerpt();
@@ -2526,8 +2135,7 @@ namespace bpr::qt {
 		if ((Roadmap->currentIndex() != Roadmap->count() - 1 && Mode != tour_editor_mode::page) || !Shown.Draft) {
 			return;
 		}
-		auto body = "## Problem\n\n" + Shown.Draft->Problem + "\n\n## Solution\n\n" + Shown.Draft->Solution;
-		body += "\n\n## Tour stops\n";
+		auto body = std::string{ "## Tour stops\n" };
 		for (std::size_t i = 0; i < Shown.Draft->Stops.size(); ++i) {
 			const auto& stop = Shown.Draft->Stops[i];
 			body += "\n### " + std::to_string(i + 1) + " — " + stop.Title + "\n\n" + stop.Body + "\n\n";
@@ -2565,9 +2173,7 @@ namespace bpr::qt {
 		WritingRequest = std::move(aRequest);
 		WritingCancel  = std::move(aCancel);
 	}
-	auto review_tour_editor::writing_editor(core::writing_hook aHook) const -> scoped_prose_editor* { return aHook == core::writing_hook::problem ? Problem : aHook == core::writing_hook::solution ? Solution
-																										  : aHook == core::writing_hook::comment                                                    ? Body
-																																																	: nullptr; }
+	auto review_tour_editor::writing_editor(core::writing_hook aHook) const -> scoped_prose_editor* { return aHook == core::writing_hook::comment ? Body : nullptr; }
 	auto review_tour_editor::writing_visible(core::writing_hook aHook) const -> bool
 	{
 		if (!isVisible() || !window()->isActiveWindow()) {
@@ -2576,9 +2182,7 @@ namespace bpr::qt {
 		// [[BPR-1593]]. A field is offered where it shows: open in the route's
 		// brief or its stop, or the tour page's section.
 		switch (aHook) {
-		case core::writing_hook::problem:  return Problem->isVisible();
-		case core::writing_hook::solution: return Solution->isVisible();
-		case core::writing_hook::comment:  return selected_stop() && Body->isVisible() && !Body->viewport()->visibleRegion().isEmpty();
+		case core::writing_hook::comment: return selected_stop() && Body->isVisible() && !Body->viewport()->visibleRegion().isEmpty();
 		// [[BPR-2013]]. Suggest an outline left the application; the
 		// `bpr tour outline` commands keep the hook.
 		case core::writing_hook::outline: return false;
@@ -2596,6 +2200,8 @@ namespace bpr::qt {
 		case core::writing_hook::review_explain_file:   return false; // RFC-BPR-0117 Nor Explain this file.
 		case core::writing_hook::review_suggest_change: return false; // RFC-BPR-0118 Nor Suggest the change.
 		case core::writing_hook::local_run_check:       return false; // RFC-BPR-0120 Nor a local draft's check.
+		case core::writing_hook::writing_style:         return false; // [[BPR-2264]] Nor the Writing style Feature.
+		case core::writing_hook::comment_labels:        return false; // [[BPR-2270]] Nor the Comment labels Feature.
 		}
 		return false;
 	}
@@ -2603,16 +2209,14 @@ namespace bpr::qt {
 	void review_tour_editor::add_writing_button(scoped_prose_editor* aEditor, core::writing_hook aHook, QBoxLayout* aLayout)
 	{
 		auto* button = new quiet_push_button{ aEditor->parentWidget() };
-		button->setObjectName(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemMagic") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionMagic")
-																																				: QStringLiteral("tourStopMagic"));
+		button->setObjectName(QStringLiteral("tourStopMagic"));
 		button->setFocusPolicy(Qt::TabFocus);
 		// [[BPR-1776]]. Raised, as the shared chip: flat it read as a label.
 		aLayout->addWidget(button, 0, Qt::AlignLeft);
 		// [[BPR-1878]]. RFC-BPR-0043's labels: each says what a click does to
 		// this field, and its tooltip says how, and that Undo restores it.
 		const auto label = [this, aEditor, aHook, button] {
-			const auto whole = aHook == core::writing_hook::problem ? tr("Enhance problem statement") : aHook == core::writing_hook::solution ? tr("Enhance solution")
-																																			  : tr("Enhance comment");
+			const auto whole = tr("Enhance comment");
 			// [[BPR-1914]] v004, owner look v003: "can we simplify the enhance
 			// buttons to just the '<symbol> Enhance' and leave the tooltips in
 			// place." The spark and one word; what it rewrites is in the
@@ -2632,15 +2236,10 @@ namespace bpr::qt {
 				button->setText({ });
 				button->setProperty("enhanceOnly", true);
 				button->setProperty("requestName", whole);
-				button->setToolTip(aHook == core::writing_hook::problem ? tr("Enhance the Problem. The suggestion waits for you to accept it.") : aHook == core::writing_hook::solution ? tr("Enhance the Solution. The suggestion waits for you to accept it.")
-																																														: tr("Enhance this stop. The suggestion waits for you to accept it."));
-			} else if (aHook == core::writing_hook::comment) {
+				button->setToolTip(tr("Enhance this stop. The suggestion waits for you to accept it."));
+			} else {
 				button->setText(tr("Generate comment"));
 				button->setToolTip(tr("Asks the drafting agent to write this stop's comment from its code. Undo removes it."));
-			} else {
-				button->setText(tr("Draft from PR context"));
-				button->setToolTip(aHook == core::writing_hook::problem ? tr("Fills this field from the pull request: the description's own Problem section if it has one, otherwise a draft by the drafting agent. Undo removes it.")
-																		: tr("Fills this field from the pull request: the description's own Solution section if it has one, otherwise a draft by the drafting agent. Undo removes it."));
 			}
 			// [[BPR-1900]]. Its drafting run in the background, stopped here.
 			if (RunningHook == aHook) {
@@ -2658,18 +2257,12 @@ namespace bpr::qt {
 		// side chat". [[BPR-1925]] v002, owner on v001: "The mockup had the
 		// chat button on the right side of each of the sections and I prefer
 		// that, I also want the chat button to toggle it open and closed."
-		// The part's toggle sits at the right of its header: the Problem's and
-		// the Solution's step rows, the open stop's title row. With text
+		// The part's toggle sits at the right of the open stop's title row. With text
 		// selected it opens the chat quoting it; on the open part it closes
 		// the column. The editor's own menu offers Open side chat too.
-		const auto  part = aHook == core::writing_hook::problem ? tr("the Problem") : aHook == core::writing_hook::solution ? tr("the Solution")
-																															: tr("this stop");
-		auto* const chat = new part_chat_toggle{ part, aEditor->parentWidget() };
-		chat->setObjectName(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemChat") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionChat")
-																																			 : QStringLiteral("tourStopChat"));
-		if (aHook == core::writing_hook::problem || aHook == core::writing_hook::solution) {
-			static_cast<tour_step_row*>(StepRows[aHook == core::writing_hook::problem ? 0 : 1])->set_chat(chat);
-		} else if (StopTitleRow != nullptr) {
+		auto* const chat = new part_chat_toggle{ tr("this stop"), aEditor->parentWidget() };
+		chat->setObjectName(QStringLiteral("tourStopChat"));
+		if (StopTitleRow != nullptr) {
 			StopTitleRow->addWidget(chat, 0, Qt::AlignTop);
 		} else {
 			aLayout->addWidget(chat, 0, Qt::AlignLeft);
@@ -2699,11 +2292,11 @@ namespace bpr::qt {
 		}
 		connect(chat, &QToolButton::clicked, this, [this, aHook, selected] { toggle_side_chat_about(aHook, selected()); });
 		aEditor->setContextMenuPolicy(Qt::CustomContextMenu);
-		connect(aEditor, &QWidget::customContextMenuRequested, this, [aEditor, openChat, selected, part](const QPoint& aAt) {
+		connect(aEditor, &QWidget::customContextMenuRequested, this, [aEditor, openChat, selected](const QPoint& aAt) {
 			auto* const menu = aEditor->createStandardContextMenu(aAt);
 			menu->setAttribute(Qt::WA_DeleteOnClose);
 			menu->addSeparator();
-			menu->addAction(selected().trimmed().isEmpty() ? QObject::tr("Open side chat about %1").arg(part) : QObject::tr("Open side chat about this"), openChat);
+			menu->addAction(selected().trimmed().isEmpty() ? QObject::tr("Open side chat about this stop") : QObject::tr("Open side chat about this"), openChat);
 			menu->popup(aEditor->viewport()->mapToGlobal(aAt));
 		});
 		connect(aEditor, &QPlainTextEdit::selectionChanged, this, label);
@@ -2751,12 +2344,6 @@ namespace bpr::qt {
 			}
 		};
 		label();
-	}
-	void review_tour_editor::show_problem()
-	{
-		StepCollapsed = false;
-		open_brief(0);
-		Problem->setFocus();
 	}
 	void review_tour_editor::hideEvent(QHideEvent* aEvent)
 	{
@@ -2954,16 +2541,13 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::toggle_side_chat_about(const core::writing_hook aHook, const QString& aSelected)
 	{
-		auto thread = core::tour_thread{ .Kind = aHook == core::writing_hook::problem ? core::tour_thread_kind::problem : aHook == core::writing_hook::solution ? core::tour_thread_kind::solution
-																																								: core::tour_thread_kind::stop };
-		if (thread.Kind == core::tour_thread_kind::stop) {
-			const auto* const stop = selected_stop();
-			if (stop == nullptr) {
-				mark_side_chat();
-				return;
-			}
-			thread.Stop = stop->Id;
+		auto              thread = core::tour_thread{ .Kind = core::tour_thread_kind::stop };
+		const auto* const stop   = selected_stop();
+		if (stop == nullptr) {
+			mark_side_chat();
+			return;
 		}
+		thread.Stop = stop->Id;
 		if (SideChat->discussed() == thread) {
 			toggle_side_chat(thread);
 			return;
@@ -2983,24 +2567,20 @@ namespace bpr::qt {
 		}
 		SideChat->open(subject->Thread, std::move(subject->Passage));
 	}
-	auto review_tour_editor::subject_about(const core::writing_hook aHook, const QString& aSelected) const -> std::optional<side_chat_subject>
+	auto review_tour_editor::subject_about(const core::writing_hook /*aHook*/, const QString& aSelected) const -> std::optional<side_chat_subject>
 	{
 		auto              passage = std::optional<core::tour_passage>{ };
-		auto              thread  = core::tour_thread{ .Kind = aHook == core::writing_hook::problem ? core::tour_thread_kind::problem : aHook == core::writing_hook::solution ? core::tour_thread_kind::solution
-																																											  : core::tour_thread_kind::stop };
+		auto              thread  = core::tour_thread{ .Kind = core::tour_thread_kind::stop };
 		const auto* const stop    = selected_stop();
-		if (thread.Kind == core::tour_thread_kind::stop) {
-			if (stop == nullptr || !Shown.Draft) {
-				return std::nullopt;
-			}
-			thread.Stop = stop->Id;
+		if (stop == nullptr || !Shown.Draft) {
+			return std::nullopt;
 		}
+		thread.Stop = stop->Id;
 		if (!aSelected.trimmed().isEmpty()) {
 			passage        = core::tour_passage{ };
 			passage->Text  = aSelected.toStdString();
-			passage->Field = thread.Kind == core::tour_thread_kind::problem ? core::tour_passage_field::problem : thread.Kind == core::tour_thread_kind::solution ? core::tour_passage_field::solution
-																																								  : core::tour_passage_field::stop;
-			if (stop != nullptr && thread.Kind == core::tour_thread_kind::stop) {
+			passage->Field = core::tour_passage_field::stop;
+			{
 				passage->Stop      = static_cast<std::size_t>(stop - Shown.Draft->Stops.data());
 				passage->StopTitle = stop->Title;
 			}
@@ -3033,11 +2613,7 @@ namespace bpr::qt {
 		// that chat is the one beside the tour.
 		for (auto* const chat : ChatButtons) {
 			auto thread = std::optional<core::tour_thread>{ };
-			if (chat->objectName() == QStringLiteral("tourProblemChat")) {
-				thread = core::tour_thread{ .Kind = core::tour_thread_kind::problem };
-			} else if (chat->objectName() == QStringLiteral("tourSolutionChat")) {
-				thread = core::tour_thread{ .Kind = core::tour_thread_kind::solution };
-			} else if (const auto* const stop = selected_stop(); stop != nullptr) {
+			if (const auto* const stop = selected_stop(); stop != nullptr) {
 				thread = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop->Id };
 			}
 			const auto turns = thread ? SideChat->turns_about(*thread) : 0U;
@@ -3070,9 +2646,7 @@ namespace bpr::qt {
 	void review_tour_editor::reveal_part(const core::tour_thread& aThread)
 	{
 		switch (aThread.Kind) {
-		case core::tour_thread_kind::tour:     return;
-		case core::tour_thread_kind::problem:  open_step(core::tour_step::problem); return;
-		case core::tour_thread_kind::solution: open_step(core::tour_step::solution); return;
+		case core::tour_thread_kind::tour: return;
 		case core::tour_thread_kind::stop:
 			show_stops();
 			go_to_stop(aThread.Stop);
@@ -3126,8 +2700,7 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::request_field_writing(const core::writing_hook aHook)
 	{
-		auto* const button = findChild<QPushButton*>(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemMagic") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionMagic")
-																																									   : QStringLiteral("tourStopMagic"));
+		auto* const button = aHook == core::writing_hook::comment ? findChild<QPushButton*>(QStringLiteral("tourStopMagic")) : nullptr;
 		if (button == nullptr) {
 			return;
 		}
@@ -3170,9 +2743,7 @@ namespace bpr::qt {
 		}
 		ReviewedRun = aRun;
 		switch (first->Part) {
-		case core::tour_proposal_part::problem:  open_step(core::tour_step::problem); return;
-		case core::tour_proposal_part::solution: open_step(core::tour_step::solution); return;
-		case core::tour_proposal_part::stop:     {
+		case core::tour_proposal_part::stop: {
 			show_stops();
 			if (ProposedStops != nullptr && ProposedStops->isVisible()) {
 				reveal_focus(ProposedStops);
@@ -3219,7 +2790,6 @@ namespace bpr::qt {
 		StopTextProposals.clear();
 		RouteMarks.clear();
 		StructureProposed = false;
-		PartProposed      = { false, false };
 		ProposedStopCount = 0U;
 	}
 	void review_tour_editor::set_tour_shape_dispatch(std::function<void()> aClearFocus, std::function<void()> aReset, std::function<void()> aUndoReset)
@@ -3286,16 +2856,6 @@ namespace bpr::qt {
 			reader->set_inline_code_selector(selector);
 		}
 		switch (aItem.Part) {
-		case core::tour_proposal_part::problem:
-		case core::tour_proposal_part::solution: {
-			// On the part itself, under its own text: nothing changes there
-			// until it is accepted.
-			const auto field = aItem.Part == core::tour_proposal_part::problem ? 0 : 1;
-			static_cast<QVBoxLayout*>(BriefPanels[field]->layout())->insertWidget(1, aBox);
-			aBox->show();
-			PartProposed[static_cast<std::size_t>(field)] = true;
-			return true;
-		}
 		case core::tour_proposal_part::stop_text: {
 			// On that stop's card, where Ready, next is, while it is open.
 			if (!Shown.Draft || std::ranges::find(Shown.Draft->Stops, aItem.StopId, &core::tour_stop::Id) == Shown.Draft->Stops.end()) {
@@ -3384,10 +2944,6 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::mark_proposed()
 	{
-		for (int field = 0; field < 2; ++field) {
-			static_cast<tour_step_row*>(StepRows[field])->set_proposed(PartProposed[static_cast<std::size_t>(field)]);
-		}
-		static_cast<tour_step_row*>(StepRows[2])->set_proposed(ProposedStopCount > 0U || StructureProposed);
 		ProposedStops->setVisible(ProposedStopCount > 0U);
 		const auto orders = ProposedOrder->findChildren<QWidget*>(QStringLiteral("tourProposedStop"), Qt::FindDirectChildrenOnly);
 		ProposedOrder->setVisible(std::ranges::any_of(orders, [](const QWidget* aFrame) { return !aFrame->isHidden(); }));
@@ -3616,11 +3172,6 @@ namespace bpr::qt {
 	auto review_tour_editor::agent_features() const -> std::vector<QWidget*>
 	{
 		auto features = std::vector<QWidget*>{ };
-		for (const char* const name : { "tourProblemMagic", "tourSolutionMagic" }) {
-			if (auto* const button = findChild<QPushButton*>(QString::fromLatin1(name)); button != nullptr) {
-				features.push_back(button);
-			}
-		}
 		for (auto* const widget : { static_cast<QWidget*>(StopMagic), static_cast<QWidget*>(TourAgentPanel != nullptr ? TourAgentPanel->draft_button() : nullptr) }) {
 			if (widget != nullptr) {
 				features.push_back(widget);
@@ -3647,9 +3198,6 @@ namespace bpr::qt {
 		// ordinary controls; the spark beside them still says agent.
 		const auto ground = palette();
 		auto       runs   = std::vector<QWidget*>{ StopMagic, TourAgentPanel != nullptr ? TourAgentPanel->draft_button() : nullptr };
-		for (const char* const name : { "tourProblemMagic", "tourSolutionMagic" }) {
-			runs.push_back(findChild<QPushButton*>(QString::fromLatin1(name)));
-		}
 		for (auto* const feature : agent_features()) {
 			if (std::ranges::find(runs, feature) != runs.end()) {
 				wear_agent_accent(*feature, ground);
@@ -3758,9 +3306,7 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::show_stops()
 	{
-		StepCollapsed = false;
-		open_brief(-1);
-		Roadmap->setCurrentIndex(2);
+		Roadmap->setCurrentIndex(0);
 		place_stop_card();
 		const auto* stop = selected_stop();
 		auto* const add  = stop == nullptr && Mode == tour_editor_mode::route ? OutlineTools->findChild<QPushButton*>(QStringLiteral("tourAddStop")) : nullptr;
@@ -4351,17 +3897,13 @@ namespace bpr::qt {
 			hold_scroll();
 			Selected         = Shown.Draft->Stops[static_cast<std::size_t>(aRow)].Id;
 			SelectionChanged = false;
-			// [[BPR-1784]]. Choosing a stop is working on the stops.
-			if (Mode == tour_editor_mode::route && BriefOpen >= 0) {
-				open_brief(-1);
-			}
-			Applying = true;
+			Applying         = true;
 			present_stops(false);
 			Applying = false;
 			place_stop_card();
 			refresh_excerpt();
 			if (Mode == tour_editor_mode::page) {
-				Roadmap->setCurrentIndex(2);
+				Roadmap->setCurrentIndex(0);
 			}
 			trigger(tour_editor_action::navigate_stop);
 		});
@@ -4944,14 +4486,11 @@ namespace bpr::qt {
 			auto* const column = static_cast<QVBoxLayout*>(RouteColumn->layout());
 			column->insertWidget(0, Brief);
 			column->addStretch(1);
-			// [[BPR-1784]]. The route is step 3's body.
+			StopsSlot->show();
 			StopsSlot->layout()->addWidget(ProposedOrder);
 			StopsSlot->layout()->addWidget(Outline);
 			StopsSlot->layout()->addWidget(ProposedStops);
 			StopsSlot->layout()->addWidget(OutlineTools);
-			for (int field = 0; field < 2; ++field) {
-				BriefSlots[field]->layout()->addWidget(BriefPanels[field]);
-			}
 			Outline->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 			Outline->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 			Outline->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
@@ -4973,10 +4512,6 @@ namespace bpr::qt {
 			left->insertWidget(3, Outline, 1);
 			left->insertWidget(4, ProposedStops);
 			left->insertWidget(5, OutlineTools);
-			for (int field = 0; field < 2; ++field) {
-				BriefSlots[field]->hide();
-				BriefHosts[field]->layout()->addWidget(BriefPanels[field]);
-			}
 			StopsSlot->hide();
 			// [[BPR-1991]]. The page's columns scroll themselves; the page
 			// fits the main pane as it did before the route had its own area.
@@ -4992,11 +4527,7 @@ namespace bpr::qt {
 			static_cast<QVBoxLayout*>(PublicationPanel->layout())->insertWidget(1, Preview, 1);
 			Preview->setVisible(PublicationPreview->isHidden());
 			refresh_preview();
-			if (BriefOpen >= 0) {
-				Roadmap->setCurrentIndex(BriefOpen);
-			} else {
-				Roadmap->setCurrentIndex(2);
-			}
+			Roadmap->setCurrentIndex(0);
 		}
 		StopHeader->setVisible(aMode == tour_editor_mode::page);
 		// Link selected lines is on the row in both places while there is room.
@@ -5005,95 +4536,10 @@ namespace bpr::qt {
 			StopActions->want(RemoveRelated, aMode == tour_editor_mode::page && Related->currentRow() >= 0);
 		}
 		fit_page_columns();
-		// [[BPR-1784]]. The open step stays open in either place.
-		open_brief(BriefOpen);
-		place_stop_card();
-		refresh_excerpt();
-		refresh_foot();
-	}
-
-	void review_tour_editor::open_brief(const int aField)
-	{
-		if (aField != BriefOpen) {
-			StepCollapsed = false;
-		}
-		BriefOpen = aField;
-		for (int field = 0; field < 3; ++field) {
-			auto* const row = static_cast<QAbstractButton*>(StepRows[field]);
-			const auto  on  = field == 2 ? aField < 0 : field == aField;
-			if (row != nullptr) {
-				const auto block = QSignalBlocker{ row };
-				row->setChecked(on);
-			}
-			if (auto* const slot = field == 2 ? StopsSlot : BriefSlots[field]; slot != nullptr && Mode == tour_editor_mode::route) {
-				slot->setVisible(on && !StepCollapsed);
-			}
-		}
-		refresh_steps();
-		if (aField >= 0) {
-			if (Roadmap->currentIndex() != aField) {
-				Roadmap->setCurrentIndex(aField);
-			}
-		} else if (Roadmap->currentIndex() < 2) {
-			Roadmap->setCurrentIndex(2);
-		}
 		place_stop_card();
 		fit_route();
-	}
-
-	void review_tour_editor::choose_step(const int aField)
-	{
-		StepCollapsed = false;
-		if (aField < 0) {
-			show_stops();
-			return;
-		}
-		open_brief(aField);
-		focus_step();
-	}
-
-	void review_tour_editor::open_step(const core::tour_step aStep)
-	{
-		switch (aStep) {
-		case core::tour_step::problem:  choose_step(0); break;
-		case core::tour_step::solution: choose_step(1); break;
-		case core::tour_step::stops:    choose_step(-1); break;
-		}
-	}
-
-	void review_tour_editor::focus_step()
-	{
-		// [[BPR-1784]]. The keyboard goes to the open step's first field:
-		// Problem's text, Solution's text, or the stop's.
-		if (BriefOpen == 0) {
-			Problem->setFocus(Qt::OtherFocusReason);
-		} else if (BriefOpen == 1) {
-			Solution->setFocus(Qt::OtherFocusReason);
-		}
-	}
-
-	void review_tour_editor::refresh_steps()
-	{
-		const auto open = BriefOpen == 0 ? core::tour_step::problem : BriefOpen == 1 ? core::tour_step::solution
-																					 : core::tour_step::stops;
-		Steps           = core::decide_tour_steps(Shown.Draft.get(), open);
-		for (std::size_t index = 0U; index < core::tour_step_count; ++index) {
-			auto* const row = static_cast<tour_step_row*>(StepRows[index]);
-			if (row == nullptr) {
-				continue;
-			}
-			const auto state   = Steps.States[index];
-			auto       summary = QString{ };
-			if (index < 2U && state == core::tour_step_state::done && Shown.Draft) {
-				summary = QString::fromStdString(index == 0U ? Shown.Draft->Problem : Shown.Draft->Solution);
-			} else if (index < 2U && state == core::tour_step_state::needs_attention) {
-				summary = tr("Not written yet");
-			} else if (index == 2U && state != core::tour_step_state::current && Steps.Stops > 0U) {
-				summary = Steps.Stops == 1U ? (Steps.ReadyStops == 1U ? tr("1 stop, ready") : tr("1 stop, not ready yet")) : tr("%1 of %2 stops ready").arg(Steps.ReadyStops).arg(Steps.Stops);
-			}
-			row->present(state, summary);
-		}
-		Brief->update();
+		refresh_excerpt();
+		refresh_foot();
 	}
 
 	void review_tour_editor::place_stop_card()

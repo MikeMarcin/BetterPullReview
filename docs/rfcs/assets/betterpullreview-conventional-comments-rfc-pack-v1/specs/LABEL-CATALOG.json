@@ -1,6 +1,6 @@
 {
   "schema": "bpr.feedback-label-catalog.v1",
-  "catalog_revision": 1,
+  "catalog_revision": 2,
   "source": "https://conventionalcomments.org/",
   "source_checked_on": "2026-09-23",
   "definitions": "Concise adaptations; BPR guidance values are proposed product policy, not upstream machine fields.",
@@ -35,8 +35,8 @@
     },
     {
       "id": "todo",
-      "description": "Request a small necessary change.",
-      "guidance": "necessary_change",
+      "description": "Request a small change.",
+      "guidance": "asks_for_change",
       "icon_role": "feedback.label.todo",
       "first_class": true
     },
@@ -56,8 +56,8 @@
     },
     {
       "id": "chore",
-      "description": "Request required process work before acceptance.",
-      "guidance": "required_before_acceptance",
+      "description": "Request process work, such as a changelog entry.",
+      "guidance": "asks_for_process_work",
       "icon_role": "feedback.label.chore",
       "first_class": true
     },
@@ -71,7 +71,7 @@
     {
       "id": "typo",
       "description": "Identify a spelling correction.",
-      "guidance": "necessary_change",
+      "guidance": "asks_for_change",
       "icon_role": "feedback.label.typo",
       "first_class": true
     },

@@ -448,7 +448,7 @@ try {
 	{
 		sqlite3* database = nullptr;
 		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
-		expect(sqlite3_exec(database, "UPDATE agent_conversation_outcomes SET outcome=10", nullptr, nullptr, nullptr) != SQLITE_OK, "an undeclared outcome is refused by the schema");
+		expect(sqlite3_exec(database, "UPDATE agent_conversation_outcomes SET outcome=11", nullptr, nullptr, nullptr) != SQLITE_OK, "an undeclared outcome is refused by the schema");
 		expect(sqlite3_exec(database, "DELETE FROM agent_conversation_outcomes WHERE number=9", nullptr, nullptr, nullptr) == SQLITE_OK, "a thread stored before outcomes were kept");
 		sqlite3_close_v2(database);
 	}
@@ -457,6 +457,31 @@ try {
 	legacy[2].Outcome = bpr::core::agent_turn_outcome::ended_without_answer;
 	expect(talks->load(failed) == std::optional{ legacy }, "an old stopped turn reads back as one that ended without an answer, an old answer as an answer");
 	expect(talks->store(failed, { }) && talks->load(failed) == std::optional{ turns{ } }, "Clear session removes the outcomes with the turns");
+	// [[BPR-2261]]. A file made before `closed_with_app` checked the outcome
+	// against the ten before it: its table is rebuilt, its rows kept, and a
+	// turn the app's closing stopped is stored.
+	{
+		expect(talks->store(failed, ended), "a thread stored again");
+		talks.reset();
+		sqlite3* database = nullptr;
+		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+		const auto old = "BEGIN;"
+						 "CREATE TABLE old_outcomes(host TEXT NOT NULL,owner TEXT NOT NULL,name TEXT NOT NULL,number INTEGER NOT NULL,agent INTEGER NOT NULL,"
+						 "position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 49),outcome INTEGER NOT NULL CHECK(outcome BETWEEN 0 AND 9),"
+						 "PRIMARY KEY(host, owner, name, number, agent, position)) STRICT;"
+						 "INSERT INTO old_outcomes SELECT * FROM agent_conversation_outcomes;"
+						 "DROP TABLE agent_conversation_outcomes;"
+						 "ALTER TABLE old_outcomes RENAME TO agent_conversation_outcomes;"
+						 "COMMIT;";
+		expect(sqlite3_exec(database, old, nullptr, nullptr, nullptr) == SQLITE_OK, "the outcomes table as build 68 made it");
+		sqlite3_close_v2(database);
+		talks = adapters::sqlite::make_agent_conversation_store(scratch.path());
+		expect(talks->load(failed) == std::optional{ ended }, "its turns read back as they ended");
+		auto closed       = ended;
+		closed[2].Outcome = bpr::core::agent_turn_outcome::closed_with_app;
+		expect(talks->store(failed, closed) && talks->load(failed) == std::optional{ closed }, "a turn the app's closing stopped is kept as that");
+		expect(talks->store(failed, { }), "cleared again");
+	}
 
 	// Owner report 2026-11-10, after BPR-2052. What was done with each finding
 	// card of a stored answer, read back after a restart.
@@ -528,6 +553,17 @@ try {
 	listed.Agents.pop_back();
 	listed.EntryChecks.pop_back();
 	expect(store->store(listed) && store->load()->Agents.size() == 2U && store->load()->EntryChecks.size() == 2U, "a removed agent is gone from the stored list, with its check");
+	// [[BPR-2261]]. The pull request workspaces whose check passed are kept
+	// across a restart, in order, under their workspace keys.
+	listed.WorkspaceChecks = { "github.example/octo/review#17:base:head-1", "github.example/octo/review#18:base:head-2" };
+	expect(store->store(listed), "the passed workspace checks are stored");
+	store = adapters::sqlite::make_agent_setup_store(scratch.path());
+	expect(store->load() && store->load()->WorkspaceChecks == listed.WorkspaceChecks, "and read back after a restart");
+	auto overlong            = listed;
+	overlong.WorkspaceChecks = { std::string(application::maximum_workspace_check_key_bytes + 1U, 'k') };
+	expect(!store->store(overlong), "a key past its bound is not kept");
+	listed.WorkspaceChecks.clear();
+	expect(store->store(listed) && store->load()->WorkspaceChecks.empty(), "and none kept reads back as none");
 	// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 AC08. Scratch folder starts
 	// and Build and run tests are each agent's, kept across a restart; an
 	// agent stored before them reads back on and off.

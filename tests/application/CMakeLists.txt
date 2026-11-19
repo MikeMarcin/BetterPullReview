@@ -1166,6 +1166,13 @@ bpr_enable_warnings(test_review_publication_capability_cache)
 bpr_add_network_isolated_test(NAME application_review_publication_capability_cache COMMAND test_review_publication_capability_cache)
 
 if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
+# [[BPR-2281]]. Draft with agent's host.
+bpr_add_executable(test_description_draft_host description_draft_host_tests.cpp)
+target_link_libraries(test_description_draft_host PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_description_draft_host)
+bpr_enable_warnings(test_description_draft_host)
+bpr_add_network_isolated_test(NAME application_description_draft_host COMMAND test_description_draft_host)
+set_tests_properties(application_description_draft_host PROPERTIES PASS_REGULAR_EXPRESSION "description-draft-host-tests:pass")
 bpr_add_executable(test_writing_delivery writing_delivery_tests.cpp)
 target_link_libraries(test_writing_delivery PRIVATE BetterPullReview::Application)
 bpr_enable_hardening(test_writing_delivery)

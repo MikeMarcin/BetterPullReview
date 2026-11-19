@@ -68,8 +68,8 @@ def main():
             root.mkdir(mode=0o700)
             code, output = terminal(mode, root, answer, concurrent)
             assert code == expected, (mode, code, output)
-            assert (b"writes=4 creates=1 submits=1" if expected == 0 else b"writes=0") in output, output
-        for step in range(4):
+            assert (b"writes=3 creates=1 submits=1" if expected == 0 else b"writes=0") in output, output
+        for step in range(3):
             for boundary in ("prepared", "witnessed", "applied"):
                 root = parent / f"{step}-{boundary}"
                 root.mkdir(mode=0o700)
@@ -81,12 +81,12 @@ def main():
                 assert first.returncode in (0, 6) and second.returncode in (0, 6), (first.stdout, first.stderr, second.stdout)
                 if before is not None:
                     assert (root / "server").read_bytes() == before, "read recovery mutated the fixture server"
-                if step == 3 and boundary == "applied":
-                    assert b"writes=4 creates=1 submits=1" in second.stdout
+                if step == 2 and boundary == "applied":
+                    assert b"writes=3 creates=1 submits=1" in second.stdout
                 elif boundary != "witnessed":
                     code, output = terminal("resume", root)
-                    # Completion before local receipt or the description acknowledgement may require no new write.
-                    assert code == 0 and b"writes=4 creates=1 submits=1" in output, (step, boundary, code, output)
+                    # Completion before local receipt may require no new write.
+                    assert code == 0 and b"writes=3 creates=1 submits=1" in output, (step, boundary, code, output)
                 else:
                     code, output = terminal("resume", root)
                     assert code in (4, 6) and b"Type publish to authorize" not in output, output

@@ -74,11 +74,8 @@ namespace bpr::core {
 		facts.ChecksFailing    = false;
 		facts.ChatEmpty        = true;
 		facts.Commits          = { "9fceb02d0ae598e95dc970b74767f19372d61af8", "e83c5163316f89bfbde7d9ab23ca2e25604af290" };
-		if (aPlace == prompt_place::tour_stop || aPlace == prompt_place::tour_part || aPlace == prompt_place::tour_whole) {
-			facts.Thread = prompt_tour_part{ .Place = aPlace, .Part = aPlace == prompt_place::tour_stop ? "Stop 3" : aPlace == prompt_place::tour_part ? "the Problem"
-																																					   : "",
-											 .StopNumber = 3U,
-											 .StopTitle  = "The frame pool" };
+		if (aPlace == prompt_place::tour_stop || aPlace == prompt_place::tour_whole) {
+			facts.Thread = prompt_tour_part{ .Place = aPlace, .Part = aPlace == prompt_place::tour_stop ? "Stop 3" : "", .StopNumber = 3U, .StopTitle = "The frame pool" };
 		}
 		return facts;
 	}
@@ -105,11 +102,14 @@ namespace bpr::core {
 						  "- Good: what was done well, only where it is earned.\n"
 						  "- Questions for the author: what only they can answer.\n"
 						  "- Not reviewed: each thing not read or not checked, named, then why. Write it about the thing, not about yourself.\n\n"
-						  "Severity: head each finding with a Conventional Comments label: issue, suggestion, question, nitpick or praise, with (blocking) or (non-blocking) after issue and suggestion. "
-						  "A blocking issue goes under Must fix.\n\n"
+						  "Severity: head each finding with a Conventional Comments label: issue, suggestion, question, nitpick or praise. The label carries the weight: an issue "
+						  "blocks the merge; a suggestion, nitpick or praise does not. Add (blocking) or (non-blocking) only when the weight differs from the label's: "
+						  "suggestion (blocking) for a suggestion that must be taken before merging, issue (non-blocking) for a problem that can wait. "
+						  "An issue, and anything marked (blocking), goes under Must fix.\n\n"
 						  "Verdict: Needs changes when anything stands under Must fix, Ready with comments when only smaller things do, Ready to merge when nothing does.\n\n"
 						  "Tone: plain and specific, as one engineer writes to another. No praise that is not earned, and no hedging.";
 		}
+
 	} // namespace
 
 	auto shipped_prompt_macros() -> std::vector<prompt_builtin>
@@ -129,6 +129,9 @@ namespace bpr::core {
 						"Review {file}"),
 				  at_file),
 			quick(plain("agent-tab.what-could-break", prompt_place::agent_tab, "What could this change break?", pull_request), at_pull_request),
+			// [[BPR-2281]] (owner, 2026-11-19). The pull request's description
+			// is drafted by Draft with agent beside it in Author, from the
+			// Description writing system prompt; it is no prompt here.
 			plain("agent-tab.explain-line", prompt_place::agent_tab, "Explain {file} {lines}", selected_lines, { lines(prompt_lines_value::one) }),
 			plain("agent-tab.explain-block", prompt_place::agent_tab, "Explain the selected block ({file} {lines})", selected_lines, { lines(prompt_lines_value::several) }),
 			// RFC-BPR-0128 (Q13): the actions as built-in rows. The Ask menus
@@ -165,10 +168,6 @@ namespace bpr::core {
 			plain("tour-stop.why-it-matters", prompt_place::tour_stop, "Why does this change matter?", stop, empty()),
 			plain("tour-stop.rewrite-simply", prompt_place::tour_stop, "Rewrite this explanation more simply", stop, empty()),
 			plain("tour-stop.right-place", prompt_place::tour_stop, "Is this the right place for this stop?", stop, empty()),
-			plain("tour-part.explain-selection", prompt_place::tour_part, "Explain the selected block", selected_text),
-			plain("tour-part.make-clearer", prompt_place::tour_part, "Make this clearer", part, empty()),
-			plain("tour-part.whats-missing", prompt_place::tour_part, "What's missing?", part, empty()),
-			plain("tour-part.make-shorter", prompt_place::tour_part, "Make it shorter", part, empty()),
 			plain("tour.too-many-stops", prompt_place::tour_whole, "Too many stops?", tour, empty()),
 			plain("tour.better-order", prompt_place::tour_whole, "Suggest a better order", tour, empty()),
 			// Finished in the question field, so its name is not its text.

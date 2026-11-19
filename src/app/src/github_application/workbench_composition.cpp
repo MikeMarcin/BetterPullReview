@@ -82,11 +82,6 @@ namespace bpr::app {
 		PresentationSink = std::move(aSink);
 	}
 
-	void composition_appearance_projections::set_theme_preview_sink(theme_preview_sink aSink)
-	{
-		ThemePreviewSink = std::move(aSink);
-	}
-
 	void composition_appearance_projections::set_refusal_sink(refusal_sink aSink)
 	{
 		RefusalSink = std::move(aSink);
@@ -118,9 +113,6 @@ namespace bpr::app {
 		// moved to - and the record is the thing a surface has to show.
 		if (aProjection.Presentation.has_value() && PresentationSink) {
 			PresentationSink(*aProjection.Presentation);
-		}
-		if (aProjection.ThemePreview.has_value() && ThemePreviewSink) {
-			ThemePreviewSink(*aProjection.ThemePreview);
 		}
 		if (aProjection.PaletteAdoption.has_value() && PaletteAdoptionSink) {
 			PaletteAdoptionSink(*aProjection.PaletteAdoption);

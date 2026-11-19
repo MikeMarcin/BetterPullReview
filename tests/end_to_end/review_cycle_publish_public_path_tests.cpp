@@ -390,8 +390,7 @@ namespace {
 		retype(*sheet->owner_field(), QStringLiteral("octo-org"));
 		retype(*sheet->repository_field(), QStringLiteral("review-repository"));
 		retype(*sheet->title_field(), QStringLiteral("Validate parser input"));
-		type(*sheet->problem_field(), QStringLiteral("Parsing accepted a null pointer."));
-		type(*sheet->solution_field(), QStringLiteral("Validate the text before checking it."));
+		type(*sheet->description_field(), QStringLiteral("Parsing accepted a null pointer. Validate the text before checking it."));
 		click(*sheet->draft_box());
 		require(wait_for([&] { return sheet_settled(page) && page.projection().Publication->Form.Draft; }), "the draft choice is the form's");
 
@@ -401,7 +400,7 @@ namespace {
 				"Review Plan records a plan: " + utf8(sheet->status()->text()));
 		const auto& planned = *page.projection().Publication;
 		require(sheet->title()->text() == QStringLiteral("Publish this plan?") && sheet->primary_button()->text() == QStringLiteral("Publish Pull Request"), "the plan waits for confirmation");
-		require(planned.Current->Plan.PullTitle == "Validate parser input" && planned.Current->Plan.Draft && planned.Current->Plan.PullBody == *core::publication_body("Parsing accepted a null pointer.", "Validate the text before checking it."),
+		require(planned.Current->Plan.PullTitle == "Validate parser input" && planned.Current->Plan.Draft && planned.Current->Plan.PullBody == *core::publication_body("Parsing accepted a null pointer. Validate the text before checking it."),
 				"the plan carries exactly what was typed: [" + planned.Current->Plan.PullTitle + "] [" + planned.Current->Plan.PullBody + "] " + std::to_string(planned.Current->Plan.Draft));
 		click(*sheet->exact_plan_button());
 		require(sheet->plan_text()->isVisible() && sheet->plan_text()->toPlainText().contains(QString::fromStdString(planned.Digest))

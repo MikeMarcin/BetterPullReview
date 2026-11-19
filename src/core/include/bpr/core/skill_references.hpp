@@ -45,6 +45,10 @@ namespace bpr::core {
 	inline constexpr std::string_view repository_skill_qualifier = "repo:";
 	/// \brief The qualifier that names the personal skill explicitly.
 	inline constexpr std::string_view personal_skill_qualifier = "personal:";
+	/// \brief [[BPR-2264]] The reserved qualifier that names a Feature,
+	/// `/bpr:<name>` (`prompt_features.hpp`): such a reference is never a
+	/// skill, so it is neither resolved nor noted as unknown.
+	inline constexpr std::string_view feature_qualifier = "bpr:";
 
 	/// \brief Lowercase letters, digits and hyphens, at most
 	/// `maximum_skill_name_bytes`, starting with a letter or digit.
@@ -84,6 +88,9 @@ namespace bpr::core {
 	/// punctuation other than `/`, `_` and a `.` that a word follows. So
 	/// `/usr/bin`, `a/b`, `/name.md` and `https://x` are not references.
 	[[nodiscard]] auto find_skill_references(std::string_view aText) -> std::vector<skill_reference>;
+	/// \brief [[BPR-2264]] The name of every `/bpr:<name>` in a text, in
+	/// order, by the same boundaries as a skill reference.
+	[[nodiscard]] auto find_feature_references(std::string_view aText) -> std::vector<std::string>;
 
 	/// \brief The skills a set of texts names, resolved against a catalog.
 	struct skill_resolution

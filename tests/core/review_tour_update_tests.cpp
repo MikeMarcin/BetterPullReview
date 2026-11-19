@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 namespace {
 	using namespace bpr::core;
 	void expect(bool aValue, const char* aReason)
@@ -131,14 +132,6 @@ namespace {
 		local.Stops.push_back(privateStop);
 		local.LastStopId = 6;
 		expect(observed_tour_changes(local, base).empty(), "private text/reorder/removal/insertion is never website history");
-		auto              mapped      = base;
-		auto              sameWebsite = base;
-		const std::string rawBrief    = "Preface\n\n## Problem\nProblem text\n\n## Solution\nSolution text\n";
-		retain_tour_brief_baselines(mapped, rawBrief, "PR17");
-		retain_tour_brief_baselines(sameWebsite, rawBrief, "PR17");
-		mapped.SolutionBaseline->SourceSpan = std::pair<std::size_t, std::size_t>{ 0, 7 };
-		mapped.Solution                     = "Preface\n";
-		expect(observed_tour_changes(mapped, sameWebsite).empty(), "manual description mapping cannot invent a website edit from identical raw bytes");
 		auto remote = base;
 		remote.Stops[0].Baseline->Raw += "website edit";
 		remote.Stops[1].Destination = destination_of(*remote.Stops[1].Original);
@@ -166,120 +159,19 @@ namespace {
 		expect(observed_tour_changes(cold, remote).empty(), "absent prior raw version does not infer history");
 	}
 
-	// [[BPR-1787]]. The brief is published in one place and patched there.
-	void brief_in_one_place()
-	{
-		auto tour     = published();
-		tour.Problem  = "Crash.";
-		tour.Solution = "Snapshot.";
-		expect(tour_comment_lead(tour, true) == tour_brief_in_description_note && !tour_comment_lead(tour, true).contains("## Problem"), "a brief in the description leaves the comment one pointing line");
-		expect(tour_comment_lead(tour, false) == "## Problem\n\nCrash.\n\n## Solution\n\nSnapshot.", "a brief kept in the comment is written there");
-
-		// A new tour: the comment lists the route, the description has the brief.
-		const std::string description = "[Review tour](https://github.com/o/r/pull/7#pullrequestreview-9)\n\n## Problem\nCrash.\n\n## Solution\nSnapshot.\n\nTemplate.\n";
-		auto              fresh       = tour;
-		fresh.IndexBaseline->Raw      = std::string{ tour_brief_in_description_note } + "\n\n" + fresh.IndexBaseline->Raw;
-		retain_tour_brief_baselines(fresh, description, "PR17");
-		expect(!tour_brief_in_comment(fresh) && tour_brief_in_description(fresh), "a new tour's brief is in the description only");
-		auto revised    = fresh;
-		revised.Problem = "Crash on resume.";
-		const auto plan = plan_tour_update(revised, { });
-		expect(plan && plan->Edits.empty() && plan->Index == fresh.IndexBaseline->Raw, "a brief change leaves the route comment alone");
-		const auto patched = propose_tour_description(revised, description);
-		expect(patched && patched->starts_with("[Review tour](") && patched->contains("## Problem\nCrash on resume.\n") && patched->ends_with("Template.\n"), "the brief change goes to the description in place");
-		auto remote = fresh;
-		auto edited = description;
-		edited.replace(edited.find("Snapshot."), 9, "Website snapshot.");
-		remote.Solution = "Website snapshot.";
-		retain_tour_brief_baselines(remote, edited, "PR17");
-		const auto merged = reconcile_tour(revised, remote);
-		expect(merged.Conflicts.empty() && !merged.RemoteStale && merged.Problem == "Crash on resume." && merged.Solution == "Website snapshot.", "a website edit to a new tour's description reconciles");
-
-		// A cold import holds the exact sections: unchanged writes nothing, a
-		// revision keeps the section's blank lines.
-		auto       cold       = fresh;
-		const auto problemAt  = description.find("Crash.");
-		const auto solutionAt = description.find("Snapshot.");
-		cold.Problem          = "Crash.\n\n";
-		cold.Solution         = description.substr(solutionAt);
-		cold.ProblemBaseline  = tour_field_baseline{ .Raw = description, .RemoteEntity = "PR17", .SourceSpan = std::pair{ problemAt, problemAt + 8 } };
-		cold.SolutionBaseline = tour_field_baseline{ .Raw = description, .RemoteEntity = "PR17", .SourceSpan = std::pair{ solutionAt, description.size() } };
-		expect(propose_tour_description(cold, description) == std::optional{ description }, "an unchanged cold import proposes no description edit");
-		cold.Problem         = "Crash on resume.";
-		const auto coldPatch = propose_tour_description(cold, description);
-		expect(coldPatch && coldPatch->contains("## Problem\nCrash on resume.\n\n## Solution\n"), "a cold-imported revision keeps the section's framing");
-
-		// An old tour: the brief is in the comment and the description untouched.
-		auto old               = tour;
-		old.IndexBaseline->Raw = "## Problem\n\nCrash.\n\n## Solution\n\nSnapshot.\n\n" + old.IndexBaseline->Raw;
-		retain_tour_brief_baselines(old, old.IndexBaseline->Raw, "review9");
-		expect(tour_brief_in_comment(old) && !tour_brief_in_description(old), "an old tour's brief is in its comment only");
-		auto oldRevised    = old;
-		oldRevised.Problem = "Crash on resume.";
-		const auto oldPlan = plan_tour_update(oldRevised, { });
-		expect(oldPlan && oldPlan->Edits.size() == 1 && oldPlan->Edits.front().Remote == *old.Remote && oldPlan->Index.contains("## Problem\n\nCrash on resume.\n") && oldPlan->Index.contains("Snapshot."), "an old tour's brief is updated in its comment");
-		auto oldRemote = old;
-		auto oldRaw    = old.IndexBaseline->Raw;
-		oldRaw.replace(oldRaw.find("Snapshot."), 9, "Website snapshot.");
-		oldRemote.IndexBaseline->Raw = oldRaw;
-		retain_tour_brief_baselines(oldRemote, oldRaw, "review9");
-		const auto oldMerged = reconcile_tour(oldRevised, oldRemote);
-		expect(oldMerged.Conflicts.empty() && !oldMerged.RemoteStale && oldMerged.Problem == "Crash on resume." && oldMerged.Solution.contains("Website snapshot."), "a website edit to an old tour's comment reconciles");
-
-		// A description observation never stands in for a comment baseline.
-		auto crossed                          = old;
-		crossed.ProblemBaseline->RemoteEntity = "PR17";
-		auto crossedRemote                    = oldRemote;
-		crossedRemote.ProblemBaseline         = *old.ProblemBaseline;
-		expect(reconcile_tour(crossed, crossedRemote).RemoteStale, "a brief observed in another place than it was published is not merged");
-	}
 	void reconciliation()
 	{
-		auto initial                   = bpr::tests::review_tour_fixture();
-		initial.Problem                = "New problem";
-		initial.Solution               = "New solution";
-		const std::string templateBody = "# Team template\r\n- [ ] Keep exact\r\n";
-		const auto        inserted     = propose_tour_description(initial, templateBody);
-		expect(inserted && inserted->ends_with(templateBody) && inserted->starts_with("## Problem\r\n"), "first brief inserts before unstructured template without losing bytes");
-		const std::string structured    = "Prefix\r\n\r\n## Problem\r\nOld problem\r\n\r\n## Solution\r\nOld solution\r\n\r\n## Testing\r\nKEEP\r\n";
-		const auto        mappedInitial = propose_tour_description(initial, structured);
-		expect(mappedInitial && mappedInitial->starts_with("Prefix\r\n\r\n") && mappedInitial->ends_with("## Testing\r\nKEEP\r\n") && !mappedInitial->contains("Old problem"), "first publication maps existing fields and preserves unrelated sections");
-		expect(!propose_tour_description(initial, "## Problem\nFirst\n## Problem\nSecond\n## Solution\nText\n"), "ambiguous first brief requires mapping rather than whole-body replacement");
-		expect(!propose_tour_description(initial, "## Problem\nOnly one mapped field\n"), "partial first brief cannot replace an unmapped description");
 		expect(merge_tour_text("α left / right", "α LEFT / right", "α left / RIGHT") == std::optional<std::string>{ "α LEFT / RIGHT" }, "nonoverlapping UTF-8 edits merge");
 		expect(!merge_tour_text("same", "local", "remote"), "overlap preserves explicit conflict");
-		auto base                     = published();
-		base.Problem                  = "old problem";
-		base.Solution                 = "old solution";
-		const std::string description = "Template α\r\n\r\n## Problem\r\n\r\nold problem\r\n\r\n## Solution\r\n\r\nold solution\r\n\r\n## Tests\r\n\r\nKEEP EXACT\r\n";
-		retain_tour_brief_baselines(base, description, "PR17");
-		auto remote    = base;
-		remote.Problem = "website problem";
-		auto raw       = description;
-		raw.replace(raw.find("old problem"), 11, "website problem");
-		retain_tour_brief_baselines(remote, raw, "PR17");
-		auto local     = base;
-		local.Solution = "local solution";
-		auto merged    = reconcile_tour(local, remote);
-		expect(merged.Conflicts.empty() && !merged.RemoteStale && merged.Problem == "website problem" && merged.Solution == "local solution", "remote truth merges distinct brief fields");
-		const auto proposed = propose_tour_description(merged, raw);
-		expect(proposed && proposed->starts_with("Template α\r\n") && proposed->ends_with("## Tests\r\n\r\nKEEP EXACT\r\n") && proposed->contains("\r\nlocal solution\r\n\r\n"), "narrow description replacement preserves unrelated template and CRLF framing");
-		local.Problem = "local problem";
-		merged        = reconcile_tour(local, remote);
-		expect(merged.Conflicts.size() == 1 && merged.Conflicts.front().Baseline == "old problem" && merged.Problem == "local problem" && !plan_tour_update(merged, { }), "overlap retains B/L/R and refuses publication");
-		auto resolved = resolve_tour_conflict(merged, 0, false);
-		expect(resolved && resolved->Conflicts.empty() && resolved->Problem == "local problem" && resolved->ProblemBaseline->DraftText == "website problem", "explicit local choice keeps fresh remote baseline");
-		resolved = resolve_tour_conflict(merged, 0, true);
-		expect(resolved && resolved->Problem == "website problem", "explicit website choice adopts remote");
-		auto drift = remote;
-		drift.ProblemBaseline.reset();
-		merged = reconcile_tour(local, drift);
-		expect(merged.RemoteStale && merged.Problem == local.Problem, "same-position heading change cannot authorize an obsolete source span");
-		remote          = base;
-		remote.ReadOnly = true;
+		auto base           = published();
+		auto local          = base;
+		local.Stops[0].Body = "local explanation";
+		auto remote         = base;
+		remote.ReadOnly     = true;
 		remote.Stops.clear();
-		merged = reconcile_tour(local, remote);
-		expect(merged.RemoteStale && merged.Stops == local.Stops && merged.Problem == local.Problem, "partial read never deletes or replaces local work");
+		auto merged = reconcile_tour(local, remote);
+		expect(merged.RemoteStale && merged.Stops == local.Stops, "partial read never deletes or replaces local work");
+		std::optional<review_tour> resolved;
 		remote               = base;
 		remote.Owner.Account = github_account_id{ 99 };
 		expect(reconcile_tour(local, remote) == local, "foreign account observation ignored");
@@ -354,7 +246,6 @@ int main()
 	legacy_stop_heading();
 	website_deltas();
 	reconciliation();
-	brief_in_one_place();
 	auto draft = published();
 	auto plan  = plan_tour_update(draft, { });
 	expect(plan && plan->Edits.empty(), "equal body route is zero writes");

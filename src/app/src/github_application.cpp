@@ -1,12 +1,15 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/application/review_mutation_diagnostics.hpp"
+#include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/author_mode.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_mutation_lifecycle.hpp"
+#include "bpr/core/description_draft.hpp"
 #include "bpr/core/description_edit.hpp"
 #include "bpr/core/draft_state.hpp"
 #include "bpr/core/review_role.hpp"
 #include "bpr/core/reviewer_request.hpp"
+#include "bpr/qt/author_description_editor.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "github_application/profile_hosts.hpp"
 #include "github_application/profile_runtime.hpp"
@@ -514,8 +517,99 @@ namespace bpr::app {
 			return;
 		}
 		const auto [author, viewer] = description_edit_logins();
-		Window->overview_page()->set_description_editable(core::description_edit_offered(author, viewer) && ReviewMutationHost != nullptr
-														  && ReviewMutationHost->capabilities().EditsDescription);
+		const auto editable         = core::description_edit_offered(author, viewer) && ReviewMutationHost != nullptr && ReviewMutationHost->capabilities().EditsDescription;
+		Window->overview_page()->set_description_editable(editable);
+		// [[BPR-2280]]. And in Author, beside [[BPR-2281]]'s Draft Description.
+		Window->set_author_description_editable(editable);
+		if (auto* const editor = Window->author_description(); editor != nullptr) {
+			const auto ready = DescriptionDraft != nullptr && DescriptionDraft->available();
+			editor->set_draft_offer(ready, ready ? QString{ } : QStringLiteral("No agent can draft here. Set one up in the Agent tab."));
+		}
+	}
+
+	/// [[BPR-2281]] (owner, 2026-11-19: "it works like Draft Tour, it's one of
+	/// those system editable prompts"). One fresh, tool-free run of the
+	/// window's agent with the Description writing system prompt; the pull
+	/// request's title, description and change are its message. The draft
+	/// lands in Author's editor; nothing is sent until Save.
+	void github_application::implementation::request_description_draft()
+	{
+		auto* const editor = Window != nullptr ? Window->author_description() : nullptr;
+		if (Closing || editor == nullptr || DescriptionDraft == nullptr) {
+			return;
+		}
+		const auto* const snapshot = WindowRead && WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
+		const auto        profile  = writing_agent();
+		if (snapshot == nullptr || !Profile->WorkbenchPreferences || !Profile->WorkbenchPreferences->accepted()) {
+			DescriptionDraft->refuse("The pull request is still being read. Try again once it shows.");
+			return;
+		}
+		const auto& prefs = Profile->WorkbenchPreferences->accepted();
+		if (!profile || !writes_tool_free(*profile)) {
+			DescriptionDraft->refuse("Choose an agent that speaks Claude Code's stream JSON with the agent picker in the window's footer, or write it yourself.");
+			return;
+		}
+		auto agent = application::description_draft_agent{
+			.Agent        = "profile-" + std::to_string(profile->value()),
+			.AgentName    = agent_display_name(*profile).toStdString(),
+			.Profile      = profile->value(),
+			.Instructions = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_description) },
+			.WritingStyle = application::writing_style_for(prefs->WritingHooks, true),
+		};
+		if (AgentSetup) {
+			if (const auto* const entry = core::entry_of_profile(AgentSetup->projection().Preferences.Agents, *profile); entry != nullptr) {
+				agent.Delivery = entry->Instructions;
+			}
+		}
+		auto material = core::description_draft_material{ .Title = snapshot->PullRequest.Title, .Body = snapshot->PullRequest.Body, .Files = { } };
+		for (const auto& file : snapshot->Files) {
+			const auto change = file.Change == application::github_file_change::added ? "added"
+				: file.Change == application::github_file_change::removed             ? "removed"
+				: file.Change == application::github_file_change::renamed             ? "renamed"
+																					  : "modified";
+			material.Files.push_back({ .Path = file.Path, .Change = change, .Patch = file.Patch });
+		}
+		if (!DescriptionDraft->draft(std::move(agent), material)) {
+			DescriptionDraft->refuse("A draft is already running.");
+		}
+	}
+
+	void github_application::implementation::present_description_draft(const application::description_draft_projection& aProjection)
+	{
+		auto* const editor = Window != nullptr ? Window->author_description() : nullptr;
+		if (Closing || editor == nullptr) {
+			return;
+		}
+		const auto profile = writing_agent();
+		editor->set_drafting(aProjection.Running, profile ? agent_display_name(*profile) : QString{ });
+		if (aProjection.Running) {
+			return;
+		}
+		if (aProjection.DraftRevision != DescriptionDraftShown && aProjection.Draft) {
+			DescriptionDraftShown = aProjection.DraftRevision;
+			if (!editor->fill_draft(QString::fromStdString(*aProjection.Draft))) {
+				editor->show_draft_status(QStringLiteral("The draft is ready, but the editor cannot take it now. Try again once it has saved."));
+			}
+			return;
+		}
+		if (aProjection.Stopped) {
+			editor->show_draft_status(QStringLiteral("Drafting stopped. The editor is as it was."));
+		} else if (!aProjection.Failure.empty()) {
+			editor->show_draft_status(QString::fromStdString(aProjection.Failure));
+		}
+	}
+
+	/// [[BPR-2280]]. The editor a save came from says what came of it:
+	/// Overview's or Author's.
+	void github_application::implementation::present_description_status(const QString& aText, const bool aSaving)
+	{
+		if (DescriptionEditFrom == description_editor::author) {
+			if (auto* const editor = Window->author_description(); editor != nullptr) {
+				editor->present_status(aText, aSaving);
+			}
+			return;
+		}
+		Window->overview_page()->present_description_status(aText, aSaving);
 	}
 
 	/// [[BPR-1774]]. Save in the description editor: the core decides on
@@ -523,28 +617,38 @@ namespace bpr::app {
 	/// writes once under a one-shot grant after GitHub, asked first, still
 	/// has the original. Nothing is sent before Save, and a refusal is said
 	/// beside the editor.
-	void github_application::implementation::save_description(const qt::overview_description_save& aSave)
+	void github_application::implementation::save_description(const qt::overview_description_save& aSave, const description_editor aFrom)
 	{
 		auto* const page = Window != nullptr ? Window->overview_page() : nullptr;
 		if (Closing || page == nullptr) {
 			return;
 		}
+		// A save already waiting keeps its editor; its answer goes there.
+		if (PendingDescriptionEdit.has_value()) {
+			if (aFrom == description_editor::author && Window->author_description() != nullptr) {
+				Window->author_description()->present_status(QStringLiteral("Waiting for GitHub to answer the last save."), DescriptionEditFrom == description_editor::author);
+			} else if (aFrom == description_editor::overview) {
+				page->present_description_status(QStringLiteral("Waiting for GitHub to answer the last save."), DescriptionEditFrom == description_editor::overview);
+			}
+			return;
+		}
+		DescriptionEditFrom = aFrom;
 		++DescriptionEditGestures;
 		const auto [author, viewer] = description_edit_logins();
 		const auto refusal          = core::decide_description_edit({ .Author = author, .Viewer = viewer, .Original = aSave.Original, .Edited = aSave.Body });
 		switch (refusal) {
 		case core::description_edit_refusal::not_author:
 			++DescriptionEditRefusals;
-			page->present_description_status(QStringLiteral("Only the pull request's author can edit its description here."));
+			present_description_status(QStringLiteral("Only the pull request's author can edit its description here."));
 			return;
 		case core::description_edit_refusal::unchanged:
 			++DescriptionEditRefusals;
-			page->present_description_status(QStringLiteral("Nothing has changed, so there is nothing to save."));
+			present_description_status(QStringLiteral("Nothing has changed, so there is nothing to save."));
 			return;
 		case core::description_edit_refusal::too_long:
 			++DescriptionEditRefusals;
-			page->present_description_status(QStringLiteral("GitHub keeps at most 65,536 characters; this description has %1.")
-												 .arg(QLocale{ }.toString(static_cast<qulonglong>(core::description_characters(aSave.Body)))));
+			present_description_status(QStringLiteral("GitHub keeps at most 65,536 characters; this description has %1.")
+										   .arg(QLocale{ }.toString(static_cast<qulonglong>(core::description_characters(aSave.Body)))));
 			return;
 		case core::description_edit_refusal::not_permitted:
 		case core::description_edit_refusal::conflict:
@@ -553,11 +657,7 @@ namespace bpr::app {
 		}
 		if (ReviewMutationHost == nullptr || !ReviewMutationHost->capabilities().EditsDescription) {
 			++DescriptionEditRefusals;
-			page->present_description_status(QStringLiteral("This connection cannot edit the description."));
-			return;
-		}
-		if (PendingDescriptionEdit.has_value()) {
-			page->present_description_status(QStringLiteral("Waiting for GitHub to answer the last save."), true);
+			present_description_status(QStringLiteral("This connection cannot edit the description."));
 			return;
 		}
 		auto request = application::review_description_publication_request{ .Original = aSave.Original, .Body = aSave.Body };
@@ -570,7 +670,7 @@ namespace bpr::app {
 				return application::detail::review_mutation_user_authority_issuer::issue_description(
 					aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
 			});
-		page->present_description_status(QStringLiteral("Saving the description to GitHub…"), true);
+		present_description_status(QStringLiteral("Saving the description to GitHub…"), true);
 		PendingDescriptionEdit = ReviewMutationHost->edit_description(std::move(request), std::move(grant));
 	}
 
@@ -610,19 +710,27 @@ namespace bpr::app {
 							.arg(QString::fromUtf8(application::name(aTerminal.Result.error())));
 				break;
 			}
-			page->present_description_status(words);
+			present_description_status(words);
 			return;
 		}
 		if (aTerminal.Result->Conflict) {
 			// Never overwritten silently: the editor says so, keeps the typed
 			// text, and offers GitHub's newer text to go on from.
 			++DescriptionEditConflicts;
-			page->present_description_status(QStringLiteral("Someone changed the description on GitHub since you began. Nothing was saved."));
-			page->offer_newer_description(aTerminal.Result->Body);
+			present_description_status(QStringLiteral("Someone changed the description on GitHub since you began. Nothing was saved; reload it to edit from GitHub's text."));
+			if (DescriptionEditFrom == description_editor::author) {
+				Window->author_description()->offer_newer(aTerminal.Result->Body);
+			} else {
+				page->offer_newer_description(aTerminal.Result->Body);
+			}
 			return;
 		}
 		++DescriptionEditCompletions;
-		page->close_description_editor();
+		if (DescriptionEditFrom == description_editor::author) {
+			Window->author_description()->close_editor();
+		} else {
+			page->close_description_editor();
+		}
 		// The description shows GitHub's answer the way every other fact
 		// comes back: the next read.
 		if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {

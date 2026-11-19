@@ -694,4 +694,45 @@ namespace bpr::core {
 			.Base       = state.Version == theme_document_version ? state.Base : inferred_base(state.Palette),
 		};
 	}
+
+	auto theme_entries(const appearance_palette& aPalette) -> std::vector<theme_entry>
+	{
+		auto entries = std::vector<theme_entry>{ };
+		entries.reserve(appearance_role_count);
+		for (std::size_t index = 0U; index < appearance_role_count; ++index) {
+			auto color = std::string{ };
+			append_color(color, aPalette[index]);
+			entries.push_back(theme_entry{ .Role = std::string{ stable_name(role_at(index)) }, .Color = std::move(color) });
+		}
+		return entries;
+	}
+
+	auto import_theme_entries(const std::string_view aBase, const std::span<const theme_entry> aEntries) -> theme_import_result
+	{
+		// Laid out as the version-2 document they are, so one reader holds
+		// every rule: a role or value with a space or a line break in it is a
+		// malformed line, not a second entry.
+		auto document = std::string{ theme_document_signature };
+		document.push_back(' ');
+		append_decimal(document, theme_document_version);
+		document.push_back('\n');
+		document.append(theme_document_base_key);
+		document.push_back(' ');
+		document.append(aBase);
+		document.push_back('\n');
+		for (const auto& entry : aEntries) {
+			if (document.size() > theme_document_byte_limit) {
+				break;
+			}
+			document.append(entry.Role);
+			document.push_back(' ');
+			document.append(entry.Color);
+			document.push_back('\n');
+		}
+		auto result = import_theme(document);
+		for (auto& rejection : result.Rejections) {
+			rejection.Line = rejection.Line > 1U ? rejection.Line - 1U : 0U;
+		}
+		return result;
+	}
 } // namespace bpr::core

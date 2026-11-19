@@ -1051,23 +1051,6 @@ namespace {
 		recorded.clear();
 
 		offer(QColor{ 0x11, 0x22, 0x33 });
-		panel.request_theme_import(QStringLiteral("/fixture/replacement.bprtheme"));
-		settle();
-		expect(
-			recorded.count() == 1U
-				&& recorded.last<application::preview_appearance_palette_intent>()
-					== nullptr,
-			"import replacement invalidates a pending manual candidate");
-		recorded.clear();
-
-		offer(QColor{ 0x44, 0x55, 0x66 });
-		panel.preview_import(
-			qt::builtin_appearance_palette(core::appearance_variant::light));
-		settle();
-		expect(
-			recorded.count() == 0U,
-			"an imported preview supersedes a pending candidate");
-		offer(QColor{ 0x11, 0x22, 0x33 });
 		panel.adopt(legal_settings());
 		settle();
 		expect(
@@ -1086,56 +1069,26 @@ namespace {
 			"destroying the widget discards deferred delivery");
 	}
 
-	/// \brief An imported theme is previewed into the theme on screen alone.
-	void test_an_imported_theme_previews_into_the_theme_on_screen()
+	/// \brief [[BPR-2283]]. Import… is Import Profile Settings…; Export…
+	/// offers the theme on screen as a .bprsettings file.
+	void test_import_opens_profile_settings_and_export_names_the_theme()
 	{
-		auto       recorded = recorder{ };
-		auto       panel    = qt::appearance_settings_panel{ recorded.sink() };
-		auto       adopted  = legal_settings();
-		const auto resolved
-			= qt::builtin_appearance_palette(core::appearance_variant::dark);
+		auto recorded = recorder{ };
+		auto panel    = qt::appearance_settings_panel{ recorded.sink() };
 		panel.set_resolved_variant(core::appearance_variant::dark);
-		panel.adopt(adopted, resolved);
+		panel.adopt(legal_settings(), qt::builtin_appearance_palette(core::appearance_variant::dark));
 		recorded.clear();
-
-		panel.request_theme_import(QStringLiteral("/fixture/theme.bprtheme"));
-		const auto* const import
-			= recorded.last<application::import_appearance_theme_intent>();
-		expect(
-			import != nullptr && import->Path == "/fixture/theme.bprtheme",
-			"Qt dispatches only the selected path and performs no document read");
-
-		auto imported                                      = resolved;
-		imported[core::index_of(role::syntax_macro)].Alpha = 91U;
-		const auto before                                  = recorded.count();
-		panel.preview_import(imported);
-		expect(
-			panel.preview_palette() == std::optional{ imported }
-				&& recorded.count() == before,
-			"a host-validated import is mirrored as preview without control echo");
-		expect(
-			panel.preview_bar() != nullptr
-				&& panel.status_text().contains(QStringLiteral("into Dark only")),
-			"and the bar and the status both name the theme it previews into");
-
-		auto unrelated = adopted;
-		unrelated.Typography.Code.TabWidth += 1U;
-		panel.adopt(unrelated, resolved, std::optional{ imported });
-		expect(
-			panel.preview_palette() == std::optional{ imported }
-				&& panel.preview_bar() != nullptr
-				&& panel.status_text().contains(QStringLiteral("remains unsaved")),
-			"an unrelated host adoption retains the exact active preview, its bar "
-			"and its unsaved reading");
-
-		panel.adopt(unrelated, imported);
-		expect(
-			!panel.preview_palette().has_value()
-				&& panel.preview_bar() == nullptr,
-			"a terminal palette adoption clears the preview and its bar");
+		expect(panel.import_button() != nullptr && panel.import_button()->isHidden(), "with nothing to import into, Import… is not offered");
+		auto asked = 0;
+		panel.set_import_handler([&asked] { ++asked; });
+		expect(!panel.import_button()->isHidden() && panel.import_button()->accessibleName() == QStringLiteral("Import settings"), "Import… is offered once the window can import");
+		panel.import_button()->click();
+		expect(asked == 1 && recorded.count() == 0U && !panel.preview_palette(), "Import… asks for Import Profile Settings and previews nothing itself");
+		expect(panel.theme_file_name() == QStringLiteral("dark.bprsettings"), "Export… offers the theme on screen as a .bprsettings file");
+		panel.set_resolved_variant(core::appearance_variant::high_contrast_dark);
+		expect(panel.theme_file_name() == QStringLiteral("high-contrast-dark.bprsettings"), "a theme's name becomes its file's");
 	}
 
-	/// \brief Each card's header Reset must dispatch its existing scope.
 	void test_each_card_resets_its_own_scope()
 	{
 		auto intents = recorder{ };
@@ -1322,21 +1275,7 @@ namespace {
 
 	void test_theme_and_contrast_refusals_remain_typed_and_visible()
 	{
-		auto       panel      = qt::appearance_settings_panel{ };
-		const auto structural = std::array{
-			core::theme_import_rejection{
-				.Reason  = core::theme_import_reason::external_reference,
-				.Subject = "https://example.invalid/theme",
-				.Line    = 4U,
-			},
-		};
-		panel.report(structural);
-		expect(
-			panel.status_text().contains(QStringLiteral("Line 4"))
-				&& panel.status_text().contains(
-					QStringLiteral("external references")),
-			"the structural refusal preserves its typed line and reason");
-
+		auto       panel    = qt::appearance_settings_panel{ };
 		const auto contrast = std::array{
 			application::appearance_contrast_rejection{
 				.Variant = core::appearance_variant::high_contrast_dark,
@@ -1671,7 +1610,7 @@ auto main(int argc, char** argv) -> int
 	test_the_colours_card_names_the_theme_on_screen();
 	test_the_preview_bar_exists_only_while_previewing();
 	test_preview_bursts_and_invalidation();
-	test_an_imported_theme_previews_into_the_theme_on_screen();
+	test_import_opens_profile_settings_and_export_names_the_theme();
 	test_each_card_resets_its_own_scope();
 	test_the_retired_controls_are_absent();
 	test_the_page_does_not_demand_width();

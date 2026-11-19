@@ -1,5 +1,7 @@
 #include "../support/insights_observer.hpp"
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/application/publication_lease.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
 #include "bpr/application/review_submission_application_host.hpp"
 #include "review_submission_execution_authority.hpp"
@@ -7,6 +9,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <map>
+#include <ranges>
 #include <stdexcept>
 #include <type_traits>
 
@@ -177,6 +180,17 @@ namespace {
 			Started.push_back(aContext);
 		}
 	};
+	/// [[BPR-2263]]. Every event the host records.
+	struct recording_log final : application::diagnostic_log_port
+	{
+		std::vector<application::diagnostic_event> Events;
+		auto                                       record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			Events.push_back(aEvent);
+			return status();
+		}
+		auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+	};
 	struct fixture
 	{
 		std::shared_ptr<provider_state>                 State = std::make_shared<provider_state>();
@@ -186,6 +200,7 @@ namespace {
 		core::application_session_id                    Session{ 1U };
 		core::request_generation                        Generation{ 2U };
 		std::shared_ptr<tests::insights_observer>       Insights = std::make_shared<tests::insights_observer>();
+		std::shared_ptr<recording_log>                  Log      = std::make_shared<recording_log>();
 		application::review_submission_application_host Host{
 			[state = State]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> { if(state->FactoryFailure){return std::unexpected(*state->FactoryFailure);} return std::make_unique<provider>(state); },
 			*request().LiveBinding,
@@ -194,7 +209,8 @@ namespace {
 			Effects,
 			Decisions,
 			Projection,
-			{ Insights, { } }
+			{ Insights, { } },
+			Log
 		};
 		auto grant(const application::review_submission_request& aRequest = request()) -> application::review_submission_execution_grant
 		{
@@ -267,6 +283,90 @@ namespace {
 		f.Decisions.drain();
 		expect(f.Projection.Started.size() == 1U && f.Projection.Started.front() == *sending && f.State->Submitted == 1U, "its start is told before its terminal");
 		expect(f.outcome().Publication == application::review_submission_publication::published, "and it publishes");
+	}
+	/// [[BPR-2263]]. Each refusal before the provider runs answers not
+	/// published with its own reason, and is logged as its ending; a
+	/// renewed factory builds the next provider.
+	void test_pre_send_refusals()
+	{
+		using reason      = core::review_submission_refusal_reason;
+		const auto ending = [](const fixture& aFixture) -> std::optional<core::review_submission_ending_diagnosis> {
+			for (const auto& event : aFixture.Log->Events | std::views::reverse) {
+				if (event.ReviewEnding) {
+					return event.ReviewEnding;
+				}
+			}
+			return std::nullopt;
+		};
+		{
+			fixture f;
+			f.State->FactoryFailure = application::review_mutation_failure::unavailable;
+			expect(f.Host.submit(request(), f.grant()).has_value(), "a submission whose provider cannot be built is accepted");
+			f.drain();
+			const auto& refused = f.outcome();
+			expect(refused.Publication == application::review_submission_publication::definitely_not_published && refused.Failure == application::review_mutation_failure::unavailable
+					   && refused.Refused == core::review_submission_refusal{ .Check = core::review_submission_refusal_check::host, .Reason = reason::provider_unavailable },
+				   "it is not published, refused by the host because the provider is unavailable");
+			const auto logged = ending(f);
+			expect(logged && logged->Ending == core::review_submission_ending::not_sent && logged->Stop == core::review_submission_stop::unavailable && logged->Cause == refused.Refused, "and the host logs that ending with its reason");
+			// The same binding over a renewed connection: the next provider
+			// is built by the new factory.
+			auto renewed = std::make_shared<bool>(false);
+			f.Host.renew([state = f.State, renewed]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> { *renewed = true; return std::make_unique<provider>(state); });
+			expect(f.Host.submit(request(), f.grant()).has_value(), "the same request is accepted again under a new grant");
+			f.drain();
+			expect(*renewed && f.outcome().Publication == application::review_submission_publication::published && !f.outcome().Refused, "the renewed factory builds the provider that publishes it");
+		}
+		{
+			// [[BPR-2265]]. A provider the factory cannot build is logged for
+			// every operation, not only a submission.
+			fixture f;
+			f.State->FactoryFailure = application::review_mutation_failure::unavailable;
+			expect(f.Host.discover().has_value(), "a discovery is accepted");
+			f.drain();
+			const auto logged = ending(f);
+			expect(logged && logged->Run == core::review_submission_run::check && logged->Cause && logged->Cause->Reason == reason::provider_unavailable, "a discovery whose provider cannot be built is logged with its reason");
+		}
+		{
+			fixture    f;
+			auto       grant = f.grant();
+			const auto sent  = f.Host.submit(request(), grant);
+			expect(sent.has_value(), "a submission is accepted");
+			grant->revoke();
+			f.drain();
+			expect(f.outcome().Refused && f.outcome().Refused->Reason == reason::grant_inactive && f.State->Created == 0U, "a grant no longer live is its own reason, before any provider");
+		}
+		{
+			fixture    f;
+			const auto sent = f.Host.submit(request(), f.grant());
+			expect(sent.has_value(), "a submission is accepted");
+			f.Host.cancel(*sent);
+			f.drain();
+			expect(f.outcome().Refused && f.outcome().Refused->Reason == reason::request_stopped && ending(f) && ending(f)->Stop == core::review_submission_stop::cancelled, "a stopped request is its own reason, and logged");
+		}
+	}
+	/// [[BPR-2265]]. A factory reads the window's lease at each call: after a
+	/// reread revokes and renews it, the next call takes the new one; with no
+	/// active lease, or once the window is gone, it reads none.
+	void test_publication_lease()
+	{
+		auto       window    = std::make_shared<application::publication_lease>();
+		const auto reference = std::weak_ptr<const application::publication_lease>{ window };
+		expect(!application::publication_lease::read(reference), "a window with no lease gives none");
+		const auto first = std::make_shared<application::review_mutation_transport_lease>();
+		window->hold(first);
+		expect(application::publication_lease::read(reference) == first, "a factory reads the lease held now");
+		first->revoke();
+		expect(!application::publication_lease::read(reference), "a revoked lease is never read");
+		const auto renewed = std::make_shared<application::review_mutation_transport_lease>();
+		window->hold(renewed);
+		expect(application::publication_lease::read(reference) == renewed, "after a reread renews it, the next call takes the new lease");
+		const auto again = std::make_shared<application::review_mutation_transport_lease>();
+		renewed->revoke();
+		window->hold(again);
+		expect(application::publication_lease::read(reference) == again, "and after a second reread, the newest");
+		window.reset();
+		expect(!application::publication_lease::read(reference), "a factory outliving its window reads no lease");
 	}
 	void test_insights_confirmed_publication_only()
 	{
@@ -558,6 +658,8 @@ auto main() -> int
 	static_assert(!std::is_default_constructible_v<bpr::application::review_submission_execution_authority>);
 	test_exact_destination_observations();
 	test_insights_confirmed_publication_only();
+	test_pre_send_refusals();
+	test_publication_lease();
 	test_staged_authority();
 	test_exact_authority_and_async_delivery();
 	test_recovery_and_bad_results();

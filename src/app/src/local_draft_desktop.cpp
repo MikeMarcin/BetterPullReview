@@ -329,7 +329,6 @@ namespace bpr::app {
 					return QStringLiteral("%1 · lines %2–%3 · candidate %4").arg(QString::fromStdString(source.Path)).arg(source.FirstLine).arg(source.LastLine).arg(source.Candidate);
 				},
 		});
-		editor->set_description_publication_default(core::update_description_by_default(true));
 		editor->present(shown);
 		editor->present_tour_session(view.Session, view.Proposal);
 		editor->set_tour_running(std::nullopt, false, projection.Asking);
@@ -574,15 +573,6 @@ namespace bpr::app {
 		}
 		for (auto& edit : core::translate_local_tour_command(*View->projection().Draft, aCommand)) {
 			switch (edit.Kind) {
-			case core::local_tour_edit_kind::brief:
-				// The Problem and Solution as typed, each kept until sent; the
-				// one waiting edit sends both, the other as the draft has it.
-				(aCommand.Kind == core::tour_command_kind::problem ? TypedProblem : TypedSolution) = aCommand.Text;
-				queue_tour_edit("brief", [this] {
-					const auto& tour = Host->projection().Draft->Preparation.Tour;
-					Host->save_brief(std::exchange(TypedProblem, std::nullopt).value_or(tour.Problem), std::exchange(TypedSolution, std::nullopt).value_or(tour.Solution));
-				});
-				break;
 			case core::local_tour_edit_kind::stop_text:
 				queue_tour_edit("stop:" + std::to_string(edit.Stop), [this, edit] { Host->edit_stop(edit.Stop, edit.Title, edit.Text); });
 				break;
@@ -696,8 +686,7 @@ namespace bpr::app {
 		}
 		auto       question = application::local_draft_question{ .Thread = core::local_thread_of(aAsk.Thread), .Subject = core::local_subject_of(aAsk.Thread), .Stop = aAsk.Thread.Kind == core::tour_thread_kind::stop ? aAsk.Thread.Stop.value() : 0U };
 		auto       text     = aAsk.Question.toStdString();
-		const auto part     = aAsk.Thread.Kind == core::tour_thread_kind::problem ? std::string{ "Problem" } : aAsk.Thread.Kind == core::tour_thread_kind::solution ? std::string{ "Solution" }
-																																									: std::string{ "stop" };
+		const auto part     = aAsk.Thread.Kind == core::tour_thread_kind::stop ? std::string{ "stop" } : std::string{ "tour" };
 		if (aAsk.Fresh) {
 			// Enhance: a rewrite of the part, proposed for the author to accept.
 			text = "Rewrite this " + part + " so it reads clearly and accurately. Propose the rewrite; do not change anything else.";
@@ -723,16 +712,13 @@ namespace bpr::app {
 		AskingForWriting = self && Host->projection().Asking;
 	}
 
-	void local_draft_desktop::tour_writing(const core::writing_hook aHook)
+	void local_draft_desktop::tour_writing(const core::writing_hook /*aHook*/)
 	{
 		if (!tour_shown()) {
 			return;
 		}
-		const auto thread = aHook == core::writing_hook::problem ? core::tour_thread{ .Kind = core::tour_thread_kind::problem }
-			: aHook == core::writing_hook::solution              ? core::tour_thread{ .Kind = core::tour_thread_kind::solution }
-																 : core::tour_thread{ };
-		auto       ask    = qt::tour_ask{ .Thread = thread, .Fresh = true };
-		if (auto* const editor = Window.tour_editor(); editor != nullptr && aHook != core::writing_hook::problem && aHook != core::writing_hook::solution && editor->selected_stop() != nullptr) {
+		auto ask = qt::tour_ask{ .Thread = core::tour_thread{ }, .Fresh = true };
+		if (auto* const editor = Window.tour_editor(); editor != nullptr && editor->selected_stop() != nullptr) {
 			ask.Thread = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = editor->selected_stop()->Id };
 		}
 		WritingAsk = true;
@@ -774,13 +760,7 @@ namespace bpr::app {
 		if (!accepted || aText.isNull() || text == item.Text) {
 			return;
 		}
-		if (item.Part == core::tour_proposal_part::problem || item.Part == core::tour_proposal_part::solution) {
-			const auto problem = item.Part == core::tour_proposal_part::problem;
-			queue_tour_edit({ }, [this, problem, text] {
-				const auto& tour = Host->projection().Draft->Preparation.Tour;
-				Host->save_brief(problem ? text : tour.Problem, problem ? tour.Solution : text);
-			});
-		} else if (item.Part == core::tour_proposal_part::stop_text) {
+		if (item.Part == core::tour_proposal_part::stop_text) {
 			queue_tour_edit({ }, [this, stop = item.StopId.value(), title = item.Stop.Title, text] { Host->edit_stop(stop, title, text); });
 		}
 	}

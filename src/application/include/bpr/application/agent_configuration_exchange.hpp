@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_CONFIGURATION_EXCHANGE_HPP
 
 #include "bpr/application/agent_setup_preferences.hpp"
+#include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/prompt_macro_host.hpp"
 #include "bpr/application/review_skill_host.hpp"
@@ -71,11 +72,12 @@ namespace bpr::application {
 	/// [[BPR-2198]]: Identity and Repositories are names the composition
 	/// read (`core::portable_identity_of`, `core::portable_repositories_of`);
 	/// no credential is ever an input.
-	/// RFC-BPR-0125 AC24: `aPack`, when given and holding a prompt, makes the
-	/// file version 2 with that prompt pack; otherwise it is version 1.
+	/// RFC-BPR-0125 AC24: `aPack`, when given and holding a prompt, is the
+	/// file's prompt pack. [[BPR-2283]]: `aTheme`, when given, its Theme.
 	[[nodiscard]] auto export_agent_configuration(const agent_configuration_snapshot& aSnapshot, std::span<const std::uint32_t> aAgents, std::span<const exported_prompt> aPrompts,
 												  std::string aLabel, std::string aExportedBy, std::span<const std::string> aWorkflows = { }, const core::portable_identity* aIdentity = nullptr,
-												  std::span<const core::portable_repository> aRepositories = { }, const core::prompt_pack_export* aPack = nullptr) -> std::optional<std::string>;
+												  std::span<const core::portable_repository> aRepositories = { }, const core::prompt_pack_export* aPack = nullptr,
+												  const core::portable_theme* aTheme = nullptr) -> std::optional<std::string>;
 
 	/// \brief RFC-BPR-0125 AC24. The snapshot an export of `aPack` records:
 	/// the prompts with their links (and new UUIDs) at one revision on.
@@ -134,6 +136,18 @@ namespace bpr::application {
 		/// repositories, which the composition reads for Identity and
 		/// Repositories.
 		core::profile_facts Here;
+		/// [[BPR-2283]]. The file's Theme as an import would keep it, against
+		/// the theme on screen it would replace; the composition reads both from
+		/// the appearance host. None when the file has no Theme.
+		struct theme_against_here
+		{
+			core::appearance_variant OnScreen = core::appearance_variant::light;
+			core::appearance_palette Here{ };
+			imported_theme           Imported;
+
+			auto operator<=>(const theme_against_here&) const = default;
+		};
+		std::optional<theme_against_here> Theme;
 
 		auto operator<=>(const agent_configuration_preview&) const = default;
 	};

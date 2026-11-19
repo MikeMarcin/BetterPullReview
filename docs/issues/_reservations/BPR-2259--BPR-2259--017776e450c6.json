@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2259"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Enhance signs in through a custom agent's own settings and names that agent on a failed sign-in",
+  "created": "2026-11-18T22:13:08.870771+00:00",
+  "base": "48fa3a5749b4de150dc83c58100eeca724a43a25"
+}

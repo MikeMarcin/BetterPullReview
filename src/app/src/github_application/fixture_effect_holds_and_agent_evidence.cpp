@@ -515,6 +515,29 @@ namespace bpr::app {
 		return implementation->DiffHost->state().Pending.has_value();
 	}
 
+	auto detail::github_application_fixture_access::reread_pull_request(github_application& aApplication) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->WindowRead == nullptr) {
+			return false;
+		}
+		implementation->reread_after_publication();
+		return true;
+	}
+
+	auto detail::github_application_fixture_access::hold_draft_restore(github_application& aApplication, const bool aHold) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return false;
+		}
+		implementation->HoldDraftRestore = aHold;
+		if (!aHold) {
+			implementation->observe_private_review();
+		}
+		return true;
+	}
+
 	auto detail::github_application_fixture_access::reaccept_fixture_revision(
 		github_application& aApplication,
 		const bool          aChangeHead) -> bool

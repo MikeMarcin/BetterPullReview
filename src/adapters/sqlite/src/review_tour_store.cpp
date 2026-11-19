@@ -159,7 +159,10 @@ namespace bpr::adapters::sqlite {
 				}
 			}
 			if (version >= 2) {
-				aCodec.enumeration(aState.Resume.Section);
+				// [[BPR-2274]]. The byte that named the Problem, the Solution or
+				// the stops is kept in the format, written as the stops'.
+				auto section = std::uint8_t{ 2U };
+				aCodec.byte(section);
 				aCodec.id(aState.Resume.Stop);
 			}
 			if (version >= 3) {

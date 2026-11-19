@@ -1813,7 +1813,7 @@ bpr_enable_warnings(
 # [[BPR-2004]], [[BPR-2005]], RFC-BPR-0103. A scripted Claude replaying the
 # installed runtime's own frames for a turn with three background helpers; the
 # second copy ends after its message's first result with two still out.
-foreach(script_mode IN ITEMS complete unfinished attended)
+foreach(script_mode IN ITEMS complete unfinished attended held)
     set(script_target "test_better_pull_review_scripted_claude_helpers_${script_mode}")
     bpr_add_executable("${script_target}" scripted_claude_helpers_main.cpp)
     target_compile_definitions(
@@ -1822,6 +1822,7 @@ foreach(script_mode IN ITEMS complete unfinished attended)
             "BPR_AGENT_TRACE_DIR=\"${PROJECT_SOURCE_DIR}/tests/fixtures/agent/traces\""
             $<$<STREQUAL:${script_mode},unfinished>:BPR_SCRIPT_UNFINISHED=1>
             $<$<STREQUAL:${script_mode},attended>:BPR_SCRIPT_ATTENDED=1>
+            $<$<STREQUAL:${script_mode},held>:BPR_SCRIPT_HELD=1>
     )
     bpr_enable_hardening("${script_target}")
     bpr_enable_warnings("${script_target}")
@@ -1842,6 +1843,23 @@ bpr_add_network_isolated_test(
         test_better_pull_review_agent_chat_composition_public_path
         helpers-unfinished
         $<TARGET_FILE:test_better_pull_review_scripted_claude_helpers_unfinished>
+)
+# [[BPR-2261]]. A turn held after its answer, quit and reopened: it is
+# restored answered, with its report card.
+bpr_add_network_isolated_test(
+    NAME application_agent_chat_held_turn_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND
+        test_better_pull_review_agent_chat_composition_public_path
+        held-turn
+        $<TARGET_FILE:test_better_pull_review_scripted_claude_helpers_held>
+)
+set_tests_properties(
+    application_agent_chat_held_turn_public_path
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment};GITHUB_TOKEN=must-not-cross-agent-boundary"
+        PASS_REGULAR_EXPRESSION "agent-chat-held-turn:pass"
+        TIMEOUT 240
 )
 set_tests_properties(
     application_agent_chat_helpers_public_path
@@ -2904,7 +2922,7 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-theme-customization-root"
-        "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/contrast-safe-theme.bprtheme"
+        "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/contrast-safe-theme.bprsettings"
         # RFC-BPR-0128. The theme predates the three tones, so the import
         # fills them from its base's (Dark's) built-ins.
         "-DBPR_THEME_FILLED_ROLES=report_verdict_open #ec7f6eff,report_verdict_partial #e4c27aff,report_verdict_done #8fcaa0ff"
@@ -2936,7 +2954,7 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-older-theme-root"
-        "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/older-theme.bprtheme"
+        "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/older-theme.bprsettings"
         "-DBPR_THEME_FILLED_ROLES=syntax_namespace #b8d7a3ff,syntax_enum_member #d6a05aff,find_match_background #5c4214ff,find_current_match_background #754d00ff,agent_accent #a3a0ffff,report_verdict_open #ec7f6eff,report_verdict_partial #e4c27aff,report_verdict_done #8fcaa0ff"
         "-DBPR_RUN_BUDGET_MS=${bpr_appearance_theme_budget_ms}"
         -P
@@ -4783,7 +4801,7 @@ target_link_libraries(test_review_tour_publication_public_path PRIVATE BetterPul
 target_compile_definitions(test_review_tour_publication_public_path PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_review_tour_publication_public_path)
 bpr_enable_warnings(test_review_tour_publication_public_path)
-foreach(course native compat stop description conflict unsupported maintenance reconciliation manual repairs mixed file push)
+foreach(course native compat stop conflict unsupported maintenance reconciliation manual repairs mixed file push)
     bpr_add_network_isolated_test(NAME application_review_tour_publication_${course} WINDOWS_UNCONTAINED COMMAND test_review_tour_publication_public_path ${course} "${CMAKE_CURRENT_BINARY_DIR}/review-tour-publication-${course}.png")
     set_tests_properties(application_review_tour_publication_${course} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 90)
 endforeach()
@@ -5630,6 +5648,21 @@ if(APPLE OR UNIX)
     set_tests_properties(application_commit_asks_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "commit-asks:pass")
 endif()
+# [[BPR-2280]], [[BPR-2281]]. Draft Description beside Author's description fills its
+# editor, Save writes once, a stale save is refused.
+bpr_add_executable(test_draft_description_public_path draft_description_public_path.cpp)
+target_link_libraries(test_draft_description_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_draft_description_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_draft_description_public_path)
+bpr_enable_warnings(test_draft_description_public_path)
+add_dependencies(test_draft_description_public_path bpr_fixture_agent)
+if(APPLE OR UNIX)
+    bpr_add_network_isolated_test(NAME application_draft_description_public_path
+        WINDOWS_UNCONTAINED
+        COMMAND test_draft_description_public_path)
+    set_tests_properties(application_draft_description_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "draft-description:pass")
+endif()
 # [[BPR-2153]], RFC-BPR-0126 AC05. Steer through the window on the session
 # queue host: a follow-up steered into the steerable fixture agent's running
 # turn, and a queued message's Steer on an agent that can't be steered.
@@ -5820,3 +5853,16 @@ bpr_enable_warnings(test_prompt_facts_public_path)
 bpr_add_network_isolated_test(NAME application_prompt_facts_public_path WINDOWS_UNCONTAINED COMMAND test_prompt_facts_public_path)
 set_tests_properties(application_prompt_facts_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "prompt-facts:pass")
+
+# [[BPR-2282]]. A file dropped onto the shipped window opens the import
+# dialog preloaded with it; nothing is imported until Import; an unknown file
+# says why in the status bar; two files and a drop over the open dialog open
+# nothing.
+bpr_add_executable(test_window_file_drop_public_path window_file_drop_public_path.cpp)
+target_link_libraries(test_window_file_drop_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_window_file_drop_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_window_file_drop_public_path)
+bpr_enable_warnings(test_window_file_drop_public_path)
+bpr_add_network_isolated_test(NAME application_window_file_drop_public_path WINDOWS_UNCONTAINED COMMAND test_window_file_drop_public_path)
+set_tests_properties(application_window_file_drop_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "window-file-drop-public-path:pass")

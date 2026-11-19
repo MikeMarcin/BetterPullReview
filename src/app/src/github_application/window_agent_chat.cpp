@@ -256,6 +256,10 @@ namespace bpr::app {
 		// comparison loaded makes it now.
 		if (AgentSetupWorkspaceWaiting) {
 			check_agent_workspace();
+		} else if (AgentSetup) {
+			// [[BPR-2261]]. A workspace check that passed for this pull
+			// request's workspace before a restart stands.
+			AgentSetup->restore_workspace_check(application::agent_workspace_key(authority, observedBinding));
 		}
 		refresh_agent_private_context_choices();
 		if (ChatHost != nullptr) {
@@ -832,6 +836,26 @@ namespace bpr::app {
 		};
 		invocation.McpServers   = mcpServers;
 		invocation.Instructions = instructions;
+		// [[BPR-2264]]. A person reads every answer a turn from this window
+		// gives: the Agent tab's answers, reports and suggested comments, the
+		// comment workshop, the returning questions, Explain this file,
+		// Suggest the change and every tour run. Each carries the Writing
+		// style, read now from the profile's saved prompts.
+		{
+			auto hooks = core::writing_hook_settings{ };
+			if (Profile && Profile->WorkbenchPreferences && Profile->WorkbenchPreferences->accepted()) {
+				hooks = Profile->WorkbenchPreferences->accepted()->WritingHooks;
+			}
+			// [[BPR-2270]]. Comment labels rides on every turn that may
+			// write a comment for the reviewer to post: the Agent tab (a
+			// review, a report, a reply, Draft comment on an answer), the
+			// comment workshop and the returning questions. Explain this file
+			// and Suggest the change write none, nor does a tour run.
+			const auto entry          = invocation.Context.EntryPoint;
+			const auto postedComments = !aWritingOnly && entry != core::agent_entry_point::analyze_current_file
+				&& !(entry == core::agent_entry_point::workshop_comment && invocation.Context.WorkshopOperation == std::optional{ core::workshop_operation::suggest_change });
+			invocation.WritingStyle = application::prompt_features_for(hooks, { .HumanAudience = true, .PostedComments = postedComments });
+		}
 		// [[BPR-1900]]. Every tour writing run is the tour session's, never
 		// the Agent tab's: a drafting run in the review's workspace with
 		// read-only tools, or a small rewrite tool-free.

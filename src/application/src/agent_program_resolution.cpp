@@ -1,5 +1,7 @@
 #include "bpr/application/agent_program_resolution.hpp"
 
+#include <algorithm>
+#include <array>
 #include <utility>
 
 namespace bpr::application {
@@ -15,6 +17,13 @@ namespace bpr::application {
 		[[nodiscard]] auto refused(const agent_launch_request& aRequest, std::string aMessage) -> agent_run_result
 		{
 			return { .Session = aRequest.Session, .Outcome = agent_run_outcome::failed_to_start, .StandardError = std::move(aMessage), .Run = aRequest.Run, .Metadata = aRequest.Metadata };
+		}
+
+		/// [[BPR-2259]]. Takes this app's `--settings` pair out of a launch.
+		void drop_writing_settings(std::vector<std::string>& aArguments)
+		{
+			const auto pair = std::ranges::search(aArguments, std::array<std::string_view, 2>{ "--settings", claude_writing_settings });
+			aArguments.erase(pair.begin(), pair.end());
 		}
 	} // namespace
 
@@ -162,6 +171,18 @@ namespace bpr::application {
 		}
 		auto launched       = aRequest;
 		launched.Executable = std::move(program);
+		// [[BPR-2259]] (owner, 2026-11-18: Enhance said Claude isn't signed in
+		// although their custom agent had just drafted the comment). Claude
+		// keeps only the last `--settings` it is given, and a custom agent's
+		// sign-in can ride in its own: in its arguments, which come first, or
+		// in a wrapper that puts its own before the ones it passes on. This
+		// app's writing settings then replaced it, and the run got a 401. A
+		// custom agent's writing and read-only runs keep its own settings, as
+		// its Agent tab runs do; the tool and MCP checks still read Claude's
+		// init frame, and auto-memory stays off through the environment.
+		if (!entry->Preset && launched.Protocol == core::agent_protocol::claude_stream_json) {
+			drop_writing_settings(launched.Arguments);
+		}
 		launched.Arguments.insert(launched.Arguments.begin(), entry->Arguments.begin(), entry->Arguments.end());
 		return Direct.run(launched, aTimeoutMilliseconds, aSink, std::move(aStop));
 	}

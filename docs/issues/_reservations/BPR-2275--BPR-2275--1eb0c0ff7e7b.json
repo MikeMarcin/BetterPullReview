@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2275"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Re-cover tour UI courses on stops after BPR-2274",
+  "created": "2026-11-19T05:45:39.048852+00:00",
+  "base": "cbb425b43a9589866b12dbc6a2de60b78971a7ea"
+}

@@ -32,6 +32,7 @@
 #include <QPushButton>
 #include <QTextEdit>
 
+#include <QAbstractScrollArea>
 #include <QAbstractTextDocumentLayout>
 #include <QContextMenuEvent>
 #include <QEvent>
@@ -50,6 +51,7 @@
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QResizeEvent>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QTextBlock>
@@ -58,6 +60,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 #include <algorithm>
 #include <array>
@@ -66,6 +69,7 @@
 #include <cstdlib>
 #include <optional>
 #include <utility>
+#include <vector>
 
 namespace bpr::qt {
 	namespace {
@@ -425,13 +429,13 @@ namespace bpr::qt {
 					return static_cast<int>(std::ceil(lines * fontMetrics().lineSpacing())) + 2;
 				};
 				auto pixels = measure();
-				if (pixels > reply_maximum && verticalScrollBarPolicy() != Qt::ScrollBarAsNeeded) {
+				if (pixels > Maximum && verticalScrollBarPolicy() != Qt::ScrollBarAsNeeded) {
 					setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-				} else if (pixels <= reply_maximum && verticalScrollBarPolicy() != Qt::ScrollBarAlwaysOff) {
+				} else if (pixels <= Maximum && verticalScrollBarPolicy() != Qt::ScrollBarAlwaysOff) {
 					setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 					pixels = measure();
 				}
-				const auto height = std::clamp(pixels, reply_minimum, reply_maximum);
+				const auto height = std::clamp(pixels, reply_minimum, Maximum);
 				if (height != this->height() || minimumHeight() != height || maximumHeight() != height) {
 					const auto changed = minimumHeight() != height || maximumHeight() != height;
 					setMinimumHeight(0);
@@ -453,8 +457,21 @@ namespace bpr::qt {
 			/// The field's own height changed.
 			std::function<void()> Refit;
 
+			/// \brief [[BPR-2273]]. The tallest the field grows before it
+			/// scrolls: about 60% of the drawer, as the drawer says.
+			void set_maximum(const int aMaximum)
+			{
+				const auto maximum = std::max(reply_minimum, aMaximum);
+				if (Maximum == maximum) {
+					return;
+				}
+				Maximum = maximum;
+				fit();
+			}
+
 		private:
 			bool Fitting = false;
+			int  Maximum = reply_maximum;
 
 		public:
 			/// RFC-BPR-0118. Adds the field's own items to its right-click menu.
@@ -554,14 +571,222 @@ namespace bpr::qt {
 		/// \brief Draws the composer's label chip as the drawer's quiet pill:
 		/// a hairline in the rule colour on a tint of the panel, its mark and
 		/// name in the secondary ink, and the signal colour when it has focus.
+		/// \brief [[BPR-2271]]. A suggestion draft's rows: unwrapped, and
+		/// scrolling sideways by themselves as a post's wide code does (the
+		/// owner: "Suggested changes diffs in the comments drawer should
+		/// scroll like code blocks there do").
+		/// \details A sideways wheel, Shift-wheel or trackpad moves the rows,
+		/// and Left, Right, Home and End do while they have focus; a vertical
+		/// wheel belongs to the drawer. Only rows wider than the box take focus.
+		class suggestion_change_rows final : public QAbstractScrollArea
+		{
+		public:
+			suggestion_change_rows(const open_card_style& aStyle, QWidget* aParent)
+				: QAbstractScrollArea{ aParent }
+				, Style{ aStyle }
+			{
+				setObjectName(QStringLiteral("threadDraftChangeRows"));
+				setAccessibleName(QStringLiteral("Changed lines"));
+				setFrameShape(QFrame::NoFrame);
+				setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+				setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+				setAutoFillBackground(false);
+				viewport()->setAutoFillBackground(false);
+				setFocusPolicy(Qt::NoFocus);
+				horizontalScrollBar()->setSingleStep(std::max(1, 2 * QFontMetrics{ Style.CodeFont }.horizontalAdvance(QLatin1Char{ '0' })));
+			}
+
+			void present(const std::optional<core::suggested_change>& aChange, const bool aInCode)
+			{
+				Change = aChange;
+				InCode = aInCode;
+				Texts.clear();
+				if (Change.has_value() && !Change->unchanged()) {
+					for (const auto* const side : { &Change->Removed, &Change->Added }) {
+						for (const auto& line : *side) {
+							auto text = QString::fromStdString(line);
+							text.replace(QLatin1Char{ '\t' }, QStringLiteral("    "));
+							Texts.push_back(text);
+						}
+					}
+				}
+				refresh_range();
+				viewport()->update();
+			}
+
+			/// \brief The rows' height: one code line each.
+			[[nodiscard]] auto rows_height() const -> int
+			{
+				const auto rows = !Change.has_value() || Change->unchanged() ? 1 : static_cast<int>(Texts.size());
+				return std::max(1, rows) * row_height();
+			}
+
+			/// \brief The room a horizontal scroll bar takes at a box width,
+			/// as a post's reader counts it: its height when the rows are
+			/// wider and it takes room, a little when it lies over them.
+			[[nodiscard]] auto bar_room(const int aWidth) const -> int
+			{
+				if (content_width() <= aWidth) {
+					return 0;
+				}
+				const auto transient = style()->styleHint(QStyle::SH_ScrollBar_Transient, nullptr, horizontalScrollBar()) != 0;
+				return transient ? 4 : horizontalScrollBar()->sizeHint().height();
+			}
+
+			/// \brief The widest row with its sign and margins.
+			[[nodiscard]] auto content_width() const -> int
+			{
+				if (!Change.has_value() || Change->unchanged()) {
+					return 0;
+				}
+				const auto metrics = QFontMetrics{ Style.CodeFont };
+				auto       widest  = 0;
+				for (const auto& text : Texts) {
+					widest = std::max(widest, metrics.horizontalAdvance(text));
+				}
+				return text_left + widest + text_margin;
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				if (!Change.has_value()) {
+					return;
+				}
+				auto        painter = QPainter{ viewport() };
+				const auto& colours = Style.Colours;
+				const auto  width   = viewport()->width();
+				const auto  row     = row_height();
+				auto        y       = 0;
+				if (Change->unchanged()) {
+					const auto caption = scaled(font(), 0.92);
+					painter.setFont(caption);
+					painter.setPen(colours.Faint);
+					painter.drawText(QRect{ 8, y, width - 16, row }, Qt::AlignLeft | Qt::AlignVCenter,
+									 QFontMetrics{ caption }.elidedText(InCode ? QStringLiteral("No change yet. Type it in the code; it shows here.")
+																			   : QStringLiteral("Edit the lines in the block above; the change shows here."),
+																		Qt::ElideRight, std::max(0, width - 16)));
+					return;
+				}
+				// The rows scroll; their fills run the whole row, at least
+				// the box's width.
+				const auto shift = -horizontalScrollBar()->value();
+				const auto span  = std::max(width, content_width());
+				painter.setFont(Style.CodeFont);
+				// Red and green held to the panel, as a diff's own rows are.
+				const auto removedInk = colours.Dark ? QColor{ 0xFF, 0x9C, 0x94 } : QColor{ 0xB4, 0x23, 0x18 };
+				const auto addedInk   = colours.Dark ? QColor{ 0x6F, 0xD5, 0x8A } : QColor{ 0x1A, 0x7F, 0x37 };
+				auto       index      = std::size_t{ 0U };
+				const auto line       = [&](const QColor& aInk, const QChar aSign) {
+					auto fill = aInk;
+					fill.setAlphaF(colours.Dark ? 0.16F : 0.10F);
+					painter.fillRect(QRect{ shift, y, span, row }, fill);
+					painter.setPen(aInk);
+					painter.drawText(QRect{ shift + 8, y, 12, row }, Qt::AlignLeft | Qt::AlignVCenter, QString{ aSign });
+					painter.drawText(QRect{ shift + text_left, y, span - text_left, row }, Qt::AlignLeft | Qt::AlignVCenter, Texts[index++]);
+					y += row;
+				};
+				for (std::size_t removed = 0U; removed < Change->Removed.size(); ++removed) {
+					line(removedInk, QChar{ 0x2212 });
+				}
+				for (std::size_t added = 0U; added < Change->Added.size(); ++added) {
+					line(addedInk, QLatin1Char{ '+' });
+				}
+			}
+
+			void resizeEvent(QResizeEvent* aEvent) override
+			{
+				QAbstractScrollArea::resizeEvent(aEvent);
+				refresh_range();
+			}
+
+			void scrollContentsBy(int /*aX*/, int /*aY*/) override { viewport()->update(); }
+
+			void wheelEvent(QWheelEvent* aEvent) override
+			{
+				// As a post's reader in place: a vertical wheel is the drawer's.
+				const auto delta = aEvent->pixelDelta().isNull() ? aEvent->angleDelta() : aEvent->pixelDelta();
+				if (std::abs(delta.y()) >= std::abs(delta.x())) {
+					aEvent->ignore();
+					return;
+				}
+				auto* const bar = horizontalScrollBar();
+				if (!aEvent->pixelDelta().isNull()) {
+					bar->setValue(bar->value() - aEvent->pixelDelta().x());
+					aEvent->accept();
+					return;
+				}
+				QAbstractScrollArea::wheelEvent(aEvent);
+				aEvent->accept();
+			}
+
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				auto* const bar = horizontalScrollBar();
+				switch (aEvent->key()) {
+				case Qt::Key_Home:
+					bar->setValue(bar->minimum());
+					aEvent->accept();
+					return;
+				case Qt::Key_End:
+					bar->setValue(bar->maximum());
+					aEvent->accept();
+					return;
+				default:
+					QAbstractScrollArea::keyPressEvent(aEvent);
+				}
+			}
+
+			void focusInEvent(QFocusEvent* aEvent) override
+			{
+				QAbstractScrollArea::focusInEvent(aEvent);
+				if (parentWidget() != nullptr) {
+					parentWidget()->update();
+				}
+			}
+
+			void focusOutEvent(QFocusEvent* aEvent) override
+			{
+				QAbstractScrollArea::focusOutEvent(aEvent);
+				if (parentWidget() != nullptr) {
+					parentWidget()->update();
+				}
+			}
+
+		private:
+			static constexpr int text_left   = 22;
+			static constexpr int text_margin = 8;
+
+			[[nodiscard]] auto row_height() const -> int { return QFontMetrics{ Style.CodeFont }.lineSpacing() + 2; }
+
+			void refresh_range()
+			{
+				auto* const bar   = horizontalScrollBar();
+				const auto  room  = viewport()->width();
+				const auto  range = std::max(0, content_width() - room);
+				bar->setRange(0, range);
+				bar->setPageStep(std::max(1, room));
+				// Only rows that scroll are worth a stop for the keyboard.
+				setFocusPolicy(range > 0 ? Qt::StrongFocus : Qt::NoFocus);
+			}
+
+			open_card_style                       Style;
+			std::optional<core::suggested_change> Change;
+			std::vector<QString>                  Texts;
+			bool                                  InCode = false;
+		};
+
 		/// \brief [[BPR-1212]]. What a suggestion draft changes: the lines its
 		/// block removes and the lines it adds, under the draft's field.
+		/// \details [[BPR-2271]]. Its caption and box are painted here; its
+		/// rows are their own sideways scrolling area inside the box.
 		class suggestion_change_view final : public QWidget
 		{
 		public:
 			suggestion_change_view(const open_card_style& aStyle, QWidget* aParent)
 				: QWidget{ aParent }
 				, Style{ aStyle }
+				, Rows{ new suggestion_change_rows{ aStyle, this } }
 			{
 				setObjectName(QStringLiteral("threadDraftChange"));
 				setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
@@ -589,7 +814,10 @@ namespace bpr::qt {
 				setAccessibleName(QStringLiteral("What it changes"));
 				setAccessibleDescription(words);
 				setToolTip(words);
+				Rows->setAccessibleDescription(words);
+				Rows->present(Change, InCode);
 				setVisible(Change.has_value());
+				arrange();
 				updateGeometry();
 				update();
 			}
@@ -599,14 +827,12 @@ namespace bpr::qt {
 				return true;
 			}
 
-			[[nodiscard]] auto heightForWidth(int /*aWidth*/) const -> int override
+			[[nodiscard]] auto heightForWidth(int aWidth) const -> int override
 			{
 				if (!Change.has_value()) {
 					return 0;
 				}
-				const auto code = QFontMetrics{ Style.CodeFont }.lineSpacing() + 2;
-				const auto rows = Change->unchanged() ? 1 : static_cast<int>(Change->Removed.size() + Change->Added.size());
-				return caption_height() + 6 + std::max(1, rows) * code + 2;
+				return caption_height() + 6 + 1 + Rows->rows_height() + Rows->bar_room(std::max(0, aWidth - 2)) + 1;
 			}
 
 			[[nodiscard]] auto sizeHint() const -> QSize override
@@ -615,6 +841,12 @@ namespace bpr::qt {
 			}
 
 		protected:
+			void resizeEvent(QResizeEvent* aEvent) override
+			{
+				QWidget::resizeEvent(aEvent);
+				arrange();
+			}
+
 			void paintEvent(QPaintEvent* /*aEvent*/) override
 			{
 				if (!Change.has_value()) {
@@ -631,51 +863,12 @@ namespace bpr::qt {
 													   : QStringLiteral("What it changes in %1").arg(Lines.toLower());
 				painter.drawText(QRect{ 16, 0, width() - 16, caption_height() }, Qt::AlignLeft | Qt::AlignVCenter,
 								 QFontMetrics{ caption }.elidedText(title, Qt::ElideRight, std::max(0, width() - 16)));
-				const auto top  = caption_height() + 6;
-				const auto box  = QRectF{ 0.5, top + 0.5, width() - 1.0, height() - top - 1.0 };
-				auto       clip = QPainterPath{ };
-				clip.addRoundedRect(box, 6.0, 6.0);
-				painter.setPen(QPen{ colours.Rule, 1.0 });
+				const auto top = caption_height() + 6;
+				const auto box = QRectF{ 0.5, top + 0.5, width() - 1.0, height() - top - 1.0 };
+				// The box, in the signal colour while its rows have focus.
+				painter.setPen(QPen{ Rows->hasFocus() ? colours.Signal : colours.Rule, 1.0 });
 				painter.setBrush(colours.CodeBackground.isValid() ? colours.CodeBackground : colours.Panel);
-				painter.drawPath(clip);
-				painter.save();
-				painter.setClipPath(clip);
-				painter.setFont(Style.CodeFont);
-				const auto metrics = QFontMetrics{ Style.CodeFont };
-				const auto row     = metrics.lineSpacing() + 2;
-				auto       y       = top + 1;
-				if (Change->unchanged()) {
-					painter.setFont(caption);
-					painter.setPen(colours.Faint);
-					painter.drawText(QRect{ 8, y, width() - 16, row }, Qt::AlignLeft | Qt::AlignVCenter,
-									 QFontMetrics{ caption }.elidedText(InCode ? QStringLiteral("No change yet. Type it in the code; it shows here.")
-																			   : QStringLiteral("Edit the lines in the block above; the change shows here."),
-																		Qt::ElideRight, std::max(0, width() - 16)));
-					painter.restore();
-					return;
-				}
-				// Red and green held to the panel, as a diff's own rows are.
-				const auto removedInk = colours.Dark ? QColor{ 0xFF, 0x9C, 0x94 } : QColor{ 0xB4, 0x23, 0x18 };
-				const auto addedInk   = colours.Dark ? QColor{ 0x6F, 0xD5, 0x8A } : QColor{ 0x1A, 0x7F, 0x37 };
-				const auto line       = [&](const std::string& aText, const QColor& aInk, const QChar aSign) {
-					auto fill = aInk;
-					fill.setAlphaF(colours.Dark ? 0.16F : 0.10F);
-					painter.fillRect(QRect{ 1, y, width() - 2, row }, fill);
-					painter.setPen(aInk);
-					painter.drawText(QRect{ 8, y, 12, row }, Qt::AlignLeft | Qt::AlignVCenter, QString{ aSign });
-					auto text = QString::fromStdString(aText);
-					text.replace(QLatin1Char{ '\t' }, QStringLiteral("    "));
-					painter.drawText(QRect{ 22, y, width() - 30, row }, Qt::AlignLeft | Qt::AlignVCenter,
-									 metrics.elidedText(text, Qt::ElideRight, std::max(0, width() - 30)));
-					y += row;
-				};
-				for (const auto& removed : Change->Removed) {
-					line(removed, removedInk, QChar{ 0x2212 });
-				}
-				for (const auto& added : Change->Added) {
-					line(added, addedInk, QLatin1Char{ '+' });
-				}
-				painter.restore();
+				painter.drawRoundedRect(box, 6.0, 6.0);
 			}
 
 		private:
@@ -684,7 +877,16 @@ namespace bpr::qt {
 				return std::max(16, QFontMetrics{ scaled(font(), 0.92) }.height());
 			}
 
+			void arrange()
+			{
+				// Inside the box's hairline; its rounded corners are the
+				// rows' first and last fills' only overlap, a pixel each.
+				const auto top = caption_height() + 6 + 1;
+				Rows->setGeometry(1, top, std::max(1, width() - 2), std::max(1, height() - top - 1));
+			}
+
 			open_card_style                       Style;
+			suggestion_change_rows*               Rows = nullptr;
 			std::optional<core::suggested_change> Change;
 			QString                               Lines;
 			bool                                  InCode = false;
@@ -2757,6 +2959,8 @@ namespace bpr::qt {
 					HeightChanged();
 				}
 			};
+			static_cast<reply_text*>(ReplyBox)->set_maximum(FieldMaximum);
+			ReplyBox->viewport()->installEventFilter(this);
 			ReplyBox->setAccessibleName(aCard.ReplyOnThread ? QStringLiteral("Reply to the outdated thread")
 											: aCard.Line    ? QStringLiteral("Reply to the thread on line %1").arg(*aCard.Line)
 															: QStringLiteral("Reply"));
@@ -2896,6 +3100,8 @@ namespace bpr::qt {
 				HeightChanged();
 			}
 		};
+		static_cast<reply_text*>(ReplyBox)->set_maximum(FieldMaximum);
+		ReplyBox->viewport()->installEventFilter(this);
 		const auto line = aCard.Line.value_or(0U);
 		ReplyBox->setAccessibleName(QStringLiteral("Comment on line %1").arg(line));
 		ReplyBox->setPlaceholderText(QStringLiteral("Comment on line %1. Type : at the start for a label.").arg(line));
@@ -3779,7 +3985,9 @@ namespace bpr::qt {
 			EditEditor->viewport()->setAutoFillBackground(false);
 			EditEditor->setAutoFillBackground(false);
 			const auto lines = EditEditor->fontMetrics().lineSpacing();
+			EditEditor->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 			EditEditor->setFixedHeight(std::clamp(8 * lines + 2, reply_minimum, reply_maximum + 2 * lines));
+			EditEditor->viewport()->installEventFilter(this);
 			column->addWidget(EditEditor);
 			auto* const controls = new QHBoxLayout{ };
 			controls->setSpacing(6);
@@ -3837,6 +4045,7 @@ namespace bpr::qt {
 			});
 			EditEditor->installEventFilter(new comment_edit_keys{ saveNow, cancelNow, EditEditor });
 			connect(EditEditor, &QPlainTextEdit::textChanged, this, [this] {
+				fit_comment_editor();
 				if (!EditApplying && EditEditor != nullptr && EditText) {
 					EditText(EditEditor->raw());
 				}
@@ -3848,6 +4057,7 @@ namespace bpr::qt {
 			EditEditor->present(aEdit->Text, created);
 			EditApplying = false;
 		}
+		fit_comment_editor();
 		EditEditor->setReadOnly(aEdit->Saving);
 		EditSaveButton->setEnabled(!aEdit->Saving);
 		EditCancelButton->setEnabled(!aEdit->Saving);
@@ -3864,6 +4074,104 @@ namespace bpr::qt {
 	auto open_thread_card::comment_editor() const noexcept -> scoped_prose_editor*
 	{
 		return EditEditor;
+	}
+
+	void open_thread_card::set_field_maximum(const int aMaximum)
+	{
+		const auto maximum = std::max(2 * reply_minimum, aMaximum);
+		if (FieldMaximum == maximum) {
+			return;
+		}
+		FieldMaximum = maximum;
+		if (ReplyBox != nullptr) {
+			static_cast<reply_text*>(ReplyBox)->set_maximum(maximum);
+		}
+		fit_comment_editor();
+	}
+
+	void open_thread_card::fit_comment_editor()
+	{
+		// [[BPR-2273]]. As the composer's field: it grows with the comment
+		// from its eight lines to the drawer's share, then scrolls. The
+		// scroll bar shows only past that share, so showing it cannot rewrap
+		// the text into a different height.
+		if (EditEditor == nullptr || FittingEdit) {
+			return;
+		}
+		FittingEdit         = true;
+		const auto line     = EditEditor->fontMetrics().lineSpacing();
+		const auto minimum  = std::clamp(8 * line + 2, reply_minimum, reply_maximum + 2 * line);
+		const auto maximum  = std::max(minimum, FieldMaximum);
+		const auto measure  = [this, line] { return static_cast<int>(std::ceil(std::max<qreal>(1.0, EditEditor->document()->size().height()) * line)) + 2; };
+		auto       pixels   = measure();
+		const auto overflow = pixels > maximum;
+		if (overflow && EditEditor->verticalScrollBarPolicy() != Qt::ScrollBarAsNeeded) {
+			EditEditor->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+		} else if (!overflow && EditEditor->verticalScrollBarPolicy() != Qt::ScrollBarAlwaysOff) {
+			EditEditor->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+			pixels = measure();
+		}
+		const auto height = std::clamp(pixels, minimum, maximum);
+		if (EditEditor->height() != height || EditEditor->minimumHeight() != height || EditEditor->maximumHeight() != height) {
+			EditEditor->setFixedHeight(height);
+			const auto post = std::ranges::find_if(Posts, [this](const thread_post_view* aView) { return aView->post().Id == EditPost; });
+			if (post != Posts.end()) {
+				(*post)->refresh_edit_geometry();
+			}
+		}
+		FittingEdit = false;
+	}
+
+	auto open_thread_card::scroll_field(const QObject* const aWatched, QWheelEvent& aEvent) -> bool
+	{
+		// [[BPR-2273]]. The owner: "A long draft comment neither scrolls
+		// with 2 finger MacBook gestures (scroll wheel) nor expands to fit
+		// the contents". A field taller than its share moves by the wheel
+		// and the trackpad first; at its end the drawer takes the rest.
+		QPlainTextEdit* field = nullptr;
+		for (auto* const candidate : { ReplyBox, static_cast<QPlainTextEdit*>(EditEditor) }) {
+			if (candidate != nullptr && (aWatched == candidate || aWatched == candidate->viewport())) {
+				field = candidate;
+				break;
+			}
+		}
+		if (field == nullptr) {
+			return false;
+		}
+		const auto pixels = aEvent.pixelDelta();
+		const auto delta  = pixels.isNull() ? aEvent.angleDelta() : pixels;
+		if (delta.y() == 0 || std::abs(delta.x()) > std::abs(delta.y())) {
+			return false;
+		}
+		auto* const bar  = field->verticalScrollBar();
+		const auto  down = delta.y() < 0;
+		if (bar->maximum() <= bar->minimum() || (down ? bar->value() >= bar->maximum() : bar->value() <= bar->minimum())) {
+			WheelLines = 0.0;
+			return false;
+		}
+		// The field's bar counts lines: a trackpad's pixels add up to
+		// them, and a wheel's notches step the platform's lines each.
+		const auto lines = pixels.isNull() ? -static_cast<double>(delta.y()) / 120.0 * QApplication::wheelScrollLines()
+										   : -static_cast<double>(delta.y()) / std::max(1, field->fontMetrics().lineSpacing());
+		WheelLines += lines;
+		const auto steps = static_cast<int>(WheelLines);
+		WheelLines -= steps;
+		if (steps != 0) {
+			bar->setValue(bar->value() + steps);
+		}
+		aEvent.accept();
+		return true;
+	}
+
+	auto open_thread_card::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
+	{
+		if (aEvent->type() == QEvent::Wheel && scroll_field(aWatched, *static_cast<QWheelEvent*>(aEvent))) {
+			return true;
+		}
+		if (aEvent->type() == QEvent::Resize && EditEditor != nullptr && aWatched == EditEditor->viewport()) {
+			fit_comment_editor();
+		}
+		return QWidget::eventFilter(aWatched, aEvent);
 	}
 
 	auto open_thread_card::comment_edit_save_button() const noexcept -> QAbstractButton*

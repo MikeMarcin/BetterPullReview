@@ -1,6 +1,6 @@
 #include "github_application/theme_document_file.hpp"
 
-#include "bpr/core/theme_exchange.hpp"
+#include "bpr/core/agent_configuration.hpp"
 
 #include <QFileInfo>
 #include <QSaveFile>
@@ -10,6 +10,7 @@
 #include <cerrno>
 #include <expected>
 #include <filesystem>
+#include <optional>
 
 #if defined(_WIN32)
 	#if !defined(NOMINMAX)
@@ -200,14 +201,10 @@ namespace bpr::app {
 		}
 	}
 
-	auto bounded_theme_document_reader::read(
-		const std::string_view aPath,
-		const std::size_t      aMaximumBytes,
-		const std::stop_token  aStop)
-		-> application::theme_document_result<std::string>
+	auto read_bounded_regular_file(const std::string_view aPath, const std::size_t aMaximumBytes) -> std::optional<std::string>
 	{
-		return read_bounded_regular_theme_document(
-			aPath, aMaximumBytes, aStop);
+		auto bytes = read_bounded_regular_theme_document(aPath, aMaximumBytes, std::stop_token{ });
+		return bytes ? std::optional{ std::move(*bytes) } : std::nullopt;
 	}
 
 	auto bounded_theme_document_reader::write(const std::string_view aPath,
@@ -216,7 +213,7 @@ namespace bpr::app {
 	{
 		const auto refused = [] { return std::unexpected{ application::theme_document_error{ } }; };
 		if (aPath.empty() || aPath.find('\0') != std::string_view::npos
-			|| aDocument.size() > core::theme_document_byte_limit || aStop.stop_requested()) {
+			|| aDocument.size() > core::maximum_agent_configuration_bytes || aStop.stop_requested()) {
 			return refused();
 		}
 		const auto path = QString::fromUtf8(aPath.data(), static_cast<qsizetype>(aPath.size()));

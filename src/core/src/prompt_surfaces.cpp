@@ -13,7 +13,6 @@ namespace bpr::core {
 			"thread-menu",
 			"thread-chips",
 			"tour-stop",
-			"tour-part",
 			"whole-tour",
 			"commits-menu",
 		};
@@ -30,7 +29,6 @@ namespace bpr::core {
 			case prompt_surface::thread_menu:
 			case prompt_surface::thread_chips: return prompt_place::conversation;
 			case prompt_surface::tour_stop:    return prompt_place::tour_stop;
-			case prompt_surface::tour_part:    return prompt_place::tour_part;
 			case prompt_surface::whole_tour:   return prompt_place::tour_whole;
 			default:                           return prompt_place::agent_tab;
 			}
@@ -53,7 +51,7 @@ namespace bpr::core {
 
 		[[nodiscard]] auto is_tour_surface(const prompt_surface aSurface) noexcept -> bool
 		{
-			return aSurface == prompt_surface::tour_stop || aSurface == prompt_surface::tour_part || aSurface == prompt_surface::whole_tour;
+			return aSurface == prompt_surface::tour_stop || aSurface == prompt_surface::whole_tour;
 		}
 	} // namespace
 
@@ -117,7 +115,6 @@ namespace bpr::core {
 				break;
 			case prompt_place::conversation: list(surfaces, prompt_surface::thread_chips).push_back(macro.Id); break;
 			case prompt_place::tour_stop:    list(surfaces, prompt_surface::tour_stop).push_back(macro.Id); break;
-			case prompt_place::tour_part:    list(surfaces, prompt_surface::tour_part).push_back(macro.Id); break;
 			case prompt_place::tour_whole:   list(surfaces, prompt_surface::whole_tour).push_back(macro.Id); break;
 			}
 		}
@@ -158,7 +155,7 @@ namespace bpr::core {
 			return placement_refusal::action_too_narrow;
 		}
 		// A tour chat's prompts and the review's are not interchangeable.
-		const auto tourPrompt = aMacro.Place == prompt_place::tour_stop || aMacro.Place == prompt_place::tour_part || aMacro.Place == prompt_place::tour_whole;
+		const auto tourPrompt = aMacro.Place == prompt_place::tour_stop || aMacro.Place == prompt_place::tour_whole;
 		if (tourPrompt != is_tour_surface(aSurface)) {
 			return placement_refusal::wrong_chat;
 		}
@@ -290,8 +287,7 @@ namespace bpr::core {
 			// A tour chat: its own place, and what that place asks about.
 			placed.Place = surface_place(aSurface);
 			if (placed.Body.Subject != prompt_subject::selected_text || placed.Place == prompt_place::tour_whole) {
-				placed.Body.Subject = placed.Place == prompt_place::tour_stop ? prompt_subject::stop : placed.Place == prompt_place::tour_part ? prompt_subject::part
-																																			   : prompt_subject::tour;
+				placed.Body.Subject = placed.Place == prompt_place::tour_stop ? prompt_subject::stop : prompt_subject::tour;
 			}
 			placed.Body.QuickAsk = false;
 			placed.Body.Scopes   = { };

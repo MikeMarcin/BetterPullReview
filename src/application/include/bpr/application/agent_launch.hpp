@@ -351,6 +351,13 @@ namespace bpr::application {
 		/// message, the App Server, or past `maximum_system_prompt_argument_bytes`).
 		std::string                      SystemInstructions;
 		core::agent_instruction_delivery Instructions = core::agent_instruction_delivery::system_prompt;
+		/// [[BPR-2264]]. The Writing style Feature as `writing_style_for`
+		/// gives it; empty: none. It follows every other instruction: at the
+		/// end of the system prompt, or, where the instructions are pasted,
+		/// as the request's last field, `writing_style`.
+		/// [[BPR-2270]]: `prompt_features_for` puts Comment labels before the
+		/// Writing style here, when the request carries both.
+		std::string WritingStyle;
 	};
 
 	/// \brief [[BPR-2140]]. How a launch delivered its instructions, as the
@@ -463,6 +470,12 @@ namespace bpr::application {
 		/// correction is unknown and the run ends: a dropped correction never
 		/// holds the run, or its workspace lease, indefinitely.
 		int SteerSuccessorMilliseconds = 30'000;
+		/// [[BPR-2261]], RFC-BPR-0103. How long a Claude turn that answered,
+		/// with every helper ended, waits for the part that answers a
+		/// helper's report back before it ends on the answer it gave. The
+		/// part's first frame normally follows the result at once; a report
+		/// already answered inside the part before it never starts one.
+		int HeldTurnMilliseconds = 30'000;
 
 		auto operator<=>(const agent_launch_request&) const = default;
 	};
@@ -503,6 +516,9 @@ namespace bpr::application {
 	/// its own drops all of this one (hooks, auto-memory and the plugins come
 	/// back on). The init check enforces only tools and MCP servers; an
 	/// auto-memory folder is reported as `memory=on`, not refused.
+	/// [[BPR-2259]]. A custom agent is never given these: its own settings,
+	/// which can carry its sign-in, would be the ones replaced
+	/// (`agent_entry_process`). Claude Code added as itself still is.
 	inline constexpr std::string_view claude_writing_settings
 		= R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})";
 
@@ -976,7 +992,18 @@ namespace bpr::application {
 		/// Claude: a helper reported back since the agent last began a part
 		/// of the turn (`system/init`). Claude answers each report in a part
 		/// of its own, so the turn goes on until that part's result.
+		/// [[BPR-2261]]. A report that reaches the agent while it is still
+		/// using tools is answered inside the part it is in: the agent's next
+		/// message after a tool result answers it, and no part follows.
 		bool NotifiedSinceInit = false;
+		/// [[BPR-2261]]. A tool result went back to the agent since the last
+		/// report, so its next message is written with the report in hand.
+		bool NotifiedCarried = false;
+		/// [[BPR-2261]]. The agent's message that was being written when the
+		/// last report came: its later blocks were not written with it.
+		std::string NotifiedDuring;
+		/// [[BPR-2261]]. The identity of the agent's own last message.
+		std::string LastMessage;
 		/// Claude: a later part of the turn began after text was written; its
 		/// first text starts a new paragraph of the answer.
 		bool                     SeparateNext = false;
@@ -1092,6 +1119,18 @@ namespace bpr::application {
 		/// unknown, never resent, and the turn ends on the answer it gave, so
 		/// the connection is retired and the run releases its lease.
 		void abandon_successor() noexcept;
+		/// \brief [[BPR-2261]], RFC-BPR-0103. Claude answered with every
+		/// helper ended, and the turn is held for the part that answers a
+		/// helper's report back (or for nothing it can name): no correction's
+		/// successor is awaited.
+		[[nodiscard]] auto awaiting_report_back() const noexcept -> bool;
+		/// \brief [[BPR-2261]]. The held part never began: the turn ends on
+		/// the answer it gave. A part that still arrives would belong to no
+		/// turn, so the connection is not reused.
+		void abandon_report_back() noexcept;
+		/// \brief [[BPR-2261]]. A successful result arrived in this turn: the
+		/// agent answered, whatever later held the turn open.
+		[[nodiscard]] auto answered() const noexcept -> bool { return Answered; }
 		/// \brief The Claude Code version this connection reported, kept across
 		/// its turns; empty when it reported none.
 		[[nodiscard]] auto observed_tool_version() const -> std::string;
@@ -1114,6 +1153,10 @@ namespace bpr::application {
 		/// [[BPR-2152]]. The run waits on a successor turn for an open
 		/// correction, and none of its frames has arrived yet.
 		bool SuccessorAwaited = false;
+		/// [[BPR-2261]]. This turn's successful result has arrived.
+		bool Answered = false;
+		/// [[BPR-2261]]. The turn ended past its held bound.
+		bool HeldOut = false;
 
 		[[nodiscard]] auto retain_output(std::vector<agent_protocol_event>&) -> bool;
 		[[nodiscard]] auto frame_limit() const noexcept -> std::size_t;
@@ -1200,6 +1243,10 @@ namespace bpr::application {
 		/// its own figure in `Text` (empty once a figure went down and the
 		/// run's cost is unknown); the host puts the turn's share in `Cost`.
 		cost,
+		/// [[BPR-2261]]. Before the run starts, the pull request's retained
+		/// workspace is being checked: nothing is made. No frame of the
+		/// agent's and no answer.
+		workspace_check,
 	};
 
 	/// \brief [[BPR-2153]]. One message steered into a run: its input
@@ -1322,6 +1369,17 @@ namespace bpr::application {
 		std::vector<std::string> UnfinishedHelpers;
 		/// The longest time between two frames from the runtime.
 		std::uint64_t LongestSilenceMs = 0U;
+		/// [[BPR-2261]], RFC-BPR-0103. How long the turn was held after its
+		/// answer, every helper ended, for the part that answers a report
+		/// back, and the bound it was held to; absent when it was not held.
+		std::optional<std::uint64_t> HeldMs;
+		std::uint64_t                HeldBoundMs = 0U;
+		/// [[BPR-2261]]. The held part never began and the bound ended the
+		/// turn on its answer.
+		bool HeldOut = false;
+		/// [[BPR-2261]]. The run was stopped (cancelled or out of time) after
+		/// a successful result with no helper running: it stands as answered.
+		bool StoppedAfterAnswer = false;
 		/// The frame types the decoder read past, comma separated, bounded.
 		std::string ReadPast;
 		/// [[BPR-2007]], RFC-BPR-0104. The turn's scratch folder, when it

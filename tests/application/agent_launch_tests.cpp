@@ -381,7 +381,7 @@ namespace {
 		expect(custom && custom->Source == core::feedback_guidance_source::profile_override && custom->Version == application::review_feedback_hook_version
 				   && custom->Text == hooks.Overrides[static_cast<std::size_t>(core::writing_hook::feedback)],
 			   "a customized hook is sent as written, never merged with or appended to the default");
-		hooks.Overrides[static_cast<std::size_t>(core::writing_hook::problem)] = "Problem override must not travel.";
+		hooks.Overrides[static_cast<std::size_t>(core::writing_hook::outline)] = "Outline override must not travel.";
 		expect(application::workshop_feedback_supplement(hooks, application::review_label_helper::on) == custom, "a tour hook's override is not review-feedback guidance");
 
 		auto pressed             = workshop_press(core::workshop_operation::clarify);
@@ -391,7 +391,7 @@ namespace {
 		const auto encoded  = application::encode_agent_supplement(*built);
 		const auto expected = std::string{ "workshop_operation\tclarify\n"
 										   "feedback_guidance.source\tprofile_override\n"
-										   "feedback_guidance.version\treview-feedback-v1\n"
+										   "feedback_guidance.version\treview-feedback-v4\n"
 										   "feedback_guidance.text\tTeam rule:\\tlabel every comment.\\nPublish nothing; you cannot.\n" };
 		const auto at       = encoded.find(expected);
 		expect(at != std::string::npos && encoded.find("feedback_guidance", at + expected.size()) == std::string::npos, "three escaped lines, once, directly after the operation they qualify");
@@ -404,7 +404,7 @@ namespace {
 		auto defaulted             = workshop_press(core::workshop_operation::shorten);
 		defaulted.FeedbackGuidance = shipped;
 		const auto defaultWire     = application::encode_agent_supplement(*application::build_agent_context_supplement(defaulted, session()));
-		expect(defaultWire.find("feedback_guidance.source\tshipped\nfeedback_guidance.version\treview-feedback-v1\nfeedback_guidance.text\t") != std::string::npos, "the shipped default names itself as shipped");
+		expect(defaultWire.find("feedback_guidance.source\tshipped\nfeedback_guidance.version\treview-feedback-v4\nfeedback_guidance.text\t") != std::string::npos, "the shipped default names itself as shipped");
 
 		auto onReview             = observation();
 		onReview.FeedbackGuidance = shipped;
@@ -1609,7 +1609,7 @@ namespace {
 		expect(!ended && ended.error() == application::agent_protocol_failure::tool_refused, "strict, a writing run ends at a Skill use");
 
 		// [[BPR-1917]]. The preview says what the run receives.
-		const auto preview = application::preview_writing_hook(core::writing_hook::problem, "Use /technical-book-humanizer.", library);
+		const auto preview = application::preview_writing_hook(core::writing_hook::outline, "Use /technical-book-humanizer.", library);
 		expect(preview.Guidance.Skills.size() == 1U && preview.Text.find("Selected writing instructions:\nUse /technical-book-humanizer.") != std::string::npos
 				   && preview.Text.find("--- Skill /technical-book-humanizer (personal, ~/.claude/skills") != std::string::npos && preview.Text.find("FIXTURE_HUMANIZER_GUIDANCE") != std::string::npos,
 			   "the preview shows the prompt with the skill brought in");
@@ -1808,17 +1808,17 @@ namespace {
 		expect(chat.push(init + use("Edit", R"({"file_path":"a"})") + result + answer).has_value(), "the Agent tab's own runs are not held to the tour's allowlist");
 
 		// The whole-tour answer, alone or fenced, and nothing else.
-		const auto draft = std::string{ R"({"schema":"bpr.tour-draft.v1","problem":"P","solution":"S","stops":[{"path":"./src/a.cpp","first_line":2,"last_line":4,"title":"T","explanation":"E"}]})" };
+		const auto draft = std::string{ R"({"schema":"bpr.tour-draft.v2","stops":[{"path":"./src/a.cpp","first_line":2,"last_line":4,"title":"T","explanation":"E"}]})" };
 		const auto read  = application::decode_tour_draft_answer(draft);
-		expect(read && read->Problem == "P" && read->Stops.size() == 1U && read->Stops[0].Path == "src/a.cpp" && read->Stops[0].FirstLine == 2U, "a whole-tour answer is read");
+		expect(read && read->Stops.size() == 1U && read->Stops[0].Path == "src/a.cpp" && read->Stops[0].FirstLine == 2U, "a whole-tour answer is read");
 		expect(application::decode_tour_draft_answer("Here it is:\n```json\n" + draft + "\n```\n").has_value(), "one fenced block is read");
-		expect(!application::decode_tour_draft_answer(R"({"schema":"bpr.tour-draft.v1","problem":"P","solution":"S","stops":[],"publish":true})"), "an extra key is refused");
-		expect(!application::decode_tour_draft_answer(R"({"schema":"other","problem":"P","solution":"S","stops":[]})"), "another schema is refused");
+		expect(!application::decode_tour_draft_answer(R"({"schema":"bpr.tour-draft.v2","stops":[],"publish":true})"), "an extra key is refused");
+		expect(!application::decode_tour_draft_answer(R"({"schema":"other","stops":[]})"), "another schema is refused");
 		expect(!application::decode_tour_draft_answer("not json"), "prose is refused");
-		const auto prompt = application::build_tour_draft_prompt("Title", "Body", std::vector<application::tour_draft_file>{ { "src/a.cpp", "modified" } }, core::review_tour{ .Problem = "Mine" });
+		const auto prompt = application::build_tour_draft_prompt("Title", "Body", std::vector<application::tour_draft_file>{ { "src/a.cpp", "modified" } }, core::review_tour{ .Stops = { { .Id = core::tour_stop_id{ 1 }, .Title = "Mine" } }, .LastStopId = 1 });
 		const auto hunked = application::build_tour_draft_prompt("Title", "Body", std::vector<application::tour_draft_file>{ { "src/a.cpp", "modified", std::vector<std::pair<std::uint32_t, std::uint32_t>>{ { 3U, 14U } } } }, core::review_tour{ });
 		expect(hunked && hunked->find("\"changed_lines\":[[3,14]]") != std::string::npos && hunked->find("Strongly prefer stops on the change") != std::string::npos, "the request gives each file's hunks and asks for stops on them");
-		expect(prompt && prompt->find("bpr.tour-draft.v1") != std::string::npos && prompt->find("src/a.cpp") != std::string::npos && prompt->find("\"problem\":\"Mine\"") != std::string::npos, "the request carries the schema, the files and the tour so far");
+		expect(prompt && prompt->find("bpr.tour-draft.v2") != std::string::npos && prompt->find("src/a.cpp") != std::string::npos && prompt->find("\"title\":\"Mine\"") != std::string::npos, "the request carries the schema, the files and the tour so far");
 	}
 
 	/// [[BPR-1900]]. The head lines a proposed stop is checked against.

@@ -16,6 +16,7 @@
 #include "bpr/application/cached_review_source_port.hpp"
 #include "bpr/application/commit_filter_model.hpp"
 #include "bpr/application/commit_filter_projection.hpp"
+#include "bpr/application/description_draft_host.hpp"
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/device_binding_store.hpp"
 #include "bpr/application/diff_application_host.hpp"
@@ -38,6 +39,7 @@
 #include "bpr/application/off_hunk_fact_port.hpp"
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/application/private_review_application_host.hpp"
+#include "bpr/application/publication_lease.hpp"
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/application/review_comment_placement.hpp"
 #include "bpr/application/review_composition_application_host.hpp"
@@ -202,6 +204,7 @@
 	#include "bpr/qt/ask_menu.hpp"
 	#include "bpr/qt/finding_queue_view.hpp"
 	#include "bpr/qt/side_chat_panel.hpp"
+	#include "bpr/qt/window_file_drop.hpp"
 #endif
 #if defined(BPR_BUILD_TESTING)
 	#include "bpr/application/github_window_read_host.hpp"
@@ -548,10 +551,15 @@ namespace bpr::app {
 		/// [[BPR-1157]]. Local Review Cycles in this window: no account needed.
 		std::unique_ptr<review_cycle_desktop> CycleDesktop;
 		/// RFC-BPR-0108. Prepare pull request… and the local draft page.
-		std::unique_ptr<local_draft_desktop>              DraftDesktop;
-		std::uint64_t                                     WritingHookSubscription = 0;
-		std::unique_ptr<review_tour_publication_workflow> TourPublication;
-		std::unique_ptr<conversation_reply_workflow>      ConversationReply;
+		std::unique_ptr<local_draft_desktop> DraftDesktop;
+		/// [[BPR-2281]]. Draft Description beside the description in Author:
+		/// its own agent lane, and the host that runs it there.
+		std::unique_ptr<worker_executor>                     DescriptionDraftLane;
+		std::unique_ptr<application::description_draft_host> DescriptionDraft;
+		std::uint64_t                                        DescriptionDraftShown   = 0U;
+		std::uint64_t                                        WritingHookSubscription = 0;
+		std::unique_ptr<review_tour_publication_workflow>    TourPublication;
+		std::unique_ptr<conversation_reply_workflow>         ConversationReply;
 		struct retained_tour_host
 		{
 			core::tour_owner                               Owner;
@@ -690,6 +698,27 @@ namespace bpr::app {
 		void save_agent_note(std::string aText, std::optional<std::pair<core::diff_side, std::uint32_t>> aLine, std::string aPath, qt::agent_answer_note_done aDone);
 
 		void act_on_agent_card(const qt::agent_finding_card_request& aRequest, card_report aReport = { });
+		/// [[BPR-2258]], owner 2026-11-18: "I'd rather stay on the report". A
+		/// report's keep action is made behind the report: the finding's file
+		/// opens in a tab of its own made active underneath while the window
+		/// holds the report on screen and the strip as it was; when the keep
+		/// ends the report's tab is active again and that tab closes, so the
+		/// reviewer's tabs and their files are as they were.
+		struct report_keep_behind
+		{
+			std::uint64_t         Serial = 0U;
+			core::document_tab_id Report;
+			core::document_tab_id Opened;
+		};
+		std::optional<report_keep_behind> ReportKeepBehind;
+		std::uint64_t                     ReportKeepBehindSerial = 0U;
+		/// \brief Opens `aPath` behind the shown report and returns the
+		/// opening's serial; 0 (nothing changed) when no report is shown or
+		/// the file is not in the review.
+		auto open_behind_report(const std::string& aPath) -> std::uint64_t;
+		/// \brief Ends the opening `aSerial` names (0: whichever is open).
+		void close_behind_report(std::uint64_t aSerial = 0U);
+		void apply_tab_now(const core::document_tab_intent& aIntent);
 		/// [[BPR-2061]]. Set by `act_on_agent_card` just before it refuses
 		/// because the finding's file or line is not in the pull request at
 		/// the current head; Draft all reads it with that refusal.
@@ -931,7 +960,7 @@ namespace bpr::app {
 		/// This window's draft has feedback waiting in the tour's queue.
 		bool TourFeedbackQueued = false;
 		/// RFC-BPR-0126 AC01 ([[BPR-2154]]). Each tour part's chat (the whole
-		/// tour after its first draft, the Problem, the Solution, a stop) and
+		/// tour after its first draft, a stop) and
 		/// each part of a local draft's discussion queues on its own session.
 		/// This window runs them on its tour host or its local draft's lane,
 		/// through a runtime it offers the profile's runner; the queue host is
@@ -1080,6 +1109,7 @@ namespace bpr::app {
 		[[nodiscard]] auto writing_agent() const -> std::optional<core::agent_profile_id>;
 
 		[[nodiscard]] auto agent_display_name(const core::agent_profile_id aProfile) const -> QString;
+		[[nodiscard]] auto sign_in_failure_words(core::agent_profile_id aProfile, const QString& aThen) const -> QString;
 		[[nodiscard]] auto writes_tool_free(const core::agent_profile_id aProfile) const -> bool;
 
 		auto writing_target(core::writing_hook aHook, const qt::prose_capture& aCapture) const -> std::optional<core::writing_target>;
@@ -1147,6 +1177,14 @@ namespace bpr::app {
 		void restore_tour_panel();
 
 		void compose_review_submission(const application::accepted_pull_request_handoff& aHandoff);
+		/// \brief [[BPR-2263]], [[BPR-2265]]. The review submission provider
+		/// factory for `aBinding`, none when the window has no live
+		/// publishing lease. It records the window's current lease in
+		/// `PublicationLease` first; the factory holds no lease of its own
+		/// and takes the one recorded there each time it is called, so a
+		/// reread's renewed lease reaches it. The fixture's in a fixture
+		/// window.
+		[[nodiscard]] auto review_submission_factory(const application::review_submission_live_binding& aBinding) -> std::optional<application::review_submission_provider_factory>;
 
 		void observe_review_preflight();
 
@@ -1268,7 +1306,16 @@ namespace bpr::app {
 
 		void present_description_offer();
 
-		void save_description(const qt::overview_description_save& aSave);
+		/// [[BPR-2280]]. Which description editor a save came from.
+		enum class description_editor : std::uint8_t {
+			overview,
+			author,
+		};
+		void save_description(const qt::overview_description_save& aSave, description_editor aFrom = description_editor::overview);
+		void present_description_status(const QString& aText, bool aSaving = false);
+		/// [[BPR-2281]]. Draft Description pressed, and what its host says.
+		void request_description_draft();
+		void present_description_draft(const application::description_draft_projection& aProjection);
 
 		void               publish_description(const application::review_description_terminal& aTerminal) override;
 		[[nodiscard]] auto comment_edit_cards() const -> qt::conversation_cards_view*;
@@ -1397,7 +1444,11 @@ namespace bpr::app {
 			const application::review_mutation_terminal& aTerminal) override;
 		void finish_review_terminal(const application::review_mutation_terminal& aTerminal, core::review_publication_outcome aPublicationOutcome);
 
-		void retire_review_ledger();
+		/// \brief Retires the ledger and what reads it.
+		/// \details [[BPR-2269]]. \p aKeepPrivateReview keeps the private
+		/// review open, bound and restored, for a handoff that keeps its
+		/// store and head (a reread): its drafts stay holdable throughout.
+		void retire_review_ledger(bool aKeepPrivateReview);
 
 		std::shared_ptr<private_review_workflow>       PrivateReview;
 		std::optional<application::private_run_intent> ExplicitPrivateRun;
@@ -2118,8 +2169,6 @@ namespace bpr::app {
 
 		void adopt_appearance_settings(const bool aPaletteCommitted = false);
 
-		void preview_imported_theme(const core::appearance_palette& aPalette);
-
 		void report_appearance_refusal(
 			const application::appearance_failure_publication& aFailure);
 
@@ -2380,7 +2429,10 @@ namespace bpr::app {
 		// first.
 		std::unique_ptr<windows_title_row_host> TitleRow;
 #endif
-		std::unique_ptr<review_submission_workflow>                  ReviewSubmission;
+		std::unique_ptr<review_submission_workflow> ReviewSubmission;
+		/// \brief [[BPR-2265]]. The window's publishing lease as the decision
+		/// lane last read it; publication factories read it at each call.
+		std::shared_ptr<application::publication_lease>              PublicationLease    = std::make_shared<application::publication_lease>();
 		decltype(github_profile_runtime::CredentialBindings)&        CredentialBindings  = Profile->CredentialBindings;
 		decltype(github_profile_runtime::GitCaches)&                 GitCaches           = Profile->GitCaches;
 		decltype(github_profile_runtime::EpochCatalogs)&             EpochCatalogs       = Profile->EpochCatalogs;
@@ -2516,6 +2568,7 @@ namespace bpr::app {
 		std::size_t                                         ReactionFailures    = 0U;
 		/// [[BPR-1774]]. The description save in flight, and what came of saves.
 		std::optional<application::review_mutation_request_context> PendingDescriptionEdit;
+		description_editor                                          DescriptionEditFrom        = description_editor::overview;
 		std::size_t                                                 DescriptionEditGestures    = 0U;
 		std::size_t                                                 DescriptionEditRefusals    = 0U;
 		std::size_t                                                 DescriptionEditCompletions = 0U;
@@ -2665,10 +2718,16 @@ namespace bpr::app {
 		std::unique_ptr<application::agent_configuration_store_port> AgentConfigurationStore;
 		std::unique_ptr<application::agent_configuration_host>       AgentConfiguration;
 		void                                                         export_agent_configuration();
-		void                                                         import_agent_configuration();
-		void                                                         apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog);
-		[[nodiscard]] auto                                           profile_settings_facts() const -> core::profile_facts;
-		void                                                         apply_profile_changes(const core::profile_settings_changes& aChanges);
+		/// [[BPR-2282]]. `aDropped`: a file dropped onto the window, read
+		/// without the open dialog; empty for Import Profile Settings….
+		void import_agent_configuration(const QString& aDropped = { });
+		void apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog, bool aDropped = false);
+		/// [[BPR-2282]]. What a drag onto the window carries; reads no file.
+		[[nodiscard]] static auto dropped_file(const QMimeData& aMime) -> qt::dropped_file_admission;
+		/// [[BPR-2282]]. A dropped file is being read: another drop waits.
+		bool               DroppedImportReading = false;
+		[[nodiscard]] auto profile_settings_facts() const -> core::profile_facts;
+		void               apply_profile_changes(const core::profile_settings_changes& aChanges);
 		/// [[BPR-1753]]. Each pull request's conversation: store, then host.
 		decltype(github_profile_runtime::NativeAgentSessions)&      NativeAgentSessions = Profile->NativeAgentSessions;
 		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;

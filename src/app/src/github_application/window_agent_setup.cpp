@@ -11,6 +11,7 @@
 #include "bpr/qt/agent_configuration_dialogs.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/window_file_drop.hpp"
 
 #include <QComboBox>
 #include <QCoreApplication>
@@ -19,8 +20,10 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QLocale>
+#include <QMimeData>
 #include <QObject>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QTextStream>
 #include <QTimer>
 #include <QUrl>
@@ -191,7 +194,8 @@ namespace bpr::app {
 		const auto* const surface  = Window->comparison_surface();
 		const auto&       finding  = PendingCardOpen->Request.Finding;
 		const auto        onScreen = SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == finding.Path && surface != nullptr
-			&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+			&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key
+			&& !(ReportKeepBehind && (TabLoad || TabDriver));
 		if (onScreen) {
 			auto request = std::move(PendingCardOpen->Request);
 			auto report  = std::move(PendingCardOpen->Report);
@@ -320,11 +324,13 @@ namespace bpr::app {
 		auto* const surface  = Window->comparison_surface();
 		const auto  side     = finding.Anchor.Line ? finding.Anchor.Line->Side : core::diff_side::right;
 		const auto  onScreen = SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == finding.Path && surface != nullptr
-			&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+			&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key
+			&& !(ReportKeepBehind && (TabLoad || TabDriver));
 		// Owner decision 2026-10-23: another file is opened in Review first,
-		// then the draft or note is made at its line.
+		// then the draft or note is made at its line. [[BPR-2258]]: behind a
+		// report the file's own tab is opening already.
 		if (!onScreen) {
-			if (!Window->open_file_in_review(QString::fromStdString(finding.Path))) {
+			if (!ReportKeepBehind && !Window->open_file_in_review(QString::fromStdString(finding.Path))) {
 				CardRefusalGone = true;
 				state(qt::agent_finding_card_state::refused, QStringLiteral("%1 is not in this pull request at its current head, so there is no line to put it on.").arg(QString::fromStdString(finding.Path)));
 				return;
@@ -364,6 +370,73 @@ namespace bpr::app {
 			PendingNotePromotion.reset();
 			CardRefusalGone = true;
 			state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: line %1 is not in the comparison on screen.").arg(at.Line + 1U));
+		}
+	}
+
+	/// [[BPR-2258]]. A tab gesture made now, as the window's own tab
+	/// dispatch makes it on the decision lane.
+	void github_application::implementation::apply_tab_now(const core::document_tab_intent& aIntent)
+	{
+		cancel_review_navigation();
+		observe_tab_reading();
+		cancel_restoration(false, true);
+		TabHost->apply(aIntent);
+		if (TabLoad && TabHost->state().Pending != TabLoad) {
+			abandon_tab_load();
+		}
+	}
+
+	auto github_application::implementation::open_behind_report(const std::string& aPath) -> std::uint64_t
+	{
+		close_behind_report();
+		if (Closing || Window == nullptr || TabHost == nullptr || WorkbenchHost == nullptr || !Window->report_shown() || aPath.empty()) {
+			return 0U;
+		}
+		const auto  file   = core::file_identity_of(aPath);
+		const auto& tabs   = TabHost->state();
+		const auto* report = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+		if (!file.valid() || !WorkbenchHost->contains_file(file) || report == nullptr || !report->report()) {
+			return 0U;
+		}
+		const auto reportTab = report->Id;
+		auto       before    = std::vector<core::document_tab_id>{ };
+		for (const auto& each : tabs.Tabs) {
+			before.push_back(each.Id);
+		}
+		Window->hold_report(true);
+		apply_tab_now(core::open_in_new_tab_intent{ .File = file });
+		const auto& after = TabHost->state().Tabs;
+		const auto  added = std::ranges::find_if(after, [&before](const core::document_tab& aTab) { return std::ranges::find(before, aTab.Id) == before.end(); });
+		if (added == after.end()) {
+			// At the tab limit the report's own way is kept: nothing opened.
+			Window->hold_report(false);
+			return 0U;
+		}
+		const auto serial = ++ReportKeepBehindSerial;
+		ReportKeepBehind  = report_keep_behind{ .Serial = serial, .Report = reportTab, .Opened = added->Id };
+		apply_tab_now(core::activate_tab_intent{ .Tab = added->Id });
+		// A keep that never ends still gives the window back.
+		QTimer::singleShot(30'000, Window.get(), [this, serial] { close_behind_report(serial); });
+		return serial;
+	}
+
+	void github_application::implementation::close_behind_report(const std::uint64_t aSerial)
+	{
+		if (!ReportKeepBehind || (aSerial != 0U && ReportKeepBehind->Serial != aSerial)) {
+			return;
+		}
+		const auto behind = *ReportKeepBehind;
+		ReportKeepBehind.reset();
+		if (!Closing && TabHost != nullptr) {
+			if (core::find_tab(TabHost->state(), behind.Report) != nullptr) {
+				apply_tab_now(core::activate_tab_intent{ .Tab = behind.Report });
+			}
+			if (core::find_tab(TabHost->state(), behind.Opened) != nullptr) {
+				apply_tab_now(core::close_tab_intent{ .Tab = behind.Opened });
+			}
+		}
+		if (!Closing && Window != nullptr) {
+			Window->hold_report(false);
 		}
 	}
 
@@ -426,6 +499,9 @@ namespace bpr::app {
 			}
 			const auto report   = !run.ReportKeys.empty();
 			const auto undoable = !run.Made.empty() && !report;
+			if (report) {
+				close_behind_report();
+			}
 			if (undoable) {
 				DraftAllBatches[run.Batch] = std::move(run.Made);
 			}
@@ -452,9 +528,14 @@ namespace bpr::app {
 		// is given up after a while, so the batch still ends and says so.
 		QTimer::singleShot(20'000, Window.get(), [this, serial] { settle_draft_all_card(serial, core::draft_all_result::refused); });
 		const auto reportKey = DraftAllRun->Next < DraftAllRun->ReportKeys.size() ? std::optional{ DraftAllRun->ReportKeys[DraftAllRun->Next] } : std::nullopt;
-		act_on_agent_card(request, [this, tab, serial, reportKey, session = request.Session, ordinal = request.Ordinal](const qt::agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote) {
+		// [[BPR-2258]]. A report's Draft all drafts behind the report too.
+		const auto behind = reportKey.has_value() ? open_behind_report(request.Finding.Path) : std::uint64_t{ 0U };
+		act_on_agent_card(request, [this, tab, serial, reportKey, behind, session = request.Session, ordinal = request.Ordinal](const qt::agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote) {
 			if (Closing) {
 				return;
+			}
+			if (behind != 0U && aState != qt::agent_finding_card_state::working) {
+				close_behind_report(behind);
 			}
 			const auto gone = CardRefusalGone;
 			tab->present_finding_card_state(session, ordinal, aState, aWhy, aNote);
@@ -1463,9 +1544,12 @@ namespace bpr::app {
 		AgentSetupWorkspaceStop = std::stop_source{ };
 		const auto generation   = ++AgentSetupWorkspaceGeneration;
 		const auto stop         = AgentSetupWorkspaceStop.get_token();
+		// [[BPR-2261]]. The result is kept under the key the pull request's
+		// workspace is kept under, across restarts.
+		auto workspaceKey = application::agent_workspace_key(authority, binding);
 		LastWorkspaceProbeReason.reset();
 		AgentSetup->set_workspace_check({ .State = core::setup_check_state::running });
-		AgentHost->probe_workspace(state.ApplicationSession, authority, std::move(binding), linked_history_clone(false), [this, failed, stop, generation](std::expected<application::prepared_workspace, application::agent_workspace_error> aProbed) {
+		AgentHost->probe_workspace(state.ApplicationSession, authority, std::move(binding), linked_history_clone(false), [this, failed, stop, generation, key = std::move(workspaceKey)](std::expected<application::prepared_workspace, application::agent_workspace_error> aProbed) {
 									   if (Closing || !AgentSetup || generation != AgentSetupWorkspaceGeneration) {
 										   return;
 									   }
@@ -1476,9 +1560,10 @@ namespace bpr::app {
 									   }
 									   if (aProbed) {
 										   LastWorkspaceProbeReason.reset();
-										   AgentSetup->set_workspace_check({ .State = core::setup_check_state::passed });
+										   AgentSetup->settle_workspace_check(key, { .State = core::setup_check_state::passed });
 										   return;
 									   }
+									   AgentSetup->settle_workspace_check(key, core::fail_check(core::agent_setup_failure::workspace_unavailable));
 									   failed(aProbed.error().Code == application::agent_workspace_failure::unavailable ? std::optional{ aProbed.error().Reason } : std::nullopt, aProbed.error().Detail); }, stop);
 	}
 
@@ -1832,6 +1917,17 @@ namespace bpr::app {
 		// [[BPR-2198]] (owner, 2026-11-15). Import Profile Settings… and
 		// Export Profile Settings… are on Settings › Profiles.
 		Window->profiles_settings()->set_share_handlers([this] { import_agent_configuration(); }, [this] { export_agent_configuration(); });
+		// [[BPR-2283]] (owner, 2026-11-19). Appearance's Import… is the same
+		// import: a theme rides a .bprsettings file.
+		if (auto* const appearance = Window->appearance_settings(); appearance != nullptr) {
+			appearance->set_import_handler([this] { import_agent_configuration(); });
+		}
+		// [[BPR-2282]] (owner, 2026-11-19). A file dropped onto the window
+		// opens the same import, over the window.
+		new qt::window_file_drop{ *Window, { .Admit = dropped_file, .Dropped = [this](const QString& aPath) { import_agent_configuration(aPath); }, .Say = [this](const QString& aText) {
+											if (Window != nullptr) {
+												Window->statusBar()->showMessage(aText, 8000);
+											} } } };
 		Window->agent_programs()->set_dispatch(qt::agent_programs_panel::dispatch{
 			// [[BPR-1859]]. Check agent is the setup's check, and its Stop
 			// the setup's Stop.
@@ -2644,9 +2740,15 @@ namespace bpr::app {
 			for (std::size_t index = 0U; index < core::writing_hook_count; ++index) {
 				unsaved[index] = Window->writing_hooks()->has_unsaved(static_cast<core::writing_hook>(index));
 			}
+			// [[BPR-2283]]. The theme on screen is the Theme section.
+			auto theme = std::optional<core::portable_theme>{ };
+			if (AppearanceProfile) {
+				const auto variant = AppearanceProfile->variant();
+				theme              = core::portable_theme{ .Base = variant, .Palette = AppearanceProfile->palette_for(variant) };
+			}
 			auto* const dialog = new qt::agent_configuration_export_dialog{ std::move(*aSnapshot), unsaved,
 																			("BetterPullReview " + QCoreApplication::applicationVersion()).trimmed().toStdString(), profile_settings_facts(),
-																			Window->profiles_settings()->window() };
+																			Window->profiles_settings()->window(), std::move(theme) };
 			dialog->setAttribute(Qt::WA_DeleteOnClose);
 			// RFC-BPR-0125 AC24. The host mints every UUID an export may need:
 			// a new pack's, and one for each own prompt made before UUIDs.
@@ -2665,7 +2767,12 @@ namespace bpr::app {
 				}
 	#endif
 				const auto folder = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-				return QFileDialog::getSaveFileName(dialog, QObject::tr("Export Profile Settings"), folder + QStringLiteral("/profile-settings.bpr-config.json"), QObject::tr("Profile Settings (*.json)"));
+				// [[BPR-2283]]. Every export is a .bprsettings file.
+				auto path = QFileDialog::getSaveFileName(dialog, QObject::tr("Export Profile Settings"), folder + QStringLiteral("/profile.bprsettings"), QObject::tr("BetterPullReview settings (*.bprsettings)"));
+				if (!path.isEmpty() && !path.endsWith(QStringLiteral(".bprsettings"), Qt::CaseInsensitive)) {
+					path += QStringLiteral(".bprsettings");
+				}
+				return path;
 			});
 			QObject::connect(dialog, &QDialog::accepted, Window.get(), [this, dialog] {
 				if (Closing || !AgentConfiguration) {
@@ -2707,32 +2814,76 @@ namespace bpr::app {
 		});
 	}
 
+	// [[BPR-2282]]. What a drag onto the window carries, without reading a
+	// file: exactly one local file is the window's; what it is, by its
+	// content, the host says once it is dropped.
+	auto github_application::implementation::dropped_file(const QMimeData& aMime) -> qt::dropped_file_admission
+	{
+		if (!aMime.hasUrls()) {
+			return { };
+		}
+		const auto urls  = aMime.urls();
+		const auto local = std::ranges::count_if(urls, [](const QUrl& aUrl) { return aUrl.isLocalFile(); });
+		if (local == 0 || local != urls.size()) {
+			return { };
+		}
+		if (local > 1) {
+			return { .Kind = qt::dropped_file_admission::kind::several_files, .Path = { } };
+		}
+		return { .Kind = qt::dropped_file_admission::kind::one_file, .Path = urls.front().toLocalFile() };
+	}
+
 	// Import Profile Settings…: the file is read and decoded against what the
 	// profile holds now; the dialog decides; one all-or-nothing application;
 	// then the hosts read back what was stored. No agent is checked or run.
-	void github_application::implementation::import_agent_configuration()
+	// [[BPR-2282]]: `aDropped`, a file dropped onto the window, is read the
+	// same way; its dialog opens over the window and its refusals are said in
+	// the window's status bar, where the person dropping it is looking.
+	void github_application::implementation::import_agent_configuration(const QString& aDropped)
 	{
-		if (Closing || !AgentConfiguration || Window == nullptr) {
+		if (Closing || Window == nullptr) {
 			return;
 		}
-		auto path = QString{ };
+		const auto dropped = !aDropped.isEmpty();
+		const auto say     = [this, dropped](const QString& aText) {
+			Window->profiles_settings()->present_exchange(aText);
+			if (dropped) {
+				Window->statusBar()->showMessage(aText, 8000);
+			}
+		};
+		if (!AgentConfiguration) {
+			if (dropped) {
+				say(QObject::tr("Open a profile before importing its settings. Nothing was imported."));
+			}
+			return;
+		}
+		if (dropped && DroppedImportReading) {
+			return;
+		}
+		auto path = aDropped;
 	#if defined(BPR_BUILD_TESTING)
-		path = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE");
+		if (path.isEmpty()) {
+			path = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE");
+		}
 	#endif
 		if (path.isEmpty()) {
 			path = QFileDialog::getOpenFileName(Window->profiles_settings()->window(), QObject::tr("Import Profile Settings"), QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
-												QObject::tr("Profile Settings (*.json);;All files (*)"));
+												QObject::tr("BetterPullReview settings (*.bprsettings)"));
 		}
 		if (path.isEmpty()) {
 			return;
 		}
-		AgentConfiguration->read(path.toStdString(), [this, path](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) {
+		DroppedImportReading = DroppedImportReading || dropped;
+		AgentConfiguration->read(path.toStdString(), [this, path, dropped, say](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) {
+			if (dropped) {
+				DroppedImportReading = false;
+			}
 			if (Closing || Window == nullptr) {
 				return;
 			}
 			if (!aPreview) {
-				Window->profiles_settings()->present_exchange(aPreview.error().Refusal ? QString::fromUtf8(core::describe(*aPreview.error().Refusal).data()) + QLatin1Char(' ') + QObject::tr("Nothing was imported.")
-																					   : QObject::tr("%1 could not be read. Nothing was imported.").arg(QFileInfo{ path }.fileName()));
+				say(aPreview.error().Refusal ? QString::fromUtf8(core::describe(*aPreview.error().Refusal).data()) + QLatin1Char(' ') + QObject::tr("Nothing was imported.")
+											 : QObject::tr("%1 could not be read. Nothing was imported.").arg(QFileInfo{ path }.fileName()));
 				return;
 			}
 			auto facts = qt::agent_configuration_import_dialog::facts{ .Skills = SkillLibrary.Catalog, .Found = { }, .Profile = Profile->Admission.Label };
@@ -2741,8 +2892,16 @@ namespace bpr::app {
 					facts.Found.push_back(row.Agent);
 				}
 			}
-			aPreview->Here     = profile_settings_facts();
-			auto* const dialog = new qt::agent_configuration_import_dialog{ std::move(*aPreview), std::move(facts), Window->profiles_settings()->window() };
+			aPreview->Here = profile_settings_facts();
+			// [[BPR-2283]]. The file's Theme as the appearance host would keep
+			// it, against the theme on screen.
+			if (aPreview->File.Theme && aPreview->File.Theme->Theme && AppearanceHost && AppearanceProfile) {
+				const auto variant = AppearanceProfile->variant();
+				aPreview->Theme    = application::agent_configuration_preview::theme_against_here{
+					.OnScreen = variant, .Here = AppearanceProfile->palette_for(variant), .Imported = AppearanceHost->resolve_theme(*aPreview->File.Theme->Theme)
+				};
+			}
+			auto* const dialog = new qt::agent_configuration_import_dialog{ std::move(*aPreview), std::move(facts), dropped ? static_cast<QWidget*>(Window.get()) : Window->profiles_settings()->window() };
 			dialog->setAttribute(Qt::WA_DeleteOnClose);
 			dialog->set_program_chooser([dialog](const QString& aHint) {
 	#if defined(BPR_BUILD_TESTING)
@@ -2752,7 +2911,7 @@ namespace bpr::app {
 	#endif
 				return QFileDialog::getOpenFileName(dialog, QObject::tr("Choose the program for %1").arg(aHint.isEmpty() ? QObject::tr("this agent") : aHint));
 			});
-			QObject::connect(dialog, &QDialog::accepted, Window.get(), [this, dialog] { apply_agent_configuration(*dialog); });
+			QObject::connect(dialog, &QDialog::accepted, Window.get(), [this, dialog, dropped] { apply_agent_configuration(*dialog, dropped); });
 			dialog->open();
 		});
 	}
@@ -2775,28 +2934,42 @@ namespace bpr::app {
 		}
 	}
 
-	void github_application::implementation::apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog)
+	void github_application::implementation::apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog, const bool aDropped)
 	{
 		if (Closing || !AgentConfiguration || Window == nullptr) {
 			return;
 		}
+		const auto say = [this, aDropped](const QString& aText) {
+			Window->profiles_settings()->present_exchange(aText);
+			if (aDropped) {
+				Window->statusBar()->showMessage(aText, 8000);
+			}
+		};
 		if (Profile->WorkbenchPreferences->is_busy()) {
-			Window->profiles_settings()->present_exchange(QObject::tr("Settings were being saved. Nothing was imported; import the file again."));
+			say(QObject::tr("Settings were being saved. Nothing was imported; import the file again."));
 			return;
 		}
 		// [[BPR-2198]]. Identity and Repositories go through the profile's own
 		// durable paths once the rest is stored: the core says what changes.
 		auto profileChanges = core::profile_changes(aDialog.preview().File, aDialog.plan(), aDialog.identity_choice(), aDialog.repository_choices(), profile_settings_facts());
-		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, agents = aDialog.agent_choices().size(), changes = std::move(profileChanges)](application::agent_configuration_host::applied aApplied) {
+		// [[BPR-2283]]. The Theme, when chosen, is kept on the theme it was
+		// planned against, through the appearance host's own commit, once
+		// the rest of the file is stored.
+		auto       chosenTheme  = aDialog.theme_choice();
+		const auto themeVariant = aDialog.preview().Theme ? aDialog.preview().Theme->OnScreen : core::appearance_variant::light;
+		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, say, agents = aDialog.agent_choices().size(), changes = std::move(profileChanges), theme = std::move(chosenTheme), themeVariant](application::agent_configuration_host::applied aApplied) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
 			if (aApplied && aApplied->first == application::agent_configuration_outcome::applied) {
 				apply_profile_changes(changes);
+				if (theme && AppearanceHost) {
+					AppearanceHost->apply(*theme, themeVariant);
+				}
 			}
 			if (!aApplied) {
 				const auto why = aApplied.error().PromptPack ? core::stable_name(*aApplied.error().PromptPack) : core::stable_name(aApplied.error().Refusal);
-				Window->profiles_settings()->present_exchange(QObject::tr("The import was refused (%1). Nothing changed.").arg(QString::fromUtf8(why.data(), static_cast<qsizetype>(why.size()))));
+				say(QObject::tr("The import was refused (%1). Nothing changed.").arg(QString::fromUtf8(why.data(), static_cast<qsizetype>(why.size()))));
 				return;
 			}
 			switch (aApplied->first) {
@@ -2818,13 +2991,13 @@ namespace bpr::app {
 				if (PromptMacros) {
 					PromptMacros->load();
 				}
-				Window->profiles_settings()->present_exchange(agents > 0U ? QObject::tr("Imported into this profile. Check a new agent before you ask it anything.") : QObject::tr("Imported into this profile."));
+				say(agents > 0U ? QObject::tr("Imported into this profile. Check a new agent before you ask it anything.") : QObject::tr("Imported into this profile."));
 				break;
 			case application::agent_configuration_outcome::changed_since:
-				Window->profiles_settings()->present_exchange(QObject::tr("Your agent or prompt settings changed after the file was read, so nothing was imported. Import it again to see the differences."));
+				say(QObject::tr("Your agent or prompt settings changed after the file was read, so nothing was imported. Import it again to see the differences."));
 				break;
 			case application::agent_configuration_outcome::storage_failed:
-				Window->profiles_settings()->present_exchange(QObject::tr("The import could not be saved. Nothing changed."));
+				say(QObject::tr("The import could not be saved. Nothing changed."));
 				break;
 			} }, aDialog.workflow_choices(), aDialog.prompt_pack_choices());
 	}

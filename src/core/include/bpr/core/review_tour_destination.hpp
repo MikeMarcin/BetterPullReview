@@ -60,8 +60,6 @@ namespace bpr::core {
 		explanation_not_reaffirmed,
 		read_only,
 		invalid_tour,
-		problem_missing,
-		solution_missing,
 		no_stops,
 		too_many_stops,
 		remote_not_owned,

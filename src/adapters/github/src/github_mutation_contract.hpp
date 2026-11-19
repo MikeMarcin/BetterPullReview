@@ -11,6 +11,7 @@
 #include "bpr/application/review_publication_capability_cache.hpp"
 #include "bpr/application/review_submission_contract.hpp"
 #include "bpr/application/staged_review_contract.hpp"
+#include "bpr/core/review_submission_refusal.hpp"
 
 #include <array>
 #include <cstddef>
@@ -406,6 +407,11 @@ namespace bpr::adapters::github::detail {
 													const application::staged_review_request& aExpected)
 		-> review_mutation_parse_result<application::staged_review_observation>;
 
+	/// \brief [[BPR-2263]]. Why `compile_review_submission_request` refuses
+	/// this review: an invalid request naming the part (and the comment)
+	/// GitHub's request cannot carry, `request` when no part of the review
+	/// explains it.
+	[[nodiscard]] auto diagnose_review_submission_request(const review_submission_request& aRequest, application::github_server_contract aServer) -> core::review_submission_refusal;
 	/// \brief Compiles the bounded ordinary REST review-list observation.
 	[[nodiscard]] auto compile_review_submission_observation_request(const review_submission_request& aRequest, application::github_server_contract aServer = application::github_server_contract::github_com_2022_11_28) -> review_mutation_request_result;
 	/// \brief [[BPR-1736]]. GitHub Enterprise Server's `GET /meta`, whose

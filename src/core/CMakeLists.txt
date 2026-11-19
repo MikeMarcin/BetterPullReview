@@ -176,9 +176,9 @@ add_library(
         src/overview_tour.cpp
         src/tour_publication_head.cpp
         src/tour_stop_acceptance.cpp
-        src/tour_steps.cpp
         src/tour_agent_session.cpp
         src/skill_references.cpp
+        src/prompt_features.cpp
         src/prompt_macro.cpp
         src/prompt_surfaces.cpp
         src/prompt_editor.cpp
@@ -189,6 +189,7 @@ add_library(
         src/agent_queue.cpp
         src/tour_stop_view.cpp
         src/description_edit.cpp
+        src/description_draft.cpp
         src/window_title.cpp
         src/reviewer_request.cpp
         src/draft_state.cpp
@@ -201,6 +202,7 @@ add_library(
         src/local_comment.cpp
         src/note_placement.cpp
         src/review_submission.cpp
+        src/review_submission_refusal.cpp
         src/review_submission_unknown.cpp
         src/review_preflight.cpp
         src/sha1_collision_detecting.cpp

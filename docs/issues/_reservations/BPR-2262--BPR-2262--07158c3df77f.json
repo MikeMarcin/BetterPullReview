@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2262"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Next and Previous comment visit drafts and keep their words",
+  "created": "2026-11-18T23:10:28.066592+00:00",
+  "base": "a1a3c363f5e016fd4cb3891f3ffe37b270ae61f4"
+}

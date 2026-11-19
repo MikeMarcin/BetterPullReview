@@ -39,13 +39,11 @@ namespace bpr::core {
 		conversation,
 		/// A tour stop's side chat.
 		tour_stop,
-		/// The tour's Problem or Solution chat.
-		tour_part,
 		/// The chat about the whole tour.
 		tour_whole,
 	};
-	inline constexpr std::size_t prompt_place_count = 5U;
-	/// \brief `agent-tab`, `conversation`, `tour-stop`, `tour-part`, `tour`.
+	inline constexpr std::size_t prompt_place_count = 4U;
+	/// \brief `agent-tab`, `conversation`, `tour-stop`, `tour`.
 	[[nodiscard]] auto stable_name(prompt_place aPlace) noexcept -> std::string_view;
 
 	/// \brief What a question asked by a macro is about (the editor's About).
@@ -55,14 +53,14 @@ namespace bpr::core {
 		selected_lines,
 		conversation,
 		stop,
-		part,
 		selected_text,
 		tour,
 		/// [[BPR-2248]]. The commits selected in the Commits tab: a prompt
 		/// placed on the Commits selection menu asks about them.
 		selected_commits,
 	};
-	[[nodiscard]] auto stable_name(prompt_subject aSubject) noexcept -> std::string_view;
+	inline constexpr std::size_t prompt_subject_count = 8U;
+	[[nodiscard]] auto           stable_name(prompt_subject aSubject) noexcept -> std::string_view;
 
 	/// \brief How a macro is asked (the editor's Ask as).
 	enum class prompt_ask : std::uint8_t {
@@ -100,7 +98,7 @@ namespace bpr::core {
 
 	/// \brief [[BPR-2179]]. Where prompts appear: the Ask menus and
 	/// suggested chips of the pull request, a file and a thread, and the
-	/// tour's three chats. The decisions over surfaces are in
+	/// tour's two chats. The decisions over surfaces are in
 	/// `prompt_surfaces.hpp`; the values are here so a macro set carries them.
 	enum class prompt_surface : std::uint8_t {
 		pull_request_menu,
@@ -110,13 +108,12 @@ namespace bpr::core {
 		thread_menu,
 		thread_chips,
 		tour_stop,
-		tour_part,
 		whole_tour,
 		/// [[BPR-2248]]. The Commits tab's menu over the selected commits: a
 		/// menu of its own, not one of the Ask menus, never chips.
 		commits_menu,
 	};
-	inline constexpr std::size_t prompt_surface_count = 10U;
+	inline constexpr std::size_t prompt_surface_count = 9U;
 
 	/// \brief [[BPR-2179]]. Every surface's placements, in order, by prompt
 	/// identity; one prompt is on one surface at most once.
@@ -494,10 +491,9 @@ namespace bpr::core {
 	/// \brief One tour chat's part: its place and its names.
 	struct prompt_tour_part
 	{
-		/// `tour_stop`, `tour_part` or `tour_whole`.
+		/// `tour_stop` or `tour_whole`.
 		prompt_place Place = prompt_place::tour_whole;
-		/// `{part}`: `the Problem`, `the Solution` or `Stop 3`; empty for the
-		/// whole tour.
+		/// `{part}`: `Stop 3`; empty for the whole tour.
 		std::string Part;
 		/// A stop's one-based number and title.
 		std::optional<std::uint32_t> StopNumber;

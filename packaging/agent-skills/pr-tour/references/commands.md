@@ -6,9 +6,9 @@
 bpr tour capabilities --json
 bpr tour open <PR-URL> --json
 bpr tour status --profile <profile> --draft <draft> --json
-bpr tour show problem --profile <profile> --draft <draft> --json
+bpr tour show stop:<stop> --profile <profile> --draft <draft> --json
 bpr tour show stop:<stop> --source --profile <profile> --draft <draft> --json
-bpr tour edit problem --file - --expected-revision <revision> --profile <profile> --draft <draft> --json
+bpr tour edit stop:<stop>:title --file - --expected-revision <revision> --profile <profile> --draft <draft> --json
 bpr tour edit stop:<stop>:body --file - --expected-revision <revision> --profile <profile> --draft <draft> --json
 bpr tour add <path>:<first>-<last> --file - --expected-revision <revision> --profile <profile> --draft <draft> --json
 bpr tour move <stop> --before <other-stop> --expected-revision <revision> --profile <profile> --draft <draft> --json
@@ -25,9 +25,8 @@ Edits take UTF-8 Markdown on stdin with the expected revision you just read; a s
 
 ```sh
 bpr tour hooks show --profile <profile> --json
-bpr tour assist context --hook problem --field problem --profile <profile> --draft <draft> --json
-bpr tour assist context --hook problem --field problem --quote "<exact passage>" --profile <profile> --draft <draft> --json
 bpr tour assist context --hook comment --field stop:<stop> --profile <profile> --draft <draft> --json
+bpr tour assist context --hook comment --field stop:<stop> --quote "<exact passage>" --profile <profile> --draft <draft> --json
 bpr tour assist complete --ticket <ticket> --result - --profile <profile> --draft <draft> --json
 bpr tour assist cancel --profile <profile> --draft <draft> --json
 bpr tour assist context --hook outline --sources <path>:<first>-<last> --profile <profile> --draft <draft> --json

@@ -516,6 +516,21 @@ namespace bpr::qt {
 	/// request's own conversation, or a current line on its side.
 	[[nodiscard]] auto suggestion_placement_of(const application::github_conversation_projection& aNode) -> core::suggestion_placement_observation;
 
+	/// \brief [[BPR-2262]]. One stop of Previous and Next comment past the
+	/// file shown: a review thread, or my draft on a line.
+	struct comment_stop
+	{
+		/// The thread's identity, or empty for a draft.
+		std::string                          Thread;
+		std::optional<core::review_draft_id> Draft;
+		QString                              Path;
+		core::diff_side                      Side = core::diff_side::right;
+		/// Zero-based; a thread with no line stands at its file's top.
+		std::uint32_t Line = 0U;
+
+		auto operator==(const comment_stop&) const -> bool = default;
+	};
+
 	/// \brief [[BPR-1290]]. One thread's marker in the code's gutter and its
 	/// tick on the code's scroll bar.
 	struct thread_line_mark
@@ -997,6 +1012,11 @@ namespace bpr::qt {
 		/// with its path, in file and then line order: Previous and Next
 		/// comment walk it past the file shown.
 		[[nodiscard]] auto threads_in_file_order() const -> std::vector<std::pair<std::string, QString>>;
+		/// \brief [[BPR-2262]]. Every review thread on a file and every draft
+		/// of mine on a line, in file and then line order: Previous and Next
+		/// comment walk it past the file shown (the owner: "I expect next
+		/// comment and prev comment to visit drafts").
+		[[nodiscard]] auto comments_in_file_order() const -> std::vector<comment_stop>;
 		/// \brief [[BPR-1601]]. File threads, then PR comments and summaries in Discuss order.
 		[[nodiscard]] auto unread_conversations_in_navigation_order() const -> const std::vector<std::string>&;
 		/// \brief The zero-based lines of the threads whose first post is unread.
@@ -1107,6 +1127,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto overflow() const -> int;
 		/// \brief One note's rectangle in viewport coordinates, or empty.
 		[[nodiscard]] auto note_rect(const std::string& aId) const -> QRect;
+		/// \brief [[BPR-2273]]. The words a closed note shows, as painted:
+		/// ending in an ellipsis when words were left out; empty for none.
+		[[nodiscard]] auto closed_preview(const std::string& aId) const -> QString;
 		/// \brief The thread whose note is under the pointer, if any.
 		[[nodiscard]] auto hovered_thread() const noexcept -> const std::string&;
 
@@ -1176,6 +1199,12 @@ namespace bpr::qt {
 	private:
 		/// [[BPR-1566]]. Gives an open card's label menu this view's reference dispatch.
 		void bind_reference(feedback_label_controls& aLabels);
+		/// \brief Opens the card named, or none when empty: the one way the
+		/// open card changes.
+		/// \details The draft is written in the drawer only while its card is
+		/// the open one, so opening anything else ends writing it here, on
+		/// every path that moves the open card ([[BPR-2260]], [[BPR-2262]]).
+		void set_open(std::string aId);
 
 		struct closed_measure
 		{
@@ -1448,11 +1477,13 @@ namespace bpr::qt {
 		};
 		mutable std::unordered_map<std::string, preview_entry> Previews;
 		[[nodiscard]] auto                                     preview_for(const thread_card& aCard) const -> const detail::note_preview&;
-		open_thread_card*                                      OpenCard = nullptr;
-		std::vector<QAbstractButton*>                          Chips;
-		std::size_t                                            ChipsShown = 0U;
-		QWidget*                                               BandAbove  = nullptr;
-		QWidget*                                               BandBelow  = nullptr;
+		/// [[BPR-2273]]. The height a comment field grows to before it scrolls.
+		[[nodiscard]] auto            field_share() const -> int;
+		open_thread_card*             OpenCard = nullptr;
+		std::vector<QAbstractButton*> Chips;
+		std::size_t                   ChipsShown = 0U;
+		QWidget*                      BandAbove  = nullptr;
+		QWidget*                      BandBelow  = nullptr;
 	};
 } // namespace bpr::qt
 

@@ -118,18 +118,7 @@ namespace bpr::application {
 			Implementation->Preferences->observe(Implementation->Consumer, aObservation);
 		}
 	}
-	void appearance_application_host::import_theme_file(std::string aPath)
-	{
-		if (!Implementation->Closing) {
-			Implementation->Preferences->import_theme_file(Implementation->Consumer, std::move(aPath));
-		}
-	}
-	void appearance_application_host::cancel_theme_import()
-	{
-		if (!Implementation->Closing) {
-			Implementation->Preferences->cancel_theme_import(Implementation->Consumer);
-		}
-	}
+	auto appearance_application_host::resolve_theme(const core::portable_theme& aTheme) const -> imported_theme { return Implementation->Preferences->resolve_theme(aTheme); }
 	void appearance_application_host::export_theme_file(std::string aPath, core::appearance_palette aPalette, const core::appearance_variant aVariant)
 	{
 		if (!Implementation->Closing) {
@@ -182,8 +171,6 @@ namespace bpr::application {
 	{
 		if (Implementation->OwnPreferences) {
 			Implementation->Preferences->cancel();
-		} else {
-			Implementation->Preferences->cancel_theme_import(Implementation->Consumer);
 		}
 		Implementation->Classification.cancel();
 	}

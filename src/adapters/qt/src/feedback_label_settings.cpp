@@ -133,13 +133,13 @@ namespace bpr::qt {
 		case core::feedback_label::issue:
 			return QStringLiteral("A concrete problem");
 		case core::feedback_label::todo:
-			return QStringLiteral("Small necessary change");
+			return QStringLiteral("A small change");
 		case core::feedback_label::question:
 			return QStringLiteral("Asks for clarification");
 		case core::feedback_label::thought:
 			return QStringLiteral("An idea, not a request");
 		case core::feedback_label::chore:
-			return QStringLiteral("Process work first");
+			return QStringLiteral("Process work");
 		case core::feedback_label::note:
 			return QStringLiteral("Information only");
 		case core::feedback_label::typo:

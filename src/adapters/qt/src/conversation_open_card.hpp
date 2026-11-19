@@ -28,6 +28,7 @@ class QBoxLayout;
 class QLabel;
 class QResizeEvent;
 class QVBoxLayout;
+class QWheelEvent;
 class QPalette;
 class QPlainTextEdit;
 class QToolButton;
@@ -397,6 +398,15 @@ namespace bpr::qt {
 		void present_comment_edit(const std::optional<comment_edit_presentation>& aEdit);
 		/// \brief [[BPR-1775]]. The editor's parts, while it is shown.
 		[[nodiscard]] auto comment_editor() const noexcept -> scoped_prose_editor*;
+		/// \brief [[BPR-2273]]. The tallest the comment fields grow before
+		/// they scroll: about 60% of the drawer.
+		void               set_field_maximum(int aMaximum);
+		[[nodiscard]] auto field_maximum() const noexcept -> int { return FieldMaximum; }
+		/// \brief [[BPR-2273]]. Scrolls the comment field `aWatched` is (or
+		/// is the viewport of) by a vertical wheel, by angle or pixel delta.
+		/// \returns False when it is not a field or is at its end that way,
+		/// so the drawer takes the wheel.
+		auto               scroll_field(const QObject* aWatched, QWheelEvent& aEvent) -> bool;
 		[[nodiscard]] auto comment_edit_save_button() const noexcept -> QAbstractButton*;
 		[[nodiscard]] auto comment_edit_cancel_button() const noexcept -> QAbstractButton*;
 		[[nodiscard]] auto comment_edit_newer_button() const noexcept -> QAbstractButton*;
@@ -487,6 +497,7 @@ namespace bpr::qt {
 		void mousePressEvent(QMouseEvent* aEvent) override;
 		void changeEvent(QEvent* aEvent) override;
 		auto event(QEvent* aEvent) -> bool override;
+		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 
 	private:
 		void build(const thread_card& aCard);
@@ -586,6 +597,12 @@ namespace bpr::qt {
 		QAbstractButton*     EditCancelButton = nullptr;
 		QAbstractButton*     EditNewerButton  = nullptr;
 		bool                 EditApplying     = false;
+		/// [[BPR-2273]]. The fields' share of the drawer, a trackpad's
+		/// pixels not yet a whole line, and the comment editor's fit guard.
+		int    FieldMaximum = 220;
+		double WheelLines   = 0.0;
+		bool   FittingEdit  = false;
+		void   fit_comment_editor();
 	};
 } // namespace bpr::qt
 

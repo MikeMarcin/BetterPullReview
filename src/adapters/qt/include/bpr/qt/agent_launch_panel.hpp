@@ -180,6 +180,9 @@ namespace bpr::qt {
 		/// runtime last reported it mid-turn; none until it reports a figure,
 		/// and none again once the run ends or the figure became unknown.
 		[[nodiscard]] auto running_turn_cost() const noexcept -> std::optional<core::agent_cost> { return RunningTurnCost; }
+		/// \brief [[BPR-2261]]. While it prepares, the run is checking the
+		/// pull request's retained workspace rather than making one.
+		[[nodiscard]] auto workspace_checking() const noexcept -> bool { return WorkspaceChecking; }
 		/// \brief [[BPR-2005]]. What the running (or last) turn did, as its
 		/// runtime reported it, timed from `activity_started_ms`.
 		[[nodiscard]] auto activity() const noexcept -> const core::agent_turn_activity& { return Activity; }
@@ -263,6 +266,7 @@ namespace bpr::qt {
 		QString                                                 LastCost;
 		std::optional<core::agent_cost>                         LastTurnCost;
 		std::optional<core::agent_cost>                         RunningTurnCost;
+		bool                                                    WorkspaceChecking = false;
 		core::agent_turn_activity                               Activity;
 		qint64                                                  ActivityStartedMs = 0;
 		bool                                                    ActivityReported  = false;

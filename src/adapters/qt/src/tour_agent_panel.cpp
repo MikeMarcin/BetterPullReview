@@ -288,8 +288,6 @@ namespace bpr::qt {
 		auto passage_words(const core::tour_passage& aPassage) -> QString
 		{
 			switch (aPassage.Field) {
-			case core::tour_passage_field::problem:  return QObject::tr("About the Problem");
-			case core::tour_passage_field::solution: return QObject::tr("About the Solution");
 			case core::tour_passage_field::stop:
 				return aPassage.StopTitle.empty() ? QObject::tr("About stop %1").arg(aPassage.Stop + 1U) : QObject::tr("About stop %1, %2").arg(aPassage.Stop + 1U).arg(QString::fromStdString(aPassage.StopTitle));
 			case core::tour_passage_field::stop_code:
@@ -342,8 +340,6 @@ namespace bpr::qt {
 		switch (aPart) {
 		case core::tour_proposal_part::stop_text:   return QObject::tr("Accept");
 		case core::tour_proposal_part::stop:        return QObject::tr("Add to tour");
-		case core::tour_proposal_part::problem:
-		case core::tour_proposal_part::solution:    return QObject::tr("Use this text");
 		case core::tour_proposal_part::remove_stop: return QObject::tr("Remove");
 		case core::tour_proposal_part::merge_stops: return QObject::tr("Merge");
 		case core::tour_proposal_part::split_stop:  return QObject::tr("Split");
@@ -393,7 +389,7 @@ namespace bpr::qt {
 		Draft = new quiet_push_button{ tr("Draft Tour"), this };
 		Draft->setObjectName(QStringLiteral("tourDraftTour"));
 		Draft->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-		Draft->setToolTip(tr("Asks the drafting agent, in the background, to read this pull request's code and propose the Problem, the Solution and the stops. You accept, edit or discard each one."));
+		Draft->setToolTip(tr("Asks the drafting agent, in the background, to read this pull request's code and propose the stops. You accept, edit or discard each one."));
 		Head->addWidget(Draft);
 		Status = small(paragraph({ }, this));
 		Status->setObjectName(QStringLiteral("tourDraftStatus"));
@@ -776,7 +772,7 @@ namespace bpr::qt {
 		RunningAny   = aAny;
 		Draft->setText(aDraftTour ? tr("Stop drafting") : tr("Draft Tour"));
 		fit_head();
-		Draft->setToolTip(aDraftTour ? tr("Drafting the tour in the background. Stop it; nothing in the tour changes.") : Ready ? tr("Asks the drafting agent, in the background, to read this pull request's code and propose the Problem, the Solution and the stops. You accept, edit or discard each one.")
+		Draft->setToolTip(aDraftTour ? tr("Drafting the tour in the background. Stop it; nothing in the tour changes.") : Ready ? tr("Asks the drafting agent, in the background, to read this pull request's code and propose the stops. You accept, edit or discard each one.")
 																																: Why);
 		Draft->setEnabled(Ready && (aDraftTour || !aAny));
 		ChatTour->setEnabled(true);
@@ -1066,12 +1062,6 @@ namespace bpr::qt {
 	auto tour_agent_panel::reset_words(const core::tour_reset_tally& aTally) -> QString
 	{
 		auto parts = QStringList{ };
-		if (aTally.Problem) {
-			parts << tr("the Problem");
-		}
-		if (aTally.Solution) {
-			parts << tr("the Solution");
-		}
 		if (aTally.Stops > 0U) {
 			parts << (aTally.Stops == 1U ? tr("its 1 stop") : tr("all %1 stops").arg(aTally.Stops));
 		}
@@ -1111,7 +1101,7 @@ namespace bpr::qt {
 		// [[BPR-1931]] v002. An icon only: its tooltip starts with its name.
 		const auto why = RunningAny         ? tr("Wait for the tour agent to finish, or stop it, before resetting the tour.")
 			: !core::resettable(ResetTally) ? tr("The tour is empty. There is nothing to reset.")
-											: tr("Clears the Problem, the Solution, the stops, the proposals, the chats and the focus of this tour, after asking. You can undo it.");
+											: tr("Clears the stops, the proposals, the chats and the focus of this tour, after asking. You can undo it.");
 		Reset->setToolTip(tr("Reset tour") + QStringLiteral("\n") + why);
 		Reset->setAccessibleName(tr("Reset tour"));
 		Reset->setAccessibleDescription(why);
@@ -1222,12 +1212,6 @@ namespace bpr::qt {
 	auto tour_agent_panel::proposed_words(const core::tour_proposal_tally& aTally) -> QString
 	{
 		auto parts = QStringList{ };
-		if (aTally.Problem) {
-			parts << tr("a new Problem");
-		}
-		if (aTally.Solution) {
-			parts << tr("a new Solution");
-		}
 		if (aTally.Stops > 0U) {
 			parts << (aTally.Stops == 1U ? tr("1 new stop") : tr("%1 new stops").arg(aTally.Stops));
 		}
@@ -1418,11 +1402,7 @@ namespace bpr::qt {
 			// [[BPR-1925]] v003. Each heading is read on the part it changes: a
 			// proposed stop is its title, under its grey ring and number.
 			auto heading = QString{ };
-			if (item.Part == core::tour_proposal_part::problem) {
-				heading = tr("Proposed Problem");
-			} else if (item.Part == core::tour_proposal_part::solution) {
-				heading = tr("Proposed Solution");
-			} else if (item.Part == core::tour_proposal_part::stop_text) {
+			if (item.Part == core::tour_proposal_part::stop_text) {
 				heading = tr("Proposed explanation");
 			} else if (item.Part == core::tour_proposal_part::remove_stop) {
 				// [[BPR-1930]]. A revision of the tour's shape, by its numbers.
@@ -1693,7 +1673,7 @@ namespace bpr::qt {
 		TranscriptCode->clear();
 		if (Session.Runs.empty()) {
 			TranscriptFrames->reset_wrap();
-			RunView->setHtml(QStringLiteral("<p style=\"color:%1\">%2</p>").arg(muted, tr("Nothing asked yet. Select a passage in the Problem, the Solution or a stop and press Ask about this, or ask below about the tour or the change.").toHtmlEscaped()));
+			RunView->setHtml(QStringLiteral("<p style=\"color:%1\">%2</p>").arg(muted, tr("Nothing asked yet. Select a passage in a stop and press Ask about this, or ask below about the tour or the change.").toHtmlEscaped()));
 			return;
 		}
 		// [[BPR-1914]]. The whole conversation, oldest first, as one

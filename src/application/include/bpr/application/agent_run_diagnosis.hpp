@@ -59,6 +59,15 @@ namespace bpr::application {
 		/// The longest time between two frames, in milliseconds; absent
 		/// when none was measured.
 		std::optional<std::uint64_t> LongestSilenceMs;
+		/// [[BPR-2261]]. How long the turn was held after its answer for a
+		/// report back's part, and the bound; absent when it was not held.
+		std::optional<std::uint64_t> HeldMs;
+		std::uint64_t                HeldBoundMs = 0U;
+		/// [[BPR-2261]]. The bound ended the held turn on its answer.
+		bool HeldOut = false;
+		/// [[BPR-2261]]. Stopped after a successful result with no helper
+		/// out: the run stands as answered.
+		bool StoppedAfterAnswer = false;
 		/// The frame types the decoder read past, comma separated; never
 		/// their content.
 		std::string ReadPast;
@@ -76,7 +85,10 @@ namespace bpr::application {
 	/// relaxed_tool=N relaxed_block=N relaxed_skill=N` for a relaxed run
 	/// ([[BPR-1918]]), then `helpers_started=N helpers_finished=N
 	/// helpers_failed=N helpers_abandoned=N` when helpers were reported,
-	/// `longest_silence_ms=N`, and `read_past=system/post_turn_summary,...`
+	/// `longest_silence_ms=N`, `held_ms=N held_bound_ms=N` when the turn was
+	/// held after its answer, `held_out=on` when the bound ended it and
+	/// `stopped_after_answer=on` when a stop came after the answer
+	/// ([[BPR-2261]]), and `read_past=system/post_turn_summary,...`
 	/// ([[BPR-2004]]).
 	[[nodiscard]] auto describe(const agent_run_diagnosis& aDiagnosis) -> std::string;
 	/// \brief Reads exactly what `describe` writes, and nothing else.

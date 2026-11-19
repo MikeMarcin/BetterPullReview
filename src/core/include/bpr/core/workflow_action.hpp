@@ -150,8 +150,6 @@ namespace bpr::core {
 		std::string   Revision;
 		std::uint64_t TitleRevision       = 0;
 		std::uint64_t DescriptionRevision = 0;
-		std::uint64_t ProblemRevision     = 0;
-		std::uint64_t SolutionRevision    = 0;
 		/// For a publication action: the accepted plan's digest handed off.
 		std::string PlanDigest;
 		/// The author's answer the invocation carried, and the question the

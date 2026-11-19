@@ -802,7 +802,7 @@ namespace {
 			}
 			if (line.find("explain-source-status") != std::string::npos) {
 				const auto hasFact   = [&line](const std::string& aFact) {const auto once=json_escape(aFact);return line.find(once)!=std::string::npos || line.find(json_escape(once))!=std::string::npos; };
-				const bool bootstrap = line.find("bpr.tour-context.v1") != std::string::npos && line.find("bpr.tour-guide.v2") != std::string::npos;
+				const bool bootstrap = line.find("bpr.tour-context.v2") != std::string::npos && line.find("bpr.tour-guide.v3") != std::string::npos;
 				answer               = (bootstrap && hasFact("\"confirmed_lines\":true") && hasFact("\"source_attention\":false") ? "current-source-confirmed no-source-warning" : "missing-current-source-context") + std::string{ " process=" } + process;
 				if (hasFact("\"outcome\":\"accepted\"") && line.find("Source-preserving update from fixture.") != std::string::npos) {
 					answer = "accepted-update-confirmed process=" + process;
@@ -827,13 +827,13 @@ namespace {
 			// in the message; both are read.
 			const auto instructions = argument_after(aCount, aArguments, "--append-system-prompt");
 			const auto asked        = [&line, &instructions](const std::string_view aSchema) { return line.find(aSchema) != std::string::npos || instructions.find(aSchema) != std::string::npos; };
-			if (asked("bpr.tour-ask.v1") || asked("bpr.tour-revise.v1")) {
-				answer = json_escape("{\"schema\":\"bpr.tour-ask.v1\",\"reply\":\"" + answer + "\",\"problem\":\"\",\"solution\":\"\",\"stops\":[],\"stop_texts\":[]}");
+			if (asked("bpr.tour-ask.v2") || asked("bpr.tour-revise.v2")) {
+				answer = json_escape("{\"schema\":\"bpr.tour-ask.v2\",\"reply\":\"" + answer + "\",\"stops\":[],\"stop_texts\":[]}");
 				if (line.find("update-source-explanation") != std::string::npos) {
-					answer = json_escape("{\"schema\":\"bpr.tour-ask.v1\",\"reply\":\"Proposed an explanation update.\",\"problem\":\"\",\"solution\":\"\",\"stops\":[],\"stop_texts\":[{\"stop\":1,\"explanation\":\"Source-preserving update from fixture.\"}]}");
+					answer = json_escape("{\"schema\":\"bpr.tour-ask.v2\",\"reply\":\"Proposed an explanation update.\",\"stops\":[],\"stop_texts\":[{\"stop\":1,\"explanation\":\"Source-preserving update from fixture.\"}]}");
 				}
-			} else if (asked("bpr.tour-draft.v1")) {
-				answer = json_escape("{\"schema\":\"bpr.tour-draft.v1\",\"problem\":\"Native drafted problem\",\"solution\":\"Native drafted solution\",\"stops\":[]}");
+			} else if (asked("bpr.tour-draft.v2")) {
+				answer = json_escape("{\"schema\":\"bpr.tour-draft.v2\",\"stops\":[]}");
 			}
 			if (protocol == protocol::claude_stream_json) {
 				// [[BPR-2141]]. A tool-free run (Draft Tour, `--tools ""`) lists

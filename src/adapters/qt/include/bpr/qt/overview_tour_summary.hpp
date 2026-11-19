@@ -57,12 +57,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1993]]. The head's actions, as the Tour tab's do.
 		void               set_head_dispatch(std::function<void(core::tour_head_action)> aDispatch);
 		[[nodiscard]] auto head_bar() const noexcept -> tour_head_bar* { return Head; }
-		/// \brief [[BPR-1996]], RFC-BPR-0100. A code reference in the Problem
-		/// or the Solution is a link that opens its lines in Review.
+		/// \brief [[BPR-1996]], RFC-BPR-0100. Where a code reference in the
+		/// tour's text opens its lines in Review.
 		void set_reference_links(agent_reference_files_source aFiles, agent_reference_navigation aNavigate);
-		/// \brief [[BPR-1993]]. Problem and Solution, rendered as Markdown.
-		[[nodiscard]] auto problem_view() const noexcept -> markdown_body_view* { return Problem; }
-		[[nodiscard]] auto solution_view() const noexcept -> markdown_body_view* { return Solution; }
 		/// \brief [[BPR-1993]]. Each row's place line and first sentence.
 		[[nodiscard]] auto stop_places() const -> QStringList;
 		[[nodiscard]] auto stop_leads() const -> QStringList;
@@ -101,16 +98,12 @@ namespace bpr::qt {
 		gesture_dispatch                            Dispatch;
 		std::function<void(core::tour_stop_id)>     StopDispatch;
 		std::function<void(core::tour_head_action)> HeadDispatch;
-		tour_head_bar*                              Head            = nullptr;
-		QLabel*                                     State           = nullptr;
-		QLabel*                                     Invitation      = nullptr;
-		QLabel*                                     ProblemHeading  = nullptr;
-		markdown_body_view*                         Problem         = nullptr;
-		QLabel*                                     SolutionHeading = nullptr;
-		markdown_body_view*                         Solution        = nullptr;
-		QLabel*                                     StopsHeading    = nullptr;
-		QWidget*                                    Route           = nullptr;
-		QVBoxLayout*                                RouteLayout     = nullptr;
+		tour_head_bar*                              Head         = nullptr;
+		QLabel*                                     State        = nullptr;
+		QLabel*                                     Invitation   = nullptr;
+		QLabel*                                     StopsHeading = nullptr;
+		QWidget*                                    Route        = nullptr;
+		QVBoxLayout*                                RouteLayout  = nullptr;
 		std::vector<stop_row>                       Rows;
 		QPushButton*                                Action = nullptr;
 	};

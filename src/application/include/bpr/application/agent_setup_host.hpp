@@ -223,6 +223,13 @@ namespace bpr::application {
 		void set_repository_chosen(bool aChosen);
 		/// RFC-BPR-0092 Check it works: the worktree row's result.
 		void set_workspace_check(core::setup_check aCheck, std::string aDetail = { });
+		/// \brief [[BPR-2261]]. The workspace row's result for the pull
+		/// request workspace kept under \p aKey: a pass is kept across
+		/// restarts, a failure forgets one kept before.
+		void settle_workspace_check(const std::string& aKey, core::setup_check aCheck, std::string aDetail = { });
+		/// \brief [[BPR-2261]]. The review on screen is the workspace kept
+		/// under \p aKey: a row not run takes the pass kept for it, if any.
+		void restore_workspace_check(const std::string& aKey);
 		/// Asks for setup again: the chosen agent stays selected, the checks
 		/// start over and detection runs again.
 		void restart();
