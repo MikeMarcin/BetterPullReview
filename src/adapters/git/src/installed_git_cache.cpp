@@ -5088,6 +5088,7 @@ namespace bpr::adapters::git {
 				}
 				const auto cleaned = State->Process->inspect_agent_workspace(
 					aWorkspace,
+					State->Repository,
 					aStop);
 				if (!State->active_boundary_still_owned()) {
 					return std::unexpected{

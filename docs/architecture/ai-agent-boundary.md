@@ -216,10 +216,16 @@ providers for the exact PR authority and base/head. A durable catalog reference
 keeps the original workspace and guard identities and journal phase 7. Startup recovery preserves
 that state even with no live process. Resume checks the marker, captured directory
 and guard identities, original pinned objects and the current HEAD; it never
-cleans allowed edits to make a resume succeed. Before retention, borrowed objects
-are packed locally and the alternates file is removed, so removing the linked
-clone does not invalidate a retained tree. A missing or unverifiable tree refuses
-input and is preserved for repair. Retention and safe admission bounds are recorded
+cleans allowed edits to make a resume succeed. A retained workspace keeps the
+one alternates line naming the linked clone's objects, so it copies only what
+the clone lacks of the head, never the history ([[BPR-2289]]; it used to pack
+all reachable history, about 7 GB per workspace on a large repository). Resume
+accepts exactly one such line, naming an objects folder outside the workspace.
+When the borrowed store no longer lends the head or the required base (the
+clone moved, was removed or dropped them), resume copies them from the review's
+cache, read only, ends the workspace's history at them and removes the line.
+A missing or unverifiable tree, or one the cache cannot supply, refuses input
+and is preserved for repair. Retention and safe admission bounds are recorded
 in the [RFC-0096 ledger](../verification/RFC-BPR-0096.md).
 
 Owner amendment `retained-large-projects-r2` ([[BPR-1972]]) removes the profile-wide

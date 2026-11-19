@@ -4399,12 +4399,13 @@ namespace {
 			const auto owned        = materialize(shallowClone);
 			require(owned.has_value() && !owned->Workspace.Shallow, "a retained workspace borrowing a shallow clone is made");
 			const auto tree = std::filesystem::path{ owned->Workspace.Path };
-			require(!std::filesystem::exists(tree / ".git" / "objects" / "info" / "alternates"), "the copy keeps no borrowed store");
+			// [[BPR-2289]]. It keeps borrowing the clone's store.
+			require(read_text(tree / ".git" / "objects" / "info" / "alternates") == std::filesystem::canonical(shallowClone / ".git" / "objects").string() + "\n", "the copy keeps borrowing the clone's store");
 			require(read_text(tree / ".git" / "shallow") == mid[0] + "\n", "the copy's history ends where the clone's does");
 			require(run_fixture_git(tree / ".git", { "rev-list", "--count", "HEAD" }) == "2", "the copy walks the history the clone holds");
 			require(read_text(tree / "README.md") == "head\n", "the head's files are checked out");
 			require(!owned->RequiredBase, "a base the clone did not lend is not required to resume");
-			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "the copy resumes");
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "the copy resumes");
 		}
 		// The owner's case: shallow at the head itself, as `--depth 1` makes.
 		{
@@ -4420,11 +4421,11 @@ namespace {
 			const auto owned       = materialize(brokenClone);
 			require(owned.has_value(), "a retained workspace borrowing a clone that lost an ancestor is still made");
 			const auto tree = std::filesystem::path{ owned->Workspace.Path };
-			require(!std::filesystem::exists(tree / ".git" / "objects" / "info" / "alternates"), "the repaired copy keeps no borrowed store");
+			require(std::filesystem::exists(tree / ".git" / "objects" / "info" / "alternates"), "the repaired copy keeps borrowing the clone's store");
 			require(read_text(tree / ".git" / "shallow") == head[0] + "\n" + base[0] + "\n", "the repaired copy's history ends at the head and the base");
 			require(run_fixture_git(tree / ".git", { "cat-file", "-t", base[0] }) == "commit", "the base the clone held is kept");
 			require(owned->RequiredBase == std::optional{ oid(base[0]) }, "a base the copy holds is required to resume");
-			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "the repaired copy resumes");
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "the repaired copy resumes");
 		}
 	}
 #endif
@@ -4528,20 +4529,20 @@ namespace {
 			const auto owned               = sparseAdapter->materialize_agent_workspace(sparse, { });
 			require(owned && owned->Workspace.Shallow && owned->SparseMissingObjects && !owned->SparseMissingObjects->empty(), "retained sparse workspace captures its original unselected object holes");
 			const auto tree = std::filesystem::path{ owned->Workspace.Path };
-			require(!std::filesystem::exists(tree / "README.md") && sparseAdapter->inspect_agent_workspace(*owned, { }).has_value(), "unselected missing blobs remain allowed");
+			require(!std::filesystem::exists(tree / "README.md") && sparseAdapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "unselected missing blobs remain allowed");
 			write_text(tree / "src" / "main.cpp", "allowed agent edit\n");
 			write_text(tree / "retained-note", "keep\n");
 			sparseAdapter.reset();
 			sparseAdapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, sparseRegistry);
-			require(sparseAdapter->inspect_agent_workspace(*owned, { }).has_value(), "sparse object evidence remains valid through fresh adapter and allowed edits");
+			require(sparseAdapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "sparse object evidence remains valid through fresh adapter and allowed edits");
 			auto legacy = *owned;
 			legacy.SparseMissingObjects.reset();
-			require(!sparseAdapter->inspect_agent_workspace(legacy, { }), "old sparse state without original object evidence refuses rather than inferring from its mutable index");
+			require(!sparseAdapter->inspect_agent_workspace(legacy, cache, { }), "old sparse state without original object evidence refuses rather than inferring from its mutable index");
 			const auto blob = tree / ".git" / "objects" / code.substr(0U, 2U) / code.substr(2U);
-			require(std::filesystem::remove(blob) && !sparseAdapter->inspect_agent_workspace(*owned, { }), "deleting a selected required blob refuses sparse resume");
+			require(std::filesystem::remove(blob) && !sparseAdapter->inspect_agent_workspace(*owned, cache, { }), "deleting a selected required blob refuses sparse resume");
 			require(read_text(tree / "src" / "main.cpp") == "allowed agent edit\n" && read_text(tree / "retained-note") == "keep\n", "failed object inspection preserves all allowed work");
 			static_cast<void>(run_fixture_git(tree / ".git", { "hash-object", "-w", "--stdin" }, bytes));
-			require(sparseAdapter->inspect_agent_workspace(*owned, { }).has_value(), "restoring the selected object repairs availability without resetting agent files");
+			require(sparseAdapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "restoring the selected object repairs availability without resetting agent files");
 			// Leave the commit available while removing its packed tree closure.
 			for (const auto& entry : std::filesystem::directory_iterator{ tree / ".git" / "objects" / "pack" }) {
 				std::filesystem::rename(entry.path(), tree / entry.path().filename());
@@ -4549,7 +4550,7 @@ namespace {
 			for (const auto suffix : { ".pack", ".idx" }) {
 				std::filesystem::copy_file(headOnlyPack.string() + "-" + headOnlyHash + suffix, tree / ".git" / "objects" / "pack" / (std::string{ "head-only" } + suffix));
 			}
-			require(!sparseAdapter->inspect_agent_workspace(*owned, { }), "a missing head tree cannot be treated as an allowed unselected blob hole");
+			require(!sparseAdapter->inspect_agent_workspace(*owned, cache, { }), "a missing head tree cannot be treated as an allowed unselected blob hole");
 			report_inventory_changes(cacheBefore, file_inventory(cache), "sparse-cache");
 			report_inventory_changes(cloneBefore, file_inventory(clone), "sparse-clone");
 			require(file_inventory(cache) == cacheBefore && file_inventory(clone) == cloneBefore, "sparse inspection never writes to the source cache or linked clone");
@@ -4564,15 +4565,31 @@ namespace {
 			}
 			require(owned.has_value(), "retained workspace materializes with durable ownership");
 			const auto tree = std::filesystem::path{ owned->Workspace.Path };
-			require(!std::filesystem::exists(tree / ".git" / "objects" / "info" / "alternates"), "retention removes borrowed object lifetime dependency");
+			// [[BPR-2289]]. Retention keeps borrowing the clone: the workspace
+			// copies only what the clone lacks of the head (its commit, tree
+			// and new blob), never the history.
+			const auto alternatesFile = tree / ".git" / "objects" / "info" / "alternates";
+			const auto borrowedLine   = std::filesystem::canonical(clone / ".git" / "objects").string() + "\n";
+			require(owned->Workspace.BorrowsHistory && read_text(alternatesFile) == borrowedLine, "a retained workspace keeps borrowing the linked clone's store");
+			require(in_pack(tree / ".git") == "3", "a retained workspace's own pack holds only what the clone lacks of the head");
+			require(file_inventory(clone) == cloneBefore, "retention writes nothing to the clone");
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value() && read_text(alternatesFile) == borrowedLine,
+					"a reattach while the clone still lends the head and the base keeps borrowing it");
 			write_text(tree / "README.md", "allowed agent edit\n");
 			write_text(tree / "untracked-agent-note", "kept across restart\n");
 			adapter.reset();
 			std::filesystem::rename(clone, root.Path / "clone-moved");
 			const auto recovered = git_adapter::recover_installed_agent_workspaces(*registry, neighbourhood);
 			require(recovered && recovered->Live == 1U && recovered->Recovered == 0U, "startup preserves unlocked retained ownership");
-			adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
-			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "a fresh adapter validates retained workspace and local object closure");
+			adapter               = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+			const auto unrepaired = adapter->inspect_agent_workspace(*owned, root.Path / "not-a-cache.git", { });
+			require(!unrepaired && unrepaired.error() == application::git_process_failure::object_unavailable && read_text(alternatesFile) == borrowedLine
+						&& !std::filesystem::exists(tree / ".git" / "shallow"),
+					"a moved clone with no cache to repair from refuses and leaves the workspace as it was");
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "a fresh adapter repairs a workspace whose clone moved, from the review's cache");
+			require(!std::filesystem::exists(alternatesFile) && read_text(tree / ".git" / "shallow") == head + "\n" + base + "\n",
+					"the repaired workspace holds the head and the base itself, its history ending at them");
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "the repaired workspace resumes again with nothing more to copy");
 #if defined(Q_OS_MACOS)
 			{
 				// [[BPR-2118]]. A Mac restart that renumbers the Data volume.
@@ -4613,38 +4630,38 @@ namespace {
 				require(read_text(journal) == current && ::lstat(journal.c_str(), &rewritten) == 0 && rewritten.st_ino == live.st_ino,
 						"the Version 1 journal is rewritten in place as the exact Version 2 record");
 				adapter               = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
-				const auto reattached = adapter->inspect_agent_workspace(legacy, { });
+				const auto reattached = adapter->inspect_agent_workspace(legacy, cache, { });
 				require(reattached && reattached->DirectoryIdentity == owned->DirectoryIdentity && reattached->LifetimeGuard == owned->LifetimeGuard,
 						"reattach accepts the old stored identities and hands back the journal's durable ones");
 				auto otherInode = legacy;
 				++otherInode.DirectoryIdentity.Opaque[3];
-				require(!adapter->inspect_agent_workspace(otherInode, { }), "a stored identity naming another inode is still refused");
+				require(!adapter->inspect_agent_workspace(otherInode, cache, { }), "a stored identity naming another inode is still refused");
 				otherInode = legacy;
 				++otherInode.LifetimeGuard->FileIdentity[3];
-				require(!adapter->inspect_agent_workspace(otherInode, { }), "a stored guard naming another file is still refused");
+				require(!adapter->inspect_agent_workspace(otherInode, cache, { }), "a stored guard naming another file is still refused");
 			}
 #endif
 			auto wrongAuthority              = *owned;
 			wrongAuthority.Authority.Account = core::github_account_id{ wrongAuthority.Authority.Account.value() + 1U };
-			require(!adapter->inspect_agent_workspace(wrongAuthority, { }), "retained source ownership cannot cross account authority even with exact directory identities");
+			require(!adapter->inspect_agent_workspace(wrongAuthority, cache, { }), "retained source ownership cannot cross account authority even with exact directory identities");
 			wrongAuthority                 = *owned;
 			wrongAuthority.Authority.Scope = core_identity<core::pull_request_authority_scope_id>(99U);
-			require(!adapter->inspect_agent_workspace(wrongAuthority, { }), "retained source ownership checks the original authority fingerprints");
+			require(!adapter->inspect_agent_workspace(wrongAuthority, cache, { }), "retained source ownership checks the original authority fingerprints");
 
 			require(run_fixture_git(tree / ".git", { "cat-file", "-t", base }) == "commit", "base objects survive removal of the lending clone");
 			require(read_text(tree / "README.md") == "allowed agent edit\n" && read_text(tree / "untracked-agent-note") == "kept across restart\n", "resume preserves tracked and untracked agent files");
 			auto missing         = *owned;
 			missing.RequiredBase = oid(std::string(40U, 'f'));
-			require(!adapter->inspect_agent_workspace(missing, { }), "missing required base objects refuse even with a valid head");
+			require(!adapter->inspect_agent_workspace(missing, cache, { }), "missing required base objects refuse even with a valid head");
 			require(read_text(tree / "untracked-agent-note") == "kept across restart\n", "refused inspection preserves agent work");
 			const auto changedTree = run_fixture_git(tree / ".git", { "write-tree" });
 			const auto agentCommit = run_fixture_git(tree / ".git", { "-c", "user.name=Agent fixture", "-c", "user.email=agent@example.invalid", "commit-tree", changedTree, "-p", head }, "agent-owned commit\n");
 			write_text(tree / ".git" / "HEAD", agentCommit + "\n");
-			require(adapter->inspect_agent_workspace(*owned, { }).has_value() && read_text(tree / ".git" / "HEAD") == agentCommit + "\n",
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value() && read_text(tree / ".git" / "HEAD") == agentCommit + "\n",
 					"shared workspace preserves an agent's Git commit while retaining the original PR binding");
 			write_text(tree / ".git" / "HEAD", "ref: refs/heads/agent-work\n");
 			write_text(tree / ".git" / "refs" / "heads" / "agent-work", agentCommit + "\n");
-			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "shared workspace accepts an agent branch without resetting HEAD");
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "shared workspace accepts an agent branch without resetting HEAD");
 			write_text(tree / ".git" / "HEAD", head + "\n");
 
 			// Exercise the production command with a history-size adversary. A
@@ -4652,7 +4669,7 @@ namespace {
 			const auto boundedGit     = make_fake_git_executable(root.Path);
 			auto       boundedAdapter = make_adapter(boundedGit, cacheIsolation, registry);
 			write_text(boundedGit.parent_path() / "retained-inspection-input", head + "^{commit}\n" + head + "^{tree}\nHEAD^{commit}\nHEAD^{tree}\n" + base + "^{commit}\n" + base + "^{tree}\n");
-			require(!owned->Workspace.Shallow && boundedAdapter->inspect_agent_workspace(*owned, { }).has_value(),
+			require(!owned->Workspace.Shallow && boundedAdapter->inspect_agent_workspace(*owned, cache, { }).has_value(),
 					"complete retained inspection never requests history-sized output even when rev-list would overflow 64 MiB");
 			const auto probeLog = read_text(cacheIsolation / "invocations.log");
 			require(probeLog.find("arg=--batch-check=%(objecttype)\n") != std::string::npos && probeLog.find("arg=rev-list\n") == std::string::npos,
@@ -4666,7 +4683,7 @@ namespace {
 			require(run_fixture_git(tree / ".git", { "cat-file", "-t", head }) == "commit", "missing-tree control retains the head commit");
 			auto missingHeadTree = *owned;
 			missingHeadTree.RequiredBase.reset();
-			const auto missingTree = adapter->inspect_agent_workspace(missingHeadTree, { });
+			const auto missingTree = adapter->inspect_agent_workspace(missingHeadTree, cache, { });
 			require(!missingTree && missingTree.error() == application::git_process_failure::object_unavailable,
 					"a retained complete workspace with no head root tree refuses even while its commit is present");
 
