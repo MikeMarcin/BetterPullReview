@@ -557,8 +557,11 @@ namespace bpr::app {
 				= implementation->ReviewDraft->State
 					== core::review_draft_state::drafting
 				&& provider.Submissions == 0U
-				&& editor->mutation_status_text().contains(QStringLiteral("head moved"));
+				// [[BPR-2263]]. The core's one sentence for a moved head.
+				&& editor->mutation_status_text().contains(QStringLiteral("has new commits since you wrote this"));
 			if (!probe.Evidence.StaleHeadRefused) {
+				QTextStream{ stdout } << "REVIEW_ROUND_TRIP_STALE_REFUSAL draft=" << static_cast<int>(implementation->ReviewDraft->State) << " submissions=" << provider.Submissions
+									  << " status=" << editor->mutation_status_text() << '\n';
 				return fail();
 			}
 			const auto* const comparison

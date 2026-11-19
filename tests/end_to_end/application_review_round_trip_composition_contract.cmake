@@ -3880,9 +3880,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# BPR-2265's unsealed app changes. The submission path is unchanged; its
 	# comment hold now finds the private store.
 	# [[BPR-2215]] reseal: this lane's app changes above and main's at
-	# 392dffc6f together. No review mutation or submission path changed.
+	# 392dffc6f together, and the round-trip course's stale-head probe reads
+	# BPR-2263's sentence for a moved head (fixture_review_round_trip_course.cpp,
+	# tests only). No review mutation or submission path changed.
 	set(bpr_expected_production_app_manifest_digest
-        "db411f6f100b0eb9d35a42f4430f3275e62e3132514108291977232e188efe2b"
+        "1d47b164277cf126f4bda98e645a344c1443a62686deec975e9ec62e6d0f9818"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
