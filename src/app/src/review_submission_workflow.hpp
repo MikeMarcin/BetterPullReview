@@ -102,6 +102,16 @@ namespace bpr::app {
 		/// verdict uses the defaults.
 		using finish_settings = std::function<core::review_finish_settings()>;
 		void set_finish_settings(finish_settings);
+		/// \brief [[BPR-2263]]. A provider factory for `aBinding` over the
+		/// window's connection as it is now, or none when there is no live
+		/// one. Asked once when a submission is refused for a connection
+		/// cause the application owns.
+		using connection_renewal = std::function<std::optional<application::review_submission_provider_factory>(const application::review_submission_live_binding&)>;
+		void set_connection_renewal(connection_renewal);
+		/// \brief [[BPR-2263]]. Reads the pull request again: the commit under
+		/// a refused review moved, and the reviewer confirms on what is read.
+		using reread_request = std::function<void()>;
+		void set_reread_request(reread_request);
 
 	private:
 		/// The inputs a projected preflight was read from: the selection and
@@ -133,7 +143,9 @@ namespace bpr::app {
 			core::review_submission_note          Waiting = core::review_submission_note::review_lane;
 			bool                                  Sending = false;
 			bool                                  Expired = false;
-			std::uint64_t                         Token   = 0U;
+			/// [[BPR-2263]]. Its connection was already repaired once.
+			bool          Repaired = false;
+			std::uint64_t Token    = 0U;
 			/// The accepted send, kept when its host is retired so the bound
 			/// can still end it there.
 			std::optional<application::review_submission_host_context> Sent;
@@ -143,10 +155,17 @@ namespace bpr::app {
 		void begin_attempt(const application::review_submission_request& aRequest, core::review_submission_note aWaiting);
 		void wait_for(core::review_submission_note aWaiting);
 		void expire(std::uint64_t aToken);
-		void end_attempt(core::review_submission_note aEnding);
-		void note(core::operation_action aAction, core::review_submission_note aNote, std::chrono::steady_clock::time_point aSince, std::uint32_t aCount = 0U, core::operation_failure aFailure = core::operation_failure::none) const;
-		void settle(const application::review_submission_result& aResult, std::optional<core::review_submission_draft>& aConfirmed, core::review_finish_transition& aTransition);
-		void new_draft();
+		/// [[BPR-2263]]. `aRefusal` and `aFailure`, when given, say what
+		/// refused a submission that ended unpublished.
+		void end_attempt(core::review_submission_note aEnding, std::optional<core::review_submission_refusal> aRefusal = std::nullopt, std::optional<core::operation_failure> aFailure = std::nullopt);
+		void note(core::operation_action aAction, core::review_submission_note aNote, std::chrono::steady_clock::time_point aSince, std::uint32_t aCount = 0U, core::operation_failure aFailure = core::operation_failure::none,
+				  std::optional<core::review_submission_refusal> aRefusal = std::nullopt) const;
+		/// [[BPR-2263]]. Repairs a refusal the application owns and sends the
+		/// same request again, once; true when it was sent again. A moved
+		/// commit asks for a reread instead and is never sent.
+		[[nodiscard]] auto repair(const application::review_submission_result& aResult) -> bool;
+		void               settle(const application::review_submission_result& aResult, std::optional<core::review_submission_draft>& aConfirmed, core::review_finish_transition& aTransition);
+		void               new_draft();
 		/// [[BPR-1345]] v003. After a confirmed or discarded review: the next
 		/// unfinished one if any, else a new draft. Nothing waits for New review.
 		void               next_review();
@@ -222,7 +241,11 @@ namespace bpr::app {
 		/// this window's Submit sent and whose first answer is still awaited.
 		/// Any other answer (Check status, a review found on opening) is a
 		/// recovery.
-		finish_settings            FinishSettings;
+		finish_settings    FinishSettings;
+		connection_renewal Renew;
+		reread_request     Reread;
+		/// [[BPR-2263]]. A refused review's pull request is being read again.
+		bool                       Rereading = false;
 		std::optional<std::string> SubmittedKey;
 		/// [[BPR-1541]]. Why the shown submission is still unknown, from its
 		/// last Check status or, after a restart, its record; and what each

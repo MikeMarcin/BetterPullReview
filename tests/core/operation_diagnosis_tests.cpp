@@ -227,6 +227,17 @@ namespace {
 		expect(describe({ .Action = operation_action::review_submit_request }).empty(), "a submission line names its subject");
 		expect(describe({ .Action = operation_action::resolve_thread, .Submission = review_submission_note::published }).empty(), "only a submission line names one");
 		expect(describe({ .Action = operation_action::review_submit_end, .Submission = static_cast<review_submission_note>(200) }).empty(), "an unknown subject is no line");
+		// [[BPR-2263]]. Not folded into refused_not_published: the failure
+		// it came with, and the check and reason that refused it.
+		const auto refused = operation_diagnosis{ .Action = operation_action::review_submit_end, .Failure = operation_failure::unavailable, .DurationMilliseconds = 35U, .Submission = review_submission_note::not_published, .Refusal = review_submission_refusal{ .Check = review_submission_refusal_check::host, .Reason = review_submission_refusal_reason::provider_unavailable } };
+		expect(describe(refused) == "action=review_submit_end failure=unavailable process=none exit=none duration_ms=35 count=0 written=0 read_back=0 submit_subject=not_published submit_check=host submit_reason=provider_unavailable submit_part=none submit_comment=0",
+			   "an ending names the check, reason and part that refused it");
+		expect(parse_operation_diagnosis(describe(refused)) == refused, "and reads back");
+		const auto repaired = operation_diagnosis{ .Action = operation_action::review_submit_repair, .Submission = review_submission_note::repaired };
+		expect(parse_operation_diagnosis(describe(repaired)) == repaired, "a repair reads back");
+		const auto invalid = operation_diagnosis{ .Action = operation_action::review_submit_end, .Failure = operation_failure::unavailable, .Submission = review_submission_note::not_published, .Refusal = review_submission_refusal{ .Reason = review_submission_refusal_reason::invalid_request, .Part = review_submission_refusal_part::comment_body_missing, .Comment = 3U } };
+		expect(parse_operation_diagnosis(describe(invalid)) == invalid, "an invalid part and its comment read back");
+		expect(describe({ .Action = operation_action::review_submit_wait, .Submission = review_submission_note::review_lane, .Refusal = review_submission_refusal{ } }).empty(), "a refusal only on an end or repair line");
 	}
 } // namespace
 

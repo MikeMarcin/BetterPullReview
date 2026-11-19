@@ -1,5 +1,6 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
+#include "../support/diagnostic_files.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
@@ -597,6 +598,52 @@ auto main(int argc, char** argv) -> int
 		expect(editor.shown_draft()->State == state::submitting && !editor.submit_action()->isEnabled(), "stale result cannot finish or retry review");
 		editor.reconcile_action()->trigger();
 		submitted(editor);
+		// [[BPR-2263]]. Approve while the submission connection is stale:
+		// the refusal is repaired and the same review published, with no
+		// second Submit and one review on the server.
+		{
+			std::size_t sentBefore = 0U;
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->SubmissionFactoryFailures = 1U;
+				sentBefore                        = server->Reviews.size();
+			}
+			editor.choose_disposition(core::review_disposition::approve);
+			editor.body_editor()->setPlainText(QStringLiteral("Repaired before anyone presses again"));
+			editor.submit_action()->trigger();
+			submitted(editor);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->SubmissionFactoryFailures == 0U && server->Reviews.size() == sentBefore + 1U && server->Reviews.back().Proposal.Body == "Repaired before anyone presses again",
+					   "the repaired review is published once, from one Submit");
+			}
+			const auto logged = [&](std::string_view aWord) { return tests::read_diagnostic_logs(*dataRoot).find(aWord) != std::string::npos; };
+			wait([&] { return logged("submit_subject=repaired"); }, "the log shows the repair");
+			for (const auto* const word : { "check=host reason=provider_unavailable", "submit_subject=repairing submit_check=host submit_reason=provider_unavailable", "submit_subject=repaired" }) {
+				expect(logged(word), "the log shows the refusal, its check and reason, and the repair");
+			}
+		}
+		if (!cliMode) {
+			// [[BPR-2263]]. A moved head is never sent on: the page says why
+			// and the reviewer confirms by submitting again.
+			std::size_t sentBefore = 0U;
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->StaleHeadBeforeSend = true;
+				sentBefore                  = server->Reviews.size();
+			}
+			editor.body_editor()->setPlainText(QStringLiteral("Not on the old head"));
+			editor.submit_action()->trigger();
+			wait([&] { return editor.shown_draft()->State == state::drafting; }, "a moved head ends the submission");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->Reviews.size() == sentBefore, "a moved head publishes nothing without the reviewer");
+			}
+			expect(editor.status_label()->text().contains(QStringLiteral("new commits")) && !editor.status_label()->text().contains(QStringLiteral("check them")), "the page says the head moved and asks the reviewer to look first");
+			expect(editor.shown_draft()->Body == "Not on the old head", "the review is kept");
+			editor.submit_action()->trigger();
+			submitted(editor);
+		}
 		editor.body_editor()->setPlainText(QStringLiteral("Recover after reopening"));
 		{
 			std::scoped_lock lock{ server->Mutex };
@@ -609,7 +656,7 @@ auto main(int argc, char** argv) -> int
 		{
 			std::scoped_lock lock{ server->Mutex };
 			original = server->Reviews.back();
-			expect(server->Submissions == 5U, "one lost-response submission");
+			expect(server->Submissions == 7U, "one lost-response submission (after the repaired and confirmed ones of BPR-2263)");
 		}
 		shutdown(*application);
 		application.reset();
@@ -628,7 +675,7 @@ auto main(int argc, char** argv) -> int
 			   "real SQLite restores original attempt into reconstructed application");
 		{
 			std::scoped_lock lock{ server->Mutex };
-			expect(server->Submissions == 5U && server->Reviews.back() == original, "reopening preserves key and issues no new submission");
+			expect(server->Submissions == 7U && server->Reviews.back() == original, "reopening preserves key and issues no new submission");
 		}
 		if (argc == 2) {
 			application->window().resize(1280, 900);
@@ -696,7 +743,7 @@ auto main(int argc, char** argv) -> int
 			   "discard and explicit new review adopt the new revision");
 		{
 			std::scoped_lock lock{ server->Mutex };
-			expect(server->Submissions == 6U, "changed-head refusal issued no submission");
+			expect(server->Submissions == 8U, "changed-head refusal issued no submission");
 		}
 		shutdown(*application);
 		application.reset();
@@ -717,7 +764,7 @@ auto main(int argc, char** argv) -> int
 		}
 		{
 			std::scoped_lock lock{ server->Mutex };
-			expect(server->Submissions == 6U, "explanation and closed review perform zero additional publications");
+			expect(server->Submissions == 8U, "explanation and closed review perform zero additional publications");
 		}
 		shutdown(*application);
 		application.reset();
@@ -749,7 +796,7 @@ auto main(int argc, char** argv) -> int
 			const auto approve = composer.disposition_button(core::review_disposition::approve);
 			{
 				std::scoped_lock lock{ server->Mutex };
-				expect(server->Submissions == 6U, "the preflight course starts after six submissions");
+				expect(server->Submissions == 8U, "the preflight course starts after eight submissions");
 			}
 			expect(composer.shown_draft() && composer.shown_draft()->State == state::drafting, "a new review to decide");
 			wait([&] { return chip() == QStringLiteral("Yours on GitHub: 0 open blocking"); }, "the fixture's own threads are plain, read exactly, and none blocks");

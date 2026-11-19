@@ -1,7 +1,9 @@
 #include "bpr/core/review_submission.hpp"
 #include "bpr/core/review_role.hpp"
+#include "bpr/core/review_submission_refusal.hpp"
 #include "bpr/core/utf8.hpp"
 
+#include <algorithm>
 #include <limits>
 
 namespace bpr::core {
@@ -415,5 +417,50 @@ namespace bpr::core {
 												   .Answer      = aRecorded ? review_finish_answer::published : review_finish_answer::not_published,
 												   .Origin      = review_finish_origin::submit,
 											   });
+	}
+	auto review_submission_content_refusal(const std::string_view aSummary, const review_disposition aDisposition, const std::span<const review_submission_comment> aComments) noexcept
+		-> review_submission_refusal
+	{
+		using part        = review_submission_refusal_part;
+		const auto refuse = [](const part aPart, const std::size_t aComment = 0U) {
+			return review_submission_refusal{ .Check = review_submission_refusal_check::session, .Reason = review_submission_refusal_reason::invalid_request, .Part = aPart, .Comment = static_cast<std::uint16_t>(aComment) };
+		};
+		if (aComments.size() > maximum_review_submission_comments) {
+			return refuse(part::too_many_comments);
+		}
+		auto content = aSummary.size();
+		for (auto index = std::size_t{ 0U }; index < aComments.size(); ++index) {
+			const auto& comment = aComments[index];
+			if (comment.Path.empty() || comment.Path.size() > maximum_pending_mark_path_bytes || comment.Path.find('\0') != std::string::npos || !valid_utf8(comment.Path)) {
+				return refuse(part::comment_path, index + 1U);
+			}
+			const auto side      = comment.Side == diff_side::left || comment.Side == diff_side::right;
+			const auto twice     = std::ranges::any_of(aComments.first(index), [&comment](const review_submission_comment& aEarlier) { return aEarlier.Draft == comment.Draft; });
+			const auto unhealthy = comment.Draft.value() == 0U || comment.DraftRevision == 0U || !side || (comment.StartLine && *comment.StartLine >= comment.Line);
+			if (unhealthy || twice) {
+				return refuse(part::comment_place, index + 1U);
+			}
+			if (comment.Body.size() > maximum_review_submission_body_bytes) {
+				return refuse(part::comment_body_too_long, index + 1U);
+			}
+			if (!valid_utf8(comment.Body)) {
+				return refuse(part::comment_not_text, index + 1U);
+			}
+			content += comment.Body.size() + comment.Path.size();
+		}
+		if (!aComments.empty() && content > maximum_review_submission_content_bytes) {
+			return refuse(part::review_too_large);
+		}
+		for (auto index = std::size_t{ 0U }; index < aComments.size(); ++index) {
+			if (validate_body(aComments[index].Body, true) != rejection::none) {
+				return refuse(part::comment_body_missing, index + 1U);
+			}
+		}
+		switch (validate_body(aSummary, summary_required(aDisposition, aComments))) {
+		case rejection::body_too_large: return refuse(part::summary_too_long);
+		case rejection::invalid_utf8:   return refuse(part::summary_not_text);
+		case rejection::blank_body:     return refuse(part::summary_missing);
+		default:                        return refuse(part::none);
+		}
 	}
 } // namespace bpr::core

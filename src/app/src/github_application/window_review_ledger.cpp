@@ -9,6 +9,7 @@
 #include "bpr/core/insights.hpp"
 #include "bpr/core/private_review.hpp"
 #include "bpr/core/private_thread_lineage.hpp"
+#include "bpr/core/review_submission_refusal.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
@@ -160,10 +161,22 @@ namespace bpr::app {
 		}
 		const auto login  = aBinding ? QString::fromStdString(aBinding->ActingIdentity.Login) : QString{ };
 		const auto host   = aBinding ? QString::fromStdString(std::string{ aBinding->Target.Hostname.value() }) : QString{ };
-		const auto status = aOutcome == core::review_publication_outcome::indeterminate
+		auto       status = aOutcome == core::review_publication_outcome::indeterminate
 			? qt::github_cli_publication_recovery_text(aFailure, login, host)
 			: aBinding ? qt::github_cli_publication_failure_text(aFailure, login, host)
 					   : QString{ };
+		// [[BPR-2263]]. A comment refused before it could leave because its
+		// pull request moved or changed says so in the same sentence the
+		// whole review uses.
+		if (status.isEmpty() && aOutcome != core::review_publication_outcome::indeterminate) {
+			const auto reason = aFailure == application::review_mutation_failure::stale_head ? std::optional{ core::review_submission_refusal_reason::stale_head }
+				: aFailure == application::review_mutation_failure::target_moved             ? std::optional{ core::review_submission_refusal_reason::target_moved }
+				: aFailure == application::review_mutation_failure::undesignated_target      ? std::optional{ core::review_submission_refusal_reason::identity_mismatch_pull_request }
+																							 : std::nullopt;
+			if (reason) {
+				status = QString::fromStdString(core::sentence({ .Reason = *reason }, { .Subject = core::review_submission_refusal_subject::comment }));
+			}
+		}
 		if (status.isEmpty()) {
 			Window->review_editor()->present(aFailure);
 		} else {

@@ -71,6 +71,12 @@ namespace bpr::app::detail {
 				if (State->RefuseBeforeSend) {
 					return { .Request = aRequest, .Publication = application::review_submission_publication::definitely_not_published };
 				}
+				if (std::exchange(State->StaleHeadBeforeSend, false)) {
+					return { .Request     = aRequest,
+							 .Publication = application::review_submission_publication::definitely_not_published,
+							 .Failure     = application::review_mutation_failure::stale_head,
+							 .Refused     = core::review_submission_refusal{ .Check = core::review_submission_refusal_check::session, .Reason = core::review_submission_refusal_reason::stale_head } };
+				}
 				auto known = Store->load(aRequest.IdempotencyKey);
 				if (!known) {
 					return { .Request = aRequest };

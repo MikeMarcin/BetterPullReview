@@ -310,6 +310,10 @@ namespace bpr::app {
 			[this](const std::vector<core::review_submission_comment>& aCarried, const core::git_commit_oid& aHead) { discard_review_comments(aCarried, aHead); });
 		ReviewSubmission->set_publication_observer([this] { reread_after_publication(); });
 		ReviewSubmission->set_unplaceable_refusal_observer([this](const application::review_submission_request& aRefused) { demote_off_hunk_fact(aRefused); });
+		// [[BPR-2263]]. A refusal the application owns is repaired over the
+		// window's connection as it is now; a moved commit is read again.
+		ReviewSubmission->set_connection_renewal([this](const application::review_submission_live_binding& aBinding) { return Closing ? std::nullopt : review_submission_factory(aBinding); });
+		ReviewSubmission->set_reread_request([this] { reread_after_publication(); });
 		// [[BPR-1816]]. Where a finished review goes is the profile's
 		// accepted choice when GitHub answers, not the window's.
 		ReviewSubmission->set_finish_settings([this] {

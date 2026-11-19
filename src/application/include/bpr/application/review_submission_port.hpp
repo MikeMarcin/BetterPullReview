@@ -3,6 +3,7 @@
 
 #include "bpr/application/review_submission_contract.hpp"
 #include "bpr/application/staged_review_publication.hpp"
+#include "bpr/core/review_submission_refusal.hpp"
 #include "bpr/core/review_submission_unknown.hpp"
 
 namespace bpr::application {
@@ -36,6 +37,9 @@ namespace bpr::application {
 		std::optional<core::review_submission_unknown_diagnosis> Unknown;
 		/// [[BPR-1715]]. For a review GitHub refused, what its answer said.
 		review_submission_refusal Refusal = review_submission_refusal::none;
+		/// [[BPR-2263]]. For a result reached before its request could leave,
+		/// the check that refused it and why; none otherwise.
+		std::optional<core::review_submission_refusal> Refused;
 	};
 
 	struct tour_destination_facts

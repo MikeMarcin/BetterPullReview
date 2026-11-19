@@ -102,6 +102,11 @@ namespace bpr::application {
 		/// (cancelled, nothing sent) is posted now, freeing the host. False
 		/// once it began, or for any other context.
 		[[nodiscard]] auto abandon(review_submission_host_context aContext) -> bool;
+		/// \brief [[BPR-2263]]. Builds every later operation's provider with
+		/// `aFactory`: the same binding over a renewed connection. Work
+		/// already running keeps the provider it built. An empty factory is
+		/// ignored.
+		void               renew(review_submission_provider_factory aFactory);
 		void               shutdown() noexcept;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 

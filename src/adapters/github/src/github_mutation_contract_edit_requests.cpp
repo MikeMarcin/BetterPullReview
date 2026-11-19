@@ -1274,6 +1274,41 @@ namespace bpr::adapters::github::detail {
 		};
 	}
 
+	auto diagnose_review_submission_request(const review_submission_request& aRequest, const application::github_server_contract aServer) -> core::review_submission_refusal
+	{
+		using part      = core::review_submission_refusal_part;
+		const auto make = [](const part aPart, const std::size_t aComment = 0U) {
+			return core::review_submission_refusal{ .Check = core::review_submission_refusal_check::session, .Reason = core::review_submission_refusal_reason::invalid_request, .Part = aPart, .Comment = static_cast<std::uint16_t>(aComment) };
+		};
+		if (!valid_server(aServer) || aServer != aRequest.Target.ServerContract || !application::valid(aRequest.Target) || !application::valid(aRequest.ActingIdentity)
+			|| !submission_names(aRequest.Disposition).has_value()) {
+			return make(part::request);
+		}
+		if (const auto content = core::review_submission_content_refusal(aRequest.Body, aRequest.Disposition, aRequest.Comments); content.Part != part::none) {
+			return content;
+		}
+		if (aRequest.Body.size() > maximum_review_mutation_body_bytes) {
+			return make(part::summary_too_long);
+		}
+		if (!utf8_round_trip(aRequest.Body)) {
+			return make(part::summary_not_text);
+		}
+		for (auto index = std::size_t{ 0U }; index < aRequest.Comments.size(); ++index) {
+			if (!utf8_round_trip(aRequest.Comments[index].Path)) {
+				return make(part::comment_path, index + 1U);
+			}
+			if (!utf8_round_trip(aRequest.Comments[index].Body)) {
+				return make(part::comment_not_text, index + 1U);
+			}
+		}
+		if (core::summary_required(aRequest.Disposition, aRequest.Comments) && QString::fromUtf8(aRequest.Body.data(), static_cast<qsizetype>(aRequest.Body.size())).trimmed().isEmpty()) {
+			return make(part::summary_missing);
+		}
+		// Every rule holds and it still cannot be written: its JSON is
+		// larger than one request carries.
+		return make(valid_submission(aRequest) ? part::review_too_large : part::request);
+	}
+
 	auto compile_review_submission_observation_request(const review_submission_request& aRequest, const application::github_server_contract aServer) -> review_mutation_request_result
 	{
 		auto result = compile_review_submission_request(aRequest, aServer);

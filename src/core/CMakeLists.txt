@@ -201,6 +201,7 @@ add_library(
         src/local_comment.cpp
         src/note_placement.cpp
         src/review_submission.cpp
+        src/review_submission_refusal.cpp
         src/review_submission_unknown.cpp
         src/review_preflight.cpp
         src/sha1_collision_detecting.cpp

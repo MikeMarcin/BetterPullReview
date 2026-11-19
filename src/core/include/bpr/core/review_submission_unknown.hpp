@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_SUBMISSION_UNKNOWN_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_SUBMISSION_UNKNOWN_HPP
 
+#include "bpr/core/review_submission_refusal.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -223,6 +225,14 @@ namespace bpr::core {
 		/// A read or the local record before the POST failed.
 		unavailable,
 		other,
+		// [[BPR-2263]]. Each other failure a run that sent nothing ends
+		// with has its own stop.
+		credential_unavailable,
+		credential_tool_failed,
+		unsupported,
+		target_unavailable,
+		malformed_response,
+		refused_by_server,
 	};
 	/// \brief [[BPR-1722]]. A known ending with counts only: no
 	/// host, repository, account, URL or review text.
@@ -240,17 +250,22 @@ namespace bpr::core {
 		review_submission_stop           Stop            = review_submission_stop::none;
 		std::uint16_t                    Comments        = 0U;
 		bool                             Duplicate       = false;
+		/// [[BPR-2263]]. For a run that sent nothing, the check that refused
+		/// it and why, when one did.
+		std::optional<review_submission_refusal> Cause = std::nullopt;
 
 		auto operator<=>(const review_submission_ending_diagnosis&) const = default;
 	};
 	/// \brief Whether every field is in range: known names, a POST status
 	/// class (0 or 2 to 5) only with an answered POST, a refusal only for a
 	/// refused review, a stop only for one not sent, a duplicate only when
-	/// published, at most `maximum_review_submission_comments` comments.
+	/// published, at most `maximum_review_submission_comments` comments, and
+	/// ([[BPR-2263]]) a valid cause only for one not sent.
 	[[nodiscard]] auto valid(const review_submission_ending_diagnosis& aDiagnosis) noexcept -> bool;
 	/// \brief The ending as one line of fixed keys, enums and decimal counts:
 	/// `review_submission_ending=ENDING run=RUN post=ANSWER post_class=N
-	/// refusal=REFUSAL stop=STOP comments=N duplicate=0|1`. Empty when not valid.
+	/// refusal=REFUSAL stop=STOP comments=N duplicate=0|1`, then with a cause
+	/// ` check=CHECK reason=REASON part=PART comment=N`. Empty when not valid.
 	[[nodiscard]] auto describe(const review_submission_ending_diagnosis& aDiagnosis) -> std::string;
 	/// \brief Reads exactly what `describe` writes; anything else is none.
 	[[nodiscard]] auto parse_review_submission_ending(std::string_view aText) -> std::optional<review_submission_ending_diagnosis>;

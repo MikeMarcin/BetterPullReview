@@ -9,7 +9,7 @@
 
 namespace bpr::core {
 	namespace {
-		constexpr std::array<std::string_view, 78>  action_names{ "agent_status_check", "agent_program_check", "agent_custom_check", "workspace_materialize", "workspace_cleanup", "observe_target", "publish_comment", "reconcile_publication", "repair_publications", "resolve_thread", "unresolve_thread", "add_reaction", "remove_reaction", "edit_description", "edit_comment", "search_reviewers", "request_reviewer", "device_sign_in", "token_renewal", "sign_out", "account_change", "vault_store", "vault_load", "vault_delete", "refresh_store", "refresh_load", "refresh_delete", "update_check", "update_download", "update_verify", "update_refresh", "update_apply",
+		constexpr std::array<std::string_view, 79>  action_names{ "agent_status_check", "agent_program_check", "agent_custom_check", "workspace_materialize", "workspace_cleanup", "observe_target", "publish_comment", "reconcile_publication", "repair_publications", "resolve_thread", "unresolve_thread", "add_reaction", "remove_reaction", "edit_description", "edit_comment", "search_reviewers", "request_reviewer", "device_sign_in", "token_renewal", "sign_out", "account_change", "vault_store", "vault_load", "vault_delete", "refresh_store", "refresh_load", "refresh_delete", "update_check", "update_download", "update_verify", "update_refresh", "update_apply",
 																  // [[BPR-1831]].
 																  "storage_open", "storage_migrate", "storage_read", "storage_write", "storage_statement", "clone_scan", "clone_verify", "clone_load", "source_search", "image_fetch", "avatar_fetch", "notification_deliver", "notification_permission", "notification_activate",
 																  // [[BPR-1830]].
@@ -23,7 +23,9 @@ namespace bpr::core {
 																  // [[BPR-1884]].
 																  "clone_refresh", "native_continuation",
 																  // [[RFC-BPR-0105]].
-																  "review_submit_request", "review_submit_wait", "review_submit_send", "review_submit_drop", "review_submit_end" };
+																  "review_submit_request", "review_submit_wait", "review_submit_send", "review_submit_drop", "review_submit_end",
+																  // [[BPR-2263]].
+																  "review_submit_repair" };
 		constexpr std::array<std::string_view, 139> failure_names{ "none", "cancelled", "unavailable", "agent_not_found", "program_refused", "no_program_chosen", "not_signed_in", "failed_to_start", "status_unreadable", "timed_out", "workspace_unavailable", "invalid_request", "stale", "cleanup_failed", "copy_failed", "download_failed", "connection_failed", "sign_in_refused", "too_large", "clone_needed", "refused_by_server", "undesignated_target", "target_moved", "stale_head", "unsupported", "target_unavailable", "malformed_response", "incompatible_body", "credential_unavailable", "credential_tool_failed", "unplaceable_line", "refused_not_published", "settled_not_published", "off_hunk_refused", "not_confirmed", "conflict", "authorization_denied", "authorization_expired", "device_flow_disabled", "device_flow_unavailable", "network_unavailable", "certificate_rejected", "redirect_rejected", "response_too_large", "vault_unavailable", "refresh_absent", "refresh_rejected", "transport_failed", "storage_failed", "no_session", "locked", "access_denied", "corrupt", "operation_failed", "allocation_failure", "policy_refused", "access_required", "unauthenticated", "forbidden", "inaccessible", "offline", "rate_limited", "malformed_release", "invalid_version", "unstable_release", "no_compatible_asset", "ambiguous_asset", "invalid_digest", "size_limit", "unsafe_archive", "invalid_bundle", "wrong_architecture", "wrong_signer", "digest_mismatch", "changed_candidate", "busy", "stale_completion", "invalid_progress", "identity_exhausted", "installer_unavailable", "flush_failed", "quit_refused", "recovery_required", "shutdown",
 																   // [[BPR-1831]].
 																   "invalid_path", "invalid_permissions", "schema_mismatch", "integrity_failure", "quota_exceeded", "platform_unsupported", "io_error", "read_only", "constraint", "not_a_database", "cannot_open", "sql_error", "not_a_clone", "no_matching_remote", "scan_failed", "store_unreadable", "search_failed", "resource_limit", "fetch_failed", "blocked", "over_limit", "permission_refused", "unattributable_activation",
@@ -37,9 +39,9 @@ namespace bpr::core {
 
 		constexpr auto tour_stage_names = std::array<std::string_view, 36>{ "preview", "admission", "discovery", "recovery", "publish", "factory", "identity_check", "request_preparation", "baseline_read", "journal", "verification", "terminal", "stop", "list_reviews", "read_review", "list_comments", "create_pending", "update_comment", "update_summary", "submit_comment", "discard_pending", "update_description", "list_issue_comments", "create_issue_comment", "update_issue_comment", "update_pending_comment", "plan_validation", "recovery_open", "lease", "configuration", "binding", "journal_read", "credential_scope", "journal_save", "create_file_comment", "list_file_comments" };
 		constexpr auto tour_state_names = std::array<std::string_view, 9>{ "none", "unavailable", "ready", "staged", "outcome_unknown", "conflict", "published", "description_attention", "partial" };
-		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::review_submit_end) + 1U);
-		constexpr auto submission_note_names = std::array<std::string_view, 9>{ "none", "pending_comments", "review_lane", "superseded", "retired", "published", "not_published", "outcome_unknown", "wait_expired" };
-		static_assert(submission_note_names.size() == static_cast<std::size_t>(review_submission_note::wait_expired) + 1U);
+		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::review_submit_repair) + 1U);
+		constexpr auto submission_note_names = std::array<std::string_view, 12>{ "none", "pending_comments", "review_lane", "superseded", "retired", "published", "not_published", "outcome_unknown", "wait_expired", "repairing", "repaired", "repair_failed" };
+		static_assert(submission_note_names.size() == static_cast<std::size_t>(review_submission_note::repair_failed) + 1U);
 		static_assert(failure_names.size() == static_cast<std::size_t>(operation_failure::refresh_failed) + 1U);
 
 		// [[BPR-1831]]. The store names, by each store file's fixed name.
@@ -286,6 +288,10 @@ namespace bpr::core {
 		if (submission != aDiagnosis.Submission.has_value() || (aDiagnosis.Submission && name(*aDiagnosis.Submission).empty())) {
 			return false;
 		}
+		// [[BPR-2263]]. A refusal only on an end or repair line, and valid.
+		if (aDiagnosis.Refusal && ((aDiagnosis.Action != operation_action::review_submit_end && aDiagnosis.Action != operation_action::review_submit_repair) || !valid(*aDiagnosis.Refusal))) {
+			return false;
+		}
 		return kind == operation_diagnosis_family::review_mutation || aDiagnosis.Tour || (!aDiagnosis.Written && !aDiagnosis.ReadBack);
 	}
 
@@ -323,6 +329,15 @@ namespace bpr::core {
 			text += " submit_subject=";
 			text += name(*aDiagnosis.Submission);
 		}
+		if (aDiagnosis.Refusal) {
+			text += " submit_check=";
+			text += name(aDiagnosis.Refusal->Check);
+			text += " submit_reason=";
+			text += name(aDiagnosis.Refusal->Reason);
+			text += " submit_part=";
+			text += name(aDiagnosis.Refusal->Part);
+			text += " submit_comment=" + std::to_string(aDiagnosis.Refusal->Comment);
+		}
 		return text;
 	}
 
@@ -352,8 +367,22 @@ namespace bpr::core {
 		// [[BPR-1831]]. A storage line's store and schema version.
 		if (aText.starts_with("submit_subject=")) {
 			result.Submission = enumerated<review_submission_note>(aText, "submit_subject", submission_note_names);
-			if (!result.Submission || !aText.empty()) {
+			if (!result.Submission) {
 				return std::nullopt;
+			}
+			// [[BPR-2263]]. The refusal, when the line carries one.
+			if (!aText.empty()) {
+				const auto check   = word(aText, "submit_check");
+				const auto reason  = check ? word(aText, "submit_reason") : std::nullopt;
+				const auto part    = reason ? word(aText, "submit_part") : std::nullopt;
+				const auto comment = part ? number(aText, "submit_comment") : std::nullopt;
+				const auto checked = check ? review_submission_refusal_check_named(*check) : std::nullopt;
+				const auto why     = reason ? review_submission_refusal_reason_named(*reason) : std::nullopt;
+				const auto which   = part ? review_submission_refusal_part_named(*part) : std::nullopt;
+				if (!comment || !checked || !why || !which || *comment > maximum_review_submission_comments || !aText.empty()) {
+					return std::nullopt;
+				}
+				result.Refusal = review_submission_refusal{ .Check = *checked, .Reason = *why, .Part = *which, .Comment = static_cast<std::uint16_t>(*comment) };
 			}
 		} else if (aText.starts_with("tour_stage=")) {
 			const auto stage   = enumerated<tour_publication_stage>(aText, "tour_stage", tour_stage_names);

@@ -751,6 +751,29 @@ for the submission still shown is settled even from a retired host. Each
 request, wait, send, dropped completion and ending is a `review_submit_*`
 operation line with its `submit_subject`.
 
+[[BPR-2263]] names every refusal before sending. The workflow, the application
+host and the GitHub session each give their early returns a
+`core::review_submission_refusal` (check, reason, and for an invalid request
+the part and the comment). It rides the result as `Refused`. The ending line
+carries it as `submit_check`, `submit_reason`, `submit_part` and
+`submit_comment`, with the failure it came with rather than a folded
+`refused_not_published`. The host and the session log it as the run's
+`review_submission_ending` (`check=… reason=… part=… comment=…`), and every
+failure has its own `stop`. The main host gets the diagnostics log. The core
+decides the repair (`decide_review_submission_repair`) and the one sentence the
+page shows (`sentence`), and inline publishing uses the same sentences for a
+moved or changed pull request:
+
+| Refusal | Repair |
+|---|---|
+| Grant inactive, provider unavailable, connection lease inactive or unavailable, account or pull request mismatch while the review's binding is the window's | Ask the window for a factory over its current connection (`set_connection_renewal`), `renew` the host with it, and send the same request with the same idempotency key once (`review_submit_repair`: `repairing`, then `repaired` or `repair_failed`) |
+| Stale head or moved target | Ask the window to read the pull request again (`set_reread_request`); never sent until the reviewer submits again |
+| Anything else, or a second refusal | Show the reason's sentence and stop |
+
+Every reread replaces the window's publishing lease. An `adopt` for the same
+binding and authority therefore renews the host's factory instead of keeping
+the one that holds the revoked lease, which refused every later Submit.
+
 Read-only discovery/reconciliation need no new publication grant and cannot
 select a submit effect. Discovery validates every recovered request's stable
 actor/PR scope before publishing the bounded list. Provider results with stale

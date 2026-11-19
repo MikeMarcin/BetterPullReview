@@ -1169,6 +1169,11 @@ namespace bpr::app {
 		void restore_tour_panel();
 
 		void compose_review_submission(const application::accepted_pull_request_handoff& aHandoff);
+		/// \brief [[BPR-2263]]. The review submission provider factory for
+		/// `aBinding` over the window's publishing connection as it is now:
+		/// the fixture's in a fixture window, otherwise the current lease's;
+		/// none when there is no live lease.
+		[[nodiscard]] auto review_submission_factory(const application::review_submission_live_binding& aBinding) const -> std::optional<application::review_submission_provider_factory>;
 
 		void observe_review_preflight();
 

@@ -373,7 +373,8 @@ namespace bpr::application {
 			}
 			// [[BPR-1722]]. Exactly a known submission ending's line.
 			if (aDetail.starts_with("review_submission_ending=")) {
-				return core::parse_review_submission_ending(aDetail).has_value();
+				// [[BPR-2263]]. Or the fixed text of an ending that could not be written.
+				return aDetail == "review_submission_ending=unrecorded" || core::parse_review_submission_ending(aDetail).has_value();
 			}
 			// [[BPR-1540]]. Exactly a counts-only review submission reason.
 			if (aDetail.starts_with("review_submission=")) {

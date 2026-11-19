@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_OPERATION_DIAGNOSIS_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_OPERATION_DIAGNOSIS_HPP
 
+#include "bpr/core/review_submission_refusal.hpp"
+
 #include <compare>
 #include <cstdint>
 #include <optional>
@@ -212,6 +214,10 @@ namespace bpr::core {
 		/// [[RFC-BPR-0105]]. How the visible submission ended
 		/// (`submit_subject`), `duration_ms` since the press.
 		review_submit_end,
+		/// [[BPR-2263]]. A refusal before sending that the window repairs
+		/// itself (`submit_subject=repairing`), and how the repair went
+		/// (`repaired`: the same request sent again; `repair_failed`).
+		review_submit_repair,
 	};
 
 	/// \brief [[RFC-BPR-0105]]. What a review submission line is about: what
@@ -229,6 +235,10 @@ namespace bpr::core {
 		not_published,
 		outcome_unknown,
 		wait_expired,
+		// [[BPR-2263]]. Repairs.
+		repairing,
+		repaired,
+		repair_failed,
 	};
 
 	/// \brief [[BPR-1828]]. Why an operation did not succeed: a closed set
@@ -551,6 +561,10 @@ namespace bpr::core {
 		/// [[RFC-BPR-0105]]. Exactly on a review submission line, written
 		/// after the fixed keys as `submit_subject=NOTE`.
 		std::optional<review_submission_note> Submission = std::nullopt;
+		/// [[BPR-2263]]. On a review submission end or repair line, the check
+		/// that refused it before sending and why, written after the subject
+		/// as `submit_check=CHECK submit_reason=REASON submit_part=PART`.
+		std::optional<review_submission_refusal> Refusal = std::nullopt;
 
 		auto operator<=>(const operation_diagnosis&) const = default;
 	};

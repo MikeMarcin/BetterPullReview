@@ -39,16 +39,22 @@ namespace bpr::app::detail {
 		std::vector<application::staged_review_comment>     FileComments;
 		std::size_t                                         StagedWrites = 0, StagedCreates = 0, StagedSubmits = 0;
 		std::optional<application::review_mutation_failure> TourFactoryFailure;
-		int                                                 StagedBaselineStatus = 0;
+		/// [[BPR-2263]]. The next this many review submission providers are
+		/// refused, as a stale connection lease refuses them.
+		std::size_t                                         SubmissionFactoryFailures = 0U;
+		int                                                 StagedBaselineStatus      = 0;
 		std::size_t                                         StagedBaselineReads = 0U, StagedFaultAtRead = 0U;
 		bool                                                StagedMalformedBaseline = false, StagedLargeBaseline = false;
 		bool                                                StagedFileQualified = false, StagedQualified = true, StagedConflict = false, StagedRejectDescription = false, StagedBlockNext = false, StagedBlocked = false;
 		std::vector<application::review_submission_request> Reviews;
 		bool                                                LoseNextResponse = false;
 		bool                                                RefuseBeforeSend = false;
-		bool                                                StaleNextResult  = false;
-		std::size_t                                         Submissions      = 0U;
-		std::size_t                                         Reconciliations  = 0U;
+		/// [[BPR-2263]]. Refuse the next review before sending because the
+		/// pull request's head moved, as the session refuses it.
+		bool        StaleHeadBeforeSend = false;
+		bool        StaleNextResult     = false;
+		std::size_t Submissions         = 0U;
+		std::size_t Reconciliations     = 0U;
 		/// [[BPR-1345]]. A review that carries line comments goes through the
 		/// production session to this server: each POST's exact body, a 422
 		/// for the next one, or the next one created with its answer lost.

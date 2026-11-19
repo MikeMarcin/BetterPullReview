@@ -14,6 +14,7 @@
 #include "bpr/core/operation_diagnosis.hpp"
 #include "bpr/core/release_update.hpp"
 #include "bpr/core/review_cycle_policy.hpp"
+#include "bpr/core/review_submission_unknown.hpp"
 
 #include <chrono>
 #include <cstdint>
@@ -34,6 +35,15 @@ namespace bpr::application {
 	/// \brief Records a safe tour lifecycle line, correlated by the full authority/key digest.
 	void record_tour_publication(diagnostic_log_port*, core::tour_publication_stage, const staged_review_plan*, const staged_publication_result* = nullptr,
 								 bool aStarted = false, core::operation_failure aFailure = core::operation_failure::none, std::uint16_t aHttpStatus = 0, bool aWritten = false) noexcept;
+	/// \brief [[BPR-2263]]. Why a review submission run that sent nothing
+	/// stopped, by the failure it ended with: each failure its own stop.
+	[[nodiscard]] auto review_submission_stop_of(review_mutation_failure aFailure) noexcept -> core::review_submission_stop;
+	/// \brief [[BPR-2263]]. Records how a review submission run ended, as
+	/// its fixed line. An ending whose line cannot be written (it is not
+	/// valid) is still recorded, as a failed review submission with the
+	/// fixed text `review_submission_ending=unrecorded`, never dropped
+	/// silently; a null log records nothing.
+	void record_review_submission_ending(diagnostic_log_port* aLog, const core::review_submission_ending_diagnosis& aEnding, std::uint16_t aHttpStatus = 0U) noexcept;
 	/// \brief The diagnostic stage for one finite publication request.
 	[[nodiscard]] auto tour_stage(staged_review_operation) noexcept -> core::tour_publication_stage;
 	/// \brief [[BPR-1828]]. Milliseconds since an operation started, on the
