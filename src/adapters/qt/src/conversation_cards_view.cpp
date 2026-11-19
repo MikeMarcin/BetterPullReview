@@ -12,6 +12,7 @@
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/nested_scroll_latch.hpp"
 #include "bpr/qt/thread_pick_gestures.hpp"
 
 #include "bpr/core/feedback_conversation.hpp"
@@ -686,6 +687,8 @@ namespace bpr::qt {
 		, CodeFont{ to_presentation_font(default_typography_settings().Code) }
 	{
 		setObjectName(QStringLiteral("conversationCards"));
+		// [[BPR-2279]]. A gesture over a field nested in the drawer stays the field's.
+		nested_scroll_latch::install();
 		MarkTheme = default_feedback_mark_theme(palette());
 		setAccessibleName(QStringLiteral("Threads in this file"));
 		setFocusPolicy(Qt::StrongFocus);
@@ -5764,6 +5767,12 @@ namespace bpr::qt {
 			// first; at its end the drawer takes the wheel.
 			if (OpenCard->scroll_field(aWatched, *wheel)) {
 				return true;
+			}
+			// [[BPR-2279]]. Unless a trackpad gesture is latched to the
+			// field: then what it cannot take stays with it, momentum
+			// included, and the next gesture moves the drawer.
+			if (nested_scroll_latch::delivering()) {
+				return false;
 			}
 			wheelEvent(wheel);
 			return true;

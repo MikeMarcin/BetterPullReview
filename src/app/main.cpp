@@ -20,6 +20,7 @@
 #include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/local_changes_panel.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
+#include "bpr/qt/nested_scroll_latch.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -11886,6 +11887,9 @@ auto main(int argc, char** argv) -> int
 	// where Qt's Cocoa integration otherwise says Preferences…. Before any
 	// menu bar is built.
 	bpr::qt::install_application_menu_wording(qtApplication);
+	// [[BPR-2279]]. A trackpad gesture moves only the scroller it began in,
+	// momentum included, wherever one scroller sits in another.
+	bpr::qt::nested_scroll_latch::install();
 	// [[BPR-1437]]. Read once, now that QApplication has taken its own options.
 	const auto launchLine = bpr::app::command_line::parse(QCoreApplication::arguments().mid(1), launch_options());
 	if (!launchLine || !launchLine->words().isEmpty()) {

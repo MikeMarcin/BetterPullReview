@@ -1347,6 +1347,10 @@ if(NOT bpr_qtgui_private_header_count EQUAL 1)
 endif()
 target_include_directories(test_better_pull_review_qt_workbench_window_tests SYSTEM PRIVATE
     "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
+# [[BPR-2279]]. The drawer's course hands in a trackpad's phased wheels the
+# same way.
+target_include_directories(test_better_pull_review_qt_conversation_cards_view_tests SYSTEM PRIVATE
+    "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
 
 foreach(bpr_ribbon_scale IN ITEMS 1.0 1.25 2.0)
     bpr_add_network_isolated_test(
@@ -2917,6 +2921,16 @@ bpr_enable_hardening(test_tour_stop_card_cleanup)
 bpr_enable_warnings(test_tour_stop_card_cleanup)
 bpr_add_network_isolated_test(NAME qt_tour_stop_card_cleanup COMMAND test_tour_stop_card_cleanup)
 set_tests_properties(qt_tour_stop_card_cleanup PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "tour-stop-card-cleanup:pass" TIMEOUT 60)
+# [[BPR-2279]]. A trackpad gesture moves only the scroller it began in,
+# momentum included; phased wheels go in through QWindowSystemInterface.
+bpr_add_executable(test_nested_scroll_latch nested_scroll_latch_tests.cpp)
+target_link_libraries(test_nested_scroll_latch PRIVATE BetterPullReview::AdapterQt)
+target_include_directories(test_nested_scroll_latch SYSTEM PRIVATE
+    "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
+bpr_enable_hardening(test_nested_scroll_latch)
+bpr_enable_warnings(test_nested_scroll_latch)
+bpr_add_network_isolated_test(NAME qt_nested_scroll_latch COMMAND test_nested_scroll_latch)
+set_tests_properties(qt_nested_scroll_latch PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "nested-scroll-latch:pass" TIMEOUT 60)
 # [[BPR-2017]], RFC-BPR-0107. Import configuration… and Export configuration….
 bpr_add_executable(test_agent_configuration_dialogs agent_configuration_dialogs_tests.cpp)
 target_link_libraries(test_agent_configuration_dialogs PRIVATE BetterPullReview::AdapterQt)

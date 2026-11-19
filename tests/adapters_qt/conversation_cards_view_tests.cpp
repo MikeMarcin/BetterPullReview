@@ -49,7 +49,9 @@
 #include <QToolButton>
 #include <QWheelEvent>
 
+#include "bpr/qt/nested_scroll_latch.hpp"
 #include <glaze/json.hpp>
+#include <qpa/qwindowsysteminterface.h>
 
 #include <tuple>
 
@@ -4164,6 +4166,38 @@ namespace {
 		auto past = wheel_at(*text->viewport(), QPoint{ 0, -40 }, QPoint{ 0, -120 });
 		QApplication::sendEvent(text->viewport(), &past);
 		expect(bar->value() == bar->maximum() && forwarded == 1, "at its end the field hands the wheel to the drawer");
+		// [[BPR-2279]] (owner, 2026-11-19: "momentum scrolling that reaches
+		// the end of a nested scroll window won't scroll the outer window
+		// without an additional gesture"). A trackpad gesture begun in the
+		// field stays the field's to its end, momentum included; the next
+		// gesture goes to the drawer.
+		{
+			const auto global = text->viewport()->mapToGlobal(text->viewport()->rect().center());
+			// A trackpad's pixels, and the angle the platform gives with them.
+			const auto phased = [&view, global](const Qt::ScrollPhase aPhase, const QPoint aPixels) {
+				auto* const handle = view.window()->windowHandle();
+				QWindowSystemInterface::handleWheelEvent(handle, handle->mapFromGlobal(global), global, aPixels, aPixels * 8, Qt::NoModifier, aPhase);
+				QWindowSystemInterface::flushWindowSystemEvents();
+				QApplication::processEvents();
+			};
+			const auto step = QPoint{ 0, -text->fontMetrics().lineSpacing() };
+			forwarded       = 0;
+			bar->setValue(bar->maximum() - 2);
+			phased(Qt::ScrollBegin, { });
+			for (auto move = 0; move < 4; ++move) {
+				phased(Qt::ScrollUpdate, step);
+			}
+			for (auto coast = 0; coast < 8; ++coast) {
+				phased(Qt::ScrollMomentum, step);
+			}
+			phased(Qt::ScrollEnd, { });
+			std::cout << "BPR-2279 drawer: field " << bar->value() << "/" << bar->maximum() << ", handed to the drawer " << forwarded << '\n';
+			expect(bar->value() == bar->maximum() && forwarded == 0, "a gesture begun in the field scrolls it to its end and its momentum never reaches the drawer");
+			phased(Qt::ScrollBegin, { });
+			phased(Qt::ScrollUpdate, step);
+			phased(Qt::ScrollEnd, { });
+			expect(forwarded > 0 && bar->value() == bar->maximum() && bpr::qt::nested_scroll_latch::owner() == &view, "the next gesture, at the field's end, goes to the drawer");
+		}
 		// Closed, the note says words were left out, and opening it shows them all.
 		view.end_draft();
 		settle_card();
