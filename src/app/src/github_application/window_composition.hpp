@@ -38,6 +38,7 @@
 #include "bpr/application/off_hunk_fact_port.hpp"
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/application/private_review_application_host.hpp"
+#include "bpr/application/publication_lease.hpp"
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/application/review_comment_placement.hpp"
 #include "bpr/application/review_composition_application_host.hpp"
@@ -2409,16 +2410,9 @@ namespace bpr::app {
 		std::unique_ptr<windows_title_row_host> TitleRow;
 #endif
 		std::unique_ptr<review_submission_workflow> ReviewSubmission;
-		/// \brief [[BPR-2265]]. The window's publishing lease as it was last
-		/// read on the decision lane. Publication factories read it on their
-		/// effect lanes through a weak reference, so none keeps a lease the
-		/// window renewed, and none outlives the window's ownership of it.
-		struct publication_lease
-		{
-			mutable std::mutex                     Mutex;
-			application::review_mutation_transport Lease;
-		};
-		std::shared_ptr<publication_lease>                           PublicationLease    = std::make_shared<publication_lease>();
+		/// \brief [[BPR-2265]]. The window's publishing lease as the decision
+		/// lane last read it; publication factories read it at each call.
+		std::shared_ptr<application::publication_lease>              PublicationLease    = std::make_shared<application::publication_lease>();
 		decltype(github_profile_runtime::CredentialBindings)&        CredentialBindings  = Profile->CredentialBindings;
 		decltype(github_profile_runtime::GitCaches)&                 GitCaches           = Profile->GitCaches;
 		decltype(github_profile_runtime::EpochCatalogs)&             EpochCatalogs       = Profile->EpochCatalogs;

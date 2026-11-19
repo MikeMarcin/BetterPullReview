@@ -515,16 +515,6 @@ namespace bpr::app {
 		return implementation->DiffHost->state().Pending.has_value();
 	}
 
-	auto detail::github_application_fixture_access::publication_lease(const github_application& aApplication) -> publication_lease_evidence
-	{
-		const auto* const implementation = aApplication.Implementation.get();
-		if (implementation == nullptr || implementation->WindowRead == nullptr) {
-			return { };
-		}
-		const auto lease = implementation->WindowRead->mutation_transport();
-		return { .Lease = lease.get(), .Active = lease != nullptr && lease->active() };
-	}
-
 	auto detail::github_application_fixture_access::reread_pull_request(github_application& aApplication) -> bool
 	{
 		auto* const implementation = aApplication.Implementation.get();

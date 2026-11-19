@@ -94,18 +94,10 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 			// [[BPR-2265]]. A fixture window's lease, when it has one, is read
 			// at each call as the shipped factory reads it.
-			auto tourFactory = [configuration, binding, server = ReviewSubmissionServer, description = WindowRead->accepted_snapshot()->PullRequest.Body, log = DiagnosticLog, cell = std::weak_ptr<publication_lease>{ PublicationLease },
+			auto tourFactory = [configuration, binding, server = ReviewSubmissionServer, description = WindowRead->accepted_snapshot()->PullRequest.Body, log = DiagnosticLog, window = std::weak_ptr<const application::publication_lease>{ PublicationLease },
 								leased = WindowRead->mutation_transport() != nullptr]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
-				if (leased) {
-					const auto held  = cell.lock();
-					auto       lease = application::review_mutation_transport{ };
-					if (held) {
-						const auto lock = std::scoped_lock{ held->Mutex };
-						lease           = held->Lease;
-					}
-					if (!lease || !lease->active()) {
-						return std::unexpected(application::review_mutation_failure::unavailable);
-					}
+				if (leased && !application::publication_lease::read(window)) {
+					return std::unexpected(application::review_mutation_failure::unavailable);
 				}
 				{
 					const auto lock = std::scoped_lock{ server->Mutex };
@@ -156,28 +148,15 @@ namespace bpr::app {
 		// [[BPR-2265]]. The window's lease now; each factory call reads it
 		// again, so a lease a reread revoked is never the one used.
 		auto current = WindowRead ? WindowRead->mutation_transport() : nullptr;
-		{
-			const auto lock         = std::scoped_lock{ PublicationLease->Mutex };
-			PublicationLease->Lease = current;
-		}
-		const auto lease = [cell = std::weak_ptr<publication_lease>{ PublicationLease }]() -> application::review_mutation_transport {
-			const auto held = cell.lock();
-			if (!held) {
-				return nullptr;
-			}
-			const auto lock = std::scoped_lock{ held->Mutex };
-			return held->Lease;
-		};
+		PublicationLease->hold(current);
+		const auto lease = [window = std::weak_ptr<const application::publication_lease>{ PublicationLease }] { return application::publication_lease::read(window); };
 #if defined(BPR_BUILD_TESTING)
 		if (Fixture || !DesignatedLivePublication) {
 			// A fixture window may have no publishing lease; one it has is
 			// read as the shipped factory reads it.
 			return application::review_submission_provider_factory{ [configuration, binding = aBinding, server = ReviewSubmissionServer, lease, leased = current != nullptr]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
-				if (leased) {
-					const auto held = lease();
-					if (!held || !held->active()) {
-						return std::unexpected(application::review_mutation_failure::unavailable);
-					}
+				if (leased && !lease()) {
+					return std::unexpected(application::review_mutation_failure::unavailable);
 				}
 				{
 					const auto lock = std::scoped_lock{ server->Mutex };
@@ -204,7 +183,7 @@ namespace bpr::app {
 			// [[BPR-2265]]. Admission still holds it to the binding's account
 			// and host; a missing or revoked lease is unavailable.
 			auto held = lease();
-			if (!held || !held->active()) {
+			if (!held) {
 				return std::unexpected(application::review_mutation_failure::unavailable);
 			}
 			auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);

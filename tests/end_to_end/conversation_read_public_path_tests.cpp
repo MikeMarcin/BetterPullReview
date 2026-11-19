@@ -344,13 +344,9 @@ int main(int aArgc, char** aArgv)
 	// [[BPR-2265]]. Two rereads that keep the pull request each renew the
 	// window's publishing lease; a reply's Send still reaches the server.
 	for (auto round = 0; round < 2; ++round) {
-		const auto lease = access::publication_lease(*application);
+		const auto snapshot = access::window_read_progress(*application).Snapshot;
 		expect(access::reread_pull_request(*application), "the pull request is read again");
-		wait_for([&] {
-			const auto now = access::publication_lease(*application);
-			return now.Lease == nullptr || (now.Lease != lease.Lease && now.Active);
-		},
-				 "the reread renews the window's publishing lease");
+		wait_for([&] { const auto progress = access::window_read_progress(*application); return progress.Snapshot != snapshot && !progress.Reading; }, "the reread installs the pull request again, renewing the publishing lease");
 	}
 	wait_for([&] { return replyWindow.showing_overview() && panel->new_comment()->isVisible() && !panel->new_comment_editor()->isReadOnly(); }, "Overview's Comments still offers a new comment after the rereads");
 	panel->new_comment_editor()->setFocus();

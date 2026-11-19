@@ -1169,13 +1169,9 @@ auto main(int argc, char** argv) -> int
 			// the window's publishing lease; the tour's Publish below still
 			// reaches the server.
 			for (auto round = 0; round < 2; ++round) {
-				const auto lease = access::publication_lease(*application);
+				const auto snapshot = access::window_read_progress(*application).Snapshot;
 				expect(access::reread_pull_request(*application), "the pull request is read again");
-				wait([&] {
-					const auto now = access::publication_lease(*application);
-					return now.Lease == nullptr || (now.Lease != lease.Lease && now.Active);
-				},
-					 "the reread renews the window's publishing lease");
+				wait([&] { const auto progress = access::window_read_progress(*application); return progress.Snapshot != snapshot && !progress.Reading; }, "the reread installs the pull request again, renewing the publishing lease");
 			}
 			activeEditor.outline()->setCurrentRow(1);
 			activeEditor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();

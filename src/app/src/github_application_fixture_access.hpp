@@ -2265,15 +2265,6 @@ namespace bpr::app::detail {
 		/// \brief [[BPR-1573]]. The review the window's composition holds.
 		[[nodiscard]] static auto close_review(
 			const github_application& aApplication) -> close_review_evidence;
-		/// \brief [[BPR-2265]]. The window's publishing lease now: its address
-		/// (null when there is none) and whether it is active. Compared, never
-		/// dereferenced, by a course.
-		struct publication_lease_evidence
-		{
-			const void* Lease  = nullptr;
-			bool        Active = false;
-		};
-		[[nodiscard]] static auto publication_lease(const github_application& aApplication) -> publication_lease_evidence;
 		/// \brief [[BPR-2265]]. Reads the open pull request again through the
 		/// window's read, as after a publication: the accepted snapshot is
 		/// installed again and the publishing lease renewed.
