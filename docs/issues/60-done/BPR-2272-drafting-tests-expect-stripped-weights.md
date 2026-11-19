@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2272"
 title: "Three drafting tests expect the implied weight that BPR-2264 now drops"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -28,3 +28,23 @@ implies.
 - AC2. The injection test still proves injected text is never executed or
   obeyed; only the implied-weight normalization differs from byte-exact.
 - AC3. All three pass.
+
+## Fix
+
+The chat conversation course expects `suggestion: …` and no longer requires
+the non-blocking toggle. The custom-guidance course expects
+`issue: Report the exhausted retry budget to the caller.` and the candidate
+line `Label added: issue · No longer asks a question`. The injection course
+keeps every check that nothing is published, resolved, launched, opened or
+changed. Its candidate, accepted draft and shown draft are now the canary's
+bytes with `issue (blocking): ` read as `issue: `, and a new
+`drafted-differs-only-by-implied-weight` term proves that this is the only
+difference.
+
+## Verification
+
+`application_agent_chat_conversation_contract`,
+`application_agent_finding_workshop_guidance_custom_contract` and
+`application_agent_finding_workshop_injection_contract` pass. So do the
+binary's other workshop courses (press, default and no-agent guidance,
+construction cut).
