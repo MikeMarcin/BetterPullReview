@@ -143,7 +143,11 @@ namespace bpr::qt::detail {
 		struct inline_code
 		{
 			std::shared_ptr<const std::string> Text;
-			application::shared_token_spans    Spans;
+			/// The classifier's spans with its member access named
+			/// (`core::markdown_inline_code_members`).
+			application::shared_token_spans Spans;
+			/// The spans as they arrived, so an answer is taken once.
+			application::shared_token_spans Arrived;
 		};
 		[[nodiscard]] auto inline_code_texts() const noexcept -> const std::vector<inline_code>& { return Inline; }
 

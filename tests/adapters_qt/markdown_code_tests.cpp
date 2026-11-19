@@ -12,6 +12,7 @@
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/core/markdown_code.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
@@ -894,6 +895,56 @@ namespace {
 			expect(holder.grab().save(root + QStringLiteral("/suggestions-") + QString::fromLatin1(theme.Name) + QStringLiteral(".png")), "save suggestions capture");
 		}
 	}
+
+	/// [[BPR-2277]] (owner, 2026-11-19, on the fixture agent's "Review of
+	/// #21": "it doesn't seem like `Target.resize` is getting highlighting
+	/// here"). The report's own words, through the composed path: the
+	/// classifier colours only the access, so the page named neither the
+	/// object nor its member.
+	void check_report_member_access(composed& aPath)
+	{
+		auto report = qt::agent_report_view{ };
+		report.resize(820, 700);
+		report.show();
+		report.set_dresser([&aPath](qt::markdown_body_view& aView) {
+			aView.set_code_theme(code_theme(core::appearance_variant::light));
+			aView.set_inline_code_selector("code.cpp");
+			aPath.bind(aView);
+		});
+		const auto markdown = QStringLiteral("# Review of #21\n\n**Verdict:** Needs changes\n\nOne thing must be fixed.\n\n## Must fix\n\n### issue (blocking): A zero height still asserts\n\n"
+											 "`src/engine/renderer.cpp:12-13`\n\n"
+											 "The width is clamped, but the height goes to `Target.resize` as it arrives. A minimised window reports a height of zero, and the swap chain asserts on it.\n");
+		report.present({ .Turn = 1U, .Title = QStringLiteral("Review of #21"), .Markdown = markdown, .Question = QStringLiteral("Review this pull request"), .Byline = { } });
+		settle();
+		while (!aPath.Effects.Tasks.empty() || !aPath.Decisions.Tasks.empty()) {
+			for (auto* lane : { &aPath.Effects, &aPath.Decisions }) {
+				while (!lane->Tasks.empty()) {
+					auto task = std::move(lane->Tasks.front());
+					lane->Tasks.pop_front();
+					task();
+				}
+			}
+		}
+		for (const auto& publication : std::exchange(aPath.Published, { })) {
+			report.apply_code_syntax(publication);
+		}
+		settle();
+		expect(report.dressed_shown(), "the report is a page");
+		const auto* const page  = report.dressed_view()->document();
+		const auto        found = page->find(QStringLiteral("Target.resize"));
+		expect(!found.isNull(), "the page shows the mention");
+		const auto block = found.block();
+		const auto at    = found.selectionStart() - block.position();
+		const auto named = [&](const int aStart, const int aLength) {
+			const auto formats = block.layout()->formats();
+			return std::ranges::any_of(formats, [&](const QTextLayout::FormatRange& aRange) {
+				return aRange.start == at + aStart && aRange.length == aLength && aRange.format.foreground().style() != Qt::NoBrush;
+			});
+		};
+		expect(named(0, 6) && named(7, 6), "`Target.resize` on a report's page: the object and its member are coloured");
+		expect(std::ranges::all_of(block.layout()->formats(), [&](const QTextLayout::FormatRange& aRange) { return aRange.start >= at && aRange.start + aRange.length <= at + 13; }),
+			   "and nothing outside the span");
+	}
 } // namespace
 
 int main(int aArgc, char** aArgv)
@@ -908,6 +959,7 @@ try {
 	check_languages(view, path);
 	check_arrival(view, path);
 	check_inline(path);
+	check_report_member_access(path);
 	check_reopened_agent_answer();
 	check_diff(view);
 	check_suggestions(view);

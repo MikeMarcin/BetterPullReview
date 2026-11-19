@@ -234,6 +234,40 @@ namespace {
 		expect(selector({ "a.py", "b.ts", "c.py", "d.ts" }) == "code.py", "the earliest language wins a tie");
 		expect(selector({ }).empty() && selector({ "Makefile", ".gitignore" }).empty(), "no extension, no language");
 	}
+
+	/// [[BPR-2277]] (owner, 2026-11-19: "it doesn't seem like
+	/// `Target.resize` is getting highlighting here"). The spans the C++
+	/// grammar gives a mention: the access as an operator, the names plain.
+	void inline_code_members()
+	{
+		using role       = appearance_role;
+		const auto roles = [](const token_span_list& aSpans) {
+			auto text = std::string{ };
+			for (const auto& span : aSpans) {
+				text += std::to_string(span.Column) + "+" + std::to_string(span.Length) + ":" + std::string{ stable_name(span.Role) } + " ";
+			}
+			return text;
+		};
+		const auto dot = token_span_list{ { .Line = 0U, .Column = 6U, .Length = 1U, .Role = role::syntax_operator } };
+		expect(roles(markdown_inline_code_members("Target.resize", dot)) == "0+6:syntax_variable 6+1:syntax_operator 7+6:syntax_variable ", "`Target.resize`: the object and its member are named");
+		const auto arrow = token_span_list{ { .Line = 0U, .Column = 4U, .Length = 2U, .Role = role::syntax_operator } };
+		expect(roles(markdown_inline_code_members("node->next", arrow)) == "0+4:syntax_variable 4+2:syntax_operator 6+4:syntax_variable ", "`->` is member access too");
+		const auto call = token_span_list{ { .Line = 0U, .Column = 0U, .Length = 6U, .Role = role::syntax_normal },
+										   { .Line = 0U, .Column = 6U, .Length = 1U, .Role = role::syntax_operator },
+										   { .Line = 0U, .Column = 7U, .Length = 6U, .Role = role::syntax_function },
+										   { .Line = 0U, .Column = 13U, .Length = 2U, .Role = role::syntax_operator } };
+		expect(roles(markdown_inline_code_members("Target.resize()", call)) == "0+6:syntax_variable 6+1:syntax_operator 7+6:syntax_function 13+2:syntax_operator ",
+			   "a call keeps the classifier's function, and a plain span under a member gives way");
+		const auto keyword = token_span_list{ { .Line = 0U, .Column = 0U, .Length = 4U, .Role = role::syntax_keyword }, { .Line = 0U, .Column = 4U, .Length = 2U, .Role = role::syntax_operator } };
+		expect(roles(markdown_inline_code_members("this->Width", keyword)) == "0+4:syntax_keyword 4+2:syntax_operator 6+5:syntax_variable ", "a keyword keeps its colour");
+		expect(roles(markdown_inline_code_members("uExposure", { })).empty(), "a name alone is not member access");
+		expect(roles(markdown_inline_code_members("1.5e3", { { .Line = 0U, .Column = 0U, .Length = 5U, .Role = role::syntax_number } })) == "0+5:syntax_number ", "a number is not a member");
+		expect(roles(markdown_inline_code_members("a...b", { })).empty(), "an ellipsis is not access");
+		for (const auto* file : { "README.md", "renderer.cpp", "notes.txt", "src/engine/renderer.cpp", "render/", "tonemap.frag" }) {
+			expect(markdown_inline_code_members(file, { }).empty(), std::string{ "a file's name is not member access: " } + file);
+		}
+		expect(markdown_inline_code_members("a.b\nc.d", { }).empty(), "text over lines is left as it came");
+	}
 } // namespace
 
 int main()
@@ -243,6 +277,7 @@ int main()
 	diff_lines();
 	suggestions();
 	inline_code_language();
+	inline_code_members();
 	std::cout << "markdown-code-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_MARKDOWN_CODE_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_MARKDOWN_CODE_HPP
 
+#include "bpr/core/syntax_classification.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -93,6 +95,17 @@ namespace bpr::core {
 	/// A `.h` header counts as C++ when any C++ file is there. The earliest
 	/// language wins a tie; empty when no path is in a coloured language.
 	[[nodiscard]] auto markdown_inline_code_selector(std::span<const std::string> aPaths) -> std::string;
+
+	/// \brief [[BPR-2277]] (owner, 2026-11-19: "it doesn't seem like
+	/// `Target.resize` is getting highlighting here"). Inline code's spans
+	/// with its member access named: a name before or after `.` or `->` that
+	/// the classifier left plain is a variable. A whole inline code is a
+	/// mention with nothing declared around it, so the classifier, which
+	/// colours a member only when it is called, leaves `Target.resize` plain.
+	/// A path or a file name (a `/`, or a last part that is a file extension
+	/// such as `README.md`) and text over several lines keep `aSpans` as they
+	/// are. Columns are bytes of `aText`; the result is ordered by column.
+	[[nodiscard]] auto markdown_inline_code_members(std::string_view aText, const token_span_list& aSpans) -> token_span_list;
 
 	/// \brief How GitHub's diff grammar marks a run of a `diff` block's line.
 	enum class markdown_diff_mark_kind : std::uint8_t {
