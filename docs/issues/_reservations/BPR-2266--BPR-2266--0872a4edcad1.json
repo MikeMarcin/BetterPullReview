@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2266"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Report page colours inline code again",
+  "created": "2026-11-19T00:58:17.255887+00:00",
+  "base": "88c05ade4179b9c9b2934a7ac6752889a76ed185"
+}

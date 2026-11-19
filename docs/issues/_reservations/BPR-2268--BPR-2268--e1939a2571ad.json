@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2268"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Report Draft comment button keeps its size beside wrapped text",
+  "created": "2026-11-19T00:58:18.380257+00:00",
+  "base": "88c05ade4179b9c9b2934a7ac6752889a76ed185"
+}
