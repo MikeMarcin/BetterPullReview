@@ -8,6 +8,7 @@
 
 #include <QAccessible>
 #include <QBoxLayout>
+#include <QEvent>
 #include <QLabel>
 #include <QPushButton>
 #include <QShortcut>
@@ -313,13 +314,27 @@ namespace bpr::qt {
 								  : DraftWhy;
 		DraftButton->setToolTip(tip);
 		DraftButton->setAccessibleDescription(tip);
-		if (Drafting) {
-			wear_ordinary_roles(*DraftButton);
-		} else if (!agent_run_control(*DraftButton)) {
-			wear_agent_accent(*DraftButton, palette());
-		}
+		restyle_draft();
 		if (shown) {
 			Reader->set_body(*Body, "author-description");
+		}
+	}
+
+	void author_description_editor::restyle_draft()
+	{
+		if (Drafting) {
+			wear_ordinary_roles(*DraftButton);
+		} else {
+			wear_agent_accent(*DraftButton, palette());
+		}
+	}
+
+	void author_description_editor::changeEvent(QEvent* aEvent)
+	{
+		QFrame::changeEvent(aEvent);
+		// A changed accent (Appearance › Colours) or theme reaches it.
+		if (aEvent->type() == QEvent::PaletteChange && DraftButton != nullptr) {
+			restyle_draft();
 		}
 	}
 

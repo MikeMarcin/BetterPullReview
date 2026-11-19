@@ -15214,9 +15214,11 @@ namespace {
 		const auto shipped = qt::agent_accent(window.palette());
 		const auto runs    = inventory(shipped, "with the shipped accent");
 		std::cout << "agent-accent-inventory: " << runs.join(QStringLiteral(", ")).toStdString() << '\n';
-		expect(runs.contains(QStringLiteral("agentAsk")) && runs.contains(QStringLiteral("agentSuggestion")) && runs.contains(QStringLiteral("tourProblemMagic"))
-				   && runs.contains(QStringLiteral("tourSolutionMagic")),
-			   "Send, the suggestions and Enhance are run controls");
+		// [[BPR-2284]]. A tour is only its stops ([[BPR-2274]]): Enhance is the
+		// stop's, and Draft Tour drafts them.
+		expect(runs.contains(QStringLiteral("agentAsk")) && runs.contains(QStringLiteral("agentSuggestion")) && runs.contains(QStringLiteral("tourStopMagic"))
+				   && runs.contains(QStringLiteral("tourDraftTour")),
+			   "Send, the suggestions, Enhance and Draft Tour are run controls");
 		for (const char* const ordinary : { "tourResetUndo", "tourProposalAcceptAll", "agentHistory", "agentSuggestionsToggle", "agentAddContext", "agentLinesChipClose" }) {
 			if (auto* const button = window.findChild<QAbstractButton*>(QString::fromLatin1(ordinary)); button != nullptr) {
 				expect(!qt::agent_run_control(*button), std::string{ "a control that starts no run is not marked: " } + ordinary);
@@ -15555,7 +15557,8 @@ namespace {
 		// up and its agent features wait, and neither opens the setup.
 		expect(tour->agent_readiness() == qt::agent_setup_readiness::unfinished && !footer->picker()->attention().isEmpty() && agent->state() != qt::agent_tab_state::setting_up,
 			   "[[BPR-2051]] an unfinished setup is the footer's state, and the setup does not open by itself");
-		auto* const tourDraft = tour->findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
+		// [[BPR-2284]]. Draft Tour, the tour's drafting since [[BPR-2274]].
+		auto* const tourDraft = tour->findChild<QPushButton*>(QStringLiteral("tourDraftTour"));
 		expect(tourDraft != nullptr && !tourDraft->isEnabled() && tourDraft->toolTip().contains(QStringLiteral("not set up")), "the Tour tab's drafting waits for the setup, saying why");
 		// The setup opens at its first unfinished step.
 		window.open_agent_setup();

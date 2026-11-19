@@ -87,8 +87,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto reload_button() const noexcept -> QPushButton* { return Reload; }
 		[[nodiscard]] auto status() const noexcept -> QLabel* { return Status; }
 
+	protected:
+		void changeEvent(QEvent* aEvent) override;
+
 	private:
 		void present();
+		/// Draft Description wears the Agent accent of the palette on
+		/// screen, as Draft Tour does; Stop drafting the ordinary roles.
+		void restyle_draft();
 		void save();
 
 		std::optional<std::string>                            Body;
