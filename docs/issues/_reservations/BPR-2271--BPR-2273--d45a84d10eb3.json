@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2271",
+    "BPR-2272",
+    "BPR-2273"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Suggested-change diff scrolls sideways; stale drafting-test expectations after BPR-2264; long draft comment grows then scrolls",
+  "created": "2026-11-19T02:00:34.419721+00:00",
+  "base": "e2464b87f5a5c8f4e630c84988608fe772b1cdb0"
+}
