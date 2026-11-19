@@ -18,6 +18,7 @@
 #include <QDir>
 #include <QFile>
 #include <future>
+#include <iterator>
 #include <mutex>
 #include <thread>
 
@@ -281,6 +282,34 @@ namespace {
 	{
 		bool       SentHaves = false;
 		QByteArray Pack;
+		/// [[BPR-2290]]. One want: a force-pushed head's import.
+		bool Historical = false;
+	};
+
+	// [[BPR-2290]]. Keeps every diagnostic event the host records.
+	class recording_log final : public application::diagnostic_log_port
+	{
+	public:
+		[[nodiscard]] auto record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			const std::lock_guard lock{ Mutex };
+			Events.push_back(aEvent);
+			return application::diagnostic_log_status::available;
+		}
+
+		[[nodiscard]] auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+
+		[[nodiscard]] auto stage(const application::diagnostic_epoch_stage aStage) const -> std::vector<application::diagnostic_event>
+		{
+			const std::lock_guard lock{ Mutex };
+			auto                  found = std::vector<application::diagnostic_event>{ };
+			std::ranges::copy_if(Events, std::back_inserter(found), [aStage](const auto& aEvent) { return aEvent.EpochStage == aStage; });
+			return found;
+		}
+
+	private:
+		mutable std::mutex                         Mutex;
+		std::vector<application::diagnostic_event> Events;
 	};
 
 	// The transport seam. Discovery, ls-refs and fetch bodies are the
@@ -292,12 +321,13 @@ namespace {
 	public:
 		upload_pack_transport(application::git_smart_request_context aContext, std::filesystem::path aRoot,
 							  std::filesystem::path aRepository, std::optional<std::string> aForgedHave,
-							  std::vector<served_fetch>& aFetches)
+							  std::vector<served_fetch>& aFetches, const bool aHistoricalTimesOut = false)
 			: Context{ std::move(aContext) }
 			, Root{ std::move(aRoot) }
 			, Repository{ std::move(aRepository) }
 			, ForgedHave{ std::move(aForgedHave) }
 			, Fetches{ &aFetches }
+			, HistoricalTimesOut{ aHistoricalTimesOut }
 		{
 		}
 
@@ -336,13 +366,19 @@ namespace {
 			}
 			auto       body = to_qbytes(aRequest.Body);
 			const auto sent = body.contains("have ");
+			// [[BPR-2290]]. One want is a force-pushed head: as a clone of a
+			// large repository does, it runs out of time.
+			if (HistoricalTimesOut && body.count("want ") == 1) {
+				Fetches->push_back({ .SentHaves = sent, .Historical = true });
+				return std::unexpected{ application::git_smart_transport_error{ .Failure = application::git_smart_transport_failure::timeout } };
+			}
 			if (ForgedHave) {
 				const auto done = body.lastIndexOf(packet("done\n"));
 				require(done > 0, "fetch body ends with done");
 				body.insert(done, packet("have " + *ForgedHave + "\n"));
 			}
 			const auto response = upload_pack({ "--stateless-rpc" }, body);
-			Fetches->push_back({ .SentHaves = sent, .Pack = served_pack(response) });
+			Fetches->push_back({ .SentHaves = sent, .Pack = served_pack(response), .Historical = body.count("want ") == 1 });
 			const auto wire = to_bytes(response);
 			if (!aConsumer.consume(wire)) {
 				return std::unexpected{ application::git_smart_transport_error{
@@ -379,7 +415,8 @@ namespace {
 		std::filesystem::path                  Repository;
 		std::optional<std::string>             ForgedHave;
 		std::vector<served_fetch>*             Fetches;
-		bool                                   Revoked = false;
+		bool                                   HistoricalTimesOut = false;
+		bool                                   Revoked            = false;
 	};
 
 	class upload_pack_authority final : public application::git_smart_authority_lease
@@ -549,12 +586,13 @@ namespace {
 		{
 			Host = std::make_unique<application::epoch_application_host>(
 				core::epoch_state{ .ApplicationSession = core::application_session_id{ 91U } }, *Caches, *Catalogs,
-				Entropy, Clock, Effects, Decisions, Projection, application::epoch_host_limits{ });
+				Entropy, Clock, Effects, Decisions, Projection, application::epoch_host_limits{ }, Log);
 		}
 
 		// Points the pull request ref at `aHead` and hands the host the
 		// revision a GitHub read of that snapshot would accept.
-		void accept(const std::uint64_t aSnapshot, const std::string& aHead, std::optional<std::string> aForgedHave = { })
+		void accept(const std::uint64_t aSnapshot, const std::string& aHead, std::optional<std::string> aForgedHave = { },
+					std::vector<application::epoch_force_push_observation> aForcePushes = { }, const bool aHistoricalTimesOut = false)
 		{
 			const auto gitDir = "--git-dir=" + QString::fromStdString(History.Repository.string());
 			static_cast<void>(git_text(Root.Path, { gitDir, "update-ref", "refs/pull/81/head", QString::fromStdString(aHead) }));
@@ -583,10 +621,14 @@ namespace {
 				.Base                  = commit_oid(History.Base),
 				.Head                  = commit_oid(aHead),
 			};
+			if (!aForcePushes.empty()) {
+				handoff.ForcePushes          = std::move(aForcePushes);
+				handoff.TimelineAvailability = application::epoch_timeline_availability::available;
+			}
 			handoff.SmartGit = std::make_unique<upload_pack_authority>(
 				application::authority_binding(handoff),
-				[this, forged = std::move(aForgedHave)](const application::git_smart_request_context& aContext) {
-					return std::make_shared<upload_pack_transport>(aContext, Root.Path, History.Repository, forged, Fetches);
+				[this, forged = std::move(aForgedHave), aHistoricalTimesOut](const application::git_smart_request_context& aContext) {
+					return std::make_shared<upload_pack_transport>(aContext, Root.Path, History.Repository, forged, Fetches, aHistoricalTimesOut);
 				});
 			require(application::valid(handoff), "fixture handoff is valid");
 			Authority = { handoff.ApplicationSession, handoff.Profile, handoff.ProfileRevision, handoff.Host, handoff.HostAuthority, handoff.Account, handoff.Viewer, handoff.Repository, handoff.PullRequest, handoff.Number, handoff.Snapshot, handoff.IdentityGeneration, handoff.PullRequestGeneration };
@@ -648,6 +690,7 @@ namespace {
 		queued_executor                                      Effects;
 		queued_executor                                      Decisions;
 		recording_projection                                 Projection;
+		std::shared_ptr<recording_log>                       Log = std::make_shared<recording_log>();
 		std::unique_ptr<application::epoch_application_host> Host;
 		std::vector<served_fetch>                            Fetches;
 	};
@@ -899,6 +942,76 @@ namespace {
 				"the same not-self-contained pack imports once resident history is connected");
 		std::cout << "haves-unconnected-residency-refused:pass\n";
 	}
+	// [[BPR-2290]]. Two heads a force push left behind: siblings of the
+	// second head, each with a file of its own.
+	[[nodiscard]] auto force_pushed_heads(composed_live_path& aValue) -> std::array<std::string, 2U>
+	{
+		const auto gitDir = "--git-dir=" + QString::fromStdString(aValue.History.Repository.string());
+		auto       heads  = std::array<std::string, 2U>{ };
+		for (std::size_t index = 0U; index < heads.size(); ++index) {
+			const auto text = "left behind by force push " + std::to_string(index) + "\n";
+			const auto blob = git_text(aValue.Root.Path, { gitDir, "hash-object", "-w", "--stdin" }, QByteArray::fromStdString(text));
+			const auto tree = git_text(aValue.Root.Path, { gitDir, "mktree" },
+									   QByteArray::fromStdString("100644 blob " + aValue.History.Readme + "\tREADME\n100644 blob " + blob + "\tforced.txt\n040000 tree " + aValue.History.Subtree + "\tsrc\n"));
+			heads[index]    = git_text(aValue.Root.Path, { gitDir, "commit-tree", QString::fromStdString(tree), "-p", QString::fromStdString(aValue.History.Head1) },
+									   QByteArray::fromStdString("forced " + std::to_string(index) + "\n"));
+		}
+		// A host serves a commit a force push left behind by its ID.
+		static_cast<void>(git_text(aValue.Root.Path, { gitDir, "config", "uploadpack.allowAnySHA1InWant", "true" }));
+		return heads;
+	}
+
+	[[nodiscard]] auto pushed_away(const std::uint64_t aEvent, const std::string& aHead) -> application::epoch_force_push_observation
+	{
+		return { .EventId = aEvent, .Head = commit_oid(aHead), .EventUtcMilliseconds = 1'789'000'000'000LL + static_cast<std::int64_t>(aEvent) };
+	}
+
+	// [[BPR-2290]]. A complete review imports a force-pushed head over the
+	// cache's live base and head as haves: the served pack is what that head
+	// adds, never the repository's history, and the log says so.
+	auto verify_historical_import_over_haves() -> void
+	{
+		composed_live_path value{ "historical" };
+		const auto         heads = force_pushed_heads(value);
+		value.accept(1U, value.History.Head2, { }, { pushed_away(101U, heads[0]) });
+		require(value.Host->state().Status == core::epoch_status::ready, "the live head loads");
+		const auto historical = std::ranges::find_if(value.Fetches, [](const served_fetch& aFetch) { return aFetch.Historical; });
+		require(historical != value.Fetches.end() && historical->SentHaves, "the force-pushed head's import offers the cache's live commits as haves");
+		const auto exit = value.index_pack_exit(historical->Pack, value.History.Head2, "historical-check");
+		std::cout << "HISTORICAL_SERVED_PACK_INDEX_PACK_EXIT:" << exit << " bytes=" << historical->Pack.size() << '\n';
+		require(exit == 1, "the historical pack is what the old head adds to the haves, not its history");
+		const auto events = value.Log->stage(application::diagnostic_epoch_stage::historical_acquire);
+		const auto ended  = std::ranges::find_if(events, [](const auto& aEvent) { return aEvent.Outcome == application::diagnostic_outcome::succeeded; });
+		require(ended != events.end(), "the historical acquisition is logged as its own stage");
+		const auto detail = std::string{ ended->Summary.text() };
+		std::cout << "HISTORICAL_ACQUIRE_DETAIL:" << detail << '\n';
+		require(detail.find("mode=complete_closure") != std::string::npos && detail.find("source=host") != std::string::npos
+					&& detail.find("haves=2") != std::string::npos && detail.find("pack_bytes=") != std::string::npos && detail.find("elapsed_ms=") != std::string::npos,
+				"its detail names the mode, the source, the haves, the size and the duration");
+		require(value.latest_live_head() == commit_oid(value.History.Head2), "the import leaves the live head latest");
+		std::cout << "haves-historical-import:pass\n";
+	}
+
+	// [[BPR-2290]]. A background import that runs out of time is logged and
+	// stops the rest: the next force-pushed head is not tried, so the same
+	// clone is never started again.
+	auto verify_historical_wall_stops() -> void
+	{
+		composed_live_path value{ "historical-wall" };
+		const auto         heads = force_pushed_heads(value);
+		value.accept(1U, value.History.Head2, { }, { pushed_away(101U, heads[0]), pushed_away(102U, heads[1]) }, true);
+		require(value.Host->state().Status == core::epoch_status::ready, "the live head loads");
+		const auto attempts = std::ranges::count_if(value.Fetches, [](const served_fetch& aFetch) { return aFetch.Historical; });
+		std::cout << "HISTORICAL_WALL_ATTEMPTS:" << attempts << '\n';
+		require(attempts == 1, "after a timeout no further background import is started");
+		const auto events = value.Log->stage(application::diagnostic_epoch_stage::historical_acquire);
+		const auto failed = std::ranges::find_if(events, [](const auto& aEvent) { return aEvent.Outcome == application::diagnostic_outcome::failed; });
+		require(failed != events.end() && std::holds_alternative<application::git_smart_transport_failure>(failed->EpochFailure)
+					&& std::get<application::git_smart_transport_failure>(failed->EpochFailure) == application::git_smart_transport_failure::timeout,
+				"the timeout is logged with its reason");
+		require(value.latest_live_head() == commit_oid(value.History.Head2), "the live head stays latest");
+		std::cout << "haves-historical-wall:pass\n";
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -916,6 +1029,12 @@ try {
 	}
 	if (course.empty() || course == "--unconnected") {
 		verify_unconnected_residency_refused();
+	}
+	if (course.empty() || course == "--historical") {
+		verify_historical_import_over_haves();
+	}
+	if (course.empty() || course == "--historical-wall") {
+		verify_historical_wall_stops();
 	}
 	return EXIT_SUCCESS;
 } catch (...) {

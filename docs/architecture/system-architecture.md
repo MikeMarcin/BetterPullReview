@@ -2108,7 +2108,15 @@ Capability admission retains actual clone and exact-object validation. Native
 qualification evidence remains installation-specific. The 32 MiB per-file
 ceiling and supervised 96 MiB/128-entry temporary-store abort threshold
 remain; the aggregate threshold is not a hard disk quota. Local refs reflect the accepted
-API snapshot, not fresh remote advertisement. A tests-disabled macOS fixture
+API snapshot, not fresh remote advertisement. [[BPR-2290]]: a complete
+acquisition reads a wanted commit the reviewer's linked clone holds from that
+clone, read only, with no clone, token or API process; a commit the clone
+lacks is cloned with `--reference` to it, so the host sends only what the
+clone lacks. A shallow clone is not used. The local pack leaves out what the
+cache's haves reach, and the background import of a force-pushed head offers
+the live base and head as haves, runs at preparation priority, is logged as
+the `historical_acquire` epoch stage (mode, source, haves, bytes, duration)
+and, after a timeout or size limit, starts no further background import. A tests-disabled macOS fixture
 now renders a full PR diff through the CLI profile; an isolated build with
 the process adapter removed from composition visibly refuses the same healthy
 fixture. A macOS native read-only probe now verifies one official `gh` HTTPS clone of a

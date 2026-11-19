@@ -1571,6 +1571,11 @@ namespace bpr::app {
 	/// copy has its Repository step done.
 	void github_application::implementation::present_clone_links(const application::clone_link_projection& aProjection)
 	{
+		// [[BPR-2290]]. The review's history acquisitions read the linked
+		// clone before they ask the host.
+		if (!Closing && CloneLinks && EpochHost && AgentReview) {
+			EpochHost->set_history_clone(AgentReview->Repository, linked_history_clone(false));
+		}
 		if (Closing || !CloneLinks || !AgentSetup) {
 			return;
 		}

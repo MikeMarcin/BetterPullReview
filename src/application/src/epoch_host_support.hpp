@@ -14,12 +14,14 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/epoch_model.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <expected>
 #include <memory>
 #include <optional>
 #include <span>
 #include <stop_token>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -94,6 +96,17 @@ namespace bpr::application {
 		{
 			std::visit([&](const auto& aValue) { failed(aStage, aValue); }, aFailure);
 		}
+		/// \brief [[BPR-2290]]. As `perform`, and the ending line's detail is
+		/// `aSummary(result)` with the effect's duration: enums and counts only.
+		template <typename Effect, typename Summary>
+		auto perform(diagnostic_epoch_stage aStage, Effect&& aEffect, Summary&& aSummary) const -> decltype(aEffect())
+		{
+			const auto began  = std::chrono::steady_clock::now();
+			auto       result = perform_detailed(aStage, std::forward<Effect>(aEffect), [&](const auto& aResult) {
+				return aSummary(aResult) + " elapsed_ms=" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - began).count());
+			});
+			return result;
+		}
 		template <typename Effect>
 		auto perform(diagnostic_epoch_stage aStage, Effect&& aEffect) const -> decltype(aEffect())
 		{
@@ -111,7 +124,45 @@ namespace bpr::application {
 				throw;
 			}
 		}
+
+		template <typename Effect, typename Detail>
+		auto perform_detailed(diagnostic_epoch_stage aStage, Effect&& aEffect, Detail&& aDetail) const -> decltype(aEffect())
+		{
+			record(aStage, diagnostic_outcome::started);
+			try {
+				auto result   = aEffect();
+				PendingDetail = aDetail(result);
+				if (result) {
+					record(aStage, diagnostic_outcome::succeeded);
+				} else {
+					failed(aStage, result.error());
+				}
+				PendingDetail.clear();
+				return result;
+			} catch (...) {
+				PendingDetail.clear();
+				failed(aStage, core::epoch_failure::unavailable);
+				throw;
+			}
+		}
+
+		/// [[BPR-2290]]. The ending line's detail while `perform_detailed`
+		/// records it; empty otherwise.
+		mutable std::string PendingDetail = { };
 	};
+
+	/// \brief [[BPR-2290]]. A historical acquisition's line detail: its mode,
+	/// where its objects came from, its haves and the pack's size.
+	[[nodiscard]] auto historical_acquisition_summary(const git_smart_request_context& aContext, const git_smart_transport_port& aTransport,
+													  std::size_t aHaves, const git_protocol_v2_client_result<git_protocol_v2_acquisition_result>& aResult)
+		-> std::string;
+
+	/// \brief [[BPR-2290]]. A size or time wall: trying the next background
+	/// historical import would start the same kind of clone again.
+	[[nodiscard]] constexpr auto historical_wall(const git_smart_transport_failure aFailure) noexcept -> bool
+	{
+		return aFailure == git_smart_transport_failure::timeout || aFailure == git_smart_transport_failure::response_limit;
+	}
 
 	[[nodiscard]] auto catalog_failure(
 		const epoch_catalog_failure aFailure) noexcept -> core::epoch_failure;

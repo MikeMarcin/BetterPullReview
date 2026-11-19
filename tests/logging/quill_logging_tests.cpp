@@ -906,6 +906,16 @@ try {
 		adapters::logging::quill_log log{ root, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 		expect(log.record({ .Operation = application::diagnostic_operation::epoch, .Outcome = application::diagnostic_outcome::failed, .Request = 20U, .WindowSession = 2U, .EpochStage = application::diagnostic_epoch_stage::protocol_acquire, .EpochFailure = application::git_smart_transport_failure::unavailable, .GitStep = application::git_smart_transport_step::cli_qualification }) == status::available, "classified CLI refusal reaches the real log");
 		expect(log.record({ .Operation = application::diagnostic_operation::epoch, .Outcome = application::diagnostic_outcome::failed, .Request = 19U, .EpochStage = application::diagnostic_epoch_stage::protocol_acquire, .EpochFailure = application::git_protocol_v2_failure::pack_sink, .EpochPackFailure = application::git_pack_stream_failure::input_limit }) == status::available, "typed epoch detail accepted by real sink");
+		{
+			// [[BPR-2290]]. A historical acquisition's line: its own stage and
+			// a detail of enums and counts.
+			auto       historical = application::diagnostic_event{ .Operation = application::diagnostic_operation::epoch, .Outcome = application::diagnostic_outcome::succeeded, .Request = 18U, .EpochStage = application::diagnostic_epoch_stage::historical_acquire };
+			const auto detail     = std::string_view{ "mode=complete_closure source=linked_clone linked_clone=1 haves=2 pack_bytes=345 wire_bytes=730 elapsed_ms=43" };
+			std::ranges::copy(detail, historical.Summary.Text.begin());
+			historical.Summary.Size  = static_cast<std::uint16_t>(detail.size());
+			historical.Summary.State = application::diagnostic_summary_state::sanitized;
+			expect(log.record(historical) == status::available, "a historical acquisition's line is accepted by the real sink");
+		}
 	}
 	{
 		const auto                   firstRoot  = private_root(root / "profile-first");
@@ -1048,6 +1058,8 @@ try {
 		   "real Quill log yields bounded metadata-only maintenance preview without prose or identity");
 	expect(first.find("\"git_step\":\"cli_qualification\"") != std::string::npos && first.find("\"window_session\":2") != std::string::npos, "closed acquisition step and window identity persist without raw executable or provider output");
 	expect(first.find("\"epoch_stage\":\"protocol_acquire\",\"failure_domain\":\"protocol\",\"failure\":\"pack_sink\",\"pack_failure\":\"input_limit\"") != std::string::npos, "fixed protocol and pack failure names persisted");
+	expect(first.find("\"detail\":\"mode=complete_closure source=linked_clone linked_clone=1 haves=2 pack_bytes=345 wire_bytes=730 elapsed_ms=43\",\"epoch_stage\":\"historical_acquire\"") != std::string::npos,
+		   "[[BPR-2290]] the historical acquisition's stage and detail persist");
 	expect(first.find("Unknown schema field") != std::string::npos && first.find("unclassified-code") != std::string::npos && first.find("newField") == std::string::npos && first.find("NEW_SCHEMA_CODE") == std::string::npos && first.find("\"request\":42,\"http_status\":200") != std::string::npos, "useful sanitized prose and correlation survive file encoding");
 	expect(first.find("runtime-only-file-secret") == std::string::npos, "credential canary absent from persisted file");
 	expect(first.find("\"page_operation\":\"ListRequestedReviewers\"") != std::string::npos && first.find("\"page_operation\":\"ListHomePullRequests\"") != std::string::npos && first.find("\"page_operation\":\"ListHomeReviewMembership\"") != std::string::npos && first.find("\"page_operation\":\"ListReviewRequests\"") != std::string::npos, "new discovery operation names survive persistence with the existing redaction checks");

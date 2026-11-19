@@ -1708,14 +1708,17 @@ namespace bpr::adapters::github::detail {
 			&& (aDepth != 0U || aIndex != 0U || !aReference.empty() || aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees)) {
 			return std::nullopt;
 		}
+		// [[BPR-2290]]. A complete clone may borrow the linked clone too, so
+		// the host sends only what it lacks.
+		const auto referenced = !aReference.empty();
 		if ((aContent != gh_cli_clone_content::trees && !delta && !managed)
-			|| (!delta && !managed && (aDepth == 0U || aDepth > maximum_gh_cli_clone_depth || !aReference.empty()))
+			|| (!delta && !managed && (aDepth == 0U || aDepth > maximum_gh_cli_clone_depth || (referenced && aContext.AcquisitionMode != application::git_smart_acquisition_mode::complete_closure)))
 			|| (aDepth != 1U && !delta && !managed && aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees)
 			|| (delta && (aDepth != 0U || aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees))) {
 			return std::nullopt;
 		}
 		std::error_code referenceError;
-		if (delta
+		if ((delta || referenced)
 			&& (!aReference.is_absolute() || std::filesystem::canonical(aReference, referenceError) != aReference || referenceError
 				|| !std::filesystem::is_directory(aReference, referenceError) || referenceError)) {
 			return std::nullopt;
@@ -1771,7 +1774,7 @@ namespace bpr::adapters::github::detail {
 							   std::string{ "--config" }, std::string{ "core.fsmonitor=false" } }) {
 			arguments.push_back(std::move(argument));
 		}
-		if (delta) {
+		if (delta || referenced) {
 			// [[BPR-1873]]. Borrowed, the linked clone's refs are the haves:
 			// only what it lacks is sent, and nothing is written to it.
 			arguments.emplace_back("--reference=" + path_bytes(aReference));

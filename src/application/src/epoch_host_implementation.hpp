@@ -384,6 +384,25 @@ namespace bpr::application {
 			bool                                          HistoricalImportPending = false;
 			std::uint8_t                                  HistoricalImports       = 0U;
 			std::vector<core::epoch_occurrence_id>        HistoricalSkipped;
+			/// [[BPR-2290]]. A background import met a size or time wall: no
+			/// further background import is tried for this review, so the same
+			/// clone is never started again.
+			bool HistoricalStopped = false;
+		};
+
+		/// \brief [[BPR-2290]]. The linked clone of the repository on screen,
+		/// read by acquisition workers.
+		struct history_clone_cell final
+		{
+			[[nodiscard]] auto lookup(const core::repository_id aRepository) const -> std::optional<std::filesystem::path>
+			{
+				std::scoped_lock lock{ Mutex };
+				return Repository == aRepository ? Clone : std::nullopt;
+			}
+
+			mutable std::mutex                   Mutex;
+			core::repository_id                  Repository;
+			std::optional<std::filesystem::path> Clone;
 		};
 
 		struct completion_gate final
@@ -582,7 +601,8 @@ namespace bpr::application {
 													aComparisonGeneration = std::nullopt,
 			const std::optional<std::uint64_t>      aOfferToken           = std::nullopt,
 			std::shared_ptr<authority_effect_actor> aActor                = { },
-			std::shared_ptr<job_control>            aAdmittedControl      = { }) -> bool;
+			std::shared_ptr<job_control>            aAdmittedControl      = { },
+			profile_epoch_actor_priority            aPriority             = profile_epoch_actor_priority::reviewer) -> bool;
 
 		template <typename Task, typename ExceptionCompletion, typename AdmissionFailure>
 		auto submit_effect(
@@ -595,7 +615,8 @@ namespace bpr::application {
 													aComparisonGeneration = std::nullopt,
 			const std::optional<std::uint64_t>      aOfferToken           = std::nullopt,
 			std::shared_ptr<authority_effect_actor> aActor                = { },
-			std::shared_ptr<job_control>            aAdmittedControl      = { }) -> bool
+			std::shared_ptr<job_control>            aAdmittedControl      = { },
+			profile_epoch_actor_priority            aPriority             = profile_epoch_actor_priority::reviewer) -> bool
 		{
 			try {
 				auto admission = admission_failure{ aAdmissionFailure };
@@ -612,7 +633,8 @@ namespace bpr::application {
 					aComparisonGeneration,
 					aOfferToken,
 					std::move(aActor),
-					std::move(aAdmittedControl));
+					std::move(aAdmittedControl),
+					aPriority);
 			} catch (...) {
 				if (aAdmittedControl) {
 					finish_job(aAdmittedControl);
@@ -1347,6 +1369,7 @@ namespace bpr::application {
 		epoch_projection_port&                        Projections;
 		epoch_host_limits                             Limits;
 		std::shared_ptr<diagnostic_log_port>          DiagnosticLog;
+		history_clone_cell                            HistoryClones;
 		std::shared_ptr<completion_gate>              CompletionGate;
 		std::shared_ptr<profile_epoch_actor_consumer> Consumer;
 		const core::application_session_id            WindowApplicationSession;

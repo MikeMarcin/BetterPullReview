@@ -69,7 +69,8 @@ namespace bpr::application {
 		return aContext.ApplicationSession.value() != 0U
 			&& core::valid(aContext.Authority)
 			&& core::valid(aContext.Revision)
-			&& core::valid(aContext.Repository) && valid(aContext.BaseRef);
+			&& core::valid(aContext.Repository) && valid(aContext.BaseRef)
+			&& (!aContext.HistoryClone || (aContext.HistoryClone->is_absolute() && !aContext.HistoryClone->empty()));
 	}
 
 	auto valid(const git_smart_discovery_request& aRequest) noexcept -> bool

@@ -393,9 +393,10 @@ namespace bpr::application {
 		auto* const caches  = &Caches;
 		auto* const entropy = &Entropy;
 		auto* const clock   = &Clock;
+		auto* const clones  = &HistoryClones;
 		auto        actor   = context->Actor;
 		submit_effect(
-			[context, aRequest, caches, entropy, clock, diagnostics = epoch_diagnostics{ DiagnosticLog, aRequest.Context.Request.value(), aRequest.Context.ApplicationSession.value() }](
+			[context, aRequest, caches, entropy, clock, clones, diagnostics = epoch_diagnostics{ DiagnosticLog, aRequest.Context.Request.value(), aRequest.Context.ApplicationSession.value() }](
 				const std::stop_token aStop) -> worker_completion {
 				const auto cancelled = [aRequest]() -> worker_completion {
 					return [aRequest](implementation& aHost) {
@@ -764,6 +765,7 @@ namespace bpr::application {
 							&& context->Handoff.SmartGit->supports_sparse_commit_trees()
 						? git_smart_acquisition_mode::sparse_commit_trees
 						: git_smart_acquisition_mode::complete_closure,
+					.HistoryClone       = clones->lookup(context->Handoff.Repository),
 				};
 				auto transport = diagnostics.perform(
 					diagnostic_epoch_stage::smart_acquire,
@@ -1113,6 +1115,7 @@ namespace bpr::application {
 			return;
 		}
 		if (aContext->HistoricalImports + aContext->HistoricalSkipped.size() >= 8U
+			|| (aContext->HistoricalStopped && !aSelection)
 			|| !aContext->OccurrenceHistory || !aContext->Handoff.SmartGit
 			|| aContext->Handoff.SmartGit->revoked()) {
 			failSelection(*this);
@@ -1122,8 +1125,10 @@ namespace bpr::application {
 		auto* const entropy               = &Entropy;
 		auto* const caches                = &Caches;
 		auto* const clock                 = &Clock;
+		auto* const clones                = &HistoryClones;
 		const auto  submitted             = submit_effect(
-			[context = aContext, aRequest, aGeneration, aSelection, sparse, entropy, caches, clock](
+			[context     = aContext, aRequest, aGeneration, aSelection, sparse, entropy, caches, clock, clones,
+			 diagnostics = epoch_diagnostics{ DiagnosticLog, aRequest.value(), aContext->Handoff.ApplicationSession.value() }](
 				const std::stop_token aStop) -> worker_completion {
 				const auto noImport = [context, aSelection](implementation& aHost) {
 					context->HistoricalImportPending = false;
@@ -1156,22 +1161,28 @@ namespace bpr::application {
 					|| !context->Handoff.SmartGit || context->Handoff.SmartGit->revoked()) {
 					return noImport;
 				}
-				const auto skip = [context, aRequest, aGeneration, aSelection, id = event->Id](implementation& aHost) {
-					context->HistoricalImportPending = false;
-					if (aSelection) {
-						aHost.dispatch_core(core::epoch_occurrence_import_failed_event{
-							.Context = *aSelection,
-							.Failure = core::epoch_failure::unavailable,
-						});
+				// [[BPR-2290]]. `aWall`: the acquisition met a size or time wall,
+				// so no further background import starts the same kind of clone.
+				const auto skipWith = [context, aRequest, aGeneration, aSelection, id = event->Id](const bool aWall) -> worker_completion {
+					return [context, aRequest, aGeneration, aSelection, id, aWall](implementation& aHost) {
+						context->HistoricalImportPending = false;
+						context->HistoricalStopped       = context->HistoricalStopped || aWall;
+						if (aSelection) {
+							aHost.dispatch_core(core::epoch_occurrence_import_failed_event{
+								.Context = *aSelection,
+								.Failure = core::epoch_failure::unavailable,
+							});
+							aHost.resume_pending_occurrence_import(context);
+							return;
+						}
+						context->HistoricalSkipped.push_back(id);
+						if (aHost.Active == context && aHost.State.Authority == context->Authority) {
+							aHost.start_historical_import(context, aRequest, aGeneration);
+						}
 						aHost.resume_pending_occurrence_import(context);
-						return;
-					}
-					context->HistoricalSkipped.push_back(id);
-					if (aHost.Active == context && aHost.State.Authority == context->Authority) {
-						aHost.start_historical_import(context, aRequest, aGeneration);
-					}
-					aHost.resume_pending_occurrence_import(context);
+					};
 				};
+				const auto skip          = skipWith(false);
 				const auto expectedCache = git_cache_open_request{
 					.ApplicationSession = context->Handoff.ApplicationSession,
 					.Authority          = context->Authority,
@@ -1224,10 +1235,10 @@ namespace bpr::application {
 					.Operation = *operation,
 					.Record    = *record,
 				};
-				const auto fail = [&]() -> worker_completion {
+				const auto fail = [&](const bool aWall = false) -> worker_completion {
 					const auto aborted = abort_preparation(*context, prepared, *caches);
 					if (aborted && !aStop.stop_requested()) {
-						return skip;
+						return aWall ? skipWith(true) : skip;
 					}
 					return noImport;
 				};
@@ -1265,24 +1276,52 @@ namespace bpr::application {
 					.BaseRef            = context->Handoff.BaseRef,
 					.AcquisitionMode    = sparse ? git_smart_acquisition_mode::sparse_commit_trees
 												 : git_smart_acquisition_mode::complete_closure,
+					.HistoryClone       = sparse ? std::nullopt : clones->lookup(context->Handoff.Repository),
 				};
 				auto transport = context->Handoff.SmartGit->acquire(smartContext);
 				if (!transport || !*transport) {
 					(*sink)->abort();
 					return fail();
 				}
-				const auto acquisition = acquire_git_protocol_v2_historical_pack(
-					**transport, smartContext, event->Evidence.Head, { }, **sink,
-					git_protocol_v2_fetch_limits{
-						.MaximumWireBytes     = maximum_git_smart_fetch_response_bytes,
-						.MaximumPackBytes     = maximumPackBytes,
-						.MaximumProgressBytes = maximum_git_protocol_v2_progress_bytes,
-						.MaximumPackets       = maximum_git_protocol_v2_fetch_packets,
-					},
-					aStop);
+				// [[BPR-2290]]. The live base and head the cache holds with their
+				// history are haves: a complete historical pack is only what the
+				// old head adds to them, never the repository's history.
+				std::vector<git_protocol_v2_have> haves;
+				if (!sparse) {
+					for (const auto& [commit, availability] : { std::pair{ snapshot->LatestLive->Base, snapshot->LatestLive->BaseAvailability },
+																std::pair{ snapshot->LatestLive->Head, snapshot->LatestLive->HeadAvailability } }) {
+						if (availability != core::anchor_availability::available
+							|| std::ranges::any_of(haves, [&](const auto& aHave) { return aHave.Commit == commit; })) {
+							continue;
+						}
+						const auto inspected = context->Actor->Cache->inspect_commit_object(commit, aStop);
+						if (inspected && application::valid(*inspected) && inspected->Commit == commit
+							&& inspected->Residency == git_revision_residency::complete_closure) {
+							haves.push_back(git_protocol_v2_have{
+								.Cache          = context->Authority.Cache,
+								.Commit         = commit,
+								.CatalogVisible = true,
+								.ObjectVerified = true,
+							});
+						}
+					}
+				}
+				const auto acquisition = diagnostics.perform(
+					diagnostic_epoch_stage::historical_acquire,
+					[&] { return acquire_git_protocol_v2_historical_pack(
+							  **transport, smartContext, event->Evidence.Head, haves, **sink,
+							  git_protocol_v2_fetch_limits{
+								  .MaximumWireBytes     = maximum_git_smart_fetch_response_bytes,
+								  .MaximumPackBytes     = maximumPackBytes,
+								  .MaximumProgressBytes = maximum_git_protocol_v2_progress_bytes,
+								  .MaximumPackets       = maximum_git_protocol_v2_fetch_packets,
+							  },
+							  aStop); },
+					[&](const auto& aResult) { return historical_acquisition_summary(smartContext, **transport, haves.size(), aResult); });
 				if (!acquisition) {
 					(*transport)->revoke();
-					return fail();
+					const auto* transportFailure = std::get_if<git_smart_transport_error>(&acquisition.error());
+					return fail(transportFailure != nullptr && historical_wall(transportFailure->Failure));
 				}
 				const auto inventory = context->Actor->Cache->observe_preimport(acquisition->Fetch.Pack, aStop);
 				if (!inventory) {
@@ -1512,7 +1551,10 @@ namespace bpr::application {
 				}
 				aHost.resume_pending_occurrence_import(context);
 			},
-			aRequest, aGeneration, std::nullopt, std::nullopt, aContext->Actor);
+			aRequest, aGeneration, std::nullopt, std::nullopt, aContext->Actor, { },
+			// [[BPR-2290]]. A background import waits behind the reviewer's
+			// own reads on the review's cache actor; a selected one does not.
+			aSelection ? profile_epoch_actor_priority::reviewer : profile_epoch_actor_priority::preparation);
 		if (!submitted) {
 			aContext->HistoricalImportPending = false;
 			failSelection(*this);

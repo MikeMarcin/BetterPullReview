@@ -525,7 +525,8 @@ namespace bpr::application {
 												aComparisonGeneration,
 		const std::optional<std::uint64_t>      aOfferToken,
 		std::shared_ptr<authority_effect_actor> aActor,
-		std::shared_ptr<job_control>            aAdmittedControl) -> bool
+		std::shared_ptr<job_control>            aAdmittedControl,
+		const profile_epoch_actor_priority      aPriority) -> bool
 	{
 		auto control = std::move(aAdmittedControl);
 		if (!control) {
@@ -568,7 +569,7 @@ namespace bpr::application {
 					std::move(completion));
 			};
 			if (aActor) {
-				enqueue_actor_work(std::move(aActor), std::move(work));
+				enqueue_actor_work(std::move(aActor), std::move(work), aPriority);
 			} else {
 				Effects.post(std::move(work));
 			}

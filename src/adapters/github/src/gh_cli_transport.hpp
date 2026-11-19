@@ -473,7 +473,8 @@ namespace bpr::adapters::github::detail {
 	/// ([[BPR-1873]] removed [[BPR-1738]]'s head snapshot). [[BPR-1873]]. A
 	/// sparse review's `delta` clone borrows \p aReference, the linked clone's
 	/// canonical folder, takes no depth (\p aDepth 0) and no filter, and so
-	/// receives only what the clone lacks of the head.
+	/// receives only what the clone lacks of the head. [[BPR-2290]]. A complete
+	/// clone may borrow \p aReference too, receiving only what the clone lacks.
 	[[nodiscard]] auto compile_gh_cli_git_clone_request(
 		const validated_gh_cli_configuration&         aConfiguration,
 		const validated_github_host_profile&          aProfile,

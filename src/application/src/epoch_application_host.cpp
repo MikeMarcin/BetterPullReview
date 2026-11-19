@@ -290,6 +290,14 @@ namespace bpr::application {
 		Implementation->HistoryEffects = &aEffects;
 	}
 
+	void epoch_application_host::set_history_clone(const core::repository_id aRepository, std::optional<std::filesystem::path> aClone)
+	{
+		auto&            cell = Implementation->HistoryClones;
+		std::scoped_lock lock{ cell.Mutex };
+		cell.Repository = aRepository;
+		cell.Clone      = aClone && aClone->is_absolute() ? std::move(aClone) : std::nullopt;
+	}
+
 	auto epoch_application_host::resolve_commit_filter_touches(
 		commit_filter_touches_request    aRequest,
 		commit_filter_touches_completion aCompletion) -> bool

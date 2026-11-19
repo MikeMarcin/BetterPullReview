@@ -273,7 +273,7 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_better_pull_review_haves_trimmed_pack_integration_tests)
 
-foreach(bpr_haves_course IN ITEMS update missing-object unconnected tour-source)
+foreach(bpr_haves_course IN ITEMS update missing-object unconnected tour-source historical historical-wall)
     bpr_add_network_isolated_test(
         NAME "git_haves_trimmed_pack_${bpr_haves_course}"
         WINDOWS_UNCONTAINED
