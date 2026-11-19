@@ -2643,7 +2643,7 @@ namespace {
 			}
 			std::cerr << " finished=";
 			for (const auto& finished : test.Projection.Finished) {
-				std::cerr << static_cast<int>(finished.Outcome) << ' ';
+				std::cerr << static_cast<int>(finished.Outcome) << " [" << finished.StandardError << "] ";
 			}
 			std::cerr << '\n';
 		}
