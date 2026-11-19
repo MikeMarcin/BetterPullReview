@@ -199,6 +199,9 @@ namespace bpr::app {
 		if (DraftDesktop) {
 			DraftDesktop->shutdown();
 		}
+		if (FollowUp) {
+			FollowUp->shutdown();
+		}
 		if (DescriptionDraft) {
 			DescriptionDraft->shutdown();
 		}
@@ -317,7 +320,7 @@ namespace bpr::app {
 			|| (TourHost && !TourHost->is_quiescent())
 			|| (CycleDesktop && !CycleDesktop->is_quiescent())
 			|| (DraftDesktop && !DraftDesktop->is_quiescent())
-			|| (DescriptionDraft && !DescriptionDraft->is_quiescent())
+			|| (DescriptionDraft && !DescriptionDraft->is_quiescent()) || (FollowUp && !FollowUp->is_quiescent())
 #if defined(BPR_AGENT_INTEGRATIONS)
 			|| (ClaudeWrapperEditor && !ClaudeWrapperEditor->is_quiescent())
 			|| (AgentSetup && !AgentSetup->is_quiescent())

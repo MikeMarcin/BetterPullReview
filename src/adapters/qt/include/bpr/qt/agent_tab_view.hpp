@@ -435,6 +435,14 @@ namespace bpr::qt {
 		/// card's keep action (Draft comment or Keep local) and Dismiss go, and the
 		/// state the host reports back for the card (`aWhy` with a refusal).
 		void set_finding_card_dispatch(agent_finding_card_dispatch aDispatch);
+		/// \brief [[BPR-2286]]. Ask follow-up on a finding card: the card's
+		/// delivery, place and finding (its `Action` is unused). Without it
+		/// the cards offer no Ask follow-up.
+		void set_follow_up_dispatch(agent_finding_card_dispatch aDispatch);
+		/// \brief [[BPR-2286]]. A follow-up updated the suggested comment of
+		/// the card at `aOrdinal` of delivery `aSession`: the card shows it and
+		/// Draft drafts it. \returns Whether a card was there.
+		auto revise_finding(std::uint64_t aSession, std::size_t aOrdinal, const QString& aComment) -> bool;
 		void present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { }, std::uint64_t aNote = 0U);
 		/// \brief Owner report 2026-11-10, after BPR-2052. Where each state
 		/// `present_finding_card_state` gives a card under an answer with a
@@ -757,8 +765,10 @@ namespace bpr::qt {
 		};
 		[[nodiscard]] auto make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*;
 		/// [[BPR-2059]]. Sets one of a card's Markdown texts to the height its width needs.
-		void fit_card_text(markdown_body_view& aView) const;
-		void show_card_state(card_entry& aEntry);
+		void                        fit_card_text(markdown_body_view& aView) const;
+		void                        show_card_state(card_entry& aEntry);
+		void                        show_card_suggestion(card_entry& aEntry, QWidget& aInset);
+		agent_finding_card_dispatch FollowUpDispatch;
 		/// RFC-BPR-0127. Shows the card's one keep action, Draft comment or Keep local.
 		void          show_card_keep(const card_entry& aEntry) const;
 		void          act_on_card(std::uint64_t aCard, agent_finding_card_action aAction);

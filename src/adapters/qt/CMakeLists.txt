@@ -85,6 +85,7 @@ add_library(
         src/ask_menu.cpp
         src/agent_report_view.cpp
         src/report_page.cpp
+        src/follow_up_window.cpp
         src/prompt_words.cpp
         src/prompts_page.cpp
         src/agent_run_settings_picker.cpp

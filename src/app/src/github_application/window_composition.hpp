@@ -27,6 +27,7 @@
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/feedback_counters.hpp"
+#include "bpr/application/follow_up_host.hpp"
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/github_epoch_handoff.hpp"
@@ -116,6 +117,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
+#include "bpr/qt/follow_up_window.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -556,10 +558,18 @@ namespace bpr::app {
 		/// its own agent lane, and the host that runs it there.
 		std::unique_ptr<worker_executor>                     DescriptionDraftLane;
 		std::unique_ptr<application::description_draft_host> DescriptionDraft;
-		std::uint64_t                                        DescriptionDraftShown   = 0U;
-		std::uint64_t                                        WritingHookSubscription = 0;
-		std::unique_ptr<review_tour_publication_workflow>    TourPublication;
-		std::unique_ptr<conversation_reply_workflow>         ConversationReply;
+		std::uint64_t                                        DescriptionDraftShown = 0U;
+		/// [[BPR-2286]]. Ask follow-up and Ask about this: their own agent
+		/// lane, the host of the window's follow-ups, the window they are
+		/// shown in, and each finding's suggested comment as a follow-up
+		/// updated it, by its follow-up key.
+		std::unique_ptr<worker_executor>                  FollowUpLane;
+		std::unique_ptr<application::follow_up_host>      FollowUp;
+		QPointer<qt::follow_up_window>                    FollowUpWindow;
+		std::map<std::string, std::string>                FollowUpRevisions;
+		std::uint64_t                                     WritingHookSubscription = 0;
+		std::unique_ptr<review_tour_publication_workflow> TourPublication;
+		std::unique_ptr<conversation_reply_workflow>      ConversationReply;
 		struct retained_tour_host
 		{
 			core::tour_owner                               Owner;
@@ -1158,6 +1168,16 @@ namespace bpr::app {
 		void reset_tour();
 		void undo_tour_reset();
 		void present_tour_reset();
+		/// [[BPR-2286]]. Ask follow-up and Ask about this.
+		void               bind_follow_up();
+		void               follow_up_conversation(const std::string& aIdentity, const QString& aText);
+		void               open_follow_up(core::follow_up_subject aSubject);
+		void               present_follow_up(const application::follow_up_projection& aProjection);
+		[[nodiscard]] auto follow_up_agent() -> std::optional<application::follow_up_agent>;
+		void               ask_follow_up(const QString& aQuestion);
+		[[nodiscard]] auto follow_up_target(const core::follow_up_state& aState, core::follow_up_apply aApply) const -> std::optional<std::string>;
+		void               propose_follow_up(core::follow_up_apply aApply);
+		void               use_follow_up(std::uint64_t aProposal);
 #endif
 		auto apply_writing_result(const writing_operation& aOperation, const application::writing_result& aResult) -> std::string;
 		void finish_writing(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult);

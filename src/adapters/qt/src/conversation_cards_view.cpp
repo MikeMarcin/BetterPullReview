@@ -4035,6 +4035,7 @@ namespace bpr::qt {
 			}
 		};
 		OpenCard->bind_enhance(EnhanceDispatch, EnhanceCancel);
+		bind_ask_about();
 		OpenCard->DraftText = [this](const QString& aText) {
 			if (DraftTextDispatch) {
 				DraftTextDispatch(aText);
@@ -5791,6 +5792,45 @@ namespace bpr::qt {
 		if (OpenCard != nullptr) {
 			OpenCard->bind_enhance(EnhanceDispatch, EnhanceCancel);
 		}
+	}
+
+	/// [[BPR-2286]]. Ask about this on the open card's field: its identity
+	/// (the thread, or the draft being written) and the field's text.
+	void conversation_cards_view::set_ask_about_dispatch(std::function<void(const std::string& aIdentity, const QString& aText)> aDispatch)
+	{
+		AskAboutDispatch = std::move(aDispatch);
+		bind_ask_about();
+	}
+
+	void conversation_cards_view::bind_ask_about()
+	{
+		if (OpenCard == nullptr) {
+			return;
+		}
+		if (!AskAboutDispatch) {
+			OpenCard->bind_ask_about({ });
+			return;
+		}
+		OpenCard->bind_ask_about([this, id = Open](const QString& aText) {
+			if (AskAboutDispatch) {
+				AskAboutDispatch(id, aText);
+			}
+		});
+	}
+
+	auto conversation_cards_view::ask_about_control() const -> QPushButton* { return OpenCard != nullptr ? OpenCard->ask_about_control() : nullptr; }
+
+	auto conversation_cards_view::field_text(const std::string& aIdentity) const -> std::optional<QString>
+	{
+		if (OpenCard == nullptr || Open != aIdentity) {
+			return std::nullopt;
+		}
+		return OpenCard->field_text();
+	}
+
+	auto conversation_cards_view::replace_field_text(const std::string& aIdentity, const QString& aBase, const QString& aText) -> bool
+	{
+		return OpenCard != nullptr && Open == aIdentity && OpenCard->replace_field_text(aBase, aText);
 	}
 
 	auto conversation_cards_view::present_enhancement(const enhance_outcome& aOutcome) -> bool { return OpenCard != nullptr && OpenCard->present_enhancement(aOutcome); }

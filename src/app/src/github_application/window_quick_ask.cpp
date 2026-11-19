@@ -83,6 +83,10 @@ namespace bpr::app {
 								  .Draft  = [this](const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow) { draft_quick_ask(aRequest, aRow); },
 								  .Custom = [this](const qt::ask_menu_request& aRequest) { ask_custom_question(aRequest); },
 								  .Edit   = [this] { Window->reveal_prompt_macros(); },
+								  // [[BPR-2286]]. Ask about this… on a thread (or a draft's card).
+								  .FollowUp = [this](const qt::ask_menu_request& aRequest) {
+									  const auto identity = aRequest.Thread.toStdString();
+									  follow_up_conversation(identity, Window->conversation_panel()->cards()->field_text(identity).value_or(QString{ })); },
 							  });
 		attach_agent_queue();
 		Window->agent_tab()->set_availability_observer([this](const bool aSettled) { observe_ask_queue(aSettled); });

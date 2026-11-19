@@ -161,6 +161,8 @@ namespace bpr::qt {
 			const auto spacer = QStringLiteral("<td width=\"12\"></td>");
 			const auto unsent = QObject::tr("Nothing is published");
 			auto       cells  = QString{ };
+			// [[BPR-2286]]. Ask follow-up, beside a finding's keep action.
+			const auto ask = Actions->FollowUp && aOutline != 0U ? chip(Actions->Link(aOutline, report_link::ask), QObject::tr("Ask follow-up"), aPalette.Ink, aPalette) + spacer : QString{ };
 			switch (state.Phase) {
 			case report_keep_phase::working: cells = beside(draft ? QObject::tr("Drafting\u2026") : QObject::tr("Keeping\u2026"), aPalette.Faint, false); break;
 			case report_keep_phase::kept:
@@ -168,6 +170,7 @@ namespace bpr::qt {
 				if (aGoes) {
 					cells += chip(Actions->Link(aOutline, report_link::go), draft ? QObject::tr("Go to draft") : QObject::tr("Go to comment"), aPalette.Link, aPalette) + spacer;
 				}
+				cells += ask;
 				cells += beside(aOutline == 0U ? QObject::tr("A local comment on the pull request. %1").arg(unsent) : unsent, aPalette.Faint, false);
 				break;
 			case report_keep_phase::refused:
@@ -175,11 +178,16 @@ namespace bpr::qt {
 				cells = chip(Actions->Link(aOutline, report_link::keep), aOutline == 0U ? QObject::tr("Keep summary") : draft ? QObject::tr("Draft comment")
 																															  : QObject::tr("Keep local"),
 							 aPalette.Ink, aPalette)
-					+ spacer;
+					+ spacer + ask;
 				cells += state.Phase == report_keep_phase::refused ? beside(state.Why, aPalette.Roles.Tones.Open.name(), false) : beside(QStringLiteral("%1. %2").arg(aWhere, unsent), aPalette.Faint, false);
 				break;
 			}
-			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells);
+			auto revised = QString{ };
+			if (const auto edited = Actions->Revised.find(aOutline); edited != Actions->Revised.end()) {
+				revised = QStringLiteral("<p style=\"margin-top:6px;font-family:%1;font-size:13px;color:%2\">%3 <span style=\"color:%4\">%5</span></p>")
+							  .arg(sans(), aPalette.Faint, QObject::tr("Suggested comment, updated:").toHtmlEscaped(), aPalette.Ink, edited->second.toHtmlEscaped());
+			}
+			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells) + revised;
 		}
 
 		/// [[BPR-2232]]. Draft all from the report: the chip while it has a

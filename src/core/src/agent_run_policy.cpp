@@ -29,6 +29,7 @@ namespace bpr::core {
 		case agent_run_path::review_cycle_round:            return "review-cycle-round";
 		case agent_run_path::self_review_loop:              return "self-review-loop";
 		case agent_run_path::address_feedback_run:          return "address-feedback-run";
+		case agent_run_path::follow_up:                     return "follow-up";
 		}
 		return { };
 	}

@@ -3985,27 +3985,15 @@ namespace bpr::qt {
 			evidence->setPalette(quiet);
 			col->addWidget(evidence);
 		}
-		if (finding.SuggestedComment && !finding.SuggestedComment->empty()) {
-			col->addSpacing(6);
+		// [[BPR-2286]]. The inset is built for every card and shown while the
+		// card has a suggested comment, so a follow-up's update can show in a
+		// card that had none.
+		{
 			auto* const inset = new suggestion_inset{ card };
 			inset->setObjectName(QStringLiteral("agentFindingSuggestion"));
 			auto* const insetColumn = new QVBoxLayout{ inset };
 			insetColumn->setContentsMargins(12, 7, 10, 8);
 			insetColumn->setSpacing(3);
-			// A Conventional Comments label the agent led with is said once,
-			// quietly, beside the caption, and the comment reads from its
-			// subject; the draft still opens with it in the label control.
-			const auto& suggested = *finding.SuggestedComment;
-			const auto  read      = core::recognize_feedback_prefix(suggested);
-			auto        shown     = suggested;
-			auto        label     = QString{ };
-			if (read.Status == core::feedback_prefix_status::recognized && read.Header && read.Subject && read.Subject->Begin <= suggested.size() && read.Header->End <= suggested.size()) {
-				label = QString::fromStdString(suggested.substr(read.Header->Begin, read.Header->End - read.Header->Begin)).trimmed();
-				if (label.endsWith(QLatin1Char{ ':' })) {
-					label.chop(1);
-				}
-				shown = suggested.substr(read.Subject->Begin);
-			}
 			auto* const captionRow = new QHBoxLayout{ };
 			captionRow->setSpacing(8);
 			auto* const caption = new QLabel{ tr("Suggested comment"), inset };
@@ -4016,20 +4004,19 @@ namespace bpr::qt {
 			caption->setFont(small);
 			captionRow->addWidget(caption);
 			captionRow->addStretch(1);
-			if (!label.isEmpty()) {
-				auto* const labelled = new QLabel{ label, inset };
-				labelled->setObjectName(QStringLiteral("agentFindingSuggestionLabel"));
-				// [[BPR-2236]]. In its tone, as the report page draws the label.
-				labelled->setForegroundRole(QPalette::PlaceholderText);
-				labelled->setProperty("bprToneLabel", label);
-				labelled->setFont(small);
-				labelled->setToolTip(tr("The label the agent gave it. A draft opens with it chosen in the label control."));
-				captionRow->addWidget(labelled);
-			}
+			auto* const labelled = new QLabel{ inset };
+			labelled->setObjectName(QStringLiteral("agentFindingSuggestionLabel"));
+			// [[BPR-2236]]. In its tone, as the report page draws the label.
+			labelled->setForegroundRole(QPalette::PlaceholderText);
+			labelled->setFont(small);
+			labelled->setToolTip(tr("The label the agent gave it. A draft opens with it chosen in the label control."));
+			captionRow->addWidget(labelled);
 			insetColumn->addLayout(captionRow);
-			auto* const comment = cardText(inset, shown, QStringLiteral("agentFindingComment"), 22);
+			auto* const comment = cardText(inset, std::string{ }, QStringLiteral("agentFindingComment"), 22);
 			insetColumn->addWidget(comment);
+			col->addSpacing(6);
 			col->addWidget(inset);
+			show_card_suggestion(aEntry, *inset);
 		}
 		col->addSpacing(2);
 		auto* const actions = new QHBoxLayout{ };
@@ -4051,6 +4038,21 @@ namespace bpr::qt {
 		dismiss->setFlat(true);
 		connect(dismiss, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::dismiss); });
 		actions->addWidget(dismiss);
+		// [[BPR-2286]]. Ask follow-up: a conversation about this finding, in
+		// its own window; it sends nothing by itself.
+		auto* const followUp = new quiet_push_button{ tr("Ask follow-up"), card };
+		followUp->setObjectName(QStringLiteral("agentFindingFollowUp"));
+		followUp->setFlat(true);
+		followUp->setToolTip(tr("Ask the agent about this finding, and have it rewrite the suggested comment if you want. Nothing is posted."));
+		followUp->setAccessibleDescription(followUp->toolTip());
+		followUp->setVisible(static_cast<bool>(FollowUpDispatch));
+		connect(followUp, &QPushButton::clicked, this, [this, index] {
+			const auto found = std::ranges::find(CardEntries, index, &card_entry::Id);
+			if (found != CardEntries.end() && FollowUpDispatch) {
+				FollowUpDispatch({ .Session = found->Session, .Ordinal = found->Ordinal, .Finding = found->Finding, .Action = agent_finding_card_action::draft_comment });
+			}
+		});
+		actions->addWidget(followUp);
 		auto* const state = new QLabel{ card };
 		state->setObjectName(QStringLiteral("agentFindingState"));
 		state->setForegroundRole(QPalette::PlaceholderText);
@@ -4085,6 +4087,60 @@ namespace bpr::qt {
 		colour_card(aEntry);
 		show_card_state(aEntry);
 		return card;
+	}
+
+	/// [[BPR-2286]]. The card's suggested comment, as it is now: its label
+	/// said once beside the caption, the comment from its subject.
+	void agent_tab_view::show_card_suggestion(card_entry& aEntry, QWidget& aInset)
+	{
+		const auto suggested = aEntry.Finding.SuggestedComment.value_or(std::string{ });
+		aInset.setVisible(!suggested.empty());
+		const auto read  = core::recognize_feedback_prefix(suggested);
+		auto       shown = suggested;
+		auto       label = QString{ };
+		if (read.Status == core::feedback_prefix_status::recognized && read.Header && read.Subject && read.Subject->Begin <= suggested.size() && read.Header->End <= suggested.size()) {
+			label = QString::fromStdString(suggested.substr(read.Header->Begin, read.Header->End - read.Header->Begin)).trimmed();
+			if (label.endsWith(QLatin1Char{ ':' })) {
+				label.chop(1);
+			}
+			shown = suggested.substr(read.Subject->Begin);
+		}
+		if (auto* const labelled = aInset.findChild<QLabel*>(QStringLiteral("agentFindingSuggestionLabel")); labelled != nullptr) {
+			labelled->setText(label);
+			labelled->setProperty("bprToneLabel", label);
+			labelled->setVisible(!label.isEmpty());
+		}
+		if (auto* const comment = dynamic_cast<markdown_body_view*>(aInset.findChild<QWidget*>(QStringLiteral("agentFindingComment"))); comment != nullptr) {
+			comment->set_body(shown, "agent-card-" + std::to_string(aEntry.Id) + "-agentFindingComment");
+			fit_card_text(*comment);
+		}
+	}
+
+	void agent_tab_view::set_follow_up_dispatch(agent_finding_card_dispatch aDispatch)
+	{
+		FollowUpDispatch = std::move(aDispatch);
+		for (const auto& entry : CardEntries) {
+			if (auto* const button = entry.Widget ? entry.Widget->findChild<QPushButton*>(QStringLiteral("agentFindingFollowUp")) : nullptr; button != nullptr) {
+				button->setVisible(static_cast<bool>(FollowUpDispatch));
+			}
+		}
+	}
+
+	auto agent_tab_view::revise_finding(const std::uint64_t aSession, const std::size_t aOrdinal, const QString& aComment) -> bool
+	{
+		auto revised = false;
+		for (auto& entry : CardEntries) {
+			if (entry.Session != aSession || entry.Ordinal != aOrdinal) {
+				continue;
+			}
+			entry.Finding.SuggestedComment = aComment.toStdString();
+			if (auto* const inset = entry.Widget ? entry.Widget->findChild<QWidget*>(QStringLiteral("agentFindingSuggestion")) : nullptr; inset != nullptr) {
+				show_card_suggestion(entry, *inset);
+				colour_card(entry);
+			}
+			revised = true;
+		}
+		return revised;
 	}
 
 	void agent_tab_view::show_card_state(card_entry& aEntry)
