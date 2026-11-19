@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2292"
 title: "A vertical gesture over a suggestion that scrolls sideways scrolls the area that holds it"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "windows", "linux"]
 metadata: {"kind":"defect","target":"0.5.0","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2292--BPR-2292--79feca23da2c.json","found_by":"owner, 2026-11-19","related_cards":["BPR-2271","BPR-2273","BPR-2279"]}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"8814e0518","evidence":{"kind":"command","detail":"qt_nested_scroll_latch: over either of an Agent tab report's two wide suggestions, a phased gesture moves the report down and back up (owner: its scroll area), a mouse wheel moves it, a sideways gesture moves the suggestion alone; under cocoa (temporary run) the same with the real 0..227 reader range"}},{"criterion":"AC2","outcome":"pass","revision":"8814e0518","evidence":{"kind":"command","detail":"qt_nested_scroll_latch: a reader that declines vertical movement though its bar has a range passes a vertical gesture on both ways and keeps a sideways one"}},{"criterion":"AC3","outcome":"pass","revision":"8814e0518","evidence":{"kind":"command","detail":"qt_nested_scroll_latch: at its top a field hands a new upward gesture to the outer area and keeps a downward one; at its end (BPR-2279) a new downward gesture moves the outer area; a non-in-place body hands a notch on at its end and its top and keeps one it can take"}},{"criterion":"AC4","outcome":"pass","revision":"8814e0518","evidence":{"kind":"command","detail":"fails without the latch fix (outer 0) and without the body fix; qt_conversation_cards_view, qt_agent_report_view, qt_markdown_body_*, qt_composed_markdown_*, qt_discuss_comment_bodies, qt_github_conversation_panel, qt_pull_request_overview_page, application_overview_summary_1, qt_workbench_conversation_reveal, qt_workbench_window_scale_100, qt_public_preview_conversation, qt_suggestion_editor_1_0, architecture_boundaries; format (clang-format 22.1.8) and clang-tidy on the changed files; verify_documentation"}}]
 ---
 
 # BPR-2292: A vertical gesture over a suggestion that scrolls sideways scrolls the area that holds it
