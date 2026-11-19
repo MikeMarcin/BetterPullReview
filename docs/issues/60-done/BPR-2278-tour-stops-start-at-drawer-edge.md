@@ -8,7 +8,7 @@ depends_on: ["BPR-2274"]
 priority: "P2"
 platforms: ["mac", "windows", "linux"]
 metadata: {"kind":"defect","target":"0.5.0","mandate_revision":"v0-5-0-prerelease-targets-r1","reservation":"docs/issues/_reservations/BPR-2277--BPR-2279--424d9c5fc0e9.json","found_by":"owner attended review, 2026-11-19, frozen fixture build of 91dedb8a3","related_cards":["BPR-2274"]}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9512b097b","evidence":{"kind":"command","detail":"qt_tour_stop_card_cleanup: Draft Tour, the route row, the open card and Add stop all start at x=10 in the editor"}},{"criterion":"AC2","outcome":"pass","revision":"9512b097b","evidence":{"kind":"command","detail":"qt_tour_stop_card_cleanup BPR-2278 geometry check; failed at 18 vs 10 before the fix"}},{"criterion":"AC3","outcome":"pass","revision":"9512b097b","evidence":{"kind":"command","detail":"qt_tour_*, qt_review_tour_*, application_review_tour_composition_public_path and scale 125/200, coding-format-check, verify_documentation"}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"238071e49","evidence":{"kind":"command","detail":"qt_tour_stop_card_cleanup: Draft Tour, the route row, the open card and Add stop all start at x=10 in the editor"}},{"criterion":"AC2","outcome":"pass","revision":"238071e49","evidence":{"kind":"command","detail":"qt_tour_stop_card_cleanup BPR-2278 geometry check; failed at 18 vs 10 before the fix"}},{"criterion":"AC3","outcome":"pass","revision":"238071e49","evidence":{"kind":"command","detail":"qt_tour_*, qt_review_tour_*, application_review_tour_composition_public_path and scale 125/200, coding-format-check, verify_documentation"}}]
 ---
 
 # BPR-2278: A tour's stops start at the drawer's left edge
