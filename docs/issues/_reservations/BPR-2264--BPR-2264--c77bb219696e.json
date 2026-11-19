@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2264"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Writing style: built-in editable Feature /bpr:writing-style appended to every human-audience agent request",
+  "created": "2026-11-19T00:08:46.861138+00:00",
+  "base": "b1899b37cbd60fe60e917f85c20512e1e32d4759"
+}
