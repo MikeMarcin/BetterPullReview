@@ -419,3 +419,58 @@ with no new suite started. Since the sixth round:
   diagnostic log when the workspace check fails. The cause is still unknown.
 - Not done: measuring `sqlite_prompt_pack_storage` on Windows, the WSL2 i9
   load-phase stall, and the full Release and Debug suites at the lane head.
+
+## Eighth round: main 392dffc6f merged; recovery race fixed on Windows (2026-11-19)
+
+Main `392dffc6f` merged (conflicts in the round-trip contract's digest and the
+Windows manifest resolved; production app digest recomputed). Stopped at the
+owner's word with no suite started.
+
+Fixed:
+
+- **Windows review recovery.** Taking the journal's first opens one at a time
+  fixed every review-flow course. In the 31-row round at `d8b110483`, these
+  passed: `start_review`, `label_publication_recovery`,
+  `review_submission_composition` (100, 125 and 200%), `discuss_top`,
+  `header_source_navigation`, `review_navigation_entry`,
+  `review_submission_cli_ordinary`, `dependable_session`,
+  `home_approve_again`, `review_seen` (and `_stays` and `_fails`),
+  `local_comments_composition`, `agent_crash_recovery`, the new journal
+  concurrency course, and the two agent setup store courses.
+- **Main's known failures.**
+  - `application_review_round_trip_composition_contract`: the full
+    `github_application.cpp` digest was resealed over BPR-2281, and the
+    stale-head probe reads BPR-2263's sentence for a moved head. Passes on
+    Ubuntu and Windows.
+  - `qualification_case_inventory_contract` and
+    `command_correctness_registry_contract`: BPR-2262's case was added to the
+    inventory. Both pass on both platforms.
+  - `test_network_isolation_manifest`: `sqlite_prompt_pack_storage`
+    (`prompt-pack-store-predicate-failed`) and the held-turn course
+    (`private-test-root-refused`) were measured on Windows and pinned. The
+    file-drop course is pinned unmeasured.
+  - `dependable_session`, `start_review` and `agent_crash_recovery` passed on
+    both platforms.
+  - `review_cycle_parity` is registered only where `app_bpr` builds and was
+    not run here.
+- **Custom agent on Windows.** It now expects no grant there, and passes.
+
+Still open on Windows (31-row round at `d8b110483`, then the 8-row round at
+`2f3a99042`):
+
+- The native agent's copy of the pull request is never made:
+  `agent.workspace.failed action=workspace_materialize failure=copy_failed`
+  (`native_agent_sessions`, `agent_invocation_composition_contract`).
+- The contained native host still refuses: "The pull request's checkout could
+  not be resolved", even after the GetFinalPathNameByHandleW change
+  (`agent_invocation_host`, `agent_workspace_entry_limit`).
+- `device_authorization`: the run's 8 s budget expires at stage 1 with the
+  device flow cancelled (8092 ms).
+- `review_tour_writing_wrapper`: "writing child process and cleanup finish".
+- The RFC-0017 recorder, uncontained: its bindings are refused ("response
+  does not bind this packet exactly once"), and `core.autocrlf=false` in its
+  scratch Git did not change that.
+- `application_window_file_drop_public_path` is still to be measured.
+
+Not run: the WSL2 i9 load-phase profile, and the full Release and Debug
+suites on both platforms and the eleven WSL2 timing courses at the lane head.
