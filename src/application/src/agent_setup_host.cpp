@@ -856,6 +856,25 @@ namespace bpr::application {
 		return true;
 	}
 
+	auto agent_setup_host::set_workspace_policy(const std::uint32_t aKeepDays, const std::uint32_t aCapGb) -> bool
+	{
+		auto& host = *Implementation;
+		if (host.settings_unreadable()) {
+			return false;
+		}
+		if (aKeepDays > core::maximum_agent_workspace_keep_days || aCapGb < core::minimum_agent_workspace_cap_gb || aCapGb > core::maximum_agent_workspace_cap_gb) {
+			return false;
+		}
+		auto& preferences = host.Projection.Preferences;
+		if (preferences.WorkspaceKeepDays != aKeepDays || preferences.WorkspaceCapGb != aCapGb) {
+			preferences.WorkspaceKeepDays = aKeepDays;
+			preferences.WorkspaceCapGb    = aCapGb;
+			host.save();
+			host.publish();
+		}
+		return true;
+	}
+
 	void agent_setup_host::set_suggestions_hidden(const bool aHidden)
 	{
 		auto& host = *Implementation;

@@ -47,6 +47,11 @@ namespace bpr::app {
 			return;
 		}
 		ServicesClosing = true;
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// [[BPR-2293]]. A sweep in progress stops between workspaces.
+		WorkspaceExpiryStop.request_stop();
+		WorkspaceExpiryTimer.reset();
+#endif
 		if (ReviewRestoration) {
 			if (RestorationOrderly) {
 				ReviewRestoration->shutdown_orderly();
@@ -159,7 +164,7 @@ namespace bpr::app {
 		if (AgentRuntimes && !AgentRuntimes->is_quiescent()) {
 			return;
 		}
-		if (!AgentEffects.idle() || !McpEffects.idle() || !TourAgentEffects.idle()) {
+		if (!AgentEffects.idle() || !McpEffects.idle() || !TourAgentEffects.idle() || !WorkspaceExpiryEffects.idle()) {
 			return;
 		}
 #endif
@@ -222,6 +227,7 @@ namespace bpr::app {
 		AgentEffects.close_and_drain();
 		McpEffects.close_and_drain();
 		TourAgentEffects.close_and_drain();
+		WorkspaceExpiryEffects.close_and_drain();
 #endif
 		InsightsEffects.close_and_drain();
 		ConnectionEffects.close_and_drain();

@@ -1,5 +1,7 @@
 #include "bpr/qt/agent_setup_settings.hpp"
 
+#include "bpr/qt/destructive_question.hpp"
+
 #include "pull_request_overview_support.hpp"
 
 #include "bpr/qt/agent_run_settings_picker.hpp"
@@ -462,6 +464,55 @@ namespace bpr::qt {
 				Dispatch.ClearScratch();
 			}
 		});
+		// [[BPR-2293]], BPR-2288 Change 5. The workspaces kept for agent
+		// conversations: the most they may hold together, how long an unused
+		// one is kept, what they hold now and Remove…, in the scratch rows'
+		// order and words.
+		auto* const capRow  = new QHBoxLayout{ };
+		auto* const capSays = new QLabel{ tr("Agent workspaces limit"), this };
+		capSays->setToolTip(tr("The most the agents' retained workspaces may hold together. Beyond it the least recently used go first, never one a question is using."));
+		capRow->addWidget(capSays);
+		capRow->addStretch(1);
+		WorkspaceCap = new QSpinBox{ this };
+		WorkspaceCap->setObjectName(QStringLiteral("settingsWorkspaceCap"));
+		WorkspaceCap->setRange(static_cast<int>(core::minimum_agent_workspace_cap_gb), static_cast<int>(core::maximum_agent_workspace_cap_gb));
+		WorkspaceCap->setValue(static_cast<int>(core::default_agent_workspace_cap_gb));
+		WorkspaceCap->setSuffix(tr(" GB"));
+		WorkspaceCap->setToolTip(capSays->toolTip());
+		capSays->setBuddy(WorkspaceCap);
+		capRow->addWidget(WorkspaceCap);
+		column->addLayout(capRow);
+		auto* const workspaceKeepRow = new QHBoxLayout{ };
+		WorkspaceKeepOn              = new QCheckBox{ tr("Remove agent workspaces unused for"), this };
+		WorkspaceKeepOn->setObjectName(QStringLiteral("settingsWorkspaceKeepOn"));
+		WorkspaceKeepOn->setToolTip(tr("Checked when BetterPullReview starts and once a day. A workspace whose conversation was replaced goes too. Off, only the limit removes them."));
+		workspaceKeepRow->addWidget(WorkspaceKeepOn);
+		workspaceKeepRow->addStretch(1);
+		WorkspaceKeepDays = new QSpinBox{ this };
+		WorkspaceKeepDays->setObjectName(QStringLiteral("settingsWorkspaceKeepDays"));
+		WorkspaceKeepDays->setRange(1, static_cast<int>(core::maximum_agent_workspace_keep_days));
+		WorkspaceKeepDays->setValue(static_cast<int>(core::default_agent_workspace_keep_days));
+		WorkspaceKeepDays->setSuffix(tr(" days"));
+		workspaceKeepRow->addWidget(WorkspaceKeepDays);
+		column->addLayout(workspaceKeepRow);
+		auto* const workspaceRow = new QHBoxLayout{ };
+		WorkspaceUsage           = note({ }, this);
+		WorkspaceUsage->setObjectName(QStringLiteral("settingsWorkspaceUsage"));
+		workspaceRow->addWidget(WorkspaceUsage, 1);
+		WorkspaceRemove = new quiet_push_button{ tr("Remove…"), this };
+		WorkspaceRemove->setObjectName(QStringLiteral("settingsWorkspaceRemove"));
+		WorkspaceRemove->setAccessibleName(tr("Remove agent workspaces"));
+		WorkspaceRemove->setToolTip(tr("Remove every retained agent workspace now, except one a question is using. The conversations stay; each makes a fresh workspace when it next asks."));
+		workspaceRow->addWidget(WorkspaceRemove);
+		column->addLayout(workspaceRow);
+		connect(WorkspaceCap, &QSpinBox::editingFinished, this, [this] { send_workspace_policy(); });
+		connect(WorkspaceKeepDays, &QSpinBox::editingFinished, this, [this] { send_workspace_policy(); });
+		connect(WorkspaceKeepOn, &QCheckBox::toggled, this, [this](const bool aOn) {
+			WorkspaceKeepDays->setEnabled(aOn);
+			send_workspace_policy();
+		});
+		connect(WorkspaceRemove, &QPushButton::clicked, this, [this] { remove_workspaces(); });
+		present_workspace_usage(std::nullopt);
 		// [[BPR-2198]] (owner, 2026-11-15). Import Profile Settings… and
 		// Export Profile Settings… moved to Settings › Profiles.
 		// Owner look v006: the setup is not entered again except to start
@@ -513,6 +564,54 @@ namespace bpr::qt {
 		}
 		ScratchUsage->setText(words);
 		ScratchClear->setEnabled(!aUsage || aUsage->second != 0U);
+	}
+
+	void agent_programs_panel::send_workspace_policy()
+	{
+		if (Dispatch.SetWorkspacePolicy) {
+			static_cast<void>(Dispatch.SetWorkspacePolicy(WorkspaceKeepOn->isChecked() ? static_cast<std::uint32_t>(WorkspaceKeepDays->value()) : 0U, static_cast<std::uint32_t>(WorkspaceCap->value())));
+		}
+	}
+
+	void agent_programs_panel::present_workspace_usage(const std::optional<workspace_usage> aUsage, const QString& aSaid)
+	{
+		ShownWorkspaces = aUsage;
+		auto words      = aUsage ? QString{ } : tr("Retained agent workspaces: measuring…");
+		if (aUsage) {
+			const auto size = QLocale{ }.formattedDataSize(static_cast<qint64>(aUsage->Bytes), 1, QLocale::DataSizeSIFormat);
+			words           = aUsage->Count == 0U ? tr("Retained agent workspaces: none.")
+												  : tr("Retained agent workspaces: %1, %2.").arg(aUsage->Count).arg(size);
+			if (aUsage->InUse != 0U) {
+				words += QStringLiteral(" ") + (aUsage->InUse == 1U ? tr("1 is in use.") : tr("%1 are in use.").arg(aUsage->InUse));
+			}
+		}
+		if (!aSaid.isEmpty()) {
+			words += QStringLiteral(" ") + aSaid;
+		}
+		WorkspaceUsage->setText(words);
+		WorkspaceRemove->setEnabled(aUsage && aUsage->Count > aUsage->InUse);
+	}
+
+	void agent_programs_panel::remove_workspaces()
+	{
+		if (!ShownWorkspaces || ShownWorkspaces->Count <= ShownWorkspaces->InUse || (WorkspaceQuestion && WorkspaceQuestion->isVisible())) {
+			return;
+		}
+		const auto removable = ShownWorkspaces->Count - ShownWorkspaces->InUse;
+		const auto size      = QLocale{ }.formattedDataSize(static_cast<qint64>(ShownWorkspaces->Bytes), 1, QLocale::DataSizeSIFormat);
+		auto*      question  = new destructive_question(*this, QStringLiteral("removeAgentWorkspaces"),
+														removable == 1U ? tr("Remove 1 agent workspace?") : tr("Remove %1 agent workspaces?").arg(removable),
+														tr("The workspaces hold %1. Changes an agent made in them and did not publish are lost; the conversations stay and each makes a fresh workspace when it next asks. A workspace a question is using now is kept. This cannot be undone.").arg(size),
+														tr("Remove workspaces"));
+		connect(question, &QDialog::finished, question, &QObject::deleteLater);
+		WorkspaceQuestion = question;
+		connect(question, &QDialog::accepted, this, [this] {
+			if (Dispatch.RemoveWorkspaces) {
+				WorkspaceRemove->setEnabled(false);
+				Dispatch.RemoveWorkspaces();
+			}
+		});
+		question->open();
 	}
 
 	void agent_programs_panel::set_editor(agent_entry_editor aEditor) { Editor = std::move(aEditor); }
@@ -581,6 +680,19 @@ namespace bpr::qt {
 				ScratchKeepDays->setValue(static_cast<int>(aPreferences.ScratchKeepDays));
 			}
 		}
+		{
+			const auto blockCap    = QSignalBlocker{ WorkspaceCap };
+			const auto blockToggle = QSignalBlocker{ WorkspaceKeepOn };
+			const auto blockDays   = QSignalBlocker{ WorkspaceKeepDays };
+			if (!WorkspaceCap->hasFocus()) {
+				WorkspaceCap->setValue(static_cast<int>(aPreferences.WorkspaceCapGb));
+			}
+			WorkspaceKeepOn->setChecked(aPreferences.WorkspaceKeepDays != 0U);
+			WorkspaceKeepDays->setEnabled(aPreferences.WorkspaceKeepDays != 0U);
+			if (aPreferences.WorkspaceKeepDays != 0U && !WorkspaceKeepDays->hasFocus()) {
+				WorkspaceKeepDays->setValue(static_cast<int>(aPreferences.WorkspaceKeepDays));
+			}
+		}
 		const auto keptId = selected() != nullptr ? selected()->Id : 0U;
 		Agents            = aPreferences.Agents;
 		const auto block  = QSignalBlocker{ List };
@@ -628,7 +740,7 @@ namespace bpr::qt {
 		List->setVisible(!unreadable);
 		// No change can be kept: none is offered.
 		for (QWidget* const control : { static_cast<QWidget*>(AddButton), static_cast<QWidget*>(RunLimitOn), static_cast<QWidget*>(ScratchLimit), static_cast<QWidget*>(ScratchKeepOn),
-										static_cast<QWidget*>(ScratchClear), static_cast<QWidget*>(FollowUpQueue), static_cast<QWidget*>(FollowUpSteer), static_cast<QWidget*>(ResetButton) }) {
+										static_cast<QWidget*>(ScratchClear), static_cast<QWidget*>(WorkspaceCap), static_cast<QWidget*>(WorkspaceKeepOn), static_cast<QWidget*>(FollowUpQueue), static_cast<QWidget*>(FollowUpSteer), static_cast<QWidget*>(ResetButton) }) {
 			if (control != nullptr) {
 				control->setEnabled(!unreadable);
 			}
@@ -636,6 +748,7 @@ namespace bpr::qt {
 		if (unreadable) {
 			RunLimit->setEnabled(false);
 			ScratchKeepDays->setEnabled(false);
+			WorkspaceKeepDays->setEnabled(false);
 			CheckButton->setEnabled(false);
 		}
 	}

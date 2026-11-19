@@ -7154,7 +7154,7 @@ namespace bpr::adapters::git {
 			std::shared_ptr<installed_git_admissions> Admissions = make_installed_git_admissions();
 			/// [[BPR-2181]]. Agent workspaces outlive the cache session that
 			/// made them.
-			std::shared_ptr<installed_workspace_owners> WorkspaceOwners = make_installed_workspace_owners();
+			std::shared_ptr<installed_workspace_owners> WorkspaceOwners = Configuration.WorkspaceOwners ? Configuration.WorkspaceOwners : make_installed_workspace_owners();
 		};
 	} // namespace
 

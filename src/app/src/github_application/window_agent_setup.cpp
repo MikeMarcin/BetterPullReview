@@ -809,6 +809,7 @@ namespace bpr::app {
 			AgentNativeHistory = { };
 			return;
 		}
+		AgentWorkspaceSweepAfterHistory = AgentWorkspaceSweepAfterHistory || aChoice.has_value();
 		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice), AgentConversation ? AgentConversation->projection().Key : std::nullopt);
 	}
 	void github_application::implementation::present_agent_native_history(const application::native_agent_history_projection& aView)
@@ -821,7 +822,13 @@ namespace bpr::app {
 			return;
 		}
 		AgentNativeHistory = aView;
-		auto* tab          = Window->agent_tab();
+		// [[BPR-2293]]. A chosen or new conversation replaced the one before:
+		// a workspace no selected conversation reaches now expires.
+		if (AgentWorkspaceSweepAfterHistory && !aView.Loading) {
+			AgentWorkspaceSweepAfterHistory = false;
+			Profile->sweep_agent_workspaces(application::retained_workspace_sweep::policy);
+		}
+		auto* tab = Window->agent_tab();
 		tab->present_native_history(aView);
 		// Native history and the legacy conversation settle independently.
 		// Both must be ready before the existing launch guard can admit Send.
@@ -1984,16 +1991,26 @@ namespace bpr::app {
 						AgentSetup->move_agent(aId, aDelta);
 					}
 				},
-			.SetRunLimit      = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
-			.SetFollowUpSteer = [this](const bool aSteer) {
+			.SetRunLimit        = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
+			.SetFollowUpSteer   = [this](const bool aSteer) {
                 if (!Closing && AgentSetup) {
                     AgentSetup->set_follow_up_steer(aSteer);
                 } },
-			.SetScratchPolicy = [this](const std::uint32_t aLimitMiB, const std::uint32_t aKeepDays) {
+			.SetScratchPolicy   = [this](const std::uint32_t aLimitMiB, const std::uint32_t aKeepDays) {
 				const auto taken = !Closing && AgentSetup && AgentSetup->set_scratch_policy(aLimitMiB, aKeepDays);
 				present_run_settings();
 				return taken; },
-			.ClearScratch     = [this] { clear_agent_scratch(std::nullopt, true); },
+			.ClearScratch       = [this] { clear_agent_scratch(std::nullopt, true); },
+			.SetWorkspacePolicy = [this](const std::uint32_t aKeepDays, const std::uint32_t aCapGb) {
+				const auto taken = !Closing && AgentSetup && AgentSetup->set_workspace_policy(aKeepDays, aCapGb);
+				if (taken) {
+					Profile->sweep_agent_workspaces(application::retained_workspace_sweep::policy);
+				}
+				return taken; },
+			.RemoveWorkspaces   = [this] {
+				if (!Closing) {
+					Profile->sweep_agent_workspaces(application::retained_workspace_sweep::remove_all, true);
+				} },
 			.SetProgram =
 				[this](const core::setup_agent aAgent, std::string aPath) {
 					if (Closing || !AgentSetup) {
@@ -2136,6 +2153,7 @@ namespace bpr::app {
 				clear_agent_scratch(now - static_cast<std::int64_t>(setup.Preferences.ScratchKeepDays) * 86400, false);
 			}
 			present_scratch_usage();
+			present_agent_workspaces();
 		}
 		// [[BPR-1753]], owner amendment 2026-10-23. One per added
 		// agent, from its entry; its protocol says which settings apply.
@@ -2558,6 +2576,24 @@ namespace bpr::app {
 			AgentScratchFolders[*key] = folder.string();
 			AgentScratchFull[*key]    = application::agent_scratch_full(application::list_agent_scratch_folder(folder), limit);
 		}
+	}
+
+	void github_application::implementation::present_agent_workspaces()
+	{
+		if (Closing || Window == nullptr || Window->agent_programs() == nullptr) {
+			return;
+		}
+		const auto& summary = Profile->RetainedWorkspaces;
+		if (!summary) {
+			Profile->sweep_agent_workspaces(application::retained_workspace_sweep::survey);
+			Window->agent_programs()->present_workspace_usage(std::nullopt, Profile->RetainedWorkspacesSaid);
+			return;
+		}
+		auto usage  = qt::agent_programs_panel::workspace_usage{ };
+		usage.Count = summary->Count;
+		usage.Bytes = summary->Bytes;
+		usage.InUse = summary->InUse;
+		Window->agent_programs()->present_workspace_usage(usage, Profile->RetainedWorkspacesSaid);
 	}
 
 	void github_application::implementation::present_scratch_usage(const QString& aSaid)

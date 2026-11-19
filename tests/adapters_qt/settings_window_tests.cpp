@@ -496,12 +496,13 @@ namespace {
 		// [[BPR-1753]]. The review skill's Restore default has its own
 		// "Save my copy to Downloads first", the run limit its toggle, and
 		// (RFC-BPR-0104 as amended 2026-11-11) the scratch folders how long
-		// an unused one is kept; none is a sign-in switch.
+		// an unused one is kept, and ([[BPR-2293]]) the retained agent
+		// workspaces theirs; none is a sign-in switch.
 		const auto boxes = page->findChildren<QCheckBox*>();
 		expect(std::ranges::count_if(boxes,
 									 [](const QCheckBox* aBox) {
 										 return aBox->objectName() != QStringLiteral("reviewSkillKeepCopy") && aBox->objectName() != QStringLiteral("settingsRunLimitOn")
-											 && aBox->objectName() != QStringLiteral("settingsScratchKeepOn");
+											 && aBox->objectName() != QStringLiteral("settingsScratchKeepOn") && aBox->objectName() != QStringLiteral("settingsWorkspaceKeepOn");
 									 })
 				   == 0,
 			   "no sign-in switch is offered, and [[BPR-2051]] the next request's choices left the page (the footer picks the agent; the Agent tab what a question includes)");

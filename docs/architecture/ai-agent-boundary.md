@@ -235,7 +235,29 @@ does not recursively inventory all retained sessions before a question. Selected
 workspace ownership and required pinned objects remain checked; new materialization
 still fails visibly on actual Git/filesystem errors or cancellation. Catalog and
 journal count bounds, protected history and exact cleanup ownership remain in
-force. There is no automatic reclamation and no replacement project-size cap.
+force. No project-size cap blocks a question.
+
+Retained workspaces expire ([[BPR-2293]], the owner's [[BPR-2288]] Change 5).
+After startup recovery, once a day, when a history choice replaces a
+conversation and when the policy changes, a sweep on its own effect lane lists
+the workspaces the catalog records, measures each with a bounded walk that
+never follows a link, and asks the core (`choose_expired_workspaces`) which go:
+those no selected conversation of their pull request reaches at their base and
+head, those unused for more than the kept days (default 7; last use is the later
+of the last stored turn and the newest file), then the least recently used while
+all of them together hold more than the cap (default 20 GB). One whose turn
+lease, by pull request key or by path, cannot be taken is in use and never
+chosen; a reattaching turn takes the path lease too. Removal is the exact
+journaled cleanup: through the review cache's own owner for a workspace this
+process made, otherwise through its record's exclusive lock (busy is in use),
+and only for a phase 7 record naming that folder, identity and marker. No cache
+actor is needed. The conversations that held it are then cleared in one
+catalog revision, with their pull request keys, so the next turn makes a fresh
+workspace; a catalog that could not be written is cleared by the next sweep,
+which finds the folder gone. Settings › Agents shows "Retained agent
+workspaces: 3, 17.2 GB" with **Remove…**, which asks first and removes every
+one not in use, and the two policy values. The sweep that runs first after an
+update reclaims the workspaces earlier builds kept.
 
 This removes the profile-wide checkout inventory, not every cost of sending a
 question. Catalog/actor scheduling, exact ownership metadata and the Git process

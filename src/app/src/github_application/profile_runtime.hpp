@@ -13,6 +13,7 @@
 #include "bpr/application/agent_queue_host.hpp"
 #include "bpr/application/agent_session_runner.hpp"
 #include "bpr/application/agent_workspace.hpp"
+#include "bpr/application/agent_workspace_expiry.hpp"
 #include "bpr/application/appearance_preferences_application_host.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/cached_review_overview_port.hpp"
@@ -179,6 +180,10 @@ namespace bpr::app {
 		/// [[BPR-1900]]. The tour session's own lane, so a drafting run in the
 		/// background never waits on, or holds up, the Agent tab's chat.
 		worker_executor TourAgentEffects;
+		/// [[BPR-2293]]. Measures and expires retained agent workspaces: a walk
+		/// of every workspace, kept off the lanes a review or a turn waits on.
+		worker_executor  WorkspaceExpiryEffects;
+		std::stop_source WorkspaceExpiryStop;
 #endif
 		worker_executor ConnectionEffects;
 		worker_executor WorkbenchEffects;
@@ -250,6 +255,9 @@ namespace bpr::app {
 			std::function<void(const application::github_profile_option&)>                            SetupProfile;
 			std::function<void(std::string_view)>                                                     RetireServerSetup;
 			std::function<void()>                                                                     AgentWorkspaceRepair;
+			/// [[BPR-2293]]. The retained agent workspaces were measured or
+			/// removed: Settings shows `RetainedWorkspaces` again.
+			std::function<void()> AgentWorkspaces;
 			/// The window's read lane, for Home's discovery to give way to
 			/// (`core::home_loading_yields`).
 			std::function<std::optional<core::github_state>()> ReadLane;
@@ -680,9 +688,28 @@ namespace bpr::app {
 		/// Shared catalog and turn leases outlive every window agent consumer.
 #if defined(BPR_AGENT_INTEGRATIONS)
 		std::unique_ptr<application::native_agent_session_store_port> NativeAgentSessions;
+		/// [[BPR-2293]]. Retained agent workspaces: measured and removed through
+		/// their ownership records; the last sweep's answer, and what Settings
+		/// says beside it; a sweep asked for while one runs; the daily timer.
+		std::unique_ptr<application::retained_workspace_files_port> RetainedWorkspaceFiles;
+		std::optional<application::retained_workspace_summary>      RetainedWorkspaces;
+		QString                                                     RetainedWorkspacesSaid;
+		bool                                                        WorkspaceSweepRunning = false;
+		std::optional<application::retained_workspace_sweep>        WorkspaceSweepQueued;
+		bool                                                        WorkspaceSweepQueuedSay = false;
+		std::unique_ptr<QTimer>                                     WorkspaceExpiryTimer;
+		/// \brief [[BPR-2293]]. Measures the retained agent workspaces and
+		/// removes those \p aSweep chooses, on their own lane; with \p aSay,
+		/// Settings says what was removed. One asked for while another runs
+		/// follows it.
+		void sweep_agent_workspaces(application::retained_workspace_sweep aSweep, bool aSay = false);
+		void finish_agent_workspace_sweep(const application::retained_workspace_summary& aSummary, application::retained_workspace_sweep aSweep, bool aSay);
 #endif
-		std::unique_ptr<QTemporaryDir> AgentWorkspaceRoot;
-		std::filesystem::path          AgentWorkspaceNeighbourhood;
+		/// [[BPR-2293]]. The agent workspaces the review cache's Git makes,
+		/// shared with their expiry.
+		std::shared_ptr<adapters::git::installed_workspace_owners> AgentWorkspaceOwners = adapters::git::make_installed_workspace_owners();
+		std::unique_ptr<QTemporaryDir>                             AgentWorkspaceRoot;
+		std::filesystem::path                                      AgentWorkspaceNeighbourhood;
 		std::optional<adapters::git::installed_agent_workspace_parent>
 			 AgentWorkspaceParent;
 		bool AgentWorkspaceCleanupAttempted = false;

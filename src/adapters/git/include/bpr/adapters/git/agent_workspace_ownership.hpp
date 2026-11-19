@@ -3,6 +3,7 @@
 
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_workspace.hpp"
+#include "bpr/application/agent_workspace_expiry.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -143,6 +144,21 @@ namespace bpr::adapters::git {
 		std::stop_token              aStop    = { },
 		workspace_recovery_refusal*  aRefusal = nullptr)
 		-> std::expected<workspace_recovery_statistics, workspace_ownership_failure>;
+
+	class installed_workspace_owners;
+	/// \brief [[BPR-2293]]. Measures retained workspaces and removes them
+	/// through their ownership records in \p aRegistry.
+	///
+	/// \details Removal is the exact journaled cleanup recovery and a run's
+	/// own cleanup use: a workspace this process made is removed through its
+	/// owner in \p aOwners (the review cache's); any other through its record,
+	/// whose exclusive lock it takes (one another process holds is in use),
+	/// and only when the record says it is retained, names the workspace's
+	/// own folder and identity, and the folder still holds its ownership
+	/// marker. Nothing needs the repository's cache to be open. Measuring is a
+	/// walk of at most four million entries that never follows a link.
+	[[nodiscard]] auto make_installed_retained_workspace_files(std::filesystem::path aRegistry, std::shared_ptr<installed_workspace_owners> aOwners)
+		-> std::unique_ptr<application::retained_workspace_files_port>;
 
 	/// \brief [[BPR-1857]]. The stable name of \p aCheck, for terminal lines
 	/// and logs.

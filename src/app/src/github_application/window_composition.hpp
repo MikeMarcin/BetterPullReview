@@ -801,6 +801,9 @@ namespace bpr::app {
 		/// the startup cleanup of folders unused past the kept days.
 		void present_scratch_usage(const QString& aSaid = { });
 		void clear_agent_scratch(std::optional<std::int64_t> aBeforeSeconds, bool aSay);
+		/// [[BPR-2293]]. Settings' retained agent workspaces line, from the
+		/// profile's last sweep; one is surveyed when none was measured yet.
+		void present_agent_workspaces();
 		/// Open scratch folder.
 		void open_agent_scratch(std::uint64_t aProfile);
 		/// Sets an Agent tab turn's grant; asks the build question first when
@@ -3140,6 +3143,9 @@ namespace bpr::app {
 		std::optional<application::agent_conversation_key>  AgentScratchTurn;
 		std::filesystem::path                               AgentScratchRoot;
 		bool                                                ScratchSwept = false;
+		/// [[BPR-2293]]. A history choice is pending: once it lands, the
+		/// conversation it replaced may have ended, and its workspace expires.
+		bool AgentWorkspaceSweepAfterHistory = false;
 		/// [[BPR-2008]]. Asks the build question: true allows, false
 		/// declines, none closed it. A course answers it itself.
 		std::function<std::optional<bool>()>                AskBuildQuestion;

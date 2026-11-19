@@ -8657,6 +8657,138 @@ namespace bpr::adapters::git {
 #endif
 	}
 
+	namespace {
+		/// [[BPR-2293]]. Seconds since the epoch of a file time.
+		[[nodiscard]] auto file_time_seconds(const std::filesystem::file_time_type aTime) -> std::int64_t
+		{
+			const auto system = std::chrono::system_clock::now() + std::chrono::duration_cast<std::chrono::system_clock::duration>(aTime - std::filesystem::file_time_type::clock::now());
+			return std::chrono::duration_cast<std::chrono::seconds>(system.time_since_epoch()).count();
+		}
+
+		class installed_retained_workspace_files final : public application::retained_workspace_files_port
+		{
+		public:
+			installed_retained_workspace_files(std::filesystem::path aRegistry, std::shared_ptr<installed_workspace_owners> aOwners)
+				: Registry{ std::move(aRegistry) }
+				, Owners{ aOwners ? std::move(aOwners) : make_installed_workspace_owners() }
+			{ }
+
+			[[nodiscard]] auto measure(const application::owned_agent_workspace& aWorkspace, const std::stop_token aStop) -> application::retained_workspace_measure override
+			{
+				auto       measured = application::retained_workspace_measure{ };
+				const auto path     = std::filesystem::path{ aWorkspace.Workspace.Path };
+				auto       error    = std::error_code{ };
+				const auto status   = std::filesystem::symlink_status(path, error);
+				if (status.type() == std::filesystem::file_type::not_found) {
+					measured.Present = false;
+					return measured;
+				}
+				if (error || status.type() != std::filesystem::file_type::directory) {
+					return measured;
+				}
+				const auto note = [&](const std::filesystem::directory_entry& aEntry) {
+					auto       entryError = std::error_code{ };
+					const auto written    = aEntry.last_write_time(entryError);
+					if (!entryError) {
+						measured.NewestSeconds = std::max(measured.NewestSeconds, file_time_seconds(written));
+					}
+				};
+				note(std::filesystem::directory_entry{ path, error });
+				auto walk    = std::filesystem::recursive_directory_iterator{ path, std::filesystem::directory_options::skip_permission_denied, error };
+				auto entries = std::size_t{ 0U };
+				for (; !error && walk != std::filesystem::recursive_directory_iterator{ } && entries < 4'000'000U; walk.increment(error)) {
+					if ((++entries & 0xFFFU) == 0U && aStop.stop_requested()) {
+						break;
+					}
+					auto       entryError = std::error_code{ };
+					const auto kind       = walk->symlink_status(entryError).type();
+					if (entryError || kind == std::filesystem::file_type::symlink) {
+						continue;
+					}
+					if (kind == std::filesystem::file_type::regular) {
+						measured.Bytes += walk->file_size(entryError);
+					}
+					note(*walk);
+				}
+				return measured;
+			}
+
+			[[nodiscard]] auto remove(const application::owned_agent_workspace& aWorkspace, const std::stop_token aStop) -> application::retained_workspace_removal override
+			{
+				using removal = application::retained_workspace_removal;
+#if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
+				try {
+					if (aStop.stop_requested() || !aWorkspace.LifetimeGuard || aWorkspace.Workspace.Path.empty()) {
+						return removal::refused;
+					}
+					const auto journal = std::filesystem::path{ aWorkspace.LifetimeGuard->Path };
+					const auto path    = std::filesystem::path{ aWorkspace.Workspace.Path };
+					if (journal.parent_path() != Registry || journal.extension() != ".jsonl") {
+						return removal::refused;
+					}
+					// One this process made: its owner holds the record's lock.
+					{
+						const auto lock  = std::scoped_lock{ Owners->Mutex };
+						const auto found = Owners->Owners.find(aWorkspace.LifetimeGuard->Path);
+						if (found != Owners->Owners.end()) {
+							const auto& made = found->second.first;
+							if (made.Workspace.Path != aWorkspace.Workspace.Path || made.OwnershipMarker != aWorkspace.OwnershipMarker || !found->second.second->cleanup()) {
+								return removal::refused;
+							}
+							Owners->Owners.erase(found);
+							return removal::removed;
+						}
+					}
+					const auto token         = journal.stem().string();
+					const auto neighbourhood = aWorkspace.ParentDirectory.parent_path();
+					if (aWorkspace.ParentDirectory != neighbourhood / ("betterpullreview-agent-" + token) || path != aWorkspace.ParentDirectory / "workspace") {
+						return removal::refused;
+					}
+					if (absent(journal)) {
+						return absent(path) && absent(aWorkspace.ParentDirectory) ? removal::gone : removal::refused;
+					}
+					auto boundary = process_boundary_lock{ Registry, aStop };
+					if (!boundary.valid() || !admit_workspace_object(journal, false, workspace_refusal_check::record_not_private, nullptr)) {
+						return removal::refused;
+					}
+					workspace_descriptor descriptor{ open_journal(journal) };
+					if (!descriptor.valid()) {
+						return removal::refused;
+					}
+					if (!journal_lock(descriptor.get(), true)) {
+						return lock_busy() ? removal::in_use : removal::refused;
+					}
+					auto record = load_workspace_record(descriptor.get(), Registry, neighbourhood, token, true);
+					if (!record || record->Phase != 7U || !workspace_private_directory(path) || ownership_id(path, exact_artifact_kind::directory) != record->Child
+						|| !retained_identity_names(aWorkspace.DirectoryIdentity.Opaque, record->Child)
+						|| !read_exact_file(path / ".git" / "bpr-owned-workspace", aWorkspace.OwnershipMarker)) {
+						return removal::refused;
+					}
+					workspace_ownership owner{ Registry, neighbourhood, std::move(*record), descriptor.get() };
+					static_cast<void>(descriptor.release());
+					return owner.cleanup_locked() ? removal::removed : removal::refused;
+				} catch (...) {
+					return removal::refused;
+				}
+#else
+				static_cast<void>(aWorkspace);
+				static_cast<void>(aStop);
+				return removal::refused;
+#endif
+			}
+
+		private:
+			std::filesystem::path                       Registry;
+			std::shared_ptr<installed_workspace_owners> Owners;
+		};
+	} // namespace
+
+	auto make_installed_retained_workspace_files(std::filesystem::path aRegistry, std::shared_ptr<installed_workspace_owners> aOwners)
+		-> std::unique_ptr<application::retained_workspace_files_port>
+	{
+		return std::make_unique<installed_retained_workspace_files>(std::move(aRegistry), std::move(aOwners));
+	}
+
 	auto prepare_installed_agent_workspace_ownership(
 		const std::filesystem::path&                                aRegistry,
 		const application::agent_workspace_materialization_request& aRequest,

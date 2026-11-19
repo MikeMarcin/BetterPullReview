@@ -862,8 +862,9 @@ namespace bpr::application {
 					record_operation(Log, { .Action = core::operation_action::native_continuation, .Failure = aFailure });
 					finish_run({ .Session = aInvocation->Identity.Session.Id, .Outcome = aOutcome, .StandardError = aReason, .WorkspaceReason = aWorkspaceReason, .RefusalReason = aReason }, aInvocation);
 				};
-				auto       workspaceLease = std::unique_ptr<agent_workspace_turn_lease>{ };
-				const auto workspaceKey   = native ? agent_workspace_key(aRequest.Authority, aInvocation->Identity.Session.Binding) : std::string{ };
+				auto       workspaceLease     = std::unique_ptr<agent_workspace_turn_lease>{ };
+				auto       workspacePathLease = std::unique_ptr<agent_workspace_turn_lease>{ };
+				const auto workspaceKey       = native ? agent_workspace_key(aRequest.Authority, aInvocation->Identity.Session.Binding) : std::string{ };
 				if (native) {
 					workspaceLease = NativeSessions->try_lock_workspace(workspaceKey);
 					if (!workspaceLease) {
@@ -906,6 +907,16 @@ namespace bpr::application {
 						return;
 					}
 					selected->Workspace = *shared;
+					// [[BPR-2293]]. The retained workspace is held by its path
+					// too, so expiry never removes one a turn is using, even
+					// one kept before its pull request key was recorded.
+					if (selected->Workspace) {
+						workspacePathLease = NativeSessions->try_lock_workspace(agent_workspace_path_lease(selected->Workspace->Workspace.Path));
+						if (!workspacePathLease) {
+							refuseNative("Another agent is using this pull request's workspace. Wait for it to finish or stop it, then send again. No question was sent.", core::operation_failure::changed_candidate);
+							return;
+						}
+					}
 					aInvocation->Native = std::move(*selected);
 					if (aInvocation->Native->Replay) {
 						const auto history = NativeSessions->history(scope, aInvocation->Native->Configuration);
@@ -2094,9 +2105,10 @@ namespace bpr::application {
 					// it, and nothing is cloned again; one a turn holds now is
 					// in use, and that turn checked it. Only with none is one
 					// made, and removed again.
-					auto retained = std::optional<owned_agent_workspace>{ };
-					auto busy     = false;
-					auto lease    = std::unique_ptr<agent_workspace_turn_lease>{ };
+					auto retained  = std::optional<owned_agent_workspace>{ };
+					auto busy      = false;
+					auto lease     = std::unique_ptr<agent_workspace_turn_lease>{ };
+					auto pathLease = std::unique_ptr<agent_workspace_turn_lease>{ };
 					if (self->NativeSessions != nullptr) {
 						const auto key = agent_workspace_key(probe.Authority, probe.Session.Binding);
 						lease          = self->NativeSessions->try_lock_workspace(key);
@@ -2104,7 +2116,9 @@ namespace bpr::application {
 						bound.Binding  = probe.Session.Binding;
 						if (auto shared = self->NativeSessions->shared_workspace(key, bound); shared && *shared) {
 							retained = std::move(**shared);
-							busy     = lease == nullptr;
+							// [[BPR-2293]]. Expiry holds it by its path while it removes it.
+							pathLease = self->NativeSessions->try_lock_workspace(agent_workspace_path_lease(retained->Workspace.Path));
+							busy      = lease == nullptr || pathLease == nullptr;
 						}
 					}
 					if (retained && busy) {

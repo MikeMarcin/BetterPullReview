@@ -11,6 +11,7 @@
 #include "bpr/qt/agent_entry_dialog.hpp"
 #include "bpr/qt/folder_list_editor.hpp"
 
+#include <QPointer>
 #include <QWidget>
 
 #include <cstddef>
@@ -23,6 +24,7 @@
 
 class QCheckBox;
 class QComboBox;
+class QDialog;
 class QHBoxLayout;
 class QLabel;
 class QLineEdit;
@@ -81,6 +83,12 @@ namespace bpr::qt {
 			/// Clear scratch folders now.
 			std::function<bool(std::uint32_t, std::uint32_t)> SetScratchPolicy;
 			std::function<void()>                             ClearScratch;
+			/// [[BPR-2293]]. The days an unused retained agent workspace is
+			/// kept (0: until removed) and the GB they may hold together,
+			/// answering whether they were taken; Remove every workspace not
+			/// in use, after the panel's own question.
+			std::function<bool(std::uint32_t, std::uint32_t)> SetWorkspacePolicy;
+			std::function<void()>                             RemoveWorkspaces;
 			/// Kept for the built-in profiles: an empty path clears it.
 			std::function<void(core::setup_agent, std::string)> SetProgram;
 			std::function<void(core::codex_protocol_choice)>    SetProtocol;
@@ -127,6 +135,25 @@ namespace bpr::qt {
 		[[nodiscard]] auto scratch_keep_days() const noexcept -> QSpinBox* { return ScratchKeepDays; }
 		[[nodiscard]] auto scratch_usage() const noexcept -> QLabel* { return ScratchUsage; }
 		[[nodiscard]] auto scratch_clear_button() const noexcept -> QPushButton* { return ScratchClear; }
+		/// \brief [[BPR-2293]]. The retained agent workspaces: how many, the
+		/// bytes they hold and how many a turn uses; none while unmeasured. A
+		/// removal's answer is said beside it.
+		struct workspace_usage
+		{
+			std::size_t   Count = 0U;
+			std::uint64_t Bytes = 0U;
+			std::size_t   InUse = 0U;
+		};
+		void present_workspace_usage(std::optional<workspace_usage> aUsage, const QString& aSaid = { });
+		/// \brief Remove…: asks first, then dispatches `RemoveWorkspaces`.
+		void               remove_workspaces();
+		[[nodiscard]] auto workspace_cap() const noexcept -> QSpinBox* { return WorkspaceCap; }
+		[[nodiscard]] auto workspace_keep_toggle() const noexcept -> QCheckBox* { return WorkspaceKeepOn; }
+		[[nodiscard]] auto workspace_keep_days() const noexcept -> QSpinBox* { return WorkspaceKeepDays; }
+		[[nodiscard]] auto workspace_usage_label() const noexcept -> QLabel* { return WorkspaceUsage; }
+		[[nodiscard]] auto workspace_remove_button() const noexcept -> QPushButton* { return WorkspaceRemove; }
+		/// \brief The question Remove… asks while it is open, or null.
+		[[nodiscard]] auto workspace_question() const noexcept -> QDialog* { return WorkspaceQuestion; }
 
 		/// \brief [[BPR-1859]]. Check agent: offered, running with Stop, or
 		/// disabled with its reason; its rows, a failure's words and remedy,
@@ -199,6 +226,14 @@ namespace bpr::qt {
 		QLabel*                                            ScratchUsage    = nullptr;
 		QPushButton*                                       ScratchClear    = nullptr;
 		void                                               send_scratch_policy();
+		QSpinBox*                                          WorkspaceCap      = nullptr;
+		QCheckBox*                                         WorkspaceKeepOn   = nullptr;
+		QSpinBox*                                          WorkspaceKeepDays = nullptr;
+		QLabel*                                            WorkspaceUsage    = nullptr;
+		QPushButton*                                       WorkspaceRemove   = nullptr;
+		QPointer<QDialog>                                  WorkspaceQuestion;
+		std::optional<workspace_usage>                     ShownWorkspaces;
+		void                                               send_workspace_policy();
 		void                                               send_run_limit();
 		/// [[BPR-2254]]. The file the saved agents could not be read from.
 		QString      UnreadableFile;

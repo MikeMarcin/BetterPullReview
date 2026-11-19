@@ -120,6 +120,7 @@ add_library(
         src/agent_entry.cpp
         src/agent_configuration.cpp
         src/agent_grant.cpp
+        src/agent_workspace_expiry.cpp
         src/agent_run_policy.cpp
         src/agent_profile.cpp
         src/agent_wrapper.cpp

@@ -205,6 +205,10 @@ namespace bpr::application {
 		/// limit in MiB and the days an unused folder is kept (0: until
 		/// cleared). Answers whether they were taken.
 		[[nodiscard]] auto set_scratch_policy(std::uint32_t aLimitMiB, std::uint32_t aKeepDays) -> bool;
+		/// \brief [[BPR-2293]]. The days an unused retained agent workspace
+		/// is kept (0: until removed) and the GB they may hold together.
+		/// Answers whether they were taken.
+		[[nodiscard]] auto set_workspace_policy(std::uint32_t aKeepDays, std::uint32_t aCapGb) -> bool;
 		/// \brief Owner look v004: the Agent tab's Suggestions toggle, kept.
 		void set_suggestions_hidden(bool aHidden);
 		/// \brief RFC-BPR-0126 Q4/Q5: Queue (false, the default) or Steer.

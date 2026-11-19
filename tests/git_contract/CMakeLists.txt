@@ -426,6 +426,27 @@ if(UNIX OR WIN32)
     set_tests_properties(agent_workspace_ownership PROPERTIES TIMEOUT 120)
 endif()
 
+# [[BPR-2293]]. Retained agent workspaces expire over the real catalog and
+# installed Git: AC1-AC3 of the card, on scratch roots only.
+if(UNIX AND (BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI))
+    bpr_add_executable(test_better_pull_review_retained_workspace_expiry_course retained_workspace_expiry_course.cpp)
+    target_link_libraries(
+        test_better_pull_review_retained_workspace_expiry_course
+        PRIVATE BetterPullReview::AdapterGit BetterPullReview::AdapterSQLite BetterPullReview::Application Qt6::Core
+    )
+    target_compile_definitions(
+        test_better_pull_review_retained_workspace_expiry_course
+        PRIVATE BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
+    )
+    bpr_enable_hardening(test_better_pull_review_retained_workspace_expiry_course)
+    bpr_enable_warnings(test_better_pull_review_retained_workspace_expiry_course)
+    bpr_add_network_isolated_test(
+        NAME retained_workspace_expiry
+        COMMAND test_better_pull_review_retained_workspace_expiry_course
+    )
+    set_tests_properties(retained_workspace_expiry PROPERTIES PASS_REGULAR_EXPRESSION "RETAINED_WORKSPACE_EXPIRY_OK" TIMEOUT 180)
+endif()
+
 # [[BPR-0900]]. The product, the CMake helper and the Python helper each
 # narrow a directory inside a root that grants Authenticated Users Modify, and
 # the product's own `workspace_parent_trusted` must trust all three and refuse

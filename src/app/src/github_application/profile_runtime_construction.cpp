@@ -37,6 +37,7 @@
 #include <QDesktopServices>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QLocale>
 #include <QObject>
 #include <QScopeGuard>
 
@@ -647,8 +648,12 @@ namespace bpr::app {
 #if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 			.WorkspaceOwnershipRegistry = applicationDataRoot / "agent-workspace-ownership-v1",
 #endif
-			.Insights = InsightsRecorder,
+			.Insights        = InsightsRecorder,
+			.WorkspaceOwners = AgentWorkspaceOwners,
 		});
+#if defined(BPR_AGENT_INTEGRATIONS) && (defined(Q_OS_UNIX) || defined(Q_OS_WIN))
+		RetainedWorkspaceFiles = adapters::git::make_installed_retained_workspace_files(applicationDataRoot / "agent-workspace-ownership-v1", AgentWorkspaceOwners);
+#endif
 		auto catalog = adapters::sqlite::make_epoch_catalog({
 			.StorageRoot = applicationDataRoot,
 		});
@@ -1037,6 +1042,16 @@ namespace bpr::app {
 							for_each_window([](const window_observer& aObserver) { if (aObserver.AgentWorkspaceRepair) { aObserver.AgentWorkspaceRepair(); } });
 						}
 						AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
+	#if defined(BPR_AGENT_INTEGRATIONS)
+						// [[BPR-2293]]. Retained workspaces expire once recovery
+						// has settled the records, and once a day after.
+						if (result && !Closing && !ServicesClosing) {
+							sweep_agent_workspaces(application::retained_workspace_sweep::policy);
+							WorkspaceExpiryTimer = std::make_unique<QTimer>();
+							QObject::connect(WorkspaceExpiryTimer.get(), &QTimer::timeout, WorkspaceExpiryTimer.get(), [this] { sweep_agent_workspaces(application::retained_workspace_sweep::policy); });
+							WorkspaceExpiryTimer->start(std::chrono::milliseconds{ std::chrono::hours{ 24 } });
+						}
+	#endif
 					});
 				} catch (...) {
 					AgentWorkspaceRecoveryPostFailed.store(true, std::memory_order_release);
@@ -1399,4 +1414,78 @@ namespace bpr::app {
 				DeviceHost->renew_restored_grant(aRenewal->Authority, aRenewal->IdentityGeneration, aRenewal->Lifetime); });
 		}
 	}
+
+#if defined(BPR_AGENT_INTEGRATIONS)
+	void github_profile_runtime::sweep_agent_workspaces(const application::retained_workspace_sweep aSweep, const bool aSay)
+	{
+		if (ServicesClosing || !NativeAgentSessions || !RetainedWorkspaceFiles) {
+			return;
+		}
+		if (WorkspaceSweepRunning) {
+			// The stronger sweep follows: Remove over the policy over a survey.
+			if (!WorkspaceSweepQueued || static_cast<int>(aSweep) > static_cast<int>(*WorkspaceSweepQueued)) {
+				WorkspaceSweepQueued = aSweep;
+			}
+			WorkspaceSweepQueuedSay = WorkspaceSweepQueuedSay || aSay;
+			return;
+		}
+		WorkspaceSweepRunning = true;
+		try {
+			WorkspaceExpiryEffects.post([this, aSweep, aSay, root = ApplicationDataRoot, stop = WorkspaceExpiryStop.get_token()] {
+				auto policy = core::agent_workspace_expiry_policy{ };
+				if (const auto store = adapters::sqlite::make_agent_setup_store(root); store) {
+					if (const auto preferences = store->load(); preferences) {
+						policy.KeepDays = preferences->WorkspaceKeepDays;
+						policy.CapGb    = preferences->WorkspaceCapGb;
+					}
+				}
+				const auto now     = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				auto       summary = application::retained_workspace_summary{ .Unavailable = true };
+				try {
+					summary = application::sweep_retained_workspaces(*NativeAgentSessions, *RetainedWorkspaceFiles, aSweep, policy, now, stop);
+				} catch (...) { }
+				try {
+					DecisionLane.post([this, summary, aSweep, aSay] { finish_agent_workspace_sweep(summary, aSweep, aSay); });
+				} catch (...) { }
+			});
+		} catch (...) {
+			WorkspaceSweepRunning = false;
+		}
+	}
+
+	void github_profile_runtime::finish_agent_workspace_sweep(const application::retained_workspace_summary& aSummary, const application::retained_workspace_sweep aSweep, const bool aSay)
+	{
+		WorkspaceSweepRunning = false;
+		if (!aSummary.Unavailable) {
+			RetainedWorkspaces = aSummary;
+		}
+		if (aSummary.Removed != 0U || aSummary.Failed != 0U) {
+			bpr::app::detail::terminal_text_stream{ } << "AGENT_WORKSPACE_EXPIRY:sweep=" << static_cast<int>(aSweep) << ":removed=" << aSummary.Removed
+													  << ":bytes=" << aSummary.RemovedBytes << ":failed=" << aSummary.Failed << ":left=" << aSummary.Count << '\n';
+		}
+		if (aSay) {
+			const auto size        = QLocale{ }.formattedDataSize(static_cast<qint64>(aSummary.RemovedBytes), 1, QLocale::DataSizeSIFormat);
+			RetainedWorkspacesSaid = aSummary.Unavailable ? QStringLiteral("The agent conversations could not be read, so nothing was removed.")
+				: aSummary.Removed == 0U                  ? QStringLiteral("Nothing was removed.")
+				: aSummary.Removed == 1U                  ? QStringLiteral("Removed 1 workspace, %1.").arg(size)
+														  : QStringLiteral("Removed %1 workspaces, %2.").arg(aSummary.Removed).arg(size);
+			const auto refused     = aSummary.Failed;
+			if (!aSummary.Unavailable && refused != 0U) {
+				RetainedWorkspacesSaid += refused == 1U ? QStringLiteral(" 1 could not be removed.") : QStringLiteral(" %1 could not be removed.").arg(refused);
+			}
+		} else if (aSweep != application::retained_workspace_sweep::survey) {
+			RetainedWorkspacesSaid.clear();
+		}
+		if (!Closing && !ServicesClosing) {
+			for_each_window([](const window_observer& aObserver) { if (aObserver.AgentWorkspaces) { aObserver.AgentWorkspaces(); } });
+		}
+		if (WorkspaceSweepQueued && !ServicesClosing) {
+			const auto next         = *WorkspaceSweepQueued;
+			const auto say          = WorkspaceSweepQueuedSay;
+			WorkspaceSweepQueued    = std::nullopt;
+			WorkspaceSweepQueuedSay = false;
+			sweep_agent_workspaces(next, say);
+		}
+	}
+#endif
 }
