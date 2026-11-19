@@ -661,8 +661,11 @@ namespace bpr::app {
 		if (aProfile == core::claude_stream_json_profile_id || protocol == core::agent_protocol::claude_stream_json) {
 			aInvocation.WritingOnly = true;
 			aInvocation.PrivateRun.reset();
-			aInvocation.HistoryClone.reset();
-			aInvocation.HistoryCloneManaged = false;
+			// [[BPR-2295]]. The tool-free answer still has a workspace, and it
+			// keeps borrowing the linked clone the dispatch named: without it a
+			// sparse review's workspace was copied out of a cache that holds
+			// the head and none of its history, and every "Was this
+			// addressed?" stopped at once on the head's missing parent.
 			aInvocation.FrozenFiles.clear();
 		}
 	}

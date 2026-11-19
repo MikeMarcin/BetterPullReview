@@ -221,6 +221,9 @@ namespace bpr::application {
 		retained_objects_missing,
 		inspection_output_limit,
 		inspection_timed_out,
+		/// [[BPR-2295]]. The review holds only the pull request's head, so
+		/// Git could not walk its history, and no linked clone lent it.
+		history_missing,
 	};
 
 	[[nodiscard]] auto stable_name(agent_workspace_unavailable_reason aReason) noexcept

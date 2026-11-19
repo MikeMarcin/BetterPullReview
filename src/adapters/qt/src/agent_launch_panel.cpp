@@ -59,6 +59,10 @@ namespace bpr::qt {
 				return QStringLiteral("Your clone doesn't have this head yet, and the pull request's new objects are larger than the agent's private copy may fetch. Once your clone has the head, resend.");
 			case reason::clone_needed:
 				return QStringLiteral("This review holds only the files it shows, and the agent works in a clone of the repository. Link your clone in Settings › Repositories, then resend.");
+			// [[BPR-2295]]. Deterministic: a resend stops the same way, so
+			// none is suggested; the clone setting is what changes it.
+			case reason::history_missing:
+				return QStringLiteral("The agent's copy of this pull request could not be made: the review holds only the pull request's head, and the linked clone was not used. Link your clone in Settings › Repositories, or check that it holds this head.");
 			}
 			return { };
 		}
@@ -607,7 +611,8 @@ namespace bpr::qt {
 					QString::fromStdString(aResult.StandardError));
 			}
 		}
-		LastOutcome = aResult.Outcome;
+		LastOutcome         = aResult.Outcome;
+		LastWorkspaceReason = aResult.WorkspaceReason;
 		LastModel.clear();
 		for (const auto& report : aResult.Metadata.ProtocolReported) {
 			if (report.Settings.Model) {

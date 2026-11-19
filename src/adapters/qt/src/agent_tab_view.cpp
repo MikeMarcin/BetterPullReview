@@ -609,7 +609,25 @@ namespace bpr::qt {
 		bold.setWeight(QFont::DemiBold);
 		BannerTitle->setFont(bold);
 		BannerTitle->setWordWrap(true);
-		bannerCol->addWidget(BannerTitle);
+		// [[BPR-2295]] (owner, 2026-11-19: "The little x in the top right
+		// that the agent is ready box has is good enough"). A stop is
+		// dismissed with the ready box's own close; the kept message stays.
+		auto* const bannerTop = new QHBoxLayout{ };
+		bannerTop->addWidget(BannerTitle, 1);
+		BannerDismiss = new quiet_tool_button{ Banner };
+		BannerDismiss->setObjectName(QStringLiteral("agentStateDismiss"));
+		BannerDismiss->setAutoRaise(true);
+		BannerDismiss->setText(QString{ QChar{ 0x2715 } });
+		BannerDismiss->setAccessibleName(tr("Dismiss"));
+		BannerDismiss->setToolTip(tr("Dismiss"));
+		BannerDismiss->setFocusPolicy(Qt::StrongFocus);
+		BannerDismiss->hide();
+		connect(BannerDismiss, &QToolButton::clicked, this, [this] {
+			StoppedDismissed = true;
+			present_banner();
+		});
+		bannerTop->addWidget(BannerDismiss, 0, Qt::AlignTop);
+		bannerCol->addLayout(bannerTop);
 		BannerText = new QLabel{ Banner };
 		BannerText->setObjectName(QStringLiteral("agentStateText"));
 		BannerText->setWordWrap(true);
@@ -3575,6 +3593,8 @@ namespace bpr::qt {
 		return aTurn < Turns.size() && Turns[aTurn].Footer != nullptr ? Turns[aTurn].Footer->text() : QString{ };
 	}
 
+	auto agent_tab_view::stopped_for_good() const noexcept -> bool { return Launch.stopped_for_good(); }
+
 	void agent_tab_view::present_banner()
 	{
 		if (!panels_alive()) {
@@ -3586,6 +3606,7 @@ namespace bpr::qt {
 		BannerSecond->disconnect();
 		BannerFirst->show();
 		BannerSecond->show();
+		BannerDismiss->setVisible(State == agent_tab_state::stopped);
 		Log->setVisible(LogShown && State == agent_tab_state::stopped);
 		switch (State) {
 		case agent_tab_state::not_set_up:
@@ -3667,6 +3688,11 @@ namespace bpr::qt {
 			// [[BPR-2000]]. Resend starts a run.
 			wear_agent_accent(*BannerFirst, palette());
 			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
+			// [[BPR-2295]]. A stop that would stop the same way again is not
+			// offered a Resend as its fix; the reason says what would change it.
+			if (Launch.stopped_for_good()) {
+				BannerFirst->hide();
+			}
 			BannerSecond->setText(LogShown ? tr("Hide the log") : tr("Show the log"));
 			connect(BannerSecond, &QPushButton::clicked, this, [this] {
 				LogShown = !LogShown;

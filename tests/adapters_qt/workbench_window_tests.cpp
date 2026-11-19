@@ -15733,6 +15733,20 @@ namespace {
 		expect(agent->turn_reply(0U)->accessibleDescription() == QStringLiteral("Error") && !shown(fixedNote(0U)), "while the cause holds it is shown as the error, not fixed");
 		expect(shown(agent->banner()) && agent->banner()->findChild<QPushButton*>(QStringLiteral("agentStateFirst"))->text() == QStringLiteral("Resend"),
 			   "the stopped banner resends too, never Check again");
+		// [[BPR-2295]] (owner, 2026-11-19: "There's no way to dismiss this
+		// agent tab error"). The ready box's close dismisses the stop, from
+		// the keyboard too, and leaves the kept message and the composer.
+		{
+			auto* const close = agent->stopped_dismiss_button();
+			expect(shown(close) && close->text() == QString{ QChar{ 0x2715 } } && close->accessibleName() == QStringLiteral("Dismiss") && close->focusPolicy() == Qt::StrongFocus,
+				   "the stop carries the ready box's close, named and reachable from the keyboard");
+			chat->composer()->setPlainText(QStringLiteral("a draft in progress"));
+			close->click();
+			process_events();
+			expect(!shown(agent->banner()) && agent->turn_count() == 1U && chat->composer()->toPlainText() == QStringLiteral("a draft in progress"),
+				   "dismissing removes the block and nothing else: the turn and the composer stay");
+			chat->composer()->clear();
+		}
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-failed-answer-cause-light.png"), "PNG"), "render saved");
 		}

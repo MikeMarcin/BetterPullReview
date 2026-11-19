@@ -197,6 +197,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto last_session_cost() const noexcept -> std::optional<core::agent_cost> { return LastSessionCost; }
 		/// [[BPR-1753]]. How the last request ended, while nothing runs.
 		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
+		/// \brief [[BPR-2295]]. Whether the last run stopped for a reason a
+		/// resend repeats: its workspace could not be made from what the
+		/// review and the linked clone hold.
+		[[nodiscard]] auto stopped_for_good() const noexcept -> bool
+		{
+			return LastOutcome == application::agent_run_outcome::workspace_unavailable && LastWorkspaceReason == application::agent_workspace_unavailable_reason::history_missing;
+		}
 		/// \brief [[BPR-1873]]. Whether the running or last run's workspace
 		/// holds only the pull request's files (a sparse review with no clone).
 		[[nodiscard]] auto pull_request_files_only() const noexcept -> bool { return PullRequestFilesOnly; }
@@ -237,46 +244,47 @@ namespace bpr::qt {
 		/// [[BPR-1823]]. Whether setup has said what it saved (possibly none).
 		bool SetupKnown = false;
 		/// [[BPR-1823]]. What the menu holds, as core decided it.
-		core::agent_pick                                        Pick;
-		std::vector<core::agent_profile_id>                     OfferedIds;
-		std::vector<std::pair<core::agent_profile_id, QString>> KnownNames;
-		QString                                                 UnavailableName;
-		bool                                                    Settling               = false;
-		QAction*                                                StartAction            = nullptr;
-		QAction*                                                CancelAction           = nullptr;
-		QAction*                                                ExistingCheckoutAction = nullptr;
-		QLabel*                                                 Disclosure             = nullptr;
-		QListWidget*                                            NoteSelector           = nullptr;
-		QCheckBox*                                              DraftSelector          = nullptr;
-		QLabel*                                                 SessionCatalog         = nullptr;
-		QLabel*                                                 Status                 = nullptr;
-		QPlainTextEdit*                                         Output                 = nullptr;
-		QToolButton*                                            StartButton            = nullptr;
-		QToolButton*                                            CancelButton           = nullptr;
-		QToolButton*                                            ExistingCheckoutButton = nullptr;
-		bool                                                    Running                = false;
-		bool                                                    Disclosed              = false;
-		std::optional<application::agent_draft_choice>          OfferedDraft;
-		QString                                                 StopReason;
-		std::optional<application::agent_run_outcome>           LastOutcome;
-		bool                                                    PullRequestFilesOnly = false;
-		std::uint64_t                                           Refusals             = 0U;
-		QString                                                 LastRefusal;
-		QString                                                 LastModel;
-		QString                                                 LastCost;
-		std::optional<core::agent_cost>                         LastTurnCost;
-		std::optional<core::agent_cost>                         RunningTurnCost;
-		bool                                                    WorkspaceChecking = false;
-		core::agent_turn_activity                               Activity;
-		qint64                                                  ActivityStartedMs = 0;
-		bool                                                    ActivityReported  = false;
-		QString                                                 KeptText;
-		std::optional<application::agent_protocol_failure>      LastFailure;
-		std::vector<std::string>                                LastUnfinished;
-		std::optional<core::agent_cost>                         LastSessionCost;
-		phase                                                   Phase = phase::idle;
-		std::vector<std::function<void()>>                      ProgressObservers;
-		void                                                    progressed();
+		core::agent_pick                                               Pick;
+		std::vector<core::agent_profile_id>                            OfferedIds;
+		std::vector<std::pair<core::agent_profile_id, QString>>        KnownNames;
+		QString                                                        UnavailableName;
+		bool                                                           Settling               = false;
+		QAction*                                                       StartAction            = nullptr;
+		QAction*                                                       CancelAction           = nullptr;
+		QAction*                                                       ExistingCheckoutAction = nullptr;
+		QLabel*                                                        Disclosure             = nullptr;
+		QListWidget*                                                   NoteSelector           = nullptr;
+		QCheckBox*                                                     DraftSelector          = nullptr;
+		QLabel*                                                        SessionCatalog         = nullptr;
+		QLabel*                                                        Status                 = nullptr;
+		QPlainTextEdit*                                                Output                 = nullptr;
+		QToolButton*                                                   StartButton            = nullptr;
+		QToolButton*                                                   CancelButton           = nullptr;
+		QToolButton*                                                   ExistingCheckoutButton = nullptr;
+		bool                                                           Running                = false;
+		bool                                                           Disclosed              = false;
+		std::optional<application::agent_draft_choice>                 OfferedDraft;
+		QString                                                        StopReason;
+		std::optional<application::agent_run_outcome>                  LastOutcome;
+		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceReason;
+		bool                                                           PullRequestFilesOnly = false;
+		std::uint64_t                                                  Refusals             = 0U;
+		QString                                                        LastRefusal;
+		QString                                                        LastModel;
+		QString                                                        LastCost;
+		std::optional<core::agent_cost>                                LastTurnCost;
+		std::optional<core::agent_cost>                                RunningTurnCost;
+		bool                                                           WorkspaceChecking = false;
+		core::agent_turn_activity                                      Activity;
+		qint64                                                         ActivityStartedMs = 0;
+		bool                                                           ActivityReported  = false;
+		QString                                                        KeptText;
+		std::optional<application::agent_protocol_failure>             LastFailure;
+		std::vector<std::string>                                       LastUnfinished;
+		std::optional<core::agent_cost>                                LastSessionCost;
+		phase                                                          Phase = phase::idle;
+		std::vector<std::function<void()>>                             ProgressObservers;
+		void                                                           progressed();
 		std::optional<application::agent_invocation_projection_identity>
 														ActiveInvocation;
 		std::vector<application::agent_steered_message> Steered;

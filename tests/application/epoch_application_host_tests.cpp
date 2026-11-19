@@ -1843,6 +1843,18 @@ namespace {
 			State.WorkspaceDeltas.push_back(aSource.Delta);
 			State.WorkspacePullRequestFiles.push_back(aSource.PullRequestFiles);
 			State.WorkspaceHeadFromClone.push_back(aRequest.HeadFromClone);
+			// [[BPR-2295]]. The branch installed Git would take, as it writes it.
+			const auto trace = [&aSource](const core::workspace_source aWhere, const bool aHeld = false, const core::workspace_git_command aCommand = core::workspace_git_command::none,
+										  const core::workspace_git_error aError = core::workspace_git_error::none) {
+				if (aSource.Trace) {
+					*aSource.Trace = core::workspace_trace{ .Source = aWhere, .CloneHeldHead = aHeld, .Command = aCommand, .GitError = aError };
+				}
+			};
+			trace(aSource.PullRequestFiles     ? core::workspace_source::pull_request_files
+					  : aRequest.HeadFromClone ? (State.CloneHoldsHead ? core::workspace_source::borrowed : core::workspace_source::head_from_clone)
+					  : aSource.Delta          ? core::workspace_source::delta
+											   : core::workspace_source::cache_copy,
+				  aRequest.HeadFromClone && State.CloneHoldsHead);
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::git_cache_failure::cancelled };
 			}
@@ -1858,6 +1870,7 @@ namespace {
 			// copying the head's closure out of it fails as installed Git does.
 			// A head the linked clone lends is not copied from it.
 			if (State.SparseObjects && !aSource.Delta && !aSource.PullRequestFiles && !aRequest.HeadFromClone) {
+				trace(core::workspace_source::cache_copy, false, core::workspace_git_command::pack_objects, core::workspace_git_error::failed_to_traverse_parents);
 				return std::unexpected{ application::git_cache_error{
 					application::git_cache_failure::process_failure,
 					"error: Could not read " + std::string{ core::canonical_hex(oid<core::git_commit_oid>(10U)).view() }
@@ -8740,6 +8753,57 @@ namespace {
 			expect(materialized.has_value() && *materialized == workspace && value.State.DeltaRequests.empty()
 					   && value.State.WorkspaceHeadFromClone == std::vector{ true } && !value.State.WorkspaceDeltas.front(),
 				   "a sparse head the linked clone holds is taken from the clone, with nothing fetched");
+		}
+		// [[BPR-2295]], owner 2026-11-19. A reread revokes the review's read
+		// lease and renews it: the old lease then answers that it cannot load
+		// selected objects. The review's cache is still sparse, so its
+		// workspace still borrows the clone that holds the head, asks the
+		// host for nothing, and the log says so.
+		{
+			auto    log = std::make_shared<recording_epoch_log>();
+			fixture value{ { }, log };
+			establish_sparse_three_files(value);
+			const auto workspace        = owned_workspace_for(value.Host->state());
+			value.State.WorkspaceResult = workspace;
+			value.State.CloneHoldsHead  = true;
+			value.State.SupportsSparse  = false;
+			const auto materialized     = run(value, clone);
+			expect(materialized.has_value() && *materialized == workspace && value.State.DeltaRequests.empty() && value.State.WorkspaceHeadFromClone == std::vector{ true },
+				   "AC1: a sparse review whose lease no longer loads selected objects still borrows the clone that holds the head");
+			expect(std::ranges::any_of(log->Events,
+									   [](const application::diagnostic_event& aEvent) {
+										   return std::string_view{ aEvent.Summary.Text.data(), aEvent.Summary.Size }.ends_with("source=borrowed sparse=1 clone=1 clone_head=1 git=none git_error=none");
+									   }),
+				   "AC3: the log says the clone lent the head on a sparse review");
+		}
+		// [[BPR-2295]]. No clone, and the lease no longer loads selected
+		// objects: still the pull request's files, never the cache's history.
+		{
+			fixture value;
+			establish_sparse_three_files(value);
+			value.State.SupportsSparse  = false;
+			value.State.WorkspaceResult = owned_workspace_for(value.Host->state());
+			static_cast<void>(run(value));
+			expect(value.State.WorkspacePullRequestFiles.size() == 1U && value.State.WorkspacePullRequestFiles.front().has_value(),
+				   "AC2: a sparse review is never copied out of its cache's history, whatever its lease says now");
+		}
+		// [[BPR-2295]]. A cache copy that fails on Git's traverse error is
+		// history_missing, and its log line says which source, the review's
+		// loading, the clone and Git's words.
+		{
+			auto    log = std::make_shared<recording_epoch_log>();
+			fixture value{ { }, log };
+			establish_ready_comparison(value);
+			value.State.SparseObjects = true;
+			const auto materialized   = run(value);
+			expect(!materialized.has_value() && materialized.error().Reason == application::agent_workspace_unavailable_reason::history_missing,
+				   "a copy that cannot walk the head's history is history_missing, not copy_failed");
+			expect(std::ranges::any_of(log->Events,
+									   [](const application::diagnostic_event& aEvent) {
+										   return std::string_view{ aEvent.Summary.Text.data(), aEvent.Summary.Size }.find("failure=history_missing") != std::string_view::npos
+											   && std::string_view{ aEvent.Summary.Text.data(), aEvent.Summary.Size }.ends_with("source=cache_copy sparse=0 clone=0 clone_head=0 git=pack_objects git_error=failed_to_traverse_parents");
+									   }),
+				   "AC3: its log line names the cache copy, the loading, the clone, the command and Git's words");
 		}
 	}
 

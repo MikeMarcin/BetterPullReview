@@ -424,6 +424,9 @@ namespace bpr::core {
 		keep_failed,
 		// [[BPR-1884]].
 		refresh_failed,
+		// [[BPR-2295]]. An agent workspace whose history Git could not walk:
+		// the source holds the head but not its ancestors.
+		history_missing,
 	};
 
 	/// \brief [[BPR-1831]]. Which SQLite store a storage line is about, by its
@@ -532,6 +535,77 @@ namespace bpr::core {
 		auto                         operator<=>(const tour_publication_trace&) const = default;
 	};
 
+	/// \brief [[BPR-2295]]. Where an agent workspace's head came from.
+	enum class workspace_source : std::uint8_t {
+		/// No branch was reached: the request was refused before one.
+		none,
+		/// The pull request's files only, on a sparse review with no clone.
+		pull_request_files,
+		/// The linked clone holds the head and lends it.
+		borrowed,
+		/// The clone was asked for the head alone and lacked it.
+		head_from_clone,
+		/// The clone, and a fetched delta of what it lacks.
+		delta,
+		/// The review's cache, walking the head's history.
+		cache_copy,
+		/// The review's cache, its history ending at the head (and base)
+		/// because the cache could not walk past them.
+		cache_copy_shallow,
+	};
+
+	/// \brief [[BPR-2295]]. The Git command an agent workspace failed in.
+	enum class workspace_git_command : std::uint8_t {
+		none,
+		init,
+		rev_parse,
+		ls_tree,
+		pack_objects,
+		rev_list,
+		hash_object,
+		index_pack,
+		cat_file,
+		read_tree,
+		checkout_index,
+		config,
+		other,
+	};
+
+	/// \brief [[BPR-2295]]. Git's own words on an agent workspace failure,
+	/// as a fixed class: the diagnostics log names no object or path.
+	enum class workspace_git_error : std::uint8_t {
+		none,
+		/// `error: Could not read <object>`.
+		could_not_read,
+		/// `fatal: Failed to traverse parents of commit <commit>`.
+		failed_to_traverse_parents,
+		/// `missing`, `unable to read` or `bad object` naming an object.
+		missing_object,
+		/// Anything else Git wrote.
+		other,
+	};
+
+	/// \brief [[BPR-2295]]. How one agent workspace was made, or why not.
+	struct workspace_trace
+	{
+		workspace_source      Source        = workspace_source::none;
+		bool                  Sparse        = false;
+		bool                  CloneGiven    = false;
+		bool                  CloneHeldHead = false;
+		workspace_git_command Command       = workspace_git_command::none;
+		workspace_git_error   GitError      = workspace_git_error::none;
+
+		auto operator<=>(const workspace_trace&) const = default;
+	};
+
+	[[nodiscard]] auto name(workspace_source aSource) noexcept -> std::string_view;
+	[[nodiscard]] auto name(workspace_git_command aCommand) noexcept -> std::string_view;
+	[[nodiscard]] auto name(workspace_git_error aError) noexcept -> std::string_view;
+
+	/// \brief [[BPR-2295]]. The class of Git's standard error on a failed
+	/// workspace command: its first recognized line, never its text.
+	[[nodiscard]] auto classify_workspace_git_error(std::string_view aStandardError) noexcept -> workspace_git_error;
+
 	/// \brief [[BPR-1828]]. One host operation's diagnostic line: enums,
 	/// counts, a duration and an exit code only.
 	///
@@ -569,6 +643,11 @@ namespace bpr::core {
 		/// that refused it before sending and why, written after the subject
 		/// as `submit_check=CHECK submit_reason=REASON submit_part=PART`.
 		std::optional<review_submission_refusal> Refusal = std::nullopt;
+		/// [[BPR-2295]]. Exactly on a finished `workspace_materialize` line,
+		/// when the host knows it, written after the fixed keys as
+		/// `source=SOURCE sparse=0|1 clone=0|1 clone_head=0|1 git=COMMAND
+		/// git_error=CLASS`.
+		std::optional<workspace_trace> Workspace = std::nullopt;
 
 		auto operator<=>(const operation_diagnosis&) const = default;
 	};

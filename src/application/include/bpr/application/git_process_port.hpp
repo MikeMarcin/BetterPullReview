@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GIT_PROCESS_PORT_HPP
 
 #include "bpr/application/agent_workspace.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 
 #include <array>
 #include <compare>
@@ -9,6 +10,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stop_token>
@@ -215,6 +217,11 @@ namespace bpr::application {
 	{
 		std::optional<git_workspace_delta_pack> Delta;
 		std::optional<git_workspace_files>      PullRequestFiles;
+		/// [[BPR-2295]]. Written by the adapter, when present: the branch it
+		/// took, whether the linked clone held the head and, on a failure,
+		/// the Git command and the class of Git's words. The host reads it
+		/// once the materialization has returned.
+		std::shared_ptr<core::workspace_trace> Trace;
 
 		auto operator<=>(const git_workspace_source&) const = default;
 	};

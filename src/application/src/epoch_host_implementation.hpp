@@ -337,6 +337,8 @@ namespace bpr::application {
 			// [[BPR-1772]]. The work was asked for the linked clone's head
 			// only, and the clone does not hold it.
 			bool CloneLacksHead = false;
+			// [[BPR-2295]]. What the adapter wrote of the branch it took.
+			core::workspace_trace Trace;
 		};
 
 		struct workspace_cleanup_waiter final
@@ -384,6 +386,12 @@ namespace bpr::application {
 			bool                                          HistoricalImportPending = false;
 			std::uint8_t                                  HistoricalImports       = 0U;
 			std::vector<core::epoch_occurrence_id>        HistoricalSkipped;
+			/// [[BPR-2295]]. Whether this review's cache was loaded with
+			/// selected objects (commits and trees, no blobs or parents),
+			/// recorded while its lease was live. Absent when the lease was
+			/// already revoked then. A revoked or replaced lease later never
+			/// makes a sparse cache look complete.
+			std::optional<bool> LoadedSparse;
 			/// [[BPR-2290]]. A background import met a size or time wall: no
 			/// further background import is tried for this review, so the same
 			/// clone is never started again.
@@ -925,6 +933,10 @@ namespace bpr::application {
 
 		[[nodiscard]] static auto sparse_review(const authority_context& aContext) -> bool;
 
+		/// \brief [[BPR-2295]]. Whether the review's cache may lack the
+		/// head's history: how it was loaded, never the lease's state now.
+		[[nodiscard]] static auto sparse_cache(const authority_context& aContext) -> bool;
+
 		[[nodiscard]] static auto delta_failure(const git_smart_transport_error& aError) -> agent_workspace_error;
 
 		[[nodiscard]] auto acquire_workspace_delta(const std::shared_ptr<authority_effect_actor>& aActor, const authority_context& aContext,
@@ -1309,9 +1321,12 @@ namespace bpr::application {
 										   actor_blob_read&      aRight,
 										   const std::stop_token aStop) noexcept;
 
+		/// \details [[BPR-2295]]. \p aTrace, when given, receives how the
+		/// workspace was made or why not, for the log.
 		[[nodiscard]] auto materialize_agent_workspace(
 			const agent_workspace_materialization_request& aRequest,
-			const std::stop_token                          aStop)
+			const std::stop_token                          aStop,
+			core::workspace_trace*                         aTrace = nullptr)
 			-> std::expected<owned_agent_workspace, agent_workspace_error>;
 
 		[[nodiscard]] auto materialize_on_actor(
@@ -1322,6 +1337,7 @@ namespace bpr::application {
 			const agent_workspace_materialization_request& aRequest,
 			std::shared_ptr<git_workspace_delta>           aDelta,
 			bool&                                          aCloneLacksHead,
+			core::workspace_trace&                         aTrace,
 			const std::stop_token                          aStop,
 			std::optional<std::vector<git_workspace_file>> aPullRequestFiles = std::nullopt)
 			-> std::expected<owned_agent_workspace, agent_workspace_error>;

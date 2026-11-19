@@ -119,6 +119,9 @@ namespace bpr::qt {
 			return QObject::tr("Your clone doesn't have this head yet, and the pull request's new objects are larger than the agent may fetch. Once your clone has the head, check again.");
 		case reason::clone_needed:
 			return QObject::tr("This review holds only the files it shows, and the agent works in a clone of the repository. Link your clone, then check again.");
+		// [[BPR-2295]].
+		case reason::history_missing:
+			return QObject::tr("The agent's copy of this pull request could not be made: the review holds only the pull request's head, and the linked clone was not used. Link your clone, or check that it holds this head.");
 		}
 		return { };
 	}

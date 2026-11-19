@@ -2,6 +2,7 @@
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_publication.hpp"
 #include "bpr/adapters/process_support/process_supervision.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 #include "bpr/core/review_skill.hpp"
 #include "bpr/platform/windows_sharing_retry.hpp"
 #include "git_process_output.hpp"
@@ -1595,6 +1596,24 @@ namespace bpr::adapters::git {
 				&& (localPathSeparator == std::string_view::npos
 					|| localPathSeparator > separator)
 				&& aToken.find(':', separator + 1U) != std::string_view::npos;
+		}
+
+		/// \brief [[BPR-2295]]. The Git command an argument list runs, for
+		/// the workspace's log line: the first argument that names one.
+		[[nodiscard]] auto workspace_command_of(const std::vector<std::string>& aArguments) -> core::workspace_git_command
+		{
+			using command    = core::workspace_git_command;
+			using named      = std::pair<std::string_view, command>;
+			const auto known = std::array<named, 11U>{ named{ "init", command::init }, named{ "rev-parse", command::rev_parse }, named{ "ls-tree", command::ls_tree },
+													   named{ "pack-objects", command::pack_objects }, named{ "rev-list", command::rev_list }, named{ "hash-object", command::hash_object },
+													   named{ "index-pack", command::index_pack }, named{ "cat-file", command::cat_file }, named{ "read-tree", command::read_tree },
+													   named{ "checkout-index", command::checkout_index }, named{ "config", command::config } };
+			for (const auto& argument : aArguments) {
+				if (const auto found = std::ranges::find(known, std::string_view{ argument }, &named::first); found != known.end()) {
+					return found->second;
+				}
+			}
+			return command::other;
 		}
 
 		/// \brief Removes remote tokens from retained subprocess diagnostic text.
@@ -4910,11 +4929,20 @@ namespace bpr::adapters::git {
 				}
 				const auto& materialization = aRequest.Materialization;
 				const auto& head            = materialization.Session.Binding.HeadOid;
-				const auto  algorithm       = head.algorithm() == core::git_hash_algorithm::sha1
+				// [[BPR-2295]]. What the log says of this workspace: the branch
+				// taken and, on a failure, the Git command and Git's words.
+				auto       trace       = core::workspace_trace{ };
+				auto       lastFailure = std::optional<std::pair<git_process_error, core::workspace_git_command>>{ };
+				const auto report      = [&]() {
+					if (aRequest.Source.Trace) {
+						*aRequest.Source.Trace = trace;
+					}
+				};
+				const auto algorithm = head.algorithm() == core::git_hash_algorithm::sha1
 					? git_hash_algorithm::sha1
 					: git_hash_algorithm::sha256;
-				const auto  isolation       = canonical_existing(IsolationRoot);
-				auto        parent          = canonical_existing(materialization.ParentDirectory);
+				const auto isolation = canonical_existing(IsolationRoot);
+				auto       parent    = canonical_existing(materialization.ParentDirectory);
 				if (
 					!application::valid(materialization)
 					|| (head.algorithm() != core::git_hash_algorithm::sha1
@@ -4990,6 +5018,12 @@ namespace bpr::adapters::git {
 				const auto fail = [&](git_process_error aFailure)
 					-> git_process_result<application::owned_agent_workspace> {
 					static_cast<void>(cleanup());
+					// A failure a Git command returned names that command and
+					// its words; one this adapter decided names neither.
+					const auto fromGit = lastFailure && lastFailure->first == aFailure;
+					trace.Command      = fromGit ? lastFailure->second : core::workspace_git_command::none;
+					trace.GitError     = fromGit ? core::classify_workspace_git_error(aFailure.Detail) : core::workspace_git_error::none;
+					report();
 					return std::unexpected{ std::move(aFailure) };
 				};
 
@@ -4997,7 +5031,12 @@ namespace bpr::adapters::git {
 					if (workspaceOwner) {
 						aProcess.WorkspaceGuard = workspaceOwner->layout().Guard;
 					}
-					return submit(std::move(aProcess), aToken);
+					const auto command = workspace_command_of(aProcess.Arguments);
+					auto       result  = submit(std::move(aProcess), aToken);
+					if (!result) {
+						lastFailure.emplace(result.error(), command);
+					}
+					return result;
 				};
 				auto initArguments = std::vector<std::string>{
 					"-c",
@@ -5042,7 +5081,8 @@ namespace bpr::adapters::git {
 				// folder. Nothing is written to the clone, and the workspace has
 				// no remote, so the agent's tools can read the history and blame
 				// without reaching the reviewer's remotes.
-				auto borrowed = std::optional<std::string>{ };
+				auto borrowed      = std::optional<std::string>{ };
+				auto cloneBoundary = std::string{ };
 				if (materialization.HistoryClone) {
 					const auto objects = checkout_objects(path_text(*materialization.HistoryClone));
 					if (!objects) {
@@ -5061,6 +5101,9 @@ namespace bpr::adapters::git {
 					const auto cloneShallow = shallow_boundary(objects->parent_path() / "shallow", algorithm == git_hash_algorithm::sha1 ? 40U : 64U);
 					if (cloneShallow && !cloneShallow->empty() && !write_private_file(destination / ".git" / "shallow", *cloneShallow)) {
 						return fail(git_process_failure::invalid_repository);
+					}
+					if (cloneShallow) {
+						cloneBoundary = *cloneShallow;
 					}
 				}
 				// Whether the workspace already reads an object, through its
@@ -5083,6 +5126,7 @@ namespace bpr::adapters::git {
 					// come from the cache, the files' blobs from the host; a
 					// sparse checkout of exactly those paths leaves the rest of
 					// the head absent and `git status` clean. Shallow at the head.
+					trace.Source      = core::workspace_source::pull_request_files;
 					const auto& files = *aRequest.Source.PullRequestFiles;
 					if (borrowed || aRequest.Source.Delta || files.size() > application::maximum_pull_request_workspace_files) {
 						return fail(git_process_failure::invalid_request);
@@ -5165,7 +5209,10 @@ namespace bpr::adapters::git {
 					checkedOut = true;
 				} else if (borrowed && present(headText)) {
 					// The clone already holds the head: nothing to copy.
+					trace.Source        = core::workspace_source::borrowed;
+					trace.CloneHeldHead = true;
 				} else if (materialization.HeadFromClone) {
+					trace.Source = core::workspace_source::head_from_clone;
 					// [[BPR-1772]]. Asked for the clone's head only: the
 					// review's cache is not a fallback, because a sparse one
 					// cannot supply the head and the host fetches what the clone
@@ -5177,6 +5224,7 @@ namespace bpr::adapters::git {
 					// holds what the borrowed clone lacks of the head: indexed
 					// here, the workspace reads the head's whole history through
 					// the clone and its own pack, and is never shallow.
+					trace.Source          = core::workspace_source::delta;
 					const auto&     delta = *aRequest.Source.Delta;
 					std::error_code deltaError;
 					if (
@@ -5223,7 +5271,8 @@ namespace bpr::adapters::git {
 					// object directory. Keep that work inside the exactly owned
 					// workspace, so cancellation cannot leave a tmp_pack in the
 					// strictly inventoried source cache. Read cache objects only.
-					arguments = workspace_git_arguments(destination, HooksRoot);
+					trace.Source = core::workspace_source::cache_copy;
+					arguments    = workspace_git_arguments(destination, HooksRoot);
 					append_arguments(
 						arguments,
 						"pack-objects",
@@ -5250,6 +5299,37 @@ namespace bpr::adapters::git {
 						tips += "^" + baseText + "\n";
 					} else if (cacheHasBase) {
 						tips += baseText + "\n";
+					}
+					// [[BPR-2295]]. A sparse review's cache holds the head's
+					// commit and trees but none of its parents, so a walk of
+					// the head's history fails at its first parent. The walk
+					// reads commits only, less than the copy below reads. When
+					// it fails, the workspace's history ends at the head (and
+					// the base the cache holds) instead of the turn stopping on
+					// history it does not need; a cache that lacks the head's
+					// files as well still fails the copy, as history_missing.
+					auto walk = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(walk, "rev-list", "--quiet", "--stdin");
+					const auto walked = submitWorkspace(
+						process_request{
+							.Arguments   = std::move(walk),
+							.Input       = memory_input{ tips },
+							.Timeout     = pack_process_timeout,
+							.Environment = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", quoted_object_alternate(aRequest.Repository / "objects") } },
+						},
+						aStop);
+					if (!walked && walked.error().Code == git_process_failure::nonzero_exit && !aStop.stop_requested()) {
+						auto ends = cloneBoundary + headText + "\n";
+						if (cacheHasBase) {
+							ends += baseText + "\n";
+						}
+						if (!write_private_file(destination / ".git" / "shallow", ends)) {
+							return fail(git_process_failure::invalid_repository);
+						}
+						shallow      = true;
+						trace.Source = core::workspace_source::cache_copy_shallow;
+					} else if (!walked) {
+						return fail(walked.error());
 					}
 					const auto packed = submitWorkspace(
 						process_request{
@@ -5449,6 +5529,7 @@ namespace bpr::adapters::git {
 					const auto lock = std::scoped_lock{ WorkspaceOwners->Mutex };
 					WorkspaceOwners->Owners.emplace(owned.LifetimeGuard->Path, std::make_pair(owned, std::move(workspaceOwner)));
 				}
+				report();
 				return owned;
 			}
 

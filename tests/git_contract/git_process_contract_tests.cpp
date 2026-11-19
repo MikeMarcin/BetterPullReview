@@ -30,6 +30,7 @@
 #include <iostream>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stop_token>
@@ -4124,10 +4125,48 @@ namespace {
 			return made;
 		};
 
-		const auto copied = adapter->materialize_agent_workspace(request(1U, std::nullopt, false), { });
-		require(!copied.has_value() && copied.error().Detail.find("parents") != std::string::npos,
-				"copying the head's closure out of a sparse cache stops at its missing parent, as the reported failure did");
+		// [[BPR-2295]]. Copying out of a sparse cache never walks past the
+		// head: the walk's failure ends history there, and the head's files
+		// the cache lacks then refuse the copy, said as the cache copy whose
+		// history ended at the head. Git's traverse error no longer ends it.
+		auto copyRequest         = request(1U, std::nullopt, false);
+		copyRequest.Source.Trace = std::make_shared<core::workspace_trace>();
+		const auto copied        = adapter->materialize_agent_workspace(copyRequest, { });
+		require(!copied.has_value() && copied.error().Detail.find("traverse parents") == std::string::npos,
+				"a copy out of a sparse cache never stops on the head's missing parent");
+		require(copyRequest.Source.Trace->Source == core::workspace_source::cache_copy_shallow && copyRequest.Source.Trace->Command != core::workspace_git_command::none
+					&& copyRequest.Source.Trace->Command != core::workspace_git_command::rev_list && !copyRequest.Source.Trace->CloneHeldHead,
+				"the trace names the cache copy that ended its history at the head and the Git command that then failed");
 		require(std::filesystem::is_empty(workspaceParent.Path), "the refused copy leaves no workspace behind");
+
+		// [[BPR-2295]]. A cache that holds the head's files but not its
+		// parent: the copy ends its history at the head and succeeds.
+		{
+			const auto headOnly  = repository_path(root.Path, '3');
+			const auto fullPack  = root.Path / "headfiles";
+			const auto fullHex   = run_fixture_git(source, { "pack-objects", fullPack.string() }, head + "\n" + tree + "\n" + nested + "\n" + readme + "\n" + code + "\n");
+			const auto fullBytes = read_text(fullPack.string() + "-" + fullHex + ".pack");
+			initialize_repository(*adapter, headOnly, application::git_hash_algorithm::sha1);
+			const auto headOperation = make_operation(0x92U);
+			write_spool(*adapter, headOperation, std::as_bytes(std::span{ fullBytes }));
+			require(adapter
+						->index_sparse_pack({ .Repository = headOnly, .Operation = headOperation, .SpoolBytes = fullBytes.size(), .MaximumInputBytes = fullBytes.size(), .ExpectedPack = object<application::git_pack_id>(fullHex, application::git_hash_algorithm::sha1) },
+											{ })
+						.has_value(),
+					"the second cache holds the head's commit, trees and files, and not its parent");
+			auto shallowRequest         = request(11U, std::nullopt, false);
+			shallowRequest.Repository   = headOnly;
+			shallowRequest.Source.Trace = std::make_shared<core::workspace_trace>();
+			const auto ended            = adapter->materialize_agent_workspace(shallowRequest, { });
+			require(ended.has_value() && ended->Workspace.Shallow, "the copy ends its history at the head instead of failing on the missing parent");
+			require(shallowRequest.Source.Trace->Source == core::workspace_source::cache_copy_shallow && shallowRequest.Source.Trace->Command == core::workspace_git_command::none,
+					"and its trace says so, with no failed command");
+			const auto endedPath = std::filesystem::path{ ended->Workspace.Path };
+			require(read_text(endedPath / ".git" / "shallow") == head + "\n" && read_text(endedPath / "README.md") == "the head's readme\n"
+						&& run_fixture_git(endedPath / ".git", { "rev-list", "--count", "HEAD" }) == "1",
+					"its history is the head alone, with every file of it");
+			require(adapter->cleanup_agent_workspace(*ended, { }).has_value(), "and it cleans up");
+		}
 
 		const auto delta = application::git_workspace_delta_pack{
 			.Pack  = deltaPack,
@@ -4143,8 +4182,11 @@ namespace {
 		require(!adapter->materialize_agent_workspace(request(4U, misstated), { }).has_value(), "a delta whose size is misstated is refused");
 		require(std::filesystem::is_empty(workspaceParent.Path), "the refused deltas leave no workspace behind");
 
-		const auto made = adapter->materialize_agent_workspace(request(5U, delta), { });
+		auto deltaRequest         = request(5U, delta);
+		deltaRequest.Source.Trace = std::make_shared<core::workspace_trace>();
+		const auto made           = adapter->materialize_agent_workspace(deltaRequest, { });
 		require(made.has_value(), "a sparse review's workspace is made from the linked clone and the delta");
+		require(deltaRequest.Source.Trace->Source == core::workspace_source::delta && !deltaRequest.Source.Trace->CloneHeldHead, "[[BPR-2295]] its trace names the delta");
 		const auto workspace = std::filesystem::path{ made->Workspace.Path };
 		require(read_text(workspace / "README.md") == "the head's readme\n" && read_text(workspace / "src" / "main.cpp") == "int main() { return 0; }\n",
 				"the workspace holds every file at the head");

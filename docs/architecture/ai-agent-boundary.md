@@ -277,6 +277,18 @@ downloaded whole; with no linked clone the workspace holds only the pull
 request's files at the head, read through the review's lease and checked
 against their blobs, sparse-checked-out from the cache's commit and trees and
 shallow at the head, and the brief, the review skill and the turn say so.
+Whether a review is sparse is how its cache was loaded, recorded while its
+read lease was live; a reread that revokes and renews the lease never makes a
+sparse cache look complete, and a missing review context is refused as stale
+([[BPR-2295]]). Every entry point that makes a workspace names the linked
+clone, the returning questions' tool-free answer too. A copy out of the cache
+first walks the head's commits; when the walk fails, the copy's history ends
+at the head (and the base the cache holds), and a cache that lacks the head's
+files as well refuses as `history_missing`, which the turn names without
+offering a resend. The `workspace_materialize` line says the source taken,
+whether the review was sparse, whether a clone was given and held the head,
+and on a failure the Git command and its words as a fixed class, never an
+object name or a path.
 This is in place of
 the `git worktree` the RFC first described, which the owner accepted on
 2026-10-22. Check it works makes and removes the same workspace through the

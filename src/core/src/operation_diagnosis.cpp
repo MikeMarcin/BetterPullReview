@@ -28,7 +28,7 @@ namespace bpr::core {
 																  "workspace_verify",
 																  // [[BPR-2263]].
 																  "review_submit_repair" };
-		constexpr std::array<std::string_view, 139> failure_names{ "none", "cancelled", "unavailable", "agent_not_found", "program_refused", "no_program_chosen", "not_signed_in", "failed_to_start", "status_unreadable", "timed_out", "workspace_unavailable", "invalid_request", "stale", "cleanup_failed", "copy_failed", "download_failed", "connection_failed", "sign_in_refused", "too_large", "clone_needed", "refused_by_server", "undesignated_target", "target_moved", "stale_head", "unsupported", "target_unavailable", "malformed_response", "incompatible_body", "credential_unavailable", "credential_tool_failed", "unplaceable_line", "refused_not_published", "settled_not_published", "off_hunk_refused", "not_confirmed", "conflict", "authorization_denied", "authorization_expired", "device_flow_disabled", "device_flow_unavailable", "network_unavailable", "certificate_rejected", "redirect_rejected", "response_too_large", "vault_unavailable", "refresh_absent", "refresh_rejected", "transport_failed", "storage_failed", "no_session", "locked", "access_denied", "corrupt", "operation_failed", "allocation_failure", "policy_refused", "access_required", "unauthenticated", "forbidden", "inaccessible", "offline", "rate_limited", "malformed_release", "invalid_version", "unstable_release", "no_compatible_asset", "ambiguous_asset", "invalid_digest", "size_limit", "unsafe_archive", "invalid_bundle", "wrong_architecture", "wrong_signer", "digest_mismatch", "changed_candidate", "busy", "stale_completion", "invalid_progress", "identity_exhausted", "installer_unavailable", "flush_failed", "quit_refused", "recovery_required", "shutdown",
+		constexpr std::array<std::string_view, 140> failure_names{ "none", "cancelled", "unavailable", "agent_not_found", "program_refused", "no_program_chosen", "not_signed_in", "failed_to_start", "status_unreadable", "timed_out", "workspace_unavailable", "invalid_request", "stale", "cleanup_failed", "copy_failed", "download_failed", "connection_failed", "sign_in_refused", "too_large", "clone_needed", "refused_by_server", "undesignated_target", "target_moved", "stale_head", "unsupported", "target_unavailable", "malformed_response", "incompatible_body", "credential_unavailable", "credential_tool_failed", "unplaceable_line", "refused_not_published", "settled_not_published", "off_hunk_refused", "not_confirmed", "conflict", "authorization_denied", "authorization_expired", "device_flow_disabled", "device_flow_unavailable", "network_unavailable", "certificate_rejected", "redirect_rejected", "response_too_large", "vault_unavailable", "refresh_absent", "refresh_rejected", "transport_failed", "storage_failed", "no_session", "locked", "access_denied", "corrupt", "operation_failed", "allocation_failure", "policy_refused", "access_required", "unauthenticated", "forbidden", "inaccessible", "offline", "rate_limited", "malformed_release", "invalid_version", "unstable_release", "no_compatible_asset", "ambiguous_asset", "invalid_digest", "size_limit", "unsafe_archive", "invalid_bundle", "wrong_architecture", "wrong_signer", "digest_mismatch", "changed_candidate", "busy", "stale_completion", "invalid_progress", "identity_exhausted", "installer_unavailable", "flush_failed", "quit_refused", "recovery_required", "shutdown",
 																   // [[BPR-1831]].
 																   "invalid_path", "invalid_permissions", "schema_mismatch", "integrity_failure", "quota_exceeded", "platform_unsupported", "io_error", "read_only", "constraint", "not_a_database", "cannot_open", "sql_error", "not_a_clone", "no_matching_remote", "scan_failed", "store_unreadable", "search_failed", "resource_limit", "fetch_failed", "blocked", "over_limit", "permission_refused", "unattributable_activation",
 																   // [[BPR-1830]].
@@ -36,7 +36,9 @@ namespace bpr::core {
 																   // [[BPR-1879]].
 																   "keep_failed",
 																   // [[BPR-1884]].
-																   "refresh_failed" };
+																   "refresh_failed",
+																   // [[BPR-2295]].
+																   "history_missing" };
 		constexpr std::array<std::string_view, 10>  process_names{ "none", "success", "private_storage_failure", "failed_to_start", "workspace_unavailable", "nonzero_exit", "protocol_failure", "cancelled", "timeout", "stale_result" };
 
 		constexpr auto tour_stage_names = std::array<std::string_view, 36>{ "preview", "admission", "discovery", "recovery", "publish", "factory", "identity_check", "request_preparation", "baseline_read", "journal", "verification", "terminal", "stop", "list_reviews", "read_review", "list_comments", "create_pending", "update_comment", "update_summary", "submit_comment", "discard_pending", "update_description", "list_issue_comments", "create_issue_comment", "update_issue_comment", "update_pending_comment", "plan_validation", "recovery_open", "lease", "configuration", "binding", "journal_read", "credential_scope", "journal_save", "create_file_comment", "list_file_comments" };
@@ -44,7 +46,14 @@ namespace bpr::core {
 		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::review_submit_repair) + 1U);
 		constexpr auto submission_note_names = std::array<std::string_view, 12>{ "none", "pending_comments", "review_lane", "superseded", "retired", "published", "not_published", "outcome_unknown", "wait_expired", "repairing", "repaired", "repair_failed" };
 		static_assert(submission_note_names.size() == static_cast<std::size_t>(review_submission_note::repair_failed) + 1U);
-		static_assert(failure_names.size() == static_cast<std::size_t>(operation_failure::refresh_failed) + 1U);
+		static_assert(failure_names.size() == static_cast<std::size_t>(operation_failure::history_missing) + 1U);
+		// [[BPR-2295]].
+		constexpr auto workspace_source_names = std::array<std::string_view, 7>{ "none", "pull_request_files", "borrowed", "head_from_clone", "delta", "cache_copy", "cache_copy_shallow" };
+		static_assert(workspace_source_names.size() == static_cast<std::size_t>(workspace_source::cache_copy_shallow) + 1U);
+		constexpr auto workspace_command_names = std::array<std::string_view, 13>{ "none", "init", "rev_parse", "ls_tree", "pack_objects", "rev_list", "hash_object", "index_pack", "cat_file", "read_tree", "checkout_index", "config", "other" };
+		static_assert(workspace_command_names.size() == static_cast<std::size_t>(workspace_git_command::other) + 1U);
+		constexpr auto workspace_error_names = std::array<std::string_view, 5>{ "none", "could_not_read", "failed_to_traverse_parents", "missing_object", "other" };
+		static_assert(workspace_error_names.size() == static_cast<std::size_t>(workspace_git_error::other) + 1U);
 
 		// [[BPR-1831]]. The store names, by each store file's fixed name.
 		constexpr std::array<std::string_view, 24> store_names{ "unknown", "other", "agent_setup", "appearance_settings", "diagnostic_preferences", "workbench_settings", "review_queue", "review_ledger", "review_tours", "review_cycles", "review_overviews", "window_restoration", "remembered_connections", "device_bindings", "review_mutation_recovery", "epoch_catalog", "markdown_images", "insights", "profile_registry", "release_update", "update_draft_recovery", "clone_ledger", "view_filters", "pull_request_activity" };
@@ -132,7 +141,7 @@ namespace bpr::core {
 			// not be read.
 			case operation_diagnosis_family::agent_setup:     return within(aFailure, operation_failure::agent_not_found, operation_failure::workspace_unavailable) || aFailure == operation_failure::store_unreadable;
 			case operation_diagnosis_family::agent_workspace: return within(aFailure, operation_failure::invalid_request, operation_failure::clone_needed)
-				|| aFailure == operation_failure::object_unavailable || aFailure == operation_failure::size_limit || aFailure == operation_failure::timed_out
+				|| aFailure == operation_failure::history_missing || aFailure == operation_failure::object_unavailable || aFailure == operation_failure::size_limit || aFailure == operation_failure::timed_out
 				|| aFailure == operation_failure::storage_failed || aFailure == operation_failure::unavailable || aFailure == operation_failure::unsupported
 				|| aFailure == operation_failure::outcome_unknown || aFailure == operation_failure::changed_candidate;
 			case operation_diagnosis_family::review_mutation: return aFailure == operation_failure::unavailable || within(aFailure, operation_failure::refused_by_server, operation_failure::conflict);
@@ -263,6 +272,41 @@ namespace bpr::core {
 		return named(submission_note_names, aNote);
 	}
 
+	auto name(const workspace_source aSource) noexcept -> std::string_view
+	{
+		return named(workspace_source_names, aSource);
+	}
+
+	auto name(const workspace_git_command aCommand) noexcept -> std::string_view
+	{
+		return named(workspace_command_names, aCommand);
+	}
+
+	auto name(const workspace_git_error aError) noexcept -> std::string_view
+	{
+		return named(workspace_error_names, aError);
+	}
+
+	auto classify_workspace_git_error(const std::string_view aStandardError) noexcept -> workspace_git_error
+	{
+		if (aStandardError.find_first_not_of(" \t\r\n") == std::string_view::npos) {
+			return workspace_git_error::none;
+		}
+		// The fatal line names the walk that failed; the error line before it
+		// names the object it could not read.
+		if (aStandardError.find("Failed to traverse parents") != std::string_view::npos) {
+			return workspace_git_error::failed_to_traverse_parents;
+		}
+		if (aStandardError.find("Could not read") != std::string_view::npos) {
+			return workspace_git_error::could_not_read;
+		}
+		if (aStandardError.find("missing") != std::string_view::npos || aStandardError.find("unable to read") != std::string_view::npos
+			|| aStandardError.find("bad object") != std::string_view::npos) {
+			return workspace_git_error::missing_object;
+		}
+		return workspace_git_error::other;
+	}
+
 	auto valid(const operation_diagnosis& aDiagnosis) noexcept -> bool
 	{
 		if (name(aDiagnosis.Action).empty() || name(aDiagnosis.Failure).empty() || name(aDiagnosis.Process).empty()) {
@@ -296,6 +340,12 @@ namespace bpr::core {
 		}
 		// [[BPR-2263]]. A refusal only on an end or repair line, and valid.
 		if (aDiagnosis.Refusal && ((aDiagnosis.Action != operation_action::review_submit_end && aDiagnosis.Action != operation_action::review_submit_repair) || !valid(*aDiagnosis.Refusal))) {
+			return false;
+		}
+		// [[BPR-2295]]. A workspace trace only on a materialization line.
+		if (aDiagnosis.Workspace
+			&& (aDiagnosis.Action != operation_action::workspace_materialize || name(aDiagnosis.Workspace->Source).empty() || name(aDiagnosis.Workspace->Command).empty()
+				|| name(aDiagnosis.Workspace->GitError).empty())) {
 			return false;
 		}
 		return kind == operation_diagnosis_family::review_mutation || aDiagnosis.Tour || (!aDiagnosis.Written && !aDiagnosis.ReadBack);
@@ -343,6 +393,18 @@ namespace bpr::core {
 			text += " submit_part=";
 			text += name(aDiagnosis.Refusal->Part);
 			text += " submit_comment=" + std::to_string(aDiagnosis.Refusal->Comment);
+		}
+		if (aDiagnosis.Workspace) {
+			const auto& trace = *aDiagnosis.Workspace;
+			text += " source=";
+			text += name(trace.Source);
+			text += trace.Sparse ? " sparse=1" : " sparse=0";
+			text += trace.CloneGiven ? " clone=1" : " clone=0";
+			text += trace.CloneHeldHead ? " clone_head=1" : " clone_head=0";
+			text += " git=";
+			text += name(trace.Command);
+			text += " git_error=";
+			text += name(trace.GitError);
 		}
 		return text;
 	}
@@ -399,6 +461,18 @@ namespace bpr::core {
 				return std::nullopt;
 			}
 			result.Tour = tour_publication_trace{ *stage, *state, std::string{ *attempt }, static_cast<std::uint16_t>(*http) };
+		} else if (aText.starts_with("source=")) {
+			// [[BPR-2295]]. A workspace materialization's trace.
+			const auto source    = enumerated<workspace_source>(aText, "source", workspace_source_names);
+			const auto sparse    = source ? flag(aText, "sparse") : std::nullopt;
+			const auto clone     = sparse ? flag(aText, "clone") : std::nullopt;
+			const auto cloneHead = clone ? flag(aText, "clone_head") : std::nullopt;
+			const auto command   = cloneHead ? enumerated<workspace_git_command>(aText, "git", workspace_command_names) : std::nullopt;
+			const auto error     = command ? enumerated<workspace_git_error>(aText, "git_error", workspace_error_names) : std::nullopt;
+			if (!error || !aText.empty()) {
+				return std::nullopt;
+			}
+			result.Workspace = workspace_trace{ .Source = *source, .Sparse = *sparse, .CloneGiven = *clone, .CloneHeldHead = *cloneHead, .Command = *command, .GitError = *error };
 		} else if (!aText.empty()) {
 			result.Store      = enumerated<operation_store>(aText, "store", store_names);
 			const auto schema = result.Store ? number(aText, "schema") : std::nullopt;
