@@ -4470,6 +4470,179 @@ namespace {
 			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "the repaired copy resumes");
 		}
 	}
+
+	/// [[BPR-2294]]. A retained workspace on a head of 20,000 files, with a
+	/// linked clone one commit behind it: the clone's folders are its cache,
+	/// so only the files that differ are written; the clone's dirty and
+	/// untracked files do not reach it, nothing in the clone changes, edits stay
+	/// in the workspace, and it resumes after the clone's gc.
+	/// [[BPR-2294]]. Git in a fixture working tree, with a bound a 20,000-file
+	/// `add` fits under a busy machine; its output, trimmed.
+	[[nodiscard]] auto run_clone_git(const std::filesystem::path& aGitDirectory, const std::vector<std::string>& aArguments) -> std::string
+	{
+		QProcess process;
+		process.setProgram(QString::fromStdString(BPR_TEST_GIT_EXECUTABLE));
+		auto command = QStringList{ QString::fromStdString("--git-dir=" + aGitDirectory.string()), QString::fromStdString("--work-tree=" + aGitDirectory.parent_path().string()) };
+		for (const auto& argument : aArguments) {
+			command.push_back(QString::fromStdString(argument));
+		}
+		process.setArguments(command);
+		auto environment = QProcessEnvironment::systemEnvironment();
+		environment.insert("GIT_CONFIG_NOSYSTEM", "1");
+		environment.insert("GIT_CONFIG_GLOBAL", QString::fromStdString((aGitDirectory.parent_path().parent_path() / "fixture-global-config").string()));
+		environment.insert("GIT_AUTHOR_NAME", "BetterPullReview Fixture");
+		environment.insert("GIT_AUTHOR_EMAIL", "fixture@betterpullreview.invalid");
+		environment.insert("GIT_AUTHOR_DATE", "2000-01-01T00:00:00+0000");
+		environment.insert("GIT_COMMITTER_NAME", "BetterPullReview Fixture");
+		environment.insert("GIT_COMMITTER_EMAIL", "fixture@betterpullreview.invalid");
+		environment.insert("GIT_COMMITTER_DATE", "2000-01-01T00:00:00+0000");
+		process.setProcessEnvironment(environment);
+		process.setWorkingDirectory(QString::fromStdString(aGitDirectory.parent_path().string()));
+		process.start();
+		require(process.waitForStarted(5000) && process.waitForFinished(120000) && process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0, "the clone fixture's Git succeeds");
+		return process.readAllStandardOutput().trimmed().toStdString();
+	}
+
+	auto run_linked_clone_checkout_contract() -> void
+	{
+		temporary_root root{ "git-linked-clone-checkout" };
+		const auto     cacheIsolation = root.Path / "cache";
+		require(std::filesystem::create_directory(cacheIsolation), "create the cache isolation");
+		std::filesystem::permissions(cacheIsolation, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		auto       adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, root.Path / "registry");
+		const auto cache   = repository_path(cacheIsolation, '1');
+		initialize_repository(*adapter, cache, application::git_hash_algorithm::sha1);
+		// The reviewer's clone: 20,000 files in 100 folders and a README.
+		const auto clone = root.Path / "clone";
+		std::filesystem::create_directories(clone);
+		const auto git = clone / ".git";
+		static_cast<void>(run_clone_git(git, { "init", "--quiet" }));
+		for (int folder = 0; folder < 100; ++folder) {
+			const auto directory = clone / ("module" + std::to_string(folder));
+			std::filesystem::create_directories(directory);
+			for (int file = 0; file < 200; ++file) {
+				write_text(directory / ("source" + std::to_string(file) + ".cpp"), "// module " + std::to_string(folder) + " file " + std::to_string(file) + "\nint value() { return " + std::to_string(file) + "; }\n");
+			}
+		}
+		write_text(clone / "README.md", "base\n");
+		write_text(clone / ".gitignore", "build/\n");
+		static_cast<void>(run_clone_git(git, { "add", "-A" }));
+		static_cast<void>(run_clone_git(git, { "commit", "--quiet", "-m", "base" }));
+		const auto base = run_clone_git(git, { "rev-parse", "HEAD" });
+		// The pull request's head changes one file and adds one, then the
+		// clone goes back to the base.
+		write_text(clone / "module7" / "source3.cpp", "// changed by the pull request\n");
+		write_text(clone / "module9" / "added.cpp", "// added by the pull request\n");
+		static_cast<void>(run_clone_git(git, { "add", "-A" }));
+		static_cast<void>(run_clone_git(git, { "commit", "--quiet", "-m", "head" }));
+		const auto head = run_clone_git(git, { "rev-parse", "HEAD" });
+		static_cast<void>(run_clone_git(git, { "branch", "pull-request", head }));
+		static_cast<void>(run_clone_git(git, { "reset", "--quiet", "--hard", base }));
+		// Every file of the clone is old; the clone's index is current.
+		const auto old = std::filesystem::file_time_type::clock::now() - std::chrono::hours{ 24 * 365 };
+		for (const auto& entry : std::filesystem::recursive_directory_iterator{ clone }) {
+			if (entry.is_regular_file() && entry.path().string().find("/.git/") == std::string::npos) {
+				std::filesystem::last_write_time(entry.path(), old);
+			}
+		}
+		static_cast<void>(run_clone_git(git, { "update-index", "-q", "--refresh" }));
+		// What the reviewer has in the clone: a dirty tracked file, an
+		// untracked one and an ignored build folder.
+		write_text(clone / "module1" / "source1.cpp", "// the reviewer's unsaved edit\n");
+		write_text(clone / "module2" / "notes.txt", "the reviewer's untracked notes\n");
+		std::filesystem::create_directories(clone / "module3" / "build");
+		write_text(clone / "module3" / "build" / "output.o", "object\n");
+		const auto cloneIndex = read_text(git / "index");
+
+		auto       session = std::uint64_t{ 60U };
+		const auto oid     = [](const std::string& aHex) {
+			return core::git_commit_oid{ core::git_hash_algorithm::sha1, object<application::git_commit_id>(aHex, application::git_hash_algorithm::sha1).Digest };
+		};
+		const auto authority   = workspace_authority();
+		const auto materialize = [&]() {
+			const auto parent = root.Path / ("neighbourhood-" + std::to_string(session));
+			std::filesystem::create_directory(parent);
+			std::filesystem::permissions(parent, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+			auto made                                        = application::git_agent_workspace_request{ };
+			made.Repository                                  = cache;
+			made.Materialization.ApplicationSession          = core::application_session_id{ 1U };
+			made.Materialization.Authority                   = authority;
+			made.Materialization.Session.Id                  = core::agent_session_id{ session++ };
+			made.Materialization.Session.Profile             = core::external_terminal_profile_id;
+			made.Materialization.Session.Binding.Host        = authority.Host;
+			made.Materialization.Session.Binding.Repository  = authority.Repository;
+			made.Materialization.Session.Binding.PullRequest = authority.PullRequest;
+			made.Materialization.Session.Binding.BaseOid     = oid(base);
+			made.Materialization.Session.Binding.HeadOid     = oid(head);
+			made.Materialization.Session.Binding.LeftEpoch   = core::epoch_ordinal{ 1U };
+			made.Materialization.Session.Binding.RightEpoch  = core::epoch_ordinal{ 1U };
+			made.Materialization.ParentDirectory             = parent;
+			made.Materialization.HistoryClone                = clone;
+			made.Materialization.RetainForSession            = true;
+			const auto started                               = std::chrono::steady_clock::now();
+			auto       owned                                 = adapter->materialize_agent_workspace(made, { });
+			const auto elapsed                               = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started);
+			require(owned.has_value(), "a retained workspace borrowing the clone is made");
+			return std::pair{ std::move(*owned), elapsed };
+		};
+		// The files written, rather than cloned: newer than the clone's.
+		const auto written = [&](const std::filesystem::path& aTree) {
+			auto count = std::size_t{ 0U };
+			for (const auto& entry : std::filesystem::recursive_directory_iterator{ aTree }) {
+				if (entry.is_regular_file() && entry.path().string().find("/.git/") == std::string::npos && entry.last_write_time() > old + std::chrono::hours{ 1 }) {
+					++count;
+				}
+			}
+			return count;
+		};
+		const auto check = [&](const std::filesystem::path& aTree) {
+			require(read_text(aTree / "module7" / "source3.cpp") == "// changed by the pull request\n" && read_text(aTree / "module9" / "added.cpp") == "// added by the pull request\n",
+					"the head's changed and added files are there");
+			require(read_text(aTree / "module1" / "source1.cpp") == "// module 1 file 1\nint value() { return 1; }\n", "the clone's unsaved edit is not; the head's file is");
+			require(!std::filesystem::exists(aTree / "module2" / "notes.txt") && !std::filesystem::exists(aTree / "module3" / "build"), "the clone's untracked and ignored files are not");
+			require(run_clone_git(aTree / ".git", { "status", "--porcelain" }).empty(), "the workspace is the head, clean");
+			require(std::filesystem::exists(aTree / "module99" / "source199.cpp") && std::filesystem::exists(aTree / "module0" / "source0.cpp"), "every file of the head is there");
+		};
+
+		auto [seeded, seededTime] = materialize();
+		const auto tree           = std::filesystem::path{ seeded.Workspace.Path };
+		check(tree);
+		const auto seededWrites = written(tree);
+		// The same head with no index to seed from: every file is checked out.
+		std::filesystem::rename(git / "index", root.Path / "clone-index");
+		auto [full, fullTime] = materialize();
+		std::filesystem::rename(root.Path / "clone-index", git / "index");
+		check(std::filesystem::path{ full.Workspace.Path });
+		const auto fullWrites = written(std::filesystem::path{ full.Workspace.Path });
+		std::cout << "LINKED_CLONE_CHECKOUT:files=20003:seeded_ms=" << seededTime.count() << ":seeded_written=" << seededWrites << ":full_ms=" << fullTime.count() << ":full_written=" << fullWrites << '\n';
+	#if defined(Q_OS_MACOS)
+		// The changed, the added, the clone's dirty file and the two top-level files.
+		require(seededWrites <= 5U, "seeded from the clone, only the files that differ are written");
+	#endif
+		require(fullWrites >= 20000U, "without the clone's index every file is written");
+		require(read_text(git / "index") == cloneIndex && run_clone_git(git, { "rev-parse", "HEAD" }) == base, "nothing in the clone changed");
+		// A clone whose index hides a file it lacks (skip-worktree) is no
+		// cache: every file is checked out.
+		static_cast<void>(run_clone_git(git, { "update-index", "--skip-worktree", "module4/source4.cpp" }));
+		std::filesystem::remove(clone / "module4" / "source4.cpp");
+		{
+			auto [hidden, hiddenTime] = materialize();
+			static_cast<void>(hiddenTime);
+			check(std::filesystem::path{ hidden.Workspace.Path });
+			require(read_text(std::filesystem::path{ hidden.Workspace.Path } / "module4" / "source4.cpp") == "// module 4 file 4\nint value() { return 4; }\n", "a file the clone hides is checked out");
+		}
+		// The agent's edits stay in the workspace.
+		write_text(tree / "module5" / "source5.cpp", "// the agent's edit\n");
+		require(read_text(clone / "module5" / "source5.cpp") == "// module 5 file 5\nint value() { return 5; }\n", "an edit in the workspace does not reach the clone");
+		// [[BPR-2289]]. It resumes after the clone's gc.
+		static_cast<void>(run_clone_git(git, { "gc", "--quiet", "--prune=now" }));
+		const auto resumed = adapter->inspect_agent_workspace(seeded, cache, { });
+		if (!resumed) {
+			std::cerr << "linked-clone-resume:failure=" << static_cast<unsigned>(resumed.error().Code) << ":detail=" << resumed.error().Detail << '\n';
+		}
+		require(resumed.has_value(), "the workspace resumes after the clone's gc");
+		require(read_text(tree / "module5" / "source5.cpp") == "// the agent's edit\n", "the agent's edit is kept");
+	}
 #endif
 
 	auto run_borrowed_history_workspace_contract(const bool aInventoryControl = false, const bool aRetained = false) -> void
@@ -5235,6 +5408,7 @@ try {
 #ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
 	run_borrowed_history_workspace_contract(false, true);
 	run_incomplete_clone_history_workspace_contract();
+	run_linked_clone_checkout_contract();
 #endif
 #if defined(_WIN32)
 	run_windows_inherited_handle_contract();

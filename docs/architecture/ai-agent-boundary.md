@@ -225,7 +225,23 @@ When the borrowed store no longer lends the head or the required base (the
 clone moved, was removed or dropped them), resume copies them from the review's
 cache, read only, ends the workspace's history at them and removes the line.
 A missing or unverifiable tree, or one the cache cannot supply, refuses input
-and is preserved for repair. Retention and safe admission bounds are recorded
+and is preserved for repair.
+
+On macOS a workspace that borrows a reviewer-linked clone takes the head's
+files from the clone's working tree instead of writing them all ([[BPR-2294]]).
+Each top-level folder of the head that is a real folder in the clone is cloned
+copy-on-write (APFS `clonefile`, one call per folder, which shares the blocks);
+the clone's index is copied, never shared, and `read-tree --reset` keeps its
+stat data wherever the entry is the head's. The workspace's own config sets
+`core.checkStat=minimal` and `core.trustctime=false`, so a refresh finds clean
+every file the clone had clean; the files that differ from the head, or were
+dirty or missing in the clone, are checked out; and `clean -ffdx` removes the
+clone's untracked and ignored files before the workspace is handed to any agent.
+No Git runs in the clone and nothing is written to it. A head with a submodule,
+a clone on another volume, Linux and Windows, or any failed step check every
+file out as before (and clean). Measured on a 20,003-file head one commit from
+the clone (`git_process_contract`): 5 files written instead of 20,003, and the
+workspace ready in about 0.9 s instead of 2.0 s. Retention and safe admission bounds are recorded
 in the [RFC-0096 ledger](../verification/RFC-BPR-0096.md).
 
 Owner amendment `retained-large-projects-r2` ([[BPR-1972]]) removes the profile-wide

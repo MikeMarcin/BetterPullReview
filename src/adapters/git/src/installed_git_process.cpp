@@ -62,6 +62,7 @@
 
 #if defined(Q_OS_MACOS)
 	#include <stdio.h>
+	#include <sys/clonefile.h>
 #endif
 
 #if defined(Q_OS_LINUX)
@@ -4914,6 +4915,128 @@ namespace bpr::adapters::git {
 				};
 			}
 
+			/// [[BPR-2294]]. Checks out \p aHead in \p aWorkspace from the
+			/// linked clone at \p aClone, writing only what differs.
+			///
+			/// \details macOS only (APFS `clonefile`). Each top-level folder of
+			/// the head that is a real folder in the clone's working tree is
+			/// cloned copy-on-write; the clone's index is copied, never shared,
+			/// and `read-tree --reset` keeps its stat data wherever its entry is
+			/// the head's. With `core.checkStat=minimal` and
+			/// `core.trustctime=false` in the workspace, a refresh then finds
+			/// clean every cloned file the clone had clean, the files that
+			/// differ (or were dirty or missing) are checked out, and
+			/// `clean -ffdx` removes whatever the clone held untracked or
+			/// ignored before any agent starts. Nothing is written to the clone,
+			/// and no Git runs in it. A head with a submodule, a clone on another
+			/// volume, or any step that fails answers false, and the caller
+			/// checks every file out as before.
+			template <typename TSubmit>
+			[[nodiscard]] auto seed_from_linked_clone(const std::filesystem::path& aWorkspace, const std::string& aClone, const std::string& aHead, TSubmit& aSubmit,
+													  const std::stop_token aStop) -> bool
+			{
+#if defined(Q_OS_MACOS)
+				const auto root    = resolve_canonical_existing(path_from_text(aClone));
+				const auto objects = checkout_objects(aClone);
+				if (!root || !objects) {
+					return false;
+				}
+				const auto      index = objects->parent_path() / "index";
+				std::error_code error;
+				const auto      status = std::filesystem::symlink_status(index, error);
+				if (error || status.type() != std::filesystem::file_type::regular || std::filesystem::file_size(index, error) > 1024ULL * 1024ULL * 1024ULL || error) {
+					return false;
+				}
+				auto run = [&](std::vector<std::string> aArguments, const bool aExitOne = false, std::string aInput = { }) {
+					auto arguments = workspace_git_arguments(aWorkspace, HooksRoot);
+					arguments.insert(arguments.end(), std::make_move_iterator(aArguments.begin()), std::make_move_iterator(aArguments.end()));
+					return aSubmit(process_request{ .Arguments = std::move(arguments), .Input = memory_input{ std::move(aInput) }, .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U, .AllowExitOne = aExitOne }, aStop);
+				};
+				// A submodule's folder in the clone is a repository of its own:
+				// never cloned into a workspace.
+				const auto modes = run({ "ls-tree", "-r", "-z", "--format=%(objectmode)", aHead });
+				if (!modes || modes->StandardOutput.find("160000") != std::string::npos) {
+					return false;
+				}
+				const auto top = run({ "ls-tree", "-z", "--format=%(objecttype) %(path)", aHead });
+				if (!top) {
+					return false;
+				}
+				if (!std::filesystem::copy_file(index, aWorkspace / ".git" / "index", std::filesystem::copy_options::overwrite_existing, error) || error) {
+					return false;
+				}
+				std::filesystem::permissions(aWorkspace / ".git" / "index", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace, error);
+				const auto& listing = top->StandardOutput;
+				for (std::size_t at = 0U; at < listing.size();) {
+					const auto end   = listing.find('\0', at);
+					const auto entry = std::string_view{ listing }.substr(at, end == std::string::npos ? std::string::npos : end - at);
+					at               = end == std::string::npos ? listing.size() : end + 1U;
+					if (!entry.starts_with("tree ")) {
+						continue;
+					}
+					const auto name = std::string{ entry.substr(5U) };
+					if (name.empty() || name == "." || name == ".." || name.find('/') != std::string::npos || std::ranges::equal(name, std::string_view{ ".git" }, [](char aLeft, char aRight) { return std::tolower(static_cast<unsigned char>(aLeft)) == aRight; })) {
+						continue;
+					}
+					const auto source = *root / name;
+					if (std::filesystem::symlink_status(source, error).type() != std::filesystem::file_type::directory || error) {
+						error.clear();
+						continue;
+					}
+					if (::clonefile(source.c_str(), (aWorkspace / name).c_str(), CLONE_NOFOLLOW | CLONE_NOOWNERCOPY) != 0) {
+						// Another volume, or no clone support: the rest is checked out.
+						break;
+					}
+				}
+				if (!run({ "config", "--local", "core.checkStat", "minimal" }) || !run({ "config", "--local", "core.trustctime", "false" })) {
+					return false;
+				}
+				if (!run({ "read-tree", "--reset", aHead })) {
+					std::filesystem::remove(aWorkspace / ".git" / "index", error);
+					return false;
+				}
+				// An entry the clone marked skip-worktree or assume-unchanged
+				// would hide a missing or different file from the refresh.
+				const auto tags = run({ "ls-files", "-v", "-z" });
+				if (!tags) {
+					return false;
+				}
+				for (std::size_t at = 0U; at < tags->StandardOutput.size();) {
+					if (tags->StandardOutput[at] != 'H') {
+						return false;
+					}
+					const auto end = tags->StandardOutput.find('\0', at);
+					at             = end == std::string::npos ? tags->StandardOutput.size() : end + 1U;
+				}
+				if (!run({ "update-index", "-q", "--refresh" }, true)) {
+					return false;
+				}
+				const auto differing = run({ "diff-files", "--name-only", "-z" });
+				if (!differing) {
+					return false;
+				}
+				if (!differing->StandardOutput.empty() && !run({ "checkout-index", "--force", "-z", "--stdin" }, false, differing->StandardOutput)) {
+					return false;
+				}
+				// The files just written carry new stat data: the index takes it,
+				// hashing only them.
+				if (!run({ "clean", "-ffdxq" }) || !run({ "update-index", "-q", "--refresh" }, true)) {
+					return false;
+				}
+				// The tree is the head's, and nothing else is in it.
+				const auto changed   = run({ "diff-files", "--quiet" }, true);
+				const auto untracked = run({ "ls-files", "--others", "-z" });
+				return changed && changed->ExitCode == 0 && untracked && untracked->StandardOutput.empty();
+#else
+				static_cast<void>(aWorkspace);
+				static_cast<void>(aClone);
+				static_cast<void>(aHead);
+				static_cast<void>(aSubmit);
+				static_cast<void>(aStop);
+				return false;
+#endif
+			}
+
 			[[nodiscard]] auto materialize_agent_workspace(
 				const application::git_agent_workspace_request& aRequest,
 				const std::stop_token                           aStop)
@@ -5353,7 +5476,22 @@ namespace bpr::adapters::git {
 					}
 				}
 
+				// [[BPR-2294]]. On APFS, a linked clone's working tree is the
+				// cache for the head's files: its folders are cloned copy-on-
+				// write, its index seeds the workspace's, and only the files
+				// that differ from the head are written.
+				if (!checkedOut && borrowed && !materialization.HistoryCloneManaged
+					&& seed_from_linked_clone(destination, path_text(*materialization.HistoryClone), headText, submitWorkspace, aStop)) {
+					checkedOut = true;
+				}
 				if (!checkedOut) {
+					// A seed that stopped part way leaves the clone's index, whose
+					// entries would keep its flags and stat data.
+					std::error_code seedError;
+					static_cast<void>(std::filesystem::remove(destination / ".git" / "index", seedError));
+					if (seedError) {
+						return fail(git_process_failure::invalid_repository);
+					}
 					arguments = workspace_git_arguments(destination, HooksRoot);
 					append_arguments(arguments, "read-tree", "--reset", headText);
 					const auto indexed = submitWorkspace(
@@ -5375,6 +5513,13 @@ namespace bpr::adapters::git {
 						aStop);
 					if (!materialized.has_value()) {
 						return fail(materialized.error());
+					}
+					// A seed that stopped part way may have left a clone's
+					// untracked files behind.
+					arguments = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(arguments, "clean", "-ffdxq");
+					if (const auto cleaned = submitWorkspace(process_request{ .Arguments = std::move(arguments), .Timeout = pack_process_timeout }, aStop); !cleaned.has_value()) {
+						return fail(cleaned.error());
 					}
 				}
 				if (!write_private_file(destination / ".git" / "HEAD", headText + "\n")) {
