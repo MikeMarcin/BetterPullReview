@@ -224,8 +224,7 @@ for the same reason, show the reason sentence (Change 2) and stop. Never loop.
 
 ## Out of scope
 
-- Which check refused this particular review. The evidence doesn't say. Once
-  AC1 holds, the next occurrence will.
+- Known: provider admission refused a revoked lease ([[BPR-2265]]).
 - Refusals GitHub itself returns (4xx answers). They already name an
   unplaceable line or an own-pull-request refusal ([[BPR-1715]],
   [[BPR-1853]]). Extending those is separate.
@@ -266,6 +265,10 @@ evidence does not prove this. With AC1 in place the next occurrence logs
   `diagnose_review_submission_request` names the part GitHub's request
   cannot carry. `log_ending` gives each failure its own stop and never drops
   an ending (a fixed `review_submission_ending=unrecorded` text otherwise).
+- [[BPR-2265]] corrections: the repair's factory reads the window's current
+  lease (`WindowRead->mutation_transport()`) rather than rebuilding from
+  `Current->Factory`, and `perform` logs a provider the factory cannot build
+  for every operation.
 - Workflow: the main host gets the log. `adopt` for the same binding renews
   the host's factory. A connection, grant, provider or identity refusal on the
   window's own binding is repaired once over a new factory from
@@ -275,11 +278,13 @@ evidence does not prove this. With AC1 in place the next occurrence logs
 
 ### Decisions for the owner
 
-- The connection reasons (grant inactive, provider unavailable, lease
+- Provider unavailable and lease inactive say, as [[BPR-2265]] amends:
+  "Not published: the publishing connection was replaced while this review
+  was open. Your review is kept." The other connection reasons (grant
   inactive, connection unavailable, host admission refused) share one
-  sentence. The page shows it only after the repair failed, so it says
-  reconnecting did not fix it and asks for Refresh, which reconnects. There
-  is no separate Reconnect button.
+  sentence that says reconnecting did not fix it and asks for Refresh, which
+  reconnects. The page shows either only after the repair failed. There is no
+  separate Reconnect button.
 - A moved head or target is never retried. The page says so and the
   reviewer submits again to confirm. Because the review's binding is then
   stale, the existing BPR-1715 rule (Discard starts a new review on the new

@@ -770,9 +770,15 @@ moved or changed pull request:
 | Stale head or moved target | Ask the window to read the pull request again (`set_reread_request`); never sent until the reviewer submits again |
 | Anything else, or a second refusal | Show the reason's sentence and stop |
 
-Every reread replaces the window's publishing lease. An `adopt` for the same
-binding and authority therefore renews the host's factory instead of keeping
-the one that holds the revoked lease, which refused every later Submit.
+Every reread replaces the window's publishing lease. [[BPR-2265]]: no
+publication factory holds a lease. The window records its current lease on
+the decision lane each time it builds a factory (on composition and on a
+repair), and each factory call reads it through a weak reference, as inline
+publishing reads it. A missing or inactive lease is `unavailable`, which the
+host logs as `provider_unavailable` for every operation. As a guard, an
+`adopt` for the same binding and authority also `renew`s the review, tour and
+reply hosts with the newest factory, without retiring them or discovering
+again.
 
 Read-only discovery/reconciliation need no new publication grant and cannot
 select a submit effect. Discovery validates every recovered request's stable
