@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2263"
 title: "Submit review fails locally in about a millisecond, four times in a row, and neither the log nor the page says why or what to do, because pre-send refusals carry no reason past the host"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "windows", "linux"]
 metadata: {"kind":"defect","reservation":"docs/issues/_reservations/BPR-2263--BPR-2263--ca1e2359b203.json","found_by":"owner, 2026-11-18, build 68 on macOS: an Approve review with one pending line comment, from Compose review, failed to publish on four Submit presses over 95 s. Each ended about 1 ms after sending started, with no GitHub request. The log records only refused_not_published, and the owner could not tell from the page how to fix it","related_cards":["BPR-1345","BPR-1541","BPR-1572","BPR-1715"],"related_rfcs":["RFC-BPR-0105"]}
-acceptance: []
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "6ca57571d", "evidence": {"kind": "command", "detail": "core_operation_diagnosis and core_review_submission: a review_submit_end line carries failure=<its own failure> submit_check submit_reason submit_part submit_comment, and the review_submission_ending line check= reason= part= comment=, both reading back; application_review_submission_application_host test_pre_send_refusals: provider unavailable, grant inactive and a stopped request each answer definitely_not_published with their own host reason and are logged as the run's ending; live_review_submission_provider early_refusals_are_named_and_logged: account and pull request mismatch, a blank second comment and a missing summary each give their own session reason (comment index named) with no request sent and one ending event; application_review_submission_composition_public_path reads check=host reason=provider_unavailable from the diagnostics log"}}, {"criterion": "AC2", "outcome": "pass", "revision": "6ca57571d", "evidence": {"kind": "command", "detail": "core_review_submission test_refusals: every reason's sentence starts Not published and none says check them; an invalid comment is named path:line; an unexplained refusal points to Copy diagnostics; composition course: a moved head shows the new-commits sentence, not check them"}}, {"criterion": "AC3", "outcome": "pass", "revision": "6ca57571d", "evidence": {"kind": "command", "detail": "application_review_submission_composition_public_path: Approve with the submission provider refused once is repaired and published from one Submit, the server holding exactly one new review; the log shows repairing (check=host reason=provider_unavailable) and repaired. With the repair disabled the course fails at no receipt, the page saying the connection was not ready"}}, {"criterion": "AC4", "outcome": "pass", "revision": "6ca57571d", "evidence": {"kind": "command", "detail": "core_review_submission: stale_head and target_moved decide reread_and_confirm, never reconnect_and_retry; composition course: a head moved before sending ends drafting with nothing published, and only the reviewer's next Submit publishes it"}}, {"criterion": "AC5", "outcome": "pass", "revision": "6ca57571d", "evidence": {"kind": "command", "detail": "Passed on the lane (dev preset, macOS, offscreen): architecture_boundaries, core_review_submission, core_operation_diagnosis, application_review_submission_application_host, application_review_submission_contract, application_review_mutation_application_host, live_review_submission_provider, live_review_submission_restart_recovery, application_review_submission_composition_public_path, application_review_submission_cli_ordinary, application_inline_publish_cli_consent, quill_logging, quill_logging_content_policy, qt_review_submission_editor_scale_100; coding-format-check; clang-tidy clean on the changed lines; verify_documentation DOCUMENTATION_OK"}}]
 ---
 
 # BPR-2263: Submit review fails locally in about a millisecond, four times in a row, and neither the log nor the page says why or what to do, because pre-send refusals carry no reason past the host
@@ -231,3 +231,67 @@ for the same reason, show the reason sentence (Change 2) and stop. Never loop.
   [[BPR-1853]]). Extending those is separate.
 - Check status and restart reconciliation of an unknown outcome
   ([[BPR-1475]], [[BPR-1541]]). Their behaviour is unchanged.
+
+## Result
+
+### Most likely cause of the owner's refusal
+
+The window built the submission's provider factory around the publishing
+lease current when the pull request was composed. Every reread installs a new
+snapshot and revokes that lease (`renew_review_mutation_transport`). A reread
+of the same pull request at the same head leaves the review's binding and
+authority unchanged, so `review_submission_workflow::adopt` returned early and
+kept the old factory. From then on, every Submit built its provider over the
+revoked lease. `admit_review_mutation_provider` refused it as `unavailable`,
+and `perform` answered `definitely_not_published` about 1 ms after
+`started()`, before any session ran. That explains the four identical
+refusals. It also explains why the log held no `review_submission` ending:
+the session that has the log never ran, and the host had no log. The
+evidence does not prove this. With AC1 in place the next occurrence logs
+`check=host reason=provider_unavailable` if it is this cause.
+
+### Built
+
+- Core `review_submission_refusal.hpp`: check (workflow, host, session), 15
+  reasons, 12 invalid parts with the comment's index,
+  `review_submission_content_refusal`, `decide_review_submission_repair` and
+  `sentence` (the one sentence for the Compose review page and, for a moved
+  or changed pull request, inline publishing). The operation line gains
+  `review_submit_repair` (`repairing`, `repaired`, `repair_failed`) and the
+  refusal fields. The ending line gains a cause and a stop for each failure.
+- Application: `review_submission_result::Refused`. `perform` names and logs
+  its refusals (`record_review_submission_ending`). `renew` swaps the
+  factory for later operations.
+- GitHub session: every early return in `run` names its reason.
+  `diagnose_review_submission_request` names the part GitHub's request
+  cannot carry. `log_ending` gives each failure its own stop and never drops
+  an ending (a fixed `review_submission_ending=unrecorded` text otherwise).
+- Workflow: the main host gets the log. `adopt` for the same binding renews
+  the host's factory. A connection, grant, provider or identity refusal on the
+  window's own binding is repaired once over a new factory from
+  `review_submission_factory` and sent again under the same idempotency key.
+  A moved head asks for a reread and is never sent. `end_attempt` logs the
+  reason and the failure.
+
+### Decisions for the owner
+
+- The connection reasons (grant inactive, provider unavailable, lease
+  inactive, connection unavailable, host admission refused) share one
+  sentence. The page shows it only after the repair failed, so it says
+  reconnecting did not fix it and asks for Refresh, which reconnects. There
+  is no separate Reconnect button.
+- A moved head or target is never retried. The page says so and the
+  reviewer submits again to confirm. Because the review's binding is then
+  stale, the existing BPR-1715 rule (Discard starts a new review on the new
+  revision) still applies once the reread lands.
+- Lease-inactive and recovery-record refusals inside the session stay
+  indeterminate (Check status), as before. Only refusals that are certainly
+  unsent are repaired.
+
+### Not run, and a known failure
+
+`application_dependable_session_public_path` fails at "the review is
+accepted" (step 2, reopening #17). It fails the same way on the unchanged
+base (efd43ba73), built separately, so this card did not cause it. The whole
+suite was not run.
+
