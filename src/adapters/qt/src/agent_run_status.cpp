@@ -2,8 +2,10 @@
 
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QPainter>
@@ -24,6 +26,18 @@ namespace bpr::qt {
 			return clock;
 		}
 
+		/// [[BPR-2285]]. The first `aCharacters` of a command's first line,
+		/// with an ellipsis where anything was left out.
+		[[nodiscard]] auto shortened(const QString& aText, const qsizetype aCharacters) -> QString
+		{
+			const auto end   = aText.indexOf(QLatin1Char{ '\n' });
+			auto       first = (end < 0 ? aText : aText.left(end)).trimmed();
+			if (first.size() > aCharacters) {
+				return first.left(aCharacters - 1) + QStringLiteral("…");
+			}
+			return end < 0 ? first : first + QStringLiteral(" …");
+		}
+
 		/// A path is said by its file's name; a command by its first words.
 		[[nodiscard]] auto subject_words(const core::agent_doing aDoing, const std::string& aSubject) -> QString
 		{
@@ -34,7 +48,7 @@ namespace bpr::qt {
 				const auto name = QFileInfo{ subject }.fileName();
 				return name.isEmpty() ? subject : name;
 			}
-			default: return subject.size() > 60 ? subject.left(59) + QStringLiteral("…") : subject;
+			default: return shortened(subject, 60);
 			}
 		}
 
@@ -375,6 +389,7 @@ namespace bpr::qt {
 
 	void agent_activity_view::rebuild_rows()
 	{
+		CommandRows.clear();
 		while (auto* const item = RowGrid->takeAt(0)) {
 			delete item->widget();
 			delete item;
@@ -386,8 +401,8 @@ namespace bpr::qt {
 			const auto seconds = static_cast<qint64>((ended - std::min(ended, helper.StartedMs)) / 1000U);
 			auto       state   = QString{ };
 			switch (helper.State) {
-			case core::agent_helper_state::running:   state = helper.Last.empty() ? tr("running") : QString::fromStdString(helper.Last); break;
-			case core::agent_helper_state::finished:  state = helper.Last.empty() ? tr("finished") : tr("finished, %1").arg(QString::fromStdString(helper.Last)); break;
+			case core::agent_helper_state::running:   state = helper.Last.empty() ? tr("running") : shortened(QString::fromStdString(helper.Last), 120); break;
+			case core::agent_helper_state::finished:  state = helper.Last.empty() ? tr("finished") : tr("finished, %1").arg(shortened(QString::fromStdString(helper.Last), 120)); break;
 			case core::agent_helper_state::failed:    state = tr("failed"); break;
 			case core::agent_helper_state::abandoned: state = tr("never reported back"); break;
 			}
@@ -399,7 +414,7 @@ namespace bpr::qt {
 			what->setTextFormat(Qt::PlainText);
 			what->setWordWrap(true);
 			what->setForegroundRole(helper.State == core::agent_helper_state::running ? QPalette::PlaceholderText : QPalette::WindowText);
-			what->setToolTip(state);
+			what->setToolTip(helper.Last.empty() ? state : QString::fromStdString(helper.Last));
 			what->setMinimumWidth(40);
 			auto* const time = new QLabel{ agent_elapsed_words(seconds), Rows };
 			time->setForegroundRole(QPalette::PlaceholderText);
@@ -451,7 +466,92 @@ namespace bpr::qt {
 				++row;
 			}
 		};
-		listed(tr("Ran"), Activity.CommandsRun, "agentActivityCommand");
+		// [[BPR-2285]], owner 2026-11-19: "The tool calls that show in the
+		// agents tab get shortened which makes sense but there should be a
+		// disclosure to see the full command." Each command is its first
+		// line, shortened; where anything was left out, a closed disclosure
+		// before it opens to the whole command below.
+		for (const auto& command : Activity.CommandsRun) {
+			const auto  whole = QString::fromStdString(command);
+			const auto  words = shortened(whole, 100);
+			auto* const kind  = new QLabel{ tr("Ran"), Rows };
+			kind->setForegroundRole(QPalette::PlaceholderText);
+			// The disclosure, then the shortened words, or once open the
+			// whole command in their place.
+			auto* const cell = new QWidget{ Rows };
+			auto* const line = new QHBoxLayout{ cell };
+			line->setContentsMargins(0, 0, 0, 0);
+			line->setSpacing(4);
+			auto shown = command_row{ };
+			// Every row keeps the disclosure's room, so the commands line up.
+			auto* const toggle = new quiet_tool_button{ cell };
+			toggle->setObjectName(QStringLiteral("agentActivityCommandDisclosure"));
+			toggle->setAutoRaise(true);
+			toggle->setCheckable(true);
+			toggle->setArrowType(Qt::RightArrow);
+			toggle->setToolButtonStyle(Qt::ToolButtonIconOnly);
+			toggle->setFocusPolicy(Qt::StrongFocus);
+			auto keep = toggle->sizePolicy();
+			keep.setRetainSizeWhenHidden(true);
+			toggle->setSizePolicy(keep);
+			line->addWidget(toggle, 0, Qt::AlignTop);
+			if (words != whole) {
+				shown.Toggle = toggle;
+			} else {
+				toggle->hide();
+			}
+			shown.Short = new QLabel{ words, cell };
+			shown.Short->setTextFormat(Qt::PlainText);
+			shown.Short->setWordWrap(true);
+			shown.Short->setMinimumWidth(40);
+			shown.Short->setTextInteractionFlags(Qt::TextSelectableByMouse);
+			line->addWidget(shown.Short, 1, Qt::AlignTop);
+			if (shown.Toggle != nullptr) {
+				shown.Full = new QLabel{ whole, cell };
+				shown.Full->setObjectName(QStringLiteral("agentActivityCommandFull"));
+				shown.Full->setTextFormat(Qt::PlainText);
+				shown.Full->setWordWrap(true);
+				shown.Full->setMinimumWidth(40);
+				shown.Full->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+				auto fixed = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+				// A command reads in the fixed face, a step below the row's words.
+				fixed.setPointSizeF(kind->font().pointSizeF() * 0.85);
+				shown.Full->setFont(fixed);
+				line->addWidget(shown.Full, 1, Qt::AlignTop);
+				const auto open = [shown, whole, this](const bool aOpen) {
+					shown.Toggle->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow);
+					shown.Toggle->setAccessibleName(aOpen ? tr("Hide the full command") : tr("Show the full command"));
+					shown.Toggle->setToolTip(shown.Toggle->accessibleName());
+					shown.Full->setVisible(aOpen);
+					shown.Short->setVisible(!aOpen);
+					if (aOpen) {
+						OpenCommands.insert(whole);
+					} else {
+						OpenCommands.remove(whole);
+					}
+				};
+				const auto wasOpen = OpenCommands.contains(whole);
+				shown.Toggle->setChecked(wasOpen);
+				open(wasOpen);
+				connect(shown.Toggle, &QToolButton::toggled, cell, open);
+			} else {
+				shown.Short->setToolTip(whole);
+			}
+			for (auto* const label : { kind, shown.Short }) {
+				label->setObjectName(QStringLiteral("agentActivityCommand"));
+				auto small = label->font();
+				small.setPointSizeF(small.pointSizeF() * 0.92);
+				label->setFont(small);
+			}
+			// The disclosure is one line of the row's words tall, so its
+			// chevron sits on that line.
+			const auto side = shown.Short->fontMetrics().height() + 2;
+			toggle->setFixedSize(side, side);
+			CommandRows.push_back(shown);
+			RowGrid->addWidget(kind, row, 0, Qt::AlignTop);
+			RowGrid->addWidget(cell, row, 1, 1, 2, Qt::AlignTop);
+			++row;
+		}
 		listed(tr("Wrote"), Activity.ScratchFiles, "agentActivityScratchFile");
 	}
 
@@ -497,6 +597,23 @@ namespace bpr::qt {
 			words << (label == nullptr ? QString{ } : label->text());
 		}
 		return words.join(QLatin1Char{ '\t' });
+	}
+
+	auto agent_activity_view::command_rows() const -> int { return static_cast<int>(CommandRows.size()); }
+
+	auto agent_activity_view::command_row_text(const int aRow) const -> QString
+	{
+		return aRow >= 0 && aRow < command_rows() ? CommandRows[static_cast<std::size_t>(aRow)].Short->text() : QString{ };
+	}
+
+	auto agent_activity_view::command_disclosure(const int aRow) const -> QToolButton*
+	{
+		return aRow >= 0 && aRow < command_rows() ? CommandRows[static_cast<std::size_t>(aRow)].Toggle : nullptr;
+	}
+
+	auto agent_activity_view::command_full(const int aRow) const -> QLabel*
+	{
+		return aRow >= 0 && aRow < command_rows() ? CommandRows[static_cast<std::size_t>(aRow)].Full : nullptr;
 	}
 
 	auto agent_activity_view::summary_text() const -> QString { return Summary->isHidden() ? QString{ } : Summary->property("words").toString(); }

@@ -8,12 +8,14 @@
 #include <QElapsedTimer>
 #include <QLabel>
 #include <QPointer>
+#include <QSet>
 #include <QString>
 #include <QWidget>
 
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <vector>
 
 class QGridLayout;
 class QPushButton;
@@ -167,6 +169,15 @@ namespace bpr::qt {
 		/// last did, then its time, tab separated.
 		[[nodiscard]] auto helper_row_text(int aRow) const -> QString;
 		[[nodiscard]] auto summary_text() const -> QString;
+		/// \brief [[BPR-2285]]. The folded rows' commands, in order.
+		[[nodiscard]] auto command_rows() const -> int;
+		/// \brief A command row's words as shown, shortened to its first line.
+		[[nodiscard]] auto command_row_text(int aRow) const -> QString;
+		/// \brief The row's disclosure, closed by default; null when the row
+		/// already shows the whole command.
+		[[nodiscard]] auto command_disclosure(int aRow) const -> QToolButton*;
+		/// \brief The whole command, shown while the row is open.
+		[[nodiscard]] auto command_full(int aRow) const -> QLabel*;
 		[[nodiscard]] auto rows_open() const -> bool;
 		[[nodiscard]] auto quiet_text() const -> QString;
 		[[nodiscard]] auto keep_waiting_button() const noexcept -> QPushButton* { return KeepWaiting; }
@@ -198,6 +209,17 @@ namespace bpr::qt {
 		QPushButton*              StopKeeping = nullptr;
 		QPushButton*              KeepWaiting = nullptr;
 		std::function<void()>     Stop;
+		/// [[BPR-2285]]. A command row: its shortened words, the disclosure
+		/// (null when nothing was left out) and the whole command.
+		struct command_row
+		{
+			QLabel*      Short  = nullptr;
+			QToolButton* Toggle = nullptr;
+			QLabel*      Full   = nullptr;
+		};
+		std::vector<command_row> CommandRows;
+		/// The commands the reviewer opened, kept when the rows are drawn again.
+		QSet<QString> OpenCommands;
 	};
 }
 

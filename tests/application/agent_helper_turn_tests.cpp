@@ -445,8 +445,33 @@ namespace {
 	}
 }
 
+namespace {
+	/// [[BPR-2285]]. A Bash command reaches the running block whole, every
+	/// line of it, trimmed; the Agent tab shortens it and opens to the rest.
+	void test_a_command_is_reported_whole()
+	{
+		auto decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		decoder.report_activity(true);
+		const auto bash    = claude_frame(R"("type":"assistant","message":{"id":"message-1","role":"assistant","content":[{"type":"tool_use","id":"use-bash","name":"Bash","input":{"command":"  python3 - <<'EOF'\nprint(42)\nEOF\n"}}]})");
+		auto       subject = std::string{ };
+		auto       doing   = core::agent_doing::starting;
+		for (const auto& line : { claude_init(), bash }) {
+			const auto pushed = decoder.push(line + "\n");
+			expect(pushed.has_value(), "the frames are accepted");
+			for (const auto& event : *pushed) {
+				if (event.Activity && event.Activity->Kind == core::agent_activity_kind::doing) {
+					doing   = event.Activity->Doing;
+					subject = event.Activity->Subject;
+				}
+			}
+		}
+		expect(doing == core::agent_doing::running && subject == "python3 - <<'EOF'\nprint(42)\nEOF", "the command, every line, trimmed: " + subject);
+	}
+} // namespace
+
 auto main() -> int
 {
+	test_a_command_is_reported_whole();
 	test_claude_with_its_input_open();
 	test_claude_with_its_input_closed();
 	test_claude_ending_under_its_helpers();

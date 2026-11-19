@@ -53,6 +53,15 @@ namespace bpr::qt {
 	/// helpers", "thinking", "making its workspace"; "no activity for 2 min"
 	/// once the run is quiet (RFC-BPR-0103's 120 seconds).
 	[[nodiscard]] auto agent_footer_doing_words(const agent_run_status& aStatus) -> QString;
+	/// \brief [[BPR-2285]], owner 2026-11-19: "In the status bar I don't like
+	/// that we show the tool the agent is running because it causes the
+	/// status bar to shift all over. Just one of 'thinking' or 'working' is
+	/// enough so it stays out." The footer's own word for a running turn:
+	/// "thinking" until the runtime says it does something else, then
+	/// "working". Before the run starts it says the workspace's stage, and a
+	/// quiet run says so, as `agent_footer_doing_words` does; the footer
+	/// keeps those words in its tooltip.
+	[[nodiscard]] auto agent_footer_state_words(const agent_run_status& aStatus) -> QString;
 	/// \brief Whether the run has sent nothing for RFC-BPR-0103's 120 seconds.
 	[[nodiscard]] auto agent_footer_run_quiet(const agent_run_status& aStatus) -> bool;
 
@@ -85,7 +94,10 @@ namespace bpr::qt {
 		/// runs: "answered in 7:03 · $1.84 · 2 findings".
 		void present_finished(agent_footer_place aPlace, const QString& aEnding);
 		/// \brief What a place's conversation has cost so far; none: not
-		/// known. The footer shows their sum.
+		/// known. The footer shows their sum, and while a place's turn runs,
+		/// what that turn has cost so far (`agent_run_status::Cost`,
+		/// [[BPR-2285]]). The settled figure includes the turn, so a run still
+		/// shown at that place adds nothing more.
 		void present_cost(agent_footer_place aPlace, std::optional<core::agent_cost> aCost);
 		/// \brief The chosen agent needs setup: what is missing ("not signed
 		/// in"), or empty when it does not. With no agent at all the picker is
@@ -124,6 +136,7 @@ namespace bpr::qt {
 		/// accessible description.
 		[[nodiscard]] auto text() const -> QString;
 		[[nodiscard]] auto running() const -> std::size_t;
+		/// \brief The settled costs and the running turns' costs so far.
 		[[nodiscard]] auto total_cost() const -> std::optional<core::agent_cost>;
 
 	protected:
@@ -134,6 +147,8 @@ namespace bpr::qt {
 	private:
 		void refresh();
 		void match_fonts();
+		/// The run's word is as wide as the widest it may say, so it never moves the picker.
+		void fit_doing();
 		void fit_line();
 		void tick();
 		void stop_all();

@@ -113,6 +113,18 @@ namespace bpr::qt {
 		return QObject::tr("working");
 	}
 
+	auto agent_footer_state_words(const agent_run_status& aStatus) -> QString
+	{
+		if (agent_footer_run_quiet(aStatus) || agent_run_before_start(aStatus.Stage)) {
+			return agent_footer_doing_words(aStatus);
+		}
+		if (aStatus.Activity) {
+			const auto doing = aStatus.Activity->Doing;
+			return doing == core::agent_doing::starting || doing == core::agent_doing::thinking ? QObject::tr("thinking") : QObject::tr("working");
+		}
+		return aStatus.Stage == agent_run_stage::thinking ? QObject::tr("thinking") : QObject::tr("working");
+	}
+
 	agent_footer::agent_footer(std::shared_ptr<agent_run_settings_source> aSource, QWidget* aParent)
 		: QWidget{ aParent }
 	{
@@ -142,6 +154,7 @@ namespace bpr::qt {
 		Doing->setTextFormat(Qt::PlainText);
 		// The ending's words may be long; the line keeps one row.
 		Doing->setMaximumWidth(280);
+		fit_doing();
 		run->addWidget(Doing);
 		Elapsed = new QLabel{ RunArea };
 		Elapsed->setObjectName(QStringLiteral("agentFooterElapsed"));
@@ -254,6 +267,11 @@ namespace bpr::qt {
 	void agent_footer::present_cost(const agent_footer_place aPlace, const std::optional<core::agent_cost> aCost)
 	{
 		Costs[index_of(aPlace)] = aCost;
+		// [[BPR-2285]]. The settled figure holds the turn that just ended;
+		// its running figure would count it twice until the run is cleared.
+		if (auto& run = Runs[index_of(aPlace)]; run) {
+			run->Status.Cost.reset();
+		}
 		refresh();
 	}
 
@@ -291,6 +309,14 @@ namespace bpr::qt {
 		for (const auto& cost : Costs) {
 			if (cost) {
 				total = total.value_or(0U) + *cost;
+			}
+		}
+		// [[BPR-2285]], owner 2026-11-19: "The status bar is also seemingly
+		// not showing cost until it's finished it'd be nice to update that
+		// dynamically." A running turn adds what it has cost so far.
+		for (const auto& run : Runs) {
+			if (run && run->Status.Cost) {
+				total = total.value_or(0U) + *run->Status.Cost;
 			}
 		}
 		return total;
@@ -347,7 +373,14 @@ namespace bpr::qt {
 		}
 		Elapsed->setMinimumWidth(Elapsed->fontMetrics().horizontalAdvance(QStringLiteral("00:00")));
 		Cost->setMinimumWidth(Cost->fontMetrics().horizontalAdvance(QStringLiteral("$00.00")));
+		fit_doing();
 		fit_line();
+	}
+
+	void agent_footer::fit_doing()
+	{
+		const auto metrics = Doing->fontMetrics();
+		Doing->setMinimumWidth(std::max(metrics.horizontalAdvance(QObject::tr("thinking")), metrics.horizontalAdvance(QObject::tr("working"))));
 	}
 
 	void agent_footer::fit_line()
@@ -389,9 +422,11 @@ namespace bpr::qt {
 			Dot->setText(QString{ QChar{ 0x25CF } });
 			Dot->show();
 			Where->setText(agent_footer_place_name(place));
-			const auto doing = agent_footer_doing_words(shown.Status);
-			Doing->setText(Doing->fontMetrics().elidedText(doing, Qt::ElideRight, Doing->maximumWidth()));
-			Doing->setToolTip(doing);
+			// [[BPR-2285]]. One word while it runs, so nothing beside it
+			// moves; what it does is in the tooltip.
+			const auto word = agent_footer_state_words(shown.Status);
+			Doing->setText(Doing->fontMetrics().elidedText(word, Qt::ElideRight, Doing->maximumWidth()));
+			Doing->setToolTip(agent_footer_doing_words(shown.Status));
 			Elapsed->setText(agent_elapsed_words(seconds_of(shown.Started)));
 			Elapsed->show();
 			RunArea->show();
@@ -452,8 +487,12 @@ namespace bpr::qt {
 		Cost->setText(total ? QString::fromStdString(core::agent_cost_words(*total)) : QString{ });
 		auto parts = QStringList{ };
 		for (std::size_t index = 0; index < Costs.size(); ++index) {
-			if (Costs[index]) {
-				parts << tr("%1 %2").arg(agent_footer_place_name(static_cast<agent_footer_place>(index)), QString::fromStdString(core::agent_cost_words(*Costs[index])));
+			const auto running = Runs[index] ? Runs[index]->Status.Cost : std::nullopt;
+			if (Costs[index] || running) {
+				const auto place = agent_footer_place_name(static_cast<agent_footer_place>(index));
+				const auto sum   = Costs[index].value_or(0U) + running.value_or(0U);
+				parts << (running ? tr("%1 %2, this turn so far %3").arg(place, QString::fromStdString(core::agent_cost_words(sum)), QString::fromStdString(core::agent_cost_words(*running)))
+								  : tr("%1 %2").arg(place, QString::fromStdString(core::agent_cost_words(sum))));
 			}
 		}
 		Cost->setToolTip(total ? tr("Agent cost this session: %1").arg(parts.join(QStringLiteral(", "))) : QString{ });

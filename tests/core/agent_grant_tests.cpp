@@ -275,6 +275,27 @@ namespace {
 			activity       = core::apply_agent_activity(activity, update, 3U + index);
 		}
 		expect(activity.CommandsRun.size() == core::maximum_agent_activity_listed, "the list is bounded");
+
+		// [[BPR-2285]]. A command is kept whole, every line of it, up to its
+		// own bound; any other subject keeps the name's bound.
+		const auto heredoc = std::string{ "python3 - <<'EOF'\nimport sys\nprint(sys.argv)\nEOF" } + std::string(300U, 'x');
+		update.Subject     = heredoc;
+		auto whole         = core::apply_agent_activity({ }, update, 1U);
+		expect(whole.Subject == heredoc && whole.CommandsRun.size() == 1U && whole.CommandsRun.front() == heredoc, "a long, many-line command is kept whole");
+		update.Subject = std::string(core::maximum_agent_command_bytes + 50U, 'y');
+		whole          = core::apply_agent_activity({ }, update, 1U);
+		expect(whole.Subject.size() == core::maximum_agent_command_bytes && whole.CommandsRun.front().size() == core::maximum_agent_command_bytes, "a command past its bound is cut there");
+		update.Doing   = core::agent_doing::reading;
+		update.Subject = std::string(300U, 'z');
+		whole          = core::apply_agent_activity({ }, update, 1U);
+		expect(whole.Subject.size() == core::maximum_agent_activity_subject_bytes, "a file's name keeps the shorter bound");
+		auto helper    = core::agent_activity_update{ };
+		helper.Kind    = core::agent_activity_kind::helper_progress;
+		helper.Helper  = "h";
+		helper.Doing   = core::agent_doing::running;
+		helper.Subject = heredoc;
+		whole          = core::apply_agent_activity({ }, helper, 1U);
+		expect(whole.Helpers.size() == 1U && whole.Helpers.front().Last == heredoc && whole.CommandsRun.front() == heredoc, "a helper's command is kept whole too");
 	}
 } // namespace
 
