@@ -2269,6 +2269,10 @@ namespace bpr::app::detail {
 		/// window's read, as after a publication: the accepted snapshot is
 		/// installed again and the publishing lease renewed.
 		[[nodiscard]] static auto reread_pull_request(github_application& aApplication) -> bool;
+		/// \brief [[BPR-2269]]. While \p aHold, the window reads no saved
+		/// drafts into its draft owner, as a slow store or comparison would
+		/// leave it; releasing it lets the next observation read them.
+		[[nodiscard]] static auto hold_draft_restore(github_application& aApplication, bool aHold) -> bool;
 		/// \brief Replays an accepted metadata-only or changed-head fixture handoff.
 		[[nodiscard]] static auto reaccept_fixture_revision(
 			github_application& aApplication,

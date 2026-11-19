@@ -673,7 +673,9 @@ namespace bpr::app {
 			if (const auto stored = saved(); !stored || stored->Draft.State != core::review_draft_state::drafting) {
 				return fail("discarded-before-asked");
 			}
-			if (!probe.PrivateEffectsHold || implementation->PrivateDraftsReady || (implementation->PrivateReview && implementation->PrivateReview->binding())) {
+			// [[BPR-2269]]. The Refresh kept the head, so the private review
+			// stays bound and restored; what is held is its store's lane.
+			if (!probe.PrivateEffectsHold || !implementation->PrivateDraftsReady || !implementation->PrivateReview || !implementation->PrivateReview->binding()) {
 				return fail("discard-store-not-held");
 			}
 			yes->click();

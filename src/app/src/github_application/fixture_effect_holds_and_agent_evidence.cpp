@@ -525,6 +525,19 @@ namespace bpr::app {
 		return true;
 	}
 
+	auto detail::github_application_fixture_access::hold_draft_restore(github_application& aApplication, const bool aHold) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return false;
+		}
+		implementation->HoldDraftRestore = aHold;
+		if (!aHold) {
+			implementation->observe_private_review();
+		}
+		return true;
+	}
+
 	auto detail::github_application_fixture_access::reaccept_fixture_revision(
 		github_application& aApplication,
 		const bool          aChangeHead) -> bool

@@ -269,7 +269,7 @@ namespace bpr::app {
 		}
 		if (retiresLedger) {
 			PendingUnsentReplyCommands.reset();
-			retire_review_ledger();
+			retire_review_ledger(false);
 			core::retire_conversation_mutations(ConversationMutations, ConversationOverlay);
 			ConversationMutationBinding.reset();
 			retire_review_mutation_host(core::conversation_mutation_retirement::cancel);

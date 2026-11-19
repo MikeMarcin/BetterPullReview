@@ -1057,7 +1057,10 @@ namespace bpr::app {
 			SharedDrafts->detach(DraftConsumer);
 		}
 		PublishingDraft.reset();
-		auto owner = Profile->drafts(authority);
+		// [[BPR-2269]]. A new owner has read no saved drafts yet, even
+		// where the private review was kept.
+		PrivateDraftsReady = false;
+		auto owner         = Profile->drafts(authority);
 		if (!owner) {
 			SharedDrafts.reset();
 			return false;

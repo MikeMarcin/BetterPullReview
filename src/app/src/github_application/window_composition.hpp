@@ -1428,7 +1428,11 @@ namespace bpr::app {
 			const application::review_mutation_terminal& aTerminal) override;
 		void finish_review_terminal(const application::review_mutation_terminal& aTerminal, core::review_publication_outcome aPublicationOutcome);
 
-		void retire_review_ledger();
+		/// \brief Retires the ledger and what reads it.
+		/// \details [[BPR-2269]]. \p aKeepPrivateReview keeps the private
+		/// review open, bound and restored, for a handoff that keeps its
+		/// store and head (a reread): its drafts stay holdable throughout.
+		void retire_review_ledger(bool aKeepPrivateReview);
 
 		std::shared_ptr<private_review_workflow>       PrivateReview;
 		std::optional<application::private_run_intent> ExplicitPrivateRun;

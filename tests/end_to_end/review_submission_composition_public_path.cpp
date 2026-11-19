@@ -1043,11 +1043,14 @@ auto main(int argc, char** argv) -> int
 		// head, account and pull request each renew its publishing lease.
 		shutdown(*application);
 		application.reset();
-		// Its own data root, so its published review touches no later course.
+		// Its own data root and server, so its published review touches no
+		// later course.
 		QTemporaryDir rereadData;
 		const auto    rereadRoot = e2e::private_data_root(rereadData);
 		expect(rereadRoot.has_value(), "a private data root for the reread course");
-		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, true, false, false, rereadRoot);
+		const auto sharedServer = std::exchange(server, std::make_shared<app::detail::review_submission_fixture_state>());
+		server->CliStrictCourse = cliMode;
+		application             = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, true, false, false, rereadRoot);
 		open(*application, cli);
 		{
 			auto& course   = application->window();
@@ -1055,6 +1058,11 @@ auto main(int argc, char** argv) -> int
 			// [[BPR-2265]]. Two rereads that keep the head, account and pull
 			// request each renew the window's publishing lease; an Approve
 			// then reaches the server, from one Submit.
+			// [[BPR-2269]]. It carries a line comment written before the
+			// rereads. A reread that keeps the head keeps the private review
+			// its drafts are held through: with the saved drafts not read
+			// again (as a slow comparison leaves them), Submit still holds the
+			// comment and publishes it.
 			const auto refusals = [&] {
 				const auto text  = tests::read_diagnostic_logs(*rereadRoot);
 				auto       count = std::size_t{ 0U };
@@ -1065,6 +1073,10 @@ auto main(int argc, char** argv) -> int
 			};
 			const auto refusedBefore = refusals();
 			const auto head          = access::accepted_head(*application);
+			const auto before        = write_pending(*application, 31U, QStringLiteral("issue: Written before two rereads."));
+			course.open_review_composition();
+			wait([&] { return composer.shown_draft() && composer.shown_draft()->Comments.size() == 1U && composer.shown_draft()->Comments.front().Draft == before.Id; }, "before the rereads the review carries the comment");
+			expect(access::hold_draft_restore(*application, true), "the saved drafts are not read again during the rereads");
 			for (auto round = 0; round < 2; ++round) {
 				const auto snapshot = access::window_read_progress(*application).Snapshot;
 				expect(access::reread_pull_request(*application), "the pull request is read again");
@@ -1072,26 +1084,29 @@ auto main(int argc, char** argv) -> int
 				expect(access::accepted_head(*application) == head, "the reread keeps the head");
 			}
 			course.open_review_composition();
-			wait([&] { return composer.shown_draft().has_value(); }, "after the rereads the review page holds a review");
+			wait([&] { return composer.shown_draft() && composer.shown_draft()->Comments.size() == 1U && composer.shown_draft()->Comments.front().Draft == before.Id; }, "after the rereads the review carries the comment written before them");
 			composer.choose_disposition(core::review_disposition::approve);
 			composer.body_editor()->setPlainText(QStringLiteral("Approved after two rereads."));
 			if (!e2e::wait_until_plain([&] { return composer.submit_action()->isEnabled(); }, e2e::default_queue_budget)) {
 				std::cerr << "review-submission-composition: after the rereads the page says \"" << composer.status_label()->text().toStdString() << "\" tip=\"" << composer.submit_action()->toolTip().toStdString() << "\"\n";
 				expect(false, "after the rereads the Approve can be submitted");
 			}
-			std::size_t sentBefore = 0U;
-			{
-				std::scoped_lock lock{ server->Mutex };
-				sentBefore = server->Reviews.size();
-			}
+			const auto sentBefore = posts();
 			composer.submit_action()->trigger();
 			submitted(composer);
+			expect(access::hold_draft_restore(*application, false), "the saved drafts are read again");
 			{
 				std::scoped_lock lock{ server->Mutex };
-				expect(server->Reviews.size() == sentBefore + 1U && server->Reviews.back().Proposal.Body == "Approved after two rereads.", "after two rereads the Approve reaches the server once, from one Submit");
+				expect(server->ReviewPosts.size() == sentBefore + 1U, "after two rereads the Approve reaches the server once, from one Submit");
+				const auto& sent = server->ReviewPosts.back();
+				expect(sent.find("Approved after two rereads.") != std::string::npos
+						   && sent.find("\"APPROVE\"") != std::string::npos && sent.find("issue: Written before two rereads.") != std::string::npos,
+					   "after two rereads the Approve reaches the server once, from one Submit, with the comment written before them");
 			}
 			expect(refusals() == refusedBefore, "and nothing was refused before sending");
 		}
+		// The later courses use the shared server again.
+		server = sharedServer;
 		// [[BPR-1715]]. The owner's stuck attempt, exactly: nine pending
 		// comments, a review an application before answers were kept sent,
 		// the GitHub CLI's 422 left unknown, and its comments held. After the

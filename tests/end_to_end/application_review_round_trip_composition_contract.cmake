@@ -3858,8 +3858,14 @@ function(bpr_verify_app_source_tree app_source_root)
 	# panel's destroyed handler in its destructor, and a running tour turn
 	# shows its cost so far (window_tours.cpp). No review mutation or
 	# submission path changed.
+	# [[BPR-2269]] reseal: a reread that keeps the head keeps the private
+	# review open, bound and restored (window_review_ledger.cpp,
+	# private_review_workflow), so a submission's pending comments stay
+	# holdable; a replaced draft owner reads its drafts again. Also seals
+	# BPR-2265's unsealed app changes. The submission path is unchanged; its
+	# comment hold now finds the private store.
 	set(bpr_expected_production_app_manifest_digest
-        "92fd8c7260b5018a8b85502eebb02d740fa5bbf696310fd3ec70517c8e799fa9"
+        "ba56d3e3c8232aa8529846b8ef7c4e0761a67f4847f52daa910ed19b9e87fdc2"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

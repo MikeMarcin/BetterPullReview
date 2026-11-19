@@ -851,12 +851,14 @@ namespace bpr::app {
 		present_filtered_comment();
 	}
 
-	void github_application::implementation::retire_review_ledger()
+	void github_application::implementation::retire_review_ledger(const bool aKeepPrivateReview)
 	{
-		if (PrivateReview) {
-			PrivateReview->invalidate();
+		if (!aKeepPrivateReview) {
+			if (PrivateReview) {
+				PrivateReview->invalidate();
+			}
+			PrivateDraftsReady = false;
 		}
-		PrivateDraftsReady = false;
 		if (PrivateNoteScope < std::numeric_limits<std::uint64_t>::max()) {
 			++PrivateNoteScope;
 		}
@@ -984,9 +986,18 @@ namespace bpr::app {
 	void github_application::implementation::compose_review_ledger(
 		const application::accepted_pull_request_handoff& aHandoff)
 	{
-		retire_review_ledger();
-		PrivateDraftsReady = false;
-		auto stats         = insights_capture(aHandoff);
+		auto privateScope = adapters::sqlite::private_review_configuration{ .Ledger = { .StorageRoot = ApplicationDataRoot, .Host = std::string{ aHandoff.Hostname.value() }, .Account = std::to_string(aHandoff.Account.value()), .Repository = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name, .PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()) }, .Profile = DraftWindow.Profile, .Host = aHandoff.Host, .Account = aHandoff.Account, .Repository = aHandoff.Repository, .PullRequest = aHandoff.PullRequest };
+		// [[BPR-2269]]. A reread that keeps the head reads the same pull
+		// request into the same store: the private review stays open, bound
+		// and restored. Retiring it left every draft change, a submission's
+		// hold of its pending comments among them, refused until the new
+		// comparison was accepted and the drafts restored again.
+		const auto privateBinding    = PrivateReview ? PrivateReview->binding() : std::nullopt;
+		const auto keepPrivateReview = PrivateDraftsReady && privateBinding && PrivateReview->serves(privateScope)
+			&& privateBinding->Revision.HeadOid == aHandoff.Head && privateBinding->HostAuthority == aHandoff.HostAuthority
+			&& privateBinding->Access == aHandoff.Mode;
+		retire_review_ledger(keepPrivateReview);
+		auto stats = insights_capture(aHandoff);
 		stats.record(core::insights_review_kind::opened, "opened");
 		auto fileStats = [stats, head = std::string{ core::canonical_hex(aHandoff.Head).view() }, files = WindowRead->accepted_snapshot() ? WindowRead->accepted_snapshot()->Files : std::vector<application::github_file_record>{ }](const core::file_receipt& aReceipt, const core::file_receipt_command_kind aKind) mutable {
 			const auto file = std::ranges::find_if(files, [&](const auto& aFile) { return core::file_identity_of(aFile.Path) == aReceipt.File; });
@@ -1022,7 +1033,7 @@ namespace bpr::app {
 		// The private review store opens the same ledger file and refuses a
 		// file that changes while it validates it, so it opens after this
 		// ledger's own opening has answered, as it did when that was synchronous.
-		auto privateScope = adapters::sqlite::private_review_configuration{ .Ledger = { .StorageRoot = ApplicationDataRoot, .Host = std::string{ aHandoff.Hostname.value() }, .Account = std::to_string(aHandoff.Account.value()), .Repository = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name, .PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()) }, .Profile = DraftWindow.Profile, .Host = aHandoff.Host, .Account = aHandoff.Account, .Repository = aHandoff.Repository, .PullRequest = aHandoff.PullRequest };
+		// A kept private review is already open on it.
 		++ReviewLedgerGeneration;
 #if defined(BPR_BUILD_TESTING)
 		if (ReviewLedgerDecisionGate == nullptr) {
@@ -1035,8 +1046,10 @@ namespace bpr::app {
 #endif
 		ReviewLedgerHost = std::make_unique<application::review_ledger_application_host>(
 			std::move(open), *this, ReviewLedgerStoreEffects, ledgerDecisions,
-			ledger_answer([this, privateReview = std::move(privateScope)](const std::expected<void, application::ledger_store_failure>& aOpened) mutable {
-				open_private_review(std::move(privateReview));
+			ledger_answer([this, keepPrivateReview, privateReview = std::move(privateScope)](const std::expected<void, application::ledger_store_failure>& aOpened) mutable {
+				if (!keepPrivateReview) {
+					open_private_review(std::move(privateReview));
+				}
 				review_ledger_opened(aOpened.has_value());
 			}),
 			application::maximum_outstanding_ledger_operations, stats, std::move(fileStats));
