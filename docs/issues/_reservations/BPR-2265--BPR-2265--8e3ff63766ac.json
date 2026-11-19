@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2265"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Review submit keeps a revoked lease after a reread",
+  "created": "2026-11-19T00:26:35.297712+00:00",
+  "base": "91e5f6e51f16244c1b94ccd9a73b552069ae7310"
+}
