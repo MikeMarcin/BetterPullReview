@@ -240,7 +240,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1132]]. Cmd-click (Ctrl-click) on a file row, and its
 		/// menu's Open in New Tab, report the file here instead of choosing it.
 		void set_new_tab_dispatch(files_tree_select_dispatch aDispatch);
-		/// \brief The menu a right-click on a file row opens; the caller owns it.
+		/// \brief The menu a right-click on a file row opens: Open in New Tab,
+		/// Copy Relative Path ([[BPR-2287]]), then the window's own actions;
+		/// the caller owns it.
 		[[nodiscard]] auto make_file_menu(const QModelIndex& aIndex, QWidget* aParent) -> QMenu*;
 		/// \brief RFC-BPR-0089 M2. Appends the window's own actions for a file,
 		/// by path, to that menu.

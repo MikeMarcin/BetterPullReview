@@ -3,6 +3,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/resident_filter.hpp"
 #include "bpr/qt/steady_columns.hpp"
+#include "copy_relative_path_action.hpp"
 
 #include <QContextMenuEvent>
 #include <QFont>
@@ -1070,8 +1071,12 @@ namespace bpr::qt {
 				NewTabDispatch(chosen);
 			}
 		});
-		if (const auto* node = Model->node_at(aIndex); MenuExtension && node != nullptr && !node->Folder) {
-			MenuExtension(*menu, node->Path);
+		if (const auto* node = Model->node_at(aIndex); node != nullptr && !node->Folder) {
+			menu->addSeparator();
+			add_copy_relative_path_action(*menu, node->Path, QStringLiteral("filesTreeCopyRelativePath"));
+			if (MenuExtension) {
+				MenuExtension(*menu, node->Path);
+			}
 		}
 		return menu;
 	}
