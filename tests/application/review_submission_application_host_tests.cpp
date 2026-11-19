@@ -317,6 +317,16 @@ namespace {
 			expect(*renewed && f.outcome().Publication == application::review_submission_publication::published && !f.outcome().Refused, "the renewed factory builds the provider that publishes it");
 		}
 		{
+			// [[BPR-2265]]. A provider the factory cannot build is logged for
+			// every operation, not only a submission.
+			fixture f;
+			f.State->FactoryFailure = application::review_mutation_failure::unavailable;
+			expect(f.Host.discover().has_value(), "a discovery is accepted");
+			f.drain();
+			const auto logged = ending(f);
+			expect(logged && logged->Run == core::review_submission_run::check && logged->Cause && logged->Cause->Reason == reason::provider_unavailable, "a discovery whose provider cannot be built is logged with its reason");
+		}
+		{
 			fixture    f;
 			auto       grant = f.grant();
 			const auto sent  = f.Host.submit(request(), grant);

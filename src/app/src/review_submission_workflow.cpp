@@ -1178,6 +1178,9 @@ namespace bpr::app {
 		aAuthority.PullRequestGeneration = { };
 		if (Binding == aBinding && Authority == aAuthority && Host) {
 			Description = std::move(aDescription);
+			// [[BPR-2265]]. The same tour target over the window's newest
+			// factory: no factory from before a reread is kept.
+			Host->renew(std::move(aFactory));
 			return;
 		}
 		invalidate();
@@ -1658,7 +1661,13 @@ namespace bpr::app {
 	{
 		aAuthority.Snapshot              = { };
 		aAuthority.PullRequestGeneration = { };
-		if (Closing || (Binding == aBinding && Authority == aAuthority && Host)) {
+		if (Closing) {
+			return;
+		}
+		if (Binding == aBinding && Authority == aAuthority && Host) {
+			// [[BPR-2265]]. The same reply target over the window's newest
+			// factory: no factory from before a reread is kept.
+			Host->renew(std::move(aFactory));
 			return;
 		}
 		invalidate();

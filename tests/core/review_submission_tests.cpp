@@ -425,6 +425,10 @@ namespace {
 		}
 		expect(sentence({ .Reason = reason::invalid_request, .Part = part::comment_body_missing, .Comment = 2U }, { .Comments = blank }) == "Not published: the comment on src/sample.cpp:12 has no text. Write it or delete it, then submit again.", "an invalid comment is named by its file and line");
 		expect(sentence({ .Reason = reason::invalid_request, .Part = part::request }, { }).find("Copy diagnostics") != std::string::npos, "a refusal the page cannot explain points to Copy diagnostics");
+		// [[BPR-2265]]. Provider admission refusing a replaced lease says so.
+		for (const auto replaced : { reason::provider_unavailable, reason::connection_lease_inactive }) {
+			expect(sentence({ .Check = check::host, .Reason = replaced }, { }) == "Not published: the publishing connection was replaced while this review was open. Your review is kept.", "a replaced publishing connection has its own sentence");
+		}
 		expect(sentence({ .Reason = reason::stale_head }, { .Rereading = true }).find("reading the pull request again") != std::string::npos, "a moved head says it is read again");
 		expect(sentence({ .Reason = reason::identity_mismatch_pull_request }, { .Subject = review_submission_refusal_subject::comment }).find("this comment") != std::string::npos, "inline publishing words it for a comment");
 

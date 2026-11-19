@@ -1038,6 +1038,38 @@ auto main(int argc, char** argv) -> int
 					   "publishing again sends the new revision's comment once, and nothing else");
 			}
 			expect(saved_exactly(course, earlier.Id, earlier.Body), "the comment written before the push is still saved with its text");
+			// [[BPR-2265]]. Two rereads that keep the head, account and pull
+			// request each renew the window's publishing lease; an Approve
+			// with a line comment then reaches the server, from one Submit.
+			const auto refusals = [&] {
+				const auto text  = tests::read_diagnostic_logs(*dataRoot);
+				auto       count = std::size_t{ 0U };
+				for (auto at = text.find("failure=refused_not_published"); at != std::string::npos; at = text.find("failure=refused_not_published", at + 1U)) {
+					++count;
+				}
+				return count;
+			};
+			const auto refusedBefore = refusals();
+			const auto head          = access::accepted_head(*application);
+			for (auto round = 0; round < 2; ++round) {
+				const auto lease = access::publication_lease(*application);
+				expect(access::reread_pull_request(*application), "the pull request is read again");
+				wait([&] {
+					const auto now = access::publication_lease(*application);
+					return now.Lease != nullptr && now.Lease != lease.Lease && now.Active;
+				},
+					 "the reread renews the window's publishing lease");
+				expect(access::accepted_head(*application) == head, "the reread keeps the head");
+			}
+			const auto reread = write_pending(*application, 31U, QStringLiteral("issue: Written after two rereads."));
+			course.open_review_composition();
+			wait([&] { return composer.shown_draft() && composer.shown_draft()->Comments.size() == 1U && composer.shown_draft()->Comments.front().Draft == reread.Id && composer.submit_action()->isEnabled(); }, "the review carries the comment written after the rereads");
+			const auto sentBefore = posts();
+			composer.choose_disposition(core::review_disposition::approve);
+			composer.submit_action()->trigger();
+			submitted(composer);
+			expect(posts() == sentBefore + 1U, "after two rereads the Approve reaches the server once, from one Submit");
+			expect(refusals() == refusedBefore, "and nothing was refused before sending");
 		}
 		// [[BPR-1715]]. The owner's stuck attempt, exactly: nine pending
 		// comments, a review an application before answers were kept sent,

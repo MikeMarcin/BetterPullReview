@@ -199,8 +199,12 @@ namespace bpr::application {
 		/// provider ran: logged as its ending, with the check and reason.
 		auto refuse(const record& aRecord, const review_mutation_failure aFailure, const core::review_submission_refusal_reason aReason) -> review_submission_host_terminal
 		{
-			if (aRecord.Request && (aRecord.Operation == operation::submit || aRecord.Operation == operation::reconcile)) {
-				record_review_submission_ending(Log.get(), { .Ending = core::review_submission_ending::not_sent, .Run = aRecord.Operation == operation::submit ? core::review_submission_run::submit : core::review_submission_run::check, .Stop = review_submission_stop_of(aFailure), .Comments = static_cast<std::uint16_t>(std::min<std::size_t>(aRecord.Request->Proposal.Comments.size(), core::maximum_review_submission_comments)), .Cause = core::review_submission_refusal{ .Check = core::review_submission_refusal_check::host, .Reason = aReason } });
+			// [[BPR-2265]]. A provider the factory could not build is logged
+			// for every operation; a tour's own trace already says it.
+			const auto submission = aRecord.Request && (aRecord.Operation == operation::submit || aRecord.Operation == operation::reconcile);
+			if (submission || (aReason == core::review_submission_refusal_reason::provider_unavailable && !tour(aRecord))) {
+				const auto comments = aRecord.Request ? aRecord.Request->Proposal.Comments.size() : std::size_t{ 0U };
+				record_review_submission_ending(Log.get(), { .Ending = core::review_submission_ending::not_sent, .Run = aRecord.Operation == operation::submit ? core::review_submission_run::submit : core::review_submission_run::check, .Stop = review_submission_stop_of(aFailure), .Comments = static_cast<std::uint16_t>(std::min<std::size_t>(comments, core::maximum_review_submission_comments)), .Cause = core::review_submission_refusal{ .Check = core::review_submission_refusal_check::host, .Reason = aReason } });
 			}
 			return refused(aRecord, aFailure, true, aReason);
 		}

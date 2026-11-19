@@ -1169,11 +1169,14 @@ namespace bpr::app {
 		void restore_tour_panel();
 
 		void compose_review_submission(const application::accepted_pull_request_handoff& aHandoff);
-		/// \brief [[BPR-2263]]. The review submission provider factory for
-		/// `aBinding` over the window's publishing connection as it is now:
-		/// the fixture's in a fixture window, otherwise the current lease's;
-		/// none when there is no live lease.
-		[[nodiscard]] auto review_submission_factory(const application::review_submission_live_binding& aBinding) const -> std::optional<application::review_submission_provider_factory>;
+		/// \brief [[BPR-2263]], [[BPR-2265]]. The review submission provider
+		/// factory for `aBinding`, none when the window has no live
+		/// publishing lease. It records the window's current lease in
+		/// `PublicationLease` first; the factory holds no lease of its own
+		/// and takes the one recorded there each time it is called, so a
+		/// reread's renewed lease reaches it. The fixture's in a fixture
+		/// window.
+		[[nodiscard]] auto review_submission_factory(const application::review_submission_live_binding& aBinding) -> std::optional<application::review_submission_provider_factory>;
 
 		void observe_review_preflight();
 
@@ -2405,7 +2408,17 @@ namespace bpr::app {
 		// first.
 		std::unique_ptr<windows_title_row_host> TitleRow;
 #endif
-		std::unique_ptr<review_submission_workflow>                  ReviewSubmission;
+		std::unique_ptr<review_submission_workflow> ReviewSubmission;
+		/// \brief [[BPR-2265]]. The window's publishing lease as it was last
+		/// read on the decision lane. Publication factories read it on their
+		/// effect lanes through a weak reference, so none keeps a lease the
+		/// window renewed, and none outlives the window's ownership of it.
+		struct publication_lease
+		{
+			mutable std::mutex                     Mutex;
+			application::review_mutation_transport Lease;
+		};
+		std::shared_ptr<publication_lease>                           PublicationLease    = std::make_shared<publication_lease>();
 		decltype(github_profile_runtime::CredentialBindings)&        CredentialBindings  = Profile->CredentialBindings;
 		decltype(github_profile_runtime::GitCaches)&                 GitCaches           = Profile->GitCaches;
 		decltype(github_profile_runtime::EpochCatalogs)&             EpochCatalogs       = Profile->EpochCatalogs;

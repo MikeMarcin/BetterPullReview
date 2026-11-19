@@ -149,10 +149,14 @@ namespace bpr::core {
 		const auto kept    = comment ? std::string{ "Your draft is kept." } : std::string{ "Your review is kept." };
 		const auto reread  = aContext.Rereading ? std::string{ " BetterPullReview is reading the pull request again." } : std::string{ };
 		switch (aRefusal.Reason) {
-		case reason::request_stopped:                return "Not published: sending was stopped before anything reached GitHub. " + kept + " Submit it again when you're ready.";
-		case reason::grant_inactive:
+		case reason::request_stopped: return "Not published: sending was stopped before anything reached GitHub. " + kept + " Submit it again when you're ready.";
 		case reason::provider_unavailable:
 		case reason::connection_lease_inactive:
+			// [[BPR-2265]]. Provider admission refused the lease: the window
+			// replaced its publishing connection (a reread does), and the
+			// automatic repair over the new one also failed.
+			return "Not published: the publishing connection was replaced while this " + noun + " was open. " + kept;
+		case reason::grant_inactive:
 		case reason::connection_unavailable:
 		case reason::admission_refused:              return "Not published: the connection to GitHub wasn't ready, and reconnecting didn't fix it. Nothing was sent. " + kept + " Refresh the pull request to reconnect, then submit again.";
 		case reason::identity_mismatch_account:      return "Not published: the account signed in now isn't the one this " + noun + " was written as. Nothing was sent. " + kept + " Switch back to that account to submit it.";

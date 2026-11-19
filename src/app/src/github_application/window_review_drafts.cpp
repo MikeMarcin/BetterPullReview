@@ -92,7 +92,21 @@ namespace bpr::app {
 		auto factory = std::move(*produced);
 		if (TourPublication) {
 #if defined(BPR_BUILD_TESTING)
-			auto tourFactory = [configuration, binding, server = ReviewSubmissionServer, description = WindowRead->accepted_snapshot()->PullRequest.Body, log = DiagnosticLog]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+			// [[BPR-2265]]. A fixture window's lease, when it has one, is read
+			// at each call as the shipped factory reads it.
+			auto tourFactory = [configuration, binding, server = ReviewSubmissionServer, description = WindowRead->accepted_snapshot()->PullRequest.Body, log = DiagnosticLog, cell = std::weak_ptr<publication_lease>{ PublicationLease },
+								leased = WindowRead->mutation_transport() != nullptr]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+				if (leased) {
+					const auto held  = cell.lock();
+					auto       lease = application::review_mutation_transport{ };
+					if (held) {
+						const auto lock = std::scoped_lock{ held->Mutex };
+						lease           = held->Lease;
+					}
+					if (!lease || !lease->active()) {
+						return std::unexpected(application::review_mutation_failure::unavailable);
+					}
+				}
 				{
 					const auto lock = std::scoped_lock{ server->Mutex };
 					if (server->TourFactoryFailure) {
@@ -134,14 +148,37 @@ namespace bpr::app {
 		observe_review_preflight();
 	}
 
-	auto github_application::implementation::review_submission_factory(const application::review_submission_live_binding& aBinding) const -> std::optional<application::review_submission_provider_factory>
+	auto github_application::implementation::review_submission_factory(const application::review_submission_live_binding& aBinding) -> std::optional<application::review_submission_provider_factory>
 	{
 		auto configuration = adapters::sqlite::review_mutation_recovery_configuration{
 			.StorageRoot = ApplicationDataRoot, .Host = std::string{ aBinding.Target.Hostname.value() }, .Account = std::to_string(aBinding.ActingIdentity.Account.value()), .Repository = aBinding.Target.Repository.Owner + "/" + aBinding.Target.Repository.Name, .PullRequest = static_cast<std::int64_t>(aBinding.Target.Number.value())
 		};
+		// [[BPR-2265]]. The window's lease now; each factory call reads it
+		// again, so a lease a reread revoked is never the one used.
+		auto current = WindowRead ? WindowRead->mutation_transport() : nullptr;
+		{
+			const auto lock         = std::scoped_lock{ PublicationLease->Mutex };
+			PublicationLease->Lease = current;
+		}
+		const auto lease = [cell = std::weak_ptr<publication_lease>{ PublicationLease }]() -> application::review_mutation_transport {
+			const auto held = cell.lock();
+			if (!held) {
+				return nullptr;
+			}
+			const auto lock = std::scoped_lock{ held->Mutex };
+			return held->Lease;
+		};
 #if defined(BPR_BUILD_TESTING)
 		if (Fixture || !DesignatedLivePublication) {
-			return application::review_submission_provider_factory{ [configuration, binding = aBinding, server = ReviewSubmissionServer]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+			// A fixture window may have no publishing lease; one it has is
+			// read as the shipped factory reads it.
+			return application::review_submission_provider_factory{ [configuration, binding = aBinding, server = ReviewSubmissionServer, lease, leased = current != nullptr]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+				if (leased) {
+					const auto held = lease();
+					if (!held || !held->active()) {
+						return std::unexpected(application::review_mutation_failure::unavailable);
+					}
+				}
 				{
 					const auto lock = std::scoped_lock{ server->Mutex };
 					if (server->SubmissionFactoryFailures > 0U) {
@@ -159,17 +196,22 @@ namespace bpr::app {
 #endif
 		// The shipped publishing connection. A tests-enabled build composes it
 		// only for the agent-run live course, and only for BPR-Test.
-		auto acceptedLease = WindowRead ? WindowRead->mutation_transport() : nullptr;
-		if (!acceptedLease || !acceptedLease->active()) {
+		if (!current || !current->active()) {
 			return std::nullopt;
 		}
 		// [[BPR-1540]]. Why a submission stays unknown reaches the diagnostics log.
-		return application::review_submission_provider_factory{ [configuration, binding = aBinding, lease = std::move(acceptedLease), log = DiagnosticLog]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+		return application::review_submission_provider_factory{ [configuration, binding = aBinding, lease, log = DiagnosticLog]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+			// [[BPR-2265]]. Admission still holds it to the binding's account
+			// and host; a missing or revoked lease is unavailable.
+			auto held = lease();
+			if (!held || !held->active()) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
 			auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
 			if (!store) {
 				return std::unexpected(application::review_mutation_failure::unavailable);
 			}
-			auto provider = adapters::github::make_live_review_submission_provider(lease, binding.Target, binding.ActingIdentity, std::move(*store), log);
+			auto provider = adapters::github::make_live_review_submission_provider(std::move(held), binding.Target, binding.ActingIdentity, std::move(*store), log);
 			if (!provider) {
 				return std::unexpected(provider.error());
 			}
