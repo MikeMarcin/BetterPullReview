@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2277",
+    "BPR-2278",
+    "BPR-2279"
+  ],
+  "reserve_for": "v050-attended-2026-11-19",
+  "purpose": "owner attended review 2026-11-19: report inline code, tour stop indent, scroll latching",
+  "created": "2026-11-19T15:45:10.483283+00:00",
+  "base": "91dedb8a36f2889041b0524aa09233854c30c491"
+}
