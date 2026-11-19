@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2280"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Draft a description writes a PR description; Author tab edits the description",
+  "created": "2026-11-19T15:47:53.881586+00:00",
+  "base": "c7ded77aa5cafdf41572bb3a2cfff4b390c9ac87"
+}
