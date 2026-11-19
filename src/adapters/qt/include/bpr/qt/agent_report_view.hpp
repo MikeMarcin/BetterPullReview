@@ -230,6 +230,7 @@ namespace bpr::qt {
 		void               dress_headings();
 		void               choose(int aRow);
 		void               render_dressed();
+		void               colour_inline_code();
 		void               place_code();
 		[[nodiscard]] auto code_height(int aSlot, int aWidth) const -> int;
 		void               locate_headings();

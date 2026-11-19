@@ -167,6 +167,11 @@ namespace bpr::qt::detail {
 		/// every other format refresh.
 		void style(QTextDocument& aDocument, const markdown_code_colours& aColours, const code_role_colors& aRoles, core::appearance_variant aVariant, const QFont& aFont, const QFont& aCode);
 
+		/// \brief Colours the inline code of `aDocument` with the spans this
+		/// body's inline code was given. [[BPR-2266]]: also another document
+		/// showing the same text, such as a report's page.
+		void style_inline(QTextDocument& aDocument, const code_role_colors& aRoles) const;
+
 		/// \brief Paints the suggestion rows' fills, under the text.
 		void paint_under(QPainter& aPainter, const QTextDocument& aDocument, QPointF aOffset) const;
 		/// \brief Paints the suggestion boxes' numbers, signs and outline.
@@ -204,7 +209,6 @@ namespace bpr::qt::detail {
 
 		/// Each inline code run outside fenced code: the fragments' text.
 		void                     place_inline(const QTextDocument& aDocument);
-		void                     style_inline(QTextDocument& aDocument, const code_role_colors& aRoles) const;
 		std::vector<block>       Blocks;
 		std::string              InlineSelector;
 		std::vector<inline_code> Inline;

@@ -669,6 +669,18 @@ namespace bpr::qt {
 		for (auto* const view : CodeViews) {
 			view->apply_code_syntax(aSpans);
 		}
+		colour_inline_code();
+	}
+
+	/// [[BPR-2266]] (owner, 2026-11-18: "Seems like we lost syntax highlights
+	/// for inline code on reports"). The page's code spans in the colours the
+	/// Markdown body, which holds the same text and asks for their spans,
+	/// was given.
+	void agent_report_view::colour_inline_code()
+	{
+		if (!Dress.Sections.empty()) {
+			Body->style_inline_code_of(*Dressed->document());
+		}
 	}
 
 	auto agent_report_view::dressed_shown() const noexcept -> bool { return !Dress.Sections.empty() && !Body->source_visible(); }
@@ -702,6 +714,7 @@ namespace bpr::qt {
 				return token;
 			};
 			Dressed->setHtml(report_page_html(Dress, native_colours(), actions, &collected, Look));
+			mark_report_inline_code(*Dressed->document());
 			Dressed->document()->documentLayout()->registerHandler(report_code_object, CodeObjects);
 			// Look report-templates-v003: each code block is the Agent tab's
 			// own code box (its syntax colours, the code colours, Wrap and
@@ -758,6 +771,7 @@ namespace bpr::qt {
 				found.insertText(QString{ QChar::ObjectReplacementCharacter }, format);
 				CodePlaces[index] = found.position() - 1;
 			}
+			colour_inline_code();
 			Scroll->verticalScrollBar()->setValue(top);
 		}
 		for (auto* const view : CodeViews) {

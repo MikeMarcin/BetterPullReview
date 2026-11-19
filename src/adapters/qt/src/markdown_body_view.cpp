@@ -1697,15 +1697,25 @@ namespace bpr::qt {
 		}
 	}
 
+	auto markdown_body_view::code_theme() const -> markdown_code_theme
+	{
+		if (CodeTheme) {
+			return *CodeTheme;
+		}
+		const auto variant = dark_palette() ? core::appearance_variant::dark : core::appearance_variant::light;
+		return markdown_code_theme{ .Colors = code_role_colors_of(builtin_appearance_palette(variant)), .Variant = variant };
+	}
+
+	void markdown_body_view::style_inline_code_of(QTextDocument& aDocument) const
+	{
+		Code->style_inline(aDocument, code_theme().Colors);
+	}
+
 	void markdown_body_view::style_code()
 	{
-		auto theme = CodeTheme;
-		if (!theme) {
-			const auto variant = dark_palette() ? core::appearance_variant::dark : core::appearance_variant::light;
-			theme              = markdown_code_theme{ .Colors = code_role_colors_of(builtin_appearance_palette(variant)), .Variant = variant };
-		}
-		Code->style(*Rendered->document(), detail::markdown_code_colours_of(*theme, palette()), theme->Colors, theme->Variant, font(), CodeFont);
-		Frames->style(*Code, theme->Colors, font(), CodeFont, TabStopDistance);
+		const auto theme = code_theme();
+		Code->style(*Rendered->document(), detail::markdown_code_colours_of(theme, palette()), theme.Colors, theme.Variant, font(), CodeFont);
+		Frames->style(*Code, theme.Colors, font(), CodeFont, TabStopDistance);
 	}
 
 	void markdown_body_view::set_code_first_line(const std::optional<std::uint32_t> aFirst) { Frames->set_first_line(aFirst); }
