@@ -764,6 +764,16 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	const auto& dataRoot = *privateRoot;
+	// The application's own sanitized log, relayed after a failure that the
+	// window can only summarize ("could not be made", workspace_unavailable).
+	const auto relayLog = [&dataRoot](const char* aCourse) {
+		auto records = std::istringstream{ bpr::tests::read_diagnostic_logs(dataRoot) };
+		for (std::string record; std::getline(records, record);) {
+			if (record.find("\"severity\":\"info\"") == std::string::npos) {
+				std::cerr << aCourse << "-diagnostic:" << record << '\n';
+			}
+		}
+	};
 
 	auto diagnosticGitRoot = workspaceDiagnostic ? std::make_unique<QTemporaryDir>() : nullptr;
 	if (diagnosticGitRoot && !diagnosticGitRoot->isValid()) {
@@ -1077,14 +1087,8 @@ auto main(int argc, char** argv) -> int
 		setup->findChild<QPushButton*>(QStringLiteral("agentSetupCheck"))->click();
 		if (!wait_until([&] { return !setup->needed() && window.agent_tab()->state() != qt::agent_tab_state::setting_up; }, extended_agent_budget)) {
 			const auto code = fail(*application, "native-setup-ready", setup->step_text().toStdString());
-			// The workspace check's own log says why the copy was not made.
 			application.reset();
-			auto records = std::istringstream{ bpr::tests::read_diagnostic_logs(dataRoot) };
-			for (std::string record; std::getline(records, record);) {
-				if (record.find("\"severity\":\"info\"") == std::string::npos) {
-					std::cerr << "native-setup-diagnostic:" << record << '\n';
-				}
-			}
+			relayLog("native-setup");
 			return code;
 		}
 		if (replayCourse) {
@@ -1751,7 +1755,10 @@ auto main(int argc, char** argv) -> int
 					return evidence.Quiescent && evidence.Statistics.ProcessStarts == previousStarts + 1U && panel->status_text().contains(QStringLiteral("success"));
 				},
 							extended_agent_budget)) {
-				return fail(*application, "native-first-turn", panel->status_text().toStdString());
+				const auto code = fail(*application, "native-first-turn", panel->status_text().toStdString());
+				application.reset();
+				relayLog("native-first-turn");
+				return code;
 			}
 			const auto first = panel->output_text().toStdString();
 			if (first.find("process=") == std::string::npos
