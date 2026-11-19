@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2270"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Comment labels: an editable Feature drafted comments follow",
+  "created": "2026-11-19T01:26:57.924765+00:00",
+  "base": "3c780194e4ae3c53fe8dc628142bf8f49fe5ce95"
+}
