@@ -62,6 +62,7 @@ add_library(
         src/local_draft_discovery.cpp
         src/local_draft_publishing.cpp
         src/local_changes_host.cpp
+        src/description_draft_host.cpp
         src/local_draft_workbench.cpp
         src/local_presentation.cpp
         src/review_cycle_comparison.cpp

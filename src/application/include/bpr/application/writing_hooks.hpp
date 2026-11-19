@@ -80,7 +80,7 @@ namespace bpr::application {
 	inline constexpr std::string_view suggested_comment_hook_version = "suggested-comment-v3";
 	/// \brief RFC-BPR-0110 ([[BPR-2026]]) Versions of the shipped
 	/// local-authoring prompts, `resources/review-preparation/local-*.md`.
-	inline constexpr std::string_view local_description_hook_version = "local-description-v1";
+	inline constexpr std::string_view local_description_hook_version = "local-description-v2";
 	inline constexpr std::string_view local_discussion_hook_version  = "local-discussion-v1";
 	/// \brief RFC-BPR-0114 as amended 2026-11-12. Version of the shipped
 	/// commit-message prompt, `resources/review-preparation/local-commit-message.md`.
@@ -184,25 +184,6 @@ namespace bpr::application {
 		/// labels.
 		bool PostedComments = false;
 	};
-	/// \brief [[BPR-2280]]. What one window turn is, as its Features read it.
-	struct agent_turn_kind
-	{
-		/// A tour writing run.
-		bool                                    WritingOnly = false;
-		core::agent_entry_point                 EntryPoint  = core::agent_entry_point::open_full_agent_session;
-		std::optional<core::workshop_operation> Operation;
-		/// The question asks for the pull request's description
-		/// (`core::agent_question::Description`).
-		bool Description = false;
-	};
-	/// \brief [[BPR-2264]], [[BPR-2270]], [[BPR-2280]]. Who reads what one
-	/// window turn writes: a person always; Comment labels on every turn that
-	/// may write a comment for the reviewer to post (the Agent tab's review,
-	/// report, reply or Draft comment, the comment workshop and the returning
-	/// questions), not on Explain this file, Suggest the change, a tour run,
-	/// or a description, which is the pull request's body and never a
-	/// comment.
-	[[nodiscard]] auto agent_turn_audience(const agent_turn_kind& aTurn) noexcept -> prompt_feature_audience;
 	/// \brief [[BPR-2264]], [[BPR-2270]]. The one helper every agent request
 	/// goes through for its Features: Comment labels when \p aAudience posts
 	/// comments or the request's own text names `/bpr:comment-labels`, then

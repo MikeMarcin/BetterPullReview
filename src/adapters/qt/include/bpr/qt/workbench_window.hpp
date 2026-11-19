@@ -1514,11 +1514,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto author_description() const noexcept -> author_description_editor* { return AuthorDescription; }
 		/// \brief [[BPR-2280]]. The host's word on whether the viewer can save
 		/// the description on this connection: the Author editor's Edit and
-		/// the Agent tab's Use as description follow it.
+		/// Draft Description follow it.
 		void set_author_description_editable(bool aEditable);
-		/// \brief [[BPR-2280]]. Use as description: Author opens on Workflow
-		/// with `aMarkdown` in the description editor. Nothing is sent.
-		auto use_as_description(const QString& aMarkdown) -> bool;
 		/// \brief The draft's projection: its files fill the Files tree and
 		/// Overview, its parts are presented.
 		void present_local_draft(const application::local_draft_workbench_projection& aProjection);

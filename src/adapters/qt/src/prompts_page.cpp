@@ -957,14 +957,8 @@ namespace bpr::qt {
 		AsFindings = segmented(tr("Findings"), page);
 		AsFindings->setObjectName(QStringLiteral("promptsAsFindings"));
 		AsFindings->setToolTip(tr("A review with findings, about the pull request or the open file."));
-		// [[BPR-2280]]. A description: the pull request's body, offered to
-		// the author's description editor, never as a comment.
-		AsDescription = segmented(tr("Description"), page);
-		AsDescription->setObjectName(QStringLiteral("promptsAsDescription"));
-		AsDescription->setToolTip(tr("The pull request's description, to use in the description editor. About the pull request only."));
 		header->addWidget(AsQuestion);
 		header->addWidget(AsFindings);
-		header->addWidget(AsDescription);
 		column->addLayout(header);
 		// In a repository: which fields differ from app-wide, each with its
 		// way back.
@@ -1196,10 +1190,9 @@ namespace bpr::qt {
 			const auto text = Text->toPlainText().toStdString();
 			edit_selected([&text](core::prompt_macro& aMacro) { aMacro.Body.Template = text; });
 		});
-		for (auto* const button : { AsQuestion, AsFindings, AsDescription }) {
+		for (auto* const button : { AsQuestion, AsFindings }) {
 			connect(button, &QToolButton::clicked, this, [this, button] {
-				const auto kind = button == AsFindings ? core::prompt_ask::review : button == AsDescription ? core::prompt_ask::description
-																											: core::prompt_ask::question;
+				const auto kind = button == AsFindings ? core::prompt_ask::review : core::prompt_ask::question;
 				edit_selected([kind](core::prompt_macro& aMacro) { aMacro.Body.Kind = kind; });
 			});
 		}
@@ -1967,7 +1960,7 @@ namespace bpr::qt {
 		Filling                 = true;
 		const auto* const macro = Selected ? find(*Selected) : nullptr;
 		const auto        shown = macro != nullptr;
-		for (auto* const widget : std::initializer_list<QWidget*>{ Name, AsQuestion, AsFindings, AsDescription, Text, MatchAll, MatchAny, MatchNone, AddCondition, AddTo, Duplicate, Reset }) {
+		for (auto* const widget : std::initializer_list<QWidget*>{ Name, AsQuestion, AsFindings, Text, MatchAll, MatchAny, MatchNone, AddCondition, AddTo, Duplicate, Reset }) {
 			widget->setEnabled(shown);
 		}
 		if (!shown) {
@@ -1990,7 +1983,6 @@ namespace bpr::qt {
 		BuiltInTag->setText(macro->BuiltIn ? (standing.Edited ? tr("Built-in, edited") : tr("Built-in")) : tr("Yours"));
 		AsQuestion->setChecked(macro->Body.Kind == core::prompt_ask::question);
 		AsFindings->setChecked(macro->Body.Kind == core::prompt_ask::review);
-		AsDescription->setChecked(macro->Body.Kind == core::prompt_ask::description);
 		ResultBox->setVisible(macro->Body.Kind == core::prompt_ask::review && !ResultText->toPlainText().isEmpty());
 		MatchAll->setChecked(macro->Body.Match == core::prompt_match::all);
 		MatchAny->setChecked(macro->Body.Match == core::prompt_match::any);
@@ -2004,7 +1996,6 @@ namespace bpr::qt {
 		InsertRow->setVisible(!system.has_value());
 		AsQuestion->setEnabled(!system.has_value());
 		AsFindings->setEnabled(!system.has_value());
-		AsDescription->setEnabled(!system.has_value());
 		if (system) {
 			ActionNote->setText(tr("This row runs an action. What it sends is a system prompt: <a href=\"%1\">edit it in the library</a>.").arg(*system));
 		} else if (Text->toPlainText().toStdString() != macro->Body.Template) {

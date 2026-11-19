@@ -49,7 +49,23 @@ namespace bpr::qt {
 		auto begin_edit() -> bool;
 		/// \brief Use as description: the editor holds `aMarkdown` in place of
 		/// what it held, as one edit Undo takes back. Nothing is sent.
-		auto               fill(const QString& aMarkdown) -> bool;
+		auto fill(const QString& aMarkdown) -> bool;
+		/// \brief [[BPR-2281]]. Draft Description: what a press asks, and Stop
+		/// drafting while it runs.
+		void set_draft_dispatch(std::function<void()> aDraft, std::function<void()> aStop);
+		/// \brief Whether an agent can draft now, and if not why (its tooltip).
+		void set_draft_offer(bool aReady, const QString& aWhy);
+		/// \brief A draft is running (Stop drafting, and a line saying so).
+		void               set_drafting(bool aDrafting, const QString& aAgent = { });
+		[[nodiscard]] auto drafting() const noexcept -> bool { return Drafting; }
+		/// \brief One line beside the field: what the draft is doing, or why
+		/// it drafted nothing; empty hides it.
+		void show_draft_status(const QString& aText);
+		/// \brief The agent's draft lands: the editor holds it as one edit Undo
+		/// takes back, as `fill`, and the draft's line clears.
+		auto               fill_draft(const QString& aMarkdown) -> bool;
+		[[nodiscard]] auto draft_button() const noexcept -> QPushButton* { return DraftButton; }
+		[[nodiscard]] auto draft_status() const noexcept -> QLabel* { return DraftStatus; }
 		[[nodiscard]] auto editing() const noexcept -> bool { return Editing; }
 		[[nodiscard]] auto saving() const noexcept -> bool { return Saving; }
 
@@ -82,16 +98,23 @@ namespace bpr::qt {
 		bool                                                  Editing  = false;
 		bool                                                  Saving   = false;
 		std::function<void(const overview_description_save&)> SaveDispatch;
-		QLabel*                                               Heading = nullptr;
-		QPushButton*                                          Edit    = nullptr;
-		markdown_body_view*                                   Reader  = nullptr;
-		QLabel*                                               Empty   = nullptr;
-		QWidget*                                              Panel   = nullptr;
-		scoped_prose_editor*                                  Text    = nullptr;
-		QLabel*                                               Status  = nullptr;
-		QPushButton*                                          Reload  = nullptr;
-		QPushButton*                                          Cancel  = nullptr;
-		QPushButton*                                          Save    = nullptr;
+		QLabel*                                               Heading     = nullptr;
+		QPushButton*                                          Edit        = nullptr;
+		markdown_body_view*                                   Reader      = nullptr;
+		QLabel*                                               Empty       = nullptr;
+		QWidget*                                              Panel       = nullptr;
+		scoped_prose_editor*                                  Text        = nullptr;
+		QLabel*                                               Status      = nullptr;
+		QPushButton*                                          Reload      = nullptr;
+		QPushButton*                                          Cancel      = nullptr;
+		QPushButton*                                          Save        = nullptr;
+		QPushButton*                                          DraftButton = nullptr;
+		QLabel*                                               DraftStatus = nullptr;
+		std::function<void()>                                 DraftDispatch;
+		std::function<void()>                                 StopDraft;
+		bool                                                  DraftReady = false;
+		bool                                                  Drafting   = false;
+		QString                                               DraftWhy;
 	};
 } // namespace bpr::qt
 

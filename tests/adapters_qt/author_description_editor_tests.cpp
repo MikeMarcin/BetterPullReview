@@ -3,6 +3,7 @@
 /// tab: read, edited and saved by its author, filled by Use as description,
 /// and refused, never overwritten, when GitHub changed it meanwhile. Nothing
 /// here writes to GitHub: Save leaves as the gesture the composition decides.
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/author_description_editor.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
@@ -103,6 +104,40 @@ auto main(int argc, char** argv) -> int
 	editor.present_body(std::string{ });
 	QApplication::processEvents();
 	expect(editor.edit_button()->isVisible() && editor.edit_button()->text() == QStringLiteral("Write") && !editor.reader()->isVisible(), "an empty description offers Write");
+
+	// [[BPR-2281]]. Draft Description beside the field, as Draft Tour is.
+	editor.close_editor();
+	editor.present_body(std::string{ "Before the draft." });
+	auto drafts = 0;
+	auto stops  = 0;
+	editor.set_draft_dispatch([&drafts] { ++drafts; }, [&stops] { ++stops; });
+	editor.set_draft_offer(false, QStringLiteral("No agent can draft here. Set one up in the Agent tab."));
+	QApplication::processEvents();
+	auto* const button = editor.draft_button();
+	expect(button->isVisible() && button->text() == QStringLiteral("Draft Description") && !button->isEnabled() && button->toolTip().contains(QStringLiteral("No agent")),
+		   "with no agent it is shown, disabled, and says why");
+	editor.set_draft_offer(true, { });
+	expect(button->isEnabled() && qt::agent_run_control(*button), "with one it starts a run and wears the Agent accent");
+	button->click();
+	expect(drafts == 1 && !editor.editing(), "a press asks for a draft and opens nothing yet");
+	editor.set_drafting(true, QStringLiteral("Fixture agent"));
+	QApplication::processEvents();
+	expect(button->text() == QStringLiteral("Stop drafting") && button->isEnabled() && editor.draft_status()->isVisible()
+			   && editor.draft_status()->text().startsWith(QStringLiteral("Fixture agent is drafting the description")),
+		   "while it runs it is Stop drafting, and the line beside the field says so");
+	button->click();
+	expect(stops == 1 && drafts == 1, "Stop drafting stops it");
+	editor.set_drafting(false);
+	editor.show_draft_status(QStringLiteral("The agent did not answer (timeout)."));
+	QApplication::processEvents();
+	expect(button->text() == QStringLiteral("Draft Description") && editor.draft_status()->text() == QStringLiteral("The agent did not answer (timeout).") && !editor.editing(),
+		   "a failure is said beside the field and changes nothing");
+	expect(editor.fill_draft(QStringLiteral("## Summary\n\nDrafted.")) && editor.editing() && editor.editor()->raw() == "## Summary\n\nDrafted."
+			   && editor.original() == "Before the draft." && editor.draft_status()->isHidden(),
+		   "the draft lands in the editor, editing from the description read, and the line clears");
+	editor.editor()->undo();
+	expect(editor.editor()->raw() == "Before the draft.", "Undo takes the draft back in one step");
+	expect(saves.size() == 1U, "nothing is saved by a draft");
 
 	// Withdrawn: an open editor closes.
 	expect(editor.begin_edit(), "Write opens the editor");

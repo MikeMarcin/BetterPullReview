@@ -242,10 +242,12 @@ namespace {
 		offer.Expansion.Cursor.reset();
 		offer.Expansion.Values.clear();
 		expect(decode_queued_prompt(encode_queued_prompt(offer)) == std::optional{ offer }, "no cursor and no values read back as none");
-		// [[BPR-2280]]. A queued Draft a description keeps its kind.
-		auto description      = prompt_offer{ .Id = "agent-tab.draft-description", .Label = "Draft a description", .Place = prompt_place::agent_tab, .Subject = prompt_subject::pull_request, .Kind = prompt_ask::description };
-		description.Expansion = prompt_expansion{ .Text = "Write the description of this pull request." };
-		expect(decode_queued_prompt(encode_queued_prompt(description)) == std::optional{ description }, "a description's kind is read back as written");
+		// [[BPR-2281]]. A prompt queued while kind 2 was `description`
+		// ([[BPR-2280]]) is read back as a question.
+		auto retired    = offer;
+		retired.Kind    = static_cast<prompt_ask>(2U);
+		const auto read = decode_queued_prompt(encode_queued_prompt(retired));
+		expect(read && read->Kind == prompt_ask::question, "a retired description kind reads as a question");
 		const auto text = encode_queued_prompt(offer);
 		expect(!decode_queued_prompt(text.substr(0U, text.size() - 1U)) && !decode_queued_prompt(text + "x") && !decode_queued_prompt("p2;" + text.substr(3U)) && !decode_queued_prompt(""),
 			   "a cut, padded or other version's value is none");

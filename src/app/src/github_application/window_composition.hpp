@@ -16,6 +16,7 @@
 #include "bpr/application/cached_review_source_port.hpp"
 #include "bpr/application/commit_filter_model.hpp"
 #include "bpr/application/commit_filter_projection.hpp"
+#include "bpr/application/description_draft_host.hpp"
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/device_binding_store.hpp"
 #include "bpr/application/diff_application_host.hpp"
@@ -203,6 +204,7 @@
 	#include "bpr/qt/ask_menu.hpp"
 	#include "bpr/qt/finding_queue_view.hpp"
 	#include "bpr/qt/side_chat_panel.hpp"
+	#include "bpr/qt/window_file_drop.hpp"
 #endif
 #if defined(BPR_BUILD_TESTING)
 	#include "bpr/application/github_window_read_host.hpp"
@@ -549,10 +551,15 @@ namespace bpr::app {
 		/// [[BPR-1157]]. Local Review Cycles in this window: no account needed.
 		std::unique_ptr<review_cycle_desktop> CycleDesktop;
 		/// RFC-BPR-0108. Prepare pull request… and the local draft page.
-		std::unique_ptr<local_draft_desktop>              DraftDesktop;
-		std::uint64_t                                     WritingHookSubscription = 0;
-		std::unique_ptr<review_tour_publication_workflow> TourPublication;
-		std::unique_ptr<conversation_reply_workflow>      ConversationReply;
+		std::unique_ptr<local_draft_desktop> DraftDesktop;
+		/// [[BPR-2281]]. Draft Description beside the description in Author:
+		/// its own agent lane, and the host that runs it there.
+		std::unique_ptr<worker_executor>                     DescriptionDraftLane;
+		std::unique_ptr<application::description_draft_host> DescriptionDraft;
+		std::uint64_t                                        DescriptionDraftShown   = 0U;
+		std::uint64_t                                        WritingHookSubscription = 0;
+		std::unique_ptr<review_tour_publication_workflow>    TourPublication;
+		std::unique_ptr<conversation_reply_workflow>         ConversationReply;
 		struct retained_tour_host
 		{
 			core::tour_owner                               Owner;
@@ -1306,6 +1313,9 @@ namespace bpr::app {
 		};
 		void save_description(const qt::overview_description_save& aSave, description_editor aFrom = description_editor::overview);
 		void present_description_status(const QString& aText, bool aSaving = false);
+		/// [[BPR-2281]]. Draft Description pressed, and what its host says.
+		void request_description_draft();
+		void present_description_draft(const application::description_draft_projection& aProjection);
 
 		void               publish_description(const application::review_description_terminal& aTerminal) override;
 		[[nodiscard]] auto comment_edit_cards() const -> qt::conversation_cards_view*;
@@ -2708,8 +2718,14 @@ namespace bpr::app {
 		std::unique_ptr<application::agent_configuration_store_port> AgentConfigurationStore;
 		std::unique_ptr<application::agent_configuration_host>       AgentConfiguration;
 		void                                                         export_agent_configuration();
-		void                                                         import_agent_configuration();
-		void                                                         apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog);
+		/// [[BPR-2282]]. `aDropped`: a file dropped onto the window, read
+		/// without the open dialog; empty for Import Profile Settings….
+		void import_agent_configuration(const QString& aDropped = { });
+		void apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog, bool aDropped = false);
+		/// [[BPR-2282]]. What a drag onto the window carries; reads no file.
+		[[nodiscard]] static auto dropped_file(const QMimeData& aMime) -> qt::dropped_file_admission;
+		/// [[BPR-2282]]. A dropped file is being read: another drop waits.
+		bool DroppedImportReading = false;
 		[[nodiscard]] auto                                           profile_settings_facts() const -> core::profile_facts;
 		void                                                         apply_profile_changes(const core::profile_settings_changes& aChanges);
 		/// [[BPR-1753]]. Each pull request's conversation: store, then host.

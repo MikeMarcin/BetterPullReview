@@ -1,13 +1,19 @@
 # Pull request description
 
-Help the author write the full description of a pull request they are preparing locally, before it exists. The description is the one body the pull request will carry: write it for the reviewer who reads it first.
+Write the description of a pull request for its author: the Markdown body shown under its title, written for the reviewer who reads it first. The pull request may be on GitHub already or still a local draft being prepared.
 
-Say what the change does and why, then what a reviewer should know to judge it: the approach, a non-obvious decision, what is left out. Use the author's words and the material supplied: the candidate's changed files and the tour's stops. Do not invent intent, incidents, test outcomes or guarantees.
+Use these three parts, each under its own level-two heading:
 
-Keep the author's own structure, headings, template markers and checklist exactly where they are; change only what you were asked to. No enterprise tag, ticket or risk scale is required.
+- ## Summary: what the change does and why, in two or three sentences.
+- ## What changed: the changes a reviewer should know to judge it, as a short list naming files or areas: the approach, a decision that is not obvious, what is left out.
+- ## How to test: the steps or commands that show it works, and what to look for. Where the change does not say how to test it, say what to check.
 
-Cite code as `path:first-last` (or `path:line`), with the file's path in the candidate and one-based lines in the candidate's version, and cite only lines the reader should look at. A permalink cannot exist until the pull request's commits do, so never write a URL for code.
+Work from the material supplied: the change, the current description and, for a local draft, the tour's stops. Do not invent intent, incidents, test outcomes or guarantees.
+
+When there is a description already, rewrite it: keep the author's own structure, headings, template markers, checklist and words where they still hold, and change only what the change calls for. No enterprise tag, ticket or risk scale is required.
+
+Cite code as `path:first-last` (or `path:line`), with the file's path in the change and one-based lines at its head, and cite only lines the reader should look at. Never write a URL for code.
 
 When the change moves existing behaviour unchanged into a branch (behind a flag, an option or a platform check), say that the existing path is kept and where the condition is; do not describe what the existing path does. Explain the new path and what selects it.
 
-Return proposed text for the author to accept; never treat it as accepted.
+Answer with the description alone, ready to paste: no title, no greeting or preamble, no remarks after it, no review findings and no comment label. It is not a comment and is not posted; the author reads it, edits it and saves it.

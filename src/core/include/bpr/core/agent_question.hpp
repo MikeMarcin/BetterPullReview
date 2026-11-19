@@ -70,9 +70,6 @@ namespace bpr::core {
 		std::optional<agent_suggested_subject> Suggested;
 		/// The suggestion asks for a review rather than a question.
 		bool Review = false;
-		/// [[BPR-2280]]. The suggestion asks for the pull request's
-		/// description (`prompt_ask::description`).
-		bool Description = false;
 		/// The path of the file open in Review; empty when none is.
 		std::string OpenFile;
 		/// RFC-BPR-0116. A returning question was pressed: What changed since
@@ -98,10 +95,6 @@ namespace bpr::core {
 		/// RFC-BPR-0118. The comment workshop operation the question is,
 		/// with `workshop_comment`; none for every other question.
 		std::optional<workshop_operation> Operation;
-		/// [[BPR-2280]]. The answer is the pull request's description: it is
-		/// asked with no comment guidance, and offered to the description
-		/// editor rather than as a comment.
-		bool Description = false;
 
 		auto operator<=>(const agent_question&) const = default;
 	};
@@ -123,9 +116,7 @@ namespace bpr::core {
 	///    (`ask_about_conversation`).
 	/// 2. A suggestion names its own subject: the pull request, the open file
 	///    or the selected lines. A review suggestion is sent with
-	///    `run_ai_review`, which needs no selection; [[BPR-2280]] a
-	///    description suggestion is about the pull request and its answer is
-	///    a description (`agent_question::Description`); selected lines are sent
+	///    `run_ai_review`, which needs no selection; selected lines are sent
 	///    with `ask_about_selection`; any other suggestion about the pull
 	///    request with `open_full_agent_session`.
 	/// 3. A typed question is about the attached lines when they are

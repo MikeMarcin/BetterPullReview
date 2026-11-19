@@ -113,11 +113,9 @@ def main() -> int:
         "Review this pull request (findings in a ```bpr-findings block)": "## Must fix\n\n### issue (blocking): A zero height still asserts",
         "What is this? (findings go in a ```bpr-findings block)": "Fixture answer",
         "What does this change do?": "Fixture answer",
-        # [[BPR-2274]]. Draft a description: from the diff, and with a
-        # published tour, its stops too. [[BPR-2280]]: a description in three
+        # [[BPR-2281]]. Draft Description's material: a description in three
         # parts.
-        "Write the description of this pull request: the Markdown body GitHub shows under its title.": "## Summary\n\nEach view now clears and draws its own scene",
-        "Write the description of this pull request.\nthreads.0.body\t## Review tour \u2014 Start here": "The review tour reads it in order",
+        "Pull request description draft (bpr.description-draft.v1)\n\nTitle: Clamp": "## Summary\n\nEach view now clears and draws its own scene",
     }
     for request, wanted in cases.items():
         done = run(claude, ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"], user(request))
@@ -129,12 +127,10 @@ def main() -> int:
         expect(answer.returncode == 0, f"codex answers {request!r}")
         messages = [frame["item"]["text"] for frame in frames(answer.stdout) if frame.get("type") == "item.completed" and frame["item"]["type"] == "agent_message"]
         expect(len(messages) == 1 and wanted in messages[0], f"codex answers {request!r} with {wanted!r}")
-    # [[BPR-2274]]. Without a tour the description says nothing of one.
-    # [[BPR-2280]]. It is a description, not a comment: its three parts, no
+    # [[BPR-2281]]. It is a description, not a comment: its three parts, no
     # title, no comment label and no canned-answer line to paste with it.
-    plain = claude_answer(run(claude, ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"], user("Write the description of this pull request: the Markdown body GitHub shows under its title.")).stdout)
-    expect("review tour" not in plain.lower() and "resize()" in plain, f"a description without a tour is drawn from the diff alone: {plain!r}")
-    expect(plain.startswith("## Summary") and "## What changed" in plain and "## How to test" in plain and not plain.startswith("# ") and "Fixture agent" not in plain,
+    plain = claude_answer(run(claude, ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"], user("Pull request description draft (bpr.description-draft.v1)\n\nTitle: Clamp")).stdout)
+    expect(plain.startswith("## Summary") and "## What changed" in plain and "## How to test" in plain and "Fixture agent" not in plain,
            f"a description in its three parts, title-free: {plain!r}")
     findings = claude_answer(run(claude, ["-p"], user("Review this pull request; answer with a ```bpr-findings block")).stdout)
     block = findings.split("```bpr-findings\n", 1)[1].split("\n```", 1)[0]

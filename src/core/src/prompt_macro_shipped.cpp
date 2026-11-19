@@ -110,26 +110,6 @@ namespace bpr::core {
 						  "Tone: plain and specific, as one engineer writes to another. No praise that is not earned, and no hedging.";
 		}
 
-		/// [[BPR-2274]]. Draft a description: from the diff, and from the
-		/// tour's stops when the pull request has a tour.
-		/// [[BPR-2280]] (owner, 2026-11-19: "It looks like it tried to make a
-		/// comment not draft a PR description"). It asks for the description
-		/// itself: the body the pull request carries, title-free Markdown in
-		/// three parts, with no reply around it and no comment label.
-		constexpr auto draft_description_body = std::string_view{
-			"Write the description of this pull request: the Markdown body GitHub shows under its title. If it has a description, rewrite it; keep the author's "
-			"own words, headings, template markers and checklists where it has them.\n\n"
-			"Read the change from its diff. If the pull request has a review tour (a review comment headed \"Review tour\" that links its stops), follow its "
-			"stops in order and let the description cover what they show. Without a tour, work from the diff alone.\n\n"
-			"Use these three parts, each under its own level-two heading:\n"
-			"- ## Summary: what the change does and why, in two or three sentences.\n"
-			"- ## What changed: the changes a reviewer should know to judge it, as a short list naming files or areas: the approach, a decision that is not "
-			"obvious, what is left out.\n"
-			"- ## How to test: the steps or commands that show it works, and what to look for.\n\n"
-			"Do not invent intent, incidents, test results or guarantees; where the diff does not say how to test, say what to check.\n\n"
-			"Answer with the description alone, ready to paste: no title, no greeting or preamble, no remarks after it, no review findings, and no comment label. "
-			"It is not a comment and is not posted; the author reads it, edits it and saves it as the description."
-		};
 	} // namespace
 
 	auto shipped_prompt_macros() -> std::vector<prompt_builtin>
@@ -149,13 +129,9 @@ namespace bpr::core {
 						"Review {file}"),
 				  at_file),
 			quick(plain("agent-tab.what-could-break", prompt_place::agent_tab, "What could this change break?", pull_request), at_pull_request),
-			// [[BPR-2274]], owner 2026-11-18: a tour is only its stops, and the
-			// description is the author's. The agent drafts or rewrites it; it
-			// starts in the pull request's Ask menu, not among the chips.
-			// [[BPR-2280]]: asked as a description, so its answer goes to the
-			// description editor (Use as description), never to a comment.
-			quick(named(plain("agent-tab.draft-description", prompt_place::agent_tab, std::string{ draft_description_body }, pull_request, { }, prompt_ask::description), "Draft a description"),
-				  at_pull_request),
+			// [[BPR-2281]] (owner, 2026-11-19). The pull request's description
+			// is drafted by Draft with agent beside it in Author, from the
+			// Description writing system prompt; it is no prompt here.
 			plain("agent-tab.explain-line", prompt_place::agent_tab, "Explain {file} {lines}", selected_lines, { lines(prompt_lines_value::one) }),
 			plain("agent-tab.explain-block", prompt_place::agent_tab, "Explain the selected block ({file} {lines})", selected_lines, { lines(prompt_lines_value::several) }),
 			// RFC-BPR-0128 (Q13): the actions as built-in rows. The Ask menus

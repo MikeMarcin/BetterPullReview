@@ -1,14 +1,14 @@
 /// \file
-/// \brief [[BPR-2280]]. Draft a description through the window, on the
-/// github.com fixture pull request the viewer opened, with the fixture agent
-/// and a description the fixture's GitHub serves and writes. No real agent,
-/// no network, no cost.
+/// \brief [[BPR-2280]], [[BPR-2281]]. Draft Description through the window,
+/// on the github.com fixture pull request the viewer opened, with the fixture
+/// agent and a description the fixture's GitHub serves and writes. No real
+/// agent, no network, no cost.
 ///
-/// - The pull request's Ask menu sends Draft a description; its answer is a
-///   description (Summary, What changed, How to test), never a report, and
-///   it offers Use as description, not Draft.
-/// - Use as description opens Author on Workflow with the answer in the
-///   description editor; nothing is sent until Save.
+/// - The pull request's Ask menu has no Draft a description.
+/// - Author's Workflow tab shows the description with Draft Description
+///   beside it; a press says it is drafting beside the field, then puts the
+///   agent's description (Summary, What changed, How to test) in the editor
+///   as one undoable edit, sending nothing.
 /// - Save writes the description once through the fixture's GitHub, and the
 ///   next read shows it.
 /// - Changed on GitHub meanwhile, a second save is refused: nothing written,
@@ -114,41 +114,38 @@ auto main(int argc, char** argv) -> int
 									  + " body=" + std::to_string(editor->body().has_value() ? 1 : 0) };
 		}
 		window.open_agent_question();
-		auto* const tab = window.agent_tab();
-		wait([&] { return tab->setup_readiness() == qt::agent_setup_readiness::ready; }, "the fixture agent is set up");
+		wait([&] { return window.agent_tab()->setup_readiness() == qt::agent_setup_readiness::ready; }, "the fixture agent is set up");
 
-		// The pull request's Ask menu: Draft a description.
-		const auto before = tab->turn_count();
+		// Not in the Ask menu ([[BPR-2281]], owner 2026-11-19).
 		{
 			QMenu menu;
 			window.fill_quick_ask(menu, window.ask_request(core::quick_ask_anchor::review_bar));
-			auto* const draft = menu.findChild<QAction*>(QStringLiteral("quickAsk_agent-tab.draft-description_pull-request"));
-			expect(draft != nullptr && draft->isEnabled() && draft->text().contains(QStringLiteral("Draft a description")), "the pull request's Ask menu offers Draft a description");
-			draft->trigger();
+			expect(menu.findChild<QAction*>(QStringLiteral("quickAsk_agent-tab.draft-description_pull-request")) == nullptr, "the Ask menu has no Draft a description");
 		}
-		wait([&] { return tab->turn_count() == before + 1U && tab->state() != qt::agent_tab_state::working && tab->turn_outcome(before).has_value() && access::agent_invocation_evidence(*application).Quiescent; },
-			 "Draft a description is answered");
-		const auto answer = tab->turn_answer(before);
-		expect(tab->turn_name(before) == QStringLiteral("Draft a description") && tab->turn_is_description(before), "the turn is a description, under its name");
-		expect(tab->last_question() && tab->last_question()->Description, "the core decided a description");
-		expect(answer.startsWith(QStringLiteral("## Summary")) && answer.contains(QStringLiteral("## What changed")) && answer.contains(QStringLiteral("## How to test"))
-				   && !answer.startsWith(QStringLiteral("# ")) && !answer.contains(QStringLiteral("Fixture agent")),
-			   "the answer is a title-free description in three parts:\n" + answer.toStdString());
-		auto* const drafted = tab->turn_draft_button(before);
-		auto* const use     = tab->turn_use_as_description_button(before);
-		expect(drafted != nullptr && !drafted->isVisibleTo(tab), "a description offers no Draft comment");
-		expect(use != nullptr && use->isVisibleTo(tab) && use->isEnabled(), "it offers Use as description");
-		auto* const report = tab->turn_report_card(before);
-		expect(report == nullptr || !report->isVisibleTo(tab), "a description is not a report");
-		render(window, QStringLiteral("draft-description-answer"));
 
-		// Use as description: Author, Workflow, the editor holding the answer.
-		const auto mutation = access::review_mutation_evidence(*application);
-		use->click();
+		// Author, Workflow: Draft Description beside the description.
+		window.choose_modality(qt::review_modality::author);
 		QApplication::processEvents();
-		expect(window.current_modality() == qt::review_modality::author && window.author_tabs()->currentIndex() == 0, "Use as description opens Author on Workflow");
-		expect(editor->editing() && editor->isVisibleTo(&window) && editor->editor()->raw() == answer.trimmed().toStdString(), "the description editor holds the answer");
+		auto* const draft = editor->draft_button();
+		wait([&] { return editor->isVisibleTo(&window) && draft->isVisibleTo(&window) && draft->isEnabled(); }, "Draft Description is offered beside the description");
+		const auto mutation = access::review_mutation_evidence(*application);
+		draft->click();
+		QApplication::processEvents();
+		expect(editor->drafting() && draft->text() == QStringLiteral("Stop drafting") && editor->draft_status()->text().contains(QStringLiteral("is drafting the description")),
+			   "it says it is drafting, beside the field");
+		render(window, QStringLiteral("draft-description-running"));
+		if (!e2e::wait_until_plain([&] { return !editor->drafting() && editor->editing(); }, e2e::extended_agent_budget)) {
+			throw std::runtime_error{ "the draft lands in the editor; status: " + editor->draft_status()->text().toStdString() };
+		}
+		const auto drafted = QString::fromStdString(editor->editor()->raw());
+		expect(drafted.startsWith(QStringLiteral("## Summary")) && drafted.contains(QStringLiteral("## What changed")) && drafted.contains(QStringLiteral("## How to test"))
+				   && !drafted.contains(QStringLiteral("Fixture agent")),
+			   "the editor holds a title-free description in three parts:\n" + drafted.toStdString());
 		expect(editor->original() == *editor->body(), "editing goes on from the description GitHub has");
+		editor->editor()->undo();
+		expect(editor->editor()->raw() == *editor->body(), "Undo takes the draft back in one step");
+		editor->editor()->redo();
+		expect(QString::fromStdString(editor->editor()->raw()) == drafted, "Redo puts it back");
 		expect(access::review_mutation_evidence(*application).DescriptionEdits == mutation.DescriptionEdits, "nothing is sent before Save");
 		render(window, QStringLiteral("draft-description-editor"));
 

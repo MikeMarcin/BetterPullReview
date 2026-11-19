@@ -2617,6 +2617,14 @@ namespace bpr::adapters::sqlite {
 			return std::nullopt;
 		}
 
+		/// [[BPR-2281]]. A prompt's Answer as. `description` was a kind for a
+		/// few hours of 0.5.0's development ([[BPR-2280]]); the description is
+		/// now drafted by its own button, so such a prompt reads as a question.
+		[[nodiscard]] auto stored_ask(const std::string_view aName) -> std::optional<core::prompt_ask>
+		{
+			return aName == "description" ? std::optional{ core::prompt_ask::question } : named_value<core::prompt_ask>(aName, 2U);
+		}
+
 		[[nodiscard]] auto lines_name(const core::prompt_lines_value aLines) -> std::string_view
 		{
 			switch (aLines) {
@@ -2971,7 +2979,7 @@ namespace bpr::adapters::sqlite {
 						macro.Body.Name       = column_text(row->Value, 4).value_or(std::string{ });
 						macro.Body.Template   = column_text(row->Value, 5).value_or(std::string{ });
 						const auto subject    = named_value<core::prompt_subject>(column_text(row->Value, 6).value_or(std::string{ }), core::prompt_subject_count);
-						const auto ask        = named_value<core::prompt_ask>(column_text(row->Value, 7).value_or(std::string{ }), core::prompt_ask_count);
+						const auto ask        = stored_ask(column_text(row->Value, 7).value_or(std::string{ }));
 						auto       match      = core::prompt_match::all;
 						auto       groups     = std::vector<core::prompt_condition_group>{ };
 						auto       unmet      = std::optional<core::prompt_when_unmet>{ };
@@ -3126,7 +3134,7 @@ namespace bpr::adapters::sqlite {
 					auto       groups     = std::vector<core::prompt_condition_group>{ };
 					auto       unmet      = std::optional<core::prompt_when_unmet>{ };
 					auto       conditions = when ? decode_conditions(*when, nullptr, &groups, &unmet) : std::optional{ std::vector<core::prompt_condition>{ } };
-					const auto kindValue  = ask ? named_value<core::prompt_ask>(*ask, core::prompt_ask_count) : std::optional{ core::prompt_ask::question };
+					const auto kindValue  = ask ? stored_ask(*ask) : std::optional{ core::prompt_ask::question };
 					if (!conditions || !kindValue || repository.empty()) {
 						continue;
 					}
@@ -3327,7 +3335,7 @@ namespace bpr::adapters::sqlite {
 					link.Version       = static_cast<std::uint32_t>(sqlite3_column_int64(row->Value, 3));
 					const auto place   = named_value<core::prompt_place>(column_text(row->Value, 4).value_or(std::string{ }), core::prompt_place_count);
 					const auto subject = named_value<core::prompt_subject>(column_text(row->Value, 7).value_or(std::string{ }), core::prompt_subject_count);
-					const auto ask     = named_value<core::prompt_ask>(column_text(row->Value, 8).value_or(std::string{ }), core::prompt_ask_count);
+					const auto ask     = stored_ask(column_text(row->Value, 8).value_or(std::string{ }));
 					auto       match   = core::prompt_match::all;
 					auto       groups  = std::vector<core::prompt_condition_group>{ };
 					auto       unmet   = std::optional<core::prompt_when_unmet>{ };

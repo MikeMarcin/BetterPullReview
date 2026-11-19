@@ -283,12 +283,12 @@ Solution and no fixed sections. The [operator workflow](../development/review-to
 describes editing, exact source/fallback subjects, cold import, website
 conflicts and partial recovery. Publishing a tour posts its stops and never
 writes or edits the pull request description; text an earlier build put in a
-description stays as GitHub has it. The shipped prompt "Draft a description"
-drafts or rewrites the description from the diff, and from the tour's stops
-when there is one; it publishes nothing. It is asked as a description
-([[BPR-2280]]): its answer is title-free Markdown (Summary, What changed, How
-to test), carries no comment guidance, is never a report or a draft comment,
-and offers Use as description, which puts it in Author's description editor. The
+description stays as GitHub has it. **Draft Description**, beside the
+description in Author's Workflow tab ([[BPR-2281]]), drafts or rewrites the
+description from the pull request's title, description and change with the
+**Description writing** system prompt; it publishes nothing. Its answer is
+title-free Markdown (Summary, What changed, How to test) that lands in the
+description editor as one undoable edit, to edit and save. The
 original title, draft status and other PR-management state have no tour
 mutation operation. Production Tour publication is on by the
 [owner amendment of 2026-10-09](../issues/40-parked/BPR-1222-qualify-live-github-review-tours.md#owner-amendment-2026-10-09-publication-on-and-files-changed-links);
@@ -313,7 +313,8 @@ targets refused. No agent flag grants source confirmation, Ready or publication.
 The pull request's author can edit its description (body only) in Overview:
 Edit opens the app's Markdown editor in the reader's place, and nothing is
 sent until Save ([[BPR-1774]]). Author's Workflow tab holds the same editor
-above the checklist, where Use as description lands ([[BPR-2280]]). A body changed on GitHub since editing began is
+above the checklist, with Draft Description beside it ([[BPR-2280]],
+[[BPR-2281]]). A body changed on GitHub since editing began is
 never overwritten: the editor says so and offers GitHub's newer text. The
 mutation's contract is in the
 [provider contract](github-provider-contract.md#normalized-provider-surface).

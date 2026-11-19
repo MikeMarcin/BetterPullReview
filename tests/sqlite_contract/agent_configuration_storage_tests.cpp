@@ -244,7 +244,7 @@ try {
 	expect(local_snapshot.has_value(), "the sender's snapshot reads again");
 	const auto local_prompts = std::vector<application::exported_prompt>{ { .Purpose = "local.discussion" }, { .Purpose = "local.description", .BuiltIn = true } };
 	const auto local_bytes   = application::export_agent_configuration(*local_snapshot, { }, local_prompts, "Local", "BetterPullReview test");
-	expect(local_bytes && local_bytes->find("local-description-v1") != std::string::npos && local_bytes->find("Answer in two sentences, then propose.") != std::string::npos,
+	expect(local_bytes && local_bytes->find("local-description-v2") != std::string::npos && local_bytes->find("Answer in two sentences, then propose.") != std::string::npos,
 		   "both export, the shipped one with its version");
 	const auto local_decoded = core::decode_agent_configuration(*local_bytes, application::local_prompts(*store->load()));
 	expect(local_decoded && local_decoded->Prompts.size() == 2U && !local_decoded->Prompts[0].Problem && !local_decoded->Prompts[1].Problem,

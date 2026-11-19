@@ -338,25 +338,15 @@ int main()
 				   && format.find("Without it, start with the problem and no label") != std::string_view::npos && format.find("chooses a label in the comment editor") == std::string_view::npos,
 			   "the suggested-comment format defers the label to Comment labels");
 	}
-	// [[BPR-2280]]. A description is the pull request's body, never a
-	// comment: its turn carries the Writing style and no Comment labels;
-	// the Agent tab's other questions, a review among them, carry both.
+	// [[BPR-2281]]. Draft Description's system prompt asks for the
+	// description itself, in three parts, never a comment.
 	{
-		using application::agent_turn_audience;
-		const auto ask = agent_turn_audience({ .EntryPoint = core::agent_entry_point::open_full_agent_session });
-		expect(ask.HumanAudience && ask.PostedComments, "an Agent tab question may write a comment to post");
-		const auto review = agent_turn_audience({ .EntryPoint = core::agent_entry_point::run_ai_review });
-		expect(review.HumanAudience && review.PostedComments, "a review writes suggested comments");
-		const auto description = agent_turn_audience({ .EntryPoint = core::agent_entry_point::open_full_agent_session, .Description = true });
-		expect(description.HumanAudience && !description.PostedComments, "a description is read by a person and writes no comment");
-		expect(!agent_turn_audience({ .EntryPoint = core::agent_entry_point::analyze_current_file }).PostedComments, "Explain this file writes no comment");
-		expect(!agent_turn_audience({ .EntryPoint = core::agent_entry_point::workshop_comment, .Operation = core::workshop_operation::suggest_change }).PostedComments,
-			   "Suggest the change writes no comment");
-		expect(!agent_turn_audience({ .WritingOnly = true }).PostedComments, "a tour run writes no comment");
-		auto       hooks     = core::writing_hook_settings{ };
-		const auto delivered = application::prompt_features_for(hooks, description);
-		expect(delivered.find(application::comment_labels_preamble()) == std::string::npos && delivered.find(application::writing_style_preamble()) != std::string::npos,
-			   "a description's request carries the Writing style and no Comment labels");
+		const auto description = application::default_writing_hook(core::writing_hook::local_description);
+		expect(description.find("## Summary") != std::string_view::npos && description.find("## What changed") != std::string_view::npos
+				   && description.find("## How to test") != std::string_view::npos && description.find("no comment label") != std::string_view::npos
+				   && description.find("It is not a comment") != std::string_view::npos,
+			   "Description writing asks for a title-free description in three parts");
+		expect(application::writing_hook_version_of(core::writing_hook::local_description) == "local-description-v2", "its version moved with its text");
 	}
 	std::cout << "writing-delivery-tests:pass\n";
 }

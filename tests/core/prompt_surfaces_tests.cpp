@@ -144,7 +144,7 @@ namespace {
 			return std::ranges::count_if(offers.Chips, [aPrefix](const prompt_offer& aOffer) { return aOffer.Id.starts_with(aPrefix); });
 		};
 		expect(count("agent-tab.review-pull-request") == 1 && count("agent-tab.what-could-break") == 1, "the pull request's chips");
-		expect(offers.Chips.size() == 7U && count("agent-tab.draft-description") == 0, "each chip surface has its own: two of the pull request's ([[BPR-2274]] Draft a description is in the menu only), five of the file's");
+		expect(offers.Chips.size() == 7U, "each chip surface has its own five: two of the pull request's, five of the file's");
 		expect(!offers.More.empty() && offers.More.back().Id == "own.5", "the file's sixth goes under More");
 		expect(std::ranges::none_of(offers.Chips, [](const prompt_offer& aOffer) { return aOffer.Id == "agent-tab.what-changed"; }), "a menu placement is never a chip");
 

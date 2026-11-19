@@ -189,6 +189,7 @@ add_library(
         src/agent_queue.cpp
         src/tour_stop_view.cpp
         src/description_edit.cpp
+        src/description_draft.cpp
         src/window_title.cpp
         src/reviewer_request.cpp
         src/draft_state.cpp

@@ -1,8 +1,10 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/application/review_mutation_diagnostics.hpp"
+#include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/author_mode.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_mutation_lifecycle.hpp"
+#include "bpr/core/description_draft.hpp"
 #include "bpr/core/description_edit.hpp"
 #include "bpr/core/draft_state.hpp"
 #include "bpr/core/review_role.hpp"
@@ -517,8 +519,84 @@ namespace bpr::app {
 		const auto [author, viewer] = description_edit_logins();
 		const auto editable         = core::description_edit_offered(author, viewer) && ReviewMutationHost != nullptr && ReviewMutationHost->capabilities().EditsDescription;
 		Window->overview_page()->set_description_editable(editable);
-		// [[BPR-2280]]. And in Author, where Use as description puts a draft.
+		// [[BPR-2280]]. And in Author, beside [[BPR-2281]]'s Draft Description.
 		Window->set_author_description_editable(editable);
+		if (auto* const editor = Window->author_description(); editor != nullptr) {
+			const auto ready = DescriptionDraft != nullptr && DescriptionDraft->available();
+			editor->set_draft_offer(ready, ready ? QString{ } : QStringLiteral("No agent can draft here. Set one up in the Agent tab."));
+		}
+	}
+
+	/// [[BPR-2281]] (owner, 2026-11-19: "it works like Draft Tour, it's one of
+	/// those system editable prompts"). One fresh, tool-free run of the
+	/// window's agent with the Description writing system prompt; the pull
+	/// request's title, description and change are its message. The draft
+	/// lands in Author's editor; nothing is sent until Save.
+	void github_application::implementation::request_description_draft()
+	{
+		auto* const editor = Window != nullptr ? Window->author_description() : nullptr;
+		if (Closing || editor == nullptr || DescriptionDraft == nullptr) {
+			return;
+		}
+		const auto* const snapshot = WindowRead && WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
+		const auto        profile  = writing_agent();
+		if (snapshot == nullptr || !Profile->WorkbenchPreferences || !Profile->WorkbenchPreferences->accepted()) {
+			DescriptionDraft->refuse("The pull request is still being read. Try again once it shows.");
+			return;
+		}
+		const auto& prefs = Profile->WorkbenchPreferences->accepted();
+		if (!profile || !writes_tool_free(*profile)) {
+			DescriptionDraft->refuse("Choose an agent that speaks Claude Code's stream JSON with the agent picker in the window's footer, or write it yourself.");
+			return;
+		}
+		auto agent = application::description_draft_agent{
+			.Agent        = "profile-" + std::to_string(profile->value()),
+			.AgentName    = agent_display_name(*profile).toStdString(),
+			.Profile      = profile->value(),
+			.Instructions = std::string{ application::effective_writing_hook(prefs->WritingHooks, core::writing_hook::local_description) },
+			.WritingStyle = application::writing_style_for(prefs->WritingHooks, true),
+		};
+		if (AgentSetup) {
+			if (const auto* const entry = core::entry_of_profile(AgentSetup->projection().Preferences.Agents, *profile); entry != nullptr) {
+				agent.Delivery = entry->Instructions;
+			}
+		}
+		auto material = core::description_draft_material{ .Title = snapshot->PullRequest.Title, .Body = snapshot->PullRequest.Body, .Files = { } };
+		for (const auto& file : snapshot->Files) {
+			const auto change = file.Change == application::github_file_change::added ? "added"
+				: file.Change == application::github_file_change::removed             ? "removed"
+				: file.Change == application::github_file_change::renamed             ? "renamed"
+																					  : "modified";
+			material.Files.push_back({ .Path = file.Path, .Change = change, .Patch = file.Patch });
+		}
+		if (!DescriptionDraft->draft(std::move(agent), material)) {
+			DescriptionDraft->refuse("A draft is already running.");
+		}
+	}
+
+	void github_application::implementation::present_description_draft(const application::description_draft_projection& aProjection)
+	{
+		auto* const editor = Window != nullptr ? Window->author_description() : nullptr;
+		if (Closing || editor == nullptr) {
+			return;
+		}
+		const auto profile = writing_agent();
+		editor->set_drafting(aProjection.Running, profile ? agent_display_name(*profile) : QString{ });
+		if (aProjection.Running) {
+			return;
+		}
+		if (aProjection.DraftRevision != DescriptionDraftShown && aProjection.Draft) {
+			DescriptionDraftShown = aProjection.DraftRevision;
+			if (!editor->fill_draft(QString::fromStdString(*aProjection.Draft))) {
+				editor->show_draft_status(QStringLiteral("The draft is ready, but the editor cannot take it now. Try again once it has saved."));
+			}
+			return;
+		}
+		if (aProjection.Stopped) {
+			editor->show_draft_status(QStringLiteral("Drafting stopped. The editor is as it was."));
+		} else if (!aProjection.Failure.empty()) {
+			editor->show_draft_status(QString::fromStdString(aProjection.Failure));
+		}
 	}
 
 	/// [[BPR-2280]]. The editor a save came from says what came of it:

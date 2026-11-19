@@ -267,7 +267,8 @@ hooks show|edit|reset suggested-comment` edits it too.
 
 The **Local drafts** system prompts are the ones a local PR draft's agent
 questions carry (RFC-BPR-0110): **Description writing**, sent when you ask
-about the draft's title or description, and **Change discussion**, sent with
+about the draft's title or description and by **Draft with agent** beside a
+pull request's description in Author ([[BPR-2281]]), and **Change discussion**, sent with
 every other question in its Tour and Description areas. Both cite code as
 `path:first-last` in the candidate and keep moved behaviour described as kept.
 A third, **Commit message**, is sent when you ask the agent to fill in a

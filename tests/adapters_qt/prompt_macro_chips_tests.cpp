@@ -205,15 +205,7 @@ namespace {
 		return names;
 	}
 
-	/// The shipped library, unplaced. [[BPR-2274]] Draft a description starts
-	/// in the pull request's Ask menu, never among the chips, so the
-	/// unplaced library these courses read leaves it out.
-	auto shipped() -> std::vector<core::prompt_macro>
-	{
-		auto macros = core::merge_prompt_macros(core::shipped_prompt_macros(), { }).macros();
-		std::erase_if(macros, [](const core::prompt_macro& aMacro) { return aMacro.Id == "agent-tab.draft-description"; });
-		return macros;
-	}
+	auto shipped() -> std::vector<core::prompt_macro> { return core::merge_prompt_macros(core::shipped_prompt_macros(), { }).macros(); }
 
 	/// The reviewer's own macro in the Agent tab, after the built-ins.
 	auto own(std::string aId, std::string aName, std::string aTemplate, const core::prompt_subject aSubject = core::prompt_subject::pull_request, const core::prompt_ask aAsk = core::prompt_ask::question) -> core::prompt_macro

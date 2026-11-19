@@ -63,8 +63,11 @@ namespace bpr::qt {
 			{ core::writing_hook::suggested_comment, "Suggested comments", "Agent tab, finding cards", "How the agent writes the comments it suggests for you to post.",
 			  "Sent with every Agent tab question. Draft comment and Draft all start from what it writes; nothing is published." },
 			// RFC-BPR-0110 ([[BPR-2026]]) The local-authoring prompts.
-			{ core::writing_hook::local_description, "Description writing", "Local drafts, Description", "How the agent writes a local draft's pull request description.",
-			  "Sent when you ask the agent about a local draft's title or description. You accept or reject what it proposes; nothing is published." },
+			// [[BPR-2281]]. And Draft with agent beside a pull request's
+			// description in Author.
+			{ core::writing_hook::local_description, "Description writing", "Author, Description; local drafts, Description", "How the agent writes a pull request's description.",
+			  "Sent by Draft with agent beside the description in Author, and when you ask the agent about a local draft's title or description. Its draft waits in the editor; "
+			  "nothing is saved or published until you do." },
 			{ core::writing_hook::local_discussion, "Change discussion", "Local drafts, conversations", "What the agent is told when you discuss a local draft's change.",
 			  "Sent with every question in a local draft's conversations. You accept or reject what it proposes; nothing is run or published." },
 			// RFC-BPR-0114 as amended 2026-11-12. The agent's commit message.

@@ -983,7 +983,6 @@ namespace bpr::qt {
 			// [[BPR-1773]]. Where its answer's Draft comment would go is
 			// decided now, while what it was asked on is on screen.
 			PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
-			PendingDescription = SendingMacro && SendingMacro->Description;
 		});
 		askRow->addWidget(Ask);
 		fieldCol->addLayout(askRow);
@@ -1335,7 +1334,6 @@ namespace bpr::qt {
 			next.Edited      = PendingEdited;
 			next.About       = PendingAbout;
 			next.DraftTarget = PendingDraftTarget;
-			next.Description = PendingDescription;
 			next.Returning   = PendingReturning;
 			next.Explain     = PendingExplain;
 			if (!next.Explain.isEmpty()) {
@@ -1357,7 +1355,6 @@ namespace bpr::qt {
 		PendingName.clear();
 		PendingEdited = false;
 		PendingDraftTarget.reset();
-		PendingDescription = false;
 		PendingReturning.reset();
 		PendingExplain.clear();
 		PendingSuggest.clear();
@@ -1680,25 +1677,6 @@ namespace bpr::qt {
 		draft->setIcon(conversation_icon(conversation_glyph::edit, palette()));
 		draft->hide();
 		footerRow->addWidget(draft);
-		// [[BPR-2280]] (owner, 2026-11-19: "It looks like it tried to make a
-		// comment not draft a PR description"). A description's answer is
-		// never a comment: in Draft's place, Use as description puts it in
-		// the author's description editor, where nothing is sent until Save.
-		auto* const useAsDescription = new quiet_push_button{ tr("Use as description"), reply };
-		useAsDescription->setObjectName(QStringLiteral("agentTurnUseAsDescription"));
-		useAsDescription->setFlat(false);
-		useAsDescription->setIcon(conversation_icon(conversation_glyph::edit, palette()));
-		useAsDescription->hide();
-		footerRow->addWidget(useAsDescription);
-		aTurn.UseAsDescription = useAsDescription;
-		connect(useAsDescription, &QPushButton::clicked, this, [this, useAsDescription] {
-			for (const auto& kept : Turns) {
-				if (kept.UseAsDescription == useAsDescription && DescriptionUse && DescriptionUsable) {
-					DescriptionUse(kept.AnswerText);
-					return;
-				}
-			}
-		});
 		// [[BPR-2138]], RFC-BPR-0116. Ask more on a returning question's
 		// fresh answer: the next question here opens with it.
 		auto* const askMore = new quiet_push_button{ tr("Ask more"), reply };
@@ -1984,9 +1962,7 @@ namespace bpr::qt {
 		const auto always = !aTurn.Explain.isEmpty() || aTurn.Returning == core::returning_operation::latest_upload || many;
 		// [[BPR-2246]]. A turn that ended without an answer has no report:
 		// its text is why it stopped, shown in the thread.
-		// [[BPR-2280]]: a description is the pull request's body, shown as
-		// it will read, never a report.
-		const auto report = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix && !aTurn.Description
+		const auto report = aTurn.ReportCard != nullptr && aTurn.Returning != core::returning_operation::proposed_fix
 			&& core::shows_report_attachment({ .AlwaysReport = always, .Ended = aTurn.Done, .Answered = aTurn.Outcome == core::agent_turn_outcome::answered }, answer);
 		auto summary = QString{ };
 		if (aTurn.ReportCard != nullptr) {
@@ -2628,12 +2604,11 @@ namespace bpr::qt {
 			.Usable    = Chat.send_action()->isEnabled() && State != agent_tab_state::working,
 		});
 		auto       carried  = macro_send{
-			.Key         = QString::fromStdString(offer.Id),
-			.Name        = QString::fromStdString(offer.Label),
-			.Subject     = core::suggested_subject_of(offer.Subject),
-			.Review      = offer.Kind == core::prompt_ask::review,
-			.Description = offer.Kind == core::prompt_ask::description,
-			.Expansion   = text,
+			.Key       = QString::fromStdString(offer.Id),
+			.Name      = QString::fromStdString(offer.Label),
+			.Subject   = core::suggested_subject_of(offer.Subject),
+			.Review    = offer.Kind == core::prompt_ask::review,
+			.Expansion = text,
 		};
 		const auto toEnd = [composer] {
 			auto cursor = composer->textCursor();
@@ -2696,7 +2671,6 @@ namespace bpr::qt {
 		if (DraftedMacro) {
 			MacroText->setText(DraftedMacro->Name);
 			const auto as = DraftedMacro->Review                                         ? tr("Sent as a review")
-				: DraftedMacro->Description                                              ? tr("Sent as a request for the pull request's description")
 				: DraftedMacro->Subject == core::agent_suggested_subject::open_file      ? tr("Sent as a question about the open file")
 				: DraftedMacro->Subject == core::agent_suggested_subject::selected_lines ? tr("Sent as a question about the selected lines")
 				: ConversationShown                                                      ? tr("Sent as a question about the conversation")
@@ -3784,19 +3758,7 @@ namespace bpr::qt {
 			return;
 		}
 		// Owner, look v006: no Keep local on the agent's answer; Draft alone.
-		aTurn.SaveNote->setVisible(aTurn.KeepOffered && aTurn.Note != 0U && !aTurn.Description);
-		// [[BPR-2280]]. A description offers Use as description, never Draft.
-		if (aTurn.UseAsDescription != nullptr) {
-			const auto tip = DescriptionUsable ? tr("Put this in the pull request's description editor to read and edit; nothing is sent until you save") : DescriptionWhy;
-			aTurn.UseAsDescription->setEnabled(DescriptionUsable);
-			aTurn.UseAsDescription->setToolTip(tip);
-			aTurn.UseAsDescription->setAccessibleDescription(tip);
-			aTurn.UseAsDescription->setVisible(aTurn.Description && aTurn.KeepOffered);
-		}
-		if (aTurn.Description) {
-			aTurn.Draft->hide();
-			return;
-		}
+		aTurn.SaveNote->setVisible(aTurn.KeepOffered && aTurn.Note != 0U);
 		// RFC-BPR-0127 (`core::decide_keep`): Draft where the host found a
 		// thread or line to take a draft; else the struck pencil says why.
 		const auto canDraft = aTurn.DraftTarget.has_value() && !aTurn.DraftTarget->Local;
@@ -3814,26 +3776,6 @@ namespace bpr::qt {
 	}
 
 	auto agent_tab_view::turn_draft_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Draft.data() : nullptr; }
-
-	void agent_tab_view::set_description_use(std::function<void(const QString&)> aUse) { DescriptionUse = std::move(aUse); }
-
-	void agent_tab_view::set_description_usable(const bool aUsable, const QString& aWhy)
-	{
-		if (DescriptionUsable == aUsable && DescriptionWhy == aWhy) {
-			return;
-		}
-		DescriptionUsable = aUsable;
-		DescriptionWhy    = aWhy;
-		for (auto& turn : Turns) {
-			if (turn.Description) {
-				present_keep(turn);
-			}
-		}
-	}
-
-	auto agent_tab_view::turn_use_as_description_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].UseAsDescription.data() : nullptr; }
-
-	auto agent_tab_view::turn_is_description(const std::size_t aTurn) const -> bool { return aTurn < Turns.size() && Turns[aTurn].Description; }
 
 	auto agent_tab_view::turn_asked(const std::size_t aTurn) const -> QString
 	{
@@ -4529,7 +4471,6 @@ namespace bpr::qt {
 			.ConversationAttached = ConversationShown.has_value(),
 			.Suggested            = SendingMacro ? SendingMacro->Subject : std::nullopt,
 			.Review               = SendingMacro && SendingMacro->Review,
-			.Description          = SendingMacro && SendingMacro->Description,
 			.OpenFile             = context.OpenFile.toStdString(),
 			.Returning            = SendingReturning,
 			.Explain              = SendingExplain.toStdString(),

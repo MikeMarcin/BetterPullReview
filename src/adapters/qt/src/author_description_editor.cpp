@@ -1,5 +1,6 @@
 #include "bpr/qt/author_description_editor.hpp"
 
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
@@ -37,7 +38,25 @@ namespace bpr::qt {
 		Edit->setObjectName(QStringLiteral("authorDescriptionEdit"));
 		Edit->setFlat(true);
 		head->addWidget(Edit);
+		// [[BPR-2281]] (owner, 2026-11-19: "I would put it near the
+		// description field in Author"; "it works like Draft Tour"). The
+		// row's agent action, bordered and in the Agent accent as Draft Tour
+		// is: the agent drafts the description into the editor; nothing is
+		// sent until Save. While it runs it is Stop drafting.
+		DraftButton = new quiet_push_button{ tr("Draft Description"), this };
+		DraftButton->setObjectName(QStringLiteral("authorDescriptionDraft"));
+		DraftButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		wear_agent_accent(*DraftButton, palette());
+		head->addWidget(DraftButton);
 		column->addLayout(head);
+		// What the draft is doing, or why it drafted nothing, beside the field.
+		DraftStatus = new QLabel{ this };
+		DraftStatus->setObjectName(QStringLiteral("authorDescriptionDraftStatus"));
+		DraftStatus->setTextFormat(Qt::PlainText);
+		DraftStatus->setWordWrap(true);
+		DraftStatus->setForegroundRole(QPalette::PlaceholderText);
+		DraftStatus->hide();
+		column->addWidget(DraftStatus);
 
 		// The app's Markdown reader, as Overview reads the description.
 		Reader = new markdown_body_view{ this };
@@ -101,6 +120,15 @@ namespace bpr::qt {
 		Panel->hide();
 
 		connect(Edit, &QPushButton::clicked, this, [this] { static_cast<void>(begin_edit()); });
+		connect(DraftButton, &QPushButton::clicked, this, [this] {
+			if (Drafting) {
+				if (StopDraft) {
+					StopDraft();
+				}
+			} else if (DraftReady && Body && !Saving && DraftDispatch) {
+				DraftDispatch();
+			}
+		});
 		connect(Save, &QPushButton::clicked, this, [this] { save(); });
 		auto* const saveKey = new QShortcut{ shortcut_key(shortcut_command::description_save), Panel };
 		saveKey->setObjectName(QStringLiteral("authorDescriptionSaveKey"));
@@ -225,6 +253,48 @@ namespace bpr::qt {
 		present();
 	}
 
+	void author_description_editor::set_draft_dispatch(std::function<void()> aDraft, std::function<void()> aStop)
+	{
+		DraftDispatch = std::move(aDraft);
+		StopDraft     = std::move(aStop);
+	}
+
+	void author_description_editor::set_draft_offer(const bool aReady, const QString& aWhy)
+	{
+		DraftReady = aReady;
+		DraftWhy   = aWhy;
+		present();
+	}
+
+	void author_description_editor::set_drafting(const bool aDrafting, const QString& aAgent)
+	{
+		Drafting = aDrafting;
+		if (aDrafting) {
+			show_draft_status(tr("%1 is drafting the description. It goes in the editor for you to read; nothing is sent until you save.").arg(aAgent.isEmpty() ? tr("The agent") : aAgent));
+		}
+		present();
+	}
+
+	void author_description_editor::show_draft_status(const QString& aText)
+	{
+		DraftStatus->setText(aText);
+		DraftStatus->setAccessibleName(aText);
+		DraftStatus->setVisible(!aText.isEmpty());
+		if (!aText.isEmpty()) {
+			QAccessibleAnnouncementEvent event{ DraftStatus, aText };
+			QAccessible::updateAccessibility(&event);
+		}
+	}
+
+	auto author_description_editor::fill_draft(const QString& aMarkdown) -> bool
+	{
+		if (!fill(aMarkdown)) {
+			return false;
+		}
+		show_draft_status({ });
+		return true;
+	}
+
 	void author_description_editor::present()
 	{
 		const auto shown = Body.has_value() && !Body->empty();
@@ -235,6 +305,19 @@ namespace bpr::qt {
 		Edit->setText(shown ? tr("Edit") : tr("Write"));
 		Edit->setAccessibleName(shown ? tr("Edit description") : tr("Write a description"));
 		Edit->setVisible(Editable && Body.has_value() && !Editing);
+		DraftButton->setVisible(Editable && Body.has_value());
+		DraftButton->setText(Drafting ? tr("Stop drafting") : tr("Draft Description"));
+		DraftButton->setEnabled(Drafting || (DraftReady && !Saving));
+		const auto tip = Drafting ? tr("Drafting the description in the background. Stop it; the editor keeps what it has.")
+			: DraftReady          ? tr("Asks the agent to draft this pull request's description from its change, into the editor. Nothing is sent until you save.")
+								  : DraftWhy;
+		DraftButton->setToolTip(tip);
+		DraftButton->setAccessibleDescription(tip);
+		if (Drafting) {
+			wear_ordinary_roles(*DraftButton);
+		} else if (!agent_run_control(*DraftButton)) {
+			wear_agent_accent(*DraftButton, palette());
+		}
 		if (shown) {
 			Reader->set_body(*Body, "author-description");
 		}

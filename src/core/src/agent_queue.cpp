@@ -794,14 +794,17 @@ namespace bpr::core {
 		const auto kind    = take_number(aText);
 		const auto cursor  = take_number(aText);
 		const auto values  = take_number(aText);
+		// [[BPR-2281]]. Kind 2 was `description` for a few hours of 0.5.0's
+		// development ([[BPR-2280]]); such a queued prompt asks a question.
+		constexpr auto retired_description = std::size_t{ 2U };
 		if (!place || !subject || !kind
-			|| *kind >= prompt_ask_count || !cursor || !values || *values > aText.size()) {
+			|| *kind > retired_description || !cursor || !values || *values > aText.size()) {
 			return std::nullopt;
 		}
 		auto offer    = prompt_offer{ };
 		offer.Place   = *place;
 		offer.Subject = *subject;
-		offer.Kind    = static_cast<prompt_ask>(*kind);
+		offer.Kind    = *kind == retired_description ? prompt_ask::question : static_cast<prompt_ask>(*kind);
 		for (auto index = std::size_t{ 0U }; index < *values; ++index) {
 			const auto begin = take_number(aText);
 			const auto end   = take_number(aText);

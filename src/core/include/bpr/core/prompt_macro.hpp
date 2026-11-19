@@ -68,13 +68,8 @@ namespace bpr::core {
 		/// A review with findings; the Agent tab only, about the pull
 		/// request, the open file or the selected commits.
 		review,
-		/// [[BPR-2280]]. A pull request description; the Agent tab only,
-		/// about the pull request. The answer is the description's Markdown:
-		/// offered to the author's description editor, never as a comment.
-		description,
 	};
-	inline constexpr std::size_t prompt_ask_count = 3U;
-	[[nodiscard]] auto           stable_name(prompt_ask aKind) noexcept -> std::string_view;
+	[[nodiscard]] auto stable_name(prompt_ask aKind) noexcept -> std::string_view;
 
 	/// \brief RFC-BPR-0128. Where a quick ask is asked: about a thread, a
 	/// file or the pull request. Widest last.

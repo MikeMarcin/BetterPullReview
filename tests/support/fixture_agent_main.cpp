@@ -466,24 +466,18 @@ namespace {
 				   "## Not checked\n\n- Windows and Linux builds: only the macOS paths were read.\n\n"
 				   "_Fixture agent: a canned answer, nothing was spent._";
 		}
-		// [[BPR-2274]]. Draft a description: from the diff, and from the
-		// tour's stops when the request carries a published tour.
-		// [[BPR-2280]]: the description itself, title-free Markdown in the
-		// prompt's three parts, with no canned-answer line: Use as
-		// description puts the whole answer in the pull request's body.
-		if (holds(aRequest, "Write the description of this pull request")) {
-			auto text = std::string{ "## Summary\n\n"
-									 "Each view now clears and draws its own scene between `begin_frame()` and `present()`, so two views in one frame no longer draw over each other.\n\n"
-									 "## What changed\n\n"
-									 "- `draw()` brackets the scene with `clear()` and `present()` for each view.\n"
-									 "- `resize()` keeps the size it is given for the next frame instead of stalling at zero width.\n" };
-			if (holds(aRequest, "Review tour")) {
-				text += "- The review tour reads it in order: where the change starts in `draw()`, then the new `resize()`.\n";
-			}
-			return text
-				+ "\n## How to test\n\n"
-				  "1. Open two views side by side and resize the window: neither draws over the other.\n"
-				  "2. Drag the window to zero width and back: drawing resumes at the new size.";
+		// [[BPR-2281]]. Draft Description: the description itself, title-free
+		// Markdown in the Description writing prompt's three parts, with no
+		// canned-answer line, since it goes into the pull request's body.
+		if (holds(aRequest, "bpr.description-draft.v1")) {
+			return "## Summary\n\n"
+				   "Each view now clears and draws its own scene between `begin_frame()` and `present()`, so two views in one frame no longer draw over each other.\n\n"
+				   "## What changed\n\n"
+				   "- `draw()` brackets the scene with `clear()` and `present()` for each view.\n"
+				   "- `resize()` keeps the size it is given for the next frame instead of stalling at zero width.\n\n"
+				   "## How to test\n\n"
+				   "1. Open two views side by side and resize the window: neither draws over the other.\n"
+				   "2. Drag the window to zero width and back: drawing resumes at the new size.";
 		}
 		if (holds(aRequest, "bpr.tour-draft.v2")) {
 			// Two stops on the fixture's renderer change, so each stop has a

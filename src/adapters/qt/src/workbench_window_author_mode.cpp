@@ -12,7 +12,6 @@
 /// (`bpr/core/author_mode.hpp`); this file presents them.
 
 #include "bpr/core/author_mode.hpp"
-#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/author_description_editor.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/local_changes_panel.hpp"
@@ -213,9 +212,7 @@ namespace bpr::qt {
 		AuthorDescription->hide();
 		holding->addWidget(AuthorDescription);
 		holding->addWidget(LocalDraft->workflow_page(), 1);
-		if (AgentTab != nullptr) {
-			AgentTab->set_description_use([this](const QString& aMarkdown) { static_cast<void>(use_as_description(aMarkdown)); });
-		}
+
 		LocalDraft->workflow_page()->show();
 		TrayPages->addWidget(AuthorWorkflowHolder);
 		connect(tabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
@@ -291,25 +288,6 @@ namespace bpr::qt {
 			AuthorDescription->set_editable(offered);
 			AuthorDescription->setVisible(!LocalDraftShown && author_case().has_value());
 		}
-		if (AgentTab != nullptr) {
-			AgentTab->set_description_usable(offered && author_case().has_value(),
-											 tr("Only the pull request's author can use this as its description, on a connection that can save it. Copy it instead."));
-		}
-	}
-
-	auto workbench_window::use_as_description(const QString& aMarkdown) -> bool
-	{
-		if (AuthorDescription == nullptr || !AuthorDescription->editable() || LocalDraftShown || !author_case().has_value()) {
-			return false;
-		}
-		if (current_modality() != review_modality::author) {
-			choose_modality(review_modality::author);
-		}
-		if (AuthorTabs != nullptr && AuthorTabs->currentIndex() != author_workflow_tab) {
-			AuthorTabs->setCurrentIndex(author_workflow_tab);
-		}
-		show_author_tab(author_workflow_tab);
-		return AuthorDescription->fill(aMarkdown);
 	}
 
 	void workbench_window::show_author_tab(const int aIndex)

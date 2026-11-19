@@ -379,8 +379,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_review_seen_stays_public_path": "private-desktop-root-refused",
     "application_review_seen_fails_public_path": "private-desktop-root-refused",
     "application_commit_asks_public_path": "unmeasured (registered on macOS)",
-    # [[BPR-2280]]. Draft a description with the fixture agent, Use as
-    # description and Save in Author.
+    # [[BPR-2280]], [[BPR-2281]]. Draft Description with the fixture agent
+    # and Save in Author.
     "application_draft_description_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",

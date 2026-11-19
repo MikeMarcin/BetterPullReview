@@ -85,13 +85,6 @@ namespace bpr::core {
 		}
 	}
 
-	namespace {
-		/// [[BPR-2274]]. Draft a description starts in the pull request's Ask
-		/// menu only: a third chip under an empty thread would stack three
-		/// buttons (RFC-BPR-0085). The reviewer can still place it as a chip.
-		[[nodiscard]] auto menu_only(const std::string_view aId) noexcept -> bool { return aId == "agent-tab.draft-description"; }
-	} // namespace
-
 	auto shipped_surfaces(const std::span<const prompt_macro> aMacros) -> prompt_surfaces
 	{
 		auto surfaces = prompt_surfaces{ };
@@ -107,7 +100,7 @@ namespace bpr::core {
 					list(surfaces, prompt_surface::thread_menu).push_back(macro.Id);
 				}
 			}
-			if (macro.Action != prompt_action::none || menu_only(macro.Id)) {
+			if (macro.Action != prompt_action::none) {
 				continue;
 			}
 			// [[BPR-2248]]. A prompt about selected commits is on the Commits

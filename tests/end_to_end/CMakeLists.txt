@@ -5648,8 +5648,8 @@ if(APPLE OR UNIX)
     set_tests_properties(application_commit_asks_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "commit-asks:pass")
 endif()
-# [[BPR-2280]]. Draft a description answers with a description, Use as
-# description fills Author's editor, Save writes once, a stale save is refused.
+# [[BPR-2280]], [[BPR-2281]]. Draft Description beside Author's description fills its
+# editor, Save writes once, a stale save is refused.
 bpr_add_executable(test_draft_description_public_path draft_description_public_path.cpp)
 target_link_libraries(test_draft_description_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_draft_description_public_path PRIVATE BPR_BUILD_TESTING=1)
