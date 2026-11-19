@@ -11,6 +11,7 @@
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/skill_completer.hpp"
+#include "bpr/qt/stick_to_bottom.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 
 #include <QAbstractButton>
@@ -28,7 +29,6 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QScrollBar>
 #include <QTextCursor>
 #include <QTimer>
 #include <QToolButton>
@@ -377,8 +377,9 @@ namespace bpr::qt {
 		Turns->setSpacing(12);
 		Scroll->setWidget(body);
 		Scroll->viewport()->installEventFilter(this);
-		// Scrolling back through the chat lets it stay where the author put it.
-		connect(Scroll->verticalScrollBar(), &QScrollBar::sliderMoved, this, [this] { Stick = false; });
+		// [[BPR-2296]]. At its end, the chat stays there as it grows; scrolled
+		// back, by the bar, a wheel or a gesture, it stays where the author put it.
+		stick_to_bottom::attach(*Scroll);
 		column->addWidget(Scroll, 1);
 
 		// [[BPR-1995]], RFC-BPR-0100 AC01, owner 2026-11-10: "The tour side chat
@@ -626,7 +627,8 @@ namespace bpr::qt {
 			Current = aIndex;
 			Edited.clear();
 			Editing.clear();
-			Stick = true;
+			// Another chat opens at its end.
+			stick_to_bottom::attach(*Scroll).pin();
 		}
 		rebuild();
 		changed();
@@ -2336,9 +2338,14 @@ namespace bpr::qt {
 			Turns->addWidget(Suggestions);
 		}
 		Turns->addStretch(1);
-		const auto grew = runs.size() != Shown || Mine;
-		Shown           = runs.size();
-		Stick           = Stick || grew;
+		// The author's own new question takes the chat to its end; a running
+		// turn holds the chat's height while it is pinned.
+		auto& follow = stick_to_bottom::attach(*Scroll);
+		if (runs.size() > Shown) {
+			follow.pin();
+		}
+		Shown = runs.size();
+		follow.set_turn_running(Mine);
 		restyle(palette());
 		refresh_actions();
 		QTimer::singleShot(0, this, [this] { fit(); });
@@ -2378,14 +2385,5 @@ namespace bpr::qt {
 			}
 		}
 		show_passage();
-		// A new turn keeps the chat at its end while its replies lay out.
-		if (Stick) {
-			to_bottom();
-		}
-	}
-
-	void tour_side_chat::to_bottom()
-	{
-		QTimer::singleShot(0, this, [this] { Scroll->verticalScrollBar()->setValue(Scroll->verticalScrollBar()->maximum()); });
 	}
 }

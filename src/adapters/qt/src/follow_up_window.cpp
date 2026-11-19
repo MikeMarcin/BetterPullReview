@@ -2,6 +2,7 @@
 
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/stick_to_bottom.hpp"
 
 #include <QAccessible>
 #include <QBoxLayout>
@@ -13,7 +14,6 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QScrollBar>
 #include <QStringList>
 
 #include <utility>
@@ -182,6 +182,8 @@ namespace bpr::qt {
 		Rounds->setSpacing(10);
 		Rounds->addStretch(1);
 		Scroll->setWidget(RoundsHolder);
+		// [[BPR-2296]]. At its end, the conversation stays there as it grows.
+		stick_to_bottom::attach(*Scroll);
 		column->addWidget(Scroll, 1);
 		Working = quiet_label({ }, this, QStringLiteral("followUpWorking"));
 		Working->hide();
@@ -285,7 +287,12 @@ namespace bpr::qt {
 		if (another || aState.Rounds.size() != RoundsShown) {
 			rebuild_rounds(aState);
 		}
+		// Another item's conversation opens at its end.
+		if (another) {
+			stick_to_bottom::attach(*Scroll).pin();
+		}
 		Running = aState.Phase != core::follow_up_phase::idle;
+		stick_to_bottom::attach(*Scroll).set_turn_running(Running);
 		if (Running) {
 			const auto agent = aAgent.isEmpty() ? tr("The agent") : aAgent;
 			Working->setText(aState.Phase == core::follow_up_phase::asking ? tr("%1 is answering…").arg(agent)
@@ -388,8 +395,8 @@ namespace bpr::qt {
 			Rounds->insertWidget(at++, answer);
 		}
 		RoundsShown = aState.Rounds.size();
-		RoundsHolder->adjustSize();
-		Scroll->verticalScrollBar()->setValue(Scroll->verticalScrollBar()->maximum());
+		// Laid out when the event loop next runs, the old rounds and the new
+		// together, so a reader scrolled up keeps their place.
 	}
 
 	/// The two run-starting controls wear the Agent accent while they would

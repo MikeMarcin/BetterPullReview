@@ -26,6 +26,7 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/stick_to_bottom.hpp"
 #include "conversation_glyphs.hpp"
 
 #include <QAbstractItemModel>
@@ -790,6 +791,8 @@ namespace bpr::qt {
 		contentCol->addWidget(SetupPrompt);
 		contentCol->addStretch(1);
 		scroll->setWidget(content);
+		// [[BPR-2296]]. At its end, the conversation stays there as it grows.
+		stick_to_bottom::attach(*scroll);
 		talk->addWidget(scroll, 1);
 
 		// The question field: the words, its context chips, Context and Ask.
@@ -1246,6 +1249,11 @@ namespace bpr::qt {
 		}
 		if (State == agent_tab_state::working) {
 			Finished = false;
+		}
+		if ((State == agent_tab_state::working) != wasWorking) {
+			if (auto* const scroll = qobject_cast<QScrollArea*>(Viewport != nullptr ? Viewport->parentWidget() : nullptr); scroll != nullptr) {
+				stick_to_bottom::attach(*scroll).set_turn_running(State == agent_tab_state::working);
+			}
 		}
 		if (Pages->currentWidget() != HistoryPage || setting) {
 			Pages->setCurrentWidget(setting ? static_cast<QWidget*>(SetupView) : State == agent_tab_state::not_set_up ? static_cast<QWidget*>(Empty)

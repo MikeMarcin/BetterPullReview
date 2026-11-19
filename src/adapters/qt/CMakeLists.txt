@@ -160,6 +160,7 @@ add_library(
         src/server_card.cpp
         src/comparison_scroll_controller.cpp
         src/nested_scroll_latch.cpp
+        src/stick_to_bottom.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp
 		src/diff_workbench_find_and_editing.cpp

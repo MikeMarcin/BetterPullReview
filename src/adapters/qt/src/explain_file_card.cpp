@@ -5,6 +5,7 @@
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/stick_to_bottom.hpp"
 
 #include <QEvent>
 #include <QHBoxLayout>
@@ -12,7 +13,6 @@
 #include <QPainterPath>
 #include <QResizeEvent>
 #include <QScrollArea>
-#include <QScrollBar>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -60,6 +60,10 @@ namespace bpr::qt {
 			}
 		});
 		Scroll->setWidget(Answer);
+		// [[BPR-2296]]. A streaming answer longer than the card follows its
+		// end while the reader leaves it there. One text only grows, so no
+		// height is held.
+		stick_to_bottom::attach(*Scroll);
 		Scroll->hide();
 		column->addWidget(Scroll);
 
