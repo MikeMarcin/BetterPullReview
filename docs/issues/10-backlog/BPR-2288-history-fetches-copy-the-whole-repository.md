@@ -4,10 +4,10 @@ id: "BPR-2288"
 title: "On a large repository, opening a file whose base the cache lacks runs a full clone that times out and restarts, and every retained agent workspace copies all of history: files never load, workspaces take minutes and 13 of them hold 113 GB"
 status: "Backlog"
 rfcs: []
-depends_on: ["BPR-2289", "BPR-2290", "BPR-2291"]
+depends_on: ["BPR-2289", "BPR-2290", "BPR-2291", "BPR-2293", "BPR-2294"]
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"defect","reservation":"docs/issues/_reservations/BPR-2288--BPR-2291--19d6a88ae1a3.json","split_into":["BPR-2289","BPR-2290","BPR-2291"],"found_by":"owner, 2026-11-19, build 69 on macOS, on a large repository (about 7.1 million objects, 9.4 GiB of packs, 80,733 files at the head) with a linked clone: one C++ file and one Markdown file each took minutes to show and showed no reason; a stack sample and the process list found the file view waiting on a full `gh repo clone` that timed out and restarted. The same day, the Agent tab spent minutes 'making its workspace at the head', and the retained agent workspaces were found to hold 113 GB","related_cards":["BPR-1751","BPR-1752","BPR-1772","BPR-1873","BPR-1879","BPR-1940","BPR-2246"],"related_rfcs":["RFC-BPR-0092","RFC-BPR-0108"]}
+metadata: {"kind":"defect","reservation":"docs/issues/_reservations/BPR-2288--BPR-2291--19d6a88ae1a3.json","split_into":["BPR-2289","BPR-2290","BPR-2291","BPR-2293","BPR-2294"],"found_by":"owner, 2026-11-19, build 69 on macOS, on a large repository (about 7.1 million objects, 9.4 GiB of packs, 80,733 files at the head) with a linked clone: one C++ file and one Markdown file each took minutes to show and showed no reason; a stack sample and the process list found the file view waiting on a full `gh repo clone` that timed out and restarted. The same day, the Agent tab spent minutes 'making its workspace at the head', and the retained agent workspaces were found to hold 113 GB","related_cards":["BPR-1751","BPR-1752","BPR-1772","BPR-1873","BPR-1879","BPR-1940","BPR-2246"],"related_rfcs":["RFC-BPR-0092","RFC-BPR-0108"]}
 acceptance: []
 ---
 
@@ -249,7 +249,8 @@ The owner's card is kept as written above. It closes when its three parts do:
   acquisition reads the linked clone first, borrows it as `--reference`,
   honours the cache's haves, logs `historical_acquire`, and a background import
   that hits a wall stops the rest (AC1 and AC3 in part, AC4's log).
-- [[BPR-2291]]: what is left. The file view's fetching state and Cancel, a
-  progress-based timeout, a bounded fetch with no linked clone (AC2), the
-  retained-workspace expiry, size cap and Settings row (AC6), and the checkout
-  cost of a large head (AC5's "ready in seconds").
+- [[BPR-2291]]: the file view's fetching state and Cancel, a progress-based
+  timeout, and no whole-history fetch of a large repository (AC2, AC3's
+  message, AC4's view).
+- [[BPR-2293]]: retained-workspace expiry, size cap and the Settings row (AC6).
+- [[BPR-2294]]: the checkout cost of a large head (AC5's "ready in seconds").
