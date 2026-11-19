@@ -62,7 +62,7 @@ namespace bpr::application {
 	/// \brief [[BPR-1090]] Version of the shipped review-feedback guidance,
 	/// `resources/review-preparation/review-feedback.md`. A change to that text
 	/// changes this name; a profile override is kept whatever it says.
-	inline constexpr std::string_view review_feedback_hook_version = "review-feedback-v1";
+	inline constexpr std::string_view review_feedback_hook_version = "review-feedback-v2";
 	/// \brief [[BPR-2051]] Versions of the shipped Enhance prompts,
 	/// `resources/review-preparation/enhance-*.md`, one for each, so an
 	/// override can say which default it was written against.
@@ -72,7 +72,8 @@ namespace bpr::application {
 	inline constexpr std::string_view enhance_writing_hook_version = "enhance-writing-v1";
 	/// \brief [[BPR-2059]] Version of the shipped suggested-comment format,
 	/// `resources/review-preparation/suggested-comment.md`.
-	inline constexpr std::string_view suggested_comment_hook_version = "suggested-comment-v1";
+	/// [[BPR-2264]] v2: the problem, what goes wrong, then the fix.
+	inline constexpr std::string_view suggested_comment_hook_version = "suggested-comment-v2";
 	/// \brief RFC-BPR-0110 ([[BPR-2026]]) Versions of the shipped
 	/// local-authoring prompts, `resources/review-preparation/local-*.md`.
 	inline constexpr std::string_view local_description_hook_version = "local-description-v1";
@@ -93,6 +94,9 @@ namespace bpr::application {
 	/// \brief RFC-BPR-0120 ([[BPR-2189]]). Version of a local draft's check
 	/// prompt, `resources/review-preparation/local-run-check.md`.
 	inline constexpr std::string_view local_run_check_hook_version = "local-draft-run-check-v1";
+	/// \brief [[BPR-2264]]. Version of the Writing style Feature's shipped
+	/// text, `resources/review-preparation/writing-style.md`.
+	inline constexpr std::string_view writing_style_hook_version = "writing-style-v1";
 	/// \brief [[BPR-2051]] The stable purpose ID of one prompt, as
 	/// RFC-BPR-0107's exchange names it: it never changes with the prompt's
 	/// text, version, position in this enumeration or display name.
@@ -135,6 +139,22 @@ namespace bpr::application {
 	/// `resources/review-preparation/report-templates.md`.
 	inline constexpr std::string_view report_templates_version = "report-templates-v2";
 	[[nodiscard]] auto                report_templates_guidance() -> core::supplement_feedback_guidance;
-	[[nodiscard]] auto                workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>;
+	/// \brief [[BPR-2264]]. The Writing style Feature (`/bpr:writing-style`)
+	/// as a request carries it: a fixed line that keeps every format the
+	/// request's own instructions give in charge, then the profile's
+	/// override, or the shipped text, as written. The text may name a skill
+	/// installed for the agent; it is sent as it is.
+	[[nodiscard]] auto writing_style_instructions(const core::writing_hook_settings& aSettings) -> std::string;
+	/// \brief [[BPR-2264]]. The one helper every agent request goes through
+	/// for its Writing style: the text above when a person reads the answer
+	/// (\p aHumanAudience) or when the request's own text (\p aOwnTexts: its
+	/// template, override or the person's typed words, never values
+	/// substituted from pull request data) names `/bpr:writing-style`;
+	/// otherwise nothing. Once, however often it is named.
+	[[nodiscard]] auto writing_style_for(const core::writing_hook_settings& aSettings, bool aHumanAudience, std::span<const std::string_view> aOwnTexts = { }) -> std::string;
+	/// \brief The first line of `writing_style_instructions`, which a
+	/// request's style always starts with.
+	[[nodiscard]] auto writing_style_preamble() noexcept -> std::string_view;
+	[[nodiscard]] auto workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>;
 }
 #endif

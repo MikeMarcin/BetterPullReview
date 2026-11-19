@@ -29,6 +29,7 @@
 #include <array>
 #include <chrono>
 #include <iterator>
+#include <mutex>
 #include <string_view>
 #include <variant>
 #include <vector>
@@ -1048,8 +1049,19 @@ namespace bpr::app {
 																						locate_agent_program());
 		LocalDraftEntryProcess   = std::make_unique<application::agent_entry_process>(*LocalDraftProcess, *LocalDraftLocatedProcess, AgentEntries, &adapters::agent::inspect_claude_process_wrapper,
 																					  locate_claude(), locate_agent_program());
-		auto runner              = [profiles = std::make_shared<const std::vector<core::agent_profile>>(aProfiles), process = LocalDraftEntryProcess.get(), root = ApplicationDataRoot](
-									   const application::local_draft_agent_run& aRun, const std::stop_token aStop) -> application::local_draft_agent_answer {
+		// [[BPR-2264]]. A person reads every answer a local draft's agent
+		// gives (description, discussion, commit message, a check's plan and
+		// report), so every run carries the Writing style. The chooser, on
+		// this thread, reads it from the saved prompts before each request;
+		// the runner, on the agent lane, appends it to the launch.
+		struct local_writing_style
+		{
+			std::mutex  Lock;
+			std::string Text;
+		};
+		auto style  = std::make_shared<local_writing_style>();
+		auto runner = [profiles = std::make_shared<const std::vector<core::agent_profile>>(aProfiles), process = LocalDraftEntryProcess.get(), root = ApplicationDataRoot, style](
+						  const application::local_draft_agent_run& aRun, const std::stop_token aStop) -> application::local_draft_agent_answer {
 			const auto profile = std::ranges::find_if(*profiles, [&aRun](const core::agent_profile& aProfile) { return aProfile.Id.value() == aRun.Profile; });
 			if (profile == profiles->end()) {
 				return { .Failure = "That agent is no longer set up. Choose one with the agent picker." };
@@ -1058,6 +1070,10 @@ namespace bpr::app {
 			supplement.Session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile->Id };
 			supplement.Message = aRun.Prompt;
 			auto options       = application::agent_launch_options{ .WritingOnly = true, .Path = aRun.Path, .SystemInstructions = aRun.Instructions, .Instructions = aRun.Delivery };
+			{
+				const auto lock      = std::scoped_lock{ style->Lock };
+				options.WritingStyle = style->Text;
+			}
 			// RFC-BPR-0120. A check runs in the candidate's check copy, never
 			// the worktree: its plan with read-only tools, its run with the
 			// draft's grants for this agent (RFC-BPR-0104). The copy's own
@@ -1173,12 +1189,16 @@ namespace bpr::app {
 			}
 			return answer;
 		};
-		DraftDesktop->set_agent(std::move(runner), &TourAgentEffects, [this]() -> std::optional<local_draft_desktop::agent_choice> {
+		DraftDesktop->set_agent(std::move(runner), &TourAgentEffects, [this, style]() -> std::optional<local_draft_desktop::agent_choice> {
 			const auto  profile = writing_agent();
 			const auto& prefs   = Profile->WorkbenchPreferences->accepted();
 			if (Closing || !profile || !writes_tool_free(*profile) || !prefs) {
 				Window->tour_editor()->show_notice(QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker, or keep writing yourself."));
 				return std::nullopt;
+			}
+			{
+				const auto lock = std::scoped_lock{ style->Lock };
+				style->Text     = application::writing_style_for(prefs->WritingHooks, true);
 			}
 			auto identity = tour_native_agent();
 			if (identity.empty()) {

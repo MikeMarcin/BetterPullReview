@@ -391,7 +391,7 @@ namespace {
 		const auto encoded  = application::encode_agent_supplement(*built);
 		const auto expected = std::string{ "workshop_operation\tclarify\n"
 										   "feedback_guidance.source\tprofile_override\n"
-										   "feedback_guidance.version\treview-feedback-v1\n"
+										   "feedback_guidance.version\treview-feedback-v2\n"
 										   "feedback_guidance.text\tTeam rule:\\tlabel every comment.\\nPublish nothing; you cannot.\n" };
 		const auto at       = encoded.find(expected);
 		expect(at != std::string::npos && encoded.find("feedback_guidance", at + expected.size()) == std::string::npos, "three escaped lines, once, directly after the operation they qualify");
@@ -404,7 +404,7 @@ namespace {
 		auto defaulted             = workshop_press(core::workshop_operation::shorten);
 		defaulted.FeedbackGuidance = shipped;
 		const auto defaultWire     = application::encode_agent_supplement(*application::build_agent_context_supplement(defaulted, session()));
-		expect(defaultWire.find("feedback_guidance.source\tshipped\nfeedback_guidance.version\treview-feedback-v1\nfeedback_guidance.text\t") != std::string::npos, "the shipped default names itself as shipped");
+		expect(defaultWire.find("feedback_guidance.source\tshipped\nfeedback_guidance.version\treview-feedback-v2\nfeedback_guidance.text\t") != std::string::npos, "the shipped default names itself as shipped");
 
 		auto onReview             = observation();
 		onReview.FeedbackGuidance = shipped;

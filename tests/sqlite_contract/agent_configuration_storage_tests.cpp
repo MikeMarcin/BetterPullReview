@@ -249,6 +249,37 @@ try {
 	expect(local_decoded && local_decoded->Prompts.size() == 2U && !local_decoded->Prompts[0].Problem && !local_decoded->Prompts[1].Problem,
 		   "this version recognizes both purposes on import");
 
+	// [[BPR-2264]]. The Writing style Feature exports under its purpose ID
+	// with its text as written (here naming a skill), and an import applies
+	// it to the recipient's profile, where every request then sends it.
+	store_hook(sender, core::writing_hook::writing_style, "Follow my house-style skill.");
+	const auto style_snapshot = sender_store->load();
+	const auto style_prompts  = std::vector<application::exported_prompt>{ { .Purpose = "feature.writing-style" } };
+	const auto style_bytes    = application::export_agent_configuration(*style_snapshot, { }, style_prompts, "Style", "BetterPullReview test");
+	expect(style_bytes && style_bytes->find("feature.writing-style") != std::string::npos && style_bytes->find("Follow my house-style skill.") != std::string::npos,
+		   "the Writing style exports under its purpose ID with its text as written");
+	auto style_written = false;
+	host.write(file, *style_bytes, [&style_written](const bool aWritten) { style_written = aWritten; });
+	effects.drain();
+	decision.drain();
+	auto style_preview = std::optional<application::agent_configuration_preview>{ };
+	host.read(file, [&style_preview](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) {
+		if (aPreview) {
+			style_preview = std::move(*aPreview);
+		}
+	});
+	effects.drain();
+	decision.drain();
+	expect(style_written && style_preview && style_preview->File.Prompts.size() == 1U && !style_preview->File.Prompts[0].Problem, "this version recognizes the Feature on import");
+	auto style_outcome = std::optional<application::agent_configuration_host::applied>{ };
+	host.apply(*style_preview, { }, { 0U }, [&style_outcome](application::agent_configuration_host::applied aApplied) { style_outcome = std::move(aApplied); });
+	effects.drain();
+	decision.drain();
+	const auto style_hooks = hooks_of(recipient);
+	expect(style_outcome && style_outcome->has_value() && style_hooks.Overrides[static_cast<std::size_t>(core::writing_hook::writing_style)] == "Follow my house-style skill."
+			   && application::writing_style_for(style_hooks, true).ends_with("Follow my house-style skill."),
+		   "the import applies the override, and it is what a request sends");
+
 	// RFC-BPR-0110: a store an earlier build made checks hooks 0 to 7; the
 	// next open rebuilds both hook tables for ten hooks, keeping their rows.
 	{

@@ -836,6 +836,18 @@ namespace bpr::app {
 		};
 		invocation.McpServers   = mcpServers;
 		invocation.Instructions = instructions;
+		// [[BPR-2264]]. A person reads every answer a turn from this window
+		// gives: the Agent tab's answers, reports and suggested comments, the
+		// comment workshop, the returning questions, Explain this file,
+		// Suggest the change and every tour run. Each carries the Writing
+		// style, read now from the profile's saved prompts.
+		{
+			auto hooks = core::writing_hook_settings{ };
+			if (Profile && Profile->WorkbenchPreferences && Profile->WorkbenchPreferences->accepted()) {
+				hooks = Profile->WorkbenchPreferences->accepted()->WritingHooks;
+			}
+			invocation.WritingStyle = application::writing_style_for(hooks, true);
+		}
 		// [[BPR-1900]]. Every tour writing run is the tour session's, never
 		// the Agent tab's: a drafting run in the review's workspace with
 		// read-only tools, or a small rewrite tool-free.

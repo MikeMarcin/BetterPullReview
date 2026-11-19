@@ -2596,6 +2596,7 @@ namespace bpr::qt {
 		case core::writing_hook::review_explain_file:   return false; // RFC-BPR-0117 Nor Explain this file.
 		case core::writing_hook::review_suggest_change: return false; // RFC-BPR-0118 Nor Suggest the change.
 		case core::writing_hook::local_run_check:       return false; // RFC-BPR-0120 Nor a local draft's check.
+		case core::writing_hook::writing_style:         return false; // [[BPR-2264]] Nor the Writing style Feature.
 		}
 		return false;
 	}

@@ -91,6 +91,12 @@ namespace bpr::qt {
 			{ core::writing_hook::local_run_check, "Plan and run a check", "Local drafts, Plan a check…",
 			  "What the agent is told when it plans a check of a local draft, and when it runs that plan in a throwaway copy.",
 			  "Sent with Plan a check… and with Run. The plan waits for Run; the run ends in a report. Nothing is recorded or published." },
+			// [[BPR-2264]]. The one editable Feature.
+			{ core::writing_hook::writing_style, "Writing style", "Every answer you read, /bpr:writing-style",
+			  "How the agent words anything you read: answers, reports, suggested comments, tour text, descriptions and commit messages. It can simply point at a skill installed for "
+			  "the agent, as in \"Follow my house-style skill.\"",
+			  "A Feature. Sent with every request whose answer you read, after that request's own format, which wins where they disagree. A prompt or skill that names "
+			  "/bpr:writing-style still sends it once." },
 		} };
 
 		[[nodiscard]] auto facts_of(const core::writing_hook aHook) -> const prompt_facts& { return facts[static_cast<std::size_t>(aHook)]; }
@@ -253,6 +259,14 @@ namespace bpr::qt {
 			item->setData(hook_role, static_cast<int>(hook));
 			item->setData(usage_role, tr(facts_of(hook).Where));
 		}
+		// [[BPR-2264]] Features, after every group; the review skill joins the
+		// Agent tab's group above this heading.
+		FeaturesHeader = make_header(Hook, tr("Features"));
+		{
+			auto* const item = new QListWidgetItem{ tr(facts_of(core::writing_hook::writing_style).Name), Hook };
+			item->setData(hook_role, static_cast<int>(core::writing_hook::writing_style));
+			item->setData(usage_role, tr(facts_of(core::writing_hook::writing_style).Where));
+		}
 		body->addWidget(Hook, 0);
 
 		// The prompt shown and the review skill's own editor share the pane;
@@ -395,7 +409,7 @@ namespace bpr::qt {
 		connect(TestButton, &QPushButton::clicked, this, [this] {
 			if (Test && selected_hook() != core::writing_hook::feedback && selected_hook() != core::writing_hook::suggested_comment && selected_hook() != core::writing_hook::local_description
 				&& selected_hook() != core::writing_hook::local_discussion && selected_hook() != core::writing_hook::local_commit_message && selected_hook() != core::writing_hook::local_run_check
-				&& !returning_hook(selected_hook())) {
+				&& selected_hook() != core::writing_hook::writing_style && !returning_hook(selected_hook())) {
 				Test(selected_hook());
 			}
 		});
@@ -492,7 +506,8 @@ namespace bpr::qt {
 		}
 		ReviewSkillShown = true;
 		// [[BPR-2059]] Under the Agent tab's heading, after Suggested comments.
-		auto* const item = new QListWidgetItem{ tr("Review skill"), Hook };
+		auto* const item = new QListWidgetItem{ tr("Review skill") };
+		Hook->insertItem(Hook->row(FeaturesHeader), item);
 		item->setData(hook_role, review_skill_v);
 		item->setData(usage_role, tr("Agent tab, every question"));
 		auto* const page = new QWidget{ Pages };
@@ -664,13 +679,16 @@ namespace bpr::qt {
 			|| hook == core::writing_hook::local_run_check;
 		// RFC-BPR-0116. The returning questions are tried on a returning pull request.
 		const bool returning = returning_hook(hook);
-		TestButton->setEnabled(!feedback && !suggested && !local && !returning);
+		// [[BPR-2264]] The Writing style rides on every request: any of them tries it.
+		const bool style = hook == core::writing_hook::writing_style;
+		TestButton->setEnabled(!feedback && !suggested && !local && !returning && !style);
 		TestButton->setToolTip(feedback                                                ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.")
 								   : suggested                                         ? tr("Test uses a tour field. Ask the agent a question in the Agent tab to try this format.")
 								   : hook == core::writing_hook::review_explain_file   ? tr("Test uses a tour field. Press Explain this file over a file in Review to try this prompt.")
 								   : hook == core::writing_hook::review_suggest_change ? tr("Test uses a tour field. Press Suggest the change on a draft comment to try this prompt.")
 								   : returning                                         ? tr("Test uses a tour field. Ask it on a pull request with commits since your review to try this prompt.")
 								   : local                                             ? tr("Test uses a tour field. Ask in a local draft's conversation to try this prompt.")
+								   : style                                             ? tr("Test uses a tour field. Ask the agent anything to try this style.")
 																					   : tr("Runs the saved prompt on a sample passage. Nothing is inserted or published."));
 		refresh_state();
 		refresh_rows();

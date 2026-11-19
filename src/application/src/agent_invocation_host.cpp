@@ -1009,6 +1009,7 @@ namespace bpr::application {
 				options.McpServers         = aRequest.McpServers;
 				options.SystemInstructions = aRequest.SystemInstructions;
 				options.Instructions       = aRequest.Instructions;
+				options.WritingStyle       = aRequest.WritingStyle;
 				// [[BPR-1752]]. The brief says what the workspace that
 				// was just made is, so the agent knows whether history and the
 				// base are there to compare with.

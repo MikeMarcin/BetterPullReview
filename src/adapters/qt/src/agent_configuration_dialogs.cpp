@@ -301,6 +301,7 @@ namespace bpr::qt {
 		case core::writing_hook::review_explain_file:   return QObject::tr("Explain this file");
 		case core::writing_hook::review_suggest_change: return QObject::tr("Suggest the change");
 		case core::writing_hook::local_run_check:       return QObject::tr("Plan and run a check");
+		case core::writing_hook::writing_style:         return QObject::tr("Writing style");
 		}
 		return text_of(aPurpose);
 	}

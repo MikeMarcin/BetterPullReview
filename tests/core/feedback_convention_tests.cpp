@@ -399,6 +399,20 @@ namespace {
 		expect(!recognize_checked(bare).Discussion && recognize_checked(bare).Subject->End == bare.size(), "no discussion without a line terminator");
 	}
 
+	/// [[BPR-2264]] (owner, 2026-11-18). The weight each label carries on
+	/// its own: a decoration repeating it adds nothing over the label.
+	void implied_weights()
+	{
+		expect(implied_expectation(feedback_label::issue) == feedback_expectation::blocking && implied_expectation(feedback_label::todo) == feedback_expectation::blocking
+				   && implied_expectation(feedback_label::typo) == feedback_expectation::blocking && implied_expectation(feedback_label::chore) == feedback_expectation::blocking,
+			   "issue, todo, typo and chore block on their own");
+		for (const auto label : { feedback_label::suggestion, feedback_label::nitpick, feedback_label::quibble, feedback_label::thought, feedback_label::note, feedback_label::praise }) {
+			expect(implied_expectation(label) == feedback_expectation::non_blocking, std::string{ stable_name(label) } + " does not block on its own");
+		}
+		expect(implied_expectation(feedback_label::question) == feedback_expectation::unspecified && implied_expectation(feedback_label::polish) == feedback_expectation::unspecified,
+			   "question and polish carry no weight of their own");
+	}
+
 	auto padded_header(std::size_t aSubjectBegin) -> std::string
 	{
 		const std::string_view header = "issue (blocking): ";
@@ -591,6 +605,7 @@ int main(int aArgc, char** aArgv)
 	malformed_and_unknown();
 	false_positives();
 	spans_and_line_endings();
+	implied_weights();
 	budgets();
 	pathological();
 	generated_properties();

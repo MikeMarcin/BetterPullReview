@@ -105,8 +105,10 @@ namespace bpr::core {
 						  "- Good: what was done well, only where it is earned.\n"
 						  "- Questions for the author: what only they can answer.\n"
 						  "- Not reviewed: each thing not read or not checked, named, then why. Write it about the thing, not about yourself.\n\n"
-						  "Severity: head each finding with a Conventional Comments label: issue, suggestion, question, nitpick or praise, with (blocking) or (non-blocking) after issue and suggestion. "
-						  "A blocking issue goes under Must fix.\n\n"
+						  "Severity: head each finding with a Conventional Comments label: issue, suggestion, question, nitpick or praise. The label carries the weight: an issue "
+						  "blocks the merge; a suggestion, nitpick or praise does not. Add (blocking) or (non-blocking) only when the weight differs from the label's: "
+						  "suggestion (blocking) for a suggestion that must be taken before merging, issue (non-blocking) for a problem that can wait. "
+						  "An issue, and anything marked (blocking), goes under Must fix.\n\n"
 						  "Verdict: Needs changes when anything stands under Must fix, Ready with comments when only smaller things do, Ready to merge when nothing does.\n\n"
 						  "Tone: plain and specific, as one engineer writes to another. No praise that is not earned, and no hedging.";
 		}

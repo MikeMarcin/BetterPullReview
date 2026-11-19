@@ -548,6 +548,26 @@ owner amendment, and the amendment keeps every obligation it does not name.
 | RFC-BPR-0126 | Queued entries store a Result and take contracts at dispatch. | M1 ([[BPR-2222]]) |
 | RFC-BPR-0128 | `report-templates.md` splits into the Report and Findings report contracts and the prompts' text. Was this addressed? is the Thread claims Result. | M2 ([[BPR-2224]]) |
 
+### Amendment (owner, 2026-11-18): Writing style ships first as an editable Feature
+
+[[BPR-2264]] ships one Feature ahead of this RFC, in 0.5.0, and this RFC
+adopts it. The owner: "build the writing style hook at a Feature I think.
+That way all the skills can reference it easily ... there should be mostly
+immutable features but we can have some editable features using the prompt
+library to edit them."
+
+- Features are immutable by default. A registry (`core/prompt_features.hpp`)
+  marks a Feature editable; an editable Feature is edited in Settings ›
+  Prompts, under Features, like a built-in prompt, and travels in the
+  settings exchange under `feature.<name>`.
+- `writing-style` is the first Feature and the only editable one. Unlike the
+  Features above, it is appended to every request whose answer a person
+  reads, after that request's own instructions and format, which win where
+  they disagree; a reference to it in a prompt or skill sends it once.
+- `bpr:` is already reserved: `/bpr:<name>` is never a skill reference.
+- This RFC's other Features (`suggested-comment`, `suggested-change`,
+  `proposed-fix`) join the same registry, immutable, when M1 builds them.
+
 ## Questions
 
 ### Resolved (2026-11-16)

@@ -351,6 +351,11 @@ namespace bpr::application {
 		/// message, the App Server, or past `maximum_system_prompt_argument_bytes`).
 		std::string                      SystemInstructions;
 		core::agent_instruction_delivery Instructions = core::agent_instruction_delivery::system_prompt;
+		/// [[BPR-2264]]. The Writing style Feature as `writing_style_for`
+		/// gives it; empty: none. It follows every other instruction: at the
+		/// end of the system prompt, or, where the instructions are pasted,
+		/// as the request's last field, `writing_style`.
+		std::string WritingStyle;
 	};
 
 	/// \brief [[BPR-2140]]. How a launch delivered its instructions, as the

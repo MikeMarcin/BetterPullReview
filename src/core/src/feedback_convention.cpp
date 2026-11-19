@@ -518,6 +518,28 @@ namespace bpr::core {
 	{
 		return definition_of(aLabel).Id;
 	}
+	auto implied_expectation(const feedback_label aLabel) noexcept -> feedback_expectation
+	{
+		if (aLabel == feedback_label::issue) {
+			return feedback_expectation::blocking;
+		}
+		if (aLabel == feedback_label::suggestion) {
+			return feedback_expectation::non_blocking;
+		}
+		switch (definition_of(aLabel).Guidance) {
+		case feedback_label_guidance::necessary_change:
+		case feedback_label_guidance::required_before_acceptance:
+			return feedback_expectation::blocking;
+		case feedback_label_guidance::positive:
+		case feedback_label_guidance::non_blocking_by_nature:
+		case feedback_label_guidance::always_non_blocking:
+			return feedback_expectation::non_blocking;
+		case feedback_label_guidance::unspecified:
+			break;
+		}
+		return feedback_expectation::unspecified;
+	}
+
 	auto stable_name(feedback_label_guidance aGuidance) noexcept -> std::string_view
 	{
 		switch (aGuidance) {

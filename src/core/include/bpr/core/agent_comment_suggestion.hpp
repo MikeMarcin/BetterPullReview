@@ -26,6 +26,12 @@
 /// and its decorations in the toggles, exactly as if the reviewer had chosen
 /// them there.
 ///
+/// [[BPR-2264]] (owner, 2026-11-18): a `(blocking)` or `(non-blocking)` the
+/// label already implies (`implied_expectation`) is left out, so
+/// `suggestion (non-blocking): subject` drafts as `suggestion: subject`; one
+/// that says the other weight is kept, and the reviewer can still add either
+/// in the toggles.
+///
 /// It adds nothing the agent did not write. A missing label stays missing, an
 /// unknown one (`nit:`, `bug:`) is left as the text it is and no alias is
 /// read, and a header that cannot be rewritten without restructuring the body

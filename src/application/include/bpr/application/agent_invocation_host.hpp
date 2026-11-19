@@ -121,6 +121,9 @@ namespace bpr::application {
 		core::agent_mcp_servers          McpServers = core::agent_mcp_servers::off;
 		std::string                      SystemInstructions;
 		core::agent_instruction_delivery Instructions = core::agent_instruction_delivery::system_prompt;
+		/// [[BPR-2264]]. The Writing style Feature the launch appends
+		/// (`agent_launch_options::WritingStyle`); empty: none.
+		std::string WritingStyle;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};

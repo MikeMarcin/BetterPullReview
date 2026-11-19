@@ -48,6 +48,11 @@ namespace bpr::core {
 	///
 	/// RFC-BPR-0120 ([[BPR-2189]]): `local_run_check`, when they ask the
 	/// agent to plan and run a check on a local draft.
+	///
+	/// [[BPR-2264]]: `writing_style`, the editable Feature
+	/// `/bpr:writing-style` (`prompt_features.hpp`): how the agent writes any
+	/// prose a person reads. It writes no field and is never a target; every
+	/// request whose answer a person reads carries it.
 	enum class writing_hook : std::uint8_t { problem,
 											 solution,
 											 outline,
@@ -63,8 +68,9 @@ namespace bpr::core {
 											 review_proposed_fix,
 											 review_explain_file,
 											 review_suggest_change,
-											 local_run_check };
-	inline constexpr std::size_t writing_hook_count = 16;
+											 local_run_check,
+											 writing_style };
+	inline constexpr std::size_t writing_hook_count = 17;
 	/// \brief [[BPR-2051]] Whether the hook is one of the Enhance prompts.
 	[[nodiscard]] constexpr auto enhance_hook(const writing_hook aHook) noexcept -> bool { return aHook >= writing_hook::enhance_stop && aHook <= writing_hook::enhance_writing; }
 	/// \brief The review-preparation hooks, `problem` to `comment`.

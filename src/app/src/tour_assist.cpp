@@ -89,6 +89,8 @@ namespace bpr::app {
 		case core::writing_hook::review_suggest_change: return "review-suggest-change";
 		// RFC-BPR-0120 a local draft's check.
 		case core::writing_hook::local_run_check: return "local-run-check";
+		// [[BPR-2264]] The Writing style Feature.
+		case core::writing_hook::writing_style: return "writing-style";
 		}
 		return "problem";
 	}
@@ -213,7 +215,13 @@ namespace bpr::app {
 		request.Selection.Begin     = begin;
 		request.Selection.End       = end;
 		request.Raw                 = raw;
-		const auto prompt           = application::build_writing_prompt(aSettings, request, sources);
+		// [[BPR-2264]]. The agent that completes the ticket writes a tour
+		// field a person reads, so the prompt carries the Writing style after
+		// the hook's instructions and format, before the evidence.
+		auto prompt = std::optional<std::string>{ };
+		if (auto parts = application::build_writing_prompt_parts(aSettings, request, sources)) {
+			prompt = parts->Instructions + application::writing_style_for(aSettings, true) + "\n" + parts->Message;
+		}
 		if (!prompt) {
 			return refuse("context_too_large", "This request exceeds the writing context limit. Select a smaller passage or shorten the hook instructions.", 2);
 		}

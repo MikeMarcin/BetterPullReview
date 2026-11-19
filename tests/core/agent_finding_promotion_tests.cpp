@@ -275,8 +275,11 @@ namespace {
 		auto labelled                     = request(core::agent_finding_promotion_choice::draft_comment);
 		labelled.Finding.SuggestedComment = std::string{ "**Suggestion (Non-Blocking):** increment `attempts` first.\n\nOtherwise the loop spins." };
 		const auto result                 = core::promote_agent_finding(labelled);
-		expect(result.promoted() && result.Draft && result.Draft->Body == "suggestion (non-blocking): increment `attempts` first.\n\nOtherwise the loop spins.",
-			   "the draft opens with the canonical header and the agent's own words");
+		expect(result.promoted() && result.Draft && result.Draft->Body == "suggestion: increment `attempts` first.\n\nOtherwise the loop spins.",
+			   "the draft opens with the canonical header and the agent's own words, without the weight the label already carries ([[BPR-2264]])");
+		labelled.Finding.SuggestedComment = std::string{ "issue (non-blocking): the retry budget is never reset." };
+		const auto differing              = core::promote_agent_finding(labelled);
+		expect(differing.promoted() && differing.Draft && differing.Draft->Body == "issue (non-blocking): the retry budget is never reset.", "[[BPR-2264]] a weight the label does not carry stays");
 		auto unknown                     = labelled;
 		unknown.Finding.SuggestedComment = std::string{ "nit: rename `attempts`." };
 		const auto kept                  = core::promote_agent_finding(unknown);

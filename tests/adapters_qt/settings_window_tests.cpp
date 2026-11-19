@@ -628,11 +628,11 @@ auto main(int argc, char** argv) -> int
 		unsigned                    tests = 0, saves = 0;
 		core::writing_hook_settings settings;
 		panel->set_dispatch([&](core::writing_hook aSelected, std::string aInstructions) { ++saves;settings.Overrides[static_cast<std::size_t>(aSelected)]=std::move(aInstructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
-		expect(hook->count() == 21 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments and notes" && hook->item(7)->text() == "Review feedback"
+		expect(hook->count() == 23 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Enhance a stop" && hook->item(6)->text() == "Comments and notes" && hook->item(7)->text() == "Review feedback"
 				   && hook->item(8)->text() == "Enhance writing" && hook->item(9)->text() == "Local drafts" && hook->item(10)->text() == "Description writing"
 				   && hook->item(11)->text() == "Change discussion" && hook->item(12)->text() == "Commit message" && hook->item(13)->text() == "Plan and run a check" && hook->item(14)->text() == "Agent tab" && hook->item(15)->text() == "Suggested comments"
-				   && hook->item(16)->text() == "What changed" && hook->item(17)->text() == "Was this addressed" && hook->item(18)->text() == "Explain this file" && hook->item(19)->text() == "Suggest the change" && hook->item(20)->text() == "Review skill" && !text->toPlainText().isEmpty(),
-			   "[[BPR-1917]], [[BPR-2051]], [[BPR-2059]], RFC-BPR-0110, RFC-BPR-0114, RFC-BPR-0116 every built-in prompt is listed under where it is used: four tour prompts and a stop's Enhance, review feedback and the one Enhance writing prompt (owner look 2026-11-10), the three local-authoring prompts, the suggested-comment format, the two returning questions and the review skill");
+				   && hook->item(16)->text() == "What changed" && hook->item(17)->text() == "Was this addressed" && hook->item(18)->text() == "Explain this file" && hook->item(19)->text() == "Suggest the change" && hook->item(20)->text() == "Review skill" && hook->item(21)->text() == "Features" && hook->item(22)->text() == "Writing style" && !text->toPlainText().isEmpty(),
+			   "[[BPR-1917]], [[BPR-2051]], [[BPR-2059]], RFC-BPR-0110, RFC-BPR-0114, RFC-BPR-0116 every built-in prompt is listed under where it is used: four tour prompts and a stop's Enhance, review feedback and the one Enhance writing prompt (owner look 2026-11-10), the three local-authoring prompts, the suggested-comment format, the two returning questions and the review skill, then [[BPR-2264]] the Writing style Feature under Features");
 		const std::array<core::writing_hook, 4> tourHooks = { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment };
 		for (const auto tourHook : tourHooks) {
 			panel->select_hook(tourHook);
@@ -653,7 +653,7 @@ auto main(int argc, char** argv) -> int
 		expect(scope->isHidden() && test->isEnabled() && source->text().contains("tour-stop-comment-v2"), "a tour hook shows no feedback line and can be tested");
 		panel->select_hook(core::writing_hook::feedback);
 		expect(panel->selected_hook() == core::writing_hook::feedback && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "the feedback row previews the shipped guidance");
-		expect(!scope->isHidden() && scope->text().startsWith("Off.") && source->text().contains("Built-in") && source->text().contains("review-feedback-v1"), "with the label helper off the row says the guidance is off");
+		expect(!scope->isHidden() && scope->text().startsWith("Off.") && source->text().contains("Built-in") && source->text().contains("review-feedback-v2"), "with the label helper off the row says the guidance is off");
 		expect(!test->isEnabled() && !test->toolTip().isEmpty(), "the tour-field test is unavailable for the feedback hook, with the reason");
 		test->click();
 		expect(tests == 1, "and clicking it asks for nothing");
@@ -684,7 +684,7 @@ auto main(int argc, char** argv) -> int
 		{
 			const auto index = static_cast<std::size_t>(core::writing_hook::suggested_comment);
 			panel->select_hook(core::writing_hook::suggested_comment);
-			expect(text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::suggested_comment) && source->text().contains(QStringLiteral("suggested-comment-v1"))
+			expect(text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::suggested_comment) && source->text().contains(QStringLiteral("suggested-comment-v2"))
 					   && !test->isEnabled(),
 				   "the suggested-comment format shows its shipped text and version");
 			text->setPlainText("Short comments");
@@ -808,7 +808,11 @@ auto main(int argc, char** argv) -> int
 		expect(std::ranges::none_of(headings, [skill](const QLabel* aLabel) { return aLabel->text() == "Review skill" && aLabel->isVisibleTo(skill); }), "its own heading is not shown twice");
 		render(QStringLiteral("prompt-editor-review-skill.png"));
 		panel->present_review_skill_changed(true);
-		expect(skillBadge->text() == "Changed from built-in" && list->item(list->count() - 1)->data(Qt::UserRole + 3).toString() == "Changed", "a changed review skill is marked as the others are");
+		// [[BPR-2264]] The review skill's row ends the Agent tab's group, above Features.
+		const auto skillRows = list->findItems(QStringLiteral("Review skill"), Qt::MatchExactly);
+		expect(skillBadge->text() == "Changed from built-in" && skillRows.size() == 1 && skillRows.front()->data(Qt::UserRole + 3).toString() == "Changed"
+				   && list->item(list->row(skillRows.front()) + 1)->text() == "Features",
+			   "a changed review skill is marked as the others are");
 	}
 
 	test_adopting_a_panel_replaces_the_notice();

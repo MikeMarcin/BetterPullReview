@@ -460,6 +460,13 @@ int main(int argc, char** argv)
 	}
 	std::string input;
 	const auto  readOnlyRun = withoutEffort == readOnly && !environment_present("GITHUB_TOKEN") && !environment_present("GH_TOKEN");
+	// [[BPR-2264]]. Every tour run, tool-free or read-only, carries the
+	// Writing style at the end of its system prompt: a run without it fails,
+	// so each tour course proves its family sends it.
+	if ((readOnlyRun || withoutEffort == expected) && !instructions.contains("Writing style (the /bpr:writing-style Feature).")) {
+		std::cerr << "fixture: the request carries no Writing style\n";
+		return 8;
+	}
 	if (readOnlyRun) {
 		const auto folder  = argc > 0 ? std::filesystem::path{ argv[0] }.parent_path().filename() : std::filesystem::path{ };
 		const auto failing = folder == "attended-drafting-failing-claude";

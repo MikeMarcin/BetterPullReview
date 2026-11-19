@@ -1,6 +1,8 @@
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/prompt_features.hpp"
 #include "writing_hooks_data.hpp"
+#include <algorithm>
 namespace bpr::application {
 	static_assert(detail::WritingDefaults.size() == core::writing_hook_count, "every hook ships a default");
 	auto default_writing_hook(core::writing_hook aHook) -> std::string_view
@@ -23,6 +25,7 @@ namespace bpr::application {
 		case core::writing_hook::review_explain_file:   return review_explain_file_hook_version;
 		case core::writing_hook::review_suggest_change: return review_suggest_change_hook_version;
 		case core::writing_hook::local_run_check:       return local_run_check_hook_version;
+		case core::writing_hook::writing_style:         return writing_style_hook_version;
 		case core::writing_hook::comment:               return tour_stop_comment_hook_version;
 		case core::writing_hook::problem:
 		case core::writing_hook::solution:
@@ -50,6 +53,8 @@ namespace bpr::application {
 			"review.explain-file",
 			"review.suggest-change",
 			"local-draft.run-check",
+			// [[BPR-2264]] A Feature's text, by the Feature's name.
+			"feature.writing-style",
 		};
 	}
 	auto writing_hook_purpose(const core::writing_hook aHook) noexcept -> std::string_view
@@ -102,6 +107,28 @@ namespace bpr::application {
 			.Version = std::string{ suggested_comment_hook_version },
 			.Text    = std::string{ text },
 		};
+	}
+	auto writing_style_preamble() noexcept -> std::string_view
+	{
+		return "Writing style (the /bpr:writing-style Feature). It governs the wording of the prose a person reads in your answer. The request's own instructions, "
+			   "and any output format, schema, template or block they give, win over it on any conflict. In a JSON answer it governs only the text inside string values, "
+			   "never keys, structure or other fields.\n\n";
+	}
+	auto writing_style_instructions(const core::writing_hook_settings& aSettings) -> std::string
+	{
+		auto text = effective_writing_hook(aSettings, core::writing_hook::writing_style);
+		if (text.empty()) {
+			text = default_writing_hook(core::writing_hook::writing_style);
+		}
+		return std::string{ writing_style_preamble() } + std::string{ text };
+	}
+	auto writing_style_for(const core::writing_hook_settings& aSettings, const bool aHumanAudience, const std::span<const std::string_view> aOwnTexts) -> std::string
+	{
+		const auto named = core::referenced_features(aOwnTexts);
+		if (aHumanAudience || std::ranges::find(named, core::writing_style_feature) != named.end()) {
+			return writing_style_instructions(aSettings);
+		}
+		return { };
 	}
 	auto workshop_feedback_supplement(const core::writing_hook_settings& aSettings, review_label_helper aHelper) -> std::optional<core::supplement_feedback_guidance>
 	{

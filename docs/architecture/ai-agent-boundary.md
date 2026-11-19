@@ -2004,6 +2004,29 @@ The Agent tab's chat still runs Claude with the person's own settings
 Claude may also load skills natively there, from the person's folders and
 from the workspace, which is the pull request's head.
 
+### The Writing style Feature (BPR-2264)
+
+`/bpr:writing-style` is a Feature, not a skill: `bpr:` is reserved, so such a
+reference is never resolved against the skill catalog or noted as unknown
+(`core/skill_references.hpp`, `core/prompt_features.hpp`). Its text is the
+profile's `feature.writing-style` override, or the shipped
+`resources/review-preparation/writing-style.md`, behind a fixed preamble that
+keeps the request's own instructions and format in charge and confines the
+style to string values in a JSON answer.
+
+One helper, `application::writing_style_for`, gives every request its style:
+the PR window's `launch_agent_invocation` (every Agent tab turn, returning
+question, Explain this file, Suggest the change, comment workshop press and
+tour run) and the local draft runner (description, discussion, commit message,
+a check's plan and run) call it, and `bpr tour assist context` puts it in the
+prompt it hands out. `build_agent_launch` places it after every other
+instruction: last in the system prompt or `developer_instructions`, or, where
+the instructions are pasted, as the request's last field, `writing_style`. A
+prompt or skill that names the Feature adds nothing more: the text is sent
+once. Values substituted from pull request data are never read for
+references. The text is sent as written; it may name a skill installed for
+the agent, which is not inlined.
+
 ### Writing request and result bounds
 
 Moved from the Settings guide. Writing hooks hold text instructions only and

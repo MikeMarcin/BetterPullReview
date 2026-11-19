@@ -102,6 +102,15 @@ namespace bpr::core {
 		if_minor,
 		conflicting,
 	};
+	/// \brief [[BPR-2264]] (owner, 2026-11-18: "They should only appear when
+	/// they add value over the tag"). The weight a label carries on its own,
+	/// which a `(blocking)` or `(non-blocking)` decoration need not repeat:
+	/// `issue`, `todo`, `typo` and `chore` block; `suggestion`, `nitpick`,
+	/// `quibble`, `thought`, `note` and `praise` do not; `question` and
+	/// `polish` carry none (`unspecified`). A decoration that says the other
+	/// weight, as in `suggestion (blocking)` or `issue (non-blocking)`, adds
+	/// information and is kept.
+	[[nodiscard]] auto implied_expectation(feedback_label aLabel) noexcept -> feedback_expectation;
 	enum class feedback_decoration_kind : std::uint8_t {
 		custom,
 		blocking,

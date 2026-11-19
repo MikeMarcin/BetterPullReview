@@ -3699,8 +3699,12 @@ namespace bpr::application {
 		// The review skill a review request's brief carries is a built-in
 		// prompt too: it joins the instructions and leaves the brief.
 		const auto skilled      = aSupplement.Brief && aSupplement.Brief->Skill && !aSupplement.Brief->Skill->Text.empty();
-		const auto instructions = skilled ? (aOptions.SystemInstructions.empty() ? aSupplement.Brief->Skill->Text : aOptions.SystemInstructions + "\n\n" + aSupplement.Brief->Skill->Text)
+		auto       instructions = skilled ? (aOptions.SystemInstructions.empty() ? aSupplement.Brief->Skill->Text : aOptions.SystemInstructions + "\n\n" + aSupplement.Brief->Skill->Text)
 										  : aOptions.SystemInstructions;
+		// [[BPR-2264]]. The Writing style comes last, after every format.
+		if (!aOptions.WritingStyle.empty()) {
+			instructions += instructions.empty() ? aOptions.WritingStyle : "\n\n" + aOptions.WritingStyle;
+		}
 		const auto systemPrompt = !instructions.empty() && aOptions.Instructions == core::agent_instruction_delivery::system_prompt
 			&& (aProfile.Protocol == core::agent_protocol::claude_stream_json || aProfile.Protocol == core::agent_protocol::codex_jsonl_exec)
 			&& quoted_argument_bytes(instructions) <= core::maximum_system_prompt_argument_bytes;
@@ -3830,6 +3834,11 @@ namespace bpr::application {
 		}
 		if (aOptions.Grant && !aOptions.Grant->BuildWorkspace.empty()) {
 			append_field(payload, "builds", core::agent_builds_instruction(aOptions.Grant->BuildWorkspace));
+		}
+		// [[BPR-2264]]. Where the instructions are pasted, the Writing style
+		// is the request's last field.
+		if (!aOptions.WritingStyle.empty() && !systemPrompt) {
+			append_field(payload, "writing_style", aOptions.WritingStyle);
 		}
 		auto request = agent_launch_request{
 			.Protocol    = aProfile.Protocol,

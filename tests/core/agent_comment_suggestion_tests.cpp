@@ -89,31 +89,38 @@ namespace {
 
 	void test_decorations()
 	{
-		expect_labelled({ .Text = "suggestion (non-blocking): use a constant", .Label = feedback_label::suggestion, .Body = "suggestion (non-blocking): use a constant", .NonBlocking = true });
-		expect_labelled({ .Text = "issue (blocking): the loop never ends", .Label = feedback_label::issue, .Body = "issue (blocking): the loop never ends", .Blocking = true });
+		// [[BPR-2264]] A weight the label implies is left out of the draft.
+		expect_labelled({ .Text = "suggestion (non-blocking): use a constant", .Label = feedback_label::suggestion, .Body = "suggestion: use a constant" });
+		expect_labelled({ .Text = "issue (blocking): the loop never ends", .Label = feedback_label::issue, .Body = "issue: the loop never ends" });
+		// One that differs from the label's adds information and stays.
+		expect_labelled({ .Text = "suggestion (blocking): rename it before release", .Label = feedback_label::suggestion, .Body = "suggestion (blocking): rename it before release", .Blocking = true });
+		expect_labelled({ .Text = "nitpick (blocking): x", .Label = feedback_label::nitpick, .Body = "nitpick (blocking): x", .Blocking = true });
 		expect_labelled({ .Text = "nitpick (if-minor): spacing", .Label = feedback_label::nitpick, .Body = "nitpick (if-minor): spacing", .IfMinor = true });
 		expect_labelled({ .Text = "Issue (Non-Blocking, If-Minor): x", .Label = feedback_label::issue, .Body = "issue (non-blocking, if-minor): x", .NonBlocking = true, .IfMinor = true });
-		expect_labelled({ .Text = "**Suggestion (NON_BLOCKING):** use a constant", .Label = feedback_label::suggestion, .Body = "suggestion (non-blocking): use a constant", .NonBlocking = true });
-		expect_labelled({ .Text = "**issue (blocking)**: x", .Label = feedback_label::issue, .Body = "issue (blocking): x", .Blocking = true });
-		expect_labelled({ .Text = "**Issue** (Blocking): x", .Label = feedback_label::issue, .Body = "issue (blocking): x", .Blocking = true });
+		expect_labelled({ .Text = "**Suggestion (NON_BLOCKING):** use a constant", .Label = feedback_label::suggestion, .Body = "suggestion: use a constant" });
+		expect_labelled({ .Text = "**issue (blocking)**: x", .Label = feedback_label::issue, .Body = "issue: x" });
+		expect_labelled({ .Text = "**Issue** (Blocking): x", .Label = feedback_label::issue, .Body = "issue: x" });
+		expect_labelled({ .Text = "question (non-blocking): x", .Label = feedback_label::question, .Body = "question (non-blocking): x", .NonBlocking = true });
 		expect_labelled({ .Text = "todo( non blocking ):x", .Label = feedback_label::todo, .Body = "todo (non-blocking): x", .NonBlocking = true });
 		expect_labelled({ .Text = "chore (if_minor) : x", .Label = feedback_label::chore, .Body = "chore (if-minor): x", .IfMinor = true });
 		// A custom decoration is kept as written, in the order written.
-		expect_labelled({ .Text = "issue (Security, blocking): x", .Label = feedback_label::issue, .Body = "issue (Security, blocking): x", .Blocking = true, .Custom = { "Security" } });
+		expect_labelled({ .Text = "issue (Security, blocking): x", .Label = feedback_label::issue, .Body = "issue (Security): x", .Custom = { "Security" } });
 		// One weight: of blocking and non-blocking the later one stays.
 		expect_labelled({ .Text = "issue (blocking, non-blocking): x", .Label = feedback_label::issue, .Body = "issue (non-blocking): x", .NonBlocking = true });
 		// A repeated decoration is written once.
-		expect_labelled({ .Text = "thought (non-blocking, Non-Blocking): x", .Label = feedback_label::thought, .Body = "thought (non-blocking): x", .NonBlocking = true });
+		expect_labelled({ .Text = "question (non-blocking, Non-Blocking): x", .Label = feedback_label::question, .Body = "question (non-blocking): x", .NonBlocking = true });
+		// [[BPR-2264]] And a repeated weight the label implies is left out.
+		expect_labelled({ .Text = "thought (non-blocking, Non-Blocking): x", .Label = feedback_label::thought, .Body = "thought: x" });
 	}
 
 	void test_emphasis_and_layout()
 	{
 		expect_labelled({ .Text = "*question:* is this reached?", .Label = feedback_label::question, .Body = "question: is this reached?" });
 		expect_labelled({ .Text = "__praise__: tidy", .Label = feedback_label::praise, .Body = "praise: tidy" });
-		expect_labelled({ .Text = "_note_ (non-blocking): x", .Label = feedback_label::note, .Body = "note (non-blocking): x", .NonBlocking = true });
+		expect_labelled({ .Text = "_note_ (non-blocking): x", .Label = feedback_label::note, .Body = "note: x" });
 		// The header alone on its first line takes its subject from the next
 		// line that is not blank; the discussion and its line endings stay.
-		expect_labelled({ .Text = "**Issue (blocking):**\n\nThe loop never stops.\n\nIt resets each frame.", .Label = feedback_label::issue, .Body = "issue (blocking): The loop never stops.\n\nIt resets each frame.", .Blocking = true });
+		expect_labelled({ .Text = "**Issue (blocking):**\n\nThe loop never stops.\n\nIt resets each frame.", .Label = feedback_label::issue, .Body = "issue: The loop never stops.\n\nIt resets each frame." });
 		expect_labelled({ .Text = "Suggestion:\r\n\r\nUse a constant.\r\nIt reads better.\r\n", .Label = feedback_label::suggestion, .Body = "suggestion: Use a constant.\r\nIt reads better.\r\n" });
 		// A header with nothing after it is the header alone, as the chip
 		// writes it before a subject is typed.
@@ -160,7 +167,7 @@ namespace {
 
 	void test_canonical_text_is_a_fixed_point()
 	{
-		for (const std::string_view text : { "issue (blocking): x", "suggestion (non-blocking, if-minor): y\n\nmore", "question: ", "praise: z" }) {
+		for (const std::string_view text : { "issue (non-blocking): x", "suggestion (blocking, if-minor): y\n\nmore", "issue: w", "question: ", "praise: z" }) {
 			const auto read = read_agent_comment_suggestion(text);
 			expect(read.Reading == agent_comment_reading::labelled && read.Body == text, std::string{ text } + ": canonical text is unchanged");
 		}
