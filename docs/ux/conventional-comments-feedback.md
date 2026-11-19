@@ -636,10 +636,13 @@ Consumer: `review_submission_editor`.
   their native disposition values.
 - **Chip.** One chip, "Your blocking feedback", gives counts: blocking issues,
   drafts and unknown coverage. It opens the list on demand.
-- **List.** The list shows only my own explicitly blocking items, published
-  or pending, with links to them. Uncertainty has its own row. A chore and
-  other label guidance appear separately and never as blocking. Other
-  reviewers' items stay under "Others".
+- **List.** The list shows only my own blocking items, published or pending,
+  with links to them. An item blocks by its written decoration, or with none
+  by its label's implied weight (BPR-2267, after BPR-2264 stopped writing a
+  weight the label implies): `issue:` blocks, `suggestion:` and `nitpick:`
+  do not, and `suggestion (blocking):` does. Uncertainty has its own row. An
+  undecorated chore and other label guidance appear separately and never as
+  blocking. Other reviewers' items stay under "Others".
 - **Approve.** It carries an amber dot while I have open blocking feedback.
   Its tooltip says that approving does not resolve it.
 - **No automatic decisions.** No label or resolution sends a review or picks

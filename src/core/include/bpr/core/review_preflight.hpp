@@ -20,11 +20,12 @@
 /// population the label counters use (`feedback_partition.hpp`), the root
 /// classification of each conversation and the reviewer's selected unsent
 /// comment drafts, and sorts what it finds into four groups that are never
-/// merged: my own published, open, explicitly blocking feedback; my selected
-/// pending drafts that are explicitly blocking; label guidance (a `todo`,
-/// `typo` or `chore` with no written decoration), which is advice and never
-/// a blocker; and what could not be established. Other reviewers' explicit
-/// blockers are counted apart and are never attributed to the submitter. A
+/// merged: my own published, open, blocking feedback; my selected pending
+/// drafts that are blocking; label guidance (a `todo`, `typo` or `chore` with
+/// no written decoration), which is advice and never a blocker; and what could
+/// not be established. [[BPR-2267]]: a header blocks by its written
+/// decoration, else by its label's implied weight (`issue:` blocks as
+/// `issue (blocking):` does). Other reviewers' blockers are counted apart and are never attributed to the submitter. A
 /// conversation whose author is not known is uncertainty, never mine and
 /// never theirs.
 ///
@@ -70,7 +71,7 @@ namespace bpr::core {
 		auto operator==(const review_preflight_draft&) const -> bool = default;
 	};
 
-	/// \brief My published, open, explicitly `(blocking)` conversation.
+	/// \brief My published, open, blocking conversation (`effective_expectation`).
 	struct review_preflight_blocker
 	{
 		/// The conversation identity the annotation set and the population use,
@@ -84,7 +85,7 @@ namespace bpr::core {
 		auto                operator==(const review_preflight_blocker&) const -> bool = default;
 	};
 
-	/// \brief My selected, unsent, explicitly `(blocking)` draft.
+	/// \brief My selected, unsent, blocking draft (`effective_expectation`).
 	struct review_preflight_pending
 	{
 		std::string    Draft;

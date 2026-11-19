@@ -411,6 +411,18 @@ namespace {
 		}
 		expect(implied_expectation(feedback_label::question) == feedback_expectation::unspecified && implied_expectation(feedback_label::polish) == feedback_expectation::unspecified,
 			   "question and polish carry no weight of their own");
+		// [[BPR-2267]]. The catalog carries the weight; a written decoration
+		// wins over it, and with no catalog label only what is written counts.
+		for (const auto& definition : feedback_label_catalog()) {
+			expect(implied_expectation(definition.Label) == definition.Weight, std::string{ definition.Id } + ": the implied weight is the catalog's");
+		}
+		expect(effective_expectation(feedback_label::issue, feedback_expectation::unspecified) == feedback_expectation::blocking
+				   && effective_expectation(feedback_label::issue, feedback_expectation::non_blocking) == feedback_expectation::non_blocking
+				   && effective_expectation(feedback_label::suggestion, feedback_expectation::unspecified) == feedback_expectation::non_blocking
+				   && effective_expectation(feedback_label::suggestion, feedback_expectation::blocking) == feedback_expectation::blocking
+				   && effective_expectation(feedback_label::nitpick, feedback_expectation::unspecified) == feedback_expectation::non_blocking
+				   && effective_expectation(std::nullopt, feedback_expectation::unspecified) == feedback_expectation::unspecified,
+			   "the effective weight is the decoration when written, else the label's");
 	}
 
 	auto padded_header(std::size_t aSubjectBegin) -> std::string

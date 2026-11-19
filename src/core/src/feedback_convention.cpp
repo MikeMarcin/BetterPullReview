@@ -11,18 +11,18 @@ namespace bpr::core {
 		using enum feedback_label_guidance;
 
 		constexpr std::array<feedback_label_definition, feedback_label_count> catalog{ {
-			{ praise, "praise", "Recognize something genuinely valuable.", positive, "feedback.label.praise" },
-			{ nitpick, "nitpick", "Request a trivial preference change.", non_blocking_by_nature, "feedback.label.nitpick" },
-			{ suggestion, "suggestion", "Propose an improvement and explain its benefit.", unspecified, "feedback.label.suggestion" },
-			{ issue, "issue", "Identify a concrete problem.", unspecified, "feedback.label.issue" },
-			{ todo, "todo", "Request a small necessary change.", necessary_change, "feedback.label.todo" },
-			{ question, "question", "Seek clarification or investigation.", unspecified, "feedback.label.question" },
-			{ thought, "thought", "Offer an exploratory idea.", non_blocking_by_nature, "feedback.label.thought" },
-			{ chore, "chore", "Request required process work before acceptance.", required_before_acceptance, "feedback.label.chore" },
-			{ note, "note", "Highlight information without requiring action.", always_non_blocking, "feedback.label.note" },
-			{ typo, "typo", "Identify a spelling correction.", necessary_change, "feedback.label.typo" },
-			{ polish, "polish", "Suggest an immediate quality improvement.", unspecified, "feedback.label.polish" },
-			{ quibble, "quibble", "Request a minor preference change.", non_blocking_by_nature, "feedback.label.quibble" },
+			{ praise, "praise", "Recognize something genuinely valuable.", positive, "feedback.label.praise", feedback_expectation::non_blocking },
+			{ nitpick, "nitpick", "Request a trivial preference change.", non_blocking_by_nature, "feedback.label.nitpick", feedback_expectation::non_blocking },
+			{ suggestion, "suggestion", "Propose an improvement and explain its benefit.", unspecified, "feedback.label.suggestion", feedback_expectation::non_blocking },
+			{ issue, "issue", "Identify a concrete problem.", unspecified, "feedback.label.issue", feedback_expectation::blocking },
+			{ todo, "todo", "Request a small necessary change.", necessary_change, "feedback.label.todo", feedback_expectation::blocking },
+			{ question, "question", "Seek clarification or investigation.", unspecified, "feedback.label.question", feedback_expectation::unspecified },
+			{ thought, "thought", "Offer an exploratory idea.", non_blocking_by_nature, "feedback.label.thought", feedback_expectation::non_blocking },
+			{ chore, "chore", "Request required process work before acceptance.", required_before_acceptance, "feedback.label.chore", feedback_expectation::blocking },
+			{ note, "note", "Highlight information without requiring action.", always_non_blocking, "feedback.label.note", feedback_expectation::non_blocking },
+			{ typo, "typo", "Identify a spelling correction.", necessary_change, "feedback.label.typo", feedback_expectation::blocking },
+			{ polish, "polish", "Suggest an immediate quality improvement.", unspecified, "feedback.label.polish", feedback_expectation::unspecified },
+			{ quibble, "quibble", "Request a minor preference change.", non_blocking_by_nature, "feedback.label.quibble", feedback_expectation::non_blocking },
 		} };
 
 		auto ascii_lower(unsigned char aByte) noexcept -> unsigned char
@@ -520,24 +520,11 @@ namespace bpr::core {
 	}
 	auto implied_expectation(const feedback_label aLabel) noexcept -> feedback_expectation
 	{
-		if (aLabel == feedback_label::issue) {
-			return feedback_expectation::blocking;
-		}
-		if (aLabel == feedback_label::suggestion) {
-			return feedback_expectation::non_blocking;
-		}
-		switch (definition_of(aLabel).Guidance) {
-		case feedback_label_guidance::necessary_change:
-		case feedback_label_guidance::required_before_acceptance:
-			return feedback_expectation::blocking;
-		case feedback_label_guidance::positive:
-		case feedback_label_guidance::non_blocking_by_nature:
-		case feedback_label_guidance::always_non_blocking:
-			return feedback_expectation::non_blocking;
-		case feedback_label_guidance::unspecified:
-			break;
-		}
-		return feedback_expectation::unspecified;
+		return definition_of(aLabel).Weight;
+	}
+	auto effective_expectation(const std::optional<feedback_label> aLabel, const feedback_expectation aWritten) noexcept -> feedback_expectation
+	{
+		return aWritten != feedback_expectation::unspecified || !aLabel ? aWritten : implied_expectation(*aLabel);
 	}
 
 	auto stable_name(feedback_label_guidance aGuidance) noexcept -> std::string_view

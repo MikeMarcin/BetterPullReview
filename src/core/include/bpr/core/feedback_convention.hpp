@@ -48,6 +48,16 @@ namespace bpr::core {
 		always_non_blocking,
 	};
 
+	/// \brief What the author's own decorations declare. Only the three
+	/// standard decorations contribute; custom ones never do.
+	enum class feedback_expectation : std::uint8_t {
+		unspecified,
+		blocking,
+		non_blocking,
+		if_minor,
+		conflicting,
+	};
+
 	/// \brief One catalog entry. Every label carries the same fields, so no
 	/// label has a capability another lacks.
 	struct feedback_label_definition
@@ -57,6 +67,9 @@ namespace bpr::core {
 		std::string_view        Description;
 		feedback_label_guidance Guidance;
 		std::string_view        IconRole;
+		/// [[BPR-2264]], [[BPR-2267]]. The weight the label carries with no
+		/// decoration: `implied_expectation`.
+		feedback_expectation Weight;
 	};
 
 	/// \brief Revision of `bpr.feedback-label-catalog.v1` this catalog equals.
@@ -93,15 +106,6 @@ namespace bpr::core {
 		/// The classifier budget ran out before a decision.
 		limited,
 	};
-	/// \brief What the author's own decorations declare. Only the three
-	/// standard decorations contribute; custom ones never do.
-	enum class feedback_expectation : std::uint8_t {
-		unspecified,
-		blocking,
-		non_blocking,
-		if_minor,
-		conflicting,
-	};
 	/// \brief [[BPR-2264]] (owner, 2026-11-18: "They should only appear when
 	/// they add value over the tag"). The weight a label carries on its own,
 	/// which a `(blocking)` or `(non-blocking)` decoration need not repeat:
@@ -111,6 +115,11 @@ namespace bpr::core {
 	/// weight, as in `suggestion (blocking)` or `issue (non-blocking)`, adds
 	/// information and is kept.
 	[[nodiscard]] auto implied_expectation(feedback_label aLabel) noexcept -> feedback_expectation;
+	/// \brief [[BPR-2267]]. The weight a header carries: `aWritten`, what its
+	/// decorations declare, when they declare one; otherwise its label's
+	/// implied weight, so `issue:` blocks as `issue (blocking):` does and
+	/// `suggestion:` does not. With no catalog label, only what is written.
+	[[nodiscard]] auto effective_expectation(std::optional<feedback_label> aLabel, feedback_expectation aWritten) noexcept -> feedback_expectation;
 	enum class feedback_decoration_kind : std::uint8_t {
 		custom,
 		blocking,

@@ -391,6 +391,25 @@ auto main(int argc, char** argv) -> int
 	editor.present(mixed);
 	expect(editor.preflight_button()->text() == QStringLiteral("2 (1 not sent)") && approve->toolTip().contains(QStringLiteral("2 open blocking")),
 		   "one published and one pending blocker lead with their total and explain its pending part");
+	// [[BPR-2267]]. Drafts written as BPR-2264 writes them, weighed by the
+	// core: `issue:` blocks with no decoration, `suggestion:` and `nitpick:`
+	// do not, and a decoration that says otherwise wins.
+	{
+		const auto weighed = std::vector<core::review_preflight_draft>{
+			{ .Id = "draft:1", .Body = "issue: The height is never clamped.", .Selected = true },
+			{ .Id = "draft:2", .Body = "suggestion: Name the constant.", .Selected = true },
+			{ .Id = "draft:3", .Body = "nitpick: A stray space.", .Selected = true },
+			{ .Id = "draft:4", .Body = "suggestion (blocking): The cache must be keyed by revision.", .Selected = true },
+			{ .Id = "draft:5", .Body = "issue (non-blocking): Later is fine.", .Selected = true },
+		};
+		auto counted      = none;
+		counted.Preflight = core::project_review_preflight("octo-reviewer", core::feedback_annotation_set{ }, core::feedback_population{ }, { }, weighed);
+		expect(counted.Preflight->Refusal == core::review_preflight_refusal::none, "the drafts are weighed");
+		editor.present(counted);
+		expect(editor.preflight_button()->text() == QStringLiteral("2 (not sent)") && editor.preflight_button()->toolTip().contains(QStringLiteral("Yours, not sent: 2 blocking"))
+				   && approve->toolTip().contains(QStringLiteral("2 open blocking")),
+			   "the chip counts issue: and suggestion (blocking):, not suggestion:, nitpick: or issue (non-blocking):");
+	}
 	editor.present(withPreflight);
 	QApplication::processEvents();
 	for (auto* button : { editor.disposition_button(core::review_disposition::approve), editor.preflight_button() }) {
