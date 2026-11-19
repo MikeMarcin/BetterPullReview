@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2275"
 title: "Re-cover the tour UI courses that ran on the Problem and Solution, on a stop"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-2274"]
 priority: "P2"
 platforms: ["mac", "windows", "linux"]
-metadata: {"kind":"test-debt","target":"0.5.0","reservation":"docs/issues/_reservations/BPR-2275--BPR-2275--1eb0c0ff7e7b.json","found_by":"BPR-2274, 2026-11-18"}
+metadata: {"kind":"test-debt","target":"0.5.0","reservation":"docs/issues/_reservations/BPR-2275--BPR-2275--1eb0c0ff7e7b.json","found_by":"BPR-2274, 2026-11-18","mandate_revision":"v0-5-0-prerelease-targets-r1"}
 ---
 
 # BPR-2275: Re-cover the tour UI courses that ran on the Problem and Solution
