@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2274"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Tour is only its stops; Draft a description prompt",
+  "created": "2026-11-19T04:23:42.404228+00:00",
+  "base": "eb8f40d10e13c4b97fb3917554d190423381bb92"
+}
