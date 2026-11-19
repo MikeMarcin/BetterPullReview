@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2281"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Draft with agent beside Author's description; not in Ask",
+  "created": "2026-11-19T16:23:14.287895+00:00",
+  "base": "8b023b3a6dc08e7e6f553d8cc4bd9dcb7f530596"
+}
