@@ -19,10 +19,11 @@ namespace bpr::qt {
 	/// spontaneous phased wheel event (a trackpad's or a Magic Mouse's)
 	/// that begins inside a scroll area nested in another. The gesture's
 	/// first movement picks its scroller: the innermost one that can still
-	/// move that way, else the outermost, which decides for itself (the
-	/// comments drawer moves the code with it). A scroller with no range on
-	/// the gesture's axis, such as a code block that only scrolls sideways,
-	/// is passed over. Every later event of the gesture, its momentum
+	/// move that way and takes that movement, else the outermost, which
+	/// decides for itself (the comments drawer moves the code with it). A
+	/// scroller with no range on the gesture's axis, at its end that way, or
+	/// that declines the axis, such as a code block or suggestion that only
+	/// scrolls sideways, is passed over ([[BPR-2292]]). Every later event of the gesture, its momentum
 	/// included, goes to that scroller alone; at its end the rest is
 	/// dropped, not handed outwards. The next gesture chooses again. A
 	/// mouse wheel's unphased notches, events a widget sends itself, and a
@@ -47,8 +48,9 @@ namespace bpr::qt {
 
 		/// \brief Starts a gesture from the widget it began over.
 		void begin(QWidget& aOrigin);
-		/// \brief Hands `aEvent` to `aOwner`'s viewport, where it stays.
-		static void deliver(QAbstractScrollArea& aOwner, const QWheelEvent& aEvent);
+		/// \brief Hands `aEvent` to `aOwner`'s viewport, where it stays;
+		/// whether `aOwner` took it.
+		static auto deliver(QAbstractScrollArea& aOwner, const QWheelEvent& aEvent) -> bool;
 
 		QPointer<QWidget>             Origin;
 		QPointer<QAbstractScrollArea> Owner;
