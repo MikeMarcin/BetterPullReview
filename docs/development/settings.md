@@ -46,6 +46,13 @@ signed in here also says **Sign in to use**; a followed one needs no account.
 Nothing runs, and an imported agent keeps strict run checks on and Build and
 run tests off unless you tick them.
 
+Dropping a Profile Settings file (a prompt pack is one too) onto a window
+opens the same import preview over that window, read the same way; nothing
+is imported until you confirm it. The window shows a quiet highlight while
+one file hovers; two or more files are refused ("Drop one file at a time."),
+and a file that is not Profile Settings says why in the status bar. What a
+file is comes from its content, not its name ([[BPR-2282]]).
+
 ## Signing in
 
 - **Device sign-in** (GitHub.com) is remembered across restarts.

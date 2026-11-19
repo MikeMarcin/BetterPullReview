@@ -5853,3 +5853,16 @@ bpr_enable_warnings(test_prompt_facts_public_path)
 bpr_add_network_isolated_test(NAME application_prompt_facts_public_path WINDOWS_UNCONTAINED COMMAND test_prompt_facts_public_path)
 set_tests_properties(application_prompt_facts_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "prompt-facts:pass")
+
+# [[BPR-2282]]. A file dropped onto the shipped window opens the import
+# dialog preloaded with it; nothing is imported until Import; an unknown file
+# says why in the status bar; two files and a drop over the open dialog open
+# nothing.
+bpr_add_executable(test_window_file_drop_public_path window_file_drop_public_path.cpp)
+target_link_libraries(test_window_file_drop_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_window_file_drop_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_window_file_drop_public_path)
+bpr_enable_warnings(test_window_file_drop_public_path)
+bpr_add_network_isolated_test(NAME application_window_file_drop_public_path WINDOWS_UNCONTAINED COMMAND test_window_file_drop_public_path)
+set_tests_properties(application_window_file_drop_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "window-file-drop-public-path:pass")

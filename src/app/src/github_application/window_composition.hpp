@@ -2725,9 +2725,9 @@ namespace bpr::app {
 		/// [[BPR-2282]]. What a drag onto the window carries; reads no file.
 		[[nodiscard]] static auto dropped_file(const QMimeData& aMime) -> qt::dropped_file_admission;
 		/// [[BPR-2282]]. A dropped file is being read: another drop waits.
-		bool DroppedImportReading = false;
-		[[nodiscard]] auto                                           profile_settings_facts() const -> core::profile_facts;
-		void                                                         apply_profile_changes(const core::profile_settings_changes& aChanges);
+		bool               DroppedImportReading = false;
+		[[nodiscard]] auto profile_settings_facts() const -> core::profile_facts;
+		void               apply_profile_changes(const core::profile_settings_changes& aChanges);
 		/// [[BPR-1753]]. Each pull request's conversation: store, then host.
 		decltype(github_profile_runtime::NativeAgentSessions)&      NativeAgentSessions = Profile->NativeAgentSessions;
 		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;

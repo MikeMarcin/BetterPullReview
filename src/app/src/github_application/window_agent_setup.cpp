@@ -11,6 +11,7 @@
 #include "bpr/qt/agent_configuration_dialogs.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/window_file_drop.hpp"
 
 #include <QComboBox>
 #include <QCoreApplication>
@@ -19,8 +20,10 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QLocale>
+#include <QMimeData>
 #include <QObject>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QTextStream>
 #include <QTimer>
 #include <QUrl>
@@ -1914,6 +1917,12 @@ namespace bpr::app {
 		// [[BPR-2198]] (owner, 2026-11-15). Import Profile Settings… and
 		// Export Profile Settings… are on Settings › Profiles.
 		Window->profiles_settings()->set_share_handlers([this] { import_agent_configuration(); }, [this] { export_agent_configuration(); });
+		// [[BPR-2282]] (owner, 2026-11-19). A file dropped onto the window
+		// opens the same import, over the window.
+		new qt::window_file_drop{ *Window, { .Admit = dropped_file, .Dropped = [this](const QString& aPath) { import_agent_configuration(aPath); }, .Say = [this](const QString& aText) {
+											if (Window != nullptr) {
+												Window->statusBar()->showMessage(aText, 8000);
+											} } } };
 		Window->agent_programs()->set_dispatch(qt::agent_programs_panel::dispatch{
 			// [[BPR-1859]]. Check agent is the setup's check, and its Stop
 			// the setup's Stop.
@@ -2789,17 +2798,57 @@ namespace bpr::app {
 		});
 	}
 
+	// [[BPR-2282]]. What a drag onto the window carries, without reading a
+	// file: exactly one local file is the window's; what it is, by its
+	// content, the host says once it is dropped.
+	auto github_application::implementation::dropped_file(const QMimeData& aMime) -> qt::dropped_file_admission
+	{
+		if (!aMime.hasUrls()) {
+			return { };
+		}
+		const auto urls  = aMime.urls();
+		const auto local = std::ranges::count_if(urls, [](const QUrl& aUrl) { return aUrl.isLocalFile(); });
+		if (local == 0 || local != urls.size()) {
+			return { };
+		}
+		if (local > 1) {
+			return { .Kind = qt::dropped_file_admission::kind::several_files, .Path = { } };
+		}
+		return { .Kind = qt::dropped_file_admission::kind::one_file, .Path = urls.front().toLocalFile() };
+	}
+
 	// Import Profile Settings…: the file is read and decoded against what the
 	// profile holds now; the dialog decides; one all-or-nothing application;
 	// then the hosts read back what was stored. No agent is checked or run.
-	void github_application::implementation::import_agent_configuration()
+	// [[BPR-2282]]: `aDropped`, a file dropped onto the window, is read the
+	// same way; its dialog opens over the window and its refusals are said in
+	// the window's status bar, where the person dropping it is looking.
+	void github_application::implementation::import_agent_configuration(const QString& aDropped)
 	{
-		if (Closing || !AgentConfiguration || Window == nullptr) {
+		if (Closing || Window == nullptr) {
 			return;
 		}
-		auto path = QString{ };
+		const auto dropped = !aDropped.isEmpty();
+		const auto say     = [this, dropped](const QString& aText) {
+			Window->profiles_settings()->present_exchange(aText);
+			if (dropped) {
+				Window->statusBar()->showMessage(aText, 8000);
+			}
+		};
+		if (!AgentConfiguration) {
+			if (dropped) {
+				say(QObject::tr("Open a profile before importing its settings. Nothing was imported."));
+			}
+			return;
+		}
+		if (dropped && DroppedImportReading) {
+			return;
+		}
+		auto path = aDropped;
 	#if defined(BPR_BUILD_TESTING)
-		path = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE");
+		if (path.isEmpty()) {
+			path = qEnvironmentVariable("BPR_ATTENDED_CONFIGURATION_FILE");
+		}
 	#endif
 		if (path.isEmpty()) {
 			path = QFileDialog::getOpenFileName(Window->profiles_settings()->window(), QObject::tr("Import Profile Settings"), QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
@@ -2808,13 +2857,17 @@ namespace bpr::app {
 		if (path.isEmpty()) {
 			return;
 		}
-		AgentConfiguration->read(path.toStdString(), [this, path](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) {
+		DroppedImportReading = DroppedImportReading || dropped;
+		AgentConfiguration->read(path.toStdString(), [this, path, dropped, say](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) {
+			if (dropped) {
+				DroppedImportReading = false;
+			}
 			if (Closing || Window == nullptr) {
 				return;
 			}
 			if (!aPreview) {
-				Window->profiles_settings()->present_exchange(aPreview.error().Refusal ? QString::fromUtf8(core::describe(*aPreview.error().Refusal).data()) + QLatin1Char(' ') + QObject::tr("Nothing was imported.")
-																					   : QObject::tr("%1 could not be read. Nothing was imported.").arg(QFileInfo{ path }.fileName()));
+				say(aPreview.error().Refusal ? QString::fromUtf8(core::describe(*aPreview.error().Refusal).data()) + QLatin1Char(' ') + QObject::tr("Nothing was imported.")
+											 : QObject::tr("%1 could not be read. Nothing was imported.").arg(QFileInfo{ path }.fileName()));
 				return;
 			}
 			auto facts = qt::agent_configuration_import_dialog::facts{ .Skills = SkillLibrary.Catalog, .Found = { }, .Profile = Profile->Admission.Label };
@@ -2824,7 +2877,7 @@ namespace bpr::app {
 				}
 			}
 			aPreview->Here     = profile_settings_facts();
-			auto* const dialog = new qt::agent_configuration_import_dialog{ std::move(*aPreview), std::move(facts), Window->profiles_settings()->window() };
+			auto* const dialog = new qt::agent_configuration_import_dialog{ std::move(*aPreview), std::move(facts), dropped ? static_cast<QWidget*>(Window.get()) : Window->profiles_settings()->window() };
 			dialog->setAttribute(Qt::WA_DeleteOnClose);
 			dialog->set_program_chooser([dialog](const QString& aHint) {
 	#if defined(BPR_BUILD_TESTING)
@@ -2834,7 +2887,7 @@ namespace bpr::app {
 	#endif
 				return QFileDialog::getOpenFileName(dialog, QObject::tr("Choose the program for %1").arg(aHint.isEmpty() ? QObject::tr("this agent") : aHint));
 			});
-			QObject::connect(dialog, &QDialog::accepted, Window.get(), [this, dialog] { apply_agent_configuration(*dialog); });
+			QObject::connect(dialog, &QDialog::accepted, Window.get(), [this, dialog, dropped] { apply_agent_configuration(*dialog, dropped); });
 			dialog->open();
 		});
 	}
@@ -2857,19 +2910,25 @@ namespace bpr::app {
 		}
 	}
 
-	void github_application::implementation::apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog)
+	void github_application::implementation::apply_agent_configuration(const qt::agent_configuration_import_dialog& aDialog, const bool aDropped)
 	{
 		if (Closing || !AgentConfiguration || Window == nullptr) {
 			return;
 		}
+		const auto say = [this, aDropped](const QString& aText) {
+			Window->profiles_settings()->present_exchange(aText);
+			if (aDropped) {
+				Window->statusBar()->showMessage(aText, 8000);
+			}
+		};
 		if (Profile->WorkbenchPreferences->is_busy()) {
-			Window->profiles_settings()->present_exchange(QObject::tr("Settings were being saved. Nothing was imported; import the file again."));
+			say(QObject::tr("Settings were being saved. Nothing was imported; import the file again."));
 			return;
 		}
 		// [[BPR-2198]]. Identity and Repositories go through the profile's own
 		// durable paths once the rest is stored: the core says what changes.
 		auto profileChanges = core::profile_changes(aDialog.preview().File, aDialog.plan(), aDialog.identity_choice(), aDialog.repository_choices(), profile_settings_facts());
-		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, agents = aDialog.agent_choices().size(), changes = std::move(profileChanges)](application::agent_configuration_host::applied aApplied) {
+		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, say, agents = aDialog.agent_choices().size(), changes = std::move(profileChanges)](application::agent_configuration_host::applied aApplied) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
@@ -2878,7 +2937,7 @@ namespace bpr::app {
 			}
 			if (!aApplied) {
 				const auto why = aApplied.error().PromptPack ? core::stable_name(*aApplied.error().PromptPack) : core::stable_name(aApplied.error().Refusal);
-				Window->profiles_settings()->present_exchange(QObject::tr("The import was refused (%1). Nothing changed.").arg(QString::fromUtf8(why.data(), static_cast<qsizetype>(why.size()))));
+				say(QObject::tr("The import was refused (%1). Nothing changed.").arg(QString::fromUtf8(why.data(), static_cast<qsizetype>(why.size()))));
 				return;
 			}
 			switch (aApplied->first) {
@@ -2900,13 +2959,13 @@ namespace bpr::app {
 				if (PromptMacros) {
 					PromptMacros->load();
 				}
-				Window->profiles_settings()->present_exchange(agents > 0U ? QObject::tr("Imported into this profile. Check a new agent before you ask it anything.") : QObject::tr("Imported into this profile."));
+				say(agents > 0U ? QObject::tr("Imported into this profile. Check a new agent before you ask it anything.") : QObject::tr("Imported into this profile."));
 				break;
 			case application::agent_configuration_outcome::changed_since:
-				Window->profiles_settings()->present_exchange(QObject::tr("Your agent or prompt settings changed after the file was read, so nothing was imported. Import it again to see the differences."));
+				say(QObject::tr("Your agent or prompt settings changed after the file was read, so nothing was imported. Import it again to see the differences."));
 				break;
 			case application::agent_configuration_outcome::storage_failed:
-				Window->profiles_settings()->present_exchange(QObject::tr("The import could not be saved. Nothing changed."));
+				say(QObject::tr("The import could not be saved. Nothing changed."));
 				break;
 			} }, aDialog.workflow_choices(), aDialog.prompt_pack_choices());
 	}

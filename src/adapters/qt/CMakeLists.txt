@@ -115,6 +115,7 @@ add_library(
         src/document_tab_strip.cpp
         src/native_window_chrome.cpp
         src/resize_handle_cursor.cpp
+        src/window_file_drop.cpp
         src/epoch_line.cpp
         src/workbench_landing.cpp
         src/markdown_body_view.cpp

@@ -2931,6 +2931,15 @@ bpr_enable_hardening(test_nested_scroll_latch)
 bpr_enable_warnings(test_nested_scroll_latch)
 bpr_add_network_isolated_test(NAME qt_nested_scroll_latch COMMAND test_nested_scroll_latch)
 set_tests_properties(qt_nested_scroll_latch PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "nested-scroll-latch:pass" TIMEOUT 60)
+# [[BPR-2282]]. A file dropped onto a window: one file is handed on, two are
+# refused with a word, a drag with no file is left to the widget, a modal
+# dialog refuses it, and the highlight shows only while a file hovers.
+bpr_add_executable(test_window_file_drop window_file_drop_tests.cpp)
+target_link_libraries(test_window_file_drop PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_window_file_drop)
+bpr_enable_warnings(test_window_file_drop)
+bpr_add_network_isolated_test(NAME qt_window_file_drop COMMAND test_window_file_drop)
+set_tests_properties(qt_window_file_drop PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "window-file-drop:pass" TIMEOUT 60)
 # [[BPR-2017]], RFC-BPR-0107. Import configuration… and Export configuration….
 bpr_add_executable(test_agent_configuration_dialogs agent_configuration_dialogs_tests.cpp)
 target_link_libraries(test_agent_configuration_dialogs PRIVATE BetterPullReview::AdapterQt)
