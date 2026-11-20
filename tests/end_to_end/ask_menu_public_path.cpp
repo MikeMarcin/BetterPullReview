@@ -1006,7 +1006,10 @@ auto main(int argc, char** argv) -> int
 				QApplication::sendEvent(report->outline(), &press);
 			}
 			QApplication::processEvents();
-			expect(!report->popover()->isVisible() && report->current_section() == 2, "choosing a section scrolls to it and closes the popover");
+			expect(!report->popover()->isVisible() && report->current_section() == 2,
+				   "choosing a section scrolls to it and closes the popover: popover=" + std::to_string(report->popover()->isVisible()) + " section=" + std::to_string(report->current_section())
+					   + " top=" + std::to_string(report->section_top(2)) + " pane=" + std::to_string(report->width()) + "x" + std::to_string(report->height())
+					   + " column=" + std::to_string(report->column()->width()) + "x" + std::to_string(report->column()->height()));
 			expect(!window.findChild<QToolButton*>(QStringLiteral("workbenchProgressSeenStep"))->isEnabled(), "the file controls are drawn in place and off (Q9)");
 			expect(!window.file_ask_button()->isVisible(), "a report's tab has no file Ask (look ask-v005)");
 			expect(tab->isVisible() && tab->ask_button() != nullptr, "the Agent tab keeps its place beside the report");
