@@ -474,3 +474,52 @@ Still open on Windows (31-row round at `d8b110483`, then the 8-row round at
 
 Not run: the WSL2 i9 load-phase profile, and the full Release and Debug
 suites on both platforms and the eleven WSL2 timing courses at the lane head.
+
+## Ninth round: main bafdd264f merged; Windows agent workspace courses (2026-11-19)
+
+Main `bafdd264f` (BPR-2285 to BPR-2298) merged; production app digest
+recomputed. Windows rounds t10 to t15 ran in the interactive producer context
+(scheduled task, session 1); t10, t11 and t15 were probe builds on side
+branches, not on the lane.
+
+Fixed:
+
+- **The native agent's copy (`copy_failed`).** Not the product: the native
+  session course made its root with the contained helper, which on Windows
+  inherits the temporary folder's AppContainer grants, so startup recovery
+  refused the workspace folder beside its data root and every native turn
+  found none. The course now narrows its root to the user, as the ownership
+  course does. `native_agent_sessions` passes (t12, `6d2ceba96`).
+- **The seed's exact context.** BPR-2298 moved the shipped review skill to
+  version 6; the contract still asked for 5 and failed on every platform. The
+  seed and reopen pass. A failure now names each term.
+- **Checkout resolution in the contained host.** The host test's fake checkout
+  was `/tmp/...`, the drive root on Windows, which a contained test cannot
+  create. It now lives in the temporary folder there; grants, which are POSIX
+  rules, are checked as absent on Windows. `agent_invocation_host` and
+  `agent_workspace_entry_limit` pass. The product also falls back to the
+  folder's opened name when Windows refuses to normalize it.
+- **`git_process_contract`.** BPR-2294's 20,003-file course takes 214.65 s on
+  Windows (Release, t12); the Windows timeout is 430 s.
+- **RFC-0017 recorder.** Its fixtures now write LF. Uncontained it then
+  refuses every capture: Python cannot open a directory on Windows to sync it,
+  and the contract asserts that sync. The row is registered off Windows.
+- **Manifest.** The file-drop course and main's three new rows were measured
+  contained at `4d26a890d` and pinned (see the containment record).
+  `test_network_isolation_manifest` should pass at the lane head.
+
+Still open on Windows:
+
+- `agent_invocation_composition_contract`, setup-wrapper course: the window's
+  `agentSetup` widget is hidden (`visible=0 ... hidden=QWidget/agentSetup`)
+  and its step says "Waiting for the pull request to load". The log has no
+  warning or error. It passed on Ubuntu at the 2026-11-16 sweep.
+- `review_tour_writing_wrapper`: with the scoped agent on PATH as claude, the
+  writing request starts no process and logs no run; the two failed runs
+  logged are the no-claude control's. Staging the copy early changed nothing,
+  and no `failed_to_start` site in the invocation host or launcher fired (t15
+  probe).
+- `device_authorization`: the 8 s budget expires at stage 1; unchanged.
+
+Not run: the WSL2 i9 load-phase profile, and the full Release and Debug
+suites on both platforms and the eleven WSL2 timing courses at the lane head.
