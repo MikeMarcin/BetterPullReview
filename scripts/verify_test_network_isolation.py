@@ -387,9 +387,6 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # restart"; "the fresh host reads the one kept card back").
     "qt_prompt_macro_chips": "prompt-turn-name-store-predicate-failed",
     "qt_agent_finding_cards_restart": "agent-finding-card-store-predicate-failed",
-    # Measured contained at f5343b1e1 and cb200dfa9: "scratch git ['init',
-    # '--quiet'] failed: cannot lock ref 'HEAD'".
-    "record_rfc0017_anonymous_contracts_recorder": "scratch-git-init-failed",
     # [[BPR-2280]], [[BPR-2281]]. Draft Description with the fixture agent
     # and Save in Author. Registered only off Windows (`if(APPLE OR UNIX)`).
     "application_draft_description_public_path": "unmeasured (registered on macOS)",

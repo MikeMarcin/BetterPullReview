@@ -1518,13 +1518,15 @@ set_tests_properties(qualification_case_inventory_contract PROPERTIES TIMEOUT 30
 bpr_add_network_isolated_test(NAME profile_recovery_connection_lifetime_contract
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/profile_recovery_connection_lifetime_tests.py")
 set_tests_properties(profile_recovery_connection_lifetime_contract PROPERTIES TIMEOUT 30)
-# [[BPR-2215]]. Its scratch repositories are made with Git for Windows, whose
-# `git init` cannot create `.git` inside an AppContainer's temporary folder
-# (measured at f5343b1e1 and cb200dfa9).
-bpr_add_network_isolated_test(NAME record_rfc0017_anonymous_contracts_recorder
-    WINDOWS_UNCONTAINED
-    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/record_rfc0017_anonymous_contracts_tests.py")
-set_tests_properties(record_rfc0017_anonymous_contracts_recorder PROPERTIES TIMEOUT 120)
+# [[BPR-2215]]. Not on Windows: the recorder makes each capture durable by
+# syncing its directory, which Python cannot open there ("capture bindings
+# directory cannot be opened for durable sync", measured uncontained at
+# 5c0a5c902), and its contract asserts that sync.
+if(NOT WIN32)
+    bpr_add_network_isolated_test(NAME record_rfc0017_anonymous_contracts_recorder
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/record_rfc0017_anonymous_contracts_tests.py")
+    set_tests_properties(record_rfc0017_anonymous_contracts_recorder PROPERTIES TIMEOUT 120)
+endif()
 bpr_add_network_isolated_test(NAME settings_inventory_comparison_contract
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/settings_inventory_comparison_tests.py")
 set_tests_properties(settings_inventory_comparison_contract PROPERTIES TIMEOUT 30)

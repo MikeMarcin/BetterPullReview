@@ -184,8 +184,12 @@ registered `WINDOWS_UNCONTAINED`, pinned
 `record_rfc0017_anonymous_contracts_recorder` failed contained in both full
 suites (`f5343b1e1`, `cb200dfa9`): Git for Windows' `git init --quiet` could
 not create `.git/HEAD` in the AppContainer's temporary folder ("cannot lock
-ref 'HEAD'"). It is registered `WINDOWS_UNCONTAINED`, pinned
-`scratch-git-init-failed`.
+ref 'HEAD'"). It was registered `WINDOWS_UNCONTAINED` and pinned
+`scratch-git-init-failed`. Uncontained at `5c0a5c902`, once its fixtures wrote
+LF, the recorder itself refused: "capture bindings directory cannot be opened
+for durable sync". It syncs each capture's directory, which Python cannot open
+on Windows, and its contract asserts that sync, so the row is now registered
+only off Windows and the pin is gone.
 
 ## Rows main added by `392dffc6f` — measured at `fb60e393e`
 
