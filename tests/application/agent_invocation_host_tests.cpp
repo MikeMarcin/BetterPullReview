@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <deque>
+#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -33,6 +34,19 @@
 
 namespace {
 	using namespace bpr;
+
+	/// \brief The fake workspace root. On Windows `/tmp` is the current
+	/// drive's root, where a contained test may not make the checkout a
+	/// launch names; the temporary folder it is granted stands in.
+	[[nodiscard]] auto owned_root() -> std::string
+	{
+#if defined(_WIN32)
+		static const auto root = (std::filesystem::temp_directory_path() / "bpr-agent-owned").generic_string();
+		return root;
+#else
+		return "/tmp/bpr-agent-owned";
+#endif
+	}
 
 	void expect(const bool aCondition, const std::string_view aMessage)
 	{
@@ -303,7 +317,7 @@ namespace {
 		std::vector<application::owned_agent_workspace>                     CleanupAttempts;
 		std::function<void()>                                               AfterMaterialization;
 		std::optional<application::agent_workspace_error>                   MaterializationFailure;
-		std::string                                                         WorkspacePath   = "/tmp/bpr-agent-owned/exact-head";
+		std::string                                                         WorkspacePath   = owned_root() + "/exact-head";
 		bool                                                                MakeWorkspace   = true;
 		bool                                                                FailNextCleanup = false;
 		bool                                                                BorrowsHistory  = false;
@@ -800,7 +814,7 @@ namespace {
 
 	struct harness
 	{
-		explicit harness(std::filesystem::path aWorkspaceRoot = "/tmp/bpr-agent-owned", application::native_agent_session_store_port* aNative = nullptr)
+		explicit harness(std::filesystem::path aWorkspaceRoot = owned_root(), application::native_agent_session_store_port* aNative = nullptr)
 			: WorkspaceRoot{ std::move(aWorkspaceRoot) }
 			, SharedNativeSessions{ aNative ? aNative : &NativeSessions }
 		{
@@ -1025,7 +1039,7 @@ namespace {
 				   && test.Workspaces.LastCleanup->LifetimeGuard == test.Workspaces.Guard,
 			   "exact lifetime guard survives materialization, launch and cleanup unchanged");
 		expect(
-			launch.WorkingDirectory == "/tmp/bpr-agent-owned/exact-head"
+			launch.WorkingDirectory == owned_root() + "/exact-head"
 				&& launch.Input.find("github.example/octo/review/pull/17")
 					!= std::string::npos
 				&& std::ranges::none_of(launch.Arguments, [](const std::string& aArgument) {
@@ -1301,7 +1315,7 @@ namespace {
 						core::git_host_id{ 1U },
 						core::built_in_agent_host_kind::github_com),
 				},
-				"/tmp/bpr-agent-owned",
+				owned_root(),
 				sessions,
 				workspaces,
 				processes,
@@ -1357,7 +1371,7 @@ namespace {
 					core::git_host_id{ 1U },
 					core::built_in_agent_host_kind::github_com),
 			},
-			"/tmp/bpr-agent-owned",
+			owned_root(),
 			sessions,
 			workspaces,
 			processes,
@@ -1399,7 +1413,7 @@ namespace {
 					core::git_host_id{ 1U },
 					core::built_in_agent_host_kind::github_com),
 			},
-			"/tmp/bpr-agent-owned",
+			owned_root(),
 			sessions,
 			workspaces,
 			processes,
@@ -1443,7 +1457,7 @@ namespace {
 					core::git_host_id{ 1U },
 					core::built_in_agent_host_kind::github_com),
 			},
-			"/tmp/bpr-agent-owned",
+			owned_root(),
 			sessions,
 			workspaces,
 			processes,
@@ -2064,7 +2078,7 @@ namespace {
 		auto       test   = harness{ };
 		const auto hostId = core::git_host_id{ 1U };
 		auto       kept   = application::owned_agent_workspace{
-			.Workspace         = application::prepared_workspace{ .Policy = core::agent_workspace_policy::disposable_review_workspace, .PinnedHead = binding(hostId).HeadOid, .Path = "/tmp/bpr-agent-owned/retained" },
+			.Workspace         = application::prepared_workspace{ .Policy = core::agent_workspace_policy::disposable_review_workspace, .PinnedHead = binding(hostId).HeadOid, .Path = owned_root() + "/retained" },
 			.OwnershipMarker   = "owned",
 			.DirectoryIdentity = { .Opaque = { 2U, 1U, 0U, 1U } },
 		};
@@ -2072,7 +2086,7 @@ namespace {
 		auto answer = std::optional<std::expected<application::prepared_workspace, application::agent_workspace_error>>{ };
 		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, [&answer](auto aProbed) { answer = std::move(aProbed); });
 		test.settle();
-		expect(answer && answer->has_value() && (*answer)->Path == "/tmp/bpr-agent-owned/retained", "the check passes on the retained workspace");
+		expect(answer && answer->has_value() && (*answer)->Path == owned_root() + "/retained", "the check passes on the retained workspace");
 		expect(test.Workspaces.Starts == 0U && test.Workspaces.Cleanups == 0U && test.Workspaces.Inspections == 1U, "it is checked, never cloned again or removed");
 
 		test.Workspaces.InspectFails = true;
@@ -2149,7 +2163,7 @@ namespace {
 			test.settle();
 			expect(test.Processes.Starts == starts && !test.Projection.Finished.empty() && test.Projection.Finished.back().Outcome == application::agent_run_outcome::failed_to_start,
 				   "a checkout that cannot be resolved refuses the launch");
-			test.Workspaces.WorkspacePath = "/tmp/bpr-agent-owned/exact-head";
+			test.Workspaces.WorkspacePath = owned_root() + "/exact-head";
 			test.Workspaces.MakeWorkspace = true;
 		}
 
@@ -2500,7 +2514,7 @@ namespace {
 	void pr_workspace_is_shared_across_scopes_agents_and_windows()
 	{
 		auto test                 = harness{ };
-		auto other                = harness{ "/tmp/bpr-agent-owned", &test.NativeSessions };
+		auto other                = harness{ owned_root(), &test.NativeSessions };
 		auto input                = request(core::git_host_id{ 1U }, core::claude_stream_json_profile_id);
 		input.NativeAgentIdentity = "agent-a";
 		input.NativeScope         = "agent-tab";
