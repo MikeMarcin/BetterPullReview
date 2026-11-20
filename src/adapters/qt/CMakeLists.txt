@@ -60,6 +60,7 @@ add_library(
         src/appearance_profile.cpp
         src/bundled_code_font.cpp
         src/appearance_settings_panel.cpp
+        src/settings_card.cpp
         src/github_cli_consent.cpp
         src/github_session_panel.cpp
         src/system_tray_notification_sink.cpp

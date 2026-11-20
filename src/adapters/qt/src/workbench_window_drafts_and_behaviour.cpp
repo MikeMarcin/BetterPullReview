@@ -18,6 +18,7 @@
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "settings_card.hpp"
 #include "workbench_window_support.hpp"
 
 #include <QAbstractButton>
@@ -33,6 +34,7 @@
 #include <QCursor>
 #include <QDialog>
 #include <QFlags>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeySequence>
@@ -84,6 +86,26 @@ namespace bpr::qt {
 	namespace {
 		/// [[BPR-1816]]. The finish switches' order: the finish buttons'.
 		constexpr auto finish_verdicts = std::array{ core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes };
+
+		/// The width a Review or Comments row's name asks for, so the
+		/// controls of a card line up.
+		constexpr auto row_name_width = 180;
+
+		/// \brief [[BPR-2302]]. A row's name: it asks for the shared column
+		/// but gives it up, down to its own words, when Settings is at its
+		/// narrowest, so a row inside its card never pans sideways.
+		class row_name_label final : public QLabel
+		{
+		public:
+			using QLabel::QLabel;
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				auto hint = QLabel::sizeHint();
+				hint.setWidth(std::max(hint.width(), row_name_width));
+				return hint;
+			}
+		};
 	}
 
 	void workbench_window::present_inline_draft()
@@ -1026,14 +1048,14 @@ namespace bpr::qt {
 		BehaviourEditor->setAccessibleName(QStringLiteral("Review behaviour"));
 		auto* const column = new QVBoxLayout{ BehaviourEditor };
 		column->setContentsMargins(0, 0, 0, 0);
-		column->setSpacing(6);
+		column->setSpacing(detail::settings_card_gap);
 		// [[BPR-1597]]. Settings › Comments: the comment rows, on their own page.
 		CommentsEditor = new QWidget{ aCommentsPage };
 		CommentsEditor->setObjectName(QStringLiteral("commentsBehaviourEditor"));
 		CommentsEditor->setAccessibleName(QStringLiteral("Comments"));
 		auto* const commentsColumn = new QVBoxLayout{ CommentsEditor };
 		commentsColumn->setContentsMargins(0, 0, 0, 0);
-		commentsColumn->setSpacing(6);
+		commentsColumn->setSpacing(detail::settings_card_gap);
 
 		struct option
 		{
@@ -1065,12 +1087,17 @@ namespace bpr::qt {
 									 const QString&          aResetName,
 									 const std::vector<row>& aRows,
 									 auto                    aReset) {
-			auto* const headingRow = new QHBoxLayout{ };
-			auto* const heading    = new QLabel{ aHeading, BehaviourEditor };
-			heading->setObjectName(aResetName + QStringLiteral("Heading"));
-			headingRow->addWidget(heading, 1);
-			auto* const reset = new quiet_tool_button{ BehaviourEditor };
+			// [[BPR-2302]]. A group is Appearance's card (owner, 2026-11-19:
+			// "take the section header style from the appearance menu and
+			// port it to those two menus"): its title and Reset in the
+			// header strip, its rows in the body.
+			auto card = detail::make_settings_card(aColumn->parentWidget(), aHeading, aResetName + QStringLiteral("Card"));
+			card.Title->setObjectName(aResetName + QStringLiteral("Heading"));
+			card.Body->setContentsMargins(detail::settings_card_inset, detail::settings_row_inset, detail::settings_card_inset, detail::settings_row_inset);
+			card.Body->setSpacing(6);
+			auto* const reset = new quiet_tool_button{ card.Header->parentWidget() };
 			reset->setObjectName(aResetName);
+			reset->set_surface(QPalette::Light);
 			reset->setText(QStringLiteral("Reset"));
 			reset->setAccessibleName(QStringLiteral("Reset %1").arg(aHeading.toLower()));
 			reset->setAccessibleDescription(
@@ -1085,17 +1112,17 @@ namespace bpr::qt {
 				AskedBehaviour = next;
 				BehaviourDispatch(next);
 			});
-			headingRow->addWidget(reset);
-			aColumn->addLayout(headingRow);
+			card.Header->addWidget(reset);
+			aColumn->addWidget(card.Frame);
+			auto* const rows = card.Body;
 			for (const auto& one : aRows) {
 				if (one.Wide && one.Control != nullptr) {
-					aColumn->addWidget(one.Control);
+					rows->addWidget(one.Control);
 					continue;
 				}
 				auto* const line  = new QHBoxLayout{ };
-				auto* const label = new QLabel{ one.Label, BehaviourEditor };
+				auto* const label = new row_name_label{ one.Label, BehaviourEditor };
 				label->setObjectName(one.Name + QStringLiteral("Label"));
-				label->setMinimumWidth(180);
 				line->addWidget(label, 0, one.Top ? Qt::AlignTop : Qt::Alignment{ });
 				if (one.Control != nullptr) {
 					// [[BPR-1597]]. A control made before its group's heading
@@ -1112,7 +1139,7 @@ namespace bpr::qt {
 						line->addWidget(one.Trailing, 0, Qt::AlignVCenter);
 					}
 					line->addStretch(1);
-					aColumn->addLayout(line);
+					rows->addLayout(line);
 					continue;
 				}
 				auto& buttons = BehaviourOptions[one.Index];
@@ -1141,7 +1168,7 @@ namespace bpr::qt {
 					line->addWidget(one.Trailing, 0, Qt::AlignVCenter);
 				}
 				line->addStretch(1);
-				aColumn->addLayout(line);
+				rows->addLayout(line);
 			}
 			return reset;
 		};
