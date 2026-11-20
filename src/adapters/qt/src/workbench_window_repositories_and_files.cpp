@@ -346,6 +346,10 @@ namespace bpr::qt {
 			apply_line_details();
 			apply_markdown_images();
 			apply_reading_width();
+			// [[BPR-2326]]. Home lists others' drafts where the profile says.
+			if (QueueLanding != nullptr) {
+				QueueLanding->set_draft_placement(Behaviour.OthersDrafts);
+			}
 			ComparisonSurface->set_center_ribbon_width(Behaviour.CenterRibbonWidth);
 			consider_mark_read_when_fully_seen();
 			// A pull request that opened before the preferences landed takes

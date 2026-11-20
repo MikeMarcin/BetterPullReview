@@ -9,6 +9,7 @@
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/review_preparation.hpp"
+#include "bpr/core/review_queue_attention.hpp"
 #include "bpr/core/review_submission.hpp"
 #include "bpr/core/view_filter_memory.hpp"
 #include "bpr/core/workbench_interaction.hpp"
@@ -1156,6 +1157,9 @@ namespace bpr::application {
 		std::uint32_t CenterRibbonWidth = default_center_ribbon_width;
 		/// RFC-BPR-0084 Q3. Images in descriptions and comments load by default.
 		review_markdown_images MarkdownImages = review_markdown_images::load;
+		/// [[BPR-2326]]. Where Home lists another author's draft that would
+		/// need me: Following by default (owner, 2026-11-20).
+		core::home_draft_placement OthersDrafts = core::home_draft_placement::following;
 		/// [[BPR-1584]], [[BPR-2299]]. How wide every reading column grows;
 		/// never the code.
 		core::reading_width ReadingWidth = core::default_reading_width;
@@ -1204,6 +1208,8 @@ namespace bpr::application {
 			<= static_cast<std::uint8_t>(review_line_details::hidden)
 			&& static_cast<std::uint8_t>(aSettings.MarkdownImages)
 			<= static_cast<std::uint8_t>(review_markdown_images::off)
+			&& static_cast<std::uint8_t>(aSettings.OthersDrafts)
+			<= static_cast<std::uint8_t>(core::home_draft_placement::needs_me)
 			&& aSettings.CenterRibbonWidth >= minimum_center_ribbon_width
 			&& aSettings.CenterRibbonWidth <= maximum_center_ribbon_width
 			&& core::valid(aSettings.ReadingWidth)

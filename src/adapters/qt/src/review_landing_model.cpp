@@ -753,7 +753,7 @@ namespace bpr::qt {
 			return QString{ };
 		case group_role:
 			// [[BPR-1683]]. The decided item's section, ignored included.
-			return static_cast<int>(core::home_section_for(*item));
+			return static_cast<int>(core::home_section_for(*item, DraftPlacement));
 		case unseen_role:
 			return item->Facts.UnseenComments > 0U;
 		// [[BPR-0776]]. The roles Home's one row anatomy reads. Time and
@@ -976,6 +976,26 @@ namespace bpr::qt {
 	auto review_landing_model::now() const noexcept -> std::optional<std::int64_t>
 	{
 		return Now;
+	}
+
+	void review_landing_model::set_draft_placement(const core::home_draft_placement aPlacement)
+	{
+		if (DraftPlacement == aPlacement) {
+			return;
+		}
+		const auto prior = std::exchange(DraftPlacement, aPlacement);
+		for (std::size_t row = 0U; row < Items.size(); ++row) {
+			if (core::home_section_for(Items[row], prior) != core::home_section_for(Items[row], DraftPlacement)) {
+				// Every role, as `apply_item` says a row that moved section.
+				const auto changed = index(static_cast<int>(row), 0);
+				emit       dataChanged(changed, changed);
+			}
+		}
+	}
+
+	auto review_landing_model::draft_placement() const noexcept -> core::home_draft_placement
+	{
+		return DraftPlacement;
 	}
 
 	void review_landing_model::apply_item(const core::queue_item& aItem)

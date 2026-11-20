@@ -1,6 +1,7 @@
 #include "bpr/application/agent_configuration_exchange.hpp"
 
 #include "bpr/application/writing_hooks.hpp"
+#include "bpr/core/review_queue_attention.hpp"
 #include "bpr/core/review_skill.hpp"
 #include "bpr/core/sha256.hpp"
 
@@ -96,6 +97,7 @@ namespace bpr::application {
 		static_assert(names_match(core::review_setting::overview_counts, review_overview_counts::all));
 		static_assert(names_match(core::review_setting::line_details, review_line_details::hidden));
 		static_assert(names_match(core::review_setting::markdown_images, review_markdown_images::off));
+		static_assert(names_match(core::review_setting::others_drafts, core::home_draft_placement::needs_me));
 
 		/// Each choice of the record, by `core::review_setting`.
 		[[nodiscard]] auto choices_of(const review_behaviour_settings& aSettings) noexcept -> std::array<std::uint8_t, core::review_choice_count>
@@ -103,7 +105,7 @@ namespace bpr::application {
 			return { static_cast<std::uint8_t>(aSettings.OpenModality), static_cast<std::uint8_t>(aSettings.MarkRead), static_cast<std::uint8_t>(aSettings.ReturnComparison),
 					 static_cast<std::uint8_t>(aSettings.CommentsFilter), static_cast<std::uint8_t>(aSettings.DrawerControls), static_cast<std::uint8_t>(aSettings.FeedbackMarks),
 					 static_cast<std::uint8_t>(aSettings.LabelHelper), static_cast<std::uint8_t>(aSettings.OverviewCounts), static_cast<std::uint8_t>(aSettings.LineDetails),
-					 static_cast<std::uint8_t>(aSettings.MarkdownImages) };
+					 static_cast<std::uint8_t>(aSettings.MarkdownImages), static_cast<std::uint8_t>(aSettings.OthersDrafts) };
 		}
 	} // namespace
 
@@ -143,6 +145,7 @@ namespace bpr::application {
 		take(core::review_setting::overview_counts, next.OverviewCounts);
 		take(core::review_setting::line_details, next.LineDetails);
 		take(core::review_setting::markdown_images, next.MarkdownImages);
+		take(core::review_setting::others_drafts, next.OthersDrafts);
 		if (aFile.ReadingWidth && core::valid(*aFile.ReadingWidth)) {
 			next.ReadingWidth = *aFile.ReadingWidth;
 		}

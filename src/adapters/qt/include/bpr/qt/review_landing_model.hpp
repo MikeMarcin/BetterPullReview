@@ -213,6 +213,12 @@ namespace bpr::qt {
 		/// differently are said to change.
 		void               set_now(std::optional<std::int64_t> aSeconds);
 		[[nodiscard]] auto now() const noexcept -> std::optional<std::int64_t>;
+		/// \brief [[BPR-2326]]. Where Home lists another author's draft that
+		/// would need me, as Settings › Review says; the core decides each
+		/// row's section with it. Only rows whose section moves are said to
+		/// change.
+		void               set_draft_placement(core::home_draft_placement aPlacement);
+		[[nodiscard]] auto draft_placement() const noexcept -> core::home_draft_placement;
 
 		void clear();
 
@@ -239,6 +245,7 @@ namespace bpr::qt {
 		std::vector<home_account>                     Accounts;
 		std::optional<core::pull_request_ref>         Reviewing;
 		std::optional<std::int64_t>                   Now;
+		core::home_draft_placement                    DraftPlacement = core::home_draft_placement::following;
 	};
 
 	/// \brief Filters and explicitly reorders the decided landing queue.

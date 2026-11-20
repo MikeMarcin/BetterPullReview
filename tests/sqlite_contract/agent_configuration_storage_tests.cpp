@@ -98,6 +98,7 @@ namespace {
 		behaviour.ReadingOverrides[1]  = core::reading_override_of(1480U);
 		behaviour.ReadingOverrides[2]  = core::reading_override{ .Kind = core::reading_override_kind::full };
 		behaviour.FinishReview.Approve = core::review_finish_return::pull_request;
+		behaviour.OthersDrafts         = core::home_draft_placement::needs_me;
 		const auto labels              = std::array{ core::feedback_label::issue, core::feedback_label::question };
 		behaviour.LabelColumns         = core::make_feedback_label_columns(labels).value();
 		expect((*senderStore)->store_preferences(*sender, { }).has_value(), "the sender's Review settings are stored");
@@ -105,6 +106,7 @@ namespace {
 		const auto review = application::portable_review_of(stored->Behaviour);
 		const auto bytes  = application::export_agent_configuration(aSnapshot, { }, { }, "Review", "BetterPullReview test", { }, nullptr, { }, nullptr, nullptr, &review);
 		expect(bytes && bytes->find("\"review\": {") != std::string::npos && bytes->find("\"discuss_width\": 1480") != std::string::npos, "the export carries the Review section");
+		expect(bytes->find("\"others_drafts\": \"needs_me\"") != std::string::npos, "[[BPR-2326]] the export carries Home's Others' drafts");
 		const auto decoded = core::decode_agent_configuration(*bytes, { });
 		expect(decoded && decoded->Review && decoded->Review->Ignored.empty(), "the file reads back with its Review");
 
@@ -113,7 +115,7 @@ namespace {
 		const auto here           = recipient->Behaviour;
 		const auto imported       = application::with_review(here, decoded->Review->Review);
 		expect(application::valid(imported) && imported == application::edited(stored->Behaviour), "the import makes the recipient's Review settings the sender's");
-		expect(application::review_differences(here, imported).size() == 11U, "each changed setting is named");
+		expect(application::review_differences(here, imported).size() == 12U, "each changed setting is named");
 		expect(core::plan_review_import(*decoded->Review, application::review_differences(here, imported).size()).Standing == core::import_standing::updated, "it is an update");
 		recipient->Behaviour = imported;
 		expect((*recipientStore)->store_preferences(*recipient, { }).has_value(), "the imported settings are stored");
@@ -131,6 +133,10 @@ namespace {
 		expect(application::valid(held) && held.ReadingOverrides[0] == core::reading_override_of(720U) && held.CenterRibbonWidth == application::maximum_center_ribbon_width
 				   && held.ReadingWidth == here.ReadingWidth,
 			   "a narrow width is held to 720, the ribbon to its widest, an unknown preset leaves the Reading width as it was");
+		// [[BPR-2326]]. A file from before Others' drafts leaves the choice alone.
+		auto needsMe         = here;
+		needsMe.OthersDrafts = core::home_draft_placement::needs_me;
+		expect(application::with_review(needsMe, odd->Review->Review).OthersDrafts == core::home_draft_placement::needs_me, "a file without others_drafts leaves the placement as it was");
 	}
 } // namespace
 

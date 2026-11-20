@@ -599,6 +599,7 @@ namespace bpr::core {
 		case review_setting::overview_counts:        return "overview_counts";
 		case review_setting::line_details:           return "line_details";
 		case review_setting::markdown_images:        return "markdown_images";
+		case review_setting::others_drafts:          return "others_drafts";
 		case review_setting::reading_width:          return "reading_width";
 		case review_setting::threads_width:          return "threads_width";
 		case review_setting::discuss_width:          return "discuss_width";

@@ -3889,7 +3889,7 @@ namespace bpr::qt {
 		application::review_behaviour_settings    Behaviour;
 		QWidget*                                  BehaviourEditor = nullptr;
 		QWidget*                                  CommentsEditor  = nullptr;
-		std::array<std::vector<QToolButton*>, 11> BehaviourOptions{ };
+		std::array<std::vector<QToolButton*>, 12> BehaviourOptions{ };
 		feedback_mark_preview*                    FeedbackMarksPreview = nullptr;
 		/// [[BPR-1088]]. The rest of Comment labels: the helper's switch, the
 		/// Overview chips, what a load left out of them, and Mark colours.

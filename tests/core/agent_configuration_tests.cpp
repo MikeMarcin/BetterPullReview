@@ -8,8 +8,11 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -594,6 +597,19 @@ void test_review_section()
 	expect(empty && empty->Review && core::plan_review_import(*empty->Review, 0U).Standing == core::import_standing::refused, "a Review that sets nothing usable cannot be imported");
 	expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":4,"exported_by":"","agents":[],"prompts":[],"review":[]})", local).error() == core::configuration_file_refusal::malformed,
 		   "a Review that is not an object is malformed");
+
+	// [[BPR-2326]]. Home's Others' drafts rides the section as a choice; a
+	// file written before it (without the member) leaves it alone.
+	expect(core::stable_name(core::review_setting::others_drafts) == "others_drafts" && core::review_choice_names(core::review_setting::others_drafts).size() == 2U
+			   && core::review_choice_names(core::review_setting::others_drafts)[0] == "following" && core::review_choice_names(core::review_setting::others_drafts)[1] == "needs_me",
+		   "Others' drafts is a choice of following or needs_me");
+	expect(bytes->find("\"others_drafts\": \"needs_me\"") != std::string::npos, "the export names the drafts placement");
+	const auto drafts = core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":4,"exported_by":"","agents":[],"prompts":[],"review":{"others_drafts":"following"}})", local);
+	expect(drafts && drafts->Review && drafts->Review->Review.Choices[static_cast<std::size_t>(core::review_setting::others_drafts)] == std::optional<std::uint8_t>{ 0U }
+			   && drafts->Review->Ignored.empty(),
+		   "a file's Following reads as the first choice");
+	expect(read->Review->Review.Choices[static_cast<std::size_t>(core::review_setting::others_drafts)].has_value() && !odd->Review->Review.Choices[static_cast<std::size_t>(core::review_setting::others_drafts)].has_value(),
+		   "a file without the member carries no placement");
 }
 
 auto main() -> int

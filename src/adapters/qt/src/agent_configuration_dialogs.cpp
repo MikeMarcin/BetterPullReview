@@ -75,6 +75,7 @@ namespace bpr::qt {
 			case core::review_setting::overview_counts:        return QObject::tr("Overview counts");
 			case core::review_setting::line_details:           return QObject::tr("Line details");
 			case core::review_setting::markdown_images:        return QObject::tr("Images");
+			case core::review_setting::others_drafts:          return QObject::tr("Others' drafts");
 			case core::review_setting::reading_width:          return QObject::tr("Reading width");
 			case core::review_setting::threads_width:          return QObject::tr("Threads width");
 			case core::review_setting::discuss_width:          return QObject::tr("Discuss width");
@@ -103,6 +104,7 @@ namespace bpr::qt {
 			case core::review_setting::overview_counts:   words = { QObject::tr("Open"), QObject::tr("All") }; break;
 			case core::review_setting::line_details:      words = { QObject::tr("Shown"), QObject::tr("Hidden") }; break;
 			case core::review_setting::markdown_images:   words = { QObject::tr("Load"), QObject::tr("Don't load") }; break;
+			case core::review_setting::others_drafts:     words = { QObject::tr("Following"), QObject::tr("Needs me") }; break;
 			default:                                      break;
 			}
 			return aValue < words.size() ? words[aValue] : QString{ };

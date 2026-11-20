@@ -757,7 +757,8 @@ namespace bpr::qt {
 		HomeOnboarding->hide();
 		HomeRepositoryRow->hide();
 
-		QueueLanding     = new review_landing_model{ surface };
+		QueueLanding = new review_landing_model{ surface };
+		QueueLanding->set_draft_placement(Behaviour.OthersDrafts);
 		QueueFilterModel = new review_landing_filter_model{ *QueueLanding, surface };
 		// [[BPR-0650]] [[BPR-0776]]. Home's list: a panel per state, in state
 		// order, over the same decided queue, and Recently viewed last. A

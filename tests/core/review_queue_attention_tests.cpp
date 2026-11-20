@@ -181,6 +181,56 @@ namespace {
 
 	// An item GitHub put in front of the reviewer is not "observed". Saying so
 	// would hide that they were asked.
+	/// [[BPR-2326]], the owner, 2026-11-20: "We need to move drafts out of
+	/// needs me by default. Maybe we can stick them into following while
+	/// they are in draft."
+	void test_another_authors_draft_waits_in_following()
+	{
+		using placement      = core::home_draft_placement;
+		const auto requested = membership(core::github_role::requested_reviewer);
+		auto       draft     = core::queue_item{ .Ref = ref(1), .Membership = requested, .Bucket = core::bucket_for(requested, { }) };
+		draft.Facts.Draft    = true;
+		expect(draft.Bucket == core::attention_bucket::initial_review_requested, "a review requested on a draft keeps its bucket, and so its reason and notification");
+		expect(core::home_section_for(draft) == core::home_queue_section::following, "by default a draft I am asked to review is in Following");
+		expect(core::home_section_for(draft, placement::following) == core::home_queue_section::following, "Following is the default placement");
+		expect(core::home_section_for(draft, placement::needs_me) == core::home_queue_section::needs_you, "the setting on, it needs me as before");
+
+		auto ready        = draft;
+		ready.Facts.Draft = false;
+		expect(core::home_section_for(ready) == core::home_queue_section::needs_you, "marked ready for review, it is back in Needs me");
+		auto unknown        = draft;
+		unknown.Facts.Draft = std::nullopt;
+		expect(core::home_section_for(unknown) == core::home_queue_section::needs_you, "an unread draft status is not a draft");
+
+		for (const auto bucket : every_bucket) {
+			auto any          = draft;
+			any.Bucket        = bucket;
+			auto shown        = any;
+			shown.Facts.Draft = false;
+			const auto before = core::home_section_for(shown);
+			expect(core::home_section_for(any, placement::needs_me) == before, "Needs me changes nothing about any bucket");
+			expect(core::home_section_for(any) == (before == core::home_queue_section::needs_you ? core::home_queue_section::following : before),
+				   "only a section of Needs me moves, and only to Following");
+			auto ignored    = any;
+			ignored.Ignored = true;
+			expect(core::home_section_for(ignored) == core::home_queue_section::ignored, "an ignored draft is in Ignored");
+		}
+
+		const auto author = membership(core::github_role::author);
+		auto       mine   = core::queue_item{ .Ref = ref(2), .Membership = author, .Bucket = core::bucket_for(author, { .ReviewersAwaited = 1U, .Draft = true }) };
+		mine.Facts.Draft  = true;
+		expect(core::next_move_for(mine) == core::authored_next_move::draft && core::home_section_for(mine) == core::home_queue_section::my_pull_requests
+				   && core::home_section_for(mine, placement::needs_me) == core::home_queue_section::my_pull_requests,
+			   "my own draft stays in My pull requests whatever the placement");
+		mine.Bucket = core::attention_bucket::new_comments_or_author_replies;
+		expect(core::home_section_for(mine) == core::home_queue_section::my_pull_requests, "comments on my draft keep it mine");
+
+		auto followed            = core::queue_item{ .Ref = ref(3), .Membership = requested, .Bucket = core::attention_bucket::quiet };
+		followed.Facts.Draft     = true;
+		const auto orderedDrafts = core::ordered_queue(std::array{ followed, draft });
+		expect(orderedDrafts.front().Ref == draft.Ref, "within Following, a draft asking for review sorts ahead of a quiet row");
+	}
+
 	void test_observed_is_only_for_items_no_role_brought_in()
 	{
 		const auto activity
@@ -593,6 +643,7 @@ auto main() -> int
 	test_an_unanswered_request_outranks_everything();
 	test_authored_never_displaces_work_the_reviewer_can_do();
 	test_my_draft_waits_on_nobody();
+	test_another_authors_draft_waits_in_following();
 	test_observed_is_only_for_items_no_role_brought_in();
 	test_every_bucket_names_and_explains_itself_distinctly();
 	test_the_queue_is_ordered_by_attention();

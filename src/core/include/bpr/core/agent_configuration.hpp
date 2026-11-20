@@ -193,6 +193,8 @@ namespace bpr::core {
 		overview_counts,
 		line_details,
 		markdown_images,
+		/// [[BPR-2326]]. Home › Others' drafts.
+		others_drafts,
 		/// Reading › Reading width.
 		reading_width,
 		/// Reading width › Advanced: each surface's width.
@@ -208,8 +210,8 @@ namespace bpr::core {
 		finish_approve,
 		finish_request_changes,
 	};
-	inline constexpr std::size_t review_setting_count = 19U;
-	inline constexpr std::size_t review_choice_count  = 10U;
+	inline constexpr std::size_t review_setting_count = 20U;
+	inline constexpr std::size_t review_choice_count  = 11U;
 	/// \brief The setting's member name in the file.
 	[[nodiscard]] auto stable_name(review_setting aSetting) noexcept -> std::string_view;
 
@@ -224,6 +226,7 @@ namespace bpr::core {
 		inline constexpr auto overview_counts   = std::array<std::string_view, 2U>{ "open", "all" };
 		inline constexpr auto line_details      = std::array<std::string_view, 2U>{ "shown", "hidden" };
 		inline constexpr auto markdown_images   = std::array<std::string_view, 2U>{ "load", "off" };
+		inline constexpr auto others_drafts     = std::array<std::string_view, 2U>{ "following", "needs_me" };
 	} // namespace review_choice_vocabulary
 
 	/// \brief [[BPR-2301]]. The names a choice's values go by in the file, in
@@ -242,6 +245,7 @@ namespace bpr::core {
 		case review_setting::overview_counts:   return review_choice_vocabulary::overview_counts;
 		case review_setting::line_details:      return review_choice_vocabulary::line_details;
 		case review_setting::markdown_images:   return review_choice_vocabulary::markdown_images;
+		case review_setting::others_drafts:     return review_choice_vocabulary::others_drafts;
 		default:                                return { };
 		}
 	}

@@ -46,6 +46,18 @@ namespace bpr::core {
 		ignored,
 	};
 
+	/// \brief [[BPR-2326]]. Where Home lists a pull request another author
+	/// still holds as a draft, when its attention would put it in Needs me.
+	///
+	/// \details The owner, 2026-11-20: "We need to move drafts out of needs me
+	/// by default. Maybe we can stick them into following while they are in
+	/// draft." Following is the default and zero, so a profile stored before
+	/// the choice reads it. Stored by value: append only.
+	enum class home_draft_placement : std::uint8_t {
+		following,
+		needs_me,
+	};
+
 	/// \brief Classifies accepted row-scoped authorship for Home without changing attention or notification eligibility.
 	///
 	/// \details Never `ignored`: ignoring is the reviewer's choice about a row,
@@ -460,8 +472,11 @@ namespace bpr::core {
 	///
 	/// \details [[RFC-BPR-0098]]. An authored row is in Waiting on others
 	/// exactly when its next move is Waiting, and in My pull requests
-	/// otherwise.
-	[[nodiscard]] auto home_section_for(const queue_item& aItem) noexcept -> home_queue_section;
+	/// otherwise. [[BPR-2326]]. A row another author still holds as a draft,
+	/// read as one, is in Following rather than Needs me unless `aDrafts`
+	/// says Needs me; its bucket, reason and notification are unchanged, and
+	/// it is back in Needs me once a read says it is ready for review.
+	[[nodiscard]] auto home_section_for(const queue_item& aItem, home_draft_placement aDrafts = home_draft_placement::following) noexcept -> home_queue_section;
 
 	/// \brief Whether one item is in this queue in the supplied role.
 	///
