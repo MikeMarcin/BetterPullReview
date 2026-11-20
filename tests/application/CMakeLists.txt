@@ -1041,6 +1041,10 @@ set_tests_properties(application_operation_diagnostics PROPERTIES PASS_REGULAR_E
 # [[BPR-1831]]. Clone scan, image and avatar fetch and notification diagnostics records.
 bpr_add_executable(test_host_operation_diagnostics host_operation_diagnostics_tests.cpp)
 target_link_libraries(test_host_operation_diagnostics PRIVATE BetterPullReview::Application)
+# The clone scan's host is an agent integration; an agent-free graph checks the rest.
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    target_compile_definitions(test_host_operation_diagnostics PRIVATE BPR_TEST_CLONE_LINK_HOST=1)
+endif()
 bpr_enable_hardening(test_host_operation_diagnostics)
 bpr_enable_warnings(test_host_operation_diagnostics)
 bpr_add_network_isolated_test(NAME application_host_operation_diagnostics COMMAND test_host_operation_diagnostics)

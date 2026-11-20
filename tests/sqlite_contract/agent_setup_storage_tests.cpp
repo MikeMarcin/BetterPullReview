@@ -4,7 +4,9 @@
 #include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
-#include "bpr/application/agent_setup_host.hpp"
+#if defined(BPR_TEST_AGENT_SETUP_HOST)
+	#include "bpr/application/agent_setup_host.hpp"
+#endif
 #include "bpr/application/manual_executor.hpp"
 #include "scratch_root.hpp"
 
@@ -184,6 +186,7 @@ namespace {
 		expect(queues == std::optional{ aSeeded.Queues }, "the queued entry reads back");
 	}
 
+#if defined(BPR_TEST_AGENT_SETUP_HOST)
 	/// A process port that runs nothing and records what it was asked.
 	class recording_process final : public application::agent_process_port
 	{
@@ -246,6 +249,7 @@ namespace {
 		expect(check.State == core::setup_check_state::passed && std::ranges::find(inspected, aProgram) != inspected.end(), "its check inspects its own program and passes");
 		host.shutdown();
 	}
+#endif
 
 	void earlier_builds_open()
 	{
@@ -284,7 +288,9 @@ namespace {
 			expect(count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE sql LIKE '%REFERENCES native_agent_turns%' OR sql LIKE '%REFERENCES agent_queue_entries%' OR sql LIKE '%REFERENCES \"native_agent_turns\"%' OR sql LIKE '%REFERENCES \"agent_queue_entries\"%'") == 0,
 				   "no table references a rebuilt table, so foreign keys stay on through the rebuild");
 			expect_profile(root.path(), seeded, "and opens again as it is");
+#if defined(BPR_TEST_AGENT_SETUP_HOST)
 			expect_custom_check(root.path(), seeded.Preferences.Agents[0].Program);
+#endif
 		}
 		// Builds 64 to 66 left such a store part-migrated: every table made
 		// before the failing step, none after it.

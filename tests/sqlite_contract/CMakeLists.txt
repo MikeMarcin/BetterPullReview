@@ -694,6 +694,11 @@ set_tests_properties(sqlite_insights_storage PROPERTIES ENVIRONMENT "TZ=PST8PDT"
 # [[BPR-1749]]. RFC-BPR-0092's agent setup preferences store.
 bpr_add_executable(test_agent_setup_storage agent_setup_storage_tests.cpp)
 target_link_libraries(test_agent_setup_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
+# [[BPR-2254]]'s check through the setup host needs the agent integrations;
+# an agent-free graph checks the store alone.
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    target_compile_definitions(test_agent_setup_storage PRIVATE BPR_TEST_AGENT_SETUP_HOST=1)
+endif()
 bpr_enable_hardening(test_agent_setup_storage)
 if(WIN32)
     target_link_libraries(test_agent_setup_storage PRIVATE advapi32 BetterPullReview::Platform)
