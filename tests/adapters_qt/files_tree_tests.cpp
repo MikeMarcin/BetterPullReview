@@ -1,19 +1,25 @@
 #include "../support/qt_ink_raster.hpp"
+#include "../support/window_system_mouse.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/resident_filter.hpp"
 
+#include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QHeaderView>
 #include <QImage>
 #include <QKeyEvent>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPersistentModelIndex>
+#include <QPointer>
 #include <QScrollBar>
 #include <QStyleOptionViewItem>
+#include <QTabBar>
 
 #include <algorithm>
 #include <array>
@@ -406,6 +412,176 @@ namespace {
 		QApplication::sendEvent(aView.viewport(), &press);
 		QApplication::sendEvent(aView.viewport(), &release);
 		QApplication::processEvents();
+	}
+
+	/// A right-click at `aAt` of `aView`'s rows, as the window system
+	/// reports one: press and release, through the widget window.
+	void right_click(QAbstractItemView& aView, const QPoint& aAt)
+	{
+		static auto clock  = 900000;
+		auto* const window = aView.window()->windowHandle();
+		const auto  local  = QPointF{ aView.viewport()->mapTo(aView.window(), aAt) };
+		clock += 2000;
+		qt_handleMouseEvent(window, local, window->mapToGlobal(local), Qt::RightButton, Qt::RightButton, QEvent::MouseButtonPress, Qt::NoModifier, clock);
+		clock += 40;
+		qt_handleMouseEvent(window, local, window->mapToGlobal(local), Qt::NoButton, Qt::RightButton, QEvent::MouseButtonRelease, Qt::NoModifier, clock);
+		QApplication::processEvents();
+	}
+
+	[[nodiscard]] auto shown_menu(QWidget& aOwner, const QString& aName) -> QMenu*
+	{
+		for (auto* const menu : aOwner.findChildren<QMenu*>(aName)) {
+			if (menu->isVisible()) {
+				return menu;
+			}
+		}
+		return nullptr;
+	}
+
+	[[nodiscard]] auto named_action(QMenu& aMenu, const QString& aName) -> QAction*
+	{
+		for (auto* const action : aMenu.actions()) {
+			if (action->objectName() == aName) {
+				return action;
+			}
+		}
+		return nullptr;
+	}
+
+	// [[BPR-2334]], owner at attended review bbbd62f8: "right clicking a file
+	// in the files drawer loads that file in the current pane ... other apps
+	// just open the context menu for the thing you mouse over instead of
+	// selecting it". A right-click opens the row's menu; the current row,
+	// the selection and the open file stay where they were, and the menu's
+	// actions are the right-clicked row's.
+	void test_right_click_opens_the_rows_menu_and_chooses_nothing()
+	{
+		qt::files_tree_view view;
+		view.resize(420, 300);
+		view.apply({ file("src/a.cpp"), file("src/b.cpp") });
+		view.show();
+		QApplication::processEvents();
+		auto chosen  = std::vector<core::workbench_file_id>{ };
+		auto newTabs = std::vector<core::workbench_file_id>{ };
+		view.set_select_dispatch([&chosen](const core::workbench_file_id& aFile) { chosen.push_back(aFile); });
+		view.set_new_tab_dispatch([&newTabs](const core::workbench_file_id& aFile) { newTabs.push_back(aFile); });
+		auto* const model   = view.tree_model();
+		const auto  current = core::file_identity_of("src/a.cpp");
+		view.select_file(current);
+		QApplication::processEvents();
+		const auto other = model->index_for_file(core::file_identity_of("src/b.cpp"));
+		right_click(view, view.visualRect(other).center());
+		auto* menu = shown_menu(view, QStringLiteral("filesTreeMenu"));
+		expect(menu != nullptr, "a right-click on another file opens its menu");
+		expect(chosen.empty() && model->file_at(view.currentIndex()) == std::optional{ current }
+				   && view.selectionModel()->selectedRows() == QModelIndexList{ model->index_for_file(current) },
+			   "a right-click on another file neither chooses nor opens it: the current file stays current and selected");
+		auto* const copy = menu != nullptr ? named_action(*menu, QStringLiteral("filesTreeCopyRelativePath")) : nullptr;
+		expect(copy != nullptr, "the menu offers Copy Relative Path");
+		if (copy != nullptr) {
+			QGuiApplication::clipboard()->setText(QStringLiteral("before"));
+			copy->trigger();
+			expect(QGuiApplication::clipboard()->text() == QStringLiteral("src/b.cpp"), "the menu's Copy Relative Path is the right-clicked file's");
+		}
+		const auto watched = QPointer<QMenu>{ menu };
+		if (watched) {
+			watched->close();
+		}
+		QApplication::processEvents();
+		right_click(view, view.visualRect(other).center());
+		menu               = shown_menu(view, QStringLiteral("filesTreeMenu"));
+		auto* const newTab = menu != nullptr ? named_action(*menu, QStringLiteral("filesTreeOpenInNewTab")) : nullptr;
+		expect(newTab != nullptr && newTab->isEnabled(), "the menu offers Open in New Tab");
+		if (newTab != nullptr) {
+			newTab->trigger();
+		}
+		expect(newTabs == std::vector{ core::file_identity_of("src/b.cpp") } && chosen.empty(), "Open in New Tab opens the right-clicked file, not the current one");
+		if (const auto open = QPointer<QMenu>{ menu }; open) {
+			open->close();
+		}
+		QApplication::processEvents();
+		right_click(view, view.visualRect(model->index_for_file(current)).center());
+		expect(chosen.empty(), "a right-click on the current file does not open it again");
+		if (auto* const again = shown_menu(view, QStringLiteral("filesTreeMenu")); again != nullptr) {
+			again->close();
+		}
+		click_row(view, other);
+		expect(chosen == std::vector{ core::file_identity_of("src/b.cpp") }, "a left click still opens the file");
+		view.hide();
+
+		// The Overview's file list: the same.
+		auto projected           = application::pull_request_overview_projection{ };
+		projected.Owner          = "MikeMarcin";
+		projected.RepositoryName = "BPR-Test";
+		projected.Number         = core::pull_request_number{ 1U };
+		projected.Title          = "Two files";
+		for (const auto* path : { "src/a.cpp", "src/b.cpp" }) {
+			auto row   = overview(path, 1U, 0U, application::overview_change_since_review::unchanged, core::file_read_state::unread, std::nullopt);
+			row.Folder = "src";
+			projected.Files.push_back(row);
+		}
+		projected.Progress.FilesTotal = projected.Files.size();
+		qt::pull_request_overview_page page;
+		page.resize(1100, 640);
+		auto opened = std::vector<QString>{ };
+		page.set_file_dispatch([&opened](const QString& aPath) { opened.push_back(aPath); });
+		page.present(projected);
+		page.show();
+		QApplication::processEvents();
+		auto* const files   = page.files_view();
+		auto        rowsOf  = std::vector<QModelIndex>{ };
+		const auto  collect = [&](const auto& aSelf, const QModelIndex& aParent) -> void {
+			for (int row = 0; row < files->model()->rowCount(aParent); ++row) {
+				const auto index = files->model()->index(row, 0, aParent);
+				files->expand(index);
+				if (files->model()->rowCount(index) == 0) {
+					rowsOf.push_back(index);
+				}
+				aSelf(aSelf, index);
+			}
+		};
+		collect(collect, QModelIndex{ });
+		QApplication::processEvents();
+		expect(rowsOf.size() == 2U, "the Overview lists the two files");
+		if (rowsOf.size() == 2U) {
+			files->setCurrentIndex(rowsOf[0]);
+			QApplication::processEvents();
+			const auto currentRow = QPersistentModelIndex{ files->currentIndex() };
+			right_click(*files, files->visualRect(rowsOf[1]).center());
+			auto* const overviewMenu = shown_menu(page, QStringLiteral("overviewFileMenu"));
+			expect(overviewMenu != nullptr, "a right-click on an Overview file opens its menu");
+			expect(QPersistentModelIndex{ files->currentIndex() } == currentRow && opened.empty(),
+				   "a right-click on an Overview file neither chooses nor opens it");
+			auto* const copyPath = overviewMenu != nullptr ? named_action(*overviewMenu, QStringLiteral("overviewFileCopyRelativePath")) : nullptr;
+			expect(copyPath != nullptr, "the Overview's menu offers Copy Relative Path");
+			if (copyPath != nullptr) {
+				copyPath->trigger();
+				expect(QGuiApplication::clipboard()->text() == QStringLiteral("src/b.cpp"), "the Overview menu's path is the right-clicked file's");
+			}
+			if (const auto open = QPointer<QMenu>{ overviewMenu }; open) {
+				open->close();
+			}
+		}
+		page.hide();
+
+		// The document tabs need no filter: a tab bar changes its current
+		// tab on a left press only, so a right-click opens the tab's menu
+		// (which names the tab under the pointer) and leaves the active tab.
+		QTabBar tabs;
+		tabs.addTab(QStringLiteral("a.cpp"));
+		tabs.addTab(QStringLiteral("b.cpp"));
+		tabs.setContextMenuPolicy(Qt::CustomContextMenu);
+		auto asked = -1;
+		QObject::connect(&tabs, &QWidget::customContextMenuRequested, &tabs, [&tabs, &asked](const QPoint& aAt) { asked = tabs.tabAt(aAt); });
+		tabs.show();
+		QApplication::processEvents();
+		auto* const window = tabs.window()->windowHandle();
+		const auto  local  = QPointF{ tabs.tabRect(1).center() };
+		qt_handleMouseEvent(window, local, window->mapToGlobal(local), Qt::RightButton, Qt::RightButton, QEvent::MouseButtonPress, Qt::NoModifier, 990000);
+		qt_handleMouseEvent(window, local, window->mapToGlobal(local), Qt::NoButton, Qt::RightButton, QEvent::MouseButtonRelease, Qt::NoModifier, 990040);
+		QApplication::processEvents();
+		expect(tabs.currentIndex() == 0 && asked == 1, "a right-click on a tab asks for that tab's menu and leaves the active tab");
+		tabs.hide();
 	}
 
 	void test_folders_are_nonselectable_across_gestures_and_rebuilds()
@@ -1163,6 +1339,7 @@ auto main(int argc, char** argv) -> int
 	test_orders_filter_and_the_overview_join();
 	test_selection_reports_files_and_only_the_reviewers_own();
 	test_folders_are_nonselectable_across_gestures_and_rebuilds();
+	test_right_click_opens_the_rows_menu_and_chooses_nothing();
 	test_operation_colours_and_accessible_names();
 	test_file_marks_are_the_review_bar_family();
 	test_folders_take_overviews_folder_ink();

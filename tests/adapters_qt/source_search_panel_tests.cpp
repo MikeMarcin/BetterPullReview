@@ -508,11 +508,22 @@ int main(int aArgc, char** aArgv)
 		menu = right_click_menu(*tree, rows[2]);
 		choose(menu, "sourceSearchCopyPath");
 		expect(clipboard->text() == QStringLiteral("src/search/find_controller.cpp"), "Copy Path writes the file's path once");
-		// Right-click outside the selection selects that row alone.
-		menu = right_click_menu(*tree, rows[4]);
+		// [[BPR-2334]], owner at attended review bbbd62f8: "other apps just
+		// open the context menu for the thing you mouse over instead of
+		// selecting it". Right-click outside the selection leaves the
+		// selection, the current result and the open file alone; the menu
+		// acts on the row under the pointer.
+		const auto selectedBefore = tree->selectionModel()->selectedRows();
+		const auto currentBefore  = QPersistentModelIndex{ tree->currentIndex() };
+		const auto openedBefore   = activated.size();
+		menu                      = right_click_menu(*tree, rows[4]);
+		expect(menu != nullptr && menu->isVisible(), "right-click outside the selection opens the result menu");
 		expect(menu_action(*menu, "sourceSearchCopyPath")->text() == QStringLiteral("Copy Path"), "one file's path");
-		dismiss(menu);
-		expect(copyText() == copied({ 4 }), "right-click outside the selection chooses that result");
+		expect(tree->selectionModel()->selectedRows() == selectedBefore && QPersistentModelIndex{ tree->currentIndex() } == currentBefore && activated.size() == openedBefore,
+			   "right-click outside the selection chooses nothing and opens nothing");
+		clipboard->setText(QStringLiteral("before"));
+		choose(menu, "sourceSearchCopy");
+		expect(clipboard->text() == copied({ 4 }), "the menu's Copy writes the right-clicked result, not the selection");
 		// A file row's menu opens the file at its first result.
 		menu = right_click_menu(*tree, added);
 		choose(menu, "sourceSearchOpenInNewTab");

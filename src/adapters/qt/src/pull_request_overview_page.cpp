@@ -13,6 +13,7 @@
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include "bpr/qt/steady_columns.hpp"
+#include "context_click.hpp"
 #include "conversation_glyphs.hpp"
 #include "overview_summary_splitter.hpp"
 #include "pull_request_overview_support.hpp"
@@ -641,6 +642,7 @@ namespace bpr::qt {
 		});
 		Files->viewport()->installEventFilter(this);
 		Files->installEventFilter(this);
+		open_menu_without_choosing(*Files);
 		Files->setContextMenuPolicy(Qt::CustomContextMenu);
 		connect(Files, &QWidget::customContextMenuRequested, this, [this](const QPoint& aPosition) {
 			auto index = Files->indexAt(aPosition);

@@ -4,6 +4,7 @@
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
+#include "context_click.hpp"
 #include "painted_glyph_icon.hpp"
 #include "side_chip.hpp"
 #include <QAbstractButton>
@@ -711,6 +712,7 @@ namespace bpr::qt {
 		Tree->setAccessibleDescription(tr("Return opens the current result. Shift or %1 with a click, or Shift with an arrow, selects more; %2 selects every result and %3 copies the selected ones. Shift+F10 or the menu key shows the result's actions.")
 										   .arg(command, spoken_key(shortcut_key(shortcut_command::select_results)), spoken_key(shortcut_key(shortcut_command::copy_results))));
 		Tree->installEventFilter(this);
+		open_menu_without_choosing(*Tree);
 		Model = new source_search_result_model{ Tree };
 		Tree->setModel(Model);
 		Delegate = new source_search_result_delegate{ Tree };
@@ -1023,11 +1025,23 @@ namespace bpr::qt {
 		std::ranges::sort(rows, { }, place);
 		return rows;
 	}
+	auto source_search_panel::menu_rows(const QModelIndex& aRow) const -> QModelIndexList
+	{
+		const auto row = aRow.siblingAtColumn(0);
+		if (Tree->selectionModel()->isRowSelected(row.row(), row.parent())) {
+			return chosen_rows();
+		}
+		return QModelIndexList{ row };
+	}
 	auto source_search_panel::selected_text() const -> QString
+	{
+		return text_of(chosen_rows());
+	}
+	auto source_search_panel::text_of(const QModelIndexList& aRows) const -> QString
 	{
 		auto lines = QStringList{ };
 		auto files = std::vector<int>{ };
-		for (const auto& row : chosen_rows()) {
+		for (const auto& row : aRows) {
 			if (!row.parent().isValid()) {
 				// A file row stands for every result it shows.
 				files.push_back(row.row());
@@ -1076,9 +1090,15 @@ namespace bpr::qt {
 			}
 		});
 		menu->addSeparator();
-		add(tr("Copy"), QStringLiteral("sourceSearchCopy"), !selected_text().isEmpty(), [this] { copy_selected(); })->setShortcut(shortcut_key(shortcut_command::copy_results));
+		const auto rows = menu_rows(aIndex);
+		const auto text = text_of(rows);
+		add(tr("Copy"), QStringLiteral("sourceSearchCopy"), !text.isEmpty(), [text] {
+			if (auto* clipboard = QGuiApplication::clipboard()) {
+				clipboard->setText(text);
+			}
+		})->setShortcut(shortcut_key(shortcut_command::copy_results));
 		auto paths = QStringList{ };
-		for (const auto& row : chosen_rows()) {
+		for (const auto& row : rows) {
 			if (const auto path = row.data(source_search_path_role).toString(); !path.isEmpty() && !paths.contains(path)) {
 				paths << path;
 			}
