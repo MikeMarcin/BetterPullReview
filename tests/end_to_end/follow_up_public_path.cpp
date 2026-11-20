@@ -15,11 +15,12 @@
 ///   the field as one undoable edit. A draft changed meanwhile is not replaced.
 /// - A thread's Ask menu has Ask about this…: a round, then Draft reply shows
 ///   the reply, and Put in reply puts it in the thread's reply composer.
-/// - A review's finding card has Ask follow-up: two rounds, each carrying the
-///   ones before; Update suggested comment is seen first and replaces nothing
-///   until Use; then the card shows it, the report shows it beside the
-///   finding and offers Ask follow-up there (the same chat, beside the
-///   report), and Draft comment drafts the updated text.
+/// - A review's findings are its report's ([[BPR-2331]]): the Agent tab shows
+///   the report's summary and no finding card. The report's Ask follow-up on
+///   a finding: two rounds, each carrying the ones before; Update suggested
+///   comment is seen first and replaces nothing until Use; then the report
+///   shows it beside the finding, opening the chat again shows the same
+///   chat beside the report, and Draft comment drafts the updated text.
 ///
 /// - [[BPR-2322]]: with Verbose on, every question, proposal and Use is an
 ///   `agent.side_chat` line in the diagnostic log, and an anonymized export
@@ -256,7 +257,9 @@ auto main(int argc, char** argv) -> int
 			expect(unpublished(), "nothing is published from the thread");
 		}
 
-		// A review's finding card: Ask follow-up, two rounds, Update suggested comment.
+		// A review's findings, held by its report ([[BPR-2331]]): the Agent
+		// tab shows the report's summary and no finding cards; the report's
+		// Ask follow-up, two rounds, Update suggested comment.
 		window.open_agent_question();
 		auto* const reviewAsk = window.review_ask_button();
 		auto*       review    = static_cast<QAction*>(nullptr);
@@ -271,34 +274,9 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return tab->turn_count() == before + 1U && tab->state() != qt::agent_tab_state::working && tab->turn_outcome(before).has_value() && access::agent_invocation_evidence(*application).Quiescent; },
 			 "the review is answered");
 		const auto shown = tab->turn_cards(before);
-		expect(shown.size() == 2U, "the review has two finding cards");
-		// The tonemap finding: its card has no suggested comment of its own
-		// (the thread's reply holds line 12 of the renderer meanwhile).
-		auto* const card      = shown[1];
-		auto* const askButton = card->findChild<QPushButton*>(QStringLiteral("agentFindingFollowUp"));
-		expect(askButton != nullptr && askButton->isVisibleTo(tab), "the card offers Ask follow-up");
-		const auto comment = [&card] {
-			const auto* const view = dynamic_cast<qt::markdown_body_view*>(card->findChild<QWidget*>(QStringLiteral("agentFindingComment")));
-			return view != nullptr ? view->original_body() : std::string{ "<no comment view>" };
-		};
-		const auto original = comment();
-		askButton->click();
-		wait([&] { return followUp->subject_text() == QStringLiteral("Suggested comment at tonemap.frag:5") && followUp->isVisible(); }, "the side chat about the finding: " + followUp->subject_text().toStdString());
-		expect(followUp->item_text() == QStringLiteral("The tonemap pass ignores exposure."), "with no suggested comment, it quotes the claim: " + followUp->item_text().toStdString());
-		expect(original.empty() && !card->findChild<QWidget*>(QStringLiteral("agentFindingSuggestion"))->isVisibleTo(card), "the card shows no suggested comment yet");
-		ask(*followUp, QStringLiteral("I don't follow. Why is this blocking?"));
-		ask(*followUp, QStringLiteral("Can it be softer?"));
-		expect(followUp->answers().back().startsWith(QStringLiteral("Fixture follow-up: I read the item and 1 earlier rounds.")), "the second round carried the first: " + followUp->answers().back().toStdString());
-		propose(*followUp, QStringLiteral("Update suggested comment"));
-		const auto updated = QStringLiteral("issue (blocking): clamp the height as well as the width. A minimised window reports a height of zero, and the swap chain asserts on it.");
-		expect(followUp->proposal_text() == updated, "the proposal is the rewritten comment: " + followUp->proposal_text().toStdString());
-		expect(comment() == original, "the card's comment is unchanged before Use");
-		render(*followUp, QStringLiteral("follow-up-update-suggestion"));
-		followUp->use_button()->click();
-		expect(followUp->status_text().startsWith(QStringLiteral("Suggested comment updated.")), "it says the comment was updated: " + followUp->status_text().toStdString());
-		wait([&] { return comment().find("clamp the height as well as the width") != std::string::npos && card->findChild<QWidget*>(QStringLiteral("agentFindingSuggestion"))->isVisibleTo(card); }, "the card shows the updated comment: " + comment());
-
-		// The report: the update beside the finding, the same conversation, and Draft comment drafts it.
+		expect(shown.size() == 2U && std::ranges::all_of(shown, [](const QWidget* aCard) { return aCard->isHidden(); }), "the review's two findings are its report's, and no card shows in the Agent tab");
+		auto* const summary = tab->turn_report_tally(before);
+		expect(summary != nullptr && summary->isVisible() && !summary->rows().empty(), "the Agent tab shows the report's summary under its attachment");
 		auto* const openRow = tab->turn_report_card(before)->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"));
 		expect(openRow != nullptr, "the card has its Open report row");
 		openRow->click();
@@ -307,14 +285,34 @@ auto main(int argc, char** argv) -> int
 		QApplication::processEvents();
 		const auto& issue = report->findings().at(1);
 		expect(issue.Card == std::optional<std::size_t>{ 1U }, "the report's second finding is the tonemap card");
-		auto page = report->dressed_view()->toPlainText();
-		expect(page.contains(QStringLiteral("Ask follow-up")) && page.contains(QStringLiteral("Suggested comment, updated:")) && page.contains(QStringLiteral("clamp the height as well as the width")),
-			   "the report offers Ask follow-up and shows the updated comment beside the finding:\n" + page.toStdString());
+		const auto offered = report->dressed_view()->toPlainText();
+		expect(offered.contains(QStringLiteral("Ask follow-up")) && offered.contains(QStringLiteral("Dismiss")) && !offered.contains(QStringLiteral("Suggested comment, updated:")),
+			   "the report offers Ask follow-up and Dismiss on its findings:\n" + offered.toStdString());
+		expect(report->press(issue.Outline, qt::report_link::ask), "Ask follow-up is pressed on the report");
+		wait([&] { return followUp->subject_text() == QStringLiteral("Suggested comment at tonemap.frag:5") && followUp->isVisible(); }, "the side chat about the finding: " + followUp->subject_text().toStdString());
+		expect(!followUp->item_text().isEmpty(), "it quotes the finding");
+		ask(*followUp, QStringLiteral("I don't follow. Why is this blocking?"));
+		ask(*followUp, QStringLiteral("Can it be softer?"));
+		expect(followUp->answers().back().startsWith(QStringLiteral("Fixture follow-up: I read the item and 1 earlier rounds.")), "the second round carried the first: " + followUp->answers().back().toStdString());
+		propose(*followUp, QStringLiteral("Update suggested comment"));
+		const auto updated = QStringLiteral("issue (blocking): clamp the height as well as the width. A minimised window reports a height of zero, and the swap chain asserts on it.");
+		expect(followUp->proposal_text() == updated, "the proposal is the rewritten comment: " + followUp->proposal_text().toStdString());
+		expect(!report->dressed_view()->toPlainText().contains(QStringLiteral("Suggested comment, updated:")), "the finding's comment is unchanged before Use");
+		render(*followUp, QStringLiteral("follow-up-update-suggestion"));
+		followUp->use_button()->click();
+		expect(followUp->status_text().startsWith(QStringLiteral("Suggested comment updated.")), "it says the comment was updated: " + followUp->status_text().toStdString());
+
+		// The report: the update beside the finding, the same conversation, and Draft comment drafts it.
+		wait([&] {
+			const auto page = report->dressed_view()->toPlainText();
+			return page.contains(QStringLiteral("Suggested comment, updated:")) && page.contains(QStringLiteral("clamp the height as well as the width"));
+		},
+			 "the report shows the updated comment beside the finding");
 		render(*report, QStringLiteral("follow-up-report"));
 		followUp->close_button()->click();
 		expect(!followUp->isVisible(), "Close closes the chat");
-		expect(report->press(issue.Outline, qt::report_link::ask), "Ask follow-up is pressed on the report");
-		wait([&] { return followUp->isVisible() && followUp->answers().size() == 2; }, "the report's finding is the card's: the same chat, its two rounds");
+		expect(report->press(issue.Outline, qt::report_link::ask), "Ask follow-up is pressed on the report again");
+		wait([&] { return followUp->isVisible() && followUp->answers().size() == 2; }, "the same chat, its two rounds");
 		expect(window.report_shown() && report->isVisible() && followUp->mapTo(&window, QPoint{ 0, 0 }).x() >= report->mapTo(&window, QPoint{ report->width(), 0 }).x() && onlyTheWindow(),
 			   "the chat stands beside the report, in the window");
 		render(window, QStringLiteral("side-chat-report"));
@@ -363,9 +361,7 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return std::ranges::none_of(cards->cards(), isDraft); }, "the draft is deleted");
 			wait([&] { return report->keep_state(issue.Outline).Phase == qt::report_keep_phase::offered; }, "the report's finding no longer says Drafted");
 			const auto again = report->dressed_view()->toPlainText();
-			expect(again.contains(QStringLiteral("Draft comment")) && card->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment")) != nullptr
-					   && card->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->isVisibleTo(card),
-				   "the report and the Agent tab card offer Draft comment again");
+			expect(again.contains(QStringLiteral("Draft comment")), "the report offers Draft comment again");
 			expect(report->press(issue.Outline, qt::report_link::keep), "Draft comment is pressed again");
 			wait([&] { return report->keep_state(issue.Outline).Phase == qt::report_keep_phase::kept; }, "the finding is drafted again: " + report->keep_state(issue.Outline).Why.toStdString());
 			wait([&] { return std::ranges::any_of(cards->cards(), isDraft); }, "a draft stands at the finding's line again");

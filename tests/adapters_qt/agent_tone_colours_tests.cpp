@@ -126,6 +126,11 @@ namespace {
 		const auto* const verdict = aTab.turn_verdict(0U);
 		expect(verdict != nullptr && verdict->isVisibleTo(&aTab) && verdict->text().contains(QStringLiteral("Needs changes")) && verdict->text().contains(open.name()),
 			   aWhen + ": the tab's verdict is filled with Needs work");
+		// [[BPR-2331]]. The report's summary under its attachment wears the
+		// same tones: its issue row Needs work.
+		const auto* const tally = aTab.turn_report_tally(0U);
+		expect(tally != nullptr && tally->isVisible() && !tally->rows().empty() && tally->rows().front()->count().Word == "issue" && tally->ink_of(tally->rows().front()->count()) == open,
+			   aWhen + ": the summary's issue row wears Needs work");
 
 		const auto* const page = aPage.findChild<QTextEdit*>();
 		expect(page != nullptr, aWhen + ": the page");

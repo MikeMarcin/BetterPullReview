@@ -312,6 +312,9 @@ namespace bpr::core {
 		std::string   Word;
 		std::uint32_t Count = 0U;
 		report_tone   Tone  = report_tone::neutral;
+		/// [[BPR-2331]]. The menu row of the first item it counts, where the
+		/// Agent tab's summary opens the report.
+		std::uint32_t First = 0U;
 
 		auto operator<=>(const dressed_count&) const = default;
 	};
@@ -449,6 +452,13 @@ namespace bpr::core {
 		auto operator<=>(const report_suggested_comment&) const = default;
 	};
 	[[nodiscard]] auto report_findings(const dressed_report& aReport, const std::vector<report_suggested_comment>& aSuggested = { }) -> std::vector<report_finding>;
+
+	/// \brief [[BPR-2331]] (owner, 2026-11-20: "let's just keep in the report
+	/// when they're part of the report and remove them from the agent's
+	/// tab"). Which of `aCards` finding cards the report holds: those a
+	/// finding of `aFindings` is (`report_finding::Card`). The Agent tab shows
+	/// only the others.
+	[[nodiscard]] auto report_held_cards(const std::vector<report_finding>& aFindings, std::size_t aCards) -> std::vector<bool>;
 
 	/// \brief The report's summary as a comment on the pull request: its
 	/// verdict, its summary and one line a finding with its place. Kept

@@ -1393,7 +1393,9 @@ namespace bpr::qt {
 
 	void workbench_window::open_report(const std::string& aKey, const agent_report_document& aReport)
 	{
-		Reports[aKey] = aReport;
+		// [[BPR-2331]]. Where it opens is this opening's, not the report's.
+		Reports[aKey]         = aReport;
+		Reports[aKey].Heading = 0U;
 		// [[BPR-2218]], owner 2026-11-16: "Opening that attachment should
 		// bring it to the front, like how opening a file on overview switches
 		// to it." The files' strip and the report's place stand in Review
@@ -1410,6 +1412,10 @@ namespace bpr::qt {
 			DocumentTabDispatch(core::open_report_tab_intent{ .Report = aKey });
 		}
 		apply_report_surface();
+		// [[BPR-2331]]. An Agent tab summary row opens it at its first item.
+		if (aReport.Heading != 0U && ReportShown && ReportView != nullptr && ReportView->document().Turn == aReport.Turn) {
+			ReportView->go_to_heading(static_cast<int>(aReport.Heading));
+		}
 	}
 
 	/// RFC-BPR-0128 ([[BPR-2166]]). While a report is the active tab it

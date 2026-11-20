@@ -2322,6 +2322,24 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
                 TIMEOUT 60
         )
     endforeach()
+    # [[BPR-2331]]. A report turn shows its summary, not its finding cards;
+    # the summary is whole at 1.0, 1.25 and 2.0 scale.
+    bpr_add_executable(test_agent_report_summary agent_report_summary_tests.cpp)
+    target_link_libraries(test_agent_report_summary PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_agent_report_summary)
+    bpr_enable_warnings(test_agent_report_summary)
+    foreach(bpr_report_summary_scale IN ITEMS 100 125 200)
+        math(EXPR bpr_report_summary_whole "${bpr_report_summary_scale} / 100")
+        math(EXPR bpr_report_summary_fraction "${bpr_report_summary_scale} % 100")
+        bpr_add_network_isolated_test(NAME qt_agent_report_summary_scale_${bpr_report_summary_scale} COMMAND test_agent_report_summary)
+        set_tests_properties(
+            qt_agent_report_summary_scale_${bpr_report_summary_scale}
+            PROPERTIES
+                ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_report_summary_whole}.${bpr_report_summary_fraction}"
+                PASS_REGULAR_EXPRESSION "agent-report-summary:pass"
+                TIMEOUT 60
+        )
+    endforeach()
     # RFC-BPR-0125 milestone 2 ([[BPR-2145]]). The Agent tab's chips are the core's offers.
     bpr_add_executable(test_prompt_macro_chips prompt_macro_chips_tests.cpp)
     # [[BPR-2205]]. An owner-private scratch root (tests/support/scratch_directory.hpp).

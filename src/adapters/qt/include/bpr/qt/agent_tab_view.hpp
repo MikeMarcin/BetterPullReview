@@ -28,6 +28,7 @@
 #include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
+#include "bpr/qt/report_tally_view.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -579,9 +580,15 @@ namespace bpr::qt {
 		/// the follow-up.
 		[[nodiscard]] auto send_released(const QString& aText) -> release_outcome;
 		[[nodiscard]] auto queue_note() const noexcept -> QLabel* { return QueueNote; }
-		/// \brief Opens turn `aTurn`'s report, as its card's Open does.
-		void               open_report(std::size_t aTurn);
+		/// \brief Opens turn `aTurn`'s report, as its card's Open does; at
+		/// menu row `aHeading` when it is not 0 ([[BPR-2331]]: a summary row).
+		void               open_report(std::size_t aTurn, std::uint32_t aHeading = 0U);
 		[[nodiscard]] auto turn_report_card(std::size_t aTurn) const -> QWidget*;
+		/// \brief [[BPR-2331]]. The report's summary under its attachment.
+		[[nodiscard]] auto turn_report_tally(std::size_t aTurn) const -> report_tally_view*;
+		/// \brief [[BPR-2331]]. Whether turn `aTurn`'s report holds the finding
+		/// card `aCard` (an index into `finding_cards()`), so it is not shown.
+		[[nodiscard]] auto finding_card_held(std::size_t aCard) const -> bool;
 		/// \brief RFC-BPR-0118 ([[BPR-2078]]). One Suggest the change turn:
 		/// its index, and once it ends whether it answered, the answer as
 		/// written and the ending line; a refused send has no turn.
@@ -773,6 +780,9 @@ namespace bpr::qt {
 			std::vector<QPointer<markdown_body_view>> Texts;
 			/// [[BPR-2061]]. Found not at the head when it was drafted.
 			bool Gone = false;
+			/// [[BPR-2331]]. Its turn's report holds it: the report shows it
+			/// and its actions, and the Agent tab does not.
+			bool Held = false;
 		};
 		[[nodiscard]] auto make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*;
 		/// [[BPR-2059]]. Sets one of a card's Markdown texts to the height its width needs.
@@ -788,6 +798,17 @@ namespace bpr::qt {
 		/// under its answer.
 		void                    claim_findings(std::size_t aTurn);
 		std::vector<card_entry> CardEntries;
+		/// [[BPR-2331]]. A report turn's cards that its report holds are
+		/// hidden, the others shown, and its summary set from the report.
+		void place_report_findings(std::size_t aTurn);
+		/// The report as its tab shows it, its references links.
+		[[nodiscard]] auto report_markdown(std::size_t aTurn) const -> QString;
+		/// [[BPR-2219]]. The comments the agent suggested for the turn's
+		/// cards, by place, in the order of its cards in `CardEntries`.
+		[[nodiscard]] auto report_suggestions(std::size_t aTurn) const -> std::vector<core::report_suggested_comment>;
+		/// [[BPR-2331]]. A report turn that ended at the conversation's end
+		/// leaves its attachment in view.
+		void keep_report_in_view(std::uint64_t aSerial);
 		/// \brief Owner report 2026-11-10 ("I added one and after a while I
 		/// went back and all the other suggestions were gone"). The cards of
 		/// a turn the thread stopped showing, with their states, kept by the
@@ -956,8 +977,12 @@ namespace bpr::qt {
 			QPointer<QLabel>      ReportTitle;
 			QPointer<QLabel>      ReportMeta;
 			QPointer<QPushButton> ReportOpen;
-			QPointer<QPushButton> AskMore;
-			QPointer<QWidget>     Asked;
+			/// [[BPR-2331]]. The report's summary under its attachment, and
+			/// whether the attachment shows.
+			QPointer<report_tally_view> Tally;
+			bool                        ReportShown = false;
+			QPointer<QPushButton>       AskMore;
+			QPointer<QWidget>           Asked;
 			/// [[BPR-1847]]. How it ended, its reply card, and the one way
 			/// back an error offers.
 			core::agent_turn_outcome  Outcome = core::agent_turn_outcome::answered;
