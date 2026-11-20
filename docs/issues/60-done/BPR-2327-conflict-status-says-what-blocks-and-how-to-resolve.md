@@ -106,8 +106,7 @@ lists no files, says nothing of auto-merge and offers no way to act.
 
 ## Evidence
 
-Candidate: the BPR-2327 commits on `main` (`3e0de7830`, `c2b550b25` before
-landing), built in a task worktree with its own `build/dev` tree (dev preset,
+Candidate: `9d0dc3f1c` and `89c6caa75` on `main`, built in a task worktree with its own `build/dev` tree (dev preset,
 jobserver).
 
 - `core_merge_blockers`: pass (new).
