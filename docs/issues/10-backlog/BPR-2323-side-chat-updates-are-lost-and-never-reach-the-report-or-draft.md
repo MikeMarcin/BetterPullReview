@@ -246,11 +246,11 @@ large.
   kind, finding key, round, agent, duration, outcome and lengths, and no
   content; every refused publish is one too. At Verbose the events carry
   the question, answer, proposed text, finding title and path and lines.
-- AC7. No anonymized export, at any detail, holds a side chat's content or
-  its stored rounds: the marker test above passes with Verbose on.
 - AC6. The tests above, BPR-2322's `qt_item_side_chat` and
   `application_follow_up_public_path`, `architecture_boundaries`, and
   `python3 scripts/verify_documentation.py --root .` pass.
+- AC7. No anonymized export, at any detail, holds a side chat's content or
+  its stored rounds: the marker test above passes with Verbose on.
 
 ## Out of scope
 
