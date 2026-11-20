@@ -246,7 +246,7 @@ int main(int aArgc, char** aArgv)
 		}
 		return names;
 	};
-	expect(mergeState->text() == QStringLiteral("Blocked") && mergeText->text().contains(QStringLiteral("Review required, minimum 2 approvals")) && !mergeText->text().contains(QStringLiteral("Branch Freshness")) && mergeText->text().contains(QStringLiteral("Missing CI has not reported")) && mergeText->text().count(QLatin1Char{ '\n' }) == 1, "review and missing required result are each one short line in Merge's details; the failure is Needs attention's");
+	expect(mergeState->accessibleName() == QStringLiteral("Merge state: 1 required check failed, and 2 more requirements") && mergeText->text().contains(QStringLiteral("Review required, minimum 2 approvals")) && !mergeText->text().contains(QStringLiteral("Branch Freshness")) && mergeText->text().contains(QStringLiteral("Missing CI has not reported")) && mergeText->text().count(QLatin1Char{ '\n' }) == 1, "the heading names what blocks the merge ([[BPR-2327]]); review and missing required result are each one short line in Merge's details; the failure is Needs attention's");
 	for (int index = 0; index < 3; ++index) {
 		expect(roster().value(index).startsWith(QStringLiteral("bpr-fixtures/owners-%1, team").arg(index)) && roster().value(index).endsWith(QStringLiteral("code-owner review requested")), "all three provider-marked code-owner teams are named directly, first");
 	}

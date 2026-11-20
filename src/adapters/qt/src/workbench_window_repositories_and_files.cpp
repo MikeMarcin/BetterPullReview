@@ -1298,6 +1298,13 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::set_conflicts_page_dispatch(std::function<void()> aDispatch)
+	{
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_conflicts_page_dispatch(std::move(aDispatch));
+		}
+	}
+
 	void workbench_window::set_commit_rematch_dispatch(std::function<void(const application::commit_filter_rematch_gesture&)> aDispatch)
 	{
 		if (FilesCommitChip != nullptr) {
@@ -1824,6 +1831,8 @@ namespace bpr::qt {
 		PresentedOverview->MergeState         = aProjection.MergeState;
 		PresentedOverview->MergeTone          = aProjection.MergeTone;
 		PresentedOverview->RequirementDetails = aProjection.RequirementDetails;
+		PresentedOverview->MergeConflict      = aProjection.MergeConflict;
+		PresentedOverview->MergeNotes         = aProjection.MergeNotes;
 	}
 
 	void workbench_window::present_strip_draft(const bool aDraft)

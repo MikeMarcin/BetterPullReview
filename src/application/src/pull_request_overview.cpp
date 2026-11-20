@@ -4,6 +4,7 @@
 
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/file_progress_mark.hpp"
+#include "bpr/core/merge_blockers.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -426,6 +427,126 @@ namespace bpr::application {
 			return aMerge;
 		}
 
+		[[nodiscard]] auto counted(const std::size_t aCount, const std::string_view aOne, const std::string_view aMany) -> std::string
+		{
+			return aCount == 1U ? std::string{ aOne } : std::to_string(aCount) + std::string{ aMany };
+		}
+
+		/// \brief [[BPR-2327]]. Every blocker the assessment, the review
+		/// decision and the required checks show, for the core to order.
+		[[nodiscard]] auto merge_blockers_of(const github_merge_observation& aMerge, const pull_request_overview_projection& aProjection) -> std::vector<core::merge_blocker>
+		{
+			using kind    = core::merge_blocker_kind;
+			auto blockers = std::vector<core::merge_blocker>{ };
+			switch (aMerge.Assessment) {
+			case github_merge_assessment::conflicts: blockers.push_back({ .Kind = kind::conflicts }); break;
+			case github_merge_assessment::draft:     blockers.push_back({ .Kind = kind::draft }); break;
+			case github_merge_assessment::behind:    blockers.push_back({ .Kind = kind::behind }); break;
+			default:                                 break;
+			}
+			if (aMerge.Review == github_review_decision::changes_requested) {
+				blockers.push_back({ .Kind = kind::changes_requested });
+			} else if (aMerge.Review == github_review_decision::required) {
+				blockers.push_back({ .Kind = kind::review_required });
+			}
+			for (const auto& row : aProjection.CheckRows) {
+				if (row.Requirement.starts_with("Required")) {
+					if (row.Failed) {
+						blockers.push_back({ .Kind = kind::check_failed, .Subject = row.Name });
+					} else if (row.Pending) {
+						blockers.push_back({ .Kind = kind::check_waiting, .Subject = row.Name });
+					}
+				}
+			}
+			if (blockers.empty() && aMerge.Assessment == github_merge_assessment::blocked) {
+				blockers.push_back({ .Kind = kind::blocked });
+			}
+			return core::order_merge_blockers(std::move(blockers));
+		}
+
+		[[nodiscard]] auto method_name(const github_merge_method aMethod) -> std::string_view
+		{
+			switch (aMethod) {
+			case github_merge_method::merge:  return "merge commit";
+			case github_merge_method::squash: return "squash";
+			case github_merge_method::rebase: return "rebase";
+			}
+			return "merge commit";
+		}
+
+		/// \brief [[BPR-2327]]. Merge's heading, its conflict and its notes,
+		/// from what the core decides of the blockers. A conflict lists the
+		/// conflicting paths the context supplied.
+		void present_merge_state(const github_merge_observation& aMerge, pull_request_overview_projection& aProjection)
+		{
+			const auto reading     = read_merge(aMerge);
+			aProjection.MergeState = reading.State;
+			aProjection.MergeTone  = reading.Tone;
+			const auto mergeable   = aMerge.Assessment == github_merge_assessment::clean || aMerge.Assessment == github_merge_assessment::hooks || aMerge.Assessment == github_merge_assessment::unstable;
+			const auto observed    = aMerge.Availability == github_observation_availability::available || aMerge.Stale;
+			const auto blockers    = observed && !mergeable ? merge_blockers_of(aMerge, aProjection) : std::vector<core::merge_blocker>{ };
+			const auto headline    = core::decide_merge_headline(blockers);
+			if (headline.Lead) {
+				using kind = core::merge_blocker_kind;
+				auto words = std::string{ };
+				switch (*headline.Lead) {
+				case kind::conflicts:         words = "Conflicts with " + aProjection.BaseRef; break;
+				case kind::draft:             words = "Draft"; break;
+				case kind::changes_requested: words = "Changes requested"; break;
+				case kind::check_failed:      words = counted(headline.LeadCount, "1 required check failed", " required checks failed"); break;
+				case kind::review_required:   words = "Review required"; break;
+				case kind::check_waiting:     words = "Waiting for " + counted(headline.LeadCount, "1 required check", " required checks"); break;
+				case kind::behind:            words = "Behind " + aProjection.BaseRef; break;
+				case kind::blocked:           words = "Blocked"; break;
+				}
+				if (headline.Others != 0U) {
+					words += ", and " + counted(headline.Others, "1 more requirement", " more requirements");
+				}
+				aProjection.MergeState = std::move(words);
+				if (*headline.Lead != kind::draft) {
+					aProjection.MergeTone = overview_merge_tone::blocked;
+				}
+			}
+			if (observed && aMerge.Assessment == github_merge_assessment::conflicts) {
+				auto conflict             = overview_merge_conflict{ };
+				conflict.Base             = aProjection.BaseRef;
+				conflict.CommandHint      = "git fetch origin\ngit switch " + aProjection.HeadRef + "\ngit merge origin/" + aProjection.BaseRef;
+				conflict.Files            = aProjection.ConflictingPaths;
+				aProjection.MergeConflict = std::move(conflict);
+			} else {
+				aProjection.MergeConflict.reset();
+			}
+			auto& notes = aProjection.MergeNotes;
+			notes.clear();
+			if (observed && aMerge.AutoMerge == true) {
+				auto line = std::string{ "Auto-merge is enabled" };
+				if (aMerge.AutoMergeRequest && aMerge.AutoMergeRequest->Method) {
+					line += " (" + std::string{ method_name(*aMerge.AutoMergeRequest->Method) } + ")";
+				}
+				if (aMerge.AutoMergeRequest && !aMerge.AutoMergeRequest->EnabledBy.empty()) {
+					line += " by " + aMerge.AutoMergeRequest->EnabledBy;
+				}
+				line += ": GitHub merges it once every requirement is met.";
+				notes.push_back(std::move(line));
+			}
+			if (observed && aMerge.InMergeQueue == true) {
+				auto line = std::string{ "In the merge queue" };
+				if (aMerge.QueueEntry && aMerge.QueueEntry->Position) {
+					line += ", position " + std::to_string(*aMerge.QueueEntry->Position);
+				}
+				if (aMerge.QueueEntry) {
+					switch (aMerge.QueueEntry->State) {
+					case github_merge_queue_state::queued:          line += ": waiting its turn"; break;
+					case github_merge_queue_state::awaiting_checks: line += ": waiting for the queue's checks"; break;
+					case github_merge_queue_state::mergeable:       line += ": ready to merge"; break;
+					case github_merge_queue_state::unmergeable:     line += ": cannot merge, and will leave the queue"; break;
+					case github_merge_queue_state::locked:          line += ": merging now"; break;
+					}
+				}
+				notes.push_back(line + ".");
+			}
+		}
+
 		void project_merge_requirements(const github_pull_request_snapshot& aSnapshot, pull_request_overview_projection& aProjection, const overview_check_policy_index& aChecks)
 		{
 			const auto merge       = merge_for_draft(aSnapshot.Merge, aSnapshot.PullRequest.Draft, aProjection.Draft);
@@ -542,6 +663,7 @@ namespace bpr::application {
 				conditions.emplace_back("Last known; refresh to update");
 				open.emplace_back("Last known; refresh to update");
 			}
+			present_merge_state(merge, aProjection);
 		}
 		void project_checks(const github_pull_request_snapshot& aSnapshot, pull_request_overview_projection& aProjection, const overview_check_policy_index& aPolicy)
 		{
@@ -723,20 +845,20 @@ namespace bpr::application {
 						   const github_pull_request_snapshot&              aSnapshot,
 						   const std::optional<core::projected_draft_state> aProjected) -> bool
 	{
-		const auto before        = std::tuple{ aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails };
+		const auto before        = std::tuple{ aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails, aProjection.MergeConflict, aProjection.MergeNotes };
 		const auto shown         = read_merge(merge_for_draft(aSnapshot.Merge, aSnapshot.PullRequest.Draft, aProjection.Draft));
 		const auto now           = aProjected.value_or(core::projected_draft_state{ .Draft = aSnapshot.PullRequest.Draft });
 		aProjection.Draft        = now.Draft;
 		aProjection.DraftPending = now.Pending;
-		const auto reading       = read_merge(merge_for_draft(aSnapshot.Merge, aSnapshot.PullRequest.Draft, aProjection.Draft));
-		aProjection.MergeState   = reading.State;
-		aProjection.MergeTone    = reading.Tone;
+		const auto merge         = merge_for_draft(aSnapshot.Merge, aSnapshot.PullRequest.Draft, aProjection.Draft);
+		const auto reading       = read_merge(merge);
+		present_merge_state(merge, aProjection);
 		// The details begin with the assessment's sentence; the rest is the
 		// read's and stays.
 		if (aProjection.RequirementDetails.starts_with(shown.Sentence)) {
 			aProjection.RequirementDetails.replace(0U, shown.Sentence.size(), reading.Sentence);
 		}
-		return before != std::tie(aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails);
+		return before != std::tie(aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails, aProjection.MergeConflict, aProjection.MergeNotes);
 	}
 
 	auto project_loading_overview_people(const github_pull_request_snapshot& aPeople) -> overview_people_projection
@@ -922,6 +1044,7 @@ namespace bpr::application {
 		const auto checkPolicy = overview_check_policy_index{ aSnapshot };
 		project_review_requests(aSnapshot, projection, aContext.ProjectedReviewRequests);
 		project_checks(aSnapshot, projection, checkPolicy);
+		projection.ConflictingPaths = aContext.ConflictingPaths;
 		project_merge_requirements(aSnapshot, projection, checkPolicy);
 		sort_check_rows(projection);
 		project_status(aSnapshot, projection);

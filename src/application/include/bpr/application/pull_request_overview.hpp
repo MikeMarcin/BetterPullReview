@@ -158,6 +158,19 @@ namespace bpr::application {
 		auto operator<=>(const overview_status&) const = default;
 	};
 
+	/// \brief [[BPR-2327]]. A conflict with the base, as Merge shows it.
+	struct overview_merge_conflict
+	{
+		std::string Base;
+		/// The conflicting paths, when a local merge check supplied them;
+		/// absent when nothing did. GitHub's API does not report them.
+		std::optional<std::vector<std::string>> Files;
+		/// Lines to resolve it from a terminal, ready to copy.
+		std::string CommandHint;
+
+		auto operator<=>(const overview_merge_conflict&) const = default;
+	};
+
 	/// \brief Which one action the overview offers.
 	enum class overview_entry_kind : std::uint8_t {
 		/// First visit: nothing read, no last review.
@@ -199,9 +212,17 @@ namespace bpr::application {
 		std::string                       ChecksNote;
 		/// [[BPR-1405]]. The assessment in a word or two, then one short line
 		/// per unmet condition. The evidence limits live in the details.
-		std::string                          MergeState;
-		overview_merge_tone                  MergeTone = overview_merge_tone::unknown;
-		std::vector<std::string>             MergeConditions;
+		std::string              MergeState;
+		overview_merge_tone      MergeTone = overview_merge_tone::unknown;
+		std::vector<std::string> MergeConditions;
+		/// [[BPR-2327]]. Present while GitHub assesses a conflict.
+		std::optional<overview_merge_conflict> MergeConflict;
+		/// [[BPR-2327]]. The context's conflicting paths, kept so a conflict
+		/// that returns in place lists them again.
+		std::optional<std::vector<std::string>> ConflictingPaths;
+		/// [[BPR-2327]]. Auto-merge and the merge queue, one line each, apart
+		/// from what blocks the merge.
+		std::vector<std::string>             MergeNotes;
 		std::vector<overview_review_request> ReviewRequests;
 		/// Why the roster is partial or last known; empty when it is complete,
 		/// so an empty complete roster says nothing.
@@ -243,6 +264,9 @@ namespace bpr::application {
 		std::optional<core::git_commit_oid> Head;
 		/// Paths changed between my last review and the head, when resolved.
 		std::optional<std::vector<std::string>> ChangedSinceReviewPaths;
+		/// [[BPR-2327]]. The paths a local merge check found conflicting, when
+		/// one ran; nothing supplies them yet ([[BPR-2328]]).
+		std::optional<std::vector<std::string>> ConflictingPaths;
 		std::optional<std::size_t>              DraftedComments;
 		/// [[BPR-1841]]. Threads whose resolution the viewer changed since the
 		/// read, by GitHub thread id, with the state the core projects. The

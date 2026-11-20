@@ -79,6 +79,9 @@ namespace bpr::application {
 	/// \brief RFC-BPR-0089. One listed commit's page within its pull request:
 	/// the admitted page address, "commits" and the full commit ID.
 	[[nodiscard]] auto pull_request_commit_page_address(const core::pull_request_page& aPage, const core::git_commit_oid& aCommit) -> std::string;
+	/// \brief [[BPR-2327]]. The pull request's conflict page: the admitted
+	/// page address and "conflicts", where GitHub lists and resolves them.
+	[[nodiscard]] auto pull_request_conflicts_page_address(const core::pull_request_page& aPage) -> std::string;
 
 	/// \brief A clicked body link into the window's own pull request that the
 	/// application shows itself: the core's decision and the link as read.
@@ -189,6 +192,10 @@ namespace bpr::application {
 		/// commits on its host. A commit the accepted list does not name, or a
 		/// malformed ID, is refused before any address exists.
 		[[nodiscard]] auto open_pull_request_commit_page(const std::string& aCommit, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
+		/// \brief [[BPR-2327]]. Opens the accepted pull request's conflict page
+		/// on its host. The address is built from the accepted profile
+		/// authority and snapshot only.
+		[[nodiscard]] auto open_pull_request_conflicts_page(device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
 		void               read_cached_source(std::string aPath);
 		/// \brief RFC-BPR-0084. Admits a rendered body's image references against the
 		/// current publication and starts their resolution and loads; results arrive

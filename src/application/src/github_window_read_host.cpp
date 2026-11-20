@@ -1992,6 +1992,28 @@ namespace bpr::application {
 				return core::markdown_link_result::failed;
 			}
 		}
+		auto open_pull_request_conflicts_page(device_authorization_browser_port* aBrowser) -> core::markdown_link_result
+		{
+			if (!AcceptedSnapshot || !AcceptedProfileAuthority) {
+				return core::markdown_link_result::stale;
+			}
+			const auto& pull = *AcceptedSnapshot;
+			const auto  page = core::admit_pull_request_page({
+				.BrowserAvailable = aBrowser != nullptr,
+				.Hostname         = AcceptedProfileAuthority->Hostname.value(),
+				.Owner            = pull.Repository.Owner,
+				.Repository       = pull.Repository.Name,
+				.Number           = pull.PullRequest.Number,
+			});
+			if (!page) {
+				return page.error();
+			}
+			try {
+				return aBrowser->open(pull_request_conflicts_page_address(*page)) ? core::markdown_link_result::opened : core::markdown_link_result::failed;
+			} catch (...) {
+				return core::markdown_link_result::failed;
+			}
+		}
 		std::uint64_t                           MarkdownRevision  = 0;
 		bool                                    MarkdownExhausted = false;
 		std::unordered_set<std::string>         MarkdownBodies;
@@ -2225,6 +2247,14 @@ namespace bpr::application {
 	auto pull_request_commit_page_address(const core::pull_request_page& aPage, const core::git_commit_oid& aCommit) -> std::string
 	{
 		return pull_request_page_address(aPage) + "/commits/" + std::string{ core::canonical_hex(aCommit).view() };
+	}
+	auto pull_request_conflicts_page_address(const core::pull_request_page& aPage) -> std::string
+	{
+		return pull_request_page_address(aPage) + "/conflicts";
+	}
+	auto github_window_read_host::open_pull_request_conflicts_page(device_authorization_browser_port* aBrowser) -> core::markdown_link_result
+	{
+		return Implementation->open_pull_request_conflicts_page(aBrowser);
 	}
 	auto github_window_read_host::open_pull_request_commit_page(const std::string& aCommit, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
 	{

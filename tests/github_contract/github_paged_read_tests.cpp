@@ -5830,6 +5830,50 @@ namespace {
 			expect(result && result->Checks.size() == 1 && result->StatusesAvailability == application::github_collection_availability::unavailable, "optional status refusal retains readable known check runs and explicit partial availability");
 		}
 	}
+	/// [[BPR-2327]]. The merge assessment's one read also says how auto-merge
+	/// will merge, who enabled it, and the merge queue; a read without them
+	/// leaves them unknown, and a malformed one is refused.
+	void test_merge_assessment_reads_auto_merge_and_the_queue()
+	{
+		using availability        = application::github_observation_availability;
+		auto asked                = std::string{ };
+		auto variant              = 0;
+		auto transport            = paged_fixture_transport{ fixture_scenario::success };
+		transport.RewriteResponse = [&](const github_wire_request& aRequest, wire_response& aResponse) {
+			if (aRequest.Wire.Operation != read_operation::get_merge_assessment) {
+				return;
+			}
+			asked     = aRequest.Wire.Body;
+			auto pull = fixture_object{ { "id", "PR_17" }, { "headRefOid", std::string{ head_oid } }, { "baseRefOid", std::string{ base_oid } }, { "baseRefName", "main" }, { "mergeStateStatus", "DIRTY" }, { "reviewDecision", nullptr } };
+			if (variant == 0) {
+				pull.insert_or_assign("autoMergeRequest", fixture_object{ { "enabledAt", "2026-11-20T10:00:00Z" }, { "mergeMethod", "SQUASH" }, { "enabledBy", fixture_object{ { "login", "fixture-author" } } } });
+				pull.insert_or_assign("isInMergeQueue", true);
+				pull.insert_or_assign("mergeQueueEntry", fixture_object{ { "state", "AWAITING_CHECKS" }, { "position", 2 } });
+			} else if (variant == 1) {
+				pull.insert_or_assign("autoMergeRequest", fixture_object{ { "enabledAt", "2026-11-20T10:00:00Z" } });
+			} else {
+				pull.insert_or_assign("autoMergeRequest", nullptr);
+				pull.insert_or_assign("isInMergeQueue", true);
+				pull.insert_or_assign("mergeQueueEntry", fixture_object{ { "state", "SOMETHING_NEW" }, { "position", 1 } });
+			}
+			aResponse.Body = fixture_json(fixture_object{ { "data", fixture_object{ { "repository", fixture_object{ { "id", "R_repository" }, { "pullRequest", pull } } } } } });
+		};
+		auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { });
+		expect(asked.find("autoMergeRequest{enabledAt mergeMethod enabledBy{login}} isInMergeQueue mergeQueueEntry{state position}") != std::string::npos, "the same one read asks for auto-merge's details and the queue");
+		expect(result && result->Merge.Availability == availability::available && result->Merge.Assessment == application::github_merge_assessment::conflicts && result->Merge.AutoMerge == true,
+			   "a conflicting pull request with auto-merge on");
+		expect(result->Merge.AutoMergeRequest == application::github_auto_merge_request{ .Method = application::github_merge_method::squash, .EnabledBy = "fixture-author" }, "how and by whom");
+		expect(result->Merge.InMergeQueue == true && result->Merge.QueueEntry == application::github_merge_queue_entry{ .State = application::github_merge_queue_state::awaiting_checks, .Position = 2U }, "its place in the queue");
+
+		variant = 1;
+		result  = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 56 }, { });
+		expect(result && result->Merge.AutoMerge == true && !result->Merge.AutoMergeRequest && !result->Merge.InMergeQueue && !result->Merge.QueueEntry, "a shorter answer leaves the details and the queue unknown");
+
+		variant = 2;
+		result  = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 57 }, { });
+		expect(result && result->Merge.Availability != availability::available && !result->Merge.QueueEntry, "an unknown queue state is refused, not guessed");
+	}
+
 	void test_review_requirements()
 	{
 		using availability = application::github_observation_availability;
@@ -6019,6 +6063,7 @@ auto main(int aArgc, char* aArgv[]) -> int
 	test_review_request_pagination();
 	test_review_request_actor_fallback();
 	test_review_requirements();
+	test_merge_assessment_reads_auto_merge_and_the_queue();
 	test_current_check_details();
 	test_optional_checks_cannot_spend_mandatory_read_budget();
 	test_raw_tour_import();

@@ -4095,6 +4095,83 @@ namespace {
 		}
 	}
 
+	/// [[BPR-2327]]. Merge names the conflict and its base, lists the files
+	/// when known, offers Resolve on GitHub and the commands, says auto-merge
+	/// apart, and wraps a long reason instead of cutting it off.
+	void test_merge_shows_the_conflict_and_how_to_resolve_it()
+	{
+		using section = qt::overview_status_section;
+		qt::pull_request_overview_page page;
+		page.resize(1'100, 900);
+		auto opened    = std::vector<QString>{ };
+		auto conflicts = 0;
+		page.set_file_dispatch([&opened](const QString& aPath) { opened.push_back(aPath); });
+		page.set_conflicts_page_dispatch([&conflicts] { ++conflicts; });
+		auto       projected            = status_projection();
+		const auto longCheck            = std::string{ "merge-queue/required-integration-check/with-a-very-long-matrix-name/linux-x64-release" };
+		projected.MergeState            = "Conflicts with release, and 1 more requirement";
+		projected.Status.OpenConditions = { longCheck + " has not reported" };
+		projected.MergeConflict         = application::overview_merge_conflict{ .Base = "release", .CommandHint = "git fetch origin\ngit switch topic\ngit merge origin/release" };
+		projected.MergeNotes            = { "Auto-merge is enabled (squash) by fixture-author: GitHub merges it once every requirement is met." };
+		page.present(projected);
+		page.show();
+		page.activateWindow();
+		page.status_section_header(section::attention)->setChecked(true);
+		settle();
+
+		auto* const state    = page.findChild<QLabel*>(QStringLiteral("overviewMergeState"));
+		auto* const box      = page.findChild<QWidget*>(QStringLiteral("overviewConflictSentence"))->parentWidget();
+		auto* const note     = page.findChild<QLabel*>(QStringLiteral("overviewConflictFilesNote"));
+		auto* const also     = page.findChild<QLabel*>(QStringLiteral("overviewAlsoRequired"));
+		auto* const reasons  = page.findChild<QLabel*>(QStringLiteral("overviewMergeConditions"));
+		auto* const notes    = page.findChild<QLabel*>(QStringLiteral("overviewMergeNotes"));
+		auto* const resolve  = page.findChild<QPushButton*>(QStringLiteral("overviewResolveOnGitHub"));
+		auto* const copy     = page.findChild<QPushButton*>(QStringLiteral("overviewCopyConflictCommands"));
+		auto* const commands = page.findChild<QLabel*>(QStringLiteral("overviewConflictCommands"));
+		expect(state->accessibleName() == QStringLiteral("Merge state: Conflicts with release, and 1 more requirement"), "the heading names the conflict, the base and what else blocks");
+		expect(box->isVisible() && page.findChild<QLabel*>(QStringLiteral("overviewConflictSentence"))->accessibleName() == QStringLiteral("GitHub cannot merge until the conflicts with release are resolved."),
+			   "a sentence says why GitHub cannot merge");
+		expect(note->isVisible() && note->text().contains(QStringLiteral("does not report which files conflict")) && page.findChildren<QAbstractButton*>(QStringLiteral("overviewConflictFile")).isEmpty(),
+			   "without file data it says the files are not reported, and lists none");
+		expect(also->isVisible() && reasons->isVisible() && reasons->accessibleName() == QString::fromStdString(longCheck + " has not reported"), "the waiting check is listed under Also required, not as the conflict");
+		expect(notes->isVisible() && notes->accessibleName().startsWith(QStringLiteral("Auto-merge is enabled (squash)")), "auto-merge is said on its own line");
+
+		resolve->click();
+		expect(conflicts == 1, "Resolve on GitHub asks for the conflicts page");
+		copy->click();
+		expect(QGuiApplication::clipboard()->text() == QStringLiteral("git fetch origin\ngit switch topic\ngit merge origin/release") && commands->accessibleName() == QGuiApplication::clipboard()->text(),
+			   "Copy commands puts the shown commands on the clipboard, without break marks");
+
+		// A long reason wraps at the drawer's width: no line runs past it.
+		const auto width = reasons->width();
+		expect(width > 0 && reasons->minimumSizeHint().width() <= width, "the long check name has places to break");
+		expect(reasons->heightForWidth(width) > QFontMetrics{ reasons->font() }.lineSpacing(), "and it takes more than one line");
+
+		// With file data: each path is a row that opens the file.
+		projected.MergeConflict->Files = std::vector<std::string>{ "src/alpha.cpp", "docs/beta.md" };
+		page.present(projected);
+		page.status_section_header(section::attention)->setChecked(true);
+		settle();
+		const auto files = page.findChildren<QAbstractButton*>(QStringLiteral("overviewConflictFile"));
+		expect(files.size() == 2 && !note->isVisible(), "each conflicting file is a row; the not-reported line goes");
+		auto* const first = static_cast<qt::drawer_link_row*>(files.front());
+		expect(first->isVisible() && first->accessibleName() == QStringLiteral("Open src/alpha.cpp") && first->cursor().shape() == Qt::PointingHandCursor, "a file row is a button named for the file");
+		expect(press_words(page, *first->words()) == first && opened == std::vector<QString>{ QStringLiteral("src/alpha.cpp") }, "a press on the path opens it in the review");
+		files.back()->setFocus(Qt::TabFocusReason);
+		press_key(*files.back(), Qt::Key_Return);
+		expect(opened.size() == 2U && opened.back() == QStringLiteral("docs/beta.md"), "Return opens it too");
+
+		// No conflict: nothing of it remains; a waiting check is not called one.
+		projected.MergeConflict.reset();
+		projected.MergeNotes.clear();
+		projected.MergeState = "Waiting for 1 required check";
+		page.present(projected);
+		page.status_section_header(section::attention)->setChecked(true);
+		settle();
+		expect(!box->isVisible() && !also->isVisible() && !notes->isVisible() && reasons->isVisible() && !state->text().contains(QStringLiteral("Conflict")),
+			   "without a conflict, Merge waits for the check and says nothing of conflicts");
+	}
+
 	void test_conversation_count_is_cleared_with_the_pull_request()
 	{
 		auto page = qt::pull_request_overview_page{ };
@@ -4425,6 +4502,7 @@ auto main(int argc, char** argv) -> int
 	test_page_presents_the_projection_and_reports_its_gestures();
 	test_status_leads_with_my_role_and_what_needs_attention();
 	test_status_lines_are_their_own_actions();
+	test_merge_shows_the_conflict_and_how_to_resolve_it();
 	test_conversation_count_is_cleared_with_the_pull_request();
 	test_a_requested_reviewer_moves_people_in_place();
 	test_a_draft_is_said_and_its_author_can_publish_it();

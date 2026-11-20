@@ -271,6 +271,21 @@ namespace bpr::qt {
 		return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size()));
 	}
 
+	auto with_break_opportunities(const QString& aValue) -> QString
+	{
+		auto result = QString{ };
+		result.reserve(aValue.size() + aValue.size() / 4);
+		for (qsizetype index = 0; index < aValue.size(); ++index) {
+			const auto character = aValue[index];
+			result.append(character);
+			const auto separator = character == QLatin1Char{ '/' } || character == QLatin1Char{ '-' } || character == QLatin1Char{ '_' } || character == QLatin1Char{ '.' } || character == QLatin1Char{ ':' };
+			if (separator && index + 1 < aValue.size() && !aValue[index + 1].isSpace()) {
+				result.append(QChar{ 0x200B });
+			}
+		}
+		return result;
+	}
+
 	auto operation_letter(const application::overview_file_operation aOperation)
 		-> QString
 	{

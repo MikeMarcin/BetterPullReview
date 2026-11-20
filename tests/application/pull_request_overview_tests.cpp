@@ -648,7 +648,7 @@ namespace {
 		auto projected = application::project_pull_request_overview(review, { });
 		expect(projected.ReviewRequests.size() == 1 && projected.ReviewRequests.front().Name == "rcaloca" && !projected.ReviewRequests.front().CodeOwner && projected.ReviewRequestsNote.empty() && std::ranges::any_of(projected.Participants, [](const auto& aPerson) { return aPerson.Login == "rcaloca" && aPerson.Signoff == application::overview_signoff::approved; }), "re-requested approval remains both history and current request");
 		expect(projected.CheckRows.front().Requirement == "Optional" && projected.CheckRows.size() == 2 && projected.CheckRows.back().Outcome == "Waiting for check result" && projected.Checks.Failed == 1 && projected.Checks.Pending == 0, "wrong-app failure stays optional; expected required result is separate from observed totals");
-		expect(projected.MergeState == "Blocked" && projected.MergeTone == application::overview_merge_tone::blocked && projected.MergeConditions == std::vector<std::string>{ "Review required, minimum 2 approvals", "CI failed (optional)", "CI has not reported" }, "the blocked state leads one short line per unmet condition, failures before missing results");
+		expect(projected.MergeState == "Review required, and 1 more requirement" && projected.MergeTone == application::overview_merge_tone::blocked && projected.MergeConditions == std::vector<std::string>{ "Review required, minimum 2 approvals", "CI failed (optional)", "CI has not reported" }, "the heading names what blocks it; one short line per unmet condition, failures before missing results");
 		expect(projected.RequirementDetails.find("Configured approval minimum: 2. Remaining approvals are not established") != std::string::npos && projected.RequirementDetails.find("Auto-merge state unavailable") != std::string::npos, "historical approvals and requested count cannot infer remaining approvals or auto-merge");
 
 		const auto appId = review.Checks.front().AppId;
@@ -675,6 +675,72 @@ namespace {
 		review.Merge.Assessment = application::github_merge_assessment::blocked;
 		projected               = application::project_pull_request_overview(review, { });
 		expect(projected.MergeState == "Blocked" && projected.RequirementDetails.find("merging is blocked") != std::string::npos && projected.CheckRows.front().Requirement == "Requirement unknown" && projected.RequirementDetails.find("access denied") != std::string::npos, "unavailable policy cannot erase known merge block or classify an unobserved gate");
+	}
+
+	/// [[BPR-2327]]. A conflict names its base, its files when a local check
+	/// supplied them, and how to resolve it; a waiting required check is not
+	/// a conflict; auto-merge and the queue are said apart.
+	void test_merge_names_the_conflict_and_what_else_blocks()
+	{
+		auto review                                = snapshot();
+		review.StatusesAvailability                = application::github_collection_availability::available;
+		review.Merge.Availability                  = application::github_observation_availability::available;
+		review.Merge.Assessment                    = application::github_merge_assessment::conflicts;
+		review.Merge.Review                        = application::github_review_decision::approved;
+		review.BranchPolicy.RulesAvailability      = application::github_observation_availability::available;
+		review.BranchPolicy.ProtectionAvailability = application::github_observation_availability::available;
+		auto rule                                  = application::github_branch_requirement{ };
+		rule.Type                                  = "required_status_checks";
+		rule.Source                                = "fixture-org";
+		rule.SourceKind                            = "Organization";
+		rule.Checks                                = { { "queue/required-integration-check", std::nullopt } };
+		review.BranchPolicy.Rules.push_back(rule);
+		review.Checks.clear();
+
+		// Without file data: the conflict, its base, and the commands.
+		auto conflicting = application::project_pull_request_overview(review, { });
+		expect(conflicting.MergeState == "Conflicts with " + review.PullRequest.BaseRef + ", and 1 more requirement" && conflicting.MergeTone == application::overview_merge_tone::blocked,
+			   "the heading names the conflict and its base first, then counts the rest");
+		expect(conflicting.MergeConflict && conflicting.MergeConflict->Base == review.PullRequest.BaseRef && !conflicting.MergeConflict->Files,
+			   "with no local merge check the files are not reported, not empty");
+		expect(conflicting.MergeConflict->CommandHint == "git fetch origin\ngit switch " + review.PullRequest.HeadRef + "\ngit merge origin/" + review.PullRequest.BaseRef,
+			   "the command-line hint merges the base into the head");
+		expect(conflicting.Status.OpenConditions == std::vector<std::string>{ "queue/required-integration-check has not reported" }, "the waiting check is listed apart from the conflict");
+		expect(conflicting.MergeNotes.empty(), "auto-merge off and no queue say nothing");
+
+		// With file data: the paths a local merge check supplied.
+		auto context             = application::overview_context{ };
+		context.ConflictingPaths = std::vector<std::string>{ "src/alpha.cpp", "docs/beta.md" };
+		const auto withFiles     = application::project_pull_request_overview(review, context);
+		expect(withFiles.MergeConflict && withFiles.MergeConflict->Files == context.ConflictingPaths, "the supplied paths are the conflict's files");
+
+		// A waiting required check alone is not called a conflict.
+		review.Merge.Assessment = application::github_merge_assessment::blocked;
+		const auto waiting      = application::project_pull_request_overview(review, context);
+		expect(waiting.MergeState == "Waiting for 1 required check" && !waiting.MergeConflict, "a merge-queue check that has not reported is waited for, not a conflict");
+
+		// Auto-merge and the merge queue are notes, apart from the blockers.
+		review.Merge.AutoMerge        = true;
+		review.Merge.AutoMergeRequest = application::github_auto_merge_request{ .Method = application::github_merge_method::squash, .EnabledBy = "fixture-author" };
+		review.Merge.InMergeQueue     = true;
+		review.Merge.QueueEntry       = application::github_merge_queue_entry{ .State = application::github_merge_queue_state::awaiting_checks, .Position = 2U };
+		const auto queued             = application::project_pull_request_overview(review, context);
+		expect(queued.MergeNotes == std::vector<std::string>{ "Auto-merge is enabled (squash) by fixture-author: GitHub merges it once every requirement is met.", "In the merge queue, position 2: waiting for the queue's checks." },
+			   "auto-merge and the queue each have their own line");
+		expect(queued.MergeState == "Waiting for 1 required check", "neither changes the heading");
+		review.Merge.AutoMergeRequest.reset();
+		review.Merge.InMergeQueue = false;
+		review.Merge.QueueEntry.reset();
+		expect(application::project_pull_request_overview(review, context).MergeNotes == std::vector<std::string>{ "Auto-merge is enabled: GitHub merges it once every requirement is met." },
+			   "Home's shorter read still says auto-merge is on");
+
+		// Converted to a draft in place, the conflict goes as projecting would.
+		review.Merge.Assessment = application::github_merge_assessment::conflicts;
+		auto moved              = application::project_pull_request_overview(review, context);
+		expect(moved.MergeConflict.has_value(), "the conflict is shown");
+		expect(application::apply_draft_state(moved, review, core::projected_draft_state{ .Draft = true, .Pending = true }) && !moved.MergeConflict && moved.MergeState.starts_with("Draft"),
+			   "a draft is a draft's, not a conflict");
+		expect(application::apply_draft_state(moved, review, std::nullopt) && moved.MergeConflict && moved.MergeConflict->Files == context.ConflictingPaths, "withdrawn, the conflict returns");
 	}
 
 	/// [[BPR-1589]]. The Status drawer's role and attention, from the snapshot.
@@ -835,6 +901,7 @@ namespace {
 auto main() -> int
 {
 	test_merge_evidence_boundaries();
+	test_merge_names_the_conflict_and_what_else_blocks();
 	test_status_leads_with_my_role_and_what_needs_attention();
 	test_a_requested_reviewer_moves_people_as_a_projection_would();
 	test_a_draft_state_change_moves_the_overview_as_a_projection_would();

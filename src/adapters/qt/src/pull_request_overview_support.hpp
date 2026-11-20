@@ -125,6 +125,11 @@ namespace bpr::qt {
 
 	[[nodiscard]] auto text(const std::string& aValue) -> QString;
 
+	/// \brief [[BPR-2327]]. `aValue` with a zero-width break after each
+	/// slash, hyphen, underscore, dot and colon, so a long check name or path
+	/// wraps at the drawer's edge instead of running past it.
+	[[nodiscard]] auto with_break_opportunities(const QString& aValue) -> QString;
+
 	[[nodiscard]] auto operation_letter(const application::overview_file_operation aOperation)
 		-> QString;
 

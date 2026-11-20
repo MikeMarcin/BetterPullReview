@@ -522,6 +522,12 @@ namespace bpr::app {
 				static_cast<void>(WindowRead->open_pull_request_commit_page(aCommit, Profile->WindowBrowser));
 			}
 		});
+		// [[BPR-2327]]. Resolve on GitHub: the accepted pull request's conflicts page.
+		Window->set_conflicts_page_dispatch([this] {
+			if (!Closing && WindowRead) {
+				static_cast<void>(WindowRead->open_pull_request_conflicts_page(Profile->WindowBrowser));
+			}
+		});
 		Window->set_overview_drill_down_dispatch(
 			[this](const application::overview_drill_down& aDrillDown) {
 				if (!Closing && FeedbackRequest) {

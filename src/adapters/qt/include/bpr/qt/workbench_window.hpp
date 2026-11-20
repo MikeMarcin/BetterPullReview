@@ -613,6 +613,8 @@ namespace bpr::qt {
 		void set_commit_filter_shown_dispatch(std::function<void()> aDispatch);
 		/// \brief Open on GitHub for one commit.
 		void set_commit_open_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief [[BPR-2327]]. Resolve on GitHub pressed in the Overview's Merge.
+		void set_conflicts_page_dispatch(std::function<void()> aDispatch);
 		/// \brief RFC-BPR-0089 M3. A rematch offer chosen in a chip or the
 		/// Commits tab, after a force push.
 		void set_commit_rematch_dispatch(std::function<void(const application::commit_filter_rematch_gesture&)> aDispatch);
