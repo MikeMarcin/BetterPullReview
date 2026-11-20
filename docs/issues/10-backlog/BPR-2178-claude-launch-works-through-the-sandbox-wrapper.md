@@ -41,3 +41,13 @@ Inline `--append-system-prompt` applied and cached across changing questions (~$
 
 Verdict: **STILL-VALID**. agent_launch.cpp:3704-3732 still places `-p` after the grant, the restrictions and `--append-system-prompt`.
 This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Second audit, 2026-11-19
+
+The owner audited the launcher again with Claude Code 2.1.322. This time
+`-p` worked in any position, so the first finding no longer breaks a run
+through it. Moving `-p` first is still the shape the audit suggests, but it
+would need RFC-BPR-0104 AC11 amended, because AC11 puts the multi-value
+options before `-p`. [[BPR-2304]] checked the rest of the launch against the
+audit and added core checks for it. The `--version`/`--help` fallback and
+the sign-in report remain open here.
