@@ -111,8 +111,10 @@ not show a cost that grows with the clone's ignored content.
 - If the walk finds the clone's extra entries so spread out that the clone
   calls would exceed a set count (say, more than about 50,000 separate
   `clonefile` calls), stop seeding and check out every file, as without a
-  clone. That is 1.6–2.2 s per 20,000 files in [[BPR-2294]]'s measurements,
-  so about 6–9 s here, still far better than 150 s.
+  clone. Measured on this repository, outside BetterPullReview: `read-tree`
+  0.15 s and `checkout-index -a` 15.2 s for the head's 79,739 files. So on
+  this clone, today's seed path is ten times **slower** than the fallback it
+  was meant to beat.
 
 ### 3. Log the steps
 
