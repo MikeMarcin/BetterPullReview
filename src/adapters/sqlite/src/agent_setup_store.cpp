@@ -364,6 +364,11 @@ namespace bpr::adapters::sqlite {
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_entry_relaxed_checks("
 									"id INTEGER PRIMARY KEY CHECK(id BETWEEN 1 AND 64)) STRICT")
+				// [[BPR-2307]]. Each custom Codex agent that relies on its
+				// launcher's sandbox; an agent with no row keeps Codex's own.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_entry_launcher_sandbox("
+									"id INTEGER PRIMARY KEY CHECK(id BETWEEN 1 AND 64)) STRICT")
 				// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104. Each added agent's
 				// Scratch folder starts and Build and run tests settings; an
 				// agent with no row (one carried over) starts on, builds off.
@@ -808,6 +813,19 @@ namespace bpr::adapters::sqlite {
 			for (std::size_t index = 0U; committed && index < aPreferences.Agents.size(); ++index) {
 				if (const auto& entry = aPreferences.Agents[index]; !entry.StrictRunChecks) {
 					auto row  = detail::prepare(aDatabase, "INSERT INTO agent_entry_relaxed_checks VALUES(?1)");
+					committed = row.has_value();
+					if (committed) {
+						sqlite3_bind_int64(row->Value, 1, entry.Id);
+						committed = sqlite3_step(row->Value) == SQLITE_DONE;
+					}
+				}
+			}
+			if (committed) {
+				committed = detail::execute(aDatabase, "DELETE FROM agent_entry_launcher_sandbox").has_value();
+			}
+			for (std::size_t index = 0U; committed && index < aPreferences.Agents.size(); ++index) {
+				if (const auto& entry = aPreferences.Agents[index]; entry.RelyOnLauncherSandbox) {
+					auto row  = detail::prepare(aDatabase, "INSERT INTO agent_entry_launcher_sandbox VALUES(?1)");
 					committed = row.has_value();
 					if (committed) {
 						sqlite3_bind_int64(row->Value, 1, entry.Id);
@@ -1266,6 +1284,18 @@ namespace bpr::adapters::sqlite {
 							for (auto& entry : loaded.Agents) {
 								if (entry.Id == id && !entry.Preset) {
 									entry.StrictRunChecks = false;
+								}
+							}
+						}
+					}
+					if (auto sandbox = detail::prepare(store->Database.get(), "SELECT id FROM agent_entry_launcher_sandbox"); sandbox) {
+						while (sqlite3_step(sandbox->Value) == SQLITE_ROW) {
+							const auto id = sqlite3_column_int64(sandbox->Value, 0);
+							for (auto& entry : loaded.Agents) {
+								// Only where it may stand, so a stray row never
+								// refuses the whole list.
+								if (entry.Id == id && !entry.Preset && (entry.Protocol == core::agent_protocol::codex_jsonl_exec || entry.Protocol == core::agent_protocol::codex_app_server)) {
+									entry.RelyOnLauncherSandbox = true;
 								}
 							}
 						}

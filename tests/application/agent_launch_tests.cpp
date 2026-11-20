@@ -2420,6 +2420,54 @@ namespace {
 		}
 	}
 
+	// [[BPR-2307]] (owner, 2026-11-19: "Sure"). A custom Codex agent that
+	// relies on its launcher's sandbox: a granted run turns Codex's own
+	// sandbox off instead of passing the grant profile, and keeps no
+	// approvals, MCP off and the checkout untrusted; a read-only run stays
+	// read-only.
+	void test_codex_relies_on_the_launchers_sandbox()
+	{
+		const auto folder    = std::string{ "/data/bpr-agent-scratch-v1/0123abcd" };
+		const auto ws        = std::string{ "/data/agent workspaces/w1" };
+		const auto untrusted = "projects={\"" + ws + "\"={trust_level=\"untrusted\"}}";
+		const auto grant     = application::agent_launch_grant{ .ScratchFolder = folder, .BuildWorkspace = ws };
+		const auto off       = [](const std::string& aArgument) { return aArgument.find("danger-full-access") != std::string::npos; };
+		const auto profiled  = [](const std::string& aArgument) { return aArgument.starts_with("default_permissions=") || aArgument.starts_with("permissions."); };
+
+		const auto exec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(),
+														  { .Grant = grant, .RelyOnLauncherSandbox = true, .PullRequestCheckout = { ws } });
+		expect(exec.has_value(), "exec launches");
+		expect(!std::ranges::search(exec->Arguments, std::vector<std::string>{ "--sandbox", "danger-full-access", "-c", "approval_policy=\"never\"" }).empty(), "exec: Codex's own sandbox off, approvals never");
+		expect(std::ranges::none_of(exec->Arguments, profiled), "exec: no grant profile");
+		expect(std::ranges::contains(exec->Arguments, untrusted) && std::ranges::contains(exec->Arguments, std::string{ "mcp_servers={}" }) && exec->Arguments.back() == "-", "exec: untrusted checkout, MCP off, stdin");
+		expect(exec->Grant == std::optional{ grant } && std::string{ exec->Input.begin(), exec->Input.end() }.find(folder) != std::string::npos, "the agent is still told its folder");
+
+		const auto app = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(),
+														 { .Grant = grant, .RelyOnLauncherSandbox = true, .PullRequestCheckout = { ws } });
+		expect(app && app->Arguments == std::vector<std::string>{ "app-server", "-c", untrusted, "-c", "mcp_servers={}", "-c", "sandbox_mode=\"danger-full-access\"", "-c", "approval_policy=\"never\"" },
+			   "App Server: the same as configuration, nothing else changed");
+
+		// Off (the default), the grant profile as before.
+		const auto kept = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Grant = grant, .PullRequestCheckout = { ws } });
+		expect(kept && std::ranges::none_of(kept->Arguments, off) && std::ranges::any_of(kept->Arguments, profiled), "off: the grant profile, Codex's sandbox on");
+
+		// Read-only runs keep `--sandbox read-only`: the audit saw it hold
+		// inside the launcher's.
+		const auto tour = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .ReadOnlyTools = true, .RelyOnLauncherSandbox = true, .PullRequestCheckout = { ws } });
+		expect(tour && !std::ranges::search(tour->Arguments, std::vector<std::string>{ "--sandbox", "read-only" }).empty() && std::ranges::none_of(tour->Arguments, off), "read-only stays read-only");
+		const auto appTour = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { .ReadOnlyTools = true, .RelyOnLauncherSandbox = true, .PullRequestCheckout = { ws } });
+		expect(appTour && std::ranges::none_of(appTour->Arguments, off), "and on the App Server");
+
+		// Nothing granted: nothing turned off.
+		const auto plain = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .RelyOnLauncherSandbox = true });
+		expect(plain && std::ranges::none_of(plain->Arguments, off), "no grant: Codex keeps its own configuration");
+
+		// Only Codex.
+		expect(application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder }, .RelyOnLauncherSandbox = true }).error()
+				   == application::agent_launch_failure::invalid_profile,
+			   "Claude refuses it");
+	}
+
 	// RFC-BPR-0104, third review round F1 (2026-11-11, Codex 0.167.0 and
 	// Claude Code 2.1.319, live): in a checkout made from the pull request,
 	// Codex wrote `trust_level = "trusted"` for it into the reviewer's
@@ -2602,6 +2650,7 @@ auto main() -> int
 	test_process_and_staleness_outcomes_remain_distinct();
 	test_private_prose_crosses_only_through_the_session_keyed_optin();
 	test_the_grant_crosses_exactly();
+	test_codex_relies_on_the_launchers_sandbox();
 	test_the_pull_requests_own_settings_never_load();
 	std::cout << "agent-launch-tests:pass\n";
 	return EXIT_SUCCESS;

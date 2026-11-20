@@ -1852,6 +1852,39 @@ relaxed_skill=N`, never what was used).
   used and cannot prevent or undo it. The wording asks the reviewer to turn
   it off only for repositories they trust.
 
+## Custom Codex agent relies on its launcher's sandbox (BPR-2307)
+
+A custom Codex agent (JSONL or App Server) may turn on **Rely on the
+launcher's sandbox** in Agent settings (off by default). The owner allowed
+it on 2026-11-19 ("Sure", to [[BPR-2305]]'s question "May a custom agent
+turn off Codex's own sandbox and rely on the launcher's?"): through a
+corporate sandbox launcher, Codex's own sandbox nested in the launcher's
+made every granted write fail. The core decides each Codex launch's sandbox
+(`core::decide_codex_sandbox`) and checks BetterPullReview's own arguments
+against it (`core::inspect_codex_sandbox_arguments`); a launch that breaks a
+rule is not started.
+
+- **What changes.** Only a run that carries a scratch folder or build grant:
+  `exec` gets `--sandbox danger-full-access` and the App Server
+  `-c sandbox_mode="danger-full-access"`, instead of BetterPullReview's
+  `betterpullreview_grant` permissions profile.
+- **What stays.** A read-only run keeps `--sandbox read-only` (the audit saw
+  it hold inside the launcher's sandbox). `approval_policy="never"`,
+  `mcp_servers={}` where MCP is off, the untrusted-project override for a
+  pull request's checkout, the grant refusals (the reviewer's own Codex
+  permissions profile or approvals, the agent's own sandbox arguments, the
+  reviewer's own checkout) and the failed-writes message all stand. A run
+  with no grant passes no sandbox, as before.
+- **Popular agents.** The built-in Codex never offers it; the core, the
+  store and the import refuse it there and for any agent that does not
+  speak a Codex protocol. A settings file carries it only when on and an
+  import applies it only when the reviewer ticks it.
+- **Residual.** With it on, the scratch-folder and build limits are held only
+  by the launcher's sandbox, which BetterPullReview cannot inspect. A
+  launcher that does not confine writes leaves the agent your account's
+  rights for a granted turn. The setting's words, the grant tooltips and the
+  import question say so.
+
 ## Skills a prompt names (BPR-1916)
 
 A `/skill-name` in a prompt brings that skill's `SKILL.md` into the request

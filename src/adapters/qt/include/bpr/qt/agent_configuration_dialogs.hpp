@@ -208,6 +208,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto program_button() const noexcept -> QPushButton* { return ProgramButton; }
 		[[nodiscard]] auto program_line() const noexcept -> QLabel* { return ProgramLine; }
 		[[nodiscard]] auto relaxed_checks() const noexcept -> QCheckBox* { return Relaxed; }
+		/// [[BPR-2307]]. Shown when the file asks a custom Codex agent to rely
+		/// on its launcher's sandbox.
+		[[nodiscard]] auto launcher_sandbox() const noexcept -> QCheckBox* { return LauncherSandbox; }
 		[[nodiscard]] auto builds() const noexcept -> QCheckBox* { return Builds; }
 		/// \brief What the shown item's choice does, in a sentence or two.
 		[[nodiscard]] auto outcome() const noexcept -> QLabel* { return Outcome; }
@@ -249,6 +252,8 @@ namespace bpr::qt {
 			std::string               Program;
 			bool                      AcceptRelaxed = false;
 			bool                      AcceptBuilds  = false;
+			/// [[BPR-2307]].
+			bool AcceptLauncherSandbox = false;
 			/// The choice a tick brings back.
 			core::agent_import_action Ticked = core::agent_import_action::leave;
 		};
@@ -307,23 +312,24 @@ namespace bpr::qt {
 		/// [[BPR-2204]]. The item the detail was last built for.
 		std::optional<std::pair<item_kind, std::size_t>> Built;
 		std::function<QString(const QString&)>           Chooser;
-		bool                                             Filling       = false;
-		QListWidget*                                     Items         = nullptr;
-		QScrollArea*                                     Scroll        = nullptr;
-		QWidget*                                         Detail        = nullptr;
-		QButtonGroup*                                    Choice        = nullptr;
-		QPushButton*                                     ProgramButton = nullptr;
-		QLabel*                                          ProgramLine   = nullptr;
-		QCheckBox*                                       Relaxed       = nullptr;
-		QCheckBox*                                       Builds        = nullptr;
-		QLabel*                                          Outcome       = nullptr;
-		QWidget*                                         Settings      = nullptr;
-		QWidget*                                         Comparison    = nullptr;
-		QPlainTextEdit*                                  Yours         = nullptr;
-		QPlainTextEdit*                                  Theirs        = nullptr;
-		QLabel*                                          Summary       = nullptr;
-		QLabel*                                          Problem       = nullptr;
-		QPushButton*                                     ApplyButton   = nullptr;
+		bool                                             Filling         = false;
+		QListWidget*                                     Items           = nullptr;
+		QScrollArea*                                     Scroll          = nullptr;
+		QWidget*                                         Detail          = nullptr;
+		QButtonGroup*                                    Choice          = nullptr;
+		QPushButton*                                     ProgramButton   = nullptr;
+		QLabel*                                          ProgramLine     = nullptr;
+		QCheckBox*                                       Relaxed         = nullptr;
+		QCheckBox*                                       LauncherSandbox = nullptr;
+		QCheckBox*                                       Builds          = nullptr;
+		QLabel*                                          Outcome         = nullptr;
+		QWidget*                                         Settings        = nullptr;
+		QWidget*                                         Comparison      = nullptr;
+		QPlainTextEdit*                                  Yours           = nullptr;
+		QPlainTextEdit*                                  Theirs          = nullptr;
+		QLabel*                                          Summary         = nullptr;
+		QLabel*                                          Problem         = nullptr;
+		QPushButton*                                     ApplyButton     = nullptr;
 	};
 } // namespace bpr::qt
 

@@ -836,6 +836,21 @@ namespace {
 		expect(!dialog.entry().StrictRunChecks && dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled(), "turned off, the entry keeps it off and may be kept");
 		auto popular = qt::agent_entry_dialog{ core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { }) };
 		expect(popular.strict_checks() == nullptr && popular.entry().StrictRunChecks, "a popular agent shows no switch and keeps strict checks");
+		// [[BPR-2307]]. Rely on the launcher's sandbox: a custom Codex agent's
+		// own, off by default, with what it means right under it.
+		expect(dialog.launcher_sandbox() != nullptr && dialog.launcher_sandbox()->isVisibleTo(&dialog) && !dialog.launcher_sandbox()->isChecked() && !dialog.entry().RelyOnLauncherSandbox,
+			   "a custom Codex agent shows the switch, off");
+		const auto* const sandboxMeaning = dialog.findChild<QLabel*>(QStringLiteral("agentEntryLauncherSandboxMeaning"));
+		expect(sandboxMeaning != nullptr && sandboxMeaning->text().contains(QStringLiteral("enforced only by the launcher")) && sandboxMeaning->text().contains(QStringLiteral("Read-only runs stay read-only")),
+			   "it says the grant is then enforced only by the launcher");
+		dialog.launcher_sandbox()->setChecked(true);
+		expect(dialog.entry().RelyOnLauncherSandbox && dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled(), "turned on, the entry keeps it on and may be kept");
+		dialog.protocol()->setCurrentIndex(dialog.protocol()->findData(static_cast<int>(core::agent_protocol::claude_stream_json)));
+		expect(!dialog.launcher_sandbox()->isVisibleTo(&dialog) && !dialog.entry().RelyOnLauncherSandbox, "a Claude agent hides it and never keeps it");
+		dialog.protocol()->setCurrentIndex(dialog.protocol()->findData(static_cast<int>(core::agent_protocol::codex_jsonl_exec)));
+		dialog.launcher_sandbox()->setChecked(false);
+		auto popularCodex = qt::agent_entry_dialog{ core::preset_agent_entry(core::setup_agent::codex, core::codex_protocol_choice::app_server, { }) };
+		expect(popularCodex.launcher_sandbox() == nullptr && !popularCodex.entry().RelyOnLauncherSandbox, "the popular Codex shows no switch");
 		// [[BPR-2007]], [[BPR-2008]]. Scratch folder starts On and Build and
 		// run tests off, beside the model and effort, and both are kept.
 		expect(popular.scratch_starts()->currentText() == QStringLiteral("On") && !popular.builds()->isChecked() && popular.entry().ScratchStarts && !popular.entry().BuildsAndTests,

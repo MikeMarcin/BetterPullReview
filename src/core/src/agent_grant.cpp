@@ -1,7 +1,10 @@
 #include "bpr/core/agent_grant.hpp"
 
 #include <algorithm>
+#include <iterator>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace bpr::core {
 	auto resolve_agent_grant(const agent_grant_facts& aFacts) noexcept -> agent_grant
@@ -16,6 +19,8 @@ namespace bpr::core {
 		grant.ScratchFull   = aFacts.ScratchFull;
 		grant.Refusal       = aFacts.Refusal;
 		grant.ScratchUnmade = aFacts.ScratchUnmade;
+		// [[BPR-2307]]. Only Codex takes the launcher's sandbox.
+		grant.LauncherSandbox = aFacts.LauncherSandbox && *aFacts.Program == agent_program::codex;
 		// Re-review N1a (2026-11-11). In the reviewer's own checkout Codex
 		// also reads that checkout's `.codex/config.toml` once they trusted
 		// it, which BPR does not read; BPR's profile would replace it.
@@ -97,8 +102,11 @@ namespace bpr::core {
 	}
 
 	namespace {
-		[[nodiscard]] auto scratch_enforcement(const agent_program aProgram) -> std::string_view
+		[[nodiscard]] auto scratch_enforcement(const agent_program aProgram, const bool aLauncher) -> std::string_view
 		{
+			if (aProgram == agent_program::codex && aLauncher) {
+				return "Codex's own sandbox is off for this agent: only its launcher's sandbox holds what it writes and runs, and BetterPullReview cannot check it.";
+			}
 			if (aProgram == agent_program::codex) {
 				return "Codex's sandbox holds its writes to the folder, with the network off; a script it runs has your account's rights inside it.";
 			}
@@ -133,7 +141,7 @@ namespace bpr::core {
 			+ " until you make room. Open it, or clear scratch folders in Settings, Agents.";
 		}
 		return "The agent may create, change and run scripts in a folder of its own, outside the review's workspace, up to " + limit + ". "
-			+ std::string{ scratch_enforcement(*aProgram) } + " The setting carries to the next question.";
+			+ std::string{ scratch_enforcement(*aProgram, aGrant.LauncherSandbox) } + " The setting carries to the next question.";
 	}
 
 	auto agent_builds_tooltip(const agent_grant& aGrant, const std::optional<agent_program> aProgram) -> std::string
@@ -145,7 +153,9 @@ namespace bpr::core {
 			return std::string{ agent_grant_refusal_reason(*aGrant.Refusal) };
 		}
 		const auto consequence = std::string{ "Building runs this pull request's code on this computer with your account's rights." };
-		const auto confinement = *aProgram == agent_program::codex
+		const auto confinement = *aProgram == agent_program::codex && aGrant.LauncherSandbox
+			? std::string{ " Codex's own sandbox is off for this agent: only its launcher's sandbox holds the build, and BetterPullReview cannot check it." }
+			: *aProgram == agent_program::codex
 			? std::string{ " Codex's sandbox holds the build's writes to the disposable checkout and the temporary folder, with the network off." }
 			: std::string{ " Claude Code may run the build and test programs (cmake, make, npm, cargo and others) with any arguments, in any folder, including commands that install or publish: a permission rule it follows, not enforced by the system." };
 		switch (aGrant.Builds) {
@@ -393,5 +403,85 @@ namespace bpr::core {
 	{
 		return "The reviewer allowed building and running tests in this pull request's disposable checkout, " + std::string{ aWorkspace }
 		+ ". You may run its build and test commands there and write build output inside it. Do not change its tracked files.";
+	}
+	auto stable_name(const codex_sandbox_mode aMode) noexcept -> std::string_view
+	{
+		switch (aMode) {
+		case codex_sandbox_mode::configured:    return "configured";
+		case codex_sandbox_mode::read_only:     return "read_only";
+		case codex_sandbox_mode::grant_profile: return "grant_profile";
+		case codex_sandbox_mode::launcher:      return "launcher";
+		}
+		return "unknown";
+	}
+
+	auto decide_codex_sandbox(const codex_sandbox_facts aFacts) noexcept -> codex_sandbox_mode
+	{
+		// The audit behind [[BPR-2305]] saw Codex's read-only sandbox hold
+		// inside the launcher's; only its write grant failed there.
+		if (aFacts.ReadOnly) {
+			return codex_sandbox_mode::read_only;
+		}
+		if (!aFacts.Granted) {
+			return codex_sandbox_mode::configured;
+		}
+		return aFacts.RelyOnLauncher ? codex_sandbox_mode::launcher : codex_sandbox_mode::grant_profile;
+	}
+
+	auto codex_launcher_sandbox_arguments(const bool aAppServer) -> std::vector<std::string>
+	{
+		if (aAppServer) {
+			return { "-c", "sandbox_mode=\"danger-full-access\"", "-c", "approval_policy=\"never\"" };
+		}
+		return { "--sandbox", "danger-full-access", "-c", "approval_policy=\"never\"" };
+	}
+
+	auto stable_name(const codex_sandbox_problem aProblem) noexcept -> std::string_view
+	{
+		switch (aProblem) {
+		case codex_sandbox_problem::sandbox_off_unasked: return "sandbox_off_unasked";
+		case codex_sandbox_problem::mixed_sandbox:       return "mixed_sandbox";
+		case codex_sandbox_problem::read_only_lost:      return "read_only_lost";
+		case codex_sandbox_problem::approval_unset:      return "approval_unset";
+		}
+		return "unknown";
+	}
+
+	auto inspect_codex_sandbox_arguments(const std::span<const std::string> aArguments, const codex_sandbox_mode aMode, const bool aAppServer) -> std::optional<codex_sandbox_problem>
+	{
+		// Whole arguments only: a checkout path or the instructions may hold
+		// any of these words.
+		auto sandboxes = std::vector<std::string_view>{ };
+		auto profile   = false;
+		auto never     = false;
+		for (auto at = aArguments.begin(); at != aArguments.end(); ++at) {
+			const auto argument = std::string_view{ *at };
+			if (argument == "--sandbox" && std::next(at) != aArguments.end()) {
+				sandboxes.emplace_back(*std::next(at));
+			} else if (argument.starts_with("sandbox_mode=")) {
+				auto value = argument.substr(std::string_view{ "sandbox_mode=" }.size());
+				if (value.size() >= 2U && value.front() == '"' && value.back() == '"') {
+					value = value.substr(1U, value.size() - 2U);
+				}
+				sandboxes.push_back(value);
+			}
+			profile = profile || argument.starts_with("default_permissions=") || argument.starts_with("permissions.");
+			never   = never || argument == "approval_policy=\"never\"";
+		}
+		const auto off = std::ranges::contains(sandboxes, std::string_view{ "danger-full-access" });
+		if (off && aMode != codex_sandbox_mode::launcher) {
+			return codex_sandbox_problem::sandbox_off_unasked;
+		}
+		if (aMode == codex_sandbox_mode::launcher && (!off || profile || sandboxes.size() != 1U)) {
+			return codex_sandbox_problem::mixed_sandbox;
+		}
+		// The App Server is told read-only in its requests, not its arguments.
+		if (aMode == codex_sandbox_mode::read_only && !aAppServer && (sandboxes.size() != 1U || sandboxes.front() != "read-only" || profile)) {
+			return codex_sandbox_problem::read_only_lost;
+		}
+		if ((aMode == codex_sandbox_mode::launcher || aMode == codex_sandbox_mode::grant_profile) && !never) {
+			return codex_sandbox_problem::approval_unset;
+		}
+		return std::nullopt;
 	}
 } // namespace bpr::core

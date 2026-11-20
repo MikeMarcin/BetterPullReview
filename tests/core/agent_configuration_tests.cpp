@@ -219,6 +219,37 @@ namespace {
 		expect(!accepted->Agents[0].StrictRunChecks && accepted->Agents[0].BuildsAndTests, "accepted for this entry, they apply");
 	}
 
+	/// [[BPR-2307]]. The file carries "Rely on the launcher's sandbox" only
+	/// when it is on, and an import applies it only when accepted.
+	void test_launcher_sandbox_travels()
+	{
+		auto launcher                  = custom(1U, "Work Codex");
+		launcher.Protocol              = core::agent_protocol::codex_jsonl_exec;
+		launcher.Model                 = { };
+		launcher.Effort                = { };
+		launcher.RelyOnLauncherSandbox = true;
+		const auto plain               = custom(2U, "Work Claude");
+		const auto local               = prompts();
+		const auto bytes               = exported({ launcher, plain }, { }, false);
+		expect(bytes.find("\"launcher_sandbox\": true") != std::string::npos, "written when on");
+		expect(exported({ plain }, { }, false).find("launcher_sandbox") == std::string::npos, "left out when off, so older files read the same");
+		const auto decoded = core::decode_agent_configuration(bytes, local);
+		expect(decoded.has_value() && decoded->Agents[0].Agent.RelyOnLauncherSandbox && !decoded->Agents[1].Agent.RelyOnLauncherSandbox, "read back");
+		auto       choice = core::agent_import_choice{ .Item = 0U, .Action = core::agent_import_action::add, .Program = "/opt/bin/launcher" };
+		const auto added  = core::apply_agent_configuration({ }, local, *decoded, std::array{ choice }, { });
+		expect(added.has_value() && !added->Agents[0].RelyOnLauncherSandbox, "Codex's sandbox stays on unless accepted");
+		choice.AcceptLauncherSandbox = true;
+		const auto accepted          = core::apply_agent_configuration({ }, local, *decoded, std::array{ choice }, { });
+		expect(accepted.has_value() && accepted->Agents[0].RelyOnLauncherSandbox, "accepted, it applies");
+		expect(core::agent_differences(added->Agents[0], accepted->Agents[0]) == std::vector{ core::agent_field::launcher_sandbox } && core::stable_name(core::agent_field::launcher_sandbox) == "launcher_sandbox",
+			   "a difference of its own");
+		// A file that asks it of an agent that is not a custom Codex one has
+		// an unusable item.
+		const auto claudeAsks = std::string{ bytes }.replace(bytes.find("codex_jsonl_exec"), std::string_view{ "codex_jsonl_exec" }.size(), "claude_stream_json");
+		const auto refused    = core::decode_agent_configuration(claudeAsks, local);
+		expect(refused.has_value() && refused->Agents[0].Problem.has_value(), "a Claude agent asking for it is not usable");
+	}
+
 	void test_replace_and_identity()
 	{
 		auto       existing = custom(2U, "Work Claude");
@@ -571,6 +602,7 @@ auto main() -> int
 	test_file_refusals();
 	test_item_problems();
 	test_binding_and_checks();
+	test_launcher_sandbox_travels();
 	test_replace_and_identity();
 	test_final_profile_limits();
 	test_prompts_apply();

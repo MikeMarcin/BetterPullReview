@@ -74,6 +74,11 @@ in core before workspace or launcher effects. The acceptance criterion on a
 forbidden personal provider is unchanged and is now proved against a policy
 that leaves Codex out rather than against the built-in GHES policy.
 
+The same day the owner allowed a custom Codex agent to turn Codex's own
+sandbox off and rely on the launcher it runs through ("Sure", [[BPR-2305]]'s
+open question): an opt-in per custom agent, off by default, for granted runs
+only ([[BPR-2307]]; RFC-BPR-0092's amendment of the same date).
+
 ## Acceptance criteria
 
 - Codex and corporate Claude fixture processes launch through their selected protocol with streamed output and cancellation.

@@ -306,6 +306,9 @@ namespace bpr::core {
 		/// before them reads as Off and the system prompt.
 		agent_mcp_servers          McpServers   = agent_mcp_servers::off;
 		agent_instruction_delivery Instructions = agent_instruction_delivery::system_prompt;
+		/// [[BPR-2307]]. Requested; applied only when accepted, like relaxed
+		/// run checks. Written only when on, so a file without it reads off.
+		bool RelyOnLauncherSandbox = false;
 
 		auto operator<=>(const portable_agent&) const = default;
 	};
@@ -483,6 +486,7 @@ namespace bpr::core {
 		builds_and_tests,
 		mcp_servers,
 		instructions,
+		launcher_sandbox,
 	};
 	[[nodiscard]] auto stable_name(agent_field aField) noexcept -> std::string_view;
 
@@ -524,6 +528,8 @@ namespace bpr::core {
 		/// Accepted for this entry in the preview (RFC-BPR-0107, P05, X17).
 		bool AcceptRelaxedChecks = false;
 		bool AcceptBuilds        = false;
+		/// [[BPR-2307]]. Codex's own sandbox off for this custom Codex agent.
+		bool AcceptLauncherSandbox = false;
 
 		auto operator<=>(const agent_import_choice&) const = default;
 	};
@@ -531,7 +537,8 @@ namespace bpr::core {
 	/// \brief The entry an imported agent would be under a choice, before
 	/// identity: the host mints one where `Identity` is empty.
 	///
-	/// \details Relaxed run checks and builds stay off unless accepted;
+	/// \details Relaxed run checks, builds and the launcher's sandbox stay
+	/// off unless accepted;
 	/// a popular agent stays strict. Scratch folder starts follows a
 	/// requested Off, and otherwise the target's value (replace) or on (add).
 	[[nodiscard]] auto imported_entry(const portable_agent& aAgent, const agent_import_choice& aChoice, const agent_entry* aTarget) -> agent_entry;

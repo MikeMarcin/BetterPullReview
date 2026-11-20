@@ -36,6 +36,8 @@ namespace bpr::core::detail {
 		bool                       BuildsAndTests  = false;
 		std::string                McpServers;
 		std::string                Instructions;
+		/// [[BPR-2307]]. Left out when off.
+		std::optional<bool> LauncherSandbox;
 	};
 	struct wire_prompt
 	{
@@ -107,7 +109,7 @@ struct glz::meta<bpr::core::detail::wire_agent>
 	static constexpr auto value = object("id", &value_type::PortableId, "name", &value_type::Name, "protocol", &value_type::Protocol, "preset", &value_type::Preset, "program_name", &value_type::ProgramName,
 										 "arguments", &value_type::Arguments, "check_arguments", &value_type::CheckArguments, "model", &value_type::Model, "effort", &value_type::Effort,
 										 "strict_run_checks", &value_type::StrictRunChecks, "scratch_starts", &value_type::ScratchStarts, "builds_and_tests", &value_type::BuildsAndTests,
-										 "mcp_servers", &value_type::McpServers, "instructions", &value_type::Instructions);
+										 "mcp_servers", &value_type::McpServers, "instructions", &value_type::Instructions, "launcher_sandbox", &value_type::LauncherSandbox);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_prompt>
@@ -295,8 +297,9 @@ namespace bpr::core {
 		/// program where it needs one, for the profile's validators.
 		[[nodiscard]] auto inspect_portable(const portable_agent& aAgent) -> std::optional<agent_entry_refusal>
 		{
-			auto entry            = imported_entry(aAgent, agent_import_choice{ .Program = needs_program(aAgent) ? "/bound-on-import" : "" }, nullptr);
-			entry.StrictRunChecks = true;
+			auto entry                  = imported_entry(aAgent, agent_import_choice{ .Program = needs_program(aAgent) ? "/bound-on-import" : "" }, nullptr);
+			entry.StrictRunChecks       = true;
+			entry.RelyOnLauncherSandbox = aAgent.RelyOnLauncherSandbox;
 			if (!aAgent.ProgramName.empty() && (aAgent.ProgramName.size() > 255U || !plain(aAgent.ProgramName) || aAgent.ProgramName.find_first_of("/\\") != std::string::npos)) {
 				return agent_entry_refusal::invalid_program;
 			}
@@ -731,6 +734,7 @@ namespace bpr::core {
 		case agent_field::model:             return "model";
 		case agent_field::effort:            return "effort";
 		case agent_field::strict_run_checks: return "strict_run_checks";
+		case agent_field::launcher_sandbox:  return "launcher_sandbox";
 		case agent_field::scratch_starts:    return "scratch_starts";
 		case agent_field::builds_and_tests:  return "builds_and_tests";
 		case agent_field::mcp_servers:       return "mcp_servers";
@@ -795,21 +799,22 @@ namespace bpr::core {
 
 	auto portable_agent_of(const agent_entry& aEntry, std::string aPortableId) -> portable_agent
 	{
-		auto agent            = portable_agent{ };
-		agent.PortableId      = std::move(aPortableId);
-		agent.Name            = aEntry.Name;
-		agent.Protocol        = aEntry.Protocol;
-		agent.Preset          = aEntry.Preset;
-		agent.Arguments       = aEntry.Arguments;
-		agent.CheckArguments  = aEntry.CheckArguments;
-		agent.Model           = aEntry.Model;
-		agent.Effort          = aEntry.Effort;
-		agent.StrictRunChecks = aEntry.StrictRunChecks;
-		agent.ScratchStarts   = aEntry.ScratchStarts;
-		agent.BuildsAndTests  = aEntry.BuildsAndTests;
-		agent.McpServers      = aEntry.McpServers;
-		agent.Instructions    = aEntry.Instructions;
-		agent.ProgramName     = needs_program(agent) ? file_name(aEntry.Program) : std::string{ };
+		auto agent                  = portable_agent{ };
+		agent.PortableId            = std::move(aPortableId);
+		agent.Name                  = aEntry.Name;
+		agent.Protocol              = aEntry.Protocol;
+		agent.Preset                = aEntry.Preset;
+		agent.Arguments             = aEntry.Arguments;
+		agent.CheckArguments        = aEntry.CheckArguments;
+		agent.Model                 = aEntry.Model;
+		agent.Effort                = aEntry.Effort;
+		agent.StrictRunChecks       = aEntry.StrictRunChecks;
+		agent.ScratchStarts         = aEntry.ScratchStarts;
+		agent.BuildsAndTests        = aEntry.BuildsAndTests;
+		agent.McpServers            = aEntry.McpServers;
+		agent.Instructions          = aEntry.Instructions;
+		agent.RelyOnLauncherSandbox = aEntry.RelyOnLauncherSandbox;
+		agent.ProgramName           = needs_program(agent) ? file_name(aEntry.Program) : std::string{ };
 		return agent;
 	}
 
@@ -874,6 +879,7 @@ namespace bpr::core {
 			wire.BuildsAndTests  = agent.BuildsAndTests;
 			wire.McpServers      = std::string{ stable_name(agent.McpServers) };
 			wire.Instructions    = std::string{ stable_name(agent.Instructions) };
+			wire.LauncherSandbox = agent.RelyOnLauncherSandbox ? std::optional{ true } : std::nullopt;
 			file.Agents.push_back(std::move(wire));
 		}
 		for (const auto& prompt : aConfiguration.Prompts) {
@@ -999,17 +1005,18 @@ namespace bpr::core {
 		}
 		auto ids = std::set<std::string>{ };
 		for (auto& wire : file.Agents) {
-			auto item                  = decoded_agent{ };
-			item.Agent.PortableId      = wire.PortableId;
-			item.Agent.Name            = wire.Name;
-			item.Agent.ProgramName     = wire.ProgramName.value_or(std::string{ });
-			item.Agent.Arguments       = std::move(wire.Arguments);
-			item.Agent.CheckArguments  = std::move(wire.CheckArguments);
-			item.Agent.Model           = wire.Model;
-			item.Agent.Effort          = wire.Effort;
-			item.Agent.StrictRunChecks = wire.StrictRunChecks;
-			item.Agent.ScratchStarts   = wire.ScratchStarts;
-			item.Agent.BuildsAndTests  = wire.BuildsAndTests;
+			auto item                        = decoded_agent{ };
+			item.Agent.PortableId            = wire.PortableId;
+			item.Agent.Name                  = wire.Name;
+			item.Agent.ProgramName           = wire.ProgramName.value_or(std::string{ });
+			item.Agent.Arguments             = std::move(wire.Arguments);
+			item.Agent.CheckArguments        = std::move(wire.CheckArguments);
+			item.Agent.Model                 = wire.Model;
+			item.Agent.Effort                = wire.Effort;
+			item.Agent.StrictRunChecks       = wire.StrictRunChecks;
+			item.Agent.ScratchStarts         = wire.ScratchStarts;
+			item.Agent.BuildsAndTests        = wire.BuildsAndTests;
+			item.Agent.RelyOnLauncherSandbox = wire.LauncherSandbox.value_or(false);
 			// [[BPR-2139]], [[BPR-2140]]. A value this version does not
 			// know makes the file malformed, as any other unknown value does.
 			const auto mcp          = parse_agent_mcp_servers(wire.McpServers);
@@ -1180,6 +1187,7 @@ namespace bpr::core {
 		differ(aBefore.BuildsAndTests != aAfter.BuildsAndTests, agent_field::builds_and_tests);
 		differ(aBefore.McpServers != aAfter.McpServers, agent_field::mcp_servers);
 		differ(aBefore.Instructions != aAfter.Instructions, agent_field::instructions);
+		differ(aBefore.RelyOnLauncherSandbox != aAfter.RelyOnLauncherSandbox, agent_field::launcher_sandbox);
 		return fields;
 	}
 
@@ -1206,6 +1214,9 @@ namespace bpr::core {
 		// setting and applied as the file says.
 		entry.McpServers   = aAgent.McpServers;
 		entry.Instructions = aAgent.Instructions;
+		// [[BPR-2307]]. Codex's own sandbox is never turned off by a file
+		// alone: only a custom agent's, and only when accepted.
+		entry.RelyOnLauncherSandbox = !aAgent.Preset.has_value() && aAgent.RelyOnLauncherSandbox && aChoice.AcceptLauncherSandbox;
 		return entry;
 	}
 
@@ -1329,7 +1340,7 @@ namespace bpr::core {
 			agent.Meets = named->Id;
 			// Unchanged: replacing it, with its own relaxed checks and builds,
 			// would change nothing.
-			const auto same  = agent_import_choice{ .Item = index, .Action = agent_import_action::replace, .Target = named->Id, .AcceptRelaxedChecks = !named->StrictRunChecks, .AcceptBuilds = named->BuildsAndTests };
+			const auto same  = agent_import_choice{ .Item = index, .Action = agent_import_action::replace, .Target = named->Id, .AcceptRelaxedChecks = !named->StrictRunChecks, .AcceptBuilds = named->BuildsAndTests, .AcceptLauncherSandbox = named->RelyOnLauncherSandbox };
 			const auto after = imported_entry(item.Agent, same, &*named);
 			if (compatible_agent(*named, item.Agent) && agent_differences(*named, after).empty()) {
 				agent.Standing = import_standing::unchanged;

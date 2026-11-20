@@ -249,11 +249,10 @@ namespace {
 
 	const auto claude   = core::cycle_send_request{ .Profile = core::claude_stream_json_profile_id };
 	const auto terminal = core::cycle_send_request{ .Profile = core::external_terminal_profile_id };
-	const auto codex    = core::cycle_send_request{ .Profile = core::codex_jsonl_profile_id };
 
-	/// RC60-08: the route is there only with an adapter, refused until the
-	/// round's channel allows it, and a corporate host's refusal of a profile
-	/// stands: nothing is frozen or sent and nothing else is used instead.
+	/// RC60-08: the route is there only with an adapter and refused until the
+	/// round's channel allows it: nothing is frozen or sent and nothing else
+	/// is used instead. [[BPR-2305]]: a corporate host offers Codex.
 	void refuses_before_anything_leaves(const std::filesystem::path& aScratch)
 	{
 		tests::sqlite_contract::scratch_root profileScratch{ "cycle-send-refusal" };
@@ -281,15 +280,13 @@ namespace {
 		work.Host->compose();
 		work.Lanes.drain();
 		expect(route_of(work.share(), core::cycle_share_route::send_to_agent)->offered(), "allowed by the stored policy");
-		const auto denied = offer_of(work.share(), core::codex_jsonl_profile_id);
-		expect(!denied.offered() && denied.Verdict.Refusal == core::agent_invocation_refusal::profile_forbidden_on_host, "a corporate account: Codex listed, refused");
-		expect(offer_of(work.share(), core::claude_stream_json_profile_id).offered() && offer_of(work.share(), core::external_terminal_profile_id).offered(), "the approved agents stay");
-		work.Host->send(codex);
-		work.deliver();
-		expect(contains(work.share().Status, "does not allow Codex (profile_forbidden_on_host)") && contains(work.share().Status, "no other agent or way was used instead"),
-			   "the denied GHES profile is refused by name");
+		// [[BPR-2305]] (owner, 2026-11-19). A corporate host permits Codex
+		// too; a profile a host leaves out is refused by that host before
+		// anything leaves (`core_review_cycle_send`, a narrowed policy).
+		expect(offer_of(work.share(), core::codex_jsonl_profile_id).offered(), "a corporate account: Codex listed and offered");
+		expect(offer_of(work.share(), core::claude_stream_json_profile_id).offered() && offer_of(work.share(), core::external_terminal_profile_id).offered(), "the other agents stay");
 		expect(work.view().Facts.Rounds.empty() && work.Sender->Received.empty() && work.Clipboard.Written.empty() && work.share().Deliveries.empty(),
-			   "nothing frozen, sent, copied or recorded in its place");
+			   "listing offers freezes, sends, copies and records nothing");
 
 		allow(run.ProfileRoot, run.Subject, core::cycle_channel_permission::denied, 2);
 		work.AccountHost.reset();
@@ -297,7 +294,7 @@ namespace {
 		work.Lanes.drain();
 		work.Host->send(claude);
 		expect(contains(work.share().Status, "does not allow sending to an agent") && work.Sender->Received.empty(), "a denied channel stays denied for every agent");
-		std::cout << "NATIVE: send refused by channel and by the corporate host, nothing frozen or sent\n";
+		std::cout << "NATIVE: send refused by channel, a corporate host offers Codex, nothing frozen or sent\n";
 	}
 
 	/// RC60-07, RC60-08, RC60-09: the exact round, one assignment, the

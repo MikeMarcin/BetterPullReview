@@ -1015,6 +1015,8 @@ namespace bpr::application {
 				options.SystemInstructions = aRequest.SystemInstructions;
 				options.Instructions       = aRequest.Instructions;
 				options.WritingStyle       = aRequest.WritingStyle;
+				// [[BPR-2307]]. Matters only to a granted Codex turn.
+				options.RelyOnLauncherSandbox = aRequest.RelyOnLauncherSandbox && (aProfile.Protocol == core::agent_protocol::codex_jsonl_exec || aProfile.Protocol == core::agent_protocol::codex_app_server);
 				// [[BPR-1752]]. The brief says what the workspace that
 				// was just made is, so the agent knows whether history and the
 				// base are there to compare with.

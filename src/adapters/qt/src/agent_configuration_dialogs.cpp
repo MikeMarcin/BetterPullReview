@@ -404,6 +404,7 @@ namespace bpr::qt {
 			case core::agent_field::model:             return QObject::tr("Model");
 			case core::agent_field::effort:            return QObject::tr("Effort");
 			case core::agent_field::strict_run_checks: return QObject::tr("Strict run checks");
+			case core::agent_field::launcher_sandbox:  return QObject::tr("Rely on the launcher's sandbox");
 			case core::agent_field::scratch_starts:    return QObject::tr("Scratch folder starts");
 			case core::agent_field::builds_and_tests:  return QObject::tr("Build and run tests");
 			case core::agent_field::mcp_servers:       return QObject::tr("MCP servers");
@@ -432,6 +433,7 @@ namespace bpr::qt {
 			case core::agent_field::model:             return orDefault(aEntry.Model);
 			case core::agent_field::effort:            return orDefault(aEntry.Effort);
 			case core::agent_field::strict_run_checks: return onOff(aEntry.StrictRunChecks);
+			case core::agent_field::launcher_sandbox:  return onOff(aEntry.RelyOnLauncherSandbox);
 			case core::agent_field::scratch_starts:    return onOff(aEntry.ScratchStarts);
 			case core::agent_field::builds_and_tests:  return onOff(aEntry.BuildsAndTests);
 			case core::agent_field::mcp_servers:       return aEntry.McpServers == core::agent_mcp_servers::own ? QObject::tr("the agent's own configuration") : QObject::tr("off");
@@ -1224,7 +1226,7 @@ namespace bpr::qt {
 			if (Preview.File.Agents[index].Problem || state.Action == core::agent_import_action::leave || !bound(index)) {
 				continue;
 			}
-			choices.push_back({ .Item = index, .Action = state.Action, .Target = state.Target, .Program = state.Program, .AcceptRelaxedChecks = state.AcceptRelaxed, .AcceptBuilds = state.AcceptBuilds });
+			choices.push_back({ .Item = index, .Action = state.Action, .Target = state.Target, .Program = state.Program, .AcceptRelaxedChecks = state.AcceptRelaxed, .AcceptBuilds = state.AcceptBuilds, .AcceptLauncherSandbox = state.AcceptLauncherSandbox });
 		}
 		return choices;
 	}
@@ -1819,16 +1821,17 @@ namespace bpr::qt {
 
 	void agent_configuration_import_dialog::show_selected()
 	{
-		Choice        = nullptr;
-		ProgramButton = nullptr;
-		ProgramLine   = nullptr;
-		Relaxed       = nullptr;
-		Builds        = nullptr;
-		Outcome       = nullptr;
-		Settings      = nullptr;
-		Comparison    = nullptr;
-		Yours         = nullptr;
-		Theirs        = nullptr;
+		Choice          = nullptr;
+		ProgramButton   = nullptr;
+		ProgramLine     = nullptr;
+		Relaxed         = nullptr;
+		LauncherSandbox = nullptr;
+		Builds          = nullptr;
+		Outcome         = nullptr;
+		Settings        = nullptr;
+		Comparison      = nullptr;
+		Yours           = nullptr;
+		Theirs          = nullptr;
 		// [[BPR-2204]]. Built again for the same item (a choice, a program),
 		// it keeps its place; another item opens at its top.
 		const auto same     = Built == Shown;
@@ -2003,7 +2006,7 @@ namespace bpr::qt {
 
 		const auto adding    = state.Action == core::agent_import_action::add;
 		const auto replacing = state.Action == core::agent_import_action::replace && meets != nullptr;
-		const auto choice    = core::agent_import_choice{ .Item = aItem, .Action = state.Action, .Target = state.Target, .Program = state.Program, .AcceptRelaxedChecks = state.AcceptRelaxed, .AcceptBuilds = state.AcceptBuilds };
+		const auto choice    = core::agent_import_choice{ .Item = aItem, .Action = state.Action, .Target = state.Target, .Program = state.Program, .AcceptRelaxedChecks = state.AcceptRelaxed, .AcceptBuilds = state.AcceptBuilds, .AcceptLauncherSandbox = state.AcceptLauncherSandbox };
 		auto       outcome   = QString{ };
 		if (adding) {
 			outcome = tr("Added at the end of your agents, not yet checked on this computer.");
@@ -2124,6 +2127,16 @@ namespace bpr::qt {
 								 state.AcceptRelaxed, QStringLiteral("agentConfigurationRelaxed"));
 			connect(Relaxed, &QCheckBox::toggled, this, [this, aItem](const bool aOn) {
 				Agents[aItem].AcceptRelaxed = aOn;
+				QTimer::singleShot(0, this, [this] { show_selected(); });
+			});
+		}
+		// [[BPR-2307]]. Codex's own sandbox is never turned off by a file alone.
+		if (agent.RelyOnLauncherSandbox && !agent.Preset) {
+			LauncherSandbox = permission(tr("Let %1 rely on its launcher's sandbox").arg(text_of(agent.Name)),
+										 tr("The file asks for this. Codex's own sandbox would be off whenever %1 may write, so its write limits are enforced only by the launcher. It stays on unless you tick; you can change it later in the agent's settings.").arg(text_of(agent.Name)),
+										 state.AcceptLauncherSandbox, QStringLiteral("agentConfigurationLauncherSandbox"));
+			connect(LauncherSandbox, &QCheckBox::toggled, this, [this, aItem](const bool aOn) {
+				Agents[aItem].AcceptLauncherSandbox = aOn;
 				QTimer::singleShot(0, this, [this] { show_selected(); });
 			});
 		}

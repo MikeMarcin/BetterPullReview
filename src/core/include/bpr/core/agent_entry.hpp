@@ -77,6 +77,14 @@ namespace bpr::core {
 		/// instructions go; the message is the fallback for a wrapper that
 		/// drops the system prompt.
 		agent_instruction_delivery Instructions = agent_instruction_delivery::system_prompt;
+		/// [[BPR-2307]] (owner, 2026-11-19: "Sure", to "May a custom agent
+		/// turn off Codex's own sandbox and rely on the launcher's?"). Off by
+		/// default. On, a granted run of this custom Codex agent turns Codex's
+		/// own sandbox off (`core::codex_sandbox_mode::launcher`), so the
+		/// grant is held only by the launcher its program runs Codex in. A
+		/// read-only run stays read-only. A popular agent, and any agent that
+		/// does not speak a Codex protocol, may not turn it on.
+		bool RelyOnLauncherSandbox = false;
 		/// Host-minted incarnation; replacement/reset never inherits a reused slot.
 		std::string Identity;
 
@@ -99,6 +107,9 @@ namespace bpr::core {
 		unknown_entry,
 		/// [[BPR-1918]]. A popular agent keeps strict run checks.
 		relaxed_popular_agent,
+		/// [[BPR-2307]]. Only a custom Codex agent may rely on its
+		/// launcher's sandbox.
+		launcher_sandbox_not_custom_codex,
 		/// [[BPR-2254]]. The saved agents could not be read, so no change to
 		/// them can be kept.
 		settings_unreadable,

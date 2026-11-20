@@ -327,6 +327,11 @@ namespace bpr::application {
 		agent_run_checks RunChecks = agent_run_checks::strict;
 		/// [[BPR-2007]], [[BPR-2008]]. None launches exactly as before.
 		std::optional<agent_launch_grant> Grant;
+		/// [[BPR-2307]]. A custom Codex agent's "Rely on the launcher's
+		/// sandbox": a granted run turns Codex's own sandbox off
+		/// (`core::decide_codex_sandbox`); a read-only run stays read-only.
+		/// Refused for any other protocol.
+		bool RelyOnLauncherSandbox = false;
 		/// RFC-BPR-0104, third review round (F1). The disposable checkout BPR
 		/// made from the pull request, as the turn runs in it, as its
 		/// canonical path and as the system names the opened folder
@@ -490,7 +495,9 @@ namespace bpr::application {
 		invalid_run_snapshot,
 		input_too_large,
 		/// [[BPR-2304]]. A Claude launch's arguments break a rule
-		/// `core::inspect_claude_arguments` holds; nothing is started.
+		/// `core::inspect_claude_arguments` holds, or ([[BPR-2307]]) a Codex
+		/// launch's break one `core::inspect_codex_sandbox_arguments` holds;
+		/// nothing is started.
 		unsafe_arguments,
 	};
 

@@ -266,10 +266,21 @@ what the work needs from it.
 ## Open owner decision
 
 - **May a custom agent turn Codex's own sandbox off and rely on the
-  launcher's?** OPEN, a security decision for the owner, not an agent. The
-  [[BPR-1918]] opt-out for custom agents' run checks is the precedent to
-  weigh. Until it is answered no build passes `--sandbox danger-full-access`
-  or any other opt-out.
+  launcher's?** ANSWERED by the owner on 2026-11-19: "Sure". Built as
+  [[BPR-2307]], following the [[BPR-1918]] opt-out: a custom Codex agent's
+  **Rely on the launcher's sandbox**, off by default, never for the popular
+  Codex. On, a granted run passes `--sandbox danger-full-access` (App Server:
+  `-c sandbox_mode="danger-full-access"`) instead of the grant profile; a
+  read-only run keeps `--sandbox read-only`.
+
+## Follow-up note (2026-11-20)
+
+The workspace contract `review_cycle_send` (`refuses_before_anything_leaves`)
+still expected a corporate account to see Codex refused, which the owner's
+decision above reversed, and failed on main. It now expects Codex offered on
+a corporate host and nothing frozen, sent or recorded by listing offers; a
+host refusal is proved in `core_review_cycle_send` with a narrowed policy. No
+source path still refused Codex on GHES. Landed with [[BPR-2307]].
 
 ## Owner steps (need the corporate Mac and its launcher)
 

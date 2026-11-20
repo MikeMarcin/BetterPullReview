@@ -224,9 +224,23 @@ program and its own options the fixed arguments. An audit on 2026-11-19
 - **Writes.** A granted write failed inside the launcher, likely Codex's own
   sandbox nested in the launcher's. A turn whose file changes all failed
   ends with words naming them instead of a normal answer, and its diagnostic
-  counts them (`writes_failed=N writes_written=N`). Whether a custom agent may
-  turn Codex's own sandbox off and rely on the launcher's is an open owner
-  security decision; nothing turns it off.
+  counts them (`writes_failed=N writes_written=N`).
+- **Codex's own sandbox (owner decision 2026-11-19, [[BPR-2307]]).** Asked
+  "May a custom agent turn off Codex's own sandbox and rely on the
+  launcher's?", the owner answered "Sure". A custom Codex agent (never the
+  popular Codex) has **Rely on the launcher's sandbox**, off by default. On,
+  a granted run turns Codex's own sandbox off (`--sandbox danger-full-access`
+  for `exec`, `-c sandbox_mode="danger-full-access"` for the App Server)
+  instead of passing the grant profile, so BetterPullReview's write grant is
+  enforced only by the launcher. A read-only run keeps `--sandbox read-only`,
+  which the audit saw hold inside the launcher; a run with no grant passes no
+  sandbox. Approvals stay `never`, MCP stays off where it is off, a pull
+  request's checkout stays untrusted, and the failed-writes message stays.
+  The core decides the arguments (`core::decide_codex_sandbox`) and refuses a
+  launch whose arguments disagree (`core::inspect_codex_sandbox_arguments`).
+  The setting is kept per agent and travels in a settings file's Agents
+  section only when on; an import applies it only when ticked. Threat model:
+  "Custom Codex agent relies on its launcher's sandbox (BPR-2307)".
 
 ## Workspaces
 

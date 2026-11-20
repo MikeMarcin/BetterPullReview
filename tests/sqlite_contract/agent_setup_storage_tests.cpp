@@ -543,6 +543,16 @@ try {
 	auto popular                      = listed;
 	popular.Agents[2].StrictRunChecks = false;
 	expect(core::inspect_agent_entries(popular.Agents) == core::agent_entry_refusal::relaxed_popular_agent && !store->store(popular), "a popular agent keeps strict run checks");
+	// [[BPR-2307]]. A custom Codex agent's "Rely on the launcher's sandbox"
+	// is its own, off until turned on, and read back after a restart.
+	expect(!store->load()->Agents[1].RelyOnLauncherSandbox, "off until turned on");
+	listed.Agents[1].RelyOnLauncherSandbox = true;
+	expect(store->store(listed), "a custom Codex agent relying on its launcher's sandbox is stored");
+	store = adapters::sqlite::make_agent_setup_store(scratch.path());
+	expect(store->load() == listed && store->load()->Agents[1].RelyOnLauncherSandbox && !store->load()->Agents[0].RelyOnLauncherSandbox, "it reads back on, and only for that agent");
+	auto claudeAsks                            = listed;
+	claudeAsks.Agents[0].RelyOnLauncherSandbox = true;
+	expect(core::inspect_agent_entries(claudeAsks.Agents) == core::agent_entry_refusal::launcher_sandbox_not_custom_codex && !store->store(claudeAsks), "a Claude agent cannot");
 	// [[BPR-2051]]. Each agent's last check is kept across a restart: a pass
 	// with its version, a failure with why; a check of an agent no longer in
 	// the list does not come back.

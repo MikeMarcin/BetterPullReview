@@ -190,6 +190,24 @@ namespace bpr::qt {
 			StrictChecks->setAccessibleDescription(meaning->text());
 			column->addWidget(meaning);
 		}
+		// [[BPR-2307]] (owner, 2026-11-19). A custom Codex agent may turn
+		// Codex's own sandbox off and rely on its launcher's. Off unless
+		// turned on; shown only while the protocol is a Codex one.
+		if (!aEntry.Preset) {
+			LauncherSandbox = new QCheckBox{ tr("Rely on the launcher's sandbox"), this };
+			LauncherSandbox->setObjectName(QStringLiteral("agentEntryLauncherSandbox"));
+			LauncherSandbox->setChecked(aEntry.RelyOnLauncherSandbox);
+			column->addWidget(LauncherSandbox);
+			LauncherSandboxMeaning = new QLabel{ tr("For a launcher that runs Codex in its own sandbox, where Codex's sandbox makes every write fail. Codex's sandbox is then off whenever the agent may write, "
+													"so the scratch folder and build limits are enforced only by the launcher. Read-only runs stay read-only."),
+												 this };
+			LauncherSandboxMeaning->setObjectName(QStringLiteral("agentEntryLauncherSandboxMeaning"));
+			LauncherSandboxMeaning->setWordWrap(true);
+			LauncherSandboxMeaning->setForegroundRole(QPalette::PlaceholderText);
+			LauncherSandboxMeaning->setContentsMargins(style()->pixelMetric(QStyle::PM_IndicatorWidth) + style()->pixelMetric(QStyle::PM_CheckBoxLabelSpacing), 0, 0, 0);
+			LauncherSandbox->setAccessibleDescription(LauncherSandboxMeaning->text());
+			column->addWidget(LauncherSandboxMeaning);
+		}
 		auto* const words = new QLabel{ tr("The arguments are given to the program exactly as written, before the request's own, every time. Nothing is put into them and no shell runs them."), this };
 		words->setWordWrap(true);
 		words->setForegroundRole(QPalette::PlaceholderText);
@@ -217,6 +235,9 @@ namespace bpr::qt {
 		connect(Model, &QLineEdit::textChanged, this, [this] { settle(); });
 		if (StrictChecks != nullptr) {
 			connect(StrictChecks, &QCheckBox::toggled, this, [this] { settle(); });
+		}
+		if (LauncherSandbox != nullptr) {
+			connect(LauncherSandbox, &QCheckBox::toggled, this, [this] { settle(); });
 		}
 		connect(Effort, &QComboBox::currentIndexChanged, this, [this] { settle(); });
 		connect(ScratchStarts, &QComboBox::currentIndexChanged, this, [this] { settle(); });
@@ -272,6 +293,10 @@ namespace bpr::qt {
 		// [[BPR-2305]]. Codex names the two places by its own words: its
 		// developer instructions, or the start of the prompt it reads.
 		const auto codex = protocol == core::agent_protocol::codex_jsonl_exec || protocol == core::agent_protocol::codex_app_server;
+		if (LauncherSandbox != nullptr) {
+			LauncherSandbox->setVisible(codex);
+			LauncherSandboxMeaning->setVisible(codex);
+		}
 		Instructions->setItemText(0, codex ? tr("As developer instructions") : tr("System prompt"));
 		Instructions->setItemText(1, codex ? tr("At the start of the prompt") : tr("In the message"));
 		Instructions->setToolTip(codex ? tr("Where a built-in prompt's instructions go. Choose At the start of the prompt if Codex runs through a launcher that drops its developer instructions; Check tells you which one it follows.")
@@ -309,9 +334,12 @@ namespace bpr::qt {
 		result.Instructions   = static_cast<core::agent_instruction_delivery>(Instructions->currentData().toInt());
 		// A popular agent keeps its sign-in check and strict run checks.
 		result.StrictRunChecks = StrictChecks == nullptr || StrictChecks->isChecked();
+		// [[BPR-2307]]. Only a custom agent that speaks a Codex protocol.
+		result.RelyOnLauncherSandbox = LauncherSandbox != nullptr && codex && LauncherSandbox->isChecked();
 		if (result.Preset) {
 			result.CheckArguments.clear();
-			result.StrictRunChecks = true;
+			result.StrictRunChecks       = true;
+			result.RelyOnLauncherSandbox = false;
 		}
 		return result;
 	}

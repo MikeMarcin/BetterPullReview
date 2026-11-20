@@ -1681,6 +1681,20 @@ with its reason; the built-in explicit-GHES policy no longer does. A custom
 Codex JSONL agent's check also asks it one short question with a rule, to show
 where its instructions arrive ([[BPR-2305]]).
 
+### Owner amendment (2026-11-19): a custom Codex agent may rely on its launcher's sandbox
+
+Asked "May a custom agent turn off Codex's own sandbox and rely on the
+launcher's?" ([[BPR-2305]]), the owner answered "Sure" on 2026-11-19. A
+custom Codex agent, JSONL or App Server, gets **Rely on the launcher's
+sandbox**, off by default, with words saying that BetterPullReview's write
+grant is then enforced only by the launcher ([[BPR-2307]]). It follows the
+[[BPR-1918]] opt-out's shape: per custom agent, never offered for the popular
+Codex, refused in core and the store for any other agent, kept through the
+host, carried in a settings file's Agents section and applied on import only
+when ticked. On, a run that carries a scratch folder or build grant turns
+Codex's own sandbox off instead of passing the grant profile; a read-only run
+keeps `--sandbox read-only`. Every other launch rule stands.
+
 ## Acceptance criteria
 
 - **AC01:** With no agent chosen for the profile, opening the Agent tab on a

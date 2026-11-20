@@ -2541,6 +2541,8 @@ namespace bpr::app {
 		// full at its last turn's end is full until it is measured again.
 		facts.ScratchPlace = !AgentScratchRoot.empty();
 		facts.Refusal      = agent_grant_refusal_for(aEntry);
+		// [[BPR-2307]]. A custom Codex agent may rely on its launcher's sandbox.
+		facts.LauncherSandbox = aEntry.RelyOnLauncherSandbox && !aEntry.Preset;
 		// Re-review N3: by pull request and agent, so another pull request's
 		// full folder is not this one's, and a restart reads it from disk.
 		if (const auto key = grant_key(aEntry.Id); key) {
@@ -2801,10 +2803,11 @@ namespace bpr::app {
 			grant.Builds = *answer ? core::agent_builds_state::allowed : core::agent_builds_state::declined;
 			present_run_settings();
 		}
-		aInvocation.ScratchFolder   = core::scratch_granted(grant);
-		aInvocation.BuildsAndTests  = core::builds_granted(grant);
-		AgentScratchTurn            = grant_key(entry->Id);
-		aInvocation.ScratchLimitMiB = AgentSetup->projection().Preferences.ScratchLimitMiB;
+		aInvocation.ScratchFolder         = core::scratch_granted(grant);
+		aInvocation.BuildsAndTests        = core::builds_granted(grant);
+		aInvocation.RelyOnLauncherSandbox = grant.LauncherSandbox;
+		AgentScratchTurn                  = grant_key(entry->Id);
+		aInvocation.ScratchLimitMiB       = AgentSetup->projection().Preferences.ScratchLimitMiB;
 		return true;
 	}
 

@@ -111,6 +111,9 @@ namespace bpr::application {
 		/// [[BPR-2008]]. The reviewer allowed building and testing in this
 		/// pull request; granted only in a disposable checkout.
 		bool BuildsAndTests = false;
+		/// [[BPR-2307]]. The custom Codex agent relies on its launcher's
+		/// sandbox (`agent_launch_options::RelyOnLauncherSandbox`).
+		bool RelyOnLauncherSandbox = false;
 		/// RFC-BPR-0104 as amended 2026-11-11. The scratch folder's limit as
 		/// set; a turn that passes it is stopped.
 		std::uint32_t ScratchLimitMiB = core::default_agent_scratch_limit_mib;

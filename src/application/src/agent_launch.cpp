@@ -3630,6 +3630,19 @@ namespace bpr::application {
 			const auto profile = std::string{ codex_grant_profile };
 			aArguments.insert(aArguments.end(), { "-c", "permissions." + profile + ".filesystem=" + filesystem, "-c", "default_permissions=\"" + profile + "\"", "-c", "approval_policy=\"never\"" });
 		}
+		/// [[BPR-2307]]. A granted run's sandbox as `core::decide_codex_sandbox`
+		/// chose it: BetterPullReview's profile, or Codex's own sandbox off for
+		/// an agent that relies on its launcher's. A read-only run's was
+		/// already given with its other restrictions.
+		void append_codex_sandbox(std::vector<std::string>& aArguments, const core::codex_sandbox_mode aMode, const std::optional<agent_launch_grant>& aGrant, const bool aAppServer)
+		{
+			if (aMode == core::codex_sandbox_mode::grant_profile && aGrant) {
+				append_codex_grant(aArguments, *aGrant);
+			} else if (aMode == core::codex_sandbox_mode::launcher) {
+				auto off = core::codex_launcher_sandbox_arguments(aAppServer);
+				aArguments.insert(aArguments.end(), std::make_move_iterator(off.begin()), std::make_move_iterator(off.end()));
+			}
+		}
 		[[nodiscard]] auto settings_json(const core::agent_runtime_metadata& aMetadata) -> std::string
 		{
 			const auto settings = effective_settings(aMetadata);
@@ -3732,6 +3745,11 @@ namespace bpr::application {
 			return std::unexpected(agent_launch_failure::invalid_profile);
 		}
 		const auto codex = aProfile.Protocol == core::agent_protocol::codex_app_server || aProfile.Protocol == core::agent_protocol::codex_jsonl_exec;
+		// [[BPR-2307]]. Only a Codex launch can rely on a launcher's sandbox.
+		if (aOptions.RelyOnLauncherSandbox && !codex) {
+			return std::unexpected(agent_launch_failure::invalid_profile);
+		}
+		const auto codexSandbox = core::decide_codex_sandbox({ .ReadOnly = aOptions.ReadOnlyTools, .Granted = aOptions.Grant.has_value(), .RelyOnLauncher = aOptions.RelyOnLauncherSandbox });
 		if (aOptions.Grant
 			&& ((codex && aOptions.PullRequestCheckout.empty())
 				|| (!aOptions.Grant->BuildWorkspace.empty() && std::ranges::find(aOptions.PullRequestCheckout, aOptions.Grant->BuildWorkspace) == aOptions.PullRequestCheckout.end()))) {
@@ -3792,9 +3810,7 @@ namespace bpr::application {
 			} else if (mcpOff) {
 				arguments.insert(arguments.end(), { "-c", "mcp_servers={}" });
 			}
-			if (aOptions.Grant) {
-				append_codex_grant(arguments, *aOptions.Grant);
-			}
+			append_codex_sandbox(arguments, codexSandbox, aOptions.Grant, true);
 			break;
 		case core::agent_protocol::codex_jsonl_exec:
 			arguments.emplace_back("exec");
@@ -3808,9 +3824,7 @@ namespace bpr::application {
 			} else if (mcpOff) {
 				arguments.insert(arguments.end(), { "-c", "mcp_servers={}" });
 			}
-			if (aOptions.Grant) {
-				append_codex_grant(arguments, *aOptions.Grant);
-			}
+			append_codex_sandbox(arguments, codexSandbox, aOptions.Grant, false);
 			// Established 2026-11-12 against Codex 0.167.0 with a canary: a
 			// rule given only in `developer_instructions` is followed.
 			if (systemPrompt) {
@@ -3888,6 +3902,11 @@ namespace bpr::application {
 			if (core::inspect_claude_arguments(arguments, expected)) {
 				return std::unexpected(agent_launch_failure::unsafe_arguments);
 			}
+		}
+		// [[BPR-2307]]. Codex's own sandbox is off only where the agent relies
+		// on its launcher's and the run is granted; read-only stays read-only.
+		if (codex && core::inspect_codex_sandbox_arguments(arguments, codexSandbox, aProfile.Protocol == core::agent_protocol::codex_app_server)) {
+			return std::unexpected(agent_launch_failure::unsafe_arguments);
 		}
 		if (aOptions.WritingOnly && aProfile.Protocol != core::agent_protocol::claude_stream_json) {
 			arguments.insert(arguments.end(), claude_writing_restrictions.begin(), claude_writing_restrictions.end());
