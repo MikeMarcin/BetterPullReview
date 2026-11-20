@@ -2,10 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1096"
 title: "Reconcile documentation, simplify and independently review the feature"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0047", "RFC-BPR-0048", "RFC-BPR-0049", "RFC-BPR-0050", "RFC-BPR-0051"]
 depends_on: ["BPR-1093", "BPR-1094"]
-metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-22","milestone":"verification","acceptance":["R43","R46","R48"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
+metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-22","milestone":"verification","acceptance":["R43","R46","R48"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"},"owner_amendment":"owner, 2026-11-20: \"All, incl. notes check\"; its remaining criteria are withdrawn, not passed"}
 ---
 
 # BPR-1096: Reconcile documentation, simplify and independently review the feature
@@ -30,3 +30,12 @@ Record the direct test/gesture, actual result, producing revision and limitation
 
 Verdict: **STILL-VALID**. Conventional Comments closeout chain; nothing run. It waits on BPR-1094 (Windows half of R33) and BPR-1095 (Ready, live course on BPR-Test).
 This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Done by owner amendment (2026-11-20): criteria withdrawn
+
+The owner approved closing the RFCs this card verifies to what shipped and
+rejecting the rest: "All, incl. notes check" (the vestigial-work list of
+2026-11-20, recorded in [[BPR-2313]]). This card's remaining verification is
+that rest. It is Done by that amendment, as [[BPR-0746]] was: whatever it had
+not run is withdrawn, recorded as an amendment and not a pass, and counts as
+no evidence for any criterion. Anything it recorded before stays above.

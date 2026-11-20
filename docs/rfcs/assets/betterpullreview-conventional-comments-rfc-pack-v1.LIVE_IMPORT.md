@@ -41,14 +41,14 @@ The five closeout cards (one per RFC, as authored) are retitled "Verify and clos
 | `PACK-CC-17` | [BPR-1091](../../issues/60-done/BPR-1091-wire-optional-convention-aware-hooks-through-the-existing-workshop.md) |
 | `PACK-CC-18` | [BPR-1092](../../issues/60-done/BPR-1092-expose-deterministic-convention-operations-through-the-shared-headless-cli.md) |
 | `PACK-CC-19` | [BPR-1093](../../issues/60-done/BPR-1093-verify-syntax-ownership-migration-and-mutation-adversaries.md) |
-| `PACK-CC-20` | [BPR-1094](../../issues/40-parked/BPR-1094-measure-counter-costs-and-verify-the-actual-compact-native-ui.md) |
-| `PACK-CC-21` | [BPR-1095](../../issues/20-ready/BPR-1095-verify-native-github-interoperability-on-an-authorized-safe-target.md) |
-| `PACK-CC-22` | [BPR-1096](../../issues/10-backlog/BPR-1096-reconcile-documentation-simplify-and-independently-review-the-feature.md) |
-| `PACK-CC-23` | [BPR-1097](../../issues/10-backlog/BPR-1097-close-rfc-0047.md) |
-| `PACK-CC-24` | [BPR-1098](../../issues/10-backlog/BPR-1098-close-rfc-0048.md) |
-| `PACK-CC-25` | [BPR-1099](../../issues/10-backlog/BPR-1099-close-rfc-0049.md) |
-| `PACK-CC-26` | [BPR-1100](../../issues/10-backlog/BPR-1100-close-rfc-0050.md) |
-| `PACK-CC-27` | [BPR-1101](../../issues/10-backlog/BPR-1101-close-rfc-0051.md) |
+| `PACK-CC-20` | [BPR-1094](../../issues/60-done/BPR-1094-measure-counter-costs-and-verify-the-actual-compact-native-ui.md) |
+| `PACK-CC-21` | [BPR-1095](../../issues/60-done/BPR-1095-verify-native-github-interoperability-on-an-authorized-safe-target.md) |
+| `PACK-CC-22` | [BPR-1096](../../issues/60-done/BPR-1096-reconcile-documentation-simplify-and-independently-review-the-feature.md) |
+| `PACK-CC-23` | [BPR-1097](../../issues/60-done/BPR-1097-close-rfc-0047.md) |
+| `PACK-CC-24` | [BPR-1098](../../issues/60-done/BPR-1098-close-rfc-0048.md) |
+| `PACK-CC-25` | [BPR-1099](../../issues/60-done/BPR-1099-close-rfc-0049.md) |
+| `PACK-CC-26` | [BPR-1100](../../issues/60-done/BPR-1100-close-rfc-0050.md) |
+| `PACK-CC-27` | [BPR-1101](../../issues/60-done/BPR-1101-close-rfc-0051.md) |
 
 ## Plan representation
 

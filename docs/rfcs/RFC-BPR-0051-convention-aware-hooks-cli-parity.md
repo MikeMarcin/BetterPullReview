@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0051"
 title: "Convention-Aware Skill Hooks and Shared CLI Behavior"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-tour feedback conventions"
 depends_on: ["RFC-BPR-0047", "RFC-BPR-0048", "RFC-BPR-0049", "RFC-BPR-0011", "RFC-BPR-0012", "RFC-BPR-0044", "RFC-BPR-0045", "RFC-BPR-0046"]
@@ -10,6 +10,17 @@ metadata: {"pack": "betterpullreview-conventional-comments-rfc-pack-v1", "propos
 ---
 
 # RFC-BPR-0051: Convention-Aware Skill Hooks and Shared CLI Behavior
+
+## Status: Auto-Verified (owner closure, 2026-11-20)
+
+The owner approved the vestigial-work list on 2026-11-20 ("All, incl. notes check", recorded in
+[[BPR-2313]]): close RFC-BPR-0047 to 0051 to their shipped scope and reject
+the rest. Shipped: default convention guidance and the hook ownership map,
+the optional convention-aware hooks, the shared headless CLI operations and
+private tracking (BPR-1086, BPR-1090 to BPR-1092, BPR-1526). Withdrawn by owner
+amendment, never run: [[BPR-1094]] and [[BPR-1096]].
+
+It closes on what it built: no closeout pass ran, each criterion stands on its delivering cards' recorded evidence, and a criterion no card evidenced is not passed. The repository has no Superseded status; a delivered RFC that a later one replaces in part closes Auto-Verified with this record, as RFC-BPR-0025 did. Closed by [[BPR-1101]].
 
 ## Outcome
 

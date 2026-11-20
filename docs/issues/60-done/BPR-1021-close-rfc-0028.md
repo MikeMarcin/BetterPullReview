@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1021"
 title: "Verify and close RFC-BPR-0028"
-status: "Ready"
+status: "Done"
 rfcs: ["RFC-BPR-0028"]
 depends_on: ["BPR-0653","BPR-0746"]
 closeout_for: ["RFC-BPR-0028"]
-metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"planning_reconciliation":"docs/rfcs/plans/ux-redesign-pack-0028/rfc-0028-closeout-planning.md","reservation":"docs/issues/_reservations/BPR-1020--BPR-1022--f3b33a48cfc4.json","owner_decisions":"2026-09-24, attended session cbd48b91 (hand-back 589): AC-01 amended to admit the entry rows (decision 007a6eb5); BPR-0746 AC1/AC2 withdrawn by amendment (decision 14327a18); private Qt API accepted (decision 8dde5e4d); 2026-09-25, attended session df5859c7 (hand-back at sequence 6): BPR-0653's station capture accepted at 150% only (decision 1aba8610), 100% still owed, no amendment","owner_decision_20261116":"BPR-0653 Done by owner amendment (criteria 2 and 4 close on the 150% accept, decision 1aba8610); the closeout's own checks are still Not run"}
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"planning_reconciliation":"docs/rfcs/plans/ux-redesign-pack-0028/rfc-0028-closeout-planning.md","reservation":"docs/issues/_reservations/BPR-1020--BPR-1022--f3b33a48cfc4.json","owner_decisions":"2026-09-24, attended session cbd48b91 (hand-back 589): AC-01 amended to admit the entry rows (decision 007a6eb5); BPR-0746 AC1/AC2 withdrawn by amendment (decision 14327a18); private Qt API accepted (decision 8dde5e4d); 2026-09-25, attended session df5859c7 (hand-back at sequence 6): BPR-0653's station capture accepted at 150% only (decision 1aba8610), 100% still owed, no amendment","owner_decision_20261116":"BPR-0653 Done by owner amendment (criteria 2 and 4 close on the 150% accept, decision 1aba8610); the closeout's own checks are still Not run","closed_by":"owner, 2026-11-20: \"All, incl. notes check\""}
 ---
 
 # Verify and close RFC-BPR-0028
@@ -203,3 +203,12 @@ own work:
 
 After this card, [[BPR-2214]] records RFC-BPR-0037's status, which
 [[BPR-1135]] and [[BPR-1194]] wait on.
+
+## Owner closure (2026-11-20)
+
+Closed by owner decision ("All, incl. notes check", the vestigial-work list of
+2026-11-20, recorded in [[BPR-2313]]): RFC-BPR-0028 closes to what shipped, and the
+verification that had not run is withdrawn. No closeout pass ran for this card.
+Each criterion stands on its delivering cards' recorded evidence; a row above
+that says it was not run was not run, and is not a pass. The status record at
+the top of each RFC names what shipped and what was withdrawn.

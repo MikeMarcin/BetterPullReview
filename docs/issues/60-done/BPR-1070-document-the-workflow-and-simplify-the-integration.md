@@ -2,10 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1070"
 title: "Document the workflow and simplify the integration"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045", "RFC-BPR-0046"]
 depends_on: ["BPR-1066", "BPR-1068"]
-metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-19","milestone":"verification-closeout","acceptance":[],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-19","milestone":"verification-closeout","acceptance":[],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"},"owner_amendment":"owner, 2026-11-20: \"All, incl. notes check\"; its remaining criteria are withdrawn, not passed"}
 ---
 
 # BPR-1070: Document the workflow and simplify the integration
@@ -42,3 +42,12 @@ The owner adopted [bundled-cli-r1](../../rfcs/amendments/RFC-BPR-0044-bundled-cl
 
 Verdict: **STILL-VALID**. Not started; waits on BPR-1068. The bundled-cli-r1 amendment (2026-10-27) is already noted.
 This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Done by owner amendment (2026-11-20): criteria withdrawn
+
+The owner approved closing the RFCs this card verifies to what shipped and
+rejecting the rest: "All, incl. notes check" (the vestigial-work list of
+2026-11-20, recorded in [[BPR-2313]]). This card's remaining verification is
+that rest. It is Done by that amendment, as [[BPR-0746]] was: whatever it had
+not run is withdrawn, recorded as an amendment and not a pass, and counts as
+no evidence for any criterion. Anything it recorded before stays above.

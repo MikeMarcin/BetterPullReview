@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0028"
 title: "Review Workbench Direction: Overview, Epoch Line, Modalities, and Conversation"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Private alpha"
 depends_on: ["RFC-BPR-0004","RFC-BPR-0005","RFC-BPR-0007","RFC-BPR-0008"]
@@ -10,6 +10,20 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 ---
 
 # RFC-BPR-0028: Review Workbench Direction: Overview, Epoch Line, Modalities, and Conversation
+
+## Status: Auto-Verified (owner closure, 2026-11-20)
+
+The owner approved the vestigial-work list on 2026-11-20 ("All, incl. notes check", recorded in
+[[BPR-2313]]); this RFC was on it to be marked superseded by RFC-BPR-0052.
+RFC-BPR-0052 replaced this RFC's chrome above the comparison (AC-01's strip,
+entry rows and epoch line) with the title row, review bar and Updates line, and
+closed the same day. Everything else here shipped under plan
+`ux-redesign-pack-0028`: every implementation card is Done, BPR-0653 and
+BPR-0746 by recorded owner amendments, not passes. The closeout checklist in
+[[BPR-1021]] was never run and is recorded as not run. [[BPR-2214]], which
+records RFC-BPR-0037 once this RFC closes, is now unblocked and stays open.
+
+It closes on what it built: no closeout pass ran, each criterion stands on its delivering cards' recorded evidence, and a criterion no card evidenced is not passed. The repository has no Superseded status; a delivered RFC that a later one replaces in part closes Auto-Verified with this record, as RFC-BPR-0025 did. Closed by [[BPR-1021]].
 
 ## Current state, 2026-09-24
 

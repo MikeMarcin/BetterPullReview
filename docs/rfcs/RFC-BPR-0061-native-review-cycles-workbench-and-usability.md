@@ -89,7 +89,7 @@ are BPR-1285's.
 
 As imported, this RFC listed RFC-BPR-0050 among its dependencies.
 RFC-BPR-0050 is Proposed; its closeout is
-[BPR-1100](../issues/10-backlog/BPR-1100-close-rfc-0050.md). The owner was
+[BPR-1100](../issues/60-done/BPR-1100-close-rfc-0050.md). The owner was
 asked in chat about this RFC's dependencies ("depends on RFC-0050, 0052 and
 0037 …") and answered:
 
@@ -109,9 +109,9 @@ to close in order once RFC-BPR-0028 does. The second half of the answer,
 BPR-0653's Windows title row at 100% display scale, is the first step of that order:
 [BPR-0653](../issues/60-done/BPR-0653-windows-caption-in-the-strip.md), then
 RFC-BPR-0028's closeout
-[BPR-1021](../issues/20-ready/BPR-1021-close-rfc-0028.md), then
+[BPR-1021](../issues/60-done/BPR-1021-close-rfc-0028.md), then
 RFC-BPR-0037, then RFC-BPR-0052's closeout
-[BPR-1135](../issues/10-backlog/BPR-1135-close-rfc-0052.md), then this RFC's
+[BPR-1135](../issues/60-done/BPR-1135-close-rfc-0052.md), then this RFC's
 closeout [BPR-1194](../issues/10-backlog/BPR-1194-close-rfc-0061.md).
 
 This amendment changes no RC61 criterion and does not close RFC-BPR-0050. The

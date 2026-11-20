@@ -1,15 +1,28 @@
 ---
 id: "RFC-BPR-0047"
 title: "Conventional Comment Semantics and Lossless Recognition"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-tour feedback conventions"
-depends_on: ["RFC-BPR-0008", "RFC-BPR-0021"]
+depends_on: ["RFC-BPR-0008"]
 pack_version: "conventional-comments-v1"
 metadata: {"pack": "betterpullreview-conventional-comments-rfc-pack-v1", "proposed_id_requires_live_reconciliation": true, "milestone_plan": {"id": "betterpullreview-conventional-comments-rfc-pack-v1", "path": "docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0047: Conventional Comment Semantics and Lossless Recognition
+
+## Status: Auto-Verified (owner closure, 2026-11-20)
+
+The owner approved the vestigial-work list on 2026-11-20 ("All, incl. notes check", recorded in
+[[BPR-2313]]): close RFC-BPR-0047 to 0051 to their shipped scope and reject
+the rest. Shipped: the twelve-label catalog and bounded lossless recognizer,
+revisioned header edits, root classification, the conversation partition and
+the adversarial corpus (BPR-1075 to BPR-1078, BPR-1093). Withdrawn by owner amendment, never
+run: [[BPR-1096]] (documentation reconciliation and independent review,
+so R43, R46 and R48 are not passed). RFC-BPR-0021 is no longer a dependency:
+it was rejected the same day, and nothing shipped here used it.
+
+It closes on what it built: no closeout pass ran, each criterion stands on its delivering cards' recorded evidence, and a criterion no card evidenced is not passed. The repository has no Superseded status; a delivered RFC that a later one replaces in part closes Auto-Verified with this record, as RFC-BPR-0025 did. Closed by [[BPR-1097]].
 
 ## Outcome and scope
 

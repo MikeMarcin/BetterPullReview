@@ -25,7 +25,7 @@ Ship the candidate via the existing shared AgentSkills/MASK source once separate
 
 As imported, this RFC listed RFC-BPR-0044, 0045 and 0046 among its
 dependencies. Those three close together on
-[BPR-1071](../issues/10-backlog/BPR-1071-close-rfc-0046.md) and are Proposed.
+[BPR-1071](../issues/60-done/BPR-1071-close-rfc-0046.md) and are Proposed.
 The owner was asked in chat whether to amend the dependency and close this RFC
 on its own evidence ("RFC-0058 … formally depends on RFC-0044/0045/0046 …
 amend its dependency and close on its own evidence?"), and answered:

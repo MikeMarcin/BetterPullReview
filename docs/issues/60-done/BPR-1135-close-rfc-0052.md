@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1135"
 title: "Verify and close RFC-BPR-0052"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0052"]
 depends_on: ["BPR-1129","BPR-1130","BPR-1131","BPR-1132","BPR-1133","BPR-1134","BPR-1197","BPR-1201","BPR-1202","BPR-1203","BPR-1204","BPR-1205","BPR-1206","BPR-1207","BPR-1208","BPR-1209","BPR-1210"]
 milestone: "Review workbench scaffolding"
 platforms: ["mac", "win", "linux"]
 closeout_for: ["RFC-BPR-0052"]
-metadata: {"milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"},"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"All seventeen card dependencies are Done; closeout now waits only on RFC-BPR-0028 and RFC-BPR-0037."}}
+metadata: {"milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"},"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"All seventeen card dependencies are Done; closeout now waits only on RFC-BPR-0028 and RFC-BPR-0037."},"closed_by":"owner, 2026-11-20: \"All, incl. notes check\""}
 ---
 
 # Verify and close RFC-BPR-0052
@@ -617,3 +617,12 @@ card stays in Backlog: RFC-BPR-0028 and RFC-BPR-0037 are not yet
 Auto-Verified, and the native Windows, Linux and station evidence named in its
 checklist is still owed. RFC-BPR-0037's status record now has its own card,
 [[BPR-2214]].
+
+## Owner closure (2026-11-20)
+
+Closed by owner decision ("All, incl. notes check", the vestigial-work list of
+2026-11-20, recorded in [[BPR-2313]]): RFC-BPR-0052 closes to what shipped, and the
+verification that had not run is withdrawn. No closeout pass ran for this card.
+Each criterion stands on its delivering cards' recorded evidence; a row above
+that says it was not run was not run, and is not a pass. The status record at
+the top of each RFC names what shipped and what was withdrawn.

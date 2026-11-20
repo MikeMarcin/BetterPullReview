@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0021"
 title: "Conversation Revision Identity and the Comment-Code History Join"
-status: "Deferred"
+status: "Rejected"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0002","RFC-BPR-0003"]
@@ -10,7 +10,18 @@ pack_version: "post-v2"
 
 # RFC-BPR-0021: Conversation Revision Identity and the Comment-Code History Join
 
-## Status and scope
+## Status: Rejected (owner, 2026-11-20)
+
+This RFC is **Rejected**. The owner approved cutting vestigial and parked
+work on 2026-11-20 ("All, incl. notes check"), and this RFC was on that
+list for rejection. Nothing in it was implemented, no card was opened under
+it, and nothing depends on it: RFC-BPR-0047 named it as a dependency for its
+revision-aware history, which RFC-BPR-0047 closes without (see its own
+status). It cannot be reactivated by a plan, a card or an amendment; a later
+idea about following conversations across revisions needs a new RFC that
+argues for itself from scratch. The text below is kept as it was.
+
+## Status and scope (before rejection)
 
 This is a deferred post-pack RFC. It does not alter the canonical fourteen-RFC
 sequence and blocks no pack-v2 implementation or closeout.

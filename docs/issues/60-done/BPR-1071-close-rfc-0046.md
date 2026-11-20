@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1071"
 title: "Verify and close RFC-BPR-0046"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045", "RFC-BPR-0046"]
 depends_on: ["BPR-1069", "BPR-1070"]
 closeout_for: ["RFC-BPR-0044", "RFC-BPR-0045", "RFC-BPR-0046"]
-metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-20","milestone":"verification-closeout","acceptance":[],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-20","milestone":"verification-closeout","acceptance":[],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"},"closed_by":"owner, 2026-11-20: \"All, incl. notes check\""}
 ---
 
 # BPR-1071: Verify and close RFC-BPR-0046
@@ -94,3 +94,12 @@ Run focused tests and record command/result/producing revision. Reuse unchanged 
 
 Verdict: **STILL-VALID**. Closeout; waits on BPR-1069 and BPR-1070.
 This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Owner closure (2026-11-20)
+
+Closed by owner decision ("All, incl. notes check", the vestigial-work list of
+2026-11-20, recorded in [[BPR-2313]]): RFC-BPR-0044, RFC-BPR-0045 and RFC-BPR-0046 closes to what shipped, and the
+verification that had not run is withdrawn. No closeout pass ran for this card.
+Each criterion stands on its delivering cards' recorded evidence; a row above
+that says it was not run was not run, and is not a pass. The status record at
+the top of each RFC names what shipped and what was withdrawn.

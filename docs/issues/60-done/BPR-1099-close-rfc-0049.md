@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1099"
 title: "Verify and close RFC-BPR-0049"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0049"]
 depends_on: ["BPR-1098"]
 closeout_for: ["RFC-BPR-0049"]
-metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-25","milestone":"closeout","acceptance":["R20","R21","R22","R23","R24","R25","R26","R27","R28","R29","R44","R48"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
+metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-25","milestone":"closeout","acceptance":["R20","R21","R22","R23","R24","R25","R26","R27","R28","R29","R44","R48"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"},"closed_by":"owner, 2026-11-20: \"All, incl. notes check\""}
 ---
 
 # BPR-1099: Verify and close RFC-BPR-0049
@@ -52,3 +52,12 @@ Record the direct test/gesture, actual result, producing revision and limitation
 
 Verdict: **STILL-VALID**. Conventional Comments closeout chain; nothing run. It waits on BPR-1094 (Windows half of R33) and BPR-1095 (Ready, live course on BPR-Test).
 This is a read-only tracker audit: it changes no status, folder or metadata.
+
+## Owner closure (2026-11-20)
+
+Closed by owner decision ("All, incl. notes check", the vestigial-work list of
+2026-11-20, recorded in [[BPR-2313]]): RFC-BPR-0049 closes to what shipped, and the
+verification that had not run is withdrawn. No closeout pass ran for this card.
+Each criterion stands on its delivering cards' recorded evidence; a row above
+that says it was not run was not run, and is not a pass. The status record at
+the top of each RFC names what shipped and what was withdrawn.

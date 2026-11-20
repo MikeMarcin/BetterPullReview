@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0052"
 title: "Review Workbench Scaffolding: Title Row, Review Bar, Folding Updates Line and Document Tabs"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Review workbench scaffolding"
 depends_on: ["RFC-BPR-0025", "RFC-BPR-0028", "RFC-BPR-0029", "RFC-BPR-0037"]
@@ -9,6 +9,17 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","p
 ---
 
 # RFC-BPR-0052: Review Workbench Scaffolding: Title Row, Review Bar, Folding Updates Line and Document Tabs
+
+## Status: Auto-Verified (owner closure, 2026-11-20)
+
+The owner approved the vestigial-work list on 2026-11-20 ("All, incl. notes check", recorded in
+[[BPR-2313]]): close this RFC to what shipped or reject the remaining scope.
+All seventeen slices it names (BPR-1129 to BPR-1134, BPR-1197, BPR-1201 to
+BPR-1210) are Done, so nothing remains to reject. Where a later owner-accepted
+RFC changed what a criterion names, the later RFC governs: RFC-BPR-0127
+retired the Notes tab AC-09 lists. This RFC supersedes RFC-BPR-0028's chrome.
+
+It closes on what it built: no closeout pass ran, each criterion stands on its delivering cards' recorded evidence, and a criterion no card evidenced is not passed. The repository has no Superseded status; a delivered RFC that a later one replaces in part closes Auto-Verified with this record, as RFC-BPR-0025 did. Closed by [[BPR-1135]].
 
 ## Status and scope
 
