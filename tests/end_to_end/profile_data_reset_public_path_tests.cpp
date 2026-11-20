@@ -232,7 +232,8 @@ try {
 	until([&] { return run.window() != nullptr; }, "real profile desktop starts");
 	run.window()->show();
 	until([&] { return fs::exists(root / "state/v1/review-queue.sqlite3"); }, "the profile made its stores");
-	until([&] { return fs::exists(root / "state/v1/review-cycles.sqlite3") && fs::exists(root / "state/v1/appearance-settings.sqlite3") && fs::exists(root / "state/v1/epoch-catalog.sqlite3"); },
+	// [[BPR-2308]] retired the Review Cycles store; the tours store stands in.
+	until([&] { return fs::exists(root / "state/v1/review-tours.sqlite3") && fs::exists(root / "state/v1/appearance-settings.sqlite3") && fs::exists(root / "state/v1/epoch-catalog.sqlite3"); },
 		  "the profile made a store of each kind");
 
 	// An unacknowledged destructive reset never reaches the desktop.
@@ -300,7 +301,7 @@ try {
 	{
 		const auto review = identities(root, review_stores());
 		const auto kept   = identities(root, kept_stores());
-		expect(review.at("review-cycles").has_value(), "a review store exists before its reset");
+		expect(review.at("review-tours").has_value(), "a review store exists before its reset");
 #if !defined(_WIN32)
 		const auto held = hold_removed_stores(root, review);
 #endif
@@ -335,7 +336,7 @@ try {
 			const std::string garbage(4096, 'Z');
 			damaged.write(garbage.data(), static_cast<std::streamsize>(garbage.size()));
 		}
-		const auto ledger = identity(root / "state/v1/review-cycles.sqlite3");
+		const auto ledger = identity(root / "state/v1/review-tours.sqlite3");
 		auto       failed = false;
 		run.Desktop       = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) { failed = !aResult; });
 		until([&] { return failed && run.Desktop->is_quiescent(); }, "a damaged comparison history stops the profile at start");
@@ -344,7 +345,7 @@ try {
 		recovered.DataReset = core::profile_data_reset_request{ reset::caches };
 		run.Desktop         = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, recovered, [](auto) { });
 		until([&] { return run.window() != nullptr && run.window()->statusBar()->currentMessage().startsWith(QStringLiteral("Caches cleared")); }, "the profile opens after a cache reset run before its stores", 60000);
-		expect(ledger.has_value() && identity(root / "state/v1/review-cycles.sqlite3") == ledger, "recovery keeps the review data");
+		expect(ledger.has_value() && identity(root / "state/v1/review-tours.sqlite3") == ledger, "recovery keeps the review data");
 		run.Desktop->quit();
 		until([&] { return run.Desktop->is_quiescent(); }, "desktop drains after recovery");
 		run.Desktop.reset();
