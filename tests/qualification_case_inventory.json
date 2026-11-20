@@ -158,7 +158,7 @@
         "test_inline_drawer_follows_the_code_and_opens_threads_in_place",
         "test_a_suggestion_reads_against_the_compared_lines"
       ],
-      "source_sha256": "69571d1bd3cc7ea24b8657655dd4f2caf96059870bcdb5c385d20f775196a3a8"
+      "source_sha256": "936641fc30476904eccdab233f77ec1ca27135d67e3c4767eca4906ffbefcaa0"
     }
   ],
   "build_report_sha256": "9f3e1a252c099819d2a7f694fff03c4d2da7496f6952eb459395a79f4941c984"
