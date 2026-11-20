@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2320"
 title: "A custom Codex (JSONL) agent's Check always fails: its instructions probe has no working folder, so the process launcher refuses it before the program starts, and the result is labelled as another agent"
-status: "Backlog"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "windows", "linux"]
-metadata: {"kind":"defect","found_by":"owner, 2026-11-20, macOS, main at ffcbf8efc: a custom Codex (JSONL) agent whose program is a corporate sandbox launcher (arguments `--no-extra-output`, `--codex`; Check `--version`; Instructions 'At the start of the prompt'; Rely on the launcher's sandbox on) showed 'Check failed' with 'agent working directory is not an accepted directory'. A custom Claude agent on the same launcher passed. Earlier the same day a custom Claude agent pointed at the launcher's double-click entry instead of its CLI opened an interactive terminal window from the Agent tab","related_cards":["BPR-1375","BPR-1753","BPR-1769","BPR-2305","BPR-2307"],"related_rfcs":["RFC-BPR-0092"]}
+metadata: {"kind":"defect","reservation":"docs/issues/_reservations/BPR-2320--BPR-2320--2ecc059e81b3.json","acceptance":["AC1","AC2","AC3","AC4","AC5"],"owner_verification":"pending","found_by":"owner, 2026-11-20, macOS, main at ffcbf8efc: a custom Codex (JSONL) agent whose program is a corporate sandbox launcher (arguments `--no-extra-output`, `--codex`; Check `--version`; Instructions 'At the start of the prompt'; Rely on the launcher's sandbox on) showed 'Check failed' with 'agent working directory is not an accepted directory'. A custom Claude agent on the same launcher passed. Earlier the same day a custom Claude agent pointed at the launcher's double-click entry instead of its CLI opened an interactive terminal window from the Agent tab","related_cards":["BPR-1375","BPR-1753","BPR-1769","BPR-2305","BPR-2307"],"related_rfcs":["RFC-BPR-0092"]}
 acceptance: []
 ---
 
@@ -184,3 +184,82 @@ failed paths ([[BPR-2307]]).
   double-click entry behaves, not a defect of it.
 - Whether the Agent tab can use an agent whose Check failed. Today's rule
   stands.
+
+## Resolution
+
+- **A.** `build_codex_instructions_probe` returns a `WritingOnly` request, so
+  the process launcher runs it in a fresh `bpr-writing-*` folder and removes
+  it after. It keeps `--skip-git-repo-check`. Every other request built
+  outside a review workspace (status, version, own check, model catalog,
+  `--help`) already was `WritingOnly`. The new
+  `application::names_agent_folder` says whether a request names a folder.
+  The setup host tests' scripted process port expects it of every request, so
+  a builder that forgets fails there. The launcher's refusal and its message
+  are unchanged.
+- **B.** The setup projection now carries `CheckedEntry` (the entry whose
+  result `State.AgentCheck` shows) and `CheckStep` (`sign_in`, `program`,
+  `check_command`, `instructions_probe`, `protocol_probe` or `unknown` for a
+  kept result). `agent_check_words` and the new `agent_check_failure_words`
+  and `checked_agent_name` (Qt) name that entry. A custom entry's row says
+  what its check proves ("… check command passes", "… instructions reach the
+  model", "… answers in Claude Code's stream JSON", "… program can run").
+  The failure line names the step ("… instructions probe didn't start.",
+  "… check command failed."). "Signed in" is left only for a popular agent.
+  Settings › Agents and the Agent tab setup both use them. The likely route
+  to the observed "Claude Code" was Check all, or Check one entry, with no
+  kept result for the chosen entry: the Codex failure stayed on screen, but
+  `setup_agent_name` named the setup agent's kind.
+- **C.** A custom Claude (stream JSON) agent's check runs
+  `build_claude_stream_probe`: one tool-free `-p` turn through its program,
+  with its fixed arguments first, in an empty folder of its own. stdin closes
+  after one message, and the run is bounded like the Codex probe (2 minutes).
+  The check passes only on success with Claude's init frame
+  (`claude_stream_answered`). Plain text or nothing fails as
+  `output_unreadable`, with the words "<name> answered, but not in Claude
+  Code's stream JSON. If its program opens a window, choose the launcher's
+  command-line program instead.", its first line ("Its first line: …" or "It
+  wrote nothing.") and its own check's version. The decoder keeps the first
+  line it read past (`skipped_line`), and a failed run reports it as
+  `RejectedOutputLine` when no line was refused.
+- **C, left open.** The macOS warning for a program inside an `.app`
+  bundle's `Contents/MacOS/` is not implemented. The `CFBundleExecutable`
+  rule could not be confirmed against the launcher, which is not on this
+  machine. The stream JSON turn above now fails Check on such a program
+  before the Agent tab can start it, so the warning would only add an
+  earlier hint. Decide it once the owner has looked at the launcher's bundle.
+
+## Owner step (pending owner verification)
+
+Needs the corporate Mac and its launcher. This step was not run here: the
+launcher is not on this machine, and an agent may not run a real Codex,
+Claude or launcher on the owner's usage. [[BPR-2305]]'s owner step 2, now
+unblocked:
+
+1. Settings › Agents › Check on the custom Codex (JSONL) agent (the
+   launcher's command-line binary, `--no-extra-output`, `--codex`, Check
+   `--version`) passes with "At the start of the prompt", and fails with
+   `instructions_dropped` and the offer to switch when set to developer
+   instructions.
+2. One write-granted turn either writes inside the scratch folder or names the
+   failed paths ([[BPR-2307]]).
+3. Check on the custom Claude agent on the same launcher still passes, now
+   including its stream JSON turn.
+
+## Evidence
+
+Fixture programs only (the canary and a `/bin/sh` script); no real agent ran.
+Candidate `f52e593e6` on main `c30c6c313` (first run on `092f4aa9d`; after the
+rebase over [[BPR-2318]] the AC1, AC3, AC4 and AC5 suites, `qt_agent_setup_view`,
+`qt_settings_window` and the documentation gate were run again and pass), dev preset (debug info off to fit the disk), macOS:
+
+| Criterion | Check | Result |
+|---|---|---|
+| AC1 | `qt_custom_agent_check` › `test_a_custom_codex_check_passes_through_the_launcher`: the real `agent_process_launcher` and the canary as program. Check passes with both Instructions settings. The probe reports its folder as `bpr-writing-*`, and the folder is gone afterwards | Passed |
+| AC1 | `qt_custom_agent_check` › `test_the_launcher_refuses_a_request_with_no_folder`: neither folder nor `WritingOnly` is refused with "agent working directory is not an accepted directory" before it starts; the probe request runs | Passed |
+| AC1 | `application_agent_launch_policy` › `test_the_codex_instructions_probe` (`WritingOnly` with both settings, `--skip-git-repo-check`, `names_agent_folder`) | Passed |
+| AC2 | `application_agent_setup_host` › `test_a_custom_codex_check_proves_its_instructions_arrive`: a fixture launcher that drops developer instructions gets `instructions_dropped` and the offer. Its port refuses a request with no folder, so this ran past where the owner's run failed | Passed; the live launcher is the owner step |
+| AC3 | `application_agent_setup_host` › `test_a_custom_claude_check_proves_it_answers_in_stream_json`: a Codex entry checked while a never-checked Claude entry is preferred sets `CheckedEntry` to the Codex entry. `qt_custom_agent_check` › `test_the_result_names_the_checked_entry`: the row reads "Launcher Codex's instructions reach the model", the failure reads "Launcher Codex's instructions probe didn't start.", and neither says "Claude Code" or "signed in" | Passed |
+| AC4 | `application_agent_setup_host` (plain text: `output_unreadable` with first line and version; nothing written, exit 0: same; init frame: passes; failed check command named as that step), `application_agent_launch_policy` › `test_the_claude_stream_probe`, `qt_custom_agent_check` › `test_a_custom_claude_check_needs_stream_json` (the canary passes; a `/bin/sh` program printing a banner fails with the protocol named and its first line) | Passed |
+| AC5 | `application_agent_launch`, `application_agent_protocol_loop`, `application_agent_helper_turn`, `application_claude_process_wrapper`, `core_agent_setup`, `qt_agent_setup_view`, `qt_settings_window`, `qt_agent_launch_panel`, `qt_agent_launch_canary`, `qt_claude_process_wrapper`, `qt_review_tour_agent_setup_call`, `application_agent_setup_host_policy_public_path`, `architecture_boundaries` | Passed |
+| AC5 | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+| Standard | clang-format 22.1.8 on every changed C++ file. `coding-format-check` flags only `tests/end_to_end/follow_up_public_path.cpp`, untouched here and unformatted on main since `58eae7f05`. `tidy.py --warnings-as-errors` on the touched units: three findings, all in lines this card did not change (`agent_launch.cpp:1829`, `agent_launch_policy_tests.cpp:227,239`) | Passed for new code |
