@@ -353,6 +353,9 @@ namespace bpr::app {
 		// and the Pull Request menu.
 		Window->set_draft_state_dispatch(
 			[this](const core::draft_state_change aChange) { change_draft_state(aChange); });
+		// [[BPR-2329]]. Enable auto-merge (with its method) and Disable, in Merge.
+		Window->overview_page()->set_auto_merge_dispatch(
+			[this](const core::auto_merge_change aChange, const std::optional<core::merge_method> aMethod) { change_auto_merge(aChange, aMethod); });
 		// [[BPR-1804]]. Request review in People and its picker.
 		Window->overview_page()->set_reviewer_picker_dispatch(
 			[this](const qt::reviewer_picker_gesture& aGesture) { reviewer_gesture(aGesture); });

@@ -71,6 +71,7 @@
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/appearance_model.hpp"
+#include "bpr/core/auto_merge.hpp"
 #include "bpr/core/commit_filter.hpp"
 #include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/conversation_mutation_lifecycle.hpp"
@@ -1414,6 +1415,17 @@ namespace bpr::app {
 
 		void retire_draft_state_change();
 
+		/// \brief [[BPR-2329]]. Auto-merge: the core's projection over a read,
+		/// whether the connection can change it, the gesture, GitHub's answer,
+		/// a new read, and a retired host.
+		[[nodiscard]] auto projected_auto_merge(const application::github_pull_request_snapshot& aSnapshot) const -> std::optional<core::projected_auto_merge>;
+		[[nodiscard]] auto auto_merge_control() const -> bool;
+		void               observe_auto_merge_change();
+		void               present_overview_auto_merge();
+		void               change_auto_merge(core::auto_merge_change aChange, std::optional<core::merge_method> aMethod);
+		void               publish_auto_merge(const application::review_auto_merge_terminal& aTerminal) override;
+		void               retire_auto_merge_change();
+
 		void publish_reviewers(const application::review_reviewer_terminal& aTerminal) override;
 
 		void retire_reviewer_picker();
@@ -2653,6 +2665,23 @@ namespace bpr::app {
 		std::size_t                        DraftStateCompletions     = 0U;
 		std::size_t                        DraftStateFailures        = 0U;
 		std::size_t                        OverviewDraftStateUpdates = 0U;
+		/// [[BPR-2329]]. The viewer's auto-merge change that reads have not
+		/// caught up with, the pull request it was asked on, the change in
+		/// flight, and what came of changes.
+		struct pending_auto_merge
+		{
+			application::review_mutation_request_context Context;
+			std::uint64_t                                Request = 0U;
+			core::auto_merge_change                      Change  = core::auto_merge_change::enable;
+		};
+		core::auto_merge_overlay          AutoMergeOverlay;
+		std::optional<std::string>        AutoMergeOverlayPullRequest;
+		std::optional<pending_auto_merge> PendingAutoMerge;
+		std::uint64_t                     AutoMergeRequests    = 0U;
+		std::size_t                       AutoMergeGestures    = 0U;
+		std::size_t                       AutoMergeRefusals    = 0U;
+		std::size_t                       AutoMergeCompletions = 0U;
+		std::size_t                       AutoMergeFailures    = 0U;
 		/// [[BPR-1775]]. The comment save in flight, and what came of saves.
 		std::optional<application::review_mutation_request_context> PendingCommentEdit;
 		std::size_t                                                 CommentEditGestures    = 0U;

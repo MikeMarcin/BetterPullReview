@@ -4175,6 +4175,55 @@ namespace {
 			   "without a conflict, Merge waits for the check and says nothing of conflicts");
 	}
 
+	/// [[BPR-2329]]. Merge's auto-merge line, Enable with a menu of the
+	/// allowed methods, Disable, and a status line that holds the buttons
+	/// while GitHub answers. The page dispatches gestures and sends nothing.
+	void test_merge_offers_auto_merge()
+	{
+		using section = qt::overview_status_section;
+		qt::pull_request_overview_page page;
+		page.resize(1'100, 900);
+		auto asked = std::vector<std::pair<core::auto_merge_change, std::optional<core::merge_method>>>{ };
+		page.set_auto_merge_dispatch([&asked](const core::auto_merge_change aChange, const std::optional<core::merge_method> aMethod) { asked.emplace_back(aChange, aMethod); });
+		auto projected      = status_projection();
+		projected.AutoMerge = application::overview_auto_merge{ .Line = "Auto-merge is off.", .Offer = { .Change = core::auto_merge_change::enable, .Methods = { core::merge_method::squash, core::merge_method::rebase } } };
+		page.present(projected);
+		page.show();
+		page.status_section_header(section::attention)->setChecked(true);
+		settle();
+		expect(page.auto_merge_line()->isVisible() && page.auto_merge_line()->accessibleName() == QStringLiteral("Auto-merge is off."), "off is said in Merge");
+		auto* const enable = page.enable_auto_merge_button();
+		expect(enable->isVisible() && !page.disable_auto_merge_button()->isVisible(), "Enable is offered, Disable is not");
+		const auto methods = enable->menu()->actions();
+		expect(methods.size() == 2 && methods[0]->text() == QStringLiteral("Squash and merge") && methods[1]->text() == QStringLiteral("Rebase and merge"), "the menu lists only the allowed methods, in GitHub's words");
+		methods[1]->trigger();
+		expect(asked.size() == 1U && asked.back() == std::pair{ core::auto_merge_change::enable, std::optional{ core::merge_method::rebase } }, "a method chosen asks to enable with it");
+
+		page.present_auto_merge_status(QString{ }, true);
+		expect(!enable->isEnabled(), "while GitHub answers, the buttons wait");
+		methods[0]->trigger();
+		expect(asked.size() == 1U, "and nothing more is asked");
+		page.present_auto_merge_status(QStringLiteral("GitHub did not let you enable auto-merge. Nothing changed."));
+		expect(enable->isEnabled() && page.auto_merge_status()->isVisible() && page.auto_merge_status()->text().startsWith(QStringLiteral("GitHub did not let you")), "a refusal is said, and the buttons come back");
+
+		auto on      = projected;
+		on.AutoMerge = application::overview_auto_merge{ .Enabled = true, .Line = "Auto-merge is enabled (rebase) by fixture-author: GitHub merges it once every requirement is met.", .Offer = { .Change = core::auto_merge_change::disable } };
+		expect(page.present_auto_merge_state(on), "the same pull request's auto-merge is taken in place");
+		settle();
+		expect(page.disable_auto_merge_button()->isVisible() && !enable->isVisible() && page.auto_merge_line()->accessibleName().startsWith(QStringLiteral("Auto-merge is enabled (rebase)")), "on: Disable is offered");
+		page.disable_auto_merge_button()->click();
+		expect(asked.size() == 2U && asked.back() == std::pair{ core::auto_merge_change::disable, std::optional<core::merge_method>{ } }, "Disable asks with no method");
+
+		auto quiet      = projected;
+		quiet.AutoMerge = std::nullopt;
+		expect(page.present_auto_merge_state(quiet), "taken in place");
+		settle();
+		expect(!page.auto_merge_line()->isVisible() && !enable->isVisible() && !page.disable_auto_merge_button()->isVisible(), "a repository that does not allow it shows nothing");
+		auto other   = projected;
+		other.Number = core::pull_request_number{ 9'999U };
+		expect(!page.present_auto_merge_state(other), "another pull request is refused, for the caller to present whole");
+	}
+
 	void test_conversation_count_is_cleared_with_the_pull_request()
 	{
 		auto page = qt::pull_request_overview_page{ };
@@ -4506,6 +4555,7 @@ auto main(int argc, char** argv) -> int
 	test_status_leads_with_my_role_and_what_needs_attention();
 	test_status_lines_are_their_own_actions();
 	test_merge_shows_the_conflict_and_how_to_resolve_it();
+	test_merge_offers_auto_merge();
 	test_conversation_count_is_cleared_with_the_pull_request();
 	test_a_requested_reviewer_moves_people_in_place();
 	test_a_draft_is_said_and_its_author_can_publish_it();

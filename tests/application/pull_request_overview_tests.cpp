@@ -743,6 +743,56 @@ namespace {
 		expect(application::apply_draft_state(moved, review, std::nullopt) && moved.MergeConflict && moved.MergeConflict->Files == context.ConflictingPaths, "withdrawn, the conflict returns");
 	}
 
+	/// [[BPR-2329]]. Auto-merge's line and offer: shown when the repository
+	/// allows it, offered as the core decides when the connection can change
+	/// it, and moved in place by the viewer's own change.
+	void test_auto_merge_is_shown_and_offered()
+	{
+		auto review                    = snapshot();
+		review.Merge.Availability      = application::github_observation_availability::available;
+		review.Merge.Assessment        = application::github_merge_assessment::blocked;
+		review.Merge.AutoMerge         = false;
+		review.Merge.AutoMergeSettings = application::github_auto_merge_settings{ .Allowed = true, .MergeCommit = false, .Squash = true, .Rebase = true, .ViewerCanEnable = true, .ViewerCanDisable = false };
+		auto context                   = application::overview_context{ };
+		auto off                       = application::project_pull_request_overview(review, context);
+		expect(off.AutoMerge && off.AutoMerge->Line == "Auto-merge is off." && !off.AutoMerge->Offer.Change, "off is said; without the connection's capability nothing is offered");
+		context.AutoMergeControl = true;
+		off                      = application::project_pull_request_overview(review, context);
+		expect(off.AutoMerge->Offer.Change == core::auto_merge_change::enable && off.AutoMerge->Offer.Methods == std::vector{ core::merge_method::squash, core::merge_method::rebase },
+			   "with it, Enable with the methods the repository allows");
+
+		review.Merge.AutoMerge                           = true;
+		review.Merge.AutoMergeRequest                    = application::github_auto_merge_request{ .Method = application::github_merge_method::squash, .EnabledBy = "fixture-author" };
+		review.Merge.AutoMergeSettings->ViewerCanDisable = true;
+		const auto on                                    = application::project_pull_request_overview(review, context);
+		expect(on.AutoMerge->Enabled && on.AutoMerge->Line == "Auto-merge is enabled (squash) by fixture-author: GitHub merges it once every requirement is met." && on.AutoMerge->Offer.Change == core::auto_merge_change::disable
+				   && on.MergeNotes.empty(),
+			   "on: its line replaces the note, and Disable is offered");
+
+		review.Merge.AutoMergeSettings->Allowed = false;
+		expect(!application::project_pull_request_overview(review, context).AutoMerge, "a repository that does not allow auto-merge shows no line and no control");
+		review.Merge.AutoMergeSettings.reset();
+		const auto unknown = application::project_pull_request_overview(review, context);
+		expect(!unknown.AutoMerge && unknown.MergeNotes.size() == 1U && unknown.MergeNotes.front().starts_with("Auto-merge is enabled (squash)"), "a read without the settings keeps the note alone");
+
+		// The viewer's own change, in place, as projecting would decide.
+		review.Merge.AutoMerge = false;
+		review.Merge.AutoMergeRequest.reset();
+		review.Merge.AutoMergeSettings = application::github_auto_merge_settings{ .Allowed = true, .Squash = true, .ViewerCanEnable = true };
+		auto       moved               = application::project_pull_request_overview(review, context);
+		const auto pending             = core::projected_auto_merge{ .Enabled = true, .Pending = true, .Method = core::merge_method::squash };
+		expect(application::apply_auto_merge_state(moved, review, pending, true) && moved.AutoMerge->Pending && moved.AutoMerge->Enabled && !moved.AutoMerge->Offer.Change
+				   && moved.AutoMerge->Line.ends_with("Waiting for GitHub."),
+			   "an enable asked is shown at once, waiting, with nothing more offered");
+		context.ProjectedAutoMerge = pending;
+		expect(moved == application::project_pull_request_overview(review, context), "and that is the projection");
+		const auto answered = core::projected_auto_merge{ .Enabled = true, .Method = core::merge_method::squash };
+		expect(application::apply_auto_merge_state(moved, review, answered, true) && moved.AutoMerge->Offer.Change == core::auto_merge_change::disable
+				   && moved.AutoMerge->Line.starts_with("Auto-merge is enabled (squash)"),
+			   "answered, Disable is offered before a read agrees");
+		expect(!application::apply_auto_merge_state(moved, review, answered, true), "the same state changes nothing");
+	}
+
 	/// [[BPR-1589]]. The Status drawer's role and attention, from the snapshot.
 	void test_status_leads_with_my_role_and_what_needs_attention()
 	{
@@ -902,6 +952,7 @@ auto main() -> int
 {
 	test_merge_evidence_boundaries();
 	test_merge_names_the_conflict_and_what_else_blocks();
+	test_auto_merge_is_shown_and_offered();
 	test_status_leads_with_my_role_and_what_needs_attention();
 	test_a_requested_reviewer_moves_people_as_a_projection_would();
 	test_a_draft_state_change_moves_the_overview_as_a_projection_would();
