@@ -121,6 +121,17 @@ namespace bpr::qt {
 		GithubRefreshAction->setShortcuts(shortcut_keys(shortcut_command::refresh));
 		GithubRefreshAction->setShortcutContext(Qt::ApplicationShortcut);
 		addAction(GithubRefreshAction);
+		// [[BPR-2315]]. Refresh pressed while the application's own read runs
+		// quietly: the core keeps that read rather than starting another, and
+		// from this gesture on it is the reviewer's and shows its wait.
+		connect(GithubRefreshAction, &QAction::triggered, this, [this] {
+			if (AutomaticRefreshCause.has_value() || !core::refresh_quiet(PullRefresh)) {
+				return;
+			}
+			apply_refresh_event(false, core::refresh_started{ .Trigger = core::refresh_trigger::reviewer });
+			update_pending_panes();
+			present_status_line();
+		});
 		// [[BPR-0990]]. Home's refresh glyph is the profile's discovery, not
 		// the pull request's refresh: the same place in the strip, its own
 		// action, shown only on Home with an account. [[BPR-1600]]: the

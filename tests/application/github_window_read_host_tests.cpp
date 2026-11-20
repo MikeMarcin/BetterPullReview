@@ -4,6 +4,7 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/pull_request_link_location.hpp"
 #include "bpr/application/reference_page.hpp"
+#include <algorithm>
 #include <cstdlib>
 #include <expected>
 #include <iostream>
@@ -874,6 +875,27 @@ namespace {
 				&& event.Summary.text() == "cancel_cause=" + std::string{ application::name(aCause) }
 			&& application::parse_pull_request_cancel_detail(event.Summary.text()) == aCause;
 		};
+		// [[BPR-2315]]. A refresh's started line names what asked for it; an
+		// opening's names nothing.
+		const auto started = [&log]() -> std::string {
+			const auto found = std::ranges::find_if(log.Events.rbegin(), log.Events.rend(), [](const auto& aEvent) {
+				return aEvent.Operation == application::diagnostic_operation::pull_request && aEvent.Outcome == application::diagnostic_outcome::started;
+			});
+			return found == log.Events.rend() ? std::string{ "none" } : std::string{ found->Summary.text() };
+		};
+		const auto opened = open();
+		expect(started().empty(), "an opening's started line names no cause");
+		opened.Complete(application::github_pull_request_success{ opened.Request, snapshot(opened.Request) });
+		lane.drain();
+		for (const auto cause : { core::refresh_cause::activity, core::refresh_cause::return_to_window, core::refresh_cause::reviewer }) {
+			host->dispatch(core::refresh_pull_request_intent{ }, cause);
+			lane.drain();
+			const auto call = provider.Calls.back();
+			call.Complete(application::github_pull_request_success{ call.Request, snapshot(call.Request) });
+			lane.drain();
+			expect(started() == "refresh_cause=" + std::string{ core::name(cause) } && core::parse_refresh_cause_detail(started()) == cause,
+				   "a refresh's started line names its cause");
+		}
 		static_cast<void>(open());
 		host->cancel(application::pull_request_cancel_cause::reviewer);
 		expect(named(application::pull_request_cancel_cause::reviewer), "Home's Cancel is named as the reviewer's");

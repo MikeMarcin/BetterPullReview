@@ -261,7 +261,7 @@ try {
 		// ---- an update the window makes by itself -------------------------
 		heard.clear();
 		script(*delay, { outcome::new_reply });
-		window->run_automatic_refresh([refresh] { refresh->trigger(); });
+		window->run_automatic_refresh(core::refresh_cause::publication, [refresh] { refresh->trigger(); });
 		expect(window->pull_request_refresh().Trigger == core::refresh_trigger::automatic, "the window's own read is automatic");
 		expect(!(note->isVisible() && note->tone() == qt::refresh_note_tone::busy), "it starts without a note");
 		settlePr("the automatic refresh settles");

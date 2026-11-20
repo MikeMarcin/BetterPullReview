@@ -1,11 +1,13 @@
 // [[BPR-1575]]. A refresh's lifecycle on Home and the pull request: who asked,
 // what changed between the two accepted reads, how old the last update is in
 // words, and what a screen reader is told. Automatic updates stay quiet unless
-// they bring news; the reviewer's own refresh is always answered.
+// they bring news; the reviewer's own refresh is always answered. [[BPR-2315]]:
+// a read the reviewer did not ask for never shows its wait.
 #include "bpr/core/refresh_feedback.hpp"
 
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <string_view>
 
 namespace {
@@ -191,6 +193,51 @@ namespace {
 		expect(decide_reread({ .Owed = true, .Quiet = false, .Composing = true }) == reread_step::now, "a publication's reread does not");
 		expect(decide_reread({ .Owed = true, .Quiet = true }) == reread_step::now, "news runs once the reviewer stops");
 	}
+	// [[BPR-2315]]. The decision table: who started the read, what it brought
+	// and how it ended, against whether it shows its wait and leaves a cue.
+	void test_a_read_the_reviewer_did_not_ask_for_stays_out_of_the_way()
+	{
+		const auto settled = refresh_state{ .Phase = refresh_phase::updated, .UpdatedAt = 100, .SettledAt = 100 };
+		const auto started = [&settled](const refresh_trigger aTrigger) { return apply_refresh(settled, refresh_started{ .Trigger = aTrigger }); };
+		const auto news    = refresh_changes{ .NewComments = 1U };
+		for (const auto phase : { refresh_phase::never, refresh_phase::updated, refresh_phase::failed }) {
+			for (const auto trigger : { refresh_trigger::reviewer, refresh_trigger::automatic, refresh_trigger::elsewhere }) {
+				expect(!refresh_quiet({ .Phase = phase, .Trigger = trigger }), "a settled refresh has no wait to keep quiet");
+			}
+		}
+		expect(!refresh_quiet(started(refresh_trigger::reviewer)), "the reviewer's own read shows its wait");
+		expect(refresh_quiet(started(refresh_trigger::automatic)), "the application's own read is quiet");
+		expect(refresh_quiet(started(refresh_trigger::elsewhere)), "so is one another window made");
+		const auto promoted = apply_refresh(started(refresh_trigger::automatic), refresh_started{ .Trigger = refresh_trigger::reviewer });
+		expect(!refresh_quiet(promoted), "pressing Refresh during a quiet read makes it show");
+		expect(!refresh_quiet(apply_refresh(started(refresh_trigger::reviewer), refresh_started{ .Trigger = refresh_trigger::automatic })),
+			   "an automatic start never quietens the reviewer's read");
+		for (const auto trigger : { refresh_trigger::reviewer, refresh_trigger::automatic, refresh_trigger::elsewhere }) {
+			const auto before  = started(trigger);
+			const auto nothing = apply_refresh(before, refresh_succeeded{ .At = 500 });
+			const auto brought = apply_refresh(before, refresh_succeeded{ .Changes = news, .At = 500 });
+			const auto failed  = apply_refresh(before, refresh_failed{ .Failure = refresh_failure::offline, .At = 500 });
+			expect(refresh_settled_cue(before, nothing) == (trigger == refresh_trigger::reviewer), "nothing new is cued for the reviewer's refresh only");
+			expect(refresh_settled_cue(before, brought), "news is cued whoever asked");
+			expect(!refresh_settled_cue(before, failed), "a failure is said, not cued");
+			expect(!refresh_quiet(nothing) && !refresh_quiet(failed), "an ended read is not under way");
+			expect(!refresh_settled_cue(nothing, nothing), "the same settled state cues nothing again");
+		}
+		const auto handed = apply_refresh(settled, refresh_succeeded{ .Changes = news, .At = 600 });
+		expect(refresh_settled_cue(settled, handed), "an answer handed over with news, with no read here, is cued once");
+	}
+
+	void test_each_cause_is_named_for_the_log()
+	{
+		for (const auto cause : { refresh_cause::reviewer, refresh_cause::activity, refresh_cause::return_to_window, refresh_cause::publication, refresh_cause::edit }) {
+			const auto detail = std::string{ refresh_cause_detail_prefix } + std::string{ name(cause) };
+			expect(parse_refresh_cause_detail(detail) == cause, "every cause reads back from its detail");
+		}
+		expect(name(refresh_cause::return_to_window) == "return" && name(refresh_cause::activity) == "activity", "the log's words");
+		expect(!parse_refresh_cause_detail("refresh_cause=").has_value() && !parse_refresh_cause_detail("refresh_cause=timer").has_value()
+				   && !parse_refresh_cause_detail("activity").has_value() && !parse_refresh_cause_detail("refresh_cause=activity ").has_value(),
+			   "nothing else is a cause");
+	}
 } // namespace
 
 auto main() -> int
@@ -207,6 +254,8 @@ auto main() -> int
 	test_announcements();
 	test_a_return_reads_an_aged_pull_request();
 	test_an_owed_reread_waits_its_turn();
+	test_a_read_the_reviewer_did_not_ask_for_stays_out_of_the_way();
+	test_each_cause_is_named_for_the_log();
 	std::cout << "refresh feedback tests passed\n";
 	return EXIT_SUCCESS;
 }

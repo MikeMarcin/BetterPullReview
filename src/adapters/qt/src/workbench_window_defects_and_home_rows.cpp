@@ -1617,9 +1617,11 @@ namespace bpr::qt {
 		if (SessionPanel == nullptr) {
 			return;
 		}
-		const auto reading    = SessionPanel->status() == core::github_status::loading_pull_request;
-		const auto first      = reading && !HasGithubPullRequest && !HasCachedOverview;
-		const auto refreshing = reading && HasGithubPullRequest;
+		const auto reading = SessionPanel->status() == core::github_status::loading_pull_request;
+		const auto first   = reading && !HasGithubPullRequest && !HasCachedOverview;
+		// [[BPR-2315]]. A read the reviewer did not ask for never washes over
+		// what they read: it lands in place.
+		const auto refreshing = reading && HasGithubPullRequest && !core::refresh_quiet(PullRefresh);
 		if (!reading) {
 			RefreshConversationCurrent = false;
 		}
@@ -1699,13 +1701,19 @@ namespace bpr::qt {
 		}
 	}
 
-	void workbench_window::run_automatic_refresh(const std::function<void()>& aDispatch)
+	void workbench_window::run_automatic_refresh(const core::refresh_cause aCause, const std::function<void()>& aDispatch)
 	{
-		AutomaticRefreshNoted = true;
+		const auto outer      = AutomaticRefreshCause;
+		AutomaticRefreshCause = aCause;
 		if (aDispatch) {
 			aDispatch();
 		}
-		AutomaticRefreshNoted = false;
+		AutomaticRefreshCause = outer;
+	}
+
+	auto workbench_window::automatic_refresh_cause() const noexcept -> std::optional<core::refresh_cause>
+	{
+		return AutomaticRefreshCause;
 	}
 
 	auto workbench_window::pull_request_refresh() const noexcept -> const core::refresh_state&
@@ -1746,6 +1754,10 @@ namespace bpr::qt {
 		const auto  age   = state.UpdatedAt.has_value() ? refresh_age_words(core::refresh_age_at(*state.UpdatedAt, refresh_clock())) : QString{ };
 		switch (state.Phase) {
 		case core::refresh_phase::refreshing:
+			// [[BPR-2315]]. A quiet read leaves the words as they were.
+			if (!home && core::refresh_quiet(state)) {
+				return age.isEmpty() ? QString{ } : QStringLiteral("Updated %1").arg(age);
+			}
 			return state.Trigger == core::refresh_trigger::reviewer ? QStringLiteral("Refreshing…") : QStringLiteral("Updating…");
 		case core::refresh_phase::failed:
 			return age.isEmpty() ? QStringLiteral("Not refreshed") : QStringLiteral("Not refreshed · updated %1").arg(age);
@@ -1790,7 +1802,7 @@ namespace bpr::qt {
 			RefreshEnded.reset();
 			RefreshConversationCurrent = false;
 			RefreshBaseline            = RefreshLatest;
-			apply_refresh_event(false, core::refresh_started{ .Trigger = AutomaticRefreshNoted ? core::refresh_trigger::automatic : core::refresh_trigger::reviewer });
+			apply_refresh_event(false, core::refresh_started{ .Trigger = AutomaticRefreshCause.has_value() ? core::refresh_trigger::automatic : core::refresh_trigger::reviewer });
 			return;
 		}
 		RefreshEnded = aRead;

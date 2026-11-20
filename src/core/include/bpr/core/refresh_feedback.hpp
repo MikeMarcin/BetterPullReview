@@ -20,10 +20,12 @@
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/review_queue.hpp"
 
+#include <array>
 #include <compare>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -229,6 +231,55 @@ namespace bpr::core {
 	/// never interrupts a reader.
 	[[nodiscard]] auto refresh_announcement_between(const refresh_state& aBefore, const refresh_state& aAfter) noexcept
 		-> refresh_announcement;
+
+	/// \brief [[BPR-2315]]. Whether a read under way stays out of the reader's way.
+	/// \details The owner, 2026-11-20: "I just get the feeling like my PRs dim
+	/// while I'm reading them quite often", and of the reread on coming back:
+	/// "after 5 minutes usually nothing has changed so its just disruptive for
+	/// no value for it to dim like that". A read the application makes by
+	/// itself, or one another window made, is quiet while it runs: what the
+	/// reviewer reads is not veiled, the status line keeps its words, and the
+	/// Refresh button neither turns nor says it is busy; the content is updated
+	/// in place when the read lands. Only the reviewer's own Refresh shows its
+	/// wait (a first load is not a refresh and keeps its own loading look).
+	/// Pressing Refresh during a quiet read makes it the reviewer's, and from
+	/// then on it shows.
+	[[nodiscard]] auto refresh_quiet(const refresh_state& aState) noexcept -> bool;
+
+	/// \brief [[BPR-2315]]. Whether a read that just ended leaves its settled
+	/// cue: the tick on Refresh and the note saying what it brought.
+	/// \details The reviewer's own refresh always does, saying nothing new when
+	/// it found nothing. A quiet one does only when it brought something, so a
+	/// reread that found nothing changes nothing on screen. A failure is not a
+	/// settled cue: it is always said.
+	[[nodiscard]] auto refresh_settled_cue(const refresh_state& aBefore, const refresh_state& aAfter) noexcept -> bool;
+
+	/// \brief [[BPR-2315]]. Why the open pull request is read again, as the
+	/// diagnostic log names it, so a reread the reviewer noticed can be matched
+	/// with what asked for it.
+	enum class refresh_cause : std::uint8_t {
+		/// The reviewer's Refresh: the button, its shortcut, its menu item or Retry.
+		reviewer,
+		/// [[BPR-1850]]. The notification poll reported activity on it.
+		activity,
+		/// [[BPR-1867]]. The window came back to it after its update aged.
+		return_to_window,
+		/// The reviewer published a review, a reply or a resolution.
+		publication,
+		/// The reviewer saved an edit to the description or a comment.
+		edit,
+	};
+
+	/// \brief The logged names of each cause, in order.
+	inline constexpr std::array<std::string_view, 5> refresh_cause_names{ "reviewer", "activity", "return", "publication", "edit" };
+	/// \brief A pull request read's started line names its cause as exactly
+	/// `refresh_cause=NAME`.
+	inline constexpr std::string_view refresh_cause_detail_prefix = "refresh_cause=";
+
+	[[nodiscard]] auto name(refresh_cause aCause) noexcept -> std::string_view;
+	/// \brief The cause a started line's detail names, when it is exactly
+	/// `refresh_cause=NAME` for a known cause.
+	[[nodiscard]] auto parse_refresh_cause_detail(std::string_view aDetail) noexcept -> std::optional<refresh_cause>;
 
 	/// \brief [[BPR-1867]]. How long the open pull request stays current for a
 	/// window that comes back to it: Home's discovery keeps the same five minutes.

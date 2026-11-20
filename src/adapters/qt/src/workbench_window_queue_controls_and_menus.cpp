@@ -269,7 +269,9 @@ namespace bpr::qt {
 		if (state.Phase != core::refresh_phase::updated) {
 			(aHome ? HomeSettledCue : PullSettledCue) = false;
 		}
-		if (state.Phase == core::refresh_phase::updated && before.Phase == core::refresh_phase::refreshing) {
+		// [[BPR-2315]]. A pull request reread that found nothing it was not
+		// asked for leaves no tick: nothing on screen changes.
+		if (state.Phase == core::refresh_phase::updated && before.Phase == core::refresh_phase::refreshing && (aHome || core::refresh_settled_cue(before, state))) {
 			(aHome ? HomeSettledCue : PullSettledCue) = true;
 			if (auto* const cue = aHome ? HomeCueTimer : PullCueTimer; cue != nullptr) {
 				cue->start();
@@ -290,7 +292,7 @@ namespace bpr::qt {
 				break;
 			case core::refresh_phase::updated:
 				if (before.Phase == core::refresh_phase::refreshing || state.SettledAt != before.SettledAt) {
-					if (state.Trigger == core::refresh_trigger::reviewer || core::any(state.Changes)) {
+					if (core::refresh_settled_cue(before, state)) {
 						RefreshNote->present(refresh_note_tone::settled, refresh_result_text(aHome, state), button, 5'000);
 					} else if (RefreshNote->tone() == refresh_note_tone::busy) {
 						RefreshNote->dismiss();
@@ -335,7 +337,8 @@ namespace bpr::qt {
 			if (aAction == nullptr) {
 				return;
 			}
-			const auto busy = aState.Phase == core::refresh_phase::refreshing;
+			// [[BPR-2315]]. The pull request's quiet read does not engage the button.
+			const auto busy = aState.Phase == core::refresh_phase::refreshing && (aHome || !core::refresh_quiet(aState));
 			const auto look = busy ? (full ? strip_refresh_look::turning : strip_refresh_look::waiting)
 				: aCue             ? strip_refresh_look::settled
 								   : strip_refresh_look::idle;
@@ -351,7 +354,9 @@ namespace bpr::qt {
 				button->update();
 			}
 			auto describe = QString{ };
-			switch (aState.Phase) {
+			// A quiet read is described as the update it has not replaced yet.
+			const auto described = aState.Phase == core::refresh_phase::refreshing && !busy ? core::refresh_phase::updated : aState.Phase;
+			switch (described) {
 			case core::refresh_phase::refreshing:
 				describe = aHome ? QStringLiteral("Finding my pull requests in saved repositories…") : QStringLiteral("Refreshing the pull request…");
 				break;
@@ -385,7 +390,7 @@ namespace bpr::qt {
 		};
 		present(GithubRefreshAction, PullRefresh, PullSettledCue, RefreshSlowTimer, false);
 		present(QueueRefreshAction, HomeRefresh, HomeSettledCue, HomeSlowTimer, true);
-		const auto turning = full && (PullRefresh.Phase == core::refresh_phase::refreshing || HomeRefresh.Phase == core::refresh_phase::refreshing);
+		const auto turning = full && ((PullRefresh.Phase == core::refresh_phase::refreshing && !core::refresh_quiet(PullRefresh)) || HomeRefresh.Phase == core::refresh_phase::refreshing);
 		if (turning && !RefreshFrames->isActive()) {
 			RefreshFrames->start();
 		} else if (!turning) {
@@ -414,7 +419,7 @@ namespace bpr::qt {
 			RefreshFreshness->setAccessibleDescription(RefreshFreshness->toolTip());
 			RefreshFreshness->setVisible(!words.isEmpty());
 			// The words age on their own: woken exactly when they would change.
-			if (state.UpdatedAt.has_value() && state.Phase != core::refresh_phase::refreshing && RefreshAgeTimer != nullptr) {
+			if (state.UpdatedAt.has_value() && (state.Phase != core::refresh_phase::refreshing || (!showing_home() && core::refresh_quiet(state))) && RefreshAgeTimer != nullptr) {
 				const auto next = core::refresh_age_next_change_seconds(*state.UpdatedAt, refresh_clock());
 				RefreshAgeTimer->start(static_cast<int>(std::clamp<std::int64_t>(next, 1, 86'400) * 1'000));
 			}

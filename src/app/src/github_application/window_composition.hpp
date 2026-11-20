@@ -1907,11 +1907,14 @@ namespace bpr::app {
 		/// (activity on GitHub, a return to an aged pull request): it waits
 		/// while the reviewer writes. A publication's reread clears it.
 		bool RereadQuiet = false;
+		/// [[BPR-2315]]. What owes the reread, for its diagnostic line: a
+		/// publication outranks news.
+		core::refresh_cause RereadCause = core::refresh_cause::publication;
 		/// A wait for the reviewer to stop writing is asked again after this.
 		bool               RereadRetrying = false;
 		void               reread_after_publication();
 		void               hand_on_activity(const std::vector<core::pull_request_ref>& aActive);
-		void               reread_for_news();
+		void               reread_for_news(core::refresh_cause aCause);
 		void               schedule_publication_reread();
 		void               pay_publication_reread();
 		void               schedule_link_location();

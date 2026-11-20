@@ -1455,12 +1455,12 @@ DefectThreadNames.reset();
 				return;
 			}
 			if (const auto shown = Window->shown_pull_request(); shown && core::activity_concerns(aActive, *shown)) {
-				reread_for_news();
+				reread_for_news(core::refresh_cause::activity);
 			}
 		};
 		Window->set_pull_request_return_dispatch([this, weak](const std::int64_t aNow) {
 			if (!weak.expired() && !Closing && Window && core::refresh_due_on_return(Window->pull_request_refresh(), aNow)) {
-				reread_for_news();
+				reread_for_news(core::refresh_cause::return_to_window);
 			}
 		});
 		Window->set_activity_notifications_dispatch([this, weak](const bool aEnabled) {

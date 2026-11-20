@@ -613,6 +613,14 @@ provider's read was asked to stop, though not by this window),
 nothing asked the read to stop). The export admits the line only when it is
 exactly one of those causes.
 
+**Pull request reread causes.** A `github.pull_request.started` record for a
+reread names what asked for it, as the line `refresh_cause=CAUSE`
+([[BPR-2315]], `core::refresh_cause`): `reviewer` (Refresh, its key, its menu
+item or Retry), `activity` (the notification poll reported activity on it),
+`return` (the window came back to it after its update aged), `publication`, or
+`edit` (a saved description or comment edit). An opening names none. The export
+admits the line only when it is exactly one of those causes.
+
 The native output admission and exclusive atomic publication above are unchanged.
 Public tests traverse the actual profile Settings, native logs and save chooser,
 compare preview/output bytes after later appends, confirm/cancel identifying saves,

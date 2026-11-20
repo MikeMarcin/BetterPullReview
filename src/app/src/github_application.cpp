@@ -734,7 +734,7 @@ namespace bpr::app {
 		// The description shows GitHub's answer the way every other fact
 		// comes back: the next read.
 		if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
-			Window->run_automatic_refresh([refresh] { refresh->trigger(); });
+			Window->run_automatic_refresh(core::refresh_cause::edit, [refresh] { refresh->trigger(); });
 		}
 	}
 
@@ -918,7 +918,7 @@ namespace bpr::app {
 		// The comment shows GitHub's answer the way every other fact comes
 		// back: the next read.
 		if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
-			Window->run_automatic_refresh([refresh] { refresh->trigger(); });
+			Window->run_automatic_refresh(core::refresh_cause::edit, [refresh] { refresh->trigger(); });
 		}
 	}
 

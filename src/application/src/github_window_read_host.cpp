@@ -316,6 +316,28 @@ namespace bpr::application {
 			}
 			static_cast<void>(DiagnosticLog->record(event));
 		}
+		/// \brief [[BPR-2315]]. A read's started line, naming what asked for a
+		/// refresh as `refresh_cause=NAME`.
+		void record_started(const core::request_id aRequest) const noexcept
+		{
+			if (DiagnosticLog == nullptr) {
+				return;
+			}
+			auto event = diagnostic_event{
+				.Operation     = diagnostic_operation::pull_request,
+				.Outcome       = diagnostic_outcome::started,
+				.Request       = aRequest.value(),
+				.WindowSession = DiagnosticWindowSession.value(),
+			};
+			const auto cause = ReadCause.has_value() ? core::name(*ReadCause) : std::string_view{ };
+			if (!cause.empty() && core::refresh_cause_detail_prefix.size() + cause.size() <= event.Summary.Text.size()) {
+				const auto end      = std::ranges::copy(core::refresh_cause_detail_prefix, event.Summary.Text.begin()).out;
+				const auto written  = std::ranges::copy(cause, end).out;
+				event.Summary.Size  = static_cast<std::uint16_t>(written - event.Summary.Text.begin());
+				event.Summary.State = diagnostic_summary_state::sanitized;
+			}
+			static_cast<void>(DiagnosticLog->record(event));
+		}
 		/// \brief [[BPR-1875]]. A cancelled read's line, naming why it ended.
 		void record_cancelled(const core::request_id aRequest, const pull_request_cancel_cause aCause,
 							  const std::optional<diagnostic_paged_operation> aLastOperation = std::nullopt) const noexcept
@@ -783,7 +805,7 @@ namespace bpr::application {
 			if (Closing || !Session || State.PendingPullRequest != aContext) {
 				return;
 			}
-			record_pull_request(diagnostic_outcome::started, aContext.Request);
+			record_started(aContext.Request);
 			// Signed out there is no account transport to hold, and holding a
 			// null one is the point rather than an omission. The credential-
 			// free authority is the port itself.
@@ -1976,6 +1998,8 @@ namespace bpr::application {
 		std::unique_ptr<markdown_image_window>  Images;
 		std::unique_ptr<identity_avatar_window> Avatars;
 		bool                                    SuppressPublication = false;
+		/// [[BPR-2315]]. What asked for the read a dispatch starts, while it runs.
+		std::optional<core::refresh_cause> ReadCause;
 		/// [[BPR-2180]]. Whether the window lists a first read's reported files.
 		bool                                              ProvisionalFilesShown = false;
 		core::github_window_read                          Policy;
@@ -2100,7 +2124,7 @@ namespace bpr::application {
 		return retired;
 	}
 	void github_window_read_host::advance_request_floor(const core::request_id aNext) noexcept { Implementation->Policy.advance_request_floor(aNext); }
-	void github_window_read_host::dispatch(const core::github_window_read_event& aEvent)
+	void github_window_read_host::dispatch(const core::github_window_read_event& aEvent, const std::optional<core::refresh_cause> aCause)
 	{
 		if (!Implementation->Closing && std::holds_alternative<core::close_pull_request_intent>(aEvent)) {
 			Implementation->close_pull_request();
@@ -2109,7 +2133,9 @@ namespace bpr::application {
 		if (!Implementation->Closing
 			&& (std::holds_alternative<core::open_pull_request_intent>(aEvent)
 				|| std::holds_alternative<core::refresh_pull_request_intent>(aEvent))) {
+			const auto outer = std::exchange(Implementation->ReadCause, aCause);
 			Implementation->dispatch_core(aEvent);
+			Implementation->ReadCause = outer;
 		}
 	}
 	void github_window_read_host::read_cached_source(std::string aPath) { Implementation->read_cached_source(std::move(aPath)); }

@@ -7,6 +7,8 @@
 // a screen reader hears the start, the result and any failure once. Without
 // the core's read stage nothing is said: the negative control.
 #include "../support/test_expectation.hpp"
+#include "bpr/qt/pending_veil.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -17,6 +19,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QImage>
 #include <QLabel>
 #include <QPushButton>
 #include <QThread>
@@ -213,15 +216,15 @@ namespace {
 	{
 		auto subject = fixture{ };
 		subject.Heard.clear();
-		subject.Window.run_automatic_refresh([&subject] { subject.Window.publish(read(core::pull_request_read_stage::pending, 2U)); });
+		subject.Window.run_automatic_refresh(core::refresh_cause::activity, [&subject] { subject.Window.publish(read(core::pull_request_read_stage::pending, 2U)); });
 		expect(subject.Window.pull_request_refresh().Trigger == core::refresh_trigger::automatic, "a read the application made is automatic");
 		expect(!subject.Window.refresh_note_widget()->isVisible() && std::ranges::none_of(subject.Heard, [](const QString& aSaid) { return aSaid.contains(QStringLiteral("efresh")) || aSaid.contains(QStringLiteral("pdated")); }), "it starts without a note or an announcement");
-		expect(subject.Window.refresh_freshness_text() == QStringLiteral("Updating…"), "the status bar says it is updating");
+		expect(subject.Window.refresh_freshness_text() == QStringLiteral("Updated just now"), "the status bar keeps its words ([[BPR-2315]])");
 		auto loaded        = read(core::pull_request_read_stage::loaded, 2U);
 		loaded.PullRequest = pull_request(1U, { conversation("IC_1", application::github_conversation_kind::issue_comment) });
 		subject.Window.publish(loaded);
 		expect(!subject.Window.refresh_note_widget()->isVisible() && std::ranges::none_of(subject.Heard, [](const QString& aSaid) { return aSaid.contains(QStringLiteral("pdated")) || aSaid.contains(QStringLiteral("Up to date")); }), "with nothing new it ends quietly");
-		subject.Window.run_automatic_refresh([&subject] { subject.Window.publish(read(core::pull_request_read_stage::pending, 3U)); });
+		subject.Window.run_automatic_refresh(core::refresh_cause::activity, [&subject] { subject.Window.publish(read(core::pull_request_read_stage::pending, 3U)); });
 		auto news        = read(core::pull_request_read_stage::loaded, 3U);
 		news.PullRequest = pull_request(2U, { conversation("IC_1", application::github_conversation_kind::issue_comment), conversation("IC_9", application::github_conversation_kind::issue_comment) });
 		subject.Window.publish(news);
@@ -293,6 +296,104 @@ namespace {
 		expect(subject.Window.refresh_note_widget()->text().contains(QStringLiteral("Try again in 30 s.")), "with GitHub's wait");
 	}
 
+	// [[BPR-2315]]. The owner, 2026-11-20: "I just get the feeling like my PRs
+	// dim while I'm reading them quite often", and of the reread on coming
+	// back: "after 5 minutes usually nothing has changed so its just
+	// disruptive for no value for it to dim like that". A read the
+	// application makes by itself, on activity or on a return, neither veils
+	// nor disables what is read, keeps the status line and the button as they
+	// were, and when it finds nothing changes nothing on screen at all.
+	void test_an_automatic_reread_never_dims_what_is_read()
+	{
+		const auto causes     = { core::refresh_cause::activity, core::refresh_cause::return_to_window };
+		const auto modalities = { qt::review_modality::review, qt::review_modality::discuss };
+		for (const auto cause : causes) {
+			for (const auto modality : modalities) {
+				auto subject = fixture{ };
+				subject.Window.choose_modality(modality);
+				// Past the reveal and the slow mark either side: a wait that
+				// showed would show by now.
+				*subject.Now += cause == core::refresh_cause::return_to_window ? core::refresh_return_seconds : 30;
+				settle(300);
+				auto* const central = subject.Window.centralWidget();
+				auto* const veil    = subject.Window.pending_veils().Content;
+				const auto  before  = central->grab().toImage();
+				const auto  line    = subject.Window.status_text();
+				const auto  fresh   = subject.Window.refresh_freshness_text();
+				const auto  glyph   = subject.button()->grab().toImage();
+				if (cause == core::refresh_cause::return_to_window) {
+					expect(core::refresh_due_on_return(subject.Window.pull_request_refresh(), *subject.Now), "an aged pull request is read again on return");
+				}
+				subject.Heard.clear();
+				subject.Window.run_automatic_refresh(cause, [&subject] { subject.Window.publish(read(core::pull_request_read_stage::pending, 2U)); });
+				expect(subject.Window.automatic_refresh_cause() == std::nullopt, "the cause is the dispatch's only");
+				expect(core::refresh_quiet(subject.Window.pull_request_refresh()), "the read is the application's own");
+				settle(static_cast<int>(core::pending_reveal_milliseconds) + 200);
+				expect(subject.Window.current_modality() == modality, "the reviewer stays where they read");
+				expect(veil != nullptr && veil->look() == core::pending_look::ready, "the review is not veiled while it is read");
+				const auto overview = subject.Window.overview_page()->pending_veils();
+				for (auto* const section : { overview.Header, overview.Description, overview.Files, overview.Side, overview.Merge, overview.MyReview, overview.Checks, overview.People, overview.Roster }) {
+					expect(section == nullptr || !core::pending_veiled(section->look()), "no Overview section is veiled");
+				}
+				expect(central->isEnabled() && subject.Window.overview_page()->isEnabled() && subject.Window.conversation_panel()->isEnabled(), "nothing is disabled");
+				expect(!subject.button()->property(qt::strip_style::busy_property).toBool() && !subject.Window.refresh_note_widget()->isVisible(), "the button rests and no note shows");
+				expect(subject.Window.status_text() == line && subject.Window.refresh_freshness_text() == fresh, "the status line keeps its words");
+				expect(central->grab().toImage() == before && subject.button()->grab().toImage() == glyph, "what is read looks exactly as it did while the read runs");
+				// Nothing new: the same pull request under a new snapshot.
+				*subject.Now += 2;
+				auto loaded        = read(core::pull_request_read_stage::loaded, 2U);
+				loaded.PullRequest = pull_request(2U, { conversation("IC_1", application::github_conversation_kind::issue_comment) });
+				subject.Window.publish(loaded);
+				settle(60);
+				expect(subject.Window.pull_request_refresh().Phase == core::refresh_phase::updated && subject.Window.pull_request_refresh().UpdatedAt == *subject.Now,
+					   "the update is recorded, so the next return is five minutes on");
+				expect(!subject.Window.refresh_note_widget()->isVisible() && subject.Heard.empty(), "nothing is said");
+				expect(!subject.button()->property(qt::strip_style::busy_property).toBool() && subject.button()->grab().toImage() == glyph, "the button rests, with no tick");
+				expect(central->grab().toImage() == before, "a reread that found nothing changes nothing on screen");
+				expect(subject.Window.status_text() == line, "nor the status line");
+			}
+		}
+	}
+
+	void test_an_automatic_reread_that_brings_news_lands_in_place()
+	{
+		auto        subject = fixture{ };
+		auto* const veil    = subject.Window.pending_veils().Content;
+		subject.Window.run_automatic_refresh(core::refresh_cause::activity, [&subject] { subject.Window.publish(read(core::pull_request_read_stage::pending, 2U)); });
+		settle(static_cast<int>(core::pending_reveal_milliseconds) + 200);
+		expect(veil->look() == core::pending_look::ready, "no veil while it runs");
+		auto news        = read(core::pull_request_read_stage::loaded, 2U);
+		news.PullRequest = pull_request(2U, { conversation("IC_1", application::github_conversation_kind::issue_comment), conversation("IC_9", application::github_conversation_kind::issue_comment) });
+		subject.Window.publish(news);
+		expect(subject.Window.refresh_note_widget()->text() == QStringLiteral("Updated automatically: 1 new comment."), "the quiet cue says what it brought");
+		subject.Window.run_automatic_refresh(core::refresh_cause::return_to_window, [&subject] { subject.Window.publish(read(core::pull_request_read_stage::pending, 3U)); });
+		settle(static_cast<int>(core::pending_reveal_milliseconds) + 200);
+		subject.Window.publish(read(core::pull_request_read_stage::failed, 3U, true, core::github_reason_code::network_unavailable));
+		settle(60);
+		expect(veil->look() == core::pending_look::ready, "a failed automatic reread does not dim");
+		expect(subject.Window.refresh_note_widget()->tone() == qt::refresh_note_tone::failed && subject.Window.refresh_note_widget()->isVisible(), "its failure is said");
+	}
+
+	void test_the_reviewers_refresh_still_shows_its_wait()
+	{
+		auto        subject = fixture{ };
+		auto* const veil    = subject.Window.pending_veils().Content;
+		const auto  line    = subject.Window.status_text();
+		subject.Window.publish(read(core::pull_request_read_stage::pending, 2U));
+		settle(static_cast<int>(core::pending_reveal_milliseconds) + 200);
+		expect(core::pending_veiled(veil->look()), "the reviewer's Refresh veils the content it replaces");
+		expect(subject.button()->property(qt::strip_style::busy_property).toBool(), "and engages the button");
+		expect(subject.Window.status_text() != line, "and the status line says what loads");
+		// Pressing Refresh during a quiet read makes it the reviewer's.
+		auto quiet = fixture{ };
+		quiet.Window.run_automatic_refresh(core::refresh_cause::return_to_window, [&quiet] { quiet.Window.publish(read(core::pull_request_read_stage::pending, 2U)); });
+		quiet.Window.github_refresh_action()->setEnabled(true);
+		quiet.Window.github_refresh_action()->trigger();
+		expect(quiet.Window.pull_request_refresh().Trigger == core::refresh_trigger::reviewer, "the read becomes the reviewer's");
+		settle(static_cast<int>(core::pending_reveal_milliseconds) + 200);
+		expect(core::pending_veiled(quiet.Window.pending_veils().Content->look()), "a quiet read the reviewer refreshes shows from then on");
+	}
+
 	void render(const QString& aDirectory)
 	{
 		if (aDirectory.isEmpty()) {
@@ -325,6 +426,9 @@ try {
 	test_without_the_read_stage_nothing_is_said();
 	test_reduced_motion_holds_a_still_mark();
 	test_home_discovery_is_followed();
+	test_an_automatic_reread_never_dims_what_is_read();
+	test_an_automatic_reread_that_brings_news_lands_in_place();
+	test_the_reviewers_refresh_still_shows_its_wait();
 	render(at >= 0 ? arguments.value(at + 1) : QString{ });
 	std::cout << "refresh-feedback-window-tests:pass\n";
 	return EXIT_SUCCESS;

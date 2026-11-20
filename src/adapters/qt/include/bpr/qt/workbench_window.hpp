@@ -2021,8 +2021,14 @@ namespace bpr::qt {
 		/// \brief [[BPR-1575]]. Runs `aDispatch`, a read of the open pull
 		/// request the application makes by itself (after publishing, after
 		/// resolving a thread), so the read it starts is presented as automatic
-		/// rather than as the reviewer's Refresh.
-		void run_automatic_refresh(const std::function<void()>& aDispatch);
+		/// rather than as the reviewer's Refresh. [[BPR-2315]]: `aCause` says
+		/// what asked for it, for the read's diagnostic line, and such a read
+		/// stays quiet while it runs (`core::refresh_quiet`).
+		void run_automatic_refresh(core::refresh_cause aCause, const std::function<void()>& aDispatch);
+		/// \brief [[BPR-2315]]. What asked for the read being started now: the
+		/// cause `run_automatic_refresh` runs under, or none for a read the
+		/// reviewer started.
+		[[nodiscard]] auto automatic_refresh_cause() const noexcept -> std::optional<core::refresh_cause>;
 		/// \brief [[BPR-1575]]. The open pull request's refresh, as presented.
 		[[nodiscard]] auto pull_request_refresh() const noexcept -> const core::refresh_state&;
 		/// \brief [[BPR-1575]]. Home's discovery refresh, as presented.
@@ -3486,8 +3492,8 @@ namespace bpr::qt {
 		std::optional<std::uint32_t>                                 RefreshRetryAfter;
 		std::vector<core::pull_request_ref>                          HomeRefs;
 		std::vector<core::pull_request_ref>                          HomeBaseline;
-		bool                                                         AutomaticRefreshNoted = false;
-		bool                                                         RefreshReadSeen       = false;
+		std::optional<core::refresh_cause>                           AutomaticRefreshCause;
+		bool                                                         RefreshReadSeen = false;
 		std::optional<core::refresh_changes>                         ElsewhereChanges;
 		QTimer*                                                      HomeSlowTimer       = nullptr;
 		bool                                                         HomeRefreshAsked    = false;

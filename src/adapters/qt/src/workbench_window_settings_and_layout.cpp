@@ -1657,7 +1657,10 @@ namespace bpr::qt {
 		}
 		auto wording = QString{ };
 		auto busy    = false;
-		if (SessionPanel->status() == core::github_status::loading_pull_request) {
+		// [[BPR-2315]]. A quiet reread leaves the Updates line as the review
+		// it has not replaced yet left it.
+		const auto reading = SessionPanel->status() == core::github_status::loading_pull_request && !(HasGithubPullRequest && core::refresh_quiet(PullRefresh));
+		if (reading) {
 			busy       = true;
 			auto stage = QStringLiteral("pull request details");
 			if (ReadProgress) {
@@ -1691,8 +1694,7 @@ namespace bpr::qt {
 		// [[BPR-2216]]. While the pull request itself is read, the status bar
 		// alone says what loads (the owner, 2026-11-16): the Updates line has
 		// no comparison to prepare yet and does not repeat it.
-		const auto reading = SessionPanel->status() == core::github_status::loading_pull_request;
-		ReadWording        = reading ? wording : QString{ };
+		ReadWording = reading ? wording : QString{ };
 		EpochSelectors->set_readiness(!reading && (busy || !EpochSelectors->comparison_available()) ? wording : QString{ }, updates_line_open());
 		// [[BPR-1576]]. A wait on the Updates line turns before its words.
 		EpochSelectors->set_readiness_busy(busy && !reading, pending_full_motion());
@@ -1749,7 +1751,9 @@ namespace bpr::qt {
 		// are a workbench; neither is a pull request. Saying nothing was open
 		// while the strip, the drawer and the conversations all named one told
 		// the owner the product was broken and gave them nothing to do.
-		if (!home && SessionPanel->status() == core::github_status::loading_pull_request) {
+		// [[BPR-2315]]. A quiet reread keeps the line as it was: it says what
+		// the reviewer is reading, not what the application reads behind it.
+		if (!home && SessionPanel->status() == core::github_status::loading_pull_request && !(HasGithubPullRequest && core::refresh_quiet(PullRefresh))) {
 			status = ReadWording;
 			waits  = true;
 		} else if (!home && HasCachedOverview) {

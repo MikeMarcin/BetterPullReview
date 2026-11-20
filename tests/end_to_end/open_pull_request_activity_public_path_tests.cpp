@@ -30,6 +30,7 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -302,12 +303,17 @@ try {
 	access::activity_arrived(*owner, { spelt });
 	auto blanks    = 0;
 	auto automatic = false;
-	auto clock     = QElapsedTimer{ };
+	// [[BPR-2315]]. Nothing the reviewer reads is washed over or disabled.
+	auto veiled = 0;
+	auto clock  = QElapsedTimer{ };
 	clock.start();
 	while (clock.elapsed() < 20'000 && (access::reread_owed(*owner) || window->pull_request_refresh().Phase == core::refresh_phase::refreshing || !holds_post(*conversation, reply))) {
 		QApplication::processEvents();
 		if (!showing()) {
 			++blanks;
+		}
+		if (core::pending_veiled(window->pending_veils().Content->look()) || !window->centralWidget()->isEnabled()) {
+			++veiled;
 		}
 		if (window->pull_request_refresh().Phase == core::refresh_phase::refreshing) {
 			automatic = automatic || window->pull_request_refresh().Trigger == core::refresh_trigger::automatic;
@@ -321,6 +327,7 @@ try {
 	expect(window->pull_request_refresh().Phase == core::refresh_phase::updated && window->pull_request_refresh().Changes.NewComments == 1U, "which says what it brought");
 	expect(holds_post(*conversation, reply), "the reply posted meanwhile is on the file's conversation");
 	expect(blanks == 0 && showing(), "the comparison never leaves the screen");
+	expect(veiled == 0, "nor is it dimmed or disabled while the reread runs ([[BPR-2315]])");
 	// The refreshed review chooses the same file again once its files are read.
 	wait_for([&] { return selected() == chosen && !surface->geometry_pending(); }, "the same file is chosen again and its comparison settles", 20'000);
 	if (bar != nullptr) {

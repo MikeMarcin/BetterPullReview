@@ -391,6 +391,14 @@ reports only that focus is in a multi-line editor). Coming back in front on a
 pull request whose update is `core::refresh_return_seconds` old owes the same
 reread (`core::refresh_due_on_return`, none into a rate limit's wait); it is
 the only news a native profile gets.
+BPR-2315: such a reread, like every read the reviewer did not ask for
+(`core::refresh_quiet`), never veils, disables or rewords what the reviewer
+reads: the Review veil, the status line, the Updates line and the Refresh
+button stay as they were, and the content is replaced in place when the read
+lands. A settled cue follows only when it brought something
+(`core::refresh_settled_cue`); a failure is still said. Pressing Refresh during
+one makes it the reviewer's from then on. Coming back in front counts as any
+activation of the window, a closed dialog or Settings window included.
 The [bounded isolation evidence](../verification/BPR-0969-recent-identity-2026-09-25.md)
 does not establish durable PR snapshots or offline account authority.
 
