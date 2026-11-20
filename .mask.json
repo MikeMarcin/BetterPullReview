@@ -31,7 +31,6 @@
     },
     "manual": [
       "agentskills/attended-review",
-      "agentskills/bpr-cycle",
       "agentskills/implement-rfc",
       "agentskills/pr-tour",
       "agentskills/sprite-sheet-animation-updater",
@@ -53,10 +52,6 @@
       "introduced_by": [
         "bundle:agentskills/rfc"
       ],
-      "source": "agentskills"
-    },
-    {
-      "id": "bpr-cycle",
       "source": "agentskills"
     },
     {
