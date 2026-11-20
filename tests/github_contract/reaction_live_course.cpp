@@ -27,13 +27,19 @@
 // [[BPR-1852]]. tests/scripts/draft_live_course.py runs its `--draft` (the
 // author) and `--draft-second` (another account) modes through the shipped
 // `review_mutation_session::change_draft_state`.
+// [[BPR-2329]]. tests/scripts/auto_merge_live_course.py runs its
+// `--auto-merge-enable` and `--auto-merge-disable` modes through the shipped
+// `review_mutation_session::change_auto_merge`, and reads the pull request
+// back through the shipped paged read and Overview projection.
 #include "gh_cli_response.hpp"
 #include "github_host_profile.hpp"
 #include "github_mutation_contract.hpp"
 #include "github_paged_read.hpp"
 #include "github_read_contract.hpp"
 
+#include "bpr/application/pull_request_overview.hpp"
 #include "bpr/application/review_mutation_recovery_port.hpp"
+#include "bpr/core/auto_merge.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/description_edit.hpp"
@@ -176,6 +182,9 @@ namespace {
 		case review_mutation_operation::observe_pull_request_draft_state:   return "observe-draft-state";
 		case review_mutation_operation::mark_pull_request_ready_for_review: return "mark-ready-for-review";
 		case review_mutation_operation::convert_pull_request_to_draft:      return "convert-to-draft";
+		case review_mutation_operation::observe_pull_request_auto_merge:    return "observe-auto-merge";
+		case review_mutation_operation::enable_pull_request_auto_merge:     return "enable-auto-merge";
+		case review_mutation_operation::disable_pull_request_auto_merge:    return "disable-auto-merge";
 		case review_mutation_operation::observe_review_thread:              return "observe-thread";
 		case review_mutation_operation::resolve_review_thread:              return "resolve-thread";
 		case review_mutation_operation::unresolve_review_thread:            return "unresolve-thread";
@@ -744,6 +753,83 @@ namespace {
 			fail("draft-second:unexpected");
 		}
 	}
+	/// [[BPR-2329]]. One auto-merge change through the shipped session; the
+	/// receipt and the writes it made are printed and returned.
+	[[nodiscard]] auto auto_merge(review_mutation_session& aSession, gh_mutation_transport& aWire, const std::string& aStep, const core::auto_merge_change aChange, const std::optional<core::merge_method> aMethod)
+		-> std::pair<std::expected<application::review_auto_merge_receipt, application::review_mutation_failure>, std::size_t>
+	{
+		const auto before  = aWire.Operations.size();
+		auto       receipt = aSession.change_auto_merge(application::review_auto_merge_request{
+			.Target = target().Semantic, .ActingIdentity = actor().Account, .Change = aChange, .Method = aMethod, .LiveBinding = binding() });
+		const auto writes  = static_cast<std::size_t>(std::ranges::count_if(aWire.Operations.begin() + static_cast<std::ptrdiff_t>(before), aWire.Operations.end(), [](const review_mutation_operation aOperation) {
+			return aOperation == review_mutation_operation::enable_pull_request_auto_merge || aOperation == review_mutation_operation::disable_pull_request_auto_merge;
+		}));
+		std::cout << "REACTION_LIVE:" << aStep << ":" << (receipt ? "answered" : std::string{ application::name(receipt.error()) }) << " writes=" << writes
+				  << (receipt ? " enabled=" + std::to_string(receipt->Enabled) + " written=" + std::to_string(receipt->Written) + " method=" + (receipt->Method ? std::string{ core::name(*receipt->Method) } : std::string{ "none" }) : std::string{ })
+				  << '\n'
+				  << std::flush;
+		return { std::move(receipt), writes };
+	}
+
+	/// [[BPR-2329]]. The pull request read through the shipped paged read and
+	/// decided by the shipped Overview projection, with a connection that can
+	/// change auto-merge: the line Merge shows and what it offers.
+	[[nodiscard]] auto overview_auto_merge(const std::string& aStep) -> std::optional<application::overview_auto_merge>
+	{
+		auto       transport = gh_read_transport{ };
+		const auto read      = perform_paged_github_read(transport, read_profile(), read_request(), core::provider_snapshot_id{ 77U }, { });
+		if (!read) {
+			fail(aStep + ":read-failed:requests=" + std::to_string(Requests));
+		}
+		auto context             = application::overview_context{ };
+		context.AutoMergeControl = true;
+		const auto projected     = application::project_pull_request_overview(*read, context);
+		const auto& state        = projected.AutoMerge;
+		std::cout << "REACTION_LIVE:" << aStep << ":merge-state=" << projected.MergeState << " auto-merge=" << (state ? state->Line : std::string{ "absent" })
+				  << " offer=" << (state && state->Offer.Change ? std::string{ core::name(*state->Offer.Change) } : std::string{ "none" }) << " methods=";
+		if (state) {
+			for (const auto method : state->Offer.Methods) {
+				std::cout << core::name(method) << ',';
+			}
+		}
+		std::cout << '\n'
+				  << std::flush;
+		return state;
+	}
+
+	/// [[BPR-2329]]. Off and offered; enabled with squash (written once), asked
+	/// again (nothing sent); the Overview then shows it on and offers Disable.
+	void auto_merge_enable_course(review_mutation_session& aSession, gh_mutation_transport& aWire)
+	{
+		const auto before = overview_auto_merge("auto-merge-before");
+		if (!before || before->Enabled || before->Offer.Change != core::auto_merge_change::enable || !std::ranges::contains(before->Offer.Methods, core::merge_method::squash)) {
+			fail("auto-merge-before:not-offered");
+		}
+		const auto [enabled, w1] = auto_merge(aSession, aWire, "auto-merge-enable", core::auto_merge_change::enable, core::merge_method::squash);
+		const auto [again, w2]   = auto_merge(aSession, aWire, "auto-merge-enable-again", core::auto_merge_change::enable, core::merge_method::squash);
+		if (!enabled || !enabled->Written || !enabled->Enabled || w1 != 1U || !again || again->Written || !again->Enabled || w2 != 0U) {
+			fail("auto-merge-enable:unexpected");
+		}
+		const auto after = overview_auto_merge("auto-merge-after-enable");
+		if (!after || !after->Enabled || after->Offer.Change != core::auto_merge_change::disable || after->Line.find("(squash)") == std::string::npos) {
+			fail("auto-merge-after-enable:not-shown");
+		}
+	}
+
+	/// [[BPR-2329]]. Disabled (written once), asked again (nothing sent); the
+	/// Overview then shows it off and offers Enable again.
+	void auto_merge_disable_course(review_mutation_session& aSession, gh_mutation_transport& aWire)
+	{
+		const auto [disabled, w1] = auto_merge(aSession, aWire, "auto-merge-disable", core::auto_merge_change::disable, std::nullopt);
+		const auto [again, w2]    = auto_merge(aSession, aWire, "auto-merge-disable-again", core::auto_merge_change::disable, std::nullopt);
+		if (!disabled || !disabled->Written || disabled->Enabled || w1 != 1U || !again || again->Written || again->Enabled || w2 != 0U) {
+			fail("auto-merge-disable:unexpected");
+		}
+		const auto after = overview_auto_merge("auto-merge-after-disable");
+		if (!after || after->Enabled || after->Offer.Change != core::auto_merge_change::enable) {
+			fail("auto-merge-after-disable:not-shown");
+		}
+	}
 } // namespace
 
 auto main(int aCount, char** aValues) -> int
@@ -751,7 +837,7 @@ auto main(int aCount, char** aValues) -> int
 	QCoreApplication application{ aCount, aValues };
 	const auto       arguments = QCoreApplication::arguments();
 	if (arguments.size() < 4) {
-		std::cerr << "usage: reaction_live_course (--main|--second-add|--second-remove|--read|--description|--description-second|--comments|--comments-other|--reviewers|--reviewers-second|--draft|--draft-second) CONFIG OUTPUT [FLOOR]\n";
+		std::cerr << "usage: reaction_live_course (--main|--second-add|--second-remove|--read|--description|--description-second|--comments|--comments-other|--reviewers|--reviewers-second|--draft|--draft-second|--auto-merge-enable|--auto-merge-disable) CONFIG OUTPUT [FLOOR]\n";
 		return EXIT_FAILURE;
 	}
 	auto file = QFile{ arguments[2] };
@@ -798,6 +884,10 @@ auto main(int aCount, char** aValues) -> int
 		draft_course(session, wire);
 	} else if (mode == QStringLiteral("--draft-second")) {
 		draft_second_course(session, wire);
+	} else if (mode == QStringLiteral("--auto-merge-enable")) {
+		auto_merge_enable_course(session, wire);
+	} else if (mode == QStringLiteral("--auto-merge-disable")) {
+		auto_merge_disable_course(session, wire);
 	} else if (mode == QStringLiteral("--comments-other")) {
 		comments_other_course(session, wire);
 	} else if (mode == QStringLiteral("--main")) {
