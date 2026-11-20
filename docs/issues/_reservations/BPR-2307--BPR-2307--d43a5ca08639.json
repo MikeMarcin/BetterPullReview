@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2307"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A custom Codex agent may rely on its launcher's sandbox (owner decision on BPR-2305)",
+  "created": "2026-11-20T07:48:51.854737+00:00",
+  "base": "4f124bfc7646f31a4f123bc9d861dbc448133386"
+}
