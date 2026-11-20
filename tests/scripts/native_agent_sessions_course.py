@@ -2,13 +2,14 @@
 """Agent-tab native session composition, restart and offscreen rendering."""
 import argparse
 from pathlib import Path
-import os
 import shutil
 import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+
+from agent_workspace_ownership_tests import make_private  # noqa: E402
 
 
 def main():
@@ -19,7 +20,12 @@ def main():
     args = parser.parse_args()
     with contained_temporary_directory(prefix='bpr-native-session-') as temporary:
         parent = Path(temporary).resolve()
-        os.chmod(parent, 0o700)
+        # [[BPR-2215]]. The application keeps its agent workspace folder
+        # beside the data root and refuses one whose parent another principal
+        # may write. On Windows the contained helper's root inherits the
+        # temporary folder's AppContainer grants; this course runs uncontained
+        # there, so its root is narrowed to this user as the product's are.
+        make_private(parent)
         data = parent / 'data'
         for course in ('native-session', 'native-session-reopen', 'tour-native', 'tour-native-reopen', 'transcript-replay', 'transcript-replay-reopen'):
             result = subprocess.run([str(args.executable.resolve()), course, str(args.canary.resolve()), str(parent / 'replay-data' if course.startswith('transcript-replay') else data)],
