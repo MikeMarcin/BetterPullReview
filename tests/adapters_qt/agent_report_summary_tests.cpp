@@ -26,15 +26,20 @@
 #include <QComboBox>
 #include <QEventLoop>
 #include <QFontMetrics>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLayout>
+#include <QMouseEvent>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QTabWidget>
 #include <QTimer>
 
+#include <cmath>
+#include <cstddef>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -127,32 +132,50 @@ namespace {
 		return card;
 	}
 
-	/// Each row's word, bar and count are inside it, apart, and whole; the
-	/// summary never needs more room than the drawer gives, and each count
-	/// is in view.
+	/// [[BPR-2336]]. The summary is one bar: each count's segment in its
+	/// tone, one under the other with only the meter's gap between them, as
+	/// tall as its share; beside each its word and count, whole and apart.
+	/// The summary never needs more room than the drawer gives, and each
+	/// count is in view.
 	void expect_whole(qt::report_tally_view& aTally, QScrollArea& aScroll, const std::string& aWhere)
 	{
 		// A drawer's new width settles over several layout passes.
 		wait(150);
 		expect(aTally.isVisible(), aWhere + ": the summary shows");
 		if (const auto pans = aScroll.horizontalScrollBar()->maximum(); pans != 0) {
-			std::cout << "BPR-2331 " << aWhere << ": the conversation pans " << pans << " px, as it does without the summary\n";
+			std::cout << "BPR-2336 " << aWhere << ": the conversation pans " << pans << " px, as it does without the summary\n";
 		}
 		// The summary never asks for more than the drawer gives, so it is
 		// never why the conversation pans sideways.
 		const auto needs = aTally.mapTo(aScroll.widget(), QPoint{ }).x() + aTally.minimumSizeHint().width();
 		expect(needs <= aScroll.viewport()->width(), aWhere + ": the summary fits the drawer, " + std::to_string(needs) + " of " + std::to_string(aScroll.viewport()->width()));
-		for (auto* const row : aTally.rows()) {
-			const auto word    = QString::fromStdString(row->count().Word);
-			const auto said    = aWhere + ", " + word.toStdString();
-			const auto metrics = QFontMetrics{ row->font() };
-			expect(row->isVisible() && aTally.rect().contains(row->geometry()), said + ": the row shows inside the summary");
-			expect(row->width() >= row->minimumSizeHint().width() && row->height() >= row->minimumSizeHint().height(), said + ": the row has the room it needs, " + std::to_string(row->width()) + "x" + std::to_string(row->height()) + " for " + std::to_string(row->minimumSizeHint().width()) + "x" + std::to_string(row->minimumSizeHint().height()) + ", the summary " + std::to_string(aTally.width()) + "x" + std::to_string(aTally.height()) + " for " + std::to_string(aTally.minimumSizeHint().width()) + "x" + std::to_string(aTally.minimumSizeHint().height()) + " hint h " + std::to_string(aTally.sizeHint().height()) + " card " + std::to_string(aTally.parentWidget()->height()) + " card hfw " + std::to_string(aTally.parentWidget()->heightForWidth(aTally.parentWidget()->width())) + " card min " + std::to_string(aTally.parentWidget()->minimumSizeHint().height()) + " reply " + std::to_string(aTally.parentWidget()->parentWidget()->height()) + "/" + std::to_string(aTally.parentWidget()->parentWidget()->minimumHeight()) + "/" + std::to_string(aTally.parentWidget()->parentWidget()->maximumHeight()));
+		const auto rows = aTally.rows();
+		expect(!rows.empty(), aWhere + ": the summary has its counts");
+		auto previous = std::optional<QRect>{ };
+		auto bands    = 0;
+		for (std::size_t index = 0U; index < rows.size(); ++index) {
+			auto* const row     = rows[index];
+			const auto  word    = QString::fromStdString(row->count().Word);
+			const auto  said    = aWhere + ", " + word.toStdString();
+			const auto  metrics = QFontMetrics{ row->font() };
+			expect(row->isVisible() && aTally.rect().contains(row->geometry()), said + ": the band shows inside the summary");
+			expect(row->width() >= row->minimumSizeHint().width() && row->height() == aTally.band_height(index),
+				   said + ": the band has the room it needs, " + std::to_string(row->width()) + "x" + std::to_string(row->height()) + " for " + std::to_string(row->minimumSizeHint().width()) + "x" + std::to_string(aTally.band_height(index)));
+			bands += row->height();
 			const auto box = row->rect();
-			expect(box.contains(row->word_rect()) && box.contains(row->bar_rect()) && box.contains(row->count_rect()), said + ": word, bar and count are inside the row");
+			expect(box.contains(row->segment_rect()) && box.contains(row->word_rect()) && box.contains(row->count_rect()), said + ": segment, word and count are inside the band");
 			expect(row->word_rect().width() >= metrics.horizontalAdvance(word) && row->word_rect().height() >= metrics.height(), said + ": the word is whole");
-			expect(row->word_rect().right() < row->bar_rect().left() && row->bar_rect().right() < row->count_rect().left(), said + ": word, bar and count do not overlap");
-			expect(row->bar_rect().width() >= 4, said + ": the bar shows");
+			expect(row->segment_rect().right() < row->word_rect().left() && row->word_rect().right() < row->count_rect().left(), said + ": the label stands beside its segment, its word before its count");
+			const auto segment = QRect{ row->mapTo(&aTally, row->segment_rect().topLeft()), row->segment_rect().size() };
+			const auto middle  = row->word_rect().center().y();
+			expect(middle >= row->segment_rect().top() && middle <= row->segment_rect().bottom(), said + ": the label is beside its own segment");
+			expect(segment.width() == qt::report_tally_view::bar_width && segment.height() >= metrics.height(), said + ": the segment is the bar's width and at least a line tall");
+			if (previous) {
+				expect(segment.left() == previous->left(), said + ": the segment is in the same bar as the one above");
+				const auto gap = segment.top() - previous->bottom() - 1;
+				expect(gap >= 1 && gap <= 3, said + ": the segment follows the one above with only the meter's gap, " + std::to_string(gap));
+			}
+			previous = segment;
 			// Where the rest of the conversation already makes it pan (its
 			// turns need more than the narrowest drawer at a large font), the
 			// summary is measured by what it needs, above.
@@ -160,8 +183,18 @@ namespace {
 				const auto shownRight = row->mapTo(aScroll.viewport(), row->count_rect().topRight()).x();
 				expect(shownRight < aScroll.viewport()->width(), said + ": the count is in view, its right at " + std::to_string(shownRight) + " of " + std::to_string(aScroll.viewport()->width()));
 			}
-			if (row->count().Count == aTally.largest()) {
-				expect(row->bar_rect().width() >= qt::report_tally_view::least_bar, said + ": the largest count's bar fills its track");
+		}
+		expect(bands == aTally.bar_height(), aWhere + ": the bands make the whole bar");
+		// Sized by count: a larger count stands taller, equal counts equally.
+		for (std::size_t one = 0U; one < rows.size(); ++one) {
+			for (std::size_t other = 0U; other < rows.size(); ++other) {
+				const auto ones   = rows[one]->count().Count;
+				const auto others = rows[other]->count().Count;
+				if (ones > others) {
+					expect(rows[one]->height() > rows[other]->height(), aWhere + ": " + rows[one]->count().Word + " stands taller than " + rows[other]->count().Word);
+				} else if (ones == others) {
+					expect(std::abs(rows[one]->height() - rows[other]->height()) <= 1, aWhere + ": " + rows[one]->count().Word + " stands as tall as " + rows[other]->count().Word);
+				}
 			}
 		}
 	}
@@ -264,6 +297,34 @@ namespace {
 		settle();
 		expect(opened.size() == 2U && opened.back().Heading == tally->rows().front()->count().First && report->section_top(static_cast<int>(opened.back().Heading)) <= 24,
 			   "pressing another row moves the open report to its first finding");
+		// [[BPR-2336]]. Pressing a count's segment of the bar opens the report
+		// at it, as pressing its label does.
+		{
+			auto* const praise = tally->rows().back();
+			const auto  at     = QPointF{ praise->segment_rect().center() };
+			const auto  global = QPointF{ praise->mapToGlobal(at.toPoint()) };
+			auto        press  = QMouseEvent{ QEvent::MouseButtonPress, at, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			auto        lift   = QMouseEvent{ QEvent::MouseButtonRelease, at, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(praise, &press);
+			QApplication::sendEvent(praise, &lift);
+			settle();
+			expect(opened.size() == 3U && opened.back().Heading == praise->count().First, "pressing a count's segment opens the report at its first finding");
+			opened.pop_back();
+		}
+		// And from the keyboard: a band takes focus, says what it counts, and
+		// Space opens the report at it.
+		{
+			auto* const nitpick = tally->rows().at(2U);
+			expect(nitpick->focusPolicy() == Qt::StrongFocus && nitpick->accessibleName() == QStringLiteral("nitpick: 1"), "a band takes focus and names its count");
+			nitpick->setFocus(Qt::TabFocusReason);
+			auto down = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+			auto up   = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+			QApplication::sendEvent(nitpick, &down);
+			QApplication::sendEvent(nitpick, &up);
+			settle();
+			expect(opened.size() == 3U && opened.back().Heading == nitpick->count().First, "Space on a focused band opens the report at its first finding");
+			opened.pop_back();
+		}
 		// The attachment's own Open opens it where it opens.
 		qobject_cast<QPushButton*>(card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen")))->click();
 		settle();
