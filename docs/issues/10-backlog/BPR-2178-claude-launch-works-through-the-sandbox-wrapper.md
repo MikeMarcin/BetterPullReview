@@ -51,3 +51,12 @@ would need RFC-BPR-0104 AC11 amended, because AC11 puts the multi-value
 options before `-p`. [[BPR-2304]] checked the rest of the launch against the
 audit and added core checks for it. The `--version`/`--help` fallback and
 the sign-in report remain open here.
+
+## AC11 amended, `-p` first, 2026-11-19
+
+The owner amended RFC-BPR-0104 AC11 ("Amend AC11"): each option that takes
+several values is followed by another option, wherever it stands.
+[[BPR-2306]] put `-p` first in every Claude launch, right after an added
+agent's fixed arguments, and relaxed the core check to match. The first
+finding above is done. The `--version`/`--help` fallback, the stub wrapper
+course and the owner's rerun remain open here.

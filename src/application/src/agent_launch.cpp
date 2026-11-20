@@ -3822,10 +3822,12 @@ namespace bpr::application {
 			arguments.emplace_back("-");
 			break;
 		case core::agent_protocol::claude_stream_json:
-			// [[BPR-2142]], RFC-BPR-0104 (the owner's wrapper tests,
-			// 2026-11-11). Every option that takes several values comes
-			// first, each followed by another option, so none can take a
-			// prompt or anything a wrapper adds after these as a value.
+			// RFC-BPR-0104 AC11, amended 2026-11-19 ([[BPR-2306]]): `-p`
+			// first, as the owner's harness audit recommends, right after an
+			// added agent's fixed arguments. Each option that takes several
+			// values is followed by another option, so none can take a prompt
+			// or anything a wrapper adds after these as a value.
+			arguments.emplace_back("-p");
 			if (aOptions.Grant) {
 				append_claude_grant(arguments, *aOptions.Grant);
 			}
@@ -3854,7 +3856,6 @@ namespace bpr::application {
 				arguments.emplace_back("--append-system-prompt");
 				arguments.push_back(instructions);
 			}
-			arguments.emplace_back("-p");
 			arguments.emplace_back("--input-format");
 			arguments.emplace_back("stream-json");
 			arguments.emplace_back("--output-format");
@@ -4012,11 +4013,13 @@ namespace bpr::application {
 			input = std::string{ aDocument };
 			break;
 		case core::agent_protocol::claude_stream_json:
-			// [[BPR-2142]]. The options with several values come before `-p`.
+			// RFC-BPR-0104 AC11, amended 2026-11-19: `-p` first; the MCP
+			// configuration is closed by the options after it.
+			arguments.emplace_back("-p");
 			if (mcpOff) {
 				arguments.insert(arguments.end(), claude_mcp_off_arguments.begin(), claude_mcp_off_arguments.end());
 			}
-			arguments.insert(arguments.end(), { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
+			arguments.insert(arguments.end(), { "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
 			append_claude_model(arguments, settings);
 			if (aContinue) {
 				arguments.emplace_back("--resume");

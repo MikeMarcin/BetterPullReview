@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <initializer_list>
+#include <ranges>
 #include <vector>
 
 namespace bpr::core {
@@ -197,9 +198,13 @@ namespace bpr::core {
 		if (std::ranges::any_of(aArguments, [](const std::string_view aArgument) { return names(aArgument, "--append-system-prompt-file") || names(aArgument, "--system-prompt-file"); })) {
 			return claude_argument_problem::instructions_file;
 		}
-		// Before `-p`, an option that takes several values is always followed
-		// by another option: `-p` itself if nothing else.
-		if (std::any_of(print, aArguments.end(), [](const std::string_view aArgument) { return is_variadic(aArgument); })) {
+		// RFC-BPR-0104 AC11 (amended 2026-11-19). Wherever it stands, an
+		// option that takes several values is followed by another option, so
+		// the last option given never takes several: one left open would take
+		// a prompt, or whatever a wrapper adds after these arguments.
+		const auto backwards = aArguments | std::views::reverse;
+		const auto last      = std::ranges::find_if(backwards, [](const std::string_view aArgument) { return is_option(aArgument); });
+		if (last != backwards.end() && is_variadic(*last)) {
 			return claude_argument_problem::open_variadic;
 		}
 		if (!writes_have_edits(aArguments)) {

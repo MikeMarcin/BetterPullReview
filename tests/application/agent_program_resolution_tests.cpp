@@ -345,7 +345,7 @@ namespace {
 		const auto& ran = direct.Requests.back().Arguments;
 		expect(ran.size() > fixed.size() && std::ranges::equal(std::span{ ran }.first(fixed.size()), fixed), "the fixed arguments lead");
 		expect(std::ranges::equal(std::span{ ran }.subspan(fixed.size()), launch->Arguments), "this app's arguments follow, unchanged");
-		expect(ran[fixed.size()].starts_with("-"), "an option closes the fixed --add-dir before anything of this app's");
+		expect(ran[fixed.size()] == "-p", "-p comes right after the fixed arguments and closes the fixed --add-dir (RFC-BPR-0104 AC11, amended 2026-11-19)");
 		expect(!core::inspect_claude_arguments(std::span{ ran }.subspan(fixed.size()), { .McpOff = true }), "this app's part keeps the audited rules");
 	}
 }

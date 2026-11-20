@@ -277,7 +277,30 @@ every MCP server (about 2.4k tokens a call; kept for safety more than cost).
   `--mcp-config`) come before `-p`, and each is followed by another option,
   so none can take a prompt or anything after it as one of its values (the
   wrapper tests: `--add-dir` or `--allowedTools` placed before the prompt
-  swallowed it).
+  swallowed it). Amended 2026-11-19 below: where these options stand no
+  longer matters, only that each is followed by another option.
+
+### Amendment: `-p` first, each option with several values closed wherever it stands (owner, 2026-11-19, [[BPR-2306]])
+
+The owner, 2026-11-19: "Amend AC11". The owner's second harness audit of a
+sandboxing Claude launcher (Claude Code 2.1.322, recorded on [[BPR-2304]])
+found that argument order makes no difference to Claude, and suggested the
+shape `<fixed arguments> -p --append-system-prompt … --setting-sources user
+--mcp-config <empty> --strict-mcp-config --output-format stream-json
+--verbose <prompt>`. The earlier audit ([[BPR-2178]]) had found a launcher
+that needed `-p` first.
+
+- **Before:** each option that takes several values comes before `-p` and is
+  followed by another option.
+- **After:** each option that takes several values is followed by another
+  option, wherever it stands. One left open, directly followed by the prompt
+  or ending the arguments, is still refused before the launch starts.
+- Every Claude launch now gives `-p` first, right after an added agent's
+  fixed arguments, then the rest in the order it had. The prompt still rides
+  stdin.
+- Unchanged: the list of options that take several values
+  (`core::claude_variadic_options`), and every other rule [[BPR-2304]]
+  checks.
 
 ### Boundaries
 
@@ -381,5 +404,6 @@ installed agents and their own help and protocol schema
   with MCP servers off on Claude and Codex; set to the agent's own
   configuration the launch carries no MCP argument; a fresh one-off run
   carries MCP off either way; the footer picker's tooltip names MCP when on.
-- **AC11:** (amended 2026-11-12) In every Claude launch, each option that
-  takes several values comes before `-p` and is followed by another option.
+- **AC11:** (amended 2026-11-12; amended 2026-11-19, owner, [[BPR-2306]])
+  In every Claude launch, each option that takes several values is followed
+  by another option.

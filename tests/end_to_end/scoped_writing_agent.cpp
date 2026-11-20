@@ -423,7 +423,7 @@ int main(int argc, char** argv)
 	// `--verbose` when the profile names a model.
 	const std::vector<std::string> restrictions = { "--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "user", "--disable-slash-commands", "--no-session-persistence", "--settings",
 													R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})" };
-	std::vector<std::string>       expected     = { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
+	std::vector<std::string>       expected     = { "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
 	std::vector<std::string>       actual;
 	for (int i = 1; i < argc; ++i) {
 		actual.emplace_back(argv[i]);
@@ -440,14 +440,15 @@ int main(int argc, char** argv)
 		return EXIT_SUCCESS;
 	}
 	// [[BPR-2140]]. A built-in prompt's instructions ride inline in the
-	// system prompt, before `-p`; they are read as the start of the request.
+	// system prompt; they are read as the start of the request.
 	std::string instructions;
 	if (const auto system = std::ranges::find(actual, std::string{ "--append-system-prompt" }); system != actual.end() && system + 1 != actual.end()) {
 		instructions = *(system + 1);
 		actual.erase(system, system + 2);
 	}
-	// [[BPR-2142]]. The restrictions, whose options take several values,
-	// come before `-p`; the model follows `--verbose`.
+	// RFC-BPR-0104 AC11 (amended 2026-11-19). `-p` first, then the
+	// restrictions, whose options take several values; the model follows
+	// `--verbose`.
 	std::string model;
 	if (const auto named = std::ranges::find(actual, std::string{ "--model" }); named != actual.end() && named + 1 != actual.end()) {
 		model = *(named + 1);
@@ -455,9 +456,11 @@ int main(int argc, char** argv)
 	}
 	// [[BPR-1900]]. A read-only tour drafting run: the review's workspace,
 	// read, search and read-only git, nothing that writes.
-	auto readOnly = std::vector<std::string>{ read_only_restrictions().begin(), read_only_restrictions().end() };
+	auto readOnly = std::vector<std::string>{ "-p" };
+	readOnly.insert(readOnly.end(), read_only_restrictions().begin(), read_only_restrictions().end());
 	readOnly.insert(readOnly.end(), expected.begin(), expected.end());
 	expected.insert(expected.begin(), restrictions.begin(), restrictions.end());
+	expected.insert(expected.begin(), "-p");
 	// The effort the reviewer chose rides after the model.
 	auto withoutEffort = actual;
 	if (const auto effort = std::ranges::find(withoutEffort, std::string{ "--effort" }); effort != withoutEffort.end() && effort + 1 != withoutEffort.end()) {

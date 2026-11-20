@@ -54,7 +54,7 @@ namespace {
 	void frames_the_round_for_each_protocol()
 	{
 		const auto claude = application::build_round_launch(profile(core::claude_stream_json_profile_id), document, std::nullopt, "/work", parent);
-		expect(claude && claude->Arguments == std::vector<std::string>{ "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" },
+		expect(claude && claude->Arguments == std::vector<std::string>{ "-p", "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" },
 			   "Claude: MCP off ([[BPR-2139]]), print mode, stream JSON both ways");
 		expect(claude->Input == "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"# Review Cycle RC-1 \xE2\x80\x94 F1\\n\\nSay \\\"why\\\".\\n\"}]}}\n",
 			   "the document as the one user message, escaped and nothing else");

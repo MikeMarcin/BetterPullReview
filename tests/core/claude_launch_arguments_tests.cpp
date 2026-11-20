@@ -31,8 +31,8 @@ namespace {
 	/// The shape the audit recommends, less the prompt, which rides stdin.
 	[[nodiscard]] auto isolated() -> arguments
 	{
-		return { "--strict-mcp-config", "--mcp-config", std::string{ core::claude_empty_mcp_configuration }, "--append-system-prompt", "Answer briefly.", "-p", "--input-format", "stream-json", "--output-format",
-				 "stream-json", "--verbose", "--setting-sources", "user" };
+		return { "-p", "--append-system-prompt", "Answer briefly.", "--setting-sources", "user", "--mcp-config", std::string{ core::claude_empty_mcp_configuration }, "--strict-mcp-config", "--input-format",
+				 "stream-json", "--output-format", "stream-json", "--verbose" };
 	}
 
 	void test_the_recommended_shape_passes()
@@ -51,15 +51,20 @@ namespace {
 		expect(!problem_of({ "--append-system-prompt", "rules", "-p" }), "the inline form passes");
 	}
 
-	void test_several_valued_options_are_closed_before_print_mode()
+	/// RFC-BPR-0104 AC11, amended 2026-11-19: the owner's harness audit
+	/// found the order makes no difference, so only being closed counts.
+	void test_several_valued_options_are_closed_wherever_they_stand()
 	{
 		for (const auto& option : core::claude_variadic_options) {
 			const auto name = std::string{ option };
 			expect(!problem_of({ name, "a", "b", "--verbose", "-p" }), "followed by another option before -p: " + name);
 			expect(!problem_of({ name, "a", "-p" }), "closed by -p itself: " + name);
+			expect(!problem_of({ "-p", name, "a", "--verbose" }), "closed after -p (RFC-BPR-0104 AC11, amended 2026-11-19): " + name);
+			expect(!problem_of({ "-p", name + "=a", "--verbose" }), "the = spelling closed after -p: " + name);
 			expect(problem_of({ "-p", name, "a" }) == core::claude_argument_problem::open_variadic, "left open after -p, it would take the prompt: " + name);
-			expect(problem_of({ "-p", name, "a", "--verbose" }) == core::claude_argument_problem::open_variadic, "after -p even when closed (RFC-BPR-0104 AC11): " + name);
-			expect(problem_of({ "-p", name + "=a" }) == core::claude_argument_problem::open_variadic, "the = spelling too: " + name);
+			expect(problem_of({ "-p", name }) == core::claude_argument_problem::open_variadic, "left open with no value yet: " + name);
+			expect(problem_of({ "-p", name + "=a" }) == core::claude_argument_problem::open_variadic, "the = spelling left open too: " + name);
+			expect(problem_of({ "-p", "--verbose", name, "a", "b" }) == core::claude_argument_problem::open_variadic, "the last option given is the open one: " + name);
 		}
 		expect(!problem_of({ "-p", "--file-limit", "3" }), "an option that only starts like one is not it");
 	}
@@ -112,7 +117,7 @@ auto main() -> int
 {
 	test_the_recommended_shape_passes();
 	test_instructions_are_never_given_as_a_file();
-	test_several_valued_options_are_closed_before_print_mode();
+	test_several_valued_options_are_closed_wherever_they_stand();
 	test_a_scoped_write_carries_its_edit_rule();
 	test_only_the_users_settings_load();
 	test_mcp_off_is_strict_and_empty();

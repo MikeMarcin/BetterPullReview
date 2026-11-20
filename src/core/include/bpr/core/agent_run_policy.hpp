@@ -202,8 +202,9 @@ namespace bpr::core {
 		/// a wrapper the file form is dropped without a word, and the agent
 		/// may spend turns looking for the file; only the inline form is used.
 		instructions_file,
-		/// An option that takes several values comes after `-p`, or is not
-		/// followed by another option before it (RFC-BPR-0104 AC11).
+		/// An option that takes several values is not followed by another
+		/// option (RFC-BPR-0104 AC11, amended 2026-11-19: where it stands,
+		/// before or after `-p`, makes no difference).
 		open_variadic,
 		/// A `Write(...)` permission rule with no `Edit(...)` rule for the
 		/// same path. Claude applies a path-scoped write permission only

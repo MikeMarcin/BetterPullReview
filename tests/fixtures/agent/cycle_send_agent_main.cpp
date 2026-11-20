@@ -168,7 +168,7 @@ auto main(const int aArgc, char** aArgv) -> int
 		return 71;
 	}
 
-	// [[BPR-2142]]. Options with several values may come before `-p`.
+	// [[BPR-2142]], RFC-BPR-0104 AC11 (amended 2026-11-19). `-p` may stand anywhere.
 	const auto claude = std::ranges::find(arguments, std::string_view{ "-p" }) != arguments.end();
 	const auto text   = claude ? user_text(input) : input;
 	auto       reply  = text.find("SEND_PROSE_CANARY") != std::string::npos ? std::string{ "I changed it as asked; the tests pass." } : "```json\n" + response_to(text) + "\n```";

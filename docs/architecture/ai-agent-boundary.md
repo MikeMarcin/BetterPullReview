@@ -1884,9 +1884,9 @@ rule is broken:
   while the inline form reached the model and was served from the prompt cache
   on later calls even as the question changed.
 - Every option that takes several values (`core::claude_variadic_options`,
-  now including `--betas` and `--file`) comes before `-p`, so another option
-  always closes it (RFC-BPR-0104 AC11). The audit saw an open one swallow the
-  prompt.
+  now including `--betas` and `--file`) is followed by another option, so the
+  last option given never takes several (RFC-BPR-0104 AC11, amended
+  2026-11-19). The audit saw an open one swallow the prompt.
 - Every path-scoped `Write(...)` permission rule has its `Edit(...)` twin: the
   audit saw the `Edit` rule permit a write inside the folder and refuse one
   outside, while a `Write` rule on its own allowed nothing.
@@ -1899,11 +1899,11 @@ What the rules deliberately leave alone: the Agent tab in the reviewer's own
 checkout and a Review Cycle round read that folder's settings, and an agent
 whose MCP setting is `own` keeps its servers, as before. Instructions are
 pasted into the message only when the agent's switch says so or they would
-overflow a Windows command line. The audit's suggested order puts `-p` first,
-right after any fixed arguments; this app keeps `-p` after the multi-value
-options, as AC11 requires. The audit found the order makes no difference, so
-the change [[BPR-2178]] records for an earlier release that needed `-p`
-first stays with that card. Memory staying off for a custom agent's
+overflow a Windows command line. As the audit suggests, every Claude launch
+gives `-p` first, right after any fixed arguments ([[BPR-2306]]: the owner
+amended AC11 on 2026-11-19 to drop "before `-p`"). The audit found the order
+makes no difference; the launcher [[BPR-2178]] records needed `-p` first.
+Memory staying off for a custom agent's
 restricted run still depends on the environment variable alone, because no
 Claude option turns auto-memory off apart from `--settings`, and that option
 would replace the agent's sign-in. Through a launcher that drops the

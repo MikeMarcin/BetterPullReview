@@ -74,3 +74,11 @@ Candidate `3ccaac970` (core-only and dev Debug trees at that commit, macOS; firs
 - clang-format 22 on the changed files; clang-tidy on the changed translation
   units reports only findings that were already there
   (`agent_launch.cpp:1769`, and `inline_`/`long_` in the policy test).
+
+## AC11 amended, 2026-11-19
+
+The owner amended RFC-BPR-0104 AC11 the same day ("Amend AC11"): each option
+that takes several values is followed by another option, wherever it stands.
+[[BPR-2306]] put `-p` first in every Claude launch and relaxed the
+`open_variadic` check to match, so AC2 above now holds without "before `-p`".
+The evidence above stays as recorded for candidate `3ccaac970`.

@@ -3,7 +3,7 @@
 /// session mode ([[BPR-2138]], RFC-BPR-0101 AC10), MCP servers per agent
 /// ([[BPR-2139]], RFC-BPR-0104 AC10), a built-in prompt's instructions in
 /// the system prompt ([[BPR-2140]], RFC-BPR-0107 AC09), Claude's options
-/// with several values before `-p` and a wrapper's failed sign-in
+/// with several values each closed by another option and a wrapper's failed sign-in
 /// ([[BPR-2142]], RFC-BPR-0104 AC11, RFC-BPR-0103 AC10).
 
 #include "bpr/application/agent_launch.hpp"
@@ -157,9 +157,10 @@ namespace {
 		expect(core::parse_agent_mcp_servers("own") == core::agent_mcp_servers::own && !core::parse_agent_mcp_servers("on"), "the setting's names read back");
 	}
 
-	/// RFC-BPR-0104 AC11. In every Claude launch each option that takes
-	/// several values comes before `-p` and is followed by another option.
-	void test_options_with_several_values_come_before_the_prompt_flag()
+	/// RFC-BPR-0104 AC11 (amended 2026-11-19, [[BPR-2306]]). In every Claude
+	/// launch each option that takes several values is followed by another
+	/// option, and `-p` comes first, as the owner's harness audit recommends.
+	void test_options_with_several_values_are_followed_by_another_option()
 	{
 		const auto claude   = profile(core::agent_protocol::claude_stream_json);
 		auto       launches = std::vector<application::agent_launch_request>{ };
@@ -176,18 +177,16 @@ namespace {
 		add(application::build_round_launch(claude, "round", std::nullopt, "/tmp", reader()));
 		for (const auto& launch : launches) {
 			const auto& arguments = launch.Arguments;
-			const auto  print     = index_of(arguments, "-p");
-			expect(print < arguments.size(), "every Claude launch is in print mode");
+			expect(!arguments.empty() && arguments.front() == "-p", "every Claude launch is in print mode, -p first");
 			for (auto at = std::size_t{ 0U }; at < arguments.size(); ++at) {
 				if (std::ranges::find(core::claude_variadic_options, arguments[at]) == core::claude_variadic_options.end()) {
 					continue;
 				}
-				expect(at < print, "an option with several values comes before -p: " + arguments[at]);
 				auto next = at + 2U;
 				while (next < arguments.size() && !arguments[next].starts_with("-")) {
 					++next;
 				}
-				expect(next <= print, "an option with several values is followed by another option: " + arguments[at]);
+				expect(next < arguments.size(), "an option with several values is followed by another option: " + arguments[at]);
 			}
 			expect(!arguments.back().empty() && arguments.back() != "*", "a Claude launch never ends on an option's value that could take more");
 		}
@@ -195,8 +194,8 @@ namespace {
 
 	/// [[BPR-2304]]. Every Claude launch this app builds keeps the rules the
 	/// owner's harness audit of 2026-11-19 established, as the core checks
-	/// them: inline instructions only, several-valued options closed before
-	/// `-p`, an `Edit` rule beside every scoped `Write` rule, only the
+	/// them: inline instructions only, several-valued options closed by
+	/// another option, an `Edit` rule beside every scoped `Write` rule, only the
 	/// user's settings where the checkout or the run calls for it, and no MCP
 	/// server where MCP is off.
 	void test_every_claude_launch_keeps_the_audited_rules()
@@ -236,7 +235,7 @@ namespace {
 		expect(inline_ && index_of(inline_->Arguments, "--append-system-prompt") + 1U < inline_->Arguments.size()
 				   && inline_->Arguments[index_of(inline_->Arguments, "--append-system-prompt") + 1U] == rule,
 			   "Claude takes the instructions as one inline --append-system-prompt argument");
-		expect(inline_ && index_of(inline_->Arguments, "--append-system-prompt") < index_of(inline_->Arguments, "-p"), "the system prompt comes before -p");
+		expect(inline_ && index_of(inline_->Arguments, "-p") < index_of(inline_->Arguments, "--append-system-prompt"), "-p comes first, the system prompt after it");
 		expect(inline_ && !has(inline_->Arguments, "--append-system-prompt-file"), "never the -file form, which the corporate wrapper drops");
 		expect(inline_ && inline_->Input.find("PINEAPPLE") == std::string::npos && inline_->InstructionsRoute == application::agent_instructions_route::system_prompt,
 			   "the message carries only the run's material");
@@ -761,7 +760,7 @@ auto main(const int aCount, char** aArguments) -> int
 	test_every_launch_path_has_the_owners_session_mode();
 	test_each_launch_path_launches_in_its_session_mode();
 	test_mcp_servers_follow_the_agents_setting();
-	test_options_with_several_values_come_before_the_prompt_flag();
+	test_options_with_several_values_are_followed_by_another_option();
 	test_every_claude_launch_keeps_the_audited_rules();
 	test_built_in_instructions_reach_the_system_prompt();
 	test_the_writing_prompt_splits_into_instructions_and_material();
