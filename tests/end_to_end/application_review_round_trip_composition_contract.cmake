@@ -3883,8 +3883,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# 392dffc6f together, and the round-trip course's stale-head probe reads
 	# BPR-2263's sentence for a moved head (fixture_review_round_trip_course.cpp,
 	# tests only). No review mutation or submission path changed.
+	# [[BPR-2215]] reseal over main bafdd264f's app changes (BPR-2285 to
+	# BPR-2298), merged into this lane. No review mutation or submission
+	# path changed by the merge itself.
 	set(bpr_expected_production_app_manifest_digest
-        "1d47b164277cf126f4bda98e645a344c1443a62686deec975e9ec62e6d0f9818"
+        "d6bc5ad509830f3fcda2ee9ca791d186c4906b0cb07d8fb6301f383f2d172361"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
