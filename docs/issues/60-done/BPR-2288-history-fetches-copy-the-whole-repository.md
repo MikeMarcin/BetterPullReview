@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2288"
 title: "On a large repository, opening a file whose base the cache lacks runs a full clone that times out and restarts, and every retained agent workspace copies all of history: files never load, workspaces take minutes and 13 of them hold 113 GB"
-status: "Backlog"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-2289", "BPR-2290", "BPR-2291", "BPR-2293", "BPR-2294"]
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"defect","reservation":"docs/issues/_reservations/BPR-2288--BPR-2291--19d6a88ae1a3.json","split_into":["BPR-2289","BPR-2290","BPR-2291","BPR-2293","BPR-2294"],"found_by":"owner, 2026-11-19, build 69 on macOS, on a large repository (about 7.1 million objects, 9.4 GiB of packs, 80,733 files at the head) with a linked clone: one C++ file and one Markdown file each took minutes to show and showed no reason; a stack sample and the process list found the file view waiting on a full `gh repo clone` that timed out and restarted. The same day, the Agent tab spent minutes 'making its workspace at the head', and the retained agent workspaces were found to hold 113 GB","related_cards":["BPR-1751","BPR-1752","BPR-1772","BPR-1873","BPR-1879","BPR-1940","BPR-2246"],"related_rfcs":["RFC-BPR-0092","RFC-BPR-0108"]}
-acceptance: []
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "b170738ff", "evidence": {"kind": "card", "card": "BPR-2290", "detail": "BPR-2290 AC1: a complete acquisition whose linked clone holds the commit sends no host request (last_fetch_source linked_clone)."}}, {"criterion": "AC2", "outcome": "pass", "revision": "1e0c55a2e", "evidence": {"kind": "card", "card": "BPR-2291", "detail": "BPR-2291 AC3: past 32 MiB a sparse-capable connection loads selected objects and any other refuses before asking the host; no whole-history clone."}}, {"criterion": "AC3", "outcome": "pass", "revision": "1e0c55a2e", "evidence": {"kind": "card", "card": "BPR-2290, BPR-2291", "detail": "BPR-2290 AC3 (one attempt, logged timeout) and BPR-2291 AC1/AC2 (stall bound of a minute, the file view's failure sentence)."}}, {"criterion": "AC4", "outcome": "pass", "revision": "1e0c55a2e", "evidence": {"kind": "card", "card": "BPR-2290, BPR-2291", "detail": "BPR-2290 AC4 (historical_acquire stage with source, size, duration, outcome) and BPR-2291 AC1 (Fetching the base commit from github.com…, bytes, Cancel)."}}, {"criterion": "AC5", "outcome": "pass", "revision": "21cae6864", "evidence": {"kind": "card", "card": "BPR-2289, BPR-2294", "detail": "BPR-2289: the workspace borrows the clone and packs only what it lacks; survives the clone's loss by copying head and base from the cache. BPR-2294: on macOS, ready in under a second on a 20,003-file fixture, 5 files written, resumes after the clone's gc. Linux and Windows still write every file."}}, {"criterion": "AC6", "outcome": "pass", "revision": "766f94c64", "evidence": {"kind": "card", "card": "BPR-2293", "detail": "BPR-2293 AC1-AC3: expiry by end, age and cap; Settings shows count and total with Remove."}}, {"criterion": "AC7", "outcome": "pass", "revision": "21cae6864", "evidence": {"kind": "command", "command": "ctest --test-dir build/dev -R '^(architecture_boundaries|git_process_contract|retained_workspace_expiry|application_epoch_host|gh_cli_git_smart_transport|github_cli_process_runner|qt_diff_workbench_scale_100)$' && python3 scripts/verify_documentation.py --root .", "detail": "Change 6's tests are the children's (epoch host linked clone, transport --reference and no full clone, timeout, Qt fetching state, workspace pack size, reattach after gc, expiry beyond the cap); rerun on the integrated lane; DOCUMENTATION_OK."}}]
 ---
 
 # BPR-2288: On a large repository, opening a file whose base the cache lacks runs a full clone that times out and restarts, and every retained agent workspace copies all of history: files never load, workspaces take minutes and 13 of them hold 113 GB
@@ -254,3 +254,12 @@ The owner's card is kept as written above. It closes when its three parts do:
   message, AC4's view).
 - [[BPR-2293]]: retained-workspace expiry, size cap and the Settings row (AC6).
 - [[BPR-2294]]: the checkout cost of a large head (AC5's "ready in seconds").
+
+## Closed (2026-11-19)
+
+All five parts are Done: [[BPR-2289]], [[BPR-2290]], [[BPR-2291]],
+[[BPR-2293]] and [[BPR-2294]]. AC5's "ready in seconds" is measured on a
+20,003-file fixture on macOS, not on the owner's repository; on Linux and
+Windows a workspace still writes every file of the head. The 113 GB already on
+disk is reclaimed by the expiry sweep at the first start of a build with
+BPR-2293.
