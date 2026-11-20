@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2302"
 title: "Review and Comments settings sections take Appearance's card header"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
