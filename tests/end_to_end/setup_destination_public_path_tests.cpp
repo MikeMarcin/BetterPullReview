@@ -1466,6 +1466,14 @@ namespace {
 			if (word.Where.startsWith(QStringLiteral("QPushButton settingsScratchClear ("))) {
 				text.remove(QStringLiteral("The agents' conversations stay."));
 			}
+			// [[BPR-2293]]. A retained agent workspace belongs to an agent
+			// conversation, which removing the workspace keeps.
+			if (word.Where.startsWith(QStringLiteral("QCheckBox settingsWorkspaceKeepOn ("))) {
+				text.remove(QStringLiteral("A workspace whose conversation was replaced goes too."));
+			}
+			if (word.Where.startsWith(QStringLiteral("QPushButton settingsWorkspaceRemove ("))) {
+				text.remove(QStringLiteral("The conversations stay;"));
+			}
 			// [[BPR-1773]], RFC-BPR-0094: the shipped asks on a conversation
 			// (a thread or a private note), now listed in Settings' Prompts
 			// (BPR-2163), and the local-draft discussion hook's agent chats.
