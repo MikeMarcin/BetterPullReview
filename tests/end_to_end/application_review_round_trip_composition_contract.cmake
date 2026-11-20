@@ -2822,9 +2822,10 @@ function(bpr_verify_full_application_digest source_variable)
 	# same core::description_edit_offered gate and the same mutation host's
 	# EditsDescription capability; status and a newer body reach whichever
 	# editor saved. No provider, grant, admission, mutation branch or
-	# publication change.
+	# publication change. [[BPR-2315]], sealed with it: the two automatic
+	# refreshes after an edit name their cause (core::refresh_cause::edit).
 	set(bpr_expected_full_application_digest
-        "5143e64b19a0e02deefeed01f3577662638bb6f473ec342d70ae5e3087e092f5"
+        "7040814ec37f3c95ad6edd808ac50de4e35eb30a7c2d202036f9aadd6885a05b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3869,11 +3870,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# OwnerCommandEffects); windows compose no cycle desktop, Open Project or
 	# Send to Agent. Also seals main's unsealed app changes since BPR-2269:
 	# BPR-2274, 2279 to 2283, 2286 (window_follow_up.cpp joins the inventory),
-	# 2290, 2291, 2293, 2295, 2298, 2299, 2301, 2303, 2307, 2310 and 2311.
+	# 2290, 2291, 2293, 2295, 2298, 2299, 2301, 2303, 2307, 2310, 2311 and 2315.
 	# No review or tour provider, grant issuer, admission or mutation branch
 	# changes here; the mutation-branch digest below is checked separately.
 	set(bpr_expected_production_app_manifest_digest
-        "3d7b15d2b7b504669b8c330332f13d52c2a4d688dd9dcba851fb75e22bf96c3c"
+        "91c2e6914156cae03eb1e3cf05bc67113bedece4fe98b93ca0458ba0439c7b9e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
