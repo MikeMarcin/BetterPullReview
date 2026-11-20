@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2321"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "workspace seed clones and deletes the clone's ignored files",
+  "created": "2026-11-20T18:20:26.995379+00:00",
+  "base": "b2bdb96b549f66b4dc1c93d981000417f7711194"
+}
