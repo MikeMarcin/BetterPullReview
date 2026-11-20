@@ -54,7 +54,7 @@ if(BPR_BUILD_TOUR_CLI)
     endif()
     bpr_add_network_isolated_test(NAME tour_cli_loopback_provider WINDOWS_UNCONTAINED LOOPBACK_PORT_COUNT 1
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_loopback_tests.py" "$<TARGET_FILE:app_bpr>"
-        ${bpr_tour_loopback_openssl})
+        --diagnostics "$<TARGET_EXISTS:BetterPullReview::AdapterLogging>" ${bpr_tour_loopback_openssl})
     set_tests_properties(tour_cli_loopback_provider PROPERTIES TIMEOUT 300 PASS_REGULAR_EXPRESSION "tour-cli-loopback:pass")
 endif()
 

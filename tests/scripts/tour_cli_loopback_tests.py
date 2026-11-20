@@ -10,8 +10,9 @@ is true only after shutdown. This course runs the built `bpr` itself:
   (`BPR_GITHUB_NATIVE_HTTPS_TEST_LOOPBACK`, present only in test-enabled
   builds). Behind the proxy this course answers as github.com and
   api.github.com: the device flow, `/user`, the nine capability parts, the
-  contract fixture's pull request read, and Git's smart HTTP protocol v2 from a
-  real `git upload-pack` over the cli-read-v1 objects.
+  contract fixture's pull request read, the merge base the epoch compares from
+  (`compare`, from the real `git merge-base`), and Git's smart HTTP protocol v2
+  from a real `git upload-pack` over the cli-read-v1 objects.
 * On Linux the vault is the Secret Service on a private session bus with a
   test-only keyring, the harness the linux_secret_service_* rows use.
   Nothing reaches the user's own keyring or the network.
@@ -64,6 +65,7 @@ BODY_LIMIT = 1024 * 1024
 AUTHORITIES = ("github.com:443", "api.github.com:443")
 CAPABILITY_PART = re.compile(r"BetterPullReviewCapabilityProbeV1Part([0-8])")
 GRAPHQL_OPERATION = re.compile(r"\s*(query|mutation)\s+([A-Za-z_][A-Za-z0-9_]*)")
+COMPARE = re.compile(r"/repos/octo-org/review-repository/compare/([0-9A-Za-z._/-]+)\.\.\.([0-9a-f]{40})")
 
 
 class CourseFailure(RuntimeError):
@@ -308,12 +310,39 @@ class FakeGitHub:
         if path == "/repos/octo-org/review-repository/issues/17/timeline":
             self.record(f"GET {path}")
             return self._json(200, [], "core")
+        compared = COMPARE.fullmatch(path)
+        if compared:
+            return self._compare(path, compared[1], compared[2])
         if path in self.fixture["routes"]:
             self.record(f"GET {path}")
             resource = "search" if path == "/search/issues" else "core"
             return self._json(200, self.fixture["routes"][path], resource)
         self.record(f"unmatched:{method}:{path}")
         return self._json(404, {"message": "Not Found"})
+
+    def _compare(self, path: str, base: str, head: str) -> bytes:
+        """[[BPR-1560]]. The merge base GitHub names, from the real repository.
+
+        The epoch compares from it; without it the base anchor is unavailable
+        and no pinned source can be read.
+        """
+        environment = {"PATH": "/usr/bin:/bin", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
+                       "HOME": str(self.repository.parent)}
+
+        def git(*arguments: str) -> str | None:
+            done = subprocess.run(["git", "--git-dir", str(self.repository), *arguments], env=environment,
+                                  capture_output=True, text=True, timeout=SOCKET_SECONDS)
+            return done.stdout.strip() if done.returncode == 0 else None
+
+        base_commit = git("rev-parse", "--verify", "--end-of-options", base + "^{commit}")
+        merge_base = git("merge-base", base_commit, head) if base_commit else None
+        ahead = git("rev-list", "--count", f"{merge_base}..{head}") if merge_base else None
+        if not base_commit or not merge_base or ahead is None:
+            self.record(f"unmatched:GET:{path}")
+            return self._json(404, {"message": "Not Found"}, "core")
+        self.record(f"GET {path}")
+        return self._json(200, {"url": f"https://api.github.com{path}", "base_commit": {"sha": base_commit},
+                                "merge_base_commit": {"sha": merge_base}, "ahead_by": int(ahead)}, "core")
 
     def _git(self, method: str, target: str, path: str, headers: dict[str, str], body: bytes) -> bytes:
         """Git's smart HTTP protocol v2, answered by the real git upload-pack."""
@@ -470,20 +499,22 @@ def error_code(step: Step) -> str | None:
     return error.get("code") if isinstance(error, dict) else None
 
 
-def never_signed_in(course: Course, root: Path) -> None:
+def never_signed_in(course: Course, root: Path, diagnostics: bool) -> None:
     """A profile that never signed in refuses at once; it waited forever before."""
     step = course.run("never-signed-in-open", ["open", PULL_REQUEST, "--json", "--data-root", str(root / "fresh")])
     course.check(step, 5, error_code(step) == "authentication_required" and not step.requests,
                  f"code={error_code(step)}")
     # [[BPR-1830]]. The refused open is in the profile's diagnostic log as a
-    # typed tour.operation failure, and nothing of the pull request is.
+    # typed tour.operation failure, and nothing of the pull request is. A
+    # graph without the logging adapter (the tour-cli preset builds no Qt, so
+    # none) writes no session at all.
     files = sorted((root / "fresh").rglob("session-*.jsonl"))
     text = "".join(path.read_text(encoding="utf-8") for path in files)
     records = [json.loads(line) for line in text.splitlines() if line.strip()]
     opened = [record for record in records if record.get("event") == "tour.operation.failed" and record.get("category") == "tour"
               and record.get("detail", "").startswith("action=tour_open failure=authentication_unavailable ")]
     leaked = [word for word in ("octo-org", "review-repository", "github.com/") if word in text]
-    if len(opened) != 1 or leaked:
+    if (len(opened) != 1 if diagnostics else bool(files)) or leaked:
         course.failures.append("never-signed-in-diagnostics")
         say(f"{PREFIX}:never-signed-in-diagnostics:FAILED:records={len(opened)} leaked={leaked}")
 
@@ -629,6 +660,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("binary")
     parser.add_argument("--openssl")
+    parser.add_argument("--diagnostics", choices=("0", "1"), required=True,
+                        help="1 if the graph links the diagnostic logging adapter, 0 if it does not")
     parser.add_argument("--seed-binary")
     parser.add_argument("--gh", action="store_true", help="run the macOS gh rows (outside ctest)")
     parser.add_argument("--step-seconds", type=float, default=STEP_SECONDS)
@@ -648,7 +681,7 @@ def main() -> int:
                            if not name.startswith(("GH_", "GITHUB_"))}
             environment.update(QT_QPA_PLATFORM="bpr-no-display", NO_COLOR="1")
             course = Course(binary, seed, environment, None, arguments.step_seconds)
-            never_signed_in(course, root)
+            never_signed_in(course, root, arguments.diagnostics == "1")
             say(f"{PREFIX}:native-paths:not-run:the vault here is the user's own; Linux runs them on a private "
                 "Secret Service")
             say(f"{PREFIX}:gh-paths:not-run:{gh_reason}")
@@ -676,7 +709,7 @@ def main() -> int:
                                        BPR_GITHUB_NATIVE_HTTPS_TEST_LOOPBACK=f"{server.port}:{authority}")
                 course = Course(binary, seed, environment, server, arguments.step_seconds)
                 try:
-                    never_signed_in(course, root)
+                    never_signed_in(course, root, arguments.diagnostics == "1")
                     if sys.platform.startswith("linux"):
                         native_paths(course, root, server)
                     else:
