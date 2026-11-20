@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2318"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Settings Agents list selection, delete, reorder; arguments editor; profile reorder",
+  "created": "2026-11-20T17:48:48.178469+00:00",
+  "base": "ffcbf8efc941901ea6f124a5b6c74252148f7ab5"
+}
