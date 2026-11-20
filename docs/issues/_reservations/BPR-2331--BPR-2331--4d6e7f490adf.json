@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2331"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Agent tab shows a report's summary instead of its finding cards",
+  "created": "2026-11-20T20:43:36.791105+00:00",
+  "base": "81bcaf99377b4c904d7bc00cc3339a2bdf1b6a11"
+}
