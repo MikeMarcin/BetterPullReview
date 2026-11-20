@@ -57,7 +57,6 @@ add_library(
         src/skill_catalog.cpp
         src/review_tour_import.cpp
         src/review_tour_host.cpp
-        src/review_cycle_capture.cpp
         src/review_cycle_git_metadata.cpp
         src/local_draft_discovery.cpp
         src/local_draft_publishing.cpp
@@ -66,25 +65,6 @@ add_library(
         src/follow_up_host.cpp
         src/local_draft_workbench.cpp
         src/local_presentation.cpp
-        src/review_cycle_comparison.cpp
-        src/review_cycle_feedback.cpp
-        src/review_cycle_round.cpp
-        src/review_cycle_views.cpp
-        src/review_cycle_response.cpp
-        src/review_cycle_retrieval.cpp
-        src/review_cycle_verification.cpp
-        src/review_cycle_outgoing.cpp
-        src/review_cycle_publication.cpp
-        src/review_cycle_publisher.cpp
-        src/review_cycle_publishing.cpp
-        src/review_cycle_promotion.cpp
-        src/review_cycle_export.cpp
-        src/review_cycle_share.cpp
-        src/review_cycle_send.cpp
-        src/review_cycle_import.cpp
-        src/review_cycle_workbench.cpp
-        src/review_cycle_words.cpp
-        src/review_cycle_runtime.cpp
         src/review_tour_source.cpp
         src/window_review_restoration_host.cpp
         src/document_tab_host.cpp
@@ -230,7 +210,6 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
             src/local_check_copies.cpp
             src/agent_realignment.cpp
             src/mcp_context_helper_supervisor.cpp
-            src/review_cycle_agent_sender.cpp
     )
 endif()
 

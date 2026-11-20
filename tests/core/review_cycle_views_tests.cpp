@@ -1,5 +1,4 @@
 #include "bpr/core/diff_compute.hpp"
-#include "bpr/core/review_cycle_tabs.hpp"
 #include "bpr/core/review_cycle_views.hpp"
 #include "product_diff.hpp"
 
@@ -14,8 +13,8 @@
 #include <vector>
 
 /// \file
-/// \brief Named comparison views, reviewer checkpoints, pinned and semantic
-/// tabs and the separate revision chronologies (BPR-1163).
+/// \brief Named comparison views, reviewer checkpoints and the separate
+/// revision chronologies (BPR-1163). [[BPR-2308]] retired the cycle's tabs.
 
 namespace {
 	using namespace bpr::core;
@@ -122,49 +121,6 @@ namespace {
 		expect(older.Latest->Id.Id == id(5) && same_material(*older.Latest, *older.Latest), "deliberate same-bytes observation is R3");
 	}
 
-	void tabs_keep_their_views()
-	{
-		auto cycle   = captured(captured(captured(make_cycle(), 1), 2), 3);
-		auto facts   = cycle_view_facts{ .Rounds = { { .Round = cycle_round_id{ 1 }, .Start = id(1) } } };
-		auto tabs    = cycle_tabs_state{ .Revision = id(3) };
-		auto subject = cycle.Subject;
-		expect(open_path(tabs, "src/a.cpp", false).Changed, "full source tab");
-		expect(show_comparison(tabs, all_cycle_request{ }, { .Right = ref(cycle, 3) }).Reason == document_tab_reason::invalid_comparison, "a comparison needs a left side");
-		expect(show_comparison(tabs, chosen_pair_request{ id(1), id(2) }, *resolve_view(cycle, facts, chosen_pair_request{ id(1), id(2) })).Changed, "choose revisions");
-		expect(shown_pair(subject, active_tab(tabs)->View) == pair(cycle, 1, 2), "the tab shows the exact pair");
-		expect(!show_comparison(tabs, chosen_pair_request{ id(1), id(2) }, pair(cycle, 1, 2)).Changed, "same pair again");
-		// Another file in the same tab keeps the pinned pair.
-		expect(open_path(tabs, "src/b.cpp", false).Changed && shown_pair(subject, active_tab(tabs)->View) == pair(cycle, 1, 2), "another file, same pair");
-		expect(open_path(tabs, "src/a.cpp", true).Changed && tabs.Tabs[1].View.Revision == id(3) && !tabs.Tabs[1].View.Comparison, "a new tab is full source on the new-tab revision");
-
-		cycle = captured(cycle, 4);
-		expect(view_newer_available(cycle, facts, active_tab(tabs)->View.Comparison->Request, shown_pair(subject, active_tab(tabs)->View)), "newer signalled");
-		expect(refresh_active(tabs, std::optional{ *resolve_view(cycle, facts, chosen_pair_request{ id(1), id(2) }) }, id(4)).Reason == document_tab_reason::invalid_comparison, "a pinned pair never refreshes");
-		expect(shown_pair(subject, active_tab(tabs)->View) == pair(cycle, 1, 2), "never retargeted");
-
-		// A semantic view moves only on the reviewer's refresh.
-		expect(show_comparison(tabs, this_round_request{ .Round = cycle_round_id{ 1 } }, pair(cycle, 1, 3)).Changed, "this round as it was");
-		expect(refresh_active(tabs, std::optional{ *resolve_view(cycle, facts, this_round_request{ .Round = cycle_round_id{ 1 } }) }, id(4)).Changed, "refresh");
-		expect(shown_pair(subject, active_tab(tabs)->View) == pair(cycle, 1, 4), "refresh moves the semantic view");
-		expect(show_full_source(tabs).Changed && !active_tab(tabs)->View.Comparison && active_tab(tabs)->View.Revision == id(4), "back to full source at the right side");
-		expect(!show_full_source(tabs).Changed, "already full source");
-		expect(refresh_active(tabs, std::nullopt, id(4)).Changed == false, "full source already latest");
-
-		// Restoration keeps comparisons exactly and refuses foreign revisions.
-		expect(show_comparison(tabs, since_last_review_request{ }, pair(cycle, 2, 4)).Changed, "since my last review");
-		const auto record   = persisted(tabs);
-		auto       restored = cycle_tabs_state{ };
-		expect(restore(restored, cycle, record).Reason == document_tab_reason::none && persisted(restored) == record, "comparisons restored");
-		auto forged                = record;
-		forged.Views[0].Comparison = cycle_tab_comparison{ .Request = all_cycle_request{ }, .Left = id(9) };
-		auto refused               = cycle_tabs_state{ };
-		expect(restore(refused, cycle, forged).Reason == document_tab_reason::invalid_restoration, "an unallocated left side is refused");
-		forged.Views[0].Comparison = cycle_tab_comparison{ .Request = chosen_pair_request{ id(1), id(8) }, .Left = id(1) };
-		expect(restore(refused, cycle, forged).Reason == document_tab_reason::invalid_restoration, "an unallocated request is refused");
-		forged.Views[0].Comparison = cycle_tab_comparison{ .Request = this_round_request{ .Round = cycle_round_id{ 5 } }, .Left = id(1) };
-		expect(restore(refused, cycle, forged).Reason == document_tab_reason::invalid_restoration, "a round never frozen is refused");
-	}
-
 	auto source(const review_cycle_state& aCycle, const std::uint64_t aRevision, const std::optional<std::string>& aReference, const std::uint8_t aCommit, const bool aRepository = true)
 		-> cycle_revision_source
 	{
@@ -229,7 +185,6 @@ namespace {
 auto main() -> int
 {
 	resolves_the_manual_course();
-	tabs_keep_their_views();
 	keeps_chronologies_apart();
 	rows_follow_the_alignment();
 	std::cout << "review-cycle-views-tests:pass\n";

@@ -13,7 +13,6 @@ add_library(
         src/scoped_prose_editor.cpp
         src/suggestion_editor.cpp
         src/suggestion_composer.cpp
-        src/review_cycle_view.cpp
         src/local_draft_publication_area.cpp
         src/local_draft_workflow_area.cpp
         src/wrapping_row.cpp
@@ -22,15 +21,11 @@ add_library(
         src/workbench_window_author_mode.cpp
         src/author_description_editor.cpp
         src/local_draft_parts.cpp
-        src/review_cycle_share_sheet.cpp
-        src/review_cycle_share_marks.cpp
         src/anchored_tooltip.cpp
         src/external_link_confirmation.cpp
         src/feedback_label_marks.cpp
         src/feedback_label_controls.cpp
         src/feedback_label_settings.cpp
-        src/review_cycle_publish_sheet.cpp
-        src/review_cycle_promote_sheet.cpp
         src/keyboard_focus_ring.cpp
         src/button_surface.cpp
         src/quiet_tool_button.cpp

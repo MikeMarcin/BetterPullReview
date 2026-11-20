@@ -54,7 +54,7 @@ namespace bpr::app {
 		if (!opened) {
 			switch (opened.error().Failure) {
 			case application::local_draft_open_failure::not_git:
-				return failed(QStringLiteral("not_git"), QStringLiteral("This folder is not a Git worktree. Review it with bpr cycle open instead."));
+				return failed(QStringLiteral("not_git"), QStringLiteral("This folder is not a Git worktree; a local PR draft needs one."));
 			case application::local_draft_open_failure::repository:
 				return failed(QStringLiteral("unsupported_repository"), QStringLiteral("This repository uses a format BetterPullReview does not read."));
 			case application::local_draft_open_failure::workspace:

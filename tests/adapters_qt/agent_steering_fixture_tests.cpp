@@ -9,6 +9,7 @@
 ///
 ///     agent_steering_fixture_tests FIXTURE_AGENT_FOLDER
 
+#include "../support/plain_agent_launch.hpp"
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 
 #include <QCoreApplication>
@@ -65,7 +66,7 @@ namespace {
 		auto profiles      = core::built_in_agent_profiles();
 		auto profile       = *std::ranges::find(profiles, core::agent_protocol::claude_stream_json, &core::agent_profile::Protocol);
 		profile.Executable = aClaude.string();
-		auto launch        = application::build_round_launch(profile, "Take your time, then say what you read.", { }, workspace.path().toStdString(), [](const std::string&) { return std::optional<std::string>{ }; });
+		auto launch        = tests::plain_agent_launch(profile, "Take your time, then say what you read.", workspace.path().toStdString(), [](const std::string&) { return std::optional<std::string>{ }; });
 		expect(launch.has_value(), "the fixture's launch is built as Claude's");
 		launch->NativeConversation = aSteerable ? "steered-fixture" : "unqualified-fixture";
 		launch->Run                = core::agent_run_id{ 7U };
@@ -142,7 +143,7 @@ namespace {
 		auto profiles      = core::built_in_agent_profiles();
 		auto profile       = *std::ranges::find(profiles, core::agent_protocol::claude_stream_json, &core::agent_profile::Protocol);
 		profile.Executable = aClaude.string();
-		auto launch        = application::build_round_launch(profile, "FIXTURE_HELPER then say what you read.", { }, workspace.path().toStdString(), [](const std::string&) { return std::optional<std::string>{ }; });
+		auto launch        = tests::plain_agent_launch(profile, "FIXTURE_HELPER then say what you read.", workspace.path().toStdString(), [](const std::string&) { return std::optional<std::string>{ }; });
 		expect(launch.has_value(), "the fixture's launch is built as Claude's");
 		launch->NativeConversation = "helper-fixture";
 		launch->Run                = core::agent_run_id{ 8U };

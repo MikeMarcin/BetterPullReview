@@ -30,9 +30,6 @@
 #if defined(BPR_BUILD_TESTING)
 	#include "github_application_fixture_access.hpp"
 #endif
-#if defined(BPR_LOCAL_AUTOMATION)
-	#include "cycle_owner_service.hpp"
-#endif
 
 // Starting a github_application: profile admission, the startup steps and
 // what they hand the first window.
@@ -67,15 +64,12 @@ namespace bpr::app {
 		void publish(const application::profile_startup_terminal& aTerminal) override;
 
 	private:
-		void                                                    finish(github_application_startup_result aResult);
-		github_application_config                               Config;
-		std::shared_ptr<application::profile_runtime_lease>     RuntimeLease;
-		std::shared_ptr<application::profile_activation_server> ActivationServer;
-		std::shared_ptr<application::tour_owner_server>         TourOwnerServer;
-		std::shared_ptr<const tour_owner_service>               TourOwnerService;
-#if defined(BPR_LOCAL_AUTOMATION)
-		std::shared_ptr<cycle_owner_service> CycleOwnerService;
-#endif
+		void                                                                               finish(github_application_startup_result aResult);
+		github_application_config                                                          Config;
+		std::shared_ptr<application::profile_runtime_lease>                                RuntimeLease;
+		std::shared_ptr<application::profile_activation_server>                            ActivationServer;
+		std::shared_ptr<application::tour_owner_server>                                    TourOwnerServer;
+		std::shared_ptr<const tour_owner_service>                                          TourOwnerService;
 		std::optional<github_application_startup_failure>                                  Handoff;
 		std::optional<profile_data_reset_report>                                           DataResetReport;
 		github_application_startup_completion                                              Completion;

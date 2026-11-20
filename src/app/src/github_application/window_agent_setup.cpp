@@ -939,12 +939,6 @@ namespace bpr::app {
 				}
 			}
 		}
-		// Send to Agent defaults to the agent the pull request's session uses.
-		if (!Closing && CycleDesktop && Window != nullptr) {
-			if (const auto selected = Window->agent_panel()->selected_profile(); selected && core::is_agent_entry_profile(*selected)) {
-				CycleDesktop->prefer_send_profile(selected);
-			}
-		}
 	}
 
 	/// [[BPR-1753]], owner decision (b) 2026-10-23. The pull request
@@ -2477,15 +2471,8 @@ namespace bpr::app {
 		const auto saved = setup_saved_profile(aProjection);
 		Window->agent_panel()->prefer_profile(saved);
 		Window->agent_panel()->offer_profiles(offered_agent_profiles());
-		// Owner decision 2026-10-23: Send to Agent offers the same list.
-		if (CycleDesktop) {
-			CycleDesktop->offer_agents(aProjection.Preferences.Agents);
-		}
 		present_run_settings();
 		present_setup_view();
-		if (CycleDesktop) {
-			CycleDesktop->prefer_send_profile(saved);
-		}
 		observe_conversation_agent();
 	#if defined(BPR_BUILD_TESTING)
 		// [[BPR-2177]], look ask-v002 (owner, 2026-11-14: "Aren't we supposed

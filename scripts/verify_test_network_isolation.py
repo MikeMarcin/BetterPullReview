@@ -177,7 +177,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_chat_subject_contract": "private-test-root-refused",
     "application_agent_chat_helpers_public_path": "private-test-root-refused",
     # RFC-BPR-0108, 0110 and 0111. The local PR draft courses run installed Git
-    # on a real worktree under the test root, as the review-cycle courses do.
+    # on a real worktree under the test root.
     "local_draft": "profile-root-refused",
     "local_draft_publication": "profile-root-refused",
     "application_local_draft_desktop_public_path": "fixture-git-command-failed",
@@ -574,13 +574,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "live_review_submission_provider": "dos-volume-name",
     "live_review_submission_restart_recovery": "dos-volume-name",
     "sqlite_review_ledger_storage": "dos-volume-name",
-    # Measured on JaegAW 2026-09-29, each passing uncontained. Contained, each
-    # stops at its first private store open under its scratch root ("open cycle
-    # catalog", "open without account, provider or agent", and exit 3 after
-    # "each command client edit advances shared history"). Not traced further;
-    # the same class as the BPR-0813 and [[BPR-1126]] scratch-root rows.
-    "sqlite_review_cycle_storage": "dos-volume-name",
-    "sqlite_review_cycle_runtime": "dos-volume-name",
+    # Measured on JaegAW 2026-09-29, passing uncontained. Contained, it stops
+    # with exit 3 after "each command client edit advances shared history",
+    # under its scratch root. Not traced further; the same class as the
+    # BPR-0813 and [[BPR-1126]] scratch-root rows.
     "sqlite_review_tour_storage": "dos-volume-name",
     # [[BPR-1230]]. Measured on JaegAW 2026-09-29: passes uncontained; contained
     # it stops at "publication SQLite journal opens" under its scratch root.
@@ -602,75 +599,17 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # Registered uncontained, it passes.
     "application_review_tour_writing_wrapper": "dos-volume-name",
     # [[BPR-1148]], [[BPR-1149]]. The product opens a chosen root and resolves it
-    # with GetFinalPathNameByHandleW(VOLUME_NAME_DOS), the rows keep their stores
-    # under a scratch root, and they build fixtures with Git; each is the obstacle
-    # named above. Measured on JaegAW 2026-09-29: all five pass uncontained, and
-    # contained each fails before its first course completes (workspace_source at
-    # "open root", review_cycle_capture at "fixture git command", the other three
-    # at "catalog").
+    # with GetFinalPathNameByHandleW(VOLUME_NAME_DOS) and builds fixtures with
+    # Git. Measured on JaegAW 2026-09-29: it passes uncontained, and contained
+    # it fails at "open root".
     "workspace_source": "dos-volume-name",
-    "review_cycle_capture": "dos-volume-name",
-    "review_cycle_comparison": "dos-volume-name",
-    "review_cycle_scale": "dos-volume-name",
-    "review_cycle_recovery": "dos-volume-name",
-    # [[BPR-1153]], [[BPR-1155]], [[BPR-1157]], [[BPR-1158]], [[BPR-1159]], [[BPR-1160]], [[BPR-1162]]. The same scratch-root store and chosen-root course as the
-    # rows above. Measured on JaegAW 2026-09-29: review_cycle_feedback,
-    # review_cycle_suggestion, review_cycle_workbench and the desktop course pass
-    # uncontained, and contained each fails before its course completes (the
-    # first two at "catalog", the workbench at "opened without an account,
-    # provider or agent", the desktop course at "Open Project offered signed
-    # out"). review_cycle_round, review_cycle_export, review_cycle_bundle and
-    # review_cycle_attach, measured the same day, pass uncontained and fail
-    # contained with exit 3 (review_cycle_bundle at "catalog").
-    "review_cycle_feedback": "dos-volume-name",
-    "review_cycle_suggestion": "dos-volume-name",
-    "review_cycle_round": "dos-volume-name",
-    "review_cycle_export": "dos-volume-name",
-    "review_cycle_bundle": "dos-volume-name",
-    "review_cycle_attach": "dos-volume-name",
-    # [[BPR-1164]], [[BPR-1165]]. The same scratch-root store course. Measured on
-    # JaegAW 2026-09-29: both pass uncontained, and contained each exits 3 at
-    # "catalog".
-    "review_cycle_response": "dos-volume-name",
-    "review_cycle_verification": "dos-volume-name",
-    # [[BPR-1172]]. The same scratch-root store course, with the build's Git
-    # both making fixtures and serving as the product's installed Git. Measured
-    # on JaegAW 2026-09-29: review_cycle_outgoing, _candidate, _publication and
-    # _publisher run uncontained, and contained each stops at `canonical: Access
-    # is denied.` on the Git executable, the BPR-0812 shape.
-    "review_cycle_outgoing": "dos-volume-name",
-    # [[BPR-1173]]. The same course shape as review_cycle_outgoing.
-    "review_cycle_candidate": "dos-volume-name",
-    # [[BPR-1454]]. The Git metadata reader rows: the same scratch-root store
-    # course with the build's Git making fixtures (and the publication catalog
-    # for the outgoing row).
-    "review_cycle_git_readers": "git-reference-parent-denied",
-    # [[BPR-1457]]. The scale bench's Git reader and adversarial cases.
+    # [[BPR-1454]], [[BPR-1457]]. The Git metadata readers' scale bench and
+    # adversarial cases, with the build's Git making fixtures.
     "review_cycle_git_reader_scale": "git-reference-parent-denied",
     # [[BPR-1455]] and [[BPR-1456]]. The Git metadata differential harness and
     # canary course: the same scratch-root store course, with the build's Git
     # making fixtures and answering as the oracle.
     "git_metadata_harness": "git-reference-parent-denied",
-    # [[BPR-1174]]. The same course shape.
-    "review_cycle_publication": "dos-volume-name",
-    # [[BPR-1175]]. The same course shape; the provider is simulated in memory.
-    "review_cycle_publisher": "dos-volume-name",
-    # [[BPR-1177]]. Measured on JaegAW 2026-10-04 at d8fa5bfc2, contained
-    # through the sandbox launcher: it stops at "FAILED: fixture git command",
-    # before it reaches review_cycle_publisher's canonical of git.exe. Git
-    # starts there, and a probe in the same container shows `git init` under
-    # AC\Temp exiting 128 with "fatal: Invalid path 'C:/Users': Permission
-    # denied". It passes uncontained.
-    "review_cycle_publish_desk": "dos-volume-name",
-    # [[BPR-1178]]. The publish desk's course, run as several processes by a
-    # Python driver. Measured on JaegAW 2026-10-04 at 91c01540e, contained
-    # through the sandbox launcher: its first process (--publish) exits before
-    # the first checkpoint with "FAILED: fixture git command", the
-    # review_cycle_publish_desk refusal (Git under AC\Temp). It passes
-    # uncontained.
-    "review_cycle_publication_matrix": "dos-volume-name",
-    "review_cycle_workbench": "dos-volume-name",
-    "application_review_cycle_desktop_public_path": "dos-volume-name",
     "rfc0016_device_capture_security": "dos-volume-name",
     "test_network_isolation_structure_contract": "dos-volume-name",
     "operator_response_validation_contract": "dos-volume-name",
@@ -767,13 +706,6 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # checkout, and needs a Git child behind that.
     "documentation_structure": "repository-content-outside-checkout",
     "documentation_issue_graph_contract": "repository-content-outside-checkout",
-    # [[BPR-1170]]. Measured on JaegAW 2026-10-05 at 9c717f15a in a tour-cli
-    # tree with tests, as registered contained: the station's MASK deployment
-    # `.claude/skills/bpr-cycle` is a link into the MASK store under the user
-    # profile, which the container reads as an empty tree, so the copy check
-    # fails at "differs from the package; import it again". Uncontained the
-    # store's copy matches the package byte for byte and the row passes.
-    "skill_bpr_cycle_package": "repository-content-outside-checkout",
     # [[BPR-1067]]. Measured on bpr-main-win 2026-10-06 at 1992ee1eb in a
     # tour-cli tree with tests, as registered contained, after `mask repair`
     # deployed `.claude/skills/pr-tour` and `.agents/skills/pr-tour` as links
@@ -1070,8 +1002,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_label_publication_recovery": "dos-volume-name",
     # [[BPR-1167]], [[BPR-1168]]. Measured on JaegAW 2026-10-02 at 3e3b3fa17 in a
     # BPR_BUILD_TOUR_CLI tree, contained through the sandbox launcher and as
-    # registered. Each passes uncontained. Contained, the tour CLI rows and
-    # `bpr cycle` stop at "profile_unavailable: The application root is
+    # registered. Each passes uncontained. Contained, the tour CLI rows stop
+    # at "profile_unavailable: The application root is
     # unavailable or is not owner-private" ("public open" in the publication
     # course); the tour handoff's desktop at "owner startup succeeds"; the tour
     # owner channel at "canonical: Access is denied" on its AC\Temp root, before
@@ -1085,68 +1017,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # profile_unavailable, "The application root is unavailable or is not
     # owner-private.", as tour_cli_composition does.
     "tour_cli_labels": "dos-volume-name",
-    "cycle_cli_public_path": "dos-volume-name",
-    # [[BPR-1185]]. Measured on JaegAW 2026-10-05 at 9c717f15a in a tour-cli
-    # tree with tests, contained through the sandbox launcher: its first
-    # `bpr cycle open` (prepare, line 331) answers "profile_unavailable: The
-    # application root is unavailable or is not owner-private", as
-    # cycle_cli_public_path does. It passes uncontained.
-    "cycle_cli_documentation": "dos-volume-name",
-    "application_profile_cycle_handoff_public_path": "dos-volume-name",
     "application_profile_tour_handoff_public_path": "dos-volume-name",
     "sqlite_tour_owner_channel": "dos-volume-name",
-    # [[BPR-1166]]. Measured on JaegAW 2026-10-03 at 544bd5ce0 in a
-    # BPR_BUILD_TOUR_CLI tree, contained as registered. The course's first
-    # `git init` in its AC\Temp project exits 128 with "fatal: unable to get
-    # current working directory: Permission denied" (Git's getcwd) before any
-    # desktop step. It passes uncontained.
-    "application_review_cycle_two_round_public_path": "dos-volume-name",
-    # [[BPR-1171]]. Measured on JaegAW 2026-10-04 at 8fab05419 in a
-    # BPR_BUILD_TOUR_CLI tree, contained as registered. The course's first
-    # `bpr cycle list` exits 7 with "The application root is unavailable or
-    # is not owner-private.", the profile_unavailable refusal
-    # cycle_cli_public_path measures. It passes uncontained.
-    "application_review_cycle_parity_public_path": "dos-volume-name",
-    # [[BPR-1177]]. Measured on JaegAW 2026-10-04 at d8fa5bfc2, contained as
-    # registered. It exits 3 with no output in 0.08 s: the course's unchecked
-    # std::filesystem::canonical of its scratch root aborts, the BPR-0622
-    # agent_parent_death shape. It passes uncontained.
-    "application_review_cycle_publish_public_path": "dos-volume-name",
-    # [[BPR-1184]]. Measured on JaegAW 2026-10-04 at baef515d8 in the
-    # windows-app-release tree with BUILD_TESTING and BPR_BUILD_TOUR_CLI on,
-    # contained as registered. After generating its first corpus, the first
-    # desktop exits 1 with "FAILED: the desktop starts with a window" (the
-    # profile desktop's data root, as the application rows above), before
-    # the expected `bpr cycle open`. It is measured uncontained.
-    "application_review_cycle_large_project": "dos-volume-name",
-    # [[BPR-1179]]. Registered only where BPR_BUILD_LOCAL_AUTOMATION is off.
-    # Measured on JaegAW 2026-10-04 at 795d387cf in windows-dev with both
-    # switches OFF, contained through the sandbox launcher: the course's
-    # first `git init` exits 128 before any desktop step, as the two-round
-    # course it shares does (Git's getcwd under AC\Temp). It passes
-    # uncontained.
-    "application_review_cycle_automation_off_two_round": "dos-volume-name",
-    # [[BPR-1180]]. Measured on JaegAW 2026-10-04 at f198d4e09 in windows-dev,
-    # contained through the sandbox launcher; each passes uncontained.
-    # review_cycle_send exits 3 at its first store step ("FAILED: two
-    # notes"), as the other review_cycle_* store rows do. The send course
-    # exits 3 at "FAILED: the opened project is the selected cycle": opening
-    # the project is refused contained (it had crashed on the unchecked
-    # optional before the course checked it).
-    "review_cycle_send": "dos-volume-name",
-    "application_review_cycle_send_public_path": "dos-volume-name",
-    # [[BPR-1181]]. Measured on JaegAW 2026-10-04 at 72ca49f18 in a
-    # BPR_BUILD_TOUR_CLI tree, contained as registered: the course's first
-    # `git init` (review_cycle_security_qualification.py, line 214) fails
-    # before any attack runs, Git's getcwd under AC\Temp as in the two-round
-    # course. It is run uncontained.
-    "application_review_cycle_security_qualification": "dos-volume-name",
-    # [[BPR-1183]]. Measured on JaegAW 2026-10-05 at 1fb3cd77d in a
-    # BPR_BUILD_TOUR_CLI tree, contained as registered: the corpus's first
-    # `bpr cycle open` exits 7 with "The application root is unavailable or
-    # is not owner-private.", the profile_unavailable refusal
-    # cycle_cli_public_path measures. It is run uncontained.
-    "application_review_cycle_recovery_corpus": "dos-volume-name",
     # [[BPR-1331]]. The published file switch row's fixture and composed
     # application. Measured on JaegAW 2026-10-09 at 64e145116: passes
     # uncontained; contained through the sandbox launcher its CMake driver

@@ -802,15 +802,8 @@ namespace bpr::app {
 		void open_window_review(core::bpr_window_context aContext, const core::window_review_destination& aDestination);
 		void set_profile_label(std::string aLabel);
 
-		/// [[BPR-1168]]. Runs one forwarded cycle command on the profile's cycle-owner lane.
-		void desktop_cycle_owner_route(application::tour_channel_bytes aRequest, application::cycle_owner_request aCycle, std::function<void(application::tour_channel_bytes)> aRespond);
 		/// RFC-BPR-0108 AC05. `bpr draft open` at the desktop.
 		void desktop_local_draft_owner_route(application::local_draft_owner_request aRequest, std::function<void(application::tour_channel_bytes)> aRespond);
-		/// What the open windows hold of a cycle's round draft that the store does not;
-		/// with `aSave`, unsaved text is saved as Return would. Decision lane.
-		[[nodiscard]] auto cycle_draft_editors(core::review_cycle_id aCycle, bool aSave) -> core::cycle_draft_editor;
-		/// Windows showing a cycle a forwarded command wrote read it again. Decision lane.
-		void cycle_written(core::review_cycle_id aCycle);
 
 		// Declared before `Implementation` only for readability; what matters is
 		// that the destructor body clears `Liveness` before shutdown begins and

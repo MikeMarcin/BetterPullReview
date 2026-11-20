@@ -15,8 +15,8 @@
 
 /// \file
 /// \brief In-memory texts handed to a packaged classifier, and a relay for a
-/// classification host's answers. Shared by the local Review Cycle and local
-/// draft compositions, whose texts exist only in memory.
+/// classification host's answers. Used by the local draft composition,
+/// whose texts exist only in memory.
 namespace bpr::app {
 	/// \brief Serves the texts Suggest change asks about to the classifier
 	/// (BPR-1156).

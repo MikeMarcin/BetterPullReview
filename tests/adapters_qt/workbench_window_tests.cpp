@@ -46,7 +46,6 @@
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/reading_width_dialog.hpp"
 #include "bpr/qt/refresh_note.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
@@ -8829,8 +8828,8 @@ namespace {
 		window_key(window, Qt::Key_A, Qt::ControlModifier);
 		expect(line.selectedText() == line.text() && dispatched.size() == 2U, "ordinary Select All keeps its text editing behavior");
 
-		// A reader that becomes an editor in place, as the Review Cycle reader
-		// becomes the suggestion editor, claims the key when it arrives.
+		// A reader that becomes an editor in place, as a suggestion editor
+		// does, claims the key when it arrives.
 		suggestion.set_text("");
 		suggestion.set_read_only(true);
 		button->setFocus();
@@ -13430,7 +13429,7 @@ namespace {
 			   "Esc ends the edit: the interleaved comparison is back and the suggestion kept");
 	}
 
-	/// \brief [[RFC-BPR-0090]] AC02. The head pane's edit is the Review Cycles
+	/// \brief [[RFC-BPR-0090]] AC02. The head pane's edit is the suggestion
 	/// editor: a box across the range, IME composition, undo and paste work
 	/// there through its keys, and a box that reaches past the range is
 	/// refused whole.
@@ -23369,12 +23368,6 @@ namespace {
 		action->trigger();
 		expect(pages.size() == 3U && window.statusBar()->currentMessage() == QStringLiteral("This pull request's page cannot be opened safely from here."),
 			   "a refusal is said plainly");
-		window.show_local_cycle(QStringLiteral("A local cycle"));
-		process_events();
-		expect(!button->isVisible() && !action->isEnabled(), "a local cycle has no GitHub page");
-		window.leave_local_cycle();
-		process_events();
-		expect(button->isVisible() && action->isEnabled(), "back on the pull request, its page is offered again");
 		window.home_action()->trigger();
 		process_events();
 		expect(window.showing_home() && !button->isVisible() && !action->isEnabled(), "Home with no row chosen names no pull request");
@@ -23452,13 +23445,6 @@ namespace {
 		window.choose_home(false);
 		process_events();
 		expect(!window.showing_home() && title().startsWith(QStringLiteral("#188875 ")), "back on the review: the pull request again");
-
-		window.show_local_cycle(QStringLiteral("A local cycle"));
-		process_events();
-		expect(title() == home, "a local cycle in front is not the pull request");
-		window.leave_local_cycle();
-		process_events();
-		expect(title().startsWith(QStringLiteral("#188875 ")), "leaving the cycle names the pull request again");
 
 		// Qt's modified mark is shown literally.
 		accepted.Title = "Keep [*] literal";
@@ -23576,38 +23562,6 @@ namespace {
 			window.choose_home(false);
 			process_events();
 			expectCurrent();
-			const auto cycleTitle = QStringLiteral("A retained local cycle");
-			const auto cycleBadge = QStringLiteral("  ·  Local cycle");
-			window.show_local_cycle(cycleTitle);
-			accepted.Title           = "Updated behind the local cycle";
-			accepted.MarkdownContext = page_context(4U);
-			window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
-			process_events();
-			// The native title may elide at the platform floor. Its full tooltip
-			// still names this exact cycle, and the visible prefix and badge must
-			// belong to it rather than to the PR updated behind it.
-			const auto caption    = window.identity_label()->text();
-			const auto drawnTitle = caption.endsWith(cycleBadge) ? caption.chopped(cycleBadge.size()) : QString{ };
-			const auto prefix     = drawnTitle.endsWith(QChar{ 0x2026 }) ? drawnTitle.chopped(1) : QString{ };
-			const auto namesCycle = drawnTitle == cycleTitle
-				|| (!prefix.isEmpty() && prefix.size() < cycleTitle.size() && cycleTitle.startsWith(prefix));
-			const auto retainedCycle = window.identity_label()->isVisible() && namesCycle
-				&& window.identity_label()->toolTip() == cycleTitle + cycleBadge
-				&& !window.open_on_github_button()->isVisible() && !window.open_on_github_action()->isEnabled();
-			if (!retainedCycle) {
-				std::cerr << "local-cycle-republication width=" << window.width()
-						  << " identity-visible=" << window.identity_label()->isVisible()
-						  << " text=" << window.identity_label()->text().toStdString()
-						  << " tooltip=" << window.identity_label()->toolTip().toStdString()
-						  << " browser-visible=" << window.open_on_github_button()->isVisible()
-						  << " browser-enabled=" << window.open_on_github_action()->isEnabled()
-						  << " home=" << window.showing_home() << '\n';
-			}
-			expect(retainedCycle, "same-PR publication retains the local cycle and never offers its browser button");
-			window.leave_local_cycle();
-			process_events();
-			expectCurrent();
-			window.show_local_cycle(QStringLiteral("A cycle superseded by a new PR"));
 			accepted.Repository      = core::repository_id{ 20U };
 			accepted.PullRequest     = core::pull_request_id{ 21U };
 			accepted.Owner           = "new-owner";
@@ -24040,8 +23994,8 @@ namespace {
 		window.publish(nothingSaved);
 		process_events();
 		expect(window.home_list()->onboarding() && !window.home_list()->state_panel(qt::home_group::needs_you)->isVisible()
-				   && !window.home_list()->empty_sentence()->isVisible() && window.findChild<QWidget*>(QStringLiteral("homeReviewCycles"))->isVisible(),
-			   "the empty Needs me lane is not shown while nothing is saved; Review Cycles stays");
+				   && !window.home_list()->empty_sentence()->isVisible(),
+			   "the empty Needs me lane is not shown while nothing is saved");
 		firstAdd->click();
 		process_events();
 		expect(window.settings()->isVisible() && window.settings()->current_page() == qt::settings_page::repositories
@@ -25210,8 +25164,8 @@ namespace {
 		process_events();
 	}
 
-	/// \brief Every key the window, the resident menu bar and a Review Cycle
-	/// view bind is in the catalogue with the same keys, and every bound
+	/// \brief Every key the window and the resident menu bar bind is in the
+	/// catalogue with the same keys, and every bound
 	/// catalogue entry is bound; a stray, a changed and a removed binding are
 	/// each reported.
 	void test_shortcut_catalogue_is_what_the_window_binds()
@@ -25233,10 +25187,9 @@ namespace {
 
 		qt::workbench_window window;
 		assemble(window);
-		qt::desktop_menu_bar  desktop;
-		qt::review_cycle_view cycle;
-		const auto            problems = catalogue_problems({ &window, &desktop, &cycle });
-		expect(problems.empty(), "the catalogue is exactly what the window, the resident bar and a Review Cycle bind:" + joined(problems));
+		qt::desktop_menu_bar desktop;
+		const auto           problems = catalogue_problems({ &window, &desktop });
+		expect(problems.empty(), "the catalogue is exactly what the window and the resident bar bind:" + joined(problems));
 		// [[BPR-1600]]. On Home the Refresh key is Home's refresh's, as the
 		// catalogue writes it, and bound once.
 		window.choose_home(true);
@@ -25281,7 +25234,7 @@ namespace {
 		drifted.findChild<QAction*>(QStringLiteral("nextNewCommentAction"))->setShortcut(QKeySequence{ QStringLiteral("Alt+M") });
 		drifted.findChild<QAction*>(QStringLiteral("toggleWorkbenchLineNumbersAction"))->setShortcuts({ });
 		delete drifted.findChild<QShortcut*>(QStringLiteral("overviewLabelKeyShortcut"));
-		const auto reported = catalogue_problems({ &drifted, &desktop, &cycle });
+		const auto reported = catalogue_problems({ &drifted, &desktop });
 		const auto has      = [&reported](const std::string_view aText) {
 			return std::ranges::any_of(reported, [aText](const std::string& aLine) { return aLine.find(aText) != std::string::npos; });
 		};

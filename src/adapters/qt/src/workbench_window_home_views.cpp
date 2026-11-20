@@ -5,7 +5,6 @@
 #include "bpr/qt/menu_tool_button.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 

@@ -127,7 +127,6 @@ namespace bpr::core {
 		case agent_run_path::tour_side_chat:                return "tour-side-chat";
 		case agent_run_path::tour_conversation:             return "tour-conversation";
 		case agent_run_path::local_draft_discussion:        return "local-draft-discussion";
-		case agent_run_path::review_cycle_round:            return "review-cycle-round";
 		case agent_run_path::self_review_loop:              return "self-review-loop";
 		case agent_run_path::address_feedback_run:          return "address-feedback-run";
 		case agent_run_path::follow_up:                     return "follow-up";

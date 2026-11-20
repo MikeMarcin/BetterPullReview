@@ -6,7 +6,6 @@
 #include "bpr/core/agent_grant.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 #include "bpr/core/hex.hpp"
-#include "bpr/core/review_cycle_send.hpp"
 #include "bpr/core/tour_agent_session.hpp"
 #include "bpr/core/utf8.hpp"
 
@@ -21,6 +20,17 @@
 
 namespace bpr::application {
 	namespace {
+		/// \brief A native session handle as a harness reports it: 1 to 128
+		/// ASCII letters, digits, `.`, `_` and `-`, starting with a letter or
+		/// digit, so a harness never reads it as an option. ([[BPR-2308]]
+		/// moved it here from the retired Review Cycle send.)
+		[[nodiscard]] auto native_session_name(const std::string_view aName) noexcept -> bool
+		{
+			const auto alphanumeric = [](const char aSymbol) { return (aSymbol >= 'a' && aSymbol <= 'z') || (aSymbol >= 'A' && aSymbol <= 'Z') || (aSymbol >= '0' && aSymbol <= '9'); };
+			return !aName.empty() && aName.size() <= 128U && alphanumeric(aName.front())
+				&& std::ranges::all_of(aName, [&](const char aSymbol) { return alphanumeric(aSymbol) || aSymbol == '.' || aSymbol == '_' || aSymbol == '-'; });
+		}
+
 #if defined(BPR_AGENT_INTEGRATIONS)
 		/// [[BPR-2142]], RFC-BPR-0103. Whether text a run wrote names a failed
 		/// sign-in: a 401, `authentication_failed`, Claude's "Not logged in"
@@ -3988,94 +3998,6 @@ namespace bpr::application {
 		return request;
 	}
 
-	auto build_round_launch(const core::agent_profile& aProfile, const std::string_view aDocument, const std::optional<std::string>& aContinue, std::string aWorkingDirectory,
-							const environment_reader& aParent, const core::agent_mcp_servers aMcpServers) -> std::expected<agent_launch_request, agent_launch_failure>
-	{
-		if (!core::valid(aProfile) || core::stable_name(aProfile.Protocol).empty()) {
-			return std::unexpected(agent_launch_failure::invalid_profile);
-		}
-		// Only a harness that can continue a session is told to, and only by a
-		// name it reported: never read as an option.
-		if (aContinue && (!core::continues_sessions(aProfile.Protocol) || !core::send_session_name(*aContinue))) {
-			return std::unexpected(agent_launch_failure::invalid_profile);
-		}
-		const auto metadata = core::agent_runtime_metadata{ .Configured = aProfile.DefaultSettings };
-		if (!core::inspect_runtime_metadata(metadata)) {
-			return std::unexpected(agent_launch_failure::invalid_runtime_settings);
-		}
-		const auto settings = effective_settings(metadata);
-		if (!supported_settings(aProfile.Protocol, settings)) {
-			return std::unexpected(agent_launch_failure::unsupported_runtime_settings);
-		}
-		if (aDocument.size() + input_overhead(aProfile.Protocol, metadata) > maximum_agent_input_bytes) {
-			return std::unexpected(agent_launch_failure::input_too_large);
-		}
-		auto arguments = std::vector<std::string>{ };
-		auto input     = std::string{ };
-		// [[BPR-2139]]. A round is a resumed path: the agent's setting rules.
-		const auto mcpOff = aMcpServers == core::agent_mcp_servers::off;
-		switch (aProfile.Protocol) {
-		case core::agent_protocol::codex_app_server:
-			arguments = { "app-server" };
-			if (mcpOff) {
-				arguments.insert(arguments.end(), { "-c", "mcp_servers={}" });
-			}
-			input = frame_agent_input(aProfile.Protocol, { });
-			break;
-		case core::agent_protocol::codex_jsonl_exec:
-			// The round is the prompt, exactly as Copy gives it.
-			arguments = { "exec", "--json" };
-			if (mcpOff) {
-				arguments.insert(arguments.end(), { "-c", "mcp_servers={}" });
-			}
-			arguments.emplace_back("-");
-			input = std::string{ aDocument };
-			break;
-		case core::agent_protocol::claude_stream_json:
-			// RFC-BPR-0104 AC11, amended 2026-11-19: `-p` first; the MCP
-			// configuration is closed by the options after it.
-			arguments.emplace_back("-p");
-			if (mcpOff) {
-				arguments.insert(arguments.end(), claude_mcp_off_arguments.begin(), claude_mcp_off_arguments.end());
-			}
-			arguments.insert(arguments.end(), { "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
-			append_claude_model(arguments, settings);
-			if (aContinue) {
-				arguments.emplace_back("--resume");
-				arguments.push_back(*aContinue);
-			}
-			// [[BPR-2304]]. A round runs in the reviewer's own folder: its
-			// settings are theirs; MCP follows the agent's setting.
-			if (core::inspect_claude_arguments(arguments, { .McpOff = mcpOff })) {
-				return std::unexpected(agent_launch_failure::unsafe_arguments);
-			}
-			input = frame_agent_input(aProfile.Protocol, aDocument);
-			break;
-		case core::agent_protocol::external_terminal:
-			input = std::string{ aDocument };
-			break;
-		}
-		auto request = agent_launch_request{
-			.Protocol         = aProfile.Protocol,
-			.Session          = core::agent_session_id{ 1U },
-			.Executable       = aProfile.Executable,
-			.Arguments        = std::move(arguments),
-			.WorkingDirectory = std::move(aWorkingDirectory),
-			.Environment      = materialize_agent_environment(aProfile, aParent),
-			.Input            = std::move(input),
-			.Metadata         = metadata,
-		};
-		request.Profile = aProfile.Id;
-		if (aProfile.Protocol == core::agent_protocol::codex_app_server) {
-			request.DeferredContext = std::string{ aDocument };
-		}
-		const auto admission = admit_agent_input(request);
-		if (!admission) {
-			return std::unexpected(admission.error());
-		}
-		return request;
-	}
-
 	auto decode_agent_finding_payload(
 		const core::agent_protocol   aProtocol,
 		const std::string_view       aPayload,
@@ -4351,7 +4273,7 @@ namespace bpr::application {
 		// A tool-free run resumes only on a resumed path (a local draft's
 		// discussion), and only Claude's: it has no connected session.
 		if ((aRequest.WritingOnly && (aConnected || aRequest.Protocol != core::agent_protocol::claude_stream_json)) || aRequest.NativeTurn < 2U || aRequest.Protocol == core::agent_protocol::external_terminal
-			|| core::session_mode_of(aRequest.Path) == core::agent_session_mode::fresh || (!aRequest.NativeHandle.empty() && !core::send_session_name(aRequest.NativeHandle))) {
+			|| core::session_mode_of(aRequest.Path) == core::agent_session_mode::fresh || (!aRequest.NativeHandle.empty() && !native_session_name(aRequest.NativeHandle))) {
 			return std::unexpected(agent_launch_failure::invalid_profile);
 		}
 		if (aRequest.ReadOnlyTools && aRequest.Protocol == core::agent_protocol::claude_stream_json) {

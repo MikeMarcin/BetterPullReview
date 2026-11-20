@@ -60,8 +60,6 @@ namespace bpr::core {
 		tour_conversation,
 		/// A local draft's discussion.
 		local_draft_discussion,
-		/// A Review Cycle round.
-		review_cycle_round,
 		/// A self-review or fix loop.
 		self_review_loop,
 		/// An address-feedback run.
@@ -70,7 +68,7 @@ namespace bpr::core {
 		/// a thread: fresh, its earlier rounds carried in its message.
 		follow_up,
 	};
-	inline constexpr std::size_t agent_run_path_count = 17U;
+	inline constexpr std::size_t agent_run_path_count = 16U;
 	static_assert(static_cast<std::size_t>(agent_run_path::follow_up) + 1U == agent_run_path_count, "agent_run_path_count must cover every launch path");
 
 	[[nodiscard]] auto stable_name(agent_run_path aPath) noexcept -> std::string_view;
@@ -95,7 +93,6 @@ namespace bpr::core {
 		case agent_run_path::tour_side_chat:
 		case agent_run_path::tour_conversation:
 		case agent_run_path::local_draft_discussion:
-		case agent_run_path::review_cycle_round:
 		case agent_run_path::self_review_loop:
 		case agent_run_path::address_feedback_run:
 			return agent_session_mode::resumed;
@@ -124,7 +121,6 @@ namespace bpr::core {
 		case agent_run_path::tour_side_chat:
 		case agent_run_path::tour_conversation:
 		case agent_run_path::local_draft_discussion:
-		case agent_run_path::review_cycle_round:
 		case agent_run_path::self_review_loop:
 		case agent_run_path::address_feedback_run:
 		case agent_run_path::follow_up:

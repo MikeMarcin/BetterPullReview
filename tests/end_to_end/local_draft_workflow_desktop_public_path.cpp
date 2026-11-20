@@ -14,7 +14,6 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
-#include "review_cycle_desktop.hpp"
 
 #include <QApplication>
 #include <QComboBox>
@@ -283,7 +282,6 @@ try {
 	auto window = std::make_unique<qt::workbench_window>();
 	window->resize(1280, 900);
 	window->show();
-	auto cycles  = std::make_unique<app::review_cycle_desktop>(*window, profileRoot.path(), core::bpr_profile_id{ 1 }, lanes, lanes, app::review_cycle_syntax{ }, &lanes);
 	auto drafts  = std::make_unique<app::local_draft_desktop>(*window, profileRoot.path(), gitExecutable, bpr::tests::git_contract::windows_system_root(), lanes, lanes, app::local_draft_syntax{ }, &lanes);
 	auto github  = std::make_shared<scripted_github>();
 	auto copied  = std::string{ };
@@ -563,7 +561,6 @@ try {
 	}
 
 	drafts->shutdown();
-	cycles->shutdown();
 	settle(lanes);
 	std::cout << "local-draft-workflow-desktop-public-path:pass\n";
 	return EXIT_SUCCESS;

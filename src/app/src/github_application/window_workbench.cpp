@@ -1341,10 +1341,6 @@ namespace bpr::app {
 			report->set_tone_colours(qt::tone_colours_of(*AppearanceProfile));
 		}
 #endif
-		// [[BPR-1156]]. Suggest change paints its code in the panes' role colours.
-		if (CycleDesktop) {
-			CycleDesktop->adopt_appearance(*AppearanceProfile);
-		}
 		// The local draft's Edit view, in the panes' colours and code font.
 		if (DraftDesktop) {
 			DraftDesktop->adopt_appearance(*AppearanceProfile);

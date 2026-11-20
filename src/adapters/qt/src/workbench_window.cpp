@@ -7,7 +7,6 @@
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/resize_handle_cursor.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/type_preview.hpp"
 #include "bpr/qt/workbench_window.hpp"
 

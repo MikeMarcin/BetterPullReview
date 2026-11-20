@@ -18,7 +18,6 @@
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/refresh_note.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
@@ -752,8 +751,8 @@ namespace bpr::qt {
 		});
 		onboarding->addWidget(HomeOnboardingButton, 0, Qt::AlignLeft);
 		if (auto* homeColumn = qobject_cast<QVBoxLayout*>(HomePage->layout())) {
-			homeColumn->insertWidget(homeColumn->indexOf(HomeCycles), HomeOnboarding);
-			homeColumn->insertWidget(homeColumn->indexOf(HomeCycles), HomeRepositoryRow);
+			homeColumn->addWidget(HomeOnboarding);
+			homeColumn->addWidget(HomeRepositoryRow);
 		}
 		HomeOnboarding->hide();
 		HomeRepositoryRow->hide();
@@ -791,8 +790,6 @@ namespace bpr::qt {
 			}
 			if (aNow == HomeRecentList) {
 				claim_home_selection(home_selection_list::recent);
-			} else if (aNow == HomeCyclesList) {
-				claim_home_selection(home_selection_list::cycles);
 			} else if (aNow == HomeDraftsList) {
 				claim_home_selection(home_selection_list::drafts);
 			} else if (qobject_cast<QListView*>(aNow) != nullptr && HomeList->isAncestorOf(aNow)) {

@@ -632,7 +632,7 @@ namespace bpr::app {
 		const auto& pending = *PendingReviewNavigation;
 		const auto* active  = TabHost && TabHost->state().Active ? core::find_tab(TabHost->state(), *TabHost->state().Active) : nullptr;
 		if (Closing || !LastAcceptedHandoff || !TabHost || !WorkbenchHost
-			|| Window->showing_home() || Window->showing_local_cycle()
+			|| Window->showing_home()
 			|| WorkbenchHost->state().Modality != core::workbench_modality::review
 			|| workbench_authority(*LastAcceptedHandoff) != pending.Authority
 			|| WorkbenchHost->generation() != pending.Generation || TabHost->state().Active != pending.Tab

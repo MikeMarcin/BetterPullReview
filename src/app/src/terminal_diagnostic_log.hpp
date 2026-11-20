@@ -11,7 +11,7 @@ namespace bpr::app {
 	/// \details Null when the profile's diagnostics are off or their settings
 	/// cannot be read, and in a graph that builds no logging adapter. A command
 	/// that forwards to a running owner opens none: the owner records what it
-	/// runs. Records are only the `tour.operation` and `cycle.round` lines.
+	/// runs. Records are only the `tour.operation` lines.
 	[[nodiscard]] auto open_terminal_diagnostic_log(const std::filesystem::path& aRoot) -> std::unique_ptr<application::diagnostic_log_port>;
 }
 #endif

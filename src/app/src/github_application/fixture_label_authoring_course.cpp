@@ -1,5 +1,4 @@
 #include "github_application/fixture_course_support.hpp"
-#include "review_cycle_desktop.hpp"
 #include "review_submission_workflow.hpp"
 
 #if defined(BPR_BUILD_TESTING)
@@ -100,9 +99,6 @@
 	#include <utility>
 	#include <variant>
 	#include <vector>
-#endif
-#if defined(BPR_LOCAL_AUTOMATION)
-	#include "cycle_owner_service.hpp"
 #endif
 
 namespace bpr::app {

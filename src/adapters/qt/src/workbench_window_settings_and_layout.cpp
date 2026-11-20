@@ -15,7 +15,6 @@
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/resize_handle_cursor.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/view_picker.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -1729,11 +1728,6 @@ namespace bpr::qt {
 
 	auto workbench_window::status_line() const -> status_line_words
 	{
-		// [[BPR-1157]]. A local cycle is not waiting for a pull request; the
-		// cycle page says what it is doing itself.
-		if (showing_local_cycle()) {
-			return { };
-		}
 		// Mockup A: a local draft's line is the window's status bar, as a
 		// pull request's is: where you are, and what GitHub lacks.
 		if (showing_local_draft() && LocalDraft != nullptr) {

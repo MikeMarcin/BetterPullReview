@@ -2,10 +2,12 @@
 #define BPR_APPLICATION_TOUR_OWNER_CHANNEL_HPP
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_source.hpp"
-#include "bpr/core/review_cycle_command.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include <functional>
+#include <optional>
 #include <span>
+#include <string>
+#include <vector>
 namespace bpr::application {
 	inline constexpr std::size_t maximum_tour_channel_bytes = 5U * 1024U * 1024U;
 	enum class tour_owner_operation : std::uint8_t { load,
@@ -14,8 +16,6 @@ namespace bpr::application {
 													 assist_issue,
 													 assist_cancel,
 													 hooks_show,
-													 /// [[BPR-1168]]. One finite `bpr cycle` command for the owner's cycle store.
-													 cycle,
 													 /// [[BPR-1227]]. Bounded pinned source for one draft's stop, read by the
 													 /// window that holds that pull request; a read, never a mutation.
 													 source,
@@ -31,52 +31,6 @@ namespace bpr::application {
 		bool               HasRange = false, HasQuote = false;
 		std::uint64_t      Begin = 0, End = 0;
 		std::string        Quote, Session;
-	};
-	/// \brief Most bytes of a text the caller already read for a cycle command.
-	inline constexpr std::size_t maximum_cycle_owner_text_bytes = 64U * 1024U;
-	/// \brief Most bytes of a response document the caller read from its standard input.
-	inline constexpr std::size_t maximum_cycle_owner_document_bytes = 4U * 1024U * 1024U;
-	/// \brief [[BPR-1168]]. One `bpr cycle` command a terminal forwards to the
-	/// profile owner: a name from the finite registry and its typed arguments,
-	/// with every path already absolute and every chosen input already read.
-	/// \details The owner resolves the cycle and runs the command on its own
-	/// store; the caller names no store, SQL, process or provider.
-	struct cycle_owner_request
-	{
-		core::cycle_command Command = core::cycle_command::show;
-		/// The caller's operation identity; with `Step`, it names this request.
-		std::string Operation;
-		/// Which of the caller's requests under that identity this is.
-		std::uint64_t Step = 0;
-		/// The cycle (RC-n) or, for `open`, the absolute location.
-		std::vector<std::string> Positional;
-		/// Options from the command's registry entry, as typed.
-		std::vector<std::pair<std::string, std::string>> Options;
-		/// The caller's absolute working folder, used only to find the one
-		/// cycle bound to it when none is named.
-		std::string Directory;
-		/// Note or goal text the caller read from a file, its standard input or its editor.
-		std::optional<std::string> Text;
-		/// A response document the caller read from its standard input.
-		std::optional<std::string> Document;
-		/// Check a note's target without writing it.
-		bool Check = false;
-		/// A person at the caller's terminal, who sees each draft change's result.
-		bool Interactive = false;
-	};
-	/// \brief The owner's answer: the command's own result, as the terminal shows it.
-	struct cycle_owner_response
-	{
-		std::string   Operation;
-		std::uint64_t Step = 0;
-		bool          Ok   = false;
-		/// A failure's stable code, words, next command and detail (compact JSON).
-		std::string Code, Message, Next, Detail;
-		/// Success: the data (compact JSON) and the words a person reads.
-		std::string Data, Human;
-		bool        Complete = true;
-		/// Exported bytes the caller writes to its own standard output.
-		std::string Output;
 	};
 	/// \brief Most bytes of a worktree location or a harness's context.
 	inline constexpr std::size_t maximum_local_draft_location_bytes = 4096U;
@@ -95,7 +49,6 @@ namespace bpr::application {
 		std::string             Draft;
 		tour_service_request    Edit;
 		tour_owner_assist_query Assist{ };
-		cycle_owner_request     Cycle{ };
 		/// [[BPR-1227]]. The pinned commit, path, side and lines a `source` request reads.
 		core::tour_code_destination Source{ };
 		/// RFC-BPR-0108. What a `local_draft` request opens.
@@ -111,8 +64,6 @@ namespace bpr::application {
 		std::string                         Error;
 		/// Assist context, assist outcome or hooks, already rendered as one bounded JSON document.
 		std::string Json;
-		/// [[BPR-1168]]. The answer to a cycle command.
-		std::optional<cycle_owner_response> Cycle;
 		/// [[BPR-1227]]. The answer to a `source` request: the exact range and its text.
 		std::optional<review_tour_source_material> Source;
 	};

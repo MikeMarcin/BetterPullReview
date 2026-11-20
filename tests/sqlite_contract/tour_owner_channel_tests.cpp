@@ -174,99 +174,6 @@ namespace {
 		expect(!decode_tour_response({ }), "an empty response is refused");
 	}
 
-	/// [[BPR-1168]]. A cycle command is a registry name and that entry's options; nothing else rides along.
-	auto cycle_request(core::cycle_command aCommand = core::cycle_command::note) -> tour_owner_request
-	{
-		tour_owner_request result{ .Operation = tour_owner_operation::cycle };
-		result.Cycle.Command    = aCommand;
-		result.Cycle.Operation  = "op-1";
-		result.Cycle.Step       = 2U;
-		result.Cycle.Positional = { "RC-1" };
-		result.Cycle.Options    = { { "--file", "src/a.cpp" }, { "--lines", "2:3" }, { "--body-file", "-" } };
-		result.Cycle.Directory  = "/work/project";
-		result.Cycle.Text       = "Cache this lookup.\n";
-		return result;
-	}
-
-	void test_cycle_codec()
-	{
-		const auto request = cycle_request();
-		const auto decoded = decode_tour_request(encode_tour_request(request));
-		expect(decoded && decoded->Operation == tour_owner_operation::cycle && decoded->Cycle.Command == core::cycle_command::note && decoded->Cycle.Operation == "op-1" && decoded->Cycle.Step == 2U
-				   && decoded->Cycle.Options == request.Cycle.Options && decoded->Cycle.Text == request.Cycle.Text && decoded->Cycle.Directory == "/work/project",
-			   "a cycle command round-trips exactly");
-		const auto refused = [](tour_owner_request aRequest, const char* aWhat) { expect(encode_tour_request(std::move(aRequest)).empty(), aWhat); };
-		auto       changed = request;
-		changed.Cycle.Options.emplace_back("--expected-revision", "3");
-		refused(changed, "an option of another command is refused");
-		changed = request;
-		changed.Cycle.Options.emplace_back("--profile", "2");
-		refused(changed, "the caller's own profile choice never reaches the owner");
-		changed = request;
-		changed.Cycle.Options.emplace_back("--yes", "true");
-		refused(changed, "there is no bypass to carry");
-		changed = request;
-		changed.Cycle.Options.emplace_back("--file", "other");
-		refused(changed, "a repeated option is refused");
-		changed               = cycle_request(core::cycle_command::capture);
-		changed.Cycle.Options = { { "--again", "yes" } };
-		refused(changed, "a flag carries no value");
-		changed                 = request;
-		changed.Cycle.Operation = "op 1";
-		refused(changed, "an operation identity is letters, digits and hyphens");
-		changed.Cycle.Operation = "";
-		refused(changed, "and is never empty");
-		changed       = request;
-		changed.Draft = draft;
-		refused(changed, "a cycle command names no tour draft");
-		changed                = request;
-		changed.Edit.RequestId = "req-1";
-		refused(changed, "nor a tour request");
-		changed                  = request;
-		changed.Cycle.Positional = { "RC-1", "RC-2" };
-		refused(changed, "at most one cycle");
-		changed            = request;
-		changed.Cycle.Text = std::string(application::maximum_cycle_owner_text_bytes + 1U, 'x');
-		refused(changed, "text is bounded");
-		changed            = request;
-		changed.Cycle.Text = std::string{ "bad\xff" };
-		refused(changed, "text is UTF-8");
-		changed                = request;
-		changed.Cycle.Document = std::string(application::maximum_cycle_owner_document_bytes + 1U, 'x');
-		refused(changed, "a response document is bounded");
-		// [[BPR-1169]]. Protocol 4 carries the round commands, each with its own options only.
-		auto reading           = cycle_request(core::cycle_command::round_read);
-		reading.Cycle.Options  = { { "--round", "F1" }, { "--page-bytes", "4096" } };
-		reading.Cycle.Text     = std::nullopt;
-		const auto readDecoded = decode_tour_request(encode_tour_request(reading));
-		expect(readDecoded && readDecoded->Cycle.Command == core::cycle_command::round_read && readDecoded->Cycle.Options == reading.Cycle.Options, "a round read round-trips");
-		changed = reading;
-		changed.Cycle.Options.emplace_back("--output", "/tmp/x");
-		refused(changed, "a round read carries no export destination");
-		auto granting          = cycle_request(core::cycle_command::round_grant);
-		granting.Cycle.Options = { { "--round", "F1" }, { "--read-only", "true" } };
-		expect(static_cast<bool>(decode_tour_request(encode_tour_request(granting))), "a grant round-trips");
-		// [[BPR-1279]]. Protocol 5 carries rebind, with its location and confirmation only.
-		auto rebinding           = cycle_request(core::cycle_command::rebind);
-		rebinding.Cycle.Options  = { { "--to", "/work/moved" }, { "--confirm", "0123456789abcdef" } };
-		rebinding.Cycle.Text     = std::nullopt;
-		const auto rebindDecoded = decode_tour_request(encode_tour_request(rebinding));
-		expect(rebindDecoded && rebindDecoded->Cycle.Command == core::cycle_command::rebind && rebindDecoded->Cycle.Options == rebinding.Cycle.Options, "a rebind round-trips");
-		changed = rebinding;
-		changed.Cycle.Options.emplace_back("--force", "true");
-		refused(changed, "a rebind carries nothing that stands in for its confirmation");
-		auto bytes = encode_tour_request(request);
-		bytes[17]  = static_cast<std::uint8_t>(static_cast<std::uint8_t>(core::last_cycle_command) + 1U); // after the operation and two empty texts
-		expect(!decode_tour_request(bytes), "an unknown cycle command does not decode");
-
-		application::tour_owner_response answer;
-		answer.Cycle        = application::cycle_owner_response{ .Operation = "op-1", .Step = 2U, .Ok = true, .Data = "{\"item\":\"I3\"}", .Human = "Noted I3.\n", .Output = "#" };
-		const auto answered = decode_tour_response(encode_tour_response(answer));
-		expect(answered && answered->Cycle && answered->Cycle->Operation == "op-1" && answered->Cycle->Step == 2U && answered->Cycle->Data == answer.Cycle->Data && answered->Cycle->Output == "#", "a cycle answer round-trips");
-		answer.Cycle->Code = "conflict";
-		expect(encode_tour_response(answer).empty(), "an answer is either a result or a refusal");
-	}
-
 	/// [[BPR-1227]]. A source read names one pinned destination and nothing else; its answer is the
 	/// exact range and bounded text.
 	void test_source_codec()
@@ -638,8 +545,9 @@ namespace {
 		// Version 5 is the owner before the tour source read (BPR-1227);
 		// version 6 the owner before stop acceptance (BPR-2014), which
 		// cannot read the tour payload (version 11) a newer side sends;
-		// version 7 the owner before earlier heads were kept (payload 12).
-		for (const std::uint8_t version : { std::uint8_t{ 5 }, std::uint8_t{ 6 }, std::uint8_t{ 7 } }) {
+		// version 7 the owner before earlier heads were kept (payload 12);
+		// version 9 the owner that still served `bpr cycle` (BPR-2308).
+		for (const std::uint8_t version : { std::uint8_t{ 5 }, std::uint8_t{ 6 }, std::uint8_t{ 7 }, std::uint8_t{ 9 } }) {
 			version_mismatch_with(version);
 		}
 	}
@@ -729,7 +637,7 @@ namespace {
 	}
 #else
 	// [[BPR-1168]]. The Windows owner command pipe: the same authority, binding,
-	// version, framing and lifetime as the POSIX socket, with a cycle command
+	// version, framing and lifetime as the POSIX socket, with a large answer
 	// carried end to end. There is no stale-endpoint course because a pipe dies
 	// with the process that bound it; the name is shown bindable again instead.
 	class scratch_directory
@@ -802,24 +710,18 @@ namespace {
 			const auto  reply  = answer ? decode_tour_response(*answer) : std::nullopt;
 			expect(reply && reply->Error == "target_ambiguous", "the answer reaches the caller");
 		}
-		// A cycle command larger than one pipe buffer, both ways.
+		// An answer larger than one pipe buffer. [[BPR-2308]]: with the cycle
+		// command retired, no request is that large.
 		{
-			tour_owner_request request{ .Operation = tour_owner_operation::cycle };
-			request.Cycle.Command   = core::cycle_command::response_import;
-			request.Cycle.Operation = "pipe-1";
-			request.Cycle.Options   = { { "--round", "F1" }, { "--file", "-" } };
-			request.Cycle.Document  = std::string(300U * 1024U, 'r');
-			client caller{ root.Path, profile, encode_tour_request(request) };
+			client caller{ root.Path, profile, load_request() };
 			auto   message = receive(**server);
-			expect(message.has_value(), "the large request arrives whole");
-			const auto decoded = decode_tour_request(message->Payload);
-			expect(decoded && decoded->Cycle.Document == request.Cycle.Document, "every byte of it");
+			expect(message.has_value(), "the request arrives");
 			application::tour_owner_response answer;
-			answer.Cycle = application::cycle_owner_response{ .Operation = "pipe-1", .Ok = true, .Data = "{}", .Output = std::string(400U * 1024U, 'o') };
+			answer.Json = std::string(65536U, 'j');
 			message->Reply->complete(encode_tour_response(answer));
 			const auto& bytes = caller.wait();
 			const auto  reply = bytes ? decode_tour_response(*bytes) : std::nullopt;
-			expect(reply && reply->Cycle && reply->Cycle->Output == answer.Cycle->Output, "and the large answer");
+			expect(reply && reply->Json == answer.Json, "the large answer arrives whole");
 		}
 		// A caller naming another profile is refused by the advertised binding and sends nothing.
 		{
@@ -864,7 +766,6 @@ int main()
 		std::cout << "test_codec" << '\n'
 				  << std::flush;
 		test_codec();
-		test_cycle_codec();
 		std::cout << "test_source_codec" << '\n'
 				  << std::flush;
 		test_source_codec();

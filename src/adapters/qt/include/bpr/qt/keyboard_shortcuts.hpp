@@ -25,7 +25,6 @@ namespace bpr::qt {
 		zoom,
 		tours,
 		home,
-		review_cycles,
 		application,
 	};
 
@@ -174,14 +173,6 @@ namespace bpr::qt {
 		home_filter,
 		/// [[BPR-1865]]. "/" in a Home list goes to the filter.
 		home_filter_from_list,
-
-		cycle_note,
-		cycle_suggest,
-		cycle_save,
-		cycle_cancel,
-		cycle_share_earlier,
-		cycle_share_later,
-		cycle_sheet_close,
 
 		keyboard_shortcuts,
 		settings,

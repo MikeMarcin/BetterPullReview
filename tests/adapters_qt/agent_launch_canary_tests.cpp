@@ -3,6 +3,7 @@
 
 #include "../core/private_review_fixture.hpp"
 #include "../sqlite_contract/scratch_root.hpp"
+#include "../support/plain_agent_launch.hpp"
 #include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
@@ -1417,7 +1418,7 @@ namespace {
 		const auto environment = [](const std::string& aName) -> std::optional<std::string> {
 			return qEnvironmentVariableIsSet(aName.c_str()) ? std::optional{ qEnvironmentVariable(aName.c_str()).toStdString() } : std::nullopt;
 		};
-		auto initial = application::build_round_launch(profile, assignment, { }, aRoot.string(), environment);
+		auto initial = tests::plain_agent_launch(profile, assignment, aRoot.string(), environment);
 		if (!initial) {
 			return false;
 		}
@@ -1446,8 +1447,8 @@ namespace {
 				auto note = std::ofstream{ aRoot / "observation.txt", std::ios::trunc };
 				note << "CHANGED-CANNOT-SUPPLY-PRIOR-OBSERVATION\n";
 			}
-			auto next = application::build_round_launch(profile,
-														"Without reading the file again, return the exact original observation.txt value you read with your tool in the previous turn. Do not run any tools.", { }, aRoot.string(), environment);
+			auto next = tests::plain_agent_launch(profile,
+												  "Without reading the file again, return the exact original observation.txt value you read with your tool in the previous turn. Do not run any tools.", aRoot.string(), environment);
 			if (!next) {
 				return false;
 			}

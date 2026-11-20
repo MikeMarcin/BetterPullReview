@@ -109,11 +109,8 @@ namespace bpr::qt {
 		if (ReviewNavigationDispatch) {
 			ReviewNavigationDispatch(std::nullopt);
 		}
-		if (LocalCycleShown) {
-			leave_local_cycle();
-		}
 		const auto entering = !LocalDraftShown;
-		LocalCycleTitle     = aTitle;
+		LocalPageTitle      = aTitle;
 		LocalDraftShown     = true;
 		HomeRequested       = false;
 		if (entering) {
@@ -185,7 +182,7 @@ namespace bpr::qt {
 		}
 		LocalShown.reset();
 		LocalFiles.clear();
-		LocalCycleTitle.clear();
+		LocalPageTitle.clear();
 		if (Modality != nullptr) {
 			for (const auto waiting : { review_modality::discuss, review_modality::threads }) {
 				if (auto* const action = Modality->action(waiting); action != nullptr) {

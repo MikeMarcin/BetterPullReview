@@ -85,7 +85,6 @@ namespace {
 			{ path::tour_side_chat, resume },
 			{ path::tour_conversation, resume },
 			{ path::local_draft_discussion, resume },
-			{ path::review_cycle_round, resume },
 			{ path::self_review_loop, resume },
 			{ path::address_feedback_run, resume },
 		};
@@ -151,9 +150,6 @@ namespace {
 			expect(codexOff && has(codexOff->Arguments, "mcp_servers={}"), "Codex starts with no MCP server by default");
 			expect(codexOwn && !has(codexOwn->Arguments, "mcp_servers={}"), "Codex with its own configuration is given no MCP override");
 		}
-		const auto round    = application::build_round_launch(claude, "round", std::nullopt, "/tmp", reader());
-		const auto roundOwn = application::build_round_launch(claude, "round", std::nullopt, "/tmp", reader(), core::agent_mcp_servers::own);
-		expect(round && contains(round->Arguments, off) && roundOwn && !has(roundOwn->Arguments, "--mcp-config"), "a Review Cycle round follows the agent's setting");
 		expect(core::parse_agent_mcp_servers("own") == core::agent_mcp_servers::own && !core::parse_agent_mcp_servers("on"), "the setting's names read back");
 	}
 
@@ -174,7 +170,6 @@ namespace {
 		add(application::build_agent_launch(claude, supplement(), reader(),
 											{ .Grant = application::agent_launch_grant{ .ScratchFolder = "/tmp/bpr-scratch/run-1" }, .PullRequestCheckout = { "/tmp/bpr-checkout" } }));
 		add(application::build_agent_launch(claude, supplement(), reader(), { .Path = core::agent_run_path::enhance_writing, .SystemInstructions = "Write plainly." }));
-		add(application::build_round_launch(claude, "round", std::nullopt, "/tmp", reader()));
 		for (const auto& launch : launches) {
 			const auto& arguments = launch.Arguments;
 			expect(!arguments.empty() && arguments.front() == "-p", "every Claude launch is in print mode, -p first");
@@ -220,8 +215,6 @@ namespace {
 		expect(has(granted.Arguments, "Write(//tmp/bpr-scratch/run-1/**)") && has(granted.Arguments, "Edit(//tmp/bpr-scratch/run-1/**)"), "a scoped write is granted by its Edit rule, the Write rule beside it");
 		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .Grant = scratch, .Path = core::agent_run_path::follow_up }), { .McpOff = true }, "a fresh granted run"));
 		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .McpServers = core::agent_mcp_servers::own }), { }, "an Agent tab run with the agent's own MCP servers"));
-		static_cast<void>(checked(application::build_round_launch(claude, "round", std::string{ "session-1" }, "/tmp", reader()), { .McpOff = true }, "a resumed Review Cycle round"));
-		static_cast<void>(checked(application::build_round_launch(claude, "round", std::nullopt, "/tmp", reader(), core::agent_mcp_servers::own), { }, "a round with the agent's own MCP servers"));
 	}
 
 	/// RFC-BPR-0107 AC09. The instructions go in Claude's inline system

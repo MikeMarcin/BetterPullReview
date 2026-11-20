@@ -2096,13 +2096,8 @@ namespace bpr::app::detail {
 		static void stage_server_description(github_application& aApplication, std::string aBody);
 		/// [[BPR-1085]]. Change one thread's root body, resolution or root author
 		/// on the fake server; the course must still issue a public Refresh.
-		static void stage_server_root(github_application& aApplication, std::string aThread, std::optional<std::string> aRootBody, std::optional<bool> aResolved,
-									  std::optional<std::pair<std::string, std::string>> aRootAuthor = std::nullopt);
-		/// \brief [[BPR-1177]]. A course's account for Publish as Pull Request in
-		/// one window, in place of the session's: a simulated GitHub behind the
-		/// publication catalog's port. Nothing else of the composition changes.
-		static void               set_cycle_publication_account(github_application& aApplication, core::bpr_window_context aContext,
-																std::function<std::optional<application::github_publication_account>()> aAccount);
+		static void               stage_server_root(github_application& aApplication, std::string aThread, std::optional<std::string> aRootBody, std::optional<bool> aResolved,
+													std::optional<std::pair<std::string, std::string>> aRootAuthor = std::nullopt);
 		static void               hold_window_read_terminal(github_application& aApplication, core::bpr_window_context aContext, bool aHold);
 		[[nodiscard]] static auto held_window_read_terminals(const github_application& aApplication, core::bpr_window_context aContext) noexcept -> std::size_t;
 		[[nodiscard]] static auto diff_work_evidence(const github_application& aApplication, core::bpr_window_context aContext) noexcept -> diff_work_fixture_evidence;

@@ -140,7 +140,6 @@
 #include "private_review_workflow.hpp"
 #include "profile_window_layout_port.hpp"
 #include "review_comment_permalink.hpp"
-#include "review_cycle_desktop.hpp"
 #include "review_submission_workflow.hpp"
 
 #include <QPointer>
@@ -550,8 +549,6 @@ namespace bpr::app {
 		/// tour draft has been offered its local draft's tour.
 		std::optional<core::tour_owner> TourCarryAsked;
 		void                            carry_local_tour(const application::tour_presentation& aProjection);
-		/// [[BPR-1157]]. Local Review Cycles in this window: no account needed.
-		std::unique_ptr<review_cycle_desktop> CycleDesktop;
 		/// RFC-BPR-0108. Prepare pull request… and the local draft page.
 		std::unique_ptr<local_draft_desktop> DraftDesktop;
 		/// [[BPR-2281]]. Draft Description beside the description in Author:

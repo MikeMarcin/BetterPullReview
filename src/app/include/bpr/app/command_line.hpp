@@ -40,7 +40,7 @@ namespace bpr::app {
 	/// table of flags and value options.
 	///
 	/// \details [[BPR-1437]]. Every BetterPullReview command line is read
-	/// here: the desktop application, `bpr tour` and `bpr cycle`. Qt tokenizes;
+	/// here: the desktop application, `bpr tour` and `bpr draft`. Qt tokenizes;
 	/// this adds the refusals Qt leaves to its caller. Qt takes whatever word
 	/// follows a value option, so a value that is itself an option is refused
 	/// as a missing value (`--ghes-host --new-window` is not a host). Qt

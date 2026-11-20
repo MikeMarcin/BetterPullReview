@@ -5209,8 +5209,8 @@ namespace {
 	}
 
 	/// [[BPR-1364]]. The owner, 2026-10-09: "I don't like a single click on
-	/// home card opening the pr." Recently viewed and Review Cycles, Home's
-	/// other lists, select on a single click, even where the style makes a
+	/// home card opening the pr." Recently viewed, Home's other list, selects
+	/// on a single click, even where the style makes a
 	/// single click an activation, and open by a double-click or Return.
 	auto test_home_side_lists_select_on_a_single_click() -> void
 	{
@@ -5228,44 +5228,11 @@ namespace {
 
 		auto opened = std::vector<application::recent_review_intent>{ };
 		window.set_recent_review_dispatch([&opened](application::recent_review_intent aIntent) { opened.push_back(aIntent); });
-		auto resumed = std::vector<core::local_cycle_subject>{ };
-		window.set_local_cycle_entry_dispatch([] { }, [&resumed](const core::local_cycle_subject& aSubject) { resumed.push_back(aSubject); });
 
 		auto projection = application::recent_reviews_projection{ };
 		projection.Entries.push_back(recent_entry("microsoft", "terminal", 42U, "Fix the conpty resize race", 1'772'000'000, false));
 		projection.Entries.push_back(recent_entry("qt", "qtbase", 9'001U, { }, 0, false));
 		window.publish(projection);
-		auto* const cycleModel           = window.home_cycles_list()->model();
-		unsigned    cycleResets          = 0U;
-		const auto  cycleResetConnection = QObject::connect(cycleModel, &QAbstractItemModel::modelReset, &window, [&] { ++cycleResets; });
-		window.present_local_cycle_recents({ });
-		expect(cycleResets == 0U && window.home_cycles_list()->isHidden(), "unchanged empty cycle recents reset no Home model");
-		auto cycles                        = std::vector<application::review_cycle_recent>(2U);
-		cycles[0].Cycle.Title              = "Engine refactor";
-		cycles[0].Cycle.Subject.Generation = 7U;
-		cycles[0].Location                 = "/work/engine";
-		cycles[1].Cycle.Title              = "Docs pass";
-		cycles[1].Cycle.Subject.Generation = 8U;
-		window.present_local_cycle_recents(cycles);
-		auto* const cycleList = window.home_cycles_list();
-		cycleList->setCurrentRow(1);
-		const QPersistentModelIndex retainedCycle{ cycleModel->index(1, 0) };
-		const auto                  resetsBeforeRepeat = cycleResets;
-		window.present_local_cycle_recents(cycles);
-		expect(cycleResets == resetsBeforeRepeat && cycleList->model() == cycleModel && retainedCycle.isValid()
-				   && retainedCycle == cycleModel->index(1, 0) && cycleList->currentRow() == 1,
-			   "unchanged cycle recents retain model, item identity and selected row");
-		auto changedCycles           = cycles;
-		changedCycles[1].Cycle.Title = "Updated docs pass";
-		changedCycles[1].Location    = "/work/updated-docs";
-		window.present_local_cycle_recents(changedCycles);
-		expect(cycleResets > resetsBeforeRepeat && cycleList->count() == 2 && cycleList->item(1)->text().contains(QStringLiteral("Updated docs pass"))
-				   && cycleList->item(1)->toolTip() == QStringLiteral("/work/updated-docs"),
-			   "changed cycle recents still publish their current title and location");
-		window.present_local_cycle_recents({ });
-		expect(cycleList->count() == 0 && cycleList->isHidden(), "a real empty cycle projection removes the old rows");
-		window.present_local_cycle_recents(cycles);
-		QObject::disconnect(cycleResetConnection);
 		// The lists lay out over a few turns; a click is made where a row is.
 		for (auto turn = 0; turn < 20; ++turn) {
 			QApplication::processEvents();
@@ -5274,19 +5241,13 @@ namespace {
 		QApplication::processEvents();
 
 		auto* const recent = window.home_recent_list();
-		auto* const list   = window.home_cycles_list();
-		expect(recent->isVisible() && recent->count() == 2 && list->isVisible() && list->count() == 2,
-			   "Home shows Recently viewed and Review Cycles");
-		expect(list->accessibleDescription() == QStringLiteral("Double-click or press Return to open"),
-			   "Review Cycles says how its rows open");
+		expect(recent->isVisible() && recent->count() == 2, "Home shows Recently viewed");
 
 		auto style = single_click_style{ };
 		for (const auto styled : { false, true }) {
 			const auto where = std::string{ styled ? " (single-click activation style)" : " (the platform's style)" };
 			recent->setStyle(styled ? &style : nullptr);
-			list->setStyle(styled ? &style : nullptr);
 			opened.clear();
-			resumed.clear();
 
 			recent->setCurrentRow(0);
 			press_row(*recent, recent->visualItemRect(recent->item(1)), false);
@@ -5295,20 +5256,8 @@ namespace {
 			press_row(*recent, recent->visualItemRect(recent->item(1)), true);
 			expect(opened.size() == 1U && opened.back().Index == 1U && !opened.back().Resume,
 				   "a double-click opens that Recently viewed row" + where);
-
-			list->setCurrentRow(0);
-			press_row(*list, list->visualItemRect(list->item(1)), false);
-			expect(resumed.empty() && list->currentRow() == 1 && list->item(1)->isSelected() && list->hasFocus(),
-				   "a single click on a review cycle selects it and opens nothing" + where);
-			press_row(*list, list->visualItemRect(list->item(1)), true);
-			expect(resumed.size() == 1U && resumed.back().Generation == 8U, "a double-click opens that review cycle" + where);
-			auto key = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
-			QApplication::sendEvent(list, &key);
-			QApplication::processEvents();
-			expect(resumed.size() == 2U && resumed.back().Generation == 8U, "Return opens the current review cycle, on every platform" + where);
 		}
 		recent->setStyle(nullptr);
-		list->setStyle(nullptr);
 		window.hide();
 	}
 
@@ -5521,20 +5470,15 @@ namespace {
 		projection.Entries.back().Open = true;
 		projection.Entries.push_back(recent_entry("microsoft", "terminal", 42U, "Fix the conpty resize race", 1'771'000'000, false));
 		window.publish(projection);
-		auto cycles                        = std::vector<application::review_cycle_recent>(1U);
-		cycles[0].Cycle.Title              = "Engine refactor";
-		cycles[0].Cycle.Subject.Generation = 7U;
-		window.present_local_cycle_recents(cycles);
 		for (auto turn = 0; turn < 20; ++turn) {
 			QApplication::processEvents();
 		}
 
 		auto* const queue   = window.home_list()->state_view(qt::home_group::needs_you);
 		auto* const recent  = window.home_recent_list();
-		auto* const cycle   = window.home_cycles_list();
 		const auto  row     = queue->model()->index(0, 0);
 		const auto  palette = queue->palette();
-		expect(queue->isVisible() && recent->isVisible() && recent->count() == 2 && cycle->isVisible(), "Home shows the queue, Recently viewed and Review Cycles");
+		expect(queue->isVisible() && recent->isVisible() && recent->count() == 2, "Home shows the queue and Recently viewed");
 		expect(selected_rows(*recent) == 0 && recent->currentRow() == 0,
 			   "publishing Recently viewed makes its first row current without selecting it");
 		// [[BPR-1843]]. The Active review card says what is open; no
@@ -5548,7 +5492,7 @@ namespace {
 		// Recently viewed beside it.
 		press_row(*queue, queue->visualRect(row), false);
 		QApplication::processEvents();
-		expect(queue->selectionModel()->isSelected(row) && selected_rows(*recent) == 0 && selected_rows(*cycle) == 0,
+		expect(queue->selectionModel()->isSelected(row) && selected_rows(*recent) == 0,
 			   "a click on a queue row is Home's one selection");
 		const auto selectedGround = row_ground(window, *queue, queue->visualRect(row));
 		const auto openGround     = row_ground(window, *recent, recent->visualItemRect(recent->item(0)));
@@ -5569,19 +5513,16 @@ namespace {
 		// The selection moves with the keyboard, and the list it leaves keeps its current row.
 		press_row(*recent, recent->visualItemRect(recent->item(1)), false);
 		QApplication::processEvents();
-		expect(recent->item(1)->isSelected() && selected_rows(*queue) == 0 && selected_rows(*cycle) == 0,
+		expect(recent->item(1)->isSelected() && selected_rows(*queue) == 0,
 			   "a click on Recently viewed moves Home's one selection there");
 		expect(window.home_list()->current_queue_item().has_value() && window.home_list()->current_queue_item()->Ref.Number == 73,
 			   "the queue keeps its current row while another list has the selection");
 		window.publish(projection);
 		QApplication::processEvents();
 		expect(recent->item(1)->isSelected() && selected_rows(*queue) == 0, "a publication keeps the selection where the keyboard is");
-		press_row(*cycle, cycle->visualItemRect(cycle->item(0)), false);
-		QApplication::processEvents();
-		expect(cycle->item(0)->isSelected() && selected_rows(*recent) == 0 && selected_rows(*queue) == 0, "a click on a review cycle moves it there");
 		queue->setFocus(Qt::TabFocusReason);
 		QApplication::processEvents();
-		expect(queue->selectionModel()->isSelected(row) && selected_rows(*recent) == 0 && selected_rows(*cycle) == 0,
+		expect(queue->selectionModel()->isSelected(row) && selected_rows(*recent) == 0,
 			   "the keyboard's return to the queue selects its current row again, and only it");
 		window.hide();
 	}

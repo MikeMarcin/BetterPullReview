@@ -671,7 +671,7 @@ namespace bpr::qt {
 		switch (view.Recovery) {
 		case application::local_draft_recovery::none: break;
 		case application::local_draft_recovery::not_git:
-			lines << QStringLiteral("%1 is not a Git worktree. Review it as a Review Cycle with File › Open Project….").arg(where);
+			lines << QStringLiteral("%1 is not a Git worktree; a local PR draft needs one.").arg(where);
 			break;
 		case application::local_draft_recovery::unreadable: lines << QStringLiteral("%1 could not be read.").arg(where); break;
 		case application::local_draft_recovery::repository: lines << QStringLiteral("This repository uses a format BetterPullReview does not read."); break;

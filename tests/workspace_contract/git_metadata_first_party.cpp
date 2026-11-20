@@ -4,7 +4,6 @@
 
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/application/review_cycle_git_metadata.hpp"
-#include "bpr/application/review_cycle_words.hpp"
 #include "bpr/core/generated_files.hpp"
 #include "bpr/core/review_cycle.hpp"
 #include "bpr/core/review_cycle_git.hpp"
@@ -22,6 +21,32 @@
 
 namespace bpr::tests::workspace_contract {
 	namespace {
+		/// The words the retired Review Cycle capture said about a refused
+		/// checkout ([[BPR-1454]]); [[BPR-2308]] keeps them here for the harness.
+		auto repository_words(const core::git_repository_problem& aProblem) -> std::string
+		{
+			const auto key = aProblem.Key.empty() ? std::string{ } : " (" + aProblem.Key + ")";
+			switch (aProblem.Reason) {
+			case core::git_repository_refusal::malformed_config: return "This checkout's Git config" + key + " has a line Git itself would refuse to read; nothing was read from the checkout.";
+			case core::git_repository_refusal::format_version:   return "This checkout's Git repository format version" + key + " is one BetterPullReview does not read; nothing was read from the checkout.";
+			case core::git_repository_refusal::unknown_extension:
+				return "This checkout's Git repository uses an extension" + key + " that BetterPullReview does not read; nothing was read from the checkout.";
+			case core::git_repository_refusal::version_zero_extension:
+				return "This checkout's Git config sets an extension" + key + " that Git refuses in a version 0 repository; nothing was read from the checkout.";
+			case core::git_repository_refusal::object_format: return "This checkout's Git config names an object format" + key + " Git does not know; nothing was read from the checkout.";
+			case core::git_repository_refusal::ref_storage:   return "This checkout's Git config names a reference format" + key + " Git does not know; nothing was read from the checkout.";
+			case core::git_repository_refusal::reftable:
+				return "This checkout stores its branches in Git's reftable format, which BetterPullReview does not read yet; nothing was read from the checkout.";
+			case core::git_repository_refusal::invalid_value:   return "This checkout's Git config gives a setting" + key + " a value Git itself refuses; nothing was read from the checkout.";
+			case core::git_repository_refusal::index_format:    return "This checkout's Git index is in a form BetterPullReview does not read; nothing was read from the checkout.";
+			case core::git_repository_refusal::index_checksum:  return "This checkout's Git index is damaged: its checksum does not match; nothing was read from the checkout.";
+			case core::git_repository_refusal::index_extension: return "This checkout's Git index uses a required extension BetterPullReview does not read; nothing was read from the checkout.";
+			case core::git_repository_refusal::rule_file_bound:
+				return "This checkout's ignore or attributes file" + key + " is larger than BetterPullReview reads (1 MiB or 100,000 rules), so paths it ignores could be captured; nothing was recorded.";
+			}
+			return "This checkout's Git repository is one BetterPullReview does not read; nothing was read from the checkout.";
+		}
+
 		using application::workspace_failure;
 		using application::workspace_git_area;
 		using application::workspace_root_session;
@@ -49,7 +74,7 @@ namespace bpr::tests::workspace_contract {
 		auto describe(const application::git_metadata_failure& aFailure) -> candidate_refusal
 		{
 			if (aFailure.Repository) {
-				return application::cycle_repository_words(*aFailure.Repository);
+				return repository_words(*aFailure.Repository);
 			}
 			return "workspace: " + failure_name(aFailure.Workspace);
 		}
@@ -149,7 +174,7 @@ namespace bpr::tests::workspace_contract {
 				}
 				const auto parsed = core::parse_git_index(*bytes, format->ObjectFormat, core::maximum_cycle_capture_entries);
 				if (!parsed) {
-					return std::unexpected(application::cycle_repository_words(core::git_index_problem(parsed.error())));
+					return std::unexpected(repository_words(core::git_index_problem(parsed.error())));
 				}
 				auto answer = index_answer{ .Partial = parsed->SplitIndex };
 				answer.Entries.reserve(parsed->Entries.size());

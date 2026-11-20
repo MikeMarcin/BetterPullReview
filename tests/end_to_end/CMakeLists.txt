@@ -954,7 +954,6 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
-
 bpr_add_executable(
     test_better_pull_review_worker_executor_tests
     worker_executor_tests.cpp
@@ -4258,61 +4257,6 @@ bpr_add_network_isolated_test(NAME application_profile_owner_admission_public_pa
 set_tests_properties(application_profile_owner_admission_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240)
 
-# [[BPR-1179]]. The reviewer the two-round, parity and large-project courses
-# drive is built wherever one of them runs: beside the shipped bpr, or in a
-# graph without local automation, whose course reaches no bpr at all.
-if(TARGET app_bpr OR NOT BPR_BUILD_LOCAL_AUTOMATION)
-    # [[BPR-1166]]. The complete manual two-round course in the application's
-    # own profile desktop, restarted twice on one profile: Open Project, eight
-    # notes with two suggestions, Copy, Save and the bundle, the shipped
-    # `bpr cycle` export and a granted harness's read, edits made outside, a
-    # restart, Capture revision, comparisons, verification, Save next round and
-    # another capture. No agent component is reachable and no callback is read.
-    # Uncontained on Windows (dos-volume-name): contained, the course's first
-    # `git init` in its AC\Temp project exits 128 with "unable to get current
-    # working directory: Permission denied", Git's getcwd, before any desktop
-    # step. Measured on JaegAW 2026-10-03.
-    # [[BPR-1184]] measures large projects through the same reviewer, with
-    # [[BPR-0967]]'s native process-memory counters.
-    bpr_add_executable(test_review_cycle_two_round_public_path review_cycle_two_round_public_path_tests.cpp large_review_native_memory.cpp)
-    target_link_libraries(test_review_cycle_two_round_public_path PRIVATE BetterPullReview::Composition)
-    if(WIN32)
-        target_link_libraries(test_review_cycle_two_round_public_path PRIVATE psapi)
-    endif()
-    target_compile_definitions(test_review_cycle_two_round_public_path PRIVATE BPR_BUILD_TESTING=1)
-    target_compile_features(test_review_cycle_two_round_public_path PRIVATE cxx_std_23)
-    bpr_enable_hardening(test_review_cycle_two_round_public_path)
-    bpr_enable_warnings(test_review_cycle_two_round_public_path)
-    if(APPLE)
-        # QtGui's QPA focus-window entry, which the cocoa plugin itself calls when
-        # AppKit makes a window key: a native run from a terminal while someone
-        # uses another application gets no key window otherwise (as
-        # test_profile_empty_desktop_native_menu_bar does).
-        file(GLOB bpr_two_round_qtgui_private LIST_DIRECTORIES true
-            "${Qt6Gui_DIR}/../../QtGui.framework/Headers/[0-9]*.[0-9]*.[0-9]*")
-        list(LENGTH bpr_two_round_qtgui_private bpr_two_round_qtgui_private_count)
-        if(NOT bpr_two_round_qtgui_private_count EQUAL 1)
-            message(FATAL_ERROR "Expected one versioned QtGui private header directory, found: ${bpr_two_round_qtgui_private}")
-        endif()
-        target_include_directories(test_review_cycle_two_round_public_path SYSTEM PRIVATE
-            "${bpr_two_round_qtgui_private}" "${bpr_two_round_qtgui_private}/QtGui")
-    endif()
-endif()
-if(NOT BPR_BUILD_LOCAL_AUTOMATION)
-    # [[BPR-1179]]. The same complete manual course in a desktop built without
-    # local automation: no bpr exists, the window's own Copy, Save and bundle
-    # agree with the canonical payload, a fourth launch reads the cycle back,
-    # and on POSIX no owner command endpoint is bound beside the activation one.
-    bpr_add_network_isolated_test(NAME application_review_cycle_automation_off_two_round WINDOWS_UNCONTAINED
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_two_round_contract.py"
-        --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
-        --without-local-automation)
-    set_tests_properties(application_review_cycle_automation_off_two_round PROPERTIES
-        ENVIRONMENT "${bpr_public_path_fixture_environment}"
-        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_TWO_ROUND_OK"
-        TIMEOUT 600)
-endif()
-
 # [[BPR-1062]]. A real desktop author and the shipped CLI share one live draft.
 if(TARGET app_bpr)
     bpr_add_executable(test_profile_tour_handoff_public_path profile_tour_handoff_public_path_tests.cpp)
@@ -4327,162 +4271,6 @@ if(TARGET app_bpr)
         --tour-application $<TARGET_FILE:app_bpr>)
     set_tests_properties(application_profile_tour_handoff_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240)
-    # [[BPR-1168]]. A real desktop owner with a local cycle open and the shipped
-    # `bpr cycle`, in both directions: forwarded commands, the reviewer's unsaved
-    # and composing text, duplicates, concurrent callers, owner death and
-    # replacement, and an owner of another protocol version. Registered contained:
-    # Windows has not measured it yet; a measured refusal is pinned, not guessed.
-    bpr_add_executable(test_profile_cycle_handoff_public_path profile_cycle_handoff_public_path_tests.cpp)
-    target_link_libraries(test_profile_cycle_handoff_public_path PRIVATE BetterPullReview::Composition)
-    target_compile_definitions(test_profile_cycle_handoff_public_path PRIVATE BPR_BUILD_TESTING=1)
-    target_compile_features(test_profile_cycle_handoff_public_path PRIVATE cxx_std_23)
-    bpr_enable_hardening(test_profile_cycle_handoff_public_path)
-    bpr_enable_warnings(test_profile_cycle_handoff_public_path)
-    bpr_add_network_isolated_test(NAME application_profile_cycle_handoff_public_path WINDOWS_UNCONTAINED
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_cycle_handoff_contract.py"
-        --application $<TARGET_FILE:test_profile_cycle_handoff_public_path>
-        --cycle-application $<TARGET_FILE:app_bpr>)
-    set_tests_properties(application_profile_cycle_handoff_public_path PROPERTIES
-        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300)
-    # [[BPR-1181]]. Review Cycles' security boundaries attacked through real
-    # processes, the shipped `bpr` and the reviewer's desktop: a hostile
-    # checkout whose Git canaries never fire, hostile note text, forged
-    # responses, one policy for every channel with and without the desktop, a
-    # same-user peer and impostor owners at the owner's endpoint, and credential
-    # and content canaries kept out of every file, log and refusal. Uncontained
-    # on Windows (dos-volume-name): contained, the course's first `git init`
-    # fails before any attack runs. Measured on JaegAW 2026-10-04.
-    bpr_add_network_isolated_test(NAME application_review_cycle_security_qualification WINDOWS_UNCONTAINED
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_security_qualification.py"
-        --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
-        --cycle-application $<TARGET_FILE:app_bpr>)
-    set_tests_properties(application_review_cycle_security_qualification PROPERTIES
-        ENVIRONMENT "${bpr_public_path_fixture_environment}"
-        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_SECURITY_QUALIFICATION_OK"
-        TIMEOUT 600)
-    # [[BPR-1183]]. The hostile-input, data-loss and mixed-cycle recovery
-    # corpus through the shipped `bpr` and the reviewer's desktop: kill points
-    # in capture, notes, goals, freezes, responses and saves; the owner killed
-    # mid-command; a full disk; damaged and missing retained material; a
-    # damaged and a lost store; stale drafts and replaced and moved roots;
-    # duplicates; case collisions where a case-sensitive folder can be made.
-    # Older and agent-free builds join when the course is given them.
-    # Uncontained on Windows (dos-volume-name): contained, its first `bpr cycle
-    # open` exits 7, "The application root is unavailable or is not
-    # owner-private." Measured on JaegAW 2026-10-05.
-    bpr_add_network_isolated_test(NAME application_review_cycle_recovery_corpus WINDOWS_UNCONTAINED
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_recovery_corpus.py"
-        --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
-        --cycle-application $<TARGET_FILE:app_bpr>)
-    set_tests_properties(application_review_cycle_recovery_corpus PROPERTIES
-        ENVIRONMENT "${bpr_public_path_fixture_environment}"
-        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_RECOVERY_CORPUS_OK"
-        TIMEOUT 900)
-    bpr_add_network_isolated_test(NAME application_review_cycle_two_round_public_path WINDOWS_UNCONTAINED
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_two_round_contract.py"
-        --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
-        --cycle-application $<TARGET_FILE:app_bpr>)
-    set_tests_properties(application_review_cycle_two_round_public_path PROPERTIES
-        ENVIRONMENT "${bpr_public_path_fixture_environment}"
-        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_TWO_ROUND_OK"
-        TIMEOUT 600)
-    # [[BPR-1171]]. One cycle through the desktop, the human terminal, a declared
-    # harness and a recipient who cannot reach bpr, and back, with the reviewer
-    # the two-round course drives: one golden payload in every interface; what
-    # the terminal and the harness are told with the desktop open equal to what
-    # they are told with it closed; the window's unsaved note and Home kept while
-    # other interfaces write; a draft the terminal changed restored on the next
-    # launch. Uncontained on Windows (dos-volume-name): contained, the course's
-    # first `bpr cycle list` exits 7 with "The application root is unavailable
-    # or is not owner-private.", as cycle_cli_public_path does. Measured on
-    # JaegAW 2026-10-04.
-    bpr_add_network_isolated_test(NAME application_review_cycle_parity_public_path WINDOWS_UNCONTAINED
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_parity_contract.py"
-        --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
-        --cycle-application $<TARGET_FILE:app_bpr>)
-    set_tests_properties(application_review_cycle_parity_public_path PROPERTIES
-        ENVIRONMENT "${bpr_public_path_fixture_environment}"
-        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_PARITY_OK"
-        TIMEOUT 600)
-    # [[BPR-1184]]. Large-project responsiveness through the same reviewer and
-    # the shipped `bpr cycle`: named corpora of 20,000 and 100,000 files of
-    # 1,000,000 lines each, a 514-item stress round and a 250,001-entry
-    # refusal, reported as p50/p95 with peak memory in the report file. The
-    # 100 ms typing and navigation targets while a capture runs are enforced in
-    # optimized macOS builds, whose measurements justify them; elsewhere they
-    # are reported until the stations' measurements do. [[BPR-1274]]: so are the
-    # stress round's, no gesture holding the window past 100 ms and a note
-    # change, Copy and Save each inside the 250 ms past which progress and
-    # cancel are owed; a note change in the round within seven times the
-    # cycle's first is enforced in every optimized build. A Debug build runs a
-    # 2,000-file correctness pass and claims no measurement. Uncontained on
-    # Windows (dos-volume-name): contained, the first desktop exits 1 with
-    # "FAILED: the desktop starts with a window" before any `bpr cycle` step.
-    # Measured on JaegAW 2026-10-04 in the Release tree.
-    # Timeout: macOS Release ran the row in 225.31 s (M4 Pro, 2026-10-04); three
-    # times that, rounded up. Windows and Linux are provisional at 2,400 s
-    # until the stations measure them (build-and-test-reference.md, run budgets).
-    if(APPLE)
-        set(bpr_large_project_timeout 720)
-    else()
-        set(bpr_large_project_timeout 2400)
-    endif()
-    bpr_add_network_isolated_test(NAME application_review_cycle_large_project WINDOWS_UNCONTAINED
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_large_project_contract.py"
-        --application $<TARGET_FILE:test_review_cycle_two_round_public_path>
-        --cycle-application $<TARGET_FILE:app_bpr>
-        --build-type $<CONFIG>
-        --source-root "${PROJECT_SOURCE_DIR}"
-        --report "${CMAKE_CURRENT_BINARY_DIR}/bpr1184-large-project-report.json"
-        "--enforce=$<IF:$<AND:$<PLATFORM_ID:Darwin>,$<NOT:$<CONFIG:Debug>>>,1,0>"
-        "--quick=$<IF:$<CONFIG:Debug>,1,0>"
-        --limit-probe)
-    set_tests_properties(application_review_cycle_large_project PROPERTIES
-        ENVIRONMENT "${bpr_public_path_fixture_environment}"
-        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_LARGE_PROJECT_OK"
-        RUN_SERIAL TRUE
-        TIMEOUT ${bpr_large_project_timeout})
-    # [[BPR-1274]]. The row's targets judged on reports it wrote, launching
-    # nothing: the macOS Release report measured before the fix misses the
-    # stress round's four timed targets, the one measured after it meets
-    # them all, and a note change made to cost what the old build's did fails
-    # the scaling check in an optimized build and is only reported in Debug.
-    bpr_add_network_isolated_test(NAME review_cycle_large_project_targets
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_large_project_targets_tests.py")
-    set_tests_properties(review_cycle_large_project_targets PROPERTIES TIMEOUT 60)
-endif()
-
-if(BPR_BUILD_QT AND TARGET Git::Git)
-    # [[BPR-1177]]. Publish as Pull Request in the application's own profile
-    # desktop: Open Project on a Git checkout, a private note, Capture revision,
-    # the publication sheet's baselines, Review Plan, Publish Pull Request to an
-    # in-memory GitHub behind the publication catalog's port, a link made by
-    # hand, Open Pull Request into the existing workflow, and the cycle resumed
-    # with its history. No live GitHub. Uncontained on Windows
-    # (dos-volume-name): contained, it exits 3 with no output in 0.08 s, the
-    # unchecked std::filesystem::canonical of its scratch root aborting.
-    # Measured on JaegAW 2026-10-04.
-    bpr_add_executable(test_review_cycle_publish_public_path review_cycle_publish_public_path_tests.cpp)
-    target_link_libraries(test_review_cycle_publish_public_path PRIVATE BetterPullReview::Composition)
-    target_compile_definitions(test_review_cycle_publish_public_path PRIVATE BPR_BUILD_TESTING=1)
-    target_compile_features(test_review_cycle_publish_public_path PRIVATE cxx_std_23)
-    bpr_enable_hardening(test_review_cycle_publish_public_path)
-    if(WIN32)
-        target_link_libraries(test_review_cycle_publish_public_path PRIVATE advapi32 BetterPullReview::Platform)
-    endif()
-    bpr_enable_warnings(test_review_cycle_publish_public_path)
-    if(APPLE)
-        file(GLOB bpr_publish_qtgui_private LIST_DIRECTORIES true
-            "${Qt6Gui_DIR}/../../QtGui.framework/Headers/[0-9]*.[0-9]*.[0-9]*")
-        target_include_directories(test_review_cycle_publish_public_path SYSTEM PRIVATE
-            "${bpr_publish_qtgui_private}" "${bpr_publish_qtgui_private}/QtGui")
-    endif()
-    bpr_add_network_isolated_test(NAME application_review_cycle_publish_public_path WINDOWS_UNCONTAINED
-        COMMAND test_review_cycle_publish_public_path --git "$<TARGET_FILE:Git::Git>")
-    set_tests_properties(application_review_cycle_publish_public_path PROPERTIES
-        ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_CYCLE_PUBLISH_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/cycle-publish"
-        PASS_REGULAR_EXPRESSION "REVIEW_CYCLE_PUBLISH_OK"
-        TIMEOUT 300)
 endif()
 
 bpr_add_executable(test_profile_window_restart_public_path profile_window_restart_public_path_tests.cpp)
@@ -4498,7 +4286,6 @@ bpr_add_network_isolated_test(NAME application_profile_window_restart_public_pat
     --application $<TARGET_FILE:test_profile_window_restart_public_path>)
 set_tests_properties(application_profile_window_restart_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 260)
-
 
 # BPR-0899: the production port and host drain through real private SQLite storage.
 bpr_add_executable(test_profile_window_layout_drain profile_window_layout_drain_tests.cpp)
@@ -4806,7 +4593,6 @@ foreach(course native compat stop conflict unsupported maintenance reconciliatio
     set_tests_properties(application_review_tour_publication_${course} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 90)
 endforeach()
 
-
 if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(test_scoped_writing_agent scoped_writing_agent.cpp)
 target_compile_features(test_scoped_writing_agent PRIVATE cxx_std_23)
@@ -4941,53 +4727,6 @@ set_tests_properties(application_private_review_retry PROPERTIES
 bpr_bound_automated_run(application_private_review_retry
     TIMEOUT 400 BUDGET_MS 90000 RUNS 3 RESERVE_MS 20000)
 endif()
-
-# [[BPR-1157]]. The real workbench window with the real local-cycle
-# composition: no-account Open Project to a first note and a suggestion,
-# Home's Review Cycles section, and a switch to a pull request and back.
-bpr_add_executable(test_review_cycle_desktop_public_path review_cycle_desktop_public_path.cpp)
-target_link_libraries(test_review_cycle_desktop_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
-target_include_directories(test_review_cycle_desktop_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
-target_compile_features(test_review_cycle_desktop_public_path PRIVATE cxx_std_23)
-bpr_enable_hardening(test_review_cycle_desktop_public_path)
-if(WIN32)
-    target_link_libraries(test_review_cycle_desktop_public_path PRIVATE advapi32 BetterPullReview::Platform)
-endif()
-bpr_enable_warnings(test_review_cycle_desktop_public_path)
-bpr_add_network_isolated_test(NAME application_review_cycle_desktop_public_path WINDOWS_UNCONTAINED
-    COMMAND test_review_cycle_desktop_public_path)
-set_tests_properties(application_review_cycle_desktop_public_path PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BPR_CYCLE_DESKTOP_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/cycle-desktop"
-    PASS_REGULAR_EXPRESSION "review-cycle-desktop-public-path:pass"
-    TIMEOUT 120)
-
-# [[BPR-1180]]. Send to Agent through the real window, composition and agent
-# adapter, starting a stand-in harness as a real process. In a graph without
-# the agent integrations the same course shows the route absent.
-bpr_add_executable(test_review_cycle_send_public_path review_cycle_send_public_path.cpp)
-target_link_libraries(test_review_cycle_send_public_path PRIVATE BetterPullReview::Composition)
-target_include_directories(test_review_cycle_send_public_path PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
-target_compile_features(test_review_cycle_send_public_path PRIVATE cxx_std_23)
-bpr_enable_hardening(test_review_cycle_send_public_path)
-if(WIN32)
-    target_link_libraries(test_review_cycle_send_public_path PRIVATE advapi32 BetterPullReview::Platform)
-endif()
-bpr_enable_warnings(test_review_cycle_send_public_path)
-set(bpr_cycle_send_arguments "")
-if(BPR_BUILD_AGENT_INTEGRATIONS)
-    bpr_add_executable(test_better_pull_review_cycle_send_agent "${PROJECT_SOURCE_DIR}/tests/fixtures/agent/cycle_send_agent_main.cpp")
-    target_compile_features(test_better_pull_review_cycle_send_agent PRIVATE cxx_std_23)
-    bpr_enable_hardening(test_better_pull_review_cycle_send_agent)
-    bpr_enable_warnings(test_better_pull_review_cycle_send_agent)
-    add_dependencies(test_review_cycle_send_public_path test_better_pull_review_cycle_send_agent)
-    set(bpr_cycle_send_arguments "$<TARGET_FILE:test_better_pull_review_cycle_send_agent>")
-endif()
-bpr_add_network_isolated_test(NAME application_review_cycle_send_public_path WINDOWS_UNCONTAINED
-    COMMAND test_review_cycle_send_public_path ${bpr_cycle_send_arguments})
-set_tests_properties(application_review_cycle_send_public_path PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-    PASS_REGULAR_EXPRESSION "review-cycle-send-public-path:pass"
-    TIMEOUT 120)
 
 # [[BPR-0169]], [[BPR-1222]]. The shipped composition, offscreen, reading the
 # owner's designated live target with a second GitHub account in the course.

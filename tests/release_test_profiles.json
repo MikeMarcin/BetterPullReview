@@ -71,8 +71,7 @@
         "application_source_pr_search_performance",
         "core_diff_compute_benchmark",
         "large_review_replay_contract",
-        "review_cycle_git_reader_scale",
-        "review_cycle_scale"
+        "review_cycle_git_reader_scale"
       ]
     },
     {
@@ -161,7 +160,6 @@
         "qt_pull_request_overview_folder_rows_200",
         "qt_release_maintenance_scale_125",
         "qt_release_maintenance_scale_200",
-        "qt_review_cycle_view_2_0",
         "qt_review_state_icon",
         "qt_review_submission_editor_scale_125",
         "qt_review_submission_editor_scale_200",
@@ -342,9 +340,6 @@
         "application_remembered_connection_restart",
         "application_reply_draft_contract",
         "application_review_behaviour_contract",
-        "application_review_cycle_desktop_public_path",
-        "application_review_cycle_publish_public_path",
-        "application_review_cycle_send_public_path",
         "application_review_navigation_entry",
         "application_review_progress_push_contract",
         "application_review_submission_composition_public_path",

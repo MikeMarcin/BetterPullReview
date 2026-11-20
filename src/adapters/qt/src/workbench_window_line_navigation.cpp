@@ -64,7 +64,7 @@ namespace bpr::qt {
 		if (!GoToLineAction || !ComparisonSurface) {
 			return;
 		}
-		const auto inReview  = !showing_home() && !LocalCycleShown && !CompositionPage && current_modality() == review_modality::review;
+		const auto inReview  = !showing_home() && !CompositionPage && current_modality() == review_modality::review;
 		const auto available = inReview && ComparisonSurface->source_line_destination().has_value();
 		GoToLineAction->setEnabled(available && QApplication::activeModalWidget() == nullptr);
 		// Cocoa offers native menu equivalents before ShortcutOverride. Lift the
@@ -181,7 +181,7 @@ namespace bpr::qt {
 				chip->update();
 			}
 			*stale = *stale || ComparisonSurface->current_result() != material || ComparisonSurface->current_context() != context
-				|| activeTab() != tab || showing_home() || LocalCycleShown || CompositionPage || current_modality() != review_modality::review;
+				|| activeTab() != tab || showing_home() || CompositionPage || current_modality() != review_modality::review;
 			const auto count = counts[static_cast<std::size_t>(side->checkedId())];
 			range->setText(count == 0U ? tr("No source lines on this side") : tr("Lines 1–%1 · add :column").arg(count));
 			const auto text         = line->text();

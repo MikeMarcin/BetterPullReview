@@ -178,17 +178,6 @@ namespace bpr::app {
 		Window->set_recent_review_dispatch([this](application::recent_review_intent aIntent) { open_recent(aIntent); });
 		Window->set_recent_removal_dispatch([this](application::recent_review_row aRow) { forget_recent(aRow); });
 		Window->set_review_window_dispatch([this](const application::review_window_intent& aIntent) { return request_review_window(aIntent); });
-		// Suggest change is coloured by the panes' classifier over the same
-		// definitions, on the lane every classifier over them runs on.
-		CycleDesktop = std::make_unique<review_cycle_desktop>(*Window, ApplicationDataRoot, DraftWindow.Profile, WorkbenchEffects, DecisionLane,
-															  review_cycle_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects, .Insights = Profile->InsightsRecorder }, nullptr,
-#if defined(BPR_AGENT_INTEGRATIONS)
-															  ClaudeWrapperSource, locate_claude(), AgentProgramSource, locate_agent_program()
-#else
-															  nullptr
-#endif
-		);
-		CycleDesktop->set_diagnostics(DiagnosticLog.get()); // [[BPR-1830]]
 		// RFC-BPR-0108. Local PR drafts read the chosen worktree through
 		// their own isolated Git reader; signed out as well as in.
 		DraftDesktop = std::make_unique<local_draft_desktop>(*Window, ApplicationDataRoot, Profile->InstalledGit, windows_system_root(), WorkbenchEffects, DecisionLane,
@@ -226,15 +215,6 @@ namespace bpr::app {
 #else
 			return Host->accepted_pull_request_account();
 #endif
-		});
-		// [[BPR-1177]]. Publish as Pull Request acts as the account this
-		// profile's session accepted, through its own publication catalog.
-		CycleDesktop->set_publishing({
-			.GitExecutable     = Profile->InstalledGit,
-			.WindowsSystemRoot = windows_system_root(),
-			.Account           = [this]() -> std::optional<application::github_publication_account> {
-				return Closing || !Host ? std::nullopt : Host->accepted_publication_account();
-			},
 		});
 		Window->set_profile_label(QString::fromStdString(aAdmission.Label));
 		Window->set_storage_location(QString::fromStdString(ApplicationDataRoot.string()));

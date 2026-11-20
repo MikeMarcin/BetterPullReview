@@ -9,10 +9,7 @@
 #include "../sqlite_contract/scratch_root.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
-#include "bpr/application/review_cycle_capture.hpp"
-#include "bpr/application/review_cycle_words.hpp"
 #include "bpr/core/review_cycle_ignore.hpp"
-#include "cycle_course.hpp"
 #include "git_metadata_candidate.hpp"
 #include "git_metadata_oracle.hpp"
 #include "workspace_fixture.hpp"
@@ -92,7 +89,7 @@ namespace {
 
 	/// Components that read the repository format first, and so refuse
 	/// together when it is refused (C4 opens the Git directories only).
-	constexpr auto format_readers = std::to_array<std::string_view>({ "C1", "C2", "C3", "C5", "C6", "C5-capture" });
+	constexpr auto format_readers = std::to_array<std::string_view>({ "C1", "C2", "C3", "C5", "C6" });
 
 	auto build_registry() -> std::vector<classification>
 	{
@@ -110,13 +107,11 @@ namespace {
 		all("format-missing-version", "deliberate",
 			"a version 1 extension with no core.repositoryformatversion is refused as a version 0 extension; Git refuses only an explicit version 0 and reads this one");
 		// C1: a split index.
-		for (const auto component : { std::string_view{ "C1" }, std::string_view{ "C5-capture" } }) {
-			entries.push_back({ "K", component, "split-index", "", "refusal",
-								"the shared index is never opened: a split part that replaces shared entries (stripped names, written depending on stat timing) is refused as an index form these readers do not read, and otherwise its own entries are read and marked partial (capture coverage partial)" });
-		}
+		entries.push_back({ "K", "C1", "split-index", "", "refusal",
+							"the shared index is never opened: a split part that replaces shared entries (stripped names, written depending on stat timing) is refused as an index form these readers do not read, and otherwise its own entries are read and marked partial" });
 		// C2, C5: includes are not followed (fix 2).
 		for (const auto* name : { "config-include", "config-include-if" }) {
-			for (const auto component : { std::string_view{ "C2" }, std::string_view{ "C5" }, std::string_view{ "C5-capture" } }) {
+			for (const auto component : { std::string_view{ "C2" }, std::string_view{ "C5" } }) {
 				entries.push_back({ "K", component, name, "", "deliberate", "config includes are not followed (fix 2); an include that sets core.ignoreCase is a recorded divergence" });
 			}
 		}
@@ -133,21 +128,17 @@ namespace {
 							"refused: rev-parse exit 128: compatibility hash algorithm support requires Rust", "answers" });
 		// C5 and C6.
 		for (const auto* name : { "ignorecase-true", "ignorecase-false" }) {
-			for (const auto component : { std::string_view{ "C5" }, std::string_view{ "C5-capture" } }) {
-				entries.push_back({ "K", component, name, "config/local/a/key.pem", "deliberate",
-									"config/local**/*.pem: capture preserves Git 2.50.1's conservative exclusion; Git 2.55 retains one literal-prefix byte before wildmatch and keeps this path (BPR-1525); both core.ignoreCase settings are probed",
-									"kept", component == "C5" ? "ignored" : "excluded" });
-			}
+			entries.push_back({ "K", "C5", name, "config/local/a/key.pem", "deliberate",
+								"config/local**/*.pem: the reader preserves Git 2.50.1's conservative exclusion; Git 2.55 retains one literal-prefix byte before wildmatch and keeps this path (BPR-1525); both core.ignoreCase settings are probed",
+								"kept", "ignored" });
 		}
 		entries.push_back({ "K", "C5", "ignorecase-latin1", "\xE9t\xE9.txt", "deliberate",
 							"these readers fold ASCII case only; Git under a UTF-8 locale on macOS also folds this Latin-1 byte through the C library (under LC_ALL=C it does not)" });
 		entries.push_back({ "K", "C6", "attributes-deleted-from-worktree", "a.bin", "deliberate",
 							"capture reads the attributes of the working tree it captures; Git falls back to the index's copy of a .gitattributes missing from the worktree" });
 		for (const auto* name : { "ignore-over-1mib", "ignore-over-100000-rules" }) {
-			for (const auto component : { std::string_view{ "C5" }, std::string_view{ "C5-capture" } }) {
-				entries.push_back({ "K", component, name, "", "refusal",
-									"a rule file past capture's bound (1 MiB or 100,000 rules) refuses the capture by name instead of being dropped (BPR-1455 fix); Git reads up to 100 MB" });
-			}
+			entries.push_back({ "K", "C5", name, "", "refusal",
+								"a rule file past the reader's bound (1 MiB or 100,000 rules) is refused by name instead of being dropped (BPR-1455 fix); Git reads up to 100 MB" });
 		}
 		// [[BPR-1458]]. libgit2 1.9.7 (L), run when the evaluation-only target
 		// exists. Its refusals are explicit; its silent divergences make it
@@ -1281,83 +1272,6 @@ namespace {
 		};
 	}
 
-	/// The public path: a real capture's untracked-file exclusions against
-	/// Git's ignore answers.
-	auto capture_cross_check(const std::string& aCase, const case_setup& aSetup, const std::vector<path_question>& aQuestions, const std::set<std::string>& aOnDisk,
-							 const std::expected<std::vector<bool>, candidate_refusal>& aIgnored,
-							 const std::expected<index_answer, candidate_refusal>&      aIndex) -> result
-	{
-		auto outcome = result{ .Candidate = "K", .Component = "C5-capture", .Case = aCase };
-		if (!aIgnored || !aIndex) {
-			outcome.Verdict = verdict::skipped;
-			outcome.Detail  = "git refuses the repository";
-			return outcome;
-		}
-		auto       source = adapters::workspace::make_local_workspace_source();
-		auto       cycle  = tests::workspace_contract::course{ *source, aSetup.Root };
-		const auto taken  = cycle.capture(*source);
-		if (taken.Status != application::cycle_capture_status::captured) {
-			outcome.Verdict = verdict::refused;
-			outcome.Detail  = application::cycle_capture_words(taken);
-			outcome.Findings.push_back({ .Subject = "", .Oracle = "captures", .Candidate = "refused: " + outcome.Detail });
-			return outcome;
-		}
-		const auto manifest = cycle.manifest(taken);
-		auto       tracked  = std::set<std::string>{ };
-		for (const auto& entry : aIndex->Entries) {
-			auto path = entry.Path;
-			if (path.ends_with('/')) {
-				path.pop_back();
-			}
-			tracked.insert(path);
-		}
-		const auto tracksBeneath = [&tracked](const std::string& aPath) {
-			const auto prefix = aPath + "/";
-			const auto found  = tracked.lower_bound(prefix);
-			return found != tracked.end() && found->starts_with(prefix);
-		};
-		const auto excludedAt = [&manifest](const std::string& aPath) {
-			return std::ranges::any_of(manifest.Exclusions, [&aPath](const core::manifest_exclusion& aExclusion) {
-				return aExclusion.Reason == core::workspace_exclusion_reason::ignored && (aExclusion.Path == aPath || aPath.starts_with(aExclusion.Path + "/"));
-			});
-		};
-		const auto defaultExcluded = [](const std::string& aPath) {
-			auto start = std::size_t{ 0 };
-			for (;;) {
-				const auto slash = aPath.find('/', start);
-				if (core::excluded_by_default(std::string_view{ aPath }.substr(start, slash == std::string::npos ? std::string::npos : slash - start))) {
-					return true;
-				}
-				if (slash == std::string::npos) {
-					return false;
-				}
-				start = slash + 1;
-			}
-		};
-		for (std::size_t index = 0; index < aQuestions.size(); ++index) {
-			const auto& question = aQuestions[index];
-			if (!aOnDisk.contains(question.Path) || tracked.contains(question.Path) || defaultExcluded(question.Path)) {
-				continue;
-			}
-			if (question.Directory && tracksBeneath(question.Path)) {
-				continue;
-			}
-			// A tracked ancestor's untracked child is still untracked; only the
-			// path's own index presence matters here.
-			++outcome.Compared;
-			const auto gitIgnores = (*aIgnored)[index];
-			const auto excluded   = excludedAt(question.Path);
-			const auto captured   = !question.Directory && core::find_entry(manifest, question.Path) != nullptr;
-			if (gitIgnores != excluded || (gitIgnores && captured)) {
-				outcome.Findings.push_back({ .Subject = question.Path, .Oracle = gitIgnores ? "ignored" : "kept", .Candidate = std::string{ excluded ? "excluded" : "not excluded" } + (captured ? ", captured" : "") });
-			}
-		}
-		if (!outcome.Findings.empty()) {
-			outcome.Verdict = verdict::diverge;
-		}
-		return outcome;
-	}
-
 	struct harness_options
 	{
 		bool                                 Large = false;
@@ -1486,13 +1400,6 @@ namespace {
 				// over the attribute cases, against `git check-attr`.
 				if (name == "K" && (caseName == "linguist-generated" || caseName == "attributes" || caseName == "ignorecase-false")) {
 					aReport.add(compare(name, "C6-generated", caseName, oracleGenerated, candidate->linguist_generated(setup.Root, questions), per_path<attribute_answer>(questions)));
-				}
-				if (name == "K") {
-					if (setup.SkipCapture) {
-						aReport.add({ .Candidate = name, .Component = "C5-capture", .Case = caseName, .Verdict = verdict::skipped, .Detail = "not captured in this case" });
-					} else {
-						aReport.add(capture_cross_check(caseName, setup, questions, onDisk, oracleIgnored, oracleIndex));
-					}
 				}
 				aReport.note_unchanged(name, caseName, compare_snapshots(before, take_snapshot(context.Directory)));
 			}
@@ -1663,41 +1570,6 @@ namespace {
 #endif
 	}
 
-	/// [[BPR-1455]]. The fix for the confidentiality gap the harness found: a
-	/// rule file past capture's bound stops capture with a named reason
-	/// instead of being dropped, which captured the paths it ignores.
-	void capture_refuses_rule_bounds(const git_runner& aGit, const std::filesystem::path& aScratch)
-	{
-		auto rules = std::string{ };
-		for (int index = 0; index <= static_cast<int>(core::maximum_ignore_rules); ++index) {
-			rules += "r" + std::to_string(index) + "\n";
-		}
-		const auto padded = "# " + std::string(1100U * 1024U, 'p') + "\nsecret.env\n";
-		struct bound_case
-		{
-			std::string_view File;
-			std::string      Contents;
-		};
-		for (const auto& [file, contents] : { bound_case{ ".gitignore", padded }, bound_case{ ".gitignore", rules + "secret.env\n" }, bound_case{ "sub/.gitignore", padded },
-											  bound_case{ ".gitattributes", "# " + std::string(1100U * 1024U, 'p') + "\n" } }) {
-			const auto repo = aScratch / "rule-bound";
-			init(aGit, repo);
-			write_file(repo / "tracked.txt", "x\n");
-			commit_all(aGit, repo);
-			write_file(repo / std::string{ file }, contents);
-			write_file(repo / "secret.env", "x\n");
-			write_file(repo / "sub" / "secret.env", "x\n");
-			auto       source = adapters::workspace::make_local_workspace_source();
-			auto       cycle  = tests::workspace_contract::course{ *source, repo };
-			const auto taken  = cycle.capture(*source);
-			const auto named  = taken.Repository && taken.Repository->Reason == core::git_repository_refusal::rule_file_bound && taken.Repository->Key == file;
-			std::cout << "GMR fix capture-rule-bound file=" << file << " status=" << static_cast<int>(taken.Status) << " words=\"" << application::cycle_capture_words(taken) << "\"\n";
-			expect(taken.Status == application::cycle_capture_status::workspace && named, "a rule file past capture's bound refuses the capture by name");
-			auto error = std::error_code{ };
-			std::filesystem::remove_all(repo, error);
-		}
-	}
-
 	auto parse_options(const int aArgc, char** aArgv) -> harness_options
 	{
 		auto options = harness_options{ };
@@ -1739,9 +1611,6 @@ try {
 #if defined(BPR_HAVE_LIBGIT2_CANDIDATE)
 	candidates.push_back(tests::workspace_contract::make_libgit2_candidate());
 #endif
-	if (!options.Only) {
-		capture_refuses_rule_bounds(*git, scratch.path());
-	}
 	auto results = report{ };
 	run_corpus(options, *git, oracle, scratch.path(), candidates, results);
 	const auto canary = options.SkipCanary || options.Only || run_canary(*git, scratch.path(), candidates);

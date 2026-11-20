@@ -1384,23 +1384,11 @@ bpr_enable_hardening(test_better_pull_review_review_cycle_suggestion_tests)
 bpr_enable_warnings(test_better_pull_review_review_cycle_suggestion_tests)
 bpr_add_network_isolated_test(NAME core_review_cycle_suggestion COMMAND test_better_pull_review_review_cycle_suggestion_tests)
 
-bpr_add_executable(test_better_pull_review_review_cycle_disclosure_tests review_cycle_disclosure_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_disclosure_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_disclosure_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_disclosure_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_disclosure COMMAND test_better_pull_review_review_cycle_disclosure_tests)
-
 bpr_add_executable(test_better_pull_review_suggestion_text_editing_tests suggestion_text_editing_tests.cpp)
 target_link_libraries(test_better_pull_review_suggestion_text_editing_tests PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_better_pull_review_suggestion_text_editing_tests)
 bpr_enable_warnings(test_better_pull_review_suggestion_text_editing_tests)
 bpr_add_network_isolated_test(NAME core_suggestion_text_editing COMMAND test_better_pull_review_suggestion_text_editing_tests)
-
-bpr_add_executable(test_better_pull_review_review_cycle_tabs_tests review_cycle_tabs_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_tabs_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_tabs_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_tabs_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_tabs COMMAND test_better_pull_review_review_cycle_tabs_tests)
 
 # [[BPR-1163]]. Named comparison views, reviewer checkpoints, pinned tabs and revision chronologies.
 bpr_add_executable(test_better_pull_review_review_cycle_views_tests review_cycle_views_tests.cpp)
@@ -1408,34 +1396,6 @@ target_link_libraries(test_better_pull_review_review_cycle_views_tests PRIVATE B
 bpr_enable_hardening(test_better_pull_review_review_cycle_views_tests)
 bpr_enable_warnings(test_better_pull_review_review_cycle_views_tests)
 bpr_add_network_isolated_test(NAME core_review_cycle_views COMMAND test_better_pull_review_review_cycle_views_tests)
-
-# [[BPR-1168]]. The finite cycle command registry and the owner's admission beside an open draft.
-bpr_add_executable(test_better_pull_review_review_cycle_command_tests review_cycle_command_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_command_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_command_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_command_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_command COMMAND test_better_pull_review_review_cycle_command_tests)
-
-# [[BPR-1169]]. Reading one frozen round from outside: measure, whole-item pages bound to the digest, attachments.
-bpr_add_executable(test_better_pull_review_review_cycle_retrieval_tests review_cycle_retrieval_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_retrieval_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_retrieval_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_retrieval_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_retrieval COMMAND test_better_pull_review_review_cycle_retrieval_tests)
-
-# [[BPR-1164]]. Recipient responses and manual replies: the pack's response, forged authority and correlation.
-bpr_add_executable(test_better_pull_review_review_cycle_response_tests review_cycle_response_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_response_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_response_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_response_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_response COMMAND test_better_pull_review_review_cycle_response_tests "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1/examples")
-
-# [[BPR-1165]]. Reconciliation, explicit verification bound to checked material, and next-round carry-forward.
-bpr_add_executable(test_better_pull_review_review_cycle_verification_tests review_cycle_verification_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_verification_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_verification_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_verification_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_verification COMMAND test_better_pull_review_review_cycle_verification_tests)
 
 # [[BPR-1172]]. Canonical Git blob, tree and commit identities in both object formats.
 bpr_add_executable(test_better_pull_review_git_objects_tests git_objects_tests.cpp)
@@ -1464,71 +1424,6 @@ target_link_libraries(test_better_pull_review_review_cycle_publication_tests PRI
 bpr_enable_hardening(test_better_pull_review_review_cycle_publication_tests)
 bpr_enable_warnings(test_better_pull_review_review_cycle_publication_tests)
 bpr_add_network_isolated_test(NAME core_review_cycle_publication COMMAND test_better_pull_review_review_cycle_publication_tests)
-
-# [[BPR-1177]]. A cycle's pull request association: addresses, external admission, encoding.
-bpr_add_executable(test_better_pull_review_review_cycle_association_tests review_cycle_association_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_association_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_association_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_association_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_association COMMAND test_better_pull_review_review_cycle_association_tests)
-# [[BPR-1273]]. Local notes promoted into the linked pull request's Review Tour.
-bpr_add_executable(test_better_pull_review_review_cycle_promotion_tests review_cycle_promotion_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_promotion_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_promotion_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_promotion_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_promotion COMMAND test_better_pull_review_review_cycle_promotion_tests)
-
-# [[BPR-1158]]. Canonical round payloads, the pack's golden round and assembly.
-bpr_add_executable(test_better_pull_review_review_cycle_round_tests review_cycle_round_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_round_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_round_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_round_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_round COMMAND test_better_pull_review_review_cycle_round_tests "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1/examples")
-
-# [[BPR-1159]]. The readable round document: the pack's review.md, hostile Markdown and budgets.
-bpr_add_executable(test_better_pull_review_review_cycle_round_markdown_tests review_cycle_round_markdown_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_round_markdown_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_round_markdown_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_round_markdown_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_round_markdown COMMAND test_better_pull_review_review_cycle_round_markdown_tests "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1/examples")
-
-# [[BPR-1161]]. Share routes decided as authorize decides, Compose feedback's edits and delivery observations.
-bpr_add_executable(test_better_pull_review_review_cycle_share_tests review_cycle_share_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_share_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_share_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_share_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_share COMMAND test_better_pull_review_review_cycle_share_tests)
-
-# [[BPR-1160]]. Portable review bundles: the pack's bundle, determinism and the adversarial corpus.
-bpr_add_executable(test_better_pull_review_review_cycle_bundle_tests review_cycle_bundle_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_bundle_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_bundle_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_bundle_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_bundle COMMAND test_better_pull_review_review_cycle_bundle_tests "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1/examples")
-if(TARGET Python3::Interpreter)
-    bpr_add_network_isolated_test(
-        NAME core_review_cycle_bundle_pack_oracle
-        COMMAND
-            Python3::Interpreter
-            "${PROJECT_SOURCE_DIR}/tests/scripts/round_bundle_oracle_tests.py"
-            "$<TARGET_FILE:test_better_pull_review_review_cycle_bundle_tests>"
-            "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1"
-    )
-endif()
-
-# [[BPR-1162]]. Attaching imported rounds through explicit project and revision mappings.
-bpr_add_executable(test_better_pull_review_review_cycle_import_tests review_cycle_import_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_import_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_import_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_import_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_import COMMAND test_better_pull_review_review_cycle_import_tests "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/bpr-review-cycles-v1/examples")
-
-# [[BPR-1180]]. Send to Agent's decision, sessions and observations.
-bpr_add_executable(test_better_pull_review_review_cycle_send_tests review_cycle_send_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_send_tests PRIVATE BetterPullReview::Core)
-bpr_enable_hardening(test_better_pull_review_review_cycle_send_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_send_tests)
-bpr_add_network_isolated_test(NAME core_review_cycle_send COMMAND test_better_pull_review_review_cycle_send_tests)
 
 # [[BPR-1289]]. The ranked fuzzy matcher for Settings search.
 bpr_add_executable(test_better_pull_review_fuzzy_match_tests fuzzy_match_tests.cpp)

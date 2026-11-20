@@ -9,7 +9,6 @@
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/refresh_note.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "workbench_window_support.hpp"
 
@@ -424,7 +423,7 @@ namespace bpr::qt {
 		}
 		// [[BPR-1865]]. The filter stands while Home has rows to filter.
 		if (HomeFilter != nullptr) {
-			const auto rows = HomeAccount || !RecentReviews.Entries.empty() || !CycleRecents.empty();
+			const auto rows = HomeAccount || !RecentReviews.Entries.empty();
 			if (!rows && !HomeFilter->query().isEmpty()) {
 				HomeFilter->clear_query();
 			}
@@ -460,7 +459,6 @@ namespace bpr::qt {
 			HomeList->set_selection_shown(aList == home_selection_list::queue);
 		}
 		for (const auto& [list, view] : { std::pair{ home_selection_list::recent, static_cast<QAbstractItemView*>(HomeRecentList) },
-										  std::pair{ home_selection_list::cycles, static_cast<QAbstractItemView*>(HomeCyclesList) },
 										  std::pair{ home_selection_list::drafts, static_cast<QAbstractItemView*>(HomeDraftsList) } }) {
 			if (view == nullptr) {
 				continue;
@@ -479,13 +477,6 @@ namespace bpr::qt {
 	{
 		if (aRow >= 0 && static_cast<std::size_t>(aRow) < DraftHome.InPreparation.size() && ResumeDraftDispatch) {
 			ResumeDraftDispatch(DraftHome.InPreparation[static_cast<std::size_t>(aRow)].Id);
-		}
-	}
-
-	void workbench_window::resume_home_cycle(const int aRow)
-	{
-		if (aRow >= 0 && static_cast<std::size_t>(aRow) < CycleRecents.size() && ResumeCycleDispatch) {
-			ResumeCycleDispatch(CycleRecents[static_cast<std::size_t>(aRow)].Cycle.Subject);
 		}
 	}
 
@@ -577,21 +568,6 @@ namespace bpr::qt {
 			const auto* const key = static_cast<QKeyEvent*>(aEvent);
 			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier)) {
 				resume_home_draft(HomeDraftsList->currentRow());
-				return true;
-			}
-		}
-		if (aWatched == HomeCyclesList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
-			const auto* const key = static_cast<QKeyEvent*>(aEvent);
-			// [[BPR-1865]]. As in every Home list, "/" or a character typed
-			// goes to the filter.
-			if (const auto typed = key->text(); HomeFilter != nullptr && HomeFilter->isVisible() && !typed.isEmpty() && typed.front().isPrint() && !typed.front().isSpace()
-				&& (key->modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) == Qt::NoModifier) {
-				HomeFilter->take_typing(typed == QStringLiteral("/") ? QString{ } : typed);
-				return true;
-			}
-			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
-				&& (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier)) {
-				resume_home_cycle(HomeCyclesList->currentRow());
 				return true;
 			}
 		}

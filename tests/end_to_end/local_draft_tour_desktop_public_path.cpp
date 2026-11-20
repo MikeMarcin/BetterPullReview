@@ -17,7 +17,6 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
 #include "local_draft_open_diagnostic.hpp"
-#include "review_cycle_desktop.hpp"
 
 #include <QApplication>
 #include <QComboBox>
@@ -124,7 +123,6 @@ namespace {
 	{
 		application::manual_executor                    Lanes;
 		std::unique_ptr<qt::workbench_window>           Window;
-		std::unique_ptr<app::review_cycle_desktop>      Cycles;
 		std::unique_ptr<app::local_draft_desktop>       Drafts;
 		std::vector<std::string>                        Prompts;
 		std::vector<application::local_draft_agent_run> Runs;
@@ -135,7 +133,6 @@ namespace {
 			Window = std::make_unique<qt::workbench_window>();
 			Window->resize(1280, 860);
 			Window->show();
-			Cycles = std::make_unique<app::review_cycle_desktop>(*Window, aProfile, core::bpr_profile_id{ 1 }, Lanes, Lanes, app::review_cycle_syntax{ }, &Lanes);
 			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, bpr::tests::git_contract::windows_system_root(), Lanes, Lanes, app::local_draft_syntax{ }, &Lanes);
 			Drafts->set_folder_chooser([aChosen] { return aChosen; });
 			// The scripted agent: it records what it was sent and answers.
@@ -182,7 +179,6 @@ namespace {
 		~session()
 		{
 			Drafts->shutdown();
-			Cycles->shutdown();
 			settle(Lanes);
 			// The window outlives nothing it was lent: its gestures reach nothing now.
 			Window->set_local_draft_observer({ });
