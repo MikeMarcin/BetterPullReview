@@ -165,7 +165,9 @@ namespace {
 			return { };
 		};
 		if (first().empty()) {
-			expect(adapters::sqlite::make_review_tour_store(aRoot, core::bpr_profile_id{ 1U }) != nullptr, "the tours store is made for the review reset");
+			// The store opens its file at its first read.
+			const auto store = adapters::sqlite::make_review_tour_store(aRoot, core::bpr_profile_id{ 1U });
+			expect(store != nullptr && store->targets({ }).has_value(), "the tours store is made for the review reset");
 		}
 		return first();
 	}
