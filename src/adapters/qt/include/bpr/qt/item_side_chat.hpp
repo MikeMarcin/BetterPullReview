@@ -82,6 +82,14 @@ namespace bpr::qt {
 		/// closes it; closed, every item's chat is kept by the host.
 		void               set_column_open(bool aOpen);
 		[[nodiscard]] auto column_open() const noexcept -> bool { return ColumnOpen; }
+		/// \brief [[BPR-2337]]. Whether the tab the open column belongs to is
+		/// the one shown: off, the column hides and keeps its chat, its width
+		/// and its words; on again, it shows as it was. Opening shows it.
+		void               set_tab_shown(bool aShown);
+		[[nodiscard]] auto tab_shown() const noexcept -> bool { return TabShown; }
+		/// \brief Told each time the column is opened (after it shows) or
+		/// closed.
+		void set_open_observer(std::function<void(bool aOpen)> aObserver) { OpenObserver = std::move(aObserver); }
 		/// \brief The column's width: the preferred width, else the default,
 		/// within the bounds the page beside it allows.
 		[[nodiscard]] auto sizeHint() const -> QSize override;
@@ -159,6 +167,8 @@ namespace bpr::qt {
 		QString                              Agent;
 		bool                                 Running    = false;
 		bool                                 ColumnOpen = false;
+		bool                                 TabShown   = true;
+		std::function<void(bool aOpen)>      OpenObserver;
 		/// The running request's clock, and each answered round's time.
 		QElapsedTimer                             Clock;
 		std::map<std::size_t, qint64>             Seconds;

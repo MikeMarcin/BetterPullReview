@@ -29,6 +29,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
+#include "composer_parts.hpp"
 #include "conversation_glyphs.hpp"
 
 #include <QAbstractItemModel>
@@ -184,24 +185,6 @@ namespace bpr::qt {
 			}
 
 		private:
-		};
-
-		/// \brief A thin rule inside the question field, in its outline's colour.
-		class rule_line final : public QWidget
-		{
-		public:
-			explicit rule_line(QWidget* aParent)
-				: QWidget{ aParent }
-			{
-				setFixedHeight(1);
-			}
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QPainter{ this };
-				painter.fillRect(rect(), mixed(palette().color(QPalette::Active, QPalette::Base), palette().color(QPalette::Active, QPalette::WindowText), 0.14));
-			}
 		};
 
 		/// \brief [[BPR-2059]]. A finding's file and lines, shortened in the
@@ -823,7 +806,9 @@ namespace bpr::qt {
 		auto* const field    = new rounded{ rounded::look::field, ask };
 		Field                = field;
 		auto* const fieldCol = new QVBoxLayout{ field };
-		fieldCol->setContentsMargins(8, 6, 6, 6);
+		// [[BPR-2337]]. The insets, the rule and the send row every agent
+		// composer shares (`composer_parts.hpp`).
+		composer::set_field_margins(*fieldCol);
 		fieldCol->setSpacing(4);
 		field->installEventFilter(this);
 		Chips = chip_label(field, QStringLiteral("agentContextChips"));
@@ -927,12 +912,8 @@ namespace bpr::qt {
 		Notice->setForegroundRole(QPalette::PlaceholderText);
 		Notice->hide();
 		fieldCol->addWidget(Notice);
-		auto* const rule = new rule_line{ field };
-		rule->setObjectName(QStringLiteral("agentComposerRule"));
-		fieldCol->addWidget(rule);
-		auto* const askRow = new QHBoxLayout{ };
+		auto* const askRow = composer::add_send_row(*field, *fieldCol);
 		AskRow             = askRow;
-		askRow->setSpacing(2);
 		// [[BPR-2002]]. Attaches the lines selected in the code again, after
 		// the chip's close button detached them.
 		Context = make_drawer_tool(field, drawer_icon(drawer_glyph::plus, palette()), tr("Attach the lines selected in the code"), QStringLiteral("agentAddContext"));
@@ -987,11 +968,7 @@ namespace bpr::qt {
 		// picker left the drawers for the pull request window's footer, one
 		// choice for the Agent tab, the tour chat, Enhance and Draft the tour.
 		// The tab borrows the footer's picker for /model and /effort.
-		Ask = new QPushButton{ field };
-		Ask->setObjectName(QStringLiteral("agentAsk"));
-		Ask->setDefault(true);
-		Ask->setIcon(drawer_icon(drawer_glyph::send, palette()));
-		Ask->setAccessibleName(tr("Send"));
+		Ask = composer::make_send_button(*field, QStringLiteral("agentAsk"));
 		Ask->setToolTip(send_tip());
 		// Send, or Stop while the agent works: one place, always in reach.
 		connect(Ask, &QPushButton::clicked, this, [this] {
@@ -1020,7 +997,6 @@ namespace bpr::qt {
 			PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
 		});
 		askRow->addWidget(Ask);
-		fieldCol->addLayout(askRow);
 		PickerRow = new QHBoxLayout{ };
 		PickerRow->setSpacing(0);
 		PickerRow->addStretch(1);

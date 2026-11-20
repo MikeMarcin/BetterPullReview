@@ -305,7 +305,16 @@ to resize it") the column opens at 320 pixels beside a wide page and at three te
 one, never under 260; a drag on the seam at its left edge resizes it up to six tenths of the page,
 and a double-click returns it to its default. The width a drag chose, or Reset, is the window's,
 kept through the workbench host in the local workbench settings (schema 38, `side_chat_width`) as
-Line details' height is.
+Line details' height is. Since [[BPR-2337]] (owner, attended review
+`b64bbc238073ff3b665048b611ef1c60`: "side chat is staying open when i switch off that tab. it
+should be part of that tab") the column belongs to the document tab it was opened in (the report's
+tab, or the file's tab for a draft or a thread): another tab hides it with its chat, words and width
+kept, its own tab shows it again, and closing its tab closes it. Opened where no tab shows it, the
+tab its opening brings up is its own. In the same review ("The send button on both the side chats
+(report and tour) should be positioned more like the agent tab") both side chats took the Agent
+tab's composer row (`composer_parts.hpp`: the field's insets, a thin rule under the words, and Send,
+the default button with the send arrow, ending the row under it), which the Agent tab builds from
+the same parts.
 
 Since [[BPR-1934]] (owner, 2026-11-07: "Tour side chat should get suggestions
 like the agent tab has") an empty chat offers suggested prompts under its

@@ -826,7 +826,9 @@ auto main(int argc, char** argv) -> int
 			visible.sort();
 			return visible;
 		};
-		expect(under() == QStringList{ QStringLiteral("tourChatSession"), QStringLiteral("tourSideChatField"), QStringLiteral("tourSideChatSend"), QStringLiteral("tourSideChatSessionCost") },
+		// [[BPR-2337]]. Send is inside the composer's field, as the Agent tab's.
+		expect(chat->send_button()->parentWidget() == chat->composer_box(), "Send is in the composer's field");
+		expect(under() == QStringList{ QStringLiteral("tourChatSession"), QStringLiteral("tourSideChatField"), QStringLiteral("tourSideChatSessionCost") },
 			   "AC01 under the transcript only the composer and the session line: " + under().join(QLatin1Char(',')).toStdString());
 		expect(chat->session_button()->text() == QStringLiteral("Session 1") && chat->session_cost_line()->text() == QStringLiteral("$0.04 this session"), "the session line: its ordinal on the left, its cost on the right: " + chat->session_button()->text().toStdString());
 		expect(chat->session_button()->menu()->actions().contains(chat->new_session_action()) && chat->new_session_action()->text() == QStringLiteral("New session"), "New session is an item of the Session menu");

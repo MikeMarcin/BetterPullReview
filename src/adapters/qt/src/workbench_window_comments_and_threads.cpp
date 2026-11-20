@@ -15,6 +15,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_review_panel.hpp"
@@ -1254,6 +1255,60 @@ namespace bpr::qt {
 		present_document_tabs();
 		update_older_pair_notice();
 		update_comment_target();
+		place_item_side_chat();
+	}
+
+	namespace {
+		[[nodiscard]] auto active_tab(const std::optional<application::document_tabs_projection>& aTabs) -> std::optional<core::document_tab_id>
+		{
+			if (!aTabs) {
+				return std::nullopt;
+			}
+			const auto found = std::ranges::find_if(aTabs->Tabs, &application::document_tab_entry::Active);
+			return found == aTabs->Tabs.end() ? std::nullopt : std::optional{ found->Id };
+		}
+	} // namespace
+
+	/// [[BPR-2337]]. The side chat was opened: it belongs to the tab it shows
+	/// in. Opened where it does not show (another page in front, or no tab
+	/// yet), the next tab made active, the one its opening brings up, is its.
+	void workbench_window::adopt_side_chat_tab()
+	{
+		const auto active = active_tab(TabsProjection);
+		SideChatAdopts    = !(ItemSideChat->isVisible() && active);
+		SideChatTab       = SideChatAdopts ? std::nullopt : active;
+	}
+
+	/// [[BPR-2337]] (owner, attended review b64bbc23: "side chat is staying
+	/// open when i switch off that tab. it should be part of that tab"). The
+	/// open side chat shows only while its tab is active, keeping its chat
+	/// and width while another is, and closes when its tab closes.
+	void workbench_window::place_item_side_chat()
+	{
+		if (ItemSideChat == nullptr || !ItemSideChat->column_open()) {
+			SideChatTab.reset();
+			SideChatAdopts = false;
+			return;
+		}
+		const auto active = active_tab(TabsProjection);
+		if (SideChatAdopts) {
+			if (active) {
+				SideChatTab    = active;
+				SideChatAdopts = false;
+				ItemSideChat->set_tab_shown(true);
+			}
+			return;
+		}
+		if (!SideChatTab) {
+			return;
+		}
+		const auto owner = *SideChatTab;
+		if (!TabsProjection || std::ranges::none_of(TabsProjection->Tabs, [owner](const application::document_tab_entry& aTab) { return aTab.Id == owner; })) {
+			SideChatTab.reset();
+			ItemSideChat->set_column_open(false);
+			return;
+		}
+		ItemSideChat->set_tab_shown(active == owner);
 	}
 
 	void workbench_window::set_document_tab_dispatch(document_tab_dispatch aDispatch)

@@ -86,6 +86,7 @@ add_library(
         src/reading_width_dialog.cpp
         src/item_side_chat.cpp
         src/side_chat_parts.cpp
+        src/composer_parts.cpp
         src/prompt_words.cpp
         src/prompts_page.cpp
         src/agent_run_settings_picker.cpp

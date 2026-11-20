@@ -2340,6 +2340,24 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
                 TIMEOUT 60
         )
     endforeach()
+    # [[BPR-2337]]. The item side chat belongs to its document tab; in it and
+    # the tour's side chat Send stands as the Agent tab's, at 1.0 and 2.0.
+    bpr_add_executable(test_side_chat_tab_and_send side_chat_tab_and_send_tests.cpp)
+    target_link_libraries(test_side_chat_tab_and_send PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_side_chat_tab_and_send)
+    bpr_enable_warnings(test_side_chat_tab_and_send)
+    foreach(bpr_side_chat_send_scale IN ITEMS 100 200)
+        math(EXPR bpr_side_chat_send_whole "${bpr_side_chat_send_scale} / 100")
+        math(EXPR bpr_side_chat_send_fraction "${bpr_side_chat_send_scale} % 100")
+        bpr_add_network_isolated_test(NAME qt_side_chat_tab_and_send_scale_${bpr_side_chat_send_scale} COMMAND test_side_chat_tab_and_send)
+        set_tests_properties(
+            qt_side_chat_tab_and_send_scale_${bpr_side_chat_send_scale}
+            PROPERTIES
+                ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_side_chat_send_whole}.${bpr_side_chat_send_fraction}"
+                PASS_REGULAR_EXPRESSION "side-chat-tab-and-send:pass"
+                TIMEOUT 60
+        )
+    endforeach()
     # RFC-BPR-0125 milestone 2 ([[BPR-2145]]). The Agent tab's chips are the core's offers.
     bpr_add_executable(test_prompt_macro_chips prompt_macro_chips_tests.cpp)
     # [[BPR-2205]]. An owner-private scratch root (tests/support/scratch_directory.hpp).

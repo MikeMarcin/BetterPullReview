@@ -1,5 +1,6 @@
 #include "bpr/qt/item_side_chat.hpp"
 
+#include "composer_parts.hpp"
 #include "side_chat_parts.hpp"
 
 #include "bpr/qt/resize_handle_cursor.hpp"
@@ -302,13 +303,15 @@ namespace bpr::qt {
 		Status->setObjectName(QStringLiteral("itemSideChatStatus"));
 		Status->hide();
 		column->addWidget(Status);
-		auto* const compose = new QHBoxLayout{ };
-		compose->setSpacing(6);
+		// [[BPR-2337]] (owner, attended review b64bbc23: "The send button on
+		// both the side chats (report and tour) should be positioned more
+		// like the agent tab"): the Agent tab's composer, its insets, its
+		// rule and Send at the right end of the row under it.
 		Field = new composer_field{ this };
 		Field->setObjectName(QStringLiteral("itemSideChatField"));
 		auto* const fieldColumn = new QVBoxLayout{ Field };
-		fieldColumn->setContentsMargins(4, 4, 4, 2);
-		fieldColumn->setSpacing(2);
+		composer::set_field_margins(*fieldColumn);
+		fieldColumn->setSpacing(4);
 		auto* const chip    = new passage_chip{ Field };
 		auto* const chipRow = new QHBoxLayout{ chip };
 		chipRow->setContentsMargins(8, 1, 8, 1);
@@ -335,13 +338,13 @@ namespace bpr::qt {
 															  } });
 		Composer->installEventFilter(Field);
 		fieldColumn->addWidget(Composer);
-		Send = new quiet_push_button{ tr("Send"), this };
-		Send->setObjectName(QStringLiteral("itemSideChatSend"));
+		auto* const sendRow = composer::add_send_row(*Field, *fieldColumn);
+		sendRow->addStretch(1);
+		Send = composer::make_send_button(*Field, QStringLiteral("itemSideChatSend"));
 		Send->setFocusPolicy(Qt::TabFocus);
-		Send->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-		compose->addWidget(Field, 1);
-		compose->addWidget(Send, 0, Qt::AlignBottom);
-		column->addLayout(compose);
+		Send->setToolTip(tr("Send the question to the agent. Nothing is posted."));
+		sendRow->addWidget(Send);
+		column->addWidget(Field);
 		// The one thing the chat can apply, where the tour's chat keeps its
 		// session line: it asks for the text, which shows in the chat first.
 		auto* const footer = new QHBoxLayout{ };
@@ -440,12 +443,25 @@ namespace bpr::qt {
 	{
 		const auto was = ColumnOpen;
 		ColumnOpen     = aOpen;
+		if (aOpen) {
+			TabShown = true;
+		}
 		setVisible(aOpen);
 		if (aOpen) {
 			Composer->setFocus(Qt::OtherFocusReason);
-		} else if (was && Intents.Closed) {
+		}
+		if (OpenObserver && (aOpen || was)) {
+			OpenObserver(aOpen);
+		}
+		if (!aOpen && was && Intents.Closed) {
 			Intents.Closed();
 		}
+	}
+
+	void item_side_chat::set_tab_shown(const bool aShown)
+	{
+		TabShown = aShown;
+		setVisible(ColumnOpen && TabShown);
 	}
 
 	void item_side_chat::present(const core::follow_up_state& aState, const QString& aAgent, const QString& aFailure)
@@ -503,8 +519,9 @@ namespace bpr::qt {
 			ApplyButton->setAccessibleDescription(tip);
 		}
 		ApplyButton->setEnabled(!Running);
-		Send->setText(Running ? tr("Stop") : tr("Send"));
-		Send->setAccessibleName(Send->text());
+		// As the Agent tab's: the arrow, or Stop in words while it answers.
+		Send->setText(Running ? tr("Stop") : QString{ });
+		Send->setAccessibleName(Running ? tr("Stop") : tr("Send"));
 		Send->setToolTip(Running ? tr("Stop the agent's answer") : tr("Send the question to the agent. Nothing is posted."));
 		show_status(aFailure.isEmpty() ? item_chat_refusal_words(aState.Refused) : aFailure);
 		restyle();
@@ -790,7 +807,7 @@ namespace bpr::qt {
 		} else {
 			wear_agent_accent(*Send, palette());
 		}
-		Send->setIcon(drawer_icon(Running ? drawer_glyph::close : drawer_glyph::send, Send->palette()));
+		Send->setIcon(Running ? QIcon{ } : drawer_icon(drawer_glyph::send, Send->palette()));
 		wear_agent_accent(*ApplyButton, palette());
 		update();
 	}

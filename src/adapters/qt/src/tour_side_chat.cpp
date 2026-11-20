@@ -1,5 +1,6 @@
 #include "bpr/qt/tour_side_chat.hpp"
 
+#include "composer_parts.hpp"
 #include "side_chat_parts.hpp"
 
 #include "bpr/qt/agent_steered_words.hpp"
@@ -341,14 +342,15 @@ namespace bpr::qt {
 		PendingList->setObjectName(QStringLiteral("tourSideChatQueue"));
 		column->addWidget(PendingList);
 		// The composer: one field holding the passage it quotes, as a chip,
-		// above the words; Send beside it.
-		auto* const compose = new QHBoxLayout{ };
-		compose->setSpacing(6);
+		// above the words. [[BPR-2337]] (owner, attended review b64bbc23:
+		// "The send button on both the side chats (report and tour) should be
+		// positioned more like the agent tab"): the Agent tab's composer, its
+		// insets, its rule and Send at the right end of the row under it.
 		Field = new composer_field{ this };
 		Field->setObjectName(QStringLiteral("tourSideChatField"));
 		auto* const fieldColumn = new QVBoxLayout{ Field };
-		fieldColumn->setContentsMargins(4, 4, 4, 2);
-		fieldColumn->setSpacing(2);
+		composer::set_field_margins(*fieldColumn);
+		fieldColumn->setSpacing(4);
 		PassageRow             = new passage_chip{ Field };
 		auto* const passageRow = new QHBoxLayout{ PassageRow };
 		passageRow->setContentsMargins(8, 1, 2, 1);
@@ -386,13 +388,13 @@ namespace bpr::qt {
 		fieldColumn->addWidget(Composer);
 		// [[BPR-1916]]. `/name` completion; installed after Return's filter,
 		// so Return chooses a row while the list is open.
-		SkillCompletion = new skill_completer{ Composer };
-		Send            = new quiet_push_button{ this };
-		Send->setObjectName(QStringLiteral("tourSideChatSend"));
+		SkillCompletion     = new skill_completer{ Composer };
+		auto* const sendRow = composer::add_send_row(*Field, *fieldColumn);
+		sendRow->addStretch(1);
+		Send = composer::make_send_button(*Field, QStringLiteral("tourSideChatSend"));
 		Send->setFocusPolicy(Qt::TabFocus);
-		Send->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-		// RFC-BPR-0126: Stop stays reachable while Send queues.
-		StopRun = new quiet_push_button{ this };
+		// RFC-BPR-0126: Stop stays reachable while Send queues, beside it.
+		StopRun = new quiet_push_button{ Field };
 		StopRun->setObjectName(QStringLiteral("tourSideChatStop"));
 		StopRun->setFocusPolicy(Qt::TabFocus);
 		StopRun->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
@@ -400,10 +402,9 @@ namespace bpr::qt {
 		StopRun->setAccessibleName(tr("Stop"));
 		StopRun->setToolTip(tr("Stop the tour agent; nothing in the tour changes. Queued messages wait, paused."));
 		StopRun->hide();
-		compose->addWidget(Field, 1);
-		compose->addWidget(StopRun, 0, Qt::AlignBottom);
-		compose->addWidget(Send, 0, Qt::AlignBottom);
-		column->addLayout(compose);
+		sendRow->addWidget(StopRun);
+		sendRow->addWidget(Send);
+		column->addWidget(Field);
 
 		// The session line: the Session menu, and what the session cost.
 		auto* const sessionRow = new QHBoxLayout{ };

@@ -1316,6 +1316,10 @@ namespace bpr::qt {
 		/// report's finding or a finding card, a draft, a thread), the column
 		/// beside the report or the code. Hidden until an item is asked about.
 		[[nodiscard]] auto item_side_chat() const noexcept -> qt::item_side_chat* { return ItemSideChat; }
+		/// \brief [[BPR-2337]]. The document tab the open side chat belongs
+		/// to: the one it was opened in, or none while it waits for the tab it
+		/// was opened toward (or while it is closed).
+		[[nodiscard]] auto item_side_chat_tab() const noexcept -> std::optional<core::document_tab_id> { return SideChatTab; }
 		/// \brief Whether the active tab is a report.
 		[[nodiscard]] auto report_shown() const noexcept -> bool { return ReportShown; }
 		/// \brief [[BPR-2258]], owner 2026-11-18: "I'd rather stay on the
@@ -3105,15 +3109,24 @@ namespace bpr::qt {
 		void                                  press_suggest_change();
 		/// RFC-BPR-0117. Explain this file's control, its card and where a
 		/// press goes.
-		QToolButton*                                 ExplainFileButton = nullptr;
-		ask_menu_button*                             FileAskButton     = nullptr;
-		ask_menu_button*                             ReviewAskButton   = nullptr;
-		ask_menu_source                              QuickAskSource;
-		ask_menu_dispatch                            QuickAskDispatch;
-		agent_report_view*                           ReportView   = nullptr;
-		qt::item_side_chat*                          ItemSideChat = nullptr;
-		bool                                         ReportShown  = false;
-		bool                                         ReportHeld   = false;
+		QToolButton*        ExplainFileButton = nullptr;
+		ask_menu_button*    FileAskButton     = nullptr;
+		ask_menu_button*    ReviewAskButton   = nullptr;
+		ask_menu_source     QuickAskSource;
+		ask_menu_dispatch   QuickAskDispatch;
+		agent_report_view*  ReportView   = nullptr;
+		qt::item_side_chat* ItemSideChat = nullptr;
+		/// [[BPR-2337]] (owner, attended review b64bbc23: "side chat is
+		/// staying open when i switch off that tab. it should be part of that
+		/// tab"). The tab the side chat was opened in; it shows only while
+		/// that tab is active and closes with it. `SideChatAdopts`: it was
+		/// opened while no tab showed it, so the next active tab is its own.
+		std::optional<core::document_tab_id>         SideChatTab;
+		bool                                         SideChatAdopts = false;
+		void                                         adopt_side_chat_tab();
+		void                                         place_item_side_chat();
+		bool                                         ReportShown = false;
+		bool                                         ReportHeld  = false;
 		std::map<std::string, agent_report_document> Reports;
 		/// The file controls' enabled states while a report is shown (Q9).
 		std::vector<std::pair<QPointer<QWidget>, bool>>      ReportDisabled;

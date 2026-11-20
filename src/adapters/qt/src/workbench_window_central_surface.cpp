@@ -493,6 +493,16 @@ namespace bpr::qt {
 		besideChat->addLayout(documentColumn, 1);
 		ItemSideChat = new qt::item_side_chat{ ComparisonPage };
 		besideChat->addWidget(ItemSideChat, 0);
+		// [[BPR-2337]]. Opened, the chat belongs to the tab it opened in;
+		// closed, to none.
+		ItemSideChat->set_open_observer([this](const bool aOpen) {
+			if (aOpen) {
+				adopt_side_chat_tab();
+			} else {
+				SideChatTab.reset();
+				SideChatAdopts = false;
+			}
+		});
 		comparisonColumn->addLayout(besideChat, 1);
 		update_idle_direction();
 		ComparisonSurface->set_status_observer([this](const QString& aText, const bool aNotable) {
