@@ -101,7 +101,8 @@ int main(int argc, char** argv)
 	projection.Turns.front().Revision.Actor = core::private_agent_actor{ core::agent_run_id{ 10 } };
 	expect(renderVariant(QStringLiteral("agent-reported")).contains(QStringLiteral("Agent · run 10")), "agent and exact run remain explicit in rendered history");
 	projection.Turns.front().Revision.Actor = core::private_legacy_unknown_actor{ };
-	expect(renderVariant(QStringLiteral("legacy-unknown")).contains(QStringLiteral("author unknown")), "legacy author remains unknown in rendered history");
+	expect(renderVariant(QStringLiteral("legacy-unknown")).contains(QStringLiteral("Reviewer")) && !renderVariant(QStringLiteral("legacy-unknown")).contains(QStringLiteral("Legacy")),
+		   "a note moved in from before private threads reads as the reviewer's");
 	projection.Turns.front().Revision.Actor      = core::private_reviewer_actor{ };
 	projection.Turns.front().Revision.Completion = core::private_revision_completion::incomplete;
 	expect(renderVariant(QStringLiteral("incomplete")).contains(QStringLiteral("incomplete")), "incomplete revision stays visibly qualified");

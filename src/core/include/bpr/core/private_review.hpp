@@ -209,9 +209,6 @@ namespace bpr::core {
 	[[nodiscard]] auto create_private_thread(private_review_thread_id aId, const exact_private_subject& aSubject,
 											 const private_revision_input& aInput, const diff_semantic_index* aIndex = nullptr)
 		-> std::expected<private_revision_commit, private_review_refusal>;
-	/// \brief Converts a legacy row byte-for-byte without inventing revision binding or actor.
-	[[nodiscard]] auto migrate_private_thread(private_review_thread_id aId, const legacy_retained_subject& aSubject,
-											  const private_revision_input& aInput) -> std::expected<private_revision_commit, private_review_refusal>;
 	/// \brief Appends a new turn; replying requires one exact earlier source observation.
 	[[nodiscard]] auto append_private_turn(const private_review_thread& aThread, std::uint64_t aExpectedVersion,
 										   const private_revision_input& aInput, const private_review_revision* aReplyTo = nullptr,
