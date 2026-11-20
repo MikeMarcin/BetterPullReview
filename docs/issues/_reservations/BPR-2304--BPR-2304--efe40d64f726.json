@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2304"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Claude stream-JSON launch checked against the 2026-11-19 harness audit",
+  "created": "2026-11-20T06:36:40.654457+00:00",
+  "base": "a3dbd57b395d9dcc6c556d5268d39599f5cab028"
+}
