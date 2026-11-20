@@ -595,7 +595,10 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertIn("git-xdiff|PINNED_ARCHIVE|BetterPullReview::Xdiff", records)
         # [[BPR-1481]]. And its intraline ranges, dtl's common scalars.
         self.assertIn("dtl|PINNED_ARCHIVE|BetterPullReview::Dtl", records)
-        if any(target.startswith("Qt6::") for target in targets):
+        # The desktop graph (BPR_BUILD_QT) adds Quill, Glaze and the widgets.
+        # The Qt-free tour-cli graph links Qt Core and Network for `bpr` and
+        # records none of the desktop's providers.
+        if "Qt6::Widgets" in targets:
             self.assertIn("Quill|PINNED_ARCHIVE|quill::quill", records)
             self.assertIn("Glaze|PINNED_ARCHIVE|glaze::glaze", records)
             self.assertTrue(
