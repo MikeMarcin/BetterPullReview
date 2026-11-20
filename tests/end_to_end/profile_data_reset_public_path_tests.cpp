@@ -148,6 +148,20 @@ namespace {
 	{
 		return { "review-ledger", "review-tours", "review-cycles", "review-mutation-recovery" };
 	}
+	/// [[BPR-2308]]. No build makes a Review Cycles store any more; a profile
+	/// an earlier build used still has one, unread, and Reset review data
+	/// still removes it. It is the one review store a fresh profile holds
+	/// before any review, so the course writes it as an earlier build left it.
+	void seed_earlier_cycle_store(const fs::path& aRoot)
+	{
+		const auto file = aRoot / "state/v1/review-cycles.sqlite3";
+		{
+			std::ofstream stream{ file, std::ios::binary | std::ios::trunc };
+			stream << "an earlier build's review cycles";
+			expect(static_cast<bool>(stream), "an earlier build's Review Cycles store is written");
+		}
+		fs::permissions(file, fs::perms::owner_read | fs::perms::owner_write, fs::perm_options::replace);
+	}
 	auto kept_stores() -> std::set<std::string>
 	{
 		return { "review-queue", "remembered-connections", "device-bindings", "profile-registry" };
@@ -232,8 +246,9 @@ try {
 	until([&] { return run.window() != nullptr; }, "real profile desktop starts");
 	run.window()->show();
 	until([&] { return fs::exists(root / "state/v1/review-queue.sqlite3"); }, "the profile made its stores");
-	until([&] { return fs::exists(root / "state/v1/review-cycles.sqlite3") && fs::exists(root / "state/v1/appearance-settings.sqlite3") && fs::exists(root / "state/v1/epoch-catalog.sqlite3"); },
+	until([&] { return fs::exists(root / "state/v1/appearance-settings.sqlite3") && fs::exists(root / "state/v1/epoch-catalog.sqlite3"); },
 		  "the profile made a store of each kind");
+	seed_earlier_cycle_store(root);
 
 	// An unacknowledged destructive reset never reaches the desktop.
 	{
@@ -335,6 +350,7 @@ try {
 			const std::string garbage(4096, 'Z');
 			damaged.write(garbage.data(), static_cast<std::streamsize>(garbage.size()));
 		}
+		seed_earlier_cycle_store(root);
 		const auto ledger = identity(root / "state/v1/review-cycles.sqlite3");
 		auto       failed = false;
 		run.Desktop       = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) { failed = !aResult; });
