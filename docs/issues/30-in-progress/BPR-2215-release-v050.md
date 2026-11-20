@@ -547,3 +547,21 @@ suites on both platforms and the eleven WSL2 timing courses at the lane head.
   `fake-exec\git.exe`, at 21:42 local during t19, and removed the binary. The
   same binary passed in full in t12. Whether to exclude the build tree or
   restore the file is the owner's.
+- **`review_tour_writing_wrapper` on Windows: fixed.** The fixture agent
+  admission split a claude search PATH on `:` as well as `;`, so on Windows
+  `C:/...\claude-search` became `C` and `/...\claude-search`; the claude the
+  course put on that PATH was found and then refused before the launcher,
+  ending the run as `failed_to_start` with no words. It now splits on
+  `QDir::listSeparator()` (testing builds only). Passes on Windows (t23,
+  `3f6c4853e`), with `review_tour_composition` and `enhance_comment_note`.
+- **`device_authorization`'s time is the PC's network.** With stage
+  timestamps (probe, t22): `requested` at 0 ms, `awaiting_authorization` at
+  8,558 ms, `cancelling` at 8,573 ms, `cancelled` at 8,606 ms; the run took
+  8,737 ms. All of it is the device-code request to GitHub. From the PC,
+  `curl` to `https://github.com/login/device/code` took 3.3 to 6.0 s (TCP
+  connect 1.4 to 3.5 s); from the Mac, 0.16 to 0.20 s. The row passed at
+  7.45 s in t21 and failed at 8.1 s before. The budget is unchanged.
+- **`application_review_round_trip_composition_contract`, every platform.**
+  BPR-2286 added `window_follow_up.cpp` on main without listing it in the
+  contract's app source inventory or production manifest; both now name it,
+  and the production digest is resealed.
