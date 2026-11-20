@@ -123,8 +123,9 @@ namespace bpr::qt {
 			}
 			const auto& grant = *aSession.Grant;
 			if (grant.Kind == application::github_grant_kind_projection::token) {
-				return QStringLiteral(
-					"Signed in with a token for this session only; it is asked for again after a restart.");
+				// [[BPR-2319]]. One short sentence; "this session only" already
+				// says it is asked for again after a restart.
+				return QStringLiteral("Signed in with a token for this session only.");
 			}
 			auto sentence = grant.SignedInAt.has_value()
 				? QStringLiteral("Signed in with a device grant on %1")
@@ -141,15 +142,14 @@ namespace bpr::qt {
 			const application::github_profile_option& aOption) -> QString
 		{
 			if (command_line(aOption)) {
-				// The trust warning beneath is this way in's consequence.
+				// The trust line beneath is this way in's consequence.
 				return { };
 			}
 			if (device_capable(aOption)) {
 				return QStringLiteral("Sign in starts a device code; the session is remembered on %1.")
 					.arg(this_machine_text());
 			}
-			return QStringLiteral(
-				"Signs in with a token for this session only; it is asked for again after a restart.");
+			return QStringLiteral("Signs in with a token for this session only.");
 		}
 
 		// [[BPR-0644]]. What a failed session left on this machine, and how it
@@ -687,15 +687,31 @@ namespace bpr::qt {
 		const auto        host = text(hostname());
 		// [[BPR-0771]] D2, [[BPR-0772]]. RFC-BPR-0015: the account row offers
 		// GitHub CLI for this exact host and names the configured-CLI trust
-		// risks, before the opt-in and after it. The warning says "this
-		// server" because the header already names it.
+		// risks, before the opt-in and after it.
+		// [[BPR-2319]]. Named in one short sentence; the full disclosure is the
+		// info glyph's, on hover, focus or press, and its accessible
+		// description. It says "this server" because the header names it.
 		CliOfferButton  = make_button(Account, QStringLiteral("serverCardCliOffer"), cli_offer_text(*cli), QStringLiteral("Connect %1 with GitHub CLI").arg(host));
-		CliTrustWarning = make_quiet_label(Account, QStringLiteral("githubCliTrustWarning"), cli_trust_warning_text());
-		CliTrustWarning->setAccessibleName(QStringLiteral("GitHub CLI trust warning"));
+		CliTrustWarning = make_quiet_label(Account, QStringLiteral("githubCliTrustWarning"), cli_trust_summary_text());
+		CliTrustWarning->setAccessibleName(QStringLiteral("GitHub CLI sign-in"));
+		// One line with its glyph after it, as Remember this server's label is:
+		// a wrapping label beside a stretch takes its narrow hint and folds a
+		// short sentence into four lines.
+		CliTrustWarning->setWordWrap(false);
+		CliTrustDetails = new info_glyph{ cli_trust_warning_text(), Account };
+		CliTrustDetails->setObjectName(QStringLiteral("githubCliTrustDetails"));
+		CliTrustDetails->setAccessibleName(QStringLiteral("About GitHub CLI on this server"));
 		CliOfferButton->setAccessibleDescription(CliTrustWarning->text());
+		auto* const trustLine = new QHBoxLayout{ };
+		trustLine->setContentsMargins(0, 0, 0, 0);
+		trustLine->setSpacing(4);
+		trustLine->addWidget(CliTrustWarning);
+		trustLine->addWidget(CliTrustDetails, 0, Qt::AlignTop);
+		trustLine->addStretch(1);
 		AccountLayout->addWidget(CliOfferButton, 2, 1, Qt::AlignLeft);
-		AccountLayout->addWidget(CliTrustWarning, 3, 1);
+		AccountLayout->addLayout(trustLine, 3, 1);
 		QWidget::setTabOrder(ConnectButton, CliOfferButton);
+		QWidget::setTabOrder(CliOfferButton, CliTrustDetails);
 		connect(CliOfferButton, &QPushButton::clicked, this, [this] {
 			if (const auto* const offered = cli_option(); offered != nullptr && Gestures.Connect) {
 				Gestures.Connect(offered->Profile);
@@ -901,7 +917,15 @@ namespace bpr::qt {
 		const auto kept        = !signedIn && shown.KeptGrant != kept_grant::none;
 		auto       consequence = QString{ };
 		if (signedIn) {
-			consequence = grant_sentence(*shown.Session);
+			// [[BPR-2319]]. A GitHub CLI session holds no token of ours, so the
+			// token sentence would be wrong; the trust line beneath says how it
+			// signs in, and says it here when setup hides that line.
+			const auto* const session = find_option(shown.Session->Profile);
+			if (session != nullptr && command_line(*session)) {
+				consequence = SetupMode ? cli_trust_summary_text() : QString{ };
+			} else {
+				consequence = grant_sentence(*shown.Session);
+			}
 		} else if (kept) {
 			consequence = kept_grant_sentence(shown.KeptGrant);
 		} else if (shown.ReadingPublic) {
@@ -942,7 +966,9 @@ namespace bpr::qt {
 			const auto offered = (!SetupMode || CliSetupOnly) && !cliPresented && shown.ConnectAdmitted
 				&& (flowRow ? CliSetupOnly : !waiting) && !listed;
 			CliOfferButton->setVisible(offered);
-			CliTrustWarning->setVisible(!SetupMode && !flowRow && (offered || cliPresented || !shown.CliAccounts.empty()));
+			const auto trust = !SetupMode && !flowRow && (offered || cliPresented || !shown.CliAccounts.empty());
+			CliTrustWarning->setVisible(trust);
+			CliTrustDetails->setVisible(trust);
 		}
 		// The Sign in that began the flow is gone from under the keyboard; its
 		// focus moves to the row's job rather than to whatever is next.
@@ -1182,6 +1208,11 @@ namespace bpr::qt {
 	auto server_card::cli_trust_warning() const noexcept -> QLabel*
 	{
 		return CliTrustWarning;
+	}
+
+	auto server_card::cli_trust_details() const noexcept -> info_glyph*
+	{
+		return CliTrustDetails;
 	}
 
 	auto server_card::sign_in_button() const noexcept -> QPushButton*

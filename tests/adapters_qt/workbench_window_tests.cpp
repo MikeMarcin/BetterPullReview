@@ -19603,7 +19603,7 @@ namespace {
 		expect(enterprise->signed_in() && enterprise->login_label()->text() == QStringLiteral("enterprise-reviewer")
 				   && enterprise->consequence_label()->isVisibleTo(page)
 				   && enterprise->consequence_label()->text()
-					   == QStringLiteral("Signed in with a token for this session only; it is asked for again after a restart.")
+					   == QStringLiteral("Signed in with a token for this session only.")
 				   && !toggle->isChecked() && toggle->isVisibleTo(page),
 			   "an enterprise server signed in with a token says the session is kept for this session only");
 		intents.clear();

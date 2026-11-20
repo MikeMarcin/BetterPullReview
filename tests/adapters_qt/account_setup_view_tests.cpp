@@ -315,6 +315,11 @@ namespace {
 		click(*cards.at(1));
 		expect(setup.Host.projection().State.Chosen == core::host_profile_id{ 8U } && shows(setup.View, QStringLiteral("octo-test's existing gh sign-in")),
 			   "another may be chosen, and the consent follows it");
+		// [[BPR-2319]]. The consent is one short sentence; reuse and the
+		// publishing boundary are behind What connecting allows.
+		auto* const consent = find<QLabel>(setup.View, QStringLiteral("accountSetupConsent"));
+		expect(consent != nullptr && consent->text() == QStringLiteral("BetterPullReview uses octo-test's existing gh sign-in and doesn't save its token."),
+			   "the consent is one short sentence naming the chosen account");
 		auto* const details = find<QToolButton>(setup.View, QStringLiteral("accountSetupConsentDetails"));
 		expect(details != nullptr, "the full consent is behind a disclosure");
 		details->click();
