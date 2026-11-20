@@ -2102,7 +2102,35 @@ namespace {
 	/// host makes the turn's scratch folder, launches with its grant, reports
 	/// what the turn wrote there and removes a turn's own folder; builds are
 	/// granted only in the disposable checkout; a tour run takes nothing.
-	void test_the_grant_reaches_the_launch_and_the_folder_goes_with_the_turn()
+	/// [[BPR-2215]]. A grant names its folders in POSIX rules, which a
+	/// Windows path cannot be (`valid_agent_grant_path`), so on Windows the
+	/// same request launches with no grant and reads only, and a checkout that
+	/// cannot be resolved still refuses the launch.
+	[[maybe_unused]] void test_a_windows_launch_carries_no_grant()
+	{
+		const auto root    = tests::make_scratch_directory("bpr-agent-scratch-host");
+		auto       cleanup = tests::scratch_guard{ root };
+		auto       test    = harness{ };
+		test.Host.set_scratch_root(root / "scratch");
+		auto input           = request(core::git_host_id{ 1U }, core::claude_stream_json_profile_id);
+		input.ScratchFolder  = true;
+		input.BuildsAndTests = true;
+		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		test.settle();
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == 1U && !test.Processes.LastRequest->Grant && !std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "--add-dir" })
+				   && !std::ranges::contains(test.Processes.LastRequest->Arguments, std::string{ "Bash(cmake:*)" }),
+			   "a Windows launch asked for a scratch folder and builds carries no grant");
+		test.Workspaces.WorkspacePath = (root / "never-made").string();
+		test.Workspaces.MakeWorkspace = false;
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == 1U && !test.Projection.Finished.empty() && test.Projection.Finished.back().Outcome == application::agent_run_outcome::failed_to_start,
+			   "a checkout that cannot be resolved refuses the launch");
+	}
+
+	[[maybe_unused]] void test_the_grant_reaches_the_launch_and_the_folder_goes_with_the_turn()
 	{
 		const auto root    = tests::make_scratch_directory("bpr-agent-scratch-host");
 		auto       cleanup = tests::scratch_guard{ root };
@@ -2729,7 +2757,11 @@ auto main(const int aCount, char** aArguments) -> int
 	native_storage_failures_remain_private();
 	native_project_size_does_not_gate_first_or_continued_turns();
 	test_tour_history_keeps_the_terminal_answer_item();
+#if defined(_WIN32)
+	test_a_windows_launch_carries_no_grant();
+#else
 	test_the_grant_reaches_the_launch_and_the_folder_goes_with_the_turn();
+#endif
 	test_explicit_settings_cross_the_existing_invocation_host();
 	test_reopened_replay_uncertainty_is_visible_without_native_workspace();
 	test_session_admission_answers_later_and_admits_one_turn();
