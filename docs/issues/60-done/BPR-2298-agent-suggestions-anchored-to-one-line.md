@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2298"
 title: "An agent's suggested change is drafted on one line, not on the lines its suggestion replaces"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -85,4 +85,25 @@ applied.
 
 ## Evidence
 
-Pending.
+Candidate `9518db7d9` (the fix, the prompts, the tests), macOS arm64, dev
+(Debug), rebased on main `d45895493`.
+
+| Criterion | Check | Result |
+| --- | --- | --- |
+| AC1 | `core_review_skill` (the shipped skill is version 6), `application_review_skill_host`, `application_writing_delivery`, `core_prompt_macro` | Passed |
+| AC2 | `core_agent_suggestion_range` (`tests/core/agent_suggestion_range_tests.cpp`): widened after, before and both ways, insertions and a lone closing brace kept, a block no longer than its lines kept, an unexplained longer block `unverified`, lines outside the document, the document window, and `promote_private_text_on_lines` in one edit; each decided range applied as GitHub does gives the intended file, and the agent's one line duplicates `Height` | Passed |
+| AC3, AC4, AC5 | `application_agent_suggestion_range_public_path` (`tests/end_to_end/agent_suggestion_range_public_path.cpp`, the suggestions fixture agent's probe on nested-folders-v1): card "Drafted on lines 12–13, the lines its suggestion replaces."; draft anchor 12 with first line 11 (zero-based); fixture GitHub received `line` 13, `start_line` 12, `side` and `start_side` `RIGHT`; the published block applied on 12–13 equals the head with only the width clamped | Passed |
+| AC3 (negative) | the same course with only `act_on_agent_card`'s old one-line anchor restored | Failed, as it should: card "Drafted. It is a private draft until you publish it." |
+| Regression | `application_agent_keep_action_public_path`, `application_review_report_public_path`, `application_agent_finding_composition_contract`, `qt_agent_finding_cards_retained`, `qt_agent_finding_cards_restart`, `core_revisioned_review_draft`, `architecture_boundaries`, `core_boundary_contract` | Passed |
+
+Format check passed on the touched C++ files; clang-tidy passed on
+`agent_suggestion_range.cpp`, `revisioned_review_draft.cpp`,
+`window_agent_setup.cpp`, `window_agent_chat.cpp` and the three test files.
+`verify_documentation.py` passed. The `core-only` preset was not rebuilt
+(disk); the core library and its test are the same sources in `dev`.
+
+Not covered: a follow-up's Update draft (the open draft's field replaced,
+[[BPR-2286]]) keeps the draft's range as it is and does not re-read a longer
+suggestion it brings; a comment with two or more suggestion blocks is not
+checked; a range that crosses changed regions drafts on its first line, as
+before, and the card says so.
