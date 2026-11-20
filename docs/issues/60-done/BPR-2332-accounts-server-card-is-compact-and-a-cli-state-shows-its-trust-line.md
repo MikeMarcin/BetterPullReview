@@ -78,6 +78,24 @@ disclosure are [[BPR-2319]]'s.
   with a GitHub CLI profile for GitHub.com, so the connected state is
   published to it the way the shipped presentation update arrives.
 
-## Evidence
+## Verification
 
-See the Verification section appended at closeout.
+macOS (arm64), dev preset in a task tree of its own built with
+`-gline-tables-only` debug info to stay inside the shared disk (behaviour is
+unchanged; only debug tables are smaller). Candidate: BPR-2332 `7c93a2fc7`,
+BPR-2334 `bc23441e6`, BPR-2333 `1dd688040` on main `02d9a2f84`. Every changed
+C++ file passes `format_check.py` (clang-format 22.1.8) and `tidy.py
+--warnings-as-errors` (the changed `.cpp` files); `architecture_boundaries`
+and `python3 scripts/verify_documentation.py --root .` (`DOCUMENTATION_OK`)
+pass.
+
+| Criterion | Check | Result |
+|---|---|---|
+| AC1, AC2, AC3 | `qt_surface_capture_course_scale_100`, `_125`, `_150`, `_200`: the new `accounts / cli-connected` state in all four appearances (row heights, one label column, the trust line under the login, its glyph holding the disclosure, no token claim, no device code) | pass |
+| AC4 | `qt_composed_github_scale_100` (`test_cli_warning_lives_on_its_servers_card` and the Accounts page courses), `qt_composed_cli_read_consent` | pass |
+| Regression | `qt_workbench_window_scale_100` | pass |
+| Look | Native Cocoa render (`BPR_NATIVE_LOOK=1`, dark, nothing on screen) of `accounts-cli-connected`: the card's three rows sit tight, values start right after the labels, the trust sentence and its glyph follow the login. The first render showed the trust line a row below the login and a stale device code from the signing-in state; both were fixed (the button span and the course clearing the finished flow) | checked by the implementer; render not committed |
+
+Not run: Windows and Linux, `qt_composed_github_scale_125/200`, a full
+`ctest`. No owner look was prepared in this round; a new attended session
+can show the `accounts-cli-connected` capture or freeze a build.

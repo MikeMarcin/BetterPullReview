@@ -77,6 +77,25 @@ Checked and left alone:
   handler, because two of the views are plain `QTreeView` and
   `QTreeWidget` instances owned by a page.
 
-## Evidence
+## Verification
 
-See the Verification section appended at closeout.
+macOS (arm64), dev preset in a task tree of its own built with
+`-gline-tables-only` debug info to stay inside the shared disk (behaviour is
+unchanged; only debug tables are smaller). Candidate: BPR-2332 `7c93a2fc7`,
+BPR-2334 `bc23441e6`, BPR-2333 `1dd688040` on main `02d9a2f84`. Every changed
+C++ file passes `format_check.py` (clang-format 22.1.8) and `tidy.py
+--warnings-as-errors` (the changed `.cpp` files); `architecture_boundaries`
+and `python3 scripts/verify_documentation.py --root .` (`DOCUMENTATION_OK`)
+pass.
+
+| Criterion | Check | Result |
+|---|---|---|
+| AC1, AC2 | `qt_files_tree` (`test_right_click_opens_the_rows_menu_and_chooses_nothing`, through the window system's mouse entry: files drawer and Overview file list; also a tab bar's right-click leaves the active tab and asks for that tab's menu) | pass |
+| AC3 | `qt_source_search_panel_scale_1`, `_2` (the right-click course now expects the selection, the current result and the open file left alone, and the menu's Copy to write the right-clicked result) | pass |
+| AC4 | `qt_files_tree` rebuilt with the files drawer's `open_menu_without_choosing` commented out | fails at "a right-click on another file neither chooses nor opens it"; passes with it |
+| Regression | `qt_pull_request_overview_page`, `qt_composed_github_scale_100`, `qt_workbench_window_scale_100` | pass |
+
+Not run: Windows and Linux (the context menu arrives on release there
+rather than on press; the filter consumes both, and the course drives both),
+a full `ctest`. The generated files list has the filter but no dedicated
+check.

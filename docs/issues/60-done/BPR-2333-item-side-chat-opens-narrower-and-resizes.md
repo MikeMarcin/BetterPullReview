@@ -61,6 +61,25 @@ resealed with a note.
   parent, which [[BPR-2322]] relied on.
 - Like Line details' seam, the handle has no keyboard focus of its own.
 
-## Evidence
+## Verification
 
-See the Verification section appended at closeout.
+macOS (arm64), dev preset in a task tree of its own built with
+`-gline-tables-only` debug info to stay inside the shared disk (behaviour is
+unchanged; only debug tables are smaller). Candidate: BPR-2332 `7c93a2fc7`,
+BPR-2334 `bc23441e6`, BPR-2333 `1dd688040` on main `02d9a2f84`. Every changed
+C++ file passes `format_check.py` (clang-format 22.1.8) and `tidy.py
+--warnings-as-errors` (the changed `.cpp` files); `architecture_boundaries`
+and `python3 scripts/verify_documentation.py --root .` (`DOCUMENTATION_OK`)
+pass.
+
+| Criterion | Check | Result |
+|---|---|---|
+| AC1, AC2 | `qt_item_side_chat` (`test_the_column_opens_narrow_and_resizes_and_remembers`: 320 beside a 1,200 page, 260 beside 800, drags to 420, bounds 720 and 260, double-click Reset, stored width adopted without a report, kept across close and open, clamped and restored by the page width) | pass |
+| AC3 | `application_workbench_host` (`test_side_chat_width_load_hold_validation_and_orderly_drain`), `application_profile_window_layout_drain` | pass |
+| AC4 | `sqlite_workbench_settings_storage` (`test_side_chat_width_persists_and_migrates_from_thirty_seven`; every older-version construction now also drops the new column) | pass |
+| AC5 | `application_follow_up_public_path`, `qt_workbench_window_scale_100` | pass |
+| Composition | `application_review_round_trip_composition_contract`: the production app digest is resealed and matches; the course then stops at `SEMANTIC_COMMENT_PROBE_FAILED phase=4`, which [[BPR-2269]] and [[BPR-2322]] recorded as predating them | digest pass; known later failure |
+
+Not run: Windows and Linux, the 125% and 200% window rows, a full `ctest`,
+`application_profile_window_layout_public_path`. No owner look was
+prepared in this round.
