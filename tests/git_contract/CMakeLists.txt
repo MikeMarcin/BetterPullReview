@@ -116,6 +116,12 @@ set_tests_properties(
     PROPERTIES
         TIMEOUT 180
 )
+# [[BPR-2215]]. [[BPR-2294]]'s 20,003-file linked-clone course writes that
+# fixture and checks it out three times; NTFS takes longer than 180 s for it
+# (timed out at 69e55ae10 and 5c0a5c902 after reaching it).
+if(WIN32)
+    set_tests_properties(git_process_contract PROPERTIES TIMEOUT 900)
+endif()
 
 bpr_add_executable(
     test_better_pull_review_git_cache_contract_tests
