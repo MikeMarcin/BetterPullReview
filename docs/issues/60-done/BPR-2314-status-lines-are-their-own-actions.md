@@ -71,7 +71,7 @@ with a separate Go to them button at the far right of the drawer.
 
 ## Evidence
 
-Candidate: this card's implementation commit on `main` (parent `84df71c4d`).
+Candidate: `56abd9ad7` on `main` (built and run at `c74f96a19`, the same tree before rebasing onto `d0a17c890`, which changed no file this card touches).
 
 Disk had about 1 GB free (a full checkout did not fit), so no new build tree
 was made. The changed translation units were compiled with the existing
