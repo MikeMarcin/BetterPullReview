@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2317"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "long text block layout holds the GUI thread (BPR-2215 WSL2 load-phase gap)",
+  "created": "2026-11-20T08:45:49.014870+00:00",
+  "base": "65f671216f6c357981f176513c219effc4b98d66"
+}

@@ -579,3 +579,19 @@ suites on both platforms and the eleven WSL2 timing courses at the lane head.
   the whole layout. Not fixed: a change to how one long block is measured is a
   product change and is the owner's to schedule.
 - The round-trip contract passes on the WSL2 i9 at `82ed12f26`.
+
+### Owner decisions (2026-11-20)
+
+- **Known Release timing exception for 0.5.0, waived by the owner:**
+  `application_large_review_responsiveness`'s
+  `paged_review_and_git_load_input_gap` on the WSL2 i9, 104 to 134 ms against
+  the 100 ms input target in 9 of 30 runs (106 to 135 ms in the six profiled
+  runs), from one long text block's layout in
+  `diff_workbench::rebuild_geometry` → `pane_block_measurer::height` (profile
+  above). The fix is [[BPR-2317]] in Backlog. The row's other checks still
+  count.
+- **`application_device_authorization_public_path` budget: 20 s on every
+  platform** (owner). Its run waits for GitHub's device-code answer; on the
+  Windows qualification PC that took 8,558 ms, and curl to the endpoint 3.3
+  to 6.0 s against 0.16 to 0.20 s from a Mac. The row's CTest timeout is 30 s
+  so the bound still holds three quarters of it.
