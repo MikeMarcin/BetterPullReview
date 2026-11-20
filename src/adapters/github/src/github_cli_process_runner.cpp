@@ -60,7 +60,10 @@ namespace bpr::adapters::github::detail {
 					return false;
 				}
 				if (iterator->is_regular_file(error)) {
-					const auto size = iterator->file_size(error);
+					// Asked of the file, not the directory entry: on Windows the
+					// entry's size lags a file still open for writing, so a growing
+					// pack looked idle and its progress bound expired.
+					const auto size = std::filesystem::file_size(iterator->path(), error);
 					// Git atomically replaces lock and temporary pack files while
 					// this bounded sampler runs. A vanished file consumes no bytes;
 					// file_size's failure sentinel is not an oversized file.
