@@ -142,6 +142,7 @@ namespace bpr::qt {
 	class generated_files_row;
 	class split_diff_strip;
 	class destructive_question;
+	class item_side_chat;
 	/// \brief [[BPR-1336]]. Whether an editable text field keeps a typed
 	/// Control+Alt character from the window's shortcuts.
 	///
@@ -1305,6 +1306,10 @@ namespace bpr::qt {
 		/// tab beside the files (owner, Q8), its title and Markdown as given.
 		void               open_report(const std::string& aKey, const agent_report_document& aReport);
 		[[nodiscard]] auto report_view() const noexcept -> agent_report_view* { return ReportView; }
+		/// \brief [[BPR-2322]]. The side chat about one review item (a
+		/// report's finding or a finding card, a draft, a thread), the column
+		/// beside the report or the code. Hidden until an item is asked about.
+		[[nodiscard]] auto item_side_chat() const noexcept -> qt::item_side_chat* { return ItemSideChat; }
 		/// \brief Whether the active tab is a report.
 		[[nodiscard]] auto report_shown() const noexcept -> bool { return ReportShown; }
 		/// \brief [[BPR-2258]], owner 2026-11-18: "I'd rather stay on the
@@ -3099,9 +3104,10 @@ namespace bpr::qt {
 		ask_menu_button*                             ReviewAskButton   = nullptr;
 		ask_menu_source                              QuickAskSource;
 		ask_menu_dispatch                            QuickAskDispatch;
-		agent_report_view*                           ReportView  = nullptr;
-		bool                                         ReportShown = false;
-		bool                                         ReportHeld  = false;
+		agent_report_view*                           ReportView   = nullptr;
+		qt::item_side_chat*                          ItemSideChat = nullptr;
+		bool                                         ReportShown  = false;
+		bool                                         ReportHeld   = false;
 		std::map<std::string, agent_report_document> Reports;
 		/// The file controls' enabled states while a report is shown (Q9).
 		std::vector<std::pair<QPointer<QWidget>, bool>>      ReportDisabled;

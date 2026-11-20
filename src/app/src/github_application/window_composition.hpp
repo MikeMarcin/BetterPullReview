@@ -117,7 +117,6 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
-#include "bpr/qt/follow_up_window.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -562,7 +561,6 @@ namespace bpr::app {
 		/// updated it, by its follow-up key.
 		std::unique_ptr<worker_executor>                  FollowUpLane;
 		std::unique_ptr<application::follow_up_host>      FollowUp;
-		QPointer<qt::follow_up_window>                    FollowUpWindow;
 		std::map<std::string, std::string>                FollowUpRevisions;
 		std::uint64_t                                     WritingHookSubscription = 0;
 		std::unique_ptr<review_tour_publication_workflow> TourPublication;

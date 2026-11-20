@@ -27,6 +27,7 @@ namespace bpr::application {
 		case core::operation_diagnosis_family::mcp_helper:    return diagnostic_operation::mcp_helper;
 		case core::operation_diagnosis_family::tour:          return diagnostic_operation::tour_operation;
 		case core::operation_diagnosis_family::cycle_round:   return diagnostic_operation::cycle_round;
+		case core::operation_diagnosis_family::side_chat:     return diagnostic_operation::side_chat;
 		}
 		return diagnostic_operation::review_mutation;
 	}

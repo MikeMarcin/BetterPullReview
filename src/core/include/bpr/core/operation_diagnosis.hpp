@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_OPERATION_DIAGNOSIS_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_OPERATION_DIAGNOSIS_HPP
 
+#include "bpr/core/agent_follow_up.hpp"
 #include "bpr/core/review_submission_refusal.hpp"
 
 #include <compare>
@@ -51,6 +52,9 @@ namespace bpr::core {
 		/// [[BPR-1830]]. A Review Cycle round frozen, granted, read, answered,
 		/// exported, imported or sent (`cycle.round`).
 		cycle_round,
+		/// [[BPR-2322]]. A question asked, a text proposed or a proposal used
+		/// in the side chat about one review item (`agent.side_chat`).
+		side_chat,
 	};
 
 	/// \brief [[BPR-1828]]. What one operation line is about.
@@ -222,6 +226,14 @@ namespace bpr::core {
 		/// itself (`submit_subject=repairing`), and how the repair went
 		/// (`repaired`: the same request sent again; `repair_failed`).
 		review_submit_repair,
+		/// [[BPR-2322]]. One question in an item's side chat, from its send
+		/// to its answer (or why there is none).
+		side_chat_ask,
+		/// [[BPR-2322]]. One apply action's text asked for (Update suggested
+		/// comment, Update draft, Draft reply), until it is shown or refused.
+		side_chat_propose,
+		/// [[BPR-2322]]. Use on a proposal: applied, or refused and why.
+		side_chat_apply,
 	};
 
 	/// \brief [[RFC-BPR-0105]]. What a review submission line is about: what
@@ -652,6 +664,29 @@ namespace bpr::core {
 	/// workspace command: its first recognized line, never its text.
 	[[nodiscard]] auto classify_workspace_git_error(std::string_view aStandardError) noexcept -> workspace_git_error;
 
+	/// \brief [[BPR-2322]]. What a side chat line is about, without any of
+	/// its words: the item's kind, the round, the apply action and the
+	/// core's refusal. No question, answer, proposal, title, path or key.
+	struct side_chat_trace
+	{
+		follow_up_subject_kind Item = follow_up_subject_kind::suggested_comment;
+		/// The round the question is (from 1), or the rounds the chat had
+		/// when the text was asked for or used.
+		std::uint32_t                  Round = 0U;
+		std::optional<follow_up_apply> Apply;
+		follow_up_refusal              Refusal = follow_up_refusal::none;
+		/// Lengths in characters (Unicode code points), never the text: the
+		/// question asked; the answer, or the text proposed; and, for a
+		/// proposal or a Use, the text it replaces (before) and the one put
+		/// in its place (after).
+		std::uint32_t QuestionChars = 0U;
+		std::uint32_t AnswerChars   = 0U;
+		std::uint32_t BeforeChars   = 0U;
+		std::uint32_t AfterChars    = 0U;
+
+		auto operator<=>(const side_chat_trace&) const = default;
+	};
+
 	/// \brief [[BPR-1828]]. One host operation's diagnostic line: enums,
 	/// counts, a duration and an exit code only.
 	///
@@ -697,11 +732,19 @@ namespace bpr::core {
 		/// seed_refresh_ms=N seed_checkout_ms=N seed_clean_ms=N
 		/// seed_folders=N seed_files=N seed_written=N seed_cleaned=N`.
 		std::optional<workspace_trace> Workspace = std::nullopt;
+		/// [[BPR-2322]]. Exactly on a side chat line, written after the fixed
+		/// keys as `item=KIND round=N apply=ACTION|none refusal=REFUSAL
+		/// question_chars=N answer_chars=N before_chars=N after_chars=N`.
+		std::optional<side_chat_trace> SideChat = std::nullopt;
 
 		auto operator<=>(const operation_diagnosis&) const = default;
 	};
 
 	[[nodiscard]] auto family(operation_action aAction) noexcept -> operation_diagnosis_family;
+
+	/// \brief [[BPR-2322]]. The characters (Unicode code points) of UTF-8
+	/// `aText`, saturated to 32 bits: what a side chat line says of a text.
+	[[nodiscard]] auto character_count(std::string_view aText) noexcept -> std::uint32_t;
 
 	/// \brief The stable lower-case names, empty outside each set.
 	[[nodiscard]] auto name(operation_action aAction) noexcept -> std::string_view;

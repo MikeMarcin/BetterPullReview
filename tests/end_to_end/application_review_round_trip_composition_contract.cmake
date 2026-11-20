@@ -3873,8 +3873,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# 2290, 2291, 2293, 2295, 2298, 2299, 2301, 2303, 2307, 2310, 2311 and 2315.
 	# No review or tour provider, grant issuer, admission or mutation branch
 	# changes here; the mutation-branch digest below is checked separately.
+	# [[BPR-2322]] reseal: the item's side chat replaces the follow-up window
+	# (window_follow_up.cpp, window_composition.hpp), its rounds are logged
+	# (window_tours.cpp), and a course reads the diagnostic log through the
+	# fixture access.
 	set(bpr_expected_production_app_manifest_digest
-        "91c2e6914156cae03eb1e3cf05bc67113bedece4fe98b93ca0458ba0439c7b9e"
+        "242039375bec4e12512327c79867fcfe3ef61fc06d0926c75748b0b8c962dc5c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

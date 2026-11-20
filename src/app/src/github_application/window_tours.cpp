@@ -1176,6 +1176,9 @@ namespace bpr::app {
 		}
 		if (!FollowUp) {
 			FollowUp = std::make_unique<application::follow_up_host>(*FollowUpLane, DecisionLane, [this](const application::follow_up_projection& aProjection) { present_follow_up(aProjection); });
+			// [[BPR-2322]]. Each side chat question, proposal and Use is logged,
+			// lengths and outcomes only.
+			FollowUp->set_log(Profile->DiagnosticLog);
 		}
 		FollowUp->set_runner([runner, style](const application::follow_up_agent& aAgent, const std::string& aMessage, const std::stop_token aStop) -> std::expected<std::string, std::string> {
 			{

@@ -2485,6 +2485,12 @@ namespace bpr::app::detail {
 		/// \brief The probe's phase and the facts it last saw, for the run summary.
 		[[nodiscard]] static auto threaded_reply_diagnostic(const github_application& aApplication)
 			-> std::string;
+		/// \brief [[BPR-2322]]. The profile's diagnostic log, as the desktop
+		/// shell has it, for a course that configures and exports it.
+		[[nodiscard]] static auto diagnostic_log(const github_application& aApplication) -> std::shared_ptr<application::diagnostic_log_port>
+		{
+			return aApplication.desktop_diagnostic_log();
+		}
 		/// \brief [[BPR-1083]]. Selects `aPath` in the files drawer in Read and
 		/// waits for its comparison. Pending until the pull request's files are
 		/// listed; the gesture is the drawer's own selection.

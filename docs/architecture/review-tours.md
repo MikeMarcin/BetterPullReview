@@ -289,6 +289,18 @@ stays as written and the publication preview says so. Each chat is its own threa
 isolated by agent entry incarnation, draft/reset generation and stable thread identity. Native turns receive current tour data without replaying BPR's shortened transcript as their memory. The conversation window described
 next is the copyable record of every chat.
 
+Since [[BPR-2322]] (owner, 2026-11-20: "make it use something akin to the side chat from the
+tour onto the report tab") the tour's chat is built from parts it shares with the side chat about
+one review item (`side_chat_parts.hpp`: the seam, the author's bubble, a proposal's frame, Return
+to send and how bubbles fit the column, with the public `composer_field` and `passage_chip`).
+`qt::item_side_chat` is that second chat: a column beside the report or the code, opened by Ask
+follow-up on a report's finding or a finding card and by Ask about this on the draft composer or a
+thread. It replaced [[BPR-2286]]'s follow-up window. Its conversation is not a tour session: each
+item's chat is a `core::follow_up_state` held by `application::follow_up_host`, every round a
+fresh tool-free run carrying the item and the earlier rounds, and its one apply action (Update
+suggested comment, Update draft or Draft reply) proposes text in the chat that changes nothing
+until Use. Close keeps every item's chat.
+
 Since [[BPR-1934]] (owner, 2026-11-07: "Tour side chat should get suggestions
 like the agent tab has") an empty chat offers suggested prompts under its
 invitation, in the Agent tab's own component (`agent_suggestion_list`,

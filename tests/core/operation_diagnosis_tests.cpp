@@ -290,8 +290,46 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-2322]]. A side chat line: the item's kind, the round, the apply
+	/// action, the refusal and the texts' lengths, and nothing else.
+	void test_side_chat_lines()
+	{
+		auto asked = operation_diagnosis{ .Action = operation_action::side_chat_ask, .DurationMilliseconds = 1200U, .SideChat = side_chat_trace{ .Item = follow_up_subject_kind::suggested_comment, .Round = 2U, .QuestionChars = 31U, .AnswerChars = 410U } };
+		expect(describe(asked) == "action=side_chat_ask failure=none process=none exit=none duration_ms=1200 count=0 written=0 read_back=0 item=suggested_comment round=2 apply=none refusal=none question_chars=31 answer_chars=410 before_chars=0 after_chars=0",
+			   "an asked line holds its trace in order");
+		expect(parse_operation_diagnosis(describe(asked)) == asked && family(operation_action::side_chat_ask) == operation_diagnosis_family::side_chat, "and reads back as a side chat line");
+		auto used = operation_diagnosis{ .Action = operation_action::side_chat_apply, .Failure = operation_failure::refused, .SideChat = side_chat_trace{ .Item = follow_up_subject_kind::draft, .Round = 1U, .Apply = follow_up_apply::update_draft, .Refusal = follow_up_refusal::target_changed, .BeforeChars = 17U, .AfterChars = 64U } };
+		expect(parse_operation_diagnosis(describe(used)) == used && describe(used).find("apply=update_draft refusal=target_changed") != std::string::npos, "a refused Use reads back with its action and why");
+		auto stopped              = asked;
+		stopped.Failure           = operation_failure::cancelled;
+		stopped.SideChat->Refusal = follow_up_refusal::failed;
+		expect(parse_operation_diagnosis(describe(stopped)) == stopped, "a stopped question reads back");
+		// What is not a side chat line is refused.
+		auto noTrace     = asked;
+		noTrace.SideChat = std::nullopt;
+		expect(describe(noTrace).empty(), "a side chat line carries its trace");
+		auto applyOnAsk            = asked;
+		applyOnAsk.SideChat->Apply = follow_up_apply::draft_reply;
+		expect(describe(applyOnAsk).empty(), "a question names no apply action");
+		auto noApply            = used;
+		noApply.SideChat->Apply = std::nullopt;
+		expect(describe(noApply).empty(), "a Use names its apply action");
+		auto silent    = used;
+		silent.Failure = operation_failure::none;
+		expect(describe(silent).empty(), "a refusal is a failed line");
+		auto elsewhere = operation_diagnosis{ .Action = operation_action::tour_import, .SideChat = asked.SideChat };
+		expect(describe(elsewhere).empty(), "a side chat trace only on a side chat line");
+		expect(!parse_operation_diagnosis(describe(asked) + " question=Why"), "no words after the trace");
+		expect(!parse_operation_diagnosis("action=side_chat_ask failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 item=finding round=1 apply=none refusal=none question_chars=1 answer_chars=1 before_chars=0 after_chars=0"),
+			   "an unknown item kind is refused");
+		expect(character_count("héllo") == 5U && character_count("") == 0U, "lengths count characters, not bytes");
+	}
+} // namespace
+
 int main()
 {
+	test_side_chat_lines();
 	test_line();
 	test_workspace_trace();
 	test_workspace_seed_trace();

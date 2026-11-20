@@ -662,16 +662,17 @@ bpr_add_network_isolated_test(NAME qt_author_description_editor COMMAND test_bet
 set_tests_properties(qt_author_description_editor PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
     PASS_REGULAR_EXPRESSION "author-description-editor-tests:pass" TIMEOUT 120)
-# [[BPR-2286]]. The follow-up window, a report finding's Ask follow-up and a
+# [[BPR-2322]]. The side chat about one review item (which replaced
+# BPR-2286's follow-up window), a report finding's Ask follow-up and a
 # thread's Ask about this.
-bpr_add_executable(test_better_pull_review_qt_follow_up_window_tests follow_up_window_tests.cpp)
-target_link_libraries(test_better_pull_review_qt_follow_up_window_tests PRIVATE BetterPullReview::AdapterQt)
-bpr_enable_hardening(test_better_pull_review_qt_follow_up_window_tests)
-bpr_enable_warnings(test_better_pull_review_qt_follow_up_window_tests)
-bpr_add_network_isolated_test(NAME qt_follow_up_window COMMAND test_better_pull_review_qt_follow_up_window_tests)
-set_tests_properties(qt_follow_up_window PROPERTIES
+bpr_add_executable(test_better_pull_review_qt_item_side_chat_tests item_side_chat_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_item_side_chat_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_item_side_chat_tests)
+bpr_enable_warnings(test_better_pull_review_qt_item_side_chat_tests)
+bpr_add_network_isolated_test(NAME qt_item_side_chat COMMAND test_better_pull_review_qt_item_side_chat_tests)
+set_tests_properties(qt_item_side_chat PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
-    PASS_REGULAR_EXPRESSION "follow-up-window-tests:pass" TIMEOUT 120)
+    PASS_REGULAR_EXPRESSION "item-side-chat-tests:pass" TIMEOUT 120)
 # [[BPR-1094]]. The Overview's chips at 125% and 200%: every built-in theme,
 # Icons and Letters, identity, ?, Open and All, whole counts, +n, the keyboard
 # route and scrolling. The 100% row above runs the same test.

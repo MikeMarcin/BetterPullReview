@@ -1,0 +1,164 @@
+#ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_ITEM_SIDE_CHAT_HPP
+#define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_ITEM_SIDE_CHAT_HPP
+
+#include "bpr/core/agent_follow_up.hpp"
+
+#include <QElapsedTimer>
+#include <QPointer>
+#include <QString>
+#include <QStringList>
+#include <QWidget>
+
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <optional>
+#include <string>
+#include <vector>
+
+class QLabel;
+class QPlainTextEdit;
+class QPushButton;
+class QScrollArea;
+class QToolButton;
+class QVBoxLayout;
+
+/// \file
+/// \brief [[BPR-2322]] (owner, 2026-11-20: "I think we should instead make it
+/// use something akin to the side chat from the tour onto the report tab").
+/// The side chat about one review item: a report's finding or a finding card,
+/// a draft, a thread. It is the column beside the report (or the code), built
+/// from the Tour tab's side chat parts (`side_chat_parts.hpp`) and wearing its
+/// look: the seam, the item at the top with Copy chat and Close, the
+/// reviewer's words in bubbles on the right, the agent's replies as Markdown
+/// on the left with the Agent tab's ending line, a proposal in the chat beside
+/// what it replaces, and the composer with the item as its chip.
+///
+/// \details It replaces [[BPR-2286]]'s follow-up window. Its conversation is
+/// `core::follow_up_state`, held by `application::follow_up_host`: one chat a
+/// item, each round a fresh run, and the one thing it can apply (Update
+/// suggested comment, Update draft or Draft reply) used only on Use. It runs
+/// nothing and writes nothing: each press leaves as an intent.
+namespace bpr::qt {
+	class markdown_body_view;
+	class agent_run_status_line;
+
+	/// \brief What a press asks for.
+	struct item_side_chat_intents
+	{
+		std::function<void(const QString& aQuestion)> Ask;
+		std::function<void(core::follow_up_apply)>    Propose;
+		std::function<void(std::uint64_t aProposal)>  Use;
+		std::function<void(std::uint64_t aProposal)>  Discard;
+		std::function<void()>                         Stop;
+		/// The column closed; the chat is kept for its item.
+		std::function<void()> Closed;
+		/// Show: the item's place in the code.
+		std::function<void(const core::follow_up_subject&)> Reveal;
+	};
+
+	/// \brief The words for one apply action: "Update suggested comment",
+	/// "Update draft", "Draft reply".
+	[[nodiscard]] auto item_chat_apply_words(core::follow_up_apply aApply) -> QString;
+	/// \brief Why a step did nothing, in the person's words; empty for none.
+	[[nodiscard]] auto item_chat_refusal_words(core::follow_up_refusal aRefusal) -> QString;
+	/// \brief What the chat is about: "Suggested comment at renderer.cpp:12–13".
+	[[nodiscard]] auto item_chat_subject_words(const core::follow_up_subject& aSubject) -> QString;
+
+	class item_side_chat final : public QWidget
+	{
+	public:
+		explicit item_side_chat(QWidget* aParent = nullptr);
+
+		void set_intents(item_side_chat_intents aIntents);
+		/// \brief Shows `aState`: the item, its rounds, a run going, a
+		/// proposal, why the last step did nothing (`aFailure` when a run
+		/// failed). `aAgent` names the agent in the ending lines.
+		void present(const core::follow_up_state& aState, const QString& aAgent, const QString& aFailure);
+		/// \brief Says what came of a Use (or why it was not used).
+		void show_status(const QString& aText);
+		/// \brief Opens the column with the keyboard in its composer, or
+		/// closes it; closed, every item's chat is kept by the host.
+		void               set_column_open(bool aOpen);
+		[[nodiscard]] auto column_open() const noexcept -> bool { return ColumnOpen; }
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+
+		[[nodiscard]] auto composer() const noexcept -> QPlainTextEdit* { return Composer; }
+		[[nodiscard]] auto send_button() const noexcept -> QPushButton* { return Send; }
+		[[nodiscard]] auto apply_button() const noexcept -> QPushButton* { return ApplyButton; }
+		/// \brief The proposal's Use and Discard while one is shown; null otherwise.
+		[[nodiscard]] auto use_button() const noexcept -> QPushButton* { return UseButton; }
+		[[nodiscard]] auto discard_button() const noexcept -> QPushButton* { return DiscardButton; }
+		[[nodiscard]] auto proposal_card() const noexcept -> QWidget* { return ProposalCard; }
+		[[nodiscard]] auto proposal_text() const -> QString;
+		[[nodiscard]] auto close_button() const noexcept -> QToolButton* { return ClosePane; }
+		[[nodiscard]] auto copy_chat_button() const noexcept -> QToolButton* { return CopyChat; }
+		[[nodiscard]] auto show_button() const noexcept -> QPushButton* { return ShowItem; }
+		[[nodiscard]] auto status_text() const -> QString;
+		/// \brief The chat's title: what it is about and where.
+		[[nodiscard]] auto subject_text() const -> QString;
+		/// \brief The item as the chat quotes it at its top.
+		[[nodiscard]] auto item_text() const -> QString;
+		/// \brief The item's chip in the composer.
+		[[nodiscard]] auto chip_text() const -> QString;
+		/// \brief The reviewer's questions and the agent's answers shown, in order.
+		[[nodiscard]] auto questions() const -> QStringList;
+		[[nodiscard]] auto answers() const -> QStringList;
+		/// \brief Round `aRound`'s ending line; null past the rounds shown.
+		[[nodiscard]] auto status_line(std::size_t aRound) const -> agent_run_status_line*;
+		[[nodiscard]] auto running() const noexcept -> bool { return Running; }
+		[[nodiscard]] auto shown_key() const -> std::string { return Shown ? Shown->Subject.Key : std::string{ }; }
+		/// \brief The chat as plain text that reads as Markdown: what Copy
+		/// chat puts on the clipboard.
+		[[nodiscard]] auto chat_text() const -> QString;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+		void changeEvent(QEvent* aEvent) override;
+		bool eventFilter(QObject* aWatched, QEvent* aEvent) override;
+
+	private:
+		void               send();
+		void               rebuild();
+		void               restyle();
+		void               fit();
+		[[nodiscard]] auto reader(QWidget* aParent, const std::string& aBody, const std::string& aIdentity) -> markdown_body_view*;
+
+		item_side_chat_intents               Intents;
+		std::optional<core::follow_up_state> Shown;
+		QString                              Agent;
+		bool                                 Running    = false;
+		bool                                 ColumnOpen = false;
+		/// The running request's clock, and each answered round's time.
+		QElapsedTimer                             Clock;
+		std::map<std::size_t, qint64>             Seconds;
+		QLabel*                                   Glyph     = nullptr;
+		QLabel*                                   Subject   = nullptr;
+		QLabel*                                   Quote     = nullptr;
+		QPushButton*                              ShowItem  = nullptr;
+		QToolButton*                              CopyChat  = nullptr;
+		QToolButton*                              ClosePane = nullptr;
+		QScrollArea*                              Scroll    = nullptr;
+		QVBoxLayout*                              Turns     = nullptr;
+		QLabel*                                   ItemQuote = nullptr;
+		QLabel*                                   Status    = nullptr;
+		QWidget*                                  Field     = nullptr;
+		QLabel*                                   Chip      = nullptr;
+		QString                                   ChipWords;
+		QPlainTextEdit*                           Composer      = nullptr;
+		QPushButton*                              Send          = nullptr;
+		QPushButton*                              ApplyButton   = nullptr;
+		QWidget*                                  ProposalCard  = nullptr;
+		QLabel*                                   ProposalText  = nullptr;
+		QPushButton*                              UseButton     = nullptr;
+		QPushButton*                              DiscardButton = nullptr;
+		std::vector<QWidget*>                     Bubbles;
+		std::vector<QLabel*>                      Asked;
+		std::vector<markdown_body_view*>          Replies;
+		std::vector<agent_run_status_line*>       Endings;
+		std::vector<QPointer<markdown_body_view>> Readers;
+	};
+} // namespace bpr::qt
+
+#endif

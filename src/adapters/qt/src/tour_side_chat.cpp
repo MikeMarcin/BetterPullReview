@@ -1,5 +1,7 @@
 #include "bpr/qt/tour_side_chat.hpp"
 
+#include "side_chat_parts.hpp"
+
 #include "bpr/qt/agent_steered_words.hpp"
 
 #include "bpr/core/agent_queue.hpp"
@@ -43,44 +45,11 @@ namespace bpr::qt {
 		const auto close_quote = QChar{ 0x201D };
 		const auto ellipsis    = QChar{ 0x2026 };
 
-		auto mixed(const QColor& aFrom, const QColor& aTo, const double aAmount) -> QColor
-		{
-			return QColor::fromRgbF(static_cast<float>(aFrom.redF() + (aTo.redF() - aFrom.redF()) * aAmount), static_cast<float>(aFrom.greenF() + (aTo.greenF() - aFrom.greenF()) * aAmount),
-									static_cast<float>(aFrom.blueF() + (aTo.blueF() - aFrom.blueF()) * aAmount));
-		}
-		auto small(QLabel* aLabel) -> QLabel*
-		{
-			auto font = aLabel->font();
-			font.setPointSizeF(font.pointSizeF() * 0.92);
-			aLabel->setFont(font);
-			return aLabel;
-		}
-		auto words(const QString& aText, QWidget* aParent) -> QLabel*
-		{
-			auto* const label = new QLabel{ aText, aParent };
-			label->setWordWrap(true);
-			label->setTextFormat(Qt::PlainText);
-			label->setTextInteractionFlags(Qt::TextSelectableByMouse);
-			return label;
-		}
-		auto quiet(QLabel* aLabel) -> QLabel*
-		{
-			aLabel->setForegroundRole(QPalette::PlaceholderText);
-			return aLabel;
-		}
-		void clear(QVBoxLayout* aLayout)
-		{
-			while (auto* const item = aLayout->takeAt(0)) {
-				if (auto* const widget = item->widget()) {
-					widget->hide();
-					widget->deleteLater();
-				}
-				if (auto* const inner = item->layout()) {
-					clear(static_cast<QVBoxLayout*>(inner));
-				}
-				delete item;
-			}
-		}
+		using side_chat::clear;
+		using side_chat::mixed;
+		using side_chat::quiet;
+		using side_chat::small;
+		using side_chat::words;
 		auto passage_heading(const core::tour_passage& aPassage) -> QString
 		{
 			switch (aPassage.Field) {
@@ -91,66 +60,9 @@ namespace bpr::qt {
 			}
 			return { };
 		}
-		/// Return sends; Shift+Return starts a new line.
-		class send_keys final : public QObject
-		{
-		public:
-			send_keys(QObject* aParent, std::function<void(bool aOpposite)> aSend)
-				: QObject{ aParent }
-				, Send{ std::move(aSend) }
-			{
-			}
-
-		protected:
-			bool eventFilter(QObject* aWatched, QEvent* aEvent) override
-			{
-				if (aEvent->type() == QEvent::KeyPress) {
-					const auto* key = static_cast<QKeyEvent*>(aEvent);
-					if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !(key->modifiers() & Qt::ShiftModifier)) {
-						// RFC-BPR-0126: Cmd+Return (Ctrl+Return off macOS) is
-						// the other follow-up for this one message.
-						Send((key->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) != 0);
-						return true;
-					}
-				}
-				return QObject::eventFilter(aWatched, aEvent);
-			}
-
-		private:
-			std::function<void(bool)> Send;
-		};
-		/// The author's words: a quiet rounded bubble, right-aligned.
-		class bubble_frame final : public QWidget
-		{
-		public:
-			using QWidget::QWidget;
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				painter.setPen(Qt::NoPen);
-				painter.setBrush(mixed(palette().color(QPalette::Active, QPalette::Base), palette().color(QPalette::Active, QPalette::WindowText), 0.08));
-				painter.drawRoundedRect(QRectF{ rect() }, 12.0, 12.0);
-			}
-		};
-		/// A proposal waiting in the chat: the agent accent's rule down its
-		/// left, as the proposal under Draft the tour is drawn.
-		class proposal_frame final : public QWidget
-		{
-		public:
-			using QWidget::QWidget;
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto       painter = QPainter{ this };
-				const auto accent  = agent_accent(palette());
-				painter.fillRect(rect(), mixed(palette().color(QPalette::Active, QPalette::Base), accent, 0.06));
-				painter.fillRect(QRect{ 0, 0, 2, height() }, accent);
-			}
-		};
+		using side_chat::bubble_frame;
+		using side_chat::proposal_frame;
+		using side_chat::send_keys;
 	}
 
 	/// [[BPR-1995]]. The composer's field: the passage chip and the words in
@@ -1128,17 +1040,9 @@ namespace bpr::qt {
 
 	void tour_side_chat::paintEvent(QPaintEvent* /*aEvent*/)
 	{
-		if (isWindow()) {
-			return;
+		if (!isWindow()) {
+			side_chat::paint_seam(*this);
 		}
-		auto       painter = QPainter{ this };
-		const auto ground  = palette().color(QPalette::Active, QPalette::Window);
-		const auto accent  = agent_accent(palette());
-		auto       wash    = QLinearGradient{ 0.0, 0.0, static_cast<qreal>(std::min(width(), 160)), 0.0 };
-		wash.setColorAt(0.0, mixed(ground, accent, 0.06));
-		wash.setColorAt(1.0, ground);
-		painter.fillRect(QRect{ 0, 0, std::min(width(), 160), height() }, wash);
-		painter.fillRect(QRect{ 0, 0, 1, height() }, mixed(ground, accent, 0.5));
 	}
 
 	bool tour_side_chat::eventFilter(QObject* aWatched, QEvent* aEvent)
@@ -2362,17 +2266,7 @@ namespace bpr::qt {
 			bubbles.push_back(WaitingBubble);
 		}
 		for (auto* const bubble : bubbles) {
-			const auto most = available * 4 / 5;
-			bubble->setMaximumWidth(most);
-			// A short question keeps to one line; a long one wraps at the
-			// bubble's width.
-			for (auto* const label : bubble->findChildren<QLabel*>()) {
-				auto widest = 0;
-				for (const auto& line : label->text().split(QLatin1Char('\n'))) {
-					widest = std::max(widest, label->fontMetrics().horizontalAdvance(line));
-				}
-				label->setMinimumWidth(std::min(widest + 2, most - 24));
-			}
+			side_chat::fit_bubble(*bubble, available);
 		}
 		for (const auto& each : Readers) {
 			if (each && !each->isHidden()) {

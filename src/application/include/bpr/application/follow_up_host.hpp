@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_FOLLOW_UP_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_FOLLOW_UP_HOST_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/core/agent_follow_up.hpp"
 #include "bpr/core/agent_run_policy.hpp"
@@ -60,7 +61,12 @@ namespace bpr::application {
 		follow_up_host(const follow_up_host&)                    = delete;
 		auto operator=(const follow_up_host&) -> follow_up_host& = delete;
 
-		void               set_runner(follow_up_runner aRunner);
+		void set_runner(follow_up_runner aRunner);
+		/// \brief [[BPR-2322]]. Where each question, proposal and Use is
+		/// logged (`agent.side_chat`, Standard detail): the item's kind, the
+		/// round, the apply action, the outcome or refusal, the duration and
+		/// the texts' lengths, never their words.
+		void               set_log(std::shared_ptr<diagnostic_log_port> aLog);
 		[[nodiscard]] auto available() const noexcept -> bool;
 		/// \brief Opens the follow-up about `aSubject`: the one already held
 		/// for its key, its item refreshed, or a new one. False for an invalid

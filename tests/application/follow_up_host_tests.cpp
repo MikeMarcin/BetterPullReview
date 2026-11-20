@@ -2,10 +2,17 @@
 /// \brief [[BPR-2286]]. Ask follow-up's host: each round one run on the agent
 /// lane, its answer settled on the decision lane by the core; follow-ups kept
 /// by item; Stop, a failure and shutdown; nothing applied by the host.
+/// [[BPR-2322]]: each question, proposal and Use is one `agent.side_chat`
+/// line with lengths and outcomes, and none of the words.
 #include "bpr/application/follow_up_host.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 
+#include <memory>
+
+#include <algorithm>
 #include <cstdlib>
 #include <deque>
+#include <expected>
 #include <functional>
 #include <iostream>
 #include <string>
@@ -37,6 +44,33 @@ namespace {
 		}
 	};
 
+	/// The lines the host logged, as written.
+	class recording_log final : public application::diagnostic_log_port
+	{
+	public:
+		[[nodiscard]] auto record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			Events.push_back(aEvent);
+			return application::diagnostic_log_status::available;
+		}
+		[[nodiscard]] auto                         status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+		std::vector<application::diagnostic_event> Events;
+
+		/// The side chat lines that ended (not started), parsed.
+		[[nodiscard]] auto ended() const -> std::vector<core::operation_diagnosis>
+		{
+			auto lines = std::vector<core::operation_diagnosis>{ };
+			for (const auto& event : Events) {
+				if (event.Operation == application::diagnostic_operation::side_chat && event.Outcome != application::diagnostic_outcome::started) {
+					if (auto line = core::parse_operation_diagnosis(event.Summary.text())) {
+						lines.push_back(*line);
+					}
+				}
+			}
+			return lines;
+		}
+	};
+
 	auto suggestion(const std::string& aKey) -> core::follow_up_subject
 	{
 		auto subject  = core::follow_up_subject{ };
@@ -58,7 +92,9 @@ auto main() -> int
 	auto       published = std::vector<application::follow_up_projection>{ };
 	auto       host      = application::follow_up_host{ static_cast<application::effect_executor&>(agentLane), static_cast<application::decision_executor&>(decisions),
 														[&published](const application::follow_up_projection& aProjection) { published.push_back(aProjection); } };
-	const auto agent     = application::follow_up_agent{ .Agent = "fixture", .AgentName = "Fixture agent", .Profile = 1U, .Instructions = "Answer the reviewer." };
+	const auto log       = std::make_shared<recording_log>();
+	host.set_log(log);
+	const auto agent = application::follow_up_agent{ .Agent = "fixture", .AgentName = "Fixture agent", .Profile = 1U, .Instructions = "Answer the reviewer." };
 
 	expect(!host.available(), "with no runner nothing is available");
 	expect(host.open(suggestion("finding:1")) && published.back().Open && published.back().Open->Subject.Key == "finding:1", "open shows the item's follow-up");
@@ -77,6 +113,19 @@ auto main() -> int
 	decisions.drain();
 	expect(host.is_quiescent() && asked.size() == 1U && asked[0].first == "Answer the reviewer." && asked[0].second.starts_with(core::follow_up_marker), "the instructions and the core's message went to the agent");
 	expect(published.back().Open->Rounds.size() == 1U && published.back().Open->Rounds[0].Answer == "Because it is called from both branches.", "the answer is a round");
+	{
+		// [[BPR-2322]]. Asked: started when sent, then how it ended, with the
+		// question's and the answer's lengths; a refused question says why.
+		const auto lines = log->ended();
+		expect(lines.size() == 2U && lines[0].Action == core::operation_action::side_chat_ask && lines[0].SideChat->Refusal == core::follow_up_refusal::busy && lines[0].Failure == core::operation_failure::refused,
+			   "the busy question is logged as refused");
+		const auto& trace = *lines[1].SideChat;
+		expect(lines[1].Failure == core::operation_failure::none && trace.Item == core::follow_up_subject_kind::suggested_comment && trace.Round == 1U && trace.QuestionChars == 4U
+				   && trace.AnswerChars == 40U && !trace.Apply,
+			   "the answered question is logged with its round and lengths");
+		const auto started = std::ranges::count_if(log->Events, [](const application::diagnostic_event& aEvent) { return aEvent.Operation == application::diagnostic_operation::side_chat && aEvent.Outcome == application::diagnostic_outcome::started; });
+		expect(started == 1, "a question sent is logged as started");
+	}
 
 	// Another item: its own follow-up; the first is kept for its key.
 	expect(host.open(suggestion("finding:2")) && published.back().Open->Rounds.empty(), "another item opens its own follow-up");
@@ -93,6 +142,20 @@ auto main() -> int
 	expect(host.apply(proposal->Id, "changed meanwhile").Refusal == core::follow_up_refusal::target_changed, "a text changed since is refused");
 	const auto used = host.apply(proposal->Id, "issue: the loop runs twice.");
 	expect(used.Refusal == core::follow_up_refusal::none && used.Text == proposal->Text && used.Key == "finding:1" && !published.back().Open->Proposal, "Use returns the decision; the window puts it in place");
+	{
+		// [[BPR-2322]]. The proposal, the refused Use and the Use applied,
+		// with before and after lengths.
+		const auto lines = log->ended();
+		expect(lines.size() == 5U, "a proposal and two Uses are logged");
+		expect(lines[2].Action == core::operation_action::side_chat_propose && lines[2].SideChat->Apply == core::follow_up_apply::update_suggestion && lines[2].SideChat->BeforeChars == 27U
+				   && lines[2].SideChat->AfterChars == 58U && lines[2].Failure == core::operation_failure::none,
+			   "the proposal shown is logged with the lengths of what it replaces and what it proposes");
+		expect(lines[3].Action == core::operation_action::side_chat_apply && lines[3].SideChat->Refusal == core::follow_up_refusal::target_changed && lines[3].Failure == core::operation_failure::refused,
+			   "a refused Use is logged with why");
+		expect(lines[4].Action == core::operation_action::side_chat_apply && lines[4].Failure == core::operation_failure::none && lines[4].SideChat->Apply == core::follow_up_apply::update_suggestion
+				   && lines[4].SideChat->BeforeChars == 27U && lines[4].SideChat->AfterChars == 58U,
+			   "the Use applied is logged with its before and after lengths");
+	}
 
 	// A failure and a stop say why; a stopped run's late answer is dropped.
 	answer = std::unexpected{ std::string{ "The agent did not answer (timeout)." } };
@@ -106,6 +169,18 @@ auto main() -> int
 	agentLane.drain();
 	decisions.drain();
 	expect(published.back().RunFailure == "Stopped." && published.back().Open->Rounds.size() == 1U && published.back().Open->Phase == core::follow_up_phase::idle, "Stop ends the run, adding no round");
+	{
+		const auto lines = log->ended();
+		expect(lines.size() == 7U && lines[5].Failure == core::operation_failure::operation_failed && lines[6].Failure == core::operation_failure::cancelled, "a failed and a stopped question are logged as such");
+		// No words: not the question, the answer, the proposal, the item's
+		// text, its title or its path.
+		for (const auto& event : log->Events) {
+			const auto text = std::string{ event.Summary.text() };
+			for (const auto* const word : { "Why", "Because", "step()", "loop runs", "src/a.cpp", "And now", "Stop me", "timeout" }) {
+				expect(text.find(word) == std::string::npos, "no line holds any of the words");
+			}
+		}
+	}
 
 	// Closed, nothing is shown; shutdown drops whatever comes back.
 	host.close();

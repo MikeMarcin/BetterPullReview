@@ -381,7 +381,11 @@ namespace {
 														row{ "tour.operation", "tour", "action=tour_publish failure=outcome_unknown process=none exit=none duration_ms=1200 count=3 written=0 read_back=0" },
 														row{ "tour.operation", "tour", "action=tour_import failure=draft_exists process=none exit=none duration_ms=0 count=2 written=0 read_back=0 label=PRIVATE_LABEL" },
 														row{ "cycle.round", "cycle", "action=cycle_round_read failure=revoked process=none exit=none duration_ms=3 count=0 written=0 read_back=0" },
-														row{ "cycle.round", "cycle", "action=cycle_round_respond failure=PRIVATE_RESPONSE process=none exit=none duration_ms=3 count=0 written=0 read_back=0" } }) {
+														row{ "cycle.round", "cycle", "action=cycle_round_respond failure=PRIVATE_RESPONSE process=none exit=none duration_ms=3 count=0 written=0 read_back=0" },
+														// [[BPR-2322]]. A side chat line exports with its lengths; one
+														// carrying any words keeps the record and loses its detail.
+														row{ "agent.side_chat", "agent", "action=side_chat_apply failure=refused process=none exit=none duration_ms=0 count=0 written=0 read_back=0 item=draft round=2 apply=update_draft refusal=target_changed question_chars=0 answer_chars=0 before_chars=17 after_chars=64" },
+														row{ "agent.side_chat", "agent", "action=side_chat_ask failure=refused process=none exit=none duration_ms=0 count=0 written=0 read_back=0 item=thread round=1 apply=none refusal=busy question_chars=9 answer_chars=0 before_chars=0 after_chars=0 question=PRIVATE_QUESTION" } }) {
 				auto       line    = structured_line(1U, true);
 				const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
 					const auto at = line.find(aFrom);
