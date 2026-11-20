@@ -2665,6 +2665,26 @@ namespace bpr::application {
 		return "invalid_agent_context";
 	}
 
+	/// Outside the integration block: the Codex instructions probe needs it
+	/// in every build.
+	auto materialize_agent_environment(
+		const core::agent_profile& aProfile,
+		const environment_reader&  aParent)
+		-> std::vector<std::pair<std::string, std::string>>
+	{
+		auto result = std::vector<std::pair<std::string, std::string>>{ };
+		if (!aParent || !core::valid(aProfile)) {
+			return result;
+		}
+		result.reserve(aProfile.AllowedEnvironment.size());
+		for (const auto& name : aProfile.AllowedEnvironment) {
+			if (auto value = aParent(name); value.has_value()) {
+				result.emplace_back(name, std::move(*value));
+			}
+		}
+		return result;
+	}
+
 #if defined(BPR_AGENT_INTEGRATIONS)
 	auto build_agent_context_supplement(
 		const agent_context_observation& aObservation,
@@ -2848,24 +2868,6 @@ namespace bpr::application {
 			return std::unexpected(agent_context_failure::invalid_observation);
 		}
 		return *built;
-	}
-
-	auto materialize_agent_environment(
-		const core::agent_profile& aProfile,
-		const environment_reader&  aParent)
-		-> std::vector<std::pair<std::string, std::string>>
-	{
-		auto result = std::vector<std::pair<std::string, std::string>>{ };
-		if (!aParent || !core::valid(aProfile)) {
-			return result;
-		}
-		result.reserve(aProfile.AllowedEnvironment.size());
-		for (const auto& name : aProfile.AllowedEnvironment) {
-			if (auto value = aParent(name); value.has_value()) {
-				result.emplace_back(name, std::move(*value));
-			}
-		}
-		return result;
 	}
 
 	namespace {
