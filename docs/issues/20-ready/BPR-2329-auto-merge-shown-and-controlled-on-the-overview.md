@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2329"
 title: "Auto-merge is shown on the Overview and can be enabled or disabled there"
-status: "In Progress"
+status: "Ready"
 rfcs: []
 depends_on: ["BPR-2327"]
 priority: "P2"
@@ -46,3 +46,34 @@ on; this card adds the control.
 - AC7 Evidence: fixture courses for view, enable, disable and a refusal at
   the core, GitHub contract, application host and Qt layers. Any live check
   only on MikeMarcin/BPR-Test, disabling anything it enables.
+
+## Plan (2026-11-20, not started)
+
+Work stopped before any code: the task's build disk reached its 5 GB floor
+after BPR-2327 landed. The change mirrors Ready for review's path
+([[BPR-1852]]) layer by layer:
+
+- Read: `GetMergeAssessment` (`github_read_contract.cpp`) adds
+  `viewerCanEnableAutoMerge viewerCanDisableAutoMerge` and
+  `baseRepository{autoMergeAllowed mergeCommitAllowed squashMergeAllowed
+  rebaseMergeAllowed}` inside `pullRequest` (the `repository` object is
+  exact-key checked; `pullRequest` takes required keys only), parsed in
+  `apply_merge_fields` into `github_merge_observation`, absent meaning
+  unknown. BPR-2327 already reads the method and enabler.
+- Core: an `auto_merge` header beside `draft_state.hpp`: offer, gesture
+  decision, pre-write decision (already, not open, not permitted, method not
+  allowed) and an overlay held until a read agrees.
+- Port and host: `review_auto_merge_request`/`receipt` in
+  `review_mutation_port.hpp`, `ChangesAutoMerge` capability, coordinator
+  call, `review_mutation_application_host` record, queue, user-authority
+  issuer and execution-authority check, as `change_draft_state`.
+- GitHub mutation contract: `ObserveAutoMerge`,
+  `enablePullRequestAutoMerge(input:{pullRequestId,mergeMethod})` and
+  `disablePullRequestAutoMerge`, observe first, write once, read back a lost
+  answer; GitHub's "clean status" refusal reads as "it can merge now".
+- Diagnostics: an `operation_diagnosis_kind` for enable and disable through
+  `review_mutation_diagnostics.cpp`, Standard detail, outcome only.
+- Composition (`github_application.cpp`): offer, gesture, terminal and
+  retirement as the draft state's; Qt: Merge's auto-merge line gains Enable
+  (method menu) and Disable with a status line.
+- Fixtures: the public-path fixture provider answers both mutations.
