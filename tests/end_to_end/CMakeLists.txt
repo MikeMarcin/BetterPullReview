@@ -4871,6 +4871,19 @@ bpr_add_network_isolated_test(NAME application_agent_keep_action_public_path
     COMMAND test_agent_keep_action_public_path keep "$<TARGET_FILE:test_better_pull_review_agent_suggestions_fixture>")
 set_tests_properties(application_agent_keep_action_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "keep-action:pass")
+# [[BPR-2298]]. A finding whose suggestion rewrites more lines than it names
+# drafts and publishes on every line the suggestion replaces.
+bpr_add_executable(test_agent_suggestion_range_public_path agent_suggestion_range_public_path.cpp)
+target_link_libraries(test_agent_suggestion_range_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_agent_suggestion_range_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_agent_suggestion_range_public_path)
+bpr_enable_warnings(test_agent_suggestion_range_public_path)
+add_dependencies(test_agent_suggestion_range_public_path test_better_pull_review_agent_suggestions_fixture)
+bpr_add_network_isolated_test(NAME application_agent_suggestion_range_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_agent_suggestion_range_public_path "$<TARGET_FILE:test_better_pull_review_agent_suggestions_fixture>")
+set_tests_properties(application_agent_suggestion_range_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "suggestion-range:pass")
 # RFC-BPR-0118 ([[BPR-2078]]). Suggest the change, on nested-folders-v1 with
 # the scoped writing stub as the installed Claude.
 bpr_add_executable(test_suggest_change_public_path suggest_change_public_path.cpp)
@@ -5662,6 +5675,22 @@ if(APPLE OR UNIX)
         COMMAND test_draft_description_public_path)
     set_tests_properties(application_draft_description_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "draft-description:pass")
+endif()
+# [[BPR-2286]]. Ask follow-up on a finding (Agent tab and report) and Ask about
+# this on a draft composer and a thread: rounds with the fixture agent, Update
+# suggested comment, Update draft and Draft reply, seen first, nothing posted.
+bpr_add_executable(test_follow_up_public_path follow_up_public_path.cpp)
+target_link_libraries(test_follow_up_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_follow_up_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_follow_up_public_path)
+bpr_enable_warnings(test_follow_up_public_path)
+add_dependencies(test_follow_up_public_path bpr_fixture_agent)
+if(APPLE OR UNIX)
+    bpr_add_network_isolated_test(NAME application_follow_up_public_path
+        WINDOWS_UNCONTAINED
+        COMMAND test_follow_up_public_path)
+    set_tests_properties(application_follow_up_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "follow-up:pass")
 endif()
 # [[BPR-2153]], RFC-BPR-0126 AC05. Steer through the window on the session
 # queue host: a follow-up steered into the steerable fixture agent's running

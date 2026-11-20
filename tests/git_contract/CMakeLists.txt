@@ -273,7 +273,7 @@ if(WIN32)
 endif()
 bpr_enable_warnings(test_better_pull_review_haves_trimmed_pack_integration_tests)
 
-foreach(bpr_haves_course IN ITEMS update missing-object unconnected tour-source)
+foreach(bpr_haves_course IN ITEMS update missing-object unconnected tour-source historical historical-wall)
     bpr_add_network_isolated_test(
         NAME "git_haves_trimmed_pack_${bpr_haves_course}"
         WINDOWS_UNCONTAINED
@@ -424,6 +424,27 @@ if(UNIX OR WIN32)
             --executable "$<TARGET_FILE:test_better_pull_review_agent_workspace_ownership_tests>"
     )
     set_tests_properties(agent_workspace_ownership PROPERTIES TIMEOUT 120)
+endif()
+
+# [[BPR-2293]]. Retained agent workspaces expire over the real catalog and
+# installed Git: AC1-AC3 of the card, on scratch roots only.
+if(UNIX AND (BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI))
+    bpr_add_executable(test_better_pull_review_retained_workspace_expiry_course retained_workspace_expiry_course.cpp)
+    target_link_libraries(
+        test_better_pull_review_retained_workspace_expiry_course
+        PRIVATE BetterPullReview::AdapterGit BetterPullReview::AdapterSQLite BetterPullReview::Application Qt6::Core
+    )
+    target_compile_definitions(
+        test_better_pull_review_retained_workspace_expiry_course
+        PRIVATE BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
+    )
+    bpr_enable_hardening(test_better_pull_review_retained_workspace_expiry_course)
+    bpr_enable_warnings(test_better_pull_review_retained_workspace_expiry_course)
+    bpr_add_network_isolated_test(
+        NAME retained_workspace_expiry
+        COMMAND test_better_pull_review_retained_workspace_expiry_course
+    )
+    set_tests_properties(retained_workspace_expiry PROPERTIES PASS_REGULAR_EXPRESSION "RETAINED_WORKSPACE_EXPIRY_OK" TIMEOUT 180)
 endif()
 
 # [[BPR-0900]]. The product, the CMake helper and the Python helper each

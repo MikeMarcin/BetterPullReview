@@ -169,16 +169,36 @@ namespace bpr::application {
 								   git_smart_transport_step               aStep) const noexcept
 	{
 		if (Log) {
-			static_cast<void>(Log->record({ .Operation         = diagnostic_operation::epoch,
-											.Outcome           = aOutcome,
-											.Request           = Request,
-											.WindowSession     = WindowSession,
-											.EpochStage        = aStage,
-											.EpochFailure      = std::move(aFailure),
-											.EpochPackFailure  = aPack,
-											.GitStep           = aStep,
-											.ContextGeneration = Generation }));
+			auto event = diagnostic_event{ .Operation         = diagnostic_operation::epoch,
+										   .Outcome           = aOutcome,
+										   .Request           = Request,
+										   .WindowSession     = WindowSession,
+										   .EpochStage        = aStage,
+										   .EpochFailure      = std::move(aFailure),
+										   .EpochPackFailure  = aPack,
+										   .GitStep           = aStep,
+										   .ContextGeneration = Generation };
+			// [[BPR-2290]]. A detail the host composed of enums and counts.
+			if (aOutcome != diagnostic_outcome::started && !PendingDetail.empty() && PendingDetail.size() <= event.Summary.Text.size()) {
+				std::ranges::copy(PendingDetail, event.Summary.Text.begin());
+				event.Summary.Size  = static_cast<std::uint16_t>(PendingDetail.size());
+				event.Summary.State = diagnostic_summary_state::sanitized;
+			}
+			static_cast<void>(Log->record(event));
 		}
+	}
+
+	auto historical_acquisition_summary(const git_smart_request_context& aContext, const git_smart_transport_port& aTransport, const std::size_t aHaves,
+										const git_protocol_v2_client_result<git_protocol_v2_acquisition_result>& aResult) -> std::string
+	{
+		auto text = std::string{ aContext.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees ? "mode=sparse_commit_trees" : "mode=complete_closure" };
+		text += aTransport.last_fetch_source() == git_smart_fetch_source::linked_clone ? " source=linked_clone" : " source=host";
+		text += aContext.HistoryClone ? " linked_clone=1" : " linked_clone=0";
+		text += " haves=" + std::to_string(aHaves);
+		if (aResult) {
+			text += " pack_bytes=" + std::to_string(aResult->Fetch.PackBytes) + " wire_bytes=" + std::to_string(aResult->Fetch.WireBytes);
+		}
+		return text;
 	}
 
 	void epoch_diagnostics::failed(diagnostic_epoch_stage aStage, const git_cache_error& aFailure) const noexcept

@@ -721,7 +721,13 @@ namespace {
 										saved.push_back("scratch:" + std::to_string(aLimit) + ":" + std::to_string(aDays));
 										return true;
 									},
-								.ClearScratch = [&saved] { saved.emplace_back("clear-scratch"); } });
+								.ClearScratch = [&saved] { saved.emplace_back("clear-scratch"); },
+								.SetWorkspacePolicy =
+									[&saved](const std::uint32_t aDays, const std::uint32_t aCap) {
+										saved.push_back("workspaces:" + std::to_string(aDays) + ":" + std::to_string(aCap));
+										return true;
+									},
+								.RemoveWorkspaces = [&saved] { saved.emplace_back("remove-workspaces"); } });
 		auto preferences   = application::agent_setup_preferences{ };
 		preferences.Agents = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/wrapper" });
 		preferences.Agents = *core::add_agent_entry(preferences.Agents, { .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } });
@@ -777,6 +783,31 @@ namespace {
 		expect(saved.back() == "clear-scratch", "Clear scratch folders is an intent");
 		programs.present_scratch_usage(std::pair<std::uint64_t, std::size_t>{ 0U, 0U }, QStringLiteral("Cleared 3 MB from 2 folders."));
 		expect(programs.scratch_usage()->text().startsWith(QStringLiteral("No scratch folders.")) && !programs.scratch_clear_button()->isEnabled(), "nothing left to clear");
+		// [[BPR-2293]]. The retained agent workspaces: the cap, the days, what
+		// they hold and Remove…, which asks first.
+		expect(programs.workspace_cap()->value() == 20 && programs.workspace_keep_toggle()->isChecked() && programs.workspace_keep_days()->value() == 7, "the workspace policy starts at 20 GB and 7 days");
+		expect(programs.workspace_usage_label()->text().contains(QStringLiteral("measuring")) && !programs.workspace_remove_button()->isEnabled(), "unmeasured, the line says so and Remove waits");
+		programs.workspace_cap()->setValue(40);
+		emit programs.workspace_cap()->editingFinished();
+		programs.workspace_keep_toggle()->setChecked(false);
+		expect(saved.size() >= 2U && saved[saved.size() - 2U] == "workspaces:7:40" && saved.back() == "workspaces:0:40", "a cap and keeping workspaces until removed are sent");
+		programs.present_workspace_usage(qt::agent_programs_panel::workspace_usage{ .Count = 3U, .Bytes = 17'200'000'000ULL, .InUse = 1U });
+		expect(programs.workspace_usage_label()->text().startsWith(QStringLiteral("Retained agent workspaces: 3, 17.2 GB.")) && programs.workspace_usage_label()->text().contains(QStringLiteral("1 is in use")),
+			   "the line says how many and their total size, and how many are in use");
+		programs.workspace_remove_button()->click();
+		auto* const question = programs.workspace_question();
+		expect(question != nullptr && saved.back() != "remove-workspaces", "Remove… asks before it removes anything");
+		expect(question->windowTitle().contains(QStringLiteral("Remove 2 agent workspaces?")), "the question counts the ones not in use");
+		question->reject();
+		expect(saved.back() != "remove-workspaces", "Cancel removes nothing");
+		QCoreApplication::processEvents();
+		programs.workspace_remove_button()->click();
+		programs.workspace_question()->accept();
+		expect(saved.back() == "remove-workspaces", "confirming sends Remove");
+		programs.present_workspace_usage(qt::agent_programs_panel::workspace_usage{ .Count = 1U, .Bytes = 4'100'000'000ULL, .InUse = 1U }, QStringLiteral("Removed 2 workspaces, 13.1 GB."));
+		expect(programs.workspace_usage_label()->text().contains(QStringLiteral("1, 4.1 GB")) && programs.workspace_usage_label()->text().endsWith(QStringLiteral("Removed 2 workspaces, 13.1 GB."))
+				   && !programs.workspace_remove_button()->isEnabled(),
+			   "the line says what is left, and Remove waits while only one in use is left");
 		// The dialog: OK waits for an entry that may be kept, and the
 		// arguments are taken one per line, as written.
 		auto dialog = qt::agent_entry_dialog{ core::agent_entry{ } };

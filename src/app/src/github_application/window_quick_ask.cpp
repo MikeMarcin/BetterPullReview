@@ -83,6 +83,10 @@ namespace bpr::app {
 								  .Draft  = [this](const qt::ask_menu_request& aRequest, const core::quick_ask_row& aRow) { draft_quick_ask(aRequest, aRow); },
 								  .Custom = [this](const qt::ask_menu_request& aRequest) { ask_custom_question(aRequest); },
 								  .Edit   = [this] { Window->reveal_prompt_macros(); },
+								  // [[BPR-2286]]. Ask about this… on a thread (or a draft's card).
+								  .FollowUp = [this](const qt::ask_menu_request& aRequest) {
+									  const auto identity = aRequest.Thread.toStdString();
+									  follow_up_conversation(identity, Window->conversation_panel()->cards()->field_text(identity).value_or(QString{ })); },
 							  });
 		attach_agent_queue();
 		Window->agent_tab()->set_availability_observer([this](const bool aSettled) { observe_ask_queue(aSettled); });
@@ -733,13 +737,17 @@ namespace bpr::app {
 		}
 		const auto why = aQueue.Paused == core::queue_pause::reviewer ? QStringLiteral("Paused")
 			: aQueue.Paused == core::queue_pause::stopped             ? QStringLiteral("Paused: Stop all")
-			: aQueue.Paused == core::queue_pause::failed              ? QStringLiteral("Paused: a run failed")
-			: aQueue.Paused == core::queue_pause::usage_limit         ? QStringLiteral("Paused: the agent's usage limit")
-			: aQueue.Paused == core::queue_pause::restarted           ? QStringLiteral("Paused since the app restarted")
-			: aQueue.Paused == core::queue_pause::delivery_unknown    ? QStringLiteral("Paused: a message may not have been delivered")
-			: aQueue.Paused == core::queue_pause::changed_target      ? QStringLiteral("Paused: what a message is about has changed")
-			: aQueue.Paused == core::queue_pause::lost_access         ? QStringLiteral("Paused: this pull request can no longer be read with your account")
-																	  : QStringLiteral("Queued, %1").arg(state);
+			// [[BPR-2295]]. A queue paused behind a stop that would repeat says
+			// so: resuming it would stop the same way.
+			: aQueue.Paused == core::queue_pause::failed && Window->agent_tab()->stopped_for_good()
+			? QStringLiteral("Paused: waiting on the stop above. The agent's copy of this pull request can't be made until the linked clone is used.")
+			: aQueue.Paused == core::queue_pause::failed           ? QStringLiteral("Paused: a run failed")
+			: aQueue.Paused == core::queue_pause::usage_limit      ? QStringLiteral("Paused: the agent's usage limit")
+			: aQueue.Paused == core::queue_pause::restarted        ? QStringLiteral("Paused since the app restarted")
+			: aQueue.Paused == core::queue_pause::delivery_unknown ? QStringLiteral("Paused: a message may not have been delivered")
+			: aQueue.Paused == core::queue_pause::changed_target   ? QStringLiteral("Paused: what a message is about has changed")
+			: aQueue.Paused == core::queue_pause::lost_access      ? QStringLiteral("Paused: this pull request can no longer be read with your account")
+																   : QStringLiteral("Queued, %1").arg(state);
 		Window->agent_tab()->present_queue_rows(std::move(rows), why, aQueue.Paused != core::queue_pause::none);
 	}
 

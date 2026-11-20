@@ -119,6 +119,9 @@ namespace bpr::qt {
 		void restart();
 		/// \brief What Retry does; without one, a failure offers none.
 		void set_retry(std::function<void()> aRetry);
+		/// \brief [[BPR-2291]]. What Cancel does; with one, a first load whose
+		/// words show offers Cancel under them. Empty takes it away.
+		void set_cancel(std::function<void()> aCancel);
 		void set_full_motion(bool aFull);
 		void set_high_contrast(bool aHigh);
 		void set_failure_ink(const QColor& aInk);
@@ -148,6 +151,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto shown_text() const -> QString;
 		[[nodiscard]] auto busy() const noexcept -> bool;
 		[[nodiscard]] auto retry_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto cancel_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto full_motion() const noexcept -> bool;
 		[[nodiscard]] auto frame() const noexcept -> int;
 		/// \brief The rule's sweep, a fraction of the width; animation only.
@@ -207,8 +211,10 @@ namespace bpr::qt {
 		std::function<std::int64_t()> Clock;
 		std::function<void()>         Retry;
 		QPushButton*                  RetryButton = nullptr;
-		QTimer*                       Wake        = nullptr;
-		QTimer*                       Frames      = nullptr;
+		std::function<void()>         Cancel;
+		QPushButton*                  CancelButton = nullptr;
+		QTimer*                       Wake         = nullptr;
+		QTimer*                       Frames       = nullptr;
 		QColor                        FailureInk;
 		bool                          FullMotion   = false;
 		bool                          HighContrast = false;

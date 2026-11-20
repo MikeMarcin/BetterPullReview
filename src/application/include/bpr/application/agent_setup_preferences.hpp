@@ -4,6 +4,7 @@
 #include "bpr/core/agent_entry.hpp"
 #include "bpr/core/agent_grant.hpp"
 #include "bpr/core/agent_setup.hpp"
+#include "bpr/core/agent_workspace_expiry.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 
 #include <algorithm>
@@ -88,6 +89,10 @@ namespace bpr::application {
 		/// (0: kept until cleared).
 		std::uint32_t ScratchLimitMiB = core::default_agent_scratch_limit_mib;
 		std::uint32_t ScratchKeepDays = core::default_agent_scratch_keep_days;
+		/// [[BPR-2293]]. The days an unused retained agent workspace is kept
+		/// (0: kept until removed), and the GB they may hold together.
+		std::uint32_t WorkspaceKeepDays = core::default_agent_workspace_keep_days;
+		std::uint32_t WorkspaceCapGb    = core::default_agent_workspace_cap_gb;
 
 		auto operator<=>(const agent_setup_preferences&) const = default;
 	};
@@ -107,6 +112,8 @@ namespace bpr::application {
 			&& aPreferences.RunLimitMinutes <= maximum_run_limit_minutes && aPreferences.EntryChecks.size() <= core::maximum_agent_entry_id
 			&& aPreferences.ScratchLimitMiB >= core::minimum_agent_scratch_limit_mib && aPreferences.ScratchLimitMiB <= core::maximum_agent_scratch_limit_mib
 			&& aPreferences.ScratchKeepDays <= core::maximum_agent_scratch_keep_days
+			&& aPreferences.WorkspaceKeepDays <= core::maximum_agent_workspace_keep_days
+			&& aPreferences.WorkspaceCapGb >= core::minimum_agent_workspace_cap_gb && aPreferences.WorkspaceCapGb <= core::maximum_agent_workspace_cap_gb
 			&& aPreferences.WorkspaceChecks.size() <= maximum_kept_workspace_checks
 			&& std::ranges::all_of(aPreferences.WorkspaceChecks, [](const std::string& aKey) { return !aKey.empty() && aKey.size() <= maximum_workspace_check_key_bytes; })
 			&& std::ranges::all_of(aPreferences.EntryChecks, [](const agent_entry_check_record& aRecord) {

@@ -1229,7 +1229,8 @@ namespace bpr::application {
 			git_pack_stream_sink&                       aSink,
 			const git_protocol_v2_fetch_limits          aLimits,
 			const std::stop_token                       aStop,
-			const std::optional<core::git_commit_oid>   aHistoricalHead)
+			const std::optional<core::git_commit_oid>   aHistoricalHead,
+			const git_smart_clone_progress&             aReceived)
 			-> git_protocol_v2_client_result<git_protocol_v2_fetch_result>
 		{
 			const auto body = make_git_protocol_v2_fetch_request(aContext, aCapabilities, aHaves, aHistoricalHead);
@@ -1250,13 +1251,51 @@ namespace bpr::application {
 				expected_object_format(aContext),
 				aStop,
 			};
-			const auto transported = aTransport.fetch(
+			// [[BPR-2291]]. What arrives is counted on its way to the parser, and
+			// what a transport says it has received is passed on, so a wait can
+			// say how much has come.
+			class counted_consumer final : public git_smart_wire_consumer
+			{
+			public:
+				counted_consumer(git_smart_wire_consumer& aInner, const git_smart_clone_progress& aReceived) noexcept
+					: Inner{ aInner }
+					, Received{ aReceived }
+				{
+				}
+				[[nodiscard]] auto consume(const std::span<const std::byte> aBytes) noexcept -> bool override
+				{
+					Wire += aBytes.size();
+					report(Wire);
+					return Inner.consume(aBytes);
+				}
+				void received(const std::uint64_t aBytes) noexcept override
+				{
+					report(aBytes);
+				}
+
+			private:
+				void report(const std::uint64_t aBytes) noexcept
+				{
+					if (!Received) {
+						return;
+					}
+					try {
+						Received(aBytes);
+					} catch (...) { }
+				}
+
+				git_smart_wire_consumer&        Inner;
+				const git_smart_clone_progress& Received;
+				std::uint64_t                   Wire = 0U;
+			};
+			counted_consumer counted{ parser, aReceived };
+			const auto       transported = aTransport.fetch(
 				git_smart_fetch_request{
 					.Context              = aContext,
 					.Body                 = *body,
 					.MaximumResponseBytes = aLimits.MaximumWireBytes,
 				},
-				parser,
+				counted,
 				aStop);
 			if (!transported.has_value()) {
 				if (
@@ -1290,7 +1329,8 @@ namespace bpr::application {
 		git_pack_stream_sink&                       aSink,
 		const git_protocol_v2_fetch_limits          aLimits,
 		const std::stop_token                       aStop,
-		const std::optional<core::git_commit_oid>   aHistoricalHead)
+		const std::optional<core::git_commit_oid>   aHistoricalHead,
+		const git_smart_clone_progress&             aReceived = { })
 		-> git_protocol_v2_client_result<git_protocol_v2_acquisition_result>
 	{
 		abort_once_pack_sink guardedSink{ aSink };
@@ -1341,7 +1381,7 @@ namespace bpr::application {
 			aHaves,
 			guardedSink,
 			aLimits,
-			aStop, aHistoricalHead);
+			aStop, aHistoricalHead, aReceived);
 		if (!fetched.has_value()) {
 			return std::unexpected(fetched.error());
 		}
@@ -1358,10 +1398,11 @@ namespace bpr::application {
 		std::span<const git_protocol_v2_have> aHaves,
 		git_pack_stream_sink&                 aSink,
 		git_protocol_v2_fetch_limits          aLimits,
-		std::stop_token                       aStop)
+		std::stop_token                       aStop,
+		const git_smart_clone_progress&       aReceived)
 		-> git_protocol_v2_client_result<git_protocol_v2_acquisition_result>
 	{
-		return acquire_git_protocol_v2_pack_impl(aTransport, aContext, aHaves, aSink, aLimits, aStop, std::nullopt);
+		return acquire_git_protocol_v2_pack_impl(aTransport, aContext, aHaves, aSink, aLimits, aStop, std::nullopt, aReceived);
 	}
 
 	auto acquire_git_protocol_v2_historical_pack(

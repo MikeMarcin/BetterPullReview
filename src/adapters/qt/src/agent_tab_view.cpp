@@ -19,13 +19,16 @@
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/line_bounded_label.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/stick_to_bottom.hpp"
 #include "conversation_glyphs.hpp"
 
 #include <QAbstractItemModel>
@@ -60,6 +63,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPlainTextEdit>
+#include <QPoint>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QResizeEvent>
@@ -76,6 +80,7 @@
 #include <algorithm>
 #include <array>
 #include <limits>
+#include <optional>
 #include <tuple>
 #include <utility>
 
@@ -273,12 +278,14 @@ namespace bpr::qt {
 				row->setContentsMargins(8 + 24 + 10, 7, 8 + 16, 7);
 				auto* const words = new QVBoxLayout{ };
 				words->setSpacing(1);
-				Title = new QLabel{ this };
+				// [[BPR-2297]]. Two whole lines at most, the second ending in
+				// "…" when the title goes on. A maximum height of two lines,
+				// taken before the title was made semibold, let a title that
+				// is its answer's whole first line wrap to three lines in a
+				// two-line box, which cut the first and last through.
+				Title = new line_bounded_label{ 2, this };
 				Title->setObjectName(QStringLiteral("agentTurnReportTitle"));
-				Title->setTextFormat(Qt::PlainText);
-				Title->setWordWrap(true);
 				Title->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-				Title->setMaximumHeight(2 * Title->fontMetrics().lineSpacing() + 2);
 				auto semibold = Title->font();
 				semibold.setWeight(QFont::DemiBold);
 				Title->setFont(semibold);
@@ -296,9 +303,16 @@ namespace bpr::qt {
 				// [[BPR-2215]]. The page icon's height, so the layout that
 				// places the row never gives it less than the icon needs.
 				row->addStrut(30);
+				// [[BPR-2297]]. A shortened title is whole in the tooltip,
+				// anchored to the row ([[BPR-1354]]); a title shown whole
+				// keeps the row's own "Open report".
+				anchor_tooltips(*this, [this](QPoint) -> std::optional<anchored_tooltip_target> {
+					const auto shortened = Title->elided(Title->contentsRect().width());
+					return anchored_tooltip_target{ .Anchor = rect(), .Text = shortened ? tr("Open report: %1").arg(Title->text()) : toolTip() };
+				});
 			}
 
-			[[nodiscard]] auto title() const noexcept -> QLabel* { return Title; }
+			[[nodiscard]] auto title() const noexcept -> line_bounded_label* { return Title; }
 			[[nodiscard]] auto meta() const noexcept -> QLabel* { return Meta; }
 
 			void set_selected(const bool aSelected)
@@ -382,9 +396,9 @@ namespace bpr::qt {
 			}
 
 		private:
-			QLabel* Title    = nullptr;
-			QLabel* Meta     = nullptr;
-			bool    Selected = false;
+			line_bounded_label* Title    = nullptr;
+			QLabel*             Meta     = nullptr;
+			bool                Selected = false;
 		};
 
 		/// \brief Owner look v003 ("Timestamp would also be nice"): a time
@@ -609,7 +623,25 @@ namespace bpr::qt {
 		bold.setWeight(QFont::DemiBold);
 		BannerTitle->setFont(bold);
 		BannerTitle->setWordWrap(true);
-		bannerCol->addWidget(BannerTitle);
+		// [[BPR-2295]] (owner, 2026-11-19: "The little x in the top right
+		// that the agent is ready box has is good enough"). A stop is
+		// dismissed with the ready box's own close; the kept message stays.
+		auto* const bannerTop = new QHBoxLayout{ };
+		bannerTop->addWidget(BannerTitle, 1);
+		BannerDismiss = new quiet_tool_button{ Banner };
+		BannerDismiss->setObjectName(QStringLiteral("agentStateDismiss"));
+		BannerDismiss->setAutoRaise(true);
+		BannerDismiss->setText(QString{ QChar{ 0x2715 } });
+		BannerDismiss->setAccessibleName(tr("Dismiss"));
+		BannerDismiss->setToolTip(tr("Dismiss"));
+		BannerDismiss->setFocusPolicy(Qt::StrongFocus);
+		BannerDismiss->hide();
+		connect(BannerDismiss, &QToolButton::clicked, this, [this] {
+			StoppedDismissed = true;
+			present_banner();
+		});
+		bannerTop->addWidget(BannerDismiss, 0, Qt::AlignTop);
+		bannerCol->addLayout(bannerTop);
 		BannerText = new QLabel{ Banner };
 		BannerText->setObjectName(QStringLiteral("agentStateText"));
 		BannerText->setWordWrap(true);
@@ -772,6 +804,8 @@ namespace bpr::qt {
 		contentCol->addWidget(SetupPrompt);
 		contentCol->addStretch(1);
 		scroll->setWidget(content);
+		// [[BPR-2296]]. At its end, the conversation stays there as it grows.
+		stick_to_bottom::attach(*scroll);
 		talk->addWidget(scroll, 1);
 
 		// The question field: the words, its context chips, Context and Ask.
@@ -1228,6 +1262,11 @@ namespace bpr::qt {
 		}
 		if (State == agent_tab_state::working) {
 			Finished = false;
+		}
+		if ((State == agent_tab_state::working) != wasWorking) {
+			if (auto* const scroll = qobject_cast<QScrollArea*>(Viewport != nullptr ? Viewport->parentWidget() : nullptr); scroll != nullptr) {
+				stick_to_bottom::attach(*scroll).set_turn_running(State == agent_tab_state::working);
+			}
 		}
 		if (Pages->currentWidget() != HistoryPage || setting) {
 			Pages->setCurrentWidget(setting ? static_cast<QWidget*>(SetupView) : State == agent_tab_state::not_set_up ? static_cast<QWidget*>(Empty)
@@ -3575,6 +3614,8 @@ namespace bpr::qt {
 		return aTurn < Turns.size() && Turns[aTurn].Footer != nullptr ? Turns[aTurn].Footer->text() : QString{ };
 	}
 
+	auto agent_tab_view::stopped_for_good() const noexcept -> bool { return Launch.stopped_for_good(); }
+
 	void agent_tab_view::present_banner()
 	{
 		if (!panels_alive()) {
@@ -3586,6 +3627,7 @@ namespace bpr::qt {
 		BannerSecond->disconnect();
 		BannerFirst->show();
 		BannerSecond->show();
+		BannerDismiss->setVisible(State == agent_tab_state::stopped);
 		Log->setVisible(LogShown && State == agent_tab_state::stopped);
 		switch (State) {
 		case agent_tab_state::not_set_up:
@@ -3667,6 +3709,11 @@ namespace bpr::qt {
 			// [[BPR-2000]]. Resend starts a run.
 			wear_agent_accent(*BannerFirst, palette());
 			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
+			// [[BPR-2295]]. A stop that would stop the same way again is not
+			// offered a Resend as its fix; the reason says what would change it.
+			if (Launch.stopped_for_good()) {
+				BannerFirst->hide();
+			}
 			BannerSecond->setText(LogShown ? tr("Hide the log") : tr("Show the log"));
 			connect(BannerSecond, &QPushButton::clicked, this, [this] {
 				LogShown = !LogShown;
@@ -3985,27 +4032,15 @@ namespace bpr::qt {
 			evidence->setPalette(quiet);
 			col->addWidget(evidence);
 		}
-		if (finding.SuggestedComment && !finding.SuggestedComment->empty()) {
-			col->addSpacing(6);
+		// [[BPR-2286]]. The inset is built for every card and shown while the
+		// card has a suggested comment, so a follow-up's update can show in a
+		// card that had none.
+		{
 			auto* const inset = new suggestion_inset{ card };
 			inset->setObjectName(QStringLiteral("agentFindingSuggestion"));
 			auto* const insetColumn = new QVBoxLayout{ inset };
 			insetColumn->setContentsMargins(12, 7, 10, 8);
 			insetColumn->setSpacing(3);
-			// A Conventional Comments label the agent led with is said once,
-			// quietly, beside the caption, and the comment reads from its
-			// subject; the draft still opens with it in the label control.
-			const auto& suggested = *finding.SuggestedComment;
-			const auto  read      = core::recognize_feedback_prefix(suggested);
-			auto        shown     = suggested;
-			auto        label     = QString{ };
-			if (read.Status == core::feedback_prefix_status::recognized && read.Header && read.Subject && read.Subject->Begin <= suggested.size() && read.Header->End <= suggested.size()) {
-				label = QString::fromStdString(suggested.substr(read.Header->Begin, read.Header->End - read.Header->Begin)).trimmed();
-				if (label.endsWith(QLatin1Char{ ':' })) {
-					label.chop(1);
-				}
-				shown = suggested.substr(read.Subject->Begin);
-			}
 			auto* const captionRow = new QHBoxLayout{ };
 			captionRow->setSpacing(8);
 			auto* const caption = new QLabel{ tr("Suggested comment"), inset };
@@ -4016,20 +4051,19 @@ namespace bpr::qt {
 			caption->setFont(small);
 			captionRow->addWidget(caption);
 			captionRow->addStretch(1);
-			if (!label.isEmpty()) {
-				auto* const labelled = new QLabel{ label, inset };
-				labelled->setObjectName(QStringLiteral("agentFindingSuggestionLabel"));
-				// [[BPR-2236]]. In its tone, as the report page draws the label.
-				labelled->setForegroundRole(QPalette::PlaceholderText);
-				labelled->setProperty("bprToneLabel", label);
-				labelled->setFont(small);
-				labelled->setToolTip(tr("The label the agent gave it. A draft opens with it chosen in the label control."));
-				captionRow->addWidget(labelled);
-			}
+			auto* const labelled = new QLabel{ inset };
+			labelled->setObjectName(QStringLiteral("agentFindingSuggestionLabel"));
+			// [[BPR-2236]]. In its tone, as the report page draws the label.
+			labelled->setForegroundRole(QPalette::PlaceholderText);
+			labelled->setFont(small);
+			labelled->setToolTip(tr("The label the agent gave it. A draft opens with it chosen in the label control."));
+			captionRow->addWidget(labelled);
 			insetColumn->addLayout(captionRow);
-			auto* const comment = cardText(inset, shown, QStringLiteral("agentFindingComment"), 22);
+			auto* const comment = cardText(inset, std::string{ }, QStringLiteral("agentFindingComment"), 22);
 			insetColumn->addWidget(comment);
+			col->addSpacing(6);
 			col->addWidget(inset);
+			show_card_suggestion(aEntry, *inset);
 		}
 		col->addSpacing(2);
 		auto* const actions = new QHBoxLayout{ };
@@ -4051,6 +4085,21 @@ namespace bpr::qt {
 		dismiss->setFlat(true);
 		connect(dismiss, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::dismiss); });
 		actions->addWidget(dismiss);
+		// [[BPR-2286]]. Ask follow-up: a conversation about this finding, in
+		// its own window; it sends nothing by itself.
+		auto* const followUp = new quiet_push_button{ tr("Ask follow-up"), card };
+		followUp->setObjectName(QStringLiteral("agentFindingFollowUp"));
+		followUp->setFlat(true);
+		followUp->setToolTip(tr("Ask the agent about this finding, and have it rewrite the suggested comment if you want. Nothing is posted."));
+		followUp->setAccessibleDescription(followUp->toolTip());
+		followUp->setVisible(static_cast<bool>(FollowUpDispatch));
+		connect(followUp, &QPushButton::clicked, this, [this, index] {
+			const auto found = std::ranges::find(CardEntries, index, &card_entry::Id);
+			if (found != CardEntries.end() && FollowUpDispatch) {
+				FollowUpDispatch({ .Session = found->Session, .Ordinal = found->Ordinal, .Finding = found->Finding, .Action = agent_finding_card_action::draft_comment });
+			}
+		});
+		actions->addWidget(followUp);
 		auto* const state = new QLabel{ card };
 		state->setObjectName(QStringLiteral("agentFindingState"));
 		state->setForegroundRole(QPalette::PlaceholderText);
@@ -4087,6 +4136,60 @@ namespace bpr::qt {
 		return card;
 	}
 
+	/// [[BPR-2286]]. The card's suggested comment, as it is now: its label
+	/// said once beside the caption, the comment from its subject.
+	void agent_tab_view::show_card_suggestion(card_entry& aEntry, QWidget& aInset)
+	{
+		const auto suggested = aEntry.Finding.SuggestedComment.value_or(std::string{ });
+		aInset.setVisible(!suggested.empty());
+		const auto read  = core::recognize_feedback_prefix(suggested);
+		auto       shown = suggested;
+		auto       label = QString{ };
+		if (read.Status == core::feedback_prefix_status::recognized && read.Header && read.Subject && read.Subject->Begin <= suggested.size() && read.Header->End <= suggested.size()) {
+			label = QString::fromStdString(suggested.substr(read.Header->Begin, read.Header->End - read.Header->Begin)).trimmed();
+			if (label.endsWith(QLatin1Char{ ':' })) {
+				label.chop(1);
+			}
+			shown = suggested.substr(read.Subject->Begin);
+		}
+		if (auto* const labelled = aInset.findChild<QLabel*>(QStringLiteral("agentFindingSuggestionLabel")); labelled != nullptr) {
+			labelled->setText(label);
+			labelled->setProperty("bprToneLabel", label);
+			labelled->setVisible(!label.isEmpty());
+		}
+		if (auto* const comment = dynamic_cast<markdown_body_view*>(aInset.findChild<QWidget*>(QStringLiteral("agentFindingComment"))); comment != nullptr) {
+			comment->set_body(shown, "agent-card-" + std::to_string(aEntry.Id) + "-agentFindingComment");
+			fit_card_text(*comment);
+		}
+	}
+
+	void agent_tab_view::set_follow_up_dispatch(agent_finding_card_dispatch aDispatch)
+	{
+		FollowUpDispatch = std::move(aDispatch);
+		for (const auto& entry : CardEntries) {
+			if (auto* const button = entry.Widget ? entry.Widget->findChild<QPushButton*>(QStringLiteral("agentFindingFollowUp")) : nullptr; button != nullptr) {
+				button->setVisible(static_cast<bool>(FollowUpDispatch));
+			}
+		}
+	}
+
+	auto agent_tab_view::revise_finding(const std::uint64_t aSession, const std::size_t aOrdinal, const QString& aComment) -> bool
+	{
+		auto revised = false;
+		for (auto& entry : CardEntries) {
+			if (entry.Session != aSession || entry.Ordinal != aOrdinal) {
+				continue;
+			}
+			entry.Finding.SuggestedComment = aComment.toStdString();
+			if (auto* const inset = entry.Widget ? entry.Widget->findChild<QWidget*>(QStringLiteral("agentFindingSuggestion")) : nullptr; inset != nullptr) {
+				show_card_suggestion(entry, *inset);
+				colour_card(entry);
+			}
+			revised = true;
+		}
+		return revised;
+	}
+
 	void agent_tab_view::show_card_state(card_entry& aEntry)
 	{
 		if (aEntry.Widget == nullptr) {
@@ -4104,10 +4207,12 @@ namespace bpr::qt {
 		if (auto* const goToNote = card->findChild<QPushButton*>(QStringLiteral("agentFindingGoToComment")); goToNote != nullptr) {
 			goToNote->setVisible(aEntry.State == agent_finding_card_state::noted && aEntry.Note != 0U && NoteNavigate);
 		}
+		// [[BPR-2298]]. A draft whose lines need saying (a range widened to
+		// its suggestion's lines, or one to check) says so.
 		switch (aEntry.State) {
 		case agent_finding_card_state::open:      state->clear(); break;
 		case agent_finding_card_state::working:   state->setText(tr("Working…")); break;
-		case agent_finding_card_state::drafted:   state->setText(tr("Drafted. It is a private draft until you publish it.")); break;
+		case agent_finding_card_state::drafted:   state->setText(aEntry.Why.isEmpty() ? tr("Drafted. It is a private draft until you publish it.") : aEntry.Why); break;
 		case agent_finding_card_state::noted:     state->setText(tr("Kept local.")); break;
 		case agent_finding_card_state::dismissed: state->setText(tr("Dismissed.")); break;
 		case agent_finding_card_state::refused:   state->setText(aEntry.Why.isEmpty() ? tr("That could not be done.") : aEntry.Why); break;

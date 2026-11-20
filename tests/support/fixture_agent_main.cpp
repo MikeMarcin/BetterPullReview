@@ -317,6 +317,25 @@ namespace {
 
 	auto answer_for(const std::string& aRequest) -> std::string
 	{
+		// [[BPR-2286]]. A follow-up round: a proposal is only its text; a
+		// question's answer says how many earlier rounds its message carried,
+		// so a course sees the conversation travel with each round.
+		if (holds(aRequest, "bpr.follow-up.v1")) {
+			if (holds(aRequest, "bpr.follow-up.update-suggestion")) {
+				return "issue (blocking): clamp the height as well as the width. A minimised window reports a height of zero, and the swap chain asserts on it.";
+			}
+			if (holds(aRequest, "bpr.follow-up.update-draft")) {
+				return "question: does a zero height still reach the swap chain here? A minimised window reports one.";
+			}
+			if (holds(aRequest, "bpr.follow-up.draft-reply")) {
+				return "Thanks for checking. A minimised window reports a height of zero, so the clamp needs the height too; I'll add it.";
+			}
+			auto rounds = std::size_t{ 0U };
+			for (auto at = aRequest.find("Reviewer: "); at != std::string::npos; at = aRequest.find("Reviewer: ", at + 1U)) {
+				++rounds;
+			}
+			return "Fixture follow-up: I read the item and " + std::to_string(rounds) + " earlier rounds. A minimised window reports a height of zero, which this does not clamp.";
+		}
 		if (holds(aRequest, "bpr-check-report")) {
 			return check_run_answer(aRequest, check_run_steps(aRequest));
 		}

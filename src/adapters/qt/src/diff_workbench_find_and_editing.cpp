@@ -1632,6 +1632,22 @@ namespace bpr::qt {
 		}
 	}
 
+	void diff_workbench::set_waiting_fetch(QString aFetching, QString aReceived)
+	{
+		if (WaitingFetch == aFetching && WaitingReceived == aReceived) {
+			return;
+		}
+		WaitingFetch    = std::move(aFetching);
+		WaitingReceived = std::move(aReceived);
+		apply_pending();
+	}
+
+	void diff_workbench::set_waiting_cancel(std::function<void()> aCancel)
+	{
+		WaitingCancel = std::move(aCancel);
+		apply_pending();
+	}
+
 	void diff_workbench::set_waiting_failed(QString aPath, QString aSentence)
 	{
 		if (aSentence.isEmpty()) {

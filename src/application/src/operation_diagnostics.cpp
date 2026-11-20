@@ -170,6 +170,7 @@ namespace bpr::application {
 		case agent_workspace_unavailable_reason::retained_objects_missing: return failure::object_unavailable;
 		case agent_workspace_unavailable_reason::inspection_output_limit:  return failure::size_limit;
 		case agent_workspace_unavailable_reason::inspection_timed_out:     return failure::timed_out;
+		case agent_workspace_unavailable_reason::history_missing:          return failure::history_missing;
 		}
 		return failure::copy_failed;
 	}

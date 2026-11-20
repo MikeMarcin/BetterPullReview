@@ -236,6 +236,14 @@ namespace bpr::qt {
 		if (!aRows.Sections.empty()) {
 			aMenu.addSeparator();
 		}
+		// [[BPR-2286]]. A thread's menu (or a draft's) offers a follow-up
+		// about it, which can draft a reply or update the draft.
+		if (aRequest.Anchor != core::quick_ask_anchor::file && !aRequest.Thread.isEmpty() && aDispatch.FollowUp) {
+			auto* const followUp = aMenu.addAction(QObject::tr("Ask about this…"));
+			followUp->setObjectName(QStringLiteral("quickAskFollowUp"));
+			followUp->setToolTip(QObject::tr("Talk this conversation through with the agent; it can draft a reply. Nothing is posted"));
+			QObject::connect(followUp, &QAction::triggered, &aMenu, [dispatch = aDispatch.FollowUp, request = aRequest] { dispatch(request); });
+		}
 		auto* const custom = aMenu.addAction(QObject::tr("Custom question…"));
 		custom->setObjectName(QStringLiteral("quickAskCustomQuestion"));
 		custom->setEnabled(static_cast<bool>(aDispatch.Custom));

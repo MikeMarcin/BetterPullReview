@@ -79,7 +79,7 @@ namespace bpr::qt {
 		Ended   = false;
 	}
 
-	void nested_scroll_latch::deliver(QAbstractScrollArea& aOwner, const QWheelEvent& aEvent)
+	auto nested_scroll_latch::deliver(QAbstractScrollArea& aOwner, const QWheelEvent& aEvent) -> bool
 	{
 		auto* const target = aOwner.viewport();
 		auto        copy   = QWheelEvent{ target->mapFromGlobal(aEvent.globalPosition()),
@@ -98,6 +98,7 @@ namespace bpr::qt {
 		// Sent, not posted: Qt does not pass a sent wheel event to the
 		// owner's parents, so what the owner leaves goes nowhere.
 		QCoreApplication::sendEvent(target, &copy);
+		return copy.isAccepted();
 	}
 
 	auto nested_scroll_latch::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
@@ -124,20 +125,30 @@ namespace bpr::qt {
 			}
 			return false;
 		}
+		auto delivered = false;
 		if (!Decided) {
 			if (const auto [axis, delta] = movement_of(*wheel); delta != 0) {
-				Owner = areas.back();
-				for (auto index = std::size_t{ 0U }; index + 1U < areas.size(); ++index) {
-					if (can_move(*areas[index], axis, delta)) {
+				// [[BPR-2292]]. A scroller with room that way is offered the
+				// first movement, and owns the gesture only if it takes it.
+				// One that declines the axis (an in-place reader or code box
+				// passes every vertical wheel to what holds it) is passed
+				// over, whatever range its hidden bar reports: under the
+				// macOS style an in-place reader's vertical bar keeps a range
+				// its page does not have, and the gesture went nowhere.
+				for (auto index = std::size_t{ 0U }; index + 1U < areas.size() && Owner == nullptr; ++index) {
+					if (can_move(*areas[index], axis, delta) && deliver(*areas[index], *wheel)) {
 						Owner = areas[index];
-						break;
 					}
+				}
+				delivered = Owner != nullptr;
+				if (Owner == nullptr) {
+					Owner = areas.back();
 				}
 				Decided = true;
 			}
 		}
-		if (Owner != nullptr) {
-			deliver(*Owner, *wheel);
+		if (Owner != nullptr && !delivered) {
+			static_cast<void>(deliver(*Owner, *wheel));
 		}
 		if (phase == Qt::ScrollEnd) {
 			Ended = true;

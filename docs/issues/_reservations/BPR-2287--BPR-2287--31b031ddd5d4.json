@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2287"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Copy Relative Path on a file's context menu (drawer, overview, tabs)",
+  "created": "2026-11-19T21:08:11.262252+00:00",
+  "base": "429761387a5775879874c3e4193ffccd33c17361"
+}

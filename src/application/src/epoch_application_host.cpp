@@ -193,8 +193,12 @@ namespace bpr::application {
 		auto* const log   = Implementation->DiagnosticLog.get();
 		const auto  watch = operation_stopwatch{ };
 		record_operation(log, { .Action = core::operation_action::workspace_materialize }, true);
-		auto result = Implementation->materialize_agent_workspace(aRequest, aStop);
-		record_operation(log, { .Action = core::operation_action::workspace_materialize, .Failure = result ? core::operation_failure::none : operation_failure_of(result.error()), .DurationMilliseconds = watch.milliseconds() });
+		// [[BPR-2295]]. The line says which source was used, whether the
+		// review was sparse, whether a clone was given and held the head, and
+		// on a failure the Git command and the class of Git's words.
+		auto trace  = core::workspace_trace{ };
+		auto result = Implementation->materialize_agent_workspace(aRequest, aStop, &trace);
+		record_operation(log, { .Action = core::operation_action::workspace_materialize, .Failure = result ? core::operation_failure::none : operation_failure_of(result.error()), .DurationMilliseconds = watch.milliseconds(), .Workspace = trace });
 		return result;
 	}
 
@@ -288,6 +292,19 @@ namespace bpr::application {
 	void epoch_application_host::set_history_effects(effect_executor& aEffects) noexcept
 	{
 		Implementation->HistoryEffects = &aEffects;
+	}
+
+	void epoch_application_host::set_history_clone(const core::repository_id aRepository, std::optional<std::filesystem::path> aClone)
+	{
+		auto&            cell = Implementation->HistoryClones;
+		std::scoped_lock lock{ cell.Mutex };
+		cell.Repository = aRepository;
+		cell.Clone      = aClone && aClone->is_absolute() ? std::move(aClone) : std::nullopt;
+	}
+
+	auto epoch_application_host::history_fetch() const -> std::optional<epoch_history_fetch>
+	{
+		return Implementation->HistoryFetch.read();
 	}
 
 	auto epoch_application_host::resolve_commit_filter_touches(

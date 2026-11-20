@@ -385,8 +385,10 @@ namespace {
 		bool                                                               SparseTreeMismatch         = false;
 		bool                                                               SparseCatalogMarkerMissing = false;
 		bool                                                               SupportsSparse             = false;
-		std::vector<application::git_smart_exact_blob_request>             ExactBlobRequests;
-		std::optional<application::git_smart_transport_failure>            ExactBlobFailure;
+		/// [[BPR-2291]]. Runs inside a fetch, after the transport says what it received.
+		std::function<void()>                                   DuringFetch;
+		std::vector<application::git_smart_exact_blob_request>  ExactBlobRequests;
+		std::optional<application::git_smart_transport_failure> ExactBlobFailure;
 		/// [[BPR-1327]]. Batched reads, what a batch answers, and the
 		/// simulated round trips of the single and batched reads.
 		std::vector<application::git_smart_exact_blobs_request> ExactBlobBatches;
@@ -1841,6 +1843,18 @@ namespace {
 			State.WorkspaceDeltas.push_back(aSource.Delta);
 			State.WorkspacePullRequestFiles.push_back(aSource.PullRequestFiles);
 			State.WorkspaceHeadFromClone.push_back(aRequest.HeadFromClone);
+			// [[BPR-2295]]. The branch installed Git would take, as it writes it.
+			const auto trace = [&aSource](const core::workspace_source aWhere, const bool aHeld = false, const core::workspace_git_command aCommand = core::workspace_git_command::none,
+										  const core::workspace_git_error aError = core::workspace_git_error::none) {
+				if (aSource.Trace) {
+					*aSource.Trace = core::workspace_trace{ .Source = aWhere, .CloneHeldHead = aHeld, .Command = aCommand, .GitError = aError };
+				}
+			};
+			trace(aSource.PullRequestFiles     ? core::workspace_source::pull_request_files
+					  : aRequest.HeadFromClone ? (State.CloneHoldsHead ? core::workspace_source::borrowed : core::workspace_source::head_from_clone)
+					  : aSource.Delta          ? core::workspace_source::delta
+											   : core::workspace_source::cache_copy,
+				  aRequest.HeadFromClone && State.CloneHoldsHead);
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::git_cache_failure::cancelled };
 			}
@@ -1856,6 +1870,7 @@ namespace {
 			// copying the head's closure out of it fails as installed Git does.
 			// A head the linked clone lends is not copied from it.
 			if (State.SparseObjects && !aSource.Delta && !aSource.PullRequestFiles && !aRequest.HeadFromClone) {
+				trace(core::workspace_source::cache_copy, false, core::workspace_git_command::pack_objects, core::workspace_git_error::failed_to_traverse_parents);
 				return std::unexpected{ application::git_cache_error{
 					application::git_cache_failure::process_failure,
 					"error: Could not read " + std::string{ core::canonical_hex(oid<core::git_commit_oid>(10U)).view() }
@@ -2365,6 +2380,10 @@ namespace {
 			packData += "PACKdata";
 			const auto body = bytes(
 				packet("packfile\n") + packet(packData) + "0000");
+			aConsumer.received(1234U);
+			if (State.DuringFetch) {
+				State.DuringFetch();
+			}
 			if (!aConsumer.consume(body)) {
 				return std::unexpected{ application::git_smart_transport_error{
 					.Failure = application::git_smart_transport_failure::
@@ -5843,7 +5862,7 @@ namespace {
 		fixture large;
 		large.State.SupportsSparse = true;
 		large.State.SparseObjects  = true;
-		establish_ready_comparison(large, application::accepted_pull_request_shape{ 40U, 4U, 4U });
+		establish_ready_comparison(large, application::accepted_pull_request_shape{ 40U, 4U, 4U, std::nullopt });
 		large.State.CachedBlobMissing = true;
 		const auto fabricated         = blob_request_for(large.Host->state());
 		expect(read(large, fabricated).Status == application::diff_blob_status::failure
@@ -5909,7 +5928,7 @@ namespace {
 			   "revoked selection cannot issue another exact object read");
 
 		fixture small;
-		establish_ready_comparison(small, application::accepted_pull_request_shape{ 100U, 1U, 1U });
+		establish_ready_comparison(small, application::accepted_pull_request_shape{ 100U, 1U, 1U, std::nullopt });
 		small.State.CachedBlobMissing = true;
 		const auto missing            = read(small, blob_request_for(small.Host->state()));
 		expect(missing.Status == application::diff_blob_status::missing
@@ -6024,7 +6043,7 @@ namespace {
 	{
 		aValue.State.SupportsSparse = true;
 		aValue.State.SparseObjects  = true;
-		establish_ready_comparison(aValue, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		establish_ready_comparison(aValue, application::accepted_pull_request_shape{ 3U, 1U, 1U, std::nullopt });
 		aValue.State.CachedBlobMissing = true;
 		for (const auto* name : { "a", "b", "c" }) {
 			for (const auto* side : { "left ", "right " }) {
@@ -6042,7 +6061,7 @@ namespace {
 			fixture value;
 			value.State.SupportsSparse = true;
 			value.State.SparseObjects  = true;
-			establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+			establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U, std::nullopt });
 			value.State.CachedBlobMissing             = true;
 			auto                              request = file_request(value, "pinned.cpp");
 			const core::tour_code_destination source{ .Commit = side == core::diff_side::left ? request.Diff.Comparison.Left.Commit : request.Diff.Comparison.Right.Commit, .Path = "pinned.cpp", .Side = side };
@@ -6084,10 +6103,10 @@ namespace {
 		fixture value;
 		value.State.SupportsSparse = true;
 		value.State.SparseObjects  = true;
-		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U, std::nullopt });
 		value.State.CachedBlobMissing = true;
 		const auto blob               = sha1_blob("exact selected blob");
-		const auto on_worker          = [&](const auto& aWork) {
+		const auto onWorker           = [&](const auto& aWork) {
 			auto done = std::atomic_bool{ false };
 			{
 				auto worker = std::jthread{ [&] {
@@ -6117,7 +6136,7 @@ namespace {
 		value.State.TreeEntryResults.emplace_back(blob);
 		value.State.TreeEntryResults.emplace_back(blob);
 		auto ordinary = std::optional<application::tour_source_comparison>{ };
-		on_worker([&] { ordinary = application::materialize_tour_source_comparison(*value.Host, *bpr::tests::product_line_matcher(), comparison, { }); });
+		onWorker([&] { ordinary = application::materialize_tour_source_comparison(*value.Host, *bpr::tests::product_line_matcher(), comparison, { }); });
 		expect(!ordinary, "an ordinary read between two heads compares nothing");
 		expect(value.State.ExactBlobRequests.empty(), "an ordinary read between two heads fetches no blob the sparse cache lacks");
 
@@ -6131,7 +6150,7 @@ namespace {
 			request.File.Change = application::workbench_file_change_kind::unchanged;
 			value.State.TreeEntryResults.emplace_back(blob);
 			value.State.TreeEntryResults.emplace_back(blob);
-			on_worker([&] { pinned[side] = application::materialize_pinned_tour_file(*value.Host, request, { }); });
+			onWorker([&] { pinned[side] = application::materialize_pinned_tour_file(*value.Host, request, { }); });
 			expect(pinned[side] && pinned[side]->Blob == blob && pinned[side]->Path == "pinned.cpp", "each side is read as a pinned source");
 		}
 		// Both sides hold the same blob here; the second may be the first's retained bytes.
@@ -6147,7 +6166,7 @@ namespace {
 		fixture value;
 		value.State.SupportsSparse = true;
 		value.State.SparseObjects  = true;
-		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U, std::nullopt });
 		value.State.CachedBlobMissing = true;
 		auto       request            = file_request(value, "pinned.cpp");
 		const auto authority          = request.WorkbenchAuthority;
@@ -6874,7 +6893,7 @@ namespace {
 		fixture large;
 		large.State.SupportsSparse = true;
 		large.State.SparseObjects  = true;
-		establish_ready_comparison(large, application::accepted_pull_request_shape{ 101U, 1U, 1U });
+		establish_ready_comparison(large, application::accepted_pull_request_shape{ 101U, 1U, 1U, std::nullopt });
 		expect(std::ranges::find(large.State.Calls, "cache.prepare-sparse-revision") != large.State.Calls.end()
 				   && std::ranges::find(large.State.Calls, "cache.prepare-revision") == large.State.Calls.end()
 				   && large.State.Retained
@@ -6885,7 +6904,7 @@ namespace {
 		fixture small;
 		small.State.SupportsSparse = true;
 		small.State.SparseObjects  = true;
-		establish_ready_comparison(small, application::accepted_pull_request_shape{ 40U, 4U, 4U });
+		establish_ready_comparison(small, application::accepted_pull_request_shape{ 40U, 4U, 4U, std::nullopt });
 		expect(std::ranges::find(small.State.Calls, "cache.prepare-sparse-revision") != small.State.Calls.end()
 				   && std::ranges::find(small.State.Calls, "cache.prepare-revision") == small.State.Calls.end()
 				   && small.State.Retained
@@ -6894,7 +6913,7 @@ namespace {
 			   "a small PR on a sparse-capable lease imports exact trees without unrelated repository history");
 
 		fixture complete;
-		establish_ready_comparison(complete, application::accepted_pull_request_shape{ 40U, 4U, 4U });
+		establish_ready_comparison(complete, application::accepted_pull_request_shape{ 40U, 4U, 4U, std::nullopt });
 		expect(complete.State.Retained
 				   && complete.State.Retained->Residency == application::git_revision_residency::complete_closure,
 			   "a lease without sparse support retains complete acquisition");
@@ -6904,7 +6923,7 @@ namespace {
 		missingMarker.State.SparseObjects              = true;
 		missingMarker.State.SparseCatalogMarkerMissing = true;
 		auto handoff                                   = make_handoff(missingMarker.State, 1U, 20U, true);
-		handoff.Shape                                  = application::accepted_pull_request_shape{ 101U, 1U, 1U };
+		handoff.Shape                                  = application::accepted_pull_request_shape{ 101U, 1U, 1U, std::nullopt };
 		missingMarker.Host->accept(std::move(handoff));
 		drive_through_preparation(missingMarker);
 		run_effect_completion(missingMarker);
@@ -6917,6 +6936,44 @@ namespace {
 			   "physical sparse objects alone cannot replace a missing durable residency marker");
 	}
 
+	/// [[BPR-2291]]. A connection that cannot load selected objects is never
+	/// asked for the whole history of a repository past the whole-history
+	/// size; while a live fetch runs, the host says what it fetches and how
+	/// much has come, and nothing once it ends.
+	void history_fetch_is_bounded_and_observed()
+	{
+		{
+			fixture refused;
+			auto    handoff = make_handoff(refused.State, 1U, 20U, true);
+			handoff.Shape   = application::accepted_pull_request_shape{ 3001U, 1U, 1U, application::maximum_complete_closure_repository_bytes + 1U };
+			refused.Host->accept(std::move(handoff));
+			drain(refused);
+			expect(!refused.Host->state().AcceptedComparison && std::ranges::count(refused.State.Calls, "transport.acquire") == 0
+					   && std::ranges::count(refused.State.Calls, "transport.fetch") == 0,
+				   "a complete review of a repository past the whole-history size asks nothing of the host");
+			expect(std::ranges::any_of(refused.State.Updates, [](const auto& aUpdate) { return aUpdate.Transition && std::ranges::any_of(aUpdate.Transition->Diagnostics, [](const auto& aDiagnostic) { return aDiagnostic.Code == core::epoch_reason_code::fetch_history_too_large; }); }),
+				   "and says the history is too large to fetch");
+		}
+		{
+			fixture sparse;
+			sparse.State.SupportsSparse = true;
+			sparse.State.SparseObjects  = true;
+			establish_ready_comparison(sparse, application::accepted_pull_request_shape{ 3001U, 1U, 1U, application::maximum_complete_closure_repository_bytes + 1U });
+			expect(sparse.State.Retained && sparse.State.Retained->Residency == application::git_revision_residency::sparse_commit_trees,
+				   "a sparse-capable connection loads selected objects of such a review instead");
+		}
+		{
+			fixture observed;
+			auto    during             = std::optional<application::epoch_history_fetch>{ };
+			observed.State.DuringFetch = [&] { during = observed.Host->history_fetch(); };
+			expect(!observed.Host->history_fetch(), "no fetch is said before one runs");
+			establish_ready_comparison(observed);
+			expect(during && during->Base && during->Head && !during->Host.empty() && during->Bytes == std::optional<std::uint64_t>{ 1234U },
+				   "a live fetch says it fetches the base and head, from which host, and the bytes the transport received");
+			expect(!observed.Host->history_fetch(), "and nothing once it ends");
+		}
+	}
+
 	void selected_large_occurrence_imports_only_its_sparse_head()
 	{
 		fixture value;
@@ -6925,7 +6982,7 @@ namespace {
 		value.State.OccurrencesSupported = true;
 		value.Clock.set_next_utc(1'789'000'000'500LL);
 		auto handoff                 = make_handoff(value.State, 1U, 20U, true);
-		handoff.Shape                = application::accepted_pull_request_shape{ 101U, 1U, 1U };
+		handoff.Shape                = application::accepted_pull_request_shape{ 101U, 1U, 1U, std::nullopt };
 		handoff.ForcePushes          = { force_push(101U, 21U) };
 		handoff.TimelineAvailability = application::epoch_timeline_availability::available;
 		value.Host->accept(std::move(handoff));
@@ -7032,7 +7089,7 @@ namespace {
 		value.State.OccurrencesSupported = true;
 		value.Clock.set_next_utc(1'789'000'000'500LL);
 		auto handoff                 = make_handoff(value.State, 1U, 20U, true);
-		handoff.Shape                = application::accepted_pull_request_shape{ 101U, 1U, 1U };
+		handoff.Shape                = application::accepted_pull_request_shape{ 101U, 1U, 1U, std::nullopt };
 		handoff.ForcePushes          = { force_push(101U, 21U) };
 		handoff.TimelineAvailability = application::epoch_timeline_availability::available;
 		value.Host->accept(std::move(handoff));
@@ -7061,7 +7118,7 @@ namespace {
 		value.State.OccurrencesSupported = true;
 		value.Clock.set_next_utc(1'789'000'000'500LL);
 		auto handoff                 = make_handoff(value.State, 1U, 20U, true);
-		handoff.Shape                = application::accepted_pull_request_shape{ 101U, 1U, 1U };
+		handoff.Shape                = application::accepted_pull_request_shape{ 101U, 1U, 1U, std::nullopt };
 		handoff.ForcePushes          = { force_push(101U, 21U), force_push(102U, 22U) };
 		handoff.TimelineAvailability = application::epoch_timeline_availability::available;
 		value.Host->accept(std::move(handoff));
@@ -7123,7 +7180,7 @@ namespace {
 		value.State.OccurrencesSupported = true;
 		value.Clock.set_next_utc(1'789'000'000'500LL);
 		auto handoff                 = make_handoff(value.State, 1U, 20U, true);
-		handoff.Shape                = application::accepted_pull_request_shape{ 101U, 1U, 1U };
+		handoff.Shape                = application::accepted_pull_request_shape{ 101U, 1U, 1U, std::nullopt };
 		handoff.ForcePushes          = { force_push(101U, 21U), force_push(102U, 22U) };
 		handoff.TimelineAvailability = application::epoch_timeline_availability::available;
 		value.Host->accept(std::move(handoff));
@@ -7585,7 +7642,7 @@ namespace {
 		fixture value;
 		value.State.SupportsSparse = true;
 		value.State.SparseObjects  = true;
-		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U, std::nullopt });
 		const auto authority       = workbench_authority_for(value.Host->state());
 		const auto head            = value.Host->state().AcceptedRevision->Head;
 		const auto fork            = oid<core::git_commit_oid>(0x51U);
@@ -7703,7 +7760,7 @@ namespace {
 		fixture value;
 		value.State.SupportsSparse = true;
 		value.State.SparseObjects  = true;
-		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U, std::nullopt });
 		const auto authority       = workbench_authority_for(value.Host->state());
 		const auto head            = value.Host->state().AcceptedRevision->Head;
 		const auto reviewed        = oid<core::git_commit_oid>(0x42U);
@@ -7765,7 +7822,7 @@ namespace {
 		fixture value;
 		value.State.SupportsSparse = true;
 		value.State.SparseObjects  = true;
-		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U, std::nullopt });
 		const auto authority       = workbench_authority_for(value.Host->state());
 		const auto head            = value.Host->state().AcceptedRevision->Head;
 		const auto reviewed        = oid<core::git_commit_oid>(0x42U);
@@ -7853,7 +7910,7 @@ namespace {
 		fixture value;
 		value.State.SupportsSparse = true;
 		value.State.SparseObjects  = true;
-		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U, std::nullopt });
 		queued_executor history{ false };
 		value.Host->set_history_effects(history);
 		const auto authority       = workbench_authority_for(value.Host->state());
@@ -8696,6 +8753,57 @@ namespace {
 			expect(materialized.has_value() && *materialized == workspace && value.State.DeltaRequests.empty()
 					   && value.State.WorkspaceHeadFromClone == std::vector{ true } && !value.State.WorkspaceDeltas.front(),
 				   "a sparse head the linked clone holds is taken from the clone, with nothing fetched");
+		}
+		// [[BPR-2295]], owner 2026-11-19. A reread revokes the review's read
+		// lease and renews it: the old lease then answers that it cannot load
+		// selected objects. The review's cache is still sparse, so its
+		// workspace still borrows the clone that holds the head, asks the
+		// host for nothing, and the log says so.
+		{
+			auto    log = std::make_shared<recording_epoch_log>();
+			fixture value{ { }, log };
+			establish_sparse_three_files(value);
+			const auto workspace        = owned_workspace_for(value.Host->state());
+			value.State.WorkspaceResult = workspace;
+			value.State.CloneHoldsHead  = true;
+			value.State.SupportsSparse  = false;
+			const auto materialized     = run(value, clone);
+			expect(materialized.has_value() && *materialized == workspace && value.State.DeltaRequests.empty() && value.State.WorkspaceHeadFromClone == std::vector{ true },
+				   "AC1: a sparse review whose lease no longer loads selected objects still borrows the clone that holds the head");
+			expect(std::ranges::any_of(log->Events,
+									   [](const application::diagnostic_event& aEvent) {
+										   return std::string_view{ aEvent.Summary.Text.data(), aEvent.Summary.Size }.ends_with("source=borrowed sparse=1 clone=1 clone_head=1 git=none git_error=none");
+									   }),
+				   "AC3: the log says the clone lent the head on a sparse review");
+		}
+		// [[BPR-2295]]. No clone, and the lease no longer loads selected
+		// objects: still the pull request's files, never the cache's history.
+		{
+			fixture value;
+			establish_sparse_three_files(value);
+			value.State.SupportsSparse  = false;
+			value.State.WorkspaceResult = owned_workspace_for(value.Host->state());
+			static_cast<void>(run(value));
+			expect(value.State.WorkspacePullRequestFiles.size() == 1U && value.State.WorkspacePullRequestFiles.front().has_value(),
+				   "AC2: a sparse review is never copied out of its cache's history, whatever its lease says now");
+		}
+		// [[BPR-2295]]. A cache copy that fails on Git's traverse error is
+		// history_missing, and its log line says which source, the review's
+		// loading, the clone and Git's words.
+		{
+			auto    log = std::make_shared<recording_epoch_log>();
+			fixture value{ { }, log };
+			establish_ready_comparison(value);
+			value.State.SparseObjects = true;
+			const auto materialized   = run(value);
+			expect(!materialized.has_value() && materialized.error().Reason == application::agent_workspace_unavailable_reason::history_missing,
+				   "a copy that cannot walk the head's history is history_missing, not copy_failed");
+			expect(std::ranges::any_of(log->Events,
+									   [](const application::diagnostic_event& aEvent) {
+										   return std::string_view{ aEvent.Summary.Text.data(), aEvent.Summary.Size }.find("failure=history_missing") != std::string_view::npos
+											   && std::string_view{ aEvent.Summary.Text.data(), aEvent.Summary.Size }.ends_with("source=cache_copy sparse=0 clone=0 clone_head=0 git=pack_objects git_error=failed_to_traverse_parents");
+									   }),
+				   "AC3: its log line names the cache copy, the loading, the clone, the command and Git's words");
 		}
 	}
 
@@ -10766,6 +10874,7 @@ int main(int argc, char** argv)
 	preparation_is_bounded_cancellable_and_complete_reviews_stay_local();
 	live_shaped_open_latency(LiveSingleBlob, LiveBatch);
 	sparse_capability_applies_independently_of_pull_request_size();
+	history_fetch_is_bounded_and_observed();
 	selected_large_occurrence_imports_only_its_sparse_head();
 	selected_large_occurrence_switch_drops_late_import();
 	selected_large_occurrence_rebases_after_superseded_commit();

@@ -62,6 +62,7 @@ namespace bpr::application {
 		case agent_workspace_unavailable_reason::retained_objects_missing: return "retained_objects_missing";
 		case agent_workspace_unavailable_reason::inspection_output_limit:  return "inspection_output_limit";
 		case agent_workspace_unavailable_reason::inspection_timed_out:     return "inspection_timed_out";
+		case agent_workspace_unavailable_reason::history_missing:          return "history_missing";
 		}
 		return { };
 	}

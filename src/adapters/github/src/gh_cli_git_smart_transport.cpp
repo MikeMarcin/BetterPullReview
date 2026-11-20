@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <charconv>
 #include <chrono>
 #include <cmath>
@@ -184,8 +185,16 @@ namespace bpr::adapters::github::detail {
 			return result;
 		}
 
+		/// \brief One fetch's wanted commits, and the commits the cache already
+		/// holds with their history ([[BPR-2290]]).
+		struct fetch_plan
+		{
+			std::vector<core::git_commit_oid> Wants;
+			std::vector<core::git_commit_oid> Haves;
+		};
+
 		[[nodiscard]] auto fetch_wants(std::span<const std::byte>       aBody,
-									   const git_smart_request_context& aContext) -> std::optional<std::vector<core::git_commit_oid>>
+									   const git_smart_request_context& aContext) -> std::optional<fetch_plan>
 		{
 			auto       remaining = text(aBody);
 			const auto prelude   = packet("command=fetch\n") + packet("object-format=sha1\n") + "0001";
@@ -194,6 +203,7 @@ namespace bpr::adapters::github::detail {
 			}
 			remaining.remove_prefix(prelude.size());
 			std::vector<core::git_commit_oid> wants;
+			std::vector<core::git_commit_oid> haveCommits;
 			std::size_t                       haves = 0U;
 			bool                              done  = false;
 			while (remaining.size() >= 4U) {
@@ -214,7 +224,7 @@ namespace bpr::adapters::github::detail {
 					if (wants.size() == 2U && wants[0] == wants[1]) {
 						return std::nullopt;
 					}
-					return wants;
+					return fetch_plan{ .Wants = std::move(wants), .Haves = std::move(haveCommits) };
 				}
 				if (done || length < 5U || length > remaining.size()) {
 					return std::nullopt;
@@ -235,7 +245,9 @@ namespace bpr::adapters::github::detail {
 				if (line.starts_with("want ") && haves == 0U && wants.size() < 2U) {
 					wants.push_back(*oid);
 				} else if (line.starts_with("have ") && !wants.empty() && ++haves <= maximum_git_protocol_v2_haves) {
-					// A full local pack does not rely on a peer's have claims.
+					// [[BPR-2290]]. A complete pack leaves out what a have the
+					// local store can read reaches; any other have is ignored.
+					haveCommits.push_back(*oid);
 				} else {
 					return std::nullopt;
 				}
@@ -931,6 +943,11 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 
+			[[nodiscard]] auto last_fetch_source() const noexcept -> git_smart_fetch_source override
+			{
+				return LastSource.load(std::memory_order_acquire);
+			}
+
 			auto fetch(const git_smart_fetch_request& aRequest, git_smart_wire_consumer& aConsumer, std::stop_token aStop)
 				-> git_smart_transport_result<void> override
 			{
@@ -942,15 +959,15 @@ namespace bpr::adapters::github::detail {
 				if (!application::valid(aRequest)) {
 					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 				}
-				const auto wants = fetch_wants(aRequest.Body, Context);
-				if (!wants) {
+				const auto plan = fetch_wants(aRequest.Body, Context);
+				if (!plan) {
 					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 				}
 				std::stop_source   stop;
 				std::stop_callback external{ aStop, [&] { stop.request_stop(); } };
 				std::stop_callback revoked{ Revocation.get_token(), [&] { stop.request_stop(); } };
 				try {
-					auto result = acquire_pack(*wants, aRequest.MaximumResponseBytes, aConsumer, stop.get_token(), step);
+					auto result = acquire_pack(*plan, aRequest.MaximumResponseBytes, aConsumer, stop.get_token(), step);
 					if (!result) {
 						result.error().Step = step;
 					}
@@ -1021,7 +1038,70 @@ namespace bpr::adapters::github::detail {
 				return observed->Viewer;
 			}
 
-			auto acquire_pack(const std::vector<core::git_commit_oid>& aWants, std::uint64_t aMaximum,
+			/// \brief [[BPR-2290]]. The linked clone a complete acquisition may
+			/// read, canonical, and its objects folder; nothing for a sparse
+			/// acquisition, a missing clone, or a shallow one (its history stops
+			/// at its boundary, and Git refuses a shallow `--reference`).
+			[[nodiscard]] auto linked_clone() const -> std::optional<std::pair<std::filesystem::path, std::filesystem::path>>
+			{
+				if (Context.AcquisitionMode != git_smart_acquisition_mode::complete_closure || !Context.HistoryClone) {
+					return std::nullopt;
+				}
+				return gh_cli_linked_clone_objects(*Context.HistoryClone);
+			}
+
+			/// \brief [[BPR-2290]]. The bare store the pack is made from: no refs,
+			/// borrowing `aStores` in order.
+			static auto write_serve_store(const std::filesystem::path& aStore, const std::vector<std::filesystem::path>& aStores) -> void
+			{
+				std::filesystem::create_directories(aStore / "objects/info");
+				std::filesystem::create_directories(aStore / "refs/heads");
+				const auto write = [](const std::filesystem::path& aPath, const std::string& aContent) {
+					std::ofstream stream{ aPath, std::ios::binary };
+					stream.write(aContent.data(), static_cast<std::streamsize>(aContent.size()));
+					stream.close();
+					if (!stream) {
+						throw std::runtime_error{ "local store" };
+					}
+				};
+				write(aStore / "HEAD", "ref: refs/heads/main\n");
+				write(aStore / "config", "[core]\nrepositoryformatversion = 0\nbare = true\n");
+				std::string alternates;
+				for (const auto& store : aStores) {
+					alternates += git_path_text(store) + "\n";
+				}
+				write(aStore / "objects/info/alternates", alternates);
+			}
+
+			/// \brief [[BPR-2290]]. Which of `aCommits` the store reads, as commits.
+			[[nodiscard]] auto readable_commits(github_cli_process_port& aProcess, const std::filesystem::path& aRoot, const std::filesystem::path& aStore,
+												const std::vector<core::git_commit_oid>& aCommits, std::stop_token aStop) -> git_smart_transport_result<std::vector<bool>>
+			{
+				auto held = std::vector<bool>(aCommits.size(), false);
+				if (aCommits.empty()) {
+					return held;
+				}
+				auto names = std::string{ };
+				for (const auto& commit : aCommits) {
+					names.append(core::canonical_hex(commit).view()).append("\n");
+				}
+				const auto checked = aProcess.run(local_request(aRoot, { "--git-dir=" + git_path_text(aStore), "cat-file", "--batch-check=%(objecttype)" }, names), aStop);
+				if (!checked) {
+					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : process_error(checked.error()) } };
+				}
+				auto rest = std::string_view{ checked->StandardOutput };
+				for (std::size_t index = 0U; index < aCommits.size(); ++index) {
+					const auto end = rest.find('\n');
+					if (checked->ExitCode != 0 || end == std::string_view::npos) {
+						return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+					}
+					held[index] = rest.substr(0U, end) == "commit";
+					rest.remove_prefix(end + 1U);
+				}
+				return held;
+			}
+
+			auto acquire_pack(const fetch_plan& aPlan, std::uint64_t aMaximum,
 							  git_smart_wire_consumer& aConsumer, std::stop_token aStop, git_smart_transport_step& aStep) -> git_smart_transport_result<void>
 			{
 				aStep                = git_smart_transport_step::temporary_store;
@@ -1038,8 +1118,26 @@ namespace bpr::adapters::github::detail {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
 				process->set_insights_channel(Insights);
-				if (auto qualified = qualify(*process, root, aStop, aStep); !qualified) {
+				const auto linked = linked_clone();
+				if (auto qualified = qualify(*process, root, aStop, aStep, false, linked.has_value()); !qualified) {
 					return std::unexpected{ qualified.error() };
+				}
+				// [[BPR-2290]]. A wanted commit the linked clone holds is read from
+				// it, with no request to the host.
+				auto local = std::vector<bool>(aPlan.Wants.size(), false);
+				if (linked) {
+					aStep = git_smart_transport_step::object_check;
+					write_serve_store(root / "serve.git", { linked->second });
+					auto held = readable_commits(*process, root, root / "serve.git", aPlan.Wants, aStop);
+					if (!held) {
+						return std::unexpected{ held.error() };
+					}
+					local = std::move(*held);
+				}
+				const auto fromClone = std::ranges::all_of(local, [](const bool aLocal) { return aLocal; });
+				LastSource.store(fromClone ? git_smart_fetch_source::linked_clone : git_smart_fetch_source::host, std::memory_order_release);
+				if (fromClone) {
+					return clone_and_pack(aPlan, local, linked, aMaximum, aConsumer, aStop, aStep, root, *process, nullptr);
 				}
 				auto credential = acquire_gh_cli_credential(*process, Configuration, aStop);
 				if (!credential) {
@@ -1052,7 +1150,8 @@ namespace bpr::adapters::github::detail {
 				if (!before) {
 					return std::unexpected{ before.error() };
 				}
-				return clone_and_pack(aWants, aMaximum, aConsumer, aStop, aStep, root, *process, *credential, identity, *before);
+				const auto network = network_clone{ .Credential = &*credential, .Identity = &identity, .Before = &*before };
+				return clone_and_pack(aPlan, local, linked, aMaximum, aConsumer, aStop, aStep, root, *process, &network);
 			}
 
 			auto acquire_chain(const git_smart_chain_request& aRequest, std::stop_token aStop, git_smart_transport_step& aStep)
@@ -1785,23 +1884,39 @@ namespace bpr::adapters::github::detail {
 				return { };
 			}
 
-			auto clone_and_pack(const std::vector<core::git_commit_oid>& aWants, std::uint64_t aMaximum, git_smart_wire_consumer& aConsumer,
-								std::stop_token aStop, git_smart_transport_step& aStep, const std::filesystem::path& aRoot,
-								github_cli_process_port& aProcess, const cli_transient_credential& aCredential, gh_cli_transport& aIdentity,
-								const github_viewer_record& aBefore) -> git_smart_transport_result<void>
+			/// \brief What a clone from the host needs: the pinned credential and
+			/// the account observed before it.
+			struct network_clone
 			{
-				const auto& root       = aRoot;
-				auto*       process    = &aProcess;
-				const auto* credential = &aCredential;
-				auto&       identity   = aIdentity;
-				const auto* before     = &aBefore;
+				const cli_transient_credential* Credential = nullptr;
+				gh_cli_transport*               Identity   = nullptr;
+				const github_viewer_record*     Before     = nullptr;
+			};
+
+			auto clone_and_pack(const fetch_plan& aPlan, const std::vector<bool>& aLocal,
+								const std::optional<std::pair<std::filesystem::path, std::filesystem::path>>& aLinked, std::uint64_t aMaximum,
+								git_smart_wire_consumer& aConsumer, std::stop_token aStop, git_smart_transport_step& aStep, const std::filesystem::path& aRoot,
+								github_cli_process_port& aProcess, const network_clone* aNetwork) -> git_smart_transport_result<void>
+			{
+				const auto& root    = aRoot;
+				auto*       process = &aProcess;
+				const auto& aWants  = aPlan.Wants;
 				for (std::size_t index = 0U; index < aWants.size(); ++index) {
+					if (aLocal[index]) {
+						continue;
+					}
+					if (aNetwork == nullptr) {
+						return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+					}
 					aStep = git_smart_transport_step::admission;
 					if (const auto error = admission(Context, aStop)) {
 						return std::unexpected{ git_smart_transport_error{ *error } };
 					}
-					aStep                 = git_smart_transport_step::clone;
-					const auto invocation = compile_gh_cli_git_clone_request(Configuration, Profile, Context, aWants[index], Git, root, index);
+					aStep = git_smart_transport_step::clone;
+					// [[BPR-2290]]. Borrowing the linked clone, the host sends only
+					// what the clone lacks, not the repository's history.
+					const auto invocation = compile_gh_cli_git_clone_request(Configuration, Profile, Context, aWants[index], Git, root, index, 1U, gh_cli_clone_content::trees,
+																			 aLinked ? aLinked->first : std::filesystem::path{ });
 					if (!invocation) {
 						return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 					}
@@ -1812,9 +1927,26 @@ namespace bpr::adapters::github::detail {
 					cloneProcess->set_insights_channel(Insights);
 					// [[BPR-1373]]. Pinned, the clone and the credential helper it
 					// launches read the same private configuration.
-					const auto result = run_gh_cli(*cloneProcess, Configuration, *invocation, aStop, *credential);
+					auto result = github_cli_process_result{ std::unexpected{ github_cli_process_failure::cancelled } };
+					{
+						// [[BPR-2291]]. What the clone has received, sampled twice a
+						// second while it runs, so the wait can say so; the sampler
+						// ends before the result is read.
+						auto sampler = std::jthread{ [&aConsumer, root](const std::stop_token aSampling) {
+							std::mutex                  waiting;
+							std::condition_variable_any wake;
+							auto                        held = std::unique_lock{ waiting };
+							while (!aSampling.stop_requested()) {
+								static_cast<void>(wake.wait_for(held, aSampling, std::chrono::milliseconds{ 500 }, [] { return false; }));
+								if (!aSampling.stop_requested()) {
+									aConsumer.received(received_bytes(root));
+								}
+							}
+						} };
+						result = run_gh_cli(*cloneProcess, Configuration, *invocation, aStop, *aNetwork->Credential);
+					}
 					if (!result) {
-						return std::unexpected{ git_smart_transport_error{ process_error(result.error()) } };
+						return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : process_error(result.error()) } };
 					}
 					if (result->ExitCode != 0) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
@@ -1833,40 +1965,53 @@ namespace bpr::adapters::github::detail {
 						}
 					}
 				}
-				aStep            = git_smart_transport_step::identity_after;
-				const auto after = viewer(identity, aStop);
-				if (!after) {
-					return std::unexpected{ after.error() };
-				}
-				if (before->Account != after->Account || before->Login != after->Login) {
-					revoke();
-					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::authentication } };
-				}
-				aStep            = git_smart_transport_step::local_store;
-				const auto store = root / "serve.git";
-				std::filesystem::create_directories(store / "objects/info");
-				std::filesystem::create_directories(store / "refs/heads");
-				const auto write = [](const std::filesystem::path& aPath, const std::string& aContent) {
-					std::ofstream stream{ aPath, std::ios::binary };
-					stream.write(aContent.data(), static_cast<std::streamsize>(aContent.size()));
-					stream.close();
-					if (!stream) {
-						throw std::runtime_error{ "local store" };
+				if (aNetwork != nullptr) {
+					aStep            = git_smart_transport_step::identity_after;
+					const auto after = viewer(*aNetwork->Identity, aStop);
+					if (!after) {
+						return std::unexpected{ after.error() };
 					}
-				};
-				write(store / "HEAD", "ref: refs/heads/main\n");
-				write(store / "config", "[core]\nrepositoryformatversion = 0\nbare = true\n");
-				std::string alternates;
+					if (aNetwork->Before->Account != after->Account || aNetwork->Before->Login != after->Login) {
+						revoke();
+						return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::authentication } };
+					}
+				}
+				aStep              = git_smart_transport_step::local_store;
+				const auto  store  = root / "serve.git";
+				auto        stores = std::vector<std::filesystem::path>{ };
 				std::string revisions;
 				for (std::size_t index = 0U; index < aWants.size(); ++index) {
-					alternates += git_path_text(gh_cli_git_clone_store(root, index) / "objects") + "\n";
+					if (!aLocal[index]) {
+						stores.push_back(gh_cli_git_clone_store(root, index) / "objects");
+					}
 					revisions += std::string{ core::canonical_hex(aWants[index]).view() } + "\n";
 				}
-				write(store / "objects/info/alternates", alternates);
+				if (aLinked) {
+					stores.push_back(aLinked->second);
+				}
+				write_serve_store(store, stores);
 				if (Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees) {
 					// Alternates expose objects, not clone shallow metadata. Each exact
 					// wanted commit is a boundary; ancestors are deliberately excluded.
-					write(store / "shallow", revisions);
+					std::ofstream shallow{ store / "shallow", std::ios::binary };
+					shallow.write(revisions.data(), static_cast<std::streamsize>(revisions.size()));
+					shallow.close();
+					if (!shallow) {
+						throw std::runtime_error{ "local store" };
+					}
+				} else {
+					// [[BPR-2290]]. The cache holds its haves with their history, so
+					// a complete pack leaves out what they reach; the cache checks
+					// the closure itself (BPR-0846).
+					const auto readable = readable_commits(*process, root, store, aPlan.Haves, aStop);
+					if (!readable) {
+						return std::unexpected{ readable.error() };
+					}
+					for (std::size_t index = 0U; index < aPlan.Haves.size(); ++index) {
+						if ((*readable)[index]) {
+							revisions += "^" + std::string{ core::canonical_hex(aPlan.Haves[index]).view() } + "\n";
+						}
+					}
 				}
 				aStep                  = git_smart_transport_step::local_pack;
 				const auto spool       = root / "wire.pack";
@@ -1937,6 +2082,7 @@ namespace bpr::adapters::github::detail {
 			std::stop_source                         Revocation;
 			std::mutex                               Mutex;
 			std::shared_ptr<github_insights_channel> Insights;
+			std::atomic<git_smart_fetch_source>      LastSource{ git_smart_fetch_source::host };
 		};
 	}
 

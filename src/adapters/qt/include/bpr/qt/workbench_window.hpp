@@ -555,6 +555,10 @@ namespace bpr::qt {
 		/// the sentence for `aFailure` in its place, or nothing waiting.
 		void present_opened_file(core::opened_file_wait aWait, const QString& aPath, bool aHistory,
 								 std::optional<application::workbench_host_failure> aFailure);
+		/// \brief [[BPR-2291]]. Says the fetch a waiting file waits on: which
+		/// commits, from which host and how much has come, with Cancel doing
+		/// `aCancel`; none takes it away.
+		void present_history_fetch(const std::optional<application::epoch_history_fetch>& aFetch, std::function<void()> aCancel);
 		/// \brief Adopts the selected file's core-decided private receipt actions.
 		void publish(
 			const application::file_receipt_action_projection& aProjection);

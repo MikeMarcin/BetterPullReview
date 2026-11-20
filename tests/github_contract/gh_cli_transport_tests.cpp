@@ -739,6 +739,11 @@ namespace {
 		expect(std::ranges::count_if(request->Environment, [](const auto& aEntry) { return aEntry.Name == "PATH"; }) == 1
 				   && std::ranges::any_of(request->Environment, [&](const auto& aEntry) { return aEntry.Name == "PATH" && aEntry.Value == path_bytes(git.parent_path()); }),
 			   "clone construction supplies exactly one observed Git search directory");
+		// [[BPR-2291]]. A clone from the host is bounded by its progress: a
+		// minute with nothing received stops it, not two minutes in all.
+		expect(request->IdleTimeout == std::chrono::milliseconds{ gh_cli_clone_stall_bound } && request->Timeout == std::chrono::milliseconds{ gh_cli_clone_ceiling }
+				   && request->IdleTimeout < request->Timeout,
+			   "a clone is stopped when it stalls, not while it still receives");
 		auto wrongRole       = configuration_candidate(layout);
 		wrongRole.Executable = git;
 		const auto wrong     = validate_gh_cli_configuration(wrongRole);

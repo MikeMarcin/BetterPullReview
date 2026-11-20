@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2288",
+    "BPR-2289",
+    "BPR-2290",
+    "BPR-2291"
+  ],
+  "reserve_for": "v0-5-0-prerelease-targets",
+  "purpose": "Large-repository history acquisition and retained agent workspaces",
+  "created": "2026-11-19T21:14:02.483136+00:00",
+  "base": "7ccbce1032fbbb41c0dbf8b75722a5f60d9371c4"
+}

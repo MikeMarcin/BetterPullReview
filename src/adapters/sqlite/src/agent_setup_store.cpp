@@ -13,9 +13,12 @@
 #include "bpr/core/review_preparation.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <expected>
 #include <initializer_list>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
@@ -455,6 +458,19 @@ namespace bpr::adapters::sqlite {
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
 									"limit_mib INTEGER NOT NULL CHECK(limit_mib BETWEEN 16 AND 65536),"
 									"keep_days INTEGER NOT NULL CHECK(keep_days BETWEEN 0 AND 3650)) STRICT")
+				// [[BPR-2293]]. How long an unused retained agent workspace is
+				// kept, and the GB the retained workspaces may hold together.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_workspace_policy("
+									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
+									"keep_days INTEGER NOT NULL CHECK(keep_days BETWEEN 0 AND 3650),"
+									"cap_gb INTEGER NOT NULL CHECK(cap_gb BETWEEN 1 AND 100000)) STRICT")
+				// [[BPR-2293]]. When each retained workspace was last used by a
+				// turn, by its path, in seconds since the epoch.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS native_agent_workspace_use("
+									"workspace TEXT PRIMARY KEY CHECK(length(CAST(workspace AS BLOB)) BETWEEN 1 AND 4096),"
+									"used INTEGER NOT NULL CHECK(used >= 0)) STRICT")
 				// Owner look v004: whether the Agent tab's suggestions are hidden.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_suggestions("
@@ -874,6 +890,15 @@ namespace bpr::adapters::sqlite {
 				if (committed) {
 					sqlite3_bind_int64(policy->Value, 1, aPreferences.ScratchLimitMiB);
 					sqlite3_bind_int64(policy->Value, 2, aPreferences.ScratchKeepDays);
+					committed = sqlite3_step(policy->Value) == SQLITE_DONE;
+				}
+			}
+			if (committed) {
+				auto policy = detail::prepare(aDatabase, "INSERT OR REPLACE INTO agent_workspace_policy VALUES(1,?1,?2)");
+				committed   = policy.has_value();
+				if (committed) {
+					sqlite3_bind_int64(policy->Value, 1, aPreferences.WorkspaceKeepDays);
+					sqlite3_bind_int64(policy->Value, 2, aPreferences.WorkspaceCapGb);
 					committed = sqlite3_step(policy->Value) == SQLITE_DONE;
 				}
 			}
@@ -1301,6 +1326,10 @@ namespace bpr::adapters::sqlite {
 					if (auto policy = detail::prepare(store->Database.get(), "SELECT limit_mib,keep_days FROM agent_scratch_policy WHERE singleton=1"); policy && sqlite3_step(policy->Value) == SQLITE_ROW) {
 						loaded.ScratchLimitMiB = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(policy->Value, 0), core::minimum_agent_scratch_limit_mib, core::maximum_agent_scratch_limit_mib));
 						loaded.ScratchKeepDays = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(policy->Value, 1), 0, core::maximum_agent_scratch_keep_days));
+					}
+					if (auto policy = detail::prepare(store->Database.get(), "SELECT keep_days,cap_gb FROM agent_workspace_policy WHERE singleton=1"); policy && sqlite3_step(policy->Value) == SQLITE_ROW) {
+						loaded.WorkspaceKeepDays = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(policy->Value, 0), 0, core::maximum_agent_workspace_keep_days));
+						loaded.WorkspaceCapGb    = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(policy->Value, 1), core::minimum_agent_workspace_cap_gb, core::maximum_agent_workspace_cap_gb));
 					}
 					if (auto hidden = detail::prepare(store->Database.get(), "SELECT hidden FROM agent_suggestions WHERE singleton=1"); hidden && sqlite3_step(hidden->Value) == SQLITE_ROW) {
 						loaded.SuggestionsHidden = sqlite3_column_int64(hidden->Value, 0) != 0;
@@ -2081,6 +2110,19 @@ namespace bpr::adapters::sqlite {
 						return false;
 					}
 				}
+				// [[BPR-2293]]. A turn that stores a conversation holding a
+				// workspace used it now; expiry counts its days from here.
+				if (!workspace.Workspace.Path.empty() && workspace.Workspace.Path.size() <= 4096U) {
+					auto used = detail::prepare(connection->Database.get(), "INSERT INTO native_agent_workspace_use(workspace,used) VALUES(?1,?2) ON CONFLICT(workspace) DO UPDATE SET used=max(used,excluded.used)");
+					if (!used) {
+						return false;
+					}
+					bind_text(used->Value, 1, workspace.Workspace.Path);
+					sqlite3_bind_int64(used->Value, 2, std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+					if (sqlite3_step(used->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
 				if (!aSession.WorkspaceKey.empty()) {
 					if (!aSession.Workspace || aSession.WorkspaceKey.size() > 4096U) {
 						return false;
@@ -2113,7 +2155,130 @@ namespace bpr::adapters::sqlite {
 				return true;
 			}
 
+			auto retained_workspaces() -> std::expected<std::vector<application::retained_workspace_record>, application::native_agent_storage_failure> override
+			{
+				using failure   = application::native_agent_storage_failure;
+				auto connection = open(Root);
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN")) {
+					return std::unexpected(failure::unavailable);
+				}
+				auto* const db = connection->Database.get();
+				// The pull request each selected conversation is at, and its base
+				// and head: a workspace no selected conversation of its pull
+				// request reaches has ended.
+				auto selected = std::vector<std::tuple<std::string, std::string, std::string>>{ };
+				{
+					auto row = detail::prepare(db, "SELECT s.scope,s.base,s.head FROM native_agent_selection AS c JOIN native_agent_sessions AS s ON s.id=c.conversation");
+					if (!row) {
+						return std::unexpected(failure::unavailable);
+					}
+					for (auto status = sqlite3_step(row->Value); status != SQLITE_DONE; status = sqlite3_step(row->Value)) {
+						if (status != SQLITE_ROW) {
+							return std::unexpected(failure::unavailable);
+						}
+						selected.emplace_back(pull_request_of(column_text(row->Value, 0).value_or("")), column_text(row->Value, 1).value_or(""), column_text(row->Value, 2).value_or(""));
+					}
+				}
+				auto row  = detail::prepare(db, "SELECT id,configuration,base,head,left_epoch,right_epoch,handle,turn,pending,workspace,parent,marker,application,session,directory,guard,guard_identity,shallow,revision,scope FROM native_agent_sessions WHERE workspace<>'' ORDER BY id");
+				auto keys = detail::prepare(db, "SELECT scope FROM native_agent_workspaces WHERE conversation=?1 ORDER BY scope");
+				auto used = detail::prepare(db, "SELECT used FROM native_agent_workspace_use WHERE workspace=?1");
+				if (!row || !keys || !used) {
+					return std::unexpected(failure::unavailable);
+				}
+				auto records = std::vector<application::retained_workspace_record>{ };
+				for (auto status = sqlite3_step(row->Value); status != SQLITE_DONE; status = sqlite3_step(row->Value)) {
+					if (status != SQLITE_ROW || records.size() >= 4096U) {
+						return std::unexpected(failure::unavailable);
+					}
+					auto workspace = read_native_workspace(db, row->Value);
+					if (!workspace || !*workspace) {
+						continue;
+					}
+					const auto pullRequest = pull_request_of(column_text(row->Value, 19).value_or(""));
+					const auto base        = column_text(row->Value, 2).value_or("");
+					const auto head        = column_text(row->Value, 3).value_or("");
+					const auto reached     = std::ranges::any_of(selected, [&](const auto& aSelected) { return std::get<0>(aSelected) == pullRequest && std::get<1>(aSelected) == base && std::get<2>(aSelected) == head; });
+					auto       found       = std::ranges::find_if(records, [&](const application::retained_workspace_record& aRecord) {
+						return aRecord.Workspace.Workspace.Path == (**workspace).Workspace.Path && aRecord.Workspace.OwnershipMarker == (**workspace).OwnershipMarker
+							&& aRecord.Workspace.DirectoryIdentity == (**workspace).DirectoryIdentity;
+					});
+					if (found == records.end()) {
+						auto record      = application::retained_workspace_record{ };
+						record.Workspace = std::move(**workspace);
+						record.Ended     = true;
+						sqlite3_reset(used->Value);
+						bind_text(used->Value, 1, record.Workspace.Workspace.Path);
+						if (sqlite3_step(used->Value) == SQLITE_ROW) {
+							record.LastUse = sqlite3_column_int64(used->Value, 0);
+						}
+						records.push_back(std::move(record));
+						found = std::prev(records.end());
+					}
+					found->Ended = found->Ended && !reached;
+					sqlite3_reset(keys->Value);
+					bind_text(keys->Value, 1, column_text(row->Value, 0).value_or(""));
+					for (auto keyStatus = sqlite3_step(keys->Value); keyStatus == SQLITE_ROW; keyStatus = sqlite3_step(keys->Value)) {
+						if (auto key = column_text(keys->Value, 0); key && std::ranges::find(found->Keys, *key) == found->Keys.end()) {
+							found->Keys.push_back(std::move(*key));
+						}
+					}
+				}
+				static_cast<void>(detail::execute(db, "COMMIT"));
+				return records;
+			}
+			auto forget_workspace(const application::owned_agent_workspace& aWorkspace) -> bool override
+			{
+				if (aWorkspace.Workspace.Path.empty() || aWorkspace.Workspace.Path.size() > 4096U) {
+					return false;
+				}
+				auto connection = open(Root);
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
+					return false;
+				}
+				auto* const db   = connection->Database.get();
+				const auto  bind = [&](sqlite3_stmt* aRow) {
+					bind_text(aRow, 1, aWorkspace.Workspace.Path);
+					bind_text(aRow, 2, aWorkspace.OwnershipMarker);
+					sqlite3_bind_blob(aRow, 3, aWorkspace.DirectoryIdentity.Opaque.data(), 32, SQLITE_TRANSIENT);
+				};
+				for (const auto* const statement : {
+						 "DELETE FROM native_agent_workspaces WHERE conversation IN (SELECT id FROM native_agent_sessions WHERE workspace=?1 AND marker=?2 AND directory=?3)",
+						 "DELETE FROM native_agent_sparse_objects WHERE conversation IN (SELECT id FROM native_agent_sessions WHERE workspace=?1 AND marker=?2 AND directory=?3)",
+						 "UPDATE native_agent_sessions SET workspace='',parent='',marker='',application=0,session=0,directory=zeroblob(32),guard='',guard_identity=zeroblob(32),shallow=0,revision=revision+1 WHERE workspace=?1 AND marker=?2 AND directory=?3",
+					 }) {
+					auto row = detail::prepare(db, statement);
+					if (!row) {
+						return false;
+					}
+					bind(row->Value);
+					if (sqlite3_step(row->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				auto use = detail::prepare(db, "DELETE FROM native_agent_workspace_use WHERE workspace=?1 AND NOT EXISTS (SELECT 1 FROM native_agent_sessions WHERE workspace=?1)");
+				if (!use) {
+					return false;
+				}
+				bind_text(use->Value, 1, aWorkspace.Workspace.Path);
+				return sqlite3_step(use->Value) == SQLITE_DONE && detail::execute(db, "COMMIT").has_value();
+			}
+
 		private:
+			/// The pull request part of a selection scope (`native_scope_key`):
+			/// its profile, account, viewer, host, repository, pull request,
+			/// profile revision and mode, the first eight fields.
+			[[nodiscard]] static auto pull_request_of(const std::string& aScope) -> std::string
+			{
+				auto at = std::size_t{ 0U };
+				for (int field = 0; field < 8; ++field) {
+					at = aScope.find(':', at);
+					if (at == std::string::npos) {
+						return aScope;
+					}
+					++at;
+				}
+				return aScope.substr(0U, at);
+			}
 			std::filesystem::path Root;
 		};
 

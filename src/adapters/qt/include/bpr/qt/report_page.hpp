@@ -117,6 +117,8 @@ namespace bpr::qt {
 		go,
 		/// [[BPR-2232]]. Draft all from the report.
 		draft_all,
+		/// [[BPR-2286]]. Ask follow-up on a finding.
+		ask,
 	};
 
 	/// \brief [[BPR-2219]] (docs/design/review-report-v1, A). The page's keep
@@ -138,6 +140,11 @@ namespace bpr::qt {
 		std::size_t DraftAll     = 0U;
 		bool        DraftAllBusy = false;
 		QString     DraftAllSaid;
+		/// [[BPR-2286]]. Ask follow-up is offered beside each finding's keep
+		/// action; a finding whose suggested comment a follow-up updated
+		/// shows the comment it now drafts, by its row in the menu.
+		bool                             FollowUp = false;
+		std::map<std::uint32_t, QString> Revised;
 	};
 
 	/// \brief [[BPR-2219]], round 2 (owner, look review-report-v001: "redesign

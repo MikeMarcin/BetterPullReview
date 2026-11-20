@@ -526,6 +526,11 @@ try {
 	// long an unused folder is kept are settings.
 	listed.ScratchLimitMiB = 1024U;
 	listed.ScratchKeepDays = 0U;
+	// [[BPR-2293]]. The retained workspaces' days and cap start at 7 and
+	// 20 GB and are settings.
+	expect(store->load()->WorkspaceKeepDays == 7U && store->load()->WorkspaceCapGb == 20U, "the workspace policy starts at 7 days and 20 GB");
+	listed.WorkspaceKeepDays = 0U;
+	listed.WorkspaceCapGb    = 55U;
 	expect(store->store(listed), "an agent list is stored");
 	store = adapters::sqlite::make_agent_setup_store(scratch.path());
 	expect(store->load() == listed, "and reads back in order with its fixed arguments, preset and choice after a restart");

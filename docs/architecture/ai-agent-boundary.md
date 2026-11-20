@@ -216,10 +216,32 @@ providers for the exact PR authority and base/head. A durable catalog reference
 keeps the original workspace and guard identities and journal phase 7. Startup recovery preserves
 that state even with no live process. Resume checks the marker, captured directory
 and guard identities, original pinned objects and the current HEAD; it never
-cleans allowed edits to make a resume succeed. Before retention, borrowed objects
-are packed locally and the alternates file is removed, so removing the linked
-clone does not invalidate a retained tree. A missing or unverifiable tree refuses
-input and is preserved for repair. Retention and safe admission bounds are recorded
+cleans allowed edits to make a resume succeed. A retained workspace keeps the
+one alternates line naming the linked clone's objects, so it copies only what
+the clone lacks of the head, never the history ([[BPR-2289]]; it used to pack
+all reachable history, about 7 GB per workspace on a large repository). Resume
+accepts exactly one such line, naming an objects folder outside the workspace.
+When the borrowed store no longer lends the head or the required base (the
+clone moved, was removed or dropped them), resume copies them from the review's
+cache, read only, ends the workspace's history at them and removes the line.
+A missing or unverifiable tree, or one the cache cannot supply, refuses input
+and is preserved for repair.
+
+On macOS a workspace that borrows a reviewer-linked clone takes the head's
+files from the clone's working tree instead of writing them all ([[BPR-2294]]).
+Each top-level folder of the head that is a real folder in the clone is cloned
+copy-on-write (APFS `clonefile`, one call per folder, which shares the blocks);
+the clone's index is copied, never shared, and `read-tree --reset` keeps its
+stat data wherever the entry is the head's. The workspace's own config sets
+`core.checkStat=minimal` and `core.trustctime=false`, so a refresh finds clean
+every file the clone had clean; the files that differ from the head, or were
+dirty or missing in the clone, are checked out; and `clean -ffdx` removes the
+clone's untracked and ignored files before the workspace is handed to any agent.
+No Git runs in the clone and nothing is written to it. A head with a submodule,
+a clone on another volume, Linux and Windows, or any failed step check every
+file out as before (and clean). Measured on a 20,003-file head one commit from
+the clone (`git_process_contract`): 5 files written instead of 20,003, and the
+workspace ready in about 0.9 s instead of 2.0 s. Retention and safe admission bounds are recorded
 in the [RFC-0096 ledger](../verification/RFC-BPR-0096.md).
 
 Owner amendment `retained-large-projects-r2` ([[BPR-1972]]) removes the profile-wide
@@ -229,7 +251,29 @@ does not recursively inventory all retained sessions before a question. Selected
 workspace ownership and required pinned objects remain checked; new materialization
 still fails visibly on actual Git/filesystem errors or cancellation. Catalog and
 journal count bounds, protected history and exact cleanup ownership remain in
-force. There is no automatic reclamation and no replacement project-size cap.
+force. No project-size cap blocks a question.
+
+Retained workspaces expire ([[BPR-2293]], the owner's [[BPR-2288]] Change 5).
+After startup recovery, once a day, when a history choice replaces a
+conversation and when the policy changes, a sweep on its own effect lane lists
+the workspaces the catalog records, measures each with a bounded walk that
+never follows a link, and asks the core (`choose_expired_workspaces`) which go:
+those no selected conversation of their pull request reaches at their base and
+head, those unused for more than the kept days (default 7; last use is the later
+of the last stored turn and the newest file), then the least recently used while
+all of them together hold more than the cap (default 20 GB). One whose turn
+lease, by pull request key or by path, cannot be taken is in use and never
+chosen; a reattaching turn takes the path lease too. Removal is the exact
+journaled cleanup: through the review cache's own owner for a workspace this
+process made, otherwise through its record's exclusive lock (busy is in use),
+and only for a phase 7 record naming that folder, identity and marker. No cache
+actor is needed. The conversations that held it are then cleared in one
+catalog revision, with their pull request keys, so the next turn makes a fresh
+workspace; a catalog that could not be written is cleared by the next sweep,
+which finds the folder gone. Settings › Agents shows "Retained agent
+workspaces: 3, 17.2 GB" with **Remove…**, which asks first and removes every
+one not in use, and the two policy values. The sweep that runs first after an
+update reclaims the workspaces earlier builds kept.
 
 This removes the profile-wide checkout inventory, not every cost of sending a
 question. Catalog/actor scheduling, exact ownership metadata and the Git process
@@ -271,6 +315,18 @@ downloaded whole; with no linked clone the workspace holds only the pull
 request's files at the head, read through the review's lease and checked
 against their blobs, sparse-checked-out from the cache's commit and trees and
 shallow at the head, and the brief, the review skill and the turn say so.
+Whether a review is sparse is how its cache was loaded, recorded while its
+read lease was live; a reread that revokes and renews the lease never makes a
+sparse cache look complete, and a missing review context is refused as stale
+([[BPR-2295]]). Every entry point that makes a workspace names the linked
+clone, the returning questions' tool-free answer too. A copy out of the cache
+first walks the head's commits; when the walk fails, the copy's history ends
+at the head (and the base the cache holds), and a cache that lacks the head's
+files as well refuses as `history_missing`, which the turn names without
+offering a resend. The `workspace_materialize` line says the source taken,
+whether the review was sparse, whether a clone was given and held the head,
+and on a failure the Git command and its words as a fixed class, never an
+object name or a path.
 This is in place of
 the `git worktree` the RFC first described, which the owner accepted on
 2026-10-22. Check it works makes and removes the same workspace through the
@@ -442,6 +498,26 @@ backticks after its opening and tore there. A block with no complete value
 (cut short, unbalanced, or with text after the value) yields no findings and
 is shown after the prose whole, as a `json` code block whose fence no
 backtick run inside it can close, so no fragment of it is read as Markdown.
+
+**A suggestion is anchored to every line it replaces ([[BPR-2298]], owner
+2026-11-19).** GitHub applies a ```` ```suggestion ```` block by replacing
+exactly its comment's lines (`start_line` to `line`, `RIGHT`), so the review
+skill (version 6) and the report prompts ask for the place or
+`startLine`/`endLine` to name every line the block rewrites, a kept line
+included. Agents still name only the line at fault, so a finding's draft
+(its card, the report's Draft comment, Draft all) reads its one suggestion
+block against the shown head with `core::decide_agent_suggestion_range`:
+when the block repeats verbatim the head lines just before or after the
+agent's range, with at least one of them substantive, or rewrites line for
+line a window of its own length around it (each line the same or with the
+same indentation and leading identifier), the range is widened to them; a
+block that keeps all the agent's lines only adds lines and keeps
+the range; a longer block nothing explains keeps the range and the card says
+to check it. The draft is then one GitHub multi-line comment on its last
+line with its first line (`core::promote_private_text_on_lines`, one edit)
+where `decide_comment_range` takes the range, else its first line as before,
+and the card says which lines it was drafted on. Publishing carries
+`start_line`/`start_side` as for any range draft.
 
 **Suggested comments carry Conventional Comments labels ([[BPR-1861]],
 owner 2026-11-04).** The review skill (version 3) asks every

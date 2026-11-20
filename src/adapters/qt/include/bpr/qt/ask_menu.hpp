@@ -51,6 +51,9 @@ namespace bpr::qt {
 		std::function<void(const ask_menu_request&)> Custom;
 		/// Edit Quick Asks…: Settings at the suggested prompts.
 		std::function<void()> Edit;
+		/// [[BPR-2286]]. Ask about this…: a follow-up about the menu's thread
+		/// (or the draft its card holds), in its own window; nothing is sent.
+		std::function<void(const ask_menu_request&)> FollowUp;
 	};
 
 	/// \brief The agent glyph in the Agent accent (enabled and disabled),

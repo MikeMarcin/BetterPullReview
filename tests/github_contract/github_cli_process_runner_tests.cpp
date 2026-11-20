@@ -331,6 +331,22 @@ namespace {
 			std::this_thread::sleep_for(10s);
 			return 0;
 		}
+		if (mode == QStringLiteral("grow-store")) {
+			// [[BPR-2291]]. A clone still receiving: its pack grows a little
+			// every 100 ms for 1.2 s, then it finishes.
+			QFile pack{ QStringLiteral("tmp_pack_growing") };
+			if (!pack.open(QIODevice::WriteOnly)) {
+				return 115;
+			}
+			for (auto index = 0; index < 12; ++index) {
+				std::this_thread::sleep_for(100ms);
+				if (pack.write("x", 1) != 1 || !pack.flush()) {
+					return 116;
+				}
+			}
+			std::cout << "grown";
+			return 0;
+		}
 		if (mode == QStringLiteral("churn-store")) {
 			const auto until = std::chrono::steady_clock::now() + 500ms;
 			do {
@@ -1857,6 +1873,44 @@ namespace {
 		expect(secretLifetime.expired(), "sensitive ownership is released only after the quarantined worker reaches terminal");
 	}
 
+	/// [[BPR-2291]]. A progress-bounded request is stopped when nothing
+	/// arrives for its idle bound, not at a total time while it still receives.
+	auto test_progress_bounded_requests() -> void
+	{
+		QTemporaryDir store;
+		expect(store.isValid(), "progress-bounded store is created");
+		const auto directory = std::filesystem::path{ QDir{ store.path() }.absolutePath().toStdWString() };
+		const auto runner    = make_github_cli_git_acquisition_process_runner({
+			.MaximumFileBytes        = 1024U,
+			.Directory               = directory,
+			.MaximumDirectoryBytes   = 4096U,
+			.MaximumDirectoryEntries = 128U,
+		});
+		expect(runner != nullptr, "progress-bounded runner is available");
+		auto growing        = base_request(store, { "--bpr-helper", "grow-store" });
+		growing.Timeout     = 5s;
+		growing.IdleTimeout = 400ms;
+		const auto grown    = runner->run(growing, { });
+		expect(grown && grown->StandardOutput == "grown", "a fetch whose store keeps growing runs past its idle bound three times over");
+
+		auto stalled        = base_request(store, { "--bpr-helper", "hang" });
+		stalled.Timeout     = 5s;
+		stalled.IdleTimeout = 300ms;
+		const auto started  = std::chrono::steady_clock::now();
+		const auto stopped  = runner->run(stalled, { });
+		const auto took     = std::chrono::steady_clock::now() - started;
+		expect(!stopped && stopped.error() == github_cli_process_failure::timeout && took < 4s,
+			   "a fetch that receives nothing is stopped at its idle bound, long before its ceiling");
+
+		auto ceiling        = base_request(store, { "--bpr-helper", "hang" });
+		ceiling.Timeout     = github_cli_process_max_progress_bounded_timeout + 1ms;
+		ceiling.IdleTimeout = 1s;
+		expect_failure(*runner, ceiling, github_cli_process_failure::invalid_request, "a progress bound past the ceiling is refused");
+		ceiling.Timeout     = 10min;
+		ceiling.IdleTimeout = 11min;
+		expect_failure(*runner, ceiling, github_cli_process_failure::invalid_request, "an idle bound past the total is refused");
+	}
+
 	auto test_deadline_cancellation_and_startup() -> void
 	{
 		QTemporaryDir directory;
@@ -2144,6 +2198,7 @@ try {
 	test_windows_acquisition_search_path_is_bound();
 #endif
 	test_git_acquisition_store_sampling();
+	test_progress_bounded_requests();
 	test_stream_limits_and_redaction();
 	test_sensitive_execution();
 #if defined(Q_OS_UNIX)

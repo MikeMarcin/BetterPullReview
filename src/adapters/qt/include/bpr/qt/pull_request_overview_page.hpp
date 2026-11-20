@@ -644,8 +644,9 @@ namespace bpr::qt {
 		void set_generated_dispatch(std::function<void(const application::generated_file_gesture&)> aDispatch);
 		/// \brief The row that ends the file tree: generated files set aside.
 		[[nodiscard]] auto generated_row() const noexcept -> generated_files_row*;
-		/// \brief The context menu a file row opens: its comments, then its
-		/// generated gestures; the caller owns it, none for a folder.
+		/// \brief The context menu a file row opens: its comments, Copy
+		/// Relative Path ([[BPR-2287]]), then its generated gestures; the
+		/// caller owns it. A folder row has its comments alone.
 		[[nodiscard]] auto make_file_menu(const QModelIndex& aIndex) -> QMenu*;
 		/// \brief [[BPR-1588]]. The Overview's right column, a real drawer.
 		[[nodiscard]] auto status_drawer() const noexcept -> overview_status_drawer*;

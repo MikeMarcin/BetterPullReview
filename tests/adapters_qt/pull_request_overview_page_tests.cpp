@@ -21,6 +21,7 @@
 
 #include <QAbstractScrollArea>
 #include <QAccessible>
+#include <QAction>
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
@@ -64,6 +65,7 @@
 #include <functional>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <source_location>
@@ -367,6 +369,20 @@ namespace {
 		page.files_view()->activated(model->index(0, 0));
 		QApplication::processEvents();
 		expect(activated.size() == 1U, "activating a folder row reports nothing");
+		{
+			// [[BPR-2287]]. A file row's menu copies its path from the
+			// repository root; a folder row offers no path to copy.
+			auto        menu = std::unique_ptr<QMenu>{ page.make_file_menu(lighting) };
+			auto* const copy = menu ? menu->findChild<QAction*>(QStringLiteral("overviewFileCopyRelativePath")) : nullptr;
+			expect(copy != nullptr && copy->text() == QStringLiteral("Copy Relative Path") && copy->isEnabled(), "[[BPR-2287]] a file row's menu offers Copy Relative Path");
+			QApplication::clipboard()->clear();
+			if (copy != nullptr) {
+				copy->trigger();
+			}
+			expect(QApplication::clipboard()->text() == QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp"), "[[BPR-2287]] Copy Relative Path writes the path from the repository root");
+			auto folderMenu = std::unique_ptr<QMenu>{ page.make_file_menu(lighting.parent()) };
+			expect(!folderMenu || folderMenu->findChild<QAction*>(QStringLiteral("overviewFileCopyRelativePath")) == nullptr, "[[BPR-2287]] a folder row copies no path");
+		}
 
 		auto unknown                     = projection();
 		unknown.SinceLastReview          = { .Known = true };
@@ -1887,6 +1903,16 @@ namespace {
 		const auto index = page.file_model()->index_for_path(QStringLiteral("src/new.cpp"));
 		expect(index.isValid() && index.data(Qt::ToolTipRole).toString().contains(QStringLiteral("src/old.cpp")), "cached rename preserves both exact paths");
 		expect(page.file_model()->row_at(index)->Operation == application::overview_file_operation::renamed, "cached operation preserved");
+		{
+			auto        menu = std::unique_ptr<QMenu>{ page.make_file_menu(index) };
+			auto* const copy = menu ? menu->findChild<QAction*>(QStringLiteral("overviewFileCopyRelativePath")) : nullptr;
+			expect(copy != nullptr, "[[BPR-2287]] a cached file row offers Copy Relative Path");
+			QApplication::clipboard()->clear();
+			if (copy != nullptr) {
+				copy->trigger();
+			}
+			expect(QApplication::clipboard()->text() == QStringLiteral("src/new.cpp"), "[[BPR-2287]] a renamed file copies its new path");
+		}
 		for (int column = qt::overview_file_model::changed_column; column < qt::overview_file_model::column_count; ++column) {
 			expect(page.files_view()->isColumnHidden(column), "unknown cached workflow counts are hidden");
 		}

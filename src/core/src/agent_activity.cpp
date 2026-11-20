@@ -6,17 +6,23 @@
 namespace bpr::core {
 	namespace {
 		/// Cuts at a UTF-8 boundary, never inside a character.
-		[[nodiscard]] auto bounded(std::string aText) -> std::string
+		[[nodiscard]] auto bounded(std::string aText, const std::size_t aBytes = maximum_agent_activity_subject_bytes) -> std::string
 		{
-			if (aText.size() <= maximum_agent_activity_subject_bytes) {
+			if (aText.size() <= aBytes) {
 				return aText;
 			}
-			auto cut = maximum_agent_activity_subject_bytes;
+			auto cut = aBytes;
 			while (cut > 0U && (static_cast<unsigned char>(aText[cut]) & 0xC0U) == 0x80U) {
 				--cut;
 			}
 			aText.resize(cut);
 			return aText;
+		}
+
+		/// [[BPR-2285]]. A command is kept whole; any other subject is a name.
+		[[nodiscard]] constexpr auto subject_bytes(const agent_doing aDoing) noexcept -> std::size_t
+		{
+			return aDoing == agent_doing::running ? maximum_agent_command_bytes : maximum_agent_activity_subject_bytes;
 		}
 
 		[[nodiscard]] auto find_helper(agent_turn_activity& aActivity, const std::string_view aId) -> agent_helper*
@@ -91,7 +97,7 @@ namespace bpr::core {
 			} else if (aUpdate.Doing == agent_doing::running) {
 				++aActivity.Commands;
 				// [[BPR-2007]]. The folded line lists what ran.
-				if (auto command = bounded(aUpdate.Subject); !command.empty() && aActivity.CommandsRun.size() < maximum_agent_activity_listed
+				if (auto command = bounded(aUpdate.Subject, maximum_agent_command_bytes); !command.empty() && aActivity.CommandsRun.size() < maximum_agent_activity_listed
 					&& !std::ranges::contains(aActivity.CommandsRun, command)) {
 					aActivity.CommandsRun.push_back(std::move(command));
 				}
@@ -100,7 +106,7 @@ namespace bpr::core {
 		switch (aUpdate.Kind) {
 		case agent_activity_kind::doing:
 			aActivity.Doing   = aUpdate.Doing;
-			aActivity.Subject = bounded(aUpdate.Subject);
+			aActivity.Subject = bounded(aUpdate.Subject, subject_bytes(aUpdate.Doing));
 			break;
 		case agent_activity_kind::helper_started:
 			if (auto* const helper = adopt_helper(aActivity, aUpdate.Helper, aAtMs); helper != nullptr && helper->Description.empty()) {
@@ -109,7 +115,7 @@ namespace bpr::core {
 			break;
 		case agent_activity_kind::helper_progress:
 			if (auto* const helper = adopt_helper(aActivity, aUpdate.Helper, aAtMs); helper != nullptr && helper->State == agent_helper_state::running && !aUpdate.Subject.empty()) {
-				helper->Last = bounded(aUpdate.Subject);
+				helper->Last = bounded(aUpdate.Subject, subject_bytes(aUpdate.Doing));
 			}
 			break;
 		case agent_activity_kind::helper_ended:

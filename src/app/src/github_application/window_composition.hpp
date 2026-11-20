@@ -27,6 +27,7 @@
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/feedback_counters.hpp"
+#include "bpr/application/follow_up_host.hpp"
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/github_epoch_handoff.hpp"
@@ -116,6 +117,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
+#include "bpr/qt/follow_up_window.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -556,10 +558,18 @@ namespace bpr::app {
 		/// its own agent lane, and the host that runs it there.
 		std::unique_ptr<worker_executor>                     DescriptionDraftLane;
 		std::unique_ptr<application::description_draft_host> DescriptionDraft;
-		std::uint64_t                                        DescriptionDraftShown   = 0U;
-		std::uint64_t                                        WritingHookSubscription = 0;
-		std::unique_ptr<review_tour_publication_workflow>    TourPublication;
-		std::unique_ptr<conversation_reply_workflow>         ConversationReply;
+		std::uint64_t                                        DescriptionDraftShown = 0U;
+		/// [[BPR-2286]]. Ask follow-up and Ask about this: their own agent
+		/// lane, the host of the window's follow-ups, the window they are
+		/// shown in, and each finding's suggested comment as a follow-up
+		/// updated it, by its follow-up key.
+		std::unique_ptr<worker_executor>                  FollowUpLane;
+		std::unique_ptr<application::follow_up_host>      FollowUp;
+		QPointer<qt::follow_up_window>                    FollowUpWindow;
+		std::map<std::string, std::string>                FollowUpRevisions;
+		std::uint64_t                                     WritingHookSubscription = 0;
+		std::unique_ptr<review_tour_publication_workflow> TourPublication;
+		std::unique_ptr<conversation_reply_workflow>      ConversationReply;
 		struct retained_tour_host
 		{
 			core::tour_owner                               Owner;
@@ -791,6 +801,9 @@ namespace bpr::app {
 		/// the startup cleanup of folders unused past the kept days.
 		void present_scratch_usage(const QString& aSaid = { });
 		void clear_agent_scratch(std::optional<std::int64_t> aBeforeSeconds, bool aSay);
+		/// [[BPR-2293]]. Settings' retained agent workspaces line, from the
+		/// profile's last sweep; one is surveyed when none was measured yet.
+		void present_agent_workspaces();
 		/// Open scratch folder.
 		void open_agent_scratch(std::uint64_t aProfile);
 		/// Sets an Agent tab turn's grant; asks the build question first when
@@ -1158,6 +1171,16 @@ namespace bpr::app {
 		void reset_tour();
 		void undo_tour_reset();
 		void present_tour_reset();
+		/// [[BPR-2286]]. Ask follow-up and Ask about this.
+		void               bind_follow_up();
+		void               follow_up_conversation(const std::string& aIdentity, const QString& aText);
+		void               open_follow_up(core::follow_up_subject aSubject);
+		void               present_follow_up(const application::follow_up_projection& aProjection);
+		[[nodiscard]] auto follow_up_agent() -> std::optional<application::follow_up_agent>;
+		void               ask_follow_up(const QString& aQuestion);
+		[[nodiscard]] auto follow_up_target(const core::follow_up_state& aState, core::follow_up_apply aApply) const -> std::optional<std::string>;
+		void               propose_follow_up(core::follow_up_apply aApply);
+		void               use_follow_up(std::uint64_t aProposal);
 #endif
 		auto apply_writing_result(const writing_operation& aOperation, const application::writing_result& aResult) -> std::string;
 		void finish_writing(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult);
@@ -1923,10 +1946,16 @@ namespace bpr::app {
 			core::source_line_ref At;
 			std::function<void()> Refused;
 			std::function<void()> Done;
+			/// [[BPR-2298]]. A finding's draft takes its lines' range with
+			/// its text: the first line, or none for one line. Unset: the
+			/// draft keeps its range (a note's promotion).
+			std::optional<std::optional<std::uint32_t>> StartLine;
 		};
 		std::optional<pending_note_promotion> PendingNotePromotion;
 
-		void promote_private_item(std::string aText, std::function<void()> aRefused, std::function<void()> aDone = { });
+		/// \brief Copies `aText` into the selected line's draft; with
+		/// `aStartLine` set, the draft's first line is set in the same edit.
+		void promote_private_item(std::string aText, std::function<void()> aRefused, std::function<void()> aDone = { }, std::optional<std::optional<std::uint32_t>> aStartLine = std::nullopt);
 
 		void resume_note_promotion();
 
@@ -2835,6 +2864,12 @@ namespace bpr::app {
 		std::uint64_t                             TourIdleObservationGeneration = 0U;
 		const application::agent_invocation_host* TourIdleObservedHost          = nullptr;
 		QPointer<qt::review_tour_editor>          TourIdleObservedEditor;
+		/// [[BPR-2291]]. Reads the review's fetch from the host twice a second
+		/// while a review is open, so a waiting file says what it fetches and
+		/// how much has come. Destroyed before the epoch host it reads.
+		std::unique_ptr<QTimer>                         HistoryFetchObservation;
+		std::optional<application::epoch_history_fetch> PresentedHistoryFetch;
+		void                                            observe_history_fetch();
 		/// [[BPR-1900]]. The session's runs and transcript, the run in
 		/// flight with its invocation, the workspace it ran in, and the
 		/// whole-tour proposal waiting on the author.
@@ -3116,6 +3151,9 @@ namespace bpr::app {
 		std::optional<application::agent_conversation_key>  AgentScratchTurn;
 		std::filesystem::path                               AgentScratchRoot;
 		bool                                                ScratchSwept = false;
+		/// [[BPR-2293]]. A history choice is pending: once it lands, the
+		/// conversation it replaced may have ended, and its workspace expires.
+		bool AgentWorkspaceSweepAfterHistory = false;
 		/// [[BPR-2008]]. Asks the build question: true allows, false
 		/// declines, none closed it. A course answers it itself.
 		std::function<std::optional<bool>()>                AskBuildQuestion;

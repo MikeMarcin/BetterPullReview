@@ -35,7 +35,10 @@ namespace bpr::application {
 		revision_prepare,
 		/// [[BPR-2195]]. Undoing a preparation that was cancelled or failed;
 		/// a refusal here leaves the operation for repair.
-		preparation_abort
+		preparation_abort,
+		/// [[BPR-2290]]. A force-pushed head's objects, fetched for the
+		/// review's history: its detail says where they came from.
+		historical_acquire
 	};
 	using diagnostic_epoch_failure  = std::variant<std::monostate, epoch_catalog_failure,
 												   git_cache_failure, git_smart_transport_failure, git_protocol_v2_failure, core::epoch_failure>;

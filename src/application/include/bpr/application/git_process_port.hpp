@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GIT_PROCESS_PORT_HPP
 
 #include "bpr/application/agent_workspace.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 
 #include <array>
 #include <compare>
@@ -9,6 +10,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stop_token>
@@ -215,6 +217,11 @@ namespace bpr::application {
 	{
 		std::optional<git_workspace_delta_pack> Delta;
 		std::optional<git_workspace_files>      PullRequestFiles;
+		/// [[BPR-2295]]. Written by the adapter, when present: the branch it
+		/// took, whether the linked clone held the head and, on a failure,
+		/// the Git command and the class of Git's words. The host reads it
+		/// once the materialization has returned.
+		std::shared_ptr<core::workspace_trace> Trace;
 
 		auto operator<=>(const git_workspace_source&) const = default;
 	};
@@ -525,9 +532,16 @@ namespace bpr::application {
 			std::stop_token                    aStop)
 			-> git_process_result<owned_agent_workspace> = 0;
 		/// \brief Checks the exact retained workspace through the same serialized Git owner.
+		/// \details [[BPR-2289]]. A workspace that borrows a linked clone whose
+		/// store no longer holds its head or base is repaired from the review
+		/// cache at `aRepository`, read only.
 		/// \returns [[BPR-2118]]. The workspace with the identities its journal records now.
-		[[nodiscard]] virtual auto inspect_agent_workspace(const owned_agent_workspace&, std::stop_token)
-			-> git_process_result<owned_agent_workspace> { return std::unexpected(git_process_failure::invalid_request); }
+		[[nodiscard]] virtual auto inspect_agent_workspace(const owned_agent_workspace&, const std::filesystem::path& aRepository, std::stop_token)
+			-> git_process_result<owned_agent_workspace>
+		{
+			static_cast<void>(aRepository);
+			return std::unexpected(git_process_failure::invalid_request);
+		}
 		[[nodiscard]] virtual auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
 			std::stop_token              aStop) -> git_process_result<void> = 0;

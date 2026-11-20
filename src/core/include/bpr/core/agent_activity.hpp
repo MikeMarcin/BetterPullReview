@@ -21,7 +21,7 @@ namespace bpr::core {
 		reading,
 		/// `Subject` is the pattern.
 		searching,
-		/// `Subject` is the command.
+		/// `Subject` is the command, whole ([[BPR-2285]]).
 		running,
 		/// `Subject` is the file.
 		editing,
@@ -89,6 +89,9 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_agent_helpers = 64U;
 	/// The most bytes a subject or a helper's words keep.
 	inline constexpr std::size_t maximum_agent_activity_subject_bytes = 240U;
+	/// [[BPR-2285]]. The most bytes a command keeps, every line of it: the
+	/// Agent tab shows it shortened and opens to the whole of it.
+	inline constexpr std::size_t maximum_agent_command_bytes = 4096U;
 	/// [[BPR-2007]]. The most commands and scratch files a turn lists.
 	inline constexpr std::size_t maximum_agent_activity_listed = 16U;
 	/// RFC-BPR-0103: the run is quiet after this long without any frame.

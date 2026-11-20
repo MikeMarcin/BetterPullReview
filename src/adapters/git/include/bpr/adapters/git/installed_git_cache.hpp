@@ -11,6 +11,8 @@
 #include <optional>
 
 namespace bpr::adapters::git {
+	class installed_workspace_owners;
+
 	/// \brief Describes the installed git cache configuration record.
 	struct installed_git_cache_configuration
 	{
@@ -20,6 +22,9 @@ namespace bpr::adapters::git {
 		/// Opt-in durable workspace ownership; absent for legacy/native callers.
 		std::optional<std::filesystem::path>            WorkspaceOwnershipRegistry;
 		std::shared_ptr<application::insights_observer> Insights;
+		/// [[BPR-2293]]. The agent workspaces the cache's processes make, shared
+		/// with whoever else removes them; none makes the cache its own.
+		std::shared_ptr<installed_workspace_owners> WorkspaceOwners;
 	};
 
 	/// \brief File-byte view of the existing cache inventory; reads only, and never opens a Git process.

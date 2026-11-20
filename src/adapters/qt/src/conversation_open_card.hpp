@@ -375,6 +375,15 @@ namespace bpr::qt {
 		void               bind_enhance(enhance_dispatch aDispatch, enhance_cancel aCancel);
 		auto               present_enhancement(const enhance_outcome& aOutcome) -> bool;
 		[[nodiscard]] auto enhance_control() const noexcept -> enhance_button* { return EnhanceButton; }
+		/// \brief [[BPR-2286]]. Ask about this, beside Enhance: where a press
+		/// goes, with the field's text as it is. Hidden without one.
+		void               bind_ask_about(std::function<void(const QString& aText)> aDispatch);
+		[[nodiscard]] auto ask_about_control() const noexcept -> QPushButton* { return AskAbout; }
+		/// \brief The field's text; empty without a field.
+		[[nodiscard]] auto field_text() const -> QString;
+		/// \brief [[BPR-2286]]. Update draft's Use: the field's text becomes
+		/// `aText` as one undoable edit, only while it is still `aBase`.
+		auto               replace_field_text(const QString& aBase, const QString& aText) -> bool;
 		[[nodiscard]] auto enhance_panel() const noexcept -> enhance_suggestion* { return EnhancePanel; }
 		/// \brief RFC-BPR-0118. Suggest the change on the drawer draft; null
 		/// on a card that writes no new comment.
@@ -566,6 +575,10 @@ namespace bpr::qt {
 		enhance_binding*    Enhance        = nullptr;
 		enhance_surface     EnhanceSurface = enhance_surface::comment;
 		void                build_enhance(QBoxLayout& aControls, enhance_surface aSurface);
+		/// [[BPR-2286]].
+		QPushButton*                              AskAbout = nullptr;
+		std::function<void(const QString& aText)> AskAboutDispatch;
+		void                                      build_ask_about(QBoxLayout& aControls);
 		/// RFC-BPR-0128 ([[BPR-2165]]). The claim's evidence over the code.
 		void show_claim_evidence(const QWidget& aChip);
 		/// RFC-BPR-0128 ([[BPR-2164]]). The thread's Ask, when the style has a

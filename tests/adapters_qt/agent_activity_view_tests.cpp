@@ -7,6 +7,8 @@
 #include "bpr/qt/agent_run_status.hpp"
 
 #include <QApplication>
+#include <QKeyEvent>
+#include <QLabel>
 #include <QPushButton>
 #include <QToolButton>
 
@@ -149,6 +151,62 @@ auto main(int argc, char** argv) -> int
 	expect(!view.rows_open(), "closed");
 	view.summary_button()->click();
 	expect(view.rows_open() && view.helper_rows() == 3, "it opens to the rows");
+	expect(view.command_rows() == 1 && view.command_row_text(0) == QStringLiteral("git diff --stat") && view.command_disclosure(0) == nullptr, "the one command it ran, whole");
+
+	// [[BPR-2285]], owner 2026-11-19: "The tool calls that show in the agents
+	// tab get shortened which makes sense but there should be a disclosure to
+	// see the full command." A short command shows whole, with no disclosure;
+	// a long or many-line one shows its first line shortened, and a closed
+	// disclosure opens to the whole of it.
+	{
+		const auto heredoc = std::string{ "python3 - <<'EOF'\nimport sys\nprint(sys.argv)\nEOF" };
+		const auto wide    = std::string{ "rg -n --hidden --glob '!build/**' 'agent_footer_doing_words|agent_footer_state_words|present_cost' src tests docs scripts" };
+		auto       ran     = core::agent_turn_activity{ };
+		for (const auto& command : { std::string{ "git diff --stat" }, heredoc, wide }) {
+			ran = core::apply_agent_activity(ran, update(kind::doing, { }, command, core::agent_doing::running), 1'000U);
+		}
+		auto commands = qt::agent_activity_view{ };
+		commands.resize(420, 300);
+		commands.fold(ran, 30);
+		commands.show();
+		commands.summary_button()->click();
+		QApplication::processEvents();
+		expect(commands.command_rows() == 3, "a row for each command");
+		expect(commands.command_row_text(0) == QStringLiteral("git diff --stat") && commands.command_disclosure(0) == nullptr, "a short command is whole, with no disclosure");
+		expect(commands.command_row_text(1) == QStringLiteral("python3 - <<'EOF' …"), "a many-line command shows its first line: " + commands.command_row_text(1).toStdString());
+		expect(commands.command_row_text(2).size() == 100 && commands.command_row_text(2).endsWith(QStringLiteral("…")), "a long one is shortened: " + commands.command_row_text(2).toStdString());
+		auto* const toggle = commands.command_disclosure(1);
+		expect(toggle != nullptr && !toggle->isChecked() && commands.command_full(1)->isHidden() && toggle->accessibleName() == QStringLiteral("Show the full command"), "closed by default, and says what it opens");
+		expect(toggle->focusPolicy() == Qt::StrongFocus, "the disclosure takes keyboard focus");
+		toggle->setFocus();
+		QApplication::processEvents();
+		auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(toggle, &press);
+		QApplication::sendEvent(toggle, &release);
+		QApplication::processEvents();
+		expect(toggle->isChecked() && !commands.command_full(1)->isHidden() && commands.command_full(1)->text() == QString::fromStdString(heredoc) && toggle->accessibleName() == QStringLiteral("Hide the full command"),
+			   "Space opens it to the whole command");
+		commands.fold(ran, 31);
+		expect(commands.command_disclosure(1)->isChecked() && !commands.command_full(1)->isHidden(), "an opened command stays open when the rows are drawn again");
+		expect(!commands.command_disclosure(2)->isChecked(), "the others stay closed");
+		commands.command_disclosure(1)->click();
+		expect(commands.command_full(1)->isHidden() && !commands.command_disclosure(1)->isChecked(), "and it closes again");
+		if (const auto folder = qEnvironmentVariable("BPR_ACTIVITY_RENDER"); !folder.isEmpty()) {
+			commands.summary_button()->click();
+			commands.command_disclosure(2)->click();
+			commands.resize(420, 190);
+			QApplication::processEvents();
+			static_cast<void>(commands.grab().save(folder + QStringLiteral("/agent-activity-commands.png")));
+		}
+		// The live line says a command's first line, shortened.
+		auto running              = qt::agent_run_status{ };
+		running.Agent             = QStringLiteral("Claude");
+		running.Activity          = core::apply_agent_activity({ }, update(kind::doing, { }, heredoc, core::agent_doing::running), 0U);
+		running.ActivityStartedMs = now;
+		expect(qt::agent_run_status_words(running, 1).contains(QStringLiteral("is running python3 - <<'EOF' …,")), "the live line: " + qt::agent_run_status_words(running, 1).toStdString());
+	}
+
 	auto quiet = qt::agent_activity_view{ };
 	quiet.fold(core::agent_turn_activity{ }, 3);
 	expect(quiet.isHidden(), "a turn that reported no work folds to nothing");

@@ -1083,6 +1083,33 @@ namespace bpr::app {
 									facts.FileFailed || facts.ComparisonRefused ? std::optional{ OpenedFileFailure->Failure } : std::nullopt);
 	}
 
+	/// \brief [[BPR-2291]]. The owner, 2026-11-19: a file waited minutes
+	/// on a clone and "showed no reason". While the review's commits are
+	/// fetched from the host, a waiting file says which, from where and how
+	/// much has come, and Cancel stops the fetch.
+	void github_application::implementation::observe_history_fetch()
+	{
+		if (Closing || Window == nullptr || EpochHost == nullptr) {
+			return;
+		}
+		if (!HistoryFetchObservation) {
+			HistoryFetchObservation = std::make_unique<QTimer>();
+			HistoryFetchObservation->setInterval(500);
+			QObject::connect(HistoryFetchObservation.get(), &QTimer::timeout, [this] { observe_history_fetch(); });
+			HistoryFetchObservation->start();
+		}
+		auto fetch = EpochHost->history_fetch();
+		if (fetch == PresentedHistoryFetch) {
+			return;
+		}
+		PresentedHistoryFetch = fetch;
+		Window->present_history_fetch(fetch, [this] {
+			if (!Closing && EpochHost != nullptr) {
+				EpochHost->dispatch(core::cancel_epoch_refresh_intent{ });
+			}
+		});
+	}
+
 	void github_application::implementation::restoration_notice(const QString& aText)
 	{
 		if (Closing || !Window) {
@@ -1395,6 +1422,15 @@ DefectThreadNames.reset();
 } }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } }, .RecentChanged = [this, weak] { if (!weak.expired() && !Closing) { publish_recent(); } }, .Ledger = [this, weak](const application::workbench_pull_request_authority& aAuthority, ledger_changes aChanges) { if (!weak.expired() && !Closing) { refresh_shared_ledger(aAuthority, aChanges); } }, .SetupProfile = [this, weak](const application::github_profile_option& aOption) { if (!weak.expired() && !Closing) { Window->add_setup_profile(aOption); } }, .RetireServerSetup = [this, weak](std::string_view aHostname) { if (!weak.expired() && !Closing && SetupDestination && SetupDestination->pending() && SetupDestination->pending()->Destination.Hostname == aHostname) { retire_setup_effects(); SetupOwner = next_setup_owner(); SetupDestination->cancel(); } }, .AgentWorkspaceRepair = [this, weak] { if (!weak.expired()) { present_agent_workspace_repair(); } } });
 		// What this window's read lane waits on, for Home's discovery to give
 		// way to (`core::home_loading_yields`).
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// [[BPR-2293]]. Settings shows the retained agent workspaces again
+		// after each sweep.
+		Profile->Observers.at(DraftWindow).AgentWorkspaces = [this, weak] {
+			if (!weak.expired() && !Closing) {
+				present_agent_workspaces();
+			}
+		};
+#endif
 		Profile->Observers.at(DraftWindow).ReadLane = [this, weak]() -> std::optional<core::github_state> {
 			return weak.expired() || Closing || !WindowRead ? std::nullopt : std::optional{ WindowRead->state() };
 		};

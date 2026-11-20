@@ -120,6 +120,7 @@ add_library(
         src/agent_entry.cpp
         src/agent_configuration.cpp
         src/agent_grant.cpp
+        src/agent_workspace_expiry.cpp
         src/agent_run_policy.cpp
         src/agent_profile.cpp
         src/agent_wrapper.cpp
@@ -152,6 +153,7 @@ add_library(
         src/feedback_draft_edit.cpp
         src/feedback_header_edit.cpp
         src/agent_comment_suggestion.cpp
+        src/agent_suggestion_range.cpp
         src/agent_draft_all.cpp
         src/agent_report_keep.cpp
         src/draft_roster.cpp
@@ -190,6 +192,7 @@ add_library(
         src/tour_stop_view.cpp
         src/description_edit.cpp
         src/description_draft.cpp
+        src/agent_follow_up.cpp
         src/window_title.cpp
         src/reviewer_request.cpp
         src/draft_state.cpp

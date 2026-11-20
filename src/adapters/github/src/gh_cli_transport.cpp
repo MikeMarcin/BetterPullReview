@@ -1708,14 +1708,17 @@ namespace bpr::adapters::github::detail {
 			&& (aDepth != 0U || aIndex != 0U || !aReference.empty() || aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees)) {
 			return std::nullopt;
 		}
+		// [[BPR-2290]]. A complete clone may borrow the linked clone too, so
+		// the host sends only what it lacks.
+		const auto referenced = !aReference.empty();
 		if ((aContent != gh_cli_clone_content::trees && !delta && !managed)
-			|| (!delta && !managed && (aDepth == 0U || aDepth > maximum_gh_cli_clone_depth || !aReference.empty()))
+			|| (!delta && !managed && (aDepth == 0U || aDepth > maximum_gh_cli_clone_depth || (referenced && aContext.AcquisitionMode != application::git_smart_acquisition_mode::complete_closure)))
 			|| (aDepth != 1U && !delta && !managed && aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees)
 			|| (delta && (aDepth != 0U || aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees))) {
 			return std::nullopt;
 		}
 		std::error_code referenceError;
-		if (delta
+		if ((delta || referenced)
 			&& (!aReference.is_absolute() || std::filesystem::canonical(aReference, referenceError) != aReference || referenceError
 				|| !std::filesystem::is_directory(aReference, referenceError) || referenceError)) {
 			return std::nullopt;
@@ -1771,7 +1774,7 @@ namespace bpr::adapters::github::detail {
 							   std::string{ "--config" }, std::string{ "core.fsmonitor=false" } }) {
 			arguments.push_back(std::move(argument));
 		}
-		if (delta) {
+		if (delta || referenced) {
 			// [[BPR-1873]]. Borrowed, the linked clone's refs are the haves:
 			// only what it lacks is sent, and nothing is written to it.
 			arguments.emplace_back("--reference=" + path_bytes(aReference));
@@ -1792,8 +1795,11 @@ namespace bpr::adapters::github::detail {
 									   .StandardErrorLimit  = maximum_standard_error_bytes,
 									   // [[BPR-1879]]. A kept clone runs on its own runner,
 									   // whose deadline is the kept clone's longer bound.
-									   .Timeout                 = std::chrono::minutes{ 2 },
+									   // [[BPR-2291]]. Every other clone is bounded by its
+									   // progress: stalled for a minute, it stops.
+									   .Timeout                 = managed ? std::chrono::milliseconds{ std::chrono::minutes{ 2 } } : std::chrono::milliseconds{ gh_cli_clone_ceiling },
 									   .ReapTimeout             = process_reap_timeout,
+									   .IdleTimeout             = managed ? std::chrono::milliseconds{ } : std::chrono::milliseconds{ gh_cli_clone_stall_bound },
 									   .PreserveCompletedOutput = true,
 								   },
 								   path_bytes(root));
@@ -1825,6 +1831,31 @@ namespace bpr::adapters::github::detail {
 		-> std::filesystem::path
 	{
 		return aRoot / ("clone-" + std::to_string(aIndex) + ".git");
+	}
+
+	auto gh_cli_linked_clone_objects(const std::filesystem::path& aClone)
+		-> std::optional<std::pair<std::filesystem::path, std::filesystem::path>>
+	{
+		std::error_code error;
+		const auto      clone = std::filesystem::canonical(aClone, error);
+		if (error || !std::filesystem::is_directory(clone, error) || error) {
+			return std::nullopt;
+		}
+		auto gitDirectory = clone / ".git";
+		if (!std::filesystem::is_directory(gitDirectory, error) || error) {
+			error.clear();
+			if (!std::filesystem::is_directory(clone / "objects", error) || error || !std::filesystem::is_regular_file(clone / "HEAD", error) || error) {
+				return std::nullopt;
+			}
+			gitDirectory = clone;
+		}
+		// A shallow clone's history stops at its boundary, and Git refuses
+		// it as a `--reference`.
+		const auto objects = gitDirectory / "objects";
+		if (std::filesystem::exists(gitDirectory / "shallow", error) || error || !std::filesystem::is_directory(objects, error) || error) {
+			return std::nullopt;
+		}
+		return std::pair{ clone, objects };
 	}
 
 	auto gh_cli_git_kept_clone_directory(const std::filesystem::path& aClone)

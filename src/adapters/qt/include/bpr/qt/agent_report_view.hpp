@@ -174,6 +174,13 @@ namespace bpr::qt {
 		/// finding's lines can take a draft now, as the host knows.
 		void set_draft_all_dispatch(report_draft_all_dispatch aDispatch);
 		void set_placeable(std::function<bool(const report_draft&)> aPlaceable);
+		/// \brief [[BPR-2286]]. Ask follow-up on a finding opens its
+		/// follow-up: the finding as its keep action would make it.
+		void set_follow_up_dispatch(std::function<void(const report_draft&)> aDispatch);
+		/// \brief [[BPR-2286]]. A finding's suggested comment as a follow-up
+		/// updated it, if one did: its keep action drafts that, and the page
+		/// shows it.
+		void set_revision_source(std::function<std::optional<QString>(const report_draft&)> aSource);
 		/// \brief [[BPR-2232]]. How many findings Draft all would draft (the
 		/// count its link shows); 0 when it is not offered.
 		[[nodiscard]] auto draft_all_offered() const -> std::size_t;
@@ -278,19 +285,21 @@ namespace bpr::qt {
 		report_draft_all_dispatch                DraftAllDispatch;
 		std::function<bool(const report_draft&)> Placeable;
 		/// This render's keep links, by token.
-		std::map<QString, std::pair<std::uint32_t, report_link>> ActionLinks;
-		report_draft_dispatch                                    DraftDispatch;
-		std::function<void(const report_draft&)>                 GoDispatch;
-		QLabel*                                                  Title      = nullptr;
-		QLabel*                                                  Byline     = nullptr;
-		QScrollArea*                                             Scroll     = nullptr;
-		markdown_body_view*                                      Body       = nullptr;
-		QToolButton*                                             MenuButton = nullptr;
-		QFrame*                                                  Popover    = nullptr;
-		QListWidget*                                             Sections   = nullptr;
-		std::function<void(const QString&)>                      LinkDispatch;
-		std::function<void(markdown_body_view&)>                 Dresser;
-		std::function<void(std::uint64_t)>                       ConversationDispatch;
+		std::map<QString, std::pair<std::uint32_t, report_link>>   ActionLinks;
+		report_draft_dispatch                                      DraftDispatch;
+		std::function<void(const report_draft&)>                   GoDispatch;
+		std::function<void(const report_draft&)>                   FollowUpDispatch;
+		std::function<std::optional<QString>(const report_draft&)> RevisionSource;
+		QLabel*                                                    Title      = nullptr;
+		QLabel*                                                    Byline     = nullptr;
+		QScrollArea*                                               Scroll     = nullptr;
+		markdown_body_view*                                        Body       = nullptr;
+		QToolButton*                                               MenuButton = nullptr;
+		QFrame*                                                    Popover    = nullptr;
+		QListWidget*                                               Sections   = nullptr;
+		std::function<void(const QString&)>                        LinkDispatch;
+		std::function<void(markdown_body_view&)>                   Dresser;
+		std::function<void(std::uint64_t)>                         ConversationDispatch;
 	};
 } // namespace bpr::qt
 

@@ -79,6 +79,7 @@ namespace {
 			{ path::local_commit_message, fresh },
 			{ path::agent_check, fresh },
 			{ path::assistance_first_answer, fresh },
+			{ path::follow_up, fresh },
 			{ path::agent_tab, resume },
 			{ path::tour_side_chat, resume },
 			{ path::tour_conversation, resume },

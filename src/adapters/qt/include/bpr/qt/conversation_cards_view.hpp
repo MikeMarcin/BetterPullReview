@@ -45,6 +45,7 @@ class QAbstractButton;
 class QContextMenuEvent;
 class QMenu;
 class QPlainTextEdit;
+class QPushButton;
 class QToolButton;
 class QTimer;
 class QKeyEvent;
@@ -1106,6 +1107,17 @@ namespace bpr::qt {
 		/// \brief [[BPR-2051]]. Where Enhance on the draft or reply written
 		/// here goes, and how a run it started is stopped.
 		void set_enhance_dispatch(enhance_dispatch aDispatch, enhance_cancel aCancel);
+		/// \brief [[BPR-2286]]. Ask about this beside Enhance on the open
+		/// card's field: the card's identity (a thread, or the draft being
+		/// written) and the field's text. Without it the control is hidden.
+		void               set_ask_about_dispatch(std::function<void(const std::string& aIdentity, const QString& aText)> aDispatch);
+		[[nodiscard]] auto ask_about_control() const -> QPushButton*;
+		/// \brief The field's text of the card open as `aIdentity`; none when
+		/// that card is not the one open.
+		[[nodiscard]] auto field_text(const std::string& aIdentity) const -> std::optional<QString>;
+		/// \brief [[BPR-2286]]. Update draft's Use on the card open as
+		/// `aIdentity`: one undoable edit, only while its text is `aBase`.
+		auto replace_field_text(const std::string& aIdentity, const QString& aBase, const QString& aText) -> bool;
 		/// \brief [[BPR-2051]]. The answer to one press; false when no field
 		/// shown here asked it.
 		auto present_enhancement(const enhance_outcome& aOutcome) -> bool;
@@ -1370,16 +1382,18 @@ namespace bpr::qt {
 		std::function<void(const std::string&, const QString&)>                              ReplyTextDispatch;
 		std::optional<thread_reply_presentation>                                             Reply;
 		/// [[BPR-1212]]. My draft is open and being written in the drawer.
-		bool                                       Writing = false;
-		std::optional<draft_composer_presentation> Composer;
-		std::function<void(const QString&)>        DraftTextDispatch;
-		enhance_dispatch                           EnhanceDispatch;
-		enhance_cancel                             EnhanceCancel;
-		QString                                    Viewer;
-		std::string                                Current;
-		bool                                       PullRequestComments = false;
-		std::string                                NewConversationBoundary;
-		QAbstractButton*                           PullRequestChip = nullptr;
+		bool                                                    Writing = false;
+		std::optional<draft_composer_presentation>              Composer;
+		std::function<void(const QString&)>                     DraftTextDispatch;
+		enhance_dispatch                                        EnhanceDispatch;
+		std::function<void(const std::string&, const QString&)> AskAboutDispatch;
+		void                                                    bind_ask_about();
+		enhance_cancel                                          EnhanceCancel;
+		QString                                                 Viewer;
+		std::string                                             Current;
+		bool                                                    PullRequestComments = false;
+		std::string                                             NewConversationBoundary;
+		QAbstractButton*                                        PullRequestChip = nullptr;
 		/// [[BPR-1781]]. Where each mode was left, restored on return.
 		struct mode_place
 		{

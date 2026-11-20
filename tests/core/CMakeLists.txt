@@ -516,6 +516,26 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_description_edit_core_tests
 )
 
+# [[BPR-2286]]. A follow-up's rounds, proposals and apply decisions.
+bpr_add_executable(
+    test_better_pull_review_agent_follow_up_core_tests
+    agent_follow_up_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_agent_follow_up_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_agent_follow_up_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_follow_up_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_agent_follow_up
+    COMMAND test_better_pull_review_agent_follow_up_core_tests
+)
+set_tests_properties(core_agent_follow_up PROPERTIES PASS_REGULAR_EXPRESSION "agent-follow-up-core-tests:pass")
+
 # [[BPR-1864]]. The words a workbench window's title says.
 bpr_add_executable(
     test_better_pull_review_window_title_core_tests
@@ -1138,6 +1158,13 @@ target_link_libraries(test_agent_comment_suggestion PRIVATE BetterPullReview::Co
 bpr_enable_hardening(test_agent_comment_suggestion)
 bpr_enable_warnings(test_agent_comment_suggestion)
 bpr_add_network_isolated_test(NAME core_agent_comment_suggestion COMMAND test_agent_comment_suggestion)
+
+# [[BPR-2298]]. The lines an agent's suggested comment anchors to: kept, widened to the lines its suggestion replaces, or flagged.
+bpr_add_executable(test_agent_suggestion_range agent_suggestion_range_tests.cpp)
+target_link_libraries(test_agent_suggestion_range PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_agent_suggestion_range)
+bpr_enable_warnings(test_agent_suggestion_range)
+bpr_add_network_isolated_test(NAME core_agent_suggestion_range COMMAND test_agent_suggestion_range)
 
 # [[BPR-2061]]. Draft all: which suggested comments one reply drafts, and why the rest are passed over.
 bpr_add_executable(test_agent_draft_all agent_draft_all_tests.cpp)
@@ -1766,6 +1793,12 @@ bpr_enable_hardening(test_better_pull_review_agent_grant_core_tests)
 bpr_enable_warnings(test_better_pull_review_agent_grant_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_grant COMMAND test_better_pull_review_agent_grant_core_tests)
 set_tests_properties(core_agent_grant PROPERTIES PASS_REGULAR_EXPRESSION "agent-grant-tests:pass")
+bpr_add_executable(test_better_pull_review_agent_workspace_expiry_core_tests agent_workspace_expiry_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_workspace_expiry_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_workspace_expiry_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_workspace_expiry_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_workspace_expiry COMMAND test_better_pull_review_agent_workspace_expiry_core_tests)
+set_tests_properties(core_agent_workspace_expiry PROPERTIES PASS_REGULAR_EXPRESSION "agent-workspace-expiry-tests:pass")
 
 # [[BPR-2016]], RFC-BPR-0107. The portable agent and prompt file.
 bpr_add_executable(test_better_pull_review_agent_configuration_core_tests agent_configuration_tests.cpp)

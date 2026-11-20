@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2286"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Ask follow-up and Ask about this with apply actions",
+  "created": "2026-11-19T20:57:42.870107+00:00",
+  "base": "dcbf7ec350d70d1c54934acf17089629b7ea7a9e"
+}

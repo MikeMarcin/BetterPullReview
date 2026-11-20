@@ -431,7 +431,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto prompt_offers() const -> core::chat_prompts;
 		[[nodiscard]] auto prompt_part(const core::tour_thread& aThread) const -> core::prompt_tour_part;
 		void               fit();
-		void               to_bottom();
 		[[nodiscard]] auto name_of(const core::tour_thread& aThread) const -> QString;
 		/// [[BPR-1944]]. `aFramed`: the agent's reply, whose code blocks are
 		/// boxes with Wrap and Copy; a proposal reads as its stop will.
@@ -482,7 +481,6 @@ namespace bpr::qt {
 		QLabel*                                                                     ContinuationMode = nullptr;
 		QString                                                                     Why;
 		std::size_t                                                                 Shown = 0U;
-		bool                                                                        Stick = false;
 		QFont                                                                       CodeFont;
 		qreal                                                                       TabStop = 0.0;
 		std::optional<markdown_code_theme>                                          CodeTheme;

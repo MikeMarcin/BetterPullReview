@@ -43,7 +43,9 @@ namespace bpr::adapters::github::detail {
 		using process_support::resolve_process_group;
 		using process_support::wait_milliseconds;
 
-		[[nodiscard]] auto directory_within_limits(const github_cli_process_file_limits& aLimits) -> bool
+		/// \p aBytes, when given, receives what the store holds: a progress
+		/// measure for a request bounded by it ([[BPR-2291]]).
+		[[nodiscard]] auto directory_within_limits(const github_cli_process_file_limits& aLimits, std::uint64_t* const aBytes = nullptr) -> bool
 		{
 			if (aLimits.Directory.empty()) {
 				return aLimits.MaximumFileBytes == 0U;
@@ -76,6 +78,9 @@ namespace bpr::adapters::github::detail {
 					return false;
 				}
 				iterator.increment(error);
+			}
+			if (aBytes != nullptr) {
+				*aBytes = bytes;
 			}
 			return !error;
 		}
@@ -176,9 +181,17 @@ namespace bpr::adapters::github::detail {
 				|| aRequest.StandardErrorLimit
 					> github_cli_process_max_standard_error_bytes
 				|| aRequest.Timeout <= std::chrono::milliseconds::zero()
+				|| aRequest.IdleTimeout < std::chrono::milliseconds::zero()
+				|| aRequest.IdleTimeout > aRequest.Timeout
+				// [[BPR-2291]]. A progress-bounded request's total is only its
+				// ceiling, which may be longer.
+				|| (aRequest.IdleTimeout == std::chrono::milliseconds::zero()
+					&& aRequest.Timeout
+						> std::chrono::duration_cast<std::chrono::milliseconds>(
+							github_cli_process_max_timeout))
 				|| aRequest.Timeout
 					> std::chrono::duration_cast<std::chrono::milliseconds>(
-						github_cli_process_max_timeout)
+						github_cli_process_max_progress_bounded_timeout)
 				|| aRequest.ReapTimeout <= std::chrono::milliseconds::zero()
 				|| aRequest.ReapTimeout
 					> std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -750,10 +763,28 @@ namespace bpr::adapters::github::detail {
 					process->setReadChannel(QProcess::StandardOutput);
 					return std::nullopt;
 				};
+				// [[BPR-2291]]. A progress-bounded request's idle clock restarts
+				// whenever its output or its store grows: a fetch still receiving
+				// data is never cut off by a total bound, one that receives
+				// nothing for `IdleTimeout` is.
+				const auto idleBounded = aRequest.IdleTimeout > std::chrono::milliseconds::zero();
+				auto       progress    = std::uint64_t{ 0U };
+				auto       idleUntil   = clock::now() + std::chrono::duration_cast<clock::duration>(aRequest.IdleTimeout);
 				const auto terminalFailure =
 					[&]() -> std::optional<github_cli_process_failure> {
-					if (!directory_within_limits(aFileLimits)) {
+					auto stored = std::uint64_t{ 0U };
+					if (!directory_within_limits(aFileLimits, &stored)) {
 						return github_cli_process_failure::standard_output_limit;
+					}
+					if (idleBounded) {
+						const auto now      = clock::now();
+						const auto observed = stored + standardOutputBytes + standardErrorBytes;
+						if (observed > progress) {
+							progress  = observed;
+							idleUntil = now + std::chrono::duration_cast<clock::duration>(aRequest.IdleTimeout);
+						} else if (now >= idleUntil) {
+							return github_cli_process_failure::timeout;
+						}
 					}
 					if (
 						aShutdownRequested.load(std::memory_order_acquire)

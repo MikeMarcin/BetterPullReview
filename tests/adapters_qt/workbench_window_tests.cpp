@@ -7829,6 +7829,19 @@ namespace {
 		expect(std::holds_alternative<core::return_tab_to_window_comparison_intent>(intents.back()), "return to window is a semantic intent");
 		triggerMenu("documentTabMakeWindow");
 		expect(std::holds_alternative<core::make_tab_comparison_window_intent>(intents.back()), "make window is a semantic intent");
+		{
+			// [[BPR-2287]]. A tab's menu copies its file's path from the
+			// repository root, and dispatches nothing.
+			const auto count = intents.size();
+			QApplication::clipboard()->clear();
+			auto        otherMenu = std::unique_ptr<QMenu>{ strip->make_tab_menu(core::document_tab_id{ 3 }, &window) };
+			auto* const copy      = otherMenu->findChild<QAction*>(QStringLiteral("documentTabCopyRelativePath"));
+			expect(copy != nullptr && copy->text() == QStringLiteral("Copy Relative Path") && copy->isEnabled(), "[[BPR-2287]] a file tab's menu offers Copy Relative Path");
+			if (copy != nullptr) {
+				copy->trigger();
+			}
+			expect(QApplication::clipboard()->text() == QStringLiteral("tests/file.cpp") && intents.size() == count, "[[BPR-2287]] Copy Relative Path writes the tab's path and sends no intent");
+		}
 		strip->new_tab_button()->click();
 		expect(std::get<core::duplicate_tab_intent>(intents.back()).Tab == core::document_tab_id{ 1 }, "plus duplicates active exact view");
 		window.activateWindow();
@@ -7866,11 +7879,25 @@ namespace {
 		auto* files = window.files_tree();
 		files->expandAll();
 		process_events();
-		const auto index    = files->tree_model()->index_for_file(otherFile);
-		auto       fileMenu = std::unique_ptr<QMenu>{ files->make_file_menu(index, &window) };
-		expect(fileMenu && fileMenu->actions().size() == 1, "file offers one new-tab menu command");
+		const auto  index    = files->tree_model()->index_for_file(otherFile);
+		auto        fileMenu = std::unique_ptr<QMenu>{ files->make_file_menu(index, &window) };
+		auto* const fileCopy = fileMenu ? fileMenu->findChild<QAction*>(QStringLiteral("filesTreeCopyRelativePath")) : nullptr;
+		expect(fileMenu && fileMenu->actions().size() == 3 && fileMenu->actions().front()->objectName() == QStringLiteral("filesTreeOpenInNewTab")
+				   && fileMenu->actions()[1]->isSeparator() && fileMenu->actions()[2] == fileCopy,
+			   "file offers Open in New Tab, then Copy Relative Path");
 		fileMenu->actions().front()->trigger();
 		expect(std::get<core::open_in_new_tab_intent>(intents.back()).File == otherFile, "file menu carries exact identity");
+		{
+			// [[BPR-2287]]. The drawer's file copies its path from the
+			// repository root; a folder offers no menu.
+			const auto count = intents.size();
+			QApplication::clipboard()->clear();
+			if (fileCopy != nullptr) {
+				fileCopy->trigger();
+			}
+			expect(QApplication::clipboard()->text() == QStringLiteral("tests/file.cpp") && intents.size() == count, "[[BPR-2287]] the drawer's Copy Relative Path writes the file's path and sends no intent");
+			expect(std::unique_ptr<QMenu>{ files->make_file_menu(index.parent(), &window) } == nullptr, "[[BPR-2287]] a folder row has no file menu");
+		}
 		const auto  before        = files->currentIndex();
 		const auto  centre        = QPointF{ files->visualRect(index).center() };
 		const auto  previousCount = intents.size();
@@ -15706,6 +15733,20 @@ namespace {
 		expect(agent->turn_reply(0U)->accessibleDescription() == QStringLiteral("Error") && !shown(fixedNote(0U)), "while the cause holds it is shown as the error, not fixed");
 		expect(shown(agent->banner()) && agent->banner()->findChild<QPushButton*>(QStringLiteral("agentStateFirst"))->text() == QStringLiteral("Resend"),
 			   "the stopped banner resends too, never Check again");
+		// [[BPR-2295]] (owner, 2026-11-19: "There's no way to dismiss this
+		// agent tab error"). The ready box's close dismisses the stop, from
+		// the keyboard too, and leaves the kept message and the composer.
+		{
+			auto* const close = agent->stopped_dismiss_button();
+			expect(shown(close) && close->text() == QString{ QChar{ 0x2715 } } && close->accessibleName() == QStringLiteral("Dismiss") && close->focusPolicy() == Qt::StrongFocus,
+				   "the stop carries the ready box's close, named and reachable from the keyboard");
+			chat->composer()->setPlainText(QStringLiteral("a draft in progress"));
+			close->click();
+			process_events();
+			expect(!shown(agent->banner()) && agent->turn_count() == 1U && chat->composer()->toPlainText() == QStringLiteral("a draft in progress"),
+				   "dismissing removes the block and nothing else: the turn and the composer stay");
+			chat->composer()->clear();
+		}
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-failed-answer-cause-light.png"), "PNG"), "render saved");
 		}

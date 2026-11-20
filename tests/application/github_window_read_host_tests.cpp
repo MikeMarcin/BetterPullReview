@@ -1242,14 +1242,26 @@ namespace {
 			return application::object_loading_for(aShape);
 		};
 		expect(classify(std::nullopt) == route::complete, "missing shape grants no lazy acquisition");
-		expect(classify(shape{ 100U, 100U, 100U }) == route::selected_objects, "PR counts cannot bound the repository closure");
-		expect(classify(shape{ 101U, 1U, 1U }) == route::selected_objects, "a second file page permits bounded selected objects");
-		expect(classify(shape{ 1U, 101U, 101U }) == route::selected_objects, "a second commit page permits bounded selected objects");
-		expect(classify(shape{ 3000U, 250U, 1000U }) == route::selected_objects, "reported total remains distinct from capped returned commits");
-		expect(classify(shape{ 101U, 1U, std::nullopt }) == route::complete, "missing reported count grants no lazy acquisition");
-		expect(classify(shape{ 101U, 1U, 2U }) == route::complete, "inconsistent count grants no lazy acquisition");
-		expect(classify(shape{ 3001U, 1U, 1U }) == route::complete, "file limit violation grants no lazy acquisition");
-		expect(classify(shape{ 101U, 251U, 251U }) == route::complete, "commit limit violation grants no lazy acquisition");
+		expect(classify(shape{ 100U, 100U, 100U, std::nullopt }) == route::selected_objects, "PR counts cannot bound the repository closure");
+		expect(classify(shape{ 101U, 1U, 1U, std::nullopt }) == route::selected_objects, "a second file page permits bounded selected objects");
+		expect(classify(shape{ 1U, 101U, 101U, std::nullopt }) == route::selected_objects, "a second commit page permits bounded selected objects");
+		expect(classify(shape{ 3000U, 250U, 1000U, std::nullopt }) == route::selected_objects, "reported total remains distinct from capped returned commits");
+		expect(classify(shape{ 101U, 1U, std::nullopt, std::nullopt }) == route::complete, "missing reported count grants no lazy acquisition");
+		expect(classify(shape{ 101U, 1U, 2U, std::nullopt }) == route::complete, "inconsistent count grants no lazy acquisition");
+		expect(classify(shape{ 3001U, 1U, 1U, std::nullopt }) == route::complete, "file limit violation grants no lazy acquisition");
+		expect(classify(shape{ 101U, 251U, 251U, std::nullopt }) == route::complete, "commit limit violation grants no lazy acquisition");
+		// [[BPR-2291]]. A complete closure is the whole history: past the size
+		// a whole-history fetch may be, the review loads selected objects.
+		constexpr auto budget = application::maximum_complete_closure_repository_bytes;
+		expect(classify(shape{ 3001U, 1U, 1U, budget }) == route::complete && classify(shape{ 101U, 1U, std::nullopt, budget }) == route::complete,
+			   "a repository within the whole-history size keeps complete loading for a shape past the limits");
+		expect(classify(shape{ 3001U, 1U, 1U, budget + 1U }) == route::selected_objects
+				   && classify(shape{ 101U, 1U, std::nullopt, 9ULL * 1024ULL * 1024ULL * 1024ULL }) == route::selected_objects
+				   && classify(shape{ 101U, 251U, 251U, budget + 1U }) == route::selected_objects,
+			   "a repository past the whole-history size never loads its whole history, whatever the shape");
+		expect(!application::complete_closure_too_large(std::nullopt) && !application::complete_closure_too_large(shape{ 1U, 1U, 1U, std::nullopt })
+				   && application::complete_closure_too_large(shape{ 1U, 1U, 1U, budget + 1U }),
+			   "an unknown size is not too large");
 	}
 
 	void test_two_windows_have_distinct_diagnostic_courses()

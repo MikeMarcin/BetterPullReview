@@ -116,8 +116,24 @@ namespace bpr::application {
 		std::size_t                FileCount           = 0U;
 		std::size_t                ReturnedCommitCount = 0U;
 		std::optional<std::size_t> ReportedCommitCount;
-		auto                       operator<=>(const accepted_pull_request_shape&) const = default;
+		/// [[BPR-2291]]. The repository's size as GitHub reports it, in bytes.
+		std::optional<std::uint64_t> RepositoryBytes;
+		auto                         operator<=>(const accepted_pull_request_shape&) const = default;
 	};
+
+	/// \brief [[BPR-2291]]. The largest repository whose whole history a
+	/// review may fetch to fill a complete closure. GitHub's CLI clone keeps
+	/// at most 32 MiB of pack, so a larger history could never arrive there;
+	/// past this a review loads selected objects, or refuses before asking.
+	inline constexpr std::uint64_t maximum_complete_closure_repository_bytes = 32ULL * 1024ULL * 1024ULL;
+
+	/// \brief [[BPR-2291]]. Whether a complete closure of the shape's
+	/// repository is too large to fetch: GitHub reports it past
+	/// `maximum_complete_closure_repository_bytes`. An unknown size is not.
+	[[nodiscard]] constexpr auto complete_closure_too_large(const std::optional<accepted_pull_request_shape>& aShape) noexcept -> bool
+	{
+		return aShape && aShape->RepositoryBytes && *aShape->RepositoryBytes > maximum_complete_closure_repository_bytes;
+	}
 
 	enum class pull_request_object_loading : std::uint8_t {
 		complete,

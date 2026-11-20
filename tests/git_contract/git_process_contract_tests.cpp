@@ -30,6 +30,7 @@
 #include <iostream>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stop_token>
@@ -4124,10 +4125,48 @@ namespace {
 			return made;
 		};
 
-		const auto copied = adapter->materialize_agent_workspace(request(1U, std::nullopt, false), { });
-		require(!copied.has_value() && copied.error().Detail.find("parents") != std::string::npos,
-				"copying the head's closure out of a sparse cache stops at its missing parent, as the reported failure did");
+		// [[BPR-2295]]. Copying out of a sparse cache never walks past the
+		// head: the walk's failure ends history there, and the head's files
+		// the cache lacks then refuse the copy, said as the cache copy whose
+		// history ended at the head. Git's traverse error no longer ends it.
+		auto copyRequest         = request(1U, std::nullopt, false);
+		copyRequest.Source.Trace = std::make_shared<core::workspace_trace>();
+		const auto copied        = adapter->materialize_agent_workspace(copyRequest, { });
+		require(!copied.has_value() && copied.error().Detail.find("traverse parents") == std::string::npos,
+				"a copy out of a sparse cache never stops on the head's missing parent");
+		require(copyRequest.Source.Trace->Source == core::workspace_source::cache_copy_shallow && copyRequest.Source.Trace->Command != core::workspace_git_command::none
+					&& copyRequest.Source.Trace->Command != core::workspace_git_command::rev_list && !copyRequest.Source.Trace->CloneHeldHead,
+				"the trace names the cache copy that ended its history at the head and the Git command that then failed");
 		require(std::filesystem::is_empty(workspaceParent.Path), "the refused copy leaves no workspace behind");
+
+		// [[BPR-2295]]. A cache that holds the head's files but not its
+		// parent: the copy ends its history at the head and succeeds.
+		{
+			const auto headOnly  = repository_path(root.Path, '3');
+			const auto fullPack  = root.Path / "headfiles";
+			const auto fullHex   = run_fixture_git(source, { "pack-objects", fullPack.string() }, head + "\n" + tree + "\n" + nested + "\n" + readme + "\n" + code + "\n");
+			const auto fullBytes = read_text(fullPack.string() + "-" + fullHex + ".pack");
+			initialize_repository(*adapter, headOnly, application::git_hash_algorithm::sha1);
+			const auto headOperation = make_operation(0x92U);
+			write_spool(*adapter, headOperation, std::as_bytes(std::span{ fullBytes }));
+			require(adapter
+						->index_sparse_pack({ .Repository = headOnly, .Operation = headOperation, .SpoolBytes = fullBytes.size(), .MaximumInputBytes = fullBytes.size(), .ExpectedPack = object<application::git_pack_id>(fullHex, application::git_hash_algorithm::sha1) },
+											{ })
+						.has_value(),
+					"the second cache holds the head's commit, trees and files, and not its parent");
+			auto shallowRequest         = request(11U, std::nullopt, false);
+			shallowRequest.Repository   = headOnly;
+			shallowRequest.Source.Trace = std::make_shared<core::workspace_trace>();
+			const auto ended            = adapter->materialize_agent_workspace(shallowRequest, { });
+			require(ended.has_value() && ended->Workspace.Shallow, "the copy ends its history at the head instead of failing on the missing parent");
+			require(shallowRequest.Source.Trace->Source == core::workspace_source::cache_copy_shallow && shallowRequest.Source.Trace->Command == core::workspace_git_command::none,
+					"and its trace says so, with no failed command");
+			const auto endedPath = std::filesystem::path{ ended->Workspace.Path };
+			require(read_text(endedPath / ".git" / "shallow") == head + "\n" && read_text(endedPath / "README.md") == "the head's readme\n"
+						&& run_fixture_git(endedPath / ".git", { "rev-list", "--count", "HEAD" }) == "1",
+					"its history is the head alone, with every file of it");
+			require(adapter->cleanup_agent_workspace(*ended, { }).has_value(), "and it cleans up");
+		}
 
 		const auto delta = application::git_workspace_delta_pack{
 			.Pack  = deltaPack,
@@ -4143,8 +4182,11 @@ namespace {
 		require(!adapter->materialize_agent_workspace(request(4U, misstated), { }).has_value(), "a delta whose size is misstated is refused");
 		require(std::filesystem::is_empty(workspaceParent.Path), "the refused deltas leave no workspace behind");
 
-		const auto made = adapter->materialize_agent_workspace(request(5U, delta), { });
+		auto deltaRequest         = request(5U, delta);
+		deltaRequest.Source.Trace = std::make_shared<core::workspace_trace>();
+		const auto made           = adapter->materialize_agent_workspace(deltaRequest, { });
 		require(made.has_value(), "a sparse review's workspace is made from the linked clone and the delta");
+		require(deltaRequest.Source.Trace->Source == core::workspace_source::delta && !deltaRequest.Source.Trace->CloneHeldHead, "[[BPR-2295]] its trace names the delta");
 		const auto workspace = std::filesystem::path{ made->Workspace.Path };
 		require(read_text(workspace / "README.md") == "the head's readme\n" && read_text(workspace / "src" / "main.cpp") == "int main() { return 0; }\n",
 				"the workspace holds every file at the head");
@@ -4399,12 +4441,13 @@ namespace {
 			const auto owned        = materialize(shallowClone);
 			require(owned.has_value() && !owned->Workspace.Shallow, "a retained workspace borrowing a shallow clone is made");
 			const auto tree = std::filesystem::path{ owned->Workspace.Path };
-			require(!std::filesystem::exists(tree / ".git" / "objects" / "info" / "alternates"), "the copy keeps no borrowed store");
+			// [[BPR-2289]]. It keeps borrowing the clone's store.
+			require(read_text(tree / ".git" / "objects" / "info" / "alternates") == std::filesystem::canonical(shallowClone / ".git" / "objects").string() + "\n", "the copy keeps borrowing the clone's store");
 			require(read_text(tree / ".git" / "shallow") == mid[0] + "\n", "the copy's history ends where the clone's does");
 			require(run_fixture_git(tree / ".git", { "rev-list", "--count", "HEAD" }) == "2", "the copy walks the history the clone holds");
 			require(read_text(tree / "README.md") == "head\n", "the head's files are checked out");
 			require(!owned->RequiredBase, "a base the clone did not lend is not required to resume");
-			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "the copy resumes");
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "the copy resumes");
 		}
 		// The owner's case: shallow at the head itself, as `--depth 1` makes.
 		{
@@ -4420,12 +4463,185 @@ namespace {
 			const auto owned       = materialize(brokenClone);
 			require(owned.has_value(), "a retained workspace borrowing a clone that lost an ancestor is still made");
 			const auto tree = std::filesystem::path{ owned->Workspace.Path };
-			require(!std::filesystem::exists(tree / ".git" / "objects" / "info" / "alternates"), "the repaired copy keeps no borrowed store");
+			require(std::filesystem::exists(tree / ".git" / "objects" / "info" / "alternates"), "the repaired copy keeps borrowing the clone's store");
 			require(read_text(tree / ".git" / "shallow") == head[0] + "\n" + base[0] + "\n", "the repaired copy's history ends at the head and the base");
 			require(run_fixture_git(tree / ".git", { "cat-file", "-t", base[0] }) == "commit", "the base the clone held is kept");
 			require(owned->RequiredBase == std::optional{ oid(base[0]) }, "a base the copy holds is required to resume");
-			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "the repaired copy resumes");
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "the repaired copy resumes");
 		}
+	}
+
+	/// [[BPR-2294]]. A retained workspace on a head of 20,000 files, with a
+	/// linked clone one commit behind it: the clone's folders are its cache,
+	/// so only the files that differ are written; the clone's dirty and
+	/// untracked files do not reach it, nothing in the clone changes, edits stay
+	/// in the workspace, and it resumes after the clone's gc.
+	/// [[BPR-2294]]. Git in a fixture working tree, with a bound a 20,000-file
+	/// `add` fits under a busy machine; its output, trimmed.
+	[[nodiscard]] auto run_clone_git(const std::filesystem::path& aGitDirectory, const std::vector<std::string>& aArguments) -> std::string
+	{
+		QProcess process;
+		process.setProgram(QString::fromStdString(BPR_TEST_GIT_EXECUTABLE));
+		auto command = QStringList{ QString::fromStdString("--git-dir=" + aGitDirectory.string()), QString::fromStdString("--work-tree=" + aGitDirectory.parent_path().string()) };
+		for (const auto& argument : aArguments) {
+			command.push_back(QString::fromStdString(argument));
+		}
+		process.setArguments(command);
+		auto environment = QProcessEnvironment::systemEnvironment();
+		environment.insert("GIT_CONFIG_NOSYSTEM", "1");
+		environment.insert("GIT_CONFIG_GLOBAL", QString::fromStdString((aGitDirectory.parent_path().parent_path() / "fixture-global-config").string()));
+		environment.insert("GIT_AUTHOR_NAME", "BetterPullReview Fixture");
+		environment.insert("GIT_AUTHOR_EMAIL", "fixture@betterpullreview.invalid");
+		environment.insert("GIT_AUTHOR_DATE", "2000-01-01T00:00:00+0000");
+		environment.insert("GIT_COMMITTER_NAME", "BetterPullReview Fixture");
+		environment.insert("GIT_COMMITTER_EMAIL", "fixture@betterpullreview.invalid");
+		environment.insert("GIT_COMMITTER_DATE", "2000-01-01T00:00:00+0000");
+		process.setProcessEnvironment(environment);
+		process.setWorkingDirectory(QString::fromStdString(aGitDirectory.parent_path().string()));
+		process.start();
+		require(process.waitForStarted(5000) && process.waitForFinished(120000) && process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0, "the clone fixture's Git succeeds");
+		return process.readAllStandardOutput().trimmed().toStdString();
+	}
+
+	auto run_linked_clone_checkout_contract() -> void
+	{
+		temporary_root root{ "git-linked-clone-checkout" };
+		const auto     cacheIsolation = root.Path / "cache";
+		require(std::filesystem::create_directory(cacheIsolation), "create the cache isolation");
+		std::filesystem::permissions(cacheIsolation, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		auto       adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, root.Path / "registry");
+		const auto cache   = repository_path(cacheIsolation, '1');
+		initialize_repository(*adapter, cache, application::git_hash_algorithm::sha1);
+		// The reviewer's clone: 20,000 files in 100 folders and a README.
+		const auto clone = root.Path / "clone";
+		std::filesystem::create_directories(clone);
+		const auto git = clone / ".git";
+		static_cast<void>(run_clone_git(git, { "init", "--quiet" }));
+		for (int folder = 0; folder < 100; ++folder) {
+			const auto directory = clone / ("module" + std::to_string(folder));
+			std::filesystem::create_directories(directory);
+			for (int file = 0; file < 200; ++file) {
+				write_text(directory / ("source" + std::to_string(file) + ".cpp"), "// module " + std::to_string(folder) + " file " + std::to_string(file) + "\nint value() { return " + std::to_string(file) + "; }\n");
+			}
+		}
+		write_text(clone / "README.md", "base\n");
+		write_text(clone / ".gitignore", "build/\n");
+		static_cast<void>(run_clone_git(git, { "add", "-A" }));
+		static_cast<void>(run_clone_git(git, { "commit", "--quiet", "-m", "base" }));
+		const auto base = run_clone_git(git, { "rev-parse", "HEAD" });
+		// The pull request's head changes one file and adds one, then the
+		// clone goes back to the base.
+		write_text(clone / "module7" / "source3.cpp", "// changed by the pull request\n");
+		write_text(clone / "module9" / "added.cpp", "// added by the pull request\n");
+		static_cast<void>(run_clone_git(git, { "add", "-A" }));
+		static_cast<void>(run_clone_git(git, { "commit", "--quiet", "-m", "head" }));
+		const auto head = run_clone_git(git, { "rev-parse", "HEAD" });
+		static_cast<void>(run_clone_git(git, { "branch", "pull-request", head }));
+		static_cast<void>(run_clone_git(git, { "reset", "--quiet", "--hard", base }));
+		// Every file of the clone is old; the clone's index is current.
+		const auto old = std::filesystem::file_time_type::clock::now() - std::chrono::hours{ 24 * 365 };
+		for (const auto& entry : std::filesystem::recursive_directory_iterator{ clone }) {
+			if (entry.is_regular_file() && entry.path().string().find("/.git/") == std::string::npos) {
+				std::filesystem::last_write_time(entry.path(), old);
+			}
+		}
+		static_cast<void>(run_clone_git(git, { "update-index", "-q", "--refresh" }));
+		// What the reviewer has in the clone: a dirty tracked file, an
+		// untracked one and an ignored build folder.
+		write_text(clone / "module1" / "source1.cpp", "// the reviewer's unsaved edit\n");
+		write_text(clone / "module2" / "notes.txt", "the reviewer's untracked notes\n");
+		std::filesystem::create_directories(clone / "module3" / "build");
+		write_text(clone / "module3" / "build" / "output.o", "object\n");
+		const auto cloneIndex = read_text(git / "index");
+
+		auto       session = std::uint64_t{ 60U };
+		const auto oid     = [](const std::string& aHex) {
+			return core::git_commit_oid{ core::git_hash_algorithm::sha1, object<application::git_commit_id>(aHex, application::git_hash_algorithm::sha1).Digest };
+		};
+		const auto authority   = workspace_authority();
+		const auto materialize = [&]() {
+			const auto parent = root.Path / ("neighbourhood-" + std::to_string(session));
+			std::filesystem::create_directory(parent);
+			std::filesystem::permissions(parent, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+			auto made                                        = application::git_agent_workspace_request{ };
+			made.Repository                                  = cache;
+			made.Materialization.ApplicationSession          = core::application_session_id{ 1U };
+			made.Materialization.Authority                   = authority;
+			made.Materialization.Session.Id                  = core::agent_session_id{ session++ };
+			made.Materialization.Session.Profile             = core::external_terminal_profile_id;
+			made.Materialization.Session.Binding.Host        = authority.Host;
+			made.Materialization.Session.Binding.Repository  = authority.Repository;
+			made.Materialization.Session.Binding.PullRequest = authority.PullRequest;
+			made.Materialization.Session.Binding.BaseOid     = oid(base);
+			made.Materialization.Session.Binding.HeadOid     = oid(head);
+			made.Materialization.Session.Binding.LeftEpoch   = core::epoch_ordinal{ 1U };
+			made.Materialization.Session.Binding.RightEpoch  = core::epoch_ordinal{ 1U };
+			made.Materialization.ParentDirectory             = parent;
+			made.Materialization.HistoryClone                = clone;
+			made.Materialization.RetainForSession            = true;
+			const auto started                               = std::chrono::steady_clock::now();
+			auto       owned                                 = adapter->materialize_agent_workspace(made, { });
+			const auto elapsed                               = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started);
+			require(owned.has_value(), "a retained workspace borrowing the clone is made");
+			return std::pair{ std::move(*owned), elapsed };
+		};
+		// The files written, rather than cloned: newer than the clone's.
+		const auto written = [&](const std::filesystem::path& aTree) {
+			auto count = std::size_t{ 0U };
+			for (const auto& entry : std::filesystem::recursive_directory_iterator{ aTree }) {
+				if (entry.is_regular_file() && entry.path().string().find("/.git/") == std::string::npos && entry.last_write_time() > old + std::chrono::hours{ 1 }) {
+					++count;
+				}
+			}
+			return count;
+		};
+		const auto check = [&](const std::filesystem::path& aTree) {
+			require(read_text(aTree / "module7" / "source3.cpp") == "// changed by the pull request\n" && read_text(aTree / "module9" / "added.cpp") == "// added by the pull request\n",
+					"the head's changed and added files are there");
+			require(read_text(aTree / "module1" / "source1.cpp") == "// module 1 file 1\nint value() { return 1; }\n", "the clone's unsaved edit is not; the head's file is");
+			require(!std::filesystem::exists(aTree / "module2" / "notes.txt") && !std::filesystem::exists(aTree / "module3" / "build"), "the clone's untracked and ignored files are not");
+			require(run_clone_git(aTree / ".git", { "status", "--porcelain" }).empty(), "the workspace is the head, clean");
+			require(std::filesystem::exists(aTree / "module99" / "source199.cpp") && std::filesystem::exists(aTree / "module0" / "source0.cpp"), "every file of the head is there");
+		};
+
+		auto [seeded, seededTime] = materialize();
+		const auto tree           = std::filesystem::path{ seeded.Workspace.Path };
+		check(tree);
+		const auto seededWrites = written(tree);
+		// The same head with no index to seed from: every file is checked out.
+		std::filesystem::rename(git / "index", root.Path / "clone-index");
+		auto [full, fullTime] = materialize();
+		std::filesystem::rename(root.Path / "clone-index", git / "index");
+		check(std::filesystem::path{ full.Workspace.Path });
+		const auto fullWrites = written(std::filesystem::path{ full.Workspace.Path });
+		std::cout << "LINKED_CLONE_CHECKOUT:files=20003:seeded_ms=" << seededTime.count() << ":seeded_written=" << seededWrites << ":full_ms=" << fullTime.count() << ":full_written=" << fullWrites << '\n';
+	#if defined(Q_OS_MACOS)
+		// The changed, the added, the clone's dirty file and the two top-level files.
+		require(seededWrites <= 5U, "seeded from the clone, only the files that differ are written");
+	#endif
+		require(fullWrites >= 20000U, "without the clone's index every file is written");
+		require(read_text(git / "index") == cloneIndex && run_clone_git(git, { "rev-parse", "HEAD" }) == base, "nothing in the clone changed");
+		// A clone whose index hides a file it lacks (skip-worktree) is no
+		// cache: every file is checked out.
+		static_cast<void>(run_clone_git(git, { "update-index", "--skip-worktree", "module4/source4.cpp" }));
+		std::filesystem::remove(clone / "module4" / "source4.cpp");
+		{
+			auto [hidden, hiddenTime] = materialize();
+			static_cast<void>(hiddenTime);
+			check(std::filesystem::path{ hidden.Workspace.Path });
+			require(read_text(std::filesystem::path{ hidden.Workspace.Path } / "module4" / "source4.cpp") == "// module 4 file 4\nint value() { return 4; }\n", "a file the clone hides is checked out");
+		}
+		// The agent's edits stay in the workspace.
+		write_text(tree / "module5" / "source5.cpp", "// the agent's edit\n");
+		require(read_text(clone / "module5" / "source5.cpp") == "// module 5 file 5\nint value() { return 5; }\n", "an edit in the workspace does not reach the clone");
+		// [[BPR-2289]]. It resumes after the clone's gc.
+		static_cast<void>(run_clone_git(git, { "gc", "--quiet", "--prune=now" }));
+		const auto resumed = adapter->inspect_agent_workspace(seeded, cache, { });
+		if (!resumed) {
+			std::cerr << "linked-clone-resume:failure=" << static_cast<unsigned>(resumed.error().Code) << ":detail=" << resumed.error().Detail << '\n';
+		}
+		require(resumed.has_value(), "the workspace resumes after the clone's gc");
+		require(read_text(tree / "module5" / "source5.cpp") == "// the agent's edit\n", "the agent's edit is kept");
 	}
 #endif
 
@@ -4528,20 +4744,20 @@ namespace {
 			const auto owned               = sparseAdapter->materialize_agent_workspace(sparse, { });
 			require(owned && owned->Workspace.Shallow && owned->SparseMissingObjects && !owned->SparseMissingObjects->empty(), "retained sparse workspace captures its original unselected object holes");
 			const auto tree = std::filesystem::path{ owned->Workspace.Path };
-			require(!std::filesystem::exists(tree / "README.md") && sparseAdapter->inspect_agent_workspace(*owned, { }).has_value(), "unselected missing blobs remain allowed");
+			require(!std::filesystem::exists(tree / "README.md") && sparseAdapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "unselected missing blobs remain allowed");
 			write_text(tree / "src" / "main.cpp", "allowed agent edit\n");
 			write_text(tree / "retained-note", "keep\n");
 			sparseAdapter.reset();
 			sparseAdapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, sparseRegistry);
-			require(sparseAdapter->inspect_agent_workspace(*owned, { }).has_value(), "sparse object evidence remains valid through fresh adapter and allowed edits");
+			require(sparseAdapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "sparse object evidence remains valid through fresh adapter and allowed edits");
 			auto legacy = *owned;
 			legacy.SparseMissingObjects.reset();
-			require(!sparseAdapter->inspect_agent_workspace(legacy, { }), "old sparse state without original object evidence refuses rather than inferring from its mutable index");
+			require(!sparseAdapter->inspect_agent_workspace(legacy, cache, { }), "old sparse state without original object evidence refuses rather than inferring from its mutable index");
 			const auto blob = tree / ".git" / "objects" / code.substr(0U, 2U) / code.substr(2U);
-			require(std::filesystem::remove(blob) && !sparseAdapter->inspect_agent_workspace(*owned, { }), "deleting a selected required blob refuses sparse resume");
+			require(std::filesystem::remove(blob) && !sparseAdapter->inspect_agent_workspace(*owned, cache, { }), "deleting a selected required blob refuses sparse resume");
 			require(read_text(tree / "src" / "main.cpp") == "allowed agent edit\n" && read_text(tree / "retained-note") == "keep\n", "failed object inspection preserves all allowed work");
 			static_cast<void>(run_fixture_git(tree / ".git", { "hash-object", "-w", "--stdin" }, bytes));
-			require(sparseAdapter->inspect_agent_workspace(*owned, { }).has_value(), "restoring the selected object repairs availability without resetting agent files");
+			require(sparseAdapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "restoring the selected object repairs availability without resetting agent files");
 			// Leave the commit available while removing its packed tree closure.
 			for (const auto& entry : std::filesystem::directory_iterator{ tree / ".git" / "objects" / "pack" }) {
 				std::filesystem::rename(entry.path(), tree / entry.path().filename());
@@ -4549,7 +4765,7 @@ namespace {
 			for (const auto suffix : { ".pack", ".idx" }) {
 				std::filesystem::copy_file(headOnlyPack.string() + "-" + headOnlyHash + suffix, tree / ".git" / "objects" / "pack" / (std::string{ "head-only" } + suffix));
 			}
-			require(!sparseAdapter->inspect_agent_workspace(*owned, { }), "a missing head tree cannot be treated as an allowed unselected blob hole");
+			require(!sparseAdapter->inspect_agent_workspace(*owned, cache, { }), "a missing head tree cannot be treated as an allowed unselected blob hole");
 			report_inventory_changes(cacheBefore, file_inventory(cache), "sparse-cache");
 			report_inventory_changes(cloneBefore, file_inventory(clone), "sparse-clone");
 			require(file_inventory(cache) == cacheBefore && file_inventory(clone) == cloneBefore, "sparse inspection never writes to the source cache or linked clone");
@@ -4564,15 +4780,31 @@ namespace {
 			}
 			require(owned.has_value(), "retained workspace materializes with durable ownership");
 			const auto tree = std::filesystem::path{ owned->Workspace.Path };
-			require(!std::filesystem::exists(tree / ".git" / "objects" / "info" / "alternates"), "retention removes borrowed object lifetime dependency");
+			// [[BPR-2289]]. Retention keeps borrowing the clone: the workspace
+			// copies only what the clone lacks of the head (its commit, tree
+			// and new blob), never the history.
+			const auto alternatesFile = tree / ".git" / "objects" / "info" / "alternates";
+			const auto borrowedLine   = std::filesystem::canonical(clone / ".git" / "objects").string() + "\n";
+			require(owned->Workspace.BorrowsHistory && read_text(alternatesFile) == borrowedLine, "a retained workspace keeps borrowing the linked clone's store");
+			require(in_pack(tree / ".git") == "3", "a retained workspace's own pack holds only what the clone lacks of the head");
+			require(file_inventory(clone) == cloneBefore, "retention writes nothing to the clone");
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value() && read_text(alternatesFile) == borrowedLine,
+					"a reattach while the clone still lends the head and the base keeps borrowing it");
 			write_text(tree / "README.md", "allowed agent edit\n");
 			write_text(tree / "untracked-agent-note", "kept across restart\n");
 			adapter.reset();
 			std::filesystem::rename(clone, root.Path / "clone-moved");
 			const auto recovered = git_adapter::recover_installed_agent_workspaces(*registry, neighbourhood);
 			require(recovered && recovered->Live == 1U && recovered->Recovered == 0U, "startup preserves unlocked retained ownership");
-			adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
-			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "a fresh adapter validates retained workspace and local object closure");
+			adapter               = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+			const auto unrepaired = adapter->inspect_agent_workspace(*owned, root.Path / "not-a-cache.git", { });
+			require(!unrepaired && unrepaired.error() == application::git_process_failure::object_unavailable && read_text(alternatesFile) == borrowedLine
+						&& !std::filesystem::exists(tree / ".git" / "shallow"),
+					"a moved clone with no cache to repair from refuses and leaves the workspace as it was");
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "a fresh adapter repairs a workspace whose clone moved, from the review's cache");
+			require(!std::filesystem::exists(alternatesFile) && read_text(tree / ".git" / "shallow") == head + "\n" + base + "\n",
+					"the repaired workspace holds the head and the base itself, its history ending at them");
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "the repaired workspace resumes again with nothing more to copy");
 #if defined(Q_OS_MACOS)
 			{
 				// [[BPR-2118]]. A Mac restart that renumbers the Data volume.
@@ -4613,38 +4845,38 @@ namespace {
 				require(read_text(journal) == current && ::lstat(journal.c_str(), &rewritten) == 0 && rewritten.st_ino == live.st_ino,
 						"the Version 1 journal is rewritten in place as the exact Version 2 record");
 				adapter               = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
-				const auto reattached = adapter->inspect_agent_workspace(legacy, { });
+				const auto reattached = adapter->inspect_agent_workspace(legacy, cache, { });
 				require(reattached && reattached->DirectoryIdentity == owned->DirectoryIdentity && reattached->LifetimeGuard == owned->LifetimeGuard,
 						"reattach accepts the old stored identities and hands back the journal's durable ones");
 				auto otherInode = legacy;
 				++otherInode.DirectoryIdentity.Opaque[3];
-				require(!adapter->inspect_agent_workspace(otherInode, { }), "a stored identity naming another inode is still refused");
+				require(!adapter->inspect_agent_workspace(otherInode, cache, { }), "a stored identity naming another inode is still refused");
 				otherInode = legacy;
 				++otherInode.LifetimeGuard->FileIdentity[3];
-				require(!adapter->inspect_agent_workspace(otherInode, { }), "a stored guard naming another file is still refused");
+				require(!adapter->inspect_agent_workspace(otherInode, cache, { }), "a stored guard naming another file is still refused");
 			}
 #endif
 			auto wrongAuthority              = *owned;
 			wrongAuthority.Authority.Account = core::github_account_id{ wrongAuthority.Authority.Account.value() + 1U };
-			require(!adapter->inspect_agent_workspace(wrongAuthority, { }), "retained source ownership cannot cross account authority even with exact directory identities");
+			require(!adapter->inspect_agent_workspace(wrongAuthority, cache, { }), "retained source ownership cannot cross account authority even with exact directory identities");
 			wrongAuthority                 = *owned;
 			wrongAuthority.Authority.Scope = core_identity<core::pull_request_authority_scope_id>(99U);
-			require(!adapter->inspect_agent_workspace(wrongAuthority, { }), "retained source ownership checks the original authority fingerprints");
+			require(!adapter->inspect_agent_workspace(wrongAuthority, cache, { }), "retained source ownership checks the original authority fingerprints");
 
 			require(run_fixture_git(tree / ".git", { "cat-file", "-t", base }) == "commit", "base objects survive removal of the lending clone");
 			require(read_text(tree / "README.md") == "allowed agent edit\n" && read_text(tree / "untracked-agent-note") == "kept across restart\n", "resume preserves tracked and untracked agent files");
 			auto missing         = *owned;
 			missing.RequiredBase = oid(std::string(40U, 'f'));
-			require(!adapter->inspect_agent_workspace(missing, { }), "missing required base objects refuse even with a valid head");
+			require(!adapter->inspect_agent_workspace(missing, cache, { }), "missing required base objects refuse even with a valid head");
 			require(read_text(tree / "untracked-agent-note") == "kept across restart\n", "refused inspection preserves agent work");
 			const auto changedTree = run_fixture_git(tree / ".git", { "write-tree" });
 			const auto agentCommit = run_fixture_git(tree / ".git", { "-c", "user.name=Agent fixture", "-c", "user.email=agent@example.invalid", "commit-tree", changedTree, "-p", head }, "agent-owned commit\n");
 			write_text(tree / ".git" / "HEAD", agentCommit + "\n");
-			require(adapter->inspect_agent_workspace(*owned, { }).has_value() && read_text(tree / ".git" / "HEAD") == agentCommit + "\n",
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value() && read_text(tree / ".git" / "HEAD") == agentCommit + "\n",
 					"shared workspace preserves an agent's Git commit while retaining the original PR binding");
 			write_text(tree / ".git" / "HEAD", "ref: refs/heads/agent-work\n");
 			write_text(tree / ".git" / "refs" / "heads" / "agent-work", agentCommit + "\n");
-			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "shared workspace accepts an agent branch without resetting HEAD");
+			require(adapter->inspect_agent_workspace(*owned, cache, { }).has_value(), "shared workspace accepts an agent branch without resetting HEAD");
 			write_text(tree / ".git" / "HEAD", head + "\n");
 
 			// Exercise the production command with a history-size adversary. A
@@ -4652,7 +4884,7 @@ namespace {
 			const auto boundedGit     = make_fake_git_executable(root.Path);
 			auto       boundedAdapter = make_adapter(boundedGit, cacheIsolation, registry);
 			write_text(boundedGit.parent_path() / "retained-inspection-input", head + "^{commit}\n" + head + "^{tree}\nHEAD^{commit}\nHEAD^{tree}\n" + base + "^{commit}\n" + base + "^{tree}\n");
-			require(!owned->Workspace.Shallow && boundedAdapter->inspect_agent_workspace(*owned, { }).has_value(),
+			require(!owned->Workspace.Shallow && boundedAdapter->inspect_agent_workspace(*owned, cache, { }).has_value(),
 					"complete retained inspection never requests history-sized output even when rev-list would overflow 64 MiB");
 			const auto probeLog = read_text(cacheIsolation / "invocations.log");
 			require(probeLog.find("arg=--batch-check=%(objecttype)\n") != std::string::npos && probeLog.find("arg=rev-list\n") == std::string::npos,
@@ -4666,7 +4898,7 @@ namespace {
 			require(run_fixture_git(tree / ".git", { "cat-file", "-t", head }) == "commit", "missing-tree control retains the head commit");
 			auto missingHeadTree = *owned;
 			missingHeadTree.RequiredBase.reset();
-			const auto missingTree = adapter->inspect_agent_workspace(missingHeadTree, { });
+			const auto missingTree = adapter->inspect_agent_workspace(missingHeadTree, cache, { });
 			require(!missingTree && missingTree.error() == application::git_process_failure::object_unavailable,
 					"a retained complete workspace with no head root tree refuses even while its commit is present");
 
@@ -5176,6 +5408,7 @@ try {
 #ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
 	run_borrowed_history_workspace_contract(false, true);
 	run_incomplete_clone_history_workspace_contract();
+	run_linked_clone_checkout_contract();
 #endif
 #if defined(_WIN32)
 	run_windows_inherited_handle_contract();

@@ -58,9 +58,28 @@ auto main(int argc, char** argv) -> int
 	if (!argument("exec")) {
 		return EXIT_SUCCESS;
 	}
-	// The context is read and dropped: the answer does not depend on it.
+	// The context is read and dropped: the answer does not depend on it,
+	// except for the one probe below.
 	auto buffer = std::ostringstream{ };
 	buffer << std::cin.rdbuf();
+	// [[BPR-2298]]. Asked the suggestion-range probe, it answers as agents
+	// did for the owner: the finding names the one line at fault, while its
+	// suggestion block rewrites that line and carries the next one unchanged.
+	if (buffer.str().find("suggestion-range probe") != std::string::npos) {
+		std::cout << "{\"type\":\"thread.started\",\"thread_id\":\"suggestions-fixture\"}\n"
+					 "{\"type\":\"turn.started\"}\n"
+					 "{\"type\":\"item.completed\",\"item\":{\"id\":\"item-1\",\"type\":\"agent_message\",\"text\":\""
+					 "One finding below.\\n\\n```bpr-findings\\n"
+					 "{\\\"findings\\\": [{\\\"path\\\": \\\"src/engine/renderer.cpp\\\", \\\"startLine\\\": 12, \\\"endLine\\\": 12, "
+					 "\\\"severity\\\": \\\"minor\\\", \\\"category\\\": \\\"correctness\\\", \\\"confidence\\\": \\\"high\\\", "
+					 "\\\"claim\\\": \\\"`resize` accepts a negative width.\\\", "
+					 "\\\"suggestedComment\\\": \\\"issue: `resize` accepts a negative width. Clamp it:\\\\n\\\\n```suggestion\\\\n"
+					 "\\\\tWidth  = std::max(aWidth, 0);\\\\n\\\\tHeight = aHeight;\\\\n```\\\"}]}"
+					 "\\n```\\n\"}}\n"
+					 "{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":1,\"cached_input_tokens\":0,\"output_tokens\":1}}\n";
+		std::cout.flush();
+		return EXIT_SUCCESS;
+	}
 
 	// One-based, inclusive lines, as the review skill asks.
 	constexpr suggestion findings[] = {

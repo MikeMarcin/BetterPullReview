@@ -2,6 +2,7 @@
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_publication.hpp"
 #include "bpr/adapters/process_support/process_supervision.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 #include "bpr/core/review_skill.hpp"
 #include "bpr/platform/windows_sharing_retry.hpp"
 #include "git_process_output.hpp"
@@ -61,6 +62,7 @@
 
 #if defined(Q_OS_MACOS)
 	#include <stdio.h>
+	#include <sys/clonefile.h>
 #endif
 
 #if defined(Q_OS_LINUX)
@@ -1595,6 +1597,24 @@ namespace bpr::adapters::git {
 				&& (localPathSeparator == std::string_view::npos
 					|| localPathSeparator > separator)
 				&& aToken.find(':', separator + 1U) != std::string_view::npos;
+		}
+
+		/// \brief [[BPR-2295]]. The Git command an argument list runs, for
+		/// the workspace's log line: the first argument that names one.
+		[[nodiscard]] auto workspace_command_of(const std::vector<std::string>& aArguments) -> core::workspace_git_command
+		{
+			using command    = core::workspace_git_command;
+			using named      = std::pair<std::string_view, command>;
+			const auto known = std::array<named, 11U>{ named{ "init", command::init }, named{ "rev-parse", command::rev_parse }, named{ "ls-tree", command::ls_tree },
+													   named{ "pack-objects", command::pack_objects }, named{ "rev-list", command::rev_list }, named{ "hash-object", command::hash_object },
+													   named{ "index-pack", command::index_pack }, named{ "cat-file", command::cat_file }, named{ "read-tree", command::read_tree },
+													   named{ "checkout-index", command::checkout_index }, named{ "config", command::config } };
+			for (const auto& argument : aArguments) {
+				if (const auto found = std::ranges::find(known, std::string_view{ argument }, &named::first); found != known.end()) {
+					return found->second;
+				}
+			}
+			return command::other;
 		}
 
 		/// \brief Removes remote tokens from retained subprocess diagnostic text.
@@ -4895,6 +4915,128 @@ namespace bpr::adapters::git {
 				};
 			}
 
+			/// [[BPR-2294]]. Checks out \p aHead in \p aWorkspace from the
+			/// linked clone at \p aClone, writing only what differs.
+			///
+			/// \details macOS only (APFS `clonefile`). Each top-level folder of
+			/// the head that is a real folder in the clone's working tree is
+			/// cloned copy-on-write; the clone's index is copied, never shared,
+			/// and `read-tree --reset` keeps its stat data wherever its entry is
+			/// the head's. With `core.checkStat=minimal` and
+			/// `core.trustctime=false` in the workspace, a refresh then finds
+			/// clean every cloned file the clone had clean, the files that
+			/// differ (or were dirty or missing) are checked out, and
+			/// `clean -ffdx` removes whatever the clone held untracked or
+			/// ignored before any agent starts. Nothing is written to the clone,
+			/// and no Git runs in it. A head with a submodule, a clone on another
+			/// volume, or any step that fails answers false, and the caller
+			/// checks every file out as before.
+			template <typename TSubmit>
+			[[nodiscard]] auto seed_from_linked_clone(const std::filesystem::path& aWorkspace, const std::string& aClone, const std::string& aHead, TSubmit& aSubmit,
+													  const std::stop_token aStop) -> bool
+			{
+#if defined(Q_OS_MACOS)
+				const auto root    = resolve_canonical_existing(path_from_text(aClone));
+				const auto objects = checkout_objects(aClone);
+				if (!root || !objects) {
+					return false;
+				}
+				const auto      index = objects->parent_path() / "index";
+				std::error_code error;
+				const auto      status = std::filesystem::symlink_status(index, error);
+				if (error || status.type() != std::filesystem::file_type::regular || std::filesystem::file_size(index, error) > 1024ULL * 1024ULL * 1024ULL || error) {
+					return false;
+				}
+				auto run = [&](std::vector<std::string> aArguments, const bool aExitOne = false, std::string aInput = { }) {
+					auto arguments = workspace_git_arguments(aWorkspace, HooksRoot);
+					arguments.insert(arguments.end(), std::make_move_iterator(aArguments.begin()), std::make_move_iterator(aArguments.end()));
+					return aSubmit(process_request{ .Arguments = std::move(arguments), .Input = memory_input{ std::move(aInput) }, .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U, .AllowExitOne = aExitOne }, aStop);
+				};
+				// A submodule's folder in the clone is a repository of its own:
+				// never cloned into a workspace.
+				const auto modes = run({ "ls-tree", "-r", "-z", "--format=%(objectmode)", aHead });
+				if (!modes || modes->StandardOutput.find("160000") != std::string::npos) {
+					return false;
+				}
+				const auto top = run({ "ls-tree", "-z", "--format=%(objecttype) %(path)", aHead });
+				if (!top) {
+					return false;
+				}
+				if (!std::filesystem::copy_file(index, aWorkspace / ".git" / "index", std::filesystem::copy_options::overwrite_existing, error) || error) {
+					return false;
+				}
+				std::filesystem::permissions(aWorkspace / ".git" / "index", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace, error);
+				const auto& listing = top->StandardOutput;
+				for (std::size_t at = 0U; at < listing.size();) {
+					const auto end   = listing.find('\0', at);
+					const auto entry = std::string_view{ listing }.substr(at, end == std::string::npos ? std::string::npos : end - at);
+					at               = end == std::string::npos ? listing.size() : end + 1U;
+					if (!entry.starts_with("tree ")) {
+						continue;
+					}
+					const auto name = std::string{ entry.substr(5U) };
+					if (name.empty() || name == "." || name == ".." || name.find('/') != std::string::npos || std::ranges::equal(name, std::string_view{ ".git" }, [](char aLeft, char aRight) { return std::tolower(static_cast<unsigned char>(aLeft)) == aRight; })) {
+						continue;
+					}
+					const auto source = *root / name;
+					if (std::filesystem::symlink_status(source, error).type() != std::filesystem::file_type::directory || error) {
+						error.clear();
+						continue;
+					}
+					if (::clonefile(source.c_str(), (aWorkspace / name).c_str(), CLONE_NOFOLLOW | CLONE_NOOWNERCOPY) != 0) {
+						// Another volume, or no clone support: the rest is checked out.
+						break;
+					}
+				}
+				if (!run({ "config", "--local", "core.checkStat", "minimal" }) || !run({ "config", "--local", "core.trustctime", "false" })) {
+					return false;
+				}
+				if (!run({ "read-tree", "--reset", aHead })) {
+					std::filesystem::remove(aWorkspace / ".git" / "index", error);
+					return false;
+				}
+				// An entry the clone marked skip-worktree or assume-unchanged
+				// would hide a missing or different file from the refresh.
+				const auto tags = run({ "ls-files", "-v", "-z" });
+				if (!tags) {
+					return false;
+				}
+				for (std::size_t at = 0U; at < tags->StandardOutput.size();) {
+					if (tags->StandardOutput[at] != 'H') {
+						return false;
+					}
+					const auto end = tags->StandardOutput.find('\0', at);
+					at             = end == std::string::npos ? tags->StandardOutput.size() : end + 1U;
+				}
+				if (!run({ "update-index", "-q", "--refresh" }, true)) {
+					return false;
+				}
+				const auto differing = run({ "diff-files", "--name-only", "-z" });
+				if (!differing) {
+					return false;
+				}
+				if (!differing->StandardOutput.empty() && !run({ "checkout-index", "--force", "-z", "--stdin" }, false, differing->StandardOutput)) {
+					return false;
+				}
+				// The files just written carry new stat data: the index takes it,
+				// hashing only them.
+				if (!run({ "clean", "-ffdxq" }) || !run({ "update-index", "-q", "--refresh" }, true)) {
+					return false;
+				}
+				// The tree is the head's, and nothing else is in it.
+				const auto changed   = run({ "diff-files", "--quiet" }, true);
+				const auto untracked = run({ "ls-files", "--others", "-z" });
+				return changed && changed->ExitCode == 0 && untracked && untracked->StandardOutput.empty();
+#else
+				static_cast<void>(aWorkspace);
+				static_cast<void>(aClone);
+				static_cast<void>(aHead);
+				static_cast<void>(aSubmit);
+				static_cast<void>(aStop);
+				return false;
+#endif
+			}
+
 			[[nodiscard]] auto materialize_agent_workspace(
 				const application::git_agent_workspace_request& aRequest,
 				const std::stop_token                           aStop)
@@ -4910,11 +5052,20 @@ namespace bpr::adapters::git {
 				}
 				const auto& materialization = aRequest.Materialization;
 				const auto& head            = materialization.Session.Binding.HeadOid;
-				const auto  algorithm       = head.algorithm() == core::git_hash_algorithm::sha1
+				// [[BPR-2295]]. What the log says of this workspace: the branch
+				// taken and, on a failure, the Git command and Git's words.
+				auto       trace       = core::workspace_trace{ };
+				auto       lastFailure = std::optional<std::pair<git_process_error, core::workspace_git_command>>{ };
+				const auto report      = [&]() {
+					if (aRequest.Source.Trace) {
+						*aRequest.Source.Trace = trace;
+					}
+				};
+				const auto algorithm = head.algorithm() == core::git_hash_algorithm::sha1
 					? git_hash_algorithm::sha1
 					: git_hash_algorithm::sha256;
-				const auto  isolation       = canonical_existing(IsolationRoot);
-				auto        parent          = canonical_existing(materialization.ParentDirectory);
+				const auto isolation = canonical_existing(IsolationRoot);
+				auto       parent    = canonical_existing(materialization.ParentDirectory);
 				if (
 					!application::valid(materialization)
 					|| (head.algorithm() != core::git_hash_algorithm::sha1
@@ -4990,6 +5141,12 @@ namespace bpr::adapters::git {
 				const auto fail = [&](git_process_error aFailure)
 					-> git_process_result<application::owned_agent_workspace> {
 					static_cast<void>(cleanup());
+					// A failure a Git command returned names that command and
+					// its words; one this adapter decided names neither.
+					const auto fromGit = lastFailure && lastFailure->first == aFailure;
+					trace.Command      = fromGit ? lastFailure->second : core::workspace_git_command::none;
+					trace.GitError     = fromGit ? core::classify_workspace_git_error(aFailure.Detail) : core::workspace_git_error::none;
+					report();
 					return std::unexpected{ std::move(aFailure) };
 				};
 
@@ -4997,7 +5154,12 @@ namespace bpr::adapters::git {
 					if (workspaceOwner) {
 						aProcess.WorkspaceGuard = workspaceOwner->layout().Guard;
 					}
-					return submit(std::move(aProcess), aToken);
+					const auto command = workspace_command_of(aProcess.Arguments);
+					auto       result  = submit(std::move(aProcess), aToken);
+					if (!result) {
+						lastFailure.emplace(result.error(), command);
+					}
+					return result;
 				};
 				auto initArguments = std::vector<std::string>{
 					"-c",
@@ -5042,7 +5204,8 @@ namespace bpr::adapters::git {
 				// folder. Nothing is written to the clone, and the workspace has
 				// no remote, so the agent's tools can read the history and blame
 				// without reaching the reviewer's remotes.
-				auto borrowed = std::optional<std::string>{ };
+				auto borrowed      = std::optional<std::string>{ };
+				auto cloneBoundary = std::string{ };
 				if (materialization.HistoryClone) {
 					const auto objects = checkout_objects(path_text(*materialization.HistoryClone));
 					if (!objects) {
@@ -5061,6 +5224,9 @@ namespace bpr::adapters::git {
 					const auto cloneShallow = shallow_boundary(objects->parent_path() / "shallow", algorithm == git_hash_algorithm::sha1 ? 40U : 64U);
 					if (cloneShallow && !cloneShallow->empty() && !write_private_file(destination / ".git" / "shallow", *cloneShallow)) {
 						return fail(git_process_failure::invalid_repository);
+					}
+					if (cloneShallow) {
+						cloneBoundary = *cloneShallow;
 					}
 				}
 				// Whether the workspace already reads an object, through its
@@ -5083,6 +5249,7 @@ namespace bpr::adapters::git {
 					// come from the cache, the files' blobs from the host; a
 					// sparse checkout of exactly those paths leaves the rest of
 					// the head absent and `git status` clean. Shallow at the head.
+					trace.Source      = core::workspace_source::pull_request_files;
 					const auto& files = *aRequest.Source.PullRequestFiles;
 					if (borrowed || aRequest.Source.Delta || files.size() > application::maximum_pull_request_workspace_files) {
 						return fail(git_process_failure::invalid_request);
@@ -5165,7 +5332,10 @@ namespace bpr::adapters::git {
 					checkedOut = true;
 				} else if (borrowed && present(headText)) {
 					// The clone already holds the head: nothing to copy.
+					trace.Source        = core::workspace_source::borrowed;
+					trace.CloneHeldHead = true;
 				} else if (materialization.HeadFromClone) {
+					trace.Source = core::workspace_source::head_from_clone;
 					// [[BPR-1772]]. Asked for the clone's head only: the
 					// review's cache is not a fallback, because a sparse one
 					// cannot supply the head and the host fetches what the clone
@@ -5177,6 +5347,7 @@ namespace bpr::adapters::git {
 					// holds what the borrowed clone lacks of the head: indexed
 					// here, the workspace reads the head's whole history through
 					// the clone and its own pack, and is never shallow.
+					trace.Source          = core::workspace_source::delta;
 					const auto&     delta = *aRequest.Source.Delta;
 					std::error_code deltaError;
 					if (
@@ -5223,7 +5394,8 @@ namespace bpr::adapters::git {
 					// object directory. Keep that work inside the exactly owned
 					// workspace, so cancellation cannot leave a tmp_pack in the
 					// strictly inventoried source cache. Read cache objects only.
-					arguments = workspace_git_arguments(destination, HooksRoot);
+					trace.Source = core::workspace_source::cache_copy;
+					arguments    = workspace_git_arguments(destination, HooksRoot);
 					append_arguments(
 						arguments,
 						"pack-objects",
@@ -5251,6 +5423,37 @@ namespace bpr::adapters::git {
 					} else if (cacheHasBase) {
 						tips += baseText + "\n";
 					}
+					// [[BPR-2295]]. A sparse review's cache holds the head's
+					// commit and trees but none of its parents, so a walk of
+					// the head's history fails at its first parent. The walk
+					// reads commits only, less than the copy below reads. When
+					// it fails, the workspace's history ends at the head (and
+					// the base the cache holds) instead of the turn stopping on
+					// history it does not need; a cache that lacks the head's
+					// files as well still fails the copy, as history_missing.
+					auto walk = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(walk, "rev-list", "--quiet", "--stdin");
+					const auto walked = submitWorkspace(
+						process_request{
+							.Arguments   = std::move(walk),
+							.Input       = memory_input{ tips },
+							.Timeout     = pack_process_timeout,
+							.Environment = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", quoted_object_alternate(aRequest.Repository / "objects") } },
+						},
+						aStop);
+					if (!walked && walked.error().Code == git_process_failure::nonzero_exit && !aStop.stop_requested()) {
+						auto ends = cloneBoundary + headText + "\n";
+						if (cacheHasBase) {
+							ends += baseText + "\n";
+						}
+						if (!write_private_file(destination / ".git" / "shallow", ends)) {
+							return fail(git_process_failure::invalid_repository);
+						}
+						shallow      = true;
+						trace.Source = core::workspace_source::cache_copy_shallow;
+					} else if (!walked) {
+						return fail(walked.error());
+					}
 					const auto packed = submitWorkspace(
 						process_request{
 							.Arguments   = std::move(arguments),
@@ -5273,7 +5476,22 @@ namespace bpr::adapters::git {
 					}
 				}
 
+				// [[BPR-2294]]. On APFS, a linked clone's working tree is the
+				// cache for the head's files: its folders are cloned copy-on-
+				// write, its index seeds the workspace's, and only the files
+				// that differ from the head are written.
+				if (!checkedOut && borrowed && !materialization.HistoryCloneManaged
+					&& seed_from_linked_clone(destination, path_text(*materialization.HistoryClone), headText, submitWorkspace, aStop)) {
+					checkedOut = true;
+				}
 				if (!checkedOut) {
+					// A seed that stopped part way leaves the clone's index, whose
+					// entries would keep its flags and stat data.
+					std::error_code seedError;
+					static_cast<void>(std::filesystem::remove(destination / ".git" / "index", seedError));
+					if (seedError) {
+						return fail(git_process_failure::invalid_repository);
+					}
 					arguments = workspace_git_arguments(destination, HooksRoot);
 					append_arguments(arguments, "read-tree", "--reset", headText);
 					const auto indexed = submitWorkspace(
@@ -5295,6 +5513,13 @@ namespace bpr::adapters::git {
 						aStop);
 					if (!materialized.has_value()) {
 						return fail(materialized.error());
+					}
+					// A seed that stopped part way may have left a clone's
+					// untracked files behind.
+					arguments = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(arguments, "clean", "-ffdxq");
+					if (const auto cleaned = submitWorkspace(process_request{ .Arguments = std::move(arguments), .Timeout = pack_process_timeout }, aStop); !cleaned.has_value()) {
+						return fail(cleaned.error());
 					}
 				}
 				if (!write_private_file(destination / ".git" / "HEAD", headText + "\n")) {
@@ -5341,37 +5566,36 @@ namespace bpr::adapters::git {
 				}
 
 				if (materialization.RetainForSession && borrowed) {
+					// [[BPR-2289]]. A retained workspace keeps borrowing the
+					// clone's history, as a disposable one does. It used to pack
+					// everything reachable from the head into its own store and
+					// drop the alternates line: on a large repository that is the
+					// repository's whole history (7 GB) per workspace, and minutes
+					// before the agent starts. A reattach checks that the borrowed
+					// store still holds the head and the base, and copies them
+					// from the review's cache when it does not.
 					auto tips = headText + "\n";
 					if (baseText != headText && present(baseText)) {
 						tips += baseText + "\n";
 					}
-					const auto retain = [&] {
-						auto retained = workspace_git_arguments(destination, HooksRoot);
-						append_arguments(retained, "pack-objects", "--revs", "--delta-base-offset", "--non-empty", "--",
-										 path_text(destination / ".git" / "objects" / "pack" / "pack"));
-						return submitWorkspace(process_request{ .Arguments = std::move(retained), .Input = memory_input{ tips }, .Timeout = pack_process_timeout }, aStop);
-					};
-					auto packed = retain();
+					// The walk reads commits only (the clone's commit-graph when
+					// it has one), never every object of the history.
+					auto walk = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(walk, "rev-list", "--quiet", "--stdin");
+					const auto walked = submitWorkspace(process_request{ .Arguments = std::move(walk), .Input = memory_input{ tips }, .Timeout = pack_process_timeout }, aStop);
 					// [[BPR-2246]]. Git could not walk the head's history
 					// through the clone: an ancestor is missing (a borrowed
 					// store that has gone, a fetch that never brought it). The
-					// head and the base the clone does hold are kept, and the
-					// copy's history ends at them, instead of the run stopping
-					// on history it does not need.
-					if (!packed && packed.error().Code == git_process_failure::nonzero_exit && !aStop.stop_requested()) {
+					// workspace's history ends at the head and the base the
+					// clone does hold, instead of the run stopping on history it
+					// does not need.
+					if (!walked && walked.error().Code == git_process_failure::nonzero_exit && !aStop.stop_requested()) {
 						if (!write_private_file(destination / ".git" / "shallow", tips)) {
 							return fail(git_process_failure::invalid_repository);
 						}
-						packed = retain();
+					} else if (!walked) {
+						return fail(walked.error());
 					}
-					if (!packed) {
-						return fail(packed.error());
-					}
-					std::error_code removeError;
-					if (!std::filesystem::remove(destination / ".git" / "objects" / "info" / "alternates", removeError) || removeError) {
-						return fail(git_process_failure::invalid_repository);
-					}
-					borrowed.reset();
 				}
 				std::error_code topologyError;
 				// The only alternates entry a workspace may hold is the one it
@@ -5450,10 +5674,98 @@ namespace bpr::adapters::git {
 					const auto lock = std::scoped_lock{ WorkspaceOwners->Mutex };
 					WorkspaceOwners->Owners.emplace(owned.LifetimeGuard->Path, std::make_pair(owned, std::move(workspaceOwner)));
 				}
+				report();
 				return owned;
 			}
 
-			[[nodiscard]] auto inspect_agent_workspace(const application::owned_agent_workspace& aWorkspace, const std::stop_token aStop)
+			/// \brief [[BPR-2289]]. The one alternates line a retained workspace
+			/// may carry: an absolute, canonical objects folder outside it.
+			[[nodiscard]] static auto borrowed_store_line(const std::filesystem::path& aFile, const std::filesystem::path& aWorkspace)
+				-> std::optional<std::string>
+			{
+				std::error_code error;
+				if (!private_regular_file(aFile) || std::filesystem::file_size(aFile, error) > 4096U || error) {
+					return std::nullopt;
+				}
+				std::ifstream input{ aFile, std::ios::binary };
+				auto          text = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+				if (input.bad() || text.size() < 2U || text.back() != '\n' || std::ranges::count(text, '\n') != 1) {
+					return std::nullopt;
+				}
+				// A store that has gone (the clone moved or was removed) is still
+				// the line the workspace wrote; the reattach repairs it.
+				const auto store = path_from_text(text.substr(0U, text.size() - 1U));
+				if (!store.is_absolute() || store.lexically_normal() != store || store.filename() != "objects" || path_begins_with(store, aWorkspace)
+					|| (!absent(store) && (resolve_canonical_existing(store) != store || !std::filesystem::is_directory(store, error) || error))) {
+					return std::nullopt;
+				}
+				return text;
+			}
+
+			/// \brief [[BPR-2289]]. Copies the head and the base from the review's
+			/// cache into a retained workspace whose borrowed store no longer holds
+			/// them, ending its history there. On any failure the workspace's
+			/// alternates line and shallow list are put back as they were.
+			[[nodiscard]] auto repair_borrowed_workspace(const std::filesystem::path& aWorkspace, const std::filesystem::path& aRepository,
+														 const core::git_commit_oid& aHead, const std::string& aTips, const std::string& aBorrowed,
+														 const std::stop_token aStop) -> bool
+			{
+				const auto algorithm = aHead.algorithm() == core::git_hash_algorithm::sha1 ? git_hash_algorithm::sha1 : git_hash_algorithm::sha256;
+				if (aStop.stop_requested() || !valid_repository(aRepository, algorithm)) {
+					return false;
+				}
+				// Every tip must be in the cache: a sparse cache that lacks the
+				// head's blobs fails the pack below and changes nothing.
+				auto held = common_git_arguments(aRepository, HooksRoot);
+				append_arguments(held, "cat-file", "--batch-check=%(objecttype)");
+				auto commits = std::string{ };
+				for (auto count = std::ranges::count(aTips, '\n'); count > 0; --count) {
+					commits += "commit\n";
+				}
+				const auto answered = submit(process_request{ .Arguments = std::move(held), .Input = memory_input{ aTips }, .StandardOutputLimit = 1024U }, aStop);
+				if (!answered || answered->StandardOutput != commits) {
+					return false;
+				}
+				const auto git       = aWorkspace / ".git";
+				const auto shallow   = git / "shallow";
+				const auto alternate = git / "objects" / "info" / "alternates";
+				auto       before    = std::optional<std::string>{ };
+				if (!absent(shallow)) {
+					std::ifstream input{ shallow, std::ios::binary };
+					before = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+					if (input.bad()) {
+						return false;
+					}
+				}
+				const auto restore = [&] {
+					static_cast<void>(write_private_file(alternate, aBorrowed));
+					if (before) {
+						static_cast<void>(write_private_file(shallow, *before));
+					} else {
+						std::error_code ignored;
+						static_cast<void>(std::filesystem::remove(shallow, ignored));
+					}
+					return false;
+				};
+				std::error_code removeError;
+				if (!std::filesystem::remove(alternate, removeError) || removeError || !write_private_file(shallow, aTips)) {
+					return restore();
+				}
+				auto arguments = workspace_git_arguments(aWorkspace, HooksRoot);
+				append_arguments(arguments, "pack-objects", "--revs", "--delta-base-offset", "--non-empty", "--", path_text(git / "objects" / "pack" / "pack"));
+				const auto packed = submit(
+					process_request{
+						.Arguments   = std::move(arguments),
+						.Input       = memory_input{ aTips },
+						.Timeout     = pack_process_timeout,
+						.Environment = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", quoted_object_alternate(aRepository / "objects") } },
+					},
+					aStop);
+				return packed.has_value() ? true : restore();
+			}
+
+			[[nodiscard]] auto inspect_agent_workspace(const application::owned_agent_workspace& aWorkspace, const std::filesystem::path& aRepository,
+													   const std::stop_token aStop)
 				-> git_process_result<application::owned_agent_workspace> override
 			{
 				auto boundary = process_boundary_lock{ IsolationRoot, aStop };
@@ -5494,27 +5806,63 @@ namespace bpr::adapters::git {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
 
-				if (!absent(path / ".git" / "objects" / "info" / "alternates")
-					|| !absent(path / ".git" / "objects" / "info" / "http-alternates")) {
+				if (!absent(path / ".git" / "objects" / "info" / "http-alternates")) {
 					return std::unexpected(git_process_failure::invalid_repository);
+				}
+				// [[BPR-2289]]. A retained workspace borrows the linked clone's
+				// history through one alternates line naming an objects folder
+				// outside it. Anything else there is refused, as before.
+				const auto alternatesFile = path / ".git" / "objects" / "info" / "alternates";
+				auto       borrowedLine   = std::optional<std::string>{ };
+				if (!absent(alternatesFile)) {
+					borrowedLine = borrowed_store_line(alternatesFile, path);
+					if (!borrowedLine) {
+						return std::unexpected(git_process_failure::invalid_repository);
+					}
 				}
 				if (!aWorkspace.Workspace.Shallow) {
 					// Continuation needs the pinned commits and their root trees, not
 					// an inventory of every object in their history. Agent edits stay intact.
-					auto arguments = workspace_git_arguments(path, HooksRoot);
-					append_arguments(arguments, "cat-file", "--batch-check=%(objecttype)");
 					auto input    = head + "^{commit}\n" + head + "^{tree}\nHEAD^{commit}\nHEAD^{tree}\n";
 					auto expected = std::string{ "commit\ntree\ncommit\ntree\n" };
+					auto tips     = head + "\n";
 					if (aWorkspace.RequiredBase) {
 						const auto base = std::string{ core::canonical_hex(*aWorkspace.RequiredBase).view() };
 						input += base + "^{commit}\n" + base + "^{tree}\n";
 						expected += "commit\ntree\n";
+						tips += base + "\n";
 					}
-					const auto checked = submit(process_request{ .Arguments = std::move(arguments), .Input = memory_input{ std::move(input) }, .StandardOutputLimit = 1024U }, aStop);
-					if (!checked) {
+					const auto check = [&]() -> git_process_result<bool> {
+						auto arguments = workspace_git_arguments(path, HooksRoot);
+						append_arguments(arguments, "cat-file", "--batch-check=%(objecttype)");
+						const auto checked = submit(process_request{ .Arguments = std::move(arguments), .Input = memory_input{ input }, .StandardOutputLimit = 1024U }, aStop);
+						if (!checked) {
+							return std::unexpected(checked.error());
+						}
+						return checked->StandardOutput == expected;
+					};
+					const auto checked = check();
+					// A borrowed store that has gone makes Git complain on standard
+					// error, or fail.
+					if (!checked && (!borrowedLine || (checked.error().Code != git_process_failure::nonzero_exit && checked.error().Code != git_process_failure::malformed_output))) {
 						return std::unexpected(checked.error());
 					}
-					if (checked->StandardOutput != expected) {
+					if (checked && *checked) {
+						return reattached;
+					}
+					// [[BPR-2289]]. The borrowed store no longer lends the head or
+					// the base: the clone was moved, removed, or dropped them. The
+					// head and the base are copied from the review's cache, the
+					// workspace's history ends at them, and the alternates line
+					// goes. Nothing is copied when the cache lacks them.
+					if (!borrowedLine || !repair_borrowed_workspace(path, aRepository, *aWorkspace.Workspace.PinnedHead, tips, *borrowedLine, aStop)) {
+						return std::unexpected(git_process_failure::object_unavailable);
+					}
+					const auto repaired = check();
+					if (!repaired) {
+						return std::unexpected(repaired.error());
+					}
+					if (!*repaired) {
 						return std::unexpected(git_process_failure::object_unavailable);
 					}
 					return reattached;
@@ -8452,6 +8800,138 @@ namespace bpr::adapters::git {
 		static_cast<void>(aRefusal);
 		return std::unexpected{ workspace_ownership_failure::unavailable };
 #endif
+	}
+
+	namespace {
+		/// [[BPR-2293]]. Seconds since the epoch of a file time.
+		[[nodiscard]] auto file_time_seconds(const std::filesystem::file_time_type aTime) -> std::int64_t
+		{
+			const auto system = std::chrono::system_clock::now() + std::chrono::duration_cast<std::chrono::system_clock::duration>(aTime - std::filesystem::file_time_type::clock::now());
+			return std::chrono::duration_cast<std::chrono::seconds>(system.time_since_epoch()).count();
+		}
+
+		class installed_retained_workspace_files final : public application::retained_workspace_files_port
+		{
+		public:
+			installed_retained_workspace_files(std::filesystem::path aRegistry, std::shared_ptr<installed_workspace_owners> aOwners)
+				: Registry{ std::move(aRegistry) }
+				, Owners{ aOwners ? std::move(aOwners) : make_installed_workspace_owners() }
+			{ }
+
+			[[nodiscard]] auto measure(const application::owned_agent_workspace& aWorkspace, const std::stop_token aStop) -> application::retained_workspace_measure override
+			{
+				auto       measured = application::retained_workspace_measure{ };
+				const auto path     = std::filesystem::path{ aWorkspace.Workspace.Path };
+				auto       error    = std::error_code{ };
+				const auto status   = std::filesystem::symlink_status(path, error);
+				if (status.type() == std::filesystem::file_type::not_found) {
+					measured.Present = false;
+					return measured;
+				}
+				if (error || status.type() != std::filesystem::file_type::directory) {
+					return measured;
+				}
+				const auto note = [&](const std::filesystem::directory_entry& aEntry) {
+					auto       entryError = std::error_code{ };
+					const auto written    = aEntry.last_write_time(entryError);
+					if (!entryError) {
+						measured.NewestSeconds = std::max(measured.NewestSeconds, file_time_seconds(written));
+					}
+				};
+				note(std::filesystem::directory_entry{ path, error });
+				auto walk    = std::filesystem::recursive_directory_iterator{ path, std::filesystem::directory_options::skip_permission_denied, error };
+				auto entries = std::size_t{ 0U };
+				for (; !error && walk != std::filesystem::recursive_directory_iterator{ } && entries < 4'000'000U; walk.increment(error)) {
+					if ((++entries & 0xFFFU) == 0U && aStop.stop_requested()) {
+						break;
+					}
+					auto       entryError = std::error_code{ };
+					const auto kind       = walk->symlink_status(entryError).type();
+					if (entryError || kind == std::filesystem::file_type::symlink) {
+						continue;
+					}
+					if (kind == std::filesystem::file_type::regular) {
+						measured.Bytes += walk->file_size(entryError);
+					}
+					note(*walk);
+				}
+				return measured;
+			}
+
+			[[nodiscard]] auto remove(const application::owned_agent_workspace& aWorkspace, const std::stop_token aStop) -> application::retained_workspace_removal override
+			{
+				using removal = application::retained_workspace_removal;
+#if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
+				try {
+					if (aStop.stop_requested() || !aWorkspace.LifetimeGuard || aWorkspace.Workspace.Path.empty()) {
+						return removal::refused;
+					}
+					const auto journal = std::filesystem::path{ aWorkspace.LifetimeGuard->Path };
+					const auto path    = std::filesystem::path{ aWorkspace.Workspace.Path };
+					if (journal.parent_path() != Registry || journal.extension() != ".jsonl") {
+						return removal::refused;
+					}
+					// One this process made: its owner holds the record's lock.
+					{
+						const auto lock  = std::scoped_lock{ Owners->Mutex };
+						const auto found = Owners->Owners.find(aWorkspace.LifetimeGuard->Path);
+						if (found != Owners->Owners.end()) {
+							const auto& made = found->second.first;
+							if (made.Workspace.Path != aWorkspace.Workspace.Path || made.OwnershipMarker != aWorkspace.OwnershipMarker || !found->second.second->cleanup()) {
+								return removal::refused;
+							}
+							Owners->Owners.erase(found);
+							return removal::removed;
+						}
+					}
+					const auto token         = journal.stem().string();
+					const auto neighbourhood = aWorkspace.ParentDirectory.parent_path();
+					if (aWorkspace.ParentDirectory != neighbourhood / ("betterpullreview-agent-" + token) || path != aWorkspace.ParentDirectory / "workspace") {
+						return removal::refused;
+					}
+					if (absent(journal)) {
+						return absent(path) && absent(aWorkspace.ParentDirectory) ? removal::gone : removal::refused;
+					}
+					auto boundary = process_boundary_lock{ Registry, aStop };
+					if (!boundary.valid() || !admit_workspace_object(journal, false, workspace_refusal_check::record_not_private, nullptr)) {
+						return removal::refused;
+					}
+					workspace_descriptor descriptor{ open_journal(journal) };
+					if (!descriptor.valid()) {
+						return removal::refused;
+					}
+					if (!journal_lock(descriptor.get(), true)) {
+						return lock_busy() ? removal::in_use : removal::refused;
+					}
+					auto record = load_workspace_record(descriptor.get(), Registry, neighbourhood, token, true);
+					if (!record || record->Phase != 7U || !workspace_private_directory(path) || ownership_id(path, exact_artifact_kind::directory) != record->Child
+						|| !retained_identity_names(aWorkspace.DirectoryIdentity.Opaque, record->Child)
+						|| !read_exact_file(path / ".git" / "bpr-owned-workspace", aWorkspace.OwnershipMarker)) {
+						return removal::refused;
+					}
+					workspace_ownership owner{ Registry, neighbourhood, std::move(*record), descriptor.get() };
+					static_cast<void>(descriptor.release());
+					return owner.cleanup_locked() ? removal::removed : removal::refused;
+				} catch (...) {
+					return removal::refused;
+				}
+#else
+				static_cast<void>(aWorkspace);
+				static_cast<void>(aStop);
+				return removal::refused;
+#endif
+			}
+
+		private:
+			std::filesystem::path                       Registry;
+			std::shared_ptr<installed_workspace_owners> Owners;
+		};
+	} // namespace
+
+	auto make_installed_retained_workspace_files(std::filesystem::path aRegistry, std::shared_ptr<installed_workspace_owners> aOwners)
+		-> std::unique_ptr<application::retained_workspace_files_port>
+	{
+		return std::make_unique<installed_retained_workspace_files>(std::move(aRegistry), std::move(aOwners));
 	}
 
 	auto prepare_installed_agent_workspace_ownership(

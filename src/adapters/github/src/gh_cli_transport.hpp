@@ -9,12 +9,14 @@
 #include "github_wire_transport.hpp"
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -473,7 +475,8 @@ namespace bpr::adapters::github::detail {
 	/// ([[BPR-1873]] removed [[BPR-1738]]'s head snapshot). [[BPR-1873]]. A
 	/// sparse review's `delta` clone borrows \p aReference, the linked clone's
 	/// canonical folder, takes no depth (\p aDepth 0) and no filter, and so
-	/// receives only what the clone lacks of the head.
+	/// receives only what the clone lacks of the head. [[BPR-2290]]. A complete
+	/// clone may borrow \p aReference too, receiving only what the clone lacks.
 	[[nodiscard]] auto compile_gh_cli_git_clone_request(
 		const validated_gh_cli_configuration&         aConfiguration,
 		const validated_github_host_profile&          aProfile,
@@ -486,6 +489,13 @@ namespace bpr::adapters::github::detail {
 	/// \brief RFC-BPR-0089. The deepest sparse clone: 250 listed commits and
 	/// the commit the chain grew from.
 	inline constexpr std::uint32_t maximum_gh_cli_clone_depth = 251U;
+	/// [[BPR-2291]]. A clone from the host is bounded by its progress, not its
+	/// total time: it is stopped once its store has not grown for
+	/// `gh_cli_clone_stall_bound`, and runs at most `gh_cli_clone_ceiling`
+	/// while it keeps receiving. The old two-minute total bound killed a
+	/// clone that was still working, and the next event started it again.
+	inline constexpr auto gh_cli_clone_stall_bound = std::chrono::seconds{ 60 };
+	inline constexpr auto gh_cli_clone_ceiling     = std::chrono::minutes{ 30 };
 
 	/// \brief [[BPR-1857]]. The one directory a clone root may sit directly in:
 	/// `/private/tmp` on macOS, where the write denial names it, and the
@@ -496,6 +506,12 @@ namespace bpr::adapters::github::detail {
 	/// \brief Names the bare store that clone \p aIndex writes under \p aRoot.
 	[[nodiscard]] auto gh_cli_git_clone_store(const std::filesystem::path& aRoot, std::size_t aIndex)
 		-> std::filesystem::path;
+
+	/// \brief [[BPR-2290]]. A linked clone a complete acquisition may read:
+	/// its canonical folder and objects folder, or nothing when it is missing,
+	/// not a Git repository, or shallow.
+	[[nodiscard]] auto gh_cli_linked_clone_objects(const std::filesystem::path& aClone)
+		-> std::optional<std::pair<std::filesystem::path, std::filesystem::path>>;
 
 	/// \brief Names the Git directory inside a managed clone working folder.
 	[[nodiscard]] auto gh_cli_git_kept_clone_directory(const std::filesystem::path& aClone)

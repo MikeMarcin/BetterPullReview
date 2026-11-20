@@ -69,6 +69,10 @@ namespace bpr::application {
 		core::repository_locator             Repository;
 		git_base_branch_ref                  BaseRef;
 		git_smart_acquisition_mode           AcquisitionMode = git_smart_acquisition_mode::complete_closure;
+		/// [[BPR-2290]]. The reviewer's linked clone of this repository, read
+		/// only: a complete acquisition takes a commit it holds from it with no
+		/// host request, and borrows it as `--reference` for what it lacks.
+		std::optional<std::filesystem::path> HistoryClone;
 
 		auto operator<=>(const git_smart_request_context&) const = default;
 	};
@@ -411,7 +415,18 @@ namespace bpr::application {
 
 		[[nodiscard]] virtual auto consume(
 			std::span<const std::byte> aBytes) noexcept -> bool = 0;
+		/// \brief [[BPR-2291]]. How many bytes the transport has received for
+		/// this fetch so far, before any reaches `consume`: a clone writing its
+		/// pack locally says so while it runs. Never a limit or an outcome.
+		virtual void received(std::uint64_t aBytes) noexcept
+		{
+			static_cast<void>(aBytes);
+		}
 	};
+
+	/// \brief [[BPR-2290]]. Where a fetch's objects came from.
+	enum class git_smart_fetch_source : std::uint8_t { host,
+													   linked_clone };
 
 	/// \brief Provides the git smart transport port contract.
 	class git_smart_transport_port
@@ -480,6 +495,13 @@ namespace bpr::application {
 			-> git_smart_transport_result<void>
 		{
 			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
+		}
+
+		/// \brief [[BPR-2290]]. Where the last completed fetch's objects came
+		/// from; a transport that reads only from the host says so.
+		[[nodiscard]] virtual auto last_fetch_source() const noexcept -> git_smart_fetch_source
+		{
+			return git_smart_fetch_source::host;
 		}
 
 		[[nodiscard]] virtual auto discover(

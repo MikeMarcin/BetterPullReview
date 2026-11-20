@@ -430,11 +430,24 @@ namespace bpr::qt {
 		[[nodiscard]] auto banner() const noexcept -> QWidget* { return Banner; }
 		[[nodiscard]] auto empty_state() const noexcept -> drawer_empty_state* { return Empty; }
 		[[nodiscard]] auto history_button() const noexcept -> QToolButton* { return History; }
+		/// \brief [[BPR-2295]]. Whether the last run stopped for a reason a
+		/// resend repeats.
+		[[nodiscard]] auto stopped_for_good() const noexcept -> bool;
+		/// \brief [[BPR-2295]]. The close on a "stopped before answering" block.
+		[[nodiscard]] auto stopped_dismiss_button() const noexcept -> QToolButton* { return BannerDismiss; }
 		[[nodiscard]] auto finding_cards() const -> std::vector<QWidget*>;
 		/// \brief [[BPR-1753]], owner decision 2026-10-23. Where a
 		/// card's keep action (Draft comment or Keep local) and Dismiss go, and the
 		/// state the host reports back for the card (`aWhy` with a refusal).
 		void set_finding_card_dispatch(agent_finding_card_dispatch aDispatch);
+		/// \brief [[BPR-2286]]. Ask follow-up on a finding card: the card's
+		/// delivery, place and finding (its `Action` is unused). Without it
+		/// the cards offer no Ask follow-up.
+		void set_follow_up_dispatch(agent_finding_card_dispatch aDispatch);
+		/// \brief [[BPR-2286]]. A follow-up updated the suggested comment of
+		/// the card at `aOrdinal` of delivery `aSession`: the card shows it and
+		/// Draft drafts it. \returns Whether a card was there.
+		auto revise_finding(std::uint64_t aSession, std::size_t aOrdinal, const QString& aComment) -> bool;
 		void present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { }, std::uint64_t aNote = 0U);
 		/// \brief Owner report 2026-11-10, after BPR-2052. Where each state
 		/// `present_finding_card_state` gives a card under an answer with a
@@ -757,8 +770,10 @@ namespace bpr::qt {
 		};
 		[[nodiscard]] auto make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*;
 		/// [[BPR-2059]]. Sets one of a card's Markdown texts to the height its width needs.
-		void fit_card_text(markdown_body_view& aView) const;
-		void show_card_state(card_entry& aEntry);
+		void                        fit_card_text(markdown_body_view& aView) const;
+		void                        show_card_state(card_entry& aEntry);
+		void                        show_card_suggestion(card_entry& aEntry, QWidget& aInset);
+		agent_finding_card_dispatch FollowUpDispatch;
 		/// RFC-BPR-0127. Shows the card's one keep action, Draft comment or Keep local.
 		void          show_card_keep(const card_entry& aEntry) const;
 		void          act_on_card(std::uint64_t aCard, agent_finding_card_action aAction);
@@ -814,28 +829,30 @@ namespace bpr::qt {
 		void                               follow_link(const QString& aLink);
 		void                               present_banner();
 
-		agent_launch_panel&                        Launch;
-		side_chat_panel&                           Chat;
-		finding_queue_view&                        Findings;
-		QWidget&                                   HistoryPanel;
-		std::function<void()>                      Setup;
-		agent_tab_state                            State        = agent_tab_state::not_set_up;
-		QStackedWidget*                            Pages        = nullptr;
-		drawer_empty_state*                        Empty        = nullptr;
-		QWidget*                                   Conversation = nullptr;
-		QWidget*                                   HistoryPage  = nullptr;
-		QWidget*                                   Banner       = nullptr;
-		QLabel*                                    BannerTitle  = nullptr;
-		QLabel*                                    BannerText   = nullptr;
-		QPushButton*                               BannerFirst  = nullptr;
-		QPushButton*                               BannerSecond = nullptr;
-		QWidget*                                   Cards        = nullptr;
-		QWidget*                                   Viewport     = nullptr;
-		QVBoxLayout*                               CardColumn   = nullptr;
-		QLabel*                                    Head         = nullptr;
-		QToolButton*                               History      = nullptr;
-		QMenu*                                     HistoryMenu  = nullptr;
-		agent_setup_view*                          SetupView    = nullptr;
+		agent_launch_panel&   Launch;
+		side_chat_panel&      Chat;
+		finding_queue_view&   Findings;
+		QWidget&              HistoryPanel;
+		std::function<void()> Setup;
+		agent_tab_state       State        = agent_tab_state::not_set_up;
+		QStackedWidget*       Pages        = nullptr;
+		drawer_empty_state*   Empty        = nullptr;
+		QWidget*              Conversation = nullptr;
+		QWidget*              HistoryPage  = nullptr;
+		QWidget*              Banner       = nullptr;
+		QLabel*               BannerTitle  = nullptr;
+		QLabel*               BannerText   = nullptr;
+		QPushButton*          BannerFirst  = nullptr;
+		QPushButton*          BannerSecond = nullptr;
+		/// [[BPR-2295]]. Closes a stop's block, as the ready box's close does.
+		QToolButton*                               BannerDismiss = nullptr;
+		QWidget*                                   Cards         = nullptr;
+		QWidget*                                   Viewport      = nullptr;
+		QVBoxLayout*                               CardColumn    = nullptr;
+		QLabel*                                    Head          = nullptr;
+		QToolButton*                               History       = nullptr;
+		QMenu*                                     HistoryMenu   = nullptr;
+		agent_setup_view*                          SetupView     = nullptr;
 		std::function<void()>                      FirstShown;
 		agent_run_settings_dispatch                RunSettingsDispatch;
 		std::shared_ptr<agent_run_settings_source> RunSettingsSource;

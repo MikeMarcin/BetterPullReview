@@ -658,9 +658,13 @@ namespace bpr::application {
 
 	auto epoch_application_host::implementation::materialize_agent_workspace(
 		const agent_workspace_materialization_request& aRequest,
-		const std::stop_token                          aStop)
+		const std::stop_token                          aStop,
+		core::workspace_trace*                         aTrace)
 		-> std::expected<owned_agent_workspace, agent_workspace_error>
 	{
+		auto  ignoredTrace = core::workspace_trace{ };
+		auto& trace        = aTrace != nullptr ? *aTrace : ignoredTrace;
+		trace.CloneGiven   = aRequest.HistoryClone.has_value();
 		if (!begin_blob_call()) {
 			return std::unexpected{ agent_workspace_failure::cancelled };
 		}
@@ -713,7 +717,16 @@ namespace bpr::application {
 			std::scoped_lock lock{ actor->BlobAuthorityMutex };
 			context = actor->BlobContext.lock();
 		}
-		const auto sparse = context && blob_authority_for(*context) == authorization && sparse_review(*context);
+		// [[BPR-2295]]. Without the review's own context there is no telling
+		// how its cache was loaded, and a sparse cache read as a complete one
+		// walks history it does not hold: refused, never guessed.
+		if (!context || blob_authority_for(*context) != authorization) {
+			return std::unexpected{ agent_workspace_error{ agent_workspace_failure::stale, "The review changed while the agent's copy was being made.\n" } };
+		}
+		// [[BPR-2295]]. Decided by how the cache was loaded, not by whether
+		// the read lease is live now: a reread revokes and renews it.
+		const auto sparse = sparse_cache(*context);
+		trace.Sparse      = sparse;
 		if (sparse && !aRequest.HistoryClone) {
 			// [[BPR-1873]]. No clone: the agent sees only the pull
 			// request's files, and the brief and the turn say so.
@@ -722,7 +735,7 @@ namespace bpr::application {
 				return std::unexpected{ std::move(files.error()) };
 			}
 			auto cloneLacksHead = false;
-			return materialize_on_actor(actor, authorization, *authorizationGeneration, expected, aRequest, nullptr, cloneLacksHead, aStop, std::move(*files));
+			return materialize_on_actor(actor, authorization, *authorizationGeneration, expected, aRequest, nullptr, cloneLacksHead, trace, aStop, std::move(*files));
 		}
 		// [[BPR-1772]]. A linked clone that already holds the head lends
 		// every file of it, so a sparse review asks the clone first. A
@@ -732,7 +745,7 @@ namespace bpr::application {
 			auto fromClone          = aRequest;
 			fromClone.HeadFromClone = true;
 			auto cloneLacksHead     = false;
-			auto lent               = materialize_on_actor(actor, authorization, *authorizationGeneration, expected, fromClone, nullptr, cloneLacksHead, aStop);
+			auto lent               = materialize_on_actor(actor, authorization, *authorizationGeneration, expected, fromClone, nullptr, cloneLacksHead, trace, aStop);
 			if (lent.has_value() || !cloneLacksHead) {
 				return lent;
 			}
@@ -743,7 +756,7 @@ namespace bpr::application {
 			// and the question goes on through the delta below.
 			if (aRequest.HistoryCloneManaged) {
 				if (refresh_managed_clone(*context, *aRequest.HistoryClone, aStop)) {
-					auto again = materialize_on_actor(actor, authorization, *authorizationGeneration, expected, fromClone, nullptr, cloneLacksHead, aStop);
+					auto again = materialize_on_actor(actor, authorization, *authorizationGeneration, expected, fromClone, nullptr, cloneLacksHead, trace, aStop);
 					if (again.has_value() || !cloneLacksHead) {
 						return again;
 					}
@@ -763,7 +776,7 @@ namespace bpr::application {
 			delta = std::move(*acquired);
 		}
 		auto cloneLacksHead = false;
-		return materialize_on_actor(actor, authorization, *authorizationGeneration, expected, aRequest, std::move(delta), cloneLacksHead, aStop);
+		return materialize_on_actor(actor, authorization, *authorizationGeneration, expected, aRequest, std::move(delta), cloneLacksHead, trace, aStop);
 	}
 
 	/// \brief Makes one workspace on the review's actor, from its cache,
@@ -780,11 +793,17 @@ namespace bpr::application {
 		const agent_workspace_materialization_request& aRequest,
 		std::shared_ptr<git_workspace_delta>           aDelta,
 		bool&                                          aCloneLacksHead,
+		core::workspace_trace&                         aTrace,
 		const std::stop_token                          aStop,
 		std::optional<std::vector<git_workspace_file>> aPullRequestFiles)
 		-> std::expected<owned_agent_workspace, agent_workspace_error>
 	{
 		auto source = std::make_shared<git_workspace_source>();
+		try {
+			source->Trace = std::make_shared<core::workspace_trace>();
+		} catch (...) {
+			return std::unexpected{ agent_workspace_failure::unavailable };
+		}
 		if (aDelta) {
 			source->Delta = git_workspace_delta_pack{
 				.Pack  = aDelta->pack(),
@@ -879,6 +898,16 @@ namespace bpr::application {
 								}
 							} else {
 								auto failure = agent_workspace_failure::unavailable;
+								// [[BPR-2295]]. A copy whose history Git could not
+								// walk: the cache holds the head and not its
+								// ancestors, and no clone lent them.
+								auto       reason  = agent_workspace_unavailable_reason::copy_failed;
+								const auto written = *source->Trace;
+								if (written.Source == core::workspace_source::cache_copy_shallow
+									|| (written.Source == core::workspace_source::cache_copy
+										&& (written.GitError == core::workspace_git_error::could_not_read || written.GitError == core::workspace_git_error::failed_to_traverse_parents))) {
+									reason = agent_workspace_unavailable_reason::history_missing;
+								}
 								if (aRequest.HeadFromClone && materialized.error() == git_cache_failure::object_mismatch) {
 									const auto guard       = std::lock_guard{ waiter->Mutex };
 									waiter->CloneLacksHead = true;
@@ -894,7 +923,7 @@ namespace bpr::application {
 								}
 								result = std::unexpected{ agent_workspace_error{
 									failure,
-									std::move(materialized.error().Detail) } };
+									std::move(materialized.error().Detail), reason } };
 							}
 						}
 					} catch (...) {
@@ -919,6 +948,7 @@ namespace bpr::application {
 						};
 					}
 					waiter->Result      = std::move(result);
+					waiter->Trace       = *source->Trace;
 					const auto reserved = retire_actor_job(control);
 					struct actor_exit_reservation final
 					{
@@ -952,7 +982,11 @@ namespace bpr::application {
 				return waiter->Result.has_value() || waiter->Abandoned;
 			}));
 		if (waiter->Result.has_value()) {
-			aCloneLacksHead = waiter->CloneLacksHead;
+			aCloneLacksHead      = waiter->CloneLacksHead;
+			aTrace.Source        = waiter->Trace.Source;
+			aTrace.CloneHeldHead = waiter->Trace.CloneHeldHead;
+			aTrace.Command       = waiter->Trace.Command;
+			aTrace.GitError      = waiter->Trace.GitError;
 			return std::move(*waiter->Result);
 		}
 		// Bounded by `WorkspaceWait`, not `BlobWait`: this writes a whole
@@ -1476,6 +1510,12 @@ namespace bpr::application {
 					std::move(occurrenceHistory),
 					std::move(currentEpoch));
 				context->Handoff.SmartGit = lease.release();
+				// [[BPR-2295]]. Recorded while the lease is this worker's and
+				// live: the loading the review's revision is prepared with.
+				if (context->Handoff.SmartGit && !context->Handoff.SmartGit->revoked()) {
+					context->LoadedSparse = object_loading_for(context->Handoff.Shape) == pull_request_object_loading::selected_objects
+						&& context->Handoff.SmartGit->supports_sparse_commit_trees();
+				}
 				return [authorityContext = std::move(context), token, cleanup](
 						   implementation& aHost) {
 					if (aHost.Closing || token != aHost.OfferToken) {

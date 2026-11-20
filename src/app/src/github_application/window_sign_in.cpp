@@ -51,6 +51,8 @@ namespace bpr::app {
 			if (opened) {
 				publish_recent();
 			}
+			// [[BPR-2291]]. A waiting file names the fetch it waits on.
+			observe_history_fetch();
 			AgentReview = agent_review_facts{
 				.Host        = aHandoff.Host,
 				.Account     = aHandoff.Account,

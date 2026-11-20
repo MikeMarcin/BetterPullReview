@@ -5,6 +5,7 @@
 #include "bpr/application/agent_workspace.hpp"
 #include "bpr/core/agent_cost.hpp"
 
+#include <cstdint>
 #include <expected>
 #include <map>
 #include <memory>
@@ -12,6 +13,7 @@
 #include <optional>
 #include <semaphore>
 #include <string>
+#include <vector>
 
 namespace bpr::application {
 	[[nodiscard]] auto native_scope_key(const core::pull_request_authority&, const std::string&, const std::string&) -> std::string;
@@ -42,6 +44,30 @@ namespace bpr::application {
 	enum class native_agent_storage_failure { unavailable,
 											  capacity,
 											  conflict };
+
+	/// \brief [[BPR-2293]]. One retained workspace the catalog records, once
+	/// however many conversations hold it.
+	struct retained_workspace_record
+	{
+		owned_agent_workspace Workspace;
+		/// The pull request workspace keys (`agent_workspace_key`) that lead to
+		/// it; a turn on it holds one of their leases.
+		std::vector<std::string> Keys;
+		/// When a turn last stored a conversation holding it, in seconds since
+		/// the epoch; none for a workspace kept before this was recorded.
+		std::optional<std::int64_t> LastUse;
+		/// No selected conversation reaches it: each conversation of its pull
+		/// request that is selected now is at another base or head, or none is.
+		bool Ended = false;
+	};
+
+	/// \brief [[BPR-2293]]. The turn lease that guards one retained workspace by
+	/// its path, beside its pull request key: a workspace kept before its key
+	/// was recorded is still guarded.
+	[[nodiscard]] inline auto agent_workspace_path_lease(const std::string& aPath) -> std::string
+	{
+		return "workspace-path:" + aPath;
+	}
 
 	/// \brief Nonblocking turn ownership for one shared source tree, across profile windows.
 	class agent_workspace_turn_lease
@@ -106,6 +132,21 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto append(const std::string&, const agent_conversation_turn&) -> bool { return false; }
 		/// Updates the caller's revision on success; failure preserves its prior identity.
 		[[nodiscard]] virtual auto store(native_agent_session& aSession) -> bool = 0;
+		/// \brief [[BPR-2293]]. Every retained workspace a conversation holds,
+		/// each once.
+		[[nodiscard]] virtual auto retained_workspaces() -> std::expected<std::vector<retained_workspace_record>, native_agent_storage_failure>
+		{
+			return std::unexpected(native_agent_storage_failure::unavailable);
+		}
+		/// \brief [[BPR-2293]]. Clears \p aWorkspace from every conversation
+		/// that holds it, and its pull request keys, in one revision: its
+		/// conversations' next turns make a fresh one. Answers whether it was
+		/// written.
+		[[nodiscard]] virtual auto forget_workspace(const owned_agent_workspace& aWorkspace) -> bool
+		{
+			static_cast<void>(aWorkspace);
+			return false;
+		}
 
 	private:
 		std::mutex                                                  WorkspaceLocksMutex;

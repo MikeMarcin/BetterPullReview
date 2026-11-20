@@ -394,6 +394,14 @@ namespace bpr::application {
 			&& !aContext.Handoff.SmartGit->revoked() && aContext.Handoff.SmartGit->supports_sparse_commit_trees();
 	}
 
+	/// \details [[BPR-2295]]. A review loaded with selected objects whose
+	/// lease is revoked or gone (a reread renews it) may still have a sparse
+	/// cache: unless its loading was recorded complete, it is taken as sparse.
+	auto epoch_application_host::implementation::sparse_cache(const authority_context& aContext) -> bool
+	{
+		return object_loading_for(aContext.Handoff.Shape) == pull_request_object_loading::selected_objects && aContext.LoadedSparse.value_or(true);
+	}
+
 	/// \brief [[BPR-1873]]. Says, in a reviewer's terms, why what the
 	/// linked clone lacks of the head could not be fetched, and keeps the
 	/// transport's own words for the log. A size wall is always `too_large`,

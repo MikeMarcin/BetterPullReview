@@ -2,6 +2,7 @@
 
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
+#include "copy_relative_path_action.hpp"
 
 #include <QAction>
 #include <QFontMetrics>
@@ -211,7 +212,7 @@ namespace bpr::qt {
 		Bar->setAccessibleName(QStringLiteral("Document tabs"));
 		Bar->setAccessibleDescription(QStringLiteral(
 			"This window's tabs: each a file, a comparison and a reading position. "
-			"The arrow keys choose one; its menu duplicates, closes or changes its comparison"));
+			"The arrow keys choose one; its menu duplicates, closes, changes its comparison or copies its path"));
 		Bar->setDocumentMode(true);
 		Bar->setTabsClosable(true);
 		Bar->setExpanding(false);
@@ -358,6 +359,11 @@ namespace bpr::qt {
 			core::return_tab_to_window_comparison_intent{ .Tab = tab.Id }, tab.OwnComparison);
 		add(QStringLiteral("Make New Tabs Use This Comparison"), "documentTabMakeWindow",
 			core::make_tab_comparison_window_intent{ .Tab = tab.Id }, tab.OwnComparison);
+		// [[BPR-2287]]. The tab's file path, from the repository root.
+		if (!tab.Path.isEmpty()) {
+			menu->addSeparator();
+			add_copy_relative_path_action(*menu, tab.Path, QStringLiteral("documentTabCopyRelativePath"));
+		}
 		if (MenuExtension) {
 			menu->addSeparator();
 			MenuExtension(tab, *menu);

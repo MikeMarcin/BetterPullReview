@@ -705,6 +705,15 @@ namespace bpr::qt {
 			for (const auto& finding : Findings) {
 				actions.States[finding.Outline] = keep_state(finding.Outline);
 			}
+			// [[BPR-2286]]. Ask follow-up, and what a follow-up updated.
+			actions.FollowUp = static_cast<bool>(FollowUpDispatch);
+			if (RevisionSource) {
+				for (const auto& finding : Findings) {
+					if (const auto request = keep_request(finding.Outline); request && RevisionSource(*request)) {
+						actions.Revised[finding.Outline] = request->Comment;
+					}
+				}
+			}
 			actions.DraftAll     = draft_all_offered();
 			actions.DraftAllBusy = DraftAllBusy[Document.Turn];
 			actions.DraftAllSaid = draft_all_said();
@@ -1061,7 +1070,32 @@ namespace bpr::qt {
 		if (found->Card && *found->Card < Document.Cards.size()) {
 			request.Card = Document.Cards[*found->Card];
 		}
+		// [[BPR-2286]]. A follow-up's update is what it drafts from now on.
+		if (RevisionSource) {
+			if (auto revised = RevisionSource(request)) {
+				request.Comment = *revised;
+				if (request.Card) {
+					request.Card->Finding.SuggestedComment = revised->toStdString();
+				}
+			}
+		}
 		return request;
+	}
+
+	void agent_report_view::set_follow_up_dispatch(std::function<void(const report_draft&)> aDispatch)
+	{
+		FollowUpDispatch = std::move(aDispatch);
+		if (Scroll != nullptr && Dressed != nullptr) {
+			render_dressed();
+		}
+	}
+
+	void agent_report_view::set_revision_source(std::function<std::optional<QString>(const report_draft&)> aSource)
+	{
+		RevisionSource = std::move(aSource);
+		if (Scroll != nullptr && Dressed != nullptr) {
+			render_dressed();
+		}
 	}
 
 	auto agent_report_view::press(const std::uint32_t aOutline, const report_link aLink) -> bool
@@ -1069,6 +1103,13 @@ namespace bpr::qt {
 		const auto request = keep_request(aOutline);
 		if (!request) {
 			return false;
+		}
+		if (aLink == report_link::ask) {
+			if (aOutline == 0U || !FollowUpDispatch) {
+				return false;
+			}
+			FollowUpDispatch(*request);
+			return true;
 		}
 		const auto state = keep_state(aOutline);
 		if (aLink == report_link::go) {

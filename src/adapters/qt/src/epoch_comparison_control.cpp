@@ -159,8 +159,10 @@ namespace bpr::qt {
 				return QStringLiteral(
 					"GitHub refused this account when fetching the pull request's commits. Check that it can clone the repository; an organization with single sign-on may need the sign-in authorized. Then refresh.");
 			case core::epoch_reason_code::fetch_network:
+				// [[BPR-2291]]. A fetch is stopped when nothing arrives for a
+				// minute, not after a fixed total time.
 				return QStringLiteral(
-					"Fetching the pull request's commits did not reach GitHub: a network, proxy or certificate problem, or a timeout. Check the connection, then refresh.");
+					"Fetching the pull request's commits did not reach GitHub: a network, proxy or certificate problem, or a timeout (nothing arrived for a minute). Check the connection, then refresh.");
 			case core::epoch_reason_code::fetch_limit:
 				return QStringLiteral(
 					"The pull request's commits are larger than the local fetch limit, so they were not fetched.");
@@ -170,6 +172,11 @@ namespace bpr::qt {
 			case core::epoch_reason_code::fetch_storage:
 				return QStringLiteral(
 					"A temporary folder for the pull request's commits could not be made or written. Check that your temporary folder exists and has space, then refresh.");
+			case core::epoch_reason_code::fetch_history_too_large:
+				// [[BPR-2291]]. Nothing was fetched: the whole history of a
+				// repository this large is never cloned to show one change.
+				return QStringLiteral(
+					"This pull request is past GitHub's file or commit limits, so it needs the repository's whole history, and the repository is too large to download that way. Sign in with GitHub CLI, which loads only the files you open, then refresh.");
 			}
 			return QStringLiteral("Review history is unavailable.");
 		}

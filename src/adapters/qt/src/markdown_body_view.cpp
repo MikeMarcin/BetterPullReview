@@ -386,15 +386,25 @@ namespace bpr::qt {
 				QTextEdit::wheelEvent(aEvent);
 				return;
 			}
+			auto* const vertical   = verticalScrollBar();
+			auto* const horizontal = horizontalScrollBar();
+			const auto  before     = std::pair{ vertical->value(), horizontal->value() };
 			if (!aEvent->pixelDelta().isNull()) {
-				auto* vertical   = verticalScrollBar();
-				auto* horizontal = horizontalScrollBar();
 				vertical->setValue(vertical->value() - aEvent->pixelDelta().y());
 				horizontal->setValue(horizontal->value() - aEvent->pixelDelta().x());
 			} else {
 				QTextEdit::wheelEvent(aEvent);
 			}
-			// A body owns scrolling even at its end; do not page its parent.
+			// [[BPR-2292]] (owner, 2026-11-19: "Vertical scroll areas that are
+			// at their limit should let you initiate a scroll of the outer too
+			// if scrolling in the direction that's limited"). A mouse wheel's
+			// notch the body cannot take goes to what holds it. A trackpad's
+			// gesture stays the body's: Qt, or the nested scroll latch, keeps
+			// it where it began.
+			if (aEvent->phase() == Qt::NoScrollPhase && std::pair{ vertical->value(), horizontal->value() } == before) {
+				aEvent->ignore();
+				return;
+			}
 			aEvent->accept();
 		}
 

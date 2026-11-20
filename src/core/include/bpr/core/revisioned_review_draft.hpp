@@ -4,6 +4,7 @@
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/review_submission.hpp"
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string_view>
 namespace bpr::core {
@@ -70,6 +71,15 @@ namespace bpr::core {
 	/// No source metadata or publication command can be produced by this seam.
 	[[nodiscard]] auto promote_private_text(std::string_view                              aText,
 											const std::optional<revisioned_review_draft>& aTarget)
+		-> std::optional<revisioned_review_draft_command>;
+	/// \brief [[BPR-2298]]. `promote_private_text`, and the draft's first line
+	/// set to `aStartLine` (none: one line) in the same edit, so a suggested
+	/// comment lands on every line its suggestion replaces at once.
+	/// \details None when the range is one GitHub would refuse
+	/// (`valid_comment_range`) or the target is a reply.
+	[[nodiscard]] auto promote_private_text_on_lines(std::string_view                              aText,
+													 const std::optional<revisioned_review_draft>& aTarget,
+													 std::optional<std::uint32_t>                  aStartLine)
 		-> std::optional<revisioned_review_draft_command>;
 	/// Settles only the original held comment; a changed head never retargets its text.
 	[[nodiscard]] auto settle_held_review_draft(const revisioned_review_draft&, std::string_view aKey, bool aPublished, const review_submission_proposal* aProposal) -> std::optional<revisioned_review_draft_command>;

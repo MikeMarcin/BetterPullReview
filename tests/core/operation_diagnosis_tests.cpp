@@ -246,11 +246,35 @@ namespace {
 		expect(parse_operation_diagnosis(describe(invalid)) == invalid, "an invalid part and its comment read back");
 		expect(describe({ .Action = operation_action::review_submit_wait, .Submission = review_submission_note::review_lane, .Refusal = review_submission_refusal{ } }).empty(), "a refusal only on an end or repair line");
 	}
+	/// [[BPR-2295]]. A workspace line names its source, the review's
+	/// loading, the clone and, on a failure, the Git command and Git's words
+	/// as a class; never an object or a path.
+	void test_workspace_trace()
+	{
+		const auto failed = operation_diagnosis{ .Action = operation_action::workspace_materialize, .Failure = operation_failure::history_missing, .DurationMilliseconds = 106U, .Workspace = workspace_trace{ .Source = workspace_source::cache_copy, .Sparse = false, .CloneGiven = false, .CloneHeldHead = false, .Command = workspace_git_command::pack_objects, .GitError = workspace_git_error::failed_to_traverse_parents } };
+		expect(describe(failed) == "action=workspace_materialize failure=history_missing process=none exit=none duration_ms=106 count=0 written=0 read_back=0 source=cache_copy sparse=0 clone=0 clone_head=0 git=pack_objects git_error=failed_to_traverse_parents",
+			   "a history_missing failure names the cache copy, the review's loading, the clone and Git's words");
+		expect(parse_operation_diagnosis(describe(failed)) == failed, "and reads back");
+		const auto borrowed = operation_diagnosis{ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Source = workspace_source::borrowed, .Sparse = true, .CloneGiven = true, .CloneHeldHead = true } };
+		expect(parse_operation_diagnosis(describe(borrowed)) == borrowed, "a borrowed workspace reads back");
+		expect(describe({ .Action = operation_action::workspace_cleanup, .Workspace = workspace_trace{ } }).empty(), "a trace only on a materialization line");
+		expect(describe({ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Source = static_cast<workspace_source>(90) } }).empty(), "an unknown source is no line");
+		expect(name(operation_failure::history_missing) == "history_missing", "history_missing has its stable name");
+		expect(classify_workspace_git_error("error: Could not read 0123abcd\nfatal: Failed to traverse parents of commit 4567ef\n") == workspace_git_error::failed_to_traverse_parents,
+			   "the owner's two lines are the traverse failure");
+		expect(classify_workspace_git_error("error: Could not read 0123abcd\n") == workspace_git_error::could_not_read, "a lone unreadable object");
+		expect(classify_workspace_git_error("fatal: unable to read 0123abcd\n") == workspace_git_error::missing_object, "a missing object");
+		expect(classify_workspace_git_error("fatal: something else\n") == workspace_git_error::other, "anything else");
+		expect(classify_workspace_git_error(" \n") == workspace_git_error::none, "nothing written");
+		expect(!parse_operation_diagnosis("action=workspace_materialize failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 source=borrowed sparse=1 clone=1 clone_head=1 git=none git_error=none path=/x").has_value(),
+			   "nothing follows the trace");
+	}
 } // namespace
 
 int main()
 {
 	test_line();
+	test_workspace_trace();
 	test_review_submission_lines();
 	test_tour_publication_trace();
 	test_refusals();

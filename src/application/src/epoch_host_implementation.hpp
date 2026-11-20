@@ -337,6 +337,8 @@ namespace bpr::application {
 			// [[BPR-1772]]. The work was asked for the linked clone's head
 			// only, and the clone does not hold it.
 			bool CloneLacksHead = false;
+			// [[BPR-2295]]. What the adapter wrote of the branch it took.
+			core::workspace_trace Trace;
 		};
 
 		struct workspace_cleanup_waiter final
@@ -384,6 +386,57 @@ namespace bpr::application {
 			bool                                          HistoricalImportPending = false;
 			std::uint8_t                                  HistoricalImports       = 0U;
 			std::vector<core::epoch_occurrence_id>        HistoricalSkipped;
+			/// [[BPR-2295]]. Whether this review's cache was loaded with
+			/// selected objects (commits and trees, no blobs or parents),
+			/// recorded while its lease was live. Absent when the lease was
+			/// already revoked then. A revoked or replaced lease later never
+			/// makes a sparse cache look complete.
+			std::optional<bool> LoadedSparse;
+			/// [[BPR-2290]]. A background import met a size or time wall: no
+			/// further background import is tried for this review, so the same
+			/// clone is never started again.
+			bool HistoricalStopped = false;
+		};
+
+		/// \brief [[BPR-2290]]. The linked clone of the repository on screen,
+		/// read by acquisition workers.
+		struct history_clone_cell final
+		{
+			[[nodiscard]] auto lookup(const core::repository_id aRepository) const -> std::optional<std::filesystem::path>
+			{
+				std::scoped_lock lock{ Mutex };
+				return Repository == aRepository ? Clone : std::nullopt;
+			}
+
+			mutable std::mutex                   Mutex;
+			core::repository_id                  Repository;
+			std::optional<std::filesystem::path> Clone;
+		};
+
+		/// \brief [[BPR-2291]]. The live fetch running now, written by its
+		/// worker and read by the window.
+		struct history_fetch_cell final
+		{
+			[[nodiscard]] auto read() const -> std::optional<epoch_history_fetch>
+			{
+				std::scoped_lock lock{ Mutex };
+				return Fetch;
+			}
+			void write(std::optional<epoch_history_fetch> aFetch)
+			{
+				std::scoped_lock lock{ Mutex };
+				Fetch = std::move(aFetch);
+			}
+			void received(const std::uint64_t aBytes)
+			{
+				std::scoped_lock lock{ Mutex };
+				if (Fetch && (!Fetch->Bytes || *Fetch->Bytes < aBytes)) {
+					Fetch->Bytes = aBytes;
+				}
+			}
+
+			mutable std::mutex                 Mutex;
+			std::optional<epoch_history_fetch> Fetch;
 		};
 
 		struct completion_gate final
@@ -582,7 +635,8 @@ namespace bpr::application {
 													aComparisonGeneration = std::nullopt,
 			const std::optional<std::uint64_t>      aOfferToken           = std::nullopt,
 			std::shared_ptr<authority_effect_actor> aActor                = { },
-			std::shared_ptr<job_control>            aAdmittedControl      = { }) -> bool;
+			std::shared_ptr<job_control>            aAdmittedControl      = { },
+			profile_epoch_actor_priority            aPriority             = profile_epoch_actor_priority::reviewer) -> bool;
 
 		template <typename Task, typename ExceptionCompletion, typename AdmissionFailure>
 		auto submit_effect(
@@ -595,7 +649,8 @@ namespace bpr::application {
 													aComparisonGeneration = std::nullopt,
 			const std::optional<std::uint64_t>      aOfferToken           = std::nullopt,
 			std::shared_ptr<authority_effect_actor> aActor                = { },
-			std::shared_ptr<job_control>            aAdmittedControl      = { }) -> bool
+			std::shared_ptr<job_control>            aAdmittedControl      = { },
+			profile_epoch_actor_priority            aPriority             = profile_epoch_actor_priority::reviewer) -> bool
 		{
 			try {
 				auto admission = admission_failure{ aAdmissionFailure };
@@ -612,7 +667,8 @@ namespace bpr::application {
 					aComparisonGeneration,
 					aOfferToken,
 					std::move(aActor),
-					std::move(aAdmittedControl));
+					std::move(aAdmittedControl),
+					aPriority);
 			} catch (...) {
 				if (aAdmittedControl) {
 					finish_job(aAdmittedControl);
@@ -876,6 +932,10 @@ namespace bpr::application {
 		static void finish_returning_change(const std::shared_ptr<returning_change_job>& aJob, returning_change_status aStatus) noexcept;
 
 		[[nodiscard]] static auto sparse_review(const authority_context& aContext) -> bool;
+
+		/// \brief [[BPR-2295]]. Whether the review's cache may lack the
+		/// head's history: how it was loaded, never the lease's state now.
+		[[nodiscard]] static auto sparse_cache(const authority_context& aContext) -> bool;
 
 		[[nodiscard]] static auto delta_failure(const git_smart_transport_error& aError) -> agent_workspace_error;
 
@@ -1261,9 +1321,12 @@ namespace bpr::application {
 										   actor_blob_read&      aRight,
 										   const std::stop_token aStop) noexcept;
 
+		/// \details [[BPR-2295]]. \p aTrace, when given, receives how the
+		/// workspace was made or why not, for the log.
 		[[nodiscard]] auto materialize_agent_workspace(
 			const agent_workspace_materialization_request& aRequest,
-			const std::stop_token                          aStop)
+			const std::stop_token                          aStop,
+			core::workspace_trace*                         aTrace = nullptr)
 			-> std::expected<owned_agent_workspace, agent_workspace_error>;
 
 		[[nodiscard]] auto materialize_on_actor(
@@ -1274,6 +1337,7 @@ namespace bpr::application {
 			const agent_workspace_materialization_request& aRequest,
 			std::shared_ptr<git_workspace_delta>           aDelta,
 			bool&                                          aCloneLacksHead,
+			core::workspace_trace&                         aTrace,
 			const std::stop_token                          aStop,
 			std::optional<std::vector<git_workspace_file>> aPullRequestFiles = std::nullopt)
 			-> std::expected<owned_agent_workspace, agent_workspace_error>;
@@ -1347,6 +1411,8 @@ namespace bpr::application {
 		epoch_projection_port&                        Projections;
 		epoch_host_limits                             Limits;
 		std::shared_ptr<diagnostic_log_port>          DiagnosticLog;
+		history_clone_cell                            HistoryClones;
+		history_fetch_cell                            HistoryFetch;
 		std::shared_ptr<completion_gate>              CompletionGate;
 		std::shared_ptr<profile_epoch_actor_consumer> Consumer;
 		const core::application_session_id            WindowApplicationSession;

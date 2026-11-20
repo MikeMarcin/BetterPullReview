@@ -5,6 +5,7 @@
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/workbench_interaction.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 
@@ -2988,6 +2989,7 @@ namespace bpr::qt {
 			// across the whole app surface"): Enhance is the first control
 			// of the row under the field, on every surface that has it.
 			build_enhance(*controls, enhance_surface::reply);
+			build_ask_about(*controls);
 			controls->addWidget(Suggestion);
 			controls->addStretch(1);
 			// Owner look v002 ([[BPR-2158]]): "this compose looks like a
@@ -3135,6 +3137,7 @@ namespace bpr::qt {
 		// [[BPR-2051]]. Enhance first in the field's own tool row, as on every
 		// surface; its suggestion under that row.
 		build_enhance(*controls, enhance_surface::comment);
+		build_ask_about(*controls);
 		// RFC-BPR-0118 ([[BPR-2078]]). Suggest the change is on the field's
 		// right-click menu, where its lines can take a suggestion (the
 		// coordinator, 2026-11-12: no new visible control while the owner's
@@ -3430,6 +3433,53 @@ namespace bpr::qt {
 				HeightChanged();
 			}
 		};
+	}
+
+	/// [[BPR-2286]] (owner, 2026-11-19: "I also want to ask about a comment
+	/// from a comment or draft composer"). Ask about this, after Enhance in
+	/// the field's tool row: a conversation about what is written here, in its
+	/// own window. It opens the window and sends nothing, so it wears the
+	/// ordinary roles.
+	void open_thread_card::build_ask_about(QBoxLayout& aControls)
+	{
+		AskAbout = new quiet_push_button{ QStringLiteral("Ask about this"), Editor };
+		AskAbout->setObjectName(QStringLiteral("commentAskAbout"));
+		AskAbout->setFlat(true);
+		AskAbout->setToolTip(QStringLiteral("Talk this through with the agent; it can rewrite your draft or write a reply. Nothing is posted."));
+		AskAbout->setAccessibleDescription(AskAbout->toolTip());
+		AskAbout->hide();
+		aControls.insertWidget(EnhanceButton != nullptr ? aControls.indexOf(EnhanceButton) + 1 : 0, AskAbout, 0, Qt::AlignVCenter);
+		connect(AskAbout, &QPushButton::clicked, this, [this] {
+			if (AskAboutDispatch && ReplyBox != nullptr) {
+				AskAboutDispatch(ReplyBox->toPlainText());
+			}
+		});
+	}
+
+	void open_thread_card::bind_ask_about(std::function<void(const QString& aText)> aDispatch)
+	{
+		AskAboutDispatch = std::move(aDispatch);
+		if (AskAbout != nullptr) {
+			AskAbout->setVisible(static_cast<bool>(AskAboutDispatch));
+		}
+	}
+
+	auto open_thread_card::field_text() const -> QString { return ReplyBox != nullptr ? ReplyBox->toPlainText() : QString{ }; }
+
+	auto open_thread_card::replace_field_text(const QString& aBase, const QString& aText) -> bool
+	{
+		if (ReplyBox == nullptr || ReplyBox->isReadOnly() || ReplyBox->toPlainText() != aBase) {
+			return false;
+		}
+		// One edit Undo takes back, as Enhance's Use is.
+		auto cursor = ReplyBox->textCursor();
+		cursor.beginEditBlock();
+		cursor.select(QTextCursor::Document);
+		cursor.insertText(aText);
+		cursor.endEditBlock();
+		ReplyBox->setTextCursor(cursor);
+		ReplyBox->setFocus(Qt::OtherFocusReason);
+		return true;
 	}
 
 	void open_thread_card::present_agent_suggestion(const agent_suggestion_presentation& aSuggestion)

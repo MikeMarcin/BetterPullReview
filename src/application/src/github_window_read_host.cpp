@@ -25,6 +25,13 @@ namespace bpr::application {
 		-> pull_request_object_loading
 	{
 		const auto limits = github_read_limits{ };
+		// [[BPR-2291]]. A complete closure is the repository's whole history.
+		// Past the size a whole-history fetch may be, the review loads the
+		// base and head trees and the blobs of the files it opens instead,
+		// whatever its counts say: a complete clone would never finish.
+		if (complete_closure_too_large(aShape)) {
+			return pull_request_object_loading::selected_objects;
+		}
 		if (!aShape || !aShape->ReportedCommitCount
 			|| aShape->FileCount > limits.MaximumFiles
 			|| aShape->ReturnedCommitCount > limits.MaximumCommits
@@ -556,6 +563,9 @@ namespace bpr::application {
 				.FileCount           = aSnapshot.Files.size(),
 				.ReturnedCommitCount = aSnapshot.Commits.size(),
 				.ReportedCommitCount = aSnapshot.PullRequest.ReportedCommitCount,
+				.RepositoryBytes     = aSnapshot.Repository.SizeKilobytes && *aSnapshot.Repository.SizeKilobytes <= (std::numeric_limits<std::uint64_t>::max() / 1024U)
+					? std::optional{ *aSnapshot.Repository.SizeKilobytes * 1024U }
+					: std::nullopt,
 			};
 			switch (aSnapshot.TimelineAvailability) {
 			case github_timeline_availability::unavailable:

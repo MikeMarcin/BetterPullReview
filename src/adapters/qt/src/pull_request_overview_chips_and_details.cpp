@@ -5,6 +5,7 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include "conversation_glyphs.hpp"
+#include "copy_relative_path_action.hpp"
 #include "overview_summary_splitter.hpp"
 #include "painted_glyph_icon.hpp"
 #include "pull_request_overview_support.hpp"
@@ -314,16 +315,22 @@ namespace bpr::qt {
 		const auto file   = aIndex.siblingAtColumn(overview_file_model::file_column);
 		const auto path   = file.data(overview_file_model::path_role).toString();
 		const auto folder = file.data(overview_file_model::folder_role).toBool();
-		if (folder || path.isEmpty() || !FilterProjection || !Projection) {
+		if (folder || path.isEmpty()) {
 			return menu;
 		}
 		if (menu == nullptr) {
 			menu = new QMenu{ this };
 			menu->setAttribute(Qt::WA_WindowPropagation);
 			menu->setObjectName(QStringLiteral("overviewFileMenu"));
+		} else {
+			menu->addSeparator();
 		}
-		const auto chosen = path.toStdString();
-		add_generated_actions(*menu, chosen, generated_gestures_for(*FilterProjection, chosen), GeneratedDispatch);
+		// [[BPR-2287]]. Every file row copies its path, cached or live.
+		add_copy_relative_path_action(*menu, path, QStringLiteral("overviewFileCopyRelativePath"));
+		if (FilterProjection && Projection) {
+			const auto chosen = path.toStdString();
+			add_generated_actions(*menu, chosen, generated_gestures_for(*FilterProjection, chosen), GeneratedDispatch);
+		}
 		return menu;
 	}
 

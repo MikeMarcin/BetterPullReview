@@ -1169,6 +1169,26 @@ namespace bpr::app {
 			}
 			return answer.Text;
 		});
+		// [[BPR-2286]]. Each follow-up round runs on the same agent runner, one
+		// fresh, tool-free run, on a lane of its own.
+		if (!FollowUpLane) {
+			FollowUpLane = std::make_unique<worker_executor>();
+		}
+		if (!FollowUp) {
+			FollowUp = std::make_unique<application::follow_up_host>(*FollowUpLane, DecisionLane, [this](const application::follow_up_projection& aProjection) { present_follow_up(aProjection); });
+		}
+		FollowUp->set_runner([runner, style](const application::follow_up_agent& aAgent, const std::string& aMessage, const std::stop_token aStop) -> std::expected<std::string, std::string> {
+			{
+				const auto lock = std::scoped_lock{ style->Lock };
+				style->Text     = aAgent.WritingStyle;
+			}
+			auto answer = runner({ .Agent = aAgent.Agent, .AgentName = aAgent.AgentName, .Profile = aAgent.Profile, .Prompt = aMessage, .Instructions = aAgent.Instructions, .Path = core::agent_run_path::follow_up, .Delivery = aAgent.Delivery },
+								 aStop);
+			if (!answer.Answered) {
+				return std::unexpected{ answer.Failure.empty() ? std::string{ "The agent did not answer." } : answer.Failure };
+			}
+			return answer.Text;
+		});
 		DraftDesktop->set_agent(std::move(runner), &TourAgentEffects, [this, style]() -> std::optional<local_draft_desktop::agent_choice> {
 			const auto  profile = writing_agent();
 			const auto& prefs   = Profile->WorkbenchPreferences->accepted();

@@ -662,6 +662,16 @@ bpr_add_network_isolated_test(NAME qt_author_description_editor COMMAND test_bet
 set_tests_properties(qt_author_description_editor PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
     PASS_REGULAR_EXPRESSION "author-description-editor-tests:pass" TIMEOUT 120)
+# [[BPR-2286]]. The follow-up window, a report finding's Ask follow-up and a
+# thread's Ask about this.
+bpr_add_executable(test_better_pull_review_qt_follow_up_window_tests follow_up_window_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_follow_up_window_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_follow_up_window_tests)
+bpr_enable_warnings(test_better_pull_review_qt_follow_up_window_tests)
+bpr_add_network_isolated_test(NAME qt_follow_up_window COMMAND test_better_pull_review_qt_follow_up_window_tests)
+set_tests_properties(qt_follow_up_window PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
+    PASS_REGULAR_EXPRESSION "follow-up-window-tests:pass" TIMEOUT 120)
 # [[BPR-1094]]. The Overview's chips at 125% and 200%: every built-in theme,
 # Icons and Letters, identity, ?, Open and All, whole counts, +n, the keyboard
 # route and scrolling. The 100% row above runs the same test.
@@ -2270,6 +2280,24 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
     bpr_enable_warnings(test_agent_restored_byline)
     bpr_add_network_isolated_test(NAME qt_agent_restored_byline COMMAND test_agent_restored_byline)
     set_tests_properties(qt_agent_restored_byline PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-restored-byline:pass" TIMEOUT 60)
+    # [[BPR-2297]]. A report attachment's title is whole or shortened on
+    # whole lines, at 1.0, 1.25 and 2.0 scale.
+    bpr_add_executable(test_report_attachment_title report_attachment_title_tests.cpp)
+    target_link_libraries(test_report_attachment_title PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_report_attachment_title)
+    bpr_enable_warnings(test_report_attachment_title)
+    foreach(bpr_report_title_scale IN ITEMS 100 125 200)
+        math(EXPR bpr_report_title_whole "${bpr_report_title_scale} / 100")
+        math(EXPR bpr_report_title_fraction "${bpr_report_title_scale} % 100")
+        bpr_add_network_isolated_test(NAME qt_report_attachment_title_scale_${bpr_report_title_scale} COMMAND test_report_attachment_title)
+        set_tests_properties(
+            qt_report_attachment_title_scale_${bpr_report_title_scale}
+            PROPERTIES
+                ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_report_title_whole}.${bpr_report_title_fraction}"
+                PASS_REGULAR_EXPRESSION "report-attachment-title:pass"
+                TIMEOUT 60
+        )
+    endforeach()
     # RFC-BPR-0125 milestone 2 ([[BPR-2145]]). The Agent tab's chips are the core's offers.
     bpr_add_executable(test_prompt_macro_chips prompt_macro_chips_tests.cpp)
     # [[BPR-2205]]. An owner-private scratch root (tests/support/scratch_directory.hpp).
@@ -2288,6 +2316,14 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
     bpr_enable_warnings(test_prompts_page)
     bpr_add_network_isolated_test(NAME qt_prompts_page COMMAND test_prompts_page)
     set_tests_properties(qt_prompts_page PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "prompts-page:pass" TIMEOUT 60)
+    # [[BPR-2296]]. A transcript at its end follows what is added below; one
+    # scrolled up stays; tool rows growing and shrinking never move it back up.
+    bpr_add_executable(test_stick_to_bottom stick_to_bottom_tests.cpp)
+    target_link_libraries(test_stick_to_bottom PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_stick_to_bottom)
+    bpr_enable_warnings(test_stick_to_bottom)
+    bpr_add_network_isolated_test(NAME qt_stick_to_bottom COMMAND test_stick_to_bottom)
+    set_tests_properties(qt_stick_to_bottom PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "stick-to-bottom:pass" TIMEOUT 60)
 endif()
 bpr_add_executable(test_review_tour_agent_setup_call review_tour_agent_setup_call_tests.cpp) # [[BPR-1881]]
 target_link_libraries(test_review_tour_agent_setup_call PRIVATE BetterPullReview::AdapterQt)

@@ -20,6 +20,7 @@
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "workbench_window_support.hpp"
+#include <QLocale>
 
 #include <QAbstractItemView>
 #include <QAccessible>
@@ -693,6 +694,29 @@ namespace bpr::qt {
 				aPath, failure_text(aFailure.value_or(application::workbench_host_failure::selected_file_comparison_unavailable), EpochSelectors));
 			return;
 		}
+	}
+
+	void workbench_window::present_history_fetch(const std::optional<application::epoch_history_fetch>& aFetch, std::function<void()> aCancel)
+	{
+		if (ComparisonSurface == nullptr) {
+			return;
+		}
+		if (!aFetch) {
+			ComparisonSurface->set_waiting_cancel({ });
+			ComparisonSurface->set_waiting_fetch({ }, { });
+			return;
+		}
+		const auto what     = aFetch->Base && aFetch->Head ? QStringLiteral("the base and head commits")
+			: aFetch->Base                                 ? QStringLiteral("the base commit")
+			: aFetch->Head                                 ? QStringLiteral("the head commit")
+														   : QStringLiteral("the pull request's commits");
+		const auto host     = aFetch->Host.empty() ? QStringLiteral("GitHub") : QString::fromStdString(aFetch->Host);
+		auto       received = QString{ };
+		if (aFetch->Bytes && *aFetch->Bytes != 0U) {
+			received = QStringLiteral("%1 received so far.").arg(QLocale{ }.formattedDataSize(static_cast<qint64>(std::min<std::uint64_t>(*aFetch->Bytes, static_cast<std::uint64_t>(std::numeric_limits<qint64>::max())))));
+		}
+		ComparisonSurface->set_waiting_cancel(std::move(aCancel));
+		ComparisonSurface->set_waiting_fetch(QStringLiteral("Fetching %1 from %2…").arg(what, host), std::move(received));
 	}
 
 	void workbench_window::publish(

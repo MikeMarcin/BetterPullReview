@@ -160,23 +160,24 @@ namespace bpr::adapters::logging {
 		auto failure_name(core::epoch_failure aFailure) noexcept -> std::string_view
 		{
 			switch (aFailure) {
-			case core::epoch_failure::unavailable:           return "unavailable";
-			case core::epoch_failure::malformed_observation: return "malformed_observation";
-			case core::epoch_failure::catalog_conflict:      return "catalog_conflict";
-			case core::epoch_failure::quota_exceeded:        return "quota_exceeded";
-			case core::epoch_failure::ordinal_exhausted:     return "ordinal_exhausted";
-			case core::epoch_failure::repair_required:       return "repair_required";
-			case core::epoch_failure::process_failure:       return "process_failure";
-			case core::epoch_failure::unsupported_object:    return "unsupported_object";
-			case core::epoch_failure::git_tool_unsupported:  return "git_tool_unsupported";
-			case core::epoch_failure::git_tool_probe_failed: return "git_tool_probe_failed";
-			case core::epoch_failure::gh_tool_unsupported:   return "gh_tool_unsupported";
-			case core::epoch_failure::gh_tool_probe_failed:  return "gh_tool_probe_failed";
-			case core::epoch_failure::fetch_sign_in_refused: return "fetch_sign_in_refused";
-			case core::epoch_failure::fetch_network:         return "fetch_network";
-			case core::epoch_failure::fetch_limit:           return "fetch_limit";
-			case core::epoch_failure::fetch_failed:          return "fetch_failed";
-			case core::epoch_failure::fetch_storage:         return "fetch_storage";
+			case core::epoch_failure::unavailable:             return "unavailable";
+			case core::epoch_failure::malformed_observation:   return "malformed_observation";
+			case core::epoch_failure::catalog_conflict:        return "catalog_conflict";
+			case core::epoch_failure::quota_exceeded:          return "quota_exceeded";
+			case core::epoch_failure::ordinal_exhausted:       return "ordinal_exhausted";
+			case core::epoch_failure::repair_required:         return "repair_required";
+			case core::epoch_failure::process_failure:         return "process_failure";
+			case core::epoch_failure::unsupported_object:      return "unsupported_object";
+			case core::epoch_failure::git_tool_unsupported:    return "git_tool_unsupported";
+			case core::epoch_failure::git_tool_probe_failed:   return "git_tool_probe_failed";
+			case core::epoch_failure::gh_tool_unsupported:     return "gh_tool_unsupported";
+			case core::epoch_failure::gh_tool_probe_failed:    return "gh_tool_probe_failed";
+			case core::epoch_failure::fetch_sign_in_refused:   return "fetch_sign_in_refused";
+			case core::epoch_failure::fetch_network:           return "fetch_network";
+			case core::epoch_failure::fetch_limit:             return "fetch_limit";
+			case core::epoch_failure::fetch_failed:            return "fetch_failed";
+			case core::epoch_failure::fetch_storage:           return "fetch_storage";
+			case core::epoch_failure::fetch_history_too_large: return "fetch_history_too_large";
 			}
 			return "unknown";
 		}
@@ -618,7 +619,7 @@ namespace bpr::adapters::logging {
 			const auto                                        transportSource = static_cast<std::size_t>(aEvent.TransportFailureSource);
 			static constexpr std::array<std::string_view, 4>  transportSources{ "none", "native_transport", "http_response", "network_reply" };
 			const auto                                        stage = static_cast<std::size_t>(aEvent.EpochStage);
-			static constexpr std::array<std::string_view, 11> stages{ "none", "catalog_open", "catalog_recovery", "catalog_prepare", "cache_open", "pack_sink", "smart_acquire", "protocol_acquire", "cache_inventory", "revision_prepare", "preparation_abort" };
+			static constexpr std::array<std::string_view, 12> stages{ "none", "catalog_open", "catalog_recovery", "catalog_prepare", "cache_open", "pack_sink", "smart_acquire", "protocol_acquire", "cache_inventory", "revision_prepare", "preparation_abort", "historical_acquire" };
 			static constexpr std::array<std::string_view, 6>  domains{ "none", "catalog", "cache", "transport", "protocol", "epoch" };
 			static constexpr std::array<std::string_view, 17> gitSteps{ "none", "admission", "temporary_store", "process_runner", "identity_before", "cli_version", "git_version", "cli_qualification", "git_qualification", "clone", "object_check", "identity_after", "local_store", "local_pack", "pack_read", "git_capability_probe", "cli_capability_probe" };
 			const auto                                        gitStep = static_cast<std::size_t>(aEvent.GitStep);

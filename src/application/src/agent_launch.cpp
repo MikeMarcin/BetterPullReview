@@ -701,6 +701,25 @@ namespace bpr::application {
 			return std::string{ rest.substr(0U, std::min(rest.find('\n'), core::maximum_agent_activity_subject_bytes)) };
 		}
 
+		/// [[BPR-2285]]. A command as a subject: every line of it, trimmed,
+		/// cut at a character's boundary once it is longer than the core keeps.
+		[[nodiscard]] auto whole_command(const std::string_view aText) -> std::string
+		{
+			const auto start = aText.find_first_not_of(" \t\r\n");
+			if (start == std::string_view::npos) {
+				return { };
+			}
+			auto rest = aText.substr(start, aText.find_last_not_of(" \t\r\n") + 1U - start);
+			if (rest.size() > core::maximum_agent_command_bytes) {
+				auto cut = core::maximum_agent_command_bytes;
+				while (cut > 0U && (static_cast<unsigned char>(rest[cut]) & 0xC0U) == 0x80U) {
+					--cut;
+				}
+				rest = rest.substr(0U, cut);
+			}
+			return std::string{ rest };
+		}
+
 		[[nodiscard]] auto activity_event(const core::agent_activity_kind aKind, const core::agent_doing aDoing, std::string aSubject, std::string aHelper = { },
 										  const core::agent_helper_state aEnded = core::agent_helper_state::finished) -> agent_protocol_event
 		{
@@ -777,11 +796,15 @@ namespace bpr::application {
 				const auto* value = aInput == nullptr ? nullptr : string_member(*aInput, aKey);
 				return value == nullptr ? std::string{ } : first_line(*value);
 			};
+			const auto command = [aInput] {
+				const auto* value = aInput == nullptr ? nullptr : string_member(*aInput, "command");
+				return value == nullptr ? std::string{ } : whole_command(*value);
+			};
 			if (aTool == "Read") {
 				return { core::agent_doing::reading, text("file_path") };
 			}
 			if (aTool == "Bash") {
-				return { core::agent_doing::running, text("command") };
+				return { core::agent_doing::running, command() };
 			}
 			if (aTool == "Grep" || aTool == "Glob") {
 				return { core::agent_doing::searching, text("pattern") };
@@ -1053,7 +1076,7 @@ namespace bpr::application {
 					const auto* type = item == nullptr ? nullptr : string_member(*item, "type");
 					if (type != nullptr && *type == "commandExecution" && *method == "item/started") {
 						const auto* command = string_member(*item, "command");
-						return std::vector<agent_protocol_event>{ activity_event(core::agent_activity_kind::helper_progress, core::agent_doing::running, command == nullptr ? std::string{ } : first_line(*command), *helper) };
+						return std::vector<agent_protocol_event>{ activity_event(core::agent_activity_kind::helper_progress, core::agent_doing::running, command == nullptr ? std::string{ } : whole_command(*command), *helper) };
 					}
 					if (type != nullptr && *type == "agentMessage" && *method == "item/completed") {
 						const auto* text = string_member(*item, "text");
@@ -1103,7 +1126,7 @@ namespace bpr::application {
 				if (type != nullptr && *method == "item/started" && aPhase == 5U) {
 					if (*type == "commandExecution") {
 						const auto* command = string_member(*item, "command");
-						return std::vector<agent_protocol_event>{ doing_event(core::agent_doing::running, command == nullptr ? std::string{ } : first_line(*command)) };
+						return std::vector<agent_protocol_event>{ doing_event(core::agent_doing::running, command == nullptr ? std::string{ } : whole_command(*command)) };
 					}
 					if (*type == "reasoning") {
 						return std::vector<agent_protocol_event>{ doing_event(core::agent_doing::thinking) };
@@ -1321,7 +1344,7 @@ namespace bpr::application {
 				auto events = std::vector<agent_protocol_event>{ };
 				if (*type == "item.started" && *itemType == "command_execution") {
 					const auto* command = string_member(*item, "command");
-					events.push_back(doing_event(core::agent_doing::running, command == nullptr ? std::string{ } : first_line(*command)));
+					events.push_back(doing_event(core::agent_doing::running, command == nullptr ? std::string{ } : whole_command(*command)));
 				} else if (*type == "item.started" && *itemType == "reasoning") {
 					events.push_back(doing_event(core::agent_doing::thinking));
 				} else if (*type == "item.started" && *itemType == "file_change") {

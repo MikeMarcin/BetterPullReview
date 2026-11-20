@@ -1636,6 +1636,77 @@ namespace {
 			std::filesystem::remove(root / "chain-omitted");
 		}
 		{
+			// [[BPR-2290]]. A complete acquisition takes a commit the linked
+			// clone holds from it, with no clone, token or API process, and
+			// leaves out what the cache's haves reach. A commit the clone lacks
+			// is cloned borrowing it, so the host sends only what it lacks.
+			const auto commitOf    = [](const QString& aHex) { return *core::parse_git_commit_oid(aHex.toStdString()); };
+			const auto linkedClone = [&](const std::string& aName, const QByteArray& aTip) {
+				const auto path = std::filesystem::canonical(root) / aName;
+				git(root, { "init", "--quiet", QString::fromStdString(path.string()) });
+				git(root, { scope, "pack-objects", "--revs", "--quiet", QString::fromStdString((path / ".git" / "objects" / "pack" / "pack").string()) }, aTip + "\n");
+				git(root, { "--git-dir=" + QString::fromStdString((path / ".git").string()), "update-ref", "refs/heads/main", QString::fromUtf8(aTip) });
+				return path;
+			};
+			const auto have     = application::git_protocol_v2_have{ .Cache = context.Authority.Cache, .Commit = commitOf(base), .CatalogVisible = true, .ObjectVerified = true };
+			const auto received = [&](const recording_pack_sink& aSink, const std::string& aName) {
+				const auto checkRepository = root / aName;
+				git(root, { "init", "--bare", "--quiet", QString::fromStdString(checkRepository.string()) });
+				const auto checkScope = "--git-dir=" + QString::fromStdString(checkRepository.string());
+				git(root, { checkScope, "index-pack", "--stdin" }, QByteArray{ reinterpret_cast<const char*>(aSink.Received.data()), static_cast<qsizetype>(aSink.Received.size()) });
+				return git(root, { checkScope, "cat-file", "--batch-all-objects", "--batch-check=%(objectname)" });
+			};
+			{
+				const auto linked          = linkedClone("linked-head", head);
+				auto       linkedContext   = context;
+				linkedContext.HistoryClone = linked;
+				launch_counter      launches{ root };
+				auto                linkedTransport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, linkedContext, [] { return true; });
+				recording_pack_sink linkedSink{ core::git_hash_algorithm::sha1 };
+				const auto          linkedResult = application::acquire_git_protocol_v2_historical_pack(**linkedTransport, linkedContext, commitOf(head), std::span{ &have, 1U }, linkedSink, limits, { });
+				expect(linkedResult && linkedSink.Finished && (*linkedTransport)->last_fetch_source() == application::git_smart_fetch_source::linked_clone,
+					   "a commit the linked clone holds is read from it");
+				expect(launches.take() == 1U + gh_cli_required_help_topics.size(), "only gh's local qualification runs: no clone, token or API process");
+				const auto objects = received(linkedSink, "linked-verify.git");
+				expect(objects.contains(head) && objects.contains(tree) && objects.contains(changedBlob) && !objects.contains(base) && !objects.contains(blob) && !objects.contains(ancestor),
+					   "the pack holds what the head adds to the cache's have, not the history");
+				auto shallow = std::ofstream{ linked / ".git" / "shallow" };
+				shallow << base.toStdString() << '\n';
+				shallow.close();
+				auto                shallowTransport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, linkedContext, [] { return true; });
+				recording_pack_sink shallowSink{ core::git_hash_algorithm::sha1 };
+				const auto          shallowResult = application::acquire_git_protocol_v2_historical_pack(**shallowTransport, linkedContext, commitOf(head), std::span{ &have, 1U }, shallowSink, limits, { });
+				expect(shallowResult && (*shallowTransport)->last_fetch_source() == application::git_smart_fetch_source::host,
+					   "a shallow linked clone is not read: its history stops at its boundary");
+			}
+			{
+				const auto linked          = linkedClone("linked-base", base);
+				auto       linkedContext   = context;
+				linkedContext.HistoryClone = linked;
+				const auto before          = git(root, { "--git-dir=" + QString::fromStdString((linked / ".git").string()), "count-objects", "-v" });
+				// Git's `clone --revision` names a commit the source advertises.
+				git(root, { scope, "update-ref", QString::fromUtf8(git(root, { scope, "symbolic-ref", "HEAD" })), head });
+				auto                borrowedTransport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, linkedContext, [] { return true; });
+				recording_pack_sink borrowedSink{ core::git_hash_algorithm::sha1 };
+				const auto          borrowedResult = application::acquire_git_protocol_v2_historical_pack(**borrowedTransport, linkedContext, commitOf(head), std::span{ &have, 1U }, borrowedSink, limits, { });
+				if (!borrowedResult) {
+					const auto* error = std::get_if<application::git_smart_transport_error>(&borrowedResult.error());
+					std::cerr << "borrowed failure " << (error ? static_cast<int>(error->Failure) : -1) << " step " << (error ? static_cast<int>(error->Step) : -1) << '\n';
+				}
+				expect(borrowedResult && borrowedSink.Finished && (*borrowedTransport)->last_fetch_source() == application::git_smart_fetch_source::host,
+					   "a commit the linked clone lacks is cloned from the host, borrowing the clone");
+				const auto objects = received(borrowedSink, "borrowed-verify.git");
+				expect(objects.contains(head) && objects.contains(changedBlob) && !objects.contains(base) && !objects.contains(blob), "the borrowed clone's pack also leaves out what the have reaches");
+				expect(git(root, { "--git-dir=" + QString::fromStdString((linked / ".git").string()), "count-objects", "-v" }) == before, "nothing is written to the linked clone");
+				QTemporaryDir cloneTemporary{ QStringLiteral("/private/tmp/bpr-cli-git-XXXXXX") };
+				const auto    cloneRoot = std::filesystem::canonical(cloneTemporary.path().toStdString());
+				const auto    whole     = compile_gh_cli_git_clone_request(*configuration, *profile, linkedContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 1U, gh_cli_clone_content::trees, linked);
+				const auto    sparse    = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 1U, gh_cli_clone_content::trees, linked);
+				expect(whole && std::ranges::find(whole->Arguments, "--reference=" + linked.string()) != whole->Arguments.end() && !sparse,
+					   "a complete clone borrows the linked clone; a sparse clone with a depth never does");
+			}
+		}
+		{
 			// [[BPR-1873]]. An agent workspace's delta: a clone of the head
 			// that borrows the reviewer's linked clone, so only what the clone
 			// lacks is received; the pack handed on holds exactly that, and the

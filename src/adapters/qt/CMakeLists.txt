@@ -17,6 +17,7 @@ add_library(
         src/local_draft_publication_area.cpp
         src/local_draft_workflow_area.cpp
         src/wrapping_row.cpp
+        src/line_bounded_label.cpp
         src/application_menu_wording.cpp
         src/workbench_window_author_mode.cpp
         src/author_description_editor.cpp
@@ -85,6 +86,7 @@ add_library(
         src/ask_menu.cpp
         src/agent_report_view.cpp
         src/report_page.cpp
+        src/follow_up_window.cpp
         src/prompt_words.cpp
         src/prompts_page.cpp
         src/agent_run_settings_picker.cpp
@@ -159,6 +161,7 @@ add_library(
         src/server_card.cpp
         src/comparison_scroll_controller.cpp
         src/nested_scroll_latch.cpp
+        src/stick_to_bottom.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp
 		src/diff_workbench_find_and_editing.cpp

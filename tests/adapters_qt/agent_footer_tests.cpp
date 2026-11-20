@@ -266,12 +266,61 @@ auto main(int argc, char** argv) -> int
 	started.start();
 	footer->present_run(qt::agent_footer_place::agent_tab, qt::agent_footer_run{ .Status = status(qt::agent_run_stage::thinking, waiting_on_helpers()), .Started = started, .Stop = [&stopped] { stopped += "agent;"; } });
 	settle();
-	expect(footer->run_where()->text() == QStringLiteral("Agent tab") && footer->run_doing()->text() == QStringLiteral("waiting on 2 helpers") && footer->run_elapsed()->text() == QStringLiteral("0:00") && footer->stop_button()->isVisible(),
-		   "one run: Agent tab, waiting on 2 helpers, its time, Stop");
+	expect(footer->run_where()->text() == QStringLiteral("Agent tab") && footer->run_doing()->text() == QStringLiteral("working") && footer->run_doing()->toolTip() == QStringLiteral("waiting on 2 helpers")
+			   && footer->run_elapsed()->text() == QStringLiteral("0:00") && footer->stop_button()->isVisible(),
+		   "one run: Agent tab, working (waiting on 2 helpers in its tooltip), its time, Stop: " + footer->run_doing()->text().toStdString());
 	// Look prompts-v002: one stop and one time; the run's stop is Stop all.
 	expect(footer->stop_button()->text() == QStringLiteral("Stop all") && footer->stop_all_button() == footer->stop_button(), "one stop control, Stop all, beside the one time");
 	expect(pickerAt() == idleAt, "the picker keeps its place while a run shows");
 	render(window, root, "one-run");
+
+	// [[BPR-2285]], owner 2026-11-19: "Just one of 'thinking' or 'working' is
+	// enough so it stays out." The tool it runs is never the word, and the
+	// word never moves Stop all or the picker.
+	{
+		const auto stopAt   = [&] { return footer->stop_button()->mapTo(&window, QPoint{ 0, 0 }); };
+		const auto workedAt = stopAt();
+		auto       running  = core::agent_turn_activity{ };
+		running.Doing       = core::agent_doing::running;
+		running.Subject     = "git log --oneline --format='%h %an %s' --since='two weeks ago' -- src/adapters/qt/src/agent_footer.cpp";
+		footer->present_run(qt::agent_footer_place::agent_tab, qt::agent_footer_run{ .Status = status(qt::agent_run_stage::thinking, running), .Started = started, .Stop = [&stopped] { stopped += "agent;"; } });
+		settle();
+		expect(footer->run_doing()->text() == QStringLiteral("working") && footer->run_doing()->toolTip().contains(QStringLiteral("git log")), "running a command says working; the command is in the tooltip");
+		expect(stopAt() == workedAt && pickerAt() == idleAt, "a long command moves nothing");
+		running.Doing = core::agent_doing::thinking;
+		running.Subject.clear();
+		footer->present_run(qt::agent_footer_place::agent_tab, qt::agent_footer_run{ .Status = status(qt::agent_run_stage::thinking, running), .Started = started, .Stop = [&stopped] { stopped += "agent;"; } });
+		settle();
+		expect(footer->run_doing()->text() == QStringLiteral("thinking") && stopAt() == workedAt && pickerAt() == idleAt, "thinking, in the same place");
+		footer->present_run(qt::agent_footer_place::agent_tab, qt::agent_footer_run{ .Status = status(qt::agent_run_stage::writing), .Started = started, .Stop = [&stopped] { stopped += "agent;"; } });
+		settle();
+		expect(footer->run_doing()->text() == QStringLiteral("working") && stopAt() == workedAt, "writing, with no activity reported, is working too");
+		footer->present_run(qt::agent_footer_place::agent_tab, qt::agent_footer_run{ .Status = status(qt::agent_run_stage::thinking), .Started = started, .Stop = [&stopped] { stopped += "agent;"; } });
+		settle();
+		expect(footer->run_doing()->text() == QStringLiteral("thinking") && stopAt() == workedAt, "and the thinking stage is thinking");
+
+		// [[BPR-2285]]: "The status bar is also seemingly not showing cost
+		// until it's finished it'd be nice to update that dynamically." The
+		// running turn's cost so far joins the settled total as it arrives.
+		auto costing = status(qt::agent_run_stage::thinking, running);
+		costing.Cost = core::parse_agent_cost("0.20");
+		footer->present_run(qt::agent_footer_place::agent_tab, qt::agent_footer_run{ .Status = costing, .Started = started, .Stop = [&stopped] { stopped += "agent;"; } });
+		settle();
+		expect(footer->cost_label()->text() == QStringLiteral("$0.73") && footer->cost_label()->toolTip().contains(QStringLiteral("this turn so far $0.20")),
+			   "the turn's cost so far joins the total while it runs: " + footer->cost_label()->text().toStdString() + " / " + footer->cost_label()->toolTip().toStdString());
+		costing.Cost = core::parse_agent_cost("0.35");
+		footer->present_run(qt::agent_footer_place::agent_tab, qt::agent_footer_run{ .Status = costing, .Started = started, .Stop = [&stopped] { stopped += "agent;"; } });
+		settle();
+		expect(footer->cost_label()->text() == QStringLiteral("$0.88"), "and moves with it: " + footer->cost_label()->text().toStdString());
+		// The turn settles: the place's total holds it, counted once.
+		footer->present_cost(qt::agent_footer_place::agent_tab, core::parse_agent_cost("0.47"));
+		settle();
+		expect(footer->cost_label()->text() == QStringLiteral("$0.88"), "the settled total holds the turn once, while the run still shows: " + footer->cost_label()->text().toStdString());
+		footer->present_cost(qt::agent_footer_place::agent_tab, core::parse_agent_cost("0.12"));
+		footer->present_run(qt::agent_footer_place::agent_tab, qt::agent_footer_run{ .Status = status(qt::agent_run_stage::thinking, waiting_on_helpers()), .Started = started, .Stop = [&stopped] { stopped += "agent;"; } });
+		settle();
+		expect(footer->cost_label()->text() == QStringLiteral("$0.53"), "back to the settled total");
+	}
 	footer->stop_button()->click();
 	expect(stopped == "agent;", "Stop all stops that run");
 

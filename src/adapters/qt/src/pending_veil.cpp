@@ -172,6 +172,18 @@ namespace bpr::qt {
 				Retry();
 			}
 		});
+		CancelButton = new quiet_push_button{ QStringLiteral("Cancel"), this };
+		CancelButton->setObjectName(QStringLiteral("pendingVeilCancel"));
+		CancelButton->setAccessibleName(QStringLiteral("Cancel"));
+		CancelButton->setAccessibleDescription(QStringLiteral("Stop reading %1.").arg(Name.toLower()));
+		CancelButton->hide();
+		connect(CancelButton, &QPushButton::clicked, this, [this] {
+			if (Cancel) {
+				// A copy: the cancel may present a failure that replaces it.
+				const auto cancel = Cancel;
+				cancel();
+			}
+		});
 		Wake = new QTimer{ this };
 		Wake->setSingleShot(true);
 		connect(Wake, &QTimer::timeout, this, [this] { advance(); });
@@ -241,6 +253,12 @@ namespace bpr::qt {
 	void pending_veil::set_retry(std::function<void()> aRetry)
 	{
 		Retry = std::move(aRetry);
+		layout_controls();
+	}
+
+	void pending_veil::set_cancel(std::function<void()> aCancel)
+	{
+		Cancel = std::move(aCancel);
 		layout_controls();
 	}
 
@@ -344,6 +362,11 @@ namespace bpr::qt {
 	auto pending_veil::retry_button() const noexcept -> QPushButton*
 	{
 		return RetryButton;
+	}
+
+	auto pending_veil::cancel_button() const noexcept -> QPushButton*
+	{
+		return CancelButton;
 	}
 
 	auto pending_veil::full_motion() const noexcept -> bool
@@ -515,6 +538,15 @@ namespace bpr::qt {
 
 	void pending_veil::layout_controls()
 	{
+		// [[BPR-2291]]. Cancel stands under a first load's words once they
+		// show, one line further down when the second line says what it waits on.
+		const auto cancellable = static_cast<bool>(Cancel) && (Look == core::pending_look::loading || Look == core::pending_look::loading_slow) && words_drawn() && Shape != pending_shape::line;
+		CancelButton->setVisible(cancellable);
+		if (cancellable) {
+			const auto line  = words_rect();
+			const auto lines = core::pending_slow(Look) && !Words.Waiting.isEmpty() ? 2 : 1;
+			CancelButton->setGeometry(QRect{ QPoint{ line.left() + line.height() + 8, line.top() + (lines * (line.height() + 2)) + 6 }, CancelButton->sizeHint() });
+		}
 		const auto offered = failing(Look) && static_cast<bool>(Retry);
 		RetryButton->setVisible(offered);
 		if (!offered) {
