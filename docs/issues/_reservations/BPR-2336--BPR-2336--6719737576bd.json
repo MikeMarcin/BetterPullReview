@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2336"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "the Agent tab's report summary is one vertical segmented bar",
+  "created": "2026-11-20T22:25:55.469108+00:00",
+  "base": "d802ef30347fed4b91f4093fb2ea4d8c7a587eef"
+}

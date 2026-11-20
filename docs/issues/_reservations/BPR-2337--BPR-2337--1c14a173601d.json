@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2337"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "an item side chat belongs to its tab and its send button sits like the Agent tab's",
+  "created": "2026-11-20T22:25:56.264810+00:00",
+  "base": "d802ef30347fed4b91f4093fb2ea4d8c7a587eef"
+}
