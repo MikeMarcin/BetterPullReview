@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2321"
 title: "An agent workspace seeded from a linked clone copies the clone's ignored files with each top-level folder and then deletes them: on a clone with 750,000 ignored files the workspace still takes 150 s"
-status: "Backlog"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"defect","found_by":"owner, 2026-11-20, build 71 on macOS (APFS): the Agent tab's workspace took 2.5 minutes on a large repository with a linked clone, after BPR-2289, BPR-2294 and BPR-2295 had landed. The log and a timed reproduction on a scratch copy of the clone's largest folder found the cause","related_cards":["BPR-1751","BPR-2288","BPR-2289","BPR-2293","BPR-2294","BPR-2295"],"related_rfcs":["RFC-BPR-0092","RFC-BPR-0108"]}
-acceptance: []
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "eca6d5621", "evidence": {"kind": "command", "command": "ctest --test-dir build/dev -R '^git_process_contract$'", "detail": "The BPR-2294 fixture (20,003 tracked files) with 100,000 ignored files (empty) in module3/build/dependencies: seeded in 831-1162 ms over three runs, against 935-964 ms for the same clone without them and 1.7-2.7 s for a full checkout. LINKED_CLONE_IGNORED:files=20003:ignored=100000:seeded_ms=867:baseline_ms=950:walk_ms=77:clone_ms=189:refresh_ms=260:checkout_ms=16:clean_ms=150:folders=98:files=402:written=3:cleaned=0 (Debug, macOS arm64, APFS). The owner's repository was not used."}}, {"criterion": "AC2", "outcome": "pass", "revision": "eca6d5621", "evidence": {"kind": "command", "command": "ctest --test-dir build/dev -R '^git_process_contract$'", "detail": "Seeded: 98 whole folders and 402 single files cloned (module2's and module3's files and the two top-level files); the clone's notes, ignored build folder and 100,000 ignored files are absent from the workspace, and clean removed 0 entries in every seeded course. Untracked files in 10 folders: seeded, 2,402 files cloned one by one, clean removed 0. In 60 folders: 12,440 clone calls exceed min(50,000, 20,003/2), the seed is skipped as too_spread and all 20,003 files are checked out (1.5-1.8 s). BPR-2294's dirty-file, untracked-notes, ignored-build, skip-worktree refusal and gc-resume checks pass unchanged."}}, {"criterion": "AC3", "outcome": "pass", "revision": "eca6d5621", "evidence": {"kind": "command", "command": "ctest --test-dir build/dev -R '^core_operation_diagnosis$'", "detail": "workspace_materialize gains `seed=seeded|too_spread|refused|failed seed_walk_ms seed_clone_ms seed_refresh_ms seed_checkout_ms seed_clean_ms seed_folders seed_files seed_written seed_cleaned` when a seed was tried, round-trips through parse_operation_diagnosis, and is absent otherwise. seed_cleaned counts the entries clean reported (a whole untracked folder is one)."}}, {"criterion": "AC4", "outcome": "pass", "revision": "eca6d5621", "evidence": {"kind": "command", "command": "ctest --test-dir build/dev -R '^(architecture_boundaries|core_operation_diagnosis|git_process_contract)$' && cmake --build --preset dev --target coding-format-check && python3 scripts/verify_documentation.py --root .", "detail": "All three tests pass (git_process_contract 60-73 s, limit 180 s); clang-format 22 clean on the changed files (the only finding is the known tests/end_to_end/follow_up_public_path.cpp); clang-tidy passes on the changed sources; DOCUMENTATION_OK."}}]
 ---
 
 # BPR-2321: An agent workspace seeded from a linked clone copies the clone's ignored files with each top-level folder and then deletes them: on a clone with 750,000 ignored files the workspace still takes 150 s
@@ -160,3 +160,47 @@ not show a cost that grows with the clone's ignored content.
   agent's status check took 22.3 s, one of its two runs ending in a process
   timeout, through a sandbox launcher. It was not on the workspace's path,
   but it may deserve its own look.
+
+## Fix
+
+`seed_from_linked_clone` (`src/adapters/git/src/installed_git_process.cpp`,
+macOS) reads the head's tree once in the workspace (`ls-tree -r -t -z`),
+then lists the clone's folders along the head's own, without following
+links. A folder whose entries are all the head's, of the same kind, all the
+way down, is cloned whole; any other is made empty and each of the head's
+regular files in it is cloned on its own. Links and what the clone lacks
+are checked out. No folder the head does not track is listed or copied.
+
+The bound (Change 2) is `min(50,000, half the head's files)` clone calls,
+counted before anything is cloned. The owner's measurement on the real
+repository (`read-tree` 0.15 s, `checkout-index -a` 15.2 s for 79,739 files,
+about 190 µs a file) and [[BPR-2294]]'s (one `clonefile` per file 3.0 s for
+22,000, about 136 µs; a fixture checkout 80-110 µs a file) put the break-even
+between one clone per file and a full checkout above half the files on both,
+so a seed under the bound is never slower than the fallback it replaces.
+
+Every [[BPR-2294]] guard is kept. `clean -ffdx` remains the last guard and
+its removed entries are counted. The `workspace_materialize` line names the
+outcome, each step's time and the counts (core `workspace_seed_trace`).
+
+## Measured
+
+Debug, macOS arm64, APFS, `git_process_contract`, three runs:
+
+| Course | Time |
+|---|---|
+| Seeded, clone with untracked notes and one ignored folder (BPR-2294) | 935-964 ms |
+| The same plus 100,000 ignored files | 831-1162 ms (walk 77-398, clone 188-195, refresh 229-263, checkout 16-18, clean 139-150) |
+| Untracked files in 10 of 100 folders (seeded) | 981-1127 ms |
+| Untracked files in 60 of 100 folders (too_spread, full checkout) | 1514-1801 ms |
+| Full checkout, no clone index | 1741-2693 ms |
+
+## Not verified
+
+- The owner's repository (79,739 tracked, about 750,000 ignored files) was
+  not used; its workspace time is the owner's to see in the next build's
+  `workspace_materialize` line.
+- The fixture's ignored files are empty, so their clone or delete cost in
+  the old path would have been mostly metadata; the new path never lists them.
+- Windows and Linux are unchanged (no seed path).
+
