@@ -86,8 +86,7 @@ and logs a `change_draft_state` line, and forwards `change_auto_merge`.
 
 ## Evidence
 
-Candidate: the BPR-2329 commits on `main` (see the landing commits named in
-the closing commit), built in a task worktree with its own `build/dev`.
+Candidate: `2cd822ded` and `b4249526d` on `main`, built in a task worktree with its own `build/dev`.
 
 - `core_auto_merge` (new), `core_operation_diagnosis`, `core_merge_blockers`:
   pass.
