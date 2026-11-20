@@ -37,6 +37,13 @@ description. A signed-in GitHub CLI card claims no session-only token. The
 account setup's consent is one sentence; reuse and the publishing boundary
 stay behind What connecting allows.
 
+Owner amendment, 2026-11-20 ([[BPR-2332]], attended review
+`bbbd62f881b93ad3315947522fe41e0d`: "Feels like a lot of wasted space"): a
+server card's rows are 32 pixels tall, as Settings › Appearance's are, and its
+header and account insets are 8 pixels; its label column is as wide as its
+widest label rather than a fixed width. The row height of 44 in the rhythm
+below holds for Home.
+
 ## Summary and scope
 
 Home and the Accounts & hosts page of Settings are the surfaces a reviewer

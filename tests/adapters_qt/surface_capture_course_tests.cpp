@@ -41,6 +41,7 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_panel.hpp"
+#include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/server_card.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -53,6 +54,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDir>
+#include <QGridLayout>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -507,6 +509,69 @@ namespace {
 				&& enterprise->login_label()->text() == QStringLiteral("octo-reviewer"),
 			"an accepted session makes its host's card say Connected");
 		capture(*settings, QStringLiteral("accounts"), QStringLiteral("connected"), aMode);
+
+		// [[BPR-2332]], owner at attended review bbbd62f8: "Feels like a lot of
+		// wasted space, also i think the string in question was CLI which
+		// there is no CLI account in this fixture." The GitHub.com card here
+		// connects through GitHub CLI, so the state the look is about is
+		// drawn: the one short trust sentence with its info glyph, no
+		// session-only token claim, on the tightened card.
+		// The device flow the signing-in state started is over.
+		aWindow.device_authorization()->apply(application::device_authorization_presentation{ });
+		process_events();
+		const auto cliSession = application::github_session_projection{
+			.Profile     = core::host_profile_id{ 11U },
+			.Host        = core::git_host_id{ 21U },
+			.Account     = core::github_account_id{ 53U },
+			.Login       = "octo-cli",
+			.DisplayName = "Octo CLI",
+			.Grant       = application::github_grant_projection{ .Kind = application::github_grant_kind_projection::token },
+		};
+		aWindow.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status   = core::github_status_delta{ .Status = core::github_status::session_ready },
+				.Identity = core::github_identity_delta{
+					.Profile    = cliSession.Profile,
+					.Host       = cliSession.Host,
+					.Account    = cliSession.Account,
+					.Generation = core::github_identity_generation{ 3U },
+				},
+			},
+			.Session = cliSession,
+		});
+		process_events();
+		auto* const trust   = chosen->cli_trust_warning();
+		auto* const details = chosen->cli_trust_details();
+		expect(chosen->state_label()->text() == QStringLiteral("Connected") && chosen->signed_in()
+				   && chosen->login_label()->text() == QStringLiteral("octo-cli"),
+			   "a GitHub CLI session makes the GitHub.com card say Connected");
+		expect(trust != nullptr && trust->isVisibleTo(settings) && trust->text() == QStringLiteral("Uses gh's sign-in for this account; the token isn't saved.")
+				   && details != nullptr && details->isVisibleTo(settings) && details->toolTip().contains(QStringLiteral("this server")),
+			   "the connected GitHub CLI card shows its one-line trust sentence and the info glyph holding the full disclosure");
+		expect(!chosen->consequence_label()->isVisibleTo(chosen) || !chosen->consequence_label()->text().contains(QStringLiteral("token for this session")),
+			   "the connected GitHub CLI card claims no session-only token");
+		expect(chosen->device_sign_in() == nullptr || !chosen->device_sign_in()->isVisibleTo(chosen), "no device code shows once the flow is over");
+		// The trust line sits right under the login: the Sign out button
+		// beside them does not hold the rows apart.
+		expect(trust->mapTo(chosen, QPoint{ 0, 0 }).y() - (chosen->login_label()->mapTo(chosen, QPoint{ 0, 0 }).y() + chosen->login_label()->height()) <= 4,
+			   "the trust line follows the login with no gap");
+		// The tightened card: rows as tall as Appearance's, and the label
+		// column as wide as its widest label rather than a fixed 150 pixels.
+		auto* const accessRow = chosen->findChild<QWidget*>(QStringLiteral("serverCardAccessRow"));
+		auto* const rateRow   = chosen->findChild<QWidget*>(QStringLiteral("serverCardRateLimitRow"));
+		auto* const access    = chosen->access_label();
+		const auto  labels    = std::max({ chosen->findChild<QLabel*>(QStringLiteral("serverCardAccessName"))->sizeHint().width(),
+										   chosen->findChild<QLabel*>(QStringLiteral("serverCardRateLimitName"))->sizeHint().width(),
+										   chosen->details_button()->sizeHint().width() });
+		const auto  line      = chosen->fontMetrics().lineSpacing();
+		expect(accessRow != nullptr && rateRow != nullptr && accessRow->height() <= std::max(32, 2 * line) && rateRow->height() <= std::max(32, 2 * line),
+			   "the card's rows are no taller than two lines of text");
+		auto* const accessGrid = qobject_cast<QGridLayout*>(accessRow->layout());
+		auto* const rateGrid   = qobject_cast<QGridLayout*>(rateRow->layout());
+		expect(access->mapTo(chosen, QPoint{ 0, 0 }).x() - accessRow->mapTo(chosen, QPoint{ 0, 0 }).x() <= labels + 16
+				   && accessGrid != nullptr && rateGrid != nullptr && accessGrid->columnMinimumWidth(0) == labels && rateGrid->columnMinimumWidth(0) == labels,
+			   "the values start one gap after the widest label, one label column across the rows");
+		capture(*settings, QStringLiteral("accounts"), QStringLiteral("cli-connected"), aMode);
 	}
 
 	// ----------------------------------------- C6: the Appearance page states

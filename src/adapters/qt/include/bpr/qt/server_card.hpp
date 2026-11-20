@@ -291,6 +291,7 @@ namespace bpr::qt {
 		void apply_rows();
 		void apply_cli_accounts();
 		void refresh_native_appearance();
+		void fit_label_column();
 
 		std::vector<application::github_profile_option> Options;
 		server_card_gestures                            Gestures;
@@ -322,6 +323,10 @@ namespace bpr::qt {
 		QWidget*                    RateLimitRow     = nullptr;
 		QWidget*                    DetailsRow       = nullptr;
 		std::array<QFrame*, 4>      RowHairlines{ };
+		/// [[BPR-2332]]. Access, Rate limit and Details: one label column,
+		/// as wide as the widest of the three.
+		std::array<QGridLayout*, 3> LabelGrids{ };
+		std::array<QWidget*, 3>     LabelCells{ };
 		QWidget*                    RememberRow    = nullptr;
 		QWidget*                    ForgetRow      = nullptr;
 		QCheckBox*                  RememberSwitch = nullptr;

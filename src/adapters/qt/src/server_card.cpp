@@ -43,15 +43,18 @@ namespace bpr::qt {
 
 	namespace {
 		// A card's inset, a row's height and the gap between a label and what
-		// it labels, on the 8-point grid RFC-BPR-0032 fixes and at the accepted
-		// mockup's label column.
-		constexpr auto card_inset   = 16;
-		constexpr auto row_inset    = 12;
-		constexpr auto row_height   = 44;
-		constexpr auto column_gap   = 12;
-		constexpr auto avatar_side  = 32;
-		constexpr auto card_radius  = 8.0;
-		constexpr auto label_column = 150;
+		// it labels, on the 8-point grid RFC-BPR-0032 fixes. [[BPR-2332]],
+		// owner at attended review bbbd62f8: "Feels like a lot of wasted
+		// space". Rows are as tall as Appearance's, the insets half the card
+		// inset, and the label column is as wide as its widest label
+		// (`fit_label_column`), not a fixed 150 pixels.
+		constexpr auto card_inset          = 16;
+		constexpr auto row_inset           = 8;
+		constexpr auto row_height          = 32;
+		constexpr auto column_gap          = 12;
+		constexpr auto avatar_side         = 32;
+		constexpr auto card_radius         = 8.0;
+		constexpr auto details_name_column = 120;
 
 		[[nodiscard]] auto device_capable(
 			const application::github_profile_option& aOption) noexcept -> bool
@@ -304,7 +307,6 @@ namespace bpr::qt {
 			row->setMinimumHeight(row_height);
 			layout->setContentsMargins(0, 0, 0, 0);
 			layout->setHorizontalSpacing(card_inset);
-			layout->setColumnMinimumWidth(0, label_column);
 			layout->setColumnStretch(1, 1);
 			return { row, layout };
 		}
@@ -418,7 +420,9 @@ namespace bpr::qt {
 		actionsLayout->addWidget(SignInButton);
 		actionsLayout->addWidget(SignOutButton);
 		actionsLayout->addWidget(ConnectButton);
-		AccountLayout->addWidget(actions, 0, 2, 2, 1, Qt::AlignRight | Qt::AlignTop);
+		// [[BPR-2332]]. Beside every line of the account, so the button's
+		// height does not hold the login and the line under it apart.
+		AccountLayout->addWidget(actions, 0, 2, 4, 1, Qt::AlignRight | Qt::AlignTop);
 		AccountLayout->setColumnStretch(1, 1);
 		column->addWidget(Account);
 
@@ -473,6 +477,8 @@ namespace bpr::qt {
 		AccessLabel->setAccessibleName(QStringLiteral("Access"));
 		accessLayout->addWidget(accessName, 0, 0, Qt::AlignVCenter);
 		accessLayout->addWidget(AccessLabel, 0, 1, Qt::AlignVCenter);
+		LabelGrids[0] = accessLayout;
+		LabelCells[0] = accessName;
 		rowsColumn->addWidget(AccessRow);
 
 		RowHairlines[0] = make_hairline(Rows);
@@ -487,6 +493,8 @@ namespace bpr::qt {
 		rateLayout->addWidget(rateName, 0, 0, Qt::AlignVCenter);
 		rateLayout->addWidget(RateLimitLabel, 0, 1, Qt::AlignVCenter);
 		rateLayout->addWidget(UsageIndicator, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
+		LabelGrids[1] = rateLayout;
+		LabelCells[1] = rateName;
 		rowsColumn->addWidget(RateLimitRow);
 
 		// [[BPR-0774]]. An enterprise server's own rows: whether the queue keeps
@@ -551,6 +559,8 @@ namespace bpr::qt {
 		DetailsSummary = make_quiet_label(detailsLine, QStringLiteral("serverCardDetailsSummary"), QStringLiteral("Capabilities, rate limits and the last problem."));
 		detailsLineLayout->addWidget(DetailsButton, 0, 0, Qt::AlignLeft | Qt::AlignVCenter);
 		detailsLineLayout->addWidget(DetailsSummary, 0, 1, Qt::AlignVCenter);
+		LabelGrids[2] = detailsLineLayout;
+		LabelCells[2] = DetailsButton;
 		detailsRowColumn->addWidget(detailsLine);
 
 		Details                   = new QWidget{ DetailsRow };
@@ -558,7 +568,7 @@ namespace bpr::qt {
 		Details->setObjectName(QStringLiteral("serverCardDetails"));
 		detailsLayout->setContentsMargins(0, 0, 0, row_inset);
 		detailsLayout->setHorizontalSpacing(card_inset);
-		detailsLayout->setColumnMinimumWidth(0, label_column);
+		detailsLayout->setColumnMinimumWidth(0, details_name_column);
 		const std::array capabilityNames{
 			QStringLiteral("Review threads"),
 			QStringLiteral("Viewed files"),
@@ -1067,6 +1077,22 @@ namespace bpr::qt {
 		LoginLabel->setFont(emphasis);
 		if (Applied) {
 			apply_header();
+		}
+		fit_label_column();
+	}
+
+	void server_card::fit_label_column()
+	{
+		auto widest = 0;
+		for (auto* const cell : LabelCells) {
+			if (cell != nullptr) {
+				widest = std::max(widest, cell->sizeHint().width());
+			}
+		}
+		for (auto* const grid : LabelGrids) {
+			if (grid != nullptr) {
+				grid->setColumnMinimumWidth(0, widest);
+			}
 		}
 	}
 
