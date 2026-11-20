@@ -476,24 +476,26 @@ namespace bpr::qt {
 		/// [[BPR-1844]].
 		std::function<void(core::view_filter_choice)> FilterChoiceDispatch;
 
-		std::vector<application::github_conversation_projection>               Forest;
-		std::vector<thread_read_state>                                         ReadState;
-		std::map<std::string, bool>                                            ProjectedResolutions;
-		bool                                                                   ReadStateKnown = false;
-		QString                                                                Viewer;
-		std::optional<application::conversation_labels_projection>             Labels;
-		std::map<core::feedback_label, std::set<std::string>>                  LabelMembers;
-		feedback_mark_theme                                                    MarkTheme;
-		std::optional<finder_draft>                                            Draft;
-		std::vector<finder_saved_draft>                                        SavedDrafts;
-		std::vector<finder_local_comment>                                      LocalComments;
-		finder_reading                                                         Reading;
-		QColor                                                                 New{ 0x2F, 0x6F, 0xD6 };
-		QColor                                                                 Route{ 0xC9, 0x8F, 0x12 };
-		QFont                                                                  CodeFont;
+		std::vector<application::github_conversation_projection>   Forest;
+		std::vector<thread_read_state>                             ReadState;
+		std::map<std::string, bool>                                ProjectedResolutions;
+		bool                                                       ReadStateKnown = false;
+		QString                                                    Viewer;
+		std::optional<application::conversation_labels_projection> Labels;
+		std::map<core::feedback_label, std::set<std::string>>      LabelMembers;
+		feedback_mark_theme                                        MarkTheme;
+		std::optional<finder_draft>                                Draft;
+		std::vector<finder_saved_draft>                            SavedDrafts;
+		std::vector<finder_local_comment>                          LocalComments;
+		finder_reading                                             Reading;
+		QColor                                                     New{ 0x2F, 0x6F, 0xD6 };
+		QColor                                                     Route{ 0xC9, 0x8F, 0x12 };
+		QFont                                                      CodeFont;
+		bool                                                       Dirty    = true;
+		std::uint64_t                                              Rebuilds = 0U;
+
+		/// [[BPR-2300]]. Each post's excerpt, by its words.
 		mutable std::map<QString, std::shared_ptr<const detail::note_preview>> Excerpts;
-		bool                                                                   Dirty    = true;
-		std::uint64_t                                                          Rebuilds = 0U;
 
 		std::vector<finder_conversation> Conversations;
 		/// Every item the conversations could show, in order; the model holds
