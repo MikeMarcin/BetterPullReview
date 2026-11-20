@@ -892,10 +892,6 @@ auto main(int argc, char** argv) -> int
 			// one of the setup's processes still runs, and a claude under
 			// another name is as gone from PATH as an uninstalled one.
 			std::filesystem::rename(claudeSearch / ("claude" + std::filesystem::path{ argv[2] }.extension().string()), claudeSearch / "uninstalled-claude.bin");
-			// The claude put on PATH below, copied now under a name PATH never
-			// finds: a program written just before it starts can still be held
-			// by Windows' scan of the new file, and fails to start.
-			std::filesystem::copy_file(argv[2], claudeSearch / "staged-claude.bin");
 			auto* prose  = editor.writing_editor(core::writing_hook::comment);
 			auto* status = editor.findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
 			prose->selectAll();
@@ -918,7 +914,7 @@ auto main(int argc, char** argv) -> int
 				   "failing-before control: with no program of its own and no claude found nothing starts and nothing changes");
 			// The scoped writing agent, put on the course's PATH as claude.
 			const auto claudeOnPath = claudeSearch / ("claude" + std::filesystem::path{ argv[2] }.extension().string());
-			std::filesystem::rename(claudeSearch / "staged-claude.bin", claudeOnPath);
+			std::filesystem::copy_file(argv[2], claudeOnPath);
 			select();
 			const auto viaPath = *prose->capture();
 			run();
