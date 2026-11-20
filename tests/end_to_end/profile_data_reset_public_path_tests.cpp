@@ -8,6 +8,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../sqlite_contract/platform_test_support.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -148,6 +149,25 @@ namespace {
 	auto review_stores() -> std::set<std::string>
 	{
 		return { "review-ledger", "review-tours", "review-cycles", "review-mutation-recovery" };
+	}
+	/// [[BPR-2308]]. The first review store the profile holds, after making
+	/// the tours store, as a draft's target makes it, when it holds none: the
+	/// profile made the retired cycles store at start, and makes no other
+	/// review store until a review needs one.
+	auto review_store(const fs::path& aRoot) -> fs::path
+	{
+		const auto first = [&aRoot]() -> fs::path {
+			for (const auto& name : review_stores()) {
+				if (fs::exists(aRoot / "state/v1" / (name + ".sqlite3"))) {
+					return aRoot / "state/v1" / (name + ".sqlite3");
+				}
+			}
+			return { };
+		};
+		if (first().empty()) {
+			expect(adapters::sqlite::make_review_tour_store(aRoot, core::bpr_profile_id{ 1U }) != nullptr, "the tours store is made for the review reset");
+		}
+		return first();
 	}
 	auto kept_stores() -> std::set<std::string>
 	{
@@ -315,6 +335,7 @@ try {
 	}
 	// Reset review data: the review stores go; saved sources and sign-in stay.
 	{
+		static_cast<void>(review_store(root));
 		const auto review = identities(root, review_stores());
 		const auto kept   = identities(root, kept_stores());
 		expect(std::ranges::any_of(review, [](const auto& aStore) { return aStore.second.has_value(); }), "a review store exists before its reset");
@@ -352,16 +373,10 @@ try {
 			const std::string garbage(4096, 'Z');
 			damaged.write(garbage.data(), static_cast<std::streamsize>(garbage.size()));
 		}
-		auto reviewStore = fs::path{ };
-		for (const auto& name : review_stores()) {
-			if (fs::exists(root / "state/v1" / (name + ".sqlite3"))) {
-				reviewStore = root / "state/v1" / (name + ".sqlite3");
-				break;
-			}
-		}
-		const auto ledger = reviewStore.empty() ? std::optional<tests::sqlite_contract::file_identity>{ } : identity(reviewStore);
-		auto       failed = false;
-		run.Desktop       = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) { failed = !aResult; });
+		const auto reviewStore = review_store(root);
+		const auto ledger      = reviewStore.empty() ? std::optional<tests::sqlite_contract::file_identity>{ } : identity(reviewStore);
+		auto       failed      = false;
+		run.Desktop            = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) { failed = !aResult; });
 		until([&] { return failed && run.Desktop->is_quiescent(); }, "a damaged comparison history stops the profile at start");
 		run.Desktop.reset();
 		auto recovered      = options;
