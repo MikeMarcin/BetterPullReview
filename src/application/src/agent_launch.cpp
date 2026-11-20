@@ -45,8 +45,9 @@ namespace bpr::application {
 		/// \brief A native session handle as a harness reports it: 1 to 128
 		/// ASCII letters, digits, `.`, `_` and `-`, starting with a letter or
 		/// digit, so a harness never reads it as an option. ([[BPR-2308]]
-		/// moved it here from the retired Review Cycle send.)
-		[[nodiscard]] auto native_session_name(const std::string_view aName) noexcept -> bool
+		/// moved it here from the retired Review Cycle send.) Used only with
+		/// agent integrations.
+		[[nodiscard, maybe_unused]] auto native_session_name(const std::string_view aName) noexcept -> bool
 		{
 			const auto alphanumeric = [](const char aSymbol) { return (aSymbol >= 'a' && aSymbol <= 'z') || (aSymbol >= 'A' && aSymbol <= 'Z') || (aSymbol >= '0' && aSymbol <= '9'); };
 			return !aName.empty() && aName.size() <= 128U && alphanumeric(aName.front())
