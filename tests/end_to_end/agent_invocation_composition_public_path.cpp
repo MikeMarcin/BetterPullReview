@@ -3141,7 +3141,48 @@ auto main(int argc, char** argv) -> int
 						  : 0U)
 				  << ':'
 				  << (composedSession.has_value() ? composedSession->value() : 0U)
-				  << ':' << liveWindows.size() << ':' << invokingWindow << '\n';
+				  << ':' << liveWindows.size() << ':' << invokingWindow
+				  << "\nagent-exact-context-terms: launcher="
+				  << exact_agent_process_launcher_path(evidence, panel->statistics().StartIntents == 1U)
+				  << " cwd_set=" << cwd.has_value()
+				  << " cwd_gone=" << (cwd.has_value() && !std::filesystem::exists(*cwd))
+				  << " root_set=" << !evidence.WorkspaceRoot.empty()
+				  << " root_exists=" << (!evidence.WorkspaceRoot.empty() && std::filesystem::exists(evidence.WorkspaceRoot))
+				  << " outside_cache=" << outsideCache
+				  << " relative=" << relativeWorkspace.generic_string()
+				  << " data_root=" << dataRoot.generic_string()
+				  << " authorities=" << acceptedAuthorities
+				  << " fields_equal=" << (actualFields.has_value() && expectedFields.has_value() && *actualFields == *expectedFields)
+				  << " brief=" << briefSays
+				  << " forbidden=" << containsForbiddenContext << '\n';
+		if (actualFields.has_value() && expectedFields.has_value()) {
+			for (const auto& [name, value] : *actualFields) {
+				const auto found = expectedFields->find(name);
+				if (found == expectedFields->end() || found->second != value) {
+					std::cerr << "agent-exact-context-field-differs: " << name << '\n';
+				}
+			}
+			for (const auto& [name, value] : *expectedFields) {
+				if (!actualFields->contains(name)) {
+					std::cerr << "agent-exact-context-field-missing: " << name << '\n';
+				}
+			}
+			for (const auto* name : { "schema", "file.count", "file.0.read", "file.0.changed_since_review", "last_reviewed_head.present",
+									  "defect.count", "selection.present", "selection.mapping_confidence", "selection.source_text.present",
+									  "note.count", "draft.count" }) {
+				const auto found = actualFields->find(name);
+				std::cerr << "agent-exact-context-field: " << name << '=' << (found == actualFields->end() ? std::string{ "<absent>" } : found->second) << '\n';
+			}
+			std::cerr << "agent-exact-context-private: body=" << (actualFields->contains("private.0.body") && actualFields->at("private.0.body") == selectedSource)
+					  << " chat=" << (actualFields->contains("chat_message") && actualFields->at("chat_message") == privateQuestion) << '\n';
+			if (!briefSays) {
+				for (const auto& [name, value] : *actualFields) {
+					if (name.starts_with("brief.") && !name.ends_with(".text")) {
+						std::cerr << "agent-exact-context-brief: " << name << '=' << value.substr(0, 160) << '\n';
+					}
+				}
+			}
+		}
 	}
 	const auto shutdownComplete = shutdown(*application);
 	const auto rootRemoved      = shutdownComplete
