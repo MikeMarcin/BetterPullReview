@@ -13,6 +13,7 @@
 
 #include "conversation_glyphs.hpp"
 #include "conversation_open_card.hpp"
+#include "conversation_preview.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractListModel>
@@ -199,9 +200,10 @@ namespace bpr::qt {
 			post.Id            = std::move(aId);
 			post.Author        = aAuthor;
 			post.Body          = QString::fromUtf8(aBody.data(), static_cast<qsizetype>(aBody.size()));
-			post.Words         = post.Body.mid(std::clamp<qsizetype>(reading.Header, 0, post.Body.size())).simplified();
+			// [[BPR-2300]]. As written: the row reads it as Markdown.
+			post.Words = post.Body.mid(std::clamp<qsizetype>(reading.Header, 0, post.Body.size())).trimmed();
 			if (post.Words.isEmpty()) {
-				post.Words = post.Body.simplified();
+				post.Words = post.Body.trimmed();
 			}
 			post.Label    = reading.Label;
 			post.Emphasis = reading.Emphasis;
@@ -216,9 +218,7 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto first_words(const QString& aWords, const int aCharacters) -> QString
 		{
-			auto words = aWords;
-			words.remove(QLatin1Char{ '`' });
-			return words.size() <= aCharacters ? words : words.left(aCharacters - 1).trimmed() + QChar{ 0x2026 };
+			return aWords.size() <= aCharacters ? aWords : aWords.left(aCharacters - 1).trimmed() + QChar{ 0x2026 };
 		}
 
 		/// The reading order of a conversation: each branch whole, in the
@@ -246,49 +246,20 @@ namespace bpr::qt {
 			return order;
 		}
 
-		/// One run of a row's words: plain, code, or the search's match.
-		struct word_run
+		/// [[BPR-2300]]. A row's excerpt as runs, the search's first match
+		/// marked across them.
+		[[nodiscard]] auto runs_of(const detail::note_preview& aExcerpt, const QString& aSearch) -> std::vector<detail::preview_run>
 		{
-			QString Text;
-			bool    Code  = false;
-			bool    Match = false;
-		};
-
-		[[nodiscard]] auto runs_of(const QString& aWords, const QString& aSearch) -> std::vector<word_run>
-		{
-			// Backticks set code in the code font and are not shown, as the
-			// prototype sets them.
-			auto runs = std::vector<word_run>{ };
-			auto code = false;
-			auto text = QString{ };
-			for (const auto character : aWords) {
-				if (character == QLatin1Char{ '`' }) {
-					if (!text.isEmpty()) {
-						runs.push_back({ .Text = text, .Code = code });
-						text.clear();
-					}
-					code = !code;
-					continue;
-				}
-				text.append(character);
-			}
-			if (!text.isEmpty()) {
-				runs.push_back({ .Text = text, .Code = code });
-			}
+			auto runs = detail::preview_runs(aExcerpt);
 			if (aSearch.isEmpty()) {
 				return runs;
 			}
-			// The first match is marked, across runs.
-			auto joined = QString{ };
-			for (const auto& run : runs) {
-				joined += run.Text;
-			}
-			const auto at = joined.indexOf(aSearch, 0, Qt::CaseInsensitive);
+			const auto at = aExcerpt.Text.indexOf(aSearch, 0, Qt::CaseInsensitive);
 			if (at < 0) {
 				return runs;
 			}
 			const auto end    = at + aSearch.size();
-			auto       marked = std::vector<word_run>{ };
+			auto       marked = std::vector<detail::preview_run>{ };
 			auto       offset = qsizetype{ 0 };
 			for (const auto& run : runs) {
 				const auto from = offset;
@@ -300,15 +271,40 @@ namespace bpr::qt {
 				}
 				const auto left  = std::max(at, from) - from;
 				const auto right = std::min(end, to) - from;
+				auto       part  = run;
 				if (left > 0) {
-					marked.push_back({ .Text = run.Text.left(left), .Code = run.Code });
+					part.Text = run.Text.left(left);
+					marked.push_back(part);
 				}
-				marked.push_back({ .Text = run.Text.mid(left, right - left), .Code = run.Code, .Match = true });
+				part.Text  = run.Text.mid(left, right - left);
+				part.Match = true;
+				marked.push_back(part);
 				if (right < run.Text.size()) {
-					marked.push_back({ .Text = run.Text.mid(right), .Code = run.Code });
+					part.Text  = run.Text.mid(right);
+					part.Match = false;
+					marked.push_back(part);
 				}
 			}
 			return marked;
+		}
+
+		/// [[BPR-2300]]. What a row's one line shows \p aWidth wide: the
+		/// excerpt's words, giving way to its tokens, which are never cut.
+		struct row_line
+		{
+			std::vector<detail::preview_run> Runs;
+			QStringList                      Tokens;
+		};
+
+		[[nodiscard]] auto row_line_of(const detail::note_preview& aExcerpt, const QString& aSearch, const QFont& aFont, const QFont& aCodeFont, const int aWidth) -> row_line
+		{
+			const auto tokens = detail::preview_tokens_width(aExcerpt.Tokens, aFont);
+			const auto room   = aExcerpt.Text.isEmpty() ? 0 : std::max(0, aWidth - (tokens > 0 ? tokens + detail::preview_token_lead : 0));
+			auto       line   = row_line{ .Tokens = aExcerpt.Tokens };
+			if (!aExcerpt.Text.isEmpty()) {
+				line.Runs = detail::fit_preview_line(runs_of(aExcerpt, aSearch), aExcerpt.Omitted, aFont, aCodeFont, room);
+			}
+			return line;
 		}
 	} // namespace
 
@@ -1922,6 +1918,57 @@ namespace bpr::qt {
 		return counts;
 	}
 
+	auto conversation_finder::excerpt_of(const finder_post& aPost) const -> const detail::note_preview&
+	{
+		if (const auto found = Excerpts.find(aPost.Words); found != Excerpts.end()) {
+			return *found->second;
+		}
+		// Kept per words, not per post or width; a long session's are let go
+		// together rather than one by one.
+		if (Excerpts.size() >= 4096U) {
+			Excerpts.clear();
+		}
+		const auto made = Excerpts.emplace(aPost.Words, std::make_shared<const detail::note_preview>(detail::preview_of(aPost.Words, 0))).first;
+		return *made->second;
+	}
+
+	auto conversation_finder::shown_post(const std::size_t aItem) const -> const finder_post&
+	{
+		// The words come from the row's first post, or the post the search
+		// found on it.
+		const auto& entry        = *Items[aItem];
+		const auto& conversation = Conversations[entry.Conversation];
+		const auto& row          = conversation.Rows[entry.Row];
+		const auto  search       = Filters.Search.trimmed();
+		if (!search.isEmpty()) {
+			for (const auto post : row.Posts) {
+				if (finder_post_found(conversation.Posts[post], search)) {
+					return conversation.Posts[post];
+				}
+			}
+		}
+		return conversation.Posts[row.Posts.front()];
+	}
+
+	auto conversation_finder::row_words(const std::string& aRowKey) const -> finder_row_words
+	{
+		const auto at = item_index(aRowKey);
+		if (!at.has_value() || Items[Model->Shown[*at]]->Header) {
+			return { };
+		}
+		const auto item     = Model->Shown[*at];
+		const auto geometry = geometry_of(item, List->visualRect(Model->index(static_cast<int>(*at))));
+		const auto line     = row_line_of(excerpt_of(shown_post(item)), Filters.Search.trimmed(), font(), code_font_like(CodeFont, font(), 0.9), geometry.Words.width());
+		auto       words    = finder_row_words{ .Tokens = line.Tokens };
+		for (const auto& run : line.Runs) {
+			words.Text += run.Text;
+			if (run.Code) {
+				words.Code.push_back(run.Text);
+			}
+		}
+		return words;
+	}
+
 	auto conversation_finder::row_text(const std::string& aRowKey) const -> QString
 	{
 		const auto at = item_index(aRowKey);
@@ -3011,7 +3058,7 @@ namespace bpr::qt {
 		if (first.Label.has_value()) {
 			text += feedback_label_text(*first.Label) + QStringLiteral(", ");
 		}
-		text += first_words(first.Words, 80);
+		text += first_words(excerpt_of(first).Text, 80);
 		if (entry.Row == 0U) {
 			text += conversation.Posts.size() == 1U ? QStringLiteral(", one post") : QStringLiteral(", %1 posts").arg(conversation.Posts.size());
 			if (conversation.Local) {
@@ -3186,17 +3233,7 @@ namespace bpr::qt {
 			aPainter.setPen(QPen{ colours.Rule2, 1.5 });
 			aPainter.drawLine(QPointF{ x, geometry.Mark.bottom() + 2.0 }, QPointF{ x, geometry.Box.bottom() + 2.0 });
 		}
-		// The words come from the row's first post, or the post the search found on it.
-		auto shown = row.Posts.front();
-		if (!search.isEmpty()) {
-			for (const auto post : row.Posts) {
-				if (finder_post_found(conversation.Posts[post], search)) {
-					shown = post;
-					break;
-				}
-			}
-		}
-		const auto& words = conversation.Posts[shown];
+		const auto& words = shown_post(aItem);
 		const auto  faded = conversation.Resolved && !aHovered ? 0.5 : conversation.Resolved ? 0.85
 																							 : 1.0;
 		aPainter.setOpacity(faded);
@@ -3217,37 +3254,44 @@ namespace bpr::qt {
 			aPainter.setBrush(blend(colours.Panel, colours.Faint, 0.18));
 			aPainter.drawRoundedRect(mark.adjusted(2.75, 2.75, -2.75, -2.75), 3.0, 3.0);
 		}
-		// The words, eliding at the right, with code in the code font and the
-		// search's match washed.
+		// [[BPR-2300]]. The words: the post's excerpt as Discuss reads it, on
+		// one line, cut at a word, code in the code font on its own ground,
+		// the search's match washed, then the quiet tokens.
 		{
 			auto       x        = geometry.Words.left();
 			const auto right    = geometry.Words.right();
 			const auto ink      = entry.Row == 0U ? colours.Ink : colours.Ink2;
 			const auto codeFont = code_font_like(CodeFont, font(), 0.9);
-			const auto runs     = runs_of(words.Words, search);
-			for (std::size_t at = 0U; at < runs.size() && x < right; ++at) {
-				const auto& run     = runs[at];
-				const auto  runFont = run.Code ? codeFont : font();
+			const auto strong   = weighted(font(), QFont::DemiBold);
+			const auto line     = row_line_of(excerpt_of(words), search, font(), codeFont, geometry.Words.width());
+			for (const auto& run : line.Runs) {
+				const auto& runFont = run.Code ? codeFont : run.Strong ? strong
+																	   : font();
 				const auto  metrics = QFontMetrics{ runFont };
-				auto        text    = run.Text;
-				auto        advance = metrics.horizontalAdvance(text);
-				if (x + advance > right) {
-					text    = metrics.elidedText(text, Qt::ElideRight, right - x);
-					advance = metrics.horizontalAdvance(text);
+				const auto  advance = metrics.horizontalAdvance(run.Text);
+				const auto  rect    = QRect{ x, geometry.Words.top(), advance + 1, row_height };
+				const auto  inner   = QRectF{ rect }.adjusted(0.0, (row_height - metrics.height()) / 2.0, 0.0, -(row_height - metrics.height()) / 2.0);
+				if (run.Code) {
+					aPainter.setPen(Qt::NoPen);
+					aPainter.setBrush(blend(colours.Panel, colours.Ink, colours.Dark ? 0.1 : 0.07));
+					aPainter.drawRoundedRect(inner.adjusted(-1.5, -0.5, 1.5, 0.5), 3.0, 3.0);
 				}
-				const auto rect = QRect{ x, geometry.Words.top(), advance + 1, row_height };
 				if (run.Match) {
 					aPainter.setPen(Qt::NoPen);
 					aPainter.setBrush(alpha(colours.Signal, 0.22));
-					aPainter.drawRoundedRect(QRectF{ rect }.adjusted(0.0, (row_height - metrics.height()) / 2.0, 0.0, -(row_height - metrics.height()) / 2.0), 2.0, 2.0);
+					aPainter.drawRoundedRect(inner, 2.0, 2.0);
 				}
 				aPainter.setFont(runFont);
 				aPainter.setPen(ink);
-				aPainter.drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, text);
+				aPainter.drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, run.Text);
 				x += advance;
-				if (text != run.Text) {
-					break;
-				}
+			}
+			if (!line.Tokens.isEmpty()) {
+				const auto left = line.Runs.empty() ? geometry.Words.left() : x + detail::preview_token_lead;
+				aPainter.save();
+				aPainter.setClipRect(QRect{ QPoint{ left, geometry.Words.top() }, QPoint{ right, geometry.Words.bottom() } }, Qt::IntersectClip);
+				detail::paint_preview_tokens(aPainter, line.Tokens, font(), left, geometry.Words.top() + row_height / 2, colours.Rule, colours.Faint);
+				aPainter.restore();
 			}
 		}
 		// The people, one bead per post in posting order.

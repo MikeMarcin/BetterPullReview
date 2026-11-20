@@ -1056,6 +1056,71 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-2300]]. Each row is one line of its first post's
+	/// excerpt, read as Discuss reads a closed note: no Markdown marks, code
+	/// in the code font, blocks named, cut at a whole word.
+	void test_rows_show_one_clean_line()
+	{
+		auto       made = std::vector<conversation>{ };
+		const auto file = std::string{ "src/net/retry_policy.cpp" };
+		add_flat(made, "m1", file, 10, { { "jiayin", "## Backoff\n\nThe delay **doubles** each time, see [the notes](https://example.invalid/notes).\n\n- one\n- two" } });
+		add_flat(made, "m2", file, 20, { { "tbutler", "```suggestion\nconst auto delay = std::min(aDelay * 2, aCap);\n```" } });
+		add_flat(made, "m3", file, 30, { { "jiayin", "> Is the cap ever zero?\n\nNo, `retry_cap()` is at least one." } });
+		add_flat(made, "m4", file, 40, { { "tbutler", "<!-- bot: keep -->\n![chart](https://example.invalid/chart.png)\n\nThe chart shows it settle :tada:" } });
+		add_flat(made, "m5", file, 50,
+				 { { "jiayin", "nitpick: Prefer `std::chrono::milliseconds` over a bare integer here, because a reader of this retry loop cannot tell whether the delay is counted in milliseconds or in seconds, and the "
+							   "next change to it will guess.\nSecond line of the same paragraph." } });
+		add_flat(made, "m6", file, 60, { { "tbutler", "Plain words." } });
+		auto finder = qt::conversation_finder{ };
+		finder.resize(1'000, 640);
+		finder.adopt(made);
+		finder.show();
+		QApplication::processEvents();
+		const auto key    = [](const std::string& aId) { return "row:review-thread:" + aId + "/review-comment:" + aId + "-1"; };
+		const auto leaked = [](const QString& aText) {
+			return aText.contains(QLatin1Char{ '`' }) || aText.contains(QLatin1Char{ '#' }) || aText.contains(QLatin1String{ "**" }) || aText.contains(QLatin1String{ "](" })
+				|| aText.contains(QLatin1String{ "<!--" }) || aText.contains(QLatin1String{ "![" }) || aText.startsWith(QLatin1Char{ '>' }) || aText.startsWith(QLatin1String{ "- " })
+				|| aText.contains(QLatin1Char{ '\n' });
+		};
+		const auto plainHeight = finder.row_rect(key("m6")).height();
+		for (const auto* const id : { "m1", "m2", "m3", "m4", "m5" }) {
+			const auto words = finder.row_words(key(id));
+			std::cerr << "ROW_WORDS " << id << " [" << words.Text.toStdString() << "] code [" << words.Code.join(QLatin1Char{ '|' }).toStdString() << "] tokens ["
+					  << words.Tokens.join(QLatin1Char{ ',' }).toStdString() << "]\n";
+			expect(!leaked(words.Text), std::string{ "no Markdown mark leaks into the row: " } + id);
+			expect(!leaked(finder.row_text(key(id))), std::string{ "nor into its accessible text: " } + id);
+			expect(finder.row_rect(key(id)).height() == plainHeight, std::string{ "the row stays one line: " } + id);
+		}
+		const auto heading = finder.row_words(key("m1"));
+		expect(heading.Text == QStringLiteral("Backoff The delay doubles each time, see the notes.") + QChar{ 0x2026 } || heading.Text == QStringLiteral("Backoff The delay doubles each time, see the notes."),
+			   "a heading and its paragraph read as words, the link as its text");
+		expect(heading.Tokens == QStringList{ QStringLiteral("List") }, "the list after it is named");
+		const auto suggestion = finder.row_words(key("m2"));
+		expect(suggestion.Text.isEmpty() && suggestion.Tokens == QStringList{ QStringLiteral("Suggestion") }, "a suggested change alone is named, its fence and code not shown");
+		const auto quoted = finder.row_words(key("m3"));
+		expect(quoted.Text == QStringLiteral("No, retry_cap() is at least one.") && quoted.Code == QStringList{ QStringLiteral("retry_cap()") } && quoted.Tokens == QStringList{ QStringLiteral("Quote") },
+			   "a reply under a quote reads its own words, inline code in the code font");
+		const auto imaged = finder.row_words(key("m4"));
+		expect(imaged.Text == QStringLiteral("The chart shows it settle \U0001F389") && imaged.Tokens == QStringList{ QStringLiteral("Image") }, "an HTML comment is hidden, an image named, an emoji drawn");
+		const auto ellipsis = QChar{ 0x2026 };
+		for (const auto width : { 1'000, 640 }) {
+			finder.resize(width, 640);
+			QApplication::processEvents();
+			const auto words = finder.row_words(key("m5"));
+			expect(words.Code == QStringList{ QStringLiteral("std::chrono::milliseconds") }, "the long note's code stays whole and in the code font");
+			expect(words.Text.startsWith(QStringLiteral("Prefer std::chrono::milliseconds over")) && words.Text.endsWith(ellipsis), "a long note is cut with an ellipsis, after its header");
+			const auto shown = words.Text.chopped(1);
+			const auto full  = QStringLiteral("Prefer std::chrono::milliseconds over a bare integer here, because a reader of this retry loop cannot tell whether the delay is counted in milliseconds or in seconds, and the next change to it will guess. Second line of the same paragraph.");
+			expect(full.startsWith(shown) && (full.at(shown.size()).isSpace() || QStringView{ u".,;:" }.contains(full.at(shown.size()))), "it is cut at a whole word: " + std::to_string(width));
+		}
+		const auto prefix = qEnvironmentVariable("BPR_QT_FINDER_RENDER_PATH");
+		if (!prefix.isEmpty()) {
+			finder.resize(1'000, 360);
+			QApplication::processEvents();
+			expect(finder.grab().toImage().save(prefix + QStringLiteral("-markdown-rows.png")), "the Markdown rows render is saved");
+		}
+	}
+
 	/// \brief Nothing on a file: the page says so and where the rest is read.
 	void test_nothing_on_a_file()
 	{
@@ -1209,6 +1274,7 @@ int main(int aArgc, char** aArgv)
 	test_discuss_button_shift_return_and_menu();
 	test_review_button_and_read_menu();
 	test_rows_fill_the_reading_width();
+	test_rows_show_one_clean_line();
 	test_renders();
 	test_nothing_on_a_file();
 	test_a_projected_resolution_changes_the_row_without_a_rebuild();
