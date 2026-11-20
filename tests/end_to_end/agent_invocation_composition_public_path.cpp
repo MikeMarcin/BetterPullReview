@@ -1903,6 +1903,7 @@ auto main(int argc, char** argv) -> int
 			return fail(*application, "wrapper-setup-repository",
 						"visible=" + std::to_string(setup->isVisible()) + " button=" + std::to_string(useClone != nullptr) + " enabled=" + std::to_string(useClone != nullptr && useClone->isEnabled())
 							+ " buttons=" + std::to_string(setup->findChildren<QPushButton*>(QStringLiteral("agentSetupUseClone")).size()) + " tray-tab=" + std::to_string(window.tray_tabs()->currentIndex())
+							+ " files=" + std::to_string(window.files_drawer()->contents_view()->model()->rowCount()) + " github=" + window.github_status_text()
 							+ " hidden=" + hidden + "\n" + setup->step_text().toStdString());
 		}
 		button(QStringLiteral("agentSetupUseClone"))->click();
