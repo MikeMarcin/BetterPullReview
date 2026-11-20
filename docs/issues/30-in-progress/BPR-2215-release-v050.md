@@ -595,3 +595,53 @@ suites on both platforms and the eleven WSL2 timing courses at the lane head.
   Windows qualification PC that took 8,558 ms, and curl to the endpoint 3.3
   to 6.0 s against 0.16 to 0.20 s from a Mac. The row's CTest timeout is 30 s
   so the bound still holds three quarters of it.
+
+## Tenth round: main 9e8deb514 merged; Release only (2026-11-20)
+
+Main `9e8deb514` (BPR-2299 to BPR-2316) merged. Owner: Release only for now;
+this lane owns Windows and the WSL2 timing courses, and a separate agent took
+the Ubuntu guest over after its Release suite.
+
+Build fixes main needed (BPR-2308 and others):
+`helper_tour_round_diagnostics_tests.cpp` called BPR-2308's removed cycle
+failure names; `toml_string` and `materialize_agent_environment` sat inside the
+agent-integration block while the Codex instructions probe outside it called
+them (tour-cli preset); `native_session_name` and BPR-2303's macOS-only bundle
+helpers failed GCC's unused-function check. Inventories: the workbench and
+qualification case inventories follow their sources (no case changed); the
+round-trip contract's app inventory and production manifest name
+`window_follow_up.cpp`.
+
+| Candidate, platform | Rows | Result |
+| --- | --- | --- |
+| `78c6b3908` Ubuntu (Lima) Release, full | 1085 | 1071 passed, 14 failed |
+| `2ca2bdf5f` Ubuntu (Lima) Release, full | 1046 | 1033 passed, 13 failed (10 large-review timing judged on WSL2; `qt_profiles_settings_panel`, `profile_data_reset`, `ask_report`) |
+| `2ca2bdf5f` Windows Release, full | 1025 | 1018 passed, 7 failed |
+| `afeb013b7` Windows Release, the 7 and neighbours | 6 | 6 passed |
+
+Windows Release failures at `2ca2bdf5f` and their fixes:
+
+- `qt_profiles_settings_panel` (also Ubuntu): BPR-2308 retired Open Project…;
+  the course expects New Window, Quit and Close Tab.
+- `application_profile_data_reset_public_path` (also Ubuntu): the profile made
+  the cycles store at start and makes no review store now; the course makes
+  the tours store (as a draft's target does) so the review reset and the cache
+  recovery have one to check.
+- `github_cli_process_runner` (Windows): the progress-bounded runner summed
+  directory-entry sizes, which on Windows lag a file still open for writing,
+  so a growing pack looked idle and a fetch was stopped at its idle bound. It
+  now asks each file for its size.
+- `application_discuss_top_public_path` (Windows, after any other course): a
+  product bug. `relayout` kept the last timeline's folded counts when it laid
+  out one file's threads outside the timeline, so Discuss counted 14
+  conversations on a file with seven. Folded counts reset on every layout.
+- `application_dependable_session_public_path` and
+  `application_composition_contract` (timeout at 1800 s in the full suite)
+  passed when rerun (13.9 s and 720 s).
+- `application_large_review_launch`: `theme_dark` 160.6 ms against 100 in one
+  run, passed alone twice. Recorded, not changed.
+
+`git_process_contract` passes with the owner's Defender exclusion (199.6 s);
+Defender made no detection after 2026-11-19 21:42. Two untracked copies of the
+retired `bpr-cycle` skill in the PC's source tree were moved to
+`preflight-fix-r1\stale-bpr-cycle-skill`.
