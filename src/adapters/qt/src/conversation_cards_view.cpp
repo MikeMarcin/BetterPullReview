@@ -3316,6 +3316,11 @@ namespace bpr::qt {
 		Cards.clear();
 		TimelineRows.clear();
 		TimelineSummary = { };
+		// A layout outside the timeline (one file's threads) folds nothing;
+		// the counts of the last timeline must not be added to its cards.
+		FoldedComments   = 0U;
+		FoldedThreads    = 0U;
+		FoldedUnresolved = 0U;
 		TimelineLines.clear();
 		// [[BPR-0972]]. Scoped to one file, only that file's conversations are
 		// visited: the per-forest index names them, in retained order.
