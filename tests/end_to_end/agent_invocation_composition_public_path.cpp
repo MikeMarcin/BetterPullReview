@@ -1880,6 +1880,10 @@ auto main(int argc, char** argv) -> int
 			window.ai_tools_action()->trigger();
 		}
 		window.tray_tabs()->setCurrentIndex(2);
+		// [[BPR-2215]]. Since main's BPR-2256 merge the setup is not open on
+		// its own here (its page stayed hidden behind the Agent tab on Ubuntu
+		// and Windows), so the course opens it as the reviewer does.
+		window.open_agent_setup();
 		auto* const setup            = window.agent_setup();
 		const auto  button           = [setup](const QString& aName) { return setup->findChild<QPushButton*>(aName); };
 		const auto  changeRepository = [setup] {
