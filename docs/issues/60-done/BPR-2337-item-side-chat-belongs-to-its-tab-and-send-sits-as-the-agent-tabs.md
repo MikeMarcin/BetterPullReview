@@ -114,3 +114,10 @@ recorded here.
 Not run: Windows and Linux, `qt_button_faces_cocoa` (it draws on the
 desktop), a full `ctest`. `application_review_round_trip_composition_contract`
 was not run: no `src/app` source changed, so its digests are unaffected.
+
+## Owner acceptance
+
+The owner accepted this change on 2026-11-20 by looking directly at main
+`c27fe51fe` (no attended-review session), with one nit: "the scroll when
+clicking on something to jump to it isn't aligned properly, the thing we're
+jumping to is cut off by the tab header." The nit is [[BPR-2338]].

@@ -8461,8 +8461,10 @@ namespace {
 					QKeyEvent press{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 					QApplication::sendEvent(report->outline(), &press);
 					QCoreApplication::processEvents();
+					// [[BPR-2338]]. The section's item stands a line below the
+					// pane's top, whole.
 					const auto top = report->section_top(section);
-					if (report->popover()->isVisible() || report->current_section() != section || (section > 0 && (top < 0 || top > 12))) {
+					if (report->popover()->isVisible() || report->current_section() != section || (section > 0 && (top < report->jump_margin() || top > report->jump_margin() + 12))) {
 						finish(QStringLiteral("ATTENDED_FIXTURE_AGENT_FAILED:report-menu:step=%1:section=%2:of=%3:top=%4:current=%5:open=%6")
 								   .arg(current.Name)
 								   .arg(section)

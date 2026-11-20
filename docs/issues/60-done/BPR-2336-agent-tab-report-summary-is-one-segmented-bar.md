@@ -102,3 +102,10 @@ its own on main `cb8a83eee` plus this change. `format_check.py`
 Looks: offscreen renders at 280 and 640 points (`BPR_REPORT_SUMMARY_RENDER`),
 viewed and discarded. No owner look was prepared in this round; the owner's
 judgement of the new bar is not recorded here.
+
+## Owner acceptance
+
+The owner accepted this change on 2026-11-20 by looking directly at main
+`c27fe51fe` (no attended-review session), with one nit: "the scroll when
+clicking on something to jump to it isn't aligned properly, the thing we're
+jumping to is cut off by the tab header." The nit is [[BPR-2338]].

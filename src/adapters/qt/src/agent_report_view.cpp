@@ -131,6 +131,26 @@ namespace bpr::qt {
 		constexpr int kind_source       = 3;
 		constexpr int kind_copy         = 4;
 
+		/// [[BPR-2338]]. Where the item a heading block heads starts, in
+		/// `aView`'s viewport: the border of the outermost box the block is
+		/// in (its bounding rect starts there, under its margin) (a finding's box, whose label and place stand above its
+		/// heading; a section's rule), else the block's own line.
+		[[nodiscard]] auto item_top(const QTextEdit& aView, const QTextBlock& aBlock) -> int
+		{
+			const auto  line = aView.cursorRect(QTextCursor{ aBlock }).top();
+			auto* const root = aView.document()->rootFrame();
+			auto*       box  = QTextCursor{ aBlock }.currentFrame();
+			while (box != nullptr && box != root && box->parentFrame() != root) {
+				box = box->parentFrame();
+			}
+			if (box == nullptr || box == root) {
+				return line;
+			}
+			const auto drawn = aView.document()->documentLayout()->frameBoundingRect(box);
+			const auto top   = static_cast<int>(std::floor(drawn.top())) - aView.verticalScrollBar()->value();
+			return std::min(line, top);
+		}
+
 		[[nodiscard]] auto menu_glyph(const QColor& aInk) -> QIcon
 		{
 			auto pixmap = QPixmap{ 30, 30 };
@@ -1356,8 +1376,16 @@ namespace bpr::qt {
 			}
 			return view->mapTo(Scroll->widget(), view->cursorRect(found).topLeft()).y();
 		}
-		auto cursor = QTextCursor{ block };
-		return view->mapTo(Scroll->widget(), view->cursorRect(cursor).topLeft()).y();
+		// [[BPR-2338]] (owner, 2026-11-20: "the thing we're jumping to is cut
+		// off by the tab header"). The heading is not the item's top: a
+		// finding's label line stands above it in its box.
+		return view->mapTo(Scroll->widget(), QPoint{ 0, item_top(*view, block) }).y();
+	}
+
+	auto agent_report_view::jump_margin() const -> int
+	{
+		const auto* const view = shown_text();
+		return (view != nullptr ? view->fontMetrics() : fontMetrics()).lineSpacing();
 	}
 
 	void agent_report_view::go_to_heading(const int aIndex)
@@ -1371,24 +1399,33 @@ namespace bpr::qt {
 			QEvent request{ QEvent::LayoutRequest };
 			QCoreApplication::sendEvent(Scroll, &request);
 		};
-		settle();
-		const auto offset = heading_offset(aIndex);
-		if (offset < 0) {
-			return;
-		}
-		auto* const bar    = Scroll->verticalScrollBar();
-		const auto  wanted = aIndex == 0 ? 0 : std::max(0, offset - 8);
-		// Look ask-v008: a report that fits the pane (or a last section
-		// shorter than it) cannot scroll its heading to the top; the room
-		// under it is made first.
-		if (wanted > bar->maximum()) {
-			// The page is as tall as its least height or the pane, so the
-			// least height is what the room is added to.
-			const auto least = Scroll->widget()->minimumSizeHint().height();
-			Tail->setFixedHeight(Tail->height() + std::max(0, wanted + Scroll->viewport()->height() - least));
+		auto* const bar = Scroll->verticalScrollBar();
+		// [[BPR-2338]]. Measuring a freshly drawn page lays it out further
+		// (the page's height follows its text, and what stands above it
+		// moves), so the item is aimed at again until it holds still where
+		// it was aimed.
+		for (auto pass = 0; pass < 4; ++pass) {
 			settle();
+			const auto offset = heading_offset(aIndex);
+			if (offset < 0) {
+				return;
+			}
+			const auto wanted = aIndex == 0 ? 0 : std::max(0, offset - jump_margin());
+			// Look ask-v008: a report that fits the pane (or a last section
+			// shorter than it) cannot scroll its heading to the top; the
+			// room under it is made first.
+			if (wanted > bar->maximum()) {
+				// The page is as tall as its least height or the pane, so
+				// the least height is what the room is added to.
+				const auto least = Scroll->widget()->minimumSizeHint().height();
+				Tail->setFixedHeight(Tail->height() + std::max(0, wanted + Scroll->viewport()->height() - least));
+				settle();
+			}
+			bar->setValue(wanted);
+			if (heading_offset(aIndex) == offset && bar->value() == wanted) {
+				return;
+			}
 		}
-		bar->setValue(wanted);
 	}
 
 	auto agent_report_view::section_top(const int aIndex) const -> int
@@ -1400,6 +1437,7 @@ namespace bpr::qt {
 	auto agent_report_view::current_section() const -> int
 	{
 		const auto top     = Scroll->verticalScrollBar()->value();
+		const auto margin  = jump_margin();
 		const auto atEnd   = Scroll->verticalScrollBar()->value() >= Scroll->verticalScrollBar()->maximum() && Scroll->verticalScrollBar()->maximum() > 0;
 		auto       current = 0;
 		for (auto index = 1; static_cast<std::size_t>(index) <= Headings.size(); ++index) {
@@ -1409,7 +1447,7 @@ namespace bpr::qt {
 			}
 			// At the end, where the last headings cannot reach the top, the
 			// last heading on screen.
-			if (offset - 8 <= top || (atEnd && offset < top + Scroll->viewport()->height())) {
+			if (offset - margin <= top || (atEnd && offset < top + Scroll->viewport()->height())) {
 				current = index;
 			}
 		}

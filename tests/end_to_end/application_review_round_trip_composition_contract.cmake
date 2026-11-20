@@ -3896,8 +3896,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# reconciliation and retirement (window_review_mutations.cpp) and its
 	# dispatch (window_construction.cpp). The production mutation branch,
 	# grant issuers' bindings, provider and transport are unchanged.
+	# [[BPR-2338]] reseal: main.cpp's attended fixture check of the report
+	# menu takes a section a line below the pane's top
+	# (agent_report_view::jump_margin). Presentation check only; no grant,
+	# provider, transport, mutation or publication path changes.
 	set(bpr_expected_production_app_manifest_digest
-        "ebebaa25f52c40f16314196728821f9d89d626da75e2f955774a5ae4d3ecebf5"
+        "1ae0061165d1f8aacb4c38954e040783c4f77a63cc78796fe3958a3be833ab0b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

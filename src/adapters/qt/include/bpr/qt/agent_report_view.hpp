@@ -146,15 +146,21 @@ namespace bpr::qt {
 		/// Agent tab at the report's turn.
 		void set_conversation_dispatch(std::function<void(std::uint64_t aTurn)> aDispatch);
 		/// \brief Scrolls so section `aIndex` of the menu (0: Summary, the
-		/// top) is at the top of the pane.
+		/// top) is at the top of the pane: the top of its item (a finding's
+		/// box, from its rule and label line; a section's rule) `jump_margin`
+		/// below the pane's top.
 		void go_to_heading(int aIndex);
+		/// \brief [[BPR-2338]]. How far below the pane's top a section's item
+		/// stands after `go_to_heading`: one line of the page's font.
+		[[nodiscard]] auto jump_margin() const -> int;
 		/// \brief Opens the menu's popover, its current section focused.
 		void open_menu();
 		/// \brief The menu's row for the section being read: the last heading
 		/// at or above the pane's top; Summary before the first.
 		[[nodiscard]] auto current_section() const -> int;
-		/// \brief Where section `aIndex`'s heading stands in the pane, from
-		/// the top of what shows; -1 when the report has no such heading.
+		/// \brief Where the top of section `aIndex`'s item (its box or rule,
+		/// else its heading's line) stands in the pane, from the top of what
+		/// shows; -1 when the report has no such heading.
 		[[nodiscard]] auto section_top(int aIndex) const -> int;
 
 		/// \brief docs/design/report-templates-v2, [[BPR-2236]]. The theme's
@@ -277,6 +283,7 @@ namespace bpr::qt {
 		void               locate_headings();
 		void               apply_colours();
 		[[nodiscard]] auto shown_text() const -> QTextEdit*;
+		/// The top of section `aIndex`'s item in the page.
 		[[nodiscard]] auto heading_offset(int aIndex) const -> int;
 		[[nodiscard]] auto native_colours() const -> report_colours;
 		[[nodiscard]] auto keep_request(std::uint32_t aOutline) const -> std::optional<report_draft>;

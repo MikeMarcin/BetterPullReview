@@ -18,10 +18,12 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/report_tally_view.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QComboBox>
 #include <QEventLoop>
@@ -29,12 +31,18 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLayout>
+#include <QListWidget>
 #include <QMouseEvent>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QTabWidget>
+#include <QTextBlock>
+#include <QTextDocument>
+#include <QTextEdit>
+#include <QTextFrame>
 #include <QTimer>
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
@@ -332,6 +340,108 @@ namespace {
 		window.hide();
 	}
 
+	/// [[BPR-2338]] (owner, 2026-11-20: "the scroll when clicking on
+	/// something to jump to it isn't aligned properly, the thing we're
+	/// jumping to is cut off by the tab header"). After a jump the item's
+	/// box (its rule, label line and place, above its heading) stands whole
+	/// in the report, a line below the document tabs, which the report
+	/// stands under and never under-runs.
+	void expect_item_whole(qt::workbench_window& aWindow, const int aHeading, const std::string& aWhere)
+	{
+		auto* const report = aWindow.report_view();
+		auto* const scroll = report->findChild<QScrollArea*>(QStringLiteral("agentReportScroll"));
+		auto* const page   = report->dressed_view();
+		expect(scroll != nullptr && report->dressed_shown() && page->isVisible(), aWhere + ": the report shows its page");
+		const auto name  = QString::fromLatin1(qt::report_heading_anchor) + QString::number(aHeading);
+		auto       block = QTextBlock{ };
+		for (auto each = page->document()->begin(); !block.isValid() && each.isValid(); each = each.next()) {
+			for (auto fragment = each.begin(); !fragment.atEnd(); ++fragment) {
+				if (fragment.fragment().charFormat().anchorNames().contains(name)) {
+					block = each;
+				}
+			}
+		}
+		expect(block.isValid(), aWhere + ": the page holds the item's heading");
+		auto* const root = page->document()->rootFrame();
+		auto*       box  = QTextCursor{ block }.currentFrame();
+		while (box != nullptr && box != root && box->parentFrame() != root) {
+			box = box->parentFrame();
+		}
+		expect(box != nullptr && box != root, aWhere + ": the item is a box");
+		const auto drawn    = page->document()->documentLayout()->frameBoundingRect(box);
+		const auto inWindow = [&](QWidget* const aWidget, const int aY) { return aWidget->mapTo(&aWindow, QPoint{ 0, aY }).y(); };
+		// The box's first words: a finding's label, a section's name.
+		auto label = box->firstCursorPosition().block();
+		while (label.isValid() && label.text().trimmed().isEmpty()) {
+			label = label.next();
+		}
+		expect(label.isValid(), aWhere + ": the box has words");
+		const auto boxTop    = inWindow(page->viewport(), static_cast<int>(std::floor(drawn.top())));
+		const auto labelTop  = inWindow(page->viewport(), page->cursorRect(QTextCursor{ label }).top());
+		const auto headTop   = inWindow(page->viewport(), page->cursorRect(QTextCursor{ block }).top());
+		const auto header    = inWindow(aWindow.document_tabs(), aWindow.document_tabs()->height());
+		const auto shownTop  = inWindow(scroll->viewport(), 0);
+		const auto shownEnd  = inWindow(scroll->viewport(), scroll->viewport()->height());
+		const auto margin    = QFontMetrics{ page->font() }.lineSpacing();
+		const auto positions = ": box " + std::to_string(boxTop) + ", label " + std::to_string(labelTop) + ", heading " + std::to_string(headTop) + ", header's bottom " + std::to_string(header)
+			+ ", report's top " + std::to_string(shownTop) + ", margin " + std::to_string(margin);
+		expect(shownTop >= header, aWhere + ": the document tabs do not overlay the report" + positions);
+		expect(labelTop >= boxTop && headTop >= labelTop, aWhere + ": the box's first line is in it, at or above the heading" + positions);
+		expect(boxTop >= header + margin && boxTop >= shownTop + margin, aWhere + ": the item's top stands a line below the header" + positions);
+		expect(boxTop <= shownTop + margin + 2 && headTop < shownEnd, aWhere + ": the item is brought to the report's top" + positions);
+		expect(report->section_top(aHeading) == boxTop - shownTop, aWhere + ": the section's top is the item's" + positions);
+	}
+
+	void test_a_jump_shows_its_item_whole_under_the_tab_header()
+	{
+		qt::workbench_window window;
+		open_review(window, 900);
+		auto* const tab = window.agent_tab();
+		tab->present_thread({ { .Question = QStringLiteral("Review this pull request"), .Answer = review_report(), .Outcome = core::agent_turn_outcome::answered } });
+		settle();
+		window.set_document_tab_dispatch([&window](const core::document_tab_intent& aIntent) {
+			if (const auto* const report = std::get_if<core::open_report_tab_intent>(&aIntent)) {
+				auto tabs    = application::document_tabs_projection{ };
+				auto entry   = application::document_tab_entry{ };
+				entry.Id     = core::document_tab_id{ 1U };
+				entry.Active = true;
+				entry.Report = report->Report;
+				tabs.Tabs    = { entry };
+				window.publish(tabs);
+			}
+		});
+		tab->set_report_dispatch([&window](const qt::agent_report_document& aReport) { window.open_report("turn:" + std::to_string(aReport.Turn), aReport); });
+		auto* const tally = tab->turn_report_tally(0U);
+		expect(tally != nullptr && tally->isVisible(), "the review shows its summary");
+		// Each count of the summary, the suggestion (the owner's) first.
+		auto rows = tally->rows();
+		std::ranges::stable_partition(rows, [](const qt::report_tally_row* const aRow) { return aRow->count().Word == "suggestion"; });
+		expect(rows.front()->count().Word == "suggestion", "the summary counts a suggestion");
+		for (auto* const row : rows) {
+			row->click();
+			settle();
+			expect_item_whole(window, static_cast<int>(row->count().First), "the summary's " + row->count().Word);
+		}
+		// Each section of the report's menu, from the last up.
+		auto* const report   = window.report_view();
+		auto        sections = 0;
+		while (sections < report->outline()->count() && !report->outline()->item(sections)->data(Qt::AccessibleTextRole).toString().isEmpty()) {
+			++sections;
+		}
+		expect(sections > 6, "the menu lists the report's sections: " + std::to_string(sections));
+		for (auto section = sections - 1; section > 0; --section) {
+			report->open_menu();
+			settle();
+			report->outline()->setCurrentRow(section);
+			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+			QApplication::sendEvent(report->outline(), &press);
+			settle();
+			expect_item_whole(window, section, "the menu's section " + std::to_string(section));
+			expect(report->current_section() == section, "the menu marks section " + std::to_string(section) + " after going to it");
+		}
+		window.hide();
+	}
+
 	void test_a_report_turn_ends_with_its_attachment_in_view()
 	{
 		qt::workbench_window window;
@@ -374,6 +484,7 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	test_a_report_turn_shows_its_summary_not_its_cards();
+	test_a_jump_shows_its_item_whole_under_the_tab_header();
 	test_a_report_turn_ends_with_its_attachment_in_view();
 	std::cout << "agent-report-summary:pass\n";
 	return EXIT_SUCCESS;
