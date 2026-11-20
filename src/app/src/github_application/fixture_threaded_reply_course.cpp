@@ -1,4 +1,3 @@
-#include "review_cycle_desktop.hpp"
 #include "review_submission_workflow.hpp"
 
 #if defined(BPR_BUILD_TESTING)

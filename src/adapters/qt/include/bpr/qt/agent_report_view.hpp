@@ -5,6 +5,7 @@
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_report.hpp"
 #include "bpr/core/agent_report_keep.hpp"
+#include "bpr/core/workbench_interaction.hpp"
 #include "bpr/qt/report_page.hpp"
 
 #include <QString>
@@ -220,6 +221,18 @@ namespace bpr::qt {
 		/// readers take them.
 		void apply_code_syntax(const application::markdown_code_syntax_publication& aSpans);
 
+		/// \brief [[BPR-2299]] (owner, 2026-11-19: "The current report width
+		/// feels too narrow by default ... Or perhaps just drive it off of the
+		/// existing reading width setting."). The page's column, centred,
+		/// stops at the reports' reading width as the core resolved it
+		/// (`core::reading_surface_limit`); none takes the whole pane.
+		/// Applied at once to the report shown.
+		void               set_reading_limit(std::optional<std::uint32_t> aLimit);
+		[[nodiscard]] auto reading_limit() const noexcept -> std::optional<std::uint32_t> { return ReadingLimit; }
+		/// \brief The page's column, which the title, the page and its code
+		/// boxes are laid out in.
+		[[nodiscard]] auto column() const noexcept -> QWidget* { return Column; }
+
 		[[nodiscard]] auto outline() const noexcept -> QListWidget* { return Sections; }
 		[[nodiscard]] auto menu_button() const noexcept -> QToolButton* { return MenuButton; }
 		[[nodiscard]] auto popover() const noexcept -> QFrame* { return Popover; }
@@ -256,11 +269,12 @@ namespace bpr::qt {
 		std::vector<QString>  Headings;
 		/// The rendered heading blocks, in the outline's order; empty when
 		/// the rendering and the outline disagree on how many there are.
-		std::vector<int>     HeadingBlocks;
-		std::vector<QString> OutlineTitles;
-		QWidget*             Column  = nullptr;
-		QWidget*             Tail    = nullptr;
-		QTextEdit*           Dressed = nullptr;
+		std::vector<int>             HeadingBlocks;
+		std::vector<QString>         OutlineTitles;
+		QWidget*                     Column       = nullptr;
+		std::optional<std::uint32_t> ReadingLimit = core::reading_width_limit(core::default_reading_width);
+		QWidget*                     Tail         = nullptr;
+		QTextEdit*                   Dressed      = nullptr;
 		/// The page's code boxes, by slot, and the page's places for them.
 		std::vector<report_code_slot>    Slots;
 		std::vector<markdown_body_view*> CodeViews;

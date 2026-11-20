@@ -6,6 +6,7 @@
 #include "bpr/application/port.hpp"
 #include "bpr/application/prompt_macro_host.hpp"
 #include "bpr/application/review_skill_host.hpp"
+#include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/agent_configuration.hpp"
 #include "bpr/core/review_preparation.hpp"
 
@@ -74,10 +75,22 @@ namespace bpr::application {
 	/// no credential is ever an input.
 	/// RFC-BPR-0125 AC24: `aPack`, when given and holding a prompt, is the
 	/// file's prompt pack. [[BPR-2283]]: `aTheme`, when given, its Theme.
+	/// [[BPR-2301]]: `aReview`, when given, its Review.
 	[[nodiscard]] auto export_agent_configuration(const agent_configuration_snapshot& aSnapshot, std::span<const std::uint32_t> aAgents, std::span<const exported_prompt> aPrompts,
 												  std::string aLabel, std::string aExportedBy, std::span<const std::string> aWorkflows = { }, const core::portable_identity* aIdentity = nullptr,
 												  std::span<const core::portable_repository> aRepositories = { }, const core::prompt_pack_export* aPack = nullptr,
-												  const core::portable_theme* aTheme = nullptr) -> std::optional<std::string>;
+												  const core::portable_theme* aTheme = nullptr, const core::portable_review* aReview = nullptr) -> std::optional<std::string>;
+
+	/// \brief [[BPR-2301]]. The Review section an export of `aSettings`
+	/// carries: every Settings › Review preference, and nothing a load
+	/// observed (`LabelColumnsRecovery`).
+	[[nodiscard]] auto portable_review_of(const review_behaviour_settings& aSettings) -> core::portable_review;
+	/// \brief [[BPR-2301]]. `aHere` with every setting `aFile` holds in its
+	/// place; the center ribbon held to its bounds. Always `valid`.
+	[[nodiscard]] auto with_review(review_behaviour_settings aHere, const core::portable_review& aFile) -> review_behaviour_settings;
+	/// \brief [[BPR-2301]]. The settings that differ between two records, in
+	/// `core::review_setting` order.
+	[[nodiscard]] auto review_differences(const review_behaviour_settings& aBefore, const review_behaviour_settings& aAfter) -> std::vector<core::review_setting>;
 
 	/// \brief RFC-BPR-0125 AC24. The snapshot an export of `aPack` records:
 	/// the prompts with their links (and new UUIDs) at one revision on.
@@ -148,6 +161,19 @@ namespace bpr::application {
 			auto operator<=>(const theme_against_here&) const = default;
 		};
 		std::optional<theme_against_here> Theme;
+		/// [[BPR-2301]]. The profile's Review settings, and what importing the
+		/// file's Review would make them (`with_review`); the composition
+		/// reads them from the workbench preferences. None when the file has
+		/// no Review or the preferences are not loaded.
+		struct review_against_here
+		{
+			review_behaviour_settings         Here;
+			review_behaviour_settings         Imported;
+			std::vector<core::review_setting> Changes;
+
+			auto operator<=>(const review_against_here&) const = default;
+		};
+		std::optional<review_against_here> Review;
 
 		auto operator<=>(const agent_configuration_preview&) const = default;
 	};

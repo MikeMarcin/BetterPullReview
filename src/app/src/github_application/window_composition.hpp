@@ -140,7 +140,6 @@
 #include "private_review_workflow.hpp"
 #include "profile_window_layout_port.hpp"
 #include "review_comment_permalink.hpp"
-#include "review_cycle_desktop.hpp"
 #include "review_submission_workflow.hpp"
 
 #include <QPointer>
@@ -550,8 +549,6 @@ namespace bpr::app {
 		/// tour draft has been offered its local draft's tour.
 		std::optional<core::tour_owner> TourCarryAsked;
 		void                            carry_local_tour(const application::tour_presentation& aProjection);
-		/// [[BPR-1157]]. Local Review Cycles in this window: no account needed.
-		std::unique_ptr<review_cycle_desktop> CycleDesktop;
 		/// RFC-BPR-0108. Prepare pull request… and the local draft page.
 		std::unique_ptr<local_draft_desktop> DraftDesktop;
 		/// [[BPR-2281]]. Draft Description beside the description in Author:
@@ -1907,11 +1904,14 @@ namespace bpr::app {
 		/// (activity on GitHub, a return to an aged pull request): it waits
 		/// while the reviewer writes. A publication's reread clears it.
 		bool RereadQuiet = false;
+		/// [[BPR-2315]]. What owes the reread, for its diagnostic line: a
+		/// publication outranks news.
+		core::refresh_cause RereadCause = core::refresh_cause::publication;
 		/// A wait for the reviewer to stop writing is asked again after this.
 		bool               RereadRetrying = false;
 		void               reread_after_publication();
 		void               hand_on_activity(const std::vector<core::pull_request_ref>& aActive);
-		void               reread_for_news();
+		void               reread_for_news(core::refresh_cause aCause);
 		void               schedule_publication_reread();
 		void               pay_publication_reread();
 		void               schedule_link_location();

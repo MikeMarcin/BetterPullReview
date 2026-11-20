@@ -109,21 +109,17 @@ AGENT_INTEGRATION_REQUIRED = (
         "agent protocol decoder constructor",
         "bpr::application::agent_protocol_decoder::agent_protocol_decoder",
     ),
-    # [[BPR-1180]]. The Send to Agent adapter, the review cycle's only way to
-    # hand a round to an installed agent.
-    function_anchor(
-        "Send to Agent round sender constructor",
-        "bpr::application::agent_round_sender::agent_round_sender",
-    ),
 )
 
-# [[BPR-1179]]. Local automation: the service that runs a forwarded bpr cycle
-# command in the desktop. A graph built with BPR_BUILD_LOCAL_AUTOMATION=OFF
-# binds no owner command endpoint and compiles no such service.
+# [[BPR-1179]]. Local automation: the desktop's answer to a forwarded
+# `bpr draft open` (RFC-BPR-0108), reached only through the owner command
+# endpoint. A graph built with BPR_BUILD_LOCAL_AUTOMATION=OFF binds no owner
+# command endpoint and links no such opener. [[BPR-2308]]: the forwarded
+# `bpr cycle` service it named before is retired.
 LOCAL_AUTOMATION_REQUIRED = (
     function_anchor(
-        "cycle owner service",
-        "bpr::app::cycle_owner_service::serve",
+        "local draft owner open",
+        "bpr::app::open_local_draft_here",
     ),
 )
 

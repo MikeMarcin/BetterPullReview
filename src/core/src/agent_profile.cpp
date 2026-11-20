@@ -185,18 +185,16 @@ namespace bpr::core {
 		const git_host_id              aHost,
 		const built_in_agent_host_kind aKind) -> agent_host_policy
 	{
-		auto policy = agent_host_policy{ .Host = aHost };
-		if (aKind == built_in_agent_host_kind::github_com) {
-			const auto profiles = built_in_agent_profiles();
-			policy.Allowed.reserve(profiles.size());
-			for (const auto& profile : profiles) {
-				policy.Allowed.push_back(profile.Id);
-			}
-		} else {
-			policy.Allowed = {
-				claude_stream_json_profile_id,
-				external_terminal_profile_id,
-			};
+		// [[BPR-2305]] (owner, 2026-11-19: Codex should be allowed on explicit
+		// GHES hosts, as a popular agent or a custom agent). Both kinds now
+		// permit every built-in profile; the kind stays an input so a host
+		// class can narrow it again without changing a caller.
+		static_cast<void>(aKind);
+		auto       policy   = agent_host_policy{ .Host = aHost };
+		const auto profiles = built_in_agent_profiles();
+		policy.Allowed.reserve(profiles.size());
+		for (const auto& profile : profiles) {
+			policy.Allowed.push_back(profile.Id);
 		}
 		// [[BPR-1753]], owner amendment 2026-10-23. An agent the
 		// reviewer added is allowed where its protocol's built-in profile is.

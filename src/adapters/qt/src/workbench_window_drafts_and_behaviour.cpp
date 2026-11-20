@@ -14,9 +14,11 @@
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
+#include "bpr/qt/reading_width_dialog.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "settings_card.hpp"
 #include "workbench_window_support.hpp"
 
 #include <QAbstractButton>
@@ -32,6 +34,7 @@
 #include <QCursor>
 #include <QDialog>
 #include <QFlags>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeySequence>
@@ -83,6 +86,26 @@ namespace bpr::qt {
 	namespace {
 		/// [[BPR-1816]]. The finish switches' order: the finish buttons'.
 		constexpr auto finish_verdicts = std::array{ core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes };
+
+		/// The width a Review or Comments row's name asks for, so the
+		/// controls of a card line up.
+		constexpr auto row_name_width = 180;
+
+		/// \brief [[BPR-2302]]. A row's name: it asks for the shared column
+		/// but gives it up, down to its own words, when Settings is at its
+		/// narrowest, so a row inside its card never pans sideways.
+		class row_name_label final : public QLabel
+		{
+		public:
+			using QLabel::QLabel;
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				auto hint = QLabel::sizeHint();
+				hint.setWidth(std::max(hint.width(), row_name_width));
+				return hint;
+			}
+		};
 	}
 
 	void workbench_window::present_inline_draft()
@@ -1025,14 +1048,14 @@ namespace bpr::qt {
 		BehaviourEditor->setAccessibleName(QStringLiteral("Review behaviour"));
 		auto* const column = new QVBoxLayout{ BehaviourEditor };
 		column->setContentsMargins(0, 0, 0, 0);
-		column->setSpacing(6);
+		column->setSpacing(detail::settings_card_gap);
 		// [[BPR-1597]]. Settings › Comments: the comment rows, on their own page.
 		CommentsEditor = new QWidget{ aCommentsPage };
 		CommentsEditor->setObjectName(QStringLiteral("commentsBehaviourEditor"));
 		CommentsEditor->setAccessibleName(QStringLiteral("Comments"));
 		auto* const commentsColumn = new QVBoxLayout{ CommentsEditor };
 		commentsColumn->setContentsMargins(0, 0, 0, 0);
-		commentsColumn->setSpacing(6);
+		commentsColumn->setSpacing(detail::settings_card_gap);
 
 		struct option
 		{
@@ -1064,12 +1087,17 @@ namespace bpr::qt {
 									 const QString&          aResetName,
 									 const std::vector<row>& aRows,
 									 auto                    aReset) {
-			auto* const headingRow = new QHBoxLayout{ };
-			auto* const heading    = new QLabel{ aHeading, BehaviourEditor };
-			heading->setObjectName(aResetName + QStringLiteral("Heading"));
-			headingRow->addWidget(heading, 1);
-			auto* const reset = new quiet_tool_button{ BehaviourEditor };
+			// [[BPR-2302]]. A group is Appearance's card (owner, 2026-11-19:
+			// "take the section header style from the appearance menu and
+			// port it to those two menus"): its title and Reset in the
+			// header strip, its rows in the body.
+			auto card = detail::make_settings_card(aColumn->parentWidget(), aHeading, aResetName + QStringLiteral("Card"));
+			card.Title->setObjectName(aResetName + QStringLiteral("Heading"));
+			card.Body->setContentsMargins(detail::settings_card_inset, detail::settings_row_inset, detail::settings_card_inset, detail::settings_row_inset);
+			card.Body->setSpacing(6);
+			auto* const reset = new quiet_tool_button{ card.Header->parentWidget() };
 			reset->setObjectName(aResetName);
+			reset->set_surface(QPalette::Light);
 			reset->setText(QStringLiteral("Reset"));
 			reset->setAccessibleName(QStringLiteral("Reset %1").arg(aHeading.toLower()));
 			reset->setAccessibleDescription(
@@ -1084,17 +1112,17 @@ namespace bpr::qt {
 				AskedBehaviour = next;
 				BehaviourDispatch(next);
 			});
-			headingRow->addWidget(reset);
-			aColumn->addLayout(headingRow);
+			card.Header->addWidget(reset);
+			aColumn->addWidget(card.Frame);
+			auto* const rows = card.Body;
 			for (const auto& one : aRows) {
 				if (one.Wide && one.Control != nullptr) {
-					aColumn->addWidget(one.Control);
+					rows->addWidget(one.Control);
 					continue;
 				}
 				auto* const line  = new QHBoxLayout{ };
-				auto* const label = new QLabel{ one.Label, BehaviourEditor };
+				auto* const label = new row_name_label{ one.Label, BehaviourEditor };
 				label->setObjectName(one.Name + QStringLiteral("Label"));
-				label->setMinimumWidth(180);
 				line->addWidget(label, 0, one.Top ? Qt::AlignTop : Qt::Alignment{ });
 				if (one.Control != nullptr) {
 					// [[BPR-1597]]. A control made before its group's heading
@@ -1111,7 +1139,7 @@ namespace bpr::qt {
 						line->addWidget(one.Trailing, 0, Qt::AlignVCenter);
 					}
 					line->addStretch(1);
-					aColumn->addLayout(line);
+					rows->addLayout(line);
 					continue;
 				}
 				auto& buttons = BehaviourOptions[one.Index];
@@ -1140,7 +1168,7 @@ namespace bpr::qt {
 					line->addWidget(one.Trailing, 0, Qt::AlignVCenter);
 				}
 				line->addStretch(1);
-				aColumn->addLayout(line);
+				rows->addLayout(line);
 			}
 			return reset;
 		};
@@ -1172,44 +1200,25 @@ namespace bpr::qt {
 				aNext.ReturnComparison = application::review_behaviour_settings{ }.ReturnComparison;
 			});
 		// [[BPR-1584]]. The owner, 2026-10-17: "We can make that capped width
-		// a setting." Threads and Discuss only; never the code comparison.
+		// a setting." [[BPR-2299]] (owner, 2026-11-19: "I think we can just
+		// use reading with for everything"): every reading column, never the
+		// code comparison; Advanced gives one a width of its own.
 		// [[BPR-1597]]: a row of Review › Reading.
-		auto* const readingInfo = new info_glyph{ QStringLiteral("Threads and Discuss stop at this width on a wide screen. The code comparison always uses the whole window."), BehaviourEditor };
+		auto* const readingTrailing = new QWidget{ BehaviourEditor };
+		auto* const readingLine     = new QHBoxLayout{ readingTrailing };
+		readingLine->setContentsMargins(0, 0, 0, 0);
+		readingLine->setSpacing(8);
+		auto* const readingAdvanced = new quiet_tool_button{ readingTrailing };
+		readingAdvanced->setObjectName(QStringLiteral("readingWidthAdvancedOpen"));
+		readingAdvanced->setText(QStringLiteral("Advanced…"));
+		readingAdvanced->setAccessibleName(QStringLiteral("Reading width: Advanced"));
+		readingAdvanced->setToolTip(QStringLiteral("Give Threads, Discuss or reports a width of its own"));
+		readingAdvanced->setFocusPolicy(Qt::StrongFocus);
+		connect(readingAdvanced, &QToolButton::clicked, this, &workbench_window::open_reading_width_advanced);
+		auto* const readingInfo = new info_glyph{ QStringLiteral("Threads, Discuss and reports stop at this width on a wide screen. The code comparison always uses the whole window."), readingTrailing };
 		readingInfo->setObjectName(QStringLiteral("readingWidthInfo"));
-		// [[BPR-2171]]. The owner, 2026-11-13, on Discuss's column: "should be
-		// a setting, Centered I think." A Discuss preference of the profile,
-		// kept in its own store, so its buttons dispatch on their own.
-		auto* const discussColumn       = new QWidget{ BehaviourEditor };
-		auto* const discussColumnLayout = new QHBoxLayout{ discussColumn };
-		discussColumnLayout->setContentsMargins(0, 0, 0, 0);
-		discussColumnLayout->setSpacing(4);
-		discussColumn->setObjectName(QStringLiteral("discussColumn"));
-		auto* const discussColumnGroup = new QButtonGroup{ discussColumn };
-		discussColumnGroup->setExclusive(true);
-		DiscussColumnButtons.clear();
-		for (const auto& [words, name, width] : { std::tuple{ QStringLiteral("Narrow"), QStringLiteral("discussColumnNarrow"), core::discuss_column::narrow },
-												  std::tuple{ QStringLiteral("Column"), QStringLiteral("discussColumnColumn"), core::discuss_column::column },
-												  std::tuple{ QStringLiteral("Wide"), QStringLiteral("discussColumnWide"), core::discuss_column::wide },
-												  std::tuple{ QStringLiteral("Full width"), QStringLiteral("discussColumnFull"), core::discuss_column::full } }) {
-			auto* const button = new quiet_tool_button{ discussColumn };
-			button->setObjectName(name);
-			button->setText(words);
-			button->setAccessibleName(QStringLiteral("Discuss column: ") + words);
-			button->setCheckable(true);
-			button->setFocusPolicy(Qt::StrongFocus);
-			button->setChecked(width == core::default_discuss_column);
-			discussColumnGroup->addButton(button);
-			discussColumnLayout->addWidget(button);
-			DiscussColumnButtons.push_back(button);
-			connect(button, &QToolButton::toggled, this, [this, chosen = width](const bool aChecked) {
-				if (aChecked && !ApplyingBehaviour && DiscussColumnDispatch) {
-					DiscussColumnDispatch(chosen);
-					apply_discuss_preferences();
-				}
-			});
-		}
-		auto* const discussColumnInfo = new info_glyph{ QStringLiteral("Discuss lists the conversation in a centred column this wide. An open comment with code may grow wider."), BehaviourEditor };
-		discussColumnInfo->setObjectName(QStringLiteral("discussColumnInfo"));
+		readingLine->addWidget(readingAdvanced);
+		readingLine->addWidget(readingInfo);
 		addGroup(
 			column,
 			QStringLiteral("Reading"),
@@ -1233,15 +1242,15 @@ namespace bpr::qt {
 					   { QStringLiteral("Medium"), QStringLiteral("readingWidthMedium") },
 					   { QStringLiteral("Wide"), QStringLiteral("readingWidthWide") },
 					   { QStringLiteral("Full width"), QStringLiteral("readingWidthFull") } },
-					 readingInfo,
+					 readingTrailing,
 					 nullptr,
-					 4 },
-				row{ 0U, QStringLiteral("Discuss column"), QStringLiteral("discussColumnRow"), { }, discussColumnInfo, discussColumn, 4 },
+					 8 },
 			},
 			[](application::review_behaviour_settings& aNext) {
-				aNext.MarkRead       = application::review_behaviour_settings{ }.MarkRead;
-				aNext.CommentsFilter = application::review_behaviour_settings{ }.CommentsFilter;
-				aNext.ReadingWidth   = core::default_reading_width;
+				aNext.MarkRead         = application::review_behaviour_settings{ }.MarkRead;
+				aNext.CommentsFilter   = application::review_behaviour_settings{ }.CommentsFilter;
+				aNext.ReadingWidth     = core::default_reading_width;
+				aNext.ReadingOverrides = core::reading_overrides{ };
 			});
 		// [[BPR-1816]]. The owner, 2026-10-29: "Finishing a review should take
 		// you to Home and close that review", a setting per outcome, on by
@@ -1674,12 +1683,50 @@ namespace bpr::qt {
 
 	void workbench_window::apply_reading_width()
 	{
-		// [[BPR-1584]]. Threads' rows and Discuss's notes stop at the reading
-		// width, left-aligned; the code comparison is never touched.
+		// [[BPR-1584]], [[BPR-2299]]. Threads' rows stop at their reading
+		// width at the page's left; Discuss's list and a report's page (the
+		// one open now included) are centred columns that wide. Each is the
+		// Reading width unless Advanced gave it its own; the code comparison
+		// is never touched.
+		const auto limit = [this](const core::reading_surface aSurface) { return core::reading_surface_limit(Behaviour.ReadingWidth, Behaviour.ReadingOverrides, aSurface); };
 		if (Finder != nullptr) {
-			Finder->set_reading_width(Behaviour.ReadingWidth);
+			Finder->set_reading_limit(limit(core::reading_surface::threads));
+		}
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			const auto discuss = limit(core::reading_surface::discuss);
+			ConversationPanel->cards()->set_column_width(discuss.has_value() ? std::optional{ static_cast<int>(*discuss) } : std::nullopt);
+		}
+		if (ReportView != nullptr) {
+			ReportView->set_reading_limit(limit(core::reading_surface::reports));
+		}
+		if (ReadingAdvanced != nullptr) {
+			ReadingAdvanced->set_state(Behaviour.ReadingWidth, Behaviour.ReadingOverrides);
 		}
 		apply_modality_surface();
+	}
+
+	void workbench_window::open_reading_width_advanced()
+	{
+		if (ReadingAdvanced == nullptr) {
+			ReadingAdvanced = new reading_width_dialog{ BehaviourEditor != nullptr ? BehaviourEditor->window() : this };
+			ReadingAdvanced->setModal(false);
+			ReadingAdvanced->set_dispatch([this](const core::reading_overrides& aOverrides) {
+				if (!BehaviourDispatch) {
+					return;
+				}
+				auto next             = behaviour_from_controls();
+				next.ReadingOverrides = aOverrides;
+				if (next != AskedBehaviour.value_or(Behaviour)) {
+					AskedBehaviour = next;
+					BehaviourDispatch(next);
+				}
+			});
+		}
+		const auto& shown = AskedBehaviour.value_or(Behaviour);
+		ReadingAdvanced->set_state(shown.ReadingWidth, shown.ReadingOverrides);
+		ReadingAdvanced->show();
+		ReadingAdvanced->raise();
+		ReadingAdvanced->activateWindow();
 	}
 
 	void workbench_window::apply_markdown_images()

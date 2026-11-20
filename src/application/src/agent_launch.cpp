@@ -6,7 +6,6 @@
 #include "bpr/core/agent_grant.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 #include "bpr/core/hex.hpp"
-#include "bpr/core/review_cycle_send.hpp"
 #include "bpr/core/tour_agent_session.hpp"
 #include "bpr/core/utf8.hpp"
 
@@ -21,6 +20,17 @@
 
 namespace bpr::application {
 	namespace {
+		/// \brief A native session handle as a harness reports it: 1 to 128
+		/// ASCII letters, digits, `.`, `_` and `-`, starting with a letter or
+		/// digit, so a harness never reads it as an option. ([[BPR-2308]]
+		/// moved it here from the retired Review Cycle send.)
+		[[nodiscard]] auto native_session_name(const std::string_view aName) noexcept -> bool
+		{
+			const auto alphanumeric = [](const char aSymbol) { return (aSymbol >= 'a' && aSymbol <= 'z') || (aSymbol >= 'A' && aSymbol <= 'Z') || (aSymbol >= '0' && aSymbol <= '9'); };
+			return !aName.empty() && aName.size() <= 128U && alphanumeric(aName.front())
+				&& std::ranges::all_of(aName, [&](const char aSymbol) { return alphanumeric(aSymbol) || aSymbol == '.' || aSymbol == '_' || aSymbol == '-'; });
+		}
+
 #if defined(BPR_AGENT_INTEGRATIONS)
 		/// [[BPR-2142]], RFC-BPR-0103. Whether text a run wrote names a failed
 		/// sign-in: a 401, `authentication_failed`, Claude's "Not logged in"
@@ -1285,6 +1295,38 @@ namespace bpr::application {
 			return std::vector<agent_protocol_event>{ { .Kind = agent_protocol_event_kind::model_catalog, .Text = std::string{ aFrame.substr(result->Begin, result->End - result->Begin) } } };
 		}
 
+		/// [[BPR-2305]]. A Codex `error` item: a warning (a configuration
+		/// setting it ignores, from its own or a machine-wide config), never a
+		/// failure. Codex 0.167.2 writes them before `turn.started` as well as
+		/// in the turn. Its message, cut to its bound.
+		[[nodiscard]] auto codex_warning_event(const json_value& aItem, const std::string& aItemId) -> agent_protocol_event
+		{
+			const auto* message = string_member(aItem, "message");
+			auto        text    = message == nullptr ? std::string{ } : *message;
+			if (text.size() > maximum_agent_harness_warning_bytes) {
+				text.resize(maximum_agent_harness_warning_bytes);
+			}
+			return { .Kind = agent_protocol_event_kind::harness_warning, .Text = std::move(text), .Item = aItemId };
+		}
+
+		/// [[BPR-2305]]. How a completed Codex `file_change` item ended, one
+		/// event for each path it names (`changes[].path`): its `status` is
+		/// `completed` or `failed`. Any other status names nothing.
+		void append_file_change_results(const json_value& aItem, std::vector<agent_protocol_event>& aEvents)
+		{
+			const auto* status  = string_member(aItem, "status");
+			const auto* changes = member(aItem, "changes");
+			if (status == nullptr || (*status != "completed" && *status != "failed") || changes == nullptr || changes->Kind != json_kind::array_value) {
+				return;
+			}
+			for (const auto& change : changes->Elements) {
+				const auto* path = change.Kind == json_kind::object_value ? string_member(change, "path") : nullptr;
+				if (path != nullptr && !path->empty()) {
+					aEvents.push_back({ .Kind = agent_protocol_event_kind::file_change_result, .Text = path->substr(0U, maximum_agent_tool_activity_bytes), .Item = *status });
+				}
+			}
+		}
+
 		[[nodiscard]] auto decode_codex_jsonl_frame(
 			const json_value&      aRoot,
 			const std::string_view aFrame,
@@ -1308,6 +1350,17 @@ namespace bpr::application {
 			if (*type == "turn.started" && aPhase == 1U) {
 				aPhase = 2U;
 				return no_protocol_events();
+			}
+			// [[BPR-2305]]. A warning item before the turn: read, kept, and
+			// the stream goes on to `turn.started`.
+			if (*type == "item.completed" && aPhase == 1U) {
+				const auto* item     = object_member(aRoot, "item");
+				const auto* itemId   = item == nullptr ? nullptr : string_member(*item, "id");
+				const auto* itemType = item == nullptr ? nullptr : string_member(*item, "type");
+				if (itemId == nullptr || itemId->empty() || itemType == nullptr || *itemType != "error") {
+					return std::unexpected(agent_protocol_failure::malformed_frame);
+				}
+				return std::vector<agent_protocol_event>{ codex_warning_event(*item, *itemId) };
 			}
 			if ((*type == "turn.failed" || *type == "error") && aPhase == 2U) {
 				return std::unexpected(names_usage_limit(member(aRoot, *type == "error" ? "message" : "error")) ? agent_protocol_failure::usage_limit : agent_protocol_failure::remote_failed);
@@ -1340,8 +1393,15 @@ namespace bpr::application {
 																										   .Item = *itemId,
 																									   } };
 				}
+				// [[BPR-2305]]. A warning in the turn is read the same way.
+				if (*type == "item.completed" && *itemType == "error") {
+					return std::vector<agent_protocol_event>{ codex_warning_event(*item, *itemId) };
+				}
 				// [[BPR-2004]]. What it is doing, for the running block.
 				auto events = std::vector<agent_protocol_event>{ };
+				if (*type == "item.completed" && *itemType == "file_change") {
+					append_file_change_results(*item, events);
+				}
 				if (*type == "item.started" && *itemType == "command_execution") {
 					const auto* command = string_member(*item, "command");
 					events.push_back(doing_event(core::agent_doing::running, command == nullptr ? std::string{ } : whole_command(*command)));
@@ -3580,6 +3640,19 @@ namespace bpr::application {
 			const auto profile = std::string{ codex_grant_profile };
 			aArguments.insert(aArguments.end(), { "-c", "permissions." + profile + ".filesystem=" + filesystem, "-c", "default_permissions=\"" + profile + "\"", "-c", "approval_policy=\"never\"" });
 		}
+		/// [[BPR-2307]]. A granted run's sandbox as `core::decide_codex_sandbox`
+		/// chose it: BetterPullReview's profile, or Codex's own sandbox off for
+		/// an agent that relies on its launcher's. A read-only run's was
+		/// already given with its other restrictions.
+		void append_codex_sandbox(std::vector<std::string>& aArguments, const core::codex_sandbox_mode aMode, const std::optional<agent_launch_grant>& aGrant, const bool aAppServer)
+		{
+			if (aMode == core::codex_sandbox_mode::grant_profile && aGrant) {
+				append_codex_grant(aArguments, *aGrant);
+			} else if (aMode == core::codex_sandbox_mode::launcher) {
+				auto off = core::codex_launcher_sandbox_arguments(aAppServer);
+				aArguments.insert(aArguments.end(), std::make_move_iterator(off.begin()), std::make_move_iterator(off.end()));
+			}
+		}
 		[[nodiscard]] auto settings_json(const core::agent_runtime_metadata& aMetadata) -> std::string
 		{
 			const auto settings = effective_settings(aMetadata);
@@ -3682,6 +3755,11 @@ namespace bpr::application {
 			return std::unexpected(agent_launch_failure::invalid_profile);
 		}
 		const auto codex = aProfile.Protocol == core::agent_protocol::codex_app_server || aProfile.Protocol == core::agent_protocol::codex_jsonl_exec;
+		// [[BPR-2307]]. Only a Codex launch can rely on a launcher's sandbox.
+		if (aOptions.RelyOnLauncherSandbox && !codex) {
+			return std::unexpected(agent_launch_failure::invalid_profile);
+		}
+		const auto codexSandbox = core::decide_codex_sandbox({ .ReadOnly = aOptions.ReadOnlyTools, .Granted = aOptions.Grant.has_value(), .RelyOnLauncher = aOptions.RelyOnLauncherSandbox });
 		if (aOptions.Grant
 			&& ((codex && aOptions.PullRequestCheckout.empty())
 				|| (!aOptions.Grant->BuildWorkspace.empty() && std::ranges::find(aOptions.PullRequestCheckout, aOptions.Grant->BuildWorkspace) == aOptions.PullRequestCheckout.end()))) {
@@ -3742,9 +3820,7 @@ namespace bpr::application {
 			} else if (mcpOff) {
 				arguments.insert(arguments.end(), { "-c", "mcp_servers={}" });
 			}
-			if (aOptions.Grant) {
-				append_codex_grant(arguments, *aOptions.Grant);
-			}
+			append_codex_sandbox(arguments, codexSandbox, aOptions.Grant, true);
 			break;
 		case core::agent_protocol::codex_jsonl_exec:
 			arguments.emplace_back("exec");
@@ -3758,9 +3834,7 @@ namespace bpr::application {
 			} else if (mcpOff) {
 				arguments.insert(arguments.end(), { "-c", "mcp_servers={}" });
 			}
-			if (aOptions.Grant) {
-				append_codex_grant(arguments, *aOptions.Grant);
-			}
+			append_codex_sandbox(arguments, codexSandbox, aOptions.Grant, false);
 			// Established 2026-11-12 against Codex 0.167.0 with a canary: a
 			// rule given only in `developer_instructions` is followed.
 			if (systemPrompt) {
@@ -3772,10 +3846,12 @@ namespace bpr::application {
 			arguments.emplace_back("-");
 			break;
 		case core::agent_protocol::claude_stream_json:
-			// [[BPR-2142]], RFC-BPR-0104 (the owner's wrapper tests,
-			// 2026-11-11). Every option that takes several values comes
-			// first, each followed by another option, so none can take a
-			// prompt or anything a wrapper adds after these as a value.
+			// RFC-BPR-0104 AC11, amended 2026-11-19 ([[BPR-2306]]): `-p`
+			// first, as the owner's harness audit recommends, right after an
+			// added agent's fixed arguments. Each option that takes several
+			// values is followed by another option, so none can take a prompt
+			// or anything a wrapper adds after these as a value.
+			arguments.emplace_back("-p");
 			if (aOptions.Grant) {
 				append_claude_grant(arguments, *aOptions.Grant);
 			}
@@ -3804,7 +3880,6 @@ namespace bpr::application {
 				arguments.emplace_back("--append-system-prompt");
 				arguments.push_back(instructions);
 			}
-			arguments.emplace_back("-p");
 			arguments.emplace_back("--input-format");
 			arguments.emplace_back("stream-json");
 			arguments.emplace_back("--output-format");
@@ -3827,11 +3902,33 @@ namespace bpr::application {
 		case core::agent_protocol::external_terminal:
 			break;
 		}
+		// [[BPR-2304]]. The rules the owner's harness audits established hold
+		// for every Claude launch, or it is not started: only the user's
+		// settings in a pull request's checkout and on a restricted run, no
+		// MCP server where MCP is off.
+		if (aProfile.Protocol == core::agent_protocol::claude_stream_json) {
+			const auto restricted = aOptions.WritingOnly || aOptions.ReadOnlyTools;
+			const auto expected   = core::claude_argument_expectation{ .UserSettingsOnly = restricted || !aOptions.PullRequestCheckout.empty(), .McpOff = restricted || mcpOff };
+			if (core::inspect_claude_arguments(arguments, expected)) {
+				return std::unexpected(agent_launch_failure::unsafe_arguments);
+			}
+		}
+		// [[BPR-2307]]. Codex's own sandbox is off only where the agent relies
+		// on its launcher's and the run is granted; read-only stays read-only.
+		if (codex && core::inspect_codex_sandbox_arguments(arguments, codexSandbox, aProfile.Protocol == core::agent_protocol::codex_app_server)) {
+			return std::unexpected(agent_launch_failure::unsafe_arguments);
+		}
 		if (aOptions.WritingOnly && aProfile.Protocol != core::agent_protocol::claude_stream_json) {
 			arguments.insert(arguments.end(), claude_writing_restrictions.begin(), claude_writing_restrictions.end());
 		}
 		auto pasted = std::optional<core::agent_context_supplement>{ };
-		if (!aOptions.SystemInstructions.empty() && !systemPrompt) {
+		// [[BPR-2305]]. Codex `exec` reads its prompt from stdin as text: there
+		// the instructions lead the prompt, after only the fixed protocol line
+		// and ahead of the request, so they stay one cacheable prefix from run
+		// to run (a launcher that drops `developer_instructions` still has
+		// them read).
+		const auto rulesFirst = !aOptions.SystemInstructions.empty() && !systemPrompt && aProfile.Protocol == core::agent_protocol::codex_jsonl_exec;
+		if (!aOptions.SystemInstructions.empty() && !systemPrompt && !rulesFirst) {
 			pasted          = aSupplement;
 			pasted->Message = aOptions.SystemInstructions + (aSupplement.Message.empty() ? std::string{ } : "\n\n" + aSupplement.Message);
 		}
@@ -3841,7 +3938,8 @@ namespace bpr::application {
 			}
 			pasted->Brief->Skill->Text.clear();
 		}
-		auto payload = encode_agent_supplement(pasted ? *pasted : aSupplement);
+		auto payload = rulesFirst ? aOptions.SystemInstructions + "\n\n" : std::string{ };
+		payload += encode_agent_supplement(pasted ? *pasted : aSupplement);
 		encode_private_into(payload, aOptions);
 		// [[BPR-2004]], RFC-BPR-0103. Codex 0.167.0 reports no sub-agent on
 		// `exec --json` and ends there, and on the App Server never answers
@@ -3893,87 +3991,6 @@ namespace bpr::application {
 		request.Metadata     = metadata;
 		request.AdmittedRun  = aOptions.AdmittedRun;
 		request.Run          = aOptions.AdmittedRun ? aOptions.AdmittedRun->Run : core::agent_run_id{ };
-		const auto admission = admit_agent_input(request);
-		if (!admission) {
-			return std::unexpected(admission.error());
-		}
-		return request;
-	}
-
-	auto build_round_launch(const core::agent_profile& aProfile, const std::string_view aDocument, const std::optional<std::string>& aContinue, std::string aWorkingDirectory,
-							const environment_reader& aParent, const core::agent_mcp_servers aMcpServers) -> std::expected<agent_launch_request, agent_launch_failure>
-	{
-		if (!core::valid(aProfile) || core::stable_name(aProfile.Protocol).empty()) {
-			return std::unexpected(agent_launch_failure::invalid_profile);
-		}
-		// Only a harness that can continue a session is told to, and only by a
-		// name it reported: never read as an option.
-		if (aContinue && (!core::continues_sessions(aProfile.Protocol) || !core::send_session_name(*aContinue))) {
-			return std::unexpected(agent_launch_failure::invalid_profile);
-		}
-		const auto metadata = core::agent_runtime_metadata{ .Configured = aProfile.DefaultSettings };
-		if (!core::inspect_runtime_metadata(metadata)) {
-			return std::unexpected(agent_launch_failure::invalid_runtime_settings);
-		}
-		const auto settings = effective_settings(metadata);
-		if (!supported_settings(aProfile.Protocol, settings)) {
-			return std::unexpected(agent_launch_failure::unsupported_runtime_settings);
-		}
-		if (aDocument.size() + input_overhead(aProfile.Protocol, metadata) > maximum_agent_input_bytes) {
-			return std::unexpected(agent_launch_failure::input_too_large);
-		}
-		auto arguments = std::vector<std::string>{ };
-		auto input     = std::string{ };
-		// [[BPR-2139]]. A round is a resumed path: the agent's setting rules.
-		const auto mcpOff = aMcpServers == core::agent_mcp_servers::off;
-		switch (aProfile.Protocol) {
-		case core::agent_protocol::codex_app_server:
-			arguments = { "app-server" };
-			if (mcpOff) {
-				arguments.insert(arguments.end(), { "-c", "mcp_servers={}" });
-			}
-			input = frame_agent_input(aProfile.Protocol, { });
-			break;
-		case core::agent_protocol::codex_jsonl_exec:
-			// The round is the prompt, exactly as Copy gives it.
-			arguments = { "exec", "--json" };
-			if (mcpOff) {
-				arguments.insert(arguments.end(), { "-c", "mcp_servers={}" });
-			}
-			arguments.emplace_back("-");
-			input = std::string{ aDocument };
-			break;
-		case core::agent_protocol::claude_stream_json:
-			// [[BPR-2142]]. The options with several values come before `-p`.
-			if (mcpOff) {
-				arguments.insert(arguments.end(), claude_mcp_off_arguments.begin(), claude_mcp_off_arguments.end());
-			}
-			arguments.insert(arguments.end(), { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
-			append_claude_model(arguments, settings);
-			if (aContinue) {
-				arguments.emplace_back("--resume");
-				arguments.push_back(*aContinue);
-			}
-			input = frame_agent_input(aProfile.Protocol, aDocument);
-			break;
-		case core::agent_protocol::external_terminal:
-			input = std::string{ aDocument };
-			break;
-		}
-		auto request = agent_launch_request{
-			.Protocol         = aProfile.Protocol,
-			.Session          = core::agent_session_id{ 1U },
-			.Executable       = aProfile.Executable,
-			.Arguments        = std::move(arguments),
-			.WorkingDirectory = std::move(aWorkingDirectory),
-			.Environment      = materialize_agent_environment(aProfile, aParent),
-			.Input            = std::move(input),
-			.Metadata         = metadata,
-		};
-		request.Profile = aProfile.Id;
-		if (aProfile.Protocol == core::agent_protocol::codex_app_server) {
-			request.DeferredContext = std::string{ aDocument };
-		}
 		const auto admission = admit_agent_input(request);
 		if (!admission) {
 			return std::unexpected(admission.error());
@@ -4242,7 +4259,9 @@ namespace bpr::application {
 		case agent_protocol_event_kind::tool_activity:
 		case agent_protocol_event_kind::outside_list_ran:
 		case agent_protocol_event_kind::check_relaxed:
-		case agent_protocol_event_kind::activity:             break;
+		case agent_protocol_event_kind::activity:
+		case agent_protocol_event_kind::harness_warning:
+		case agent_protocol_event_kind::file_change_result:   break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
 	}
@@ -4254,7 +4273,7 @@ namespace bpr::application {
 		// A tool-free run resumes only on a resumed path (a local draft's
 		// discussion), and only Claude's: it has no connected session.
 		if ((aRequest.WritingOnly && (aConnected || aRequest.Protocol != core::agent_protocol::claude_stream_json)) || aRequest.NativeTurn < 2U || aRequest.Protocol == core::agent_protocol::external_terminal
-			|| core::session_mode_of(aRequest.Path) == core::agent_session_mode::fresh || (!aRequest.NativeHandle.empty() && !core::send_session_name(aRequest.NativeHandle))) {
+			|| core::session_mode_of(aRequest.Path) == core::agent_session_mode::fresh || (!aRequest.NativeHandle.empty() && !native_session_name(aRequest.NativeHandle))) {
 			return std::unexpected(agent_launch_failure::invalid_profile);
 		}
 		if (aRequest.ReadOnlyTools && aRequest.Protocol == core::agent_protocol::claude_stream_json) {
@@ -4880,6 +4899,44 @@ namespace bpr::application {
 		case agent_run_outcome::stale_result:            return core::agent_turn_outcome::set_aside;
 		}
 		return core::agent_turn_outcome::ended_without_answer;
+	}
+
+	auto build_codex_instructions_probe(const core::agent_profile& aProfile, std::string aExecutable, const std::span<const std::string> aLeading,
+										const core::agent_instruction_delivery aDelivery, const environment_reader& aParent) -> agent_launch_request
+	{
+		auto request       = agent_launch_request{ };
+		request.Protocol   = core::agent_protocol::codex_jsonl_exec;
+		request.Session    = core::agent_session_id{ 1U };
+		request.Executable = std::move(aExecutable);
+		request.Arguments.assign(aLeading.begin(), aLeading.end());
+		request.Arguments.insert(request.Arguments.end(), { "exec", "--json", "--skip-git-repo-check", "--ephemeral" });
+		request.Arguments.insert(request.Arguments.end(), codex_read_only_arguments.begin(), codex_read_only_arguments.end());
+		if (aDelivery == core::agent_instruction_delivery::system_prompt) {
+			request.Arguments.insert(request.Arguments.end(), { "-c", "developer_instructions=" + toml_string(codex_instructions_probe_rule) });
+			request.Input = std::string{ codex_instructions_probe_question };
+		} else {
+			request.Input = std::string{ codex_instructions_probe_rule } + "\n\n" + std::string{ codex_instructions_probe_question };
+		}
+		request.Arguments.emplace_back("-");
+		request.Environment = materialize_agent_environment(aProfile, aParent);
+		request.Path        = core::agent_run_path::agent_check;
+		request.Profile     = aProfile.Id;
+		return request;
+	}
+
+	auto codex_instructions_followed(const agent_run_result& aResult) -> bool
+	{
+		if (aResult.Outcome != agent_run_outcome::success) {
+			return false;
+		}
+		const auto holds = [](const std::string_view aText) { return aText.find(codex_instructions_canary) != std::string_view::npos; };
+		return std::ranges::any_of(aResult.AssistantItems, holds)
+			|| std::ranges::any_of(aResult.Events, [&holds](const agent_stream_event& aEvent) { return aEvent.Kind == agent_stream_kind::text && holds(aEvent.Text); });
+	}
+
+	auto writes_all_failed(const agent_run_result& aResult) noexcept -> bool
+	{
+		return aResult.FailedWriteCount > 0U && aResult.CompletedWriteCount == 0U;
 	}
 
 	auto name(const agent_protocol_failure aFailure) noexcept -> std::string_view

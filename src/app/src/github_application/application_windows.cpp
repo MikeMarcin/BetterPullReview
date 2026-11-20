@@ -33,7 +33,6 @@
 #include "github_provider.hpp"
 #include "pr_search_controller.hpp"
 #include "profile_window_layout_port.hpp"
-#include "review_cycle_desktop.hpp"
 #include "review_submission_workflow.hpp"
 
 #include <QCoreApplication>
@@ -142,18 +141,6 @@ namespace bpr::app {
 				}
 			};
 			session->start();
-			// [[BPR-1273]]. Add Notes to Review Tour edits a pull request's tour
-			// where its draft lives, through this profile's tour owner, as
-			// `bpr tour` does: the window holding that draft, or the stored one.
-			if (session->CycleDesktop) {
-				session->CycleDesktop->set_tour_route([this, live = std::weak_ptr<const int>{ Liveness }](application::tour_channel_bytes aRequest, std::function<void(application::tour_channel_bytes)> aRespond) {
-					if (live.expired()) {
-						aRespond(tour_owner_error("owner_unavailable"));
-						return;
-					}
-					desktop_tour_owner_route(std::move(aRequest), std::move(aRespond));
-				});
-			}
 			if (Profile->AgentWorkspaceRecoveryRefused) {
 				session->present_agent_workspace_repair();
 			}

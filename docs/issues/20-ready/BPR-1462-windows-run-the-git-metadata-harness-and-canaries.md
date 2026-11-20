@@ -28,9 +28,12 @@ results.
 From a checkout of main at or after the commit that finished [[BPR-1460]]:
 
 1. Configure the platform's dev preset with `BUILD_TESTING=ON` and build
-   `test_review_cycle_git_readers`, `test_git_metadata_harness`,
-   `bench_review_cycle_scale` and `test_better_pull_review_review_cycle_manifest_tests`.
-2. Run `ctest -R "review_cycle_git_readers|git_metadata_harness|review_cycle_git_reader_scale|core_review_cycle_manifest" --output-on-failure`
+   `test_git_metadata_harness`, `bench_git_metadata_scale` and
+   `test_better_pull_review_review_cycle_manifest_tests`. ([[BPR-2308]]
+   retired Review Cycles: `test_review_cycle_git_readers`, which read the
+   readers only through cycle capture, is gone, and the scale bench keeps only
+   its Git reader half, as `bench_git_metadata_scale`.)
+2. Run `ctest -R "git_metadata_harness|review_cycle_git_reader_scale|core_review_cycle_manifest" --output-on-failure`
    and record the harness's `GMR summary` lines. Every divergence must be
    classified; a new one is either a K defect to fix or a registry entry with
    its reason.

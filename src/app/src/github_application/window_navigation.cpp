@@ -632,7 +632,7 @@ namespace bpr::app {
 		const auto& pending = *PendingReviewNavigation;
 		const auto* active  = TabHost && TabHost->state().Active ? core::find_tab(TabHost->state(), *TabHost->state().Active) : nullptr;
 		if (Closing || !LastAcceptedHandoff || !TabHost || !WorkbenchHost
-			|| Window->showing_home() || Window->showing_local_cycle()
+			|| Window->showing_home()
 			|| WorkbenchHost->state().Modality != core::workbench_modality::review
 			|| workbench_authority(*LastAcceptedHandoff) != pending.Authority
 			|| WorkbenchHost->generation() != pending.Generation || TabHost->state().Active != pending.Tab
@@ -1455,12 +1455,12 @@ DefectThreadNames.reset();
 				return;
 			}
 			if (const auto shown = Window->shown_pull_request(); shown && core::activity_concerns(aActive, *shown)) {
-				reread_for_news();
+				reread_for_news(core::refresh_cause::activity);
 			}
 		};
 		Window->set_pull_request_return_dispatch([this, weak](const std::int64_t aNow) {
 			if (!weak.expired() && !Closing && Window && core::refresh_due_on_return(Window->pull_request_refresh(), aNow)) {
-				reread_for_news();
+				reread_for_news(core::refresh_cause::return_to_window);
 			}
 		});
 		Window->set_activity_notifications_dispatch([this, weak](const bool aEnabled) {

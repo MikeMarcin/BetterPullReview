@@ -7,11 +7,13 @@
 
 #include "bpr/core/agent_report.hpp"
 #include "bpr/core/agent_report_keep.hpp"
+#include "bpr/core/workbench_interaction.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/report_page.hpp"
 
 #include "bpr/application/markdown_code_syntax.hpp"
 
+#include <QAbstractScrollArea>
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QDir>
@@ -32,10 +34,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <map>
 #include <optional>
+#include <string>
 
 namespace {
 	using bpr::tests::expect;
@@ -206,6 +210,67 @@ namespace {
 			expect(narrow.Box.height() == wide.Box.height() && narrow.Box.height() <= narrow.Chip.height() + 12.0,
 				   "the chip keeps its natural height, its one line and padding, beside wrapped words at " + std::to_string(width));
 			expect(std::abs(narrow.Chip.top() - narrow.Words.top()) <= 1.0, "the chip's words are level with the first line beside it at " + std::to_string(width));
+		}
+	}
+
+	/// [[BPR-2299]] (owner, 2026-11-19: "The current report width feels too
+	/// narrow by default ... Or perhaps just drive it off of the existing
+	/// reading width setting"). The page's column stops at the reading
+	/// width, not at 572 pixels; a new width reaches the report shown at
+	/// once; its code boxes and suggestion take the new column and a long
+	/// line still scrolls inside its box, never widening the page.
+	void check_reading_width()
+	{
+		namespace core = bpr::core;
+		auto view      = bpr::qt::agent_report_view{ };
+		view.resize(3'200, 900);
+		view.show();
+		const auto longLine = QString{ 3'000, QLatin1Char{ 'w' } };
+		const auto markdown = QStringLiteral("# Review of #6\n\n**Verdict:** Needs changes\n\nOne fix.\n\n## Must fix\n\n### issue: A zero height\n\n`src/a.cpp:12`\n\nClamp it.\n\n"
+											 "```cpp\nconst auto %1 = 1;\n```\n\n```suggestion\nconst auto %1 = 2;\n```\n")
+								  .arg(longLine);
+		view.present({ .Turn = 1U, .Title = QStringLiteral("Review of #6"), .Markdown = markdown, .Question = QStringLiteral("Review this pull request"), .Byline = { } });
+		const auto settle = [] {
+			for (auto pass = 0; pass < 4; ++pass) {
+				QApplication::processEvents();
+			}
+		};
+		settle();
+		expect(view.dressed_shown() && view.code_views().size() == 2U, "the report is a page with a code box and a suggestion");
+		auto* const column = view.column();
+		// The room the pane gives the column: the page's width less its
+		// margins (24 left, the menu button's 24 + 32 + 14 right).
+		const auto room       = view.findChild<QScrollArea*>()->viewport()->width() - 24 - (24 + 32 + 14);
+		const auto checkWidth = [&](const std::optional<std::uint32_t> aLimit, const std::string& aName) {
+			const auto expected = aLimit.has_value() ? std::min(room, static_cast<int>(*aLimit)) : room;
+			const auto at       = std::string{ " at " } + aName;
+			std::cout << "BPR-2299" << at << ": column " << column->width() << ", room " << room << ", expected " << expected << "\n";
+			expect(view.reading_limit() == aLimit, "the view holds the width it was given" + at);
+			expect(column->width() == expected, "the column is the reading width, or the pane's room when that is less" + at + ": " + std::to_string(column->width()));
+			expect(std::abs(column->x() + column->width() / 2 - (24 + room / 2)) <= 2, "the column stays centred" + at);
+			auto* const page = view.dressed_view();
+			expect(page->width() == column->width() && page->horizontalScrollBar()->maximum() == 0, "the page takes the column and never scrolls sideways" + at);
+			for (auto* const code : view.code_views()) {
+				// A code block scrolls in its box's text, a suggestion's diff in
+				// the box's reader: either way inside the box, never the page.
+				const auto scrolls = std::ranges::any_of(code->findChildren<QAbstractScrollArea*>(), [&](const QAbstractScrollArea* aArea) {
+					return aArea->isVisible() && aArea->horizontalScrollBar()->maximum() > 0 && aArea->width() <= code->width();
+				});
+				expect(scrolls, "the long line scrolls sideways inside its box" + at);
+			}
+		};
+		// The default is Wide (1100); at 3200 pixels the cap shows.
+		expect(view.reading_limit() == core::reading_width_limit(core::default_reading_width), "the view starts at the setting's default");
+		expect(room > 1'100, "the pane is wider than Wide's cap");
+		checkWidth(core::reading_width_limit(core::default_reading_width), "the default");
+		expect(column->width() > 572, "negative control: the old 572-pixel column is gone");
+		for (const auto& [limit, name] : { std::pair{ core::reading_width_limit(core::reading_width::narrow), "Narrow" }, std::pair{ core::reading_width_limit(core::reading_width::medium), "Medium" },
+										   std::pair{ std::optional<std::uint32_t>{ 1'480U }, "a width of its own" }, std::pair{ std::optional<std::uint32_t>{ }, "Full width" },
+										   std::pair{ core::reading_width_limit(core::reading_width::wide), "Wide" } }) {
+			// Live: the report already shown, no new present.
+			view.set_reading_limit(limit);
+			settle();
+			checkWidth(limit, name);
 		}
 	}
 
@@ -484,6 +549,7 @@ try {
 	expect(view.draft_all_offered() == 1U && said.contains(QStringLiteral("Draft all (1)")), "the refused one is still offered");
 	check_inline_code();
 	check_keep_chip();
+	check_reading_width();
 	std::cout << "AGENT_REPORT_VIEW_OK\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {

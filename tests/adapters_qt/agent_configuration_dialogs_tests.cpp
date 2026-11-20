@@ -451,7 +451,7 @@ namespace {
 		expect(workflowRow != nullptr && workflowRow->checkState(0) == Qt::Checked, "a workflow is offered for export, ticked with its section");
 		workflowRow->setCheckState(0, Qt::Checked);
 		const auto bytes = exporter.bytes();
-		expect(bytes.find("\"version\": 3") != std::string::npos && bytes.find("\"Work Claude\"") != std::string::npos && bytes.find("/opt/org") == std::string::npos,
+		expect(bytes.find("\"version\": 4") != std::string::npos && bytes.find("\"Work Claude\"") != std::string::npos && bytes.find("/opt/org") == std::string::npos,
 			   "the workflow travels with the agent it asks, without its program path");
 		render(exporter, aRoot, QStringLiteral("export-workflow"));
 
@@ -688,7 +688,7 @@ namespace {
 		snapshot.PromptMacros.Differences.Own = { suggested("own.0123456789abcdef0123456789abcdef", "Look again", "Look again at {pr.title}."),
 												  linked_to_pack(a_uuid, "Risks", "What could this break?", 2U) };
 		auto dialog                           = qt::agent_configuration_export_dialog{ snapshot, { }, "BetterPullReview test" };
-		expect(dialog.suggested_prompts().empty() && dialog.bytes().find("\"version\": 3") != std::string::npos && dialog.bytes().find("prompt_pack") == std::string::npos,
+		expect(dialog.suggested_prompts().empty() && dialog.bytes().find("\"version\": 4") != std::string::npos && dialog.bytes().find("prompt_pack") == std::string::npos,
 			   "no suggested prompt starts ticked, so the file holds no pack");
 		dialog.set_minted_identities(std::string{ pack_uuid }.replace(0U, 1U, "1"), { std::string{ fresh_uuid } });
 		auto* section = static_cast<QTreeWidgetItem*>(nullptr);
@@ -855,6 +855,76 @@ namespace {
 			   "a theme unreadable on a theme cannot be imported, and says which pair");
 		expect(!refused.theme_choice(), "and nothing is kept");
 	}
+	/// [[BPR-2301]] (owner, 2026-11-19: "I think the review settings should be
+	/// in exported bprsettings as an optional group"). Review is a section of
+	/// both dialogs: Export ticks Settings › Review; Import lists what it
+	/// would change, yours beside the file's, and keeps nothing it is not
+	/// told to.
+	void test_review_section(const std::string& aRoot)
+	{
+		auto mine                = application::review_behaviour_settings{ };
+		mine.ReadingWidth        = core::reading_width::medium;
+		mine.ReadingOverrides[1] = core::reading_override_of(1480U);
+
+		auto        exporter  = qt::agent_configuration_export_dialog{ sender(), { }, "BetterPullReview test", { }, nullptr, std::nullopt, application::portable_review_of(mine) };
+		auto* const reviewRow = exporter.section(core::profile_settings_section::review);
+		expect(reviewRow != nullptr && reviewRow->text(0) == QStringLiteral("Review") && reviewRow->checkState(0) == Qt::Checked && exporter.review_chosen(), "Export offers Review, ticked");
+		expect(exporter.bytes().find("\"review\": {") != std::string::npos && exporter.bytes().find("\"discuss_width\": 1480") != std::string::npos, "the file carries the Review section");
+		reviewRow->setCheckState(0, Qt::Unchecked);
+		expect(!exporter.review_chosen() && exporter.bytes().find("\"review\"") == std::string::npos, "unticked, Review is left out");
+		auto bare = qt::agent_configuration_export_dialog{ sender(), { }, "BetterPullReview test" };
+		expect(bare.section(core::profile_settings_section::review) == nullptr, "with no Review settings given there is no Review section");
+
+		const auto previewOf = [](const application::review_behaviour_settings& aHere, const std::string_view aFile) {
+			auto preview = application::agent_configuration_preview{ };
+			preview.File = core::decode_agent_configuration(aFile, { }).value();
+			if (preview.File.Review) {
+				auto imported  = application::with_review(aHere, preview.File.Review->Review);
+				auto changes   = application::review_differences(aHere, imported);
+				preview.Review = application::agent_configuration_preview::review_against_here{ .Here = aHere, .Imported = std::move(imported), .Changes = std::move(changes) };
+			}
+			return preview;
+		};
+		const auto file = std::string{ R"({"format":"bpr.profile-settings","version":4,"exported_by":"","agents":[],"prompts":[],"review":{"reading_width":"narrow","threads_width":300,"open_in":"review","zoom":"x"}})" };
+
+		auto        importer = qt::agent_configuration_import_dialog{ previewOf(mine, file), { } };
+		auto* const row      = row_named(importer, QStringLiteral("Review settings"));
+		expect(row != nullptr && row->text().contains(QStringLiteral("Updated")) && row->text().contains(QStringLiteral("Changes 3 settings")) && row->checkState() == Qt::Checked,
+			   "the file's Review is listed Updated, ticked, and says how many settings it changes");
+		const auto chosen = importer.review_choice();
+		expect(chosen && chosen->ReadingWidth == core::reading_width::narrow && chosen->ReadingOverrides[0] == core::reading_override_of(720U) && chosen->ReadingOverrides[1] == mine.ReadingOverrides[1]
+				   && chosen->OpenModality == application::review_open_modality::review,
+			   "Import keeps the file's settings, a narrow width held to 720, and yours where the file says nothing");
+		expect(importer.summary()->text().contains(QStringLiteral("your Review settings")) && importer.apply_button()->isEnabled(), "the footer says it");
+		importer.select_review();
+		settle();
+		expect(importer.findChild<QWidget*>(QStringLiteral("agentConfigurationReviewChanges")) != nullptr && importer.outcome() != nullptr
+				   && importer.outcome()->text().contains(QStringLiteral("changes 3 of your Settings › Review settings")) && importer.outcome()->text().contains(QStringLiteral("Threads width"))
+				   && importer.outcome()->text().contains(QStringLiteral("zoom")),
+			   "the detail lists each change and names what was held and what was left out");
+		auto values = QStringList{ };
+		for (auto* const value : importer.findChildren<QLabel*>(QStringLiteral("agentConfigurationReviewValue"))) {
+			values << value->text();
+		}
+		expect(values.contains(QStringLiteral("Medium → Narrow")) && values.contains(QStringLiteral("Reading width → 720 px")) && values.contains(QStringLiteral("Overview → Review")),
+			   "each change reads yours beside the file's");
+		render(importer, aRoot, QStringLiteral("import-review"));
+		auto* const leave = part(importer, QStringLiteral("Leave out"));
+		expect(leave != nullptr, "Review can be left out");
+		press_space(leave);
+		settle();
+		expect(!importer.review_choice() && !importer.apply_button()->isEnabled(), "left out, nothing is imported");
+
+		auto same = qt::agent_configuration_import_dialog{ previewOf(mine, R"({"format":"bpr.profile-settings","version":4,"exported_by":"","agents":[],"prompts":[],"review":{"reading_width":"medium"}})"), { } };
+		expect(same.review_plan() && same.review_plan()->Standing == core::import_standing::unchanged && !same.review_choice(), "the same settings: Unchanged, nothing to choose");
+
+		auto        empty   = qt::agent_configuration_import_dialog{ previewOf(mine, R"({"format":"bpr.profile-settings","version":4,"exported_by":"","agents":[],"prompts":[],"review":{"open_in":"sideways"}})"), { } };
+		auto* const nothing = row_named(empty, QStringLiteral("Review settings"));
+		expect(nothing != nullptr && nothing->data(Qt::CheckStateRole).isNull() && !empty.review_choice(), "a Review that sets nothing known cannot be imported");
+
+		auto none = qt::agent_configuration_import_dialog{ previewOf(mine, R"({"format":"bpr.profile-settings","version":3,"exported_by":"","agents":[],"prompts":[]})"), { } };
+		expect(!none.review_plan() && row_named(none, QStringLiteral("Review settings")) == nullptr, "a file without Review lists none");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -868,6 +938,7 @@ auto main(int argc, char** argv) -> int
 	test_export_prompt_pack(root);
 	test_import_prompt_pack(root);
 	test_theme_section(root);
+	test_review_section(root);
 	std::cout << "agent-configuration-dialogs:pass\n";
 	return EXIT_SUCCESS;
 }

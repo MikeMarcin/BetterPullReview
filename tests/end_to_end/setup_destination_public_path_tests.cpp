@@ -1426,7 +1426,7 @@ namespace {
 				text.remove(QStringLiteral("Native conversations retain their exact-head workspace and earlier agent context outside the Git cache."));
 			}
 			if (word.Where.startsWith(QStringLiteral("QLabel overviewNewConversationText ("))
-				|| word.Where.startsWith(QStringLiteral("QToolButton overviewGoToNewConversation ("))) {
+				|| word.Where.startsWith(QStringLiteral("QAbstractButton overviewGoToNewConversation ("))) {
 				text.remove(QStringLiteral("new comments in the conversation"));
 				text.remove(QStringLiteral("new comment in the conversation"));
 			}
@@ -1465,11 +1465,6 @@ namespace {
 			// [[BPR-2007]]. Clearing scratch folders keeps the agents' chats.
 			if (word.Where.startsWith(QStringLiteral("QPushButton settingsScratchClear ("))) {
 				text.remove(QStringLiteral("The agents' conversations stay."));
-			}
-			// [[BPR-2171]]. Discuss lists the whole pull request's
-			// conversation, as the Overview drawer names it (BPR-1781).
-			if (word.Where.startsWith(QStringLiteral("QToolButton discussColumnInfo ("))) {
-				text.remove(QStringLiteral("Discuss lists the conversation in a centred column this wide."));
 			}
 			// [[BPR-1773]], RFC-BPR-0094: the shipped asks on a conversation
 			// (a thread or a private note), now listed in Settings' Prompts

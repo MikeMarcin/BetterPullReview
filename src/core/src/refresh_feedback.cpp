@@ -1,6 +1,7 @@
 #include "bpr/core/refresh_feedback.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <limits>
 #include <type_traits>
 
@@ -171,6 +172,39 @@ namespace bpr::core {
 			return !quiet || any(aAfter.Changes) ? refresh_announcement::updated : refresh_announcement::none;
 		}
 		return refresh_announcement::none;
+	}
+
+	auto refresh_quiet(const refresh_state& aState) noexcept -> bool
+	{
+		return aState.Phase == refresh_phase::refreshing && quiet_trigger(aState.Trigger);
+	}
+
+	auto refresh_settled_cue(const refresh_state& aBefore, const refresh_state& aAfter) noexcept -> bool
+	{
+		if (aAfter.Phase != refresh_phase::updated || (aBefore.Phase != refresh_phase::refreshing && aAfter.SettledAt == aBefore.SettledAt)) {
+			return false;
+		}
+		return !quiet_trigger(aAfter.Trigger) || any(aAfter.Changes);
+	}
+
+	auto name(const refresh_cause aCause) noexcept -> std::string_view
+	{
+		const auto index = static_cast<std::size_t>(aCause);
+		return index < refresh_cause_names.size() ? refresh_cause_names[index] : std::string_view{ };
+	}
+
+	auto parse_refresh_cause_detail(std::string_view aDetail) noexcept -> std::optional<refresh_cause>
+	{
+		if (!aDetail.starts_with(refresh_cause_detail_prefix)) {
+			return std::nullopt;
+		}
+		aDetail.remove_prefix(refresh_cause_detail_prefix.size());
+		for (std::size_t index = 0U; index < refresh_cause_names.size(); ++index) {
+			if (refresh_cause_names[index] == aDetail) {
+				return static_cast<refresh_cause>(index);
+			}
+		}
+		return std::nullopt;
 	}
 
 	auto refresh_due_on_return(const refresh_state& aState, const std::int64_t aNow) noexcept -> bool

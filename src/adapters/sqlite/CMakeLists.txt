@@ -4,7 +4,6 @@ add_library(
         src/insights_storage.cpp
         src/remembered_connection_store.cpp
         src/review_tour_store.cpp
-        src/review_cycle_store.cpp
         src/release_update_store.cpp
         src/release_maintenance_files.cpp
         src/release_update_recovery_store.cpp

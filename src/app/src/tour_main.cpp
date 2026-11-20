@@ -1,4 +1,3 @@
-#include "cycle_cli.hpp"
 #include "installed_runtime.hpp"
 #include "local_draft_cli.hpp"
 #include "tour_cli.hpp"
@@ -62,19 +61,21 @@ int main(int aCount, char** aArguments)
 	QCoreApplication::setOrganizationName(QStringLiteral("BetterPullReview"));
 	QCoreApplication::setApplicationName(QStringLiteral("BetterPullReview"));
 	const auto arguments = QCoreApplication::arguments().mid(1);
-	// [[BPR-1185]]. `bpr` alone names both families. It printed the tour
-	// family's help, so `bpr cycle` could not be found from the terminal.
+	// [[BPR-1185]]. `bpr` alone names every family. It printed the tour
+	// family's help, so the others could not be found from the terminal.
 	if (arguments.isEmpty() || arguments == QStringList{ QStringLiteral("help") } || arguments == QStringList{ QStringLiteral("--help") }) {
 		std::fputs("bpr - BetterPullReview from a terminal\n"
 				   "bpr tour   review tours of a pull request (bpr tour capabilities)\n"
-				   "bpr cycle  local Review Cycles of a folder or file (bpr cycle capabilities)\n"
 				   "bpr draft  a local PR draft of a Git worktree (bpr draft capabilities)\n",
 				   stdout);
 		return 0;
 	}
-	// One executable, two command families on the same non-GUI composition.
+	// One executable, its command families on the same non-GUI composition.
+	// [[BPR-2308]]. `bpr cycle` is retired with Review Cycles; it says so
+	// and where to go rather than reading as an unknown tour command.
 	if (arguments.front() == QStringLiteral("cycle")) {
-		return bpr::app::run_cycle_cli(arguments.mid(1));
+		std::fputs("bpr cycle was removed: Review Cycles were retired in favour of local PR drafts (bpr draft capabilities).\n", stderr);
+		return 2;
 	}
 	// RFC-BPR-0108. The harness handoff to a local PR draft.
 	if (arguments.front() == QStringLiteral("draft")) {

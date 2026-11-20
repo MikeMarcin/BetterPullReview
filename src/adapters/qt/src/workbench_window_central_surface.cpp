@@ -22,7 +22,6 @@
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -2078,7 +2077,7 @@ namespace bpr::qt {
 			// [[BPR-1865]]. The owner, 2026-11-04: "I want to be able to fuzzy
 			// filter the home screen to quickly find a PR." One quiet line
 			// under the bar, above everything it filters: the Active review
-			// card, Review Cycles and every panel of the list. Command-F (the
+			// card, In preparation and every panel of the list. Command-F (the
 			// key moves here while Home shows, as Refresh does), "/" or a
 			// character typed in a list takes the keyboard to it.
 			HomeFilter = new home_filter_field{ HomePage };
@@ -2271,52 +2270,6 @@ namespace bpr::qt {
 				resume_home_draft(aItem == nullptr ? -1 : HomeDraftsList->row(aItem));
 			});
 
-			// [[BPR-1157]]. Review Cycles beside the pull request ways in: Open
-			// Project and the cycles this profile keeps, most recent first. It
-			// needs no account, so it stays whether or not one is signed in.
-			// RFC-BPR-0108 moves it below Home's sections, compact and
-			// secondary; File > Open Project… is unchanged.
-			HomeCycles = new QWidget{ HomePage };
-			HomeCycles->setObjectName(QStringLiteral("homeReviewCycles"));
-			HomeCycles->setAccessibleName(QStringLiteral("Review Cycles"));
-			HomeCycles->setContentsMargins(24, 4, 24, 4);
-			auto* const cyclesColumn = new QVBoxLayout{ HomeCycles };
-			cyclesColumn->setContentsMargins(0, 0, 0, 0);
-			auto* const cyclesHeader = new QHBoxLayout{ };
-			auto* const cyclesTitle  = new QLabel{ QStringLiteral("Review Cycles"), HomeCycles };
-			cyclesTitle->setObjectName(QStringLiteral("homeReviewCyclesTitle"));
-			cyclesHeader->addWidget(cyclesTitle);
-			cyclesHeader->addStretch(1);
-			auto* const openProject = new quiet_tool_button{ HomeCycles };
-			openProject->setObjectName(QStringLiteral("homeOpenProjectButton"));
-			openProject->setText(QStringLiteral("Open Project…"));
-			openProject->setToolTip(QStringLiteral("Review a local folder or file: no account, remote or agent needed"));
-			cyclesHeader->addWidget(openProject);
-			cyclesColumn->addLayout(cyclesHeader);
-			HomeCyclesList = new QListWidget{ HomeCycles };
-			HomeCyclesList->setObjectName(QStringLiteral("homeReviewCyclesList"));
-			HomeCyclesList->setAccessibleName(QStringLiteral("Recent review cycles"));
-			// [[BPR-1364]]. As every Home list: a single click selects, a
-			// double-click or Return opens. Return is read in `eventFilter`,
-			// because on macOS it is an item view's editing key.
-			HomeCyclesList->setAccessibleDescription(home_open_description());
-			HomeCyclesList->installEventFilter(this);
-			HomeCyclesList->setMaximumHeight(HomeCyclesList->fontMetrics().lineSpacing() * 3 + 8);
-			HomeCyclesList->hide();
-			cyclesColumn->addWidget(HomeCyclesList);
-			connect(openProject, &QToolButton::clicked, this, [this] {
-				if (OpenProjectAction != nullptr) {
-					OpenProjectAction->trigger();
-				}
-			});
-			connect(HomeCyclesList->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this] {
-				if (HomeSelection != home_selection_list::cycles) {
-					home_hide_selection(*HomeCyclesList);
-				}
-			});
-			connect(HomeCyclesList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* const aItem) {
-				resume_home_cycle(aItem == nullptr ? -1 : HomeCyclesList->row(aItem));
-			});
 			build_queue_landing(HomePage, *homeColumn);
 			if (auto* const landing = HomePage->findChild<QWidget*>(
 					QStringLiteral("reviewQueueLanding"), Qt::FindDirectChildrenOnly);
@@ -2326,7 +2279,6 @@ namespace bpr::qt {
 				landing->setContentsMargins(24, 0, 24, 12);
 				homeColumn->setStretchFactor(landing, 1);
 			}
-			homeColumn->addWidget(HomeCycles);
 			// [[BPR-1200]]. With no list to fill it, Home's slack is a fill below
 			// the last thing shown, as the accepted board puts it under the
 			// first-launch card, so a refusal or a load in progress is said

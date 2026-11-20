@@ -14,6 +14,7 @@
 #include <sqlite3.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <deque>
 #include <filesystem>
@@ -77,6 +78,59 @@ namespace {
 		auto stream = std::ofstream{ aPath, std::ios::binary | std::ios::trunc };
 		stream << aBytes;
 		return static_cast<bool>(stream);
+	}
+	/// [[BPR-2301]]. The Review section through the real workbench settings
+	/// stores: one profile's Settings › Review exported, imported into
+	/// another, written and read back; a file without Review changes nothing;
+	/// values out of bounds are held, not refused.
+	void review_settings_travel(const std::filesystem::path& aSender, const std::filesystem::path& aRecipient, const application::agent_configuration_snapshot& aSnapshot)
+	{
+		auto  senderStore              = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = aSender });
+		auto  sender                   = (*senderStore)->load_preferences({ });
+		auto& behaviour                = sender->Behaviour;
+		behaviour.OpenModality         = application::review_open_modality::last_used;
+		behaviour.MarkRead             = application::review_mark_read_behaviour::when_fully_seen;
+		behaviour.CommentsFilter       = application::review_comments_filter::unresolved;
+		behaviour.FeedbackMarks        = application::review_feedback_marks::letters;
+		behaviour.LineDetails          = application::review_line_details::hidden;
+		behaviour.CenterRibbonWidth    = 48U;
+		behaviour.ReadingWidth         = core::reading_width::medium;
+		behaviour.ReadingOverrides[1]  = core::reading_override_of(1480U);
+		behaviour.ReadingOverrides[2]  = core::reading_override{ .Kind = core::reading_override_kind::full };
+		behaviour.FinishReview.Approve = core::review_finish_return::pull_request;
+		const auto labels              = std::array{ core::feedback_label::issue, core::feedback_label::question };
+		behaviour.LabelColumns         = core::make_feedback_label_columns(labels).value();
+		expect((*senderStore)->store_preferences(*sender, { }).has_value(), "the sender's Review settings are stored");
+		const auto stored = (*senderStore)->load_preferences({ });
+		const auto review = application::portable_review_of(stored->Behaviour);
+		const auto bytes  = application::export_agent_configuration(aSnapshot, { }, { }, "Review", "BetterPullReview test", { }, nullptr, { }, nullptr, nullptr, &review);
+		expect(bytes && bytes->find("\"review\": {") != std::string::npos && bytes->find("\"discuss_width\": 1480") != std::string::npos, "the export carries the Review section");
+		const auto decoded = core::decode_agent_configuration(*bytes, { });
+		expect(decoded && decoded->Review && decoded->Review->Ignored.empty(), "the file reads back with its Review");
+
+		auto       recipientStore = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = aRecipient });
+		auto       recipient      = (*recipientStore)->load_preferences({ });
+		const auto here           = recipient->Behaviour;
+		const auto imported       = application::with_review(here, decoded->Review->Review);
+		expect(application::valid(imported) && imported == application::edited(stored->Behaviour), "the import makes the recipient's Review settings the sender's");
+		expect(application::review_differences(here, imported).size() == 11U, "each changed setting is named");
+		expect(core::plan_review_import(*decoded->Review, application::review_differences(here, imported).size()).Standing == core::import_standing::updated, "it is an update");
+		recipient->Behaviour = imported;
+		expect((*recipientStore)->store_preferences(*recipient, { }).has_value(), "the imported settings are stored");
+		expect((*recipientStore)->load_preferences({ })->Behaviour == imported, "and read back");
+
+		// A file without Review: nothing to import, nothing changes.
+		const auto bare = application::export_agent_configuration(aSnapshot, { }, { }, "Bare", "BetterPullReview test");
+		expect(bare && !core::decode_agent_configuration(*bare, { })->Review, "a file without Review has none");
+
+		// Out of bounds: held to Narrow's 720 and the ribbon's own bounds.
+		const auto odd = core::decode_agent_configuration(
+			R"({"format":"bpr.profile-settings","version":4,"exported_by":"","agents":[],"prompts":[],"review":{"threads_width":100,"center_ribbon_width":4000,"reading_width":"vast"}})", { });
+		expect(odd && odd->Review, "an out-of-range Review still reads");
+		const auto held = application::with_review(here, odd->Review->Review);
+		expect(application::valid(held) && held.ReadingOverrides[0] == core::reading_override_of(720U) && held.CenterRibbonWidth == application::maximum_center_ribbon_width
+				   && held.ReadingWidth == here.ReadingWidth,
+			   "a narrow width is held to 720, the ribbon to its widest, an unknown preset leaves the Reading width as it was");
 	}
 } // namespace
 
@@ -341,6 +395,7 @@ try {
 
 	host.shutdown();
 	expect(host.is_quiescent(), "quiescent after shutdown");
+	review_settings_travel(sender, recipient, *sender_snapshot);
 	std::cout << "agent-configuration-storage:pass\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {

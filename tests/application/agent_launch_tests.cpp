@@ -684,10 +684,10 @@ namespace {
 			std::vector<std::string>{ "app-server", "-c", "mcp_servers={}" },
 			std::vector<std::string>{ "exec", "--json", "-c", "mcp_servers={}", "-" },
 			std::vector<std::string>{
+				"-p",
 				"--strict-mcp-config",
 				"--mcp-config",
 				R"({"mcpServers":{}})",
-				"-p",
 				"--input-format",
 				"stream-json",
 				"--output-format",
@@ -1454,7 +1454,7 @@ namespace {
 	{
 		const auto claude   = profile(core::agent_protocol::claude_stream_json);
 		const auto launched = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", { } } });
-		expect(launched && launched->Arguments == std::vector<std::string>{ "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5" }
+		expect(launched && launched->Arguments == std::vector<std::string>{ "-p", "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5" }
 				   && launched->Metadata.Requested.Model == "claude-sonnet-5-5",
 			   "a requested Claude model is one argument after --model and is recorded as requested");
 		auto configured                  = claude;
@@ -1482,12 +1482,12 @@ namespace {
 	void test_claude_writing_argv_reads_the_account_sign_in()
 	{
 		const auto writing = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", { } }, .WritingOnly = true, .Path = core::agent_run_path::enhance_writing });
-		// [[BPR-2142]]. The restrictions, whose options take several values,
-		// come before `-p`.
-		const auto expected = std::vector<std::string>{ "--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "user",
+		// RFC-BPR-0104 AC11 (amended 2026-11-19, [[BPR-2306]]). `-p` first;
+		// each restriction that takes several values is closed by the next.
+		const auto expected = std::vector<std::string>{ "-p", "--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "user",
 														"--disable-slash-commands", "--no-session-persistence", "--settings",
 														R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})",
-														"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5" };
+														"--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5" };
 		expect(writing && writing->WritingOnly && writing->Arguments == expected, "writing argv is the exact restricted print-mode set");
 		expect(writing && std::ranges::find(writing->Arguments, "--bare") == writing->Arguments.end(), "writing never passes --bare, which would ignore the account sign-in");
 		for (const auto protocol : { core::agent_protocol::codex_app_server, core::agent_protocol::codex_jsonl_exec, core::agent_protocol::external_terminal }) {
@@ -1556,9 +1556,10 @@ namespace {
 		// No run gets the Skill tool: a read-only run is exactly BPR-1900's,
 		// whatever its prompt names, and Codex gets the skills inline too.
 		const auto readOnly = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement, reader(), { .ReadOnlyTools = true });
-		// [[BPR-2142]]. The restrictions come before `-p`.
-		auto expected = std::vector<std::string>{ application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end() };
-		expected.insert(expected.end(), { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
+		// RFC-BPR-0104 AC11 (amended 2026-11-19). `-p`, then the restrictions.
+		auto expected = std::vector<std::string>{ "-p" };
+		expected.insert(expected.end(), application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end());
+		expected.insert(expected.end(), { "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
 		expect(readOnly && readOnly->Arguments == expected && std::string{ readOnly->Input.begin(), readOnly->Input.end() }.find("FIXTURE_HUMANIZER_GUIDANCE") != std::string::npos,
 			   "a read-only run keeps its exact allowlist and receives the skill inline");
 		const auto codex = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), supplement, reader(), { .ReadOnlyTools = true });
@@ -1691,9 +1692,10 @@ namespace {
 	void test_read_only_tour_drafting()
 	{
 		const auto claude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true });
-		// [[BPR-2142]]. The restrictions come before `-p`.
-		auto expected = std::vector<std::string>{ application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end() };
-		expected.insert(expected.end(), { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
+		// RFC-BPR-0104 AC11 (amended 2026-11-19). `-p`, then the restrictions.
+		auto expected = std::vector<std::string>{ "-p" };
+		expected.insert(expected.end(), application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end());
+		expected.insert(expected.end(), { "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
 		expect(claude && claude->ReadOnlyTools && !claude->WritingOnly && claude->Arguments == expected, "a read-only run is print mode with the read-only allowlist");
 		expect(claude && std::ranges::find(claude->Arguments, "Read,Grep,Glob,Bash") != claude->Arguments.end() && std::ranges::find(claude->Arguments, "Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task") != claude->Arguments.end(),
 			   "it loads only read, search and shell, and denies edits, writes, the network and subagents");
@@ -2355,8 +2357,9 @@ namespace {
 		expect(none && claude, "both launch");
 		const auto has = [](const auto& aLaunch, const std::string& aArgument) { return std::ranges::contains(aLaunch->Arguments, aArgument); };
 		expect(!has(none, "--add-dir") && !has(none, "--allowedTools") && none->Arguments.size() + 0U < claude->Arguments.size(), "off: no allowance at all");
-		// [[BPR-2142]]. The grant's options, which take several values, come first.
-		auto expected = std::vector<std::string>{ "--add-dir", folder, "--allowedTools", "Write(/" + folder + "/**)", "Edit(/" + folder + "/**)" };
+		// RFC-BPR-0104 AC11 (amended 2026-11-19). `-p`, then the grant's
+		// options, which take several values, each closed by the next.
+		auto expected = std::vector<std::string>{ "-p", "--add-dir", folder, "--allowedTools", "Write(/" + folder + "/**)", "Edit(/" + folder + "/**)" };
 		for (const auto runner : application::claude_scratch_runners) {
 			expected.push_back("Bash(" + std::string{ runner } + " " + folder + "/*)");
 		}
@@ -2366,7 +2369,8 @@ namespace {
 		for (const auto runner : application::claude_scratch_runners) {
 			expected.push_back("Bash(" + std::string{ runner } + " */..*)");
 		}
-		expected.insert(expected.end(), none->Arguments.begin(), none->Arguments.end());
+		expect(none->Arguments.front() == "-p", "off: -p comes first");
+		expected.insert(expected.end(), std::next(none->Arguments.begin()), none->Arguments.end());
 		expect(claude->Arguments == expected, "Claude: the folder, write and edit under it, running files in it with an interpreter, and no parent step; nothing else");
 		// Review finding 2 (2026-11-11): no rule runs a file directly or
 		// changes a mode; both matched commands that wrote the workspace.
@@ -2416,6 +2420,54 @@ namespace {
 		}
 	}
 
+	// [[BPR-2307]] (owner, 2026-11-19: "Sure"). A custom Codex agent that
+	// relies on its launcher's sandbox: a granted run turns Codex's own
+	// sandbox off instead of passing the grant profile, and keeps no
+	// approvals, MCP off and the checkout untrusted; a read-only run stays
+	// read-only.
+	void test_codex_relies_on_the_launchers_sandbox()
+	{
+		const auto folder    = std::string{ "/data/bpr-agent-scratch-v1/0123abcd" };
+		const auto ws        = std::string{ "/data/agent workspaces/w1" };
+		const auto untrusted = "projects={\"" + ws + "\"={trust_level=\"untrusted\"}}";
+		const auto grant     = application::agent_launch_grant{ .ScratchFolder = folder, .BuildWorkspace = ws };
+		const auto off       = [](const std::string& aArgument) { return aArgument.find("danger-full-access") != std::string::npos; };
+		const auto profiled  = [](const std::string& aArgument) { return aArgument.starts_with("default_permissions=") || aArgument.starts_with("permissions."); };
+
+		const auto exec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(),
+														  { .Grant = grant, .RelyOnLauncherSandbox = true, .PullRequestCheckout = { ws } });
+		expect(exec.has_value(), "exec launches");
+		expect(!std::ranges::search(exec->Arguments, std::vector<std::string>{ "--sandbox", "danger-full-access", "-c", "approval_policy=\"never\"" }).empty(), "exec: Codex's own sandbox off, approvals never");
+		expect(std::ranges::none_of(exec->Arguments, profiled), "exec: no grant profile");
+		expect(std::ranges::contains(exec->Arguments, untrusted) && std::ranges::contains(exec->Arguments, std::string{ "mcp_servers={}" }) && exec->Arguments.back() == "-", "exec: untrusted checkout, MCP off, stdin");
+		expect(exec->Grant == std::optional{ grant } && std::string{ exec->Input.begin(), exec->Input.end() }.find(folder) != std::string::npos, "the agent is still told its folder");
+
+		const auto app = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(),
+														 { .Grant = grant, .RelyOnLauncherSandbox = true, .PullRequestCheckout = { ws } });
+		expect(app && app->Arguments == std::vector<std::string>{ "app-server", "-c", untrusted, "-c", "mcp_servers={}", "-c", "sandbox_mode=\"danger-full-access\"", "-c", "approval_policy=\"never\"" },
+			   "App Server: the same as configuration, nothing else changed");
+
+		// Off (the default), the grant profile as before.
+		const auto kept = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Grant = grant, .PullRequestCheckout = { ws } });
+		expect(kept && std::ranges::none_of(kept->Arguments, off) && std::ranges::any_of(kept->Arguments, profiled), "off: the grant profile, Codex's sandbox on");
+
+		// Read-only runs keep `--sandbox read-only`: the audit saw it hold
+		// inside the launcher's.
+		const auto tour = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .ReadOnlyTools = true, .RelyOnLauncherSandbox = true, .PullRequestCheckout = { ws } });
+		expect(tour && !std::ranges::search(tour->Arguments, std::vector<std::string>{ "--sandbox", "read-only" }).empty() && std::ranges::none_of(tour->Arguments, off), "read-only stays read-only");
+		const auto appTour = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), built_supplement(), reader(), { .ReadOnlyTools = true, .RelyOnLauncherSandbox = true, .PullRequestCheckout = { ws } });
+		expect(appTour && std::ranges::none_of(appTour->Arguments, off), "and on the App Server");
+
+		// Nothing granted: nothing turned off.
+		const auto plain = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .RelyOnLauncherSandbox = true });
+		expect(plain && std::ranges::none_of(plain->Arguments, off), "no grant: Codex keeps its own configuration");
+
+		// Only Codex.
+		expect(application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Grant = application::agent_launch_grant{ .ScratchFolder = folder }, .RelyOnLauncherSandbox = true }).error()
+				   == application::agent_launch_failure::invalid_profile,
+			   "Claude refuses it");
+	}
+
 	// RFC-BPR-0104, third review round F1 (2026-11-11, Codex 0.167.0 and
 	// Claude Code 2.1.319, live): in a checkout made from the pull request,
 	// Codex wrote `trust_level = "trusted"` for it into the reviewer's
@@ -2458,8 +2510,111 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-2305]]. Every event of `aKind` the decoder gives for a whole
+	/// stream, or its failure.
+	[[nodiscard]] auto decode_codex_stream(const std::string_view aStream) -> std::expected<std::vector<application::agent_protocol_event>, application::agent_protocol_failure>
+	{
+		auto decoder = application::agent_protocol_decoder{ core::agent_protocol::codex_jsonl_exec };
+		auto events  = decoder.push(aStream);
+		if (!events) {
+			return std::unexpected(events.error());
+		}
+		const auto trailing = decoder.finish();
+		if (!trailing) {
+			return std::unexpected(trailing.error());
+		}
+		events->insert(events->end(), trailing->begin(), trailing->end());
+		return events;
+	}
+
+	[[nodiscard]] auto events_of(const std::vector<application::agent_protocol_event>& aEvents, const application::agent_protocol_event_kind aKind) -> std::vector<application::agent_protocol_event>
+	{
+		auto kept = std::vector<application::agent_protocol_event>{ };
+		std::ranges::copy_if(aEvents, std::back_inserter(kept), [aKind](const application::agent_protocol_event& aEvent) { return aEvent.Kind == aKind; });
+		return kept;
+	}
+
+	/// [[BPR-2305]]. A stream shaped like Codex 0.167.2's through a sandbox
+	/// launcher (its content invented): two configuration warnings as
+	/// `error` items between `thread.started` and `turn.started`. It decodes
+	/// to the answer, with the two warnings beside it; a warning in the turn
+	/// is read the same way. A turn that fails still fails, warnings or not.
+	void test_codex_jsonl_reads_warnings_before_the_turn()
+	{
+		const auto warned = std::string{
+			"{\"type\":\"thread.started\",\"thread_id\":\"thread-41\"}\n"
+			"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Codex is ignoring 1 unrecognized configuration setting: `retired_option` in the managed config.\"}}\n"
+			"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"error\",\"message\":\"Codex is ignoring 1 unrecognized configuration setting: `retired_option` in the user config.\"}}\n"
+			"{\"type\":\"turn.started\"}\n"
+			"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\",\"type\":\"agent_message\",\"text\":\"The change renames the cache key.\"}}\n"
+			"{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":10,\"output_tokens\":5}}\n"
+		};
+		const auto decoded = decode_codex_stream(warned);
+		expect(decoded.has_value(), "a stream that starts with warning items decodes");
+		const auto outputs  = events_of(*decoded, application::agent_protocol_event_kind::output);
+		const auto warnings = events_of(*decoded, application::agent_protocol_event_kind::harness_warning);
+		expect(outputs.size() == 1U && outputs.front().Text == "The change renames the cache key.", "to the answer");
+		expect(warnings.size() == 2U && warnings[0].Text.find("managed config") != std::string::npos && warnings[1].Text.find("user config") != std::string::npos && warnings[0].Item == "item_0",
+			   "with the two warnings, in order");
+
+		const auto inTurn = decode_codex_stream("{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n{\"type\":\"turn.started\"}\n"
+												"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\""
+												+ std::string(2000U, 'w') + "\"}}\n"
+																			"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"agent_message\",\"text\":\"done\"}}\n"
+																			"{\"type\":\"turn.completed\",\"usage\":{}}\n");
+		expect(inTurn && events_of(*inTurn, application::agent_protocol_event_kind::harness_warning).size() == 1U
+				   && events_of(*inTurn, application::agent_protocol_event_kind::harness_warning).front().Text.size() == application::maximum_agent_harness_warning_bytes,
+			   "a warning in the turn is one too, cut to its bound");
+
+		const auto failed = decode_codex_stream(warned.substr(0U, warned.find("{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\"")) + "{\"type\":\"turn.failed\",\"error\":{\"message\":\"stream disconnected\"}}\n");
+		expect(!failed && failed.error() == application::agent_protocol_failure::remote_failed, "a turn that fails after warnings still fails");
+		const auto errored = decode_codex_stream(warned.substr(0U, warned.find("{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\"")) + "{\"type\":\"error\",\"message\":\"stream error\"}\n");
+		expect(!errored && errored.error() == application::agent_protocol_failure::remote_failed, "and a top-level error in the turn still ends it (kept: no recovered stream was captured)");
+		const auto other = decode_codex_stream("{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"agent_message\",\"text\":\"early\"}}\n");
+		expect(!other && other.error() == application::agent_protocol_failure::malformed_frame, "before the turn only a warning item is read");
+		const auto ended = decode_codex_stream("{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"w\"}}\n");
+		expect(!ended, "a stream that ends after its warnings, with no turn, is not an answer");
+	}
+
+	/// [[BPR-2305]]. A file change names each path and how it ended; a turn
+	/// whose changes all failed is told apart from one that wrote.
+	void test_codex_jsonl_names_failed_file_changes()
+	{
+		const auto stream = std::string{
+			"{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n{\"type\":\"turn.started\"}\n"
+			"{\"type\":\"item.started\",\"item\":{\"id\":\"item_1\",\"type\":\"file_change\",\"changes\":[{\"path\":\"/work/scratch/notes.txt\",\"kind\":\"add\"}],\"status\":\"in_progress\"}}\n"
+			"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"file_change\",\"changes\":[{\"path\":\"/work/scratch/notes.txt\",\"kind\":\"add\"},{\"path\":\"/work/scratch/plan.md\",\"kind\":\"update\"}],\"status\":\"failed\"}}\n"
+			"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\",\"type\":\"agent_message\",\"text\":\"I wrote the notes.\"}}\n"
+			"{\"type\":\"turn.completed\",\"usage\":{}}\n"
+		};
+		const auto decoded = decode_codex_stream(stream);
+		expect(decoded.has_value(), "a turn with failed file changes still decodes");
+		const auto changes = events_of(*decoded, application::agent_protocol_event_kind::file_change_result);
+		expect(changes.size() == 2U && changes[0].Text == "/work/scratch/notes.txt" && changes[1].Text == "/work/scratch/plan.md" && changes[0].Item == "failed" && changes[1].Item == "failed",
+			   "each path of a failed change, once it ended");
+
+		auto result             = application::agent_run_result{ };
+		result.FailedWriteCount = 2U;
+		result.FailedWrites     = { "/work/scratch/notes.txt", "/work/scratch/plan.md" };
+		expect(application::writes_all_failed(result), "every change failed");
+		result.CompletedWriteCount = 1U;
+		expect(!application::writes_all_failed(result), "one written path is not that");
+		expect(!application::writes_all_failed(application::agent_run_result{ }), "nor is a turn that changed nothing");
+
+		auto diagnosis         = application::agent_run_diagnosis{ .Protocol = core::agent_protocol::codex_jsonl_exec, .Outcome = application::agent_run_outcome::success, .StandardOutputBytes = 10U };
+		diagnosis.Warnings     = 2U;
+		diagnosis.WritesFailed = 2U;
+		const auto line        = application::describe(diagnosis);
+		expect(line.ends_with(" warnings=2 writes_failed=2 writes_written=0") && line.find("scratch") == std::string::npos, "the diagnostic counts warnings and failed writes, never their text");
+		expect(application::parse_agent_run_diagnosis(line) == std::optional{ diagnosis }, "and reads back exactly");
+	}
+} // namespace
+
 auto main() -> int
 {
+	test_codex_jsonl_reads_warnings_before_the_turn();
+	test_codex_jsonl_names_failed_file_changes();
 	test_run_correlation_keeps_stale_facts_without_misattribution();
 	test_runtime_metadata_is_field_bound_and_never_inferred();
 	test_metadata_refuses_malformed_and_excess_facts();
@@ -2495,6 +2650,7 @@ auto main() -> int
 	test_process_and_staleness_outcomes_remain_distinct();
 	test_private_prose_crosses_only_through_the_session_keyed_optin();
 	test_the_grant_crosses_exactly();
+	test_codex_relies_on_the_launchers_sandbox();
 	test_the_pull_requests_own_settings_never_load();
 	std::cout << "agent-launch-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -1,9 +1,12 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_RUN_POLICY_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_RUN_POLICY_HPP
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
+#include <string>
 #include <string_view>
 
 /// \file
@@ -12,6 +15,7 @@
 /// agent's own MCP servers load ([[BPR-2139]], RFC-BPR-0104), and how a
 /// built-in prompt's instructions reach the agent ([[BPR-2140]],
 /// RFC-BPR-0107). Pure: the host reads these when it builds a launch.
+/// [[BPR-2304]]: and the rules every Claude launch's own arguments keep.
 namespace bpr::core {
 	/// \brief Whether a run keeps a conversation.
 	enum class agent_session_mode : std::uint8_t {
@@ -56,8 +60,6 @@ namespace bpr::core {
 		tour_conversation,
 		/// A local draft's discussion.
 		local_draft_discussion,
-		/// A Review Cycle round.
-		review_cycle_round,
 		/// A self-review or fix loop.
 		self_review_loop,
 		/// An address-feedback run.
@@ -66,7 +68,7 @@ namespace bpr::core {
 		/// a thread: fresh, its earlier rounds carried in its message.
 		follow_up,
 	};
-	inline constexpr std::size_t agent_run_path_count = 17U;
+	inline constexpr std::size_t agent_run_path_count = 16U;
 	static_assert(static_cast<std::size_t>(agent_run_path::follow_up) + 1U == agent_run_path_count, "agent_run_path_count must cover every launch path");
 
 	[[nodiscard]] auto stable_name(agent_run_path aPath) noexcept -> std::string_view;
@@ -91,7 +93,6 @@ namespace bpr::core {
 		case agent_run_path::tour_side_chat:
 		case agent_run_path::tour_conversation:
 		case agent_run_path::local_draft_discussion:
-		case agent_run_path::review_cycle_round:
 		case agent_run_path::self_review_loop:
 		case agent_run_path::address_feedback_run:
 			return agent_session_mode::resumed;
@@ -120,7 +121,6 @@ namespace bpr::core {
 		case agent_run_path::tour_side_chat:
 		case agent_run_path::tour_conversation:
 		case agent_run_path::local_draft_discussion:
-		case agent_run_path::review_cycle_round:
 		case agent_run_path::self_review_loop:
 		case agent_run_path::address_feedback_run:
 		case agent_run_path::follow_up:
@@ -165,6 +165,69 @@ namespace bpr::core {
 	/// Windows command line (32,767 characters with everything else on it)
 	/// never overflows.
 	inline constexpr std::size_t maximum_system_prompt_argument_bytes = 24U * 1024U;
+
+	/// \brief [[BPR-2142]], [[BPR-2304]]. The Claude options that take
+	/// several values, as Claude Code 2.1.322's help lists them. Each takes
+	/// every following argument up to the next option as one more value, so
+	/// one left open takes the prompt, or whatever a wrapper adds after it.
+	inline constexpr std::array<std::string_view, 9> claude_variadic_options = {
+		"--add-dir", "--allowedTools", "--allowed-tools", "--disallowedTools", "--disallowed-tools", "--tools", "--mcp-config", "--betas", "--file"
+	};
+
+	/// \brief [[BPR-2139]]. The MCP configuration an MCP-off Claude launch
+	/// names, with `--strict-mcp-config`: no server at all.
+	inline constexpr std::string_view claude_empty_mcp_configuration = R"({"mcpServers":{}})";
+
+	/// \brief [[BPR-2304]]. What a Claude launch's own arguments must keep,
+	/// beyond the rules every launch keeps.
+	struct claude_argument_expectation
+	{
+		/// Only the user's own settings load (`--setting-sources user`): a
+		/// pull request's checkout, a tool-free writing or read-only run.
+		bool UserSettingsOnly = false;
+		/// No MCP server loads: `--strict-mcp-config` and only the empty
+		/// configuration.
+		bool McpOff = false;
+	};
+
+	/// \brief [[BPR-2304]]. The first rule a Claude launch's arguments break.
+	enum class claude_argument_problem : std::uint8_t {
+		/// Neither `-p` nor `--print`: the run would be interactive.
+		no_print_mode,
+		/// `--append-system-prompt-file` or `--system-prompt-file`. Through
+		/// a wrapper the file form is dropped without a word, and the agent
+		/// may spend turns looking for the file; only the inline form is used.
+		instructions_file,
+		/// An option that takes several values is not followed by another
+		/// option (RFC-BPR-0104 AC11, amended 2026-11-19: where it stands,
+		/// before or after `-p`, makes no difference).
+		open_variadic,
+		/// A `Write(...)` permission rule with no `Edit(...)` rule for the
+		/// same path. Claude applies a path-scoped write permission only
+		/// through the `Edit` rule; a `Write` rule alone writes nothing.
+		write_rule_without_edit,
+		/// A `--setting-sources` that names a source other than `user`: the
+		/// working folder's, which in a pull request's checkout is the pull
+		/// request's own.
+		project_settings,
+		/// The launch must read only the user's settings and names no
+		/// `--setting-sources user`.
+		settings_not_user_only,
+		/// The launch must load no MCP server and lacks the strict empty
+		/// configuration, or names another one.
+		mcp_not_off,
+	};
+	[[nodiscard]] auto stable_name(claude_argument_problem aProblem) noexcept -> std::string_view;
+
+	/// \brief [[BPR-2304]]. Checks the arguments this app gives a Claude
+	/// stream-JSON launch, before an added agent's fixed arguments go in
+	/// front of them, against what the owner's harness audits established
+	/// (2026-11-13 and 2026-11-19).
+	///
+	/// \details Pure and deterministic: the first problem in the order of
+	/// `claude_argument_problem`, or none. The host refuses a launch that
+	/// breaks one rather than starting it.
+	[[nodiscard]] auto inspect_claude_arguments(std::span<const std::string> aArguments, claude_argument_expectation aExpected) -> std::optional<claude_argument_problem>;
 } // namespace bpr::core
 
 #endif

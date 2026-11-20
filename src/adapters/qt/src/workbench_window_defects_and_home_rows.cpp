@@ -9,7 +9,6 @@
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/refresh_note.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "workbench_window_support.hpp"
 
@@ -424,7 +423,7 @@ namespace bpr::qt {
 		}
 		// [[BPR-1865]]. The filter stands while Home has rows to filter.
 		if (HomeFilter != nullptr) {
-			const auto rows = HomeAccount || !RecentReviews.Entries.empty() || !CycleRecents.empty();
+			const auto rows = HomeAccount || !RecentReviews.Entries.empty();
 			if (!rows && !HomeFilter->query().isEmpty()) {
 				HomeFilter->clear_query();
 			}
@@ -460,7 +459,6 @@ namespace bpr::qt {
 			HomeList->set_selection_shown(aList == home_selection_list::queue);
 		}
 		for (const auto& [list, view] : { std::pair{ home_selection_list::recent, static_cast<QAbstractItemView*>(HomeRecentList) },
-										  std::pair{ home_selection_list::cycles, static_cast<QAbstractItemView*>(HomeCyclesList) },
 										  std::pair{ home_selection_list::drafts, static_cast<QAbstractItemView*>(HomeDraftsList) } }) {
 			if (view == nullptr) {
 				continue;
@@ -479,13 +477,6 @@ namespace bpr::qt {
 	{
 		if (aRow >= 0 && static_cast<std::size_t>(aRow) < DraftHome.InPreparation.size() && ResumeDraftDispatch) {
 			ResumeDraftDispatch(DraftHome.InPreparation[static_cast<std::size_t>(aRow)].Id);
-		}
-	}
-
-	void workbench_window::resume_home_cycle(const int aRow)
-	{
-		if (aRow >= 0 && static_cast<std::size_t>(aRow) < CycleRecents.size() && ResumeCycleDispatch) {
-			ResumeCycleDispatch(CycleRecents[static_cast<std::size_t>(aRow)].Cycle.Subject);
 		}
 	}
 
@@ -577,21 +568,6 @@ namespace bpr::qt {
 			const auto* const key = static_cast<QKeyEvent*>(aEvent);
 			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier)) {
 				resume_home_draft(HomeDraftsList->currentRow());
-				return true;
-			}
-		}
-		if (aWatched == HomeCyclesList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
-			const auto* const key = static_cast<QKeyEvent*>(aEvent);
-			// [[BPR-1865]]. As in every Home list, "/" or a character typed
-			// goes to the filter.
-			if (const auto typed = key->text(); HomeFilter != nullptr && HomeFilter->isVisible() && !typed.isEmpty() && typed.front().isPrint() && !typed.front().isSpace()
-				&& (key->modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) == Qt::NoModifier) {
-				HomeFilter->take_typing(typed == QStringLiteral("/") ? QString{ } : typed);
-				return true;
-			}
-			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
-				&& (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier)) {
-				resume_home_cycle(HomeCyclesList->currentRow());
 				return true;
 			}
 		}
@@ -1617,9 +1593,11 @@ namespace bpr::qt {
 		if (SessionPanel == nullptr) {
 			return;
 		}
-		const auto reading    = SessionPanel->status() == core::github_status::loading_pull_request;
-		const auto first      = reading && !HasGithubPullRequest && !HasCachedOverview;
-		const auto refreshing = reading && HasGithubPullRequest;
+		const auto reading = SessionPanel->status() == core::github_status::loading_pull_request;
+		const auto first   = reading && !HasGithubPullRequest && !HasCachedOverview;
+		// [[BPR-2315]]. A read the reviewer did not ask for never washes over
+		// what they read: it lands in place.
+		const auto refreshing = reading && HasGithubPullRequest && !core::refresh_quiet(PullRefresh);
 		if (!reading) {
 			RefreshConversationCurrent = false;
 		}
@@ -1699,13 +1677,19 @@ namespace bpr::qt {
 		}
 	}
 
-	void workbench_window::run_automatic_refresh(const std::function<void()>& aDispatch)
+	void workbench_window::run_automatic_refresh(const core::refresh_cause aCause, const std::function<void()>& aDispatch)
 	{
-		AutomaticRefreshNoted = true;
+		const auto outer      = AutomaticRefreshCause;
+		AutomaticRefreshCause = aCause;
 		if (aDispatch) {
 			aDispatch();
 		}
-		AutomaticRefreshNoted = false;
+		AutomaticRefreshCause = outer;
+	}
+
+	auto workbench_window::automatic_refresh_cause() const noexcept -> std::optional<core::refresh_cause>
+	{
+		return AutomaticRefreshCause;
 	}
 
 	auto workbench_window::pull_request_refresh() const noexcept -> const core::refresh_state&
@@ -1746,6 +1730,10 @@ namespace bpr::qt {
 		const auto  age   = state.UpdatedAt.has_value() ? refresh_age_words(core::refresh_age_at(*state.UpdatedAt, refresh_clock())) : QString{ };
 		switch (state.Phase) {
 		case core::refresh_phase::refreshing:
+			// [[BPR-2315]]. A quiet read leaves the words as they were.
+			if (!home && core::refresh_quiet(state)) {
+				return age.isEmpty() ? QString{ } : QStringLiteral("Updated %1").arg(age);
+			}
 			return state.Trigger == core::refresh_trigger::reviewer ? QStringLiteral("Refreshing…") : QStringLiteral("Updating…");
 		case core::refresh_phase::failed:
 			return age.isEmpty() ? QStringLiteral("Not refreshed") : QStringLiteral("Not refreshed · updated %1").arg(age);
@@ -1790,7 +1778,7 @@ namespace bpr::qt {
 			RefreshEnded.reset();
 			RefreshConversationCurrent = false;
 			RefreshBaseline            = RefreshLatest;
-			apply_refresh_event(false, core::refresh_started{ .Trigger = AutomaticRefreshNoted ? core::refresh_trigger::automatic : core::refresh_trigger::reviewer });
+			apply_refresh_event(false, core::refresh_started{ .Trigger = AutomaticRefreshCause.has_value() ? core::refresh_trigger::automatic : core::refresh_trigger::reviewer });
 			return;
 		}
 		RefreshEnded = aRead;

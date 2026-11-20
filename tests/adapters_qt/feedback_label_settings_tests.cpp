@@ -24,12 +24,15 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
 
+#include <QAccessible>
 #include <QApplication>
 #include <QCheckBox>
 #include <QFontMetrics>
+#include <QFrame>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLayout>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPalette>
@@ -603,8 +606,14 @@ namespace {
 			expect(contrast(at(chosen, 3, selected->height() / 2), ground) > 1.0 && contrast(at(chosen, 3, selected->height() / 2), ground) <= 1.35,
 				   "its fill stays a quiet tint");
 			expect(at(bare, 0, other->height() / 2) == ground && at(bare, 3, other->height() / 2) == ground, "the other choice is bare");
-			const auto raised = imageOf(*reset);
-			expect(contrast(at(raised, 0, reset->height() / 2), ground) >= 3.0, "Reset is a quiet raised action even though it is not checkable");
+			// [[BPR-2302]]. Reset sits on its card's header strip, the
+			// raised `Light` ground, and its border is read against that.
+			const auto strip  = reset->palette().color(QPalette::Light);
+			auto       raised = QImage{ reset->size() * 2, QImage::Format_ARGB32_Premultiplied };
+			raised.setDevicePixelRatio(2.0);
+			raised.fill(strip);
+			reset->render(&raised, QPoint{ }, QRegion{ }, QWidget::DrawChildren);
+			expect(contrast(at(raised, 0, reset->height() / 2), strip) >= 3.0, "Reset is a quiet raised action even though it is not checkable");
 			other->setAttribute(Qt::WA_UnderMouse, true);
 			const auto hovered = imageOf(*other);
 			expect(at(hovered, 3, other->height() / 2) != ground, "an enabled hover has feedback");
@@ -677,11 +686,121 @@ namespace {
 		}
 		expect(phrases.size() == core::feedback_label_count, "the twelve phrases differ");
 	}
+
+	/// \brief [[BPR-2302]]. A Review or Comments section: its page, Reset
+	/// and title.
+	struct settings_section
+	{
+		qt::settings_page Page;
+		const char*       Reset;
+		const char*       Title;
+	};
+
+	constexpr auto review_and_comments_sections = std::array{
+		settings_section{ qt::settings_page::review, "resetOpening", "Opening" },
+		settings_section{ qt::settings_page::review, "resetReadingBehaviour", "Reading" },
+		settings_section{ qt::settings_page::review, "resetFinishReview", "Finishing a review" },
+		settings_section{ qt::settings_page::review, "resetLayout", "Layout" },
+		settings_section{ qt::settings_page::comments, "resetCommentLabels", "Labels" },
+		settings_section{ qt::settings_page::comments, "resetCommentWorkshop", "Comment workshop" },
+		settings_section{ qt::settings_page::comments, "resetDescriptionsAndComments", "Descriptions and comments" },
+	};
+
+	/// \brief [[BPR-2302]]. The owner, 2026-11-19: "the review settings page
+	/// has these things that look like they are section headers but they
+	/// don't look like section headers", "Actually it looks like comments
+	/// has this too", and "take the section header style from the appearance
+	/// menu and port it to those two menus". Every Review and Comments
+	/// section is the card Appearance draws: the same frame, the same raised
+	/// header strip and margins, the same semibold title announced as a
+	/// heading, and its Reset in the header. Negative controls: a row's name
+	/// stays an ordinary label, and no other bold label on either page poses
+	/// as a heading outside a card's header.
+	void test_review_and_comments_sections_wear_the_appearance_header()
+	{
+		fixture     f;
+		auto* const settings = f.Window.settings();
+		settings->resize(1'100, 900);
+		settings->present(qt::settings_page::appearance);
+		settle();
+		auto* const appearanceCard   = f.Window.findChild<QFrame*>(QStringLiteral("appearanceThemeCard"));
+		auto* const appearanceHeader = f.Window.findChild<QWidget*>(QStringLiteral("appearanceThemeCardHeader"));
+		auto* const appearanceTitle  = f.Window.findChild<QLabel*>(QStringLiteral("appearanceThemeCardTitle"));
+		expect(appearanceCard != nullptr && appearanceHeader != nullptr && appearanceTitle != nullptr, "Appearance's Theme card is the reference");
+		const auto headingRole = [](QLabel* const aTitle) {
+			auto* const accessible = QAccessible::queryAccessibleInterface(aTitle);
+			return accessible != nullptr && accessible->role() == QAccessible::Heading && accessible->text(QAccessible::Name) == aTitle->text();
+		};
+		expect(headingRole(appearanceTitle), "Appearance's section title is announced as a heading, by its words");
+		for (const auto& section : review_and_comments_sections) {
+			const auto  reset  = QString::fromLatin1(section.Reset);
+			auto* const page   = settings->page_widget(section.Page);
+			auto* const card   = f.Window.findChild<QFrame*>(reset + QStringLiteral("Card"));
+			auto* const header = f.Window.findChild<QWidget*>(reset + QStringLiteral("CardHeader"));
+			auto* const title  = f.Window.findChild<QLabel*>(reset + QStringLiteral("Heading"));
+			auto* const button = f.find(section.Reset);
+			const auto  named  = std::string{ section.Title };
+			expect(card != nullptr && header != nullptr && title != nullptr && button != nullptr && page->isAncestorOf(card),
+				   named + ": the section is a card on its page");
+			expect(title->text() == QString::fromLatin1(section.Title) && card->accessibleName() == title->text(), named + ": the card is named for its title");
+			expect(card->frameShape() == appearanceCard->frameShape() && card->frameShadow() == appearanceCard->frameShadow(), named + ": the card's frame is Appearance's");
+			expect(title->parentWidget() == header && button->parentWidget() == header && header->parentWidget() == card,
+				   named + ": the title and its Reset sit in the card's header");
+			expect(header->autoFillBackground() && header->backgroundRole() == appearanceHeader->backgroundRole()
+					   && header->layout()->contentsMargins() == appearanceHeader->layout()->contentsMargins(),
+				   named + ": the header strip is Appearance's, ground and margins");
+			expect(title->font().weight() == appearanceTitle->font().weight() && title->font().pointSizeF() == appearanceTitle->font().pointSizeF()
+					   && title->font().family() == appearanceTitle->font().family(),
+				   named + ": the title's face is Appearance's");
+			expect(headingRole(title), named + ": the title is announced as a heading");
+		}
+		for (const auto page : { qt::settings_page::review, qt::settings_page::comments }) {
+			for (auto* const label : settings->page_widget(page)->findChildren<QLabel*>()) {
+				// The page's own title is the one heading above the cards.
+				if (label->font().weight() >= QFont::DemiBold && !label->text().isEmpty() && label->objectName() != QStringLiteral("settingsPageTitle")) {
+					expect(label->parentWidget() != nullptr && label->parentWidget()->objectName().endsWith(QStringLiteral("CardHeader")),
+						   "no bold label poses as a heading outside a card's header: " + label->objectName().toStdString());
+				}
+			}
+		}
+		auto* const rowName = f.Window.findChild<QLabel*>(QStringLiteral("markReadLabel"));
+		expect(rowName != nullptr && rowName->font().weight() < QFont::DemiBold && !headingRole(rowName), "a row's name is an ordinary label, not a heading");
+	}
+
+	/// \brief [[BPR-2302]]. `--section-headers-render FOLDER` saves every
+	/// Settings page in Light and Dark, so Review's and Comments' sections can
+	/// be set beside Appearance's and the other pages' headings.
+	void render_section_headers(const QString& aFolder)
+	{
+		fixture     f;
+		auto* const settings = f.Window.settings();
+		settings->resize(980, 900);
+		const auto original = f.Window.palette();
+		const auto ratio    = QString::number(settings->devicePixelRatioF(), 'f', 1);
+		for (const auto& [mode, scheme] : { std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" } }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			f.Window.setPalette(profile.derive(original));
+			for (auto index = std::size_t{ 0U }; index < qt::settings_page_count; ++index) {
+				const auto page = static_cast<qt::settings_page>(index);
+				const auto name = qt::settings_page_title(page).toLower().remove(QLatin1Char{ ' ' }).remove(QLatin1Char{ '&' });
+				settings->present(page);
+				settle();
+				expect(settings->grab().save(QStringLiteral("%1/%2-%3-%4x.png").arg(aFolder, name, QString::fromLatin1(scheme), ratio)), "the render saves");
+			}
+		}
+		f.Window.setPalette(original);
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (argc > 2 && std::string_view{ argv[1] } == "--section-headers-render") {
+		render_section_headers(QString::fromLocal8Bit(argv[2]));
+		std::cout << "feedback-label-settings:rendered\n";
+		return EXIT_SUCCESS;
+	}
 	test_the_section_offers_every_row_with_safe_defaults();
 	test_the_helper_switch_follows_the_published_record();
 	test_every_row_reverts_to_the_published_record();
@@ -693,6 +812,7 @@ auto main(int argc, char** argv) -> int
 	test_about_conventional_comments_names_the_page();
 	test_the_comment_workshop_group();
 	test_settings_choices_share_the_overview_treatment();
+	test_review_and_comments_sections_wear_the_appearance_header();
 	std::cout << "feedback-label-settings-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString()
 			  << " style=" << QApplication::style()->name().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 	return EXIT_SUCCESS;

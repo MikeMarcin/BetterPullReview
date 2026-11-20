@@ -1,5 +1,4 @@
 #include "github_application/fixture_course_support.hpp"
-#include "review_cycle_desktop.hpp"
 #include "review_submission_workflow.hpp"
 
 #if defined(BPR_AGENT_INTEGRATIONS)

@@ -52,6 +52,7 @@ namespace bpr::app {
 		}
 		RereadOwed  = true;
 		RereadQuiet = false;
+		RereadCause = core::refresh_cause::publication;
 		schedule_publication_reread();
 	}
 
@@ -67,13 +68,14 @@ namespace bpr::app {
 	/// \brief [[BPR-1867]]. Something changed on GitHub that this window
 	/// shows, or it came back to an aged read: one reread is owed, as
 	/// after a publication, but it may wait while the reviewer writes.
-	void github_application::implementation::reread_for_news()
+	void github_application::implementation::reread_for_news(const core::refresh_cause aCause)
 	{
 		if (Closing) {
 			return;
 		}
 		if (!RereadOwed) {
 			RereadQuiet = true;
+			RereadCause = aCause;
 		}
 		RereadOwed = true;
 		schedule_publication_reread();
@@ -128,7 +130,8 @@ namespace bpr::app {
 		if (WindowRead->accepted_snapshot()) {
 			// [[BPR-1575]]. Presented as the application's own update, not the
 			// reviewer's Refresh.
-			Window->run_automatic_refresh([this] { WindowRead->dispatch(core::github_window_read_event{ core::refresh_pull_request_intent{ } }); });
+			// [[BPR-2315]]. Its line in the diagnostic log names what owed it.
+			Window->run_automatic_refresh(RereadCause, [this, cause = RereadCause] { WindowRead->dispatch(core::github_window_read_event{ core::refresh_pull_request_intent{ } }, cause); });
 		}
 	}
 
@@ -386,7 +389,13 @@ namespace bpr::app {
 						if (std::is_same_v<intent_type, core::open_pull_request_intent> && Window != nullptr) {
 							Window->begin_review_open();
 						}
-						WindowRead->dispatch(core::github_window_read_event{ std::move(aValue) });
+						// [[BPR-2315]]. A refresh names what asked for it in its
+						// diagnostic line: the reviewer, unless the window runs
+						// it for the application.
+						const auto cause = std::is_same_v<intent_type, core::refresh_pull_request_intent>
+							? std::optional{ Window != nullptr ? Window->automatic_refresh_cause().value_or(core::refresh_cause::reviewer) : core::refresh_cause::reviewer }
+							: std::nullopt;
+						WindowRead->dispatch(core::github_window_read_event{ std::move(aValue) }, cause);
 					} else {
 						Host->dispatch(core::github_event{ std::move(aValue) });
 					}

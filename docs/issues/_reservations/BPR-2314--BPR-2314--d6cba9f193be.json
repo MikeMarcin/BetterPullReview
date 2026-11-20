@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2314"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "overview status lines, faces and conflicts row are clickable",
+  "created": "2026-11-20T08:31:36.305184+00:00",
+  "base": "c937eab1bb8b19292aeee34f68d513eaffc990f3"
+}

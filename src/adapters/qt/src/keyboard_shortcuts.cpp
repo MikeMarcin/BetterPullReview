@@ -17,17 +17,15 @@ namespace bpr::qt {
 
 		/// \brief Where the Updates line's history keys act: the epoch control
 		/// binds them with widget-with-children scope.
-		constexpr auto in_updates   = std::string_view{ "In the Updates control" };
-		constexpr auto in_code      = std::string_view{ "In a code pane" };
-		constexpr auto in_files     = std::string_view{ "In Overview's files" };
-		constexpr auto in_draft     = std::string_view{ "In a comment draft" };
-		constexpr auto in_query     = std::string_view{ "In the Find query" };
-		constexpr auto in_results   = std::string_view{ "In Find in files' results" };
-		constexpr auto in_pending   = std::string_view{ "In Finish your review's comments" };
-		constexpr auto in_outline   = std::string_view{ "In the tour outline" };
-		constexpr auto in_editor    = std::string_view{ "In the tour editor" };
-		constexpr auto in_cycle     = std::string_view{ "In a Review Cycle's code" };
-		constexpr auto in_cycle_box = std::string_view{ "In a Review Cycle note or suggestion" };
+		constexpr auto in_updates = std::string_view{ "In the Updates control" };
+		constexpr auto in_code    = std::string_view{ "In a code pane" };
+		constexpr auto in_files   = std::string_view{ "In Overview's files" };
+		constexpr auto in_draft   = std::string_view{ "In a comment draft" };
+		constexpr auto in_query   = std::string_view{ "In the Find query" };
+		constexpr auto in_results = std::string_view{ "In Find in files' results" };
+		constexpr auto in_pending = std::string_view{ "In Finish your review's comments" };
+		constexpr auto in_outline = std::string_view{ "In the tour outline" };
+		constexpr auto in_editor  = std::string_view{ "In the tour editor" };
 
 		// [[BPR-1678]]. The Files and Repositories drawers' second keys,
 		// for automation: their first keys' 1 and R with the platform's command
@@ -205,33 +203,6 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::home_filter, .Group = home, .Binding = bound, .Title = "Filter Home", .Place = "On Home", .Standard = QKeySequence::Find, .Conditional = true, .Objects = "homeFilterAction" },
 			shortcut_entry{ .Command = command::home_filter_from_list, .Group = home, .Binding = read, .Title = "Filter Home, or start typing", .Place = "In a Home list", .Keys = "/" },
 
-		// Review Cycles: a local project's own keys ([[BPR-1157]], [[BPR-1280]]).
-		// The code view reads Return as macOS names it and Enter as Windows
-		// and Linux do.
-#if defined(Q_OS_MACOS)
-			shortcut_entry{ .Command = command::cycle_note, .Group = review_cycles, .Binding = read, .Title = "Note the line", .Place = in_cycle, .Keys = "Return", .Objects = "cycleSourceComment" },
-			shortcut_entry{ .Command = command::cycle_suggest, .Group = review_cycles, .Binding = read, .Title = "Suggest a change here", .Place = in_cycle, .Keys = "Shift+Return", .Objects = "cycleSourceSuggest" },
-#else
-			shortcut_entry{ .Command = command::cycle_note, .Group = review_cycles, .Binding = read, .Title = "Note the line", .Place = in_cycle, .Keys = "Enter", .Objects = "cycleSourceComment" },
-			shortcut_entry{ .Command = command::cycle_suggest, .Group = review_cycles, .Binding = read, .Title = "Suggest a change here", .Place = in_cycle, .Keys = "Shift+Enter", .Objects = "cycleSourceSuggest" },
-#endif
-			shortcut_entry{ .Command = command::cycle_save, .Group = review_cycles, .Binding = bound, .Title = "Save the note or suggestion", .Place = in_cycle_box, .Keys = "Ctrl+Return;Ctrl+Enter", .Shown = 1U, .Objects = "cycleComposerSaveKeys" },
-#if defined(Q_OS_MACOS)
-			// Control-C, which Qt names Meta; Command-C stays Copy.
-			shortcut_entry{ .Command = command::cycle_cancel, .Group = review_cycles, .Binding = bound, .Title = "Discard the note or suggestion", .Place = in_cycle_box, .Keys = "Escape;Meta+C", .Objects = "cycleComposerCancelKeys" },
-#else
-			shortcut_entry{ .Command = command::cycle_cancel, .Group = review_cycles, .Binding = bound, .Title = "Discard the note or suggestion", .Place = in_cycle_box, .Keys = "Escape", .Objects = "cycleComposerCancelKeys" },
-#endif
-
-			shortcut_entry{ .Command = command::cycle_share_earlier, .Group = review_cycles, .Binding = bound, .Title = "Move the note earlier", .Place = "In the share sheet", .Keys = "Alt+Up", .Objects = "cycleShareMoveEarlier" },
-			shortcut_entry{ .Command = command::cycle_share_later, .Group = review_cycles, .Binding = bound, .Title = "Move the note later", .Place = "In the share sheet", .Keys = "Alt+Down", .Objects = "cycleShareMoveLater" },
-#if defined(Q_OS_MACOS)
-			// Elsewhere Ctrl+C is Copy, so the sheets bind nothing.
-			shortcut_entry{ .Command = command::cycle_sheet_close, .Group = review_cycles, .Binding = bound, .Title = "Close the sheet", .Place = "In a Review Cycle sheet", .Keys = "Meta+C", .Objects = "cycleSheetCloseKeys" },
-#else
-			shortcut_entry{ .Command = command::cycle_sheet_close, .Group = review_cycles, .Binding = bound, .Title = "Close the sheet", .Place = "In a Review Cycle sheet", .Objects = "cycleSheetCloseKeys" },
-#endif
-
 			// The application.
 			shortcut_entry{ .Command = command::keyboard_shortcuts, .Group = application, .Binding = bound, .Title = "Keyboard shortcuts", .Keys = "Ctrl+/", .Objects = "keyboardShortcutsAction;desktopKeyboardShortcutsAction" },
 			// Preferences has no standard binding on Windows or GNOME, so the
@@ -354,17 +325,16 @@ namespace bpr::qt {
 	auto shortcut_group_title(const shortcut_group aGroup) -> QString
 	{
 		switch (aGroup) {
-		case navigation:    return QStringLiteral("Navigation");
-		case review:        return QStringLiteral("Review and files");
-		case comments:      return QStringLiteral("Comments and labels");
-		case find:          return QStringLiteral("Find");
-		case views:         return QStringLiteral("Views and drawers");
-		case comparison:    return QStringLiteral("Comparison and history");
-		case zoom:          return QStringLiteral("Zoom");
-		case tours:         return QStringLiteral("Review tours");
-		case home:          return QStringLiteral("Home");
-		case review_cycles: return QStringLiteral("Review Cycles");
-		case application:   return QStringLiteral("Application");
+		case navigation:  return QStringLiteral("Navigation");
+		case review:      return QStringLiteral("Review and files");
+		case comments:    return QStringLiteral("Comments and labels");
+		case find:        return QStringLiteral("Find");
+		case views:       return QStringLiteral("Views and drawers");
+		case comparison:  return QStringLiteral("Comparison and history");
+		case zoom:        return QStringLiteral("Zoom");
+		case tours:       return QStringLiteral("Review tours");
+		case home:        return QStringLiteral("Home");
+		case application: return QStringLiteral("Application");
 		}
 		std::abort();
 	}

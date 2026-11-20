@@ -3,6 +3,7 @@
 #include "bpr/core/discovery_diagnosis.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/core/operation_diagnosis.hpp"
+#include "bpr/core/refresh_feedback.hpp"
 #include "bpr/core/review_submission_unknown.hpp"
 #include "bpr/core/sha256.hpp"
 
@@ -397,6 +398,10 @@ namespace bpr::application {
 			// [[BPR-1875]]. Exactly the cause a cancelled pull request read names.
 			if (aDetail.starts_with(pull_request_cancel_detail_prefix)) {
 				return parse_pull_request_cancel_detail(aDetail).has_value();
+			}
+			// [[BPR-2315]]. Exactly what asked for a pull request read.
+			if (aDetail.starts_with(core::refresh_cause_detail_prefix)) {
+				return core::parse_refresh_cause_detail(aDetail).has_value();
 			}
 			constexpr std::array<std::string_view, 19> codes{ "FORBIDDEN", "UNAUTHORIZED", "NOT_FOUND", "MAX_NODE_LIMIT_EXCEEDED", "INTERNAL", "SERVICE_UNAVAILABLE", "GRAPHQL_PARSE_FAILED", "GRAPHQL_VALIDATION_FAILED", "undefinedField", "argumentNotAccepted", "undefinedType", "selectionMismatch", "variableMismatch", "variableNotUsed", "variableRequiresValidType", "variableNotDefined", "RATE_LIMITED", "[omitted:unclassified-code]", "[omitted:unclassified-content]" };
 			if (aDetail.size() > 4096U) {

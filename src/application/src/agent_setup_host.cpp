@@ -59,6 +59,41 @@ namespace bpr::application {
 			return { .Process = operation_process_of(aResult.Outcome), .ExitCode = aResult.ExitCode, .Runs = aRuns };
 		}
 
+		/// [[BPR-2305]]. What a custom Codex JSONL agent's instructions probe
+		/// runs with.
+		struct codex_probe
+		{
+			core::agent_profile              Profile;
+			std::string                      Program;
+			std::vector<std::string>         Leading;
+			core::agent_instruction_delivery Delivery = core::agent_instruction_delivery::system_prompt;
+			environment_reader               Parent;
+		};
+
+		/// [[BPR-2305]]. A model answers in about this long; more is a check
+		/// that did not answer.
+		constexpr auto codex_probe_timeout_milliseconds = 120'000;
+
+		/// The first line a check printed, bounded: a launcher's version.
+		[[nodiscard]] auto first_line_of(const agent_run_result& aResult) -> std::string
+		{
+			for (const auto& event : aResult.Events) {
+				const auto text = std::string_view{ event.Text };
+				const auto line = text.substr(0U, text.find('\n'));
+				if (!line.empty()) {
+					return std::string{ line.substr(0U, 120U) };
+				}
+			}
+			return { };
+		}
+
+		struct probe_answer
+		{
+			core::setup_check Check;
+			std::string       Detail;
+			check_run         Run;
+		};
+
 		/// What a check run that did not answer means for the agent row.
 		[[nodiscard]] auto unanswered(const agent_run_outcome aOutcome) -> std::optional<core::agent_setup_failure>
 		{
@@ -74,6 +109,41 @@ namespace bpr::application {
 			case agent_run_outcome::stale_result:            return core::agent_setup_failure::failed_to_start;
 			}
 			return core::agent_setup_failure::failed_to_start;
+		}
+
+		/// [[BPR-2305]]. Asks a custom Codex JSONL agent the probe's question
+		/// with the rule given as its Instructions setting says. Followed: the
+		/// check passes. An answer that is not Codex's JSON lines is a program
+		/// that runs Codex under a terminal (a launcher before its pipe mode),
+		/// named with the version its own check printed. Ignored as developer
+		/// instructions: asked again with the rule at the start of the prompt,
+		/// and when that is followed the check says so (`instructions_dropped`)
+		/// so setup can offer the switch.
+		[[nodiscard]] auto probe_codex_instructions(agent_process_port& aProcess, const codex_probe& aProbe, const std::string& aVersion, const std::stop_token& aStop) -> probe_answer
+		{
+			const auto run = [&](const core::agent_instruction_delivery aDelivery) {
+				return aProcess.run(build_codex_instructions_probe(aProbe.Profile, aProbe.Program, aProbe.Leading, aDelivery, aProbe.Parent), codex_probe_timeout_milliseconds, { }, aStop);
+			};
+			const auto first = run(aProbe.Delivery);
+			auto       ran   = run_of(first, 1U);
+			if (codex_instructions_followed(first)) {
+				return { .Check = core::setup_check{ .State = core::setup_check_state::passed, .Version = aVersion }, .Run = ran };
+			}
+			if (first.Outcome == agent_run_outcome::protocol_failure
+				&& (first.ProtocolFailure == agent_protocol_failure::malformed_frame || first.ProtocolFailure == agent_protocol_failure::incomplete_frame)) {
+				return { .Check = core::fail_check(core::agent_setup_failure::output_unreadable), .Detail = (aVersion.empty() ? std::string{ } : "version: " + aVersion + "\n") + detail_of(first), .Run = ran };
+			}
+			if (first.Outcome != agent_run_outcome::success) {
+				return { .Check = core::fail_check(unanswered(first.Outcome).value_or(core::agent_setup_failure::status_unreadable)), .Detail = detail_of(first), .Run = ran };
+			}
+			if (aProbe.Delivery == core::agent_instruction_delivery::system_prompt && !aStop.stop_requested()) {
+				const auto second = run(core::agent_instruction_delivery::message);
+				ran               = run_of(second, 2U);
+				if (codex_instructions_followed(second)) {
+					return { .Check = core::fail_check(core::agent_setup_failure::instructions_dropped), .Detail = detail_of(first), .Run = ran };
+				}
+			}
+			return { .Check = core::fail_check(core::agent_setup_failure::instructions_not_followed), .Detail = detail_of(first), .Run = ran };
 		}
 	} // namespace
 
@@ -187,40 +257,23 @@ namespace bpr::application {
 				Dependencies.Effects, [store = Dependencies.Store, preferences = Projection.Preferences] { return store->store(preferences); }, [](bool) { });
 		}
 
-		/// [[BPR-1753]]. The single settings, moved into the list once.
+		/// [[BPR-1753]]. Agents are a list. Settings kept before they were
+		/// are not read into it (owner, 2026-11-20: no legacy support): an
+		/// unmoved profile starts with the list it has.
 		void move_into_list()
 		{
-			auto& preferences = Projection.Preferences;
-			if (preferences.AgentsMoved) {
-				auto changed = false;
-				for (auto& entry : preferences.Agents) {
-					if (entry.Identity.empty()) {
-						entry.Identity = mint_agent_identity();
-						changed        = true;
-					}
-				}
-				if (changed) {
-					save();
-				}
-				return;
-			}
-			auto legacy           = core::legacy_agent_settings{ };
-			legacy.Chosen         = preferences.Chosen;
-			legacy.CodexProtocol  = preferences.CodexProtocol;
-			legacy.ClaudeWrapper  = Dependencies.ClaudeWrapper ? Dependencies.ClaudeWrapper->current() : std::string{ };
-			legacy.ClaudeModel    = Dependencies.LegacyClaudeModel ? Dependencies.LegacyClaudeModel() : std::string{ };
-			legacy.ClaudeEffort   = preferences.ClaudeEffort;
-			legacy.CodexProgram   = preferences.CodexProgram;
-			legacy.CodexModel     = preferences.CodexModel;
-			legacy.CodexEffort    = preferences.CodexEffort;
-			legacy.HarnessProgram = preferences.HarnessProgram;
-			preferences.Agents    = core::migrate_agent_entries(legacy);
+			auto& preferences       = Projection.Preferences;
+			auto  changed           = !preferences.AgentsMoved;
+			preferences.AgentsMoved = true;
 			for (auto& entry : preferences.Agents) {
-				entry.Identity = mint_agent_identity();
+				if (entry.Identity.empty()) {
+					entry.Identity = mint_agent_identity();
+					changed        = true;
+				}
 			}
-			preferences.AgentsMoved    = true;
-			preferences.PreferredAgent = preferences.Agents.empty() || !preferences.Chosen ? 0U : preferences.Agents.front().Id;
-			save();
+			if (changed) {
+				save();
+			}
 		}
 
 		/// The entry setup chose, when there is one; while Check all runs,
@@ -428,14 +481,10 @@ namespace bpr::application {
 			// designated-initializer temporary's defaulted strings as
 			// maybe-uninitialized once it is moved.
 			auto snapshot = inputs{ };
-			// [[BPR-1769]]. The legacy wrapper is an input to migration
-			// only. Once moved, the canonical list (including an empty reset
-			// list) decides whether a saved wrapper exists.
+			// [[BPR-1769]]. The list (including an empty reset list) decides
+			// whether a saved wrapper exists.
 			const auto* const claude = core::find_preset_entry(host.Projection.Preferences.Agents, core::setup_agent::claude_code);
-			snapshot.Wrapper         = host.Projection.Preferences.AgentsMoved
-				? (claude != nullptr ? claude->Program : std::string{ })
-				: host.Dependencies.ClaudeWrapper ? host.Dependencies.ClaudeWrapper->current()
-												  : std::string{ };
+			snapshot.Wrapper         = claude != nullptr ? claude->Program : std::string{ };
 			snapshot.Codex           = host.Projection.Preferences.CodexProgram;
 			snapshot.Harness         = host.Projection.Preferences.HarnessProgram;
 			snapshot.Inspect         = host.Dependencies.Inspect;
@@ -1124,6 +1173,7 @@ namespace bpr::application {
 			host.Projection.CheckingEntry = checked != nullptr ? std::optional{ checked->Id } : std::nullopt;
 		}
 		host.Projection.CheckDetail.clear();
+		host.Projection.InstructionsSwitch.reset();
 		host.publish();
 		// Owner decision 2026-10-23. A custom agent's check is that its
 		// program can be launched and, when it names one, that its own check
@@ -1141,6 +1191,13 @@ namespace bpr::application {
 				own->Path        = core::agent_run_path::agent_check;
 				own->Environment = materialize_agent_environment(*profile, host.Dependencies.Parent);
 			}
+			// [[BPR-2305]]. A custom Codex JSONL agent is also asked one short
+			// question with a rule, given the way its Instructions setting
+			// says, to show the rule reaches the model through its program.
+			auto instructionsProbe = std::optional<codex_probe>{ };
+			if (entry->Protocol == core::agent_protocol::codex_jsonl_exec && profile != host.Dependencies.Profiles.end()) {
+				instructionsProbe = codex_probe{ .Profile = *profile, .Program = path, .Leading = entry->Arguments, .Delivery = entry->Instructions, .Parent = host.Dependencies.Parent };
+			}
 			struct custom
 			{
 				core::setup_check Check;
@@ -1150,21 +1207,39 @@ namespace bpr::application {
 			host.begin_check(core::operation_action::agent_custom_check);
 			host.off_lane(
 				host.Dependencies.Checks,
-				[inspect = host.Dependencies.Inspect, process = host.Dependencies.Process, path, check = std::move(own), stop = host.CheckStop.get_token()]() mutable {
+				[inspect = host.Dependencies.Inspect, process = host.Dependencies.Process, path, check = std::move(own), probe = std::move(instructionsProbe), stop = host.CheckStop.get_token()]() mutable {
 					const auto refusal = inspect ? inspect(path) : std::optional{ core::agent_wrapper_refusal::missing };
 					if (refusal) {
 						return custom{ .Check = core::fail_check(core::agent_setup_failure::program_refused), .Detail = std::string{ core::describe(*refusal) } };
 					}
-					if (!check || process == nullptr) {
+					if (process == nullptr || (!check && !probe)) {
 						return custom{ .Check = core::setup_check{ .State = core::setup_check_state::passed } };
 					}
-					const auto ran = process->run(*check, agent_status_timeout_milliseconds, { }, stop);
-					if (ran.Outcome == agent_run_outcome::success) {
-						return custom{ .Check = core::setup_check{ .State = core::setup_check_state::passed }, .Run = run_of(ran, 1U) };
+					auto said = std::string{ };
+					auto runs = std::uint32_t{ 0U };
+					auto last = check_run{ };
+					if (check) {
+						const auto ran = process->run(*check, agent_status_timeout_milliseconds, { }, stop);
+						runs           = 1U;
+						last           = run_of(ran, runs);
+						if (ran.Outcome != agent_run_outcome::success) {
+							return custom{ .Check = core::fail_check(unanswered(ran.Outcome).value_or(core::agent_setup_failure::status_unreadable)), .Detail = detail_of(ran), .Run = last };
+						}
+						said = first_line_of(ran);
 					}
-					return custom{ .Check = core::fail_check(unanswered(ran.Outcome).value_or(core::agent_setup_failure::status_unreadable)), .Detail = detail_of(ran), .Run = run_of(ran, 1U) };
+					if (!probe || stop.stop_requested()) {
+						return custom{ .Check = core::setup_check{ .State = core::setup_check_state::passed }, .Run = last };
+					}
+					auto answer = probe_codex_instructions(*process, *probe, said, stop);
+					answer.Run.Runs += runs;
+					return custom{ .Check = std::move(answer.Check), .Detail = std::move(answer.Detail), .Run = answer.Run };
 				},
-				[self = shared_from_this(), generation, agent](custom aAnswer) { self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail), aAnswer.Run); });
+				[self = shared_from_this(), generation, agent, id = entry->Id](custom aAnswer) {
+					if (generation == self->CheckGeneration) {
+						self->Projection.InstructionsSwitch = aAnswer.Check.Failure == core::agent_setup_failure::instructions_dropped ? std::optional{ id } : std::nullopt;
+					}
+					self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail), aAnswer.Run);
+				});
 			return;
 		}
 		if (agent == core::setup_agent::plain_text_harness) {

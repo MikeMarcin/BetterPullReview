@@ -2,8 +2,11 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CONFIGURATION_HPP
 
 #include "bpr/core/agent_entry.hpp"
+#include "bpr/core/feedback_label_columns.hpp"
 #include "bpr/core/prompt_pack.hpp"
+#include "bpr/core/review_submission.hpp"
 #include "bpr/core/theme_exchange.hpp"
+#include "bpr/core/workbench_interaction.hpp"
 #include "bpr/core/workflow_configuration.hpp"
 
 #include <array>
@@ -24,8 +27,8 @@
 /// \details Pure: the host reads and writes the file, mints identities and
 /// stores the result. The file is one UTF-8 JSON document read and written
 /// with glaze after `json_preflight`, at most
-/// `maximum_agent_configuration_bytes`, in five sections: Agents, Prompts,
-/// Workflows, Identity and Repositories. It holds no credential of any kind
+/// `maximum_agent_configuration_bytes`, in seven sections: Agents, Prompts,
+/// Workflows, Identity, Repositories, Theme and Review. It holds no credential of any kind
 /// (no token, keychain item, `gh` sign-in or cookie), no program path, no
 /// local folder, numeric agent ID, host-minted identity, workspace or
 /// history.
@@ -40,12 +43,19 @@
 /// written and read: an earlier file, and a `.bprtheme` theme document, are
 /// not Profile Settings. Every export is a `.bprsettings` file; what a file
 /// is comes from its content, never its name.
+///
+/// [[BPR-2301]] (owner, 2026-11-19: "I think the review settings should be
+/// in exported bprsettings as an optional group"). Version 4 adds a Review
+/// section; a version 3 file, which has none, still reads.
 namespace bpr::core {
-	/// [[BPR-2198]]. The one format marker and the one version; a file of a
-	/// version above it is refused as newer, and one below it ([[BPR-2283]])
-	/// as not Profile Settings.
+	/// [[BPR-2198]]. The one format marker and the version written; a file of
+	/// a version above it is refused as newer, and one below
+	/// `oldest_agent_configuration_version` ([[BPR-2283]]) as not Profile
+	/// Settings.
 	inline constexpr std::string_view agent_configuration_format  = "bpr.profile-settings";
-	inline constexpr std::uint32_t    agent_configuration_version = 3U;
+	inline constexpr std::uint32_t    agent_configuration_version = 4U;
+	/// [[BPR-2301]]. Version 3 is version 4 without the Review section.
+	inline constexpr std::uint32_t oldest_agent_configuration_version = 3U;
 	/// [[BPR-2283]]. The file name extension every export is written with.
 	inline constexpr std::string_view profile_settings_extension        = "bprsettings";
 	inline constexpr std::size_t      maximum_agent_configuration_bytes = 1024U * 1024U;
@@ -80,8 +90,10 @@ namespace bpr::core {
 		/// [[BPR-2283]]. The colours of the theme on screen and the built-in
 		/// theme they were made against.
 		theme,
+		/// [[BPR-2301]]. The profile's Settings › Review preferences.
+		review,
 	};
-	inline constexpr std::size_t profile_settings_section_count = 6U;
+	inline constexpr std::size_t profile_settings_section_count = 7U;
 	[[nodiscard]] auto           stable_name(profile_settings_section aSection) noexcept -> std::string_view;
 	/// \brief Whether Export starts with a section ticked: every section but
 	/// Identity, which a reviewer shares only on purpose.
@@ -162,6 +174,114 @@ namespace bpr::core {
 		auto operator<=>(const decoded_theme&) const = default;
 	};
 
+	/// \brief [[BPR-2301]]. One setting of the Review section, in the order the
+	/// import lists them. The first `review_choice_count` are choices among
+	/// names (`review_choice_names`).
+	///
+	/// \details What travels is what Settings › Review sets for the profile.
+	/// Nothing about one window or one computer does: no drawer width or
+	/// state, no window geometry, no Line details height, no remembered
+	/// filter, and not what a load found wrong with the stored label columns.
+	enum class review_setting : std::uint8_t {
+		open_in,
+		mark_read,
+		return_comparison,
+		comments_filter,
+		drawer_controls,
+		feedback_marks,
+		label_helper,
+		overview_counts,
+		line_details,
+		markdown_images,
+		/// Reading › Reading width.
+		reading_width,
+		/// Reading width › Advanced: each surface's width.
+		threads_width,
+		discuss_width,
+		reports_width,
+		/// The Overview's label columns, in order.
+		label_columns,
+		/// The divider between the two sides, in logical pixels.
+		center_ribbon_width,
+		/// Where a confirmed review goes, by verdict.
+		finish_comment,
+		finish_approve,
+		finish_request_changes,
+	};
+	inline constexpr std::size_t review_setting_count = 19U;
+	inline constexpr std::size_t review_choice_count  = 10U;
+	/// \brief The setting's member name in the file.
+	[[nodiscard]] auto stable_name(review_setting aSetting) noexcept -> std::string_view;
+
+	namespace review_choice_vocabulary {
+		inline constexpr auto open_in           = std::array<std::string_view, 3U>{ "overview", "review", "last_used" };
+		inline constexpr auto mark_read         = std::array<std::string_view, 2U>{ "by_hand", "when_fully_seen" };
+		inline constexpr auto return_comparison = std::array<std::string_view, 3U>{ "whole_pr", "since_last_review", "since_last_upload" };
+		inline constexpr auto comments_filter   = std::array<std::string_view, 3U>{ "all", "unread", "unresolved" };
+		inline constexpr auto drawer_controls   = std::array<std::string_view, 2U>{ "hidden", "shown" };
+		inline constexpr auto feedback_marks    = std::array<std::string_view, 2U>{ "icons", "letters" };
+		inline constexpr auto label_helper      = std::array<std::string_view, 2U>{ "off", "on" };
+		inline constexpr auto overview_counts   = std::array<std::string_view, 2U>{ "open", "all" };
+		inline constexpr auto line_details      = std::array<std::string_view, 2U>{ "shown", "hidden" };
+		inline constexpr auto markdown_images   = std::array<std::string_view, 2U>{ "load", "off" };
+	} // namespace review_choice_vocabulary
+
+	/// \brief [[BPR-2301]]. The names a choice's values go by in the file, in
+	/// the order of their stored ordinals; empty for a setting that is not a
+	/// choice. The application asserts its own vocabularies against these.
+	[[nodiscard]] constexpr auto review_choice_names(const review_setting aSetting) noexcept -> std::span<const std::string_view>
+	{
+		switch (aSetting) {
+		case review_setting::open_in:           return review_choice_vocabulary::open_in;
+		case review_setting::mark_read:         return review_choice_vocabulary::mark_read;
+		case review_setting::return_comparison: return review_choice_vocabulary::return_comparison;
+		case review_setting::comments_filter:   return review_choice_vocabulary::comments_filter;
+		case review_setting::drawer_controls:   return review_choice_vocabulary::drawer_controls;
+		case review_setting::feedback_marks:    return review_choice_vocabulary::feedback_marks;
+		case review_setting::label_helper:      return review_choice_vocabulary::label_helper;
+		case review_setting::overview_counts:   return review_choice_vocabulary::overview_counts;
+		case review_setting::line_details:      return review_choice_vocabulary::line_details;
+		case review_setting::markdown_images:   return review_choice_vocabulary::markdown_images;
+		default:                                return { };
+		}
+	}
+
+	/// \brief [[BPR-2301]]. The Review section. Every member is optional: an
+	/// import changes only what the file holds, and an export holds every one.
+	struct portable_review
+	{
+		/// By `review_setting`, the first `review_choice_count`: the value's
+		/// ordinal in `review_choice_names`.
+		std::array<std::optional<std::uint8_t>, review_choice_count> Choices{ };
+		std::optional<reading_width>                                 ReadingWidth;
+		/// By `reading_surface`.
+		std::array<std::optional<reading_override>, reading_surface_count> Surfaces{ };
+		std::optional<feedback_label_columns>                              LabelColumns;
+		/// As the file has it; the application holds it to its own bounds.
+		std::optional<std::uint32_t> CenterRibbonWidth;
+		/// Comment, Approve, Request changes.
+		std::array<std::optional<review_finish_return>, 3U> FinishReview{ };
+
+		auto operator<=>(const portable_review&) const = default;
+	};
+	/// \brief [[BPR-2301]]. Whether the section sets anything at all.
+	[[nodiscard]] auto carries_anything(const portable_review& aReview) noexcept -> bool;
+
+	/// \brief [[BPR-2301]]. The Review section as read. Reading it never
+	/// refuses the file: a member this version does not know, or a value it
+	/// does not have, is left out and named in `Ignored`; a width outside its
+	/// bounds is held to them (a surface's own to Narrow's 720 at least) and
+	/// a label list keeps its known labels once each, both named in `Adjusted`.
+	struct decoded_review
+	{
+		portable_review Review;
+		/// Member names, at most `maximum_portable_id_bytes` each.
+		std::vector<std::string>    Ignored;
+		std::vector<review_setting> Adjusted;
+
+		auto operator<=>(const decoded_review&) const = default;
+	};
+
 	/// \brief One agent as the file carries it: everything an entry keeps but
 	/// where its program is, its numeric ID and its identity.
 	struct portable_agent
@@ -186,6 +306,9 @@ namespace bpr::core {
 		/// before them reads as Off and the system prompt.
 		agent_mcp_servers          McpServers   = agent_mcp_servers::off;
 		agent_instruction_delivery Instructions = agent_instruction_delivery::system_prompt;
+		/// [[BPR-2307]]. Requested; applied only when accepted, like relaxed
+		/// run checks. Written only when on, so a file without it reads off.
+		bool RelyOnLauncherSandbox = false;
 
 		auto operator<=>(const portable_agent&) const = default;
 	};
@@ -228,6 +351,8 @@ namespace bpr::core {
 		std::vector<portable_prompt_macro> PromptMacros;
 		/// [[BPR-2283]]. Absent unless Theme was chosen.
 		std::optional<portable_theme> Theme;
+		/// [[BPR-2301]]. Absent unless Review was chosen.
+		std::optional<portable_review> Review;
 
 		auto operator<=>(const agent_configuration&) const = default;
 	};
@@ -336,6 +461,8 @@ namespace bpr::core {
 		std::optional<decoded_prompt_pack> PromptPack;
 		/// [[BPR-2283]].
 		std::optional<decoded_theme> Theme;
+		/// [[BPR-2301]].
+		std::optional<decoded_review> Review;
 
 		auto operator<=>(const decoded_configuration&) const = default;
 	};
@@ -359,6 +486,7 @@ namespace bpr::core {
 		builds_and_tests,
 		mcp_servers,
 		instructions,
+		launcher_sandbox,
 	};
 	[[nodiscard]] auto stable_name(agent_field aField) noexcept -> std::string_view;
 
@@ -400,6 +528,8 @@ namespace bpr::core {
 		/// Accepted for this entry in the preview (RFC-BPR-0107, P05, X17).
 		bool AcceptRelaxedChecks = false;
 		bool AcceptBuilds        = false;
+		/// [[BPR-2307]]. Codex's own sandbox off for this custom Codex agent.
+		bool AcceptLauncherSandbox = false;
 
 		auto operator<=>(const agent_import_choice&) const = default;
 	};
@@ -407,7 +537,8 @@ namespace bpr::core {
 	/// \brief The entry an imported agent would be under a choice, before
 	/// identity: the host mints one where `Identity` is empty.
 	///
-	/// \details Relaxed run checks and builds stay off unless accepted;
+	/// \details Relaxed run checks, builds and the launcher's sandbox stay
+	/// off unless accepted;
 	/// a popular agent stays strict. Scratch folder starts follows a
 	/// requested Off, and otherwise the target's value (replace) or on (add).
 	[[nodiscard]] auto imported_entry(const portable_agent& aAgent, const agent_import_choice& aChoice, const agent_entry* aTarget) -> agent_entry;
@@ -568,6 +699,21 @@ namespace bpr::core {
 	/// \brief [[BPR-2283]]. A file holding only `aTheme`: what Appearance's
 	/// Export… writes. None when it cannot be written.
 	[[nodiscard]] auto encode_theme_settings(const portable_theme& aTheme, std::string aExportedBy) -> std::optional<std::string>;
+
+	/// \brief [[BPR-2301]]. The file's Review against the profile's. It
+	/// starts chosen when it changes a setting.
+	struct review_import_plan
+	{
+		import_standing Standing = import_standing::refused;
+		bool            Default  = false;
+
+		auto operator<=>(const review_import_plan&) const = default;
+	};
+	/// \brief [[BPR-2301]]. The Review's standing: refused when the file's
+	/// section sets nothing this version can use; unchanged when importing it
+	/// changes none of `aChanges` settings (the host compares, since the
+	/// profile's settings are its own); updated otherwise.
+	[[nodiscard]] auto plan_review_import(const decoded_review& aFile, std::size_t aChanges) noexcept -> review_import_plan;
 
 	struct configuration_import_plan
 	{

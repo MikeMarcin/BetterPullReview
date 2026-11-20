@@ -1056,6 +1056,8 @@ target_link_libraries(
     test_better_pull_review_qt_agent_setup_view_tests
     PRIVATE
         BetterPullReview::AdapterQt
+        # [[BPR-2303]]. Fixture app bundles are read as the app reads them.
+        BetterPullReview::AdapterWorkspace
 )
 bpr_enable_hardening(test_better_pull_review_qt_agent_setup_view_tests)
 bpr_enable_warnings(test_better_pull_review_qt_agent_setup_view_tests)
@@ -1396,8 +1398,8 @@ set_tests_properties(qt_change_end_keys PROPERTIES
 )
 
 # [[BPR-1567]]. Help → Keyboard Shortcuts: the catalogue against every key
-# the assembled window, the resident menu bar and a Review Cycle view bind
-# (with a negative control), and the page's listing, search, keyboard, Esc,
+# the assembled window and the resident menu bar bind (with a negative
+# control), and the page's listing, search, keyboard, Esc,
 # themes and layout at each scale.
 foreach(bpr_shortcuts_scale IN ITEMS 100 125 200)
     math(EXPR bpr_shortcuts_whole "${bpr_shortcuts_scale} / 100")
@@ -2273,6 +2275,13 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
     # nothing back (measured at cb200dfa9).
     bpr_add_network_isolated_test(NAME qt_agent_finding_cards_restart WINDOWS_UNCONTAINED COMMAND test_agent_finding_cards_restart)
     set_tests_properties(qt_agent_finding_cards_restart PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-finding-cards-restart:pass" TIMEOUT 60)
+    # [[BPR-2305]]. A Codex turn through a sandbox launcher in the Agent tab.
+    bpr_add_executable(test_agent_codex_launcher_turn agent_codex_launcher_turn_tests.cpp)
+    target_link_libraries(test_agent_codex_launcher_turn PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_agent_codex_launcher_turn)
+    bpr_enable_warnings(test_agent_codex_launcher_turn)
+    bpr_add_network_isolated_test(NAME qt_agent_codex_launcher_turn COMMAND test_agent_codex_launcher_turn)
+    set_tests_properties(qt_agent_codex_launcher_turn PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-codex-launcher-turn:pass" TIMEOUT 60)
     # [[BPR-2241]]. A restored report's byline says how its turn ended.
     bpr_add_executable(test_agent_restored_byline agent_restored_byline_tests.cpp)
     target_link_libraries(test_agent_restored_byline PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
@@ -2380,24 +2389,6 @@ foreach(suggestion_scale IN ITEMS 1.0 2.0)
     set_tests_properties("qt_suggestion_editor_${suggestion_suffix}" PROPERTIES
         ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${suggestion_scale};BPR_SUGGESTION_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/suggestion-${suggestion_suffix}"
         PASS_REGULAR_EXPRESSION "suggestion-editor-tests:pass"
-        TIMEOUT 60
-    )
-endforeach()
-
-# [[BPR-1157]]. The local cycle page presented from a projection.
-bpr_add_executable(test_better_pull_review_review_cycle_view_tests review_cycle_view_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_view_tests PRIVATE BetterPullReview::AdapterQt)
-bpr_enable_hardening(test_better_pull_review_review_cycle_view_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_view_tests)
-foreach(cycle_scale IN ITEMS 1.0 2.0)
-    string(REPLACE "." "_" cycle_suffix "${cycle_scale}")
-    bpr_add_network_isolated_test(
-        NAME "qt_review_cycle_view_${cycle_suffix}"
-        COMMAND test_better_pull_review_review_cycle_view_tests
-    )
-    set_tests_properties("qt_review_cycle_view_${cycle_suffix}" PROPERTIES
-        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${cycle_scale};BPR_CYCLE_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/cycle-${cycle_suffix}"
-        PASS_REGULAR_EXPRESSION "review-cycle-view-tests:pass"
         TIMEOUT 60
     )
 endforeach()
@@ -2990,7 +2981,6 @@ bpr_enable_warnings(test_agent_configuration_dialogs)
 bpr_add_network_isolated_test(NAME qt_agent_configuration_dialogs COMMAND test_agent_configuration_dialogs)
 set_tests_properties(qt_agent_configuration_dialogs PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-configuration-dialogs:pass" TIMEOUT 60)
 
-
 # The owner's look in a render (owner, 2026-11-10: "some kind of theme
 # disparity ... between what I see and your offscreen renders"). On macOS every
 # Qt test executable of this directory carries native_look_startup.cpp, so a
@@ -3022,7 +3012,6 @@ if(APPLE)
         endif()
     endforeach()
 endif()
-
 
 # RFC-BPR-0117 ([[BPR-2076]]). Explain this file's card, at the supported scales.
 bpr_add_executable(test_explain_file_card explain_file_card_tests.cpp)

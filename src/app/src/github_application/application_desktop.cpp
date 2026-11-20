@@ -23,8 +23,6 @@
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/model.hpp"
 #include "bpr/core/profile_window.hpp"
-#include "bpr/core/review_cycle.hpp"
-#include "bpr/core/review_cycle_command.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/review_submission.hpp"
@@ -37,7 +35,6 @@
 #include "github_application/tour_owner_replies.hpp"
 #include "github_application/window_composition.hpp"
 #include "local_draft_handoff.hpp"
-#include "review_cycle_desktop.hpp"
 #include "tour_assist.hpp"
 #include "tour_cli_types.hpp"
 #include "tour_owner_service.hpp"
@@ -68,11 +65,6 @@
 #endif
 #if defined(BPR_LOCAL_AUTOMATION)
 	#include "bpr/qt/event_loop_executor.hpp"
-	#include "cycle_commands.hpp"
-	#include "cycle_owner_service.hpp"
-	#include <future>
-	#include <stop_token>
-	#include <thread>
 #endif
 
 namespace bpr::app {
@@ -156,10 +148,6 @@ namespace bpr::app {
 		const auto request = adapters::sqlite::decode_tour_request(aRequest);
 		if (!request) {
 			aRespond(tour_owner_error("invalid_request"));
-			return;
-		}
-		if (request->Operation == application::tour_owner_operation::cycle) {
-			desktop_cycle_owner_route(std::move(aRequest), request->Cycle, std::move(aRespond));
 			return;
 		}
 		if (request->Operation == application::tour_owner_operation::local_draft) {
@@ -281,71 +269,6 @@ namespace bpr::app {
 		}
 		profile.WaitingTourRequests.push_back({ request->Draft, std::move(outcomeJson), adapters::sqlite::encode_tour_request(read), std::move(aRespond), std::chrono::steady_clock::now() + std::chrono::seconds{ 5 } });
 		desktop_tour_owner_tick();
-	}
-
-	void github_application::desktop_cycle_owner_route(application::tour_channel_bytes aRequest, application::cycle_owner_request aCycle, std::function<void(application::tour_channel_bytes)> aRespond)
-	{
-#if defined(BPR_LOCAL_AUTOMATION)
-		auto& profile = *Profile;
-		if (Profile->Closing || !profile.CycleOwnerService) {
-			aRespond(tour_owner_error("owner_unavailable"));
-			return;
-		}
-		const auto liveness  = std::weak_ptr<const int>{ Liveness };
-		auto&      decisions = profile.DecisionLane;
-		const auto stop      = profile.CycleOwnerStop.get_token();
-		// Before the command reads or changes a round draft a window may hold, the
-		// core decides from what the windows hold; the windows answer on their lane.
-		auto guard = [this, liveness, &decisions, stop](const core::cycle_command aCommand, const core::review_cycle_id aTarget) -> cycle_result<void> {
-			const auto ask = [&](const bool aSave) -> std::optional<core::cycle_draft_editor> {
-				auto promise = std::make_shared<std::promise<core::cycle_draft_editor>>();
-				auto future  = promise->get_future();
-				decisions.post([this, liveness, promise, aTarget, aSave] {
-					promise->set_value(liveness.expired() ? core::cycle_draft_editor::settled : cycle_draft_editors(aTarget, aSave));
-				});
-				if (future.wait_for(std::chrono::seconds{ 1 }) != std::future_status::ready) {
-					return std::nullopt;
-				}
-				return future.get();
-			};
-			const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{ 5 };
-			auto       saved    = false;
-			while (!stop.stop_requested() && std::chrono::steady_clock::now() < deadline) {
-				const auto editor = ask(!saved);
-				if (!editor) {
-					continue;
-				}
-				const auto admission = core::admit_owner_command(aCommand, *editor);
-				if (admission == core::cycle_owner_admission::serve) {
-					return { };
-				}
-				if (admission == core::cycle_owner_admission::busy) {
-					return std::unexpected(cycle_failure{ "draft_busy", "The desktop is composing text in this round's draft (an input method is open). Finish or cancel it, then retry; nothing was changed.", { }, { } });
-				}
-				// The window saves what it holds; this command then reads what was saved.
-				saved = true;
-				std::this_thread::sleep_for(std::chrono::milliseconds{ 20 });
-			}
-			return std::unexpected(cycle_failure{ "draft_busy", "The desktop is still saving this round's draft. Retry shortly; nothing was changed.", { }, { } });
-		};
-		profile.CycleOwnerEffects.post([service = profile.CycleOwnerService, payload = std::move(aRequest), cycle = std::move(aCycle), admit = std::move(guard), respond = std::move(aRespond), stop, this, liveness, &decisions] {
-			auto answer = service->serve(payload, cycle, admit, [stop] { return stop.stop_requested(); });
-			respond(std::move(answer.Bytes));
-			if (answer.Changed) {
-				decisions.post([this, liveness, changed = *answer.Changed] {
-					if (!liveness.expired()) {
-						cycle_written(changed);
-					}
-				});
-			}
-		});
-#else
-		// [[BPR-1179]]. No command channel is bound without local automation, so
-		// nothing reaches here; a forwarded request is still answered, never served.
-		static_cast<void>(aRequest);
-		static_cast<void>(aCycle);
-		aRespond(tour_owner_error("owner_unavailable"));
-#endif
 	}
 
 	void github_application::script_local_draft_agent_for_look()
@@ -512,7 +435,7 @@ namespace bpr::app {
 		// owner's store; then the window shows the draft it opened.
 		const auto liveness  = std::weak_ptr<const int>{ Liveness };
 		auto&      decisions = profile.DecisionLane;
-		profile.CycleOwnerEffects.post([root = profile.ApplicationDataRoot, git = profile.InstalledGit, request = std::move(aRequest), respond = std::move(aRespond), this, liveness, &decisions] {
+		profile.OwnerCommandEffects.post([root = profile.ApplicationDataRoot, git = profile.InstalledGit, request = std::move(aRequest), respond = std::move(aRespond), this, liveness, &decisions] {
 			auto opened = open_local_draft_here(root, git, std::nullopt, request.Location, request.Context);
 			opened.Result.insert("schema", QStringLiteral("bpr.draft.cli-result.v1"));
 			auto answer = application::tour_owner_response{ };
@@ -537,33 +460,6 @@ namespace bpr::app {
 		static_cast<void>(aRequest);
 		aRespond(tour_owner_error("owner_unavailable"));
 #endif
-	}
-
-	auto github_application::cycle_draft_editors(const core::review_cycle_id aCycle, const bool aSave) -> core::cycle_draft_editor
-	{
-		auto held = core::cycle_draft_editor::settled;
-		for (const auto& [context, session] : Sessions) {
-			static_cast<void>(context);
-			if (session->Closing || !session->CycleDesktop) {
-				continue;
-			}
-			const auto editor = session->CycleDesktop->draft_editor(aCycle);
-			if (editor == core::cycle_draft_editor::unsaved && aSave) {
-				session->CycleDesktop->save_draft_editor(aCycle);
-			}
-			held = std::max(held, editor);
-		}
-		return held;
-	}
-
-	void github_application::cycle_written(const core::review_cycle_id aCycle)
-	{
-		for (const auto& [context, session] : Sessions) {
-			static_cast<void>(context);
-			if (!session->Closing && session->CycleDesktop) {
-				session->CycleDesktop->external_change(aCycle);
-			}
-		}
 	}
 
 	void github_application::desktop_tour_owner_tick()

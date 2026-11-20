@@ -230,11 +230,11 @@ and keeps its tab row's tools: Prepare review tour (⌥T) and Open on GitHub
 2. **Needs attention**: conflicts, failed checks (one line with their count
    and names), outstanding requests I am waiting on, replies to me.
 3. **My review**: files read of total with a bar, private notes, pending
-   comments, and **N threads with new posts** with **Go to them**, which opens
-   Threads ([[BPR-1293]]) with Only new on, because Threads lists every
-   thread with new posts and opens the picked one in place at its line. New
-   pull-request comments that are not on a file are a second line whose Go to
-   them opens Discuss on the pull request.
+   comments, and **N threads with new posts**, a line that is itself the way
+   to them ([[BPR-2314]]): pressing it opens Threads ([[BPR-1293]]) with Only
+   new on, because Threads lists every thread with new posts and opens the
+   picked one in place at its line. New pull-request comments that are not on
+   a file are a second line that opens Discuss on the pull request.
 4. **Checks**: one bar of passed, failed and skipped.
 5. **People**: faces with their state glyphs and one summary line.
 
@@ -371,6 +371,10 @@ parked card is changing lands after that card or merges with it.
 
 The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: principle 3's lock now marks nothing: Local wears the computer icon, Draft the dashed outline and pencil, Published is solid. Notes (D3) is no longer a tab; its margin-note behaviour is the Comments drawer's Local state. "Promoting private material" becomes two moves, Make draft and Keep local, instead of a copy. The Agent tab list and AC05's tabs read Comments, Tour and Agent. My review counts comments by state. Threads' My drafts (BPR-2092) becomes the All, Published, Draft, Local filter; Overview's drafts chip (BPR-2093) gains a Local chip beside it; Finish your review (BPR-2094) never lists Local, offers Keep Local on its rows and has one quiet Local line. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
 
+### Owner amendment (2026-11-20): the lines are the actions
+
+The owner, 2026-11-20, on the Status drawer: "These look like links and I want to click them but I have to go find the go to them button all the way off to the side. Can we let you just click them? The same with avatars to expand people and conflicts with Master to expand needs attention." [[BPR-2314]]: the new-posts lines in My review are themselves the action (pointer, Space and Return), and their Go to them buttons are gone; People's faces open People's roster, and Needs attention's conflicts row opens that section to Merge's conditions, each as the section's header does. Nothing else in Status is drawn in the link ink. AC03's other obligations stand.
+
 ## Acceptance criteria
 
 - **AC01 Shared parts:** the drawer header, card, ownership marks and empty
@@ -384,8 +388,8 @@ The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026
   Files opens the selected file; the owner answers the promote-label question.
 - **AC03 Status content:** the drawer leads with my role and what needs
   attention as specified, names each failed check in one place, draws no
-  empty row, expands each section to its details, and Go to them opens Threads
-  with Only new (or Discuss for pathless comments); core courses cover every
+  empty row, expands each section to its details, and the new-posts line opens
+  Threads with Only new (or Discuss for pathless comments); core courses cover every
   role, including several at once and unobserved team membership.
 - **AC04 Compose review:** Finish review opens the sheet over the current
   surface with no thread list; a pending row reveals its line behind the sheet;

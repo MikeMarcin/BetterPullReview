@@ -11,7 +11,6 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "local_draft_desktop.hpp"
 #include "local_draft_open_diagnostic.hpp"
-#include "review_cycle_desktop.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -37,7 +36,7 @@
 /// Prepare Pull Request… signed out to the proposed diff with source, target
 /// and Local draft identity, without changing the checkout; In preparation;
 /// including a working file and refreshing; a note; a restart; the harness
-/// handoff resuming the same draft; Review Cycles still reachable; a prepared
+/// handoff resuming the same draft; no Review Cycles entry; a prepared
 /// pull request's mark; discard. Renders are written for the owner's look.
 
 namespace {
@@ -147,17 +146,15 @@ namespace {
 
 	struct session
 	{
-		application::manual_executor               Lanes;
-		std::unique_ptr<qt::workbench_window>      Window;
-		std::unique_ptr<app::review_cycle_desktop> Cycles;
-		std::unique_ptr<app::local_draft_desktop>  Drafts;
+		application::manual_executor              Lanes;
+		std::unique_ptr<qt::workbench_window>     Window;
+		std::unique_ptr<app::local_draft_desktop> Drafts;
 
 		session(const std::filesystem::path& aProfile, const std::filesystem::path& aGit, const QString& aChosen)
 		{
 			Window = std::make_unique<qt::workbench_window>();
 			Window->resize(1280, 800);
 			Window->show();
-			Cycles = std::make_unique<app::review_cycle_desktop>(*Window, aProfile, core::bpr_profile_id{ 1 }, Lanes, Lanes, app::review_cycle_syntax{ }, &Lanes);
 			Drafts = std::make_unique<app::local_draft_desktop>(*Window, aProfile, aGit, bpr::tests::git_contract::windows_system_root(), Lanes, Lanes, app::local_draft_syntax{ }, &Lanes);
 			Drafts->set_folder_chooser([aChosen] { return aChosen; });
 			Drafts->view()->set_discard_question([] { return true; });
@@ -167,7 +164,6 @@ namespace {
 		~session()
 		{
 			Drafts->shutdown();
-			Cycles->shutdown();
 			settle(Lanes);
 		}
 
@@ -197,15 +193,16 @@ try {
 	{
 		auto  s      = session{ profileRoot.path(), gitExecutable, chosen };
 		auto& window = *s.Window;
-		// AC06: the author entry leads Home, signed out; Review Cycles stays, below.
+		// AC06: the author entry leads Home, signed out. [[BPR-2308]]: Review
+		// Cycles are retired, so neither Home nor File offers Open Project.
 		auto* const prepare = window.home_prepare_button();
 		auto* const author  = window.findChild<QWidget*>(QStringLiteral("homeAuthor"));
-		auto* const cycles  = window.findChild<QWidget*>(QStringLiteral("homeReviewCycles"));
 		expect(window.showing_home() && prepare != nullptr && prepare->isVisible() && prepare->isEnabled(), "AC06: Prepare Pull Request… on Home, signed out");
 		expect(!window.findChild<QWidget*>(QStringLiteral("homeInPreparation"))->isVisible(), "no In preparation list before a draft");
-		expect(cycles != nullptr && cycles->isVisible() && window.open_project_action()->isEnabled() && window.findChild<QToolButton*>(QStringLiteral("homeOpenProjectButton"))->isVisible(),
-			   "AC06: Review Cycles stays reachable: File › Open Project… and its Home section");
-		expect(author->mapTo(&window, QPoint{ }).y() < cycles->mapTo(&window, QPoint{ }).y(), "AC06: the author entry is above, Review Cycles below");
+		expect(author != nullptr && author->isVisible(), "AC06: the author section shows on Home");
+		expect(window.findChild<QWidget*>(QStringLiteral("homeReviewCycles")) == nullptr && window.findChild<QToolButton*>(QStringLiteral("homeOpenProjectButton")) == nullptr
+				   && window.findChild<QAction*>(QStringLiteral("openProjectAction")) == nullptr,
+			   "Review Cycles are retired: no Home section and no Open Project…");
 		capture(window, QStringLiteral("local-draft-home-empty"));
 
 		// AC01: the first click reaches the proposed diff.

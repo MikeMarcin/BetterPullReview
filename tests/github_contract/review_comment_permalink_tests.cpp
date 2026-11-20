@@ -1284,7 +1284,7 @@ void tour_ranges()
 	auto       source = core::tour_code_destination{ .Commit = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .Path = "old/Unicode α #%.md", .Side = core::diff_side::left, .FirstLine = 1, .LastLine = 3 };
 	const auto link   = compile_tour_permalink(scope, source);
 	expect(link && link->ends_with("old/Unicode%20%CE%B1%20%23%25.md?plain=1#L2-L4"), "range/historical/plain-view shares canonical RFC0022 path escaping");
-	const auto parsed = parse_tour_permalink(scope, *link + "\r\n\r\n### Author's tour · 1 — Why\r\n");
+	const auto parsed = parse_tour_permalink(scope, *link + "\r\n\r\n### PR Tour · 1 — Why\r\n");
 	expect(parsed && parsed->Commit == source.Commit && parsed->Path == source.Path && parsed->FirstLine == 1 && parsed->LastLine == 3, "cold body retains historical range without retained comparison fabrication");
 	auto foreign            = scope;
 	foreign.Repository.Name = "other";

@@ -45,7 +45,7 @@ key handling. Invoking the menu explicitly may move focus from an editor while
 preserving its draft.
 
 This proposal covers split and unified presentations of the main diff.
-[Review Cycles](../../../../src/adapters/qt/include/bpr/qt/review_cycle_view.hpp)
+Review Cycles
 uses a separate source/comparison view and is deferred, along with comment-body
 navigation, file switching, columns, relative offsets and configurable shortcuts.
 

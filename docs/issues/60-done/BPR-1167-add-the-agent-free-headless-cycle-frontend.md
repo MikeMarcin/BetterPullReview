@@ -42,7 +42,7 @@ writer per profile. Owned paths, the compatibility decisions, the 59-row
 pass, the tests-disabled installed run and ten negative controls are in the
 [execution ledger](../../verification/RFC-BPR-0053-0061.md), under "BPR-1167:
 the agent-free headless cycle CLI"; usage is in
-[the developer page](../../development/cycle-cli.md).
+the developer page.
 
 RC58-01 and RC58-02 pass on that evidence. `round read`, grants and desktop
 forwarding stay with BPR-1169 and BPR-1168.

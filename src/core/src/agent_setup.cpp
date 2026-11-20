@@ -143,15 +143,18 @@ namespace bpr::core {
 	auto stable_name(const agent_setup_failure aFailure) noexcept -> std::string_view
 	{
 		switch (aFailure) {
-		case agent_setup_failure::agent_not_found:       return "agent_not_found";
-		case agent_setup_failure::program_refused:       return "program_refused";
-		case agent_setup_failure::no_program_chosen:     return "no_program_chosen";
-		case agent_setup_failure::not_signed_in:         return "not_signed_in";
-		case agent_setup_failure::failed_to_start:       return "failed_to_start";
-		case agent_setup_failure::status_unreadable:     return "status_unreadable";
-		case agent_setup_failure::timed_out:             return "timed_out";
-		case agent_setup_failure::workspace_unavailable: return "workspace_unavailable";
-		case agent_setup_failure::settings_unreadable:   return "settings_unreadable";
+		case agent_setup_failure::agent_not_found:           return "agent_not_found";
+		case agent_setup_failure::program_refused:           return "program_refused";
+		case agent_setup_failure::no_program_chosen:         return "no_program_chosen";
+		case agent_setup_failure::not_signed_in:             return "not_signed_in";
+		case agent_setup_failure::failed_to_start:           return "failed_to_start";
+		case agent_setup_failure::status_unreadable:         return "status_unreadable";
+		case agent_setup_failure::timed_out:                 return "timed_out";
+		case agent_setup_failure::workspace_unavailable:     return "workspace_unavailable";
+		case agent_setup_failure::settings_unreadable:       return "settings_unreadable";
+		case agent_setup_failure::instructions_dropped:      return "instructions_dropped";
+		case agent_setup_failure::instructions_not_followed: return "instructions_not_followed";
+		case agent_setup_failure::output_unreadable:         return "output_unreadable";
 		}
 		return "failed_to_start";
 	}

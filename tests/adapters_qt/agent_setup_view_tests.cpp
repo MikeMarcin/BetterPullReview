@@ -7,6 +7,7 @@
 /// `BPR_SETUP_RENDER_DIR` set, each state is also written there as a light and
 /// a dark PNG for review.
 
+#include "bpr/adapters/workspace/app_bundle_read.hpp"
 #include "bpr/qt/agent_entry_dialog.hpp"
 #include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -21,6 +22,7 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QFile>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -34,6 +36,7 @@
 #include <QRadioButton>
 #include <QSpinBox>
 #include <QStyleFactory>
+#include <QTemporaryDir>
 #include <QToolButton>
 
 #include <algorithm>
@@ -833,6 +836,21 @@ namespace {
 		expect(!dialog.entry().StrictRunChecks && dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled(), "turned off, the entry keeps it off and may be kept");
 		auto popular = qt::agent_entry_dialog{ core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { }) };
 		expect(popular.strict_checks() == nullptr && popular.entry().StrictRunChecks, "a popular agent shows no switch and keeps strict checks");
+		// [[BPR-2307]]. Rely on the launcher's sandbox: a custom Codex agent's
+		// own, off by default, with what it means right under it.
+		expect(dialog.launcher_sandbox() != nullptr && dialog.launcher_sandbox()->isVisibleTo(&dialog) && !dialog.launcher_sandbox()->isChecked() && !dialog.entry().RelyOnLauncherSandbox,
+			   "a custom Codex agent shows the switch, off");
+		const auto* const sandboxMeaning = dialog.findChild<QLabel*>(QStringLiteral("agentEntryLauncherSandboxMeaning"));
+		expect(sandboxMeaning != nullptr && sandboxMeaning->text().contains(QStringLiteral("enforced only by the launcher")) && sandboxMeaning->text().contains(QStringLiteral("Read-only runs stay read-only")),
+			   "it says the grant is then enforced only by the launcher");
+		dialog.launcher_sandbox()->setChecked(true);
+		expect(dialog.entry().RelyOnLauncherSandbox && dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled(), "turned on, the entry keeps it on and may be kept");
+		dialog.protocol()->setCurrentIndex(dialog.protocol()->findData(static_cast<int>(core::agent_protocol::claude_stream_json)));
+		expect(!dialog.launcher_sandbox()->isVisibleTo(&dialog) && !dialog.entry().RelyOnLauncherSandbox, "a Claude agent hides it and never keeps it");
+		dialog.protocol()->setCurrentIndex(dialog.protocol()->findData(static_cast<int>(core::agent_protocol::codex_jsonl_exec)));
+		dialog.launcher_sandbox()->setChecked(false);
+		auto popularCodex = qt::agent_entry_dialog{ core::preset_agent_entry(core::setup_agent::codex, core::codex_protocol_choice::app_server, { }) };
+		expect(popularCodex.launcher_sandbox() == nullptr && !popularCodex.entry().RelyOnLauncherSandbox, "the popular Codex shows no switch");
 		// [[BPR-2007]], [[BPR-2008]]. Scratch folder starts On and Build and
 		// run tests off, beside the model and effort, and both are kept.
 		expect(popular.scratch_starts()->currentText() == QStringLiteral("On") && !popular.builds()->isChecked() && popular.entry().ScratchStarts && !popular.entry().BuildsAndTests,
@@ -904,6 +922,52 @@ namespace {
 		skill.show_answer(application::review_skill_answer::copy_failed);
 		expect(skill.status_text().contains(QStringLiteral("nothing was removed")), "a failed Downloads copy says nothing was removed");
 	}
+	/// [[BPR-2305]]. A custom Codex whose check found its developer
+	/// instructions ignored: the failure says so, and one button switches the
+	/// agent to the start of the prompt and checks it again. A launcher whose
+	/// output is not Codex's is named with the version its check printed.
+	void test_settings_offers_the_prompt_form()
+	{
+		auto programs = qt::agent_programs_panel{ };
+		programs.resize(560, 400);
+		auto updated = std::vector<core::agent_entry>{ };
+		auto checked = std::vector<std::uint32_t>{ };
+		programs.set_dispatch({ .CheckEntry = [&checked](const std::uint32_t aId) { checked.push_back(aId); },
+								.Update     = [&updated](core::agent_entry aEntry, const qt::agent_programs_panel::answer& aAnswer) {
+                                    updated.push_back(std::move(aEntry));
+                                    aAnswer(std::nullopt); } });
+		auto preferences   = application::agent_setup_preferences{ };
+		preferences.Agents = *core::add_agent_entry({ }, core::agent_entry{ .Name = "Launcher Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/launcher" });
+		const auto id      = preferences.Agents.front().Id;
+		programs.present(preferences, { });
+		programs.show();
+		QApplication::processEvents();
+		auto check                     = qt::agent_check_presentation{ };
+		check.Setup.Preferences        = preferences;
+		check.Setup.Detected           = true;
+		check.Setup.ChecksSignIn       = false;
+		check.Setup.State.Chosen       = core::setup_agent::codex;
+		check.Setup.State.AgentCheck   = core::fail_check(core::agent_setup_failure::instructions_dropped);
+		check.Setup.InstructionsSwitch = id;
+		check.Decision                 = { .Offer = core::agent_check_offer::available };
+		programs.present_check(check);
+		expect(programs.switch_instructions_button()->isVisibleTo(&programs) && programs.check_result_text().contains(QStringLiteral("At the start of the prompt")),
+			   "the failure says the developer instructions were ignored and offers the prompt form");
+		programs.switch_instructions_button()->click();
+		expect(updated.size() == 1U && updated.front().Id == id && updated.front().Instructions == core::agent_instruction_delivery::message && checked == std::vector{ id },
+			   "the button switches that agent to the start of the prompt and checks it again");
+		check.Setup.State.AgentCheck = core::fail_check(core::agent_setup_failure::timed_out);
+		check.Setup.InstructionsSwitch.reset();
+		programs.present_check(check);
+		expect(!programs.switch_instructions_button()->isVisibleTo(&programs), "any other failure offers no switch");
+
+		const auto unreadable = qt::setup_failure_words(core::agent_setup_failure::output_unreadable, QStringLiteral("Launcher Codex"), QStringLiteral("version: launcher 0.6.2\nprotocol_failure"));
+		expect(unreadable.contains(QStringLiteral("update the launcher")) && unreadable.contains(QStringLiteral("launcher 0.6.2")) && !unreadable.contains(QStringLiteral("protocol_failure")),
+			   "an unreadable launcher is named with its version and the fix, not a decoder error");
+		expect(!qt::setup_failure_words(core::agent_setup_failure::output_unreadable, QStringLiteral("Launcher Codex"), QStringLiteral("protocol_failure")).contains(QStringLiteral("says it is")),
+			   "with no version printed none is claimed");
+	}
+
 	/// [[BPR-1859]]. Owner, 2026-11-04: "I want to be able to run agent
 	/// check from agent settings page". Check agent on Settings: an intent,
 	/// disabled with its reason, running with Stop and progress, and the
@@ -1075,6 +1139,105 @@ namespace {
 		expect(footer.settings_button()->text() == QStringLiteral("Set up an agent…"), "and goes back to Set up an agent… when they read");
 		programs.hide();
 	}
+
+	/// [[BPR-2303]]. Writes a fixture app bundle: `aInfo` as its Info.plist
+	/// when not empty, and each of `aPrograms` in Contents/MacOS, executable
+	/// unless its name starts with `-`.
+	[[nodiscard]] auto make_bundle(const QString& aBundle, const QByteArray& aInfo, const QStringList& aPrograms) -> QString
+	{
+		expect(QDir{ }.mkpath(aBundle + QStringLiteral("/Contents/MacOS")), "the fixture bundle's folders are made");
+		if (!aInfo.isEmpty()) {
+			auto info = QFile{ aBundle + QStringLiteral("/Contents/Info.plist") };
+			expect(info.open(QIODevice::WriteOnly) && info.write(aInfo) == aInfo.size(), "the fixture Info.plist is written");
+		}
+		for (const auto& name : aPrograms) {
+			const auto plain = name.startsWith(QLatin1Char{ '-' });
+			auto       file  = QFile{ aBundle + QStringLiteral("/Contents/MacOS/") + (plain ? name.mid(1) : name) };
+			expect(file.open(QIODevice::WriteOnly) && file.write("#!/bin/sh\n") > 0, "a fixture program is written");
+			file.close();
+			if (!plain) {
+				expect(file.setPermissions(file.permissions() | QFileDevice::ExeOwner | QFileDevice::ExeUser), "a fixture program can run");
+			}
+		}
+		return aBundle;
+	}
+
+	[[nodiscard]] auto info_naming(const char* aProgram) -> QByteArray
+	{
+		return QByteArray{ R"(<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.example.work</string><key>CFBundleExecutable</key><string>)" }
+		+ aProgram + QByteArray{ "</string></dict></plist>\n" };
+	}
+
+	/// [[BPR-2303]] (owner, 2026-11-19: "The executable I need to point at is
+	/// inside of an app bundle"). Choose… or a typed app gives the app's own
+	/// program, read by the host; an app that names none it holds is refused.
+	void test_program_from_an_app_bundle()
+	{
+		auto unread = qt::agent_entry_dialog{ core::agent_entry{ .Name = "Work", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/Applications/Work Agent.app" } };
+		expect(unread.entry().Program == "/Applications/Work Agent.app" && unread.program()->text() == QStringLiteral("/Applications/Work Agent.app"),
+			   "with no bundle reader, as on Windows and Linux, a .app path is kept as written");
+#if defined(Q_OS_MACOS)
+		const auto root = QTemporaryDir{ };
+		expect(root.isValid(), "a scratch folder for the fixture bundles");
+		const auto work     = make_bundle(root.path() + QStringLiteral("/Work Agent.app"), info_naming("work-agent"), { QStringLiteral("work-agent"), QStringLiteral("work-helper") });
+		const auto bare     = make_bundle(root.path() + QStringLiteral("/Bare.app"), { }, { QStringLiteral("bare"), QStringLiteral("-README") });
+		const auto crowded  = make_bundle(root.path() + QStringLiteral("/Crowded.app"), { }, { QStringLiteral("one"), QStringLiteral("two") });
+		const auto misnamed = make_bundle(root.path() + QStringLiteral("/Misnamed.app"), info_naming("gone"), { QStringLiteral("here") });
+		auto       reads    = 0;
+		auto       chosen   = QString{ };
+		auto       started  = QString{ };
+		auto       host     = qt::agent_program_host{ .Choose =
+														  [&chosen, &started](QWidget*, const QString&, const QString& aStart) {
+													started = aStart;
+													return chosen;
+												},
+											.ReadBundle =
+												[&reads](const std::string& aBundle) {
+													++reads;
+													return adapters::workspace::read_app_bundle(aBundle);
+												} };
+		auto       dialog    = qt::agent_entry_dialog{ core::agent_entry{ .Name = "Work", .Protocol = core::agent_protocol::claude_stream_json }, nullptr, host };
+		const auto ok        = [&dialog] { return dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled(); };
+		const auto workAgent = work + QStringLiteral("/Contents/MacOS/work-agent");
+
+		chosen = work;
+		dialog.choose_button()->click();
+		expect(dialog.program()->text() == workAgent && dialog.entry().Program == workAgent.toStdString() && ok() && !dialog.problem()->isVisibleTo(&dialog),
+			   "choosing an app fills in the program its Info.plist names, not its other one");
+		chosen = work + QStringLiteral("/Contents/MacOS/work-helper");
+		dialog.choose_button()->click();
+		expect(started == workAgent && dialog.program()->text() == chosen && dialog.entry().Program == chosen.toStdString(), "a program chosen inside an app is kept as chosen");
+		chosen = bare;
+		dialog.choose_button()->click();
+		expect(dialog.program()->text() == bare + QStringLiteral("/Contents/MacOS/bare") && ok(), "with no Info.plist, the app's one program");
+		chosen.clear();
+		dialog.choose_button()->click();
+		expect(dialog.program()->text() == bare + QStringLiteral("/Contents/MacOS/bare"), "a cancelled chooser changes nothing");
+
+		dialog.program()->setText(work + QLatin1Char{ '/' });
+		expect(dialog.entry().Program == workAgent.toStdString() && ok(), "a typed or pasted app is taken as its program even before the field is left");
+		emit dialog.program()->editingFinished();
+		expect(dialog.program()->text() == workAgent, "and the field shows that program once it is left");
+
+		chosen = crowded;
+		dialog.choose_button()->click();
+		expect(dialog.program()->text() == crowded && !ok() && dialog.problem()->text().contains(QStringLiteral("Crowded.app has more than one program")),
+			   "an app with two programs and no name is refused, saying to choose one inside it");
+		dialog.program()->setText(misnamed);
+		expect(!ok() && dialog.problem()->text().contains(QStringLiteral("Misnamed.app names a main program that isn't in its Contents/MacOS folder")), "a name the app does not hold is refused");
+		expect(QDir{ crowded + QStringLiteral("/Contents/MacOS") }.removeRecursively(), "the fixture's programs folder is removed");
+		dialog.program()->setText(QString{ });
+		dialog.program()->setText(crowded);
+		expect(!ok() && dialog.problem()->text().contains(QStringLiteral("Crowded.app has no Contents/MacOS folder")), "an app with no programs folder is refused");
+		const auto before = reads;
+		dialog.program()->setText(root.path() + QStringLiteral("/Missing.app"));
+		expect(reads == before + 1 && dialog.entry().Program == (root.path() + QStringLiteral("/Missing.app")).toStdString(), "a .app that is not a folder is left for the program check, as before");
+		dialog.program()->setText(QStringLiteral("/usr/local/bin/work-claude"));
+		expect(reads == before + 1 && ok(), "a path that names no app is never read");
+#endif
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -1091,7 +1254,9 @@ auto main(int argc, char** argv) -> int
 	test_check_and_ready();
 	test_settings_rows();
 	test_settings_check_agent();
+	test_settings_offers_the_prompt_form();
 	test_settings_unreadable();
+	test_program_from_an_app_bundle();
 	std::cout << "agent-setup-view-tests:pass\n";
 	return EXIT_SUCCESS;
 }

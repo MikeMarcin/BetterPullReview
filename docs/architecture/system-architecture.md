@@ -1,11 +1,8 @@
 # BetterPullReview System Architecture
 
 Review Cycles ([RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md))
-is built into the desktop and `bpr cycle` under the same allocation as a pull
-request; the [product contract](product-contract.md) states its narrow scope and
-the [execution ledger](../verification/RFC-BPR-0053-0061.md) what is qualified
-and owed. Those RFCs stay Proposed until their closeout cards judge each
-criterion. See [Review Cycles](#review-cycles) below.
+were retired on 2026-11-20 in favour of local PR drafts (RFC-BPR-0108). See
+[Review Cycles (retired)](#review-cycles-retired) for what of them remains.
 
 ## Normative pattern
 
@@ -319,9 +316,10 @@ its artifacts pinned; core reads such a record (and a publication plan whose
 digest covered evidence, after checking that digest) and drops the evidence.
 
 BPR-2171 keeps the profile's Discuss preferences in its own
-`state/v1/discuss.sqlite3`: the width of Discuss's centred column and, per
-repository (`host/owner/name`, folded), the authors marked as a bot or as not
-one. `core/discuss_preferences.hpp` decides who is a bot (a mark in that
+`state/v1/discuss.sqlite3`: per repository (`host/owner/name`, folded), the
+authors marked as a bot or as not one. The width of Discuss's centred column it
+also held is gone ([[BPR-2299]]): the Reading width sets it, and opening a store
+that still has the column drops it unread. `core/discuss_preferences.hpp` decides who is a bot (a mark in that
 repository, otherwise GitHub's App login, held as `<name>[bot]`), drops a mark
 that says what GitHub says, and reads the stored form (a damaged mark is left
 out; a newer build's store reads as nothing and is never overwritten). The
@@ -390,6 +388,14 @@ reports only that focus is in a multi-line editor). Coming back in front on a
 pull request whose update is `core::refresh_return_seconds` old owes the same
 reread (`core::refresh_due_on_return`, none into a rate limit's wait); it is
 the only news a native profile gets.
+BPR-2315: such a reread, like every read the reviewer did not ask for
+(`core::refresh_quiet`), never veils, disables or rewords what the reviewer
+reads: the Review veil, the status line, the Updates line and the Refresh
+button stay as they were, and the content is replaced in place when the read
+lands. A settled cue follows only when it brought something
+(`core::refresh_settled_cue`); a failure is still said. Pressing Refresh during
+one makes it the reviewer's from then on. Coming back in front counts as any
+activation of the window, a closed dialog or Settings window included.
 The [bounded isolation evidence](../verification/BPR-0969-recent-identity-2026-09-25.md)
 does not establish durable PR snapshots or offline account authority.
 
@@ -580,8 +586,7 @@ GitHub CLI avatar helper ([[BPR-1846]], every package), stdio MCP helper and
 macOS updater helper to its file inventory and selected build graph. [[BPR-1179]] makes two component families removable at build
 time: `BPR_BUILD_AGENT_INTEGRATIONS=OFF` compiles out the agent launch adapter,
 the application's agent hosts, the provider protocol decoders, the MCP
-helper and its supervisor and the cycle's Send to Agent adapter
-([[BPR-1180]]), and the window withdraws its agent controls;
+helper and its supervisor, and the window withdraws its agent controls;
 `BPR_BUILD_LOCAL_AUTOMATION=OFF` binds no owner command endpoint and builds no
 `bpr`. The composition decides which family it holds; stored reviews and
 cycles never depend on either. The supervisor stays in every package, because
@@ -781,8 +786,8 @@ whether a suitable library should be allowed instead.
   established native-state failure terminates rather than emitting a wrong
   digest. [Build guidance](../development/build-and-test-reference.md#core-sha-256-selection)
   records allocation and copy/move behavior. No other OS capability is adopted.
-- dtl is approved only for per-line intraline comparison and Review Cycle
-  suggestion hunks' line edit bounded at 512 changes, never the diff engine's
+- dtl is approved only for per-line intraline comparison and suggestion
+  hunks' line edit bounded at 512 changes, never the diff engine's
   whole-file line matcher (RFC-BPR-0082).
 - RE2 2025-11-05 and Abseil 20250814.2 implement source matching with no worker
   creation ([[BPR-1618]]). Only `source_regex_engine.cpp` includes RE2;
@@ -855,7 +860,6 @@ Do not fragment a feature into unnecessary targets before the ownership boundary
 |---|---|---|
 | Shared collaborative state | GitHub, accessed through host/provider sessions | PR commits, comments, replies, reviews, thread resolution, checks |
 | Private durable review state | Host-owned SQLite ledger | receipts, acceptance, observer rules, local defect classification/lifecycle/anchor history, AI drafts |
-| Local review cycles | Host-owned profile-private cycle store and its content objects | captured revisions and bytes, notes, suggestions, round drafts, frozen rounds, deliveries, responses, verifications, publication plans and journals |
 | Interaction state | Functional core | active PR/file/change, epoch selection, navigation context, command state, pending semantic operation |
 | Bounded observations | Host, borrowed by core | current GitHub snapshot, selected file material, permissions, capability facts, visible queue records |
 | Staged provider results | Application host, pending a core acceptance decision | immutable normalized snapshots keyed by complete request context |
@@ -1399,8 +1403,8 @@ resolve to that variant's built-in defaults. Existing values and stored flags
 survive without a palette reset. Scoped palette reset removes one variant's
 overrides without deleting other appearance preferences.
 
-An exported theme is the Theme section of a version-3 Profile Settings file
-(`.bprsettings`, [[BPR-2283]]) whose `base` names the variant it customises
+An exported theme is the Theme section of a Profile Settings file
+(`.bprsettings`, version 3 or later, [[BPR-2283]]) whose `base` names the variant it customises
 ([[BPR-1479]]); the section is read by the theme format's rules, laid out as
 a version-2 theme document. The store's per-slot documents stay version-1
 theme documents, because the slot is their base. Importing a Theme fills the
@@ -1411,6 +1415,17 @@ parses and decides the base; the composition hands the host the four
 built-in palettes, which Qt owns, and the host performs the fill. The theme
 on screen plays no part in the fill; it is the variant Import keeps the
 colours on.
+
+Version 4 of the file ([[BPR-2301]]) adds an optional Review section: the
+profile's Settings › Review preferences (`review_behaviour_settings` less its
+load observation) as named members, each read on its own. A member or value
+the core does not know is left out and named, a surface width is held to
+Narrow's 720 and 3840 as a stored one is, and nothing in the section refuses
+the file. The application maps the section onto its record
+(`with_review`, `review_differences`) and its vocabularies are asserted
+against the core's names at compile time; Import applies the result through
+the workbench preferences host's own write. A version-3 file, which has no
+Review, still reads.
 
 Migration files the version-6 palette under exactly the variant that row
 recorded, keeping its document bytes, and leaves the other three uncustomized,
@@ -1476,7 +1491,6 @@ window closes. Linux and Windows keep a tray per profile.
 | GitHub mutations | semantic proposal, target/head validation policy | mutation execution, idempotency, reconciliation | draft editor, confirmation, progress, diagnostics |
 | Queue/observers | rule matching and attention policy | refresh timers, API/cache, notification request execution | queue models, filters, native notification presentation |
 | AI | provider-host policy, context-scope decisions, staleness, finding promotion; queued input state, order, limits, holds, claims and settlement (`core::agent_queue`), the follow-up decision (`core::decide_follow_up`) and steering capability (RFC-BPR-0126) | process/session/workspace management and protocols; the profile's session queue host, durable claims and receipts, release on run retirement, native steering writes (Claude `priority: "next"`, Codex App Server `turn/steer`), Stop all | explicit invocation, approvals, chat/findings presentation; Queue/Steer composer, the pending list (`qt::agent_pending_list`), Follow-up behaviour setting, Stop all in the agent footer |
-| Review Cycles | cycle, revision, item and round identities and transitions, capture-path admission, exact comparisons, suggestion conflicts, round assembly and freezing, the disclosure decision (`authorize`), response admission, publication plans and journals, wire names | cycle runtime and store, read-only workspace source, capture lane, exports, owner command channel, harness grants, publication catalog and GitHub publication session, Send to Agent through the existing launcher | cycle page, drawer, code view, notes, Suggest change, Compose feedback and Share notes sheets, Publish as Pull Request sheet, Updates line |
 | Appearance | no color/font/widget authority | settings persistence and cache scheduling | system mode, fonts, colors, syntax presentation, accessibility |
 | Dif mascot | appearance preferences and bounded native-observation resolution only; no asset, clip, frame, timer, widget, decode, or cue state | persisted preference effects and typed accepted presentation facts; no art generation, decode, painting, or animation state | RFC-BPR-0030/0031 fixed resources, shared decoded cache, elapsed-time sequencing, painting, window lifecycle, native observation, and bounded presentation-only cues |
 
@@ -1684,45 +1698,23 @@ surface remains reopenable through the shipped toolbar. That height floor
 reflects the product-owner requirement that all secondary upper and lower
 detail chrome collapse together.
 
-## Review Cycles
+## Review Cycles (retired)
 
-A review cycle is a second review subject beside the pull request, under the
-same allocation. The core (`bpr/core/review_cycle*.hpp`) owns the cycle,
-revision, item, round, response, verification and publication identities and
-their transitions; capture-path admission and byte classification; exact
-comparisons; suggestion conflicts; round assembly and the frozen canonical
-payload; the disclosure decision `authorize` that every channel asks; response
-admission; publication plans and journals; and the wire names (`RC-3`, `R2`,
-`I7`, `F1`) the desktop and the terminal share. It names no host, account,
-filesystem or process.
+Review Cycles, a second, local review subject beside the pull request with its
+own store, rounds, terminal (`bpr cycle`), owner command and desktop page, were
+retired on 2026-11-20 by owner decision ([[BPR-2308]]). Local PR drafts
+(RFC-BPR-0108) cover reviewing local work before it is a pull request. The
+cycle runtime, store, capture host, workbench, Qt page and sheets, desktop
+host, CLI and owner service and the Send to Agent round sender are gone;
+records an earlier version stored stay on disk unread.
 
-The application host composes `review_cycle_runtime` over the profile's
-`review_cycle_store` with a decision lane, an effect lane and, in the desktop, a
-capture lane of its own, and nothing else: no account, provider, vault, agent
-or executable lookup. Its ports are the read-only workspace source
-(`bpr/adapters/workspace`, which never runs Git), the SQLite cycle store, the
-local export destination, the installed-Git publication catalog
-(`publication_candidate_port`, in a BPR-owned store) and the GitHub publication
-session (`github_publication_port`) minted by the accepted account's transport.
-`review_cycle_workbench` turns them into the page's steps. Qt presents: the
-cycle page (`review_cycle_view`), its Compose feedback and Share notes sheet
-(`review_cycle_share_sheet`), Publish as Pull Request (`review_cycle_publish_sheet`)
-and Add Notes to Review Tour (`review_cycle_promote_sheet`), with no store,
-file, Git or network effect of their own.
-
-`src/app` composes the desktop's cycle host (`review_cycle_desktop`) and the
-terminal (`cycle_cli`, `cycle_commands`, `cycle_session`) over the same runtime.
-A profile has one writer, the process holding its runtime lease; a terminal
-command meets a running desktop through `cycle_owner_service` on the profile's
-same-user owner channel and runs there on the desktop's store, so both
-interfaces give the same answer. Send to Agent (`review_cycle_agent_sender`)
-hands the frozen round to the existing agent launcher and records what it saw;
-it is compiled only with agent integrations, and the owner channel and `bpr`
-only with local automation (see [Release maintenance and packaged ownership](#release-maintenance-and-packaged-ownership)).
-Stored cycles depend on neither family. The
-[domain model](domain-and-state-model.md#review-cycle-identities-rfc-bpr-0053),
-[terminal guide](../development/cycle-cli.md) and
-[threat model](security-threat-model.md#review-cycles) carry the contracts.
+The core vocabulary local drafts, Suggest change, tours and diagnostic export
+were built on stays under its `review_cycle_*` names (workspace, manifest,
+material, Git readers, comparison rows, outgoing plan, candidate, publication
+plan and journal, suggestion records, canonical JSON and ZIP), as do the
+read-only workspace adapter and `review_cycle_git_metadata` in the
+application. The [domain model](domain-and-state-model.md#review-cycle-vocabulary-kept-after-review-cycles-rfc-bpr-0053-to-0061)
+lists them.
 
 ## RFC-BPR-0003 dedicated epoch vertical slice
 

@@ -27,11 +27,6 @@ namespace bpr::core {
 		return static_cast<agent_turn_outcome>(aOrdinal);
 	}
 
-	auto legacy_agent_turn_outcome(const std::string_view aEnding) noexcept -> agent_turn_outcome
-	{
-		return aEnding.starts_with("Stopped after ") ? agent_turn_outcome::ended_without_answer : agent_turn_outcome::answered;
-	}
-
 	auto stable_name(const agent_turn_recovery aRecovery) noexcept -> std::string_view
 	{
 		switch (aRecovery) {

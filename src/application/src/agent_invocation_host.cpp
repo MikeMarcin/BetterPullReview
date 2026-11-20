@@ -1015,6 +1015,8 @@ namespace bpr::application {
 				options.SystemInstructions = aRequest.SystemInstructions;
 				options.Instructions       = aRequest.Instructions;
 				options.WritingStyle       = aRequest.WritingStyle;
+				// [[BPR-2307]]. Matters only to a granted Codex turn.
+				options.RelyOnLauncherSandbox = aRequest.RelyOnLauncherSandbox && (aProfile.Protocol == core::agent_protocol::codex_jsonl_exec || aProfile.Protocol == core::agent_protocol::codex_app_server);
 				// [[BPR-1752]]. The brief says what the workspace that
 				// was just made is, so the agent knows whether history and the
 				// base are there to compare with.
@@ -1764,7 +1766,7 @@ namespace bpr::application {
 		decision_executor&                   DecisionLane;
 		agent_invocation_projection_port&    Projection;
 		private_agent_run_port*              PrivateRuns;
-		void                                 restore_native(const core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice, std::optional<agent_conversation_key> aLegacy)
+		void                                 restore_native(const core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice)
 		{
 			const auto self = shared_from_this();
 			if (self->Closing || !self->NativeSessions || aAgentIdentity.empty() || !self->Authority || !self->Binding || !self->ApplicationSession) {
@@ -1779,9 +1781,9 @@ namespace bpr::application {
 						return;
 					}
 					const auto explicitChoice = aChoice.has_value();
-					auto       deferred       = [weak = weak_from_this(), aProfile, agent = std::move(aAgentIdentity), scope = std::move(aScope), choice = std::move(aChoice), legacy = aLegacy, application = self->ApplicationSession, authority = self->Authority, binding = self->Binding]() mutable {
+					auto       deferred       = [weak = weak_from_this(), aProfile, agent = std::move(aAgentIdentity), scope = std::move(aScope), choice = std::move(aChoice), application = self->ApplicationSession, authority = self->Authority, binding = self->Binding]() mutable {
 						if (auto owner = weak.lock(); owner && owner->ApplicationSession == application && owner->Authority == authority && owner->Binding == binding) {
-							owner->restore_native(aProfile, std::move(agent), std::move(scope), std::move(choice), std::move(legacy));
+							owner->restore_native(aProfile, std::move(agent), std::move(scope), std::move(choice));
 						}
 					};
 					if (explicitChoice) {
@@ -1815,13 +1817,13 @@ namespace bpr::application {
 				}
 			} catch (...) { }
 			try {
-				self->Effects.post([self, scope, configuration, observed, aProfile, generation, aScope, choice = std::move(aChoice), legacy = aLegacy, nativeSupported] {
+				self->Effects.post([self, scope, configuration, observed, aProfile, generation, aScope, choice = std::move(aChoice), nativeSupported] {
 					auto loaded  = std::expected<std::optional<native_agent_session>, native_agent_storage_failure>{ std::unexpected(native_agent_storage_failure::unavailable) };
 					auto history = std::expected<native_agent_history_projection, native_agent_storage_failure>{ std::unexpected(native_agent_storage_failure::unavailable) };
 					try {
 						if (choice && !choice->starts_with("view:")) {
-							auto selected = choice->empty() && !nativeSupported ? self->NativeSessions->replay(scope, configuration, observed, "", legacy) : choice->starts_with("replay:") ? self->NativeSessions->replay(scope, configuration, observed, choice->substr(7U), legacy)
-																																															: self->NativeSessions->choose(scope, configuration, observed, *choice);
+							auto selected = choice->empty() && !nativeSupported ? self->NativeSessions->replay(scope, configuration, observed, "") : choice->starts_with("replay:") ? self->NativeSessions->replay(scope, configuration, observed, choice->substr(7U))
+																																													: self->NativeSessions->choose(scope, configuration, observed, *choice);
 							if (selected) {
 								loaded = std::optional{ std::move(*selected) };
 							} else {
@@ -1830,7 +1832,7 @@ namespace bpr::application {
 						} else {
 							loaded = self->NativeSessions->find(scope, configuration, observed);
 						}
-						history = self->NativeSessions->history(scope, configuration, choice && choice->starts_with("view:") ? choice->substr(5U) : std::string{ }, legacy);
+						history = self->NativeSessions->history(scope, configuration, choice && choice->starts_with("view:") ? choice->substr(5U) : std::string{ });
 					} catch (...) { }
 					try {
 						self->DecisionLane.post([self, outcome = std::move(loaded), savedHistory = std::move(history), aScope, aProfile, generation, nativeSupported] {
@@ -1997,9 +1999,9 @@ namespace bpr::application {
 			std::move(aBinding));
 	}
 
-	void agent_invocation_host::restore_native(const core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice, std::optional<agent_conversation_key> aLegacy)
+	void agent_invocation_host::restore_native(const core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice)
 	{
-		Implementation->restore_native(aProfile, std::move(aAgentIdentity), std::move(aScope), std::move(aChoice), std::move(aLegacy));
+		Implementation->restore_native(aProfile, std::move(aAgentIdentity), std::move(aScope), std::move(aChoice));
 	}
 
 	void agent_invocation_host::native_history_changed()

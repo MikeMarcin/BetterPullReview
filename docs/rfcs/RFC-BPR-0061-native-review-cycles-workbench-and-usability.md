@@ -1,15 +1,40 @@
 ---
 id: "RFC-BPR-0061"
 title: "Native Review Cycles Workbench and Usability"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Review Cycles"
-depends_on: ["RFC-BPR-0053", "RFC-BPR-0054", "RFC-BPR-0055", "RFC-BPR-0056", "RFC-BPR-0057", "RFC-BPR-0052", "RFC-BPR-0037"]
+depends_on: ["RFC-BPR-0053", "RFC-BPR-0054", "RFC-BPR-0055", "RFC-BPR-0056", "RFC-BPR-0057", "RFC-BPR-0052"]
 pack_version: "review-cycles-v1"
 metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}, "owner_dependency_amendment": {"date": "2026-10-06", "removed_closure_dependencies": ["RFC-BPR-0050"], "uses": [], "card": "BPR-1194"}}
 ---
 
 # RFC-BPR-0061: Native Review Cycles Workbench and Usability
+
+## Status: Auto-Verified; closed to what shipped and retired (owner, 2026-11-20)
+
+The owner retired Review Cycles on 2026-11-20 ("Are review_cycles even
+valuable anymore? I feel like they've been completely superseded by our local
+draft pr workflow", then "Yeah don't think we need it anymore").
+[[BPR-2308]] removed the feature and [[BPR-2309]] recorded it; local PR drafts
+([RFC-BPR-0108](RFC-BPR-0108-local-pr-drafts.md)) take its place. The
+repository has no Superseded status, so this RFC keeps its status as the record
+of what shipped and how it was verified; its contracts no longer describe the
+product. Cycle records an earlier version stored (`review-cycles.sqlite3`,
+`publication-git-v1/`) stay on disk untouched and are no longer read.
+
+This RFC was still Proposed, waiting on RFC-BPR-0052 and RFC-BPR-0037 and on
+its closeout [[BPR-1194]]. Its workbench page shipped through the Done cards of
+plan `bpr-review-cycles-v1` and was then removed, so it closes on what shipped,
+as [[BPR-2313]] closed the vestigial RFCs that day: no closeout pass ran, each
+criterion stands on its delivering cards' recorded evidence, and a criterion no
+card evidenced is not passed. [[BPR-1194]] is Done with its checklist
+withdrawn. RFC-BPR-0037 leaves `depends_on`: the cycle page that took its
+workflow chrome no longer exists, so nothing here waits on it. RFC-BPR-0052 is
+Auto-Verified.
+
+Nothing of this RFC remains: Open Project, Home's Review Cycles section, the
+local cycle page, its sheets and its keys are gone.
 
 ## Outcome and decisions
 
@@ -89,7 +114,7 @@ are BPR-1285's.
 
 As imported, this RFC listed RFC-BPR-0050 among its dependencies.
 RFC-BPR-0050 is Proposed; its closeout is
-[BPR-1100](../issues/10-backlog/BPR-1100-close-rfc-0050.md). The owner was
+[BPR-1100](../issues/60-done/BPR-1100-close-rfc-0050.md). The owner was
 asked in chat about this RFC's dependencies ("depends on RFC-0050, 0052 and
 0037 …") and answered:
 
@@ -109,10 +134,10 @@ to close in order once RFC-BPR-0028 does. The second half of the answer,
 BPR-0653's Windows title row at 100% display scale, is the first step of that order:
 [BPR-0653](../issues/60-done/BPR-0653-windows-caption-in-the-strip.md), then
 RFC-BPR-0028's closeout
-[BPR-1021](../issues/20-ready/BPR-1021-close-rfc-0028.md), then
+[BPR-1021](../issues/60-done/BPR-1021-close-rfc-0028.md), then
 RFC-BPR-0037, then RFC-BPR-0052's closeout
-[BPR-1135](../issues/10-backlog/BPR-1135-close-rfc-0052.md), then this RFC's
-closeout [BPR-1194](../issues/10-backlog/BPR-1194-close-rfc-0061.md).
+[BPR-1135](../issues/60-done/BPR-1135-close-rfc-0052.md), then this RFC's
+closeout [BPR-1194](../issues/60-done/BPR-1194-close-rfc-0061.md).
 
 This amendment changes no RC61 criterion and does not close RFC-BPR-0050. The
 question and its answer are recorded on BPR-1194 and in the

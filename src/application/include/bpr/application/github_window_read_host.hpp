@@ -16,6 +16,7 @@
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_window_read.hpp"
 #include "bpr/core/pull_request_link_route.hpp"
+#include "bpr/core/refresh_feedback.hpp"
 
 #include <expected>
 #include <functional>
@@ -148,7 +149,9 @@ namespace bpr::application {
 		/// \details [[BPR-1573]]. A close the core accepts stops any read in
 		/// flight and invalidates the epoch authority, the release opening
 		/// another pull request makes; a refused close changes nothing.
-		void dispatch(const core::github_window_read_event& aEvent);
+		/// [[BPR-2315]]. `aCause`, for a refresh, is what asked for it: the
+		/// read's `started` line names it as `refresh_cause=NAME`.
+		void dispatch(const core::github_window_read_event& aEvent, std::optional<core::refresh_cause> aCause = std::nullopt);
 		/// Share one immutable accepted server observation with bounded sibling
 		/// readers. Does not fetch, move comparisons, or hand off another epoch.
 		void share_snapshot(std::span<const std::shared_ptr<github_window_read_host>> aWindows, std::uint64_t aSequence);

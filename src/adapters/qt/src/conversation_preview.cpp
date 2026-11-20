@@ -4,6 +4,9 @@
 
 #include "bpr/core/markdown_code.hpp"
 
+#include <QColor>
+#include <QFontMetrics>
+#include <QPainter>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextFragment>
@@ -13,9 +16,17 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <cstdint>
+#include <vector>
 
 namespace bpr::qt::detail {
 	namespace {
+		// A token chip's measures, Discuss's ([[BPR-2171]]).
+		constexpr int token_pad    = 5;
+		constexpr int token_gap    = 4;
+		constexpr int token_height = 15;
+
 		/// \brief Whether a body can hold no Markdown but inline code: one
 		/// line, none of the characters a block or an emphasis starts with.
 		[[nodiscard]] auto plain(const QString& aBody) -> bool
@@ -28,7 +39,21 @@ namespace bpr::qt::detail {
 			if (text.front() == u'-' || text.front() == u'+' || text.front().isDigit()) {
 				return false;
 			}
-			return std::ranges::none_of(aBody, [](const QChar aCharacter) { return std::ranges::find(marks, aCharacter.unicode()) != marks.end(); });
+			if (std::ranges::any_of(aBody, [](const QChar aCharacter) { return std::ranges::find(marks, aCharacter.unicode()) != marks.end(); })) {
+				return false;
+			}
+			// [[BPR-2300]]. A `:name:` may be an emoji, which only the GitHub
+			// import replaces.
+			for (auto at = aBody.indexOf(QLatin1Char{ ':' }); at >= 0; at = aBody.indexOf(QLatin1Char{ ':' }, at + 1)) {
+				auto end = at + 1;
+				while (end < aBody.size() && (aBody.at(end).isLower() || aBody.at(end).isDigit() || QStringView{ u"_+-" }.contains(aBody.at(end)))) {
+					++end;
+				}
+				if (end > at + 1 && end < aBody.size() && aBody.at(end) == QLatin1Char{ ':' }) {
+					return false;
+				}
+			}
+			return true;
 		}
 
 		/// \brief Collapses spaces, line breaks and object marks to single
@@ -289,5 +314,155 @@ namespace bpr::qt::detail {
 			}
 		}
 		return preview;
+	}
+
+	auto preview_runs(const note_preview& aPreview) -> std::vector<preview_run>
+	{
+		const auto size  = static_cast<int>(aPreview.Text.size());
+		auto       kinds = std::vector<std::uint8_t>(static_cast<std::size_t>(size), 0U);
+		for (const auto& [start, length] : aPreview.Strong) {
+			for (auto at = std::max(0, start); at < std::min(size, start + length); ++at) {
+				kinds[static_cast<std::size_t>(at)] = 2U;
+			}
+		}
+		for (const auto& [start, length] : aPreview.Code) {
+			for (auto at = std::max(0, start); at < std::min(size, start + length); ++at) {
+				kinds[static_cast<std::size_t>(at)] = 1U;
+			}
+		}
+		auto runs = std::vector<preview_run>{ };
+		for (auto at = 0; at < size;) {
+			auto end = at;
+			while (end < size && kinds[static_cast<std::size_t>(end)] == kinds[static_cast<std::size_t>(at)]) {
+				++end;
+			}
+			runs.push_back({ .Text = aPreview.Text.mid(at, end - at), .Code = kinds[static_cast<std::size_t>(at)] == 1U, .Strong = kinds[static_cast<std::size_t>(at)] == 2U });
+			at = end;
+		}
+		return runs;
+	}
+
+	auto fit_preview_line(std::vector<preview_run> aRuns, const bool aOmitted, const QFont& aFont, const QFont& aCodeFont, const int aWidth) -> std::vector<preview_run>
+	{
+		auto strong = aFont;
+		strong.setWeight(QFont::DemiBold);
+		const auto metrics = [&](const preview_run& aRun) { return QFontMetricsF{ aRun.Code ? aCodeFont : aRun.Strong ? strong
+																													  : aFont }; };
+		auto       total   = 0.0;
+		for (const auto& run : aRuns) {
+			total += metrics(run).horizontalAdvance(run.Text);
+		}
+		const auto ellipsis = QString{ QChar{ 0x2026 } };
+		if (total <= aWidth && !aOmitted) {
+			return aRuns;
+		}
+		// Where the words stop: the last character that fits beside the
+		// ellipsis, as an index into the runs' joined text.
+		auto       text  = QString{ };
+		auto       first = std::vector<int>{ };
+		const auto room  = aWidth - QFontMetricsF{ aFont }.horizontalAdvance(ellipsis);
+		auto       cut   = 0;
+		auto       x     = 0.0;
+		auto       full  = true;
+		for (const auto& run : aRuns) {
+			first.push_back(static_cast<int>(text.size()));
+			text += run.Text;
+		}
+		for (std::size_t index = 0U; index < aRuns.size() && full; ++index) {
+			const auto& run     = aRuns[index];
+			const auto  measure = metrics(run);
+			const auto  advance = measure.horizontalAdvance(run.Text);
+			if (x + advance <= room) {
+				x += advance;
+				cut = first[index] + static_cast<int>(run.Text.size());
+				continue;
+			}
+			// The longest prefix of this run that fits.
+			auto low  = 0;
+			auto high = static_cast<int>(run.Text.size());
+			while (low < high) {
+				const auto middle = (low + high + 1) / 2;
+				if (x + measure.horizontalAdvance(run.Text.left(middle)) <= room) {
+					low = middle;
+				} else {
+					high = middle - 1;
+				}
+			}
+			cut  = first[index] + low;
+			full = false;
+		}
+		if (!full) {
+			// Back to a word boundary, never inside inline code but when it
+			// opens the line.
+			auto boundary = cut;
+			while (boundary > 0 && !text.at(boundary - 1).isSpace() && !text.at(boundary).isSpace()) {
+				--boundary;
+			}
+			if (boundary > 0) {
+				cut = boundary;
+			}
+			for (std::size_t index = 0U; index < aRuns.size(); ++index) {
+				const auto end = first[index] + static_cast<int>(aRuns[index].Text.size());
+				if (aRuns[index].Code && first[index] > 0 && cut > first[index] && cut < end) {
+					cut = first[index];
+				}
+			}
+		}
+		// The ellipsis takes the place of a sentence's last stop.
+		while (cut > 0 && (text.at(cut - 1).isSpace() || QStringView{ u".,;:" }.contains(text.at(cut - 1)))) {
+			--cut;
+		}
+		auto result = std::vector<preview_run>{ };
+		for (std::size_t index = 0U; index < aRuns.size() && first[index] < cut; ++index) {
+			auto run = std::move(aRuns[index]);
+			run.Text.truncate(cut - first[index]);
+			result.push_back(std::move(run));
+		}
+		result.push_back({ .Text = ellipsis });
+		return result;
+	}
+
+	auto preview_token_font(const QFont& aFont) -> QFont
+	{
+		auto font = aFont;
+		if (font.pointSizeF() > 0.0) {
+			font.setPointSizeF(font.pointSizeF() * 0.8);
+		} else if (font.pixelSize() > 0) {
+			font.setPixelSize(std::max(1, static_cast<int>(std::lround(font.pixelSize() * 0.8))));
+		}
+		return font;
+	}
+
+	auto preview_tokens_width(const QStringList& aTokens, const QFont& aFont) -> int
+	{
+		if (aTokens.isEmpty()) {
+			return 0;
+		}
+		const auto metrics = QFontMetrics{ preview_token_font(aFont) };
+		auto       width   = 0;
+		for (const auto& token : aTokens) {
+			width += metrics.horizontalAdvance(token) + 2 * token_pad + token_gap;
+		}
+		return width - token_gap;
+	}
+
+	void paint_preview_tokens(QPainter& aPainter, const QStringList& aTokens, const QFont& aFont, const int aLeft, const int aMiddle, const QColor& aRule, const QColor& aInk)
+	{
+		const auto tokenFont = preview_token_font(aFont);
+		const auto metrics   = QFontMetrics{ tokenFont };
+		auto       x         = aLeft;
+		const auto top       = aMiddle - token_height / 2;
+		aPainter.save();
+		aPainter.setFont(tokenFont);
+		for (const auto& token : aTokens) {
+			const auto chip = QRectF{ static_cast<qreal>(x) + 0.5, static_cast<qreal>(top) + 0.5, static_cast<qreal>(metrics.horizontalAdvance(token) + 2 * token_pad) - 1.0, static_cast<qreal>(token_height) - 1.0 };
+			aPainter.setPen(QPen{ aRule, 1.0 });
+			aPainter.setBrush(Qt::NoBrush);
+			aPainter.drawRoundedRect(chip, 3.0, 3.0);
+			aPainter.setPen(aInk);
+			aPainter.drawText(chip, Qt::AlignCenter, token);
+			x += metrics.horizontalAdvance(token) + 2 * token_pad + token_gap;
+		}
+		aPainter.restore();
 	}
 }

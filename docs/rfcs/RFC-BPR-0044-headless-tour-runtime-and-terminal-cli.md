@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0044"
 title: "Headless Tour Runtime and Terminal CLI"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Tour CLI and pr-tour skill"
 depends_on: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041", "RFC-BPR-0042"]
@@ -10,6 +10,19 @@ metadata: {"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rf
 ---
 
 # RFC-BPR-0044: Headless Tour Runtime and Terminal CLI
+
+## Status: Auto-Verified (owner closure, 2026-11-20)
+
+The owner approved the vestigial-work list on 2026-11-20 ("All, incl. notes check", recorded in
+[[BPR-2313]]): close RFC-BPR-0044 to 0046 to what shipped. Shipped: the
+AI-free `bpr tour` runtime and commands, editors and undo, terminal rendering,
+publication maintenance and read-first recovery (BPR-1052 to BPR-1059,
+BPR-1302, BPR-1377). Withdrawn by owner amendment, never run: [[BPR-1068]] (bundled
+macOS CLI and native headless qualification, so AC44-09 and AC44-12 are not
+passed) and [[BPR-1070]]. [[BPR-2274]] removed Problem and Solution from a
+tour, so AC44-03 now means stops only.
+
+It closes on what it built: no closeout pass ran, each criterion stands on its delivering cards' recorded evidence, and a criterion no card evidenced is not passed. The repository has no Superseded status; a delivered RFC that a later one replaces in part closes Auto-Verified with this record, as RFC-BPR-0025 did. Closed by [[BPR-1071]].
 
 ## Decision and additive scope
 

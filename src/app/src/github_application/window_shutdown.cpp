@@ -193,9 +193,6 @@ namespace bpr::app {
 		if (TourHost) {
 			TourHost->shutdown();
 		}
-		if (CycleDesktop) {
-			CycleDesktop->shutdown();
-		}
 		if (DraftDesktop) {
 			DraftDesktop->shutdown();
 		}
@@ -318,7 +315,6 @@ namespace bpr::app {
 			|| (TourPublication && !TourPublication->is_quiescent())
 			|| (ConversationReply && !ConversationReply->is_quiescent())
 			|| (TourHost && !TourHost->is_quiescent())
-			|| (CycleDesktop && !CycleDesktop->is_quiescent())
 			|| (DraftDesktop && !DraftDesktop->is_quiescent())
 			|| (DescriptionDraft && !DescriptionDraft->is_quiescent()) || (FollowUp && !FollowUp->is_quiescent())
 #if defined(BPR_AGENT_INTEGRATIONS)

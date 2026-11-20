@@ -233,22 +233,6 @@ namespace bpr::core {
 		}
 		return private_revision_commit{ thread, std::move(*revision) };
 	}
-	auto migrate_private_thread(private_review_thread_id aId, const legacy_retained_subject& aSubject,
-								const private_revision_input& aInput) -> std::expected<private_revision_commit, private_review_refusal>
-	{
-		const auto thread = private_review_thread{ aId, aSubject, 1, aInput.Order, private_thread_lifecycle::open };
-		if (!valid_thread(thread)) {
-			return std::unexpected(private_review_refusal::invalid_identity);
-		}
-		if (!std::holds_alternative<private_legacy_unknown_actor>(aInput.Actor)) {
-			return std::unexpected(private_review_refusal::invalid_actor);
-		}
-		auto revision = make_revision(thread, aInput);
-		if (!revision) {
-			return std::unexpected(revision.error());
-		}
-		return private_revision_commit{ thread, std::move(*revision) };
-	}
 	auto append_private_turn(const private_review_thread& aThread, std::uint64_t aExpectedVersion,
 							 const private_revision_input& aInput, const private_review_revision* aReplyTo, const private_run_authorization* aRun)
 		-> std::expected<private_revision_commit, private_review_refusal>

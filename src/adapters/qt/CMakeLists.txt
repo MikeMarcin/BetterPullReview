@@ -13,7 +13,6 @@ add_library(
         src/scoped_prose_editor.cpp
         src/suggestion_editor.cpp
         src/suggestion_composer.cpp
-        src/review_cycle_view.cpp
         src/local_draft_publication_area.cpp
         src/local_draft_workflow_area.cpp
         src/wrapping_row.cpp
@@ -22,15 +21,11 @@ add_library(
         src/workbench_window_author_mode.cpp
         src/author_description_editor.cpp
         src/local_draft_parts.cpp
-        src/review_cycle_share_sheet.cpp
-        src/review_cycle_share_marks.cpp
         src/anchored_tooltip.cpp
         src/external_link_confirmation.cpp
         src/feedback_label_marks.cpp
         src/feedback_label_controls.cpp
         src/feedback_label_settings.cpp
-        src/review_cycle_publish_sheet.cpp
-        src/review_cycle_promote_sheet.cpp
         src/keyboard_focus_ring.cpp
         src/button_surface.cpp
         src/quiet_tool_button.cpp
@@ -60,6 +55,7 @@ add_library(
         src/appearance_profile.cpp
         src/bundled_code_font.cpp
         src/appearance_settings_panel.cpp
+        src/settings_card.cpp
         src/github_cli_consent.cpp
         src/github_session_panel.cpp
         src/system_tray_notification_sink.cpp
@@ -86,6 +82,7 @@ add_library(
         src/ask_menu.cpp
         src/agent_report_view.cpp
         src/report_page.cpp
+        src/reading_width_dialog.cpp
         src/follow_up_window.cpp
         src/prompt_words.cpp
         src/prompts_page.cpp
@@ -238,8 +235,8 @@ if(WIN32)
 endif()
 if(APPLE)
     enable_language(OBJCXX)
-    target_sources(better_pull_review_adapter_qt PRIVATE src/motion_observer_mac.mm src/release_update_menu_mac.mm src/insights_menu_mac.mm src/resize_handle_cursor_mac.mm src/menu_bar_status_item.cpp)
-    set_source_files_properties(src/motion_observer_mac.mm src/release_update_menu_mac.mm src/insights_menu_mac.mm src/resize_handle_cursor_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    target_sources(better_pull_review_adapter_qt PRIVATE src/motion_observer_mac.mm src/release_update_menu_mac.mm src/insights_menu_mac.mm src/resize_handle_cursor_mac.mm src/program_chooser_mac.mm src/menu_bar_status_item.cpp)
+    set_source_files_properties(src/motion_observer_mac.mm src/release_update_menu_mac.mm src/insights_menu_mac.mm src/resize_handle_cursor_mac.mm src/program_chooser_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     find_library(BPR_DIF_APPKIT_FRAMEWORK AppKit REQUIRED)
     target_link_libraries(better_pull_review_adapter_qt PRIVATE "${BPR_DIF_APPKIT_FRAMEWORK}")
     # native_window_chrome.cpp reaches the NSWindow through the Objective-C

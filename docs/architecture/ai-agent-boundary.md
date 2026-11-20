@@ -28,11 +28,13 @@ A profile declares executable, protocol, supported capabilities, workspace polic
 
 The shipped immutable registry contains Codex App Server and Codex JSONL
 (`codex`), approved Claude stream JSON (`claude`), and the external terminal
-harness (`bpr-agent-terminal`). The Agent tab and Send to Agent name them by
+harness (`bpr-agent-terminal`). The Agent tab names them by
 plain name: Claude Code, Codex, and a harness that reads plain text.
-GitHub.com permits all four profiles; an explicit GHES host refuses Codex
-before workspace or launcher effects and offers only the approved corporate
-alternatives.
+GitHub.com and an explicit GHES host permit all four profiles. Until the
+owner's decision of 2026-11-19 ([[BPR-2305]]: "Codex should be allowed on
+explicit GHES hosts", popular or custom) an explicit GHES host refused Codex;
+a host policy that leaves a profile out still refuses it in core, before
+workspace or launcher effects.
 
 **Looking for agents ([RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md), owner answer Q2).**
 This amends the earlier rule that merely showing the panel performs no
@@ -92,8 +94,7 @@ The external-terminal fallback is mandatory when a corporate harness exposes no 
 profile, **Process wrapper** under **Claude**, modelled on the VS Code
 extension's `claudeProcessWrapper`. It is one absolute path to a program run in
 place of `claude` for every Claude stream-JSON launch of that profile: the
-agent panel, side chat, comment workshop, tool-free writing and Review Cycle
-Send to Agent. A wrapper is either a separately installed `claude` or a
+agent panel, side chat, comment workshop and tool-free writing. A wrapper is either a separately installed `claude` or a
 program that prepares a provider (Bedrock, a gateway, credentials it fetches
 itself) and then runs Claude. The registry names the bare `claude`, which no
 launcher starts as it is; with no wrapper saved the launch searches for it
@@ -191,7 +192,54 @@ launcher starts as it is; with no wrapper saved the launch searches for it
 
 ## Host policy
 
-Git hosts map to allowed or required agent profiles. A corporate GHES profile can require the corporate Claude harness and forbid a personal provider. Unknown hosts have AI disabled until explicitly mapped.
+Git hosts map to allowed or required agent profiles. A host policy can require one profile and forbid another; the built-in explicit-GHES policy permits Codex since 2026-11-19 ([[BPR-2305]]). Unknown hosts have AI disabled until explicitly mapped.
+
+**Codex through a sandbox launcher ([[BPR-2305]]).** On a corporate Mac Codex
+can reach a GHES pull request through a launcher whose Codex mode runs the
+real Codex CLI, set up as a custom Codex (JSONL) agent: the launcher is the
+program and its own options the fixed arguments. An audit on 2026-11-19
+(codex-cli 0.167.2 through such a launcher) found:
+
+- **Warnings before the turn.** Codex writes configuration warnings as
+  `item.completed` items of type `error`, between `thread.started` and
+  `turn.started` as well as in the turn. The JSONL decoder reads them as
+  warnings (`harness_warning`), never failures: their text folds with the
+  turn's activity in the Agent tab, and the run's diagnostic counts them
+  (`warnings=N`) without their text. A top-level `error` event in the turn
+  still ends the run: no stream in which Codex recovered from one was
+  captured, so today's rule stands until one is. The App Server decoder
+  already reads past `configWarning`, `warning` and `item/completed`.
+- **Instructions.** The launcher dropped `-c developer_instructions=…`; the
+  same rules at the start of the prompt were followed. A Codex agent's
+  Instructions setting says where they go: "As developer instructions" (the
+  default) or "At the start of the prompt", where `exec` gets them right
+  after the fixed protocol line and before the request, one cacheable prefix.
+  A custom Codex JSONL agent's check asks one short read-only question with a
+  rule given its configured way; when developer instructions are ignored and
+  the prompt form is followed, the check says so and Settings offers "Use the
+  start of the prompt". Output that is not Codex's JSON lines (a launcher
+  before its pipe mode runs Codex under a terminal) is said as that, with the
+  version the agent's own check printed and the fix: update the launcher.
+- **Writes.** A granted write failed inside the launcher, likely Codex's own
+  sandbox nested in the launcher's. A turn whose file changes all failed
+  ends with words naming them instead of a normal answer, and its diagnostic
+  counts them (`writes_failed=N writes_written=N`).
+- **Codex's own sandbox (owner decision 2026-11-19, [[BPR-2307]]).** Asked
+  "May a custom agent turn off Codex's own sandbox and rely on the
+  launcher's?", the owner answered "Sure". A custom Codex agent (never the
+  popular Codex) has **Rely on the launcher's sandbox**, off by default. On,
+  a granted run turns Codex's own sandbox off (`--sandbox danger-full-access`
+  for `exec`, `-c sandbox_mode="danger-full-access"` for the App Server)
+  instead of passing the grant profile, so BetterPullReview's write grant is
+  enforced only by the launcher. A read-only run keeps `--sandbox read-only`,
+  which the audit saw hold inside the launcher; a run with no grant passes no
+  sandbox. Approvals stay `never`, MCP stays off where it is off, a pull
+  request's checkout stays untrusted, and the failed-writes message stays.
+  The core decides the arguments (`core::decide_codex_sandbox`) and refuses a
+  launch whose arguments disagree (`core::inspect_codex_sandbox_arguments`).
+  The setting is kept per agent and travels in a settings file's Agents
+  section only when on; an import applies it only when ticked. Threat model:
+  "Custom Codex agent relies on its launcher's sandbox (BPR-2307)".
 
 ## Workspaces
 
@@ -958,7 +1006,7 @@ so rather than pick the reassuring answer.
 | Dirty state is reported, unknown stays unknown | `application_agent_workspace` |
 | The launch surface only emits intents | `qt_agent_launch_panel` |
 | Scope is disclosed before launch is possible | `qt_agent_launch_panel` |
-| GHES policy refuses before effects | `application_agent_invocation_host` |
+| A host policy's refusal comes before effects; explicit GHES launches Codex ([[BPR-2305]]) | `application_agent_invocation_host` |
 | Stale/cancelled composed runs leak no child or owned workspace | `application_agent_invocation_host`, `application_agent_invocation_cancellation_contract`, `application_agent_invocation_staleness_contract` |
 | A same-path, same-marker substitute cannot retarget cleanup | `git_process_contract` |
 | Two fresh processes prove selected stdin, durable reopen, and next ID | `application_agent_invocation_composition_contract` |
@@ -1833,6 +1881,47 @@ own, as they already were for a wrapper whose settings replace this app's;
 `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` still holds memory off, and the init
 check still refuses any tool or MCP server.
 
+**Every Claude launch keeps the audited argument rules ([[BPR-2304]],
+2026-11-19).** The owner's second harness audit of a sandboxing launcher
+(Claude Code 2.1.322) confirmed what the launch relies on and added one
+caution: the caller's environment may not reach the agent at all. Before a
+Claude stream-JSON launch is handed to the process port,
+`core::inspect_claude_arguments` checks this app's own arguments (an added
+agent's fixed arguments are prepended later, by `agent_entry_process`) and
+the launch is refused with `agent_launch_failure::unsafe_arguments` if any
+rule is broken:
+
+- `-p` (or `--print`) is present.
+- Instructions are never given as a file (`--append-system-prompt-file`,
+  `--system-prompt-file`): the audit saw the file form dropped with no trace,
+  while the inline form reached the model and was served from the prompt cache
+  on later calls even as the question changed.
+- Every option that takes several values (`core::claude_variadic_options`,
+  now including `--betas` and `--file`) is followed by another option, so the
+  last option given never takes several (RFC-BPR-0104 AC11, amended
+  2026-11-19). The audit saw an open one swallow the prompt.
+- Every path-scoped `Write(...)` permission rule has its `Edit(...)` twin: the
+  audit saw the `Edit` rule permit a write inside the folder and refuse one
+  outside, while a `Write` rule on its own allowed nothing.
+- A `--setting-sources` names only `user`; a launch in a pull request's
+  checkout and every tool-free or read-only run must name it.
+- Where MCP is off, `--strict-mcp-config` and only the empty configuration are
+  given.
+
+What the rules deliberately leave alone: the Agent tab in the reviewer's own
+checkout reads that folder's settings, and an agent
+whose MCP setting is `own` keeps its servers, as before. Instructions are
+pasted into the message only when the agent's switch says so or they would
+overflow a Windows command line. As the audit suggests, every Claude launch
+gives `-p` first, right after any fixed arguments ([[BPR-2306]]: the owner
+amended AC11 on 2026-11-19 to drop "before `-p`"). The audit found the order
+makes no difference; the launcher [[BPR-2178]] records needed `-p` first.
+Memory staying off for a custom agent's
+restricted run still depends on the environment variable alone, because no
+Claude option turns auto-memory off apart from `--settings`, and that option
+would replace the agent's sign-in. Through a launcher that drops the
+environment, the init frame reports `memory=on`, as above.
+
 The process starts in an empty folder of its own (`bpr-writing-XXXXXX` under
 the temporary folder), made by the agent adapter and removed when the request
 ends, never the review workspace, so nothing from the reviewed repository is
@@ -2158,39 +2247,13 @@ configuration. The CLI flag contract is documented in the
 [provider's CLI reference](https://code.claude.com/docs/en/cli-reference);
 actual installed-provider and model-quality qualification is still required.
 
-## Review Cycles and agents
+## Agent-free builds
 
-Review Cycles ([RFC-BPR-0058](../rfcs/RFC-BPR-0058-headless-cycle-cli-and-portable-consumer-skill.md),
-[RFC-BPR-0060](../rfcs/RFC-BPR-0060-removable-agent-adapters-and-capability-isolation.md))
-need no agent. A frozen round is a complete assignment that a person or any
-harness can act on from its Markdown alone, and a recipient's structured
-response or a reply pasted by hand is recorded the same way whatever produced
-it. BetterPullReview starts no model for a cycle except through Send to Agent,
-and its claims about who answered stay claims.
-
-There are three ways a round reaches a harness, each decided by the profile's
-disclosure policy for its channel:
-
-- **Copy, Save or `bpr cycle export`.** The reviewer hands the document over;
-  nothing is started.
-- **A grant (`bpr cycle round grant`).** A harness that can run `bpr` reads that
-  one round and, unless the grant is read-only, appends a response to it. The
-  [bpr-cycle skill](../development/cycle-cli.md#the-bpr-cycle-skill) teaches only
-  those consumer commands, under `BPR_CYCLE_ROLE=consumer`, and starts no model
-  of its own. The harness keeps its own tools, credentials and approvals.
-- **Send to Agent.** In a build with agent integrations, the share sheet hands
-  the round's document to one of the existing agent profiles above (Codex,
-  Claude, or an external terminal harness, named by its profile) through the
-  same supervised launcher,
-  environment allowlist and host policy, in the cycle's bound folder, and
-  records what was seen: accepted by the adapter, acknowledged with a session,
-  or uncertain. Only Claude stream JSON continues a session, and only one an
-  earlier send of the cycle reported. Nothing is retried or sent elsewhere, and
-  nothing is captured or verified for the reviewer
-  ([threat model](security-threat-model.md#review-cycles)).
+Review Cycles' agent surfaces (handing a frozen round to a harness through
+`bpr cycle` grants and the bpr-cycle skill, and Send to Agent) were retired
+with Review Cycles on 2026-11-20 ([[BPR-2308]]).
 
 A build with `BPR_BUILD_AGENT_INTEGRATIONS=OFF` compiles out the launcher, the
-protocol decoders, the agent hosts, the MCP helper and Send to Agent, and its
-window withdraws their controls; it still opens every stored cycle and every
-record an agent wrote earlier. See
+protocol decoders, the agent hosts and the MCP helper, and its window
+withdraws their controls; it still opens every record an agent wrote earlier. See
 [release packages](../development/release-packages.md#packages-without-agent-integrations-or-local-automation).

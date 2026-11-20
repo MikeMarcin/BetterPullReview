@@ -44,8 +44,8 @@
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/reading_width_dialog.hpp"
 #include "bpr/qt/refresh_note.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
@@ -8828,8 +8828,8 @@ namespace {
 		window_key(window, Qt::Key_A, Qt::ControlModifier);
 		expect(line.selectedText() == line.text() && dispatched.size() == 2U, "ordinary Select All keeps its text editing behavior");
 
-		// A reader that becomes an editor in place, as the Review Cycle reader
-		// becomes the suggestion editor, claims the key when it arrives.
+		// A reader that becomes an editor in place, as a suggestion editor
+		// does, claims the key when it arrives.
 		suggestion.set_text("");
 		suggestion.set_read_only(true);
 		button->setFocus();
@@ -13429,7 +13429,7 @@ namespace {
 			   "Esc ends the edit: the interleaved comparison is back and the suggestion kept");
 	}
 
-	/// \brief [[RFC-BPR-0090]] AC02. The head pane's edit is the Review Cycles
+	/// \brief [[RFC-BPR-0090]] AC02. The head pane's edit is the suggestion
 	/// editor: a box across the range, IME composition, undo and paste work
 	/// there through its keys, and a box that reaches past the range is
 	/// refused whole.
@@ -22140,9 +22140,12 @@ namespace {
 		}
 	}
 
-	/// [[BPR-1584]]. Discuss's notes and Threads' rows stop at the reading
-	/// width, set in Settings and applied live; the code comparison fills its
-	/// width with the drawers open at every choice.
+	/// [[BPR-1584]], [[BPR-2299]]. Threads' rows, Discuss's centred list and
+	/// a report's page stop at the reading width, set in Settings and applied
+	/// live; the code comparison fills its width with the drawers open at
+	/// every choice. Advanced gives one surface a width of its own (a preset,
+	/// the whole page or a custom width never narrower than Narrow's), live,
+	/// and Use Reading width for all takes them back.
 	void test_reading_width_is_never_the_code()
 	{
 		auto  fixture = thread_moves_fixture{ 3'440 };
@@ -22152,19 +22155,35 @@ namespace {
 		auto* const panel  = window.conversation_panel();
 		auto* const finder = window.finder();
 		auto* const editor = window.behaviour_editor();
-		expect(editor != nullptr, "the Review rows exist");
+		auto* const report = window.report_view();
+		expect(editor != nullptr && report != nullptr && panel->cards() != nullptr, "the Review rows, the report page and Discuss's list exist");
 		const auto button = [&window](const char* aName) {
 			auto* const found = window.findChild<QToolButton*>(QString::fromLatin1(aName));
 			expect(found != nullptr, std::string{ "the reading width offers " } + aName);
 			return found;
 		};
 		expect(button("readingWidthWide")->isChecked(), "Wide is the default");
+		expect(window.findChild<QWidget*>(QStringLiteral("discussColumn")) == nullptr && window.findChild<QWidget*>(QStringLiteral("discussColumnRowLabel")) == nullptr,
+			   "Discuss has no column setting of its own any more");
 		auto* const info = window.findChild<QWidget*>(QStringLiteral("readingWidthInfo"));
 		expect(info != nullptr && (info->toolTip().contains(QStringLiteral("code comparison")) || info->accessibleDescription().contains(QStringLiteral("code comparison")) || info->accessibleName().contains(QStringLiteral("code comparison"))),
 			   "the setting says it never applies to the code");
 		const auto comparisonWidth = [&window] {
 			const auto* const surface = window.comparison_surface();
 			return surface->left_pane()->width() + surface->right_pane()->width();
+		};
+		const auto discussPage = [&window] { return window.findChild<QWidget*>(QStringLiteral("workbenchDiscussPage"))->width(); };
+		// Each surface's width as the window shows it: Threads' and the
+		// report's limits, Discuss's centred list in a page-wide panel.
+		const auto expectSurfaces = [&](const std::optional<std::uint32_t> aThreads, const std::optional<std::uint32_t> aDiscuss, const std::optional<std::uint32_t> aReports, const std::string& aAt) {
+			window.choose_modality(qt::review_modality::discuss);
+			process_events();
+			expect(panel->width() == discussPage() && panel->x() == 0, "Discuss's panel takes the page" + aAt);
+			const auto cards = panel->cards()->column_width();
+			expect(cards == (aDiscuss.has_value() ? std::optional{ static_cast<int>(*aDiscuss) } : std::nullopt), "Discuss's centred list is its reading width" + aAt);
+			expect(finder->reading_limit() == aThreads, "Threads' rows stop at theirs" + aAt);
+			expect(report->reading_limit() == aReports, "a report's page stops at its" + aAt);
+			expect(report->column()->maximumWidth() == (aReports.has_value() ? static_cast<int>(*aReports) : QWIDGETSIZE_MAX), "and its column with it" + aAt);
 		};
 		window.choose_modality(qt::review_modality::review);
 		process_events();
@@ -22181,29 +22200,59 @@ namespace {
 			window.choose_modality(qt::review_modality::review);
 			process_events();
 			expect(comparisonWidth() == codeAtWide, std::string{ "the comparison panes are unchanged at " } + name);
-			window.choose_modality(qt::review_modality::discuss);
-			process_events();
-			const auto page   = window.findChild<QWidget*>(QStringLiteral("workbenchDiscussPage"))->width();
-			const auto column = static_cast<int>(core::reading_column_width(width, static_cast<std::uint32_t>(page)));
-			expect(panel->width() == column && panel->x() == 0, std::string{ "Discuss's notes take the reading width at the page's left: " } + name);
-			expect(finder->reading_width() == width, "Threads follows the same setting live");
+			const auto limit = core::reading_width_limit(width);
+			expectSurfaces(limit, limit, limit, std::string{ " at " } + name);
 			save_render(window, QStringLiteral("reading-width-discuss-3440-%1").arg(QString::fromLatin1(name)));
-			// The same choice in an ordinary window.
-			window.resize(1'900, 900);
-			process_events();
-			const auto ordinary = window.findChild<QWidget*>(QStringLiteral("workbenchDiscussPage"))->width();
-			expect(panel->width() == static_cast<int>(core::reading_column_width(width, static_cast<std::uint32_t>(ordinary))), std::string{ "and in an ordinary window: " } + name);
-			save_render(window, QStringLiteral("reading-width-discuss-1900-%1").arg(QString::fromLatin1(name)));
-			window.resize(3'440, 900);
-			process_events();
 		}
+		// [[BPR-2299]]. Advanced, opened from the row beside the presets.
+		button("readingWidthAdvancedOpen")->click();
+		process_events();
+		auto* const advanced = window.reading_width_advanced();
+		expect(advanced != nullptr && advanced->isVisible(), "Advanced opens its dialog");
+		expect(advanced->bounds_note()->text().contains(QStringLiteral("720")) && advanced->custom_width(core::reading_surface::reports)->minimum() == 720,
+			   "the dialog says a custom width is at least Narrow's 720 pixels, and its box holds to it");
+		auto* const reports = advanced->choices(core::reading_surface::reports);
+		expect(reports->currentIndex() == static_cast<int>(qt::reading_width_dialog::choice::reading_width) && reports->currentText().contains(QStringLiteral("Wide")),
+			   "every surface starts on Use Reading width, which names the width it is");
+		const auto publishLast = [&] {
+			expect(!fixture.Behaviour.empty(), "the change dispatches the whole record");
+			window.publish(application::workbench_projection{ .Behaviour = fixture.Behaviour.back() });
+			process_events();
+		};
+		fixture.Behaviour.clear();
+		reports->setCurrentIndex(static_cast<int>(qt::reading_width_dialog::choice::custom));
+		advanced->custom_width(core::reading_surface::reports)->setValue(1'480);
+		publishLast();
+		const auto wide = core::reading_width_limit(core::reading_width::wide);
+		expect(fixture.Behaviour.back().ReadingOverrides[static_cast<std::size_t>(core::reading_surface::reports)] == core::reading_override_of(1'480U), "a custom width for reports is asked for");
+		expectSurfaces(wide, wide, 1'480U, " with reports at a custom 1480");
+		// Typed too small, the box holds it to Narrow's width.
+		advanced->custom_width(core::reading_surface::reports)->setValue(300);
+		publishLast();
+		expectSurfaces(wide, wide, 720U, " with a custom width typed below the minimum");
+		advanced->choices(core::reading_surface::threads)->setCurrentIndex(static_cast<int>(qt::reading_width_dialog::choice::full));
+		publishLast();
+		advanced->choices(core::reading_surface::discuss)->setCurrentIndex(static_cast<int>(qt::reading_width_dialog::choice::narrow));
+		publishLast();
+		expectSurfaces(std::nullopt, 720U, 720U, " with Threads at the whole page and Discuss at Narrow");
+		expect(fixture.Behaviour.back().ReadingWidth == core::reading_width::wide, "the Reading width itself is unchanged");
+		// The Reading width still moves every surface that follows it.
+		button("readingWidthMedium")->click();
+		publishLast();
+		expect(fixture.Behaviour.back().ReadingOverrides[static_cast<std::size_t>(core::reading_surface::discuss)] == core::reading_override_of(720U), "a preset keeps the surfaces' own widths");
+		button("readingWidthWide")->click();
+		publishLast();
+		advanced->reset_button()->click();
+		publishLast();
+		expect(fixture.Behaviour.back().ReadingOverrides == core::reading_overrides{ }, "Use Reading width for all takes every own width back");
+		expectSurfaces(wide, wide, wide, " after Use Reading width for all");
+		expect(advanced->choices(core::reading_surface::threads)->currentIndex() == static_cast<int>(qt::reading_width_dialog::choice::reading_width), "and the dialog shows it");
+		advanced->close();
 		// Negative control: Full width is the whole page, so a cap left in
 		// place would show here.
 		button("readingWidthFull")->click();
-		window.publish(application::workbench_projection{ .Behaviour = fixture.Behaviour.back() });
-		window.choose_modality(qt::review_modality::discuss);
-		process_events();
-		expect(panel->width() == window.findChild<QWidget*>(QStringLiteral("workbenchDiscussPage"))->width(), "negative control: Full width leaves Discuss uncapped");
+		publishLast();
+		expectSurfaces(std::nullopt, std::nullopt, std::nullopt, " at Full width");
 		window.hide();
 	}
 
@@ -23319,12 +23368,6 @@ namespace {
 		action->trigger();
 		expect(pages.size() == 3U && window.statusBar()->currentMessage() == QStringLiteral("This pull request's page cannot be opened safely from here."),
 			   "a refusal is said plainly");
-		window.show_local_cycle(QStringLiteral("A local cycle"));
-		process_events();
-		expect(!button->isVisible() && !action->isEnabled(), "a local cycle has no GitHub page");
-		window.leave_local_cycle();
-		process_events();
-		expect(button->isVisible() && action->isEnabled(), "back on the pull request, its page is offered again");
 		window.home_action()->trigger();
 		process_events();
 		expect(window.showing_home() && !button->isVisible() && !action->isEnabled(), "Home with no row chosen names no pull request");
@@ -23402,13 +23445,6 @@ namespace {
 		window.choose_home(false);
 		process_events();
 		expect(!window.showing_home() && title().startsWith(QStringLiteral("#188875 ")), "back on the review: the pull request again");
-
-		window.show_local_cycle(QStringLiteral("A local cycle"));
-		process_events();
-		expect(title() == home, "a local cycle in front is not the pull request");
-		window.leave_local_cycle();
-		process_events();
-		expect(title().startsWith(QStringLiteral("#188875 ")), "leaving the cycle names the pull request again");
 
 		// Qt's modified mark is shown literally.
 		accepted.Title = "Keep [*] literal";
@@ -23526,38 +23562,6 @@ namespace {
 			window.choose_home(false);
 			process_events();
 			expectCurrent();
-			const auto cycleTitle = QStringLiteral("A retained local cycle");
-			const auto cycleBadge = QStringLiteral("  ·  Local cycle");
-			window.show_local_cycle(cycleTitle);
-			accepted.Title           = "Updated behind the local cycle";
-			accepted.MarkdownContext = page_context(4U);
-			window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
-			process_events();
-			// The native title may elide at the platform floor. Its full tooltip
-			// still names this exact cycle, and the visible prefix and badge must
-			// belong to it rather than to the PR updated behind it.
-			const auto caption    = window.identity_label()->text();
-			const auto drawnTitle = caption.endsWith(cycleBadge) ? caption.chopped(cycleBadge.size()) : QString{ };
-			const auto prefix     = drawnTitle.endsWith(QChar{ 0x2026 }) ? drawnTitle.chopped(1) : QString{ };
-			const auto namesCycle = drawnTitle == cycleTitle
-				|| (!prefix.isEmpty() && prefix.size() < cycleTitle.size() && cycleTitle.startsWith(prefix));
-			const auto retainedCycle = window.identity_label()->isVisible() && namesCycle
-				&& window.identity_label()->toolTip() == cycleTitle + cycleBadge
-				&& !window.open_on_github_button()->isVisible() && !window.open_on_github_action()->isEnabled();
-			if (!retainedCycle) {
-				std::cerr << "local-cycle-republication width=" << window.width()
-						  << " identity-visible=" << window.identity_label()->isVisible()
-						  << " text=" << window.identity_label()->text().toStdString()
-						  << " tooltip=" << window.identity_label()->toolTip().toStdString()
-						  << " browser-visible=" << window.open_on_github_button()->isVisible()
-						  << " browser-enabled=" << window.open_on_github_action()->isEnabled()
-						  << " home=" << window.showing_home() << '\n';
-			}
-			expect(retainedCycle, "same-PR publication retains the local cycle and never offers its browser button");
-			window.leave_local_cycle();
-			process_events();
-			expectCurrent();
-			window.show_local_cycle(QStringLiteral("A cycle superseded by a new PR"));
 			accepted.Repository      = core::repository_id{ 20U };
 			accepted.PullRequest     = core::pull_request_id{ 21U };
 			accepted.Owner           = "new-owner";
@@ -23990,8 +23994,8 @@ namespace {
 		window.publish(nothingSaved);
 		process_events();
 		expect(window.home_list()->onboarding() && !window.home_list()->state_panel(qt::home_group::needs_you)->isVisible()
-				   && !window.home_list()->empty_sentence()->isVisible() && window.findChild<QWidget*>(QStringLiteral("homeReviewCycles"))->isVisible(),
-			   "the empty Needs me lane is not shown while nothing is saved; Review Cycles stays");
+				   && !window.home_list()->empty_sentence()->isVisible(),
+			   "the empty Needs me lane is not shown while nothing is saved");
 		firstAdd->click();
 		process_events();
 		expect(window.settings()->isVisible() && window.settings()->current_page() == qt::settings_page::repositories
@@ -25160,8 +25164,8 @@ namespace {
 		process_events();
 	}
 
-	/// \brief Every key the window, the resident menu bar and a Review Cycle
-	/// view bind is in the catalogue with the same keys, and every bound
+	/// \brief Every key the window and the resident menu bar bind is in the
+	/// catalogue with the same keys, and every bound
 	/// catalogue entry is bound; a stray, a changed and a removed binding are
 	/// each reported.
 	void test_shortcut_catalogue_is_what_the_window_binds()
@@ -25183,10 +25187,9 @@ namespace {
 
 		qt::workbench_window window;
 		assemble(window);
-		qt::desktop_menu_bar  desktop;
-		qt::review_cycle_view cycle;
-		const auto            problems = catalogue_problems({ &window, &desktop, &cycle });
-		expect(problems.empty(), "the catalogue is exactly what the window, the resident bar and a Review Cycle bind:" + joined(problems));
+		qt::desktop_menu_bar desktop;
+		const auto           problems = catalogue_problems({ &window, &desktop });
+		expect(problems.empty(), "the catalogue is exactly what the window and the resident bar bind:" + joined(problems));
 		// [[BPR-1600]]. On Home the Refresh key is Home's refresh's, as the
 		// catalogue writes it, and bound once.
 		window.choose_home(true);
@@ -25231,7 +25234,7 @@ namespace {
 		drifted.findChild<QAction*>(QStringLiteral("nextNewCommentAction"))->setShortcut(QKeySequence{ QStringLiteral("Alt+M") });
 		drifted.findChild<QAction*>(QStringLiteral("toggleWorkbenchLineNumbersAction"))->setShortcuts({ });
 		delete drifted.findChild<QShortcut*>(QStringLiteral("overviewLabelKeyShortcut"));
-		const auto reported = catalogue_problems({ &drifted, &desktop, &cycle });
+		const auto reported = catalogue_problems({ &drifted, &desktop });
 		const auto has      = [&reported](const std::string_view aText) {
 			return std::ranges::any_of(reported, [aText](const std::string& aLine) { return aLine.find(aText) != std::string::npos; });
 		};

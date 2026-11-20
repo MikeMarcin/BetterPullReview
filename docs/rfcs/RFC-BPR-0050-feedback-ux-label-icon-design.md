@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0050"
 title: "Feedback UX and Label Icon Design and Delivery"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-tour feedback conventions"
 depends_on: ["RFC-BPR-0047", "RFC-BPR-0006", "RFC-BPR-0036", "RFC-BPR-0037"]
@@ -10,6 +10,19 @@ metadata: {"pack": "betterpullreview-conventional-comments-rfc-pack-v1", "propos
 ---
 
 # RFC-BPR-0050: Feedback UX and Label Icon Design and Delivery
+
+## Status: Auto-Verified (owner closure, 2026-11-20)
+
+The owner approved the vestigial-work list on 2026-11-20 ("All, incl. notes check", recorded in
+[[BPR-2313]]): close RFC-BPR-0047 to 0051 to their shipped scope and reject
+the rest. Shipped: the recorded UX decision, twelve label icons, the compact
+authoring controls and shared visuals, and the Overview and Conversations
+surfaces (BPR-1079 to BPR-1081, BPR-1083, BPR-1089, BPR-1290, BPR-1350,
+BPR-1577). Withdrawn by owner amendment, never run: [[BPR-1094]] (the Windows half of
+R33 and the native UI checks of R31 and R32), [[BPR-1095]] and
+[[BPR-1096]].
+
+It closes on what it built: no closeout pass ran, each criterion stands on its delivering cards' recorded evidence, and a criterion no card evidenced is not passed. The repository has no Superseded status; a delivered RFC that a later one replaces in part closes Auto-Verified with this record, as RFC-BPR-0025 did. Closed by [[BPR-1100]].
 
 ## Design mandate
 

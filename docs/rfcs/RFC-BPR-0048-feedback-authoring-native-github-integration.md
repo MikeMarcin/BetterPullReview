@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0048"
 title: "Feedback Authoring and Native GitHub Review Integration"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-tour feedback conventions"
 depends_on: ["RFC-BPR-0047", "RFC-BPR-0008", "RFC-BPR-0009", "RFC-BPR-0036"]
@@ -10,6 +10,20 @@ metadata: {"pack": "betterpullreview-conventional-comments-rfc-pack-v1", "propos
 ---
 
 # RFC-BPR-0048: Feedback Authoring and Native GitHub Review Integration
+
+## Status: Auto-Verified (owner closure, 2026-11-20)
+
+The owner approved the vestigial-work list on 2026-11-20 ("All, incl. notes check", recorded in
+[[BPR-2313]]): close RFC-BPR-0047 to 0051 to their shipped scope and reject
+the rest. Shipped: label authoring through the shared draft, native suggested
+changes, preflight with the three native decisions, private tracking and
+promotion, and the settings that followed (BPR-1079 and BPR-1081 to BPR-1086,
+BPR-1088, BPR-1210, BPR-1565 to BPR-1569, BPR-1597, BPR-1605, BPR-1723).
+Withdrawn by owner amendment, never run: [[BPR-1095]] (the live interoperability course
+on a safe target, so R12 to R14, R16 and R19 have no live evidence) and
+[[BPR-1096]].
+
+It closes on what it built: no closeout pass ran, each criterion stands on its delivering cards' recorded evidence, and a criterion no card evidenced is not passed. The repository has no Superseded status; a delivered RFC that a later one replaces in part closes Auto-Verified with this record, as RFC-BPR-0025 did. Closed by [[BPR-1098]].
 
 ## Outcome
 

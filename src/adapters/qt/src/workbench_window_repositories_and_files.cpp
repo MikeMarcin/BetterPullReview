@@ -16,7 +16,6 @@
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "workbench_window_support.hpp"

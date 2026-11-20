@@ -1725,19 +1725,50 @@ namespace {
 			   "from Threads my draft still opens in Review, as BPR-1356 decided");
 	}
 
-	/// [[BPR-1584]]. The reading column fills the page up to the setting's
-	/// width; Full width never stops it.
+	/// [[BPR-1584]], [[BPR-2299]]. The reading column fills the page up to
+	/// the setting's width; Full width never stops it.
 	auto test_the_reading_width() -> void
 	{
 		expect(default_reading_width == reading_width::wide, "Wide is the default");
-		for (const auto page : { 1'280U, 1'900U, 2'560U }) {
-			expect(reading_column_width(reading_width::wide, page) == page, "Wide fills an ordinary window up to 2560 pixels");
-		}
-		expect(reading_column_width(reading_width::wide, 3'440U) == 2'560U, "and stops at 2560 on an ultra-wide one");
-		expect(reading_column_width(reading_width::narrow, 1'900U) == 960U && reading_column_width(reading_width::narrow, 800U) == 800U, "Narrow stops at 960, a narrower page is the page");
-		expect(reading_column_width(reading_width::medium, 3'440U) == 1'600U && reading_column_width(reading_width::medium, 1'280U) == 1'280U, "Medium stops at 1600");
+		expect(reading_column_width(reading_width::wide, 3'440U) == 1'100U && reading_column_width(reading_width::wide, 900U) == 900U, "Wide stops at 1100, a narrower page is the page");
+		expect(reading_column_width(reading_width::narrow, 1'900U) == 720U, "Narrow stops at 720");
+		expect(reading_column_width(reading_width::medium, 1'900U) == 900U, "Medium stops at 900");
 		expect(reading_column_width(reading_width::full, 3'440U) == 3'440U && !reading_width_limit(reading_width::full).has_value(), "Full width never stops");
 		expect(valid(reading_width::full) && !valid(static_cast<reading_width>(4)), "the vocabulary is closed");
+	}
+
+	/// [[BPR-2299]]. Each reading surface follows the Reading width unless
+	/// it has its own: a width held to Narrow's 720 and 3840 pixels, or the
+	/// whole page. The stored form reads back, and a width out of bounds
+	/// from a file is held to them.
+	auto test_reading_surface_overrides() -> void
+	{
+		auto overrides = reading_overrides{ };
+		expect(valid(overrides), "following the Reading width everywhere is valid");
+		for (const auto surface : { reading_surface::threads, reading_surface::discuss, reading_surface::reports }) {
+			expect(reading_surface_limit(reading_width::medium, overrides, surface) == 900U, "every surface follows the Reading width by default");
+		}
+		overrides[static_cast<std::size_t>(reading_surface::reports)] = reading_override_of(1'500U);
+		overrides[static_cast<std::size_t>(reading_surface::threads)] = reading_override{ .Kind = reading_override_kind::full };
+		expect(reading_surface_limit(reading_width::medium, overrides, reading_surface::reports) == 1'500U, "a surface's own width is its limit");
+		expect(!reading_surface_limit(reading_width::medium, overrides, reading_surface::threads).has_value(), "the whole page has none");
+		expect(reading_surface_limit(reading_width::narrow, overrides, reading_surface::discuss) == 720U, "a surface without its own still follows the Reading width");
+		expect(valid(overrides), "own widths in bounds are valid");
+		expect(minimum_reading_override == *reading_width_limit(reading_width::narrow), "the minimum is Narrow's width");
+		expect(reading_override_of(100U).Width == 720U && reading_override_of(9'000U).Width == 3'840U, "a width of its own is held to the bounds");
+		auto narrow                                                = overrides;
+		narrow[static_cast<std::size_t>(reading_surface::discuss)] = reading_override{ .Kind = reading_override_kind::width, .Width = 300U };
+		expect(!valid(narrow), "a width below Narrow's is not valid as written");
+		expect(reading_surface_limit(reading_width::wide, narrow, reading_surface::discuss) == 720U, "and resolves to the minimum");
+		narrow[static_cast<std::size_t>(reading_surface::discuss)] = reading_override{ .Kind = reading_override_kind::full, .Width = 900U };
+		expect(!valid(narrow), "a width on a kind without one is not valid");
+		for (const auto& one : overrides) {
+			expect(read_reading_override(stored_reading_override(one)) == one, "the stored form reads back");
+		}
+		expect(stored_reading_override({ }) == 0 && stored_reading_override({ .Kind = reading_override_kind::full }) == -1, "0 follows, -1 is the whole page");
+		expect(read_reading_override(200) == reading_override_of(720U), "a too-small stored width is held to Narrow's");
+		expect(read_reading_override(50'000) == reading_override_of(3'840U), "a too-large one to the maximum");
+		expect(!read_reading_override(-7).has_value(), "a value no build writes is none");
 	}
 
 	/// [[BPR-1586]]. Show in Threads from Review: the thread's row, my
@@ -1831,5 +1862,6 @@ int main()
 	test_the_thread_a_key_shows();
 	test_a_thread_shows_in_threads();
 	test_the_reading_width();
+	test_reading_surface_overrides();
 	return EXIT_SUCCESS;
 }

@@ -1,5 +1,6 @@
 #include "github_application/window_composition.hpp"
 
+#include "bpr/adapters/workspace/app_bundle_read.hpp"
 #include "bpr/application/agent_scratch_folder.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/git_smart_transport_port.hpp"
@@ -876,15 +877,11 @@ namespace bpr::app {
 			return;
 		}
 		AgentWorkspaceSweepAfterHistory = AgentWorkspaceSweepAfterHistory || aChoice.has_value();
-		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice), AgentConversation ? AgentConversation->projection().Key : std::nullopt);
+		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice));
 	}
 	void github_application::implementation::present_agent_native_history(const application::native_agent_history_projection& aView)
 	{
 		if (Closing || !Window) {
-			return;
-		}
-		if (aView.ReadOnly) {
-			Window->agent_tab()->present_native_history(aView);
 			return;
 		}
 		AgentNativeHistory = aView;
@@ -943,12 +940,6 @@ namespace bpr::app {
 				if (const auto* const entry = core::entry_of_profile(preferences.Agents, profile); entry != nullptr) {
 					AgentHost->restore_native(profile, entry->Identity, "agent-tab");
 				}
-			}
-		}
-		// Send to Agent defaults to the agent the pull request's session uses.
-		if (!Closing && CycleDesktop && Window != nullptr) {
-			if (const auto selected = Window->agent_panel()->selected_profile(); selected && core::is_agent_entry_profile(*selected)) {
-				CycleDesktop->prefer_send_profile(selected);
 			}
 		}
 	}
@@ -2008,6 +1999,15 @@ namespace bpr::app {
 											if (Window != nullptr) {
 												Window->statusBar()->showMessage(aText, 8000);
 											} } } };
+	#if defined(__APPLE__)
+		// [[BPR-2303]]. On macOS an app chosen or typed as an agent's program
+		// runs its main program; the bundle is read here, never in a widget.
+		{
+			const auto host = qt::agent_program_host{ .Choose = { }, .ReadBundle = [](const std::string& aBundle) { return adapters::workspace::read_app_bundle(aBundle); } };
+			Window->agent_programs()->set_editor(qt::default_agent_entry_editor(host));
+			Window->agent_setup()->set_entry_editor(qt::default_agent_entry_editor(host));
+		}
+	#endif
 		Window->agent_programs()->set_dispatch(qt::agent_programs_panel::dispatch{
 			// [[BPR-1859]]. Check agent is the setup's check, and its Stop
 			// the setup's Stop.
@@ -2474,15 +2474,8 @@ namespace bpr::app {
 		const auto saved = setup_saved_profile(aProjection);
 		Window->agent_panel()->prefer_profile(saved);
 		Window->agent_panel()->offer_profiles(offered_agent_profiles());
-		// Owner decision 2026-10-23: Send to Agent offers the same list.
-		if (CycleDesktop) {
-			CycleDesktop->offer_agents(aProjection.Preferences.Agents);
-		}
 		present_run_settings();
 		present_setup_view();
-		if (CycleDesktop) {
-			CycleDesktop->prefer_send_profile(saved);
-		}
 		observe_conversation_agent();
 	#if defined(BPR_BUILD_TESTING)
 		// [[BPR-2177]], look ask-v002 (owner, 2026-11-14: "Aren't we supposed
@@ -2534,6 +2527,8 @@ namespace bpr::app {
 		// full at its last turn's end is full until it is measured again.
 		facts.ScratchPlace = !AgentScratchRoot.empty();
 		facts.Refusal      = agent_grant_refusal_for(aEntry);
+		// [[BPR-2307]]. A custom Codex agent may rely on its launcher's sandbox.
+		facts.LauncherSandbox = aEntry.RelyOnLauncherSandbox && !aEntry.Preset;
 		// Re-review N3: by pull request and agent, so another pull request's
 		// full folder is not this one's, and a restart reads it from disk.
 		if (const auto key = grant_key(aEntry.Id); key) {
@@ -2794,10 +2789,11 @@ namespace bpr::app {
 			grant.Builds = *answer ? core::agent_builds_state::allowed : core::agent_builds_state::declined;
 			present_run_settings();
 		}
-		aInvocation.ScratchFolder   = core::scratch_granted(grant);
-		aInvocation.BuildsAndTests  = core::builds_granted(grant);
-		AgentScratchTurn            = grant_key(entry->Id);
-		aInvocation.ScratchLimitMiB = AgentSetup->projection().Preferences.ScratchLimitMiB;
+		aInvocation.ScratchFolder         = core::scratch_granted(grant);
+		aInvocation.BuildsAndTests        = core::builds_granted(grant);
+		aInvocation.RelyOnLauncherSandbox = grant.LauncherSandbox;
+		AgentScratchTurn                  = grant_key(entry->Id);
+		aInvocation.ScratchLimitMiB       = AgentSetup->projection().Preferences.ScratchLimitMiB;
 		return true;
 	}
 
@@ -2855,9 +2851,14 @@ namespace bpr::app {
 				const auto variant = AppearanceProfile->variant();
 				theme              = core::portable_theme{ .Base = variant, .Palette = AppearanceProfile->palette_for(variant) };
 			}
+			// [[BPR-2301]]. The profile's Settings › Review is the Review section.
+			auto review = std::optional<core::portable_review>{ };
+			if (Profile->WorkbenchPreferences && Profile->WorkbenchPreferences->accepted()) {
+				review = application::portable_review_of(Profile->WorkbenchPreferences->accepted()->Behaviour);
+			}
 			auto* const dialog = new qt::agent_configuration_export_dialog{ std::move(*aSnapshot), unsaved,
 																			("BetterPullReview " + QCoreApplication::applicationVersion()).trimmed().toStdString(), profile_settings_facts(),
-																			Window->profiles_settings()->window(), std::move(theme) };
+																			Window->profiles_settings()->window(), std::move(theme), std::move(review) };
 			dialog->setAttribute(Qt::WA_DeleteOnClose);
 			// RFC-BPR-0125 AC24. The host mints every UUID an export may need:
 			// a new pack's, and one for each own prompt made before UUIDs.
@@ -3010,6 +3011,13 @@ namespace bpr::app {
 					.OnScreen = variant, .Here = AppearanceProfile->palette_for(variant), .Imported = AppearanceHost->resolve_theme(*aPreview->File.Theme->Theme)
 				};
 			}
+			// [[BPR-2301]]. The file's Review against the profile's Settings › Review.
+			if (aPreview->File.Review && Profile->WorkbenchPreferences && Profile->WorkbenchPreferences->accepted()) {
+				const auto& here     = Profile->WorkbenchPreferences->accepted()->Behaviour;
+				auto        imported = application::with_review(here, aPreview->File.Review->Review);
+				auto        changes  = application::review_differences(here, imported);
+				aPreview->Review     = application::agent_configuration_preview::review_against_here{ .Here = here, .Imported = std::move(imported), .Changes = std::move(changes) };
+			}
 			auto* const dialog = new qt::agent_configuration_import_dialog{ std::move(*aPreview), std::move(facts), dropped ? static_cast<QWidget*>(Window.get()) : Window->profiles_settings()->window() };
 			dialog->setAttribute(Qt::WA_DeleteOnClose);
 			dialog->set_program_chooser([dialog](const QString& aHint) {
@@ -3066,7 +3074,10 @@ namespace bpr::app {
 		// the rest of the file is stored.
 		auto       chosenTheme  = aDialog.theme_choice();
 		const auto themeVariant = aDialog.preview().Theme ? aDialog.preview().Theme->OnScreen : core::appearance_variant::light;
-		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, say, agents = aDialog.agent_choices().size(), changes = std::move(profileChanges), theme = std::move(chosenTheme), themeVariant](application::agent_configuration_host::applied aApplied) {
+		// [[BPR-2301]]. Review, when chosen, through the workbench preferences'
+		// own write, once the rest is stored.
+		auto chosenReview = aDialog.review_choice();
+		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, say, agents = aDialog.agent_choices().size(), changes = std::move(profileChanges), theme = std::move(chosenTheme), themeVariant, review = std::move(chosenReview)](application::agent_configuration_host::applied aApplied) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
@@ -3085,6 +3096,9 @@ namespace bpr::app {
 			case application::agent_configuration_outcome::applied:
 				// The stores hold the result; the hosts read it back.
 				static_cast<void>(Profile->WorkbenchPreferences->adopt_writing_hooks(aApplied->second.Hooks));
+				if (review) {
+					static_cast<void>(Profile->WorkbenchPreferences->apply_behaviour(*review));
+				}
 				if (AgentSetup) {
 					AgentSetup->load();
 				}

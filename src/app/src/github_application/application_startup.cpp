@@ -299,21 +299,20 @@ namespace bpr::app {
 				bpr::app::detail::terminal_text_stream{ } << "profile-activation-endpoint-unavailable "
 														  << (resolved ? "bind-refused" : adapters::sqlite::describe_profile_activation_endpoint_failure(resolved.error())) << '\n';
 			}
-			// The owner command endpoint (tour and, since BPR-1168, cycle commands) is separate:
+			// The owner command endpoint (tour and local draft commands) is separate:
 			// without it the owner keeps working and a CLI caller is told the owner has no
 			// channel, never given a second writer. Windows binds a named pipe (BPR-1168).
 #if defined(BPR_LOCAL_AUTOMATION)
 			const auto tour = adapters::sqlite::make_tour_owner_server(*root, Config.Profile, RuntimeLease);
 			if (tour) {
-				TourOwnerServer   = *tour;
-				TourOwnerService  = std::make_shared<const tour_owner_service>(*root, Config.Profile);
-				CycleOwnerService = std::make_shared<cycle_owner_service>(*root, Config.Profile);
+				TourOwnerServer  = *tour;
+				TourOwnerService = std::make_shared<const tour_owner_service>(*root, Config.Profile);
 			} else {
 				bpr::app::detail::terminal_text_stream{ } << "tour-owner-endpoint-unavailable\n";
 			}
 #else
 			// [[BPR-1179]]. Without local automation no endpoint is bound and
-			// no cycle command is served. The tour service stays: the desktop
+			// no forwarded command is served. The tour service stays: the desktop
 			// routes its own tour edits (a note promoted into a pull request's
 			// tour) through it in process, with no channel involved.
 			TourOwnerService = std::make_shared<const tour_owner_service>(*root, Config.Profile);
@@ -371,15 +370,8 @@ namespace bpr::app {
 			profile->DataResetReport  = std::move(DataResetReport);
 			profile->TourOwnerServer  = std::move(TourOwnerServer);
 			profile->TourOwnerService = std::move(TourOwnerService);
-#if defined(BPR_LOCAL_AUTOMATION)
-			profile->CycleOwnerService = std::move(CycleOwnerService);
-			if (profile->CycleOwnerService) {
-				// [[BPR-1830]]. Forwarded cycle commands record their rounds in the profile's log.
-				profile->CycleOwnerService->set_diagnostics(profile->DiagnosticLog.get());
-			}
-#endif
-			auto runtime = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
-			step         = "profile-services-start";
+			auto runtime              = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
+			step                      = "profile-services-start";
 			runtime->Profile->start_services();
 			if (!OwnerOnly) {
 				step               = "compatibility-window-open";

@@ -1,19 +1,16 @@
-// [[BPR-0970]]. AI structured output, Review Cycles half: the documents an
-// agent or another reviewer hands back (responses, manual replies,
-// suggestions, rounds and their ZIP bundles), the strict JSON and DEFLATE
-// readers under them, and the cycle's own durable records.
+// [[BPR-0970]]. The shared readers the retired Review Cycles left behind
+// for local drafts, tours and suggestions: suggestion wire text, the strict
+// JSON, Base64 and SHA-256 readers, manifests, publication plans and journals,
+// ZIP archives and DEFLATE streams. [[BPR-2308]] retired the cycle's own
+// documents (responses, manual replies, rounds, bundles, import claims); their
+// selectors read nothing, so the remaining corpus keeps its selector bytes.
 //
 // Input: [selector] then the payload, read by the decoder the selector names.
 
-#include "bpr/core/review_cycle_bundle.hpp"
-#include "bpr/core/review_cycle_import.hpp"
 #include "bpr/core/review_cycle_json.hpp"
 #include "bpr/core/review_cycle_manifest.hpp"
 #include "bpr/core/review_cycle_policy.hpp"
 #include "bpr/core/review_cycle_publication.hpp"
-#include "bpr/core/review_cycle_response.hpp"
-#include "bpr/core/review_cycle_round.hpp"
-#include "bpr/core/review_cycle_round_markdown.hpp"
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/review_cycle_zip.hpp"
 #include "fuzz_support.hpp"
@@ -28,64 +25,11 @@ namespace {
 		return { reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() };
 	}
 
-	auto response(const std::string_view aText) -> void
-	{
-		const auto decoded = core::decode_response_document(aText);
-		if (!decoded) {
-			return;
-		}
-		// The canonical bytes are what the document encodes to, and they read
-		// back to the same canonical bytes and digest.
-		fuzz::require(core::encode_response_document(decoded->Document) == decoded->Canonical);
-		const auto again = core::decode_response_document(decoded->Canonical);
-		fuzz::require(again && again->Canonical == decoded->Canonical && again->Digest == decoded->Digest);
-	}
-
-	auto manual_reply(const std::string_view aText) -> void
-	{
-		const auto decoded = core::decode_manual_reply(aText);
-		if (decoded) {
-			const auto encoded = core::encode_manual_reply(*decoded);
-			fuzz::require(encoded.has_value() && *encoded == aText);
-		}
-	}
-
 	auto suggestion(const std::string_view aText) -> void
 	{
 		const auto decoded = core::decode_suggestion_wire(aText);
 		if (decoded) {
 			fuzz::require(core::decode_suggestion_wire(core::encode_suggestion_wire(*decoded)) == decoded);
-		}
-	}
-
-	auto round_envelope(const std::string_view aText) -> void
-	{
-		const auto decoded = core::decode_round_envelope(aText);
-		if (decoded) {
-			const auto payload = core::decode_round_payload(decoded->Canonical);
-			fuzz::require(payload && payload->Digest == decoded->Digest && payload->Canonical == decoded->Canonical);
-			fuzz::require(core::encode_round_payload(decoded->Payload) == decoded->Canonical);
-			// An admitted round renders as the review Markdown it is handed out as.
-			static_cast<void>(core::render_round_markdown(*decoded, 1U << 20U));
-		}
-	}
-
-	auto round_payload(const std::string_view aText) -> void
-	{
-		const auto decoded = core::decode_round_payload(aText);
-		if (decoded) {
-			// Only byte-for-byte canonical payloads are read.
-			fuzz::require(decoded->Canonical == aText);
-			fuzz::require(core::encode_round_payload(decoded->Payload) == decoded->Canonical);
-		}
-	}
-
-	auto round_selection(const std::string_view aText) -> void
-	{
-		const auto decoded = core::decode_round_selection(aText);
-		if (decoded) {
-			const auto encoded = core::encode_round_selection(*decoded);
-			fuzz::require(encoded && core::decode_round_selection(*encoded).has_value());
 		}
 	}
 
@@ -135,16 +79,6 @@ namespace {
 		}
 	}
 
-	auto import_and_claim(const std::string_view aText) -> void
-	{
-		const core::local_cycle_authority authority{ core::default_bpr_profile_id, fuzz::opaque<core::cycle_catalog_incarnation>(3) };
-		if (const auto association = core::decode_import_association(aText, authority)) {
-			const auto encoded = core::encode_import_association(*association);
-			fuzz::require(core::decode_import_association(encoded, authority).has_value());
-		}
-		static_cast<void>(core::parse_imported_claim(aText));
-	}
-
 	auto zip(const std::span<const std::uint8_t> aBytes) -> void
 	{
 		// Small bounds so a campaign reaches each refusal.
@@ -174,14 +108,6 @@ namespace {
 		}
 	}
 
-	auto bundle(const std::span<const std::uint8_t> aBytes) -> void
-	{
-		const auto opened = core::open_round_bundle(aBytes);
-		if (opened) {
-			const auto payload = core::decode_round_payload(opened->Round.Canonical);
-			fuzz::require(payload && payload->Digest == opened->Round.Digest);
-		}
-	}
 }
 
 // libFuzzer calls the entry point by this exact name.
@@ -196,23 +122,8 @@ extern "C" auto LLVMFuzzerTestOneInput(const std::uint8_t* aData, const std::siz
 	const auto text  = input.text();
 	const auto bytes = input.rest();
 	switch (selector % 13U) {
-	case 0U:
-		response(text);
-		break;
-	case 1U:
-		manual_reply(text);
-		break;
 	case 2U:
 		suggestion(text);
-		break;
-	case 3U:
-		round_envelope(text);
-		break;
-	case 4U:
-		round_payload(text);
-		break;
-	case 5U:
-		round_selection(text);
 		break;
 	case 6U:
 		json(text);
@@ -226,18 +137,16 @@ extern "C" auto LLVMFuzzerTestOneInput(const std::uint8_t* aData, const std::siz
 	case 9U:
 		publication(bytes);
 		break;
-	case 10U:
-		import_and_claim(text);
-		break;
 	case 11U:
 		zip(bytes);
 		break;
-	default:
+	case 12U:
 		if ((selector & 0x80U) != 0U) {
 			inflate(input);
-		} else {
-			bundle(bytes);
 		}
+		break;
+	default:
+		// The retired cycle documents' selectors.
 		break;
 	}
 	return 0;

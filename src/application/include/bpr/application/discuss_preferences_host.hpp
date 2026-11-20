@@ -9,7 +9,7 @@
 
 /// \file
 /// \brief [[BPR-2171]]. The profile's Discuss preferences: each repository's
-/// bot marks and the column's width. Read once when the profile starts,
+/// bot marks. Read once when the profile starts,
 /// written off the decision lane after each change.
 namespace bpr::application {
 	/// \brief The store the preferences are read from and written to.
@@ -41,9 +41,7 @@ namespace bpr::application {
 		[[nodiscard]] auto preferences() const noexcept -> const core::discuss_preferences&;
 		/// \brief Mark as bot (\p aBot) or Not a bot in one repository. False
 		/// when nothing changed.
-		auto mark(std::string_view aRepository, std::string_view aLogin, bool aBot) -> bool;
-		/// \brief The column's width. False when nothing changed.
-		auto               set_column(core::discuss_column aColumn) -> bool;
+		auto               mark(std::string_view aRepository, std::string_view aLogin, bool aBot) -> bool;
 		[[nodiscard]] auto recovered() const noexcept -> bool;
 		[[nodiscard]] auto durable() const noexcept -> bool;
 		/// \brief No write running or waiting.

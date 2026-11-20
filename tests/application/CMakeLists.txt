@@ -535,14 +535,6 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "agent-launch-tests:pass"
 )
 
-# [[BPR-1180]]. The Send to Agent launch per protocol, and how a run's end is read.
-bpr_add_executable(test_better_pull_review_review_cycle_round_launch_tests review_cycle_round_launch_tests.cpp)
-target_link_libraries(test_better_pull_review_review_cycle_round_launch_tests PRIVATE BetterPullReview::Application)
-bpr_enable_hardening(test_better_pull_review_review_cycle_round_launch_tests)
-bpr_enable_warnings(test_better_pull_review_review_cycle_round_launch_tests)
-bpr_add_network_isolated_test(NAME application_review_cycle_round_launch COMMAND test_better_pull_review_review_cycle_round_launch_tests)
-set_tests_properties(application_review_cycle_round_launch PROPERTIES PASS_REGULAR_EXPRESSION "review-cycle-round-launch-tests:pass")
-
 # [[BPR-2138]], [[BPR-2139]], [[BPR-2140]], [[BPR-2142]]. The owner's agent
 # launch policy of 2026-11-12: session mode per launch path, MCP servers,
 # instructions in the system prompt, argument order, failed sign-ins.
@@ -933,7 +925,6 @@ bpr_add_network_isolated_test(
     NAME application_review_submission_contract
     COMMAND test_better_pull_review_review_submission_contract_application_tests
 )
-
 
 bpr_add_executable(test_better_pull_review_review_submission_application_host_tests
     review_submission_application_host_tests.cpp)

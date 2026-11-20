@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0045"
 title: "Shared Local Tour Drafts and Cross-Interface Recovery"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Tour CLI and pr-tour skill"
 depends_on: ["RFC-BPR-0039", "RFC-BPR-0040", "RFC-BPR-0041", "RFC-BPR-0042", "RFC-BPR-0044"]
@@ -10,6 +10,18 @@ metadata: {"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rf
 ---
 
 # RFC-BPR-0045: Shared Local Tour Drafts and Cross-Interface Recovery
+
+## Status: Auto-Verified (owner closure, 2026-11-20)
+
+The owner approved the vestigial-work list on 2026-11-20 ("All, incl. notes check", recorded in
+[[BPR-2313]]): close RFC-BPR-0044 to 0046 to what shipped. Shipped: the shared
+draft history, owner forwarding, desktop handoff and cold published recovery
+(BPR-1053, BPR-1055 to BPR-1057, BPR-1060 to BPR-1063, BPR-1227). Withdrawn by owner
+amendment, never run: [[BPR-1068]] and [[BPR-1069]] (attended three-interface and
+second-machine acceptance, so AC45-04's attended run and AC45-10's
+second-machine recovery are not passed) and [[BPR-1070]].
+
+It closes on what it built: no closeout pass ran, each criterion stands on its delivering cards' recorded evidence, and a criterion no card evidenced is not passed. The repository has no Superseded status; a delivered RFC that a later one replaces in part closes Auto-Verified with this record, as RFC-BPR-0025 did. Closed by [[BPR-1071]].
 
 ## Decision
 

@@ -3,7 +3,7 @@
 /// session mode ([[BPR-2138]], RFC-BPR-0101 AC10), MCP servers per agent
 /// ([[BPR-2139]], RFC-BPR-0104 AC10), a built-in prompt's instructions in
 /// the system prompt ([[BPR-2140]], RFC-BPR-0107 AC09), Claude's options
-/// with several values before `-p` and a wrapper's failed sign-in
+/// with several values each closed by another option and a wrapper's failed sign-in
 /// ([[BPR-2142]], RFC-BPR-0104 AC11, RFC-BPR-0103 AC10).
 
 #include "bpr/application/agent_launch.hpp"
@@ -13,6 +13,7 @@
 #include "bpr/core/agent_run_policy.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <expected>
 #include <iostream>
@@ -84,7 +85,6 @@ namespace {
 			{ path::tour_side_chat, resume },
 			{ path::tour_conversation, resume },
 			{ path::local_draft_discussion, resume },
-			{ path::review_cycle_round, resume },
 			{ path::self_review_loop, resume },
 			{ path::address_feedback_run, resume },
 		};
@@ -150,15 +150,13 @@ namespace {
 			expect(codexOff && has(codexOff->Arguments, "mcp_servers={}"), "Codex starts with no MCP server by default");
 			expect(codexOwn && !has(codexOwn->Arguments, "mcp_servers={}"), "Codex with its own configuration is given no MCP override");
 		}
-		const auto round    = application::build_round_launch(claude, "round", std::nullopt, "/tmp", reader());
-		const auto roundOwn = application::build_round_launch(claude, "round", std::nullopt, "/tmp", reader(), core::agent_mcp_servers::own);
-		expect(round && contains(round->Arguments, off) && roundOwn && !has(roundOwn->Arguments, "--mcp-config"), "a Review Cycle round follows the agent's setting");
 		expect(core::parse_agent_mcp_servers("own") == core::agent_mcp_servers::own && !core::parse_agent_mcp_servers("on"), "the setting's names read back");
 	}
 
-	/// RFC-BPR-0104 AC11. In every Claude launch each option that takes
-	/// several values comes before `-p` and is followed by another option.
-	void test_options_with_several_values_come_before_the_prompt_flag()
+	/// RFC-BPR-0104 AC11 (amended 2026-11-19, [[BPR-2306]]). In every Claude
+	/// launch each option that takes several values is followed by another
+	/// option, and `-p` comes first, as the owner's harness audit recommends.
+	void test_options_with_several_values_are_followed_by_another_option()
 	{
 		const auto claude   = profile(core::agent_protocol::claude_stream_json);
 		auto       launches = std::vector<application::agent_launch_request>{ };
@@ -172,24 +170,51 @@ namespace {
 		add(application::build_agent_launch(claude, supplement(), reader(),
 											{ .Grant = application::agent_launch_grant{ .ScratchFolder = "/tmp/bpr-scratch/run-1" }, .PullRequestCheckout = { "/tmp/bpr-checkout" } }));
 		add(application::build_agent_launch(claude, supplement(), reader(), { .Path = core::agent_run_path::enhance_writing, .SystemInstructions = "Write plainly." }));
-		add(application::build_round_launch(claude, "round", std::nullopt, "/tmp", reader()));
 		for (const auto& launch : launches) {
 			const auto& arguments = launch.Arguments;
-			const auto  print     = index_of(arguments, "-p");
-			expect(print < arguments.size(), "every Claude launch is in print mode");
+			expect(!arguments.empty() && arguments.front() == "-p", "every Claude launch is in print mode, -p first");
 			for (auto at = std::size_t{ 0U }; at < arguments.size(); ++at) {
-				if (std::ranges::find(application::claude_variadic_options, arguments[at]) == application::claude_variadic_options.end()) {
+				if (std::ranges::find(core::claude_variadic_options, arguments[at]) == core::claude_variadic_options.end()) {
 					continue;
 				}
-				expect(at < print, "an option with several values comes before -p: " + arguments[at]);
 				auto next = at + 2U;
 				while (next < arguments.size() && !arguments[next].starts_with("-")) {
 					++next;
 				}
-				expect(next <= print, "an option with several values is followed by another option: " + arguments[at]);
+				expect(next < arguments.size(), "an option with several values is followed by another option: " + arguments[at]);
 			}
 			expect(!arguments.back().empty() && arguments.back() != "*", "a Claude launch never ends on an option's value that could take more");
 		}
+	}
+
+	/// [[BPR-2304]]. Every Claude launch this app builds keeps the rules the
+	/// owner's harness audit of 2026-11-19 established, as the core checks
+	/// them: inline instructions only, several-valued options closed by
+	/// another option, an `Edit` rule beside every scoped `Write` rule, only the
+	/// user's settings where the checkout or the run calls for it, and no MCP
+	/// server where MCP is off.
+	void test_every_claude_launch_keeps_the_audited_rules()
+	{
+		const auto claude  = profile(core::agent_protocol::claude_stream_json);
+		const auto scratch = application::agent_launch_grant{ .ScratchFolder = "/tmp/bpr-scratch/run-1" };
+		const auto grant   = application::agent_launch_grant{ .ScratchFolder = "/tmp/bpr-scratch/run-1", .BuildWorkspace = "/tmp/bpr-checkout" };
+		const auto checked = [](const std::expected<application::agent_launch_request, application::agent_launch_failure>& aLaunch, const core::claude_argument_expectation aExpected, const std::string_view aWhat) {
+			expect(aLaunch.has_value(), std::string{ aWhat } + ": the launch builds");
+			const auto problem = core::inspect_claude_arguments(aLaunch->Arguments, aExpected);
+			expect(!problem, std::string{ aWhat } + ": " + std::string{ problem ? core::stable_name(*problem) : "" });
+			return *aLaunch;
+		};
+		const auto user   = core::claude_argument_expectation{ .UserSettingsOnly = true, .McpOff = true };
+		const auto rule   = std::string{ "Answer in one sentence." };
+		const auto writes = checked(application::build_agent_launch(claude, supplement(), reader(), { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = rule }), user, "a writing run");
+		expect(std::ranges::search(writes.Arguments, std::array<std::string_view, 2>{ "--append-system-prompt", rule }).begin() != writes.Arguments.end(), "the instructions ride inline");
+		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .ReadOnlyTools = true, .Path = core::agent_run_path::tour_field_draft, .SystemInstructions = rule }), user, "a read-only run"));
+		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .WritingOnly = true, .Path = core::agent_run_path::local_draft_discussion }), user, "a resumed writing run"));
+		const auto granted = checked(application::build_agent_launch(claude, supplement(), reader(), { .Grant = grant, .PullRequestCheckout = { "/tmp/bpr-checkout" }, .SystemInstructions = rule }),
+									 { .UserSettingsOnly = true }, "a granted Agent tab run in a pull request's checkout");
+		expect(has(granted.Arguments, "Write(//tmp/bpr-scratch/run-1/**)") && has(granted.Arguments, "Edit(//tmp/bpr-scratch/run-1/**)"), "a scoped write is granted by its Edit rule, the Write rule beside it");
+		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .Grant = scratch, .Path = core::agent_run_path::follow_up }), { .McpOff = true }, "a fresh granted run"));
+		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .McpServers = core::agent_mcp_servers::own }), { }, "an Agent tab run with the agent's own MCP servers"));
 	}
 
 	/// RFC-BPR-0107 AC09. The instructions go in Claude's inline system
@@ -203,7 +228,7 @@ namespace {
 		expect(inline_ && index_of(inline_->Arguments, "--append-system-prompt") + 1U < inline_->Arguments.size()
 				   && inline_->Arguments[index_of(inline_->Arguments, "--append-system-prompt") + 1U] == rule,
 			   "Claude takes the instructions as one inline --append-system-prompt argument");
-		expect(inline_ && index_of(inline_->Arguments, "--append-system-prompt") < index_of(inline_->Arguments, "-p"), "the system prompt comes before -p");
+		expect(inline_ && index_of(inline_->Arguments, "-p") < index_of(inline_->Arguments, "--append-system-prompt"), "-p comes first, the system prompt after it");
 		expect(inline_ && !has(inline_->Arguments, "--append-system-prompt-file"), "never the -file form, which the corporate wrapper drops");
 		expect(inline_ && inline_->Input.find("PINEAPPLE") == std::string::npos && inline_->InstructionsRoute == application::agent_instructions_route::system_prompt,
 			   "the message carries only the run's material");
@@ -434,6 +459,60 @@ namespace {
 		expect(pasted && !has(pasted->Arguments, "--append-system-prompt") && pasted->Input.find("SKILL-RULE") != std::string::npos, "the agent's switch keeps it in the message");
 		const auto appServer = application::build_agent_launch(profile(core::agent_protocol::codex_app_server), value, reader(), { .Path = core::agent_run_path::agent_tab });
 		expect(appServer && appServer->DeferredContext.find("SKILL-RULE") != std::string::npos, "the App Server keeps it in the message");
+	}
+
+	/// [[BPR-2305]]. A Codex agent set to "At the start of the prompt" gets
+	/// BetterPullReview's rules first on stdin and the request after them, and
+	/// no `developer_instructions`; set to developer instructions it gets the
+	/// option and not the pasted rules. Through a launcher that drops the
+	/// option, the prompt form is the one that reaches the model.
+	void test_codex_rules_lead_the_prompt_at_the_start_of_the_prompt()
+	{
+		const auto rule   = std::string{ "RULE-7: answer in one paragraph." };
+		const auto codex  = profile(core::agent_protocol::codex_jsonl_exec);
+		const auto pasted = application::build_agent_launch(codex, supplement("What does this change do?"), reader(),
+															{ .Path = core::agent_run_path::agent_tab, .SystemInstructions = rule, .Instructions = core::agent_instruction_delivery::message });
+		expect(pasted.has_value(), "the prompt form launches");
+		// The fixed protocol line, then the rules, then the request.
+		const auto lead = "BPR-CONTEXT/2 CODEX-EXEC\n" + rule + "\n\n";
+		expect(pasted->Input.starts_with(lead) && pasted->Input.find("What does this change do?") > lead.size(), "the rules come first on stdin, then the request");
+		expect(pasted->Input.find(rule, lead.size()) == std::string::npos, "the rules are sent once");
+		expect(std::ranges::none_of(pasted->Arguments, [](const std::string& aArgument) { return aArgument.starts_with("developer_instructions="); }), "and no developer_instructions");
+		expect(pasted->InstructionsRoute == application::agent_instructions_route::pasted, "the route says they were pasted");
+		const auto again = application::build_agent_launch(codex, supplement("Another question entirely?"), reader(),
+														   { .Path = core::agent_run_path::agent_tab, .SystemInstructions = rule, .Instructions = core::agent_instruction_delivery::message });
+		expect(again && again->Input.starts_with(lead), "another question keeps the same prefix, so it can be read from cache");
+		const auto option = application::build_agent_launch(codex, supplement("What does this change do?"), reader(), { .Path = core::agent_run_path::agent_tab, .SystemInstructions = rule });
+		expect(option && option->Input.find(rule) == std::string::npos && has(option->Arguments, "developer_instructions=" + std::string{ "\"RULE-7: answer in one paragraph.\"" }),
+			   "developer instructions are the default, with nothing pasted");
+	}
+
+	/// [[BPR-2305]]. The instructions probe a custom Codex's check runs.
+	void test_the_codex_instructions_probe()
+	{
+		const auto codex   = profile(core::agent_protocol::codex_jsonl_exec);
+		const auto leading = std::vector<std::string>{ "--no-extra-output", "--codex" };
+		const auto option  = application::build_codex_instructions_probe(codex, "/opt/tools/launcher", leading, core::agent_instruction_delivery::system_prompt, reader());
+		expect(option.Executable == "/opt/tools/launcher" && option.Arguments.size() > 3U && option.Arguments[0] == "--no-extra-output" && option.Arguments[1] == "--codex" && option.Arguments[2] == "exec"
+				   && option.Arguments.back() == "-",
+			   "the launcher's own arguments come first, then exec, the prompt on stdin");
+		expect(has(option.Arguments, "--sandbox") && option.Arguments[index_of(option.Arguments, "--sandbox") + 1U] == "read-only" && has(option.Arguments, "--ephemeral") && has(option.Arguments, "mcp_servers={}"),
+			   "the probe is read-only, keeps no session and loads no MCP server");
+		expect(std::ranges::any_of(option.Arguments, [](const std::string& aArgument) { return aArgument.starts_with("developer_instructions=") && aArgument.find(application::codex_instructions_canary) != std::string::npos; })
+				   && option.Input == application::codex_instructions_probe_question,
+			   "as developer instructions: the rule is the option, the question the prompt");
+		const auto prompt = application::build_codex_instructions_probe(codex, "/opt/tools/launcher", leading, core::agent_instruction_delivery::message, reader());
+		expect(std::ranges::none_of(prompt.Arguments, [](const std::string& aArgument) { return aArgument.starts_with("developer_instructions="); })
+				   && prompt.Input.starts_with(application::codex_instructions_probe_rule) && prompt.Input.ends_with(application::codex_instructions_probe_question),
+			   "at the start of the prompt: the rule, then the question");
+		auto answered    = application::agent_run_result{ };
+		answered.Outcome = application::agent_run_outcome::success;
+		answered.AssistantItems.emplace_back("I am ready.");
+		expect(!application::codex_instructions_followed(answered), "an answer without the word did not follow the rule");
+		answered.AssistantItems.back() += "\nMARIGOLD-4127";
+		expect(application::codex_instructions_followed(answered), "an answer with it did");
+		answered.Outcome = application::agent_run_outcome::protocol_failure;
+		expect(!application::codex_instructions_followed(answered), "and a failed run never did");
 	}
 
 	/// [[BPR-2264]]. The Writing style comes after every other instruction:
@@ -674,12 +753,15 @@ auto main(const int aCount, char** aArguments) -> int
 	test_every_launch_path_has_the_owners_session_mode();
 	test_each_launch_path_launches_in_its_session_mode();
 	test_mcp_servers_follow_the_agents_setting();
-	test_options_with_several_values_come_before_the_prompt_flag();
+	test_options_with_several_values_are_followed_by_another_option();
+	test_every_claude_launch_keeps_the_audited_rules();
 	test_built_in_instructions_reach_the_system_prompt();
 	test_the_writing_prompt_splits_into_instructions_and_material();
 	test_a_local_draft_discussion_resumes_its_native_session();
 	test_the_review_skill_rides_the_system_prompt();
 	test_the_writing_style_follows_every_other_instruction();
+	test_codex_rules_lead_the_prompt_at_the_start_of_the_prompt();
+	test_the_codex_instructions_probe();
 	test_a_fresh_draft_carries_its_diff_up_front();
 	test_a_failed_sign_in_ends_the_run_at_once();
 	test_every_harness_run_reads_the_users_sign_in();

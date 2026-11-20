@@ -90,10 +90,8 @@ namespace {
 		}
 		auto legacyInput  = input();
 		legacyInput.Actor = private_legacy_unknown_actor{ };
-		legacyInput.Body  = std::string{ "a\0b\r\n", 5 };
-		auto legacy       = migrate_private_thread(private_review_thread_id{ 1 }, { binding().Scope, { } }, legacyInput);
-		expect(legacy && legacy->Revision.Body == legacyInput.Body && std::holds_alternative<private_legacy_unknown_actor>(legacy->Revision.Actor), "legacy bytes preserved without inventing author");
-		expect(observe_private_subject(legacy->Thread.Binding, binding(), true) == private_subject_availability::unplaceable, "legacy unknown binding never borrows current revision");
+		const auto legacy = private_thread_binding{ legacy_retained_subject{ binding().Scope, { } } };
+		expect(observe_private_subject(legacy, binding(), true) == private_subject_availability::unplaceable, "legacy unknown binding never borrows current revision");
 		expect(!create_private_thread(private_review_thread_id{ 1 }, { binding(), private_pr_subject{ } }, legacyInput), "new text cannot claim legacy actor");
 		auto invalid = first.Revision;
 		invalid.Body += "tamper";

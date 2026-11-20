@@ -97,15 +97,9 @@ namespace bpr::core::preparation_wire {
 	};
 	struct preparation
 	{
-		std::string   Body;
-		std::uint64_t BodyRevision  = 1;
-		std::uint64_t TitleRevision = 1;
-		// [[BPR-2274]]. A tour is its stops. A draft saved before keeps these
-		// four keys; they are read and dropped, and never written.
-		std::string                              LegacyProblem;
-		std::string                              LegacySolution;
-		std::uint64_t                            LegacyProblemRevision  = 1;
-		std::uint64_t                            LegacySolutionRevision = 1;
+		std::string                              Body;
+		std::uint64_t                            BodyRevision  = 1;
+		std::uint64_t                            TitleRevision = 1;
 		std::vector<stop>                        Stops;
 		std::uint64_t                            NextStop = 1;
 		std::vector<proposal>                    Proposals;
@@ -186,12 +180,10 @@ template <>
 struct glz::meta<pw::preparation>
 {
 	using value_type = pw::preparation;
-	static constexpr auto skip(const std::string_view aKey, const meta_context& aContext) -> bool
-	{
-		return aContext.op == operation::serialize && (aKey == "problem" || aKey == "solution" || aKey == "problem_revision" || aKey == "solution_revision");
-	}
-	static constexpr auto value = object("body", &value_type::Body, "body_revision", &value_type::BodyRevision, "title_revision", &value_type::TitleRevision, "problem", &value_type::LegacyProblem,
-										 "solution", &value_type::LegacySolution, "problem_revision", &value_type::LegacyProblemRevision, "solution_revision", &value_type::LegacySolutionRevision, "stops", &value_type::Stops, "next_stop", &value_type::NextStop, "proposals",
+	// [[BPR-2274]]. A draft saved while a tour had a Problem and Solution
+	// still carries their keys; they are skipped, never stored.
+	static constexpr auto value = object("body", &value_type::Body, "body_revision", &value_type::BodyRevision, "title_revision", &value_type::TitleRevision, "problem", glz::skip{ },
+										 "solution", glz::skip{ }, "problem_revision", glz::skip{ }, "solution_revision", glz::skip{ }, "stops", &value_type::Stops, "next_stop", &value_type::NextStop, "proposals",
 										 &value_type::Proposals, "next_proposal", &value_type::NextProposal, "conversations", &value_type::Conversations, "next_conversation", &value_type::NextConversation,
 										 "check_grants", &value_type::CheckGrants);
 };

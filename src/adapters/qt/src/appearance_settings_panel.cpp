@@ -5,6 +5,7 @@
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/type_preview.hpp"
+#include "settings_card.hpp"
 
 #include <QAbstractButton>
 #include <QCheckBox>
@@ -35,23 +36,13 @@ namespace bpr::qt {
 		// The row language of RFC-BPR-0032 as RFC-BPR-0034 amends it, on the same
 		// 8-point grid the Accounts page uses. A row is one line, so its height is a
 		// line's height and not a stacked label's.
-		constexpr auto card_inset = 16;
-		constexpr auto row_inset  = 10;
+		constexpr auto card_inset = detail::settings_card_inset;
+		constexpr auto row_inset  = detail::settings_row_inset;
 		constexpr auto row_height = 32;
-		constexpr auto column_gap = 12;
+		constexpr auto column_gap = detail::settings_card_gap;
 		constexpr auto glyph_gap  = 4;
 		/// The three widths the accepted design's tab segment offers.
 		constexpr auto tab_width_options = std::array<std::uint32_t, 3U>{ 2U, 4U, 8U };
-
-		[[nodiscard]] auto make_hairline(QWidget* const aParent) -> QFrame*
-		{
-			auto* const line = new QFrame{ aParent };
-			line->setFrameShape(QFrame::HLine);
-			line->setFrameShadow(QFrame::Plain);
-			line->setForegroundRole(QPalette::Mid);
-			line->setFixedHeight(1);
-			return line;
-		}
 
 		/// \brief A size stepper that reads in points and carries hundredths.
 		///
@@ -119,63 +110,6 @@ namespace bpr::qt {
 					: std::nullopt;
 			}
 		};
-
-		/// \brief One card: a header that names it and carries its Reset, and a body.
-		struct settings_card
-		{
-			QFrame*      Frame  = nullptr;
-			QHBoxLayout* Header = nullptr;
-			QVBoxLayout* Body   = nullptr;
-			QLabel*      Title  = nullptr;
-		};
-
-		[[nodiscard]] auto make_card(
-			QWidget* const aParent,
-			const QString& aTitle,
-			const QString& aObjectName) -> settings_card
-		{
-			auto card  = settings_card{ };
-			card.Frame = new QFrame{ aParent };
-			card.Frame->setObjectName(aObjectName);
-			// The platform's own panel frame rather than a style sheet, which
-			// RFC-BPR-0034 prohibits along with a second palette.
-			card.Frame->setFrameShape(QFrame::StyledPanel);
-			card.Frame->setAccessibleName(aTitle);
-			auto* const column = new QVBoxLayout{ card.Frame };
-			column->setContentsMargins(0, 0, 0, 0);
-			column->setSpacing(0);
-
-			auto* const header = new QWidget{ card.Frame };
-			header->setObjectName(aObjectName + QStringLiteral("Header"));
-			header->setAutoFillBackground(true);
-			// A native palette role, so the header tint follows every theme.
-			// `Light` is the profile's raised surface: a near-white strip in
-			// Light and a lifted, never bright, strip in Dark. AlternateBase is
-			// the code current-line fill and is not settings chrome (BPR-1513).
-			header->setBackgroundRole(QPalette::Light);
-			card.Header = new QHBoxLayout{ header };
-			card.Header->setContentsMargins(
-				card_inset, row_inset, card_inset, row_inset);
-			card.Header->setSpacing(column_gap / 2);
-			card.Title = new QLabel{ aTitle, header };
-			card.Title->setObjectName(aObjectName + QStringLiteral("Title"));
-			auto title = card.Title->font();
-			title.setWeight(QFont::DemiBold);
-			card.Title->setFont(title);
-			card.Header->addWidget(card.Title);
-			card.Header->addStretch(1);
-			column->addWidget(header);
-			column->addWidget(make_hairline(card.Frame));
-
-			auto* const body = new QWidget{ card.Frame };
-			body->setObjectName(aObjectName + QStringLiteral("Body"));
-			card.Body = new QVBoxLayout{ body };
-			card.Body->setContentsMargins(
-				card_inset, row_inset / 2, card_inset, row_inset / 2);
-			card.Body->setSpacing(0);
-			column->addWidget(body);
-			return card;
-		}
 
 		/// \brief A card header's button: flat, named, and never a default button.
 		[[nodiscard]] auto make_header_button(
@@ -249,7 +183,7 @@ namespace bpr::qt {
 				line->addWidget(aControl, 0, Qt::AlignVCenter);
 			}
 			if (aRows.count() > 0) {
-				aRows.addWidget(make_hairline(aParent));
+				aRows.addWidget(detail::make_settings_hairline(aParent));
 			}
 			aRows.addWidget(row.Frame);
 			return row;
@@ -445,7 +379,7 @@ namespace bpr::qt {
 		page->addWidget(lede);
 
 		// ── Theme. The tiles are the control; the six-way combo box is gone.
-		auto theme = make_card(
+		auto theme = detail::make_settings_card(
 			this, QStringLiteral("Theme"), QStringLiteral("appearanceThemeCard"));
 		auto* const themeReset = make_header_button(
 			theme.Frame,
@@ -464,7 +398,7 @@ namespace bpr::qt {
 		page->addWidget(theme.Frame);
 
 		// ── Type. Eleven one-line rows, and the preview beside them.
-		auto type = make_card(
+		auto type = detail::make_settings_card(
 			this, QStringLiteral("Type"), QStringLiteral("appearanceTypeCard"));
 		auto* const typeReset = make_header_button(
 			type.Frame,
@@ -716,7 +650,7 @@ namespace bpr::qt {
 		page->addWidget(type.Frame);
 
 		// ── Colours. The whole vocabulary, for the theme on screen.
-		auto colours = make_card(
+		auto colours = detail::make_settings_card(
 			this,
 			QStringLiteral("Colours"),
 			QStringLiteral("appearanceColoursCard"));
@@ -770,7 +704,7 @@ namespace bpr::qt {
 		// One row and the line that names a refused entry, under the field it
 		// answers, in the page's own text role (BPR-1301: the placeholder role
 		// read below 4.5:1).
-		auto syntax = make_card(
+		auto syntax = detail::make_settings_card(
 			this, QStringLiteral("Syntax"), QStringLiteral("appearanceSyntaxCard"));
 		auto* const syntaxReset = make_header_button(
 			syntax.Frame,
@@ -838,7 +772,7 @@ namespace bpr::qt {
 
 		// ── People. [[BPR-1807]]: a person's own picture from their host, or
 		// the coloured initials every face showed before.
-		auto people = make_card(
+		auto people = detail::make_settings_card(
 			this, QStringLiteral("People"), QStringLiteral("appearancePeopleCard"));
 		auto* const peopleRows   = new QWidget{ people.Frame };
 		auto* const peopleColumn = new QVBoxLayout{ peopleRows };
@@ -866,7 +800,7 @@ namespace bpr::qt {
 		});
 
 		// ── Dif. RFC-BPR-0031's B3 controls, in the new row language.
-		auto dif = make_card(
+		auto dif = detail::make_settings_card(
 			this, QStringLiteral("Dif"), QStringLiteral("appearanceDifCard"));
 		auto* const difReset = make_header_button(
 			dif.Frame,
@@ -934,7 +868,7 @@ namespace bpr::qt {
 		MotionStatus->setForegroundRole(QPalette::PlaceholderText);
 		motionLine->addWidget(motionLabel, 0, Qt::AlignVCenter);
 		motionLine->addWidget(MotionStatus, 1, Qt::AlignVCenter);
-		difColumn->addWidget(make_hairline(difRows));
+		difColumn->addWidget(detail::make_settings_hairline(difRows));
 		difColumn->addWidget(motionRow);
 		dif.Body->addWidget(difRows);
 		page->addWidget(dif.Frame);
@@ -1828,7 +1762,7 @@ namespace bpr::qt {
 			auto* const column = new QVBoxLayout{ PreviewBar };
 			column->setContentsMargins(0, 0, 0, 0);
 			column->setSpacing(0);
-			column->addWidget(make_hairline(PreviewBar));
+			column->addWidget(detail::make_settings_hairline(PreviewBar));
 			auto* const foot = new QWidget{ PreviewBar };
 			foot->setAutoFillBackground(true);
 			// The same raised surface as the card headers (BPR-1513).

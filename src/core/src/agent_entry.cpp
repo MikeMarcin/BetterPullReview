@@ -61,18 +61,19 @@ namespace bpr::core {
 	auto stable_name(const agent_entry_refusal aRefusal) noexcept -> std::string_view
 	{
 		switch (aRefusal) {
-		case agent_entry_refusal::invalid_name:          return "invalid_name";
-		case agent_entry_refusal::duplicate_name:        return "duplicate_name";
-		case agent_entry_refusal::invalid_program:       return "invalid_program";
-		case agent_entry_refusal::no_program:            return "no_program";
-		case agent_entry_refusal::invalid_argument:      return "invalid_argument";
-		case agent_entry_refusal::too_many_arguments:    return "too_many_arguments";
-		case agent_entry_refusal::invalid_model:         return "invalid_model";
-		case agent_entry_refusal::invalid_effort:        return "invalid_effort";
-		case agent_entry_refusal::too_many_entries:      return "too_many_entries";
-		case agent_entry_refusal::unknown_entry:         return "unknown_entry";
-		case agent_entry_refusal::relaxed_popular_agent: return "relaxed_popular_agent";
-		case agent_entry_refusal::settings_unreadable:   return "settings_unreadable";
+		case agent_entry_refusal::invalid_name:                      return "invalid_name";
+		case agent_entry_refusal::duplicate_name:                    return "duplicate_name";
+		case agent_entry_refusal::invalid_program:                   return "invalid_program";
+		case agent_entry_refusal::no_program:                        return "no_program";
+		case agent_entry_refusal::invalid_argument:                  return "invalid_argument";
+		case agent_entry_refusal::too_many_arguments:                return "too_many_arguments";
+		case agent_entry_refusal::invalid_model:                     return "invalid_model";
+		case agent_entry_refusal::invalid_effort:                    return "invalid_effort";
+		case agent_entry_refusal::too_many_entries:                  return "too_many_entries";
+		case agent_entry_refusal::unknown_entry:                     return "unknown_entry";
+		case agent_entry_refusal::relaxed_popular_agent:             return "relaxed_popular_agent";
+		case agent_entry_refusal::launcher_sandbox_not_custom_codex: return "launcher_sandbox_not_custom_codex";
+		case agent_entry_refusal::settings_unreadable:               return "settings_unreadable";
 		}
 		return "invalid_name";
 	}
@@ -80,18 +81,19 @@ namespace bpr::core {
 	auto describe(const agent_entry_refusal aRefusal) noexcept -> std::string_view
 	{
 		switch (aRefusal) {
-		case agent_entry_refusal::invalid_name:          return "Give the agent a name of up to 64 characters.";
-		case agent_entry_refusal::duplicate_name:        return "Another agent already has that name.";
-		case agent_entry_refusal::invalid_program:       return "The program must be a full path, such as /usr/local/bin/my-agent.";
-		case agent_entry_refusal::no_program:            return "Choose the program that runs this agent.";
-		case agent_entry_refusal::invalid_argument:      return "An argument is empty, too long, or holds a control character.";
-		case agent_entry_refusal::too_many_arguments:    return "An agent takes at most 16 fixed arguments.";
-		case agent_entry_refusal::invalid_model:         return "That is not a model name this agent's protocol takes.";
-		case agent_entry_refusal::invalid_effort:        return "That is not an effort this agent's protocol takes.";
-		case agent_entry_refusal::too_many_entries:      return "A profile keeps at most 16 agents.";
-		case agent_entry_refusal::unknown_entry:         return "That agent is no longer in the list.";
-		case agent_entry_refusal::relaxed_popular_agent: return "Only a custom agent can turn off strict run checks.";
-		case agent_entry_refusal::settings_unreadable:   return "Your saved agents couldn't be read, so this change can't be saved.";
+		case agent_entry_refusal::invalid_name:                      return "Give the agent a name of up to 64 characters.";
+		case agent_entry_refusal::duplicate_name:                    return "Another agent already has that name.";
+		case agent_entry_refusal::invalid_program:                   return "The program must be a full path, such as /usr/local/bin/my-agent.";
+		case agent_entry_refusal::no_program:                        return "Choose the program that runs this agent.";
+		case agent_entry_refusal::invalid_argument:                  return "An argument is empty, too long, or holds a control character.";
+		case agent_entry_refusal::too_many_arguments:                return "An agent takes at most 16 fixed arguments.";
+		case agent_entry_refusal::invalid_model:                     return "That is not a model name this agent's protocol takes.";
+		case agent_entry_refusal::invalid_effort:                    return "That is not an effort this agent's protocol takes.";
+		case agent_entry_refusal::too_many_entries:                  return "A profile keeps at most 16 agents.";
+		case agent_entry_refusal::unknown_entry:                     return "That agent is no longer in the list.";
+		case agent_entry_refusal::relaxed_popular_agent:             return "Only a custom agent can turn off strict run checks.";
+		case agent_entry_refusal::launcher_sandbox_not_custom_codex: return "Only a custom Codex agent can rely on its launcher's sandbox.";
+		case agent_entry_refusal::settings_unreadable:               return "Your saved agents couldn't be read, so this change can't be saved.";
 		}
 		return "That agent cannot be kept.";
 	}
@@ -142,6 +144,9 @@ namespace bpr::core {
 		}
 		if (aEntry.Preset && !aEntry.StrictRunChecks) {
 			return agent_entry_refusal::relaxed_popular_agent;
+		}
+		if (aEntry.RelyOnLauncherSandbox && (aEntry.Preset || (aEntry.Protocol != agent_protocol::codex_jsonl_exec && aEntry.Protocol != agent_protocol::codex_app_server))) {
+			return agent_entry_refusal::launcher_sandbox_not_custom_codex;
 		}
 		const auto program = entry_settings_program(aEntry.Protocol);
 		if (!aEntry.Model.empty() && (!program || !valid_claude_model(aEntry.Model))) {
@@ -378,61 +383,5 @@ namespace bpr::core {
 		}
 		mark_chosen(choices, aFacts);
 		return choices;
-	}
-
-	auto migrate_agent_entries(const legacy_agent_settings& aSettings) -> std::vector<agent_entry>
-	{
-		auto       entries = std::vector<agent_entry>{ };
-		const auto keep    = [&entries](agent_entry aEntry) {
-			// A setting that would not be kept goes back to the agent's own.
-			if (inspect_agent_entry(aEntry) == agent_entry_refusal::invalid_model) {
-				aEntry.Model.clear();
-			}
-			if (inspect_agent_entry(aEntry) == agent_entry_refusal::invalid_effort) {
-				aEntry.Effort.clear();
-			}
-			if (inspect_agent_entry(aEntry) == agent_entry_refusal::invalid_program && aEntry.Preset) {
-				aEntry.Program.clear();
-			}
-			if (auto added = add_agent_entry(entries, std::move(aEntry))) {
-				entries = std::move(*added);
-			}
-		};
-		const auto claude = [&] {
-			auto entry   = preset_agent_entry(setup_agent::claude_code, aSettings.CodexProtocol, aSettings.ClaudeWrapper);
-			entry.Model  = aSettings.ClaudeModel;
-			entry.Effort = aSettings.ClaudeEffort;
-			keep(std::move(entry));
-		};
-		const auto codex = [&] {
-			auto entry   = preset_agent_entry(setup_agent::codex, aSettings.CodexProtocol, aSettings.CodexProgram);
-			entry.Model  = aSettings.CodexModel;
-			entry.Effort = aSettings.CodexEffort;
-			keep(std::move(entry));
-		};
-		const auto harness = [&] { keep(preset_agent_entry(setup_agent::plain_text_harness, aSettings.CodexProtocol, aSettings.HarnessProgram)); };
-		const auto wanted  = [&aSettings](const setup_agent aAgent) {
-			switch (aAgent) {
-			case setup_agent::claude_code:        return aSettings.Chosen == aAgent || !aSettings.ClaudeWrapper.empty();
-			case setup_agent::codex:              return aSettings.Chosen == aAgent || !aSettings.CodexProgram.empty();
-			case setup_agent::plain_text_harness: return !aSettings.HarnessProgram.empty();
-			}
-			return false;
-		};
-		auto order = std::vector<setup_agent>{ setup_agent::claude_code, setup_agent::codex, setup_agent::plain_text_harness };
-		if (aSettings.Chosen) {
-			std::ranges::stable_partition(order, [&aSettings](const setup_agent aAgent) { return aAgent == aSettings.Chosen; });
-		}
-		for (const auto agent : order) {
-			if (!wanted(agent)) {
-				continue;
-			}
-			switch (agent) {
-			case setup_agent::claude_code:        claude(); break;
-			case setup_agent::codex:              codex(); break;
-			case setup_agent::plain_text_harness: harness(); break;
-			}
-		}
-		return entries;
 	}
 } // namespace bpr::core

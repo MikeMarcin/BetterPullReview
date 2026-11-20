@@ -114,6 +114,10 @@ namespace bpr::core {
 		bool ScratchUnmade = false;
 		/// Nothing is granted, and why.
 		std::optional<agent_grant_refusal> Refusal;
+		/// [[BPR-2307]]. The custom Codex agent relies on its launcher's
+		/// sandbox: Codex's own is off, so the grant is held only by the
+		/// launcher.
+		bool LauncherSandbox = false;
 
 		auto operator<=>(const agent_grant_facts&) const = default;
 	};
@@ -130,6 +134,8 @@ namespace bpr::core {
 		bool                               ScratchFull   = false;
 		bool                               ScratchUnmade = false;
 		std::optional<agent_grant_refusal> Refusal;
+		/// [[BPR-2307]]. Codex's own sandbox is off: the launcher's holds the grant.
+		bool LauncherSandbox = false;
 
 		auto operator<=>(const agent_grant&) const = default;
 	};
@@ -221,6 +227,71 @@ namespace bpr::core {
 	[[nodiscard]] auto agent_scratch_instruction(std::string_view aPath, bool aOverLimit, std::uint32_t aLimitMiB) -> std::string;
 	/// \brief The words the agent is told about building in `aWorkspace`.
 	[[nodiscard]] auto agent_builds_instruction(std::string_view aWorkspace) -> std::string;
+
+	/// \brief [[BPR-2307]] (owner, 2026-11-19, on [[BPR-2305]]'s open
+	/// question "May a custom agent turn off Codex's own sandbox and rely on
+	/// the launcher's?": "Sure"). Which sandbox one Codex launch asks Codex
+	/// for.
+	enum class codex_sandbox_mode : std::uint8_t {
+		/// Neither read-only nor granted: BetterPullReview passes no sandbox
+		/// and Codex keeps what its own configuration says.
+		configured,
+		/// A read-only run: `--sandbox read-only`, whoever encloses Codex.
+		/// The [[BPR-2305]] audit found Codex's read-only sandbox works
+		/// inside the launcher's, so it is kept.
+		read_only,
+		/// A granted run: BetterPullReview's permissions profile, which
+		/// Codex's sandbox holds.
+		grant_profile,
+		/// A granted run of a custom Codex agent that relies on its
+		/// launcher's sandbox: Codex's own is off (`danger-full-access`) and
+		/// the grant is held only by the launcher.
+		launcher,
+	};
+	[[nodiscard]] auto stable_name(codex_sandbox_mode aMode) noexcept -> std::string_view;
+
+	/// \brief What one Codex launch's sandbox is decided from.
+	struct codex_sandbox_facts
+	{
+		/// The run is read-only (drafting, a check's plan).
+		bool ReadOnly = false;
+		/// The run carries a scratch folder or build grant.
+		bool Granted = false;
+		/// The agent's "Rely on the launcher's sandbox" setting.
+		bool RelyOnLauncher = false;
+
+		auto operator<=>(const codex_sandbox_facts&) const = default;
+	};
+	/// \brief Decides one Codex launch's sandbox. Pure. Read-only stays
+	/// read-only; only a granted run of an agent that relies on its launcher
+	/// turns Codex's own sandbox off.
+	[[nodiscard]] auto decide_codex_sandbox(codex_sandbox_facts aFacts) noexcept -> codex_sandbox_mode;
+	/// \brief The arguments that turn Codex's own sandbox off for
+	/// `codex_sandbox_mode::launcher`, approvals still never asked:
+	/// `--sandbox danger-full-access` for `exec`, and the same as a
+	/// configuration value for the App Server, which has no such option.
+	[[nodiscard]] auto codex_launcher_sandbox_arguments(bool aAppServer) -> std::vector<std::string>;
+
+	/// \brief [[BPR-2307]]. The first rule a Codex launch's own arguments
+	/// break for its decided sandbox.
+	enum class codex_sandbox_problem : std::uint8_t {
+		/// `danger-full-access` without the launcher mode.
+		sandbox_off_unasked,
+		/// The launcher mode, and BetterPullReview's profile or another
+		/// sandbox named too.
+		mixed_sandbox,
+		/// A read-only run without `--sandbox read-only`.
+		read_only_lost,
+		/// A granted run (profile or launcher) that does not say
+		/// `approval_policy="never"`.
+		approval_unset,
+	};
+	[[nodiscard]] auto stable_name(codex_sandbox_problem aProblem) noexcept -> std::string_view;
+	/// \brief Checks BetterPullReview's own Codex arguments (never the
+	/// agent's fixed ones) against `aMode`. Pure; the host refuses a launch
+	/// that breaks a rule rather than starting it. The App Server is told
+	/// read-only in its requests, so `aAppServer` skips that rule.
+	[[nodiscard]] auto inspect_codex_sandbox_arguments(std::span<const std::string> aArguments, codex_sandbox_mode aMode, bool aAppServer) -> std::optional<codex_sandbox_problem>;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_GRANT_HPP

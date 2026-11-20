@@ -729,11 +729,16 @@ namespace bpr::core {
 		const open_workbench_thread_intent& aIntent) noexcept
 		-> workbench_thread_route;
 
-	/// \brief [[BPR-1584]]. How wide Threads and Discuss let a reading column
-	/// grow on a wide screen.
+	/// \brief [[BPR-1584]]. How wide a reading column (Threads' rows,
+	/// Discuss's list and, [[BPR-2299]], a report's page) grows on a wide
+	/// screen.
 	///
 	/// \details Ordinal values are the workbench settings' schema contract.
-	/// Never applied to the code comparison.
+	/// Never applied to the code comparison. [[BPR-2299]] (owner,
+	/// 2026-11-19: "I think we can just use reading with for everything")
+	/// made it the one width of every reading column and replaced its
+	/// presets, which had been 960, 1600 and 2560 and so mostly never
+	/// limited anything, with the widths a column is read at.
 	enum class reading_width : std::uint8_t {
 		narrow = 0,
 		medium = 1,
@@ -749,21 +754,21 @@ namespace bpr::core {
 		return static_cast<std::uint8_t>(aWidth) <= static_cast<std::uint8_t>(reading_width::full);
 	}
 
-	/// \brief [[BPR-1584]]. The widest a reading column grows, in logical
-	/// pixels; none for Full width.
+	/// \brief [[BPR-1584]], [[BPR-2299]]. The widest a reading column grows,
+	/// in logical pixels; none for Full width.
 	[[nodiscard]] constexpr auto reading_width_limit(const reading_width aWidth) noexcept -> std::optional<std::uint32_t>
 	{
 		switch (aWidth) {
 		case reading_width::narrow:
-			return 960U;
+			return 720U;
 		case reading_width::medium:
-			return 1'600U;
+			return 900U;
 		case reading_width::wide:
-			return 2'560U;
+			return 1'100U;
 		case reading_width::full:
 			return std::nullopt;
 		}
-		return 2'560U;
+		return 1'100U;
 	}
 
 	/// \brief [[BPR-1584]]. A reading column's width on a page: the page's
@@ -772,6 +777,123 @@ namespace bpr::core {
 	{
 		const auto limit = reading_width_limit(aWidth);
 		return limit.has_value() && *limit < aPage ? *limit : aPage;
+	}
+
+	/// \brief [[BPR-2299]] (owner, 2026-11-19: "advanced can set the width
+	/// per feature including to arbitrary custom values"). The reading
+	/// columns whose width can differ from the Reading width.
+	/// \details Ordinal values are the workbench settings' schema contract.
+	enum class reading_surface : std::uint8_t {
+		threads = 0,
+		discuss = 1,
+		reports = 2,
+	};
+	inline constexpr std::size_t reading_surface_count = 3U;
+
+	/// \brief [[BPR-2299]]. What one reading surface's width is.
+	enum class reading_override_kind : std::uint8_t {
+		/// The Reading width's: the default.
+		reading_width = 0,
+		/// Its own width, `reading_override::Width` pixels.
+		width = 1,
+		/// The whole page.
+		full = 2,
+	};
+
+	/// \brief [[BPR-2299]] (owner, 2026-11-19: "even for custom we should
+	/// put sensible minimums"; "we probably just use narrow as the
+	/// minimum"). The narrowest and widest width of a surface's own, in
+	/// logical pixels; the narrowest is Narrow's.
+	inline constexpr std::uint32_t minimum_reading_override = 720U;
+	inline constexpr std::uint32_t maximum_reading_override = 3'840U;
+	static_assert(reading_width_limit(reading_width::narrow) == minimum_reading_override, "a surface's own width is never narrower than Narrow");
+
+	/// \brief [[BPR-2299]]. One reading surface's width: the Reading
+	/// width's, its own or the whole page.
+	struct reading_override
+	{
+		reading_override_kind Kind = reading_override_kind::reading_width;
+		/// Pixels when `Kind` is `width`, zero otherwise.
+		std::uint32_t Width = 0U;
+
+		auto operator<=>(const reading_override&) const = default;
+	};
+
+	/// \brief [[BPR-2299]]. Each surface's width, in `reading_surface`'s
+	/// order; every one follows the Reading width by default.
+	using reading_overrides = std::array<reading_override, reading_surface_count>;
+
+	/// \brief [[BPR-2299]]. A width of a surface's own, held to the bounds.
+	[[nodiscard]] constexpr auto reading_override_of(const std::uint32_t aWidth) noexcept -> reading_override
+	{
+		const auto held = aWidth < minimum_reading_override ? minimum_reading_override : aWidth > maximum_reading_override ? maximum_reading_override
+																														   : aWidth;
+		return { .Kind = reading_override_kind::width, .Width = held };
+	}
+
+	/// \brief [[BPR-2299]]. Rejects a kind outside the vocabulary, a width
+	/// outside the bounds, and a width on a kind that has none.
+	[[nodiscard]] constexpr auto valid(const reading_overrides& aOverrides) noexcept -> bool
+	{
+		for (const auto& one : aOverrides) {
+			const auto fits = one.Kind == reading_override_kind::width ? one.Width >= minimum_reading_override && one.Width <= maximum_reading_override
+																	   : (one.Kind == reading_override_kind::reading_width || one.Kind == reading_override_kind::full) && one.Width == 0U;
+			if (!fits) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/// \brief [[BPR-2299]]. The widest `aSurface`'s column grows: its own
+	/// width (held to its bounds) when it has one, otherwise the Reading
+	/// width's; none for the whole page.
+	[[nodiscard]] constexpr auto reading_surface_limit(const reading_width aWidth, const reading_overrides& aOverrides, const reading_surface aSurface) noexcept
+		-> std::optional<std::uint32_t>
+	{
+		const auto& own = aOverrides[static_cast<std::size_t>(aSurface)];
+		switch (own.Kind) {
+		case reading_override_kind::width:
+			return reading_override_of(own.Width).Width;
+		case reading_override_kind::full:
+			return std::nullopt;
+		case reading_override_kind::reading_width:
+			break;
+		}
+		return reading_width_limit(aWidth);
+	}
+
+	/// \brief [[BPR-2299]]. The stored form of one surface's width: 0 for the
+	/// Reading width's, -1 for the whole page, otherwise its pixels.
+	[[nodiscard]] constexpr auto stored_reading_override(const reading_override& aOverride) noexcept -> std::int64_t
+	{
+		switch (aOverride.Kind) {
+		case reading_override_kind::width:
+			return static_cast<std::int64_t>(aOverride.Width);
+		case reading_override_kind::full:
+			return -1;
+		case reading_override_kind::reading_width:
+			break;
+		}
+		return 0;
+	}
+
+	/// \brief [[BPR-2299]]. One surface's width from its stored form. A
+	/// width outside the bounds is held to them; a negative value no build
+	/// writes is none.
+	[[nodiscard]] constexpr auto read_reading_override(const std::int64_t aStored) noexcept -> std::optional<reading_override>
+	{
+		if (aStored == 0) {
+			return reading_override{ };
+		}
+		if (aStored == -1) {
+			return reading_override{ .Kind = reading_override_kind::full };
+		}
+		if (aStored < 0) {
+			return std::nullopt;
+		}
+		const auto pixels = aStored > static_cast<std::int64_t>(maximum_reading_override) ? maximum_reading_override : static_cast<std::uint32_t>(aStored);
+		return reading_override_of(pixels);
 	}
 
 	/// \brief [[BPR-1581]]. What the window holds selected when a key asks to

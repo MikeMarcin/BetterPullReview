@@ -25,7 +25,9 @@ namespace bpr::qt {
 			if (const auto* agent = std::get_if<core::private_agent_actor>(&aValue)) {
 				return QStringLiteral("Agent · run %1 · model/effort in provenance").arg(agent->Run.value());
 			}
-			return std::holds_alternative<core::private_reviewer_actor>(aValue) ? QStringLiteral("Reviewer") : QStringLiteral("Legacy · author unknown");
+			// A note moved in from before private threads (owner, 2026-11-20)
+			// was the reviewer's own: it reads as the reviewer's.
+			return QStringLiteral("Reviewer");
 		}
 	}
 	auto private_thread_model::rowCount(const QModelIndex& aParent) const -> int { return aParent.isValid() ? 0 : static_cast<int>(Rows.size()); }

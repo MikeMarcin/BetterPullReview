@@ -11,6 +11,20 @@ metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-
 
 # RFC-BPR-0058: Headless Cycle CLI and Portable Consumer Skill
 
+## Status: Auto-Verified; retired with Review Cycles (owner, 2026-11-20)
+
+The owner retired Review Cycles on 2026-11-20 ("Are review_cycles even
+valuable anymore? I feel like they've been completely superseded by our local
+draft pr workflow", then "Yeah don't think we need it anymore").
+[[BPR-2308]] removed the feature and [[BPR-2309]] recorded it; local PR drafts
+([RFC-BPR-0108](RFC-BPR-0108-local-pr-drafts.md)) take its place. The
+repository has no Superseded status, so this RFC keeps its status as the record
+of what shipped and how it was verified; its contracts no longer describe the
+product. Cycle records an earlier version stored (`review-cycles.sqlite3`,
+`publication-git-v1/`) stay on disk untouched and are no longer read.
+
+What remains: `bpr` itself for `bpr tour` and `bpr draft`. `bpr cycle` now only says it was removed and points to `bpr draft`; the portable `bpr-cycle` skill package and its MASK deployment are gone.
+
 ## Outcome and decisions
 
 Extend the shared AI-free bpr runtime with bpr cycle commands and a thin portable bpr-cycle consumer skill. The desktop and CLI invoke the same C++ services. A harness with local command reachability can read a specific prepared round directly, without copy/paste, file export, another model or an embedded BPR agent session.
@@ -25,7 +39,7 @@ Ship the candidate via the existing shared AgentSkills/MASK source once separate
 
 As imported, this RFC listed RFC-BPR-0044, 0045 and 0046 among its
 dependencies. Those three close together on
-[BPR-1071](../issues/10-backlog/BPR-1071-close-rfc-0046.md) and are Proposed.
+[BPR-1071](../issues/60-done/BPR-1071-close-rfc-0046.md) and are Proposed.
 The owner was asked in chat whether to amend the dependency and close this RFC
 on its own evidence ("RFC-0058 … formally depends on RFC-0044/0045/0046 …
 amend its dependency and close on its own evidence?"), and answered:

@@ -33,16 +33,10 @@ namespace {
 
 	void test_entry_defaults()
 	{
-		// AC08: a new agent and one carried over start with the folder on and
-		// builds off.
+		// AC08: a new agent starts with the folder on and builds off.
 		const auto added = core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { });
 		expect(added.ScratchStarts, "a new agent's scratch folder starts on");
 		expect(!added.BuildsAndTests, "a new agent's builds start off");
-		auto legacy   = core::legacy_agent_settings{ };
-		legacy.Chosen = core::setup_agent::codex;
-		for (const auto& entry : core::migrate_agent_entries(legacy)) {
-			expect(entry.ScratchStarts && !entry.BuildsAndTests, "a carried-over agent starts with the folder on and builds off");
-		}
 	}
 
 	void test_scratch_follows_start_until_chosen()
@@ -297,6 +291,78 @@ namespace {
 		whole          = core::apply_agent_activity({ }, helper, 1U);
 		expect(whole.Helpers.size() == 1U && whole.Helpers.front().Last == heredoc && whole.CommandsRun.front() == heredoc, "a helper's command is kept whole too");
 	}
+
+	/// [[BPR-2307]] (owner, 2026-11-19). Codex's own sandbox is off only for
+	/// a granted run of a custom Codex agent that relies on its launcher's;
+	/// a read-only run stays read-only.
+	void test_launcher_sandbox()
+	{
+		using mode = core::codex_sandbox_mode;
+		expect(core::decide_codex_sandbox({ }) == mode::configured, "no grant, not read-only: Codex's own configuration");
+		expect(core::decide_codex_sandbox({ .Granted = true }) == mode::grant_profile, "granted: BetterPullReview's profile");
+		expect(core::decide_codex_sandbox({ .Granted = true, .RelyOnLauncher = true }) == mode::launcher, "granted, relying on the launcher: Codex's sandbox off");
+		expect(core::decide_codex_sandbox({ .ReadOnly = true, .RelyOnLauncher = true }) == mode::read_only, "read-only stays read-only, launcher or not");
+		expect(core::decide_codex_sandbox({ .RelyOnLauncher = true }) == mode::configured, "nothing granted: nothing turned off");
+		expect(core::stable_name(mode::launcher) == "launcher" && core::stable_name(mode::read_only) == "read_only", "stable names");
+
+		const auto exec = core::codex_launcher_sandbox_arguments(false);
+		const auto app  = core::codex_launcher_sandbox_arguments(true);
+		expect(exec == std::vector<std::string>{ "--sandbox", "danger-full-access", "-c", "approval_policy=\"never\"" }, "exec: --sandbox danger-full-access, no approvals");
+		expect(app == std::vector<std::string>{ "-c", "sandbox_mode=\"danger-full-access\"", "-c", "approval_policy=\"never\"" }, "App Server: the same as configuration");
+
+		using problem   = core::codex_sandbox_problem;
+		const auto args = [](std::initializer_list<const char*> aList) {
+			auto out = std::vector<std::string>{ };
+			for (const auto* const item : aList) {
+				out.emplace_back(item);
+			}
+			return out;
+		};
+		expect(!core::inspect_codex_sandbox_arguments(exec, mode::launcher, false) && !core::inspect_codex_sandbox_arguments(app, mode::launcher, true), "the launcher arguments pass");
+		expect(core::inspect_codex_sandbox_arguments(exec, mode::grant_profile, false) == problem::sandbox_off_unasked, "sandbox off without the setting is refused");
+		expect(core::inspect_codex_sandbox_arguments(exec, mode::configured, false) == problem::sandbox_off_unasked, "and without a grant");
+		auto both = exec;
+		both.insert(both.end(), { "-c", "default_permissions=\"betterpullreview_grant\"" });
+		expect(core::inspect_codex_sandbox_arguments(both, mode::launcher, false) == problem::mixed_sandbox, "sandbox off and the profile both");
+		expect(core::inspect_codex_sandbox_arguments(args({ "-c", "approval_policy=\"never\"" }), mode::launcher, false) == problem::mixed_sandbox, "the launcher mode must turn it off");
+		expect(core::inspect_codex_sandbox_arguments(args({ "--sandbox", "danger-full-access" }), mode::launcher, false) == problem::approval_unset, "approvals stay never");
+		const auto readOnly = args({ "--sandbox", "read-only", "-c", "approval_policy=\"never\"", "-c", "mcp_servers={}" });
+		expect(!core::inspect_codex_sandbox_arguments(readOnly, mode::read_only, false), "read-only exec passes");
+		expect(core::inspect_codex_sandbox_arguments(args({ "-c", "mcp_servers={}" }), mode::read_only, false) == problem::read_only_lost, "read-only exec without its sandbox is refused");
+		expect(!core::inspect_codex_sandbox_arguments(args({ "-c", "mcp_servers={}" }), mode::read_only, true), "the App Server is told read-only in its requests");
+		// Whole arguments only: a path or instructions may hold the words.
+		const auto worded = args({ "-c", "projects={\"/x/danger-full-access\"={trust_level=\"untrusted\"}}", "-c", "developer_instructions=\"--sandbox danger-full-access\"" });
+		expect(!core::inspect_codex_sandbox_arguments(worded, mode::configured, false), "a path or text that holds the words is not a sandbox");
+		expect(core::stable_name(problem::mixed_sandbox) == "mixed_sandbox", "a stable name");
+
+		// The grant says who holds it.
+		auto value            = facts(core::agent_program::codex);
+		value.LauncherSandbox = true;
+		const auto launcher   = core::resolve_agent_grant(value);
+		expect(launcher.LauncherSandbox, "a Codex grant carries the launcher's sandbox");
+		const auto told = core::agent_scratch_tooltip(launcher, core::agent_program::codex, 256U);
+		expect(told.find("only its launcher's sandbox") != std::string::npos && told.find("Codex's sandbox holds") == std::string::npos, "the scratch tooltip says only the launcher holds it");
+		value.BuildAnswer = true;
+		expect(core::agent_builds_tooltip(core::resolve_agent_grant(value), core::agent_program::codex).find("only its launcher's sandbox") != std::string::npos, "and the builds tooltip");
+		auto claude            = facts(core::agent_program::claude);
+		claude.LauncherSandbox = true;
+		expect(!core::resolve_agent_grant(claude).LauncherSandbox, "only Codex takes it");
+
+		// The setting: a custom Codex agent's only, off by default.
+		auto entry = core::agent_entry{ .Id = 1U, .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/launcher" };
+		expect(!entry.RelyOnLauncherSandbox, "off by default");
+		entry.RelyOnLauncherSandbox = true;
+		expect(!core::inspect_agent_entry(entry), "a custom Codex JSONL agent may rely on its launcher");
+		entry.Protocol = core::agent_protocol::codex_app_server;
+		expect(!core::inspect_agent_entry(entry), "so may a custom App Server agent");
+		entry.Protocol = core::agent_protocol::claude_stream_json;
+		expect(core::inspect_agent_entry(entry) == core::agent_entry_refusal::launcher_sandbox_not_custom_codex, "a Claude agent may not");
+		auto popular                  = core::preset_agent_entry(core::setup_agent::codex, core::codex_protocol_choice::jsonl, { });
+		popular.Id                    = 2U;
+		popular.RelyOnLauncherSandbox = true;
+		expect(core::inspect_agent_entry(popular) == core::agent_entry_refusal::launcher_sandbox_not_custom_codex, "the popular Codex never may");
+		expect(core::stable_name(core::agent_entry_refusal::launcher_sandbox_not_custom_codex) == "launcher_sandbox_not_custom_codex", "a stable refusal name");
+	}
 } // namespace
 
 auto main() -> int
@@ -311,6 +377,7 @@ auto main() -> int
 	test_scratch_unmade_and_full();
 	test_words();
 	test_commands_listed();
+	test_launcher_sandbox();
 	std::cout << "agent-grant-tests:pass\n";
 	return EXIT_SUCCESS;
 }

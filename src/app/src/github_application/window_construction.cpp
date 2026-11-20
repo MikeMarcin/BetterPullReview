@@ -178,17 +178,6 @@ namespace bpr::app {
 		Window->set_recent_review_dispatch([this](application::recent_review_intent aIntent) { open_recent(aIntent); });
 		Window->set_recent_removal_dispatch([this](application::recent_review_row aRow) { forget_recent(aRow); });
 		Window->set_review_window_dispatch([this](const application::review_window_intent& aIntent) { return request_review_window(aIntent); });
-		// Suggest change is coloured by the panes' classifier over the same
-		// definitions, on the lane every classifier over them runs on.
-		CycleDesktop = std::make_unique<review_cycle_desktop>(*Window, ApplicationDataRoot, DraftWindow.Profile, WorkbenchEffects, DecisionLane,
-															  review_cycle_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects, .Insights = Profile->InsightsRecorder }, nullptr,
-#if defined(BPR_AGENT_INTEGRATIONS)
-															  ClaudeWrapperSource, locate_claude(), AgentProgramSource, locate_agent_program()
-#else
-															  nullptr
-#endif
-		);
-		CycleDesktop->set_diagnostics(DiagnosticLog.get()); // [[BPR-1830]]
 		// RFC-BPR-0108. Local PR drafts read the chosen worktree through
 		// their own isolated Git reader; signed out as well as in.
 		DraftDesktop = std::make_unique<local_draft_desktop>(*Window, ApplicationDataRoot, Profile->InstalledGit, windows_system_root(), WorkbenchEffects, DecisionLane,
@@ -226,15 +215,6 @@ namespace bpr::app {
 #else
 			return Host->accepted_pull_request_account();
 #endif
-		});
-		// [[BPR-1177]]. Publish as Pull Request acts as the account this
-		// profile's session accepted, through its own publication catalog.
-		CycleDesktop->set_publishing({
-			.GitExecutable     = Profile->InstalledGit,
-			.WindowsSystemRoot = windows_system_root(),
-			.Account           = [this]() -> std::optional<application::github_publication_account> {
-				return Closing || !Host ? std::nullopt : Host->accepted_publication_account();
-			},
 		});
 		Window->set_profile_label(QString::fromStdString(aAdmission.Label));
 		Window->set_storage_location(QString::fromStdString(ApplicationDataRoot.string()));
@@ -504,17 +484,12 @@ namespace bpr::app {
 				}
 			});
 		// [[BPR-2171]]. The profile's Discuss preferences: each repository's
-		// bot marks and the column, for every window.
+		// bot marks, for every window.
 		Window->set_discuss_preferences(
 			[this] { return Profile->DiscussPreferences ? Profile->DiscussPreferences->preferences() : core::discuss_preferences{ }; },
 			[this](const std::string& aRepository, const std::string& aLogin, const bool aBot) {
 				if (!Closing && Profile->DiscussPreferences) {
 					static_cast<void>(Profile->DiscussPreferences->mark(aRepository, aLogin, aBot));
-				}
-			},
-			[this](const core::discuss_column aColumn) {
-				if (!Closing && Profile->DiscussPreferences) {
-					static_cast<void>(Profile->DiscussPreferences->set_column(aColumn));
 				}
 			});
 		// [[BPR-1089]]. The Overview's chips: its request is counted from the
@@ -1470,12 +1445,11 @@ namespace bpr::app {
 				const auto file        = adapters::sqlite::agent_setup_store_file(ApplicationDataRoot).u8string();
 				dependencies.StoreFile = std::string{ file.begin(), file.end() };
 			}
-			dependencies.Process       = AgentSetupLauncher.get();
-			dependencies.Locate        = locate_agent_program();
-			dependencies.Inspect       = &adapters::agent::inspect_claude_process_wrapper;
-			dependencies.ClaudeWrapper = ClaudeWrapperSource;
-			dependencies.Programs      = AgentProgramSource;
-			dependencies.Parent        = [](const std::string& aName) -> std::optional<std::string> {
+			dependencies.Process  = AgentSetupLauncher.get();
+			dependencies.Locate   = locate_agent_program();
+			dependencies.Inspect  = &adapters::agent::inspect_claude_process_wrapper;
+			dependencies.Programs = AgentProgramSource;
+			dependencies.Parent   = [](const std::string& aName) -> std::optional<std::string> {
 				if (!qEnvironmentVariableIsSet(aName.c_str())) {
 					return std::nullopt;
 				}

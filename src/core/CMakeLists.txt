@@ -61,32 +61,18 @@ add_library(
         src/review_cycle.cpp
         src/review_cycle_policy.cpp
         src/review_cycle_comparison.cpp
-        src/review_cycle_disclosure.cpp
         src/review_cycle_feedback.cpp
         src/review_cycle_json.cpp
-        src/review_cycle_round.cpp
-        src/review_cycle_round_markdown.cpp
-        src/review_cycle_share.cpp
         src/fuzzy_match.cpp
         src/home_filter.cpp
         src/line_endings.cpp
-        src/review_cycle_send.cpp
         src/review_cycle_zip.cpp
         src/review_cycle_zip_codec.cpp
-        src/review_cycle_bundle.cpp
-        src/review_cycle_import.cpp
         src/review_cycle_suggestion.cpp
-        src/review_cycle_tabs.cpp
         src/review_cycle_views.cpp
-        src/review_cycle_command.cpp
-        src/review_cycle_retrieval.cpp
-        src/review_cycle_response.cpp
-        src/review_cycle_verification.cpp
         src/review_cycle_outgoing.cpp
         src/review_cycle_candidate.cpp
         src/review_cycle_publication.cpp
-        src/review_cycle_association.cpp
-        src/review_cycle_promotion.cpp
         src/git_objects.cpp
         src/suggestion_text_editing.cpp
         src/git_config.cpp
@@ -118,6 +104,8 @@ add_library(
         src/agent_finding.cpp
         src/agent_finding_promotion.cpp
         src/agent_entry.cpp
+        # [[BPR-2303]]. An app bundle's program, from what the host read of it.
+        src/agent_program_bundle.cpp
         src/agent_configuration.cpp
         src/agent_grant.cpp
         src/agent_workspace_expiry.cpp

@@ -33,10 +33,6 @@ namespace bpr::app {
 			InsightsHost->shutdown();
 		}
 		cli_account_users().set(this, std::nullopt);
-#if defined(BPR_LOCAL_AUTOMATION)
-		// A forwarded cycle command stops waiting and cancels its store work.
-		CycleOwnerStop.request_stop();
-#endif
 		if (Diagnostics) {
 			Diagnostics->shutdown();
 		}
@@ -169,7 +165,7 @@ namespace bpr::app {
 		}
 #endif
 #if defined(BPR_LOCAL_AUTOMATION)
-		if (!CycleOwnerEffects.idle()) {
+		if (!OwnerCommandEffects.idle()) {
 			return;
 		}
 #endif

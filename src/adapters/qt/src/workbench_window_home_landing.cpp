@@ -18,7 +18,6 @@
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/type_preview.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -179,11 +178,14 @@ namespace bpr::qt {
 			.CenterRibbonWidth = CenterRibbonWidth != nullptr ? static_cast<std::uint32_t>(CenterRibbonWidth->value()) : Behaviour.CenterRibbonWidth,
 			.MarkdownImages    = BehaviourOptions[9].empty() ? Behaviour.MarkdownImages : static_cast<application::review_markdown_images>(chosen(9U)),
 			.ReadingWidth      = BehaviourOptions[10].empty() ? Behaviour.ReadingWidth : static_cast<core::reading_width>(chosen(10U)),
-			.FinishReview      = FinishReviewSwitches[0] == nullptr ? Behaviour.FinishReview : core::review_finish_settings{
-																								   .Comment        = finishChoice(FinishReviewSwitches[0]),
-																								   .Approve        = finishChoice(FinishReviewSwitches[1]),
-																								   .RequestChanges = finishChoice(FinishReviewSwitches[2]),
-																							   },
+			// [[BPR-2299]]. Set in the Advanced dialog, which asks for its own
+			// record; any other control keeps what was last asked for.
+			.ReadingOverrides = AskedBehaviour.value_or(Behaviour).ReadingOverrides,
+			.FinishReview     = FinishReviewSwitches[0] == nullptr ? Behaviour.FinishReview : core::review_finish_settings{
+																								  .Comment        = finishChoice(FinishReviewSwitches[0]),
+																								  .Approve        = finishChoice(FinishReviewSwitches[1]),
+																								  .RequestChanges = finishChoice(FinishReviewSwitches[2]),
+																							  },
 		};
 	}
 
@@ -251,12 +253,10 @@ namespace bpr::qt {
 		ViewFilterRemember = std::move(aRemember);
 	}
 
-	void workbench_window::set_discuss_preferences(std::function<core::discuss_preferences()> aRead, std::function<void(const std::string&, const std::string&, bool)> aMark,
-												   std::function<void(core::discuss_column)> aColumn)
+	void workbench_window::set_discuss_preferences(std::function<core::discuss_preferences()> aRead, std::function<void(const std::string&, const std::string&, bool)> aMark)
 	{
 		DiscussPreferencesRead = std::move(aRead);
 		DiscussMark            = std::move(aMark);
-		DiscussColumnDispatch  = std::move(aColumn);
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
 			ConversationPanel->cards()->set_author_bot_dispatch([this](const std::string& aLogin, const bool aBot) {
 				if (DiscussMark && !DiscussRepository.empty()) {
@@ -270,25 +270,12 @@ namespace bpr::qt {
 
 	void workbench_window::apply_discuss_preferences()
 	{
-		// [[BPR-2171]]. This repository's bot marks and the column's width.
+		// [[BPR-2171]]. This repository's bot marks; the column's width is
+		// the Reading width's ([[BPR-2299]], `apply_reading_width`).
 		const auto preferences = DiscussPreferencesRead ? DiscussPreferencesRead() : core::discuss_preferences{ };
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
-			auto* const cards = ConversationPanel->cards();
-			cards->set_author_bots(core::marks_of(preferences, DiscussRepository));
-			const auto width = core::discuss_column_width(preferences.Column);
-			cards->set_column_width(width.has_value() ? std::optional{ static_cast<int>(*width) } : std::nullopt);
+			ConversationPanel->cards()->set_author_bots(core::marks_of(preferences, DiscussRepository));
 		}
-		const auto chosen = static_cast<std::size_t>(preferences.Column);
-		if (chosen < DiscussColumnButtons.size() && !DiscussColumnButtons[chosen]->isChecked()) {
-			const auto applying = std::exchange(ApplyingBehaviour, true);
-			DiscussColumnButtons[chosen]->setChecked(true);
-			ApplyingBehaviour = applying;
-		}
-	}
-
-	auto workbench_window::discuss_column_buttons() const -> const std::vector<QAbstractButton*>&
-	{
-		return DiscussColumnButtons;
 	}
 
 	auto workbench_window::view_filters() const noexcept -> const core::view_filter_state&
@@ -514,16 +501,12 @@ namespace bpr::qt {
 			&& (!loading || unconfirmed) && (!active || readUnavailable || unconfirmed);
 		// RFC-BPR-0032 amendment r1. The account setup is Home's; while it is
 		// open Home stays, unless a pull request is opening or open, or its
-		// cached overview is shown. A local cycle or draft the reviewer opened
-		// needs no account, and shows over it.
-		const auto setupHolds = account_setup_shown() && !HasGithubPullRequest && !HasCachedOverview && !loading && !LocalCycleShown && !LocalDraftShown;
-		const auto home       = (nothing && !LocalCycleShown && !LocalDraftShown) || HomeRequested || SetupDestinationNeedsHome || setupHolds;
-		// [[BPR-1157]]. A local cycle takes the review surface's place, and the
-		// title row keeps only what Home keeps plus the cycle's name. A local
-		// draft is not a page: it is shown in the review surface itself, with
-		// the pull request's title row (RFC-BPR-0108, owner 2026-11-13).
-		auto* const localPage = static_cast<QWidget*>(LocalCyclePage);
-		const auto  cycle     = !home && LocalCycleShown && localPage != nullptr;
+		// cached overview is shown. A local draft the reviewer opened needs no
+		// account, and shows over it. A local draft is not a page: it is shown
+		// in the review surface itself, with the pull request's title row
+		// (RFC-BPR-0108, owner 2026-11-13).
+		const auto setupHolds = account_setup_shown() && !HasGithubPullRequest && !HasCachedOverview && !loading && !LocalDraftShown;
+		const auto home       = (nothing && !LocalDraftShown) || HomeRequested || SetupDestinationNeedsHome || setupHolds;
 		present_home_action(home);
 		auto leavingHome = false;
 		auto arrivedHome = false;
@@ -541,8 +524,7 @@ namespace bpr::qt {
 					? focused
 					: nullptr;
 			}
-			CentralStack->setCurrentWidget(home ? HomePage : cycle ? localPage
-																   : ReviewSurface);
+			CentralStack->setCurrentWidget(home ? HomePage : ReviewSurface);
 			// [[BPR-0732]], [[BPR-0775]]. The bar has focus when Home appears,
 			// signed in or out. Only on arrival, so a projection cannot steal
 			// focus from wherever the reviewer has moved it since.
@@ -556,7 +538,7 @@ namespace bpr::qt {
 		// settings at its right, the inset and the spacers that place them.
 		// Drawers, navigation, the modalities, review details and refresh
 		// are a pull request's, and return with one.
-		const auto stripHome = home || cycle;
+		const auto stripHome = home;
 		if (PrimaryToolbar != nullptr && (StripHome != stripHome || stripHome)) {
 			StripHome = stripHome;
 			for (auto* const action : PrimaryToolbar->actions()) {
@@ -571,9 +553,8 @@ namespace bpr::qt {
 					|| name == QLatin1String{ "workbenchCaptionButtonsAction" }
 					// With a review open behind Home, the modalities are the
 					// way back to it.
-					|| (HasGithubPullRequest && !cycle
-						&& name == QLatin1String{ "workbenchModalityAction" })
-					|| (cycle && action == IdentityAction);
+					|| (HasGithubPullRequest
+						&& name == QLatin1String{ "workbenchModalityAction" });
 				action->setVisible(!stripHome || kept);
 			}
 			// [[BPR-0783]], [[BPR-1580]]. View is Home's own, and
@@ -633,7 +614,7 @@ namespace bpr::qt {
 		// is older than the freshness window; the host decides whether it is.
 		// [[BPR-1848]]. Coming back from a pull request names it, so a fresh
 		// list reads only that row and an aged one reads it first.
-		if (!home && !cycle) {
+		if (!home) {
 			if (auto shown = open_queue_ref()) {
 				ReviewShownRef = std::move(shown);
 			}
@@ -770,68 +751,6 @@ namespace bpr::qt {
 		return HomePage;
 	}
 
-	auto workbench_window::open_project_action() const noexcept -> QAction*
-	{
-		return OpenProjectAction;
-	}
-
-	void workbench_window::adopt_local_cycle(review_cycle_view* const aView)
-	{
-		if (LocalCyclePage != nullptr || aView == nullptr || CentralStack == nullptr) {
-			return;
-		}
-		LocalCyclePage = aView;
-		CentralStack->addWidget(static_cast<QWidget*>(aView));
-	}
-
-	auto workbench_window::local_cycle() const noexcept -> review_cycle_view*
-	{
-		return LocalCyclePage;
-	}
-
-	void workbench_window::show_local_cycle(const QString& aTitle)
-	{
-		if (ReviewNavigationDispatch) {
-			ReviewNavigationDispatch(std::nullopt);
-		}
-		LocalCycleTitle = aTitle;
-		if (LocalDraftShown) {
-			leave_local_draft();
-		}
-		LocalCycleShown = true;
-		HomeRequested   = false;
-		update_home_landing();
-		update_strip_identity();
-		apply_strip_width();
-	}
-
-	void workbench_window::retitle_local_cycle(const QString& aTitle)
-	{
-		if (!LocalCycleShown || LocalCycleTitle == aTitle) {
-			return;
-		}
-		LocalCycleTitle = aTitle;
-		update_strip_identity();
-		apply_strip_width();
-	}
-
-	void workbench_window::leave_local_cycle()
-	{
-		if (!LocalCycleShown) {
-			return;
-		}
-		LocalCycleShown = false;
-		LocalCycleTitle.clear();
-		update_home_landing();
-		update_strip_identity();
-		apply_strip_width();
-	}
-
-	auto workbench_window::showing_local_cycle() const noexcept -> bool
-	{
-		return LocalCycleShown && CentralStack != nullptr && LocalCyclePage != nullptr && CentralStack->currentWidget() == static_cast<QWidget*>(LocalCyclePage);
-	}
-
 	auto workbench_window::local_draft() const noexcept -> local_draft_parts*
 	{
 		return LocalDraft;
@@ -911,43 +830,6 @@ namespace bpr::qt {
 	auto workbench_window::home_open_preparation_action() const noexcept -> QAction*
 	{
 		return HomeOpenPreparationAction;
-	}
-
-	void workbench_window::present_local_cycle_recents(const std::vector<application::review_cycle_recent>& aRecents)
-	{
-		if (CycleRecents == aRecents) {
-			return;
-		}
-		CycleRecents = aRecents;
-		if (HomeCyclesList == nullptr) {
-			return;
-		}
-		HomeCyclesList->clear();
-		for (const auto& recent : CycleRecents) {
-			const auto  title    = QString::fromUtf8(recent.Cycle.Title.data(), static_cast<qsizetype>(recent.Cycle.Title.size()));
-			const auto  location = QString::fromUtf8(recent.Location.data(), static_cast<qsizetype>(recent.Location.size()));
-			auto* const item     = new QListWidgetItem{ location.isEmpty() ? title : QStringLiteral("%1  —  %2").arg(title, location), HomeCyclesList };
-			item->setToolTip(location);
-		}
-		HomeCyclesList->setVisible(!CycleRecents.empty());
-		update_home_surface();
-		if (HomeFilter != nullptr && !HomeFilter->query().isEmpty()) {
-			apply_home_filter();
-		}
-	}
-
-	void workbench_window::set_local_cycle_entry_dispatch(std::function<void()> aOpenProject, std::function<void(const core::local_cycle_subject&)> aResume)
-	{
-		OpenProjectDispatch = std::move(aOpenProject);
-		ResumeCycleDispatch = std::move(aResume);
-		if (OpenProjectAction != nullptr) {
-			OpenProjectAction->setEnabled(static_cast<bool>(OpenProjectDispatch));
-		}
-	}
-
-	auto workbench_window::home_cycles_list() const noexcept -> QListWidget*
-	{
-		return HomeCyclesList;
 	}
 
 	void workbench_window::apply_refresh_key(const bool aHome)
@@ -1196,23 +1078,12 @@ namespace bpr::qt {
 		const auto query  = HomeFilter->query();
 		const auto active = core::home_filter_active(query.toStdString());
 		HomeList->set_filter(query);
-		// The Active review card and Review Cycles are filtered with the list:
-		// each is shown while it matches, and counted as a match.
+		// The Active review card is filtered with the list: it is shown while
+		// it matches, and counted as a match.
 		auto elsewhere      = 0;
 		HomeLandingFiltered = active && !home_landing_matches();
 		if (active && !HomeLandingFiltered && HomeLanding != nullptr && HomeLanding->state() == landing_state::back_to_review) {
 			++elsewhere;
-		}
-		if (HomeCyclesList != nullptr && HomeCycles != nullptr) {
-			auto cycles = 0;
-			for (auto row = 0; row < HomeCyclesList->count() && static_cast<std::size_t>(row) < CycleRecents.size(); ++row) {
-				const auto& recent  = CycleRecents[static_cast<std::size_t>(row)];
-				const auto  matched = !active || core::match_home_filter(query.toStdString(), core::home_filter_candidate{ .Title = std::string{ recent.Cycle.Title }, .Repository = recent.Location }).has_value();
-				HomeCyclesList->setRowHidden(row, !matched);
-				cycles += active && matched ? 1 : 0;
-			}
-			HomeCycles->setVisible(!active || cycles > 0);
-			elsewhere += cycles;
 		}
 		HomeList->set_filter_elsewhere(elsewhere);
 		HomeFilter->set_count(HomeList->filter_matches() + elsewhere);
@@ -1384,13 +1255,13 @@ namespace bpr::qt {
 		const auto margins = IdentityLabel->contentsMargins();
 		const auto room    = std::max(strip_identity_budget() - margins.left() - margins.right(), 0);
 		auto       text    = QString{ };
-		if ((LocalCycleShown || LocalDraftShown) && !showing_home()) {
-			// [[BPR-1157]]. A local cycle is named by its title and badged as
+		if (LocalDraftShown && !showing_home()) {
+			// [[BPR-1157]]. A local draft is named by its title and badged as
 			// local: no repository, number or account.
-			const auto badge = LocalDraftShown ? QStringLiteral("  ·  Local draft") : QStringLiteral("  ·  Local cycle");
-			text             = metrics.elidedText(LocalCycleTitle, Qt::ElideRight, std::max(room - metrics.horizontalAdvance(badge), identity_fragment_width)) + badge;
+			const auto badge = QStringLiteral("  ·  Local draft");
+			text             = metrics.elidedText(LocalPageTitle, Qt::ElideRight, std::max(room - metrics.horizontalAdvance(badge), identity_fragment_width)) + badge;
 			IdentityLabel->setText(text);
-			IdentityLabel->setToolTip(LocalCycleTitle + badge);
+			IdentityLabel->setToolTip(LocalPageTitle + badge);
 			return;
 		}
 		// [[BPR-1842]]. While nothing is accepted, the name GitHub's first
@@ -1451,9 +1322,9 @@ namespace bpr::qt {
 		}
 		const auto  margins = IdentityLabel->contentsMargins();
 		const auto& metrics = IdentityLabel->fontMetrics();
-		if ((LocalCycleShown || LocalDraftShown) && !showing_home()) {
-			const auto badge = LocalDraftShown ? QStringLiteral("  ·  Local draft") : QStringLiteral("  ·  Local cycle");
-			return metrics.horizontalAdvance(LocalCycleTitle + badge) + margins.left() + margins.right();
+		if (LocalDraftShown && !showing_home()) {
+			const auto badge = QStringLiteral("  ·  Local draft");
+			return metrics.horizontalAdvance(LocalPageTitle + badge) + margins.left() + margins.right();
 		}
 		const auto loading = IdentityText.isEmpty() && LoadingIdentity.has_value();
 		return metrics.horizontalAdvance(loading ? LoadingIdentity->Text : IdentityText) + margins.left() + margins.right();
@@ -1466,9 +1337,9 @@ namespace bpr::qt {
 		}
 		const auto  margins = IdentityLabel->contentsMargins();
 		const auto& metrics = IdentityLabel->fontMetrics();
-		if ((LocalCycleShown || LocalDraftShown) && !showing_home()) {
-			const auto badge = LocalDraftShown ? QStringLiteral("  ·  Local draft") : QStringLiteral("  ·  Local cycle");
-			const auto title = std::min(metrics.horizontalAdvance(LocalCycleTitle), identity_title_minimum);
+		if (LocalDraftShown && !showing_home()) {
+			const auto badge = QStringLiteral("  ·  Local draft");
+			const auto title = std::min(metrics.horizontalAdvance(LocalPageTitle), identity_title_minimum);
 			return metrics.horizontalAdvance(badge) + title + margins.left() + margins.right();
 		}
 		const auto  loading = IdentityText.isEmpty() && LoadingIdentity.has_value();
@@ -1592,13 +1463,13 @@ namespace bpr::qt {
 		const bool queryFocus = focused && ComparisonSurface->source_find()->isAncestorOf(focused);
 		const bool textFocus  = qobject_cast<QLineEdit*>(focused) || qobject_cast<QPlainTextEdit*>(focused) || qobject_cast<QTextEdit*>(focused);
 
-		const auto filesCommands = core::project_source_files_commands({ .PullRequest = (HasGithubPullRequest || LocalDraftShown) && !showing_home() && !LocalCycleShown && static_cast<bool>(PrSearchDispatch), .Modal = QApplication::activeModalWidget() != nullptr, .Editor = textFocus && !sourceFocus && !queryFocus && !(focused && SearchPanel && SearchPanel->isAncestorOf(focused)), .Query = SearchPanel && !SearchPanel->projection().Query.empty(), .Hits = SearchPanel && SearchPanel->projection().CurrentMatch.has_value() });
+		const auto filesCommands = core::project_source_files_commands({ .PullRequest = (HasGithubPullRequest || LocalDraftShown) && !showing_home() && static_cast<bool>(PrSearchDispatch), .Modal = QApplication::activeModalWidget() != nullptr, .Editor = textFocus && !sourceFocus && !queryFocus && !(focused && SearchPanel && SearchPanel->isAncestorOf(focused)), .Query = SearchPanel && !SearchPanel->projection().Query.empty(), .Hits = SearchPanel && SearchPanel->projection().CurrentMatch.has_value() });
 		for (std::size_t index = 0; index < SourceFilesActions.size(); ++index) {
 			if (SourceFilesActions[index]) {
 				describe_action(SourceFilesActions[index], filesCommands[index], index == 0 ? tr("Search full changed files in the active comparison") : tr("Open the next exact search occurrence"), tr("Open a pull request and leave modal dialogs"));
 			}
 		}
-		const auto commands = core::project_source_find_commands({ .Reader         = !showing_home() && !LocalCycleShown && !CompositionPage && current_modality() == review_modality::review,
+		const auto commands = core::project_source_find_commands({ .Reader         = !showing_home() && !CompositionPage && current_modality() == review_modality::review,
 																   .Material       = ComparisonSurface->source_find_available(),
 																   .EditorOwnsFind = textFocus && !sourceFocus && !queryFocus,
 																   .Modal          = QApplication::activeModalWidget() != nullptr,
@@ -1618,7 +1489,7 @@ namespace bpr::qt {
 		const auto* focused    = QApplication::focusWidget();
 		const auto* line       = qobject_cast<const QLineEdit*>(focused);
 		const auto  editing    = focused != nullptr && isAncestorOf(focused) && (editable_multi_line(focused) || (line != nullptr && !line->isReadOnly()));
-		const auto  inReview   = !showing_home() && !LocalCycleShown && CompositionPage == nullptr && current_modality() == review_modality::review;
+		const auto  inReview   = !showing_home() && CompositionPage == nullptr && current_modality() == review_modality::review;
 		const auto  reason     = !inReview ? reason_text(core::workbench_reason_code::header_source_requires_review)
 			: editing                      ? tr("Keep Option/Alt text input in the editor. Focus the source comparison to navigate.")
 										   : reason_text(projection ? projection->DisabledReason : core::workbench_reason_code::header_source_no_selection);

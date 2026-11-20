@@ -503,7 +503,7 @@ reordering the list reparses nothing and changing it keys only C++ afresh: no
 span cached under another list is served, an answer for a list no longer in
 effect is dropped, and an open C++ comparison asks again and recolours without a
 restart. A list in effect before answers from the cache. Fenced C++ in comments
-and Review Cycles still classify under `std` alone.
+still classifies under `std` alone.
 
 Definitions and approved themes are packaged; standard-path discovery and
 downloads stay disabled in the production build. Build-time source acquisition

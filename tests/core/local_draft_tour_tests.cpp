@@ -90,6 +90,9 @@ namespace {
 		expect(text.find("\"problem\"") == std::string::npos && text.find("\"solution\"") == std::string::npos, "[[BPR-2274]] the stored form has no Problem or Solution");
 		const auto back = core::decode_local_draft(text);
 		expect(back && *back == draft, "the preparation survives a restart through the stored form");
+		auto older = core::encode_draft_preparation(draft.Preparation);
+		older.insert(1, R"("problem":"P","solution":"S","problem_revision":3,"solution_revision":4,)");
+		expect(core::decode_draft_preparation(older) == std::optional{ draft.Preparation }, "a preparation saved with a Problem and Solution loads without them");
 		draft.Preparation.Description.Body = std::string(core::maximum_local_description_bytes + 1U, 'x');
 		expect(!core::decode_local_draft(core::encode_local_draft(draft)), "an out-of-bounds stored form is refused");
 	}

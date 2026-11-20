@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2306"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Amend RFC-BPR-0104 AC11: -p first, each multi-value option closed by another option",
+  "created": "2026-11-20T07:29:37.642973+00:00",
+  "base": "dce66943f964b66353a04fa4fa2b4b2bc821ad92"
+}

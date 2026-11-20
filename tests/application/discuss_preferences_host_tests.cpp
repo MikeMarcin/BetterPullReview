@@ -69,18 +69,18 @@ auto main() -> int
 	auto       store      = memory_store{ };
 	{
 		auto host = application::discuss_preferences_host{ store, lanes, lanes, core::read_discuss_preferences(std::nullopt) };
-		expect(host.preferences() == core::discuss_preferences{ }, "nothing chosen at first: the 820 column, no marks");
+		expect(host.preferences() == core::discuss_preferences{ }, "nothing chosen at first: no marks");
 		expect(host.mark(repository, "helper", true), "Mark as bot changes the preferences at once");
 		expect(core::author_is_bot("helper", core::marks_of(host.preferences(), repository)), "every window asking now sees the mark");
-		expect(host.set_column(core::discuss_column::full), "the column changes");
-		expect(!host.set_column(core::discuss_column::full), "the same column again changes nothing");
+		expect(host.mark(repository, "second", true), "a second mark");
+		expect(!host.mark(repository, "second", true), "the same mark again changes nothing");
 		lanes.drain();
-		expect(store.Writes.size() == 2U && store.Writes.back().Column == core::discuss_column::full, "one write runs, the one waiting carries the latest");
+		expect(store.Writes.size() == 2U && core::author_is_bot("second", core::marks_of(store.Writes.back(), repository)), "one write runs, the one waiting carries the latest");
 		expect(host.quiescent() && host.durable(), "written");
 		store.Fail = true;
 		expect(host.mark(repository, "helper", false), "a mark undone");
 		lanes.drain();
-		expect(!host.durable() && core::marks_of(host.preferences(), repository).empty(), "a store that fails keeps the session's preferences");
+		expect(!host.durable() && !core::author_is_bot("helper", core::marks_of(host.preferences(), repository)), "a store that fails keeps the session's preferences");
 		store.Fail = false;
 		expect(host.mark(repository, "other", true), "another mark");
 		host.shutdown();
@@ -88,7 +88,7 @@ auto main() -> int
 		lanes.drain();
 	}
 	const auto reread = core::read_discuss_preferences(store.Row);
-	expect(reread.Preferences.Column == core::discuss_column::full && core::author_is_bot("other", core::marks_of(reread.Preferences, repository)), "a relaunch reads what was written");
+	expect(core::author_is_bot("second", core::marks_of(reread.Preferences, repository)) && core::author_is_bot("other", core::marks_of(reread.Preferences, repository)), "a relaunch reads what was written");
 	std::cout << "DISCUSS_PREFERENCES_HOST_OK\n";
 	return EXIT_SUCCESS;
 }

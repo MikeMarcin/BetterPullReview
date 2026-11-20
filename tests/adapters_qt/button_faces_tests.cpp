@@ -27,8 +27,6 @@
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
-#include "bpr/qt/review_cycle_share_sheet.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/source_search_panel.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
@@ -281,9 +279,7 @@ namespace {
 			sweep_small(aCourse, "source-search", key, profile, [](QVBoxLayout& aColumn, QWidget& aHost) { aColumn.addWidget(new qt::source_search_panel{ &aHost }); });
 			sweep_small(aCourse, "tour-side-chat", key, profile, [](QVBoxLayout& aColumn, QWidget& aHost) { aColumn.addWidget(new qt::tour_side_chat{ &aHost }); });
 			sweep_small(aCourse, "tour-agent-panel", key, profile, [](QVBoxLayout& aColumn, QWidget& aHost) { aColumn.addWidget(new qt::tour_agent_panel{ &aHost }); });
-			sweep_small(aCourse, "review-cycle", key, profile, [](QVBoxLayout& aColumn, QWidget& aHost) { aColumn.addWidget(new qt::review_cycle_view{ &aHost }); });
 			sweep_small(aCourse, "review-submission", key, profile, [](QVBoxLayout& aColumn, QWidget& aHost) { aColumn.addWidget(new qt::review_submission_editor{ [](auto) { }, &aHost }); });
-			sweep_small(aCourse, "cycle-share-sheet", key, profile, [](QVBoxLayout& aColumn, QWidget& aHost) { aColumn.addWidget(new qt::review_cycle_share_sheet{ &aHost }); });
 			sweep_small(aCourse, "about", key, profile, [](QVBoxLayout& aColumn, QWidget& aHost) {
 				auto facts    = qt::about_facts{ };
 				facts.Version = QStringLiteral("0.4.2");

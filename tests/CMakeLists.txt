@@ -56,26 +56,6 @@ if(BPR_BUILD_TOUR_CLI)
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_loopback_tests.py" "$<TARGET_FILE:app_bpr>"
         ${bpr_tour_loopback_openssl})
     set_tests_properties(tour_cli_loopback_provider PROPERTIES TIMEOUT 300 PASS_REGULAR_EXPRESSION "tour-cli-loopback:pass")
-    # [[BPR-1167]]. `bpr cycle` as real processes in a near-empty environment:
-    # open, note, review, freeze, export, capture, compare and response import
-    # on a fixture folder, with the contract's typed refusals and one writer.
-    bpr_add_network_isolated_test(NAME cycle_cli_public_path WINDOWS_UNCONTAINED
-        COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/cycle_cli_tests.py" "$<TARGET_FILE:app_bpr>")
-    set_tests_properties(cycle_cli_public_path PROPERTIES TIMEOUT 300)
-    # [[BPR-1185]]. docs/development/cycle-cli.md against the built `bpr`: its
-    # commands, each command's options (and the core registry's), exit codes,
-    # limits, help and examples, with altered copies of the page refused.
-    bpr_add_network_isolated_test(NAME cycle_cli_documentation WINDOWS_UNCONTAINED
-        COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/cycle_cli_documentation_tests.py" "$<TARGET_FILE:app_bpr>")
-    set_tests_properties(cycle_cli_documentation PROPERTIES TIMEOUT 300)
-    # [[BPR-1170]]. The bpr-cycle skill package: its text pinned, and its documented
-    # command lines run as a declared consumer against a local cycle with a stored
-    # grant, with the refusals it teaches observed and broken copies refused.
-    # Uncontained on Windows: a MASK-deployed copy links out of the checkout.
-    bpr_add_network_isolated_test(NAME skill_bpr_cycle_package WINDOWS_UNCONTAINED
-        COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/bpr_cycle_skill_tests.py"
-        "${PROJECT_SOURCE_DIR}/packaging/agent-skills/bpr-cycle" "$<TARGET_FILE:app_bpr>")
-    set_tests_properties(skill_bpr_cycle_package PROPERTIES TIMEOUT 300)
 endif()
 
 bpr_add_executable(
@@ -1577,9 +1557,7 @@ if(WIN32 AND bpr_standard_correctness_inputs)
             qt_surface_capture_course_scale_125
             qt_surface_capture_course_scale_150
             qt_surface_capture_course_scale_200
-            qt_discuss_comment_bodies
-            qt_review_cycle_view_1_0
-            qt_review_cycle_view_2_0)
+            qt_discuss_comment_bodies)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
         CONFIGURATIONS Debug MODE offscreen RESOURCE epoch_catalogues
         TESTS

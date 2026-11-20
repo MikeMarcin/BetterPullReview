@@ -42,8 +42,17 @@ namespace bpr::adapters::sqlite {
 				return { };
 			}
 			if (!detail::execute(db, "PRAGMA application_id=1112556627")
-				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS discuss(singleton INTEGER PRIMARY KEY CHECK(singleton=1), version INTEGER NOT NULL, discuss_column INTEGER NOT NULL) STRICT")
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS discuss(singleton INTEGER PRIMARY KEY CHECK(singleton=1), version INTEGER NOT NULL) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS author_marks(repository TEXT NOT NULL CHECK(length(CAST(repository AS BLOB)) <= 512), login TEXT NOT NULL CHECK(length(CAST(login AS BLOB)) <= 512), bot INTEGER NOT NULL, PRIMARY KEY(repository, login)) STRICT")) {
+				return { };
+			}
+			// [[BPR-2299]] (owner, 2026-11-19: "scrub all references to that
+			// setting [...] don't fail on loading that setting from an older
+			// settings"). A store written before then has a column for
+			// Discuss's own width, which the Reading width replaced: it is
+			// dropped, its value unread.
+			const auto retired = detail::scalar_integer(db, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='discuss' AND sql LIKE '%discuss_column%'");
+			if (!retired || (*retired != 0 && !detail::execute(db, "ALTER TABLE discuss DROP COLUMN discuss_column"))) {
 				return { };
 			}
 			return result;
@@ -66,7 +75,7 @@ namespace bpr::adapters::sqlite {
 				return damaged;
 			}
 			auto* const db  = connection->Database.get();
-			auto        row = detail::prepare(db, "SELECT version,discuss_column FROM discuss WHERE singleton=1");
+			auto        row = detail::prepare(db, "SELECT version FROM discuss WHERE singleton=1");
 			if (!row) {
 				return damaged;
 			}
@@ -79,7 +88,6 @@ namespace bpr::adapters::sqlite {
 			}
 			auto stored    = core::stored_discuss_preferences{ };
 			stored.Version = sqlite3_column_int64(row->Value, 0);
-			stored.Column  = sqlite3_column_int64(row->Value, 1);
 			auto marks     = detail::prepare(db, "SELECT repository,login,bot FROM author_marks ORDER BY repository,login");
 			if (!marks) {
 				return damaged;
@@ -113,8 +121,8 @@ namespace bpr::adapters::sqlite {
 				return false;
 			}
 			auto ok  = true;
-			auto row = detail::prepare(db, "INSERT INTO discuss VALUES(1,?1,?2) ON CONFLICT(singleton) DO UPDATE SET version=excluded.version,discuss_column=excluded.discuss_column");
-			ok       = row && sqlite3_bind_int64(row->Value, 1, stored.Version) == SQLITE_OK && sqlite3_bind_int64(row->Value, 2, stored.Column) == SQLITE_OK && sqlite3_step(row->Value) == SQLITE_DONE;
+			auto row = detail::prepare(db, "INSERT INTO discuss VALUES(1,?1) ON CONFLICT(singleton) DO UPDATE SET version=excluded.version");
+			ok       = row && sqlite3_bind_int64(row->Value, 1, stored.Version) == SQLITE_OK && sqlite3_step(row->Value) == SQLITE_DONE;
 			ok       = ok && detail::execute(db, "DELETE FROM author_marks");
 			if (ok) {
 				auto mark = detail::prepare(db, "INSERT INTO author_marks VALUES(?1,?2,?3)");

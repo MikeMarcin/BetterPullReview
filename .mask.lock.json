@@ -29,19 +29,6 @@
     {
       "commit": "c85be25596b5c981107e8b09af27ee52119bd8bf",
       "git_object_format": "sha1",
-      "id": "bpr-cycle",
-      "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-      "path": "skills/bpr-cycle",
-      "payload_digest": "sha256:0dd11195ecca88881134e9515b78f1dc331906708e9d1ff5e75a69fa75a0a49d",
-      "repository": "https://github.com/MikeMarcin/AgentSkills.git",
-      "selector": {
-        "ref": "refs/heads/main"
-      },
-      "source": "agentskills"
-    },
-    {
-      "commit": "c85be25596b5c981107e8b09af27ee52119bd8bf",
-      "git_object_format": "sha1",
       "id": "grill-me",
       "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
       "path": "skills/grill-me",
@@ -133,5 +120,5 @@
   ],
   "resolver": "mask-lock-v1",
   "schema_version": 1,
-  "selection_digest": "sha256:bc6ad08847914a9a2d816be27349cdd5d3ce2336c70a214c2b02431a53df9996"
+  "selection_digest": "sha256:8f714961880c58b0489c34ba279c6273d9c9cc018751a017909bcfe6adafc273"
 }

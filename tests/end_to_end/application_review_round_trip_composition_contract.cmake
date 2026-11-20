@@ -2822,8 +2822,15 @@ function(bpr_verify_full_application_digest source_variable)
 	# of the window's agent whose answer lands in Author's editor, sent only
 	# on Save (request_description_draft and its offer). No provider,
 	# admission, mutation branch, publication or source-inventory change.
+	# [[BPR-2308]] reseal of [[BPR-2280]] and [[BPR-2281]], unsealed on main:
+	# the description's edit is offered in Author's editor too, behind the
+	# same core::description_edit_offered gate and the same mutation host's
+	# EditsDescription capability; status and a newer body reach whichever
+	# editor saved. No provider, grant, admission, mutation branch or
+	# publication change. [[BPR-2315]], sealed with it: the two automatic
+	# refreshes after an edit name their cause (core::refresh_cause::edit).
 	set(bpr_expected_full_application_digest
-        "5143e64b19a0e02deefeed01f3577662638bb6f473ec342d70ae5e3087e092f5"
+        "7040814ec37f3c95ad6edd808ac50de4e35eb30a7c2d202036f9aadd6885a05b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3034,14 +3041,6 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/attended_source_identity.cpp"
         "src/attended_source_identity.hpp"
         "src/command_line.cpp"
-        "src/cycle_cli.cpp"
-        "src/cycle_cli.hpp"
-        "src/cycle_commands.cpp"
-        "src/cycle_commands.hpp"
-        "src/cycle_owner_service.cpp"
-        "src/cycle_owner_service.hpp"
-        "src/cycle_session.cpp"
-        "src/cycle_session.hpp"
         "src/designated_live_macos_capsule_identity.cpp"
         "src/designated_live_macos_capsule_identity.hpp"
         "src/designated_live_macos_provenance.cpp"
@@ -3190,8 +3189,6 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/profile_window_layout_port.hpp"
         "src/release_maintenance_controls.cpp"
         "src/release_update_desktop.cpp"
-        "src/review_cycle_desktop.cpp"
-        "src/review_cycle_desktop.hpp"
         "src/review_submission_fixture.cpp"
         "src/review_submission_fixture.hpp"
         "src/review_submission_workflow.cpp"
@@ -3892,8 +3889,21 @@ function(bpr_verify_app_source_tree app_source_root)
 	# on the platform's list separator (window_agent_setup.cpp, tests only).
 	# [[BPR-2215]] BPR-2286 added window_follow_up.cpp on main without adding
 	# it to the source inventory or this manifest; both now name it.
+	# [[BPR-2308]] reseal: Review Cycles and `bpr cycle` are retired. The
+	# cycle CLI, session, commands and owner service and review_cycle_desktop
+	# leave the tree and the inventory; the owner channel no longer routes a
+	# cycle command, its lane serves only `bpr draft open` (renamed
+	# OwnerCommandEffects); windows compose no cycle desktop, Open Project or
+	# Send to Agent. Also seals main's unsealed app changes since BPR-2269:
+	# BPR-2274, 2279 to 2283, 2286 (window_follow_up.cpp joins the inventory),
+	# 2290, 2291, 2293, 2295, 2298, 2299, 2301, 2303, 2307, 2310, 2311 and 2315.
+	# No review or tour provider, grant issuer, admission or mutation branch
+	# changes here; the mutation-branch digest below is checked separately.
+	# [[BPR-2215]] reseal over main 9e8deb514 (above) merged into this lane,
+	# with this lane's app changes listed before it. No review mutation or
+	# submission path changed by the merge itself.
 	set(bpr_expected_production_app_manifest_digest
-        "7c12401a74ff96e7f56ce57a2472314ffaa5f2d4e6eded75aeecfb4d26889ab3"
+        "70b6da6123a96aef7cd6317affe43f4f6c5ac0f3acb23c0696082975c31ec8b0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

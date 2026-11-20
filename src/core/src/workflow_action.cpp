@@ -38,16 +38,13 @@ namespace bpr::core::detail {
 	};
 	struct wire_record
 	{
-		std::string   Action;
-		std::string   State;
-		std::uint64_t Invocation = 0;
-		std::uint64_t Candidate  = 0;
-		std::string   Revision;
-		std::uint64_t TitleRevision       = 0;
-		std::uint64_t DescriptionRevision = 0;
-		// [[BPR-2274]]. Read from a record saved before and dropped; never written.
-		std::uint64_t                LegacyProblemRevision  = 0;
-		std::uint64_t                LegacySolutionRevision = 0;
+		std::string                  Action;
+		std::string                  State;
+		std::uint64_t                Invocation = 0;
+		std::uint64_t                Candidate  = 0;
+		std::string                  Revision;
+		std::uint64_t                TitleRevision       = 0;
+		std::uint64_t                DescriptionRevision = 0;
 		std::string                  PlanDigest;
 		std::string                  Answer;
 		std::string                  Question;
@@ -197,13 +194,11 @@ template <>
 struct glz::meta<bpr::core::detail::wire_record>
 {
 	using value_type = bpr::core::detail::wire_record;
-	static constexpr auto skip(const std::string_view aKey, const meta_context& aContext) -> bool
-	{
-		return aContext.op == operation::serialize && (aKey == "problem_revision" || aKey == "solution_revision");
-	}
+	// [[BPR-2274]]. A record saved while a tour had a Problem and Solution
+	// still carries their revisions; they are skipped, never stored.
 	static constexpr auto value = object("action", &value_type::Action, "state", &value_type::State, "invocation", &value_type::Invocation, "candidate", &value_type::Candidate, "revision",
 										 &value_type::Revision, "title_revision", &value_type::TitleRevision, "description_revision", &value_type::DescriptionRevision, "problem_revision",
-										 &value_type::LegacyProblemRevision, "solution_revision", &value_type::LegacySolutionRevision, "plan_digest", &value_type::PlanDigest, "answer", &value_type::Answer,
+										 glz::skip{ }, "solution_revision", glz::skip{ }, "plan_digest", &value_type::PlanDigest, "answer", &value_type::Answer,
 										 "question", &value_type::Question, "message", &value_type::Message, "findings", &value_type::Findings, "limitations", &value_type::Limitations, "upstream",
 										 &value_type::Upstream, "references", &value_type::References, "proposals", &value_type::Proposals, "reconciled", &value_type::Reconciled, "at",
 										 &value_type::At);

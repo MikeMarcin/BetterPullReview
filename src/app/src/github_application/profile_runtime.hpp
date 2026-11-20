@@ -128,9 +128,6 @@
 	#include "github_public_path_fixture.hpp"
 	#include "review_submission_fixture.hpp"
 #endif
-#if defined(BPR_LOCAL_AUTOMATION)
-	#include "cycle_owner_service.hpp"
-#endif
 
 // One BPR profile's composition: its providers, hosts, stores, effect
 // lanes and windows, from construction to shutdown.
@@ -144,11 +141,6 @@ namespace bpr::app {
 		std::shared_ptr<application::profile_activation_server> ActivationServer;
 		std::shared_ptr<application::tour_owner_server>         TourOwnerServer;
 		std::shared_ptr<const tour_owner_service>               TourOwnerService;
-#if defined(BPR_LOCAL_AUTOMATION)
-		/// [[BPR-1168]]. Forwarded cycle commands, run one at a time on their own lane.
-		std::shared_ptr<cycle_owner_service> CycleOwnerService;
-		std::stop_source                     CycleOwnerStop;
-#endif
 		/// A routed command whose live draft is not yet durable; answered by the decision-lane tick.
 		struct waiting_tour_request
 		{
@@ -209,9 +201,9 @@ namespace bpr::app {
 		std::unique_ptr<application::diagnosed_image_fetch>    ImageFetchDiagnostics;
 		std::unique_ptr<application::markdown_image_service>   Images;
 #if defined(BPR_LOCAL_AUTOMATION)
-		/// [[BPR-1168]]. Forwarded cycle commands: a command blocks on its own
-		/// session, never on a lane a window's work runs on.
-		worker_executor CycleOwnerEffects;
+		/// [[BPR-1168]]. Forwarded owner commands (`bpr draft open`): a command
+		/// blocks on its own lane, never on a lane a window's work runs on.
+		worker_executor OwnerCommandEffects;
 #endif
 		/// [[BPR-1254]]. Held by whatever touches the profile's review-ledger
 		/// file: a ledger store task, or a private review store operation.

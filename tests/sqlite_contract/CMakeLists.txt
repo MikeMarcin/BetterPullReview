@@ -583,67 +583,6 @@ endif()
 bpr_enable_warnings(test_review_tour_storage)
 bpr_add_network_isolated_test(NAME sqlite_review_tour_storage WINDOWS_UNCONTAINED COMMAND test_review_tour_storage)
 
-bpr_add_executable(test_review_cycle_storage review_cycle_storage_tests.cpp)
-target_link_libraries(test_review_cycle_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
-bpr_enable_hardening(test_review_cycle_storage)
-if(WIN32)
-    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
-    # target's owner-private descriptor.
-    target_link_libraries(test_review_cycle_storage PRIVATE advapi32 BetterPullReview::Platform)
-endif()
-bpr_enable_warnings(test_review_cycle_storage)
-bpr_add_network_isolated_test(NAME sqlite_review_cycle_storage WINDOWS_UNCONTAINED COMMAND test_review_cycle_storage)
-
-bpr_add_executable(test_review_cycle_runtime review_cycle_runtime_tests.cpp)
-target_link_libraries(test_review_cycle_runtime PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::Application)
-bpr_enable_hardening(test_review_cycle_runtime)
-if(WIN32)
-    # [[BPR-1126]]. scratch_root.hpp makes a Windows root with the platform
-    # target's owner-private descriptor.
-    target_link_libraries(test_review_cycle_runtime PRIVATE advapi32 BetterPullReview::Platform)
-endif()
-bpr_enable_warnings(test_review_cycle_runtime)
-bpr_add_network_isolated_test(NAME sqlite_review_cycle_runtime WINDOWS_UNCONTAINED COMMAND test_review_cycle_runtime)
-
-# The link closure of the local runtime, computed from the target graph.
-function(bpr_review_cycle_link_closure aTarget aResult)
-    set(pending "${aTarget}")
-    set(seen "")
-    while(pending)
-        list(POP_FRONT pending current)
-        string(REGEX REPLACE "^\\$<LINK_ONLY:(.+)>$" "\\1" current "${current}")
-        if(TARGET "${current}")
-            get_target_property(aliased "${current}" ALIASED_TARGET)
-            if(aliased)
-                set(current "${aliased}")
-            endif()
-        endif()
-        if(current IN_LIST seen)
-            continue()
-        endif()
-        list(APPEND seen "${current}")
-        if(TARGET "${current}")
-            foreach(property IN ITEMS LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
-                get_target_property(links "${current}" ${property})
-                if(links)
-                    list(APPEND pending ${links})
-                endif()
-            endforeach()
-        endif()
-    endwhile()
-    set(${aResult} "${seen}" PARENT_SCOPE)
-endfunction()
-bpr_review_cycle_link_closure(test_review_cycle_runtime bpr_review_cycle_closure)
-string(REPLACE ";" "|" bpr_review_cycle_closure_text "${bpr_review_cycle_closure}")
-bpr_add_network_isolated_test(
-    NAME review_cycle_dependency_closure
-    COMMAND
-        "${CMAKE_COMMAND}"
-        "-DCLOSURE=${bpr_review_cycle_closure_text}"
-        -P
-        "${CMAKE_CURRENT_SOURCE_DIR}/review_cycle_dependency_closure.cmake"
-)
-
 if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(test_private_review_storage private_review_storage_tests.cpp)
 target_compile_definitions(test_private_review_storage PRIVATE BPR_SQLITE_TESTING=1)

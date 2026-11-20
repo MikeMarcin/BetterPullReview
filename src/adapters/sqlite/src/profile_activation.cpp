@@ -913,7 +913,7 @@ namespace bpr::adapters::sqlite {
 		using tour_failure                           = application::tour_channel_failure;
 		using tour_bytes                             = application::tour_channel_bytes;
 		using tour_hello                             = std::array<std::uint8_t, 64>;
-		constexpr std::uint8_t tour_protocol_version = 9U; // [[BPR-2274]] tour commands lost Problem and Solution.
+		constexpr std::uint8_t tour_protocol_version = 10U; // [[BPR-2308]] the cycle command is retired.
 		auto                   tour_endpoint(const std::filesystem::path& aRoot) -> std::optional<std::filesystem::path>
 		{
 			auto path = profile_activation_endpoint(aRoot);
@@ -941,7 +941,8 @@ namespace bpr::adapters::sqlite {
 			// Version 3 added the finite cycle commands (BPR-1168), version 4 the round grant, read,
 			// page, source, response append and policy commands (BPR-1169), version 5 rebind
 			// (BPR-1279), version 6 the tour source read (BPR-1227) and version 7 the tour payload
-			// with stop acceptance (BPR-2014, codec version 11); either side refuses another version.
+			// with stop acceptance (BPR-2014, codec version 11); version 10 retired the cycle
+			// commands (BPR-2308). Either side refuses another version.
 			tour_hello result{ 'B', 'P', 'R', 'T', tour_protocol_version, 0, 0, 0 };
 			for (unsigned i = 0; i < 8; ++i) {
 				result[8 + i] = static_cast<std::uint8_t>(aProfile.value() >> (i * 8));

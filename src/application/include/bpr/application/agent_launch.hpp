@@ -327,6 +327,11 @@ namespace bpr::application {
 		agent_run_checks RunChecks = agent_run_checks::strict;
 		/// [[BPR-2007]], [[BPR-2008]]. None launches exactly as before.
 		std::optional<agent_launch_grant> Grant;
+		/// [[BPR-2307]]. A custom Codex agent's "Rely on the launcher's
+		/// sandbox": a granted run turns Codex's own sandbox off
+		/// (`core::decide_codex_sandbox`); a read-only run stays read-only.
+		/// Refused for any other protocol.
+		bool RelyOnLauncherSandbox = false;
 		/// RFC-BPR-0104, third review round (F1). The disposable checkout BPR
 		/// made from the pull request, as the turn runs in it, as its
 		/// canonical path and as the system names the opened folder
@@ -368,16 +373,9 @@ namespace bpr::application {
 		pasted,
 	};
 
-	/// \brief [[BPR-2142]], RFC-BPR-0104 (wrapper tests, 2026-11-11). The
-	/// Claude options that take several values. Each comes before `-p` and is
-	/// followed by another option, so none can take a prompt as its value.
-	inline constexpr std::array<std::string_view, 7> claude_variadic_options = {
-		"--add-dir", "--allowedTools", "--allowed-tools", "--disallowedTools", "--disallowed-tools", "--tools", "--mcp-config"
-	};
-
 	/// \brief [[BPR-2139]]. What an MCP-off Claude launch carries when no
 	/// restriction already does.
-	inline constexpr std::array<std::string_view, 3> claude_mcp_off_arguments = { "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})" };
+	inline constexpr std::array<std::string_view, 3> claude_mcp_off_arguments = { "--strict-mcp-config", "--mcp-config", core::claude_empty_mcp_configuration };
 
 	/// \brief RFC-BPR-0104, third review round (F1). The `-c` value that
 	/// makes Codex treat each checkout path as an untrusted project for the
@@ -496,6 +494,11 @@ namespace bpr::application {
 		unsupported_runtime_settings,
 		invalid_run_snapshot,
 		input_too_large,
+		/// [[BPR-2304]]. A Claude launch's arguments break a rule
+		/// `core::inspect_claude_arguments` holds, or ([[BPR-2307]]) a Codex
+		/// launch's break one `core::inspect_codex_sandbox_arguments` holds;
+		/// nothing is started.
+		unsafe_arguments,
 	};
 
 	/// \brief [[BPR-1375]]. The settings a tool-free writing launch gives
@@ -614,16 +617,22 @@ namespace bpr::application {
 			aProfile, aSupplement, aParent, agent_launch_options{ .WritingOnly = aWritingOnly });
 	}
 
-	/// \brief [[BPR-1180]]. The launch of one Send to Agent: the profile's
-	/// protocol and executable, its allowed environment, `aWorkingDirectory`,
-	/// and the round's readable document as the only input, framed as the
-	/// protocol frames a user message (Claude stream JSON, Codex App Server)
-	/// or as the prompt itself (Codex JSONL, external terminal). A named
-	/// session is continued only by a harness that can (`--resume`); nothing
-	/// else is added to what the profile already launches with.
-	[[nodiscard]] auto build_round_launch(const core::agent_profile& aProfile, std::string_view aDocument, const std::optional<std::string>& aContinue, std::string aWorkingDirectory,
-										  const environment_reader& aParent, core::agent_mcp_servers aMcpServers = core::agent_mcp_servers::off)
-		-> std::expected<agent_launch_request, agent_launch_failure>;
+	/// \brief [[BPR-2305]]. The word a Codex instructions probe's rule asks
+	/// for; an answer that holds it followed the rule.
+	inline constexpr std::string_view codex_instructions_canary = "MARIGOLD-4127";
+	/// \brief [[BPR-2305]]. The probe's rule and its question.
+	inline constexpr std::string_view codex_instructions_probe_rule     = "End every answer with the word MARIGOLD-4127 on its own line.";
+	inline constexpr std::string_view codex_instructions_probe_question = "Reply with one short sentence saying that you are ready.";
+
+	/// \brief [[BPR-2305]]. One short Codex `exec --json` run that shows
+	/// whether instructions given as `aDelivery` reach the model: the probe's
+	/// rule as `developer_instructions`, or at the start of the prompt, then
+	/// its question on stdin. `aLeading` are the custom agent's own fixed
+	/// arguments (a launcher's), put first as at every launch. The run is
+	/// read-only, keeps no session, loads no MCP server and works outside a
+	/// repository.
+	[[nodiscard]] auto build_codex_instructions_probe(const core::agent_profile& aProfile, std::string aExecutable, std::span<const std::string> aLeading,
+													  core::agent_instruction_delivery aDelivery, const environment_reader& aParent) -> agent_launch_request;
 
 	/// \brief Configures one native turn or an exact-ID reconnect without replay.
 	[[nodiscard]] auto prepare_native_agent_turn(agent_launch_request aRequest, bool aConnected)
@@ -685,6 +694,12 @@ namespace bpr::application {
 	/// keeps, and how much of what each was asked.
 	inline constexpr std::size_t maximum_agent_tool_activity       = 256U;
 	inline constexpr std::size_t maximum_agent_tool_activity_bytes = 512U;
+	/// [[BPR-2305]]. The most warnings a turn keeps, each cut to the byte
+	/// bound; more are counted, not kept.
+	inline constexpr std::size_t maximum_agent_harness_warnings      = 8U;
+	inline constexpr std::size_t maximum_agent_harness_warning_bytes = 512U;
+	/// [[BPR-2305]]. The most failed file-change paths a turn names.
+	inline constexpr std::size_t maximum_agent_failed_writes = 16U;
 	/// \brief [[BPR-1912]]. The note before a read-only Claude run's shell
 	/// command outside `core::read_only_programs`, as its `tool_activity`
 	/// carries it once its result says what Claude did: denied, ran, or
@@ -861,6 +876,15 @@ namespace bpr::application {
 		/// is doing, in `Activity`. For the running block only: never the
 		/// answer.
 		activity,
+		/// [[BPR-2305]]. Codex `exec --json` wrote an `item.completed` item of
+		/// type `error`: a warning, such as a configuration setting it
+		/// ignores, never a failure. `Text` is its message, at most
+		/// `maximum_agent_harness_warning_bytes`. Shown with the turn's
+		/// activity and counted in the diagnostic, never logged as text.
+		harness_warning,
+		/// [[BPR-2305]]. A Codex file change ended: `Text` is one path it
+		/// named and `Item` is `completed` or `failed`.
+		file_change_result,
 	};
 
 	struct agent_protocol_event
@@ -1382,6 +1406,17 @@ namespace bpr::application {
 		bool StoppedAfterAnswer = false;
 		/// The frame types the decoder read past, comma separated, bounded.
 		std::string ReadPast;
+		/// [[BPR-2305]]. The warnings the runtime wrote (Codex's `error`
+		/// items), in order, at most `maximum_agent_harness_warnings`; the
+		/// count includes those past it.
+		std::vector<std::string> HarnessWarnings;
+		std::uint32_t            HarnessWarningCount = 0U;
+		/// [[BPR-2305]]. The paths of the file changes that failed, at most
+		/// `maximum_agent_failed_writes`, and how many file-change paths
+		/// failed and were written in all.
+		std::vector<std::string> FailedWrites;
+		std::uint32_t            FailedWriteCount    = 0U;
+		std::uint32_t            CompletedWriteCount = 0U;
 		/// [[BPR-2007]], RFC-BPR-0104. The turn's scratch folder, when it
 		/// had one, and the files it left new or changed there, relative to
 		/// it, at most `core::maximum_agent_activity_listed`.
@@ -1399,6 +1434,13 @@ namespace bpr::application {
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};
+
+	/// \brief [[BPR-2305]]. The turn changed files and every change failed:
+	/// it says so with the failed paths instead of ending as a normal answer.
+	/// A turn with one written path, or none attempted, is not this.
+	[[nodiscard]] auto writes_all_failed(const agent_run_result& aResult) noexcept -> bool;
+	/// \brief [[BPR-2305]]. Whether a probe's answer holds the canary.
+	[[nodiscard]] auto codex_instructions_followed(const agent_run_result& aResult) -> bool;
 
 	using agent_output_sink = std::function<void(const agent_stream_event&)>;
 

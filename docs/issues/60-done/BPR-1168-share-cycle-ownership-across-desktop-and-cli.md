@@ -43,7 +43,7 @@ draft's unsaved text), the 80-row pass, the real two-process course, four
 negative controls and the station commands are in the
 [execution ledger](../../verification/RFC-BPR-0053-0061.md), under "BPR-1168:
 one owner across the desktop and `bpr cycle`"; usage is in
-[the developer page](../../development/cycle-cli.md).
+the developer page.
 
 Earlier on the way: BPR-1167's eight `src/app/src` files were registered in the
 round-trip inventory (`4b5589378`), which had been red since `2a79d08eb`.

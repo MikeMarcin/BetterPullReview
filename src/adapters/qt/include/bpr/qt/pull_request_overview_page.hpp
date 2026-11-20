@@ -14,6 +14,7 @@
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/reviewer_picker.hpp"
 
+#include <QAbstractButton>
 #include <QAbstractItemModel>
 #include <QColor>
 #include <QHash>
@@ -57,6 +58,7 @@ namespace bpr::qt {
 	class commit_filter_chip;
 	class generated_files_row;
 	class overview_status_splitter;
+	class drawer_link_row;
 	class drawer_meter;
 	class drawer_section_header;
 	class identity_avatar_view;
@@ -446,7 +448,11 @@ namespace bpr::qt {
 
 	/// \brief [[BPR-1589]]. People at a glance: a row of faces, each with its
 	/// standing's mark, as many as fit.
-	class overview_faces final : public QWidget
+	///
+	/// \details [[BPR-2314]]. The faces are a button: pressing them (or
+	/// Space or Return on them) opens People's roster, as its header does.
+	/// The pointer over them shows the hand and a faint tint.
+	class overview_faces final : public QAbstractButton
 	{
 	public:
 		explicit overview_faces(QWidget* aParent = nullptr);
@@ -457,6 +463,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 
 	protected:
+		void keyPressEvent(QKeyEvent* aEvent) override;
 		void paintEvent(QPaintEvent* aEvent) override;
 
 	private:
@@ -663,19 +670,23 @@ namespace bpr::qt {
 		/// nothing.
 		void set_waiting_open_dispatch(overview_path_dispatch aDispatch);
 		/// \brief [[BPR-1589]]. How many threads have posts I have not read,
-		/// as Threads' Only new counts them; My review says so with Go to them.
+		/// as Threads' Only new counts them; My review says so in a line that
+		/// is itself the way to them ([[BPR-2314]]).
 		void               set_new_threads(std::size_t aCount);
 		[[nodiscard]] auto new_threads() const noexcept -> std::size_t;
-		/// \brief [[BPR-1589]]. Go to them: open Threads with Only new on.
+		/// \brief [[BPR-1589]]. The line pressed: open Threads with Only new on.
 		void               set_new_threads_dispatch(std::function<void()> aDispatch);
-		[[nodiscard]] auto new_threads_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto new_threads_button() const noexcept -> QAbstractButton*;
 		/// \brief [[BPR-1589]]. New pull-request comments that are not on a
 		/// file, once the ledger keeps their read state: "N new comments in
-		/// the conversation" with Go to them, which opens Discuss. Absent or
+		/// the conversation", a line that opens Discuss when pressed. Absent or
 		/// zero draws nothing; until that read state exists nothing sets it.
 		void               set_new_conversation_comments(std::optional<std::size_t> aCount);
 		void               set_new_conversation_dispatch(std::function<void()> aDispatch);
-		[[nodiscard]] auto new_conversation_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto new_conversation_button() const noexcept -> QAbstractButton*;
+		/// \brief [[BPR-2314]]. Needs attention's conflicts row, which opens
+		/// the section to Merge's conditions; null when there is no conflict.
+		[[nodiscard]] auto conflicts_row() const noexcept -> QAbstractButton*;
 		/// \brief [[BPR-1589]]. A Status section's header, its disclosure.
 		[[nodiscard]] auto status_section_header(overview_status_section aSection) const noexcept -> drawer_section_header*;
 		/// \brief [[BPR-1589]]. A Status section, header, body and details.
@@ -988,20 +999,20 @@ namespace bpr::qt {
 			QWidget*               Body    = nullptr;
 			QWidget*               Details = nullptr;
 		};
-		status_section_parts       Sections[overview_status_section_count]{ };
-		QLabel*                    StatusNote     = nullptr;
-		overview_role_line*        RoleRow        = nullptr;
-		QVBoxLayout*               AttentionList  = nullptr;
-		drawer_meter*              ReadMeter      = nullptr;
-		drawer_meter*              ChecksMeter    = nullptr;
-		QWidget*                   NewThreadsRow  = nullptr;
-		QLabel*                    NewThreadsText = nullptr;
-		QToolButton*               NewThreadsGo   = nullptr;
-		std::size_t                NewThreads     = 0U;
+		status_section_parts Sections[overview_status_section_count]{ };
+		QLabel*              StatusNote    = nullptr;
+		overview_role_line*  RoleRow       = nullptr;
+		QVBoxLayout*         AttentionList = nullptr;
+		drawer_meter*        ReadMeter     = nullptr;
+		drawer_meter*        ChecksMeter   = nullptr;
+		/// [[BPR-2314]]. Conflicts with the base, which opens Needs attention.
+		drawer_link_row*           ConflictsRow  = nullptr;
+		QWidget*                   NewThreadsRow = nullptr;
+		drawer_link_row*           NewThreadsGo  = nullptr;
+		std::size_t                NewThreads    = 0U;
 		std::function<void()>      NewThreadsDispatch;
-		QWidget*                   NewConversationRow  = nullptr;
-		QLabel*                    NewConversationText = nullptr;
-		QToolButton*               NewConversationGo   = nullptr;
+		QWidget*                   NewConversationRow = nullptr;
+		drawer_link_row*           NewConversationGo  = nullptr;
 		std::optional<std::size_t> NewConversation;
 		std::function<void()>      NewConversationDispatch;
 		overview_faces*            Faces         = nullptr;

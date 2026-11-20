@@ -111,6 +111,9 @@ namespace bpr::application {
 		/// [[BPR-2008]]. The reviewer allowed building and testing in this
 		/// pull request; granted only in a disposable checkout.
 		bool BuildsAndTests = false;
+		/// [[BPR-2307]]. The custom Codex agent relies on its launcher's
+		/// sandbox (`agent_launch_options::RelyOnLauncherSandbox`).
+		bool RelyOnLauncherSandbox = false;
 		/// RFC-BPR-0104 as amended 2026-11-11. The scratch folder's limit as
 		/// set; a turn that passes it is stopped.
 		std::uint32_t ScratchLimitMiB = core::default_agent_scratch_limit_mib;
@@ -254,7 +257,7 @@ namespace bpr::application {
 			core::pull_request_authority aAuthority,
 			core::agent_revision_binding aBinding);
 		/// \brief Loads only the selected native binding; viewing never starts a process.
-		void restore_native(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice = std::nullopt, std::optional<agent_conversation_key> aLegacy = std::nullopt);
+		void restore_native(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice = std::nullopt);
 		/// \brief [[BPR-2181]]. Another host (the session's profile-owned
 		/// runtime) recorded a turn in the native store this host restores
 		/// from: the next `restore_native` reads the store again rather than

@@ -113,6 +113,9 @@ namespace bpr::core {
 		/// The files the turn left written in its scratch folder, relative to
 		/// it, as the host found them when the turn ended.
 		std::vector<std::string> ScratchFiles;
+		/// [[BPR-2305]]. The warnings the runtime wrote during the turn (Codex
+		/// configuration warnings), as it wrote them, for the folded block.
+		std::vector<std::string> Warnings;
 		/// When the runtime last sent anything, milliseconds into the turn.
 		std::uint64_t LastFrameMs      = 0U;
 		std::uint64_t LongestSilenceMs = 0U;

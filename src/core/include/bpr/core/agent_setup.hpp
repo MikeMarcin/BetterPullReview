@@ -154,6 +154,15 @@ namespace bpr::core {
 		/// [[BPR-2254]]. The saved agent settings could not be read, so no
 		/// saved agent is known to check; nothing ran.
 		settings_unreadable,
+		/// [[BPR-2305]]. A custom Codex ignored a rule given as developer
+		/// instructions and followed it at the start of the prompt: setup
+		/// offers to switch.
+		instructions_dropped,
+		/// [[BPR-2305]]. A custom Codex followed the rule neither way.
+		instructions_not_followed,
+		/// [[BPR-2305]]. A custom Codex answered, but not as Codex's JSON
+		/// lines: a launcher that runs it under a terminal, for one.
+		output_unreadable,
 	};
 
 	[[nodiscard]] auto stable_name(agent_setup_failure aFailure) noexcept -> std::string_view;

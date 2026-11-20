@@ -48,8 +48,7 @@ namespace bpr::application {
 		std::string Answered;
 		std::string Ending;
 		/// [[BPR-1847]]. How it ended: an answer, or a way a run ends
-		/// without one. A turn stored before this was kept reads back from its
-		/// ending (`core::legacy_agent_turn_outcome`).
+		/// without one.
 		core::agent_turn_outcome Outcome = core::agent_turn_outcome::answered;
 		/// [[BPR-2153]]. What the reviewer steered into it, in the order sent.
 		std::vector<agent_steered_message> Steered = { };
@@ -84,7 +83,6 @@ namespace bpr::application {
 		bool                                    Replay          = false;
 		bool                                    NativeSupported = true;
 		std::string                             ReplaySource;
-		std::vector<native_agent_history_entry> Legacy;
 		std::size_t                             ReplayTurnsOmitted = 0U;
 		std::size_t                             ReplayTextCutBytes = 0U;
 		std::vector<agent_conversation_turn>    Turns;

@@ -14,8 +14,6 @@ Read diffs, keep local comments, and follow changes across review rounds.
   an optional agent; long answers open in a file tab.
 - Write a **Review Tour** that walks reviewers through the problem, solution and
   selected source lines.
-- Use **Review Cycles** to review a local folder, file or checkout without a
-  GitHub account or an AI agent.
 
 > [!NOTE]
 > GitHub owns shared comments, reviews and approvals. Your Local comments,
@@ -73,17 +71,15 @@ explicitly in **Accounts & hosts**; available sign-in methods depend on the host
 > Home to read it without signing in. This mode is read-only and has no
 > account-specific review state or thread resolution. It is unavailable on GHES.
 
-### Review local code
+### Prepare a pull request locally
 
-1. Choose **File > Open Project…** and select a folder, file or Git checkout.
-2. Add notes or suggested edits, then use **Share notes** to copy the round or
-   save it to a file.
-3. After the code changes, use **Capture revision** to compare it with the
-   previous revision and record your verification.
+1. Choose **Prepare Pull Request…** on Home and select a Git worktree.
+2. Read the proposed diff and add notes; no GitHub account is needed yet.
+3. Once its branch is pushed, create it on GitHub as a draft pull request.
 
-Review Cycles does not write into the folder you review. See the
-[workflow guide](docs/ux/review-cycles-workflow.md) for sharing rounds, using an
-agent and publishing a finished result as a new pull request.
+A harness can hand a worktree over with `bpr draft open`; see the
+[local PR drafts CLI](docs/development/draft-cli.md). Review Cycles and
+`bpr cycle` were removed in 0.5.0 in favour of local PR drafts.
 
 ## Guides
 
@@ -92,7 +88,6 @@ agent and publishing a finished result as a new pull request.
 | [Settings](docs/development/settings.md) | Accounts, repositories, appearance and optional agents |
 | [Review Tours](docs/development/review-tours.md) | Writing, previewing and publishing a guided review |
 | [Private review](docs/ux/private-review-workflow.md) | Local conversations, drafts and their publication boundaries |
-| [Review Cycles CLI](docs/development/cycle-cli.md) | Working with local review rounds through `bpr cycle` |
 | [Local PR drafts CLI](docs/development/draft-cli.md) | Handing a worktree to a local PR draft with `bpr draft open` |
 | [Storage and removal](docs/development/storage-and-diagnostics.md) | Local data, diagnostics, profile purge and uninstall |
 | [Application updates](docs/development/application-updates.md) | Updates and recovery on eligible macOS installations |

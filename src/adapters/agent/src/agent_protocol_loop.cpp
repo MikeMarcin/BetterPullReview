@@ -616,6 +616,23 @@ namespace bpr::adapters::agent::detail {
 							record_protocol_failure(application::agent_protocol_failure::malformed_frame);
 							return;
 						}
+					} else if (message.Kind == application::agent_protocol_event_kind::harness_warning) {
+						// [[BPR-2305]]. A warning, never a failure: kept for the
+						// turn's activity, counted for the diagnostic.
+						++Result.HarnessWarningCount;
+						if (Result.HarnessWarnings.size() < application::maximum_agent_harness_warnings) {
+							Result.HarnessWarnings.push_back(message.Text);
+						}
+					} else if (message.Kind == application::agent_protocol_event_kind::file_change_result) {
+						// [[BPR-2305]]. Which file changes failed, for the turn's ending.
+						if (message.Item == "completed") {
+							++Result.CompletedWriteCount;
+						} else {
+							++Result.FailedWriteCount;
+							if (Result.FailedWrites.size() < application::maximum_agent_failed_writes) {
+								Result.FailedWrites.push_back(message.Text);
+							}
+						}
 					} else if (message.Kind == application::agent_protocol_event_kind::model_catalog) {
 						// Owner look v006: a catalog run ends once its list is in.
 						Result.ModelCatalog = message.Text;

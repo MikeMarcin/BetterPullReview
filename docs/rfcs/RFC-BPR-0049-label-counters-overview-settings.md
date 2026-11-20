@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0049"
 title: "Label Counters, Resolution-Aware Overview and Settings"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Post-tour feedback conventions"
 depends_on: ["RFC-BPR-0047", "RFC-BPR-0018", "RFC-BPR-0024", "RFC-BPR-0037"]
@@ -10,6 +10,19 @@ metadata: {"pack": "betterpullreview-conventional-comments-rfc-pack-v1", "propos
 ---
 
 # RFC-BPR-0049: Label Counters, Resolution-Aware Overview and Settings
+
+## Status: Auto-Verified (owner closure, 2026-11-20)
+
+The owner approved the vestigial-work list on 2026-11-20 ("All, incl. notes check", recorded in
+[[BPR-2313]]): close RFC-BPR-0047 to 0051 to their shipped scope and reject
+the rest. Shipped: label buckets and counter deltas, resolution-aware
+Overview columns with drill-down, scoped preferences and the headless
+operations (BPR-1078, BPR-1087 to BPR-1089, BPR-1092, BPR-1294, BPR-1349 to
+BPR-1351, BPR-1577, BPR-2093). Withdrawn by owner amendment, never run: [[BPR-1094]]
+(counter cost measurement on the native UI, so R29 is not passed),
+[[BPR-1095]] and [[BPR-1096]].
+
+It closes on what it built: no closeout pass ran, each criterion stands on its delivering cards' recorded evidence, and a criterion no card evidenced is not passed. The repository has no Superseded status; a delivered RFC that a later one replaces in part closes Auto-Verified with this record, as RFC-BPR-0025 did. Closed by [[BPR-1099]].
 
 ## Outcome and scope
 

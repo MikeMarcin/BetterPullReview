@@ -21,10 +21,12 @@
 
 #include <QAbstractScrollArea>
 #include <QAccessible>
+#include <QAccessibleInterface>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
+#include <QEnterEvent>
 #include <QFileInfo>
 #include <QFontMetrics>
 #include <QGuiApplication>
@@ -3962,6 +3964,137 @@ namespace {
 		expect(!page.present_draft_state(other), "another pull request is presented whole");
 	}
 
+	/// \brief [[BPR-2314]]. A pointer press where `aWords` is drawn, delivered
+	/// to whatever the page finds there, which is returned.
+	auto press_words(QWidget& aPage, const QWidget& aWords) -> QWidget*
+	{
+		const auto inPage = aWords.mapTo(&aPage, aWords.rect().center());
+		auto*      target = aPage.childAt(inPage);
+		if (target == nullptr) {
+			return nullptr;
+		}
+		const auto  local  = QPointF{ target->mapFrom(&aPage, inPage) };
+		const auto  global = QPointF{ aPage.mapToGlobal(inPage) };
+		QMouseEvent press{ QEvent::MouseButtonPress, local, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QMouseEvent release{ QEvent::MouseButtonRelease, local, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(target, &press);
+		QApplication::sendEvent(target, &release);
+		settle();
+		return target;
+	}
+
+	/// \brief [[BPR-2314]]. One key pressed and released on `aWidget`.
+	void press_key(QWidget& aWidget, const Qt::Key aKey)
+	{
+		QKeyEvent press{ QEvent::KeyPress, aKey, Qt::NoModifier };
+		QKeyEvent release{ QEvent::KeyRelease, aKey, Qt::NoModifier };
+		QApplication::sendEvent(&aWidget, &press);
+		QApplication::sendEvent(&aWidget, &release);
+		settle();
+	}
+
+	/// \brief [[BPR-2314]]. The owner, 2026-11-20: "These look like links and
+	/// I want to click them but I have to go find the go to them button all
+	/// the way off to the side. Can we let you just click them? The same with
+	/// avatars to expand people and conflicts with Master to expand needs
+	/// attention." Each line is its own action: a press on its words, Return
+	/// and Space each do what its Go to them did, and nothing else in Status
+	/// is drawn in the link ink.
+	void test_status_lines_are_their_own_actions()
+	{
+		using section = qt::overview_status_section;
+		qt::pull_request_overview_page page;
+		page.resize(1'100, 900);
+		auto opened = std::vector<std::string>{ };
+		page.set_new_threads_dispatch([&opened] { opened.emplace_back("threads"); });
+		page.set_new_conversation_dispatch([&opened] { opened.emplace_back("discuss"); });
+		page.present(status_projection());
+		page.set_new_threads(4U);
+		page.set_new_conversation_comments(1U);
+		page.show();
+		page.activateWindow();
+		settle();
+
+		const auto line = [&](QAbstractButton* const aLink, const QString& aWordsName, const QString& aWords, const QString& aName, const std::string& aOpens) {
+			const auto what  = aWords.toStdString();
+			auto*      words = page.findChild<QLabel*>(aWordsName);
+			expect(aLink != nullptr && aLink->isVisible() && words != nullptr && words->text() == aWords && aLink->isAncestorOf(words), what + ": the words are the control");
+			expect(std::ranges::none_of(page.findChildren<QAbstractButton*>(), [](const QAbstractButton* aButton) { return aButton->text() == QStringLiteral("Go to them"); }),
+				   what + ": no Go to them beside it");
+			expect(aLink->cursor().shape() == Qt::PointingHandCursor && aLink->focusPolicy() == Qt::StrongFocus, what + ": the pointing hand, and a keyboard stop");
+			auto* const reader = QAccessible::queryAccessibleInterface(aLink);
+			expect(reader != nullptr && reader->role() == QAccessible::Button && reader->text(QAccessible::Name) == aName, what + ": a button named for where it goes");
+			const auto before = opened.size();
+			expect(press_words(page, *words) == aLink, what + ": a press on the words reaches the line");
+			expect(opened.size() == before + 1U && opened.back() == aOpens, what + ": a press on the words goes where Go to them went");
+			aLink->setFocus(Qt::TabFocusReason);
+			press_key(*aLink, Qt::Key_Return);
+			expect(opened.size() == before + 2U && opened.back() == aOpens, what + ": Return goes there too");
+			press_key(*aLink, Qt::Key_Space);
+			expect(opened.size() == before + 3U && opened.back() == aOpens, what + ": and Space");
+			aLink->setAttribute(Qt::WA_UnderMouse, true);
+			auto enter = QEnterEvent{ QPointF{ 4.0, 4.0 }, QPointF{ 4.0, 4.0 }, QPointF{ aLink->mapToGlobal(QPoint{ 4, 4 }) } };
+			QApplication::sendEvent(aLink, &enter);
+			expect(words->text() == QStringLiteral("<u>%1</u>").arg(aWords), what + ": under the pointer it is underlined");
+			aLink->setAttribute(Qt::WA_UnderMouse, false);
+			auto leave = QEvent{ QEvent::Leave };
+			QApplication::sendEvent(aLink, &leave);
+			expect(words->text() == aWords, what + ": and not once the pointer leaves");
+		};
+		line(page.new_threads_button(), QStringLiteral("overviewNewThreadsText"), QStringLiteral("4 threads with new posts"), QStringLiteral("Go to the 4 threads with new posts"), "threads");
+		line(page.new_conversation_button(), QStringLiteral("overviewNewConversationText"), QStringLiteral("1 new comment in the conversation"),
+			 QStringLiteral("Go to the 1 new comment in the conversation in Discuss"), "discuss");
+
+		// The faces open People's roster, as its header does.
+		auto* const people = page.status_section_header(section::people);
+		auto* const faces  = page.people_faces();
+		const auto  roster = page.participant_rows();
+		expect(!roster.empty() && !roster.front()->isVisible(), "People's roster starts closed");
+		expect(!people->isChecked() && faces->cursor().shape() == Qt::PointingHandCursor && faces->focusPolicy() == Qt::StrongFocus, "the faces are a keyboard stop with the pointing hand");
+		const auto facesReader = QAccessible::queryAccessibleInterface(faces);
+		expect(facesReader != nullptr && facesReader->role() == QAccessible::Button && facesReader->text(QAccessible::Name).startsWith(QStringLiteral("People: ")),
+			   "the faces are a button named for the people");
+		expect(press_words(page, *faces) == faces && people->isChecked() && roster.front()->isVisible(), "a press on the faces opens People's roster");
+		expect(faces->accessibleDescription() == people->accessibleDescription(), "the faces say what a press does next, as the header does");
+		faces->setFocus(Qt::TabFocusReason);
+		press_key(*faces, Qt::Key_Return);
+		expect(!people->isChecked(), "Return on the faces closes People again, as its header would");
+		press_key(*faces, Qt::Key_Space);
+		expect(people->isChecked(), "and Space opens it");
+
+		// The conflict opens Needs attention to Merge's conditions.
+		auto* const attention  = page.status_section_header(section::attention);
+		auto* const conflicts  = page.conflicts_row();
+		auto* const conditions = page.findChild<QLabel*>(QStringLiteral("overviewMergeConditions"));
+		expect(conflicts != nullptr && conflicts->property("statusText").toString().startsWith(QStringLiteral("Conflicts with release")) && !attention->isChecked() && !conditions->isVisible(),
+			   "the conflicts row is there, Needs attention closed");
+		expect(conflicts->cursor().shape() == Qt::PointingHandCursor && conflicts->focusPolicy() == Qt::StrongFocus, "the conflict is a keyboard stop with the pointing hand");
+		auto* const conflictWords = static_cast<qt::drawer_link_row*>(conflicts)->words();
+		expect(press_words(page, *conflictWords) == conflicts && attention->isChecked() && conditions->isVisible(), "a press on the conflict opens Needs attention to Merge's conditions");
+		expect(page.conflicts_row() == conflicts, "opening it does not rebuild the row under the pointer");
+		conflicts->setFocus(Qt::TabFocusReason);
+		press_key(*conflicts, Qt::Key_Return);
+		expect(!attention->isChecked() && !conditions->isVisible() && conflicts->hasFocus(), "Return closes it again and keeps focus on the conflict");
+		press_key(*conflicts, Qt::Key_Space);
+		expect(attention->isChecked() && conditions->isVisible(), "and Space opens it");
+		const auto others = page.findChildren<QLabel*>(QStringLiteral("overviewAttentionRow"));
+		expect(others.size() == 3 && std::ranges::none_of(others, [](const QLabel* aRow) { return aRow->cursor().shape() == Qt::PointingHandCursor; }),
+			   "the other attention rows stay words: no hand on what does nothing");
+
+		// Nothing else in Status wears the link ink without being a link.
+		const auto ink = page.findChild<QLabel*>(QStringLiteral("overviewNewThreadsText"))->palette().color(QPalette::Active, QPalette::WindowText);
+		for (auto* const label : page.status_drawer()->findChildren<QLabel*>()) {
+			if (!label->isVisible() || label->palette().color(QPalette::Active, QPalette::WindowText) != ink) {
+				continue;
+			}
+			auto* owner = label->parentWidget();
+			while (owner != nullptr && dynamic_cast<qt::drawer_link_row*>(owner) == nullptr) {
+				owner = owner->parentWidget();
+			}
+			expect(owner != nullptr, "every line in the link ink is a link: " + label->objectName().toStdString() + " is not");
+		}
+	}
+
 	void test_conversation_count_is_cleared_with_the_pull_request()
 	{
 		auto page = qt::pull_request_overview_page{ };
@@ -4011,21 +4144,21 @@ namespace {
 				   && page.attention_rows()[1] == QStringLiteral("2 checks failed"),
 			   "with Checks open, the list names the failures and Needs attention only counts them");
 
-		// My review: the threads with new posts, and Go to them.
+		// My review: the threads with new posts, a line that goes to them.
 		expect(page.findChild<QWidget*>(QStringLiteral("overviewNewThreads"))->isHidden(), "no threads with new posts, no row");
 		page.set_new_threads(3U);
 		settle();
 		auto* const go = page.new_threads_button();
 		expect(go->isVisible() && page.findChild<QLabel*>(QStringLiteral("overviewNewThreadsText"))->text() == QStringLiteral("3 threads with new posts"), "the threads with new posts are counted");
 		go->click();
-		expect(opened == std::vector<std::string>{ "threads" }, "Go to them opens Threads");
+		expect(opened == std::vector<std::string>{ "threads" }, "the line opens Threads");
 		expect(page.new_conversation_button()->parentWidget()->isHidden(), "the conversation's line waits for its read state");
 		page.set_new_conversation_comments(2U);
 		settle();
 		expect(page.new_conversation_button()->isVisible() && page.findChild<QLabel*>(QStringLiteral("overviewNewConversationText"))->text() == QStringLiteral("2 new comments in the conversation"),
 			   "once it has a count, the conversation's line shows it");
 		page.new_conversation_button()->click();
-		expect(opened.back() == "discuss", "its Go to them opens Discuss");
+		expect(opened.back() == "discuss", "its line opens Discuss");
 		page.set_new_conversation_comments(std::nullopt);
 
 		// People: faces and one line.
@@ -4291,6 +4424,7 @@ auto main(int argc, char** argv) -> int
 	test_folder_counts_share_one_column();
 	test_page_presents_the_projection_and_reports_its_gestures();
 	test_status_leads_with_my_role_and_what_needs_attention();
+	test_status_lines_are_their_own_actions();
 	test_conversation_count_is_cleared_with_the_pull_request();
 	test_a_requested_reviewer_moves_people_in_place();
 	test_a_draft_is_said_and_its_author_can_publish_it();

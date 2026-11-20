@@ -1,4 +1,4 @@
-# [[BPR-1148]]. The read-only local workspace source for Review Cycles. It
+# [[BPR-1148]]. The read-only local workspace source for local drafts. It
 # opens a deliberately chosen folder, file or Git checkout and reads beneath it
 # without following links, writing, running Git or reaching the network. It
 # links the application ports and nothing else: no Qt, no Git process, no
@@ -10,7 +10,13 @@ add_library(
         # [[BPR-1750]]. RFC-BPR-0092 D2: clone folders, read by
         # metadata, no links followed, nothing written or run.
         src/clone_folder_scan.cpp
+        # [[BPR-2303]]. An app bundle chosen as an agent's program: its
+        # Info.plist and Contents/MacOS listing, no links followed.
+        src/app_bundle_read.cpp
 )
+if(APPLE)
+    target_link_libraries(better_pull_review_adapter_workspace PRIVATE "-framework CoreFoundation")
+endif()
 add_library(
     BetterPullReview::AdapterWorkspace
     ALIAS
@@ -33,40 +39,3 @@ target_compile_features(
 )
 bpr_enable_hardening(better_pull_review_adapter_workspace)
 bpr_enable_warnings(better_pull_review_adapter_workspace)
-
-# [[BPR-1159]]. The one writer beside the read-only source: a saved round goes
-# to a single file the reviewer chose, through a flushed temporary file moved
-# into place. It reads nothing else, runs nothing and reaches no network.
-add_library(
-    better_pull_review_adapter_export
-    STATIC
-        src/local_export_destination.cpp
-)
-add_library(
-    BetterPullReview::AdapterExport
-    ALIAS
-    better_pull_review_adapter_export
-)
-target_include_directories(
-    better_pull_review_adapter_export
-    PUBLIC
-        "${CMAKE_CURRENT_SOURCE_DIR}/include"
-)
-target_link_libraries(
-    better_pull_review_adapter_export
-    PUBLIC
-        BetterPullReview::Application
-)
-# [[BPR-1239]]. The bounded wait for a destination another handle briefly holds.
-target_link_libraries(
-    better_pull_review_adapter_export
-    PRIVATE
-        BetterPullReview::Platform
-)
-target_compile_features(
-    better_pull_review_adapter_export
-    PUBLIC
-        cxx_std_23
-)
-bpr_enable_hardening(better_pull_review_adapter_export)
-bpr_enable_warnings(better_pull_review_adapter_export)

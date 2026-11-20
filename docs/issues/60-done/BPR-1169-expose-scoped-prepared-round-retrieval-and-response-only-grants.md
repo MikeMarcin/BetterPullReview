@@ -57,7 +57,7 @@ Owned paths, compatibility decisions, the 82-row pass, the tests-disabled
 install run, seven negative controls, limits and station commands are in the
 [execution ledger](../../verification/RFC-BPR-0053-0061.md), under "BPR-1169:
 one frozen round for a harness, under a stored grant"; usage is in
-[the developer page](../../development/cycle-cli.md).
+the developer page.
 
 RC58-03, RC58-04, RC58-07 and RC58-09 pass on that evidence. No criterion asks
 for the owner's judgment.

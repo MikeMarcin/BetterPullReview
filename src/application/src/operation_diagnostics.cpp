@@ -136,15 +136,18 @@ namespace bpr::application {
 	{
 		using failure = core::operation_failure;
 		switch (aFailure) {
-		case core::agent_setup_failure::agent_not_found:       return failure::agent_not_found;
-		case core::agent_setup_failure::program_refused:       return failure::program_refused;
-		case core::agent_setup_failure::no_program_chosen:     return failure::no_program_chosen;
-		case core::agent_setup_failure::not_signed_in:         return failure::not_signed_in;
-		case core::agent_setup_failure::failed_to_start:       return failure::failed_to_start;
-		case core::agent_setup_failure::status_unreadable:     return failure::status_unreadable;
-		case core::agent_setup_failure::timed_out:             return failure::timed_out;
-		case core::agent_setup_failure::workspace_unavailable: return failure::workspace_unavailable;
-		case core::agent_setup_failure::settings_unreadable:   return failure::store_unreadable;
+		case core::agent_setup_failure::agent_not_found:           return failure::agent_not_found;
+		case core::agent_setup_failure::program_refused:           return failure::program_refused;
+		case core::agent_setup_failure::no_program_chosen:         return failure::no_program_chosen;
+		case core::agent_setup_failure::not_signed_in:             return failure::not_signed_in;
+		case core::agent_setup_failure::failed_to_start:           return failure::failed_to_start;
+		case core::agent_setup_failure::status_unreadable:         return failure::status_unreadable;
+		case core::agent_setup_failure::timed_out:                 return failure::timed_out;
+		case core::agent_setup_failure::workspace_unavailable:     return failure::workspace_unavailable;
+		case core::agent_setup_failure::settings_unreadable:       return failure::store_unreadable;
+		case core::agent_setup_failure::instructions_dropped:
+		case core::agent_setup_failure::instructions_not_followed: return failure::unsupported;
+		case core::agent_setup_failure::output_unreadable:         return failure::status_unreadable;
 		}
 		return failure::failed_to_start;
 	}
@@ -400,40 +403,6 @@ namespace bpr::application {
 		case core::release_update_operation::install:         return action::update_apply;
 		}
 		return action::update_check;
-	}
-
-	auto operation_failure_of(const cycle_store_failure aFailure) noexcept -> core::operation_failure
-	{
-		using failure = core::operation_failure;
-		switch (aFailure) {
-		case cycle_store_failure::unavailable:        return failure::unavailable;
-		case cycle_store_failure::corrupt:            return failure::corrupt;
-		case cycle_store_failure::schema_mismatch:    return failure::schema_mismatch;
-		case cycle_store_failure::wrong_profile:      return failure::wrong_profile;
-		case cycle_store_failure::not_found:          return failure::not_found;
-		case cycle_store_failure::conflict:           return failure::conflict;
-		case cycle_store_failure::refused:            return failure::refused;
-		case cycle_store_failure::operation_reused:   return failure::operation_reused;
-		case cycle_store_failure::bounds:             return failure::bounds;
-		case cycle_store_failure::object_unavailable: return failure::object_unavailable;
-		case cycle_store_failure::quota:              return failure::quota;
-		case cycle_store_failure::preview_stale:      return failure::preview_stale;
-		case cycle_store_failure::cancelled:          return failure::cancelled;
-		case cycle_store_failure::store_damaged:      return failure::store_damaged;
-		}
-		return failure::unavailable;
-	}
-
-	auto operation_failure_of(const core::cycle_authorization aDecision) noexcept -> core::operation_failure
-	{
-		using failure = core::operation_failure;
-		switch (aDecision) {
-		case core::cycle_authorization::allowed:      return failure::none;
-		case core::cycle_authorization::not_granted:  return failure::not_granted;
-		case core::cycle_authorization::revoked:      return failure::revoked;
-		case core::cycle_authorization::wrong_target: return failure::wrong_target;
-		default:                                      return failure::not_authorized;
-		}
 	}
 
 	auto tour_cli_failure(const std::string_view aCode, const int aExit) noexcept -> core::operation_failure

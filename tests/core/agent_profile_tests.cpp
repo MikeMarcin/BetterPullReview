@@ -1,6 +1,7 @@
 /// \file
 /// \brief Proves agent invocation legality, and that no type here holds a secret.
 
+#include "bpr/core/agent_entry.hpp"
 #include "bpr/core/agent_profile.hpp"
 
 #include <cstdlib>
@@ -285,7 +286,9 @@ namespace {
 		}
 	}
 
-	void test_built_in_host_policy_refuses_codex_on_explicit_ghes()
+	/// [[BPR-2305]] (owner, 2026-11-19). An explicit GHES host permits Codex,
+	/// on either protocol and as an added agent, exactly as GitHub.com does.
+	void test_built_in_host_policy_permits_codex_on_explicit_ghes()
 	{
 		const auto profiles = core::built_in_agent_profiles();
 		const auto github   = core::built_in_agent_policy(
@@ -297,14 +300,17 @@ namespace {
 			expect(
 				core::decide_agent_invocation(candidate, github).Permitted,
 				"GitHub.com offers every shipped profile");
-			const auto verdict = core::decide_agent_invocation(candidate, ghes);
-			const auto corporateAlternative
-				= candidate.Id == core::claude_stream_json_profile_id
-				|| candidate.Id == core::external_terminal_profile_id;
 			expect(
-				verdict.Permitted == corporateAlternative,
-				"explicit GHES permits only corporate Claude and external alternatives");
+				core::decide_agent_invocation(candidate, ghes).Permitted,
+				"explicit GHES offers every shipped profile, Codex included");
 		}
+		for (const auto& slot : core::agent_entry_profiles()) {
+			expect(
+				core::decide_agent_invocation(slot, ghes).Permitted,
+				"an added agent of any protocol, Codex included, is allowed on explicit GHES");
+		}
+		expect(github.Allowed == ghes.Allowed && ghes.Host == core::git_host_id{ 2U },
+			   "the two host kinds allow the same profiles, in the same order");
 	}
 } // namespace
 
@@ -317,7 +323,7 @@ auto main() -> int
 	test_a_malformed_profile_is_refused();
 	test_secret_bearing_environment_names_are_structurally_refused();
 	test_built_in_profiles_are_safe_immutable_data();
-	test_built_in_host_policy_refuses_codex_on_explicit_ghes();
+	test_built_in_host_policy_permits_codex_on_explicit_ghes();
 	std::cout << "agent-profile-tests:pass\n";
 	return EXIT_SUCCESS;
 }

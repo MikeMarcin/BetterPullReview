@@ -327,7 +327,7 @@ Three switches shape the graph independently of the preset:
 
 | Switch | Default | What it changes |
 |---|---|---|
-| `BPR_BUILD_TOUR_CLI` | `OFF`; `ON` in `tour-cli`, `macos-release` and `macos-release-agent-free` | Builds `bpr` (`app_bpr`) and registers the rows that run it: the `tour_cli_*` rows, `skill_pr_tour_package`, `cycle_cli_public_path`, `cycle_cli_documentation`, `skill_bpr_cycle_package`, and, in a graph with Qt, the two-round, parity and handoff courses. Requires `BPR_BUILD_LOCAL_AUTOMATION`. |
+| `BPR_BUILD_TOUR_CLI` | `OFF`; `ON` in `tour-cli`, `macos-release` and `macos-release-agent-free` | Builds `bpr` (`app_bpr`) and registers the rows that run it: the `tour_cli_*` rows, `skill_pr_tour_package` and, in a graph with Qt, the tour handoff course. Requires `BPR_BUILD_LOCAL_AUTOMATION`. |
 | `BPR_BUILD_AGENT_INTEGRATIONS` | `ON` (`OFF` in `tour-cli` and the `-agent-free` presets) | Compiles out the agent launch adapter, protocol decoders, agent hosts, MCP helper and Send to Agent. |
 | `BPR_BUILD_LOCAL_AUTOMATION` | `ON` (`OFF` in the `-agent-free-automation-off` presets) | Without it no owner command endpoint is bound and `bpr` cannot be built; the automation-off two-round course is registered instead. |
 
@@ -337,7 +337,7 @@ A `dev` graph that also builds `bpr`:
 cmake --preset dev -B build/dev-tour-cli -DBPR_BUILD_TOUR_CLI=ON
 ```
 
-The [terminal guide](cycle-cli.md) covers `bpr` itself.
+The [tour CLI](tour-cli.md) and [local PR drafts CLI](draft-cli.md) guides cover `bpr` itself.
 
 ### Build targets
 
@@ -352,7 +352,7 @@ The [terminal guide](cycle-cli.md) covers `bpr` itself.
 | `better_pull_review_adapter_ai` | Capability boundary established for a later RFC |
 | `better_pull_review_adapter_agent` | Agent launch adapter and protocol loop; only with `BPR_BUILD_AGENT_INTEGRATIONS` |
 | `better_pull_review_adapter_mcp` | Read-only MCP context helper; links only the core and its JSON decoder |
-| `better_pull_review_adapter_workspace` | Read-only local workspace source for Review Cycles; follows no links, writes nothing, runs no Git |
+| `better_pull_review_adapter_workspace` | Read-only local workspace source (clone folders, app bundles); follows no links, writes nothing, runs no Git |
 | `better_pull_review_adapter_syntax` | KSyntaxHighlighting definitions; graphs with Qt only |
 | `better_pull_review_adapter_update` | Release update staging; the macOS installer transaction on Apple only |
 | `better_pull_review_process_support` | `QProcess` supervision the `gh` and Git runners share |
@@ -637,5 +637,5 @@ material. Its main sections:
 | Runtime safety notes | [Troubleshooting and safe verification](build-and-test-reference.md#troubleshooting-and-safe-verification) (agent invocation, credentials, device-code sign-in, retained Git history) |
 
 Related guides: [release packages](release-packages.md),
-[remote stations](remote-stations.md), [Review Cycles CLI](cycle-cli.md) and
+[remote stations](remote-stations.md), [local PR drafts CLI](draft-cli.md) and
 [optional secret scanning](betterleaks.md).

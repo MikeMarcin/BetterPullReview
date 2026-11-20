@@ -14,7 +14,6 @@
 #include "bpr/qt/profiles_settings_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/refresh_note.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/view_picker.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -147,8 +146,8 @@ namespace bpr::qt {
 		/// button or widget shortcut fires and the key goes on to the widget
 		/// and the text input system as "å" or "®". The claim is made when the
 		/// key arrives, so it also holds for a widget that begins taking text
-		/// while it has focus: the Review Cycle reader becomes the suggestion
-		/// editor in place. That change reaches Qt as an input method query
+		/// while it has focus: a reader that becomes the suggestion editor in
+		/// place. That change reaches Qt as an input method query
 		/// for `ImEnabled` on the focused widget, on which `aRefresh` re-reads
 		/// the window's typing state; it returns at once when nothing changed.
 		class typed_text_key_claim final : public QObject
@@ -269,7 +268,9 @@ namespace bpr::qt {
 		if (state.Phase != core::refresh_phase::updated) {
 			(aHome ? HomeSettledCue : PullSettledCue) = false;
 		}
-		if (state.Phase == core::refresh_phase::updated && before.Phase == core::refresh_phase::refreshing) {
+		// [[BPR-2315]]. A pull request reread that found nothing it was not
+		// asked for leaves no tick: nothing on screen changes.
+		if (state.Phase == core::refresh_phase::updated && before.Phase == core::refresh_phase::refreshing && (aHome || core::refresh_settled_cue(before, state))) {
 			(aHome ? HomeSettledCue : PullSettledCue) = true;
 			if (auto* const cue = aHome ? HomeCueTimer : PullCueTimer; cue != nullptr) {
 				cue->start();
@@ -290,7 +291,7 @@ namespace bpr::qt {
 				break;
 			case core::refresh_phase::updated:
 				if (before.Phase == core::refresh_phase::refreshing || state.SettledAt != before.SettledAt) {
-					if (state.Trigger == core::refresh_trigger::reviewer || core::any(state.Changes)) {
+					if (core::refresh_settled_cue(before, state)) {
 						RefreshNote->present(refresh_note_tone::settled, refresh_result_text(aHome, state), button, 5'000);
 					} else if (RefreshNote->tone() == refresh_note_tone::busy) {
 						RefreshNote->dismiss();
@@ -335,7 +336,8 @@ namespace bpr::qt {
 			if (aAction == nullptr) {
 				return;
 			}
-			const auto busy = aState.Phase == core::refresh_phase::refreshing;
+			// [[BPR-2315]]. The pull request's quiet read does not engage the button.
+			const auto busy = aState.Phase == core::refresh_phase::refreshing && (aHome || !core::refresh_quiet(aState));
 			const auto look = busy ? (full ? strip_refresh_look::turning : strip_refresh_look::waiting)
 				: aCue             ? strip_refresh_look::settled
 								   : strip_refresh_look::idle;
@@ -351,7 +353,9 @@ namespace bpr::qt {
 				button->update();
 			}
 			auto describe = QString{ };
-			switch (aState.Phase) {
+			// A quiet read is described as the update it has not replaced yet.
+			const auto described = aState.Phase == core::refresh_phase::refreshing && !busy ? core::refresh_phase::updated : aState.Phase;
+			switch (described) {
 			case core::refresh_phase::refreshing:
 				describe = aHome ? QStringLiteral("Finding my pull requests in saved repositories…") : QStringLiteral("Refreshing the pull request…");
 				break;
@@ -385,7 +389,7 @@ namespace bpr::qt {
 		};
 		present(GithubRefreshAction, PullRefresh, PullSettledCue, RefreshSlowTimer, false);
 		present(QueueRefreshAction, HomeRefresh, HomeSettledCue, HomeSlowTimer, true);
-		const auto turning = full && (PullRefresh.Phase == core::refresh_phase::refreshing || HomeRefresh.Phase == core::refresh_phase::refreshing);
+		const auto turning = full && ((PullRefresh.Phase == core::refresh_phase::refreshing && !core::refresh_quiet(PullRefresh)) || HomeRefresh.Phase == core::refresh_phase::refreshing);
 		if (turning && !RefreshFrames->isActive()) {
 			RefreshFrames->start();
 		} else if (!turning) {
@@ -414,7 +418,7 @@ namespace bpr::qt {
 			RefreshFreshness->setAccessibleDescription(RefreshFreshness->toolTip());
 			RefreshFreshness->setVisible(!words.isEmpty());
 			// The words age on their own: woken exactly when they would change.
-			if (state.UpdatedAt.has_value() && state.Phase != core::refresh_phase::refreshing && RefreshAgeTimer != nullptr) {
+			if (state.UpdatedAt.has_value() && (state.Phase != core::refresh_phase::refreshing || (!showing_home() && core::refresh_quiet(state))) && RefreshAgeTimer != nullptr) {
 				const auto next = core::refresh_age_next_change_seconds(*state.UpdatedAt, refresh_clock());
 				RefreshAgeTimer->start(static_cast<int>(std::clamp<std::int64_t>(next, 1, 86'400) * 1'000));
 			}
@@ -1061,9 +1065,9 @@ namespace bpr::qt {
 		// as far down as its number fits, taking whatever the title row's other
 		// items leave (see update_strip_identity). With nothing open there is
 		// nothing to identify, and the label takes no width.
-		IdentityAction->setVisible((!StripHome && (!IdentityText.isEmpty() || LoadingIdentity.has_value())) || ((LocalCycleShown || LocalDraftShown) && !showing_home()));
+		IdentityAction->setVisible((!StripHome && (!IdentityText.isEmpty() || LoadingIdentity.has_value())) || (LocalDraftShown && !showing_home()));
 		// [[BPR-1338]]. Open on GitHub goes with an accepted GitHub pull
-		// request's name, never a local cycle's, and is measured with it below.
+		// request's name, and is measured with it below.
 		// It is shown only where it acts: nothing in the title row reads as
 		// disabled. The owner, 2026-11-11: it comes with the loading title,
 		// not once the whole review has arrived.
@@ -1071,7 +1075,7 @@ namespace bpr::qt {
 			update_open_on_github_action();
 			if (OpenOnGithubButtonAction != nullptr) {
 				const auto loadingName = IdentityText.isEmpty() && LoadingIdentity.has_value();
-				OpenOnGithubButtonAction->setVisible(IdentityAction->isVisible() && !(LocalCycleShown && !showing_home()) && (PageContext.has_value() || loadingName));
+				OpenOnGithubButtonAction->setVisible(IdentityAction->isVisible() && (PageContext.has_value() || loadingName));
 			}
 		};
 		showPage();
@@ -1079,7 +1083,7 @@ namespace bpr::qt {
 		if (StripDraftChipAction != nullptr) {
 			const auto loadingName = IdentityText.isEmpty() && LoadingIdentity.has_value();
 			const auto draft       = loadingName ? LoadingIdentity->Draft : (!IdentityText.isEmpty() && IdentityDraft);
-			StripDraftChipAction->setVisible(IdentityAction->isVisible() && !(LocalCycleShown && !showing_home()) && draft);
+			StripDraftChipAction->setVisible(IdentityAction->isVisible() && draft);
 		}
 		const auto identityShort = [this] {
 			return IdentityAction->isVisible() && strip_identity_budget() < strip_identity_minimum();
@@ -1279,7 +1283,7 @@ namespace bpr::qt {
 
 	void workbench_window::refuse_review_navigation(const core::workbench_command_id aCommand)
 	{
-		if (showing_home() || showing_local_cycle() || current_modality() != review_modality::review) {
+		if (showing_home() || current_modality() != review_modality::review) {
 			return;
 		}
 		// A refused press says so for as long as a bound does: an arrow that
@@ -1291,7 +1295,7 @@ namespace bpr::qt {
 
 	void workbench_window::dispatch_navigation(const std::size_t aIndex)
 	{
-		if (showing_home() || showing_local_cycle()) {
+		if (showing_home()) {
 			return;
 		}
 		const auto id = static_cast<core::workbench_command_id>(aIndex);
@@ -1331,7 +1335,7 @@ namespace bpr::qt {
 
 	void workbench_window::focus_review_navigation(const core::workbench_command_id aCommand)
 	{
-		if (showing_home() || showing_local_cycle() || current_modality() != review_modality::review) {
+		if (showing_home() || current_modality() != review_modality::review) {
 			return;
 		}
 		if (ComparisonSurface->current_result() && ComparisonSurface->isVisible()) {
@@ -1347,7 +1351,7 @@ namespace bpr::qt {
 	{
 		const auto index = static_cast<std::size_t>(aCommand);
 		const auto ends  = aCommand == core::workbench_command_id::first_change || aCommand == core::workbench_command_id::last_change;
-		if ((index >= Navigation.size() && !ends) || showing_home() || showing_local_cycle() || current_modality() != review_modality::review) {
+		if ((index >= Navigation.size() && !ends) || showing_home() || current_modality() != review_modality::review) {
 			return;
 		}
 		if (const auto offered = command(aCommand);
@@ -1448,16 +1452,6 @@ namespace bpr::qt {
 		ProfileStatusAction->setObjectName(QStringLiteral("profileManagementStatusAction"));
 		ProfileStatusAction->setEnabled(false);
 		ProfileStatusAction->setVisible(false);
-		// [[BPR-1157]]. The local Review Cycles entry, before Quit.
-		OpenProjectAction = fileMenu->addAction(QStringLiteral("Open Project…"));
-		OpenProjectAction->setObjectName(QStringLiteral("openProjectAction"));
-		OpenProjectAction->setToolTip(QStringLiteral("Review a local folder or file as a Review Cycle"));
-		OpenProjectAction->setEnabled(false);
-		connect(OpenProjectAction, &QAction::triggered, this, [this] {
-			if (OpenProjectDispatch) {
-				OpenProjectDispatch();
-			}
-		});
 		fileMenu->addSeparator();
 		QuitProfilesAction = fileMenu->addAction(QStringLiteral("Quit"));
 		QuitProfilesAction->setObjectName(QStringLiteral("quitProfilesAction"));

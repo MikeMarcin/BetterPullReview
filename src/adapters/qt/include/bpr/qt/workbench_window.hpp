@@ -16,7 +16,6 @@
 #include "bpr/application/local_draft_workbench.hpp"
 #include "bpr/application/local_presentation.hpp"
 #include "bpr/application/public_preview_projection.hpp"
-#include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/window_review_restoration_ports.hpp"
@@ -186,9 +185,9 @@ namespace bpr::qt {
 	// the window places it and hands it out, and a consumer of the shell does
 	// not need the panel's shape to ask for it.
 	class device_authorization_panel;
-	class review_cycle_view;
 	class local_draft_parts;
 	class view_picker;
+	class reading_width_dialog;
 
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
 	using workbench_intent_dispatch = std::function<void(core::workbench_interaction_intent)>;
@@ -1084,15 +1083,16 @@ namespace bpr::qt {
 		/// memory is never pushed into a window: each keeps its own filters.
 		void set_view_filter_memory(std::function<core::view_filter_defaults()> aDefaults, std::function<void(const core::view_filter_remember&)> aRemember);
 		/// \brief [[BPR-2171]]. The profile's Discuss preferences: what they
-		/// are now, a Mark as bot or Not a bot in a repository, and the
-		/// column's width. The window shows them on each pull request and
-		/// each time Discuss shows.
-		void set_discuss_preferences(std::function<core::discuss_preferences()> aRead, std::function<void(const std::string&, const std::string&, bool)> aMark,
-									 std::function<void(core::discuss_column)> aColumn);
+		/// are now, and a Mark as bot or Not a bot in a repository. The window
+		/// shows them on each pull request and each time Discuss shows.
+		void set_discuss_preferences(std::function<core::discuss_preferences()> aRead, std::function<void(const std::string&, const std::string&, bool)> aMark);
 		/// \brief [[BPR-2171]]. Shows the profile's Discuss preferences again.
 		void apply_discuss_preferences();
-		/// \brief [[BPR-2171]]. Settings › Review › Reading: Discuss column.
-		[[nodiscard]] auto discuss_column_buttons() const -> const std::vector<QAbstractButton*>&;
+		/// \brief [[BPR-2299]]. Settings › Review › Reading width › Advanced:
+		/// opens it, made the first time, showing the preferences as they are.
+		void open_reading_width_advanced();
+		/// \brief [[BPR-2299]]. The Advanced dialog; none until first opened.
+		[[nodiscard]] auto reading_width_advanced() const noexcept -> reading_width_dialog* { return ReadingAdvanced; }
 		/// \brief [[BPR-1844]]. This window's filters, view by view, as the
 		/// pull request opened with them and the reviewer then chose; a
 		/// filter the window cleared by itself (a reveal, a count's listing)
@@ -1468,25 +1468,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_page() const noexcept -> QWidget*;
 		[[nodiscard]] auto showing_home() const -> bool;
 
-		/// \brief [[BPR-1157]]. File > Open Project…: the local Review Cycles entry.
-		[[nodiscard]] auto open_project_action() const noexcept -> QAction*;
-		/// \brief [[BPR-1157]]. Takes the local cycle page as the review surface's
-		/// alternative: the same place, the title row and the window, no new row.
-		void               adopt_local_cycle(review_cycle_view* aView);
-		[[nodiscard]] auto local_cycle() const noexcept -> review_cycle_view*;
-		/// \brief Shows the local cycle page, titled in the title row with its
-		/// Local cycle badge. A pull request stays open behind it.
-		void show_local_cycle(const QString& aTitle);
-		/// \brief [[BPR-1171]]. Keeps the local cycle's title current without
-		/// moving the window: Home or a pull request in front stays in front.
-		void retitle_local_cycle(const QString& aTitle);
-		/// \brief Returns to Home or to the open pull request.
-		void               leave_local_cycle();
-		[[nodiscard]] auto showing_local_cycle() const noexcept -> bool;
-		/// \brief Home's Review Cycles section: Open Project and recent cycles.
-		void               present_local_cycle_recents(const std::vector<application::review_cycle_recent>& aRecents);
-		void               set_local_cycle_entry_dispatch(std::function<void()> aOpenProject, std::function<void(const core::local_cycle_subject&)> aResume);
-		[[nodiscard]] auto home_cycles_list() const noexcept -> QListWidget*;
 		/// \brief The Home rows selected now, in every list: one at most.
 		[[nodiscard]] auto home_selected_rows() const -> int;
 		/// \brief RFC-BPR-0108 as amended by the owner, 2026-11-13: a local
@@ -2019,8 +2000,14 @@ namespace bpr::qt {
 		/// \brief [[BPR-1575]]. Runs `aDispatch`, a read of the open pull
 		/// request the application makes by itself (after publishing, after
 		/// resolving a thread), so the read it starts is presented as automatic
-		/// rather than as the reviewer's Refresh.
-		void run_automatic_refresh(const std::function<void()>& aDispatch);
+		/// rather than as the reviewer's Refresh. [[BPR-2315]]: `aCause` says
+		/// what asked for it, for the read's diagnostic line, and such a read
+		/// stays quiet while it runs (`core::refresh_quiet`).
+		void run_automatic_refresh(core::refresh_cause aCause, const std::function<void()>& aDispatch);
+		/// \brief [[BPR-2315]]. What asked for the read being started now: the
+		/// cause `run_automatic_refresh` runs under, or none for a read the
+		/// reviewer started.
+		[[nodiscard]] auto automatic_refresh_cause() const noexcept -> std::optional<core::refresh_cause>;
 		/// \brief [[BPR-1575]]. The open pull request's refresh, as presented.
 		[[nodiscard]] auto pull_request_refresh() const noexcept -> const core::refresh_state&;
 		/// \brief [[BPR-1575]]. Home's discovery refresh, as presented.
@@ -2468,7 +2455,7 @@ namespace bpr::qt {
 		/// or under it as the first-launch card.
 		void place_home_landing();
 		/// \brief [[BPR-1865]]. Filters Home by the filter's query: the list, the
-		/// Active review card and Review Cycles.
+		/// Active review card.
 		void apply_home_filter();
 		/// \brief [[BPR-1865]]. Whether the open review's card matches the filter.
 		[[nodiscard]] auto home_landing_matches() const -> bool;
@@ -2491,17 +2478,13 @@ namespace bpr::qt {
 		/// \brief [[BPR-0733]]. Sends one recently viewed row out, to open or to resume.
 		void dispatch_recent_review(int aRow, bool aResume);
 		void remove_recent_review(int aRow);
-		/// \brief [[BPR-1157]] [[BPR-1364]]. Resumes one of Home's recent review
-		/// cycles, by a double-click or Return on its row.
-		void resume_home_cycle(int aRow);
 		/// RFC-BPR-0108. Resumes the In preparation row `aRow`.
 		void resume_home_draft(int aRow);
-		/// [[BPR-1365]]. Home's lists: the queue (every arrangement's rows),
-		/// Recently viewed and Review Cycles.
+		/// [[BPR-1365]]. Home's lists: the queue (every arrangement's rows)
+		/// and Recently viewed.
 		enum class home_selection_list : std::uint8_t {
 			queue,
 			recent,
-			cycles,
 			/// RFC-BPR-0108 (owner, 2026-11-13): In preparation's local drafts.
 			drafts,
 		};
@@ -2747,7 +2730,8 @@ namespace bpr::qt {
 		void apply_line_details();
 		/// RFC-BPR-0084 Q3. Shows or hides images in descriptions and comments.
 		void apply_markdown_images();
-		/// [[BPR-1584]]. Threads' and Discuss's reading width; never the code.
+		/// [[BPR-1584]]. Threads', Discuss's and ([[BPR-2299]]) reports' reading
+		/// width; never the code.
 		void apply_reading_width();
 		/// [[BPR-1581]]. My draft in Discuss's composer, as Maximize opens it.
 		auto show_draft_in_discuss(const std::string& aCard) -> bool;
@@ -3177,11 +3161,8 @@ namespace bpr::qt {
 		core::dif_resolution                  DifResolution;
 		bool                                  DifResolutionReady = false;
 		QWidget*                              HomePage           = nullptr;
-		/// [[BPR-1157]]. The local cycle page and Home's Review Cycles section.
-		review_cycle_view* LocalCyclePage  = nullptr;
-		bool               LocalCycleShown = false;
-		QString            LocalCycleTitle;
-		QAction*           OpenProjectAction = nullptr;
+		/// The title the title row shows for a local draft.
+		QString LocalPageTitle;
 		/// RFC-BPR-0108.
 		local_draft_parts* LocalDraft = nullptr;
 		/// The comparison the diff viewer shows for the draft.
@@ -3248,24 +3229,19 @@ namespace bpr::qt {
 		QWidget* LocalEditHolder   = nullptr;
 		QWidget* LocalNoticeHolder = nullptr;
 		/// Home variant 1: the Open row, where Prepare Pull Request… stands.
-		QHBoxLayout*                                          HomePrepareSlot           = nullptr;
-		bool                                                  LocalDraftShown           = false;
-		QWidget*                                              HomeAuthor                = nullptr;
-		QPushButton*                                          HomePrepare               = nullptr;
-		QWidget*                                              HomeDrafts                = nullptr;
-		QListWidget*                                          HomeDraftsList            = nullptr;
-		QAction*                                              HomeOpenPreparationAction = nullptr;
-		application::local_draft_home_projection              DraftHome;
-		std::function<void()>                                 PrepareDispatch;
-		std::function<void(const core::local_draft_id&)>      ResumeDraftDispatch;
-		QWidget*                                              HomeCycles     = nullptr;
-		QListWidget*                                          HomeCyclesList = nullptr;
-		std::vector<application::review_cycle_recent>         CycleRecents;
-		std::function<void()>                                 OpenProjectDispatch;
-		std::function<void(const core::local_cycle_subject&)> ResumeCycleDispatch;
-		bool                                                  StripHome     = false;
-		bool                                                  HomeRequested = false;
-		bool                                                  HomeFocused   = false;
+		QHBoxLayout*                                     HomePrepareSlot           = nullptr;
+		bool                                             LocalDraftShown           = false;
+		QWidget*                                         HomeAuthor                = nullptr;
+		QPushButton*                                     HomePrepare               = nullptr;
+		QWidget*                                         HomeDrafts                = nullptr;
+		QListWidget*                                     HomeDraftsList            = nullptr;
+		QAction*                                         HomeOpenPreparationAction = nullptr;
+		application::local_draft_home_projection         DraftHome;
+		std::function<void()>                            PrepareDispatch;
+		std::function<void(const core::local_draft_id&)> ResumeDraftDispatch;
+		bool                                             StripHome     = false;
+		bool                                             HomeRequested = false;
+		bool                                             HomeFocused   = false;
 		/// [[BPR-1134]]. The right tray: its tabs, their pages, and the
 		/// Comments tab's column, tool and count. ConversationScroll is the
 		/// agent's legacy hidden column.
@@ -3483,8 +3459,8 @@ namespace bpr::qt {
 		std::optional<std::uint32_t>                                 RefreshRetryAfter;
 		std::vector<core::pull_request_ref>                          HomeRefs;
 		std::vector<core::pull_request_ref>                          HomeBaseline;
-		bool                                                         AutomaticRefreshNoted = false;
-		bool                                                         RefreshReadSeen       = false;
+		std::optional<core::refresh_cause>                           AutomaticRefreshCause;
+		bool                                                         RefreshReadSeen = false;
 		std::optional<core::refresh_changes>                         ElsewhereChanges;
 		QTimer*                                                      HomeSlowTimer       = nullptr;
 		bool                                                         HomeRefreshAsked    = false;
@@ -3954,10 +3930,10 @@ namespace bpr::qt {
 		/// [[BPR-2171]].
 		std::function<core::discuss_preferences()>                        DiscussPreferencesRead;
 		std::function<void(const std::string&, const std::string&, bool)> DiscussMark;
-		std::function<void(core::discuss_column)>                         DiscussColumnDispatch;
 		std::string                                                       DiscussRepository;
-		std::vector<QAbstractButton*>                                     DiscussColumnButtons;
-		std::function<void(const core::view_filter_remember&)>            ViewFilterRemember;
+		/// [[BPR-2299]].
+		reading_width_dialog*                                  ReadingAdvanced = nullptr;
+		std::function<void(const core::view_filter_remember&)> ViewFilterRemember;
 		/// Set once the host has published the preferences; until then a pull
 		/// request that opens takes the defaults and is revisited when they land.
 		bool                                                                     BehaviourPublished    = false;

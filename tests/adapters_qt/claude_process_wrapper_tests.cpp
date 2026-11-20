@@ -10,6 +10,7 @@
 /// launch runs today, and once with the shipped bare `claude` and the copy
 /// saved as the wrapper. Everything but argv[0] must agree.
 
+#include "../support/plain_agent_launch.hpp"
 #include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
@@ -118,8 +119,8 @@ namespace {
 	enum class entry : std::uint8_t {
 		agent_panel,
 		writing,
-		round_send,
-		round_continue,
+		/// [[BPR-2308]]. One plain prompt in the given folder, on any protocol.
+		plain_prompt,
 	};
 
 	[[nodiscard]] auto build(const entry aEntry, const core::agent_profile& aProfile, const std::filesystem::path& aWorkingDirectory)
@@ -140,11 +141,8 @@ namespace {
 				built->Path = core::agent_run_path::enhance_writing;
 			}
 			break;
-		case entry::round_send:
-			built = application::build_round_launch(aProfile, "# Round 1\n\nPlease look at retry().\n", std::nullopt, aWorkingDirectory.string(), parent);
-			break;
-		case entry::round_continue:
-			built = application::build_round_launch(aProfile, "# Round 2\n\nAnd now?\n", std::string{ "session-7" }, aWorkingDirectory.string(), parent);
+		case entry::plain_prompt:
+			built = tests::plain_agent_launch(aProfile, "Please look at retry().\n", aWorkingDirectory.string(), parent);
 			break;
 		}
 		expect(built.has_value(), "the Claude request builds");
@@ -285,7 +283,7 @@ namespace {
 		auto launcher = adapters::agent::agent_process_launcher{ };
 		auto counted  = counting_port{ launcher };
 		auto wrapped  = application::wrapped_claude_process{ counted, source, &adapters::agent::inspect_claude_process_wrapper };
-		for (const auto kind : { entry::agent_panel, entry::writing, entry::round_send, entry::round_continue }) {
+		for (const auto kind : { entry::agent_panel, entry::writing, entry::plain_prompt }) {
 			// Today: the profile names the program that runs.
 			const auto inspectWritingFolder = [&](const application::agent_stream_event& aEvent) {
 #if defined(Q_OS_WIN)
@@ -482,7 +480,7 @@ namespace {
 		auto       launcher = adapters::agent::agent_process_launcher{ };
 		auto       counted  = counting_port{ launcher };
 		auto       wrapped  = application::wrapped_claude_process{ counted, source, &adapters::agent::inspect_claude_process_wrapper, locate };
-		for (const auto kind : { entry::agent_panel, entry::writing, entry::round_send }) {
+		for (const auto kind : { entry::agent_panel, entry::writing, entry::plain_prompt }) {
 			const auto today   = build(kind, claude_profile(BPR_AGENT_CANARY_EXECUTABLE), aRoot);
 			const auto was     = launcher.run(today, 20'000);
 			const auto shipped = build(kind, claude_profile("claude"), aRoot);
@@ -526,7 +524,7 @@ namespace {
 															   return adapters::agent::locate_agent_program(aProgram, entries, std::span<const std::string>{ });
 														   } };
 		for (const auto protocol : { core::agent_protocol::codex_jsonl_exec, core::agent_protocol::codex_app_server }) {
-			const auto shipped = build(entry::round_send, claude_profile("codex", protocol), aRoot);
+			const auto shipped = build(entry::plain_prompt, claude_profile("codex", protocol), aRoot);
 			const auto bare    = launcher.run(shipped, 20'000);
 			expect(bare.Outcome == application::agent_run_outcome::failed_to_start, "the launcher alone never starts the shipped bare codex");
 			const auto before = counted.Runs;
@@ -534,42 +532,39 @@ namespace {
 			expect(counted.Runs == before + 1U && counted.Executables.back() == text(codex), "the one process started is the found codex, by its absolute path");
 			const auto argv = event_values(now, "argv");
 			expect(!argv.empty() && argv.front() == text(codex), "the child is the found codex");
-			const auto today   = build(entry::round_send, claude_profile(BPR_AGENT_CANARY_EXECUTABLE, protocol), aRoot);
+			const auto today   = build(entry::plain_prompt, claude_profile(BPR_AGENT_CANARY_EXECUTABLE, protocol), aRoot);
 			const auto was     = launcher.run(today, 20'000);
 			const auto argvWas = event_values(was, "argv");
 			expect(argv.size() == argvWas.size() && std::equal(argv.begin() + 1, argv.end(), argvWas.begin() + 1), "it gets exactly Codex's arguments");
 		}
 		const auto runs    = counted.Runs;
-		const auto harness = located.run(build(entry::round_send, claude_profile("bpr-agent-terminal", core::agent_protocol::external_terminal), aRoot), 20'000);
+		const auto harness = located.run(build(entry::plain_prompt, claude_profile("bpr-agent-terminal", core::agent_protocol::external_terminal), aRoot), 20'000);
 		expect(harness.Outcome == application::agent_run_outcome::failed_to_start && harness.StandardError == application::plain_text_harness_unset_message,
 			   "the plain-text harness with no program chosen ends as not started");
 		expect(counted.Runs == runs, "and starts nothing");
 		const auto chosen = copy_canary(aRoot, "corp-harness");
 		source->set(core::setup_agent::plain_text_harness, text(chosen));
-		const auto ran = located.run(build(entry::round_send, claude_profile("bpr-agent-terminal", core::agent_protocol::external_terminal), aRoot), 20'000);
+		const auto ran = located.run(build(entry::plain_prompt, claude_profile("bpr-agent-terminal", core::agent_protocol::external_terminal), aRoot), 20'000);
 		expect(counted.Executables.back() == text(chosen) && !event_values(ran, "argv").empty(), "the chosen harness program runs");
 		std::filesystem::remove(codex);
-		const auto gone = located.run(build(entry::round_send, claude_profile("codex", core::agent_protocol::codex_jsonl_exec), aRoot), 20'000);
+		const auto gone = located.run(build(entry::plain_prompt, claude_profile("codex", core::agent_protocol::codex_jsonl_exec), aRoot), 20'000);
 		expect(gone.Outcome == application::agent_run_outcome::failed_to_start && gone.StandardError == application::codex_not_found_message,
 			   "a codex removed before the launch ends the request as not found");
 	}
 
 	void test_wrapper_setup_through_the_launcher(const std::filesystem::path& aRoot)
 	{
-		const auto wrapper = copy_canary(aRoot, "setup-corporate-wrapper");
-		auto       source  = std::make_shared<application::claude_process_wrapper_source>();
-		source->set(text(wrapper));
-		auto launcher = adapters::agent::agent_process_launcher{ };
-		auto lane     = application::manual_executor{ };
-		auto host     = application::agent_setup_host{ application::agent_setup_dependencies{
-			.Process       = &launcher,
-			.Inspect       = &adapters::agent::inspect_claude_process_wrapper,
-			.ClaudeWrapper = source,
-			.Parent        = parent,
-			.Profiles      = core::built_in_agent_profiles(),
-			.Effects       = &lane,
-			.Checks        = &lane,
-			.Decision      = &lane,
+		const auto wrapper  = copy_canary(aRoot, "setup-corporate-wrapper");
+		auto       launcher = adapters::agent::agent_process_launcher{ };
+		auto       lane     = application::manual_executor{ };
+		auto       host     = application::agent_setup_host{ application::agent_setup_dependencies{
+			.Process  = &launcher,
+			.Inspect  = &adapters::agent::inspect_claude_process_wrapper,
+			.Parent   = parent,
+			.Profiles = core::built_in_agent_profiles(),
+			.Effects  = &lane,
+			.Checks   = &lane,
+			.Decision = &lane,
 		} };
 		// First prove the observed pretty JSON survives the real supervisor
 		// and plain-line capture, while an unsuppressed banner stays unreadable.
@@ -611,7 +606,7 @@ namespace {
 		auto counted  = counting_port{ launcher };
 		auto wrapped  = application::wrapped_claude_process{ counted, source, &adapters::agent::inspect_claude_process_wrapper };
 		for (const auto protocol : { core::agent_protocol::codex_jsonl_exec, core::agent_protocol::codex_app_server, core::agent_protocol::external_terminal }) {
-			const auto request = build(entry::round_send, claude_profile(BPR_AGENT_CANARY_EXECUTABLE, protocol), aRoot);
+			const auto request = build(entry::plain_prompt, claude_profile(BPR_AGENT_CANARY_EXECUTABLE, protocol), aRoot);
 			const auto result  = wrapped.run(request, 20'000);
 			expect(counted.Executables.back() == request.Executable, "a non-Claude launch keeps its own executable with a wrapper saved");
 			const auto argv = event_values(result, "argv");

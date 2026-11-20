@@ -4,7 +4,8 @@
 // 2026-11-18: "If we can't get past step 1 then the whole drawer should just
 // be in a loading state". Once it has, the host's own policy decides each
 // agent: on an Enterprise host Claude Code and an added Claude stream JSON
-// agent are allowed and Codex is refused by that host, said as such. Opening
+// agent are allowed, and since [[BPR-2305]] (owner, 2026-11-19) Codex is
+// too, popular or added. Opening
 // another pull request drops the previous review's policy at once, so its
 // verdicts are never shown while the next one loads.
 #include "../../src/app/src/github_application_fixture_access.hpp"
@@ -168,19 +169,27 @@ namespace {
 			window.home_open_action()->trigger();
 		}
 
-		/// Settings › Agents › Add agent… › Custom agent…: a Claude stream
-		/// JSON wrapper of the reviewer's own.
-		void add_custom_agent()
+		/// Settings › Agents › Add agent… › Custom agent…: one agent of the
+		/// reviewer's own.
+		void add_custom_agent(const std::string& aName, const core::agent_protocol aProtocol, const char* const aProgram)
 		{
 			auto&       window   = Application->window();
 			auto* const programs = window.agent_programs();
-			const auto  wrapper  = (agents() / "claude-wrapper").string();
-			programs->set_editor([wrapper](const core::agent_entry&, QWidget*) -> std::optional<core::agent_entry> {
-				return core::agent_entry{ .Name = "Claude stream JSON", .Protocol = core::agent_protocol::claude_stream_json, .Program = wrapper };
+			const auto  wrapper  = (agents() / aProgram).string();
+			programs->set_editor([wrapper, aName, aProtocol](const core::agent_entry&, QWidget*) -> std::optional<core::agent_entry> {
+				return core::agent_entry{ .Name = aName, .Protocol = aProtocol, .Program = wrapper };
 			});
 			programs->add_agent(std::nullopt);
-			wait([&] { return std::ranges::any_of(window.agent_setup()->projection().Preferences.Agents, [](const core::agent_entry& aEntry) { return aEntry.Name == "Claude stream JSON"; }); },
+			wait([&] { return std::ranges::any_of(window.agent_setup()->projection().Preferences.Agents, [&aName](const core::agent_entry& aEntry) { return aEntry.Name == aName; }); },
 				 "the custom agent is added");
+		}
+
+		/// A Claude stream JSON wrapper and, [[BPR-2305]], a Codex JSONL
+		/// launcher of the reviewer's own.
+		void add_custom_agent()
+		{
+			add_custom_agent("Claude stream JSON", core::agent_protocol::claude_stream_json, "claude-wrapper");
+			add_custom_agent("Codex launcher", core::agent_protocol::codex_jsonl_exec, "codex");
 		}
 
 		void stop()
@@ -214,11 +223,13 @@ namespace {
 			const auto& setup  = window.agent_setup()->projection();
 			const auto  choice = [&setup](const std::string& aName) { return std::ranges::find(setup.Choices, aName, &core::agent_setup_choice::Name); };
 			expect(choice("Claude stream JSON") != setup.Choices.end() && choice("Claude stream JSON")->Verdict.Permitted, "the custom agent is allowed: " + rows_text(setup));
-			expect(choice("Codex") != setup.Choices.end() && !choice("Codex")->Verdict.Permitted && choice("Codex")->Verdict.Refusal == core::agent_invocation_refusal::profile_forbidden_on_host,
-				   "Codex is refused by the Enterprise host: " + rows_text(setup));
+			expect(choice("Codex") != setup.Choices.end() && choice("Codex")->Verdict.Permitted, "Codex is allowed on the Enterprise host: " + rows_text(setup));
+			expect(choice("Codex launcher") != setup.Choices.end() && choice("Codex launcher")->Verdict.Permitted, "and so is an added Codex: " + rows_text(setup));
+			expect(std::ranges::none_of(setup.State.Rows, [](const core::agent_setup_row& aRow) { return aRow.Agent == core::setup_agent::codex && !aRow.Verdict.Permitted; }),
+				   "its found row is allowed too: " + rows_text(setup));
 			expect(std::ranges::none_of(setup.State.Rows, [](const core::agent_setup_row& aRow) { return aRow.Agent == core::setup_agent::claude_code && !aRow.Verdict.Permitted; }),
 				   "Claude Code is allowed: " + rows_text(setup));
-			expect(qt::agent_verdict_words(choice("Codex")->Verdict, !setup.PolicyPending) == QStringLiteral("Not allowed for this pull request's host."), "and Codex says so");
+			expect(qt::agent_verdict_words(choice("Codex")->Verdict, !setup.PolicyPending).isEmpty(), "and Codex says no refusal");
 			expect(!window.agent_setup()->loading_state()->isVisibleTo(window.agent_setup()), "the loading state gives way to the steps");
 			test.stop();
 		} catch (...) {

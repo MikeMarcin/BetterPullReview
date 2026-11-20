@@ -14,6 +14,7 @@
 #include <QPointer>
 #include <QRect>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 
 #include <cstddef>
@@ -32,6 +33,10 @@ class QLineEdit;
 class QListView;
 class QMenu;
 class QStackedWidget;
+
+namespace bpr::qt::detail {
+	struct note_preview;
+}
 
 /// \file
 /// \brief [[BPR-1293]] [[BPR-1341]]. Threads: every thread in the pull request
@@ -63,7 +68,8 @@ namespace bpr::qt {
 		QString     Author;
 		/// The body as written, for search and the preview.
 		QString Body;
-		/// One line of the body after its recognized header.
+		/// The body after its recognized header, as written. [[BPR-2300]]:
+		/// the row shows its excerpt, as Discuss's closed note does.
 		QString                             Words;
 		std::optional<core::feedback_label> Label;
 		feedback_mark_emphasis              Emphasis;
@@ -72,6 +78,18 @@ namespace bpr::qt {
 		std::optional<std::size_t> Parent;
 		bool                       Unread = false;
 		bool                       Mine   = false;
+	};
+
+	/// \brief [[BPR-2300]]. The words a row shows on its one line, as drawn
+	/// at its width.
+	struct finder_row_words
+	{
+		/// The words, ending with an ellipsis when some were left out.
+		QString Text;
+		/// The runs of `Text` in the code font, in order.
+		QStringList Code;
+		/// One quiet word per kind of block that is not words.
+		QStringList Tokens;
 	};
 
 	/// \brief One row of a conversation: a line of replies.
@@ -327,9 +345,11 @@ namespace bpr::qt {
 		/// author's posts on the pull request are new; without a count the
 		/// rows' own posts are counted.
 		void set_author_read_dispatch(std::function<void(const std::string&)> aDispatch, std::function<std::size_t(const QString&)> aUnreadCount = { });
-		/// \brief [[BPR-1584]]. How wide the rows grow on a wide page.
-		void               set_reading_width(core::reading_width aWidth);
-		[[nodiscard]] auto reading_width() const noexcept -> core::reading_width;
+		/// \brief [[BPR-1584]], [[BPR-2299]]. How wide the rows grow on a
+		/// wide page: Threads' width as the core resolved it; none for the
+		/// whole page.
+		void               set_reading_limit(std::optional<std::uint32_t> aLimit);
+		[[nodiscard]] auto reading_limit() const noexcept -> std::optional<std::uint32_t>;
 		/// \brief Esc on an empty search.
 		void set_leave_dispatch(std::function<void()> aDispatch);
 
@@ -382,6 +402,8 @@ namespace bpr::qt {
 		void popup_row_menu(const std::string& aRowKey, QPoint aPosition);
 		/// \brief How many conversations each label counts among those shown.
 		[[nodiscard]] auto label_counts() const -> std::map<core::feedback_label, std::size_t>;
+		/// \brief [[BPR-2300]]. The words a row shows, at its width now.
+		[[nodiscard]] auto row_words(const std::string& aRowKey) const -> finder_row_words;
 		/// \brief The accessible text of one row.
 		[[nodiscard]] auto row_text(const std::string& aRowKey) const -> QString;
 		[[nodiscard]] auto search_field() const noexcept -> QLineEdit*;
@@ -444,6 +466,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto beads_of(std::size_t aItem) const -> std::vector<bead>;
 		[[nodiscard]] auto geometry_of(std::size_t aItem, const QRect& aRect) const -> row_geometry;
 		[[nodiscard]] auto accessible_text(std::size_t aItem) const -> QString;
+		/// [[BPR-2300]]. A post's excerpt, made when first drawn and kept
+		/// while its words are unchanged.
+		[[nodiscard]] auto excerpt_of(const finder_post& aPost) const -> const detail::note_preview&;
+		[[nodiscard]] auto shown_post(std::size_t aItem) const -> const finder_post&;
 		[[nodiscard]] auto path_posts() const -> std::set<std::size_t>;
 		[[nodiscard]] auto open_conversation() const -> std::optional<std::size_t>;
 		void               paint_item(QPainter& aPainter, std::size_t aItem, const QRect& aRect, bool aHovered, bool aFocused) const;
@@ -469,6 +495,9 @@ namespace bpr::qt {
 		QFont                                                      CodeFont;
 		bool                                                       Dirty    = true;
 		std::uint64_t                                              Rebuilds = 0U;
+
+		/// [[BPR-2300]]. Each post's excerpt, by its words.
+		mutable std::map<QString, std::shared_ptr<const detail::note_preview>> Excerpts;
 
 		std::vector<finder_conversation> Conversations;
 		/// Every item the conversations could show, in order; the model holds
@@ -502,7 +531,7 @@ namespace bpr::qt {
 		std::function<void(std::uint64_t, bool)>   MoveDispatch;
 		std::function<void(const std::string&)>    AuthorReadDispatch;
 		std::function<std::size_t(const QString&)> AuthorUnreadCount;
-		core::reading_width                        ReadingWidth = core::default_reading_width;
+		std::optional<std::uint32_t>               ReadingLimit = core::reading_width_limit(core::default_reading_width);
 		std::function<void()>                      LeaveDispatch;
 
 		QWidget*              Bar          = nullptr;

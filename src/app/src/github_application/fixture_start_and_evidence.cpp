@@ -36,7 +36,6 @@
 	#include "github_read_contract.hpp"
 	#include "github_wire_transport.hpp"
 	#include "native_https_transport.hpp"
-	#include "review_cycle_desktop.hpp"
 	#include <atomic>
 	#include <cstddef>
 	#include <expected>
@@ -249,15 +248,6 @@ namespace bpr::app {
 	{
 		if (aApplication.Implementation->Fixture) {
 			aApplication.Implementation->Fixture->stage_server_root(std::move(aThread), std::move(aRootBody), aResolved, std::move(aRootAuthor));
-		}
-	}
-
-	void detail::github_application_fixture_access::set_cycle_publication_account(github_application& aApplication, const core::bpr_window_context aContext,
-																				  std::function<std::optional<application::github_publication_account>()> aAccount)
-	{
-		const auto found = aApplication.Sessions.find(aContext);
-		if (found != aApplication.Sessions.end() && found->second->CycleDesktop) {
-			found->second->CycleDesktop->set_publication_account(std::move(aAccount));
 		}
 	}
 

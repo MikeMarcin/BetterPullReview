@@ -56,7 +56,7 @@ the summary is the first paragraph after the title wherever it stands.
 | | | |
 |---|---|---|
 | Chosen | Layout | Remove the side pane (the glyph, the title and the outline list) and the View source and Copy source buttons. The page fills the pane on the code background |
-| Chosen | Column | One column, 572 points at most, centred. The title starts 22 points under the tab strip |
+| Chosen | Column | One column, centred, as wide as Settings › Review › Reading width allows, or Reports under its Advanced (572 points at most until [[BPR-2299]]). The title starts 22 points under the tab strip |
 | Chosen | Everything open | The whole report is laid out and reads from the top. Nothing folds, there is no ruler and no bar |
 | Chosen | Title | The report's title once, at 22 points bold |
 | Chosen | Line under the title | The question as a link with a speech-bubble icon, then who answered, how long ago and at which commit, at 12 points in the secondary colour |

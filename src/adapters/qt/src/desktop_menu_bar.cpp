@@ -49,11 +49,6 @@ namespace bpr::qt {
 				QuitProfiles();
 			}
 		});
-		// [[BPR-1250]]. The window's local Review Cycles entry ([[BPR-1157]]),
-		// offered and disabled with the rest of the window's commands.
-		auto* const openProject = fileMenu->addAction(QStringLiteral("Open Project…"));
-		openProject->setObjectName(QStringLiteral("desktopOpenProjectAction"));
-		openProject->setEnabled(false);
 		// [[BPR-1195]]. Keep the workbench's tab command after Quit moves to
 		// the macOS application menu; otherwise the now-empty File menu vanishes.
 		auto* const closeTab = fileMenu->addAction(tr("Close Tab"));

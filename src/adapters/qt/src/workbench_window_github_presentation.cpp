@@ -12,7 +12,6 @@
 #include "bpr/qt/identity_avatar_pictures.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -329,16 +328,9 @@ namespace bpr::qt {
 			DiscussRepository = key;
 			apply_discuss_preferences();
 		}
-		// [[BPR-1157]]. Another pull request arriving takes the review surface
-		// back from a local cycle; the same one refreshed behind it does not.
 		const auto arriving = IdentityOwner != QString::fromStdString(aPullRequest.Owner)
 			|| IdentityRepository != QString::fromStdString(aPullRequest.RepositoryName)
 			|| IdentityNumber != QString::number(aPullRequest.Number.value());
-		if (arriving && LocalCycleShown) {
-			LocalCycleShown = false;
-			LocalDraftShown = false;
-			LocalCycleTitle.clear();
-		}
 		// [[BPR-1575]]. What a refresh compares. Another pull request starts
 		// its own freshness from this read; the same one handed over by a
 		// sibling window is a refresh made elsewhere.
@@ -719,11 +711,6 @@ namespace bpr::qt {
 		// whichever list; over a review the open pull request, by the
 		// publication on screen.
 		if (showing_home()) {
-			// [[BPR-1365]]. A review cycle has no page; with its row selected
-			// there is no pull request on Home to name.
-			if (HomeSelection == home_selection_list::cycles) {
-				return std::nullopt;
-			}
 			if (HomeSelection == home_selection_list::recent && HomeRecentList != nullptr && HomeRecentList->currentRow() >= 0
 				&& static_cast<std::size_t>(HomeRecentList->currentRow()) < RecentReviews.Entries.size()) {
 				return application::recent_review_row{ static_cast<std::size_t>(HomeRecentList->currentRow()) };
@@ -733,13 +720,13 @@ namespace bpr::qt {
 			}
 			return std::nullopt;
 		}
-		if (PageContext.has_value() && HasGithubPullRequest && !LocalCycleShown) {
+		if (PageContext.has_value() && HasGithubPullRequest) {
 			return *PageContext;
 		}
 		// The owner, 2026-11-11: the title's page opens as soon as the title
 		// shows, while the rest of the review still loads. The window names
 		// the pull request; the host admits it against the read it waits on.
-		if (!HasGithubPullRequest && !LocalCycleShown && IdentityText.isEmpty() && LoadingIdentity.has_value()) {
+		if (!HasGithubPullRequest && IdentityText.isEmpty() && LoadingIdentity.has_value()) {
 			return application::loading_pull_request_page{
 				.Owner      = LoadingIdentity->Owner.toStdString(),
 				.Repository = LoadingIdentity->Repository.toStdString(),
@@ -774,7 +761,7 @@ namespace bpr::qt {
 
 	auto workbench_window::home_review_target() const -> std::optional<std::variant<core::queue_item, application::recent_review_row>>
 	{
-		if (!showing_home() || HomeSelection == home_selection_list::cycles) {
+		if (!showing_home()) {
 			return std::nullopt;
 		}
 		if (HomeSelection == home_selection_list::recent && HomeRecentList != nullptr && HomeRecentList->currentRow() >= 0
@@ -1082,10 +1069,10 @@ namespace bpr::qt {
 		// Control and the taskbars name the window by its title (macOS hides
 		// the title bar). The core words it from what the window shows: the
 		// pull request, accepted or named by GitHub's first answer, unless
-		// Home or a local cycle is in front of it.
+		// Home is in front of it.
 		const auto loading  = IdentityText.isEmpty() && LoadingIdentity.has_value();
 		const auto named    = !IdentityText.isEmpty() || loading;
-		const auto shown    = named && !showing_home() && !LocalCycleShown;
+		const auto shown    = named && !showing_home();
 		const auto owner    = (loading ? LoadingIdentity->Owner : IdentityOwner).toStdString();
 		const auto repo     = (loading ? LoadingIdentity->Repository : IdentityRepository).toStdString();
 		const auto number   = (loading ? LoadingIdentity->Number : IdentityNumber).toULongLong();

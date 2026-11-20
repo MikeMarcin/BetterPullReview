@@ -7,7 +7,6 @@
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/menu_tool_button.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
-#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/view_picker.hpp"

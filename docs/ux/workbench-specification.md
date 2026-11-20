@@ -1,5 +1,10 @@
 # Workbench Specification
 
+Review Cycles were retired on 2026-11-20 ([[BPR-2308]]): there is no Open
+Project…, no Home Review Cycles section and no local cycle page. Passages
+below that still mention them record how a rule was first written for both
+surfaces; the rule now holds for pull requests and local drafts.
+
 ## The daily-workbench redesign
 
 The daily-workbench design registered on 2026-09-04 is implemented and closed
@@ -210,8 +215,9 @@ alone, and Shift+Return on it opens Review and says why in the status bar.
 [[BPR-1601]] adds pull-request comments and review summaries under a final
 **Not on a file** group in Threads, with their new count. These posts carry the
 same new markers and Mark read/unread actions in Discuss. The Status drawer's
-**N new comments in the conversation** line opens Discuss with **Go to them**
-and disappears when the count reaches zero. Next new comment (⌥N on macOS)
+**N new comments in the conversation** line opens Discuss when pressed
+([[BPR-2314]]: the line is the action, with no Go to them beside it) and
+disappears when the count reaches zero. Next new comment (⌥N on macOS)
 visits file threads first, then pathless posts in Discuss order, widening
 Discuss's file scope when needed. Open in Review is unavailable for a pathless post.
 
@@ -343,17 +349,32 @@ why.
 threads is seemingly fixed-width"; "We can make that capped width a
 setting"). Threads' rows had been held to 880 pixels, the prototype's measure
 for its drawer-sized frame, where its window-filling frame had none. Threads'
-rows and Discuss's notes now fill the page from its left edge up to the
-reading width, the people, counts and state at the row's right end and the
-words taking every pixel before them. Settings › Review › Reading has
-**Reading width**: Narrow (960 pixels), Medium (1600), **Wide** (2560, the
-default) and Full width, applied at once, with its own reset; its note reads
-"Threads and Discuss stop at this width on a wide screen. The code comparison
-always uses the whole window." The core holds the vocabulary and the rule
-(`core::reading_column_width`); the profile stores it (workbench settings
-schema 22, a migrated profile reads Wide). It never applies to the code
-comparison, the Comments drawer's own bounds, the search field or the
-composer's list.
+rows fill the page from its left edge up to the reading width, the people,
+counts and state at the row's right end and the words taking every pixel
+before them. Since [[BPR-2299]] (the owner, 2026-11-19: "I think we can just
+use reading with for everything") the same width is Discuss's centred list,
+which had its own Discuss column setting (680, 820 by default, 1100 or Full
+width; removed, and a store that holds it loads with it ignored), and a report
+tab's centred page, which had been held to 572 pixels. Settings › Review ›
+Reading has **Reading width**: Narrow (720 pixels), Medium (900), **Wide**
+(1100, the default) and Full width, applied at once, with its own reset; until
+[[BPR-2299]] the presets were 960, 1600 and 2560, which mostly never limited
+anything. Its note reads "Threads, Discuss and reports stop at this width on a
+wide screen. The code comparison always uses the whole window." Beside it,
+**Advanced…** (the owner: "advanced can set the width per feature including
+to arbitrary custom values") opens a dialog with one row each for Threads,
+Discuss and Reports: Use Reading width (the default, naming the width it is
+now), Narrow, Medium, Wide, Full width or Custom width, a width in logical
+pixels from 720 (Narrow's; the owner: "we probably just use narrow as the
+minimum") to 3840, applied at once; Use Reading width for all takes them
+back, as the group's Reset does. The core holds the vocabulary and the rules
+(`core::reading_surface_limit`, `core::reading_override_of`, which holds a
+width to the bounds wherever it comes from); the profile stores the width
+(workbench settings schema 22, a migrated profile reads Wide) and each
+surface's own (schema 36, `reading_threads`, `reading_discuss` and
+`reading_reports`: 0 follows the Reading width, -1 is the whole page, a width
+below 720 loads as 720). It never applies to the code comparison, the
+Comments drawer's own bounds, the search field or the composer's list.
 **Finishing a review** ([[BPR-1816]], the owner, 2026-10-29: "Finishing a
 review should take you to Home and close that review"). Once GitHub confirms a
 review the reviewer submitted with Comment, Approve or Request changes, the
@@ -2341,7 +2362,7 @@ costs the window no height; on Windows and Linux it takes a row, which is the
 price of the same answer being true on every platform. The existing toolbar
 popup keeps the private progress actions it already had. **File** opens with
 **New Window** (`Ctrl+N`, ⌘N on macOS), which opens another window of this
-window's profile at Home, then Open Project…, Quit and Close Tab
+window's profile at Home, then Quit and Close Tab
 ([[BPR-1863]]: the owner asked for New Window in File, where every desktop
 application keeps it, and it left Profiles). **Profiles** lists the profiles
 by name with the current one checked, then Manage Profiles…. Home's Open Review in New Window
@@ -2382,7 +2403,7 @@ desktop menu bar offers the item disabled, like Diagnostics….
 
 The window lists every shortcut, grouped by area: Navigation, Review and
 files, Comments and labels, Find, Views and drawers, Comparison and history,
-Zoom, Review tours, Home, Review Cycles and Application. Each row is the
+Zoom, Review tours, Home and Application. Each row is the
 command in words and its keys as key caps, in the platform's notation
 (`QKeySequence::NativeText`: ⌘⌥⇧ glyphs on macOS, `Ctrl+Alt+…` elsewhere),
 with "or" between alternatives; a keypad Enter that only repeats Return is
@@ -2393,8 +2414,7 @@ platform Accept file, the change arrows, First and Last change and Hide
 Drawers, and on macOS each window-wide command whose every key is
 Option+character ([Option keys and typing](#menu-bar)); Files and
 Repositories, whose second key is not, say nothing ([[BPR-1678]]). A footer states that rule. A key with
-no binding on the platform (Quit on Windows, the Review Cycle sheets'
-Control-C off macOS) is not listed.
+no binding on the platform (Quit on Windows) is not listed.
 
 The search field has the keyboard when the window opens. Every word typed
 must appear in a row's command, place, group or keys (as written natively,
@@ -2411,7 +2431,7 @@ High Contrast themes.
 The rows come from the catalogue the bindings are made from, so the page
 cannot list a key the application does not bind. `qt_keyboard_shortcuts_scale_{100,125,200}`
 enumerates every `QAction`, `QShortcut` and explicit button key in the
-assembled window, the resident menu bar and a Review Cycle view, and fails on
+assembled window and the resident menu bar, and fails on
 a key the catalogue lacks, a key that differs, a binding that lost its key or
 a catalogue entry with nothing bound. Keys a widget reads in its own key
 handling (Return in the code, ⌘L in a comment editor, the Find query's ⌥W
@@ -2517,7 +2537,7 @@ for itself, so both answers are drivable on one host:
 
   **The menu bar the close leaves behind.** The application's own menu bar
   carries the same menus a window's bar carries, so the close subtracts nothing
-  a reviewer can see: a File menu holding New Window, Quit, Open Project… and Close Tab, a
+  a reviewer can see: a File menu holding New Window, Quit and Close Tab, a
   Profiles menu listing the profiles and then Manage Profiles…, and the window's own
   **View** — Line numbers, One pane, Hide Drawers ([[BPR-1295]]) and Settings… — offered and disabled,
   because no window's presentation is theirs to change. That is what macOS

@@ -1156,8 +1156,12 @@ namespace bpr::application {
 		std::uint32_t CenterRibbonWidth = default_center_ribbon_width;
 		/// RFC-BPR-0084 Q3. Images in descriptions and comments load by default.
 		review_markdown_images MarkdownImages = review_markdown_images::load;
-		/// [[BPR-1584]]. How wide Threads and Discuss grow; never the code.
+		/// [[BPR-1584]], [[BPR-2299]]. How wide every reading column grows;
+		/// never the code.
 		core::reading_width ReadingWidth = core::default_reading_width;
+		/// [[BPR-2299]]. Reading width › Advanced: each surface's own width,
+		/// or the Reading width's.
+		core::reading_overrides ReadingOverrides{ };
 		/// [[BPR-1816]]. Where a confirmed review goes, by its verdict: Home,
 		/// closing the review, for each by default (owner, 2026-10-29).
 		core::review_finish_settings FinishReview{ };
@@ -1203,6 +1207,7 @@ namespace bpr::application {
 			&& aSettings.CenterRibbonWidth >= minimum_center_ribbon_width
 			&& aSettings.CenterRibbonWidth <= maximum_center_ribbon_width
 			&& core::valid(aSettings.ReadingWidth)
+			&& core::valid(aSettings.ReadingOverrides)
 			&& core::valid(aSettings.FinishReview)
 			&& core::check_feedback_label_columns(aSettings.LabelColumns).has_value();
 	}

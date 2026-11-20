@@ -242,10 +242,9 @@ tests-disabled Release seam, dependency, runtime, and ELF audits passed.
   is the second and last: a separate same-user AF_UNIX rendezvous (on Windows an
   owner-private local named pipe that rejects remote clients, [[BPR-1168]])
   bound only under the exact-root lease, with a versioned owner binding
-  (protocol 9), 5 MiB frames and a closed command set the owner runs against its
-  own store: local tour draft, hook and assist commands, and since RFC-BPR-0058
-  the finite `bpr cycle` registry, each with only that command's own options,
-  and since RFC-BPR-0108 `bpr draft open`, which opens or resumes one
+  (protocol 10), 5 MiB frames and a closed command set the owner runs against its
+  own store: local tour draft, hook and assist commands, and since RFC-BPR-0108
+  `bpr draft open`, which opens or resumes one
   worktree's local PR draft in the owner's window.
   Since [[BPR-1227]] it also carries one read: bounded pinned source (one commit,
   path, side and at most 200 lines) for a draft whose pull request a desktop
@@ -1487,226 +1486,19 @@ The restricted process protocol and profile/owner/generation checks remain the
 existing writing-assistance boundary. Deterministic process fixtures establish
 these application behaviors, not installed provider enforcement or model quality.
 
-## Review Cycles
+## Review Cycles (retired)
 
-[RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md)
-add local review cycles over captured workspace source. The surfaces this
-section describes are built into the desktop and `bpr` and qualified as the
-[execution ledger](../verification/RFC-BPR-0053-0061.md) records, platform by
-platform; the RFCs stay Proposed until their closeout cards judge each
-criterion. They change no boundary above. Review Cycles adds two narrow
-surfaces. Locally, a root-bound
-read-only capture host reads only the source the reviewer selects into the
-profile-private store; it never writes, resets or cleans the reviewer's
-checkout, and local cycle history does not leave the machine unless the
-reviewer shares a frozen round or publishes. Remotely, the only new mutation is
-an explicitly authorized new branch and pull request from a selected final
-result, through the existing native GitHub transport and credential owner; no
-shell, `gh` or authenticated Git fallback is added. GitHub credentials, pull
-request identity, epochs and shared-state authority keep their current owners.
-Capture, freeze, export, response import, reviewer verification and
-publication are separate grants, and imported response text grants none of
-them. The [capability and packaging contract](../rfcs/assets/bpr-review-cycles-v1/specs/SECURITY-AND-PACKAGING.md)
-is the RFCs' normative source.
-
-The core decision for these grants is `authorize` in
-`bpr/core/review_cycle_policy.hpp`. Its inputs are the host-established actor
-(the reviewer, a consumer holding a stored grant, or imported content), the
-capability, the cycle subject, the source's retained classification, the
-channel and the configured channel policy. Imported content holds no
-capability at all. A stored grant names one cycle subject, one frozen round and
-its digest; the response-only grant reads that round and appends a response,
-and everything else is reviewer-only. Channels that reach another program are
-refused for unclassified and enterprise source until policy allows them, and a
-configured denial gives the same answer whichever interface asks.
-Classification only becomes stricter when a workspace is reopened. Recipient
-reports are read as one of six claim words; "verified" or "approved" in a
-report is not a claim and cannot set the reviewer's decision. There is no
-execute capability.
-
-The capture host's first piece is `bpr/adapters/workspace` (BPR-1148). A root
-is opened only at a location the reviewer chose. Beneath it, every component
-is resolved without following a symbolic link, junction or other reparse point
-and without leaving the root's volume, so a link inside the checkout, a
-directory swapped for a link after it was listed, or a root replaced at its
-location cannot redirect a read outside the selection; a replaced root is
-reported and refused until an explicit rebind. Paths are admitted as raw
-bytes; `..`, absolute, drive, UNC and `.git` paths are refused, and on Windows
-a component that names a device or would be rewritten (a separator, stream
-colon, trailing dot or space) never reaches `CreateFileW`. Git metadata is read
-as data from the directories the checkout names; Git itself, hooks, filters,
-`fsmonitor` and lazy fetch are never invoked. Windows symbolic-link targets are
-reported as unsupported rather than parsed. The capture host (BPR-1149) learns the tracked set
-by parsing the index bytes, never by running Git, so a checkout whose hooks,
-`core.fsmonitor`, filter drivers, `textconv` or promisor remote are hostile
-cannot execute anything or fetch during capture; the capture contract hashes
-the whole checkout, including `.git`, before and after and finds it
-unchanged. Ignored and untracked files may hold secrets: they are either
-listed as untracked candidates the reviewer sees before sharing, or disclosed
-as excluded with their reason; `.git`, common credential stores and caches are
-excluded by default in folder roots. Captured bytes stay in the profile-private
-store.
-
-Portable rounds (BPR-1158–1160) leave the machine only when the reviewer
-copies or saves one. A round's payload carries only what was selected: no
-replies, earlier wordings, private references, authorship details, workspace
-location or store path. Save writes the one file the reviewer chose, through a
-flushed temporary file moved into place without replacing anything, and
-replaces other bytes only when the reviewer confirmed exactly those bytes. An
-incoming `.bpr-review.zip` is untrusted data: `bpr/core/review_cycle_zip.hpp`
-and `review_cycle_bundle.hpp` validate it in memory before anything is stored,
-refusing multi-disk and ZIP64 layouts, encryption, methods other than stored
-and deflate, links, directories and special entries, names that are not UTF-8
-or not portable (absolute, drive, UNC, traversal including percent-encoded
-traversal, controls, backslash, colon, trailing dot or space, reserved device
-names), names another platform would merge, overlapping member data, members
-over 512 MiB in total or over a 100:1 expansion, CRC mismatches, unlisted or
-mismatched members, duplicate JSON keys, and any round, derived document or
-attachment that does not match the canonical payload. Only a bundle that
-passes every check is admitted, as content-addressed objects in the
-profile-private store with the sender's identities kept as sent; no member is
-written to a named file, no source is changed and nothing is run.
-
-A recipient's response (BPR-1164) is untrusted data too. The response file the
-reviewer chose is read without following a link and within 16 MiB, parsed
-strictly with exact field sets (a `verified`, `approved` or trust field is a
-refusal, not an ignored extra), and admitted only when it names this cycle,
-the round it is attached to, that round's digest and exact item revisions.
-Claimed authors, models, results and evidence are stored and shown as claims;
-evidence text, paths, URLs and test reports are never opened, resolved or run,
-and appending a response or a pasted reply grants no capability, verification
-or publication and changes no source.
-
-Scoped retrieval (BPR-1169) lets a harness that can run `bpr` read one frozen
-round. Its authority is a grant the reviewer stores in the profile for exactly
-that cycle, round and digest: reading it and, unless read-only, appending a
-response. Granting is decided as the reviewer's export of that round through
-`external_retrieval`, so it is refused for a source of unknown or enterprise
-origin until the profile's stored channel policy allows that channel; the
-stored policy is combined with any policy the host imposes, a denial in either
-standing, for every export, route and read alike. Every consumer request is
-decided by `authorize` as a granted consumer from the stored grant, never from
-an identity the caller names, and a revoked grant or a later denial reads
-nothing. A read returns only the round's canonical items, whole and a page at a
-time bound to its digest, and its own attachments; no other capture file,
-note, draft or database record is reachable through it, and a response appended
-under a grant is untrusted data like any other. The commands travel to a
-running desktop over the same owner channel, now protocol 4. A harness can
-declare itself with `BPR_CYCLE_ROLE=consumer`, which confines a cooperating
-harness to these commands; none of this contains another process running as
-the same user, which needs operating-system or harness policy.
-
-Publication preparation (BPR-1172, BPR-1173) is the first cycle surface that
-runs Git, and it is a separate, finite catalog (`publication_candidate_port`,
-`bpr/adapters/git/installed_git_publication.hpp`) that shares the epoch
-cache's isolated runner but none of its repositories or operations. Every
-command runs with `--git-dir` naming a BPR-owned bare store in the profile's
-isolation root, under that root's own home, configuration and empty template
-and hook directories, with no system configuration, credential helper,
-protocol or lazy fetch; the checkout's object directory is supplied only as
-`GIT_ALTERNATE_OBJECT_DIRECTORIES` for one command. The checkout's
-configuration, hooks, references, index and attributes are therefore never
-read and nothing is written there: the candidate contract hashes the whole
-checkout, including `.git`, before and after a build and finds it unchanged,
-plants `core.fsmonitor`, `core.hooksPath`, hook, filter, `diff.external`,
-`gpg.program`, pager and upload-pack canaries that never fire, and proves the
-canaries live with ordinary Git afterwards. References are read as data. A
-listing is admitted only when the commit's bytes hash to the requested commit
-and the listing rebuilds its tree; blobs, trees and commits are admitted only
-when Git names them exactly as the core computed. No filter, hook, signing
-program or repository script runs, and nothing is sent anywhere; the new
-branch and pull request are the separate GitHub publication catalog below.
-
-Publication authority (BPR-1174) is a finite plan, not a standing grant. The
-plan's digest covers the candidate, the destination host, account,
-repository and branches and the public title and body; only the reviewer's
-confirmation of that digest under the same account authorizes it, through the
-cycle policy's `publish` capability, which imported content and consumer
-grants never hold. There is no generic "yes", and an approval string inside
-an imported round, response or plan file is data. Every remote effect is
-journaled before it is attempted; a lost answer or a restart makes it
-uncertain, spends the authorization and blocks further writes until a read
-has observed what happened, so a crash cannot turn into a blind retry or a
-duplicate pull request. BPR-1178 exercises this with real processes killed at
-every object, branch and pull request boundary, before a request leaves and
-after GitHub took the effect but before the journal recorded it, with another
-actor's changes while nothing ran; and live, on the designated repository,
-with a write cancelled in flight, which GitHub took and the journal recorded
-as uncertain until a read found it.
-
-The GitHub publication catalog (BPR-1175) is a new provider-write capability,
-separate from review-comment publication. `github_publication_session` admits
-only the host, account and server contract of the credential context it is
-bound to, and native publication only for the GitHub.com contract (GHES stays
-unqualified until it has its own evidence). Its requests are a closed list of
-REST reads and POSTs compiled from typed requests; the native HTTPS transport
-refuses any request that does not recompile to itself, sends it under the
-existing account authority with the same trust, proxy, redirect and bound
-rules, never replays a POST through another proxy candidate, and reports
-whether a failed write may have left. Every created blob, tree and commit must
-be the identity computed locally, a branch is created with `POST git/refs`,
-which never updates an existing reference, and no update, delete, force, fork,
-merge or close request exists. Installed Git gains no push: the publication
-catalog's Git runs with no credential helper and every protocol disabled.
-
-The desktop reaches that catalog only through the accepted account (BPR-1177):
-the account transport mints a `github_publication_session` over its own native
-HTTPS wire and credential context, the window asks for it each time it needs
-it, and it is absent signed out, under public preview, after an identity
-change and for a `gh` CLI connection. Nothing on the cycle page writes until
-the reviewer confirms the digest of a plan recorded from exactly the fields
-shown; an edit, Change or another account signed in makes the plan authorize
-nothing. Linking a pull request published elsewhere is one read of exactly
-that pull request and writes nothing remotely; it is recorded as externally
-published. The page never uploads private notes, rounds, replies or
-decisions, and the local catalog's isolation root is the profile's own
-owner-private `publication-git-v1`.
-
-A local PR draft's Create draft PR (RFC-BPR-0111) uses a narrower slice of
-the same catalog: the repository, branch and pull request reads and the one
-`POST pulls`. It needs no Git object or reference write because the author
-pushed the branch with their own Git; BPR pushes nothing and names the push
-(`git -C WORKTREE push https://HOST/OWNER/NAME.git COMMIT:refs/heads/BRANCH`,
-never `origin`) when the hosted branch is not the candidate. The account
-transport offers this slice as `acquire_pull_request_session`; a `gh`
-connection carries it too: `gh_cli_transport` runs only those five operations
-through `gh api` in its write containment, under the lease's scoped operation
-(one named credential, the account observed before and after), and refuses
-every object, tree, commit and reference write before launch, so the cycle's
-`acquire_publication_session` stays native-only. The plan's digest binds
-candidate, destination, account, title, body, selected evidence and the tour
-follow-up; the draft's record journals the creation before it is sent, a lost
-answer is only read for, and an existing pull request from the branch is
-associated only on the author's press. A tests-enabled build composes the
-slice only with `DesignatedLivePublication`, wrapped so every repository but
-MikeMarcin/BPR-Test is refused before a request.
-
-Add Notes to Review Tour (BPR-1273) holds no GitHub authority at all. Its
-only effects are local tour edits sent to the profile's existing tour owner,
-the same finite load, request-status and edit operations `bpr tour` sends, and
-the tour is published only through the existing tour preview, its exact plan
-and the reviewer's confirmation. A promoted stop carries exactly the note's
-current wording: no reply, decision, round, suggestion, earlier wording or
-unchosen note crosses into the tour. Exact lines are claimed only when the
-published plan and the note's bytes prove them, so promotion never points a
-historical or off-commit note at whatever line a later commit holds.
-
-Send to Agent (BPR-1180) is the one cycle surface that starts a program, and
-only in a build with agent integrations. It hands one existing agent profile
-the frozen round's readable document, the bytes Copy gives and nothing else,
-within 4 MiB, through the existing supervised launcher, environment allowlist
-and agent host policy (`core::decide_agent_invocation`). A local folder of
-unknown origin is refused until the profile's `agent_adapter` channel is
-allowed, and a profile whose account is on a host other than github.com
-answers to the corporate policy. The harness runs in the cycle's bound folder
-with its own settings and sign-in and is passed no credential. Nothing is
-resent, sent to another agent, captured or verified on the reviewer's behalf,
-and a reply becomes a response only when it is a structured response to exactly
-the round that was sent. A build without agent integrations (BPR-1179) has none
-of this code: its package audit forbids the launcher, the protocol decoders, the
-agent hosts, the MCP supervisor and the round sender. A build without local
-automation binds no owner command endpoint and ships no `bpr`. Neither removes
-or rewrites a stored cycle, and the reviewer's Copy, Save and manual loop remain.
+Review Cycles ([RFC-BPR-0053 through RFC-BPR-0061](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md))
+were retired on 2026-11-20 ([[BPR-2308]]). Their surfaces are gone: the cycle
+store, capture host, round export and bundle import, harness grants and the
+`bpr cycle` owner commands, Publish as Pull Request from a cycle, Add Notes to
+Review Tour and Send to Agent. The owner channel no longer accepts a cycle
+command (protocol 10 refuses the earlier version). Records an earlier version
+wrote stay in `review-cycles.sqlite3` and `publication-git-v1/` under the
+profile's owner-private root; nothing opens them, and profile purge or a
+review-data reset removes them as before. The kept core readers (canonical
+JSON, ZIP, manifests, publication plans and journals, suggestion wire text)
+keep their bounds and the `review_cycle` fuzz target.
 
 ## Tool-free writing authentication (BPR-1375)
 
@@ -1852,6 +1644,39 @@ relaxed_skill=N`, never what was used).
   used and cannot prevent or undo it. The wording asks the reviewer to turn
   it off only for repositories they trust.
 
+## Custom Codex agent relies on its launcher's sandbox (BPR-2307)
+
+A custom Codex agent (JSONL or App Server) may turn on **Rely on the
+launcher's sandbox** in Agent settings (off by default). The owner allowed
+it on 2026-11-19 ("Sure", to [[BPR-2305]]'s question "May a custom agent
+turn off Codex's own sandbox and rely on the launcher's?"): through a
+corporate sandbox launcher, Codex's own sandbox nested in the launcher's
+made every granted write fail. The core decides each Codex launch's sandbox
+(`core::decide_codex_sandbox`) and checks BetterPullReview's own arguments
+against it (`core::inspect_codex_sandbox_arguments`); a launch that breaks a
+rule is not started.
+
+- **What changes.** Only a run that carries a scratch folder or build grant:
+  `exec` gets `--sandbox danger-full-access` and the App Server
+  `-c sandbox_mode="danger-full-access"`, instead of BetterPullReview's
+  `betterpullreview_grant` permissions profile.
+- **What stays.** A read-only run keeps `--sandbox read-only` (the audit saw
+  it hold inside the launcher's sandbox). `approval_policy="never"`,
+  `mcp_servers={}` where MCP is off, the untrusted-project override for a
+  pull request's checkout, the grant refusals (the reviewer's own Codex
+  permissions profile or approvals, the agent's own sandbox arguments, the
+  reviewer's own checkout) and the failed-writes message all stand. A run
+  with no grant passes no sandbox, as before.
+- **Popular agents.** The built-in Codex never offers it; the core, the
+  store and the import refuse it there and for any agent that does not
+  speak a Codex protocol. A settings file carries it only when on and an
+  import applies it only when the reviewer ticks it.
+- **Residual.** With it on, the scratch-folder and build limits are held only
+  by the launcher's sandbox, which BetterPullReview cannot inspect. A
+  launcher that does not confine writes leaves the agent your account's
+  rights for a granted turn. The setting's words, the grant tooltips and the
+  import question say so.
+
 ## Skills a prompt names (BPR-1916)
 
 A `/skill-name` in a prompt brings that skill's `SKILL.md` into the request
@@ -1940,80 +1765,6 @@ what a Claude launch can be, never what it receives:
   and free of control characters at admission, removed by profile purge, and
   never logged with arguments or environment. An agent-free build carries it
   unread.
-
-### Qualified boundaries and residual risks (BPR-1181)
-
-`application_review_cycle_security_qualification` attacks these surfaces
-through real processes: the shipped `bpr`, the reviewer's composed desktop and
-a same-user process of the course's own. It shows, on macOS at the revision
-its card records:
-
-- A hostile checkout runs nothing. Its `core.fsmonitor`, filter, `textconv`,
-  external diff, pager and hook canaries stay silent through open, note,
-  compose, freeze and capture, and the checkout and its `.git` hash the same
-  before and after. Git itself then fires them, so the silence is evidence.
-  A link is carried as its own text; its target is never read.
-- Note and response text is data. HTML, script, Markdown links and images
-  naming a FIFO, `$(…)` and backticks, and terminal escapes are stored and
-  shown as typed. The terminal neutralizes controls, the window lists plain
-  text, and nothing opens the FIFO.
-- A recipient's response cannot verify, approve, grant or trust. Such a
-  field, duplicate keys, deep nesting, bytes that are not UTF-8, a file over
-  16 MiB or a link is refused, and the store is unchanged. A well-formed
-  response claiming to be from a certified reviewer is kept as a claim, and
-  its evidence is never opened.
-- One stored policy answers for every channel. A denial holds for the
-  terminal, a file, a bundle, a harness's read and the window's routes, and
-  it holds whether the desktop owns the profile or not. `BPR_CYCLE_ROLE`,
-  provider variables and a copy of `bpr` named after an agent widen nothing.
-  Another profile or root reads nothing.
-- The data root and the owner's endpoint are owner-private, and a loosened
-  root or store is refused. The owner drops a peer that sends a genuine
-  request after a wrong or foreign greeting, a frame that is oversized,
-  longer or shorter than it says, garbage, or nothing for five seconds. It
-  keeps serving after each. `bpr` sends nothing to an owner that greets for
-  another root or profile.
-- No credential variable reaches any file, log or output, and no note, goal,
-  response or outside text reaches anything but the store and the exports the
-  reviewer made. The profile's session log holds fixed diagnostic fields only.
-
-These are the limits, and none is a defect this card fixed:
-
-- **Same user.** The same-user owner channel and owner-private storage are
-  defenses against mistakes and other users, not against a program running as
-  the reviewer. Such a program can read the store and exports, connect to
-  the owner, read its greeting and send any command in the registry: the
-  course's own replay is served. `BPR_CYCLE_ROLE=consumer` and grants confine
-  a cooperating harness only. Containing a hostile local program needs the
-  operating system's or the harness's policy.
-- **Another OS user.** The peer check (`getpeereid`, `SO_PEERCRED`, the
-  pipe client's token) refuses another user. No course runs as a second
-  user, so that refusal is a reading of the code, not an observation.
-- **No encryption.** The cycle store, its logs, saved rounds and
-  `.bpr-review.zip` bundles are not encrypted by BetterPullReview. Disk
-  encryption, backups and sync of the folder the reviewer saves into are the
-  machine's.
-- **What leaves through the reviewer.** Copy puts the round on the system
-  clipboard, which clipboard history and managers may keep. Terminal
-  scrollback keeps what `export --output -` printed. A harness that read a
-  round keeps it in its own transcripts, logs and provider requests. Memory,
-  swap and crash dumps may hold any of it. BetterPullReview cannot retract any
-  of these.
-- **The reviewer's own Git.** BetterPullReview never runs Git in a checkout
-  it captures. The reviewer's Git in that checkout still runs whatever the
-  checkout configures.
-- **Supported refusals, not features.** A note on a file whose name holds a
-  control character cannot be carried in a round (`unportable_path`): it is
-  refused before freezing. No local folder or checkout is classified
-  `public_source` or `enterprise_restricted` today, so every cycle's source
-  decides as `unclassified`. Send to Agent alone answers to a known enterprise
-  fact: the account its profile acts as. Publication admits only github.com,
-  so no cycle can be linked to an enterprise pull request. A bundle is
-  validated by the core and the host contracts, but no shipped surface
-  imports one yet.
-- **Windows.** The course's Git canaries, FIFO, raw socket attacks and mode
-  checks are POSIX. On Windows it runs the rest, and the pipe's authority,
-  framing and owner death are `sqlite_tour_owner_channel`'s.
 
 ## Remembered CLI selection boundary (RFC-BPR-0071)
 

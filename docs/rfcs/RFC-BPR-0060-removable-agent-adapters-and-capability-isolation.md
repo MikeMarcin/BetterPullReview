@@ -11,6 +11,20 @@ metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-
 
 # RFC-BPR-0060: Removable Agent Adapters and Capability Isolation
 
+## Status: Auto-Verified; retired with Review Cycles (owner, 2026-11-20)
+
+The owner retired Review Cycles on 2026-11-20 ("Are review_cycles even
+valuable anymore? I feel like they've been completely superseded by our local
+draft pr workflow", then "Yeah don't think we need it anymore").
+[[BPR-2308]] removed the feature and [[BPR-2309]] recorded it; local PR drafts
+([RFC-BPR-0108](RFC-BPR-0108-local-pr-drafts.md)) take its place. The
+repository has no Superseded status, so this RFC keeps its status as the record
+of what shipped and how it was verified; its contracts no longer describe the
+product. Cycle records an earlier version stored (`review-cycles.sqlite3`,
+`publication-git-v1/`) stay on disk untouched and are no longer read.
+
+What remains: the removable agent adapters, the agent-free and automation-off graphs and the composed-host verifier, whose local-automation anchor is now the desktop's `bpr draft open` opener. Send to Agent, its round sender and the round launch are gone.
+
 ## Outcome and decisions
 
 Make agent independence an actual dependency and package property. Deliver agent-free desktop/CLI configurations which omit agent launch/protocol/supervisor/MCP-only components while retaining local cycles and independently authorized GitHub publication. Local automation has its own enablement; disabling it too leaves GUI plus manual Copy/Save iteration complete.

@@ -29,8 +29,6 @@ __pycache__/
 /.claude/skills/wizard
 /.agents/skills/sprite-sheet-animation-updater
 /.claude/skills/sprite-sheet-animation-updater
-/.agents/skills/bpr-cycle
-/.claude/skills/bpr-cycle
 /.agents/skills/pr-tour
 /.claude/skills/pr-tour
 /.agents/skills/author-rfc

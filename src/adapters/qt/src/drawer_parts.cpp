@@ -14,15 +14,21 @@
 #include <QEvent>
 #include <QFontMetrics>
 #include <QGridLayout>
+#include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLayout>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPalette>
 #include <QPen>
 #include <QRadioButton>
+#include <QRectF>
 #include <QResizeEvent>
+#include <QSizePolicy>
 #include <QStackedWidget>
+#include <QString>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QToolButton>
@@ -706,6 +712,105 @@ namespace bpr::qt {
 			painter.setBrush(Qt::NoBrush);
 			painter.drawRoundedRect(QRectF{ rect() }.adjusted(ring, ring, -ring, -ring), section_corner - ring, section_corner - ring);
 		}
+	}
+
+	// ---- drawer_link_row ---------------------------------------------------
+
+	namespace {
+		/// The room the focus ring takes around a link row's words.
+		constexpr int   link_inset  = 2;
+		constexpr qreal link_corner = 3.0;
+	} // namespace
+
+	auto press_on_return(QAbstractButton& aButton, const QKeyEvent& aEvent) -> bool
+	{
+		if (aEvent.key() != Qt::Key_Return && aEvent.key() != Qt::Key_Enter) {
+			return false;
+		}
+		if (!aEvent.isAutoRepeat() && aButton.isEnabled()) {
+			aButton.click();
+		}
+		return true;
+	}
+
+	drawer_link_row::drawer_link_row(QWidget* const aParent)
+		: QAbstractButton{ aParent }
+	{
+		setFocusPolicy(Qt::StrongFocus);
+		setCursor(Qt::PointingHandCursor);
+		setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		auto* const layout = new QHBoxLayout{ this };
+		layout->setContentsMargins(link_inset, link_inset, link_inset, link_inset);
+		Words = new QLabel{ this };
+		Words->setTextFormat(Qt::RichText);
+		Words->setWordWrap(true);
+		Words->setTextInteractionFlags(Qt::NoTextInteraction);
+		Words->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		// The press is the row's: the words take no pointer of their own, so
+		// the hand and the click reach the row wherever the pointer is.
+		Words->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+		layout->addWidget(Words);
+	}
+
+	void drawer_link_row::present_line(const QString& aLine, const QColor& aInk)
+	{
+		auto ink = Words->palette();
+		ink.setColor(QPalette::WindowText, aInk);
+		Words->setPalette(ink);
+		const auto escaped = aLine.toHtmlEscaped();
+		present(escaped, QStringLiteral("<u>%1</u>").arg(escaped));
+	}
+
+	void drawer_link_row::present(const QString& aResting, const QString& aHovered)
+	{
+		Resting = aResting;
+		Hovered = aHovered;
+		show_words();
+	}
+
+	auto drawer_link_row::words() const noexcept -> QLabel*
+	{
+		return Words;
+	}
+
+	void drawer_link_row::show_words()
+	{
+		Words->setText(isEnabled() && underMouse() ? Hovered : Resting);
+	}
+
+	void drawer_link_row::enterEvent(QEnterEvent* const aEvent)
+	{
+		QAbstractButton::enterEvent(aEvent);
+		show_words();
+	}
+
+	void drawer_link_row::leaveEvent(QEvent* const aEvent)
+	{
+		QAbstractButton::leaveEvent(aEvent);
+		show_words();
+	}
+
+	void drawer_link_row::keyPressEvent(QKeyEvent* const aEvent)
+	{
+		if (press_on_return(*this, *aEvent)) {
+			aEvent->accept();
+			return;
+		}
+		QAbstractButton::keyPressEvent(aEvent);
+	}
+
+	void drawer_link_row::paintEvent(QPaintEvent* const aEvent)
+	{
+		static_cast<void>(aEvent);
+		if (!hasFocus()) {
+			return;
+		}
+		auto painter = QPainter{ this };
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		constexpr auto ring = focus_ring_width / 2.0;
+		painter.setPen(QPen{ focus_ring_colour(palette(), QPalette::Window), focus_ring_width });
+		painter.setBrush(Qt::NoBrush);
+		painter.drawRoundedRect(QRectF{ rect() }.adjusted(ring, ring, -ring, -ring), link_corner, link_corner);
 	}
 
 	// ---- drawer_meter ------------------------------------------------------

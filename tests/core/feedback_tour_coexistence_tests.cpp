@@ -172,7 +172,7 @@ namespace {
 		expect(recognize_feedback_prefix(asked).Status != feedback_prefix_status::recognized,
 			   "negative control: read from its first byte, the stop's label is not found");
 
-		const auto broken        = std::string{ "### Author's tour · 3 — Teardown\n\nissue: The navigation paragraph is missing." };
+		const auto broken        = std::string{ "### PR Tour · 3 — Teardown\n\nissue: The navigation paragraph is missing." };
 		const auto brokenSegment = published_feedback_segment(broken);
 		const auto unread        = recognize_feedback_body(broken, brokenSegment);
 		expect(brokenSegment.Managed && !brokenSegment.UserBody.has_value() && unread.Status == feedback_prefix_status::plain && !unread.Label.has_value(),

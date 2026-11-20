@@ -33,7 +33,6 @@ environments, the qualification above is incomplete.
 | Images in descriptions and comments, and avatars | GitHub.com: HTTPS to GitHub's own image and avatar hosts (`*.githubusercontent.com`, `github.com`) and, after a redirect, GitHub's `github-production-*.s3.amazonaws.com` storage; never a credential. GHES: HTTPS to any host a description or comment names; the credential goes only to the GHES host itself and its `media.` host. **Settings > Appearance > People > Avatars > Coloured initials** fetches no avatar. |
 | GitHub CLI profile (opt-in) | Whatever `gh` and its Git children reach; one short-lived credential per operation, no token stored. |
 | Local PR draft Push (macOS and Linux) | The user's own Git pushes the draft's branch to the hosted repository's URL, through the user's Git configuration and credential helpers. Never forced; no tags. |
-| Review Cycles publication | `api.github.com` only, after confirmation: one new branch, commit and pull request. No push, force or delete. |
 | macOS updater (eligible signed installs) | `api.github.com` and `release-assets.githubusercontent.com`. |
 | AI agents the user starts | Whatever the agent connects to; no allow-list. |
 
@@ -52,7 +51,7 @@ Manual tokens are deleted on quit; device sign-in tokens persist until
 
 Each profile stores notes, drafts, local PR drafts, publication recovery,
 retained Git objects, agent workspaces and conversations, MCP context
-snapshots, Review Cycles captures and a diagnostic log. Agent scratch folders
+snapshots and a diagnostic log (and, from versions before 0.5.0, unread Review Cycles captures). Agent scratch folders
 sit beside the profile folder or in the user's cache folder. These can
 contain company source.
 
@@ -87,8 +86,8 @@ data behind; secure erasure is not claimed. See
 The app opens no TCP or UDP server. Its only listeners are two same-user local
 IPC endpoints. One carries window activation. The other lets `bpr` send a fixed
 set of commands to the app that owns the profile, which runs them against its
-own local store: tour draft edits, writing-assist requests, `bpr cycle`
-commands and `bpr draft open`. It also answers one read, at most 200 lines of
+own local store: tour draft edits, writing-assist requests and `bpr draft
+open`. It also answers one read, at most 200 lines of
 pinned source for a pull request a window already has open, from that window's
 Git cache. Neither endpoint carries credentials or publication authority, and
 neither accepts a GitHub request, a process or a command of the caller's
@@ -117,17 +116,13 @@ web engine or Node runtime.
 
 See the [AI boundary](../architecture/ai-agent-boundary.md).
 
-## Review Cycles: retained source and disclosure
+## Review Cycles: retired
 
-A Review Cycle copies the chosen folder, file or checkout, including untracked
-files not excluded by its ignore files, into the unencrypted
-`review-cycles.sqlite3`. Capture never runs Git or anything the checkout
-configures. A round leaves the machine only through clipboard, a saved file,
-terminal output, a `bpr` harness or **Send to Agent**, and is then outside
-BetterPullReview's control. Any program running as the same user can read the
-store. [Agent-free packages](../development/release-packages.md#packages-without-agent-integrations-or-local-automation)
-remove **Send to Agent**, or `bpr` as well. See the
-[threat model](../architecture/security-threat-model.md#review-cycles).
+Review Cycles were removed in 0.5.0 ([[BPR-2308]]). A profile used with an
+earlier version may still hold their captures in the unencrypted
+`review-cycles.sqlite3` and a `publication-git-v1/` object store. Nothing
+reads them; they are readable by any program running as the same user, as
+before, until profile purge or **Reset review data** removes them.
 
 ## Further reading
 
