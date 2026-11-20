@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2319"
 title: "Accounts & hosts says how a connection signs in in one short sentence"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0032"]
 depends_on: []
 priority: "P2"
@@ -66,4 +66,28 @@ keeps every phrase. Neither RFC is amended.
 
 ## Evidence
 
-Pending: see the Done move.
+Candidate `c1fb7d2e6` (rebased onto main `814f0a875` with no source change),
+macOS. The disk had about 2 GB free, too little for a dev tree of its own.
+Instead, the changed translation units (`server_card.cpp`,
+`account_setup_view.cpp`, `workbench_window_github_presentation.cpp`, which
+allocates the card whose layout changed, and the three test sources) were
+compiled with the dev preset's exact flags. They were linked ahead of a
+shared dev tree's libraries. The test binaries were checked to hold the new
+strings and none of the old.
+
+| Criterion | Check | Result |
+|---|---|---|
+| AC1, AC2, AC3 | `qt_composed_github_scale_100` (full run), including `test_cli_warning_lives_on_its_servers_card`: the short line, the glyph's tooltip, accessible description and focus, every per-platform disclosure phrase, no host, CLI card only, and a signed-in CLI session with a `token` grant showing no consequence sentence. Also `test_accounts_page_says_each_fact_once` and the per-server warning course | Passed |
+| AC1 | `qt_composed_cli_read_consent` | Passed |
+| AC4 | `qt_workbench_window_scale_100`: enterprise token sentence | Passed (on the candidate before the one-line `setWordWrap(false)` and a test message change. A relink after that failed because the shared tree's Qt library had moved to another branch's in-progress signature) |
+| AC5 | `qt_account_setup_view`: the consent text exactly; What connecting allows still present | Passed |
+| Regression | `qt_composed_home_sign_in` | Passed |
+| Look | Offscreen render of a GHES card signed out with the CLI offer and signed in through gh: one line of trust text plus glyph, no token claim when connected. The first render showed the wrapping label folded into four lines, which is why the line does not wrap | Checked by the implementer; not committed |
+| Boundaries | `architecture_boundaries` (`VerifyArchitectureBoundaries.cmake`) | Passed |
+| Standard | `format_check.py` (clang-format 22.1.8) on every changed C++ file; `tidy.py --warnings-as-errors` on `server_card.cpp` and `account_setup_view.cpp` | Passed |
+| Docs | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+
+Not run: Windows and Linux. The change is portable Qt text and layout, and
+the off-macOS disclosure phrases are asserted under `#else`. Also not run:
+the 125% and 200% scale variants and a full `ctest`. No owner look was
+requested.
