@@ -1,4 +1,5 @@
 #include "bpr/application/document_tab_host.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 
 #include <atomic>
 #include <utility>
@@ -6,11 +7,13 @@
 namespace bpr::application {
 	struct document_tab_host::implementation
 	{
-		implementation(decision_executor& aLane, document_tab_view_port& aViews, document_tabs_projection_port& aProjections, persistence aPersist)
+		implementation(decision_executor& aLane, document_tab_view_port& aViews, document_tabs_projection_port& aProjections, persistence aPersist,
+					   std::shared_ptr<diagnostic_log_port> aLog)
 			: Lane{ aLane }
 			, Views{ aViews }
 			, Projections{ aProjections }
 			, Persist{ std::move(aPersist) }
+			, Log{ std::move(aLog) }
 		{
 		}
 
@@ -18,10 +21,12 @@ namespace bpr::application {
 		document_tab_view_port&        Views;
 		document_tabs_projection_port& Projections;
 		persistence                    Persist;
-		core::document_tabs_state      State;
-		core::document_tab_reason      LastReason = core::document_tab_reason::none;
-		std::size_t                    Loads      = 0U;
-		std::size_t                    Stale      = 0U;
+		/// [[BPR-2324]]. Where a reopened pull request's tabs are logged.
+		std::shared_ptr<diagnostic_log_port> Log;
+		core::document_tabs_state            State;
+		core::document_tab_reason            LastReason = core::document_tab_reason::none;
+		std::size_t                          Loads      = 0U;
+		std::size_t                          Stale      = 0U;
 		/// \brief Terminals posted onto the lane and not yet run; they may be
 		/// posted from any thread.
 		std::atomic<std::size_t> Posted{ 0U };
@@ -72,11 +77,12 @@ namespace bpr::application {
 	};
 
 	document_tab_host::document_tab_host(
-		decision_executor&             aDecisionLane,
-		document_tab_view_port&        aViews,
-		document_tabs_projection_port& aProjections,
-		persistence                    aPersist)
-		: Implementation{ std::make_shared<implementation>(aDecisionLane, aViews, aProjections, std::move(aPersist)) }
+		decision_executor&                   aDecisionLane,
+		document_tab_view_port&              aViews,
+		document_tabs_projection_port&       aProjections,
+		persistence                          aPersist,
+		std::shared_ptr<diagnostic_log_port> aLog)
+		: Implementation{ std::make_shared<implementation>(aDecisionLane, aViews, aProjections, std::move(aPersist), std::move(aLog)) }
 	{
 	}
 
@@ -99,6 +105,28 @@ namespace bpr::application {
 		if (!host.Closed) {
 			host.perform(core::restore(host.State, aTabs));
 		}
+	}
+
+	auto document_tab_host::reopen(
+		const core::window_review_tabs&           aRemembered,
+		const core::comparison_pair&              aAccepted,
+		const std::vector<bool>&                  aPresent,
+		const std::optional<core::file_identity>& aChosen,
+		const bool                                aLoad) -> std::optional<core::reopened_tabs>
+	{
+		auto& host = *Implementation;
+		if (host.Closed) {
+			return std::nullopt;
+		}
+		auto decision = core::reopen_tabs(aRemembered, aAccepted, aPresent, aChosen);
+		if (!decision) {
+			return std::nullopt;
+		}
+		host.perform(core::restore_reopened(host.State, decision->Tabs, aLoad));
+		if (decision->Restored != 0U || decision->Dropped != 0U) {
+			record_operation(host.Log.get(), { .Action = core::operation_action::tabs_restore, .Count = decision->Restored, .TabsDropped = decision->Dropped });
+		}
+		return decision;
 	}
 
 	void document_tab_host::observe_file_choice(const core::file_identity& aFile)

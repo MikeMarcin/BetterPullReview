@@ -311,6 +311,18 @@ namespace bpr::app {
 		/// diff, so Review owes the active tab's view once its files return.
 		bool RefreshKeptTabView      = false;
 		bool RevalidatingKeptTabView = false;
+		/// \brief [[BPR-2324]]. The tabs the pull request just opened
+		/// remembered, held until its files are known and they come back.
+		/// While held, the empty set the window starts with is not saved over
+		/// them.
+		std::optional<core::window_review_tabs> RememberedTabs;
+		/// \brief [[BPR-2324]]. A file the reviewer opened while no tab was
+		/// active, which the returning tabs make active.
+		std::optional<core::file_identity> ReopenChoice;
+#if defined(BPR_BUILD_TESTING)
+		/// \brief [[BPR-2324]]. What the last reopened pull request brought back.
+		std::optional<core::reopened_tabs> LastReopenedTabs;
+#endif
 		/// \brief [[BPR-1539]]. The pull request the tabs were opened in.
 		/// `ReadingDestination` cannot say: opening another pull request
 		/// invalidates the shown one, which clears it, before the new read is
@@ -351,6 +363,7 @@ namespace bpr::app {
 		void               drive_tab();
 		void               observe_tab_changes();
 		auto               represent_refreshed_tab() -> bool;
+		auto               reopen_remembered_tabs() -> bool;
 		void               observe_tab_reading();
 		void               retain_tabs(const core::window_review_tabs& aTabs);
 		void               retain_reading_position();

@@ -1,11 +1,13 @@
 #include "bpr/application/document_tab_host.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 
 #include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -365,10 +367,90 @@ namespace {
 		}
 	}
 
+	/// \brief Keeps every diagnostic event the host writes.
+	class recording_log final : public diagnostic_log_port
+	{
+	public:
+		[[nodiscard]] auto record(const diagnostic_event& aEvent) noexcept -> diagnostic_log_status override
+		{
+			Events.push_back(aEvent);
+			return diagnostic_log_status::available;
+		}
+		[[nodiscard]] auto status() const noexcept -> diagnostic_log_status override { return diagnostic_log_status::available; }
+
+		std::vector<diagnostic_event> Events;
+	};
+
+	// [[BPR-2324]]. A pull request opened again brings back what the core
+	// decides, loads only in Review, persists it and writes one counts-only
+	// line.
+	void test_a_reopened_pull_request_brings_back_its_tabs_and_logs_counts()
+	{
+		const auto remembered = core::window_review_tabs{ .WindowComparison = pair(1, 2),
+														  .Tabs             = { { pair(1, 2), file(1), line(1, 30) }, { pair(1, 2), file(2), std::nullopt }, { pair(1, 2), file(3), std::nullopt } },
+														  .Active           = 1U };
+		auto       log        = std::make_shared<recording_log>();
+		{
+			manual_executor lane;
+			views           shown;
+			projections     output;
+			auto            persisted = std::vector<core::window_review_tabs>{ };
+			auto            host      = document_tab_host{ lane, shown, output, [&](const core::window_review_tabs& aTabs) { persisted.push_back(aTabs); }, log };
+			host.apply(core::set_window_comparison_intent{ pair(1, 2) });
+			const auto decision = host.reopen(remembered, pair(1, 2), { true, false, true }, std::nullopt, false);
+			expect(decision && decision->Restored == 2U && decision->Dropped == 1U, "the host returns the core's decision");
+			expect(host.state().Tabs.size() == 2U && host.state().Tabs[0].View.File == file(1) && host.state().Tabs[1].View.File == file(3)
+					   && host.state().Active == host.state().Tabs[1].Id,
+				   "the tabs whose files remain come back in order, the dropped active tab's neighbour active");
+			expect(shown.Loads.empty() && !host.state().Pending, "outside Review nothing loads");
+			expect(!output.Published.empty() && output.Published.back().Tabs.size() == 2U && output.Published.back().Tabs[1].Active,
+				   "the strip is published with the returning tabs and the active one");
+			expect(!persisted.empty() && persisted.back() == decision->Tabs, "what came back is remembered in place of what was");
+			expect(log->Events.size() == 1U, "one line is written for the reopening");
+			const auto& event     = log->Events.back();
+			const auto  diagnosis = core::parse_operation_diagnosis(event.Summary.text());
+			expect(event.Operation == diagnostic_operation::workbench_tabs && event.Outcome == diagnostic_outcome::succeeded
+					   && event.Detail == diagnostic_detail::standard && diagnosis && diagnosis->Action == core::operation_action::tabs_restore
+					   && diagnosis->Count == 2U && diagnosis->TabsDropped == 1U,
+				   "the line is a Standard workbench.tabs success with two restored and one dropped");
+			expect(event.Summary.text() == "action=tabs_restore failure=none process=none exit=none duration_ms=0 count=2 written=0 read_back=0 tabs_dropped=1",
+				   "the line carries counts only");
+			host.refresh();
+			expect(shown.Loads.size() == 1U && shown.Loads.back().View.File == file(3), "entering Review loads the active tab");
+		}
+		{
+			manual_executor lane;
+			views           shown;
+			projections     output;
+			auto            host = document_tab_host{ lane, shown, output, { }, log };
+			host.apply(core::set_window_comparison_intent{ pair(1, 4) });
+			const auto decision = host.reopen(remembered, pair(1, 4), { true, true, true }, file(9), true);
+			expect(decision && host.state().Tabs.size() == 4U && shown.Loads.size() == 1U && shown.Loads.back().View.File == file(9)
+					   && shown.Loads.back().View.Comparison == pair(1, 4),
+				   "in Review the file chosen first is the active tab, on the accepted comparison, and loads at once");
+			expect(log->Events.size() == 2U && core::parse_operation_diagnosis(log->Events.back().Summary.text())->Count == 3U,
+				   "the chosen file is not counted as restored");
+			const auto before = host.state();
+			expect(!host.reopen(remembered, pair(1, 4), { true }, std::nullopt, true) && host.state() == before && log->Events.size() == 2U,
+				   "a refused reopening changes nothing and writes nothing");
+			host.shutdown();
+		}
+		{
+			manual_executor lane;
+			views           shown;
+			projections     output;
+			auto            host = document_tab_host{ lane, shown, output };
+			const auto      none = core::window_review_tabs{ .WindowComparison = pair(1, 2), .Tabs = { }, .Active = std::nullopt };
+			expect(host.reopen(none, pair(1, 2), { }, std::nullopt, true).has_value() && host.state().Tabs.empty(),
+				   "nothing remembered brings back nothing, with no log to write to");
+		}
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_a_reopened_pull_request_brings_back_its_tabs_and_logs_counts();
 	test_completion_feedback_keeps_the_newer_reading();
 	test_completions_route_to_the_tab_that_asked();
 	test_a_closed_loading_tab_publishes_nothing();

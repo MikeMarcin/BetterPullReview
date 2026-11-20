@@ -545,6 +545,86 @@ namespace bpr::core {
 		return activate(aState, *aTabs.Active);
 	}
 
+	auto reopen_tabs(
+		const window_review_tabs&           aRemembered,
+		const comparison_pair&              aAccepted,
+		const std::vector<bool>&            aPresent,
+		const std::optional<file_identity>& aChosen) -> std::optional<reopened_tabs>
+	{
+		if (!valid(aRemembered) || !valid_exact_pair(aAccepted) || aPresent.size() != aRemembered.Tabs.size()
+			|| (aChosen && !aChosen->valid())) {
+			return std::nullopt;
+		}
+		const auto sameCatalog = [&aAccepted](const comparison_pair& aPair) {
+			return aPair.Left.Identity.Authority == aAccepted.Left.Identity.Authority
+				&& aPair.Left.Identity.Incarnation == aAccepted.Left.Identity.Incarnation;
+		};
+		const auto windowKept        = aRemembered.WindowComparison == aAccepted;
+		auto       result            = reopened_tabs{ };
+		result.Tabs.WindowComparison = aAccepted;
+		// The remembered active tab's place among the tabs that come back,
+		// or the place its next surviving neighbour takes.
+		auto activeAt = std::optional<std::size_t>{ };
+		for (std::size_t index = 0U; index < aRemembered.Tabs.size(); ++index) {
+			if (!aPresent[index]) {
+				++result.Dropped;
+				continue;
+			}
+			auto       view      = aRemembered.Tabs[index];
+			const auto followed  = view.Comparison == aRemembered.WindowComparison;
+			const auto keepsPair = !followed && sameCatalog(view.Comparison);
+			if (!keepsPair) {
+				if (!followed || !windowKept) {
+					view.Selection.reset();
+				}
+				view.Comparison = aAccepted;
+			}
+			if (!activeAt && index >= *aRemembered.Active) {
+				activeAt = result.Tabs.Tabs.size();
+			}
+			result.Tabs.Tabs.push_back(std::move(view));
+			++result.Restored;
+		}
+		if (!result.Tabs.Tabs.empty()) {
+			result.Tabs.Active = static_cast<std::uint32_t>(activeAt.value_or(result.Tabs.Tabs.size() - 1U));
+		}
+		if (aChosen) {
+			auto&      tabs  = result.Tabs.Tabs;
+			const auto shows = std::ranges::find_if(tabs, [&](const window_review_position& aTab) {
+				return aTab.File == aChosen && aTab.Comparison == aAccepted;
+			});
+			auto       fresh = window_review_position{ .Comparison = aAccepted, .File = aChosen, .Selection = std::nullopt };
+			if (shows != tabs.end()) {
+				result.Tabs.Active = static_cast<std::uint32_t>(std::distance(tabs.begin(), shows));
+			} else if (tabs.empty()) {
+				tabs.push_back(std::move(fresh));
+				result.Tabs.Active = 0U;
+			} else if (tabs.size() < maximum_document_tabs) {
+				const auto at = *result.Tabs.Active + 1U;
+				tabs.insert(tabs.begin() + static_cast<std::ptrdiff_t>(at), std::move(fresh));
+				result.Tabs.Active = at;
+			} else {
+				tabs[*result.Tabs.Active] = std::move(fresh);
+			}
+		}
+		return result;
+	}
+
+	auto restore_reopened(document_tabs_state& aState, const window_review_tabs& aTabs, const bool aLoad) -> document_tabs_output
+	{
+		auto output = restore(aState, aTabs);
+		if (aLoad || !output.Load) {
+			return output;
+		}
+		// Taken, not presented: the active tab waits for Review.
+		aState.Pending.reset();
+		if (const auto index = active_index(aState)) {
+			aState.Tabs[*index].State = document_tab_view_state::idle;
+		}
+		output.Load.reset();
+		return output;
+	}
+
 	auto persisted(const document_tabs_state& aState) -> std::optional<window_review_tabs>
 	{
 		if (!aState.WindowComparison) {

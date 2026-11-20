@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DOCUMENT_TAB_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DOCUMENT_TAB_HOST_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/document_tabs_projection.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/core/document_tabs.hpp"
@@ -47,10 +48,11 @@ namespace bpr::application {
 		using persistence = std::function<void(const core::window_review_tabs&)>;
 
 		document_tab_host(
-			decision_executor&             aDecisionLane,
-			document_tab_view_port&        aViews,
-			document_tabs_projection_port& aProjections,
-			persistence                    aPersist = { });
+			decision_executor&                   aDecisionLane,
+			document_tab_view_port&              aViews,
+			document_tabs_projection_port&       aProjections,
+			persistence                          aPersist = { },
+			std::shared_ptr<diagnostic_log_port> aLog     = { });
 		~document_tab_host();
 
 		document_tab_host(const document_tab_host&)                    = delete;
@@ -61,6 +63,19 @@ namespace bpr::application {
 		void apply(const core::document_tab_intent& aIntent);
 		/// \brief Adopts a persisted collection, as Resume brings it back.
 		void restore(const core::window_review_tabs& aTabs);
+		/// \brief [[BPR-2324]]. Brings back the tabs a pull request opened
+		/// again remembered, as `core::reopen_tabs` decides, loading the
+		/// active one only when `aLoad` (the window shows a tab).
+		///
+		/// \details When anything was remembered, writes one `tabs_restore`
+		/// line: the tabs that came back and those dropped, counts only.
+		/// Returns the core's decision; nothing changes when it is refused.
+		auto reopen(
+			const core::window_review_tabs&           aRemembered,
+			const core::comparison_pair&              aAccepted,
+			const std::vector<bool>&                  aPresent,
+			const std::optional<core::file_identity>& aChosen,
+			bool                                      aLoad) -> std::optional<core::reopened_tabs>;
 		/// \brief [[BPR-1478]]. The reviewer chose a file in Review, which the
 		/// active tab takes once its comparison settles.
 		void observe_file_choice(const core::file_identity& aFile);

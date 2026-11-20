@@ -491,6 +491,8 @@ namespace bpr::adapters::logging {
 			case core::operation_diagnosis_family::cycle_round:   return application::diagnostic_operation::cycle_round;
 			case core::operation_diagnosis_family::side_chat:     return application::diagnostic_operation::side_chat;
 			case core::operation_diagnosis_family::finding_card:  return application::diagnostic_operation::finding_card;
+			// [[BPR-2324]].
+			case core::operation_diagnosis_family::workbench_tabs: return application::diagnostic_operation::workbench_tabs;
 			}
 			return application::diagnostic_operation::application;
 		}
@@ -676,7 +678,9 @@ namespace bpr::adapters::logging {
 				 // [[BPR-2322]].
 				 || aEvent.Operation == application::diagnostic_operation::side_chat
 				 // [[BPR-2325]].
-				 || aEvent.Operation == application::diagnostic_operation::finding_card)
+				 || aEvent.Operation == application::diagnostic_operation::finding_card
+				 // [[BPR-2324]].
+				 || aEvent.Operation == application::diagnostic_operation::workbench_tabs)
 				&& !operation_line_admitted(aEvent)) {
 				State->drop();
 				return status_type::dropped;

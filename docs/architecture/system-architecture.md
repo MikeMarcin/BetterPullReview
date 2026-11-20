@@ -453,6 +453,22 @@ header, menus and older-pair notice. Tabs persist through the existing
 restoration host, and shutdown drains their posted terminals on the decision
 lane before releasing the window.
 
+[[BPR-2324]] brings the tabs back on every way back to a pull request, not only
+Resume. When a window adopts a pull request it was not showing, it holds the
+tabs that pull request's recently viewed entry remembers. It does not save the
+empty set it starts with over them. Once the accepted comparison has its file
+list, the core's `reopen_tabs` decides what returns. Tabs whose file is gone
+are dropped. A tab that followed the window takes the accepted comparison and
+keeps its reading only when the comparison is unchanged. A tab with its own
+pair keeps it while the pair is in the accepted catalog. The remembered active
+tab stays active, or its next surviving neighbour does. A file the reviewer
+opened first becomes the active tab. `document_tab_host::reopen` restores the
+result, loading the active tab only in Review (`restore_reopened`). Outside
+Review it loads on the way in. The host also writes one Standard
+`workbench.tabs` line, `action=tabs_restore` with `count` and `tabs_dropped`,
+counts only, so an anonymized export carries no more. Resume keeps its own
+exact course.
+
 RFC-BPR-0076 routes the four existing file/change QAction presses through normal
 Review entry before interpreting source navigation. Core still projects legal
 commands and exact bounds and decides the remembered drawer transition. The

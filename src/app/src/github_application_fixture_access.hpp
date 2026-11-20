@@ -503,6 +503,18 @@ namespace bpr::app::detail {
 		std::vector<std::string> SavedDraftBodies;
 	};
 
+	/// \brief [[BPR-2324]]. What the window's last reopened pull request
+	/// brought back of its remembered tabs.
+	struct reopened_tabs_evidence
+	{
+		/// The core's decision, absent until a pull request brought tabs back.
+		std::optional<core::reopened_tabs> Last;
+		/// Remembered tabs still held for the files of the pull request.
+		bool Held = false;
+		/// The path of the file the comparison shows, empty when none.
+		std::string ShownPath;
+	};
+
 	/// \brief [[BPR-1301]]. The `PATH` and usual install folders a Claude
 	/// launch with no wrapper searches, in place of the application's `PATH`
 	/// and the shipped folders, which on a developer's machine may hold a
@@ -2263,6 +2275,14 @@ namespace bpr::app::detail {
 		/// \brief [[BPR-1573]]. The review the window's composition holds.
 		[[nodiscard]] static auto close_review(
 			const github_application& aApplication) -> close_review_evidence;
+		/// \brief [[BPR-2324]]. What the last reopened pull request brought back.
+		[[nodiscard]] static auto reopened_tabs(
+			const github_application& aApplication) -> reopened_tabs_evidence;
+		/// \brief [[BPR-2324]]. Remembers, for the open pull request, its
+		/// tabs and one more after them on a file it does not have, as a pull
+		/// request whose file left it since would.
+		[[nodiscard]] static auto remember_missing_tab(
+			github_application& aApplication, std::string_view aPath) -> bool;
 		/// \brief [[BPR-2265]]. Reads the open pull request again through the
 		/// window's read, as after a publication: the accepted snapshot is
 		/// installed again and the publishing lease renewed.

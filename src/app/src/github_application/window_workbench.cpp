@@ -133,7 +133,10 @@ namespace bpr::app {
 		if (openFile && TabHost && !TabHost->state().Active) {
 			// The accepted epoch can have queued an observation behind this
 			// gesture. Adopt it before opening the first tab synchronously.
+			// [[BPR-2324]]. Tabs that come back now make this file active.
+			ReopenChoice = openFile;
 			observe_tab_changes();
+			ReopenChoice.reset();
 			if (!TabHost->state().Active) {
 				TabHost->apply(core::open_in_active_tab_intent{ .File = *openFile });
 			}

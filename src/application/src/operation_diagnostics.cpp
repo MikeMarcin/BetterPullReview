@@ -29,6 +29,8 @@ namespace bpr::application {
 		case core::operation_diagnosis_family::cycle_round:   return diagnostic_operation::cycle_round;
 		case core::operation_diagnosis_family::side_chat:     return diagnostic_operation::side_chat;
 		case core::operation_diagnosis_family::finding_card:  return diagnostic_operation::finding_card;
+		// [[BPR-2324]].
+		case core::operation_diagnosis_family::workbench_tabs: return diagnostic_operation::workbench_tabs;
 		}
 		return diagnostic_operation::review_mutation;
 	}

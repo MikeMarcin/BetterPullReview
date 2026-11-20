@@ -88,11 +88,13 @@ namespace bpr::application {
 													 /// [[BPR-2322]]. A side chat question, proposal or Use.
 													 side_chat,
 													 /// [[BPR-2325]]. A finding card's kept state, cleared.
-													 finding_card };
+													 finding_card,
+													 /// [[BPR-2324]]. A window's document tabs brought back.
+													 workbench_tabs };
 	/// \brief The logged `op` name of each diagnostic operation, in order.
 	/// \details The logger writes and the export classifier admits exactly
 	/// these, so the two never disagree about the vocabulary ([[BPR-1828]]).
-	inline constexpr std::array<std::string_view, 25> diagnostic_operation_names{
+	inline constexpr std::array<std::string_view, 26> diagnostic_operation_names{
 		"application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment",
 		"github.review_submission", "github.discovery", "agent.run", "agent.setup_check", "agent.workspace", "github.review_mutation",
 		"github.sign_in", "credential.vault", "updater.release",
@@ -103,12 +105,15 @@ namespace bpr::application {
 		// [[BPR-2322]].
 		"agent.side_chat",
 		// [[BPR-2325]].
-		"agent.finding_card"
+		"agent.finding_card",
+		// [[BPR-2324]].
+		"workbench.tabs"
 	};
 	/// \brief [[BPR-1828]]. A record's category: the operation name before its
 	/// first dot (`application`, `epoch`, `github`, `agent`, and since
 	/// [[BPR-1831]] `storage`, `workspace`, `search`, `image`, `notification`, and
-	/// since [[BPR-1830]] `tour` and `cycle`).
+	/// since [[BPR-1830]] `tour` and `cycle`, and since [[BPR-2324]]
+	/// `workbench`).
 	[[nodiscard]] constexpr auto diagnostic_category(const std::string_view aOperation) noexcept -> std::string_view
 	{
 		return aOperation.substr(0U, aOperation.find('.'));

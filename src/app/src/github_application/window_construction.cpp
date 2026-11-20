@@ -1813,7 +1813,7 @@ namespace bpr::app {
 		TabPorts = std::make_unique<document_tab_ports>(*this);
 		TabHost  = std::make_unique<application::document_tab_host>(
 			DecisionLane, *TabPorts, *TabPorts,
-			[this](const core::window_review_tabs& aTabs) { retain_tabs(aTabs); });
+			[this](const core::window_review_tabs& aTabs) { retain_tabs(aTabs); }, DiagnosticLog);
 		PrFind = std::make_unique<pr_search_controller>(*Window->pr_search(), *Window->comparison_surface(), *EpochHost, SourceRegex, ReviewerDecisions, Profile->SearchEffects, [this] { return pr_search_scope(); }, [this](const core::source_search_scope& aScope, const application::source_corpus_entry& aEntry, const pr_search_controller::result_tab aTab) -> std::optional<core::document_tab_id> {
                 if(pr_search_scope()!=std::optional{aScope}){return {};}
                 cancel_review_navigation();cancel_restoration(false);abandon_tab_load();

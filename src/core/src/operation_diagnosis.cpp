@@ -10,7 +10,7 @@
 
 namespace bpr::core {
 	namespace {
-		constexpr std::array<std::string_view, 84>  action_names{ "agent_status_check", "agent_program_check", "agent_custom_check", "workspace_materialize", "workspace_cleanup", "observe_target", "publish_comment", "reconcile_publication", "repair_publications", "resolve_thread", "unresolve_thread", "add_reaction", "remove_reaction", "edit_description", "edit_comment", "search_reviewers", "request_reviewer", "device_sign_in", "token_renewal", "sign_out", "account_change", "vault_store", "vault_load", "vault_delete", "refresh_store", "refresh_load", "refresh_delete", "update_check", "update_download", "update_verify", "update_refresh", "update_apply",
+		constexpr std::array<std::string_view, 85>  action_names{ "agent_status_check", "agent_program_check", "agent_custom_check", "workspace_materialize", "workspace_cleanup", "observe_target", "publish_comment", "reconcile_publication", "repair_publications", "resolve_thread", "unresolve_thread", "add_reaction", "remove_reaction", "edit_description", "edit_comment", "search_reviewers", "request_reviewer", "device_sign_in", "token_renewal", "sign_out", "account_change", "vault_store", "vault_load", "vault_delete", "refresh_store", "refresh_load", "refresh_delete", "update_check", "update_download", "update_verify", "update_refresh", "update_apply",
 																  // [[BPR-1831]].
 																  "storage_open", "storage_migrate", "storage_read", "storage_write", "storage_statement", "clone_scan", "clone_verify", "clone_load", "source_search", "image_fetch", "avatar_fetch", "notification_deliver", "notification_permission", "notification_activate",
 																  // [[BPR-1830]].
@@ -28,7 +28,9 @@ namespace bpr::core {
 																  // [[BPR-2261]].
 																  "workspace_verify",
 																  // [[BPR-2263]].
-																  "review_submit_repair", "side_chat_ask", "side_chat_propose", "side_chat_apply", "finding_draft_cleared" };
+																  "review_submit_repair", "side_chat_ask", "side_chat_propose", "side_chat_apply", "finding_draft_cleared",
+																  // [[BPR-2324]].
+																  "tabs_restore" };
 		constexpr std::array<std::string_view, 140> failure_names{ "none", "cancelled", "unavailable", "agent_not_found", "program_refused", "no_program_chosen", "not_signed_in", "failed_to_start", "status_unreadable", "timed_out", "workspace_unavailable", "invalid_request", "stale", "cleanup_failed", "copy_failed", "download_failed", "connection_failed", "sign_in_refused", "too_large", "clone_needed", "refused_by_server", "undesignated_target", "target_moved", "stale_head", "unsupported", "target_unavailable", "malformed_response", "incompatible_body", "credential_unavailable", "credential_tool_failed", "unplaceable_line", "refused_not_published", "settled_not_published", "off_hunk_refused", "not_confirmed", "conflict", "authorization_denied", "authorization_expired", "device_flow_disabled", "device_flow_unavailable", "network_unavailable", "certificate_rejected", "redirect_rejected", "response_too_large", "vault_unavailable", "refresh_absent", "refresh_rejected", "transport_failed", "storage_failed", "no_session", "locked", "access_denied", "corrupt", "operation_failed", "allocation_failure", "policy_refused", "access_required", "unauthenticated", "forbidden", "inaccessible", "offline", "rate_limited", "malformed_release", "invalid_version", "unstable_release", "no_compatible_asset", "ambiguous_asset", "invalid_digest", "size_limit", "unsafe_archive", "invalid_bundle", "wrong_architecture", "wrong_signer", "digest_mismatch", "changed_candidate", "busy", "stale_completion", "invalid_progress", "identity_exhausted", "installer_unavailable", "flush_failed", "quit_refused", "recovery_required", "shutdown",
 																   // [[BPR-1831]].
 																   "invalid_path", "invalid_permissions", "schema_mismatch", "integrity_failure", "quota_exceeded", "platform_unsupported", "io_error", "read_only", "constraint", "not_a_database", "cannot_open", "sql_error", "not_a_clone", "no_matching_remote", "scan_failed", "store_unreadable", "search_failed", "resource_limit", "fetch_failed", "blocked", "over_limit", "permission_refused", "unattributable_activation",
@@ -44,7 +46,7 @@ namespace bpr::core {
 
 		constexpr auto tour_stage_names = std::array<std::string_view, 36>{ "preview", "admission", "discovery", "recovery", "publish", "factory", "identity_check", "request_preparation", "baseline_read", "journal", "verification", "terminal", "stop", "list_reviews", "read_review", "list_comments", "create_pending", "update_comment", "update_summary", "submit_comment", "discard_pending", "update_description", "list_issue_comments", "create_issue_comment", "update_issue_comment", "update_pending_comment", "plan_validation", "recovery_open", "lease", "configuration", "binding", "journal_read", "credential_scope", "journal_save", "create_file_comment", "list_file_comments" };
 		constexpr auto tour_state_names = std::array<std::string_view, 9>{ "none", "unavailable", "ready", "staged", "outcome_unknown", "conflict", "published", "description_attention", "partial" };
-		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::finding_draft_cleared) + 1U);
+		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::tabs_restore) + 1U);
 		constexpr auto submission_note_names = std::array<std::string_view, 12>{ "none", "pending_comments", "review_lane", "superseded", "retired", "published", "not_published", "outcome_unknown", "wait_expired", "repairing", "repaired", "repair_failed" };
 		static_assert(submission_note_names.size() == static_cast<std::size_t>(review_submission_note::repair_failed) + 1U);
 		static_assert(failure_names.size() == static_cast<std::size_t>(operation_failure::history_missing) + 1U);
@@ -194,6 +196,8 @@ namespace bpr::core {
 			case operation_diagnosis_family::cycle_round:
 				return within(aFailure, operation_failure::wrong_profile, operation_failure::read_failed) || aFailure == operation_failure::corrupt || aFailure == operation_failure::schema_mismatch || aFailure == operation_failure::invalid_bundle
 					|| aFailure == operation_failure::unavailable || aFailure == operation_failure::conflict || aFailure == operation_failure::refused || aFailure == operation_failure::malformed_response;
+			// [[BPR-2324]]. Tabs that do not come back are counted, not failed.
+			case operation_diagnosis_family::workbench_tabs: return false;
 			}
 			return false;
 		}
@@ -211,6 +215,10 @@ namespace bpr::core {
 
 	auto family(const operation_action aAction) noexcept -> operation_diagnosis_family
 	{
+		// [[BPR-2324]]. Appended after the side chat and finding card lines.
+		if (aAction == operation_action::tabs_restore) {
+			return operation_diagnosis_family::workbench_tabs;
+		}
 		// [[BPR-2325]]. Appended last.
 		if (aAction == operation_action::finding_draft_cleared) {
 			return operation_diagnosis_family::finding_card;
@@ -405,6 +413,10 @@ namespace bpr::core {
 				return false;
 			}
 		}
+		// [[BPR-2324]]. A dropped count exactly on a tabs line.
+		if ((aDiagnosis.Action == operation_action::tabs_restore) != aDiagnosis.TabsDropped.has_value()) {
+			return false;
+		}
 		return kind == operation_diagnosis_family::review_mutation || aDiagnosis.Tour || (!aDiagnosis.Written && !aDiagnosis.ReadBack);
 	}
 
@@ -490,6 +502,9 @@ namespace bpr::core {
 			text += " answer_chars=" + std::to_string(trace.AnswerChars);
 			text += " before_chars=" + std::to_string(trace.BeforeChars);
 			text += " after_chars=" + std::to_string(trace.AfterChars);
+		}
+		if (aDiagnosis.TabsDropped) {
+			text += " tabs_dropped=" + std::to_string(*aDiagnosis.TabsDropped);
 		}
 		return text;
 	}
@@ -604,6 +619,12 @@ namespace bpr::core {
 				return std::nullopt;
 			}
 			result.SideChat = side_chat_trace{ .Item = *item, .Round = *round, .Apply = apply, .Refusal = *refusal, .QuestionChars = *question, .AnswerChars = *answer, .BeforeChars = *before, .AfterChars = *after };
+		} else if (aText.starts_with("tabs_dropped=")) {
+			// [[BPR-2324]]. The remembered tabs that did not come back.
+			result.TabsDropped = number(aText, "tabs_dropped");
+			if (!result.TabsDropped || !aText.empty()) {
+				return std::nullopt;
+			}
 		} else if (!aText.empty()) {
 			result.Store      = enumerated<operation_store>(aText, "store", store_names);
 			const auto schema = result.Store ? number(aText, "schema") : std::nullopt;

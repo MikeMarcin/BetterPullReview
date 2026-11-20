@@ -385,7 +385,10 @@ namespace {
 														// [[BPR-2322]]. A side chat line exports with its lengths; one
 														// carrying any words keeps the record and loses its detail.
 														row{ "agent.side_chat", "agent", "action=side_chat_apply failure=refused process=none exit=none duration_ms=0 count=0 written=0 read_back=0 item=draft round=2 apply=update_draft refusal=target_changed question_chars=0 answer_chars=0 before_chars=17 after_chars=64" },
-														row{ "agent.side_chat", "agent", "action=side_chat_ask failure=refused process=none exit=none duration_ms=0 count=0 written=0 read_back=0 item=thread round=1 apply=none refusal=busy question_chars=9 answer_chars=0 before_chars=0 after_chars=0 question=PRIVATE_QUESTION" } }) {
+														row{ "agent.side_chat", "agent", "action=side_chat_ask failure=refused process=none exit=none duration_ms=0 count=0 written=0 read_back=0 item=thread round=1 apply=none refusal=busy question_chars=9 answer_chars=0 before_chars=0 after_chars=0 question=PRIVATE_QUESTION" },
+														// [[BPR-2324]]. A reopened pull request's tabs export as counts.
+														row{ "workbench.tabs", "workbench", "action=tabs_restore failure=none process=none exit=none duration_ms=0 count=3 written=0 read_back=0 tabs_dropped=1" },
+														row{ "workbench.tabs", "workbench", "action=tabs_restore failure=none process=none exit=none duration_ms=0 count=3 written=0 read_back=0 tabs_dropped=1 file=PRIVATE_PATH" } }) {
 				auto       line    = structured_line(1U, true);
 				const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
 					const auto at = line.find(aFrom);

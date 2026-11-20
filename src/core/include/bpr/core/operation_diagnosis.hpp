@@ -58,6 +58,8 @@ namespace bpr::core {
 		/// [[BPR-2325]]. What a finding card's kept disposition did on its
 		/// own (`agent.finding_card`).
 		finding_card,
+		/// [[BPR-2324]]. A window's document tabs (`workbench.tabs`).
+		workbench_tabs,
 	};
 
 	/// \brief [[BPR-1828]]. What one operation line is about.
@@ -240,6 +242,10 @@ namespace bpr::core {
 		/// [[BPR-2325]]. Findings whose draft was deleted are open again;
 		/// `Count` is how many.
 		finding_draft_cleared,
+		/// [[BPR-2324]]. A pull request opened again brought back its
+		/// remembered tabs: `count` came back and `tabs_dropped` did not,
+		/// their files gone from the pull request.
+		tabs_restore,
 	};
 
 	/// \brief [[RFC-BPR-0105]]. What a review submission line is about: what
@@ -742,6 +748,10 @@ namespace bpr::core {
 		/// keys as `item=KIND round=N apply=ACTION|none refusal=REFUSAL
 		/// question_chars=N answer_chars=N before_chars=N after_chars=N`.
 		std::optional<side_chat_trace> SideChat = std::nullopt;
+		/// [[BPR-2324]]. Exactly on a `tabs_restore` line, written after the
+		/// fixed keys as `tabs_dropped=N`: the remembered tabs that did not
+		/// come back.
+		std::optional<std::uint32_t> TabsDropped = std::nullopt;
 
 		auto operator<=>(const operation_diagnosis&) const = default;
 	};

@@ -867,6 +867,16 @@ try {
 				   "a round line never rides the tour operation");
 			expect(log.record(line(operation::cycle_round, outcome::cancelled, { .Action = core::operation_action::cycle_round_grant, .Failure = core::operation_failure::not_granted })) == status::dropped,
 				   "a cancellation names only a cancellation");
+			// [[BPR-2324]]. A reopened pull request's tabs, counts only.
+			expect(log.record(line(operation::workbench_tabs, outcome::succeeded, { .Action = core::operation_action::tabs_restore, .Count = 2U, .TabsDropped = 1U })) == status::available,
+				   "a reopened pull request's tabs reach the real log");
+			expect(log.record(line(operation::cycle_round, outcome::succeeded, { .Action = core::operation_action::tabs_restore, .Count = 2U, .TabsDropped = 1U })) == status::dropped,
+				   "a tabs line never rides another operation");
+			auto       forgedTabs = line(operation::workbench_tabs, outcome::succeeded, { .Action = core::operation_action::tabs_restore, .Count = 2U, .TabsDropped = 1U });
+			const auto forgedTail = std::string_view{ " file=PRIVATE" };
+			std::ranges::copy(forgedTail, forgedTabs.Summary.Text.begin() + forgedTabs.Summary.Size);
+			forgedTabs.Summary.Size = static_cast<std::uint16_t>(forgedTabs.Summary.Size + forgedTail.size());
+			expect(log.record(forgedTabs) == status::dropped, "a tabs line naming anything after its counts never enters the log");
 		}
 		{
 			// [[BPR-1829]]. Sign-in, credential vault and updater lines: the

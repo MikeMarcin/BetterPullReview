@@ -246,6 +246,27 @@ namespace {
 		expect(parse_operation_diagnosis(describe(invalid)) == invalid, "an invalid part and its comment read back");
 		expect(describe({ .Action = operation_action::review_submit_wait, .Submission = review_submission_note::review_lane, .Refusal = review_submission_refusal{ } }).empty(), "a refusal only on an end or repair line");
 	}
+	/// [[BPR-2324]]. A reopened pull request's tabs: how many came back and
+	/// how many were dropped, and nothing that names a file.
+	void test_tabs_restore_line()
+	{
+		const auto restored = operation_diagnosis{ .Action = operation_action::tabs_restore, .Count = 3U, .TabsDropped = 1U };
+		expect(describe(restored) == "action=tabs_restore failure=none process=none exit=none duration_ms=0 count=3 written=0 read_back=0 tabs_dropped=1",
+			   "a tabs line counts the tabs that came back and those dropped");
+		expect(parse_operation_diagnosis(describe(restored)) == restored && family(restored.Action) == operation_diagnosis_family::workbench_tabs,
+			   "and reads back as a workbench tabs line");
+		expect(describe({ .Action = operation_action::tabs_restore, .Count = 3U }).empty(), "a tabs line always names its dropped count");
+		expect(describe({ .Action = operation_action::resolve_thread, .TabsDropped = 0U }).empty(), "only a tabs line names one");
+		expect(describe({ .Action = operation_action::tabs_restore, .Failure = operation_failure::unavailable, .TabsDropped = 0U }).empty(),
+			   "dropped tabs are counted, not failed");
+		expect(!parse_operation_diagnosis("action=tabs_restore failure=none process=none exit=none duration_ms=0 count=3 written=0 read_back=0 tabs_dropped=1 path=PRIVATE"),
+			   "nothing follows the dropped count");
+		expect(!parse_operation_diagnosis("action=tabs_restore failure=none process=none exit=none duration_ms=0 count=3 written=0 read_back=0"),
+			   "a tabs line without its dropped count is not one");
+		expect(!parse_operation_diagnosis("action=tabs_restore failure=none process=none exit=none duration_ms=0 count=3 written=0 read_back=0 tabs_dropped=01"),
+			   "the dropped count is a plain decimal");
+		expect(family(operation_action::review_submit_repair) == operation_diagnosis_family::review_mutation, "the line before it keeps its family");
+	}
 	/// [[BPR-2295]]. A workspace line names its source, the review's
 	/// loading, the clone and, on a failure, the Git command and Git's words
 	/// as a class; never an object or a path.
@@ -347,6 +368,7 @@ int main()
 	test_account_and_update_lines();
 	test_storage_and_host_lines();
 	test_helper_tour_and_round_lines();
+	test_tabs_restore_line();
 	std::cout << "operation-diagnosis-tests:pass\n";
 	return EXIT_SUCCESS;
 }
