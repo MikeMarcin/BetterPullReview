@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2302"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Review and Comments settings section headers take Appearance's card header",
+  "created": "2026-11-20T05:45:47.474884+00:00",
+  "base": "50f609aea9d01f40be44ef55937cc299108fa4c9"
+}
