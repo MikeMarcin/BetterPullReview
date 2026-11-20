@@ -2824,8 +2824,14 @@ function(bpr_verify_full_application_digest source_variable)
 	# editor saved. No provider, grant, admission, mutation branch or
 	# publication change. [[BPR-2315]], sealed with it: the two automatic
 	# refreshes after an edit name their cause (core::refresh_cause::edit).
+	# [[BPR-2329]] reseal: github_application.cpp gains the auto-merge
+	# gesture, terminal, read reconciliation and retirement beside the
+	# draft state's (core::decide_auto_merge_change, a one-shot
+	# issue_auto_merge grant, ReviewMutationHost->change_auto_merge). The
+	# production compose_review_mutation branch is unchanged; the provider
+	# reaches change_auto_merge through the same erased, diagnosed port.
 	set(bpr_expected_full_application_digest
-        "7040814ec37f3c95ad6edd808ac50de4e35eb30a7c2d202036f9aadd6885a05b"
+        "df310055e7d9abd9759e953827b1b4063b3897d682c031b8917be07d15c097bd"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3884,8 +3890,14 @@ function(bpr_verify_app_source_tree app_source_root)
 	# workbench host (window_construction.cpp), which stores it in the local
 	# workbench settings only. No grant, target, provider, credential,
 	# transport, GitHub write, mutation or publication path changes.
+	# [[BPR-2329]] reseal: auto-merge's gesture and terminal
+	# (github_application.cpp, window_composition.hpp), its projection and
+	# capability in the Overview's context (window_read_state.cpp), its read
+	# reconciliation and retirement (window_review_mutations.cpp) and its
+	# dispatch (window_construction.cpp). The production mutation branch,
+	# grant issuers' bindings, provider and transport are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "006099bbbcdc7b5da865287d372f79cc705a2312b9db16eaa2096a652f137ffb"
+        "ebebaa25f52c40f16314196728821f9d89d626da75e2f955774a5ae4d3ecebf5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

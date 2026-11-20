@@ -178,3 +178,17 @@ attempts (#187, #188) stopped before any auto-merge write (a wrong tool path,
 then the read transport carrying only GraphQL; fixed by
 `gh_paged_read_transport`) and were closed and their branches deleted by the
 course's cleanup. `X-RateLimit-Remaining` stayed at or above 4,950.
+
+### Composition source reseal (2026-11-20)
+
+BPR-2329's composition changes had left
+`application_review_round_trip_composition_contract` failing on `main` at
+the `github_application.cpp` digest. Resealed over `main` `fadd59813` (which
+includes BPR-2333's reseal): the full `github_application.cpp` digest is now
+`df310055e7d9abd9759e953827b1b4063b3897d682c031b8917be07d15c097bd` and the
+production application manifest digest
+`ebebaa25f52c40f16314196728821f9d89d626da75e2f955774a5ae4d3ecebf5`; the
+production mutation-branch digest is unchanged. With the app rebuilt in the
+task tree, the contract passes every source check and stops at the known,
+pre-existing `SEMANTIC_COMMENT_PROBE_FAILED phase=4 submissions=0 native=0
+file=0`, not at a digest.
