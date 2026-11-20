@@ -1140,10 +1140,10 @@ namespace {
 		programs.hide();
 	}
 
-	/// [[BPR-2303]]. Writes a fixture app bundle: `aInfo` as its Info.plist
+	/// [[BPR-2303]]. Writes a fixture app bundle (used on macOS only): `aInfo` as its Info.plist
 	/// when not empty, and each of `aPrograms` in Contents/MacOS, executable
 	/// unless its name starts with `-`.
-	[[nodiscard]] auto make_bundle(const QString& aBundle, const QByteArray& aInfo, const QStringList& aPrograms) -> QString
+	[[nodiscard, maybe_unused]] auto make_bundle(const QString& aBundle, const QByteArray& aInfo, const QStringList& aPrograms) -> QString
 	{
 		expect(QDir{ }.mkpath(aBundle + QStringLiteral("/Contents/MacOS")), "the fixture bundle's folders are made");
 		if (!aInfo.isEmpty()) {
@@ -1162,7 +1162,7 @@ namespace {
 		return aBundle;
 	}
 
-	[[nodiscard]] auto info_naming(const char* aProgram) -> QByteArray
+	[[nodiscard, maybe_unused]] auto info_naming(const char* aProgram) -> QByteArray
 	{
 		return QByteArray{ R"(<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
