@@ -499,6 +499,26 @@ backticks after its opening and tore there. A block with no complete value
 is shown after the prose whole, as a `json` code block whose fence no
 backtick run inside it can close, so no fragment of it is read as Markdown.
 
+**A suggestion is anchored to every line it replaces ([[BPR-2298]], owner
+2026-11-19).** GitHub applies a ```` ```suggestion ```` block by replacing
+exactly its comment's lines (`start_line` to `line`, `RIGHT`), so the review
+skill (version 6) and the report prompts ask for the place or
+`startLine`/`endLine` to name every line the block rewrites, a kept line
+included. Agents still name only the line at fault, so a finding's draft
+(its card, the report's Draft comment, Draft all) reads its one suggestion
+block against the shown head with `core::decide_agent_suggestion_range`:
+when the block repeats verbatim the head lines just before or after the
+agent's range, with at least one of them substantive, or rewrites line for
+line a window of its own length around it (each line the same or with the
+same indentation and leading identifier), the range is widened to them; a
+block that keeps all the agent's lines only adds lines and keeps
+the range; a longer block nothing explains keeps the range and the card says
+to check it. The draft is then one GitHub multi-line comment on its last
+line with its first line (`core::promote_private_text_on_lines`, one edit)
+where `decide_comment_range` takes the range, else its first line as before,
+and the card says which lines it was drafted on. Publishing carries
+`start_line`/`start_side` as for any range draft.
+
 **Suggested comments carry Conventional Comments labels ([[BPR-1861]],
 owner 2026-11-04).** The review skill (version 3) asks every
 `suggestedComment`, and any reply written for the reviewer to post, to open

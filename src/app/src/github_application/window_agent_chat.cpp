@@ -50,7 +50,7 @@ namespace bpr::app {
 	/// private review's answer, after this returns, so the result is read
 	/// there. Reading it on return refused every promotion the reviewer
 	/// then saw arrive in the draft.
-	void github_application::implementation::promote_private_item(std::string aText, std::function<void()> aRefused, std::function<void()> aDone)
+	void github_application::implementation::promote_private_item(std::string aText, std::function<void()> aRefused, std::function<void()> aDone, const std::optional<std::optional<std::uint32_t>> aStartLine)
 	{
 		if (Closing || Window == nullptr || !ReviewDraft || !SharedDrafts
 			|| !Window->comment_action()->isEnabled() || Window->review_editor()->body_editor()->isReadOnly()) {
@@ -67,7 +67,10 @@ namespace bpr::app {
 			aRefused();
 			return;
 		}
-		const auto command = core::promote_private_text(aText, core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
+		// [[BPR-2298]]. A finding's draft lands on all the lines its
+		// suggestion replaces, in the edit that writes its text.
+		const auto target  = core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope };
+		const auto command = aStartLine ? core::promote_private_text_on_lines(aText, target, *aStartLine) : core::promote_private_text(aText, target);
 		if (!command) {
 			aRefused();
 			return;
@@ -109,7 +112,7 @@ namespace bpr::app {
 		}
 		auto pending = std::move(*PendingNotePromotion);
 		PendingNotePromotion.reset();
-		promote_private_item(std::move(pending.Text), std::move(pending.Refused), std::move(pending.Done));
+		promote_private_item(std::move(pending.Text), std::move(pending.Refused), std::move(pending.Done), pending.StartLine);
 	}
 
 	void github_application::implementation::refresh_agent_private_context_choices()

@@ -153,6 +153,7 @@ add_library(
         src/feedback_draft_edit.cpp
         src/feedback_header_edit.cpp
         src/agent_comment_suggestion.cpp
+        src/agent_suggestion_range.cpp
         src/agent_draft_all.cpp
         src/agent_report_keep.cpp
         src/draft_roster.cpp

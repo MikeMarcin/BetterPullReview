@@ -43,8 +43,10 @@
 	#include "bpr/core/agent_entry.hpp"
 	#include "bpr/core/agent_finding_card_memory.hpp"
 	#include "bpr/core/agent_report_keep.hpp"
+	#include "bpr/core/agent_suggestion_range.hpp"
 	#include "bpr/core/agent_wrapper.hpp"
 	#include "bpr/core/markdown_code.hpp"
+	#include "bpr/core/review_comment_range.hpp"
 	#include "bpr/core/review_skill.hpp"
 	#include "bpr/qt/agent_run_settings_picker.hpp"
 	#include "bpr/qt/agent_setup_settings.hpp"
@@ -279,6 +281,65 @@ namespace bpr::app {
 	/// no line takes a draft, keeps a Local comment on the finding's file
 	/// (opened first) or, for a file the pull request does not change, on
 	/// the pull request. Nothing is published.
+	namespace {
+		/// \brief [[BPR-2298]]. Where a finding's draft goes in the shown
+		/// comparison, and what its card says once drafted.
+		struct agent_draft_place
+		{
+			/// The last line, which GitHub anchors a comment to.
+			core::source_line_ref        Anchor;
+			std::optional<std::uint32_t> StartLine;
+			/// The card's words once drafted; empty for the usual ones.
+			QString Said;
+		};
+
+		/// \brief The finding's lines as a draft's (owner, 2026-11-19: a
+		/// suggestion block must be on "the entire block that needs to be
+		/// replaced"): its first to last line, widened to the lines its
+		/// suggestion replaces when the suggestion rewrites lines beside them
+		/// (`decide_agent_suggestion_range`), as one GitHub multi-line
+		/// comment where `decide_comment_range` takes it, else its first line
+		/// as before. `aLines.Begin` is in the file; the caller checked.
+		[[nodiscard]] auto agent_draft_lines(const core::computed_file_diff& aShown, const core::diff_side aSide, const core::line_span aLines, const std::string& aText) -> agent_draft_place
+		{
+			const auto digest    = aShown.Alignment.Digest;
+			const auto lineCount = aSide == core::diff_side::left ? aShown.Alignment.LeftLineCount : aShown.Alignment.RightLineCount;
+			auto       first     = aLines.Begin;
+			auto       last      = std::min(std::max(aLines.End, aLines.Begin + 1U) - 1U, lineCount - 1U);
+			auto       widened   = false;
+			auto       unchecked = std::uint32_t{ 0U };
+			if (aSide == core::diff_side::right && aShown.RightDocument) {
+				const auto range = core::decide_agent_suggestion_range(aText, first + 1U, last + 1U, *aShown.RightDocument);
+				if (range.Reading == core::agent_suggestion_range_reading::widened) {
+					first   = range.First - 1U;
+					last    = range.Last - 1U;
+					widened = true;
+				} else if (range.Reading == core::agent_suggestion_range_reading::unverified) {
+					unchecked = range.SuggestedLines;
+				}
+			}
+			const auto lines = [](const std::uint32_t aFirst, const std::uint32_t aLast) {
+				return aFirst == aLast ? QStringLiteral("line %1").arg(aLast + 1U) : QStringLiteral("lines %1–%2").arg(aFirst + 1U).arg(aLast + 1U);
+			};
+			const auto check = [unchecked](const QString& aWhere) {
+				return unchecked == 0U ? QString{ }
+									   : QStringLiteral("Drafted on %1. Its suggestion has %2 lines: check which lines it replaces before you publish it.").arg(aWhere).arg(unchecked);
+			};
+			if (first == last) {
+				return { .Anchor = { .Comparison = digest, .Side = aSide, .Line = first }, .StartLine = std::nullopt, .Said = check(lines(first, last)) };
+			}
+			const auto decision = core::decide_comment_range(aShown.Alignment, { .Comparison = digest, .Side = aSide, .Line = first }, { .Comparison = digest, .Side = aSide, .Line = last });
+			if (decision.Refusal != core::comment_range_refusal::none) {
+				// GitHub takes several lines only inside one changed region.
+				const auto only = QStringLiteral("Drafted on %1 only: GitHub takes a comment on several lines only inside one changed region, and %2 are not.").arg(lines(aLines.Begin, aLines.Begin), lines(first, last));
+				return { .Anchor = { .Comparison = digest, .Side = aSide, .Line = aLines.Begin }, .StartLine = std::nullopt, .Said = only };
+			}
+			const auto said = widened ? QStringLiteral("Drafted on %1, the lines its suggestion replaces. It is a private draft until you publish it.").arg(lines(first, last))
+									  : check(lines(first, last));
+			return { .Anchor = decision.Anchor, .StartLine = decision.StartLine, .Said = said };
+		}
+	} // namespace
+
 	void github_application::implementation::act_on_agent_card(const qt::agent_finding_card_request& aRequest, card_report aReport)
 	{
 		auto* const tab   = Window != nullptr ? Window->agent_tab() : nullptr;
@@ -353,19 +414,21 @@ namespace bpr::app {
 				  QStringLiteral("Line %1 is not in %2 at the current head, so nothing was made.").arg(finding.Lines.Begin + 1U).arg(QString::fromStdString(finding.Path)));
 			return;
 		}
-		const auto at = core::source_line_ref{ .Comparison = surface->current_result()->Alignment.Digest, .Side = side, .Line = finding.Lines.Begin };
 		// [[BPR-1861]]. The draft opens with the Conventional Comments
 		// label the agent wrote already in the label control.
 		const auto text    = core::read_agent_comment_suggestion(finding.SuggestedComment && !finding.SuggestedComment->empty() ? *finding.SuggestedComment : finding.Claim).Body;
+		const auto lines   = agent_draft_lines(*surface->current_result(), side, finding.Lines, text);
+		const auto at      = lines.Anchor;
 		auto       refused = [state] { state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: resolve the draft open at that line first.")); };
-		auto       done    = [state] { state(qt::agent_finding_card_state::drafted); };
+		auto       done    = [state, said = lines.Said] { state(qt::agent_finding_card_state::drafted, said); };
 		if (ReviewDraft && ReviewDraft->Anchor.Comparison == at.Comparison && ReviewDraft->Anchor.Side == at.Side && ReviewDraft->Anchor.Line == at.Line) {
-			promote_private_item(text, std::move(refused), std::move(done));
+			promote_private_item(text, std::move(refused), std::move(done), lines.StartLine);
 			return;
 		}
 		// The line's own draft opens once its line is chosen, as Draft
-		// comment on a note does ([[BPR-1592]]).
-		PendingNotePromotion = pending_note_promotion{ .Text = text, .At = at, .Refused = std::move(refused), .Done = std::move(done) };
+		// comment on a note does ([[BPR-1592]]). [[BPR-2298]]: a range's
+		// draft is the one on its last line, which GitHub anchors it to.
+		PendingNotePromotion = pending_note_promotion{ .Text = text, .At = at, .Refused = std::move(refused), .Done = std::move(done), .StartLine = lines.StartLine };
 		if (!surface->select_conversation_line(at.Side, at.Line)) {
 			PendingNotePromotion.reset();
 			CardRefusalGone = true;

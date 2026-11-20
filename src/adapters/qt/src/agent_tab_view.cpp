@@ -4207,10 +4207,12 @@ namespace bpr::qt {
 		if (auto* const goToNote = card->findChild<QPushButton*>(QStringLiteral("agentFindingGoToComment")); goToNote != nullptr) {
 			goToNote->setVisible(aEntry.State == agent_finding_card_state::noted && aEntry.Note != 0U && NoteNavigate);
 		}
+		// [[BPR-2298]]. A draft whose lines need saying (a range widened to
+		// its suggestion's lines, or one to check) says so.
 		switch (aEntry.State) {
 		case agent_finding_card_state::open:      state->clear(); break;
 		case agent_finding_card_state::working:   state->setText(tr("Working…")); break;
-		case agent_finding_card_state::drafted:   state->setText(tr("Drafted. It is a private draft until you publish it.")); break;
+		case agent_finding_card_state::drafted:   state->setText(aEntry.Why.isEmpty() ? tr("Drafted. It is a private draft until you publish it.") : aEntry.Why); break;
 		case agent_finding_card_state::noted:     state->setText(tr("Kept local.")); break;
 		case agent_finding_card_state::dismissed: state->setText(tr("Dismissed.")); break;
 		case agent_finding_card_state::refused:   state->setText(aEntry.Why.isEmpty() ? tr("That could not be done.") : aEntry.Why); break;

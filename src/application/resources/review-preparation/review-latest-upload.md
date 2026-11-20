@@ -25,7 +25,7 @@ Rules for every report:
 - A short thing is a list row: a hyphen, the place in backticks, then what to know. Where the template gives rows a label, write the label first, in bold.
 - Every place in the code is written `path:line` in backticks. Never a bare file name and never a link.
 - Quote code in a fenced block that names its language. Eight lines at most, and only the lines that matter.
-- To propose a change, put a fenced block marked suggestion after the item's reasons, holding the lines as they should read. It replaces the lines the item names.
+- To propose a change, put a fenced block marked suggestion after the item's reasons, holding the lines as they should read. GitHub replaces exactly the lines the item names with the block, so the place names every line the block rewrites, first to last, a line the block keeps unchanged included: a block that rewrites lines 10 to 14 is at `path:10-14`, never at the one line at fault.
 - Plain sentences. No heading below level three, no tables, no bold except where the template has it, no emoji and no closing remarks.
 - Say only what the code and the conversations show. What you could not check goes in the section the template has for it.
 

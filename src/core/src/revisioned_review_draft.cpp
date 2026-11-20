@@ -117,6 +117,20 @@ namespace bpr::core {
 		}
 		return command;
 	}
+	auto promote_private_text_on_lines(const std::string_view aText, const std::optional<revisioned_review_draft>& aTarget, const std::optional<std::uint32_t> aStartLine)
+		-> std::optional<revisioned_review_draft_command>
+	{
+		auto command = promote_private_text(aText, aTarget);
+		if (!command || aTarget->Draft.StartLine == aStartLine) {
+			return command;
+		}
+		command->ChangeRange = true;
+		command->StartLine   = aStartLine;
+		if (apply(*aTarget, *command).Refusal != revisioned_draft_refusal::none) {
+			return std::nullopt;
+		}
+		return command;
+	}
 	auto apply(const revisioned_review_draft& aDraft, const revisioned_review_draft_command& aCommand) -> revisioned_draft_outcome
 	{
 		auto result = revisioned_draft_outcome{ aDraft };

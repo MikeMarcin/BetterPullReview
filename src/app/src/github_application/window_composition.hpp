@@ -1946,10 +1946,16 @@ namespace bpr::app {
 			core::source_line_ref At;
 			std::function<void()> Refused;
 			std::function<void()> Done;
+			/// [[BPR-2298]]. A finding's draft takes its lines' range with
+			/// its text: the first line, or none for one line. Unset: the
+			/// draft keeps its range (a note's promotion).
+			std::optional<std::optional<std::uint32_t>> StartLine;
 		};
 		std::optional<pending_note_promotion> PendingNotePromotion;
 
-		void promote_private_item(std::string aText, std::function<void()> aRefused, std::function<void()> aDone = { });
+		/// \brief Copies `aText` into the selected line's draft; with
+		/// `aStartLine` set, the draft's first line is set in the same edit.
+		void promote_private_item(std::string aText, std::function<void()> aRefused, std::function<void()> aDone = { }, std::optional<std::optional<std::uint32_t>> aStartLine = std::nullopt);
 
 		void resume_note_promotion();
 
