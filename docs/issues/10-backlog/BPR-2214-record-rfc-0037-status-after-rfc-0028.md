@@ -20,7 +20,9 @@ RFC-BPR-0028 being Auto-Verified, which [[BPR-1021]] closes. No card owned
 the status change afterwards, and both [[BPR-1135]] (RFC-BPR-0052) and
 [[BPR-1194]] (RFC-BPR-0061) wait on it. The 2026-11-15 hygiene audit found
 the gap; the owner's 2026-11-16 decision on [[BPR-0653]] ("card what's left")
-cards it.
+cards it. Since 2026-11-20 [[BPR-1194]] no longer waits: Review Cycles
+were retired ([[BPR-2308]]), RFC-BPR-0061 closed to what shipped and dropped
+RFC-BPR-0037 from `depends_on`.
 
 ## Acceptance
 

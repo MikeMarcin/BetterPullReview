@@ -11,6 +11,20 @@ metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-
 
 # RFC-BPR-0059: Clean PR Publication and Local Cycle Continuity
 
+## Status: Auto-Verified; retired with Review Cycles (owner, 2026-11-20)
+
+The owner retired Review Cycles on 2026-11-20 ("Are review_cycles even
+valuable anymore? I feel like they've been completely superseded by our local
+draft pr workflow", then "Yeah don't think we need it anymore").
+[[BPR-2308]] removed the feature and [[BPR-2309]] recorded it; local PR drafts
+([RFC-BPR-0108](RFC-BPR-0108-local-pr-drafts.md)) take its place. The
+repository has no Superseded status, so this RFC keeps its status as the record
+of what shipped and how it was verified; its contracts no longer describe the
+product. Cycle records an earlier version stored (`review-cycles.sqlite3`,
+`publication-git-v1/`) stay on disk untouched and are no longer read.
+
+What remains: the publication plan and journal, the squashed candidate and the outgoing plan in core, which local draft publication ([RFC-BPR-0111](RFC-BPR-0111-draft-publication-and-continuity.md)) uses. Publish as Pull Request from a cycle, its desk and its association are gone.
+
 ## Outcome and decisions
 
 Allow a finished cycle to become a real PR through explicit clean publication. The native v1 output is one squashed commit on a new branch, not destructive manipulation of the developer's branch or a rewrite of the cycle's local evidence. Inspection baseline R0, final local Rn and outgoing Git parent/target are separate identities.

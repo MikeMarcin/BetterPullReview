@@ -46,8 +46,9 @@ Choose `$HOME/.local/opt/bpr-tour-cli` as a development install prefix and use
 its absolute `bin/bpr` path or put that `bin` directory on PATH. A standalone
 CLI release is not promised or required for the macOS app workflow.
 
-The same executable serves local Review Cycles as `bpr cycle`; see
-[Review Cycles terminal](cycle-cli.md).
+The same executable hands a worktree to a local PR draft as `bpr draft`; see
+the [local PR drafts CLI](draft-cli.md). Review Cycles' `bpr cycle` was
+removed in 0.5.0.
 
 `BPR_BUILD_TOUR_CLI` is independent of `BPR_BUILD_QT`. Core-only remains Qt-free;
 the terminal uses `QCoreApplication`, Qt Core/Network, the existing GitHub and Git
@@ -351,8 +352,7 @@ request in the desktop and retry. `open`, refresh, publish and recover answer
 and `labels counts` do too. The channel is a same-user local socket on macOS and Linux and an
 owner-private named pipe on Windows ([[BPR-1168]]), protocol 9; an owner of
 another protocol version answers `owner_protocol_unsupported` before anything is
-sent. The same channel
-carries `bpr cycle` commands ([Review Cycles terminal](cycle-cli.md)).
+sent. The same channel carries `bpr draft open` ([local PR drafts CLI](draft-cli.md)).
 
 Every local edit carries a request ID (`--request-id`, generated when omitted; at
 most 64 letters, digits or hyphens). The owner commits the outcome with the edit,

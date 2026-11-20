@@ -131,7 +131,7 @@ info** copies the version, commit, Qt and system for a bug report.
 
 Packages ending `-agent-free` remove every AI agent feature; those ending
 `-agent-free-automation-off` also remove the `bpr` command endpoint. Review,
-Review Cycles, notes, publication and stored data all still work, and
+notes, local PR drafts, publication and stored data all still work, and
 installing one variant over another keeps your data. See
 [agent-free variants](release-packaging-maintainers.md#agent-free-variants-further-detail).
 

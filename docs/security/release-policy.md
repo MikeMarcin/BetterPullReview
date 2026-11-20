@@ -198,9 +198,8 @@ application/core policy. The owner command endpoint (RFC-BPR-0045, extended by
 RFC-BPR-0058) is a separate per-user rendezvous bound only while the exact-root
 lease is held, an owner-private named pipe on Windows; it advertises a versioned
 owner binding (protocol 3), admits only the same OS user, bounds every frame to
-5 MiB, and carries a closed set of local draft, hook and assist commands and the
-finite `bpr cycle` command registry, which the owner runs against its own draft
-and store. Neither serves HTTP, remote content, an arbitrary command, a
+5 MiB, and carries a closed set of local draft, hook and assist commands and
+`bpr draft open`, which the owner runs against its own draft and store. Neither serves HTTP, remote content, an arbitrary command, a
 credential or a provider endpoint, and neither carries publication authority. No TCP/UDP listener, loopback web server, browser/
 Node runtime, arbitrary plugin loader or undeclared network destination is
 allowed. This does not exempt normal outbound host capabilities from the

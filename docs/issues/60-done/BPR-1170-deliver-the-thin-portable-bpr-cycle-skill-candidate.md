@@ -50,7 +50,7 @@ declared consumer. Thirteen broken copies fail the row. Owned paths, decisions,
 commands, controls and owed station runs are in the
 [execution ledger](../../verification/RFC-BPR-0053-0061.md), under "BPR-1170:
 the bpr-cycle skill candidate"; usage is in
-[the developer page](../../development/cycle-cli.md).
+the developer page.
 
 ## Waiting on the owner's authorization
 
@@ -112,7 +112,7 @@ row passes with the links in place. MASK also rewrote the declared repository
 from SSH to HTTPS; the lock depends on that form.
 
 **RC58-10 is still pending.**
-[`scripts/run_bpr1170_harness_course.py`](../../../scripts/run_bpr1170_harness_course.py)
+`scripts/run_bpr1170_harness_course.py`
 is the authorized course, ready to run. It has not run because standalone
 Claude Code has no sign-in on this Mac (`claude auth status`: `loggedIn: false`).
 This session is authenticated by its desktop host, and nothing here provisions

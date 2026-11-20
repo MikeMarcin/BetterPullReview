@@ -8,6 +8,18 @@ depends_on: []
 
 # Prepare a local PR draft from a worktree
 
+## Owner amendment, 2026-11-20: Review Cycles retired
+
+The owner retired Review Cycles ("Are review_cycles even valuable anymore? I
+feel like they've been completely superseded by our local draft pr workflow",
+then "Yeah don't think we need it anymore"). [[BPR-2308]] removed them, so
+AC06's clause that existing Review Cycles "remain reachable and unchanged" no
+longer holds and is withdrawn: Home has no Review Cycles section and File has
+no Open Project…. The rest of AC06 stands, and
+`application_local_draft_desktop_public_path` now checks that neither entry
+exists. Text below that describes Review Cycles beside local drafts records the
+design as accepted.
+
 ## Problem and grounded current behavior
 
 The author's usual starting point is a worktree containing a change. Current

@@ -18,7 +18,7 @@ that edits an exported file runs this to learn what import would refuse.
 ## Scope
 
 - `bpr prompts check FILE [--profile NAME]`, in the existing `bpr` CLI
-  beside `bpr tour` and `bpr cycle`.
+  beside `bpr tour` and `bpr draft`.
 - It prints [[BPR-2229]]'s core decisions and reasons for each prompt.
   Without `--profile` it checks against the catalog alone. With it, it
   also says Add or Change against that profile.

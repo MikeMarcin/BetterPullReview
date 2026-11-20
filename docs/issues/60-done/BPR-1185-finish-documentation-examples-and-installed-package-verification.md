@@ -54,7 +54,7 @@ per-criterion index and the station requests, is the BPR-1185 section of
 - Documentation: the product, architecture, domain, Git, ledger, round-trip,
   AI, threat, storage, build and corporate documents describe Review Cycles as
   built, and there is a new reviewer's guide,
-  [Review Cycles workflow](../../ux/review-cycles-workflow.md).
+  Review Cycles workflow.
 - Examples: `cycle_cli_documentation` runs `cycle-cli.md` against the built
   `bpr`. It checks the commands, options, exit codes, limits, help and
   examples, and six altered pages must fail. `bpr` alone now names both

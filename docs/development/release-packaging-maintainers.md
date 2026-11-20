@@ -454,8 +454,8 @@ requires the MCP helper only with agent integrations, and refuses an agent-free
 package that still carries one. It audits the application image with
 `scripts/verify_composed_hosts.py`: agent anchors are required in a full image
 and forbidden in an agent-free one. The anchors are the agent hosts, the
-launcher, the protocol decoder, the MCP supervisor and the Send to Agent round
-sender. The cycle owner service is required with local automation and forbidden
+launcher, the protocol decoder and the MCP supervisor. The desktop's
+`bpr draft open` opener is required with local automation and forbidden
 without it. Run the verifier alone with `--without-agent-integrations` and
 `--without-local-automation`.
 
@@ -518,7 +518,7 @@ joins the selected Qt producer's SPDX graph with:
 - sha1collisiondetection, for every SHA-1 Git identity,
 - HACL*'s generated SHA-2, for the core SHA-256,
 - header-only rapidfuzz-cpp, for the diff engine's line-pair similarity,
-- header-only dtl, for intraline ranges and Review Cycle suggestion hunks,
+- header-only dtl, for intraline ranges and suggestion hunks,
 - RE2 with its Abseil LTS,
 - the macOS-only LibArchive input,
 - the embedded JetBrains Mono NL faces,
@@ -1044,7 +1044,7 @@ the new package.
 
 | Package name ends in | Removed | Still works |
 |---|---|---|
-| `-agent-free` | Agent launching, side chat, the finding queue, the comment workshop, tour writing assistance, the private **Ask agent**, agent-assisted composition, **Send to Agent**, the MCP context helper and the **Agents** settings page. | Review, Review Cycles, notes and suggestions, **Copy**, **Save** and the bundle, capture, comparisons, responses, verification, publication, private notes and history, and every stored record, including ones an agent wrote earlier. |
+| `-agent-free` | Agent launching, side chat, the finding queue, the comment workshop, tour writing assistance, the private **Ask agent**, agent-assisted composition, the MCP context helper and the **Agents** settings page. | Review, notes and suggestions, local PR drafts, publication, private notes and history, and every stored record, including ones an agent wrote earlier. |
 | `-agent-free-automation-off` | All of the above, plus the local command endpoint that `bpr` talks to. | Everything above, single-instance activation, and tour routing inside the app. |
 
 The code is removed from the build, not just hidden. Replacing one variant with

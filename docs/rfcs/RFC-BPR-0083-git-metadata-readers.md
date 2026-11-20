@@ -8,6 +8,16 @@ metadata: {"rfc_base_sha":"9a4f61976bba23727acd77d10c23c041f87208f0","mandate_re
 
 # Evaluate replacements for the hand-written Git metadata readers
 
+## Note, 2026-11-20: Review Cycles retired
+
+[[BPR-2308]] retired Review Cycles. The readers this RFC evaluates stay: local
+PR drafts read worktrees through them (`review_cycle_git_metadata`,
+`local_draft_discovery`). Review Cycles capture, which drove C3 and was the
+harness's `C5-capture` component, is gone, and so are the capture-based
+`review_cycle_git_readers` row and the capture half of the scale bench (now
+`bench_git_metadata_scale`, row `review_cycle_git_reader_scale`). References
+below to capture describe the readers' first client.
+
 ## Owner amendment — 2026-10-26
 
 The owner accepted, in chat on 2026-10-26, that the rejected candidate L
@@ -82,7 +92,7 @@ on 2026-09-29:
 |---|---|---|
 | C1 Index | `parse_git_index` in [review_cycle_git.cpp](../../src/core/src/review_cycle_git.cpp) (270 lines, which also hold C2 and C3's parsers) | `DIRC` versions 2–4, including the version-4 prefix varint. Reads stages, skip-worktree and intent-to-add. Flags split (`link`) and sparse (`sdir`) indexes and skips every other extension |
 | C2 Repository format | `git_object_format` | A line scan for `[extensions] objectformat` |
-| C3 HEAD and references | `parse_git_head`, `parse_git_reference` and `find_packed_reference`, driven by `read_head` and `read_git_metadata` in [review_cycle_capture.cpp](../../src/application/src/review_cycle_capture.cpp) (lines 106–176). A second resolver, `resolve_named`, is in [review_cycle_outgoing.cpp](../../src/application/src/review_cycle_outgoing.cpp) (lines 56–150) | Loose reference, then `packed-refs` |
+| C3 HEAD and references | `parse_git_head`, `parse_git_reference` and `find_packed_reference`, driven by `read_head` and `read_git_metadata` in review_cycle_capture.cpp (lines 106–176). A second resolver, `resolve_named`, is in review_cycle_outgoing.cpp (lines 56–150) | Loose reference, then `packed-refs` |
 | C4 Git directory discovery | `gitfile_target`, `commondir_target` and `detect_repository` in [local_workspace_source.cpp](../../src/adapters/workspace/src/local_workspace_source.cpp) (lines 95–118, Windows 495–544, POSIX 1138–1172) | A `.git` directory or `gitdir:` file, then `commondir` |
 | C5 Ignore, C6 `filter` attribute | `wildcard_match`, `workspace_ignore_rules` and `workspace_attribute_rules` in [review_cycle_ignore.cpp](../../src/core/src/review_cycle_ignore.cpp) (353 lines) | A wildmatch port for `.gitignore` and `info/exclude`, plus the `filter` attribute alone |
 
@@ -106,7 +116,7 @@ enforce.
 
 The ignore matcher matters for confidentiality, because the store holds "untracked
 files the checkout's own ignore files do not exclude"
-([security overview](../security/corporate-security-overview.md#review-cycles-retained-source-and-disclosure)).
+([security overview](../security/corporate-security-overview.md#review-cycles-retired)).
 The global excludes and attributes files are deliberately not read, so a path that
 only they ignore stays visible as a candidate
 ([review_cycle_ignore.hpp](../../src/core/include/bpr/core/review_cycle_ignore.hpp)).
@@ -116,7 +126,7 @@ only they ignore stays visible as a candidate
 The workspace contract tests already drive real Git: index version 4,
 skip-worktree, gitlinks, and a canary course that points every hook and
 `core.fsmonitor` at a logging script
-([review_cycle_capture_tests.cpp](../../tests/workspace_contract/review_cycle_capture_tests.cpp),
+(review_cycle_capture_tests.cpp,
 lines 141–170 and 401–414).
 
 The `git_output` target ([git_output_fuzz.cpp](../../tests/fuzz/git_output_fuzz.cpp))
@@ -299,7 +309,7 @@ for the index, and for C5, differential fuzzing against a reference matcher
 compiled into the fuzz target only.
 
 **Performance.** Extend the existing
-[scale bench](../../tests/workspace_contract/review_cycle_scale_bench.cpp)
+[scale bench](../../tests/workspace_contract/git_metadata_scale_bench.cpp)
 to a 250,000-entry checkout. Record the median of five runs of index parsing and
 an ignore walk, plus peak memory. Following that bench's convention, compare the
 numbers in the decision record rather than asserting them in ctest.

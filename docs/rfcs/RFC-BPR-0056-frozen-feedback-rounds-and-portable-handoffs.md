@@ -11,6 +11,20 @@ metadata: {"pack": "bpr-review-cycles-v1", "milestone_plan": {"id": "bpr-review-
 
 # RFC-BPR-0056: Frozen Feedback Rounds and Portable Handoffs
 
+## Status: Auto-Verified; retired with Review Cycles (owner, 2026-11-20)
+
+The owner retired Review Cycles on 2026-11-20 ("Are review_cycles even
+valuable anymore? I feel like they've been completely superseded by our local
+draft pr workflow", then "Yeah don't think we need it anymore").
+[[BPR-2308]] removed the feature and [[BPR-2309]] recorded it; local PR drafts
+([RFC-BPR-0108](RFC-BPR-0108-local-pr-drafts.md)) take its place. The
+repository has no Superseded status, so this RFC keeps its status as the record
+of what shipped and how it was verified; its contracts no longer describe the
+product. Cycle records an earlier version stored (`review-cycles.sqlite3`,
+`publication-git-v1/`) stay on disk untouched and are no longer read.
+
+What remains: the canonical JSON and the ZIP reader and writer, which tours, agent context and diagnostic export use. Rounds, their Markdown, bundles and import are gone.
+
 ## Outcome and decisions
 
 A finished round is one complete assignment assembled deterministically from the review, not one prompt per comment. Freeze exact selected item/source revisions, replacements, order, goal and constraints into a canonical payload with a digest. The user need not restate the review in a separate prompt or approve each item again merely to share it.

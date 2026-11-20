@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1194"
 title: "Verify and close RFC-BPR-0061"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0061"]
 depends_on: ["BPR-1193"]
 closeout_for: ["RFC-BPR-0061"]
-metadata: {"pack": "bpr-review-cycles-v1", "milestone": "closeout", "acceptance": ["RC61-01", "RC61-02", "RC61-03", "RC61-04", "RC61-05", "RC61-06", "RC61-07", "RC61-08", "RC61-09", "RC61-10"], "pack_alias": "PACK-CYCLE-52", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
+metadata: {"owner_closure": "2026-11-20, Review Cycles retired (BPR-2308); RFC-BPR-0061 closed to what shipped, checklist withdrawn", "pack": "bpr-review-cycles-v1", "milestone": "closeout", "acceptance": ["RC61-01", "RC61-02", "RC61-03", "RC61-04", "RC61-05", "RC61-06", "RC61-07", "RC61-08", "RC61-09", "RC61-10"], "pack_alias": "PACK-CYCLE-52", "milestone_plan": {"id": "bpr-review-cycles-v1", "path": "docs/rfcs/plans/bpr-review-cycles-v1/milestone-plan.json"}}
 ---
 
 Pack alias: **PACK-CYCLE-52** (live `BPR-1194`, allocated at import).
@@ -117,3 +117,14 @@ only where their other criteria are already satisfied, and card what is left.
 ([[BPR-1021]]) is Ready. Step 2, the missing card for RFC-BPR-0037's status,
 is [[BPR-2214]]. This card stays in Backlog: RC61-07 is Not run, and
 RFC-BPR-0052 and 0037 are not Auto-Verified.
+
+## Owner closure (2026-11-20)
+
+Closed by the owner's decision to retire Review Cycles ("Are review_cycles even
+valuable anymore? I feel like they've been completely superseded by our local
+draft pr workflow", then "Yeah don't think we need it anymore"), carried out
+by [[BPR-2308]] and recorded in [[BPR-2309]]. RFC-BPR-0061 closes to what
+shipped and its feature is removed. No closeout pass ran for this card: the
+checklist above is withdrawn, a row that says it was not run was not run and is
+not a pass, and RC61-07 stays unverified. The RFC's Status section names what
+shipped and what is gone.

@@ -17,7 +17,7 @@ branch switch, another worktree or a reused path does not. `--context` adds
 its text (at most 16 KiB) to the draft as a note from the harness.
 
 While the desktop owns the profile, the command goes to it over the same-user
-command channel used by `bpr tour` and `bpr cycle`, and the desktop shows the
+command channel used by `bpr tour`, and the desktop shows the
 draft it opened. Otherwise it runs here, on the profile's store, under the
 profile's lease.
 

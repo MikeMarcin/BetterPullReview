@@ -17,7 +17,7 @@ remove it.
 | Linux | `~/.local/share/BetterPullReview/BetterPullReview` (or under `$XDG_DATA_HOME`) |
 
 Other profiles live in `profiles/<id>` under it. Private notes, drafts, tours,
-local PR drafts, Review Cycles and agent conversations exist only here and
+local PR drafts and agent conversations exist only here and
 cannot be rebuilt from GitHub. They are
 not encrypted; the folders are readable only by your account.
 

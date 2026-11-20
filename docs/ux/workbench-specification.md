@@ -1,5 +1,10 @@
 # Workbench Specification
 
+Review Cycles were retired on 2026-11-20 ([[BPR-2308]]): there is no Open
+Project…, no Home Review Cycles section and no local cycle page. Passages
+below that still mention them record how a rule was first written for both
+surfaces; the rule now holds for pull requests and local drafts.
+
 ## The daily-workbench redesign
 
 The daily-workbench design registered on 2026-09-04 is implemented and closed
@@ -2357,7 +2362,7 @@ costs the window no height; on Windows and Linux it takes a row, which is the
 price of the same answer being true on every platform. The existing toolbar
 popup keeps the private progress actions it already had. **File** opens with
 **New Window** (`Ctrl+N`, ⌘N on macOS), which opens another window of this
-window's profile at Home, then Open Project…, Quit and Close Tab
+window's profile at Home, then Quit and Close Tab
 ([[BPR-1863]]: the owner asked for New Window in File, where every desktop
 application keeps it, and it left Profiles). **Profiles** lists the profiles
 by name with the current one checked, then Manage Profiles…. Home's Open Review in New Window
@@ -2398,7 +2403,7 @@ desktop menu bar offers the item disabled, like Diagnostics….
 
 The window lists every shortcut, grouped by area: Navigation, Review and
 files, Comments and labels, Find, Views and drawers, Comparison and history,
-Zoom, Review tours, Home, Review Cycles and Application. Each row is the
+Zoom, Review tours, Home and Application. Each row is the
 command in words and its keys as key caps, in the platform's notation
 (`QKeySequence::NativeText`: ⌘⌥⇧ glyphs on macOS, `Ctrl+Alt+…` elsewhere),
 with "or" between alternatives; a keypad Enter that only repeats Return is
@@ -2409,8 +2414,7 @@ platform Accept file, the change arrows, First and Last change and Hide
 Drawers, and on macOS each window-wide command whose every key is
 Option+character ([Option keys and typing](#menu-bar)); Files and
 Repositories, whose second key is not, say nothing ([[BPR-1678]]). A footer states that rule. A key with
-no binding on the platform (Quit on Windows, the Review Cycle sheets'
-Control-C off macOS) is not listed.
+no binding on the platform (Quit on Windows) is not listed.
 
 The search field has the keyboard when the window opens. Every word typed
 must appear in a row's command, place, group or keys (as written natively,
@@ -2427,7 +2431,7 @@ High Contrast themes.
 The rows come from the catalogue the bindings are made from, so the page
 cannot list a key the application does not bind. `qt_keyboard_shortcuts_scale_{100,125,200}`
 enumerates every `QAction`, `QShortcut` and explicit button key in the
-assembled window, the resident menu bar and a Review Cycle view, and fails on
+assembled window and the resident menu bar, and fails on
 a key the catalogue lacks, a key that differs, a binding that lost its key or
 a catalogue entry with nothing bound. Keys a widget reads in its own key
 handling (Return in the code, ⌘L in a comment editor, the Find query's ⌥W
@@ -2533,7 +2537,7 @@ for itself, so both answers are drivable on one host:
 
   **The menu bar the close leaves behind.** The application's own menu bar
   carries the same menus a window's bar carries, so the close subtracts nothing
-  a reviewer can see: a File menu holding New Window, Quit, Open Project… and Close Tab, a
+  a reviewer can see: a File menu holding New Window, Quit and Close Tab, a
   Profiles menu listing the profiles and then Manage Profiles…, and the window's own
   **View** — Line numbers, One pane, Hide Drawers ([[BPR-1295]]) and Settings… — offered and disabled,
   because no window's presentation is theirs to change. That is what macOS

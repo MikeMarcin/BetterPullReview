@@ -45,7 +45,7 @@ Owned paths:
 - the reviewer gestures added to BPR-1166's
   `tests/end_to_end/review_cycle_two_round_public_path_tests.cpp`;
 - the two fixes below;
-- a paragraph of the [developer page](../../development/cycle-cli.md).
+- a paragraph of the developer page.
 
 No `src/app` file was added; the round-trip composition pin passes unchanged.
 

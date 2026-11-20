@@ -150,9 +150,9 @@ text:
 | Caller | Text classified |
 |---|---|
 | PR comparison panes, through the epoch host's blob source ([`github_application.cpp`](../../src/app/src/github_application.cpp), about 8466) | each side's complete blob |
-| Review Cycle suggestion composer ([`suggestion_composer.cpp`](../../src/adapters/qt/src/suggestion_composer.cpp) `text_changed`, about 169; [`review_cycle_desktop.cpp`](../../src/app/src/review_cycle_desktop.cpp) `submit_syntax`, about 641) | the whole edited file after each edit; the latest text wins, and at most two are classified at once |
-| Review Cycle comparison ([`review_cycle_view.cpp`](../../src/adapters/qt/src/review_cycle_view.cpp), about 1338, [BPR-1281](../issues/60-done/BPR-1281-syntax-colour-in-the-cycle-comparison-views.md)) | each side rebuilt from the full alignment rows |
-| Share-sheet note code ([`review_cycle_share_sheet.cpp`](../../src/adapters/qt/src/review_cycle_share_sheet.cpp) `note_code_view`, about 665–750, [BPR-1161](../issues/60-done/BPR-1161-expose-share-routes-and-exact-delivery-observations-in-the-gui.md)) | an excerpt: only the rows shown, with an empty line for each omitted row |
+| Review Cycle suggestion composer ([`suggestion_composer.cpp`](../../src/adapters/qt/src/suggestion_composer.cpp) `text_changed`, about 169; `review_cycle_desktop.cpp` `submit_syntax`, about 641) | the whole edited file after each edit; the latest text wins, and at most two are classified at once |
+| Review Cycle comparison (`review_cycle_view.cpp`, about 1338, [BPR-1281](../issues/60-done/BPR-1281-syntax-colour-in-the-cycle-comparison-views.md)) | each side rebuilt from the full alignment rows |
+| Share-sheet note code (`review_cycle_share_sheet.cpp` `note_code_view`, about 665–750, [BPR-1161](../issues/60-done/BPR-1161-expose-share-routes-and-exact-delivery-observations-in-the-gui.md)) | an excerpt: only the rows shown, with an empty line for each omitted row |
 
 The excerpt is the only fragment the refinement receives. It can begin inside an
 enum, a namespace, a comment or a raw string, and it can lose a closing brace.

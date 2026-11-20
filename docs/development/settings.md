@@ -162,8 +162,7 @@ The Claude process wrapper and Claude model rows are gone (owner decision,
 agent, whose program and model the list's **Edit…** changes. Tour writing
 asks the agent chosen in the agent picker in the window's footer, and only
 when that agent speaks Claude Code's stream JSON; otherwise it says so and asks
-nothing. Review Cycles **Send to Agent** offers the list's agents, the Agent
-tab's current one first. The footer's picker shows and sets each agent's model
+nothing. The footer's picker shows and sets each agent's model
 and effort; `/model` and `/effort` in the Agent tab's question field set them
 too. BetterPullReview never handles an agent's sign-in.
 

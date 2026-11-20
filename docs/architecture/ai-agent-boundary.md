@@ -28,7 +28,7 @@ A profile declares executable, protocol, supported capabilities, workspace polic
 
 The shipped immutable registry contains Codex App Server and Codex JSONL
 (`codex`), approved Claude stream JSON (`claude`), and the external terminal
-harness (`bpr-agent-terminal`). The Agent tab and Send to Agent name them by
+harness (`bpr-agent-terminal`). The Agent tab names them by
 plain name: Claude Code, Codex, and a harness that reads plain text.
 GitHub.com and an explicit GHES host permit all four profiles. Until the
 owner's decision of 2026-11-19 ([[BPR-2305]]: "Codex should be allowed on
@@ -94,8 +94,7 @@ The external-terminal fallback is mandatory when a corporate harness exposes no 
 profile, **Process wrapper** under **Claude**, modelled on the VS Code
 extension's `claudeProcessWrapper`. It is one absolute path to a program run in
 place of `claude` for every Claude stream-JSON launch of that profile: the
-agent panel, side chat, comment workshop, tool-free writing and Review Cycle
-Send to Agent. A wrapper is either a separately installed `claude` or a
+agent panel, side chat, comment workshop and tool-free writing. A wrapper is either a separately installed `claude` or a
 program that prepares a provider (Bedrock, a gateway, credentials it fetches
 itself) and then runs Claude. The registry names the bare `claude`, which no
 launcher starts as it is; with no wrapper saved the launch searches for it
@@ -1910,7 +1909,7 @@ rule is broken:
   given.
 
 What the rules deliberately leave alone: the Agent tab in the reviewer's own
-checkout and a Review Cycle round read that folder's settings, and an agent
+checkout reads that folder's settings, and an agent
 whose MCP setting is `own` keeps its servers, as before. Instructions are
 pasted into the message only when the agent's switch says so or they would
 overflow a Windows command line. As the audit suggests, every Claude launch
@@ -2248,39 +2247,13 @@ configuration. The CLI flag contract is documented in the
 [provider's CLI reference](https://code.claude.com/docs/en/cli-reference);
 actual installed-provider and model-quality qualification is still required.
 
-## Review Cycles and agents
+## Agent-free builds
 
-Review Cycles ([RFC-BPR-0058](../rfcs/RFC-BPR-0058-headless-cycle-cli-and-portable-consumer-skill.md),
-[RFC-BPR-0060](../rfcs/RFC-BPR-0060-removable-agent-adapters-and-capability-isolation.md))
-need no agent. A frozen round is a complete assignment that a person or any
-harness can act on from its Markdown alone, and a recipient's structured
-response or a reply pasted by hand is recorded the same way whatever produced
-it. BetterPullReview starts no model for a cycle except through Send to Agent,
-and its claims about who answered stay claims.
-
-There are three ways a round reaches a harness, each decided by the profile's
-disclosure policy for its channel:
-
-- **Copy, Save or `bpr cycle export`.** The reviewer hands the document over;
-  nothing is started.
-- **A grant (`bpr cycle round grant`).** A harness that can run `bpr` reads that
-  one round and, unless the grant is read-only, appends a response to it. The
-  [bpr-cycle skill](../development/cycle-cli.md#the-bpr-cycle-skill) teaches only
-  those consumer commands, under `BPR_CYCLE_ROLE=consumer`, and starts no model
-  of its own. The harness keeps its own tools, credentials and approvals.
-- **Send to Agent.** In a build with agent integrations, the share sheet hands
-  the round's document to one of the existing agent profiles above (Codex,
-  Claude, or an external terminal harness, named by its profile) through the
-  same supervised launcher,
-  environment allowlist and host policy, in the cycle's bound folder, and
-  records what was seen: accepted by the adapter, acknowledged with a session,
-  or uncertain. Only Claude stream JSON continues a session, and only one an
-  earlier send of the cycle reported. Nothing is retried or sent elsewhere, and
-  nothing is captured or verified for the reviewer
-  ([threat model](security-threat-model.md#review-cycles)).
+Review Cycles' agent surfaces (handing a frozen round to a harness through
+`bpr cycle` grants and the bpr-cycle skill, and Send to Agent) were retired
+with Review Cycles on 2026-11-20 ([[BPR-2308]]).
 
 A build with `BPR_BUILD_AGENT_INTEGRATIONS=OFF` compiles out the launcher, the
-protocol decoders, the agent hosts, the MCP helper and Send to Agent, and its
-window withdraws their controls; it still opens every stored cycle and every
-record an agent wrote earlier. See
+protocol decoders, the agent hosts and the MCP helper, and its window
+withdraws their controls; it still opens every record an agent wrote earlier. See
 [release packages](../development/release-packages.md#packages-without-agent-integrations-or-local-automation).

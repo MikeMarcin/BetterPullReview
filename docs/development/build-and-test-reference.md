@@ -363,17 +363,17 @@ baselines/toolchains and existing `publish-release` workflow. Ordinary
 bind source, compile/link graph, installed bytes, SPDX/notices and the separate
 source asset; they do not supply publisher trust or native acceptance.
 
-Three switches shape the graph for Review Cycles and its optional families,
+Three switches shape the graph's optional families,
 all independent of the preset:
 
 | Switch | Default | What it changes |
 |---|---|---|
-| `BPR_BUILD_TOUR_CLI` | `OFF` in `dev`, `ON` in `tour-cli` | Builds `bpr` (`app_bpr`) and registers the rows that run it: `cycle_cli_public_path`, `cycle_cli_documentation`, `skill_bpr_cycle_package`, and, in a graph with Qt, the two-round, parity and handoff courses. Requires `BPR_BUILD_LOCAL_AUTOMATION`. |
-| `BPR_BUILD_AGENT_INTEGRATIONS` | `ON` (`OFF` in `tour-cli` and the `-agent-free` presets) | Compiles out the agent launch adapter, protocol decoders, agent hosts, MCP helper and Send to Agent. |
-| `BPR_BUILD_LOCAL_AUTOMATION` | `ON` (`OFF` in the `-agent-free-automation-off` presets) | Without it no owner command endpoint is bound and `bpr` cannot be built; the automation-off two-round course is registered instead. |
+| `BPR_BUILD_TOUR_CLI` | `OFF` in `dev`, `ON` in `tour-cli` | Builds `bpr` (`app_bpr`) and registers the rows that run it: the `tour_cli_*` rows, `skill_pr_tour_package` and, in a graph with Qt, the tour handoff course. Requires `BPR_BUILD_LOCAL_AUTOMATION`. |
+| `BPR_BUILD_AGENT_INTEGRATIONS` | `ON` (`OFF` in `tour-cli` and the `-agent-free` presets) | Compiles out the agent launch adapter, protocol decoders, agent hosts and MCP helper. |
+| `BPR_BUILD_LOCAL_AUTOMATION` | `ON` (`OFF` in the `-agent-free-automation-off` presets) | Without it no owner command endpoint is bound and `bpr` cannot be built. |
 
 A `dev` graph with `bpr` is `cmake --preset dev -B build/dev-tour-cli
--DBPR_BUILD_TOUR_CLI=ON`. The [terminal guide](cycle-cli.md) and
+-DBPR_BUILD_TOUR_CLI=ON`. The [tour CLI guide](tour-cli.md) and
 [release packages](release-packages.md#packages-without-agent-integrations-or-local-automation)
 give the commands and what each package omits.
 
@@ -471,33 +471,6 @@ quiet accepted head, drives the shipped observer-rule and Refresh gestures,
 then stays visible for the owner to grant permission, inspect the exact
 metadata-only banner, and click it. No automation may grant Notification Center
 permission or substitute for the click.
-
-## Live publication course (RC59-10)
-
-RFC-BPR-0059's native publication is qualified live on one repository only,
-github.com/MikeMarcin/BPR-Test, which the owner designated as a disposable
-target on 2026-09-30 ([[BPR-1176]]). The course is not a test row and no
-default graph builds it:
-
-```sh
-cmake -S . -B build/dev -DBPR_BUILD_LIVE_PUBLICATION_COURSE=ON
-cmake --build build/dev --target tool_review_cycle_live_publication
-python3 tests/scripts/run_live_publication_course.py \
-    --tool build/dev/tests/workspace_contract/review_cycle_live_publication --git /usr/bin/git
-cmake -S . -B build/dev -DBPR_BUILD_LIVE_PUBLICATION_COURSE=OFF
-```
-
-It needs a `gh` sign-in that can push to BPR-Test. The driver clones the
-repository, pushes a base branch and a "foreign" branch under
-`bpr-rc59-10/<UTC stamp>/`, and hands the credential to the tool on standard
-input. The tool composes the shipped store, installed-Git catalog, publisher,
-`github_publication_session` and production native HTTPS transport; the
-owner and repository are constants in it. The driver then checks the result
-through `git fetch` and `gh api`. Since [[BPR-1178]] it also cancels a branch
-and a pull request write in flight, at three quarters of the same write's last
-round trip, and reports whether GitHub took it. Branches and pull requests are left on
-BPR-Test as evidence; nothing is deleted, closed or force-updated. GHES has no
-designated target and no course.
 
 ## Automated-test network boundary
 
@@ -3531,7 +3504,7 @@ how many ends it stands for and whose duration is the longest; the rest flushes
 at shutdown. No path, statement, key, query, address, login, title or body
 appears, and these failures are not counted as Insights problems.
 
-The MCP context helper, tours and Review Cycle rounds record the same line
+The MCP context helper and tours record the same line
 ([[BPR-1830]]). `agent.mcp_helper` (category `agent`) is one helper request the
 application's supervisor starts: a refusal (`no_helper`, `not_pinned`,
 `network_location`, `already_running`), or a start and an end naming the
@@ -3543,14 +3516,11 @@ for import, each import's end (`not_offered`, `draft_exists`,
 `target_mismatch`, `refused`, `busy`) with the offered stop count, and the end
 of `bpr tour` `open`, `source`, `counts` and `preview`, and the start and end
 of `publish`, each failure named from the command's error code and exit status.
-`cycle.round` (category `cycle`) is a round frozen, granted, revoked, read by a
-granted harness, answered, its response imported, exported, a round bundle
-imported, and a Send to Agent recorded, with the store's typed failure or the
-grant's refused decision (`not_granted`, `revoked`, `wrong_target`,
-`not_authorized`). The desktop records into the profile's log, as do forwarded
-`bpr cycle` commands; a `bpr` command that holds the profile's lease opens the
+The `cycle.round` operation (category `cycle`) is still read in logs written
+before [[BPR-2308]] retired Review Cycles; nothing records it now. The desktop
+records into the profile's log; a `bpr` command that holds the profile's lease opens the
 profile's log on its first record as one more cooperating session, so the
-desktop's export carries it. No tour text, label, cycle, round content, path,
+desktop's export carries it. No tour text, label, path,
 repository or login appears.
 
 The application explicitly owns its terminal diagnostics before Qt startup.
@@ -3624,7 +3594,7 @@ build, core-only included, acquires Glaze (see JSON decoding below).
 [[BPR-1437]] reads every BetterPullReview command line with one reader,
 `bpr::app::command_line` (`bpr/app/command_line.hpp`), built on
 `QCommandLineParser`. It serves the desktop application, `bpr tour` and
-`bpr cycle`. Each declares a table of flags and value options. Qt
+`bpr draft`. Each declares a table of flags and value options. Qt
 tokenizes, and the reader adds the refusals Qt leaves to its caller:
 - an unknown option, including a single-dash word, `--name=value` and a bare
   `--`;
@@ -3654,9 +3624,10 @@ the exact fields. It replaced three drifted copies in the GitHub adapter (whose
 shared header is now a thin wrapper), and the MCP context helper and the
 designated live observer now decode with glaze instead of hand-written parsers.
 glaze is an owner-approved core library and part of the Qt-free graph. Two
-parsers stay deliberately first-party: the review-cycle canonical JSON reader
-and writer, whose exact-integer, sorted, byte-identical form is hashed into
-bundles and which glaze's double-based DOM cannot preserve, and the agent
+parsers stay deliberately first-party: the canonical JSON reader and writer
+(`review_cycle_json`, kept for tours and agent context after Review Cycles
+were retired), whose exact-integer, sorted, byte-identical form is hashed and
+which glaze's double-based DOM cannot preserve, and the agent
 stream parser, which lifts payloads out of a frame by their exact byte range.
 
 ## Core zlib
