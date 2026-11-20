@@ -433,10 +433,12 @@ class Course:
             output += "\n" + stderr.decode("utf-8", "replace")
         return Step(name, child.returncode, output, time.monotonic() - started, timed_out, self.since(mark))
 
-    def terminal(self, name: str, arguments: list[str], seed: bool = False, answer: str | None = None) -> Step:
+    def terminal(self, name: str, arguments: list[str], seed: bool = False, answer: str | None = None,
+                 actions: tuple[str, ...] = ()) -> Step:
         """One `bpr` process on a pseudo-terminal, as a person would run it.
 
-        `answer` is typed once, after the publish confirmation prompt appears."""
+        `answer` is typed once, after the publish confirmation prompt appears;
+        each of `actions` is typed as one line at the next `> ` prompt (a walk)."""
         import pty
         mark = self.mark()
         started = time.monotonic()
@@ -445,6 +447,8 @@ class Course:
                                  stdout=slave, stderr=slave, env=self.environment)
         os.close(slave)
         output = bytearray()
+        pending = list(actions)
+        prompted = 0
         timed_out = False
         deadline = started + self.seconds
         try:
@@ -468,6 +472,9 @@ class Course:
                     if answer is not None and PROMPT.encode() in output:
                         os.write(master, answer.encode())
                         answer = None
+                    if pending and output.count(b"> ") > prompted:
+                        prompted = output.count(b"> ")
+                        os.write(master, pending.pop(0).encode() + b"\n")
             child.wait(timeout=INTERRUPT_SECONDS)
         finally:
             os.close(master)
@@ -580,9 +587,13 @@ def native_paths(course: Course, root: Path, server: FakeGitHub) -> None:
                  and source.get("source", {}).get("text") == SOURCE_TEXT, "source")
 
     # Local authoring completes the draft, so publication reaches its own gate.
-    # [[BPR-2274]]: a tour is its stops; its one stop is made ready.
-    prepared(course.run("ready", ["ready", "1", *select_draft, "--expected-revision", revision(), "--json"],
-                        seed=True))
+    # [[BPR-2274]]: a tour is its stops. [[BPR-2014]]: each is published only
+    # once its author accepted it, which `ready` alone (relayed) does not do;
+    # Ready in a walk, where the author reads the stop, does.
+    prepared(course.terminal("walk-ready", ["walk", *select_draft], seed=True, actions=("r", "q")))
+    walked = course.run("status", ["status", *select_draft, "--json"], seed=True).json()["data"]["stops"]
+    if [stop.get("acceptance") for stop in walked] != ["accepted"]:
+        raise CourseFailure(f"the walk did not accept the one stop: {walked}")
 
     refreshed = course.run("refresh", ["preview", "--refresh", *select_draft, "--json"])
     status = refreshed.json().get("data", {}).get("publication_status", "") if refreshed.code == 0 else ""
