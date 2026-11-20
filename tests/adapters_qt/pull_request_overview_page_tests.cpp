@@ -4108,7 +4108,7 @@ namespace {
 		page.set_file_dispatch([&opened](const QString& aPath) { opened.push_back(aPath); });
 		page.set_conflicts_page_dispatch([&conflicts] { ++conflicts; });
 		auto       projected            = status_projection();
-		const auto longCheck            = std::string{ "merge-queue/required-integration-check/with-a-very-long-matrix-name/linux-x64-release" };
+		const auto longCheck            = std::string{ "merge_queue.required_integration_check.with_a_very_long_matrix_name:linux_x64_release" };
 		projected.MergeState            = "Conflicts with release, and 1 more requirement";
 		projected.Status.OpenConditions = { longCheck + " has not reported" };
 		projected.MergeConflict         = application::overview_merge_conflict{ .Base = "release", .CommandHint = "git fetch origin\ngit switch topic\ngit merge origin/release" };
@@ -4144,7 +4144,10 @@ namespace {
 
 		// A long reason wraps at the drawer's width: no line runs past it.
 		const auto width = reasons->width();
+		// Underscores, dots and colons are no break opportunity of their own,
+		// so a name like this one was cut off at the drawer's edge.
 		expect(width > 0 && reasons->minimumSizeHint().width() <= width, "the long check name has places to break");
+		expect(reasons->height() >= reasons->heightForWidth(width), "the label is given every line it needs");
 		expect(reasons->heightForWidth(width) > QFontMetrics{ reasons->font() }.lineSpacing(), "and it takes more than one line");
 
 		// With file data: each path is a row that opens the file.
