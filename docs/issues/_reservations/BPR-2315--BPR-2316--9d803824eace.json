@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2315",
+    "BPR-2316"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "automatic rereads never dim the open pull request; return reread freshness probe",
+  "created": "2026-11-20T08:41:39.526983+00:00",
+  "base": "6973ddc71cb89b528de3ef7a57c74020455990db"
+}
