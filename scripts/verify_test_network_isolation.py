@@ -390,16 +390,20 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-2280]], [[BPR-2281]]. Draft Description with the fixture agent
     # and Save in Author. Registered only off Windows (`if(APPLE OR UNIX)`).
     "application_draft_description_public_path": "unmeasured (registered on macOS)",
-    # [[BPR-2290]] and [[BPR-2298]] rows main added at bafdd264f with no pin.
-    "git_haves_trimmed_pack_historical": "unmeasured (registered on macOS)",
-    "git_haves_trimmed_pack_historical-wall": "unmeasured (registered on macOS)",
-    "application_agent_suggestion_range_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-2290]] and [[BPR-2298]] rows main added at bafdd264f, measured
+    # contained at 4d26a890d (Release; each passed directly): "QProcess:
+    # CreateNamedPipe failed. (Access is denied.)" then "FAILED: start fixture
+    # Git", and "private data root refused".
+    "git_haves_trimmed_pack_historical": "qprocess-named-pipe",
+    "git_haves_trimmed_pack_historical-wall": "qprocess-named-pipe",
+    "application_agent_suggestion_range_public_path": "private-data-root-refused",
     # [[BPR-2261]]. A held turn restored after quit, the agent-chat course's
     # own binary; measured contained at fb60e393e it exits silently, as its
     # sibling helpers courses do when the private test root is refused.
     "application_agent_chat_held_turn_public_path": "private-test-root-refused",
-    # Registered on main without an entry.
-    "application_window_file_drop_public_path": "unmeasured (registered on macOS)",
+    # Registered on main without an entry; measured contained at 4d26a890d
+    # (Release; passed directly): "private data root refused".
+    "application_window_file_drop_public_path": "private-data-root-refused",
     "application_follow_up_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",

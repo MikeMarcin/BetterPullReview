@@ -203,3 +203,19 @@ Pinned `prompt-pack-store-predicate-failed` and `private-test-root-refused`.
 and stays unmeasured, as do the commit-asks and report courses.
 `application_window_file_drop_public_path` is pinned unmeasured until the next
 Windows measurement.
+
+## `application_window_file_drop_public_path` and rows main added by `bafdd264f` — measured at `4d26a890d`
+
+Release, interactive session 1, each row run once directly through CTest and
+once with the same command under the AppContainer launcher. Every program's
+SHA-256 was the same before and after.
+
+| Course | Direct exit | Contained exit | First contained observation |
+| --- | --- | --- | --- |
+| `application_window_file_drop_public_path` | 0 (1.69 s) | 8 | `private data root refused` |
+| `git_haves_trimmed_pack_historical` | 0 (4.67 s) | 8 | `QProcess: CreateNamedPipe failed. (Access is denied.)`, then `FAILED: start fixture Git` |
+| `git_haves_trimmed_pack_historical-wall` | 0 (2.97 s) | 8 | the same |
+| `application_agent_suggestion_range_public_path` | 0 (5.73 s) | 8 | `private data root refused` |
+
+Pinned `private-data-root-refused`, `qprocess-named-pipe`,
+`qprocess-named-pipe` and `private-data-root-refused`.
