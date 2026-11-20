@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2329"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Overview auto-merge view and control (split from BPR-2327)",
+  "created": "2026-11-20T20:38:04.083332+00:00",
+  "base": "b03d45530efb9d4c811aaac33959fc117f1e1f29"
+}
