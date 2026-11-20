@@ -181,9 +181,29 @@ What the owner did, and what happened:
 
 ### 5. Log it
 
-- Side chat rounds, proposals, uses and their refusals are diagnostic
-  events at Standard detail, with outcome and duration and no content, like
-  `agent.run`.
+Owner, 2026-11-20: "Make sure that we can see things like these follow-up
+questions being asked in the logs and being applied", and "make sure that
+the actual content of messages and agent responses don't show up in any
+anonymized exports". Content is logged at Verbose only, because it can be
+large.
+
+- **Already in [[BPR-2322]]** (`agent.side_chat`, Standard): a question
+  asked (started and ended), a proposal asked for and shown, and a Use
+  applied or refused, each with the item's kind, the round, the apply
+  action (which says where it goes: report finding, draft or reply
+  composer), the outcome or the core's refusal, the duration, and the
+  lengths in characters (question, answer or proposed text, and before and
+  after for a proposal or Use). No words, title, path or key.
+- **Standard, added here**, still with no content: Discard, Update the
+  draft too applied or refused, Undo and Redo of an applied update, and
+  every remaining refusal with its reason; the finding's key and the agent
+  on every line, in a form the anonymizer already treats as an identifier.
+- **Verbose, added here**: the content itself, the question, the answer,
+  the proposed text, the finding's title and its path and lines, on the
+  same events, in fields the anonymized export recognises as content.
+- **Anonymized export, at any detail**: the content fields are stripped
+  (lengths stay). The stored side chat rounds of Change 1 are never part of
+  an anonymized export or report bundle.
 - A publish refused by the policy before any request writes a
   `review_mutation.failed` with its reason.
 
@@ -201,8 +221,14 @@ What the owner did, and what happened:
 - Core policy: drafting a `suggestion` on lines outside every hunk yields a
   file comment with a fenced code block. A refused off-hunk `suggestion`
   draft is offered the conversion, never the plain file comment.
-- Log: a side chat round and a policy-refused publish each write one
-  Standard event.
+- Log: a side chat round, a Discard, Update the draft too, Undo and Redo
+  each write one Standard event with lengths and no content, and a
+  policy-refused publish writes one with its reason. With Verbose on, the
+  same events carry their content.
+- Export: with Verbose on, a side chat round whose question and answer hold
+  distinctive marker strings (and a proposal, title and path that do too)
+  is logged, the log is exported anonymized, and no marker appears in the
+  export, nor in any stored round an anonymized bundle carries.
 
 ## Acceptance
 
@@ -215,8 +241,13 @@ What the owner did, and what happened:
   the old text.
 - AC4. A finding on lines outside the diff is never drafted as a `suggestion`
   GitHub must refuse. After a refusal, the advice given can succeed.
-- AC5. Every side chat round and every refused publish is in the Standard
-  diagnostic log.
+- AC5. Every side chat question, proposal shown, Use, Discard, Update the
+  draft too, Undo, Redo and refusal is a Standard diagnostic event with its
+  kind, finding key, round, agent, duration, outcome and lengths, and no
+  content; every refused publish is one too. At Verbose the events carry
+  the question, answer, proposed text, finding title and path and lines.
+- AC7. No anonymized export, at any detail, holds a side chat's content or
+  its stored rounds: the marker test above passes with Verbose on.
 - AC6. The tests above, BPR-2322's `qt_item_side_chat` and
   `application_follow_up_public_path`, `architecture_boundaries`, and
   `python3 scripts/verify_documentation.py --root .` pass.
