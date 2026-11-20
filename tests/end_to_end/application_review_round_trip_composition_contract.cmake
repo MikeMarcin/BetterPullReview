@@ -2940,6 +2940,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/window_defects.cpp"
         "src/github_application/window_device_authorization.cpp"
         "src/github_application/window_explain_file.cpp"
+        "src/github_application/window_follow_up.cpp"
         "src/github_application/window_github_reads.cpp"
         "src/github_application/window_local_comments.cpp"
         "src/github_application/window_navigation.cpp"
@@ -3131,6 +3132,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/window_defects.cpp"
         "src/github_application/window_device_authorization.cpp"
         "src/github_application/window_explain_file.cpp"
+        "src/github_application/window_follow_up.cpp"
         "src/github_application/window_github_reads.cpp"
         "src/github_application/window_local_comments.cpp"
         "src/github_application/window_navigation.cpp"
@@ -3888,8 +3890,10 @@ function(bpr_verify_app_source_tree app_source_root)
 	# path changed by the merge itself.
 	# [[BPR-2215]] reseal: the fixture agent admission splits a search PATH
 	# on the platform's list separator (window_agent_setup.cpp, tests only).
+	# [[BPR-2215]] BPR-2286 added window_follow_up.cpp on main without adding
+	# it to the source inventory or this manifest; both now name it.
 	set(bpr_expected_production_app_manifest_digest
-        "d15f207423f074a10a01dc8304d105f159d2bc24e0bee2752fd0d3429d8aaf25"
+        "7c12401a74ff96e7f56ce57a2472314ffaa5f2d4e6eded75aeecfb4d26889ab3"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
