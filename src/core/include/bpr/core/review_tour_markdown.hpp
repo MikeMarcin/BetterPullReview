@@ -104,7 +104,7 @@ namespace bpr::core {
 	/// \brief [[BPR-1806]]. Recognizes exactly the envelope `render_tour_stop`
 	/// publishes, in either newline style, and nothing looser: an optional
 	/// pinned source alone on the first line and a blank line; the
-	/// `### PR Tour · N — Title` heading (or the legacy `### Author's tour · `)
+	/// `### PR Tour · N — Title` heading
 	/// on the next; a blank line; a non-empty narrative; a blank line; the
 	/// navigation paragraph (Tour overview, after Previous unless the stop is
 	/// the first, before Next when there is one); its optional note; and

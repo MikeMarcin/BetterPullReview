@@ -324,7 +324,7 @@ namespace {
 		expect(labelled.has_value() && plain.has_value(), "the tour owner renders both stops");
 		// A generated heading whose envelope does not map: nothing in it is
 		// the author's to classify, so no label is read past the heading.
-		const auto broken = std::string{ "### Author's tour · 3 — Teardown\n\nissue: The navigation paragraph is missing." };
+		const auto broken = std::string{ "### PR Tour · 3 — Teardown\n\nissue: The navigation paragraph is missing." };
 		auto       stops  = std::vector<conversation>{ };
 		const auto add    = [&stops](const std::string& aThread, const std::string& aBody, const std::uint32_t aLine) {
 			auto thread               = conversation{ };

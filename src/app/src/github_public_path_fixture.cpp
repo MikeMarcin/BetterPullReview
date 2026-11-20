@@ -1264,7 +1264,7 @@ namespace bpr::app::detail {
 					auto thread   = nodes[i].toObject();
 					auto comments = thread["comments"].toObject();
 					auto comment  = comments["nodes"].toArray().first().toObject();
-					comment.insert("body", "### Author's tour · 8 — same\r\n\r\n**Raw** explanation " + QString::number(i) + ".\r\n\r\n[Tour overview](" + prefix + "#pullrequestreview-4001)\r\n");
+					comment.insert("body", "### PR Tour · 8 — same\r\n\r\n**Raw** explanation " + QString::number(i) + ".\r\n\r\n[Tour overview](" + prefix + "#pullrequestreview-4001)\r\n");
 					comment.insert("url", prefix + "#discussion_r" + QString::number(71001 + i));
 					comment.insert("fullDatabaseId", QString::number(71001 + i));
 					comment.insert("updatedAt", "2026-09-26T00:00:00Z");

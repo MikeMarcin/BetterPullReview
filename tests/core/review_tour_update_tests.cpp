@@ -101,22 +101,6 @@ namespace {
 		const auto   advanced = apply(tour, observe);
 		expect(advanced.Refusal == tour_refusal::none && advanced.Changed && advanced.Accepted.Stops.front().Destination == std::optional{ destination_of(*original) } && advanced.Accepted.Stops.front().Original == original && !advanced.Accepted.Stops.front().Mapped && stop.Destination == stale, "head observation retains the legacy confirmed subject before invalidating its mapping and leaves the input intact");
 	}
-	void legacy_stop_heading()
-	{
-		auto tour = published();
-		for (auto& stop : tour.Stops) {
-			auto& raw = stop.Baseline->Raw;
-			raw.replace(0, std::string_view{ "### PR Tour · " }.size(), "### Author's tour · ");
-		}
-		const auto unchanged = plan_tour_update(tour, { });
-		expect(unchanged && unchanged->Edits.empty(), "reading a legacy tour does not rename published comments");
-		tour.Stops.front().Body       = "A deliberate revised explanation.";
-		tour.Stops.front().Acceptance = accept_tour_stop(tour, tour.Stops.front(), { });
-		const auto revised            = plan_tour_update(tour, { });
-		expect(revised && revised->Edits.size() == 1 && revised->Edits.front().Remote == *tour.Stops.front().Remote
-				   && revised->Edits.front().Desired.starts_with("### PR Tour · 1 — Stop 1\n") && revised->Edits.front().Desired.contains(tour.Stops.front().Body),
-			   "an explicit legacy-comment update keeps its identity and writes PR Tour");
-	}
 	void website_deltas()
 	{
 		const auto base     = published();
@@ -243,7 +227,6 @@ int main()
 	}
 	published_source_baseline();
 	legacy_published_source();
-	legacy_stop_heading();
 	website_deltas();
 	reconciliation();
 	auto draft = published();

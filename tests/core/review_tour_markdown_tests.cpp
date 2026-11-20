@@ -70,9 +70,9 @@ namespace {
 		expect(split.Heading && split.Narrative && split.Footer && split.Title == "Why boundary", "separate managed spans");
 		auto prose = *stop + "\nThis website paragraph is new.\n";
 		expect(!map_tour_stop(prose).Narrative, "website layout edit does not erase unfamiliar text");
-		const auto quoted = "### Author's tour · 1 — Why\n\n```md\n[Tour overview](https://example.com)\n```\n";
+		const auto quoted = "### PR Tour · 1 — Why\n\n```md\n[Tour overview](https://example.com)\n```\n";
 		expect(!map_tour_stop(quoted).Footer, "footer in code is not managed");
-		expect(!map_tour_stop(*stop + "\n" + quoted).Heading, "mixed new and legacy headings still require explicit mapping");
+		expect(!map_tour_stop(*stop + "\n" + quoted).Heading, "two managed headings still require explicit mapping");
 		expect(!render_tour_index(std::array{ tour_markdown_link{ "bad", "https://example.com/)\n<script>" } }), "destination injection refused");
 	}
 	/// [[BPR-1222]]. The owner asked for stops on the Files changed tab. GitHub's
@@ -112,7 +112,7 @@ namespace {
 			expect(mapped.Footer && slice(*stop, *mapped.Footer) == footer, "the footer holds the links and the note");
 			expect(mapped.Narrative && slice(*stop, *mapped.Narrative) == narrative, "the narrative ends before the links");
 			expect(with_tour_navigation_note(*stop) == *stop, "a noted stop is left alone");
-			const auto old    = std::string{ "### Author's tour · 2 — Why" }.append(line).append(narrative).append(links).append(line);
+			const auto old    = std::string{ "### PR Tour · 2 — Why" }.append(line).append(narrative).append(links).append(line);
 			const auto before = map_tour_stop(old);
 			expect(before.Footer && slice(old, *before.Footer) == std::string{ links }.append(line) && before.Narrative && slice(old, *before.Narrative) == narrative, "a stop published before the note still maps");
 			expect(with_tour_navigation_note(old) == std::string{ old }.append(note).append(line), "an old stop gains the note under its links and nothing else changes");
@@ -121,9 +121,9 @@ namespace {
 		const auto       single = render_tour_stop("Only", 1, "Body", alone);
 		expect(single && single->find(note) == std::string::npos, "a stop with no Previous or Next has no note");
 		expect(with_tour_navigation_note(*single) == *single, "nor does it gain one");
-		const auto unterminated = "### Author's tour · 2 — Why\n\nBody\n\n" + links;
+		const auto unterminated = "### PR Tour · 2 — Why\n\nBody\n\n" + links;
 		expect(with_tour_navigation_note(unterminated) == unterminated + "\n" + note + "\n", "a footer with no final newline gains one before the note");
-		expect(!map_tour_stop("### Author's tour · 2 — Why\n\nBody\n\n" + note + "\n").Footer, "the note alone is not a footer");
+		expect(!map_tour_stop("### PR Tour · 2 — Why\n\nBody\n\n" + note + "\n").Footer, "the note alone is not a footer");
 	}
 }
 namespace {
@@ -172,8 +172,10 @@ namespace {
 			expect(recognize_published_tour_stop(noteless).has_value(), "a stop published before BPR-1785's note is still a stop");
 			const auto pending = render_tour_stop("Pending", 3, "Words.", links(false, false), { }, nl);
 			expect(pending && recognize_published_tour_stop(*pending).has_value(), "a stop with only Tour overview is a stop");
-			const auto legacy = lined({ "### Author's tour · 4 — Legacy", "", "Words.", "", "[Tour overview](https://x/o)", "" });
-			expect(recognize_published_tour_stop(legacy).has_value(), "the legacy heading and trailing blank lines are accepted");
+			const auto trailing = lined({ "### PR Tour · 4 — Trailing", "", "Words.", "", "[Tour overview](https://x/o)", "" });
+			expect(recognize_published_tour_stop(trailing).has_value(), "trailing blank lines are accepted");
+			const auto retired = lined({ "### Author's tour · 4 — Retired", "", "Words.", "", "[Tour overview](https://x/o)", "" });
+			expect(!recognize_published_tour_stop(retired) && !map_tour_stop(retired).Heading, "the retired Author's tour heading is not a stop");
 
 			// Not stops: anything other than the exact envelope.
 			constexpr auto overviewLink = std::string_view{ "[Tour overview](https://x/o)" };

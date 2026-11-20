@@ -268,19 +268,17 @@ namespace bpr::core {
 		if (aRaw.size() > maximum_tour_field_bytes) {
 			return result;
 		}
-		const auto                 rows         = lines(aRaw);
-		constexpr auto             prefix       = std::string_view{ "### PR Tour · " };
-		constexpr auto             legacyPrefix = std::string_view{ "### Author's tour · " };
+		const auto                 rows       = lines(aRaw);
+		constexpr auto             prefix     = std::string_view{ "### PR Tour · " };
+		constexpr auto             prefixSize = prefix.size();
 		std::optional<std::size_t> heading;
-		std::size_t                prefixSize = 0;
 		for (std::size_t index = 0; index < rows.size(); ++index) {
 			const auto text = trim(rows[index].Text);
-			if (rows[index].Top && (text.starts_with(prefix) || text.starts_with(legacyPrefix))) {
+			if (rows[index].Top && text.starts_with(prefix)) {
 				if (heading) {
 					return result;
 				}
-				heading    = index;
-				prefixSize = text.starts_with(prefix) ? prefix.size() : legacyPrefix.size();
+				heading = index;
 			}
 		}
 		if (!heading) {
@@ -466,15 +464,10 @@ namespace bpr::core {
 		/// \brief The published heading's number and title, or none.
 		auto published_heading(std::string_view aText) -> std::optional<std::pair<std::size_t, std::string>>
 		{
-			constexpr auto prefix       = std::string_view{ "### PR Tour · " };
-			constexpr auto legacyPrefix = std::string_view{ "### Author's tour · " };
-			constexpr auto dash         = std::string_view{ " — " };
-			auto           size         = std::size_t{ 0 };
-			if (aText.starts_with(prefix)) {
-				size = prefix.size();
-			} else if (aText.starts_with(legacyPrefix)) {
-				size = legacyPrefix.size();
-			} else {
+			constexpr auto prefix = std::string_view{ "### PR Tour · " };
+			constexpr auto dash   = std::string_view{ " — " };
+			constexpr auto size   = prefix.size();
+			if (!aText.starts_with(prefix)) {
 				return { };
 			}
 			const auto split = aText.find(dash, size);

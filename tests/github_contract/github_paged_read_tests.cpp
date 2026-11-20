@@ -5707,7 +5707,7 @@ namespace {
 				expect(aRequest.Wire.Body.find("body url updatedAt fullDatabaseId") != std::string::npos, "production query selects raw body and real identity");
 				for (std::size_t index = 0; index < 101; ++index) {
 					const auto id       = index == 0 ? "18446744073709551615" : std::to_string(index + 1);
-					const auto raw      = "### Author's tour · 9 — same\r\n\r\n**raw** " + std::to_string(index) + "\r\n\r\n[Tour overview](" + prefix + "#pullrequestreview-4001)\r\n";
+					const auto raw      = "### PR Tour · 9 — same\r\n\r\n**raw** " + std::to_string(index) + "\r\n\r\n[Tour overview](" + prefix + "#pullrequestreview-4001)\r\n";
 					const auto existing = "\"bodyText\":\"comment " + std::to_string(index) + "\"";
 					const auto added    = std::string{ existing }.append(",\"body\":").append(fixture_json(raw)).append(",\"url\":").append(fixture_json(std::string{ prefix }.append("#discussion_r").append(id))).append(",\"fullDatabaseId\":\"").append(id).append("\",\"updatedAt\":\"2026-09-26T00:00:00Z\",\"pullRequestReview\":{\"id\":\"R_review\"}");
 					replace_raw(aResponse.Body, existing, added);

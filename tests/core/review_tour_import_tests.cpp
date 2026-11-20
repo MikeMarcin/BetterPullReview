@@ -25,7 +25,7 @@ namespace {
 		return {
 			{ .Binding = { .Kind = tour_remote_kind::conversation_comment, .DatabaseId = 8, .Entity = "comment8", .Actor = "actor", .WebUrl = second, .Own = true }, .Raw = "custom **second**\r\n", .Root = true },
 			{ .Binding = { .Kind = tour_remote_kind::review, .DatabaseId = 9, .Entity = "review9", .Actor = "actor", .WebUrl = root, .Own = true }, .Raw = "## Read this\r\n1. [same](" + first + ")\r\n1. [same](" + second + ")\r\n", .Root = true },
-			{ .Binding = { .Kind = tour_remote_kind::line_comment, .DatabaseId = std::numeric_limits<std::uint64_t>::max(), .Entity = "opaque-node-not-a-database-id", .Actor = "actor", .WebUrl = first, .Own = true, .Resolved = true, .Outdated = true }, .Raw = "### Author's tour · 77 — same\n\n**first**\n\n[Tour overview](" + root + ")\n" }
+			{ .Binding = { .Kind = tour_remote_kind::line_comment, .DatabaseId = std::numeric_limits<std::uint64_t>::max(), .Entity = "opaque-node-not-a-database-id", .Actor = "actor", .WebUrl = first, .Own = true, .Resolved = true, .Outdated = true }, .Raw = "### PR Tour · 77 — same\n\n**first**\n\n[Tour overview](" + root + ")\n" }
 		};
 	}
 	constexpr std::string_view brief = "JIRA\r\n## Problem\r\nCrash.\r\n## Solution\r\nSnapshot.\r\n## Checks\r\n- [x] kept\r\n";
