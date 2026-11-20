@@ -1426,7 +1426,7 @@ namespace {
 				text.remove(QStringLiteral("Native conversations retain their exact-head workspace and earlier agent context outside the Git cache."));
 			}
 			if (word.Where.startsWith(QStringLiteral("QLabel overviewNewConversationText ("))
-				|| word.Where.startsWith(QStringLiteral("QToolButton overviewGoToNewConversation ("))) {
+				|| word.Where.startsWith(QStringLiteral("QAbstractButton overviewGoToNewConversation ("))) {
 				text.remove(QStringLiteral("new comments in the conversation"));
 				text.remove(QStringLiteral("new comment in the conversation"));
 			}

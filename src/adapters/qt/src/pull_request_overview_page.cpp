@@ -70,6 +70,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -787,6 +788,13 @@ namespace bpr::qt {
 				if (aSection == overview_status_section::checks) {
 					present_attention();
 				}
+				// [[BPR-2314]]. What else opens the section says what a press does next.
+				const auto said = Sections[static_cast<std::size_t>(aSection)].Header->accessibleDescription();
+				if (aSection == overview_status_section::people && Faces != nullptr) {
+					Faces->setAccessibleDescription(said);
+				} else if (aSection == overview_status_section::attention && ConflictsRow != nullptr) {
+					ConflictsRow->setAccessibleDescription(said);
+				}
 			});
 			return section_layouts{ bodyLayout, detailsLayout };
 		};
@@ -833,8 +841,8 @@ namespace bpr::qt {
 		connect(RequirementDisclosure, &QToolButton::toggled, this, [this](bool aOpen) { RequirementDetails->setVisible(aOpen); });
 
 		// My review: files read with a bar, my comments by state, and
-		// the threads with posts I have not read, with Go to them. It opens to
-		// what happened since my last review that has a value.
+		// the threads with posts I have not read, in a line that goes to them.
+		// It opens to what happened since my last review that has a value.
 		const auto  myReview = makeSection(overview_status_section::my_review, QStringLiteral("My review"), QStringLiteral("overviewMyReviewSection"));
 		auto* const myBody   = myReview.Body->parentWidget();
 		addValue(myReview.Body, overview_value::files_read);
@@ -845,48 +853,36 @@ namespace bpr::qt {
 		addValue(myReview.Body, overview_value::in_review);
 		addValue(myReview.Body, overview_value::not_in_review);
 		addValue(myReview.Body, overview_value::local_comments);
-		NewThreadsRow = new QWidget{ myBody };
-		NewThreadsRow->setObjectName(QStringLiteral("overviewNewThreads"));
-		auto* const newLayout = new QHBoxLayout{ NewThreadsRow };
-		newLayout->setContentsMargins(0, 0, 0, 0);
-		NewThreadsText = new QLabel{ NewThreadsRow };
-		NewThreadsText->setObjectName(QStringLiteral("overviewNewThreadsText"));
-		NewThreadsText->setTextFormat(Qt::PlainText);
-		NewThreadsGo = new quiet_tool_button{ NewThreadsRow };
-		NewThreadsGo->setObjectName(QStringLiteral("overviewGoToNewThreads"));
-		NewThreadsGo->setText(QStringLiteral("Go to them"));
-		NewThreadsGo->setAutoRaise(true);
-		NewThreadsGo->setCursor(Qt::PointingHandCursor);
-		NewThreadsGo->setToolTip(QStringLiteral("Open Threads with Only new on"));
-		newLayout->addWidget(NewThreadsText, 1);
-		newLayout->addWidget(NewThreadsGo, 0);
-		NewThreadsRow->hide();
-		myReview.Body->addWidget(NewThreadsRow);
-		connect(NewThreadsGo, &QToolButton::clicked, this, [this] {
+		// [[BPR-2314]]. Each line in the unread colour is the way to what it
+		// counts: no Go to them beside it. The owner, 2026-11-20: "These look
+		// like links and I want to click them but I have to go find the go to
+		// them button all the way off to the side."
+		const auto addLink = [myBody, &myReview](const QString& aRow, const QString& aLink, const QString& aWords, const QString& aTip) {
+			auto* const row    = new QWidget{ myBody };
+			auto* const layout = new QHBoxLayout{ row };
+			row->setObjectName(aRow);
+			layout->setContentsMargins(0, 0, 0, 0);
+			auto* const link = new drawer_link_row{ row };
+			link->setObjectName(aLink);
+			link->words()->setObjectName(aWords);
+			link->setToolTip(aTip);
+			layout->addWidget(link);
+			row->hide();
+			myReview.Body->addWidget(row);
+			return std::pair{ row, link };
+		};
+		std::tie(NewThreadsRow, NewThreadsGo) = addLink(QStringLiteral("overviewNewThreads"), QStringLiteral("overviewGoToNewThreads"), QStringLiteral("overviewNewThreadsText"),
+														QStringLiteral("Open Threads with Only new on"));
+		connect(NewThreadsGo, &QAbstractButton::clicked, this, [this] {
 			if (NewThreadsDispatch) {
 				NewThreadsDispatch();
 			}
 		});
 		// The conversation's new comments, which open in Discuss. Hidden until
 		// the ledger keeps read state for comments that are not on a file.
-		NewConversationRow = new QWidget{ myBody };
-		NewConversationRow->setObjectName(QStringLiteral("overviewNewConversation"));
-		auto* const conversationLayout = new QHBoxLayout{ NewConversationRow };
-		conversationLayout->setContentsMargins(0, 0, 0, 0);
-		NewConversationText = new QLabel{ NewConversationRow };
-		NewConversationText->setObjectName(QStringLiteral("overviewNewConversationText"));
-		NewConversationText->setTextFormat(Qt::PlainText);
-		NewConversationGo = new quiet_tool_button{ NewConversationRow };
-		NewConversationGo->setObjectName(QStringLiteral("overviewGoToNewConversation"));
-		NewConversationGo->setText(QStringLiteral("Go to them"));
-		NewConversationGo->setAutoRaise(true);
-		NewConversationGo->setCursor(Qt::PointingHandCursor);
-		NewConversationGo->setToolTip(QStringLiteral("Open Discuss on the pull request"));
-		conversationLayout->addWidget(NewConversationText, 1);
-		conversationLayout->addWidget(NewConversationGo, 0);
-		NewConversationRow->hide();
-		myReview.Body->addWidget(NewConversationRow);
-		connect(NewConversationGo, &QToolButton::clicked, this, [this] {
+		std::tie(NewConversationRow, NewConversationGo) = addLink(QStringLiteral("overviewNewConversation"), QStringLiteral("overviewGoToNewConversation"),
+																  QStringLiteral("overviewNewConversationText"), QStringLiteral("Open Discuss on the pull request"));
+		connect(NewConversationGo, &QAbstractButton::clicked, this, [this] {
 			if (NewConversationDispatch) {
 				NewConversationDispatch();
 			}
@@ -955,7 +951,11 @@ namespace bpr::qt {
 		facesRow->setContentsMargins(0, 2, 0, 2);
 		facesRow->setSpacing(10);
 		Faces = new overview_faces{ peopleBody };
+		Faces->setAccessibleDescription(Sections[static_cast<std::size_t>(overview_status_section::people)].Header->accessibleDescription());
+		Faces->setToolTip(QStringLiteral("Show everyone on this pull request"));
 		facesRow->addWidget(Faces, 0);
+		// [[BPR-2314]]. The faces open People as its header does.
+		connect(Faces, &QAbstractButton::clicked, Sections[static_cast<std::size_t>(overview_status_section::people)].Header, &QAbstractButton::click);
 		PeopleSummary = makeText(peopleBody, QStringLiteral("overviewPeopleSummary"));
 		PeopleSummary->setForegroundRole(QPalette::PlaceholderText);
 		facesRow->addWidget(PeopleSummary, 1);

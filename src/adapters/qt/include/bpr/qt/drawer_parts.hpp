@@ -3,6 +3,7 @@
 
 #include "bpr/qt/quiet_tool_button.hpp"
 
+#include <QAbstractButton>
 #include <QColor>
 #include <QFrame>
 #include <QIcon>
@@ -20,7 +21,9 @@
 
 class QAction;
 class QEnterEvent;
+class QFocusEvent;
 class QGridLayout;
+class QKeyEvent;
 class QLabel;
 class QPainter;
 class QPaintEvent;
@@ -257,6 +260,46 @@ namespace bpr::qt {
 
 		QString Count;
 	};
+
+	/// \brief [[BPR-2314]]. A drawer line that is itself its action.
+	///
+	/// \details The owner, 2026-11-20, on the Overview's Status: "These look
+	/// like links and I want to click them but I have to go find the go to
+	/// them button all the way off to the side." The line's words are the
+	/// control: the pointing hand and an underline under the pointer, one
+	/// keyboard stop that Space or Return presses, and the window's focus
+	/// ring while it has focus. It reports itself as a button; what it does
+	/// is its accessible name. Its words wrap, and it emits `clicked` only:
+	/// whoever made it decides what a press means.
+	class drawer_link_row final : public QAbstractButton
+	{
+	public:
+		explicit drawer_link_row(QWidget* aParent = nullptr);
+
+		/// \brief One plain line in `aInk`, underlined under the pointer.
+		void present_line(const QString& aLine, const QColor& aInk);
+		/// \brief Rich text at rest and under the pointer, where `aHovered`
+		/// underlines the words the press acts on.
+		void               present(const QString& aResting, const QString& aHovered);
+		[[nodiscard]] auto words() const noexcept -> QLabel*;
+
+	protected:
+		void enterEvent(QEnterEvent* aEvent) override;
+		void leaveEvent(QEvent* aEvent) override;
+		void keyPressEvent(QKeyEvent* aEvent) override;
+		void paintEvent(QPaintEvent* aEvent) override;
+
+	private:
+		void show_words();
+
+		QLabel* Words = nullptr;
+		QString Resting;
+		QString Hovered;
+	};
+
+	/// \brief [[BPR-2314]]. Return and Enter press `aButton` as Space does;
+	/// true when `aEvent` was one of them.
+	[[nodiscard]] auto press_on_return(QAbstractButton& aButton, const QKeyEvent& aEvent) -> bool;
 
 	/// \brief [[BPR-1589]]. A thin bar of proportions: files read of all, or
 	/// checks passed, failed and skipped, each segment in a colour of meaning

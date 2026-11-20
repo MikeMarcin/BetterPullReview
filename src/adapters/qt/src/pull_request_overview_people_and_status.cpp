@@ -2,6 +2,7 @@
 #include "bpr/qt/draft_state_chip.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/identity_avatar.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "pull_request_overview_support.hpp"
 
@@ -14,6 +15,7 @@
 #include <QFont>
 #include <QFontMetrics>
 #include <QHash>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLatin1Char>
 #include <QLatin1StringView>
@@ -34,7 +36,6 @@
 #include <QSizePolicy>
 #include <QString>
 #include <QStringDecoder>
-#include <QToolButton>
 #include <QVBoxLayout>
 #include <QVariant>
 #include <QWidget>
@@ -175,6 +176,9 @@ namespace bpr::qt {
 		constexpr int face_step = 26;
 
 		constexpr int most_faces = 8;
+		/// [[BPR-2314]]. Room around the faces for the hover tint and focus ring.
+		constexpr int   faces_pad    = 3;
+		constexpr qreal faces_corner = 4.0;
 	}
 
 	void overview_role_line::present(const QString& aViewer, const QString& aPrimary, const QStringList& aChips, const QString& aExplanation)
@@ -279,10 +283,14 @@ namespace bpr::qt {
 	}
 
 	overview_faces::overview_faces(QWidget* const aParent)
-		: QWidget{ aParent }
+		: QAbstractButton{ aParent }
 	{
 		setObjectName(QStringLiteral("overviewPeopleFaces"));
 		setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		setAttribute(Qt::WA_Hover, true);
+		setCursor(Qt::PointingHandCursor);
+		// No faces, nothing to press: no keyboard stop until there are some.
+		setFocusPolicy(Qt::NoFocus);
 	}
 
 	void overview_faces::set_faces(std::vector<overview_face> aFaces)
@@ -291,6 +299,7 @@ namespace bpr::qt {
 			return;
 		}
 		Faces = std::move(aFaces);
+		setFocusPolicy(Faces.empty() ? Qt::NoFocus : Qt::StrongFocus);
 		updateGeometry();
 		update();
 	}
@@ -303,7 +312,7 @@ namespace bpr::qt {
 	auto overview_faces::sizeHint() const -> QSize
 	{
 		const auto shown = static_cast<int>(std::min<std::size_t>(Faces.size(), most_faces));
-		return QSize{ shown == 0 ? 0 : ((shown - 1) * face_step) + face_side + 2, face_side + 4 };
+		return QSize{ shown == 0 ? 0 : ((shown - 1) * face_step) + face_side + 2 + (2 * faces_pad), face_side + 4 + (2 * faces_pad) };
 	}
 
 	auto overview_faces::minimumSizeHint() const -> QSize
@@ -311,16 +320,34 @@ namespace bpr::qt {
 		return sizeHint();
 	}
 
+	void overview_faces::keyPressEvent(QKeyEvent* const aEvent)
+	{
+		if (press_on_return(*this, *aEvent)) {
+			aEvent->accept();
+			return;
+		}
+		QAbstractButton::keyPressEvent(aEvent);
+	}
+
 	void overview_faces::paintEvent(QPaintEvent* const aEvent)
 	{
 		static_cast<void>(aEvent);
 		auto painter = QPainter{ this };
 		painter.setRenderHint(QPainter::Antialiasing, true);
+		const auto frame = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+		if (!Faces.empty() && isEnabled() && (isDown() || underMouse())) {
+			// The drawer's quiet hover, as a section header draws it.
+			auto tint = palette().color(QPalette::Active, QPalette::Mid);
+			tint.setAlpha(isDown() ? 90 : 45);
+			painter.setPen(Qt::NoPen);
+			painter.setBrush(tint);
+			painter.drawRoundedRect(frame, faces_corner, faces_corner);
+		}
 		const auto grounds = identity_avatar_grounds_of(palette());
-		auto       left    = 1.0;
+		auto       left    = 1.0 + faces_pad;
 		for (std::size_t index = 0U; index < Faces.size() && index < most_faces; ++index) {
 			const auto& face = Faces[index];
-			const auto  box  = QRectF{ left, 2.0, static_cast<qreal>(face_side), static_cast<qreal>(face_side) };
+			const auto  box  = QRectF{ left, 2.0 + faces_pad, static_cast<qreal>(face_side), static_cast<qreal>(face_side) };
 			paint_identity_avatar(painter, box, { .Identity = face.Identity, .InitialsFrom = face.InitialsFrom, .Shape = face.Team ? identity_avatar_shape::group : identity_avatar_shape::person }, grounds, font());
 			if (face.Badge.isValid()) {
 				// The standing's mark at the corner, cut from the drawer's ground.
@@ -330,6 +357,12 @@ namespace bpr::qt {
 				painter.drawEllipse(mark);
 			}
 			left += face_step;
+		}
+		if (hasFocus()) {
+			constexpr auto ring = focus_ring_width / 2.0;
+			painter.setPen(QPen{ focus_ring_colour(palette(), QPalette::Window), focus_ring_width });
+			painter.setBrush(Qt::NoBrush);
+			painter.drawRoundedRect(QRectF{ rect() }.adjusted(ring, ring, -ring, -ring), faces_corner, faces_corner);
 		}
 	}
 
@@ -403,7 +436,7 @@ namespace bpr::qt {
 		return PeopleSummary;
 	}
 
-	auto pull_request_overview_page::new_threads_button() const noexcept -> QToolButton*
+	auto pull_request_overview_page::new_threads_button() const noexcept -> QAbstractButton*
 	{
 		return NewThreadsGo;
 	}
@@ -418,9 +451,14 @@ namespace bpr::qt {
 		NewThreadsDispatch = std::move(aDispatch);
 	}
 
-	auto pull_request_overview_page::new_conversation_button() const noexcept -> QToolButton*
+	auto pull_request_overview_page::new_conversation_button() const noexcept -> QAbstractButton*
 	{
 		return NewConversationGo;
+	}
+
+	auto pull_request_overview_page::conflicts_row() const noexcept -> QAbstractButton*
+	{
+		return ConflictsRow;
 	}
 
 	void pull_request_overview_page::set_new_conversation_dispatch(std::function<void()> aDispatch)
@@ -543,6 +581,7 @@ namespace bpr::qt {
 		}
 		const auto& shown  = *Projection;
 		auto* const header = Sections[static_cast<std::size_t>(overview_status_section::attention)].Header;
+		ConflictsRow       = nullptr;
 		while (AttentionList->count() != 0) {
 			auto* const item = AttentionList->takeAt(0);
 			delete item->widget();
@@ -602,20 +641,37 @@ namespace bpr::qt {
 			// One wrapping label: the tone's dot hangs beside the title and its
 			// second line, so a long line wraps under its own text.
 			const auto ink  = palette().color(QPalette::Active, QPalette::WindowText);
-			auto       html = QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\"><tr><td width=\"16\" valign=\"top\"><span style=\"color:%1\">&#9679;</span></td>"
-											 "<td valign=\"top\"><span style=\"color:%2\">%3</span>")
-								  .arg(tone.name(), ink.name(), title.toHtmlEscaped());
-			if (!detail.isEmpty()) {
-				html += QStringLiteral("<br><span style=\"color:%1\">%2</span>").arg(faint.name(), detail.toHtmlEscaped());
+			const auto html = [&](const bool aUnderlined) {
+				const auto words = aUnderlined ? QStringLiteral("<u>%1</u>").arg(title.toHtmlEscaped()) : title.toHtmlEscaped();
+				auto       said  = QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\"><tr><td width=\"16\" valign=\"top\"><span style=\"color:%1\">&#9679;</span></td>"
+												  "<td valign=\"top\"><span style=\"color:%2\">%3</span>")
+									   .arg(tone.name(), ink.name(), words);
+				if (!detail.isEmpty()) {
+					said += QStringLiteral("<br><span style=\"color:%1\">%2</span>").arg(faint.name(), detail.toHtmlEscaped());
+				}
+				return said + QStringLiteral("</td></tr></table>");
+			};
+			auto* row = static_cast<QWidget*>(nullptr);
+			if (item.Kind == core::status_attention_kind::conflicts) {
+				// [[BPR-2314]]. The conflict opens Needs attention to Merge's
+				// conditions, as the header does.
+				auto* const link = new drawer_link_row{ parent };
+				link->present(html(false), html(true));
+				link->setAccessibleDescription(header->accessibleDescription());
+				link->setToolTip(QStringLiteral("Show what GitHub needs before it can merge"));
+				connect(link, &QAbstractButton::clicked, header, &QAbstractButton::click);
+				ConflictsRow = link;
+				row          = link;
+			} else {
+				auto* const label = new QLabel{ parent };
+				label->setTextFormat(Qt::RichText);
+				label->setText(html(false));
+				label->setWordWrap(true);
+				label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+				label->setContentsMargins(0, 2, 0, 2);
+				row = label;
 			}
-			html += QStringLiteral("</td></tr></table>");
-			auto* const row = new QLabel{ parent };
 			row->setObjectName(QStringLiteral("overviewAttentionRow"));
-			row->setTextFormat(Qt::RichText);
-			row->setText(html);
-			row->setWordWrap(true);
-			row->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-			row->setContentsMargins(0, 2, 0, 2);
 			row->setProperty("statusText", detail.isEmpty() ? title : title + QLatin1Char{ '\n' } + detail);
 			row->setAccessibleName(detail.isEmpty() ? title : title + QStringLiteral(": ") + detail);
 			AttentionList->addWidget(row);
@@ -658,21 +714,14 @@ namespace bpr::qt {
 		show_value(overview_value::not_in_review, notInReview != 0U);
 		set_value(overview_value::local_comments, value(progress.NotesReadiness, count_text(local)), false);
 		show_value(overview_value::local_comments, local != 0U || !notesReady);
-		NewThreadsText->setText(plural(NewThreads, QStringLiteral("1 thread with new posts"), QStringLiteral("%1 threads with new posts")));
-		NewThreadsGo->setAccessibleName(QStringLiteral("Go to the %1").arg(NewThreadsText->text()));
-		auto unread = palette();
-		unread.setColor(QPalette::WindowText, Colours.Unread);
-		NewThreadsText->setPalette(unread);
-		for (auto* const go : { NewThreadsGo, NewConversationGo }) {
-			auto link = go->palette();
-			link.setColor(QPalette::ButtonText, Colours.Unread);
-			go->setPalette(link);
-		}
+		const auto threads = plural(NewThreads, QStringLiteral("1 thread with new posts"), QStringLiteral("%1 threads with new posts"));
+		NewThreadsGo->present_line(threads, Colours.Unread);
+		NewThreadsGo->setAccessibleName(QStringLiteral("Go to the %1").arg(threads));
 		NewThreadsRow->setVisible(NewThreads != 0U);
 		const auto conversation = NewConversation.value_or(0U);
-		NewConversationText->setText(plural(conversation, QStringLiteral("1 new comment in the conversation"), QStringLiteral("%1 new comments in the conversation")));
-		NewConversationText->setPalette(unread);
-		NewConversationGo->setAccessibleName(QStringLiteral("Go to the %1 in Discuss").arg(NewConversationText->text()));
+		const auto comments     = plural(conversation, QStringLiteral("1 new comment in the conversation"), QStringLiteral("%1 new comments in the conversation"));
+		NewConversationGo->present_line(comments, Colours.Unread);
+		NewConversationGo->setAccessibleName(QStringLiteral("Go to the %1 in Discuss").arg(comments));
 		NewConversationRow->setVisible(conversation != 0U);
 		auto* const header = Sections[static_cast<std::size_t>(overview_status_section::my_review)].Header;
 		// Readiness stays visible even when the section is collapsed.

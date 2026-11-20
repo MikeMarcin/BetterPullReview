@@ -210,8 +210,9 @@ alone, and Shift+Return on it opens Review and says why in the status bar.
 [[BPR-1601]] adds pull-request comments and review summaries under a final
 **Not on a file** group in Threads, with their new count. These posts carry the
 same new markers and Mark read/unread actions in Discuss. The Status drawer's
-**N new comments in the conversation** line opens Discuss with **Go to them**
-and disappears when the count reaches zero. Next new comment (⌥N on macOS)
+**N new comments in the conversation** line opens Discuss when pressed
+([[BPR-2314]]: the line is the action, with no Go to them beside it) and
+disappears when the count reaches zero. Next new comment (⌥N on macOS)
 visits file threads first, then pathless posts in Discuss order, widening
 Discuss's file scope when needed. Open in Review is unavailable for a pathless post.
 
