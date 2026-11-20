@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2308",
+    "BPR-2309"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Retire Review Cycles and bpr cycle (owner 2026-11-20); release-notes obligation",
+  "created": "2026-11-20T08:04:37.539050+00:00",
+  "base": "2d9c64424678f305126be37ccccd5dafd9ee2163"
+}
