@@ -513,6 +513,41 @@ namespace {
 		expect(application::codex_instructions_followed(answered), "an answer with it did");
 		answered.Outcome = application::agent_run_outcome::protocol_failure;
 		expect(!application::codex_instructions_followed(answered), "and a failed run never did");
+		// [[BPR-2320]]. The probe names no working folder: it runs in an
+		// empty folder of its own, whichever way the rule is given, or the
+		// process launcher refuses it before it starts.
+		expect(option.WritingOnly && prompt.WritingOnly && option.WorkingDirectory.empty() && application::names_agent_folder(option) && application::names_agent_folder(prompt),
+			   "the probe runs in an empty folder of its own with both Instructions settings");
+		expect(has(option.Arguments, "--skip-git-repo-check"), "and skips Codex's repository check, which an empty folder needs");
+		auto nowhere        = option;
+		nowhere.WritingOnly = false;
+		expect(!application::names_agent_folder(nowhere), "a request with neither a folder nor WritingOnly names none");
+		nowhere.WorkingDirectory = "/srv/review";
+		expect(application::names_agent_folder(nowhere), "a named working folder is one");
+	}
+
+	/// [[BPR-2320]]. The stream JSON turn a custom Claude agent's check runs.
+	void test_the_claude_stream_probe()
+	{
+		const auto claude  = profile(core::agent_protocol::claude_stream_json);
+		const auto leading = std::vector<std::string>{ "--no-extra-output", "--skip-skills-upgrade" };
+		const auto probe   = application::build_claude_stream_probe(claude, "/opt/tools/launcher", leading, reader(), application::agent_run_checks::strict);
+		expect(probe.Executable == "/opt/tools/launcher" && probe.Arguments.size() > 3U && probe.Arguments[0] == "--no-extra-output" && probe.Arguments[1] == "--skip-skills-upgrade" && probe.Arguments[2] == "-p",
+			   "the launcher's own arguments come first, then -p");
+		expect(has(probe.Arguments, "--disallowedTools") && has(probe.Arguments, "--no-session-persistence") && has(probe.Arguments, "--strict-mcp-config")
+				   && probe.Arguments[index_of(probe.Arguments, "--output-format") + 1U] == "stream-json" && has(probe.Arguments, "--verbose"),
+			   "the turn is tool-free, keeps no session, loads no MCP server and answers in stream JSON");
+		expect(!core::inspect_claude_arguments(probe.Arguments, { .UserSettingsOnly = true, .McpOff = true }), "and keeps every rule a restricted Claude launch keeps");
+		expect(probe.WritingOnly && application::names_agent_folder(probe) && probe.Path == core::agent_run_path::agent_check, "it runs in an empty folder of its own");
+		expect(probe.Input.starts_with(R"({"type":"user")") && probe.Input.find(application::claude_stream_probe_question) != std::string::npos && probe.Input.ends_with("}}\n"),
+			   "the question is one stream JSON user message");
+		auto answered    = application::agent_run_result{ };
+		answered.Outcome = application::agent_run_outcome::success;
+		expect(!application::claude_stream_answered(answered), "an answer without Claude's init frame is not the protocol");
+		answered.Metadata.ProtocolReported.push_back({ .Basis = "claude_stream_json.system/init: session_id,model,claude_code_version" });
+		expect(application::claude_stream_answered(answered), "one with it is");
+		answered.Outcome = application::agent_run_outcome::protocol_failure;
+		expect(!application::claude_stream_answered(answered), "and a failed run never is");
 	}
 
 	/// [[BPR-2264]]. The Writing style comes after every other instruction:
@@ -762,6 +797,7 @@ auto main(const int aCount, char** aArguments) -> int
 	test_the_writing_style_follows_every_other_instruction();
 	test_codex_rules_lead_the_prompt_at_the_start_of_the_prompt();
 	test_the_codex_instructions_probe();
+	test_the_claude_stream_probe();
 	test_a_fresh_draft_carries_its_diff_up_front();
 	test_a_failed_sign_in_ends_the_run_at_once();
 	test_every_harness_run_reads_the_users_sign_in();

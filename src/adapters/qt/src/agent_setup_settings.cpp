@@ -1072,7 +1072,7 @@ namespace bpr::qt {
 		case core::agent_check_offer::available: {
 			const auto agent = saved.value_or(core::setup_agent::claude_code);
 			said             = !setup.Detected ? tr("Looks for your agents, then checks the chosen one as the setup does. No question or code is sent.")
-				: !setup.ChecksSignIn          ? tr("Checks that %1's program can run, and runs its own check if it names one. No code is sent; a custom Codex JSONL agent is asked one short question to see where its instructions arrive.").arg(name)
+				: !setup.ChecksSignIn          ? tr("Checks that %1's program can run, and runs its own check if it names one. No code is sent; a custom Codex JSONL agent is asked one short question to see where its instructions arrive, and a custom Claude agent one to see it answers in stream JSON.").arg(name)
 				: setup.ChecksWrapper          ? tr("Asks your Claude process wrapper for its sign-in status and version. No question or code is sent.")
 											   : tr("Runs %1, which sends no question and no code.").arg(status_command(agent));
 			said += QStringLiteral(" ")
@@ -1081,7 +1081,7 @@ namespace bpr::qt {
 		}
 		case core::agent_check_offer::running:
 			said = setup.Checking && workspaceRunning ? tr("Checking %1 and preparing the workspace…").arg(name)
-				: setup.Checking                      ? (setup.Detected ? tr("Checking %1…").arg(name) : tr("Looking for your agents…"))
+				: setup.Checking                      ? (setup.Detected ? tr("Checking %1…").arg(checked_agent_name(setup, name)) : tr("Looking for your agents…"))
 													  : tr("Preparing the workspace…");
 			break;
 		case core::agent_check_offer::no_agent:   said = tr("Add an agent, then check it here."); break;
@@ -1093,7 +1093,7 @@ namespace bpr::qt {
 			break;
 		}
 		CheckNote->setText(said);
-		CheckButton->setToolTip(running ? tr("A check is running. Stop it to start again.") : tr("Checks every agent in the list in turn. No code is sent; a custom Codex JSONL agent is asked one short question."));
+		CheckButton->setToolTip(running ? tr("A check is running. Stop it to start again.") : tr("Checks every agent in the list in turn. No code is sent; a custom Codex or Claude agent is asked one short question."));
 		CheckButton->setAccessibleDescription(offer == core::agent_check_offer::available ? QString{ } : CheckButton->toolTip());
 		CheckProgress->setAccessibleName(said);
 
@@ -1124,7 +1124,7 @@ namespace bpr::qt {
 
 		const auto agentFailed = state.AgentCheck.State == core::setup_check_state::failed && state.AgentCheck.Failure.has_value();
 		CheckFailure->setVisible(agentFailed);
-		CheckFailure->setText(agentFailed ? setup_failure_words(*state.AgentCheck.Failure, name, text_of(setup.CheckDetail)) : QString{ });
+		CheckFailure->setText(agentFailed ? agent_check_failure_words(setup, name) : QString{ });
 		const auto signIn = agentFailed && *state.AgentCheck.Failure == core::agent_setup_failure::not_signed_in && saved ? sign_in_command(*saved) : QString{ };
 		SignInCommand->setText(signIn);
 		SignInLine->setVisible(!signIn.isEmpty());

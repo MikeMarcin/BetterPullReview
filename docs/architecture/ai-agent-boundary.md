@@ -220,6 +220,18 @@ program and its own options the fixed arguments. An audit on 2026-11-19
   start of the prompt". Output that is not Codex's JSON lines (a launcher
   before its pipe mode runs Codex under a terminal) is said as that, with the
   version the agent's own check printed and the fix: update the launcher.
+  The probe, like the agent's own check, runs in an empty folder of its own
+  that is removed after it ([[BPR-2320]]: it named no folder at first, so the
+  process launcher refused it before Codex started and no custom Codex JSONL
+  agent could pass Check). A request names a working folder or is
+  `WritingOnly` (`names_agent_folder`); the setup host tests' process port
+  refuses any other. A custom Claude (stream JSON) agent's check likewise asks
+  one short tool-free turn and passes only on an answer in stream JSON with
+  Claude's init frame; a program that writes nothing or plain text (a
+  launcher's double-click entry, which opens a terminal) fails naming the
+  protocol, the first line it wrote and its version. A check result names the
+  entry it checked and what its last step ran, never the preferred agent and
+  never "signed in" for a custom agent.
 - **Writes.** A granted write failed inside the launcher, likely Codex's own
   sandbox nested in the launcher's. A turn whose file changes all failed
   ends with words naming them instead of a normal answer, and its diagnostic

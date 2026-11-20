@@ -634,6 +634,25 @@ namespace bpr::application {
 	[[nodiscard]] auto build_codex_instructions_probe(const core::agent_profile& aProfile, std::string aExecutable, std::span<const std::string> aLeading,
 													  core::agent_instruction_delivery aDelivery, const environment_reader& aParent) -> agent_launch_request;
 
+	/// \brief [[BPR-2320]]. The question a custom Claude agent's check asks.
+	inline constexpr std::string_view claude_stream_probe_question = "Reply with one short sentence saying that you are ready.";
+
+	/// \brief [[BPR-2320]]. One short tool-free Claude `-p` turn in stream
+	/// JSON through a custom agent's program, `aLeading` first as at every
+	/// launch, so its check shows the program answers in the protocol rather
+	/// than opening a window or printing text. The run has every tool and
+	/// MCP server off, keeps no session and runs in an empty folder of its
+	/// own; stdin closes after the one message.
+	[[nodiscard]] auto build_claude_stream_probe(const core::agent_profile& aProfile, std::string aExecutable, std::span<const std::string> aLeading, const environment_reader& aParent,
+												 agent_run_checks aChecks) -> agent_launch_request;
+
+	/// \brief [[BPR-2320]]. Whether a request says where its process runs:
+	/// in its own empty folder (`WritingOnly`) or in a named working folder.
+	/// The process launcher refuses one that does neither before it starts;
+	/// a fixture process port asserts this so a builder that forgets fails in
+	/// tests.
+	[[nodiscard]] auto names_agent_folder(const agent_launch_request& aRequest) noexcept -> bool;
+
 	/// \brief Configures one native turn or an exact-ID reconnect without replay.
 	[[nodiscard]] auto prepare_native_agent_turn(agent_launch_request aRequest, bool aConnected)
 		-> std::expected<agent_launch_request, agent_launch_failure>;
@@ -1098,6 +1117,10 @@ namespace bpr::application {
 		/// at most `maximum_agent_rejected_line_bytes`; empty when it refused
 		/// none or refused a total rather than a line.
 		[[nodiscard]] auto rejected_line() const noexcept -> const std::string& { return RejectedLine; }
+		/// \brief [[BPR-2320]]. The start of the first Claude line read past
+		/// as not a frame (a banner, or the text of a program that is not
+		/// Claude at all), at most `maximum_agent_rejected_line_bytes`.
+		[[nodiscard]] auto skipped_line() const noexcept -> const std::string& { return SkippedLine; }
 
 		/// \brief [[BPR-1827]]. Every standard-output byte pushed so far.
 		[[nodiscard]] auto pushed_bytes() const noexcept -> std::size_t { return TotalBytes; }
@@ -1187,6 +1210,7 @@ namespace bpr::application {
 		[[nodiscard]] auto stream_limit() const noexcept -> std::size_t;
 		void               reject_line(std::string_view aLine);
 		std::string        RejectedLine;
+		std::string        SkippedLine;
 		// Connection-scoped Claude envelope identities survive per-turn output reset.
 		std::vector<std::pair<std::string, std::uint64_t>> NativeFrameTurns;
 		std::vector<std::string>                           AssistantIds;
@@ -1441,6 +1465,10 @@ namespace bpr::application {
 	[[nodiscard]] auto writes_all_failed(const agent_run_result& aResult) noexcept -> bool;
 	/// \brief [[BPR-2305]]. Whether a probe's answer holds the canary.
 	[[nodiscard]] auto codex_instructions_followed(const agent_run_result& aResult) -> bool;
+
+	/// \brief [[BPR-2320]]. Whether a Claude probe ended answered, having
+	/// reported Claude's init frame.
+	[[nodiscard]] auto claude_stream_answered(const agent_run_result& aResult) -> bool;
 
 	using agent_output_sink = std::function<void(const agent_stream_event&)>;
 

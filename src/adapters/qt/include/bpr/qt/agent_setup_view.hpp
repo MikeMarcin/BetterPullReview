@@ -213,7 +213,20 @@ namespace bpr::qt {
 
 	/// \brief [[BPR-1859]]. What the agent row of Check it works proves:
 	/// "Claude Code is signed in", "… is available" or the wrapper's line.
+	/// [[BPR-2320]]. For the entry the check ran on, by its own name: a
+	/// custom agent's row says what its check ran ("… check command passes",
+	/// "… instructions reach the model"), never that it is signed in.
+	/// `aAgent` names the agent when no entry is known.
 	[[nodiscard]] auto agent_check_words(const application::agent_setup_projection& aSetup, const QString& aAgent) -> QString;
+
+	/// \brief [[BPR-2320]]. The name of the entry the shown or running check
+	/// is for, else `aFallback`.
+	[[nodiscard]] auto checked_agent_name(const application::agent_setup_projection& aSetup, const QString& aFallback) -> QString;
+
+	/// \brief [[BPR-2320]]. The words for the shown check's failure, naming
+	/// the entry it checked and the step that failed; `aFallback` names the
+	/// agent when no entry is known.
+	[[nodiscard]] auto agent_check_failure_words(const application::agent_setup_projection& aSetup, const QString& aFallback) -> QString;
 
 	/// \brief [[BPR-1859]]. A check row's mark and its colour, from the
 	/// palette: a ring not run, a part-filled ring running, a tick passed, a

@@ -20,6 +20,23 @@
 #include <vector>
 
 namespace bpr::application {
+	/// \brief [[BPR-2320]]. What the last step of a settled check ran, so
+	/// its result says what was checked.
+	enum class agent_check_step : std::uint8_t {
+		/// Not known: a result kept from an earlier session.
+		unknown,
+		/// A popular agent's sign-in status.
+		sign_in,
+		/// A custom agent's program was looked at; nothing ran.
+		program,
+		/// A custom agent's own check arguments.
+		check_command,
+		/// A custom Codex JSONL agent's instructions probe ([[BPR-2305]]).
+		instructions_probe,
+		/// A custom Claude agent's one short stream JSON turn.
+		protocol_probe,
+	};
+
 	/// \brief What the presentation is given, as values.
 	struct agent_setup_projection
 	{
@@ -54,6 +71,11 @@ namespace bpr::application {
 		/// [[BPR-2051]]. The added agent a check runs on now, by entry id;
 		/// none while no check runs or a check's agent is not in the list.
 		std::optional<std::uint32_t> CheckingEntry;
+		/// [[BPR-2320]]. The added agent whose result `State.AgentCheck`
+		/// shows, by entry id, and what its check ran last. A result names
+		/// this entry, never the preferred one or the setup agent's kind.
+		std::optional<std::uint32_t> CheckedEntry;
+		agent_check_step             CheckStep = agent_check_step::unknown;
 		/// [[BPR-2305]]. The custom Codex whose last check found its
 		/// developer instructions ignored and the start of the prompt
 		/// followed: setup offers to switch its Instructions setting.

@@ -60,7 +60,8 @@ namespace bpr::application {
 		}
 
 		/// [[BPR-2305]]. What a custom Codex JSONL agent's instructions probe
-		/// runs with.
+		/// runs with; [[BPR-2320]] and a custom Claude agent's stream JSON
+		/// turn.
 		struct codex_probe
 		{
 			core::agent_profile              Profile;
@@ -68,6 +69,7 @@ namespace bpr::application {
 			std::vector<std::string>         Leading;
 			core::agent_instruction_delivery Delivery = core::agent_instruction_delivery::system_prompt;
 			environment_reader               Parent;
+			agent_run_checks                 Checks = agent_run_checks::strict;
 		};
 
 		/// [[BPR-2305]]. A model answers in about this long; more is a check
@@ -144,6 +146,32 @@ namespace bpr::application {
 				}
 			}
 			return { .Check = core::fail_check(core::agent_setup_failure::instructions_not_followed), .Detail = detail_of(first), .Run = ran };
+		}
+
+		/// [[BPR-2320]]. Asks a custom Claude agent one short tool-free turn
+		/// through its program. It passes only when the answer arrives as
+		/// stream JSON with Claude's init frame. A program that writes
+		/// nothing, or text that is not the protocol (a double-click entry
+		/// that opens a terminal, a launcher's banner), is named with the
+		/// first line it wrote and the version its own check printed.
+		[[nodiscard]] auto probe_claude_stream(agent_process_port& aProcess, const codex_probe& aProbe, const std::string& aVersion, const std::stop_token& aStop) -> probe_answer
+		{
+			const auto answer = aProcess.run(build_claude_stream_probe(aProbe.Profile, aProbe.Program, aProbe.Leading, aProbe.Parent, aProbe.Checks), codex_probe_timeout_milliseconds, { }, aStop);
+			const auto ran    = run_of(answer, 1U);
+			if (claude_stream_answered(answer)) {
+				return { .Check = core::setup_check{ .State = core::setup_check_state::passed, .Version = aVersion }, .Run = ran };
+			}
+			const auto unreadable = answer.Outcome == agent_run_outcome::success
+				|| (answer.Outcome == agent_run_outcome::protocol_failure
+					&& (answer.ProtocolFailure == agent_protocol_failure::malformed_frame || answer.ProtocolFailure == agent_protocol_failure::incomplete_frame));
+			if (!unreadable) {
+				return { .Check = core::fail_check(unanswered(answer.Outcome).value_or(core::agent_setup_failure::status_unreadable)), .Detail = detail_of(answer), .Run = ran };
+			}
+			auto wrote = answer.RejectedOutputLine.empty() ? first_line_of(answer) : answer.RejectedOutputLine.substr(0U, 120U);
+			std::ranges::replace(wrote, '\n', ' ');
+			auto detail = aVersion.empty() ? std::string{ } : "version: " + aVersion + "\n";
+			detail += "wrote: " + (wrote.empty() ? std::string{ "nothing" } : wrote) + "\n";
+			return { .Check = core::fail_check(core::agent_setup_failure::output_unreadable), .Detail = detail + detail_of(answer), .Run = ran };
 		}
 	} // namespace
 
@@ -316,6 +344,8 @@ namespace bpr::application {
 			CheckingOverride = false;
 			CheckQueue.clear();
 			Projection.CheckingEntry.reset();
+			Projection.CheckedEntry.reset();
+			Projection.CheckStep        = agent_check_step::unknown;
 			Projection.State.AgentCheck = { };
 			Projection.Checking         = false;
 			Projection.CheckDetail.clear();
@@ -356,10 +386,11 @@ namespace bpr::application {
 			const auto generation = ++CheckGeneration;
 			const auto agent      = Picked ? *Picked : Projection.Preferences.Chosen.value_or(core::setup_agent::claude_code);
 			begin_check(core::operation_action::agent_status_check);
-			settle_check(generation, agent, core::fail_check(core::agent_setup_failure::settings_unreadable), Projection.SettingsFile);
+			settle_check(generation, agent, core::fail_check(core::agent_setup_failure::settings_unreadable), Projection.SettingsFile, { }, agent_check_step::unknown);
 		}
 
-		void settle_check(const std::uint64_t aGeneration, const core::setup_agent aAgent, core::setup_check aCheck, std::string aDetail, const check_run aRun = { })
+		void settle_check(const std::uint64_t aGeneration, const core::setup_agent aAgent, core::setup_check aCheck, std::string aDetail, const check_run aRun = { },
+						  const agent_check_step aStep = agent_check_step::sign_in)
 		{
 			if (aGeneration != CheckGeneration) {
 				return;
@@ -371,8 +402,12 @@ namespace bpr::application {
 			Projection.State.AgentCheck = std::move(aCheck);
 			Projection.CheckDetail      = Projection.State.AgentCheck.State == core::setup_check_state::passed ? std::string{ } : std::move(aDetail);
 			// [[BPR-2051]]. The entry's last check is kept across restarts.
+			// [[BPR-2320]]. The result names the entry it checked.
+			Projection.CheckStep = aStep;
+			Projection.CheckedEntry.reset();
 			if (const auto* const entry = preferred_entry(); entry != nullptr) {
 				keep_entry_check(entry->Id, Projection.State.AgentCheck);
+				Projection.CheckedEntry = entry->Id;
 			}
 			if (CheckingOverride) {
 				if (!CheckQueue.empty()) {
@@ -389,6 +424,8 @@ namespace bpr::application {
 				const auto* const kept   = chosen != nullptr ? entry_check(Projection.Preferences, chosen->Id) : nullptr;
 				if (kept != nullptr) {
 					Projection.State.AgentCheck = *kept;
+					Projection.CheckedEntry     = chosen->Id;
+					Projection.CheckStep        = agent_check_step::unknown;
 				}
 				publish();
 				return;
@@ -1145,7 +1182,7 @@ namespace bpr::application {
 																											 : core::setup_agent_of(entry->Protocol);
 			const auto        generation = ++host.CheckGeneration;
 			host.begin_check(core::operation_action::agent_status_check);
-			host.settle_check(generation, agent, core::fail_check(core::agent_setup_failure::agent_not_found), { });
+			host.settle_check(generation, agent, core::fail_check(core::agent_setup_failure::agent_not_found), { }, { }, agent_check_step::unknown);
 			return;
 		}
 		if (row == nullptr) {
@@ -1156,7 +1193,7 @@ namespace bpr::application {
 			if (saved && std::ranges::find(host.Projection.State.Rows, *saved, &core::agent_setup_row::Agent) == host.Projection.State.Rows.end()) {
 				const auto generation = ++host.CheckGeneration;
 				host.begin_check(core::operation_action::agent_status_check);
-				host.settle_check(generation, *saved, core::fail_check(core::agent_setup_failure::agent_not_found), { });
+				host.settle_check(generation, *saved, core::fail_check(core::agent_setup_failure::agent_not_found), { }, { }, agent_check_step::unknown);
 				return;
 			}
 			host.publish();
@@ -1194,15 +1231,24 @@ namespace bpr::application {
 			// [[BPR-2305]]. A custom Codex JSONL agent is also asked one short
 			// question with a rule, given the way its Instructions setting
 			// says, to show the rule reaches the model through its program.
-			auto instructionsProbe = std::optional<codex_probe>{ };
-			if (entry->Protocol == core::agent_protocol::codex_jsonl_exec && profile != host.Dependencies.Profiles.end()) {
-				instructionsProbe = codex_probe{ .Profile = *profile, .Program = path, .Leading = entry->Arguments, .Delivery = entry->Instructions, .Parent = host.Dependencies.Parent };
+			// [[BPR-2320]]. A custom Claude agent is asked one short turn, to
+			// show its program answers in stream JSON.
+			auto       instructionsProbe = std::optional<codex_probe>{ };
+			const auto probed            = entry->Protocol == core::agent_protocol::codex_jsonl_exec || entry->Protocol == core::agent_protocol::claude_stream_json;
+			if (probed && profile != host.Dependencies.Profiles.end()) {
+				instructionsProbe = codex_probe{ .Profile  = *profile,
+												 .Program  = path,
+												 .Leading  = entry->Arguments,
+												 .Delivery = entry->Instructions,
+												 .Parent   = host.Dependencies.Parent,
+												 .Checks   = entry->StrictRunChecks ? agent_run_checks::strict : agent_run_checks::relaxed };
 			}
 			struct custom
 			{
 				core::setup_check Check;
 				std::string       Detail;
 				check_run         Run;
+				agent_check_step  Step = agent_check_step::program;
 			};
 			host.begin_check(core::operation_action::agent_custom_check);
 			host.off_lane(
@@ -1223,22 +1269,23 @@ namespace bpr::application {
 						runs           = 1U;
 						last           = run_of(ran, runs);
 						if (ran.Outcome != agent_run_outcome::success) {
-							return custom{ .Check = core::fail_check(unanswered(ran.Outcome).value_or(core::agent_setup_failure::status_unreadable)), .Detail = detail_of(ran), .Run = last };
+							return custom{ .Check = core::fail_check(unanswered(ran.Outcome).value_or(core::agent_setup_failure::status_unreadable)), .Detail = detail_of(ran), .Run = last, .Step = agent_check_step::check_command };
 						}
 						said = first_line_of(ran);
 					}
 					if (!probe || stop.stop_requested()) {
-						return custom{ .Check = core::setup_check{ .State = core::setup_check_state::passed }, .Run = last };
+						return custom{ .Check = core::setup_check{ .State = core::setup_check_state::passed }, .Run = last, .Step = check ? agent_check_step::check_command : agent_check_step::program };
 					}
-					auto answer = probe_codex_instructions(*process, *probe, said, stop);
+					const auto claude = probe->Profile.Protocol == core::agent_protocol::claude_stream_json;
+					auto       answer = claude ? probe_claude_stream(*process, *probe, said, stop) : probe_codex_instructions(*process, *probe, said, stop);
 					answer.Run.Runs += runs;
-					return custom{ .Check = std::move(answer.Check), .Detail = std::move(answer.Detail), .Run = answer.Run };
+					return custom{ .Check = std::move(answer.Check), .Detail = std::move(answer.Detail), .Run = answer.Run, .Step = claude ? agent_check_step::protocol_probe : agent_check_step::instructions_probe };
 				},
 				[self = shared_from_this(), generation, agent, id = entry->Id](custom aAnswer) {
 					if (generation == self->CheckGeneration) {
 						self->Projection.InstructionsSwitch = aAnswer.Check.Failure == core::agent_setup_failure::instructions_dropped ? std::optional{ id } : std::nullopt;
 					}
-					self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail), aAnswer.Run);
+					self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail), aAnswer.Run, aAnswer.Step);
 				});
 			return;
 		}
@@ -1249,7 +1296,7 @@ namespace bpr::application {
 				host.Dependencies.Effects, [inspect = host.Dependencies.Inspect, path] { return inspect ? inspect(path) : std::optional{ core::agent_wrapper_refusal::missing }; },
 				[self = shared_from_this(), generation, agent](std::optional<core::agent_wrapper_refusal> aRefusal) {
 					self->settle_check(generation, agent, aRefusal ? core::fail_check(core::agent_setup_failure::program_refused) : core::setup_check{ .State = core::setup_check_state::passed },
-									   aRefusal ? std::string{ core::describe(*aRefusal) } : std::string{ });
+									   aRefusal ? std::string{ core::describe(*aRefusal) } : std::string{ }, { }, agent_check_step::program);
 				});
 			return;
 		}
