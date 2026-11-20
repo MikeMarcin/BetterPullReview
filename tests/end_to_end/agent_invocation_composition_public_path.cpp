@@ -1755,7 +1755,12 @@ auto main(int argc, char** argv) -> int
 					return evidence.Quiescent && evidence.Statistics.ProcessStarts == previousStarts + 1U && panel->status_text().contains(QStringLiteral("success"));
 				},
 							extended_agent_budget)) {
-				const auto code = fail(*application, "native-first-turn", panel->status_text().toStdString() + "\noutput:" + panel->output_text().toStdString());
+				// Whether startup recovery refused the workspace neighbourhood,
+				// and whether that folder exists: a refusal leaves none.
+				const auto neighbourhood = dataRoot.parent_path() / (dataRoot.filename().native() + std::filesystem::path{ "-agent-workspaces-v1" }.native());
+				const auto code          = fail(*application, "native-first-turn",
+												panel->status_text().toStdString() + "\noutput:" + panel->output_text().toStdString() + "\nrecovery-refused="
+													+ std::to_string(application->status().AgentWorkspaceRecoveryRefused) + " neighbourhood-exists=" + std::to_string(std::filesystem::exists(neighbourhood)));
 				application.reset();
 				relayLog("native-first-turn");
 				return code;
