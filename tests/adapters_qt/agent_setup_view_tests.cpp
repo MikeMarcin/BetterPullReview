@@ -14,6 +14,7 @@
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
+#include "bpr/qt/argument_list_editor.hpp"
 #include "bpr/qt/folder_list_editor.hpp"
 
 #include <QAction>
@@ -34,6 +35,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QStyleFactory>
 #include <QTemporaryDir>
@@ -43,6 +45,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -760,6 +763,9 @@ namespace {
 		expect(programs.status()->text().contains(QStringLiteral("already has that name")), "a refused edit says why");
 		programs.up_button()->click();
 		programs.remove_button()->click();
+		// [[BPR-2318]]. Remove asks first.
+		expect(programs.remove_question() != nullptr && saved.back() == "move:2:-1", "Remove asks before it removes an agent");
+		programs.remove_question()->accept();
 		programs.findChild<QPushButton*>(QStringLiteral("settingsResetAgents"))->click();
 		expect(saved == std::vector<std::string>{ "add:Claude Code:preset", "add:Harness:custom", "update:2:Work Claude", "move:2:-1", "remove:2", "reset" },
 			   "add, edit, move, remove and Set up agent… are intents");
@@ -820,7 +826,8 @@ namespace {
 		dialog.program()->setText(QStringLiteral("wrapper"));
 		expect(!dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled() && dialog.problem()->text().contains(QStringLiteral("full path")), "a relative program is refused with why");
 		dialog.program()->setText(QStringLiteral("/opt/work/bin/wrapper"));
-		dialog.arguments()->setPlainText(QStringLiteral("--codex\n--profile work\n"));
+		dialog.arguments()->set_arguments({ "--codex", " --profile work ", "" });
+		expect(dialog.arguments()->list()->count() == 3 && dialog.entry().Arguments == std::vector<std::string>{ "--codex", "--profile work" }, "each row is one argument, trimmed, and an empty row is none");
 		dialog.effort()->setCurrentIndex(dialog.effort()->findData(QStringLiteral("minimal")));
 		dialog.check()->setPlainText(QStringLiteral("--codex\nlogin\nstatus"));
 		const auto described = dialog.entry();
@@ -926,6 +933,166 @@ namespace {
 	/// instructions ignored: the failure says so, and one button switches the
 	/// agent to the start of the prompt and checks it again. A launcher whose
 	/// output is not Codex's is named with the version its check printed.
+	void mouse_on(QWidget& aWidget, const QPoint aAt, const std::initializer_list<QEvent::Type> aEvents)
+	{
+		for (const auto type : aEvents) {
+			const auto down  = type != QEvent::MouseButtonRelease;
+			auto       event = QMouseEvent{ type, QPointF{ aAt }, aWidget.mapToGlobal(QPointF{ aAt }), Qt::LeftButton, down ? Qt::LeftButton : Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(&aWidget, &event);
+		}
+		QApplication::processEvents();
+	}
+
+	void key_on(QWidget& aWidget, const int aKey, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier)
+	{
+		auto press = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers };
+		QApplication::sendEvent(&aWidget, &press);
+		QApplication::processEvents();
+	}
+
+	/// [[BPR-2318]] (owner, 2026-11-20: "a single click on an agent opens it's
+	/// settings page but that should just select it. Double click and enter to
+	/// open. There should be a visible trashcan on each row to remove the agent
+	/// with a confirmation. Aagents should have drag handles to reorder how
+	/// they appear.")
+	void test_settings_rows_select_open_remove_reorder()
+	{
+		auto programs = qt::agent_programs_panel{ };
+		auto saved    = std::vector<std::string>{ };
+		auto opened   = std::vector<std::string>{ };
+		programs.set_dispatch({ .Update = [](core::agent_entry, qt::agent_programs_panel::answer aAnswer) { aAnswer(std::nullopt); },
+								.Remove = [&saved](const std::uint32_t aId) { saved.push_back("remove:" + std::to_string(aId)); },
+								.Move   = [&saved](const std::uint32_t aId, const int aDelta) { saved.push_back("move:" + std::to_string(aId) + ":" + std::to_string(aDelta)); } });
+		programs.set_editor([&opened](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			opened.push_back(aStart.Name);
+			return std::nullopt;
+		});
+		auto preferences   = application::agent_setup_preferences{ };
+		preferences.Agents = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/claude" });
+		preferences.Agents = *core::add_agent_entry(preferences.Agents, { .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/codex" });
+		preferences.Agents = *core::add_agent_entry(preferences.Agents, { .Name = "Harness", .Protocol = core::agent_protocol::external_terminal, .Program = "/opt/work/bin/harness" });
+		programs.present(preferences);
+		programs.resize(480, 900);
+		programs.show();
+		QApplication::processEvents();
+		auto* const list     = programs.agent_list();
+		auto* const viewport = list->viewport();
+		const auto  middle   = [list](const int aRow) {
+			const auto rect = list->visualItemRect(list->item(aRow));
+			return QPoint{ rect.center().x(), rect.center().y() };
+		};
+
+		mouse_on(*viewport, middle(1), { QEvent::MouseButtonPress, QEvent::MouseButtonRelease });
+		expect(list->currentRow() == 1 && opened.empty(), "a single click selects the agent and opens nothing");
+		mouse_on(*viewport, middle(1), { QEvent::MouseButtonPress, QEvent::MouseButtonRelease, QEvent::MouseButtonDblClick, QEvent::MouseButtonRelease });
+		expect(opened == std::vector<std::string>{ "Work Codex" }, "a double-click opens the agent's sheet");
+		key_on(*list, Qt::Key_Return);
+		key_on(*list, Qt::Key_Enter, Qt::KeypadModifier);
+		expect(opened == std::vector<std::string>{ "Work Codex", "Work Codex", "Work Codex" }, "Return and Enter open the selected agent");
+
+		// A grip and a trash on every row, named for the agent.
+		for (auto row = 0; row < 3; ++row) {
+			auto* const grip  = programs.agent_grip(row);
+			auto* const trash = programs.agent_trash(row);
+			const auto  rect  = list->visualItemRect(list->item(row));
+			expect(grip != nullptr && grip->isVisible() && rect.contains(grip->geometry()) && grip->geometry().left() == rect.left(), "each row has a visible grip at its left");
+			expect(trash != nullptr && trash->isVisible() && rect.contains(trash->geometry()) && trash->geometry().right() > rect.center().x() && !trash->icon().isNull(), "each row has a visible trash at its right");
+		}
+		expect(programs.agent_grip(0)->accessibleName() == QStringLiteral("Reorder Work Claude") && programs.agent_trash(2)->accessibleName() == QStringLiteral("Remove Harness")
+				   && programs.agent_trash(2)->toolTip() == QStringLiteral("Remove Harness") && programs.agent_grip(0)->accessibleDescription().contains(QStringLiteral("Alt+Up")),
+			   "the grip and the trash are named for their agent, and the grip says how to move it from the keyboard");
+		expect(programs.agent_grip(0)->testAttribute(Qt::WA_TransparentForMouseEvents), "a press on the grip reaches the list, which starts the drag");
+
+		// The trash asks; Cancel keeps the agent, Remove agent removes it.
+		programs.agent_trash(2)->click();
+		auto* question = programs.remove_question();
+		expect(question != nullptr && question->isVisible() && list->currentRow() == 2 && question->windowTitle().contains(QStringLiteral("Remove Harness?")) && saved.empty(),
+			   "a row's trash selects it and asks before anything is removed");
+		question->reject();
+		QApplication::processEvents();
+		expect(saved.empty(), "Cancel removes nothing");
+		programs.agent_trash(0)->click();
+		programs.remove_question()->accept();
+		QApplication::processEvents();
+		expect(saved == std::vector<std::string>{ "remove:1" }, "confirming removes the agent of the row whose trash was pressed");
+		list->setCurrentRow(1);
+		key_on(*list, Qt::Key_Delete);
+		expect(programs.remove_question() != nullptr && programs.remove_question()->isVisible() && saved.size() == 1U, "Delete asks too");
+		programs.remove_question()->reject();
+		QApplication::processEvents();
+
+		// Reordered from the keyboard and by a drop.
+		list->setCurrentRow(1);
+		key_on(*list, Qt::Key_Down, Qt::AltModifier);
+		key_on(*list, Qt::Key_Up, Qt::AltModifier);
+		list->setCurrentRow(0);
+		key_on(*list, Qt::Key_Up, Qt::AltModifier);
+		expect(saved == std::vector<std::string>{ "remove:1", "move:2:1", "move:2:-1" }, "Alt+Down and Alt+Up move the selected agent; the first goes no higher");
+		saved.clear();
+		static_cast<void>(list->model()->moveRow(QModelIndex{ }, 0, QModelIndex{ }, 3));
+		expect(saved == std::vector<std::string>{ "move:1:1", "move:1:1" }, "a row dropped two places down is moved there, a place at a time");
+		programs.present(preferences);
+		expect(list->item(0)->data(Qt::UserRole).toULongLong() == 1U && programs.agent_grip(2) != nullptr && programs.agent_trash(3) == nullptr && programs.agent_grip(0)->accessibleName() == QStringLiteral("Reorder Work Claude"),
+			   "the list shows the order the host keeps, and the handles follow the rows");
+		list->setCurrentRow(1);
+		render(programs, QStringLiteral("settings-rows"));
+		programs.hide();
+	}
+
+	/// [[BPR-2318]] (owner, 2026-11-20: "Arguments in the agent settings isn't
+	/// good, needs to show more than one row, needs drag handles, needs scroll
+	/// bar").
+	void test_arguments_editor()
+	{
+		auto dialog = qt::agent_entry_dialog{ core::agent_entry{ .Name = "Work", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/claude", .Arguments = { "--one", "--two", "--three" } } };
+		dialog.resize(560, 900);
+		dialog.show();
+		QApplication::processEvents();
+		auto* const editor = dialog.arguments();
+		auto* const list   = editor->list();
+		const auto  row    = list->visualItemRect(list->item(0)).height();
+		expect(list->count() == 3 && row > 0 && list->viewport()->height() >= 5 * row - 1, "the arguments show one per row, and five rows fit");
+		expect(list->verticalScrollBarPolicy() == Qt::ScrollBarAsNeeded && !list->verticalScrollBar()->isVisible(), "three arguments need no scroll bar");
+		expect(editor->grip(0) != nullptr && editor->grip(0)->isVisible() && editor->grip(0)->accessibleName() == QStringLiteral("Reorder --one")
+				   && editor->trash(1) != nullptr && editor->trash(1)->accessibleName() == QStringLiteral("Remove --two"),
+			   "every argument has a grip and a trash named for it");
+		list->setCurrentRow(2);
+		key_on(*list, Qt::Key_Up, Qt::AltModifier);
+		expect(dialog.entry().Arguments == std::vector<std::string>{ "--one", "--three", "--two" } && list->currentRow() == 1, "Alt+Up moves the selected argument up and keeps it selected");
+		static_cast<void>(list->model()->moveRow(QModelIndex{ }, 0, QModelIndex{ }, 3));
+		expect(dialog.entry().Arguments == std::vector<std::string>{ "--three", "--two", "--one" }, "a dropped argument takes its new place");
+		editor->trash(1)->click();
+		expect(dialog.entry().Arguments == std::vector<std::string>{ "--three", "--one" } && editor->trash(2) == nullptr, "a row's trash removes that argument");
+		editor->add_button()->click();
+		QApplication::processEvents();
+		auto* const field = list->viewport()->findChild<QLineEdit*>();
+		expect(field != nullptr && field->isVisible() && list->count() == 3 && list->currentRow() == 2, "Add argument adds a row at the end and edits it");
+		field->setText(QStringLiteral("--model sonnet"));
+		key_on(*field, Qt::Key_Return);
+		QApplication::processEvents();
+		expect(dialog.entry().Arguments == std::vector<std::string>{ "--three", "--one", "--model sonnet" }, "the typed argument is kept as written, spaces and all");
+		editor->add_button()->click();
+		QApplication::processEvents();
+		auto* const empty = list->viewport()->findChild<QLineEdit*>();
+		expect(empty != nullptr && list->count() == 4, "a second row is being edited");
+		key_on(*empty, Qt::Key_Escape);
+		QApplication::processEvents();
+		QApplication::processEvents();
+		expect(list->count() == 3, "a row left empty is removed");
+		editor->set_arguments(std::vector<std::string>(12U, "--long"));
+		dialog.adjustSize();
+		QApplication::processEvents();
+		expect(list->count() == 12 && list->verticalScrollBar()->isVisible() && list->verticalScrollBar()->maximum() > 0, "twelve arguments scroll");
+		list->verticalScrollBar()->setValue(list->verticalScrollBar()->maximum());
+		QApplication::processEvents();
+		const auto lastRect = list->visualItemRect(list->item(11));
+		expect(editor->grip(11)->geometry().top() == lastRect.top(), "the handles follow the rows as they scroll");
+		editor->set_arguments({ "--dangerously-skip-permissions", "--model", "claude-opus-4-1", "--append-system-prompt", "Review only the diff", "--verbose", "--output-format" });
+		list->setCurrentRow(1);
+		render(dialog, QStringLiteral("arguments"));
+		dialog.hide();
+	}
+
 	void test_settings_offers_the_prompt_form()
 	{
 		auto programs = qt::agent_programs_panel{ };
@@ -1253,6 +1420,8 @@ auto main(int argc, char** argv) -> int
 	test_repository_states();
 	test_check_and_ready();
 	test_settings_rows();
+	test_settings_rows_select_open_remove_reorder();
+	test_arguments_editor();
 	test_settings_check_agent();
 	test_settings_offers_the_prompt_form();
 	test_settings_unreadable();

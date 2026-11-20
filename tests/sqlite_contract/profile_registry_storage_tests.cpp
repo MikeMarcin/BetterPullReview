@@ -115,6 +115,55 @@ namespace {
 		expect(!std::filesystem::exists(scratch.Root / "profiles"), "registry metadata does not silently create or move profile roots");
 	}
 
+	/// [[BPR-2318]]. The list order: a registry stays version 2 until profiles
+	/// are first reordered, and then keeps their order across a reopen.
+	void test_profile_order()
+	{
+		const auto scratch = scratch_directory{ };
+		auto       store   = adapters::sqlite::make_profile_registry_store(scratch.Root);
+		const auto loaded  = store->load({ });
+		expect(loaded && loaded->Order.empty(), "a registry with no order lists profiles by identity");
+		const auto one   = added(*loaded, "Work");
+		const auto two   = added(one, "Home");
+		const auto saved = store->save(one, loaded->Revision, { }) && store->save(two, one.Revision, { });
+		expect(saved && store->load({ }) == two && two.Order.empty(), "profiles are created with no order");
+		{
+			auto* raw = raw_open(scratch.database());
+			expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 2, "a registry never reordered stays version 2, which older builds read");
+			sqlite3_close(raw);
+		}
+		auto ordered = two;
+		++ordered.Revision;
+		ordered.Order = { core::bpr_profile_id{ 3U }, core::bpr_profile_id{ 1U }, core::bpr_profile_id{ 2U } };
+		expect(store->save(ordered, two.Revision, { }) == ordered, "the first order saved is written");
+		store.reset();
+		store = adapters::sqlite::make_profile_registry_store(scratch.Root);
+		expect(store->load({ }) == ordered, "the order is read back after a reopen");
+		{
+			auto* raw = raw_open(scratch.database());
+			expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 3, "the order's table makes it version 3");
+			sqlite3_close(raw);
+		}
+		auto renamed = ordered;
+		++renamed.Revision;
+		renamed.Profiles[1].Profile.Label = "Office";
+		renamed.Order                     = { core::bpr_profile_id{ 1U }, core::bpr_profile_id{ 3U }, core::bpr_profile_id{ 2U } };
+		expect(store->save(renamed, ordered.Revision, { }) == renamed && store->load({ }) == renamed, "a later save replaces the order");
+		store.reset();
+		for (const auto mutation : { "DELETE FROM profile_registry_order WHERE position=0", "UPDATE profile_registry_order SET profile_id='9' WHERE position=2",
+									 "DELETE FROM profile_registry_order WHERE position=2", "CREATE TABLE extra(x)" }) {
+			const auto copy = scratch_directory{ };
+			std::filesystem::create_directories(copy.database().parent_path());
+			std::filesystem::copy_file(scratch.database(), copy.database());
+			auto* raw = raw_open(copy.database());
+			execute(raw, std::string{ "PRAGMA foreign_keys=OFF; " } + mutation);
+			sqlite3_close(raw);
+			auto       damaged = adapters::sqlite::make_profile_registry_store(copy.Root);
+			const auto read    = damaged->load({ });
+			expect(!read && (read.error() == profile_registry_failure::corrupt || read.error() == profile_registry_failure::schema_mismatch), "a gap, a stranger or a missing profile in the order, or an extra table, is refused");
+		}
+	}
+
 	void test_corruptions_refuse_without_mutation()
 	{
 		for (const auto mutation : {
@@ -426,6 +475,7 @@ try {
 	test_retained_windows();
 	test_window_corruption();
 	test_adoption_and_cas();
+	test_profile_order();
 	test_corruptions_refuse_without_mutation();
 	test_interrupted_adoption_and_save_roll_back();
 	test_bounds_and_nonpristine_refusal();

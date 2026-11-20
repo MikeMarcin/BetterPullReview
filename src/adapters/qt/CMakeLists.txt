@@ -96,6 +96,8 @@ add_library(
         src/agent_configuration_dialogs.cpp
         src/profile_settings_parts.cpp
         src/folder_list_editor.cpp
+        src/list_row_handles.cpp
+        src/argument_list_editor.cpp
         src/desktop_menu_bar.cpp
         src/device_authorization_panel.cpp
         src/dif_runtime.cpp

@@ -60,7 +60,9 @@ namespace bpr::application {
 			profile_management_operation         Operation;
 			std::optional<core::bpr_profile_id>  Profile;
 		};
-		std::optional<lifecycle_save>         PendingLifecycle;
+		std::optional<lifecycle_save> PendingLifecycle;
+		/// [[BPR-2318]]. The accepted list order, kept while a save is pending.
+		std::vector<core::bpr_profile_id>     Order;
 		std::vector<core::bpr_window_context> PendingFocus;
 		std::vector<core::bpr_window_context> PendingRetirements;
 		bool                                  Delivering = false;
@@ -135,6 +137,10 @@ namespace bpr::application {
 				for (const auto& entry : Catalog.state().Profiles) {
 					result.Profiles.push_back({ entry.Profile.Id, entry.Profile.Label, runtime_state(entry.Profile.Id) });
 				}
+				// [[BPR-2318]]. Listed in the saved order; one it does not name yet goes last.
+				std::ranges::stable_sort(result.Profiles, { }, [this](const profile_management_item& aItem) {
+					return std::ranges::find(Order, aItem.Profile) - Order.begin();
+				});
 			}
 			try {
 				Projection.publish(result);
@@ -194,6 +200,7 @@ namespace bpr::application {
 				return false;
 			}
 			Catalog = std::move(*restored);
+			Order   = listed_profile_order(*accepted);
 			return true;
 		}
 
@@ -275,11 +282,11 @@ namespace bpr::application {
 				fail(operation, aPublication.Profile, profile_management_failure::invalid_registry);
 				return;
 			}
-			const auto edited = operation == profile_management_operation::create || operation == profile_management_operation::rename;
+			const auto edited = operation == profile_management_operation::create || operation == profile_management_operation::rename || operation == profile_management_operation::move;
 			emit({ }, edited && aPublication.Profile ? std::optional{ profile_management_edit{ operation, *aPublication.Profile } } : std::nullopt);
 		}
 
-		void edit(const profile_management_operation aOperation, const std::optional<core::bpr_profile_id> aProfile, const std::string_view aLabel)
+		void edit(const profile_management_operation aOperation, const std::optional<core::bpr_profile_id> aProfile, const std::string_view aLabel, const int aDelta = 0)
 		{
 			if (Closing) {
 				fail(aOperation, aProfile, profile_management_failure::closing);
@@ -296,6 +303,7 @@ namespace bpr::application {
 			PendingOperation  = aOperation;
 			const auto result = aOperation == profile_management_operation::reload ? Registry.reload()
 				: aOperation == profile_management_operation::create               ? Registry.create(aLabel)
+				: aOperation == profile_management_operation::move                 ? Registry.move(*aProfile, aDelta)
 																				   : Registry.rename(*aProfile, aLabel);
 			if (!result) {
 				PendingOperation.reset();
@@ -494,6 +502,8 @@ namespace bpr::application {
 				Implementation->edit(profile_management_operation::create, { }, aValue.Label);
 			} else if constexpr (std::is_same_v<intent, rename_bpr_profile_intent>) {
 				Implementation->edit(profile_management_operation::rename, aValue.Profile, aValue.Label);
+			} else if constexpr (std::is_same_v<intent, move_bpr_profile_intent>) {
+				Implementation->edit(profile_management_operation::move, aValue.Profile, { }, aValue.Delta);
 			} else if constexpr (std::is_same_v<intent, new_bpr_window_intent>) {
 				Implementation->open(aValue.Profile, core::profile_launch_intent::new_window, aValue.Review);
 			} else {

@@ -104,16 +104,10 @@ namespace bpr::qt {
 		});
 		programRow->addWidget(browse);
 		form->addRow(tr("Program"), programRow);
-		Arguments = new QPlainTextEdit{ this };
-		Arguments->setObjectName(QStringLiteral("agentEntryArguments"));
-		Arguments->setPlaceholderText(tr("One per line, such as --codex"));
-		Arguments->setMaximumHeight(72);
-		Arguments->setTabChangesFocus(true);
-		auto joined = QStringList{ };
-		for (const auto& argument : aEntry.Arguments) {
-			joined << text_of(argument);
-		}
-		Arguments->setPlainText(joined.join(QLatin1Char{ '\n' }));
+		// [[BPR-2318]] (owner, 2026-11-20). One argument per row: several
+		// rows show, more scroll, and each has a grip and a trash.
+		Arguments = new argument_list_editor{ this };
+		Arguments->set_arguments(aEntry.Arguments);
 		form->addRow(tr("Arguments"), Arguments);
 		// Owner decision 2026-10-23: a custom agent's own check, optional.
 		Check = new QPlainTextEdit{ this };
@@ -230,7 +224,7 @@ namespace bpr::qt {
 		// A typed or pasted app shows its program once the field is left; OK
 		// takes the program either way.
 		connect(Program, &QLineEdit::editingFinished, this, [this] { show_bundle_program(); });
-		connect(Arguments, &QPlainTextEdit::textChanged, this, [this] { settle(); });
+		Arguments->set_change([this] { settle(); });
 		connect(Check, &QPlainTextEdit::textChanged, this, [this] { settle(); });
 		connect(Model, &QLineEdit::textChanged, this, [this] { settle(); });
 		if (StrictChecks != nullptr) {
@@ -305,16 +299,11 @@ namespace bpr::qt {
 
 	auto agent_entry_dialog::entry() const -> core::agent_entry
 	{
-		auto result     = Base;
-		result.Name     = Name->text().trimmed().toStdString();
-		result.Protocol = static_cast<core::agent_protocol>(Protocol->currentData().toInt());
-		result.Program  = Bundle && Bundle->has_value() ? **Bundle : Program->text().trimmed().toStdString();
-		result.Arguments.clear();
-		for (const auto& line : Arguments->toPlainText().split(QLatin1Char{ '\n' })) {
-			if (!line.trimmed().isEmpty()) {
-				result.Arguments.push_back(line.trimmed().toStdString());
-			}
-		}
+		auto result      = Base;
+		result.Name      = Name->text().trimmed().toStdString();
+		result.Protocol  = static_cast<core::agent_protocol>(Protocol->currentData().toInt());
+		result.Program   = Bundle && Bundle->has_value() ? **Bundle : Program->text().trimmed().toStdString();
+		result.Arguments = Arguments->arguments();
 		result.CheckArguments.clear();
 		for (const auto& line : Check->toPlainText().split(QLatin1Char{ '\n' })) {
 			if (!line.trimmed().isEmpty()) {

@@ -35,9 +35,19 @@ namespace bpr::application {
 		std::uint64_t                       LastProfileId  = 1U;
 		bool                                DefaultAdopted = true;
 		std::vector<profile_registry_entry> Profiles{ { core::bpr_profile_record{ core::default_bpr_profile_id, "Default" }, profile_root_mode::legacy, "legacy" } };
-		std::uint64_t                       LastWindowId                                               = 0U;
-		auto                                operator==(const profile_registry_snapshot&) const -> bool = default;
+		std::uint64_t                       LastWindowId = 0U;
+		/// [[BPR-2318]]. The order profiles are listed in, every identity once;
+		/// empty, as in a registry saved before profiles could be reordered,
+		/// lists them in identity order.
+		std::vector<core::bpr_profile_id> Order{ };
+		auto                              operator==(const profile_registry_snapshot&) const -> bool = default;
 	};
+
+	/// \brief [[BPR-2318]]. The profiles' identities in the order they are listed.
+	[[nodiscard]] auto listed_profile_order(const profile_registry_snapshot& aSnapshot) -> std::vector<core::bpr_profile_id>;
+	/// \brief [[BPR-2318]]. `aOrder` with `aProfile` moved `aDelta` places
+	/// (negative: earlier); none when it is not listed or would leave the list.
+	[[nodiscard]] auto moved_profile_order(std::vector<core::bpr_profile_id> aOrder, core::bpr_profile_id aProfile, int aDelta) -> std::optional<std::vector<core::bpr_profile_id>>;
 
 	/// \brief Returns the only root authority token permitted for this identity.
 	[[nodiscard]] auto profile_root_identity(core::bpr_profile_id aProfile) -> std::string;
@@ -106,6 +116,9 @@ namespace bpr::application {
 		[[nodiscard]] auto reload() -> profile_registry_result<void>;
 		[[nodiscard]] auto create(std::string_view aLabel) -> profile_registry_result<void>;
 		[[nodiscard]] auto rename(core::bpr_profile_id aProfile, std::string_view aLabel) -> profile_registry_result<void>;
+		/// \brief [[BPR-2318]]. Saves the list order with `aProfile` moved
+		/// `aDelta` places; identities, labels, roots and windows are kept.
+		[[nodiscard]] auto move(core::bpr_profile_id aProfile, int aDelta) -> profile_registry_result<void>;
 		/// \brief Saves only validated window metadata and allocation high-water, preserving profile roots and labels.
 		[[nodiscard]] auto save_window_state(const core::profile_window_state& aState) -> profile_registry_result<void>;
 		void               cancel();

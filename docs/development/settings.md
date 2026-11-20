@@ -16,6 +16,10 @@ Profiles…** opens this page.
 - **Rename** and **New profile** edit the name in the row; **Save** keeps it
   and **Cancel** or Escape leaves the name as it was.
 - When a profile change fails, one notice says why with **Try again**.
+- Each row has a grip at its left. Drag a row by it, or select a row and
+  press Alt+Up or Alt+Down, to change the order profiles are listed in here
+  and in the Profiles menus ([[BPR-2318]]). The order is saved with the
+  profiles; a profile created later goes last.
 
 With no window open (macOS keeps BetterPullReview running), **Manage
 Profiles…** and a failure that no window can show open a Settings window
@@ -147,13 +151,18 @@ Under **Agents**:
   agent…** offers Claude Code and Codex when they are found on this computer
   and not yet added, and **Custom agent…**: a name, what the program speaks
   (Claude Code's stream JSON, Codex App Server or JSONL, or plain text), the
-  program's full path, fixed arguments one per line (such as `--codex`), and
+  program's full path, fixed arguments one per row (such as `--codex`), and
   a default model and effort. Two agents may run the same program: a work
   wrapper given nothing for Claude models is "Work Claude", and given
   `--codex` is "Work Codex". The arguments are given exactly as written,
   before the request's own, every time; nothing is put into them and no
-  shell runs them. **Edit…**, **Remove**, **Move up** and **Move down** change
-  the list. The first time, a profile's earlier Claude process wrapper and
+  shell runs them. A click selects an agent; a double-click, Return or Enter
+  opens it to edit. Each row has a grip at its left to drag it to another
+  place (Alt+Up and Alt+Down move the selected one) and a trash at its right
+  that removes it after asking (Delete asks too). Every agent can be removed;
+  Add agent… offers Claude Code or Codex again while it is found
+  ([[BPR-2318]]). The row's menu also has Edit…, Move up, Move down and
+  Remove. The first time, a profile's earlier Claude process wrapper and
   Codex program settings move into the list (the chosen agent first) and are not
   moved again.
 
@@ -167,6 +176,11 @@ and effort; `/model` and `/effort` in the Agent tab's question field set them
 too. BetterPullReview never handles an agent's sign-in.
 
 Add agent… and Edit… also set, for each agent:
+
+- **Arguments**: one per row, five rows shown and the rest scrolled. **Add
+  argument** adds a row to type into; a double-click edits one; a row's grip
+  or Alt+Up and Alt+Down reorder; its trash or Delete removes it. A row left
+  empty is dropped ([[BPR-2318]]).
 
 - **Check** (a custom agent only): optional fixed arguments setup runs the
   program with, which must exit 0. Empty, setup checks only that the program

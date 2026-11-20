@@ -1,5 +1,7 @@
 #include "bpr/qt/profiles_settings_panel.hpp"
 
+#include "list_row_handles.hpp"
+
 #include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
@@ -53,7 +55,9 @@ namespace bpr::qt {
 				current = Qt::UserRole + 3,
 			};
 		}
-		constexpr int row_inset    = 12;
+		constexpr int row_inset = 12;
+		/// [[BPR-2318]]. A row's content starts after its grip's gutter.
+		constexpr int row_lead     = detail::row_grip_gutter + 4;
 		constexpr int row_gap      = 12;
 		constexpr int fewest_rows  = 2;
 		constexpr int most_rows    = 8;
@@ -121,7 +125,7 @@ namespace bpr::qt {
 				const auto group    = (option.state & QStyle::State_Enabled) != 0 ? QPalette::Normal : QPalette::Disabled;
 				const auto ink      = home_chip_ink_for(option.palette, group, selected);
 				const auto extent   = home_tile_extent(option.font);
-				const auto content  = option.rect.adjusted(row_inset, 0, -row_inset, 0);
+				const auto content  = option.rect.adjusted(row_lead, 0, -row_inset, 0);
 				aPainter->save();
 				draw_home_tile(*aPainter, QRect{ content.left(), content.center().y() - extent / 2, extent, extent }, home_tile_initial(name), true, option.font, ink);
 				const auto ground     = selected ? QPalette::HighlightedText : QPalette::PlaceholderText;
@@ -212,6 +216,22 @@ namespace bpr::qt {
 		Profiles->viewport()->setAutoFillBackground(false);
 		Profiles->setItemDelegate(new profile_row_delegate{ Profiles });
 		Profiles->installEventFilter(this);
+		// [[BPR-2318]] (owner, 2026-11-20: "Ps profiles needs the same drag
+		// handle"). A grip on every row; a drag, Alt+Up or Alt+Down asks the
+		// host to move the profile, and the list follows what it saves.
+		Profiles->setDragDropMode(QAbstractItemView::InternalMove);
+		Profiles->setDefaultDropAction(Qt::MoveAction);
+		Profiles->setAccessibleDescription(QStringLiteral("Drag a profile's grip, or press Alt+Up or Alt+Down, to reorder."));
+		Handles = new detail::list_row_handles{ *Profiles, { .Name = [this](const int aRow) {
+																	 const auto* const item = Profiles->item(aRow);
+																	 return item == nullptr ? QString{ } : item->text(); }, .Move = [this](const int aRow, const int aDelta) { move_profile(aRow, aDelta); }, .Remove = { } } };
+		connect(Profiles->model(), &QAbstractItemModel::rowsMoved, this, [this](const QModelIndex&, const int aStart, int, const QModelIndex&, const int aRow) {
+			// Dropped in a new place: the host is asked to move it there.
+			const auto destination = aRow > aStart ? aRow - 1 : aRow;
+			if (destination != aStart) {
+				request_move(item_profile(Profiles->item(destination)), destination - aStart);
+			}
+		});
 		auto* const surfaceColumn = new QVBoxLayout{ surface };
 		surfaceColumn->setContentsMargins(1, 1, 1, 1);
 		surfaceColumn->addWidget(Profiles);
@@ -487,6 +507,26 @@ namespace bpr::qt {
 
 	auto profiles_settings_panel::selected_profile() const -> core::bpr_profile_id { return item_profile(Profiles->currentItem()); }
 
+	auto profiles_settings_panel::profile_grip(const int aRow) const -> QWidget* { return Handles->grip(aRow); }
+
+	void profiles_settings_panel::move_profile(const int aRow, const int aDelta)
+	{
+		if (aRow < 0 || aRow + aDelta < 0 || aRow + aDelta >= Profiles->count()) {
+			return;
+		}
+		request_move(item_profile(Profiles->item(aRow)), aDelta);
+	}
+
+	void profiles_settings_panel::request_move(const core::bpr_profile_id aProfile, const int aDelta)
+	{
+		// A profile being named has no identity yet and cannot be moved; the
+		// host's next projection puts a refused move back.
+		if (!Dispatch || Mode != edit_mode::none || aProfile.value() == 0U || aDelta == 0) {
+			return;
+		}
+		Dispatch(application::move_bpr_profile_intent{ aProfile, aDelta });
+	}
+
 	auto profiles_settings_panel::selected_is_open() const -> bool
 	{
 		auto* const item = Profiles->currentItem();
@@ -598,6 +638,8 @@ namespace bpr::qt {
 	{
 		const auto editing = Mode != edit_mode::none;
 		const auto idle    = Ready && !Busy && !Closing;
+		// A profile is not dragged while one is being named.
+		Profiles->setDragEnabled(!editing);
 		Create->setEnabled(idle && !editing);
 		Rename->setVisible(!editing);
 		Open->setVisible(!editing);
@@ -633,7 +675,7 @@ namespace bpr::qt {
 		}
 		const auto row    = Profiles->visualItemRect(Profiles->currentItem());
 		const auto extent = home_tile_extent(Profiles->font());
-		const auto left   = row.left() + row_inset + extent + row_gap;
+		const auto left   = row.left() + row_lead + extent + row_gap;
 		const auto height = std::min(row.height() - 8, Name->sizeHint().height());
 		Name->setGeometry(QRect{ left, row.center().y() - (height / 2), std::max(0, row.right() - row_inset - left), height });
 	}
