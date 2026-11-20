@@ -58,6 +58,102 @@ namespace bpr::qt {
 		constexpr int SuggestedSectionKind = 8;
 		/// [[BPR-2283]]. The Theme's own row.
 		constexpr int ThemeKind = 9;
+		/// [[BPR-2301]]. Review's own row.
+		constexpr int ReviewKind = 10;
+
+		/// [[BPR-2301]]. A Review setting as Settings › Review names its row.
+		[[nodiscard]] auto review_setting_name(const core::review_setting aSetting) -> QString
+		{
+			switch (aSetting) {
+			case core::review_setting::open_in:                return QObject::tr("A pull request opens in");
+			case core::review_setting::mark_read:              return QObject::tr("Mark a file read");
+			case core::review_setting::return_comparison:      return QObject::tr("On return, compare");
+			case core::review_setting::comments_filter:        return QObject::tr("Comments drawer opens on");
+			case core::review_setting::drawer_controls:        return QObject::tr("Drawer controls");
+			case core::review_setting::feedback_marks:         return QObject::tr("Label marks");
+			case core::review_setting::label_helper:           return QObject::tr("Feedback guidance");
+			case core::review_setting::overview_counts:        return QObject::tr("Overview counts");
+			case core::review_setting::line_details:           return QObject::tr("Line details");
+			case core::review_setting::markdown_images:        return QObject::tr("Images");
+			case core::review_setting::reading_width:          return QObject::tr("Reading width");
+			case core::review_setting::threads_width:          return QObject::tr("Threads width");
+			case core::review_setting::discuss_width:          return QObject::tr("Discuss width");
+			case core::review_setting::reports_width:          return QObject::tr("Reports width");
+			case core::review_setting::label_columns:          return QObject::tr("Overview chips");
+			case core::review_setting::center_ribbon_width:    return QObject::tr("Center ribbon width");
+			case core::review_setting::finish_comment:         return QObject::tr("After Comment");
+			case core::review_setting::finish_approve:         return QObject::tr("After Approve");
+			case core::review_setting::finish_request_changes: return QObject::tr("After Request changes");
+			}
+			return { };
+		}
+
+		/// [[BPR-2301]]. One choice's value as its Settings › Review option says it.
+		[[nodiscard]] auto review_choice_text(const core::review_setting aSetting, const std::uint8_t aValue) -> QString
+		{
+			auto words = QStringList{ };
+			switch (aSetting) {
+			case core::review_setting::open_in:           words = { QObject::tr("Overview"), QObject::tr("Review"), QObject::tr("Last used") }; break;
+			case core::review_setting::mark_read:         words = { QObject::tr("By hand"), QObject::tr("When fully seen") }; break;
+			case core::review_setting::return_comparison: words = { QObject::tr("Whole PR"), QObject::tr("Since my last review"), QObject::tr("Since last upload") }; break;
+			case core::review_setting::comments_filter:   words = { QObject::tr("All"), QObject::tr("Unread"), QObject::tr("Unresolved") }; break;
+			case core::review_setting::drawer_controls:   words = { QObject::tr("Hidden"), QObject::tr("Shown") }; break;
+			case core::review_setting::feedback_marks:    words = { QObject::tr("Icons"), QObject::tr("Letters") }; break;
+			case core::review_setting::label_helper:      words = { QObject::tr("Off"), QObject::tr("On") }; break;
+			case core::review_setting::overview_counts:   words = { QObject::tr("Open"), QObject::tr("All") }; break;
+			case core::review_setting::line_details:      words = { QObject::tr("Shown"), QObject::tr("Hidden") }; break;
+			case core::review_setting::markdown_images:   words = { QObject::tr("Load"), QObject::tr("Don't load") }; break;
+			default:                                      break;
+			}
+			return aValue < words.size() ? words[aValue] : QString{ };
+		}
+
+		[[nodiscard]] auto reading_width_text(const core::reading_width aWidth) -> QString
+		{
+			switch (aWidth) {
+			case core::reading_width::narrow: return QObject::tr("Narrow");
+			case core::reading_width::medium: return QObject::tr("Medium");
+			case core::reading_width::wide:   return QObject::tr("Wide");
+			case core::reading_width::full:   return QObject::tr("Full width");
+			}
+			return { };
+		}
+
+		/// [[BPR-2301]]. One setting's value in `aSettings`, in a few words.
+		[[nodiscard]] auto review_value_text(const application::review_behaviour_settings& aSettings, const core::review_setting aSetting) -> QString
+		{
+			const auto review = application::portable_review_of(aSettings);
+			const auto index  = static_cast<std::size_t>(aSetting);
+			if (index < core::review_choice_count) {
+				return review_choice_text(aSetting, review.Choices[index].value_or(0U));
+			}
+			switch (aSetting) {
+			case core::review_setting::reading_width: return reading_width_text(aSettings.ReadingWidth);
+			case core::review_setting::threads_width:
+			case core::review_setting::discuss_width:
+			case core::review_setting::reports_width: {
+				const auto& own = aSettings.ReadingOverrides[index - static_cast<std::size_t>(core::review_setting::threads_width)];
+				return own.Kind == core::reading_override_kind::width ? QObject::tr("%1 px").arg(own.Width)
+					: own.Kind == core::reading_override_kind::full   ? QObject::tr("Full width")
+																	  : QObject::tr("Reading width");
+			}
+			case core::review_setting::label_columns: {
+				auto labels = QStringList{ };
+				for (const auto label : core::labels_of(aSettings.LabelColumns)) {
+					labels << QString::fromUtf8(core::stable_name(label).data(), static_cast<qsizetype>(core::stable_name(label).size()));
+				}
+				return labels.isEmpty() ? QObject::tr("None") : labels.join(QStringLiteral(", "));
+			}
+			case core::review_setting::center_ribbon_width:    return QObject::tr("%1 px").arg(aSettings.CenterRibbonWidth);
+			case core::review_setting::finish_comment:
+			case core::review_setting::finish_approve:
+			case core::review_setting::finish_request_changes: {
+				const auto finish = review.FinishReview[index - static_cast<std::size_t>(core::review_setting::finish_comment)].value_or(core::review_finish_return::home);
+				return finish == core::review_finish_return::home ? QObject::tr("Close and go Home") : QObject::tr("Stay on the pull request");
+			}
+			default: return { };
+			}
+		}
 
 		/// [[BPR-2283]]. A built-in theme as Settings › Appearance names it.
 		[[nodiscard]] auto variant_name(const core::appearance_variant aVariant) -> QString
@@ -388,7 +484,8 @@ namespace bpr::qt {
 	// ----- Export -----
 
 	agent_configuration_export_dialog::agent_configuration_export_dialog(application::agent_configuration_snapshot aSnapshot, const std::array<bool, core::writing_hook_count + 1U> aUnsaved,
-																		 std::string aExportedBy, core::profile_facts aProfile, QWidget* const aParent, std::optional<core::portable_theme> aTheme)
+																		 std::string aExportedBy, core::profile_facts aProfile, QWidget* const aParent, std::optional<core::portable_theme> aTheme,
+																		 std::optional<core::portable_review> aReview)
 		: QDialog{ aParent }
 		, Snapshot{ std::move(aSnapshot) }
 		, Local{ application::local_prompts(Snapshot) }
@@ -396,6 +493,7 @@ namespace bpr::qt {
 		, Identity{ core::portable_identity_of(aProfile) }
 		, Repositories{ core::portable_repositories_of(aProfile) }
 		, Theme{ std::move(aTheme) }
+		, Review{ std::move(aReview) }
 	{
 		using core::profile_settings_section;
 		adopt_opener_look(*this, aParent);
@@ -546,6 +644,13 @@ namespace bpr::qt {
 			theme->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable);
 			theme->setData(0, ItemRole, ThemeKind);
 			theme->setCheckState(0, ticked(profile_settings_section::theme));
+		}
+		// [[BPR-2301]] (owner, 2026-11-19). Settings › Review, ticked as one.
+		if (Review) {
+			auto* const review = section_row(Items, tr("Review"), tr("Settings › Review: reading widths, how a pull request opens, labels and finishing"), profile_settings_section::review);
+			review->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable);
+			review->setData(0, ItemRole, ReviewKind);
+			review->setCheckState(0, ticked(profile_settings_section::review));
 		}
 		Items->expandAll();
 		identity->setExpanded(true);
@@ -739,6 +844,16 @@ namespace bpr::qt {
 		return false;
 	}
 
+	auto agent_configuration_export_dialog::review_chosen() const -> bool
+	{
+		for (QTreeWidgetItemIterator it{ Items }; *it != nullptr; ++it) {
+			if ((*it)->data(0, ItemRole).toInt() == ReviewKind) {
+				return Review.has_value() && (*it)->checkState(0) == Qt::Checked;
+			}
+		}
+		return false;
+	}
+
 	auto agent_configuration_export_dialog::repositories() const -> std::vector<core::portable_repository>
 	{
 		auto chosen = std::vector<core::portable_repository>{ };
@@ -754,7 +869,7 @@ namespace bpr::qt {
 	{
 		for (auto index = 0; index < Items->topLevelItemCount(); ++index) {
 			auto* const row = Items->topLevelItem(index);
-			if (row->data(0, IndexRole).toInt() == static_cast<int>(aSection) && (row->data(0, ItemRole).toInt() == SectionKind || row->data(0, ItemRole).toInt() == IdentityKind || row->data(0, ItemRole).toInt() == ThemeKind)) {
+			if (row->data(0, IndexRole).toInt() == static_cast<int>(aSection) && (row->data(0, ItemRole).toInt() == SectionKind || row->data(0, ItemRole).toInt() == IdentityKind || row->data(0, ItemRole).toInt() == ThemeKind || row->data(0, ItemRole).toInt() == ReviewKind)) {
 				return row;
 			}
 		}
@@ -769,6 +884,7 @@ namespace bpr::qt {
 		const auto chosenIdentity  = identity_chosen();
 		const auto chosenRepos     = repositories();
 		const auto chosenTheme     = theme_chosen();
+		const auto chosenReview    = review_chosen();
 		// RFC-BPR-0125 AC24. The core decides the pack's identity and what the
 		// export records; the dialog only says which pack and which prompts.
 		const auto chosenSuggested = suggested_prompts();
@@ -783,10 +899,11 @@ namespace bpr::qt {
 			Pack                = core::export_prompt_pack(Snapshot.PromptMacros.Differences, *identity, chosenSuggested, Fresh);
 		}
 		const auto encoded = application::export_agent_configuration(Snapshot, chosenAgents, chosenPrompts, Label->text().trimmed().toStdString(), ExportedBy, chosenWorkflows,
-																	 chosenIdentity ? &Identity : nullptr, chosenRepos, Pack ? &*Pack : nullptr, chosenTheme ? &*Theme : nullptr);
+																	 chosenIdentity ? &Identity : nullptr, chosenRepos, Pack ? &*Pack : nullptr, chosenTheme ? &*Theme : nullptr,
+																	 chosenReview ? &*Review : nullptr);
 		Bytes              = encoded.value_or(std::string{ });
 		Exact->setPlainText(text_of(Bytes));
-		const auto nothing = chosenAgents.empty() && chosenPrompts.empty() && chosenWorkflows.empty() && !chosenIdentity && chosenRepos.empty() && chosenSuggested.empty() && !chosenTheme;
+		const auto nothing = chosenAgents.empty() && chosenPrompts.empty() && chosenWorkflows.empty() && !chosenIdentity && chosenRepos.empty() && chosenSuggested.empty() && !chosenTheme && !chosenReview;
 		auto       parts   = QStringList{ };
 		if (!chosenAgents.empty()) {
 			parts.push_back(counted(chosenAgents.size(), tr("1 agent"), tr("%1 agents")));
@@ -808,6 +925,9 @@ namespace bpr::qt {
 		}
 		if (chosenTheme) {
 			parts.push_back(tr("the %1 theme").arg(variant_name(Theme->Base)));
+		}
+		if (chosenReview) {
+			parts.push_back(tr("the Review settings"));
 		}
 		const auto unnamed = !chosenSuggested.empty() && !Pack;
 		Size->setText(unnamed        ? (NewPack.empty() ? tr("Suggested prompts cannot be exported from here.") : tr("Name the prompt pack."))
@@ -958,6 +1078,11 @@ namespace bpr::qt {
 			const auto readable = Preview.Theme ? Preview.Theme->Imported.Palette : std::nullopt;
 			ThemePlan           = core::plan_theme_import(*Preview.File.Theme, readable, Preview.Theme ? Preview.Theme->Here : core::appearance_palette{ });
 			ThemeChosen         = ThemePlan->Default;
+		}
+		// [[BPR-2301]]. Review against the profile's own settings.
+		if (Preview.File.Review) {
+			ReviewPlan   = Preview.Review ? core::plan_review_import(*Preview.File.Review, Preview.Review->Changes.size()) : core::review_import_plan{ };
+			ReviewChosen = ReviewPlan->Default;
 		}
 		for (std::size_t index = 0U; index < Repositories.size(); ++index) {
 			Repositories[index] = Plan.Repositories[index].Default;
@@ -1145,6 +1270,7 @@ namespace bpr::qt {
 			return core::import_standing::refused;
 		case item_kind::dropped: return core::import_standing::updated;
 		case item_kind::theme:   return ThemePlan ? ThemePlan->Standing : core::import_standing::refused;
+		case item_kind::review:  return ReviewPlan ? ReviewPlan->Standing : core::import_standing::refused;
 		}
 		return core::import_standing::refused;
 	}
@@ -1160,6 +1286,7 @@ namespace bpr::qt {
 		case item_kind::suggested:  return Suggested[aItem];
 		case item_kind::dropped:    return Removed[aItem];
 		case item_kind::theme:      return ThemeChosen;
+		case item_kind::review:     return ReviewChosen;
 		}
 		return false;
 	}
@@ -1251,6 +1378,13 @@ namespace bpr::qt {
 				return theme_problem();
 			}
 			return ThemeChosen ? tr("Replaces the colours of %1").arg(variant_name(Preview.Theme->OnScreen)) : tr("Left out");
+		}
+		if (aKind == item_kind::review) {
+			if (stood == core::import_standing::refused) {
+				return review_problem();
+			}
+			const auto changes = Preview.Review->Changes.size();
+			return ReviewChosen ? (changes == 1U ? tr("Changes 1 setting") : tr("Changes %1 settings").arg(changes)) : tr("Left out");
 		}
 		if (aKind == item_kind::identity) {
 			if (!IdentityChosen) {
@@ -1350,6 +1484,9 @@ namespace bpr::qt {
 			return theme ? tr("%1 colours").arg(variant_name(theme->Base)) : tr("Theme");
 		};
 		section(tr("Theme"), item_kind::theme, ThemePlan ? 1U : 0U, themeName);
+		// [[BPR-2301]]. Review, one item.
+		const auto reviewName = [](std::size_t) { return tr("Review settings"); };
+		section(tr("Review"), item_kind::review, ReviewPlan ? 1U : 0U, reviewName);
 		// RFC-BPR-0125 AC24. The pack's prompts, then the prompts here it dropped.
 		const auto suggestedName = [this](const std::size_t aIndex) { return text_of(Preview.File.PromptPack->Macros[aIndex].Macro.Body.Name); };
 		const auto packTitle     = Preview.File.PromptPack ? tr("Suggested prompts: %1, version %2").arg(text_of(Preview.File.PromptPack->Pack.Label)).arg(Preview.File.PromptPack->Pack.Version) : QString{ };
@@ -1378,6 +1515,7 @@ namespace bpr::qt {
 		refused(item_kind::prompt, Prompts.size(), promptName);
 		refused(item_kind::suggested, Suggested.size(), suggestedName);
 		refused(item_kind::theme, ThemePlan ? 1U : 0U, themeName);
+		refused(item_kind::review, ReviewPlan ? 1U : 0U, reviewName);
 		Filling = false;
 	}
 
@@ -1490,6 +1628,10 @@ namespace bpr::qt {
 		if (theme) {
 			updates << tr("the colours of %1").arg(variant_name(Preview.Theme->OnScreen));
 		}
+		const auto review = review_choice().has_value();
+		if (review) {
+			updates << tr("your Review settings");
+		}
 		auto parts = QStringList{ };
 		if (!adds.isEmpty()) {
 			parts << tr("adds %1").arg(adds.join(tr(" and ")));
@@ -1532,7 +1674,7 @@ namespace bpr::qt {
 				+ QLatin1Char(' ') + words;
 		}
 		Summary->setText(words);
-		ApplyButton->setEnabled(!agent_choices().empty() || prompts > 0U || !workflow_choices().empty() || IdentityChosen || repositories > 0U || !pack.Take.empty() || !pack.Remove.empty() || theme);
+		ApplyButton->setEnabled(!agent_choices().empty() || prompts > 0U || !workflow_choices().empty() || IdentityChosen || repositories > 0U || !pack.Take.empty() || !pack.Remove.empty() || theme || review);
 	}
 
 	void agent_configuration_import_dialog::select(const item_kind aKind, const std::size_t aItem)
@@ -1552,6 +1694,7 @@ namespace bpr::qt {
 	void agent_configuration_import_dialog::select_workflow(const std::size_t aItem) { select(item_kind::workflow, aItem); }
 	void agent_configuration_import_dialog::select_identity() { select(item_kind::identity, 0U); }
 	void agent_configuration_import_dialog::select_theme() { select(item_kind::theme, 0U); }
+	void agent_configuration_import_dialog::select_review() { select(item_kind::review, 0U); }
 	void agent_configuration_import_dialog::select_repository(const std::size_t aItem) { select(item_kind::repository, aItem); }
 	void agent_configuration_import_dialog::select_suggested(const std::size_t aItem) { select(item_kind::suggested, aItem); }
 	void agent_configuration_import_dialog::select_dropped(const std::size_t aItem) { select(item_kind::dropped, aItem); }
@@ -1575,6 +1718,24 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		return Preview.Theme->Imported.Palette;
+	}
+
+	auto agent_configuration_import_dialog::review_choice() const -> std::optional<application::review_behaviour_settings>
+	{
+		if (!ReviewChosen || !ReviewPlan || ReviewPlan->Standing != core::import_standing::updated || !Preview.Review) {
+			return std::nullopt;
+		}
+		return Preview.Review->Imported;
+	}
+
+	/// [[BPR-2301]]. Why Review cannot be imported: it sets nothing this
+	/// version knows, or this window has no Review settings to change.
+	auto agent_configuration_import_dialog::review_problem() const -> QString
+	{
+		if (!Preview.Review) {
+			return tr("Review settings cannot be imported into this window.");
+		}
+		return tr("It sets nothing this version of BetterPullReview knows.");
 	}
 
 	/// [[BPR-2283]]. Why the Theme cannot be imported: the roles or values the
@@ -1643,6 +1804,7 @@ namespace bpr::qt {
 		case item_kind::suggested:  Suggested[aItem] = aPart == TakePart; break;
 		case item_kind::dropped:    Removed[aItem] = aPart == TakePart; break;
 		case item_kind::theme:      ThemeChosen = aPart == TakePart; break;
+		case item_kind::review:     ReviewChosen = aPart == TakePart; break;
 		case item_kind::workflow:
 			Workflows[aItem].Action = aPart != TakePart ? core::workflow_import_action::leave
 				: Plan.Workflows[aItem].Local           ? core::workflow_import_action::replace
@@ -1700,6 +1862,8 @@ namespace bpr::qt {
 			show_dropped(Shown->second, *Detail);
 		} else if (Shown->first == item_kind::theme) {
 			show_theme(*Detail);
+		} else if (Shown->first == item_kind::review) {
+			show_review(*Detail);
 		} else {
 			show_workflow(Shown->second, *Detail);
 		}
@@ -2375,6 +2539,65 @@ namespace bpr::qt {
 		};
 		line(tr("Yours (%1)").arg(onScreen), here.Here);
 		line(tr("The file's"), *here.Imported.Palette);
+		column.addWidget(frame);
+	}
+
+	/// [[BPR-2301]] (owner, 2026-11-19). Review: each setting the file would
+	/// change, yours beside the file's. What the file leaves out stays yours.
+	void agent_configuration_import_dialog::show_review(QWidget& aPage)
+	{
+		const auto& plan = *ReviewPlan;
+		if (plan.Standing == core::import_standing::refused) {
+			show_refused(tr("Review settings"), review_problem(), aPage);
+			return;
+		}
+		auto&       column = *static_cast<QVBoxLayout*>(aPage.layout());
+		const auto& file   = *Preview.File.Review;
+		const auto& here   = *Preview.Review;
+		title_row(column, tr("Review settings"), standing_tag(plan.Standing), standing_tone(plan.Standing), aPage);
+		if (plan.Standing == core::import_standing::updated) {
+			choice_row(item_kind::review, 0U, tr("Import"), aPage);
+		}
+		auto words = QStringList{ };
+		if (plan.Standing == core::import_standing::unchanged) {
+			words << tr("Your Settings › Review already matches the file.");
+		} else {
+			words << (here.Changes.size() == 1U ? tr("Importing changes 1 of your Settings › Review settings to the file's.")
+												: tr("Importing changes %1 of your Settings › Review settings to the file's.").arg(here.Changes.size()));
+			words << tr("Settings the file does not have stay as they are.");
+		}
+		auto adjusted = QStringList{ };
+		for (const auto setting : file.Adjusted) {
+			adjusted << review_setting_name(setting);
+		}
+		if (!adjusted.isEmpty()) {
+			words << tr("Held to what this version allows: %1.").arg(adjusted.join(QStringLiteral(", ")));
+		}
+		auto ignored = QStringList{ };
+		for (const auto& name : file.Ignored | std::views::take(6)) {
+			ignored << text_of(name);
+		}
+		if (!ignored.isEmpty()) {
+			words << tr("Left out, as this version does not know them: %1.").arg(ignored.join(QStringLiteral(", ")));
+		}
+		Outcome = note(words.join(QLatin1Char(' ')), &aPage);
+		Outcome->setObjectName(QStringLiteral("agentConfigurationReviewNote"));
+		column.addWidget(Outcome);
+		if (here.Changes.empty()) {
+			return;
+		}
+		auto [frame, rows] = group_box(&aPage);
+		frame->setObjectName(QStringLiteral("agentConfigurationReviewChanges"));
+		for (const auto setting : here.Changes) {
+			auto* const row   = new QHBoxLayout{ };
+			auto* const name  = new QLabel{ review_setting_name(setting), frame };
+			auto* const value = new QLabel{ tr("%1 → %2").arg(review_value_text(here.Here, setting), review_value_text(here.Imported, setting)), frame };
+			value->setObjectName(QStringLiteral("agentConfigurationReviewValue"));
+			value->setTextInteractionFlags(Qt::TextSelectableByMouse);
+			row->addWidget(name, 1);
+			row->addWidget(value);
+			rows->addLayout(row);
+		}
 		column.addWidget(frame);
 	}
 

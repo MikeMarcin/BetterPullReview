@@ -1400,8 +1400,8 @@ resolve to that variant's built-in defaults. Existing values and stored flags
 survive without a palette reset. Scoped palette reset removes one variant's
 overrides without deleting other appearance preferences.
 
-An exported theme is the Theme section of a version-3 Profile Settings file
-(`.bprsettings`, [[BPR-2283]]) whose `base` names the variant it customises
+An exported theme is the Theme section of a Profile Settings file
+(`.bprsettings`, version 3 or later, [[BPR-2283]]) whose `base` names the variant it customises
 ([[BPR-1479]]); the section is read by the theme format's rules, laid out as
 a version-2 theme document. The store's per-slot documents stay version-1
 theme documents, because the slot is their base. Importing a Theme fills the
@@ -1412,6 +1412,17 @@ parses and decides the base; the composition hands the host the four
 built-in palettes, which Qt owns, and the host performs the fill. The theme
 on screen plays no part in the fill; it is the variant Import keeps the
 colours on.
+
+Version 4 of the file ([[BPR-2301]]) adds an optional Review section: the
+profile's Settings › Review preferences (`review_behaviour_settings` less its
+load observation) as named members, each read on its own. A member or value
+the core does not know is left out and named, a surface width is held to
+Narrow's 720 and 3840 as a stored one is, and nothing in the section refuses
+the file. The application maps the section onto its record
+(`with_review`, `review_differences`) and its vocabularies are asserted
+against the core's names at compile time; Import applies the result through
+the workbench preferences host's own write. A version-3 file, which has no
+Review, still reads.
 
 Migration files the version-6 palette under exactly the variant that row
 recorded, keeping its document bytes, and leaves the other three uncustomized,

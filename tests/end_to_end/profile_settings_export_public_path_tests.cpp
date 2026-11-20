@@ -138,6 +138,8 @@ namespace {
 		expect(exporter->identity_chosen(), "Identity is ticked for this export");
 		// [[BPR-2283]]. The theme on screen rides the same file.
 		expect(exporter->theme_chosen(), "the theme on screen is ticked for this export");
+		// [[BPR-2301]]. And the profile's Settings › Review.
+		expect(exporter->review_chosen(), "the Review settings are ticked for this export");
 		exporter->export_button()->click();
 		wait_for([&] { return share->exchange_note()->text().startsWith(QStringLiteral("Exported")); }, "the page says the file was written");
 
@@ -162,6 +164,7 @@ namespace {
 		// And it reads back as the one format.
 		const auto decoded = core::decode_agent_configuration(bytes, { });
 		expect(decoded.has_value() && decoded->Theme && decoded->Theme->Theme, "the file is Profile Settings, the theme on screen in it");
+		expect(decoded->Review && decoded->Review->Review.ReadingWidth == core::reading_width::wide && decoded->Review->Ignored.empty(), "the profile's Review settings are in it, the Reading width at its default");
 
 		application->begin_shutdown();
 		wait_for([&] { return application->status().ShutdownComplete; }, "the hosts quiesce");

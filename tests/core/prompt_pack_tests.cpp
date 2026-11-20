@@ -296,26 +296,26 @@ namespace {
 		auto configuration       = agent_configuration{ };
 		configuration.ExportedBy = "BetterPullReview";
 		const auto bare          = encode_agent_configuration(configuration);
-		expect(bare && bare->find("\"version\": 3") != std::string::npos && bare->find("prompt_pack") == std::string::npos, "no prompt chosen: no pack");
+		expect(bare && bare->find("\"version\": 4") != std::string::npos && bare->find("prompt_pack") == std::string::npos, "no prompt chosen: no pack");
 		configuration.PromptPack   = { .Id = std::string{ pack_id }, .Label = "Team", .Version = 4U };
 		configuration.PromptMacros = { portable(first_id, "First", "First text") };
 		const auto packed          = encode_agent_configuration(configuration);
-		expect(packed && packed->find("\"version\": 3") != std::string::npos, "a pack: the one version");
+		expect(packed && packed->find("\"version\": 4") != std::string::npos, "a pack: the one version");
 		expect(packed && packed->find("\n   \"prompt_pack\": {\n      \"id\": ") != std::string::npos && packed->find("\n         {\n            \"id\": ") != std::string::npos,
 			   "the pack is laid out one member a line, at the file's indentation, for editing in place");
 		const auto read = packed ? decode_agent_configuration(*packed, { }) : std::unexpected(configuration_file_refusal::malformed);
-		expect(read && read->Version == 3U && read->PromptPack && read->PromptPack->Pack.Version == 4U && read->PromptPack->Macros[0].Macro == configuration.PromptMacros[0], "the pack reads back");
+		expect(read && read->Version == 4U && read->PromptPack && read->PromptPack->Pack.Version == 4U && read->PromptPack->Macros[0].Macro == configuration.PromptMacros[0], "the pack reads back");
 		const auto bareRead = bare ? decode_agent_configuration(*bare, { }) : std::unexpected(configuration_file_refusal::malformed);
 		expect(bareRead && !bareRead->PromptPack, "a file without a pack reads without one");
 		// [[BPR-2283]] (owner, 2026-11-19: "don't keep legacy support").
 		for (const auto* const older : { "\"version\": 1", "\"version\": 2" }) {
 			auto legacy = *packed;
-			legacy.replace(legacy.find("\"version\": 3"), 12U, older);
+			legacy.replace(legacy.find("\"version\": 4"), 12U, older);
 			expect(decode_agent_configuration(legacy, { }).error() == configuration_file_refusal::not_a_configuration, "a file of an earlier version is not Profile Settings");
 		}
 		auto newer = *packed;
-		newer.replace(newer.find("\"version\": 3"), 12U, "\"version\": 4");
-		expect(decode_agent_configuration(newer, { }).error() == configuration_file_refusal::unsupported_version, "version 4 is refused as newer");
+		newer.replace(newer.find("\"version\": 4"), 12U, "\"version\": 5");
+		expect(decode_agent_configuration(newer, { }).error() == configuration_file_refusal::unsupported_version, "version 5 is refused as newer");
 	}
 
 	/// AC26: export from one profile, import into a clean one, re-import a

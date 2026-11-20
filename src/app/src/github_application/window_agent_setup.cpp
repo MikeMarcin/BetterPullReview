@@ -2852,9 +2852,14 @@ namespace bpr::app {
 				const auto variant = AppearanceProfile->variant();
 				theme              = core::portable_theme{ .Base = variant, .Palette = AppearanceProfile->palette_for(variant) };
 			}
+			// [[BPR-2301]]. The profile's Settings › Review is the Review section.
+			auto review = std::optional<core::portable_review>{ };
+			if (Profile->WorkbenchPreferences && Profile->WorkbenchPreferences->accepted()) {
+				review = application::portable_review_of(Profile->WorkbenchPreferences->accepted()->Behaviour);
+			}
 			auto* const dialog = new qt::agent_configuration_export_dialog{ std::move(*aSnapshot), unsaved,
 																			("BetterPullReview " + QCoreApplication::applicationVersion()).trimmed().toStdString(), profile_settings_facts(),
-																			Window->profiles_settings()->window(), std::move(theme) };
+																			Window->profiles_settings()->window(), std::move(theme), std::move(review) };
 			dialog->setAttribute(Qt::WA_DeleteOnClose);
 			// RFC-BPR-0125 AC24. The host mints every UUID an export may need:
 			// a new pack's, and one for each own prompt made before UUIDs.
@@ -3007,6 +3012,13 @@ namespace bpr::app {
 					.OnScreen = variant, .Here = AppearanceProfile->palette_for(variant), .Imported = AppearanceHost->resolve_theme(*aPreview->File.Theme->Theme)
 				};
 			}
+			// [[BPR-2301]]. The file's Review against the profile's Settings › Review.
+			if (aPreview->File.Review && Profile->WorkbenchPreferences && Profile->WorkbenchPreferences->accepted()) {
+				const auto& here     = Profile->WorkbenchPreferences->accepted()->Behaviour;
+				auto        imported = application::with_review(here, aPreview->File.Review->Review);
+				auto        changes  = application::review_differences(here, imported);
+				aPreview->Review     = application::agent_configuration_preview::review_against_here{ .Here = here, .Imported = std::move(imported), .Changes = std::move(changes) };
+			}
 			auto* const dialog = new qt::agent_configuration_import_dialog{ std::move(*aPreview), std::move(facts), dropped ? static_cast<QWidget*>(Window.get()) : Window->profiles_settings()->window() };
 			dialog->setAttribute(Qt::WA_DeleteOnClose);
 			dialog->set_program_chooser([dialog](const QString& aHint) {
@@ -3063,7 +3075,10 @@ namespace bpr::app {
 		// the rest of the file is stored.
 		auto       chosenTheme  = aDialog.theme_choice();
 		const auto themeVariant = aDialog.preview().Theme ? aDialog.preview().Theme->OnScreen : core::appearance_variant::light;
-		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, say, agents = aDialog.agent_choices().size(), changes = std::move(profileChanges), theme = std::move(chosenTheme), themeVariant](application::agent_configuration_host::applied aApplied) {
+		// [[BPR-2301]]. Review, when chosen, through the workbench preferences'
+		// own write, once the rest is stored.
+		auto chosenReview = aDialog.review_choice();
+		AgentConfiguration->apply(aDialog.preview(), aDialog.agent_choices(), aDialog.prompt_choices(), [this, say, agents = aDialog.agent_choices().size(), changes = std::move(profileChanges), theme = std::move(chosenTheme), themeVariant, review = std::move(chosenReview)](application::agent_configuration_host::applied aApplied) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
@@ -3082,6 +3097,9 @@ namespace bpr::app {
 			case application::agent_configuration_outcome::applied:
 				// The stores hold the result; the hosts read it back.
 				static_cast<void>(Profile->WorkbenchPreferences->adopt_writing_hooks(aApplied->second.Hooks));
+				if (review) {
+					static_cast<void>(Profile->WorkbenchPreferences->apply_behaviour(*review));
+				}
 				if (AgentSetup) {
 					AgentSetup->load();
 				}

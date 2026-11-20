@@ -150,7 +150,7 @@ namespace {
 		expect(core::decode_agent_configuration("{\"format\":", local).error() == core::configuration_file_refusal::not_a_configuration, "broken JSON that never names the format is not Profile Settings");
 		expect(core::decode_agent_configuration("{\"format\":\"bpr.profile-settings\",", local).error() == core::configuration_file_refusal::malformed, "malformed");
 		expect(core::decode_agent_configuration(R"({"format":"x","version":1})", local).error() == core::configuration_file_refusal::not_a_configuration, "foreign");
-		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":4,"future":[]})", local).error() == core::configuration_file_refusal::unsupported_version,
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":5,"future":[]})", local).error() == core::configuration_file_refusal::unsupported_version,
 			   "newer");
 		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":3,"exported_by":"","agents":[],"prompts":[],"secret":"x"})", local).error()
 				   == core::configuration_file_refusal::malformed,
@@ -348,9 +348,16 @@ namespace {
 	{
 		const auto local = prompts();
 		const auto bytes = core::encode_agent_configuration(core::agent_configuration{ .Label = "x" }).value();
-		expect(bytes.find("\"format\": \"bpr.profile-settings\"") != std::string::npos && bytes.find("\"version\": 3") != std::string::npos, "the file names its one format and version");
-		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":4,"exported_by":"","agents":[],"prompts":[]})", local).error() == core::configuration_file_refusal::unsupported_version,
+		expect(bytes.find("\"format\": \"bpr.profile-settings\"") != std::string::npos && bytes.find("\"version\": 4") != std::string::npos, "the file names its one format and version");
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":5,"exported_by":"","agents":[],"prompts":[]})", local).error() == core::configuration_file_refusal::unsupported_version,
 			   "a later version is refused");
+		// [[BPR-2301]]. Version 3 is version 4 without Review: it still reads,
+		// and a Review section in it is not one version 3 could hold.
+		const auto three = core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":3,"exported_by":"","agents":[],"prompts":[]})", local);
+		expect(three && !three->Review && three->Version == 3U, "a version 3 file still reads, with no Review");
+		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":3,"exported_by":"","agents":[],"prompts":[],"review":{"reading_width":"wide"}})", local).error()
+				   == core::configuration_file_refusal::malformed,
+			   "a version 3 file has no Review section");
 		expect(core::decode_agent_configuration(R"({"format":"bpr.agent-configuration","version":1,"exported_by":"","agents":[],"prompts":[]})", local).error() == core::configuration_file_refusal::not_a_configuration,
 			   "the unreleased agent-configuration format is not read");
 		expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":1,"exported_by":"","agents":[],"prompts":[]})", local).error() == core::configuration_file_refusal::not_a_configuration,
@@ -494,6 +501,70 @@ void test_theme_section()
 	expect(core::plan_theme_import(*refused->Theme, palette, here).Standing == core::import_standing::refused, "a refused theme: refused");
 }
 
+/// [[BPR-2301]] (owner, 2026-11-19: "I think the review settings should be
+/// in exported bprsettings as an optional group"). The Review section: every
+/// Settings › Review preference round-trips; a member or value this version
+/// does not know is ignored and named; a width out of bounds is held to it;
+/// nothing in it refuses the file.
+void test_review_section()
+{
+	const auto local = prompts();
+	expect(core::exported_by_default(core::profile_settings_section::review) && core::stable_name(core::profile_settings_section::review) == "review", "Review is a section, ticked to begin with");
+	expect(core::review_choice_names(core::review_setting::open_in).size() == 3U && core::review_choice_names(core::review_setting::reading_width).empty(), "choices have names, others none");
+
+	auto review = core::portable_review{ };
+	for (std::size_t index = 0U; index < core::review_choice_count; ++index) {
+		review.Choices[index] = static_cast<std::uint8_t>(core::review_choice_names(static_cast<core::review_setting>(index)).size() - 1U);
+	}
+	review.ReadingWidth      = core::reading_width::medium;
+	review.Surfaces          = { core::reading_override{ }, core::reading_override_of(1480U), core::reading_override{ .Kind = core::reading_override_kind::full } };
+	const auto labels        = std::array{ core::feedback_label::issue, core::feedback_label::question };
+	review.LabelColumns      = core::make_feedback_label_columns(labels).value();
+	review.CenterRibbonWidth = 40U;
+	review.FinishReview      = { core::review_finish_return::home, core::review_finish_return::pull_request, core::review_finish_return::home };
+
+	// Round trip, beside an agent.
+	auto file = core::agent_configuration{ .Label = "Team" };
+	file.Agents.push_back(core::portable_agent{ .PortableId = "c", .Name = "C", .ProgramName = "c" });
+	file.Review      = review;
+	const auto bytes = core::encode_agent_configuration(file);
+	expect(bytes && bytes->find("\"review\": {") != std::string::npos && bytes->find("\"reading_width\": \"medium\"") != std::string::npos && bytes->find("\"discuss_width\": 1480") != std::string::npos
+			   && bytes->find("\"reports_width\": \"full\"") != std::string::npos && bytes->find("\"open_in\": \"last_used\"") != std::string::npos,
+		   "the Review section names each setting and value");
+	const auto read = core::decode_agent_configuration(*bytes, local);
+	expect(read && read->Agents.size() == 1U && read->Review && read->Review->Review == review && read->Review->Ignored.empty() && read->Review->Adjusted.empty(), "the Review section round-trips exactly");
+	expect(core::plan_review_import(*read->Review, 0U).Standing == core::import_standing::unchanged, "nothing to change: unchanged");
+	const auto updated = core::plan_review_import(*read->Review, 3U);
+	expect(updated.Standing == core::import_standing::updated && updated.Default, "settings to change: updated, starts chosen");
+	const auto none = core::encode_agent_configuration(core::agent_configuration{ .Label = "x" });
+	expect(none && none->find("\"review\"") == std::string::npos, "an unchosen Review is left out");
+
+	// A file without Review reads with none.
+	const auto without = core::decode_agent_configuration(*none, local);
+	expect(without && !without->Review, "a file without Review has none");
+
+	// Out of bounds, unknown and of the wrong kind.
+	const auto odd = core::decode_agent_configuration(
+		R"({"format":"bpr.profile-settings","version":4,"exported_by":"","agents":[],"prompts":[],"review":{"reading_width":"enormous","threads_width":300,"discuss_width":99999,"reports_width":-4,"open_in":"sideways","mark_read":7,"label_columns":["issue","nonsense","issue"],"center_ribbon_width":-1,"finish_approve":"pull_request","future_setting":{"x":1}}})",
+		local);
+	expect(odd.has_value() && odd->Review, "odd values never refuse the file");
+	const auto& oddReview = odd->Review->Review;
+	expect(!oddReview.ReadingWidth && !oddReview.Choices[0] && !oddReview.Choices[1] && !oddReview.CenterRibbonWidth, "an unknown value, or one of the wrong kind, is left out");
+	expect(oddReview.Surfaces[0] == core::reading_override_of(720U) && oddReview.Surfaces[1] == core::reading_override_of(3840U) && oddReview.Surfaces[2] == core::reading_override_of(720U),
+		   "a width below Narrow's is held to 720, one above the bound to 3840");
+	expect(oddReview.LabelColumns && core::labels_of(*oddReview.LabelColumns).size() == 1U && oddReview.FinishReview[1] == core::review_finish_return::pull_request,
+		   "the known labels are kept once; a known value still applies");
+	const auto& ignored = odd->Review->Ignored;
+	expect(ignored.size() == 5U && std::ranges::contains(ignored, std::string{ "future_setting" }) && std::ranges::contains(ignored, std::string{ "reading_width" }), "each left-out member is named");
+	expect(odd->Review->Adjusted
+			   == std::vector{ core::review_setting::threads_width, core::review_setting::discuss_width, core::review_setting::reports_width, core::review_setting::label_columns },
+		   "each held width and the trimmed labels are named");
+	const auto empty = core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":4,"exported_by":"","agents":[],"prompts":[],"review":{"open_in":"sideways"}})", local);
+	expect(empty && empty->Review && core::plan_review_import(*empty->Review, 0U).Standing == core::import_standing::refused, "a Review that sets nothing usable cannot be imported");
+	expect(core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":4,"exported_by":"","agents":[],"prompts":[],"review":[]})", local).error() == core::configuration_file_refusal::malformed,
+		   "a Review that is not an object is malformed");
+}
+
 auto main() -> int
 {
 	test_round_trip_carries_only_portable_material();
@@ -509,6 +580,7 @@ auto main() -> int
 	test_one_format();
 	test_identity_and_repositories();
 	test_theme_section();
+	test_review_section();
 	std::cout << "agent-configuration-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -8,6 +8,7 @@
 #include <array>
 #include <atomic>
 #include <set>
+#include <type_traits>
 #include <utility>
 
 namespace bpr::application {
@@ -77,10 +78,131 @@ namespace bpr::application {
 		return prompts;
 	}
 
+	namespace {
+		// [[BPR-2301]]. The file names a choice's values by their ordinals
+		// here, so each vocabulary must be the core's, value for value.
+		template <class Choice>
+		[[nodiscard]] constexpr auto names_match(const core::review_setting aSetting, const Choice aLast) noexcept -> bool
+		{
+			return core::review_choice_names(aSetting).size() == static_cast<std::size_t>(aLast) + 1U;
+		}
+		static_assert(names_match(core::review_setting::open_in, review_open_modality::last_used));
+		static_assert(names_match(core::review_setting::mark_read, review_mark_read_behaviour::when_fully_seen));
+		static_assert(names_match(core::review_setting::return_comparison, review_return_comparison::since_last_upload));
+		static_assert(names_match(core::review_setting::comments_filter, review_comments_filter::unresolved));
+		static_assert(names_match(core::review_setting::drawer_controls, review_drawer_controls::shown));
+		static_assert(names_match(core::review_setting::feedback_marks, review_feedback_marks::letters));
+		static_assert(names_match(core::review_setting::label_helper, review_label_helper::on));
+		static_assert(names_match(core::review_setting::overview_counts, review_overview_counts::all));
+		static_assert(names_match(core::review_setting::line_details, review_line_details::hidden));
+		static_assert(names_match(core::review_setting::markdown_images, review_markdown_images::off));
+
+		/// Each choice of the record, by `core::review_setting`.
+		[[nodiscard]] auto choices_of(const review_behaviour_settings& aSettings) noexcept -> std::array<std::uint8_t, core::review_choice_count>
+		{
+			return { static_cast<std::uint8_t>(aSettings.OpenModality), static_cast<std::uint8_t>(aSettings.MarkRead), static_cast<std::uint8_t>(aSettings.ReturnComparison),
+					 static_cast<std::uint8_t>(aSettings.CommentsFilter), static_cast<std::uint8_t>(aSettings.DrawerControls), static_cast<std::uint8_t>(aSettings.FeedbackMarks),
+					 static_cast<std::uint8_t>(aSettings.LabelHelper), static_cast<std::uint8_t>(aSettings.OverviewCounts), static_cast<std::uint8_t>(aSettings.LineDetails),
+					 static_cast<std::uint8_t>(aSettings.MarkdownImages) };
+		}
+	} // namespace
+
+	auto portable_review_of(const review_behaviour_settings& aSettings) -> core::portable_review
+	{
+		auto       review  = core::portable_review{ };
+		const auto choices = choices_of(aSettings);
+		for (std::size_t index = 0U; index < core::review_choice_count; ++index) {
+			review.Choices[index] = choices[index];
+		}
+		review.ReadingWidth = aSettings.ReadingWidth;
+		for (std::size_t index = 0U; index < core::reading_surface_count; ++index) {
+			review.Surfaces[index] = aSettings.ReadingOverrides[index];
+		}
+		review.LabelColumns      = aSettings.LabelColumns;
+		review.CenterRibbonWidth = aSettings.CenterRibbonWidth;
+		review.FinishReview      = { aSettings.FinishReview.Comment, aSettings.FinishReview.Approve, aSettings.FinishReview.RequestChanges };
+		return review;
+	}
+
+	auto with_review(review_behaviour_settings aHere, const core::portable_review& aFile) -> review_behaviour_settings
+	{
+		auto       next = edited(std::move(aHere));
+		const auto take = [&aFile](const core::review_setting aSetting, auto& aField) {
+			const auto& choice = aFile.Choices[static_cast<std::size_t>(aSetting)];
+			if (choice && *choice < core::review_choice_names(aSetting).size()) {
+				aField = static_cast<std::remove_reference_t<decltype(aField)>>(*choice);
+			}
+		};
+		take(core::review_setting::open_in, next.OpenModality);
+		take(core::review_setting::mark_read, next.MarkRead);
+		take(core::review_setting::return_comparison, next.ReturnComparison);
+		take(core::review_setting::comments_filter, next.CommentsFilter);
+		take(core::review_setting::drawer_controls, next.DrawerControls);
+		take(core::review_setting::feedback_marks, next.FeedbackMarks);
+		take(core::review_setting::label_helper, next.LabelHelper);
+		take(core::review_setting::overview_counts, next.OverviewCounts);
+		take(core::review_setting::line_details, next.LineDetails);
+		take(core::review_setting::markdown_images, next.MarkdownImages);
+		if (aFile.ReadingWidth && core::valid(*aFile.ReadingWidth)) {
+			next.ReadingWidth = *aFile.ReadingWidth;
+		}
+		for (std::size_t index = 0U; index < core::reading_surface_count; ++index) {
+			if (const auto& surface = aFile.Surfaces[index]; surface) {
+				// Held to the bounds as a stored width is read.
+				next.ReadingOverrides[index] = surface->Kind == core::reading_override_kind::width ? core::reading_override_of(surface->Width) : core::reading_override{ .Kind = surface->Kind };
+			}
+		}
+		if (aFile.LabelColumns && core::check_feedback_label_columns(*aFile.LabelColumns)) {
+			next.LabelColumns = *aFile.LabelColumns;
+		}
+		if (aFile.CenterRibbonWidth) {
+			next.CenterRibbonWidth = std::clamp(*aFile.CenterRibbonWidth, minimum_center_ribbon_width, maximum_center_ribbon_width);
+		}
+		const auto finishes = std::array{ &next.FinishReview.Comment, &next.FinishReview.Approve, &next.FinishReview.RequestChanges };
+		for (std::size_t index = 0U; index < aFile.FinishReview.size(); ++index) {
+			if (aFile.FinishReview[index]) {
+				*finishes[index] = *aFile.FinishReview[index];
+			}
+		}
+		return next;
+	}
+
+	auto review_differences(const review_behaviour_settings& aBefore, const review_behaviour_settings& aAfter) -> std::vector<core::review_setting>
+	{
+		auto       changes = std::vector<core::review_setting>{ };
+		const auto before  = portable_review_of(aBefore);
+		const auto after   = portable_review_of(aAfter);
+		for (std::size_t index = 0U; index < core::review_choice_count; ++index) {
+			if (before.Choices[index] != after.Choices[index]) {
+				changes.push_back(static_cast<core::review_setting>(index));
+			}
+		}
+		if (before.ReadingWidth != after.ReadingWidth) {
+			changes.push_back(core::review_setting::reading_width);
+		}
+		for (std::size_t index = 0U; index < core::reading_surface_count; ++index) {
+			if (before.Surfaces[index] != after.Surfaces[index]) {
+				changes.push_back(static_cast<core::review_setting>(static_cast<std::size_t>(core::review_setting::threads_width) + index));
+			}
+		}
+		if (before.LabelColumns != after.LabelColumns) {
+			changes.push_back(core::review_setting::label_columns);
+		}
+		if (before.CenterRibbonWidth != after.CenterRibbonWidth) {
+			changes.push_back(core::review_setting::center_ribbon_width);
+		}
+		for (std::size_t index = 0U; index < before.FinishReview.size(); ++index) {
+			if (before.FinishReview[index] != after.FinishReview[index]) {
+				changes.push_back(static_cast<core::review_setting>(static_cast<std::size_t>(core::review_setting::finish_comment) + index));
+			}
+		}
+		return changes;
+	}
+
 	auto export_agent_configuration(const agent_configuration_snapshot& aSnapshot, const std::span<const std::uint32_t> aAgents, const std::span<const exported_prompt> aPrompts,
 									std::string aLabel, std::string aExportedBy, const std::span<const std::string> aWorkflows,
 									const core::portable_identity* const aIdentity, const std::span<const core::portable_repository> aRepositories,
-									const core::prompt_pack_export* const aPack, const core::portable_theme* const aTheme) -> std::optional<std::string>
+									const core::prompt_pack_export* const aPack, const core::portable_theme* const aTheme, const core::portable_review* const aReview) -> std::optional<std::string>
 	{
 		// [[BPR-2032]]. A chosen workflow's agents travel with it.
 		auto workflows = std::vector<const core::local_workflow*>{ };
@@ -112,6 +234,9 @@ namespace bpr::application {
 		configuration.Repositories.assign(aRepositories.begin(), aRepositories.end());
 		if (aTheme != nullptr) {
 			configuration.Theme = *aTheme;
+		}
+		if (aReview != nullptr) {
+			configuration.Review = *aReview;
 		}
 		for (std::size_t index = 0U; index < chosen.size(); ++index) {
 			configuration.Agents.push_back(core::portable_agent_of(*chosen[index], ids[index]));

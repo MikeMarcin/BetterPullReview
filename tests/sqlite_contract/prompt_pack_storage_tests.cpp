@@ -178,7 +178,7 @@ try {
 	expect(std::ranges::all_of(sent.Differences.Own, [&packId](const core::prompt_macro& aMacro) { return aMacro.Pack && aMacro.Pack->Pack == packId && aMacro.Pack->Version == 1U; }),
 		   "a restart reads both linked to the pack at version 1");
 	const auto bytes = read_file(file, core::maximum_agent_configuration_bytes);
-	expect(bytes && bytes->find("\"version\": 3") != std::string::npos && bytes->find(oldId) == std::string::npos, "the file is version 3 and carries no old identity");
+	expect(bytes && bytes->find("\"version\": 4") != std::string::npos && bytes->find(oldId) == std::string::npos, "the file is version 4 and carries no old identity");
 
 	// The recipient has a prompt of their own and nothing from the pack.
 	auto mine = core::prompt_macro_differences{ };
@@ -236,7 +236,7 @@ try {
 
 	// A file with no prompt chosen holds no pack.
 	const auto plain = application::export_agent_configuration(sender.snapshot(), { }, { }, "Plain", "BetterPullReview test");
-	expect(plain && plain->find("\"version\": 3") != std::string::npos && plain->find("prompt_pack") == std::string::npos, "no prompt chosen: no pack");
+	expect(plain && plain->find("\"version\": 4") != std::string::npos && plain->find("prompt_pack") == std::string::npos, "no prompt chosen: no pack");
 
 	// A store made before the pack table: the next open makes it, and the
 	// prompts read as the reviewer's own; a link no prompt names is not read.

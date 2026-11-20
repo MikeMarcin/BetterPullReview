@@ -105,9 +105,9 @@ namespace {
 	{
 		const auto bytes = ok(core::encode_agent_configuration(file_with_workflow()), "a file with a workflow encodes");
 		// [[BPR-2198]]. One format and one version, workflows or none.
-		expect(bytes.find("\"version\": 3") != std::string::npos, "a file with a workflow is the one version");
+		expect(bytes.find("\"version\": 4") != std::string::npos, "a file with a workflow is the one version");
 		const auto plain = ok(core::encode_agent_configuration({ .Label = "x", .ExportedBy = "y", .Agents = file_with_workflow().Agents }), "a file without one");
-		expect(plain.find("\"version\": 3") != std::string::npos && plain.find("workflows") == std::string::npos, "a file with no workflow leaves the section out");
+		expect(plain.find("\"version\": 4") != std::string::npos && plain.find("workflows") == std::string::npos, "a file with no workflow leaves the section out");
 		const auto decoded = ok(core::decode_agent_configuration(bytes, { }), "it reads back");
 		expect(decoded.Workflows.size() == 1U && !decoded.Workflows[0].Problem && decoded.Workflows[0].Workflow == organization(), "the workflow reads back exactly");
 		expect(bytes.find("/") == std::string::npos || bytes.find("\"program\"") == std::string::npos, "no program path travels");

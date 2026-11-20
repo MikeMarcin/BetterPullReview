@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <ranges>
 #include <set>
@@ -86,6 +87,10 @@ namespace bpr::core::detail {
 		std::optional<glz::raw_json> PromptPack;
 		/// [[BPR-2283]].
 		std::optional<wire_theme> Theme;
+		/// [[BPR-2301]]. Each member read on its own, so one this version
+		/// does not know, or a value of the wrong kind, is left out rather
+		/// than refusing the file.
+		std::optional<std::map<std::string, glz::raw_json>> Review;
 	};
 	/// Only the head, read first so a newer or foreign file is named as such.
 	struct wire_head
@@ -141,7 +146,7 @@ struct glz::meta<bpr::core::detail::wire_file>
 	using value_type            = bpr::core::detail::wire_file;
 	static constexpr auto value = object("format", &value_type::Format, "version", &value_type::Version, "label", &value_type::Label, "exported_by", &value_type::ExportedBy, "agents", &value_type::Agents,
 										 "prompts", &value_type::Prompts, "workflows", &value_type::Workflows, "identity", &value_type::Identity, "repositories", &value_type::Repositories, "prompt_pack", &value_type::PromptPack,
-										 "theme", &value_type::Theme);
+										 "theme", &value_type::Theme, "review", &value_type::Review);
 };
 template <>
 struct glz::meta<bpr::core::detail::wire_head>
@@ -335,6 +340,233 @@ namespace bpr::core {
 				plan.Default = !plan.SignInToUse || !followed;
 			}
 		}
+
+		// [[BPR-2301]]. The Review section, one member at a time.
+
+		template <class T>
+		[[nodiscard]] auto json_of(const T& aValue) -> std::optional<glz::raw_json>
+		{
+			auto text = std::string{ };
+			if (glz::write<glz::opts{ }>(aValue, text)) {
+				return std::nullopt;
+			}
+			return glz::raw_json{ std::move(text) };
+		}
+
+		template <class T>
+		[[nodiscard]] auto read_member(const glz::raw_json& aValue) -> std::optional<T>
+		{
+			auto value = T{ };
+			if (glz::read<strict_options>(value, aValue.str)) {
+				return std::nullopt;
+			}
+			return value;
+		}
+
+		[[nodiscard]] auto surface_setting(const reading_surface aSurface) noexcept -> review_setting
+		{
+			return static_cast<review_setting>(static_cast<std::size_t>(review_setting::threads_width) + static_cast<std::size_t>(aSurface));
+		}
+
+		[[nodiscard]] auto finish_setting(const std::size_t aVerdict) noexcept -> review_setting
+		{
+			return static_cast<review_setting>(static_cast<std::size_t>(review_setting::finish_comment) + aVerdict);
+		}
+
+		[[nodiscard]] auto reading_width_name(const reading_width aWidth) noexcept -> std::string_view
+		{
+			switch (aWidth) {
+			case reading_width::narrow: return "narrow";
+			case reading_width::medium: return "medium";
+			case reading_width::wide:   return "wide";
+			case reading_width::full:   return "full";
+			}
+			return "wide";
+		}
+
+		[[nodiscard]] auto finish_name(const review_finish_return aReturn) noexcept -> std::string_view
+		{
+			return aReturn == review_finish_return::home ? "home" : "pull_request";
+		}
+
+		[[nodiscard]] auto encode_review(const portable_review& aReview) -> std::optional<std::map<std::string, glz::raw_json>>
+		{
+			auto       members = std::map<std::string, glz::raw_json>{ };
+			auto       failed  = false;
+			const auto put     = [&members, &failed](const review_setting aSetting, std::optional<glz::raw_json> aValue) {
+				if (!aValue) {
+					failed = true;
+					return;
+				}
+				members.emplace(std::string{ stable_name(aSetting) }, std::move(*aValue));
+			};
+			for (std::size_t index = 0U; index < review_choice_count; ++index) {
+				const auto setting = static_cast<review_setting>(index);
+				const auto names   = review_choice_names(setting);
+				if (const auto& choice = aReview.Choices[index]; choice) {
+					if (*choice >= names.size()) {
+						return std::nullopt;
+					}
+					put(setting, json_of(std::string{ names[*choice] }));
+				}
+			}
+			if (aReview.ReadingWidth) {
+				if (!valid(*aReview.ReadingWidth)) {
+					return std::nullopt;
+				}
+				put(review_setting::reading_width, json_of(std::string{ reading_width_name(*aReview.ReadingWidth) }));
+			}
+			for (std::size_t index = 0U; index < reading_surface_count; ++index) {
+				const auto& surface = aReview.Surfaces[index];
+				if (!surface) {
+					continue;
+				}
+				const auto setting = surface_setting(static_cast<reading_surface>(index));
+				switch (surface->Kind) {
+				case reading_override_kind::reading_width: put(setting, json_of(std::string{ "reading_width" })); break;
+				case reading_override_kind::full:          put(setting, json_of(std::string{ "full" })); break;
+				case reading_override_kind::width:         put(setting, json_of(reading_override_of(surface->Width).Width)); break;
+				}
+			}
+			if (aReview.LabelColumns) {
+				auto labels = std::vector<std::string>{ };
+				for (const auto label : labels_of(*aReview.LabelColumns)) {
+					labels.emplace_back(stable_name(label));
+				}
+				put(review_setting::label_columns, json_of(labels));
+			}
+			if (aReview.CenterRibbonWidth) {
+				put(review_setting::center_ribbon_width, json_of(*aReview.CenterRibbonWidth));
+			}
+			for (std::size_t index = 0U; index < aReview.FinishReview.size(); ++index) {
+				if (const auto& finish = aReview.FinishReview[index]; finish) {
+					put(finish_setting(index), json_of(std::string{ finish_name(*finish) }));
+				}
+			}
+			if (failed) {
+				return std::nullopt;
+			}
+			return members;
+		}
+
+		[[nodiscard]] auto setting_named(const std::string_view aName) noexcept -> std::optional<review_setting>
+		{
+			for (std::size_t index = 0U; index < review_setting_count; ++index) {
+				if (stable_name(static_cast<review_setting>(index)) == aName) {
+					return static_cast<review_setting>(index);
+				}
+			}
+			return std::nullopt;
+		}
+
+		[[nodiscard]] auto ordinal_of(const std::span<const std::string_view> aNames, const std::string_view aName) noexcept -> std::optional<std::uint8_t>
+		{
+			const auto found = std::ranges::find(aNames, aName);
+			return found == aNames.end() ? std::nullopt : std::optional{ static_cast<std::uint8_t>(found - aNames.begin()) };
+		}
+
+		/// A member name as the import may show it: plain text, cut to the
+		/// portable ID bound.
+		[[nodiscard]] auto shown_name(const std::string_view aName) -> std::string
+		{
+			auto name = std::string{ };
+			for (const auto byte : aName) {
+				if (name.size() >= maximum_portable_id_bytes) {
+					break;
+				}
+				name.push_back(static_cast<unsigned char>(byte) < 0x20U || byte == 0x7F || static_cast<unsigned char>(byte) >= 0x80U ? '?' : byte);
+			}
+			return name;
+		}
+
+		/// One surface's width: `reading_width`, `full`, or pixels held to
+		/// Narrow's 720 and 3840 (`reading_override_of`).
+		[[nodiscard]] auto read_surface(const glz::raw_json& aValue, bool& aHeld) -> std::optional<reading_override>
+		{
+			if (const auto name = read_member<std::string>(aValue)) {
+				if (*name == "reading_width") {
+					return reading_override{ };
+				}
+				if (*name == "full") {
+					return reading_override{ .Kind = reading_override_kind::full };
+				}
+				return std::nullopt;
+			}
+			const auto pixels = read_member<std::int64_t>(aValue);
+			if (!pixels) {
+				return std::nullopt;
+			}
+			const auto held = *pixels < static_cast<std::int64_t>(minimum_reading_override) ? minimum_reading_override
+				: *pixels > static_cast<std::int64_t>(maximum_reading_override)             ? maximum_reading_override
+																							: static_cast<std::uint32_t>(*pixels);
+			aHeld           = static_cast<std::int64_t>(held) != *pixels;
+			return reading_override_of(held);
+		}
+
+		[[nodiscard]] auto decode_review(const std::map<std::string, glz::raw_json>& aMembers) -> decoded_review
+		{
+			auto  decoded = decoded_review{ };
+			auto& review  = decoded.Review;
+			for (const auto& [name, value] : aMembers) {
+				const auto setting = setting_named(name);
+				auto       known   = false;
+				auto       held    = false;
+				if (setting) {
+					const auto index = static_cast<std::size_t>(*setting);
+					if (index < review_choice_count) {
+						const auto text       = read_member<std::string>(value);
+						review.Choices[index] = text ? ordinal_of(review_choice_names(*setting), *text) : std::nullopt;
+						known                 = review.Choices[index].has_value();
+					} else if (*setting == review_setting::reading_width) {
+						static constexpr auto widths = std::array{ reading_width::narrow, reading_width::medium, reading_width::wide, reading_width::full };
+						const auto            text   = read_member<std::string>(value);
+						for (const auto width : widths) {
+							if (text && *text == reading_width_name(width)) {
+								review.ReadingWidth = width;
+							}
+						}
+						known = review.ReadingWidth.has_value();
+					} else if (*setting == review_setting::threads_width || *setting == review_setting::discuss_width || *setting == review_setting::reports_width) {
+						auto& surface = review.Surfaces[index - static_cast<std::size_t>(review_setting::threads_width)];
+						surface       = read_surface(value, held);
+						known         = surface.has_value();
+					} else if (*setting == review_setting::label_columns) {
+						if (const auto labels = read_member<std::vector<std::string>>(value); labels && labels->empty()) {
+							review.LabelColumns = feedback_label_columns{ };
+							known               = true;
+						} else if (labels && labels->size() <= maximum_feedback_label_columns_text) {
+							auto text = std::string{ };
+							for (const auto& label : *labels) {
+								text += (text.empty() ? "" : ",") + label;
+							}
+							const auto reading  = read_feedback_label_columns(text);
+							review.LabelColumns = reading.Columns;
+							held                = reading.Unknown > 0U || reading.Repeated > 0U;
+							known               = true;
+						}
+					} else if (*setting == review_setting::center_ribbon_width) {
+						if (const auto pixels = read_member<std::int64_t>(value); pixels && *pixels >= 0 && *pixels <= std::int64_t{ std::numeric_limits<std::uint32_t>::max() }) {
+							review.CenterRibbonWidth = static_cast<std::uint32_t>(*pixels);
+							known                    = true;
+						}
+					} else {
+						auto&      finish = review.FinishReview[index - static_cast<std::size_t>(review_setting::finish_comment)];
+						const auto text   = read_member<std::string>(value);
+						finish            = !text ? std::nullopt : *text == "home" ? std::optional{ review_finish_return::home }
+							: *text == "pull_request"                              ? std::optional{ review_finish_return::pull_request }
+																				   : std::nullopt;
+						known             = finish.has_value();
+					}
+				}
+				if (!known) {
+					decoded.Ignored.push_back(shown_name(name));
+				} else if (held) {
+					decoded.Adjusted.push_back(*setting);
+				}
+			}
+			std::ranges::sort(decoded.Adjusted);
+			return decoded;
+		}
 	} // namespace
 
 	auto stable_name(const profile_settings_section aSection) noexcept -> std::string_view
@@ -346,8 +578,53 @@ namespace bpr::core {
 		case profile_settings_section::identity:     return "identity";
 		case profile_settings_section::repositories: return "repositories";
 		case profile_settings_section::theme:        return "theme";
+		case profile_settings_section::review:       return "review";
 		}
 		return "agents";
+	}
+
+	auto stable_name(const review_setting aSetting) noexcept -> std::string_view
+	{
+		switch (aSetting) {
+		case review_setting::open_in:                return "open_in";
+		case review_setting::mark_read:              return "mark_read";
+		case review_setting::return_comparison:      return "return_comparison";
+		case review_setting::comments_filter:        return "comments_filter";
+		case review_setting::drawer_controls:        return "drawer_controls";
+		case review_setting::feedback_marks:         return "feedback_marks";
+		case review_setting::label_helper:           return "label_helper";
+		case review_setting::overview_counts:        return "overview_counts";
+		case review_setting::line_details:           return "line_details";
+		case review_setting::markdown_images:        return "markdown_images";
+		case review_setting::reading_width:          return "reading_width";
+		case review_setting::threads_width:          return "threads_width";
+		case review_setting::discuss_width:          return "discuss_width";
+		case review_setting::reports_width:          return "reports_width";
+		case review_setting::label_columns:          return "label_columns";
+		case review_setting::center_ribbon_width:    return "center_ribbon_width";
+		case review_setting::finish_comment:         return "finish_comment";
+		case review_setting::finish_approve:         return "finish_approve";
+		case review_setting::finish_request_changes: return "finish_request_changes";
+		}
+		return "open_in";
+	}
+
+	auto carries_anything(const portable_review& aReview) noexcept -> bool
+	{
+		const auto set = [](const auto& aValue) { return aValue.has_value(); };
+		return std::ranges::any_of(aReview.Choices, set) || aReview.ReadingWidth || std::ranges::any_of(aReview.Surfaces, set) || aReview.LabelColumns || aReview.CenterRibbonWidth
+			|| std::ranges::any_of(aReview.FinishReview, set);
+	}
+
+	auto plan_review_import(const decoded_review& aFile, const std::size_t aChanges) noexcept -> review_import_plan
+	{
+		if (!carries_anything(aFile.Review)) {
+			return { .Standing = import_standing::refused, .Default = false };
+		}
+		if (aChanges == 0U) {
+			return { .Standing = import_standing::unchanged, .Default = false };
+		}
+		return { .Standing = import_standing::updated, .Default = true };
 	}
 
 	auto exported_by_default(const profile_settings_section aSection) noexcept -> bool { return aSection != profile_settings_section::identity; }
@@ -641,6 +918,13 @@ namespace bpr::core {
 			}
 			file.Theme = std::move(theme);
 		}
+		if (aConfiguration.Review) {
+			auto review = encode_review(*aConfiguration.Review);
+			if (!review) {
+				return std::nullopt;
+			}
+			file.Review = std::move(*review);
+		}
 		auto bytes = std::string{ };
 		if (glz::write<write_options>(file, bytes) || bytes.size() + 1U > maximum_agent_configuration_bytes) {
 			return std::nullopt;
@@ -680,11 +964,15 @@ namespace bpr::core {
 		if (head.Version > agent_configuration_version) {
 			return std::unexpected(configuration_file_refusal::unsupported_version);
 		}
-		if (head.Version != agent_configuration_version) {
+		if (head.Version < oldest_agent_configuration_version) {
 			return std::unexpected(configuration_file_refusal::not_a_configuration);
 		}
 		auto file = detail::wire_file{ };
 		if (glz::read<strict_options>(file, aBytes)) {
+			return std::unexpected(configuration_file_refusal::malformed);
+		}
+		// [[BPR-2301]]. Version 3 predates the Review section.
+		if (file.Review && head.Version < 4U) {
 			return std::unexpected(configuration_file_refusal::malformed);
 		}
 		if (file.Agents.size() > maximum_configuration_agents || file.Prompts.size() > maximum_configuration_prompts
@@ -824,6 +1112,9 @@ namespace bpr::core {
 				theme.Theme = portable_theme{ .Base = *read.Base, .Palette = *read.Palette };
 			}
 			decoded.Theme = std::move(theme);
+		}
+		if (file.Review) {
+			decoded.Review = decode_review(*file.Review);
 		}
 		return decoded;
 	}
