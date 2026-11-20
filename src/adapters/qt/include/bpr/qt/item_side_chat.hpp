@@ -82,7 +82,35 @@ namespace bpr::qt {
 		/// closes it; closed, every item's chat is kept by the host.
 		void               set_column_open(bool aOpen);
 		[[nodiscard]] auto column_open() const noexcept -> bool { return ColumnOpen; }
+		/// \brief The column's width: the preferred width, else the default,
+		/// within the bounds the page beside it allows.
 		[[nodiscard]] auto sizeHint() const -> QSize override;
+
+		/// \brief [[BPR-2333]], owner at attended review bbbd62f8: "By default
+		/// its taking up too much space and I need to be able to resize it".
+		/// The narrowest the column drags to, in logical pixels.
+		static constexpr int minimum_column_width = 260;
+		/// \brief The width it opens at with no preference, beside a page wide
+		/// enough; beside a narrower page, three tenths of it.
+		static constexpr int default_column_width = 320;
+		/// \brief The width it opens at with no preference, beside this page.
+		[[nodiscard]] auto default_width() const -> int;
+		/// \brief The widest it drags to beside this page: six tenths of it,
+		/// so the report or the code keeps the larger share.
+		[[nodiscard]] auto maximum_width() const -> int;
+		/// \brief Adopts this window's stored width, or none for the
+		/// default; reports nothing back.
+		void               set_preferred_width(std::optional<std::uint32_t> aWidth);
+		[[nodiscard]] auto preferred_width() const noexcept -> std::optional<std::uint32_t> { return PreferredWidth; }
+		/// \brief Told the width an explicit drag chose, or none for Reset.
+		void set_width_sink(std::function<void(std::optional<std::uint32_t>)> aSink);
+		/// \brief The seam at the column's left edge: a drag resizes the
+		/// column and a double-click returns it to the default width.
+		[[nodiscard]] auto resize_handle() const noexcept -> QWidget* { return ResizeHandle; }
+		/// \brief The handle's gestures: a width within the bounds, kept and
+		/// reported, or Reset to the default, reported as none.
+		void resize_to(int aWidth);
+		void reset_width();
 
 		[[nodiscard]] auto composer() const noexcept -> QPlainTextEdit* { return Composer; }
 		[[nodiscard]] auto send_button() const noexcept -> QPushButton* { return Send; }
@@ -116,6 +144,7 @@ namespace bpr::qt {
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
 		void changeEvent(QEvent* aEvent) override;
+		void resizeEvent(QResizeEvent* aEvent) override;
 		bool eventFilter(QObject* aWatched, QEvent* aEvent) override;
 
 	private:
@@ -158,6 +187,11 @@ namespace bpr::qt {
 		std::vector<markdown_body_view*>          Replies;
 		std::vector<agent_run_status_line*>       Endings;
 		std::vector<QPointer<markdown_body_view>> Readers;
+		QWidget*                                  ResizeHandle = nullptr;
+		/// The page the column stands beside, whose width bounds it.
+		QPointer<QWidget>                                 Page;
+		std::optional<std::uint32_t>                      PreferredWidth;
+		std::function<void(std::optional<std::uint32_t>)> WidthSink;
 	};
 } // namespace bpr::qt
 

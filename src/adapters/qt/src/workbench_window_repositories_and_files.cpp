@@ -12,6 +12,7 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_review_panel.hpp"
@@ -328,6 +329,10 @@ namespace bpr::qt {
 			// [[BPR-1334]]. This window's Line details height, once loaded.
 			if (aProjection.Layout->LineDetailsHeight && ComparisonSurface != nullptr) {
 				ComparisonSurface->set_line_details_height(*aProjection.Layout->LineDetailsHeight);
+			}
+			// [[BPR-2333]]. This window's item side chat width, once loaded.
+			if (aProjection.Layout->SideChatWidth && ItemSideChat != nullptr) {
+				ItemSideChat->set_preferred_width(*aProjection.Layout->SideChatWidth);
 			}
 			++Statistics.LayoutUpdates;
 		}

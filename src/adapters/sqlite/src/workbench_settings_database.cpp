@@ -427,6 +427,12 @@ namespace bpr::adapters::sqlite::detail {
 				sql += ",status_width INTEGER NOT NULL DEFAULT 0 CHECK(status_width = 0 OR status_width BETWEEN 260 AND 560)"
 					   ",status_state INTEGER NOT NULL DEFAULT 0 CHECK(status_state BETWEEN 0 AND 1)";
 			}
+			// [[BPR-2333]]. Version thirty-eight: the window's item side chat
+			// width in logical pixels; zero is the default width. The bound is
+			// `application::maximum_side_chat_width`, written out for preflight.
+			if (aVersion >= 38) {
+				sql += ",side_chat_width INTEGER NOT NULL DEFAULT 0 CHECK(side_chat_width BETWEEN 0 AND 16384)";
+			}
 			return sql + ") STRICT";
 		}
 		/// \brief Writes the profile table as the build that stamped one
@@ -500,7 +506,7 @@ namespace bpr::adapters::sqlite::detail {
 				+ (aVersion >= 6 ? ",drawer_controls" : "") + (aVersion >= 7 ? ",one_pane" : "")
 				+ (aVersion >= 11 ? ",writing_revision,writing_problem,writing_solution,writing_outline,writing_stop" : "")
 				+ (aVersion >= 12 ? ",feedback_marks" : "") + (aVersion >= 13 ? ",label_helper,overview_counts,label_columns" : "")
-				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "") + (aVersion >= 20 ? ",center_ribbon_width" : "") + (aVersion >= 21 ? ",markdown_images" : "") + (aVersion >= 22 ? ",reading_width" : "") + (aVersion >= 24 ? ",finish_review" : "") + (aVersion >= 25 ? ",writing_enhance_stop,writing_enhance_draft,writing_enhance_note" : "") + (aVersion >= 26 ? ",writing_suggestion_format" : "") + (aVersion >= 28 ? ",writing_local_description,writing_local_discussion" : "") + (aVersion >= 29 ? ",writing_local_commit_message" : "") + (aVersion >= 30 ? ",writing_review_latest_upload,writing_review_proposed_fix" : "") + (aVersion >= 31 ? ",writing_review_explain_file" : "") + (aVersion >= 32 ? ",writing_review_suggest_change" : "") + (aVersion >= 33 ? ",writing_local_run_check" : "") + (aVersion >= 34 ? ",writing_style" : "") + (aVersion >= 35 ? ",writing_label_convention" : "") + (aVersion >= 36 ? ",reading_threads,reading_discuss,reading_reports" : "");
+				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "") + (aVersion >= 20 ? ",center_ribbon_width" : "") + (aVersion >= 21 ? ",markdown_images" : "") + (aVersion >= 22 ? ",reading_width" : "") + (aVersion >= 24 ? ",finish_review" : "") + (aVersion >= 25 ? ",writing_enhance_stop,writing_enhance_draft,writing_enhance_note" : "") + (aVersion >= 26 ? ",writing_suggestion_format" : "") + (aVersion >= 28 ? ",writing_local_description,writing_local_discussion" : "") + (aVersion >= 29 ? ",writing_local_commit_message" : "") + (aVersion >= 30 ? ",writing_review_latest_upload,writing_review_proposed_fix" : "") + (aVersion >= 31 ? ",writing_review_explain_file" : "") + (aVersion >= 32 ? ",writing_review_suggest_change" : "") + (aVersion >= 33 ? ",writing_local_run_check" : "") + (aVersion >= 34 ? ",writing_style" : "") + (aVersion >= 35 ? ",writing_label_convention" : "") + (aVersion >= 36 ? ",reading_threads,reading_discuss,reading_reports" : "") + (aVersion >= 37 ? ",others_drafts" : "");
 			std::vector<std::string> statements;
 			if (aVersion >= 5) {
 				statements.emplace_back("ALTER TABLE workbench_preferences RENAME TO workbench_layout");
@@ -579,6 +585,9 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			if (aColumn == "line_details_height") {
 				return application::maximum_line_details_height;
+			}
+			if (aColumn == "side_chat_width") {
+				return application::maximum_side_chat_width;
 			}
 			if (aColumn == "status_width") {
 				return application::maximum_status_drawer_width;
@@ -899,7 +908,9 @@ namespace bpr::adapters::sqlite::detail {
 			// [[BPR-2270]]: version thirty-five adds one, so thirty-four is too.
 			// [[BPR-2299]]: version thirty-six adds three, so thirty-five is too.
 			// [[BPR-2326]]: version thirty-seven adds one, so thirty-six is too.
-			if (*current < 0 || *current > 36) {
+			// [[BPR-2333]]: version thirty-eight adds a per-window column, so
+			// thirty-seven is rebuilt too.
+			if (*current < 0 || *current > 37) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -1408,7 +1419,7 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(defaults.error());
 		}
 		const bounded_read_scope guard{ Handle, aStop };
-		auto                     statement = prepare(Handle, "SELECT files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane,home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort,geometry_x,geometry_y,geometry_width,geometry_height,geometry_maximized,updates_line,summary_fraction,line_details_height,status_width,status_state FROM window_layout WHERE window_id=?1");
+		auto                     statement = prepare(Handle, "SELECT files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane,home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort,geometry_x,geometry_y,geometry_width,geometry_height,geometry_maximized,updates_line,summary_fraction,line_details_height,status_width,status_state,side_chat_width FROM window_layout WHERE window_id=?1");
 		const auto               key       = std::to_string(aWindow.value());
 		if (!statement || sqlite3_bind_text(statement->Value, 1, key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
 			return std::unexpected(failure::integrity_failure);
@@ -1420,7 +1431,7 @@ namespace bpr::adapters::sqlite::detail {
 		if (stepped != SQLITE_ROW) {
 			return std::unexpected(catalog_failure_from_sqlite_result(stepped));
 		}
-		for (int column = 0; column < 26; ++column) {
+		for (int column = 0; column < 27; ++column) {
 			if (sqlite3_column_type(statement->Value, column) != SQLITE_INTEGER) {
 				return std::unexpected(failure::integrity_failure);
 			}
@@ -1485,6 +1496,12 @@ namespace bpr::adapters::sqlite::detail {
 		}
 		layout.StatusDrawer = { .Width = statusWidth == 0 ? std::nullopt : std::optional{ static_cast<std::uint32_t>(statusWidth) },
 								.State = statusCollapsed == 1 ? core::workbench_drawer_state::collapsed : core::workbench_drawer_state::expanded };
+		// [[BPR-2333]]. Zero is the default width.
+		const auto sideChatWidth = sqlite3_column_int64(statement->Value, 26);
+		if (sideChatWidth < 0 || sideChatWidth > static_cast<std::int64_t>(application::maximum_side_chat_width)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		layout.SideChatWidth = sideChatWidth == 0 ? std::nullopt : std::optional{ static_cast<std::uint32_t>(sideChatWidth) };
 		if (!application::valid(layout)) {
 			return std::unexpected(failure::integrity_failure);
 		}
@@ -1520,11 +1537,11 @@ namespace bpr::adapters::sqlite::detail {
 			}
 		}
 		static_cast<void>(sqlite3_reset(existing->Value));
-		auto statement = prepare(Handle, "INSERT INTO window_layout(window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane,home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort,geometry_x,geometry_y,geometry_width,geometry_height,geometry_maximized,updates_line,summary_fraction,line_details_height,status_width,status_state) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27) ON CONFLICT(window_id) DO UPDATE SET files_state=excluded.files_state,conversations_state=excluded.conversations_state,files_width=excluded.files_width,conversations_width=excluded.conversations_width,line_numbers=excluded.line_numbers,repositories_state=excluded.repositories_state,repositories_width=excluded.repositories_width,one_pane=excluded.one_pane,home_grouping=excluded.home_grouping,home_state_headers=excluded.home_state_headers,home_collapsed=excluded.home_collapsed,home_filter_owned=excluded.home_filter_owned,home_role=excluded.home_role,home_added_by=excluded.home_added_by,home_quiet=excluded.home_quiet,home_sort=excluded.home_sort,geometry_x=excluded.geometry_x,geometry_y=excluded.geometry_y,geometry_width=excluded.geometry_width,geometry_height=excluded.geometry_height,geometry_maximized=excluded.geometry_maximized,updates_line=excluded.updates_line,summary_fraction=excluded.summary_fraction,line_details_height=excluded.line_details_height,status_width=excluded.status_width,status_state=excluded.status_state");
+		auto statement = prepare(Handle, "INSERT INTO window_layout(window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane,home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort,geometry_x,geometry_y,geometry_width,geometry_height,geometry_maximized,updates_line,summary_fraction,line_details_height,status_width,status_state,side_chat_width) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28) ON CONFLICT(window_id) DO UPDATE SET files_state=excluded.files_state,conversations_state=excluded.conversations_state,files_width=excluded.files_width,conversations_width=excluded.conversations_width,line_numbers=excluded.line_numbers,repositories_state=excluded.repositories_state,repositories_width=excluded.repositories_width,one_pane=excluded.one_pane,home_grouping=excluded.home_grouping,home_state_headers=excluded.home_state_headers,home_collapsed=excluded.home_collapsed,home_filter_owned=excluded.home_filter_owned,home_role=excluded.home_role,home_added_by=excluded.home_added_by,home_quiet=excluded.home_quiet,home_sort=excluded.home_sort,geometry_x=excluded.geometry_x,geometry_y=excluded.geometry_y,geometry_width=excluded.geometry_width,geometry_height=excluded.geometry_height,geometry_maximized=excluded.geometry_maximized,updates_line=excluded.updates_line,summary_fraction=excluded.summary_fraction,line_details_height=excluded.line_details_height,status_width=excluded.status_width,status_state=excluded.status_state,side_chat_width=excluded.side_chat_width");
 		if (!statement || sqlite3_bind_text(statement->Value, 1, key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
 			return std::unexpected(failure::integrity_failure);
 		}
-		std::array<std::int64_t, 26> values{ static_cast<std::int64_t>(aLayout.Files), static_cast<std::int64_t>(aLayout.Conversations), aLayout.FilesWidth, aLayout.ConversationsWidth, static_cast<std::int64_t>(aLayout.LineNumbers), static_cast<std::int64_t>(aLayout.Repositories), aLayout.RepositoriesWidth, static_cast<std::int64_t>(aLayout.OnePane) };
+		std::array<std::int64_t, 27> values{ static_cast<std::int64_t>(aLayout.Files), static_cast<std::int64_t>(aLayout.Conversations), aLayout.FilesWidth, aLayout.ConversationsWidth, static_cast<std::int64_t>(aLayout.LineNumbers), static_cast<std::int64_t>(aLayout.Repositories), aLayout.RepositoriesWidth, static_cast<std::int64_t>(aLayout.OnePane) };
 		std::ranges::copy(home_columns_of(aLayout.Home), values.begin() + 8);
 		const std::array<std::int64_t, 5> geometry{ aLayout.Geometry.X, aLayout.Geometry.Y, aLayout.Geometry.Width, aLayout.Geometry.Height, aLayout.Geometry.Maximized };
 		std::ranges::copy(geometry, values.begin() + 16);
@@ -1533,6 +1550,7 @@ namespace bpr::adapters::sqlite::detail {
 		values[23] = aLayout.LineDetailsHeight.value_or(0);
 		values[24] = aLayout.StatusDrawer.Width.value_or(0);
 		values[25] = aLayout.StatusDrawer.State == core::workbench_drawer_state::collapsed ? 1 : 0;
+		values[26] = aLayout.SideChatWidth.value_or(0);
 		for (std::size_t index = 0; index < values.size(); ++index) {
 			if (sqlite3_bind_int64(statement->Value, static_cast<int>(index + 2U), values[index]) != SQLITE_OK) {
 				return std::unexpected(failure::integrity_failure);

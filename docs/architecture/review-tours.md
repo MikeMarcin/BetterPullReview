@@ -299,7 +299,13 @@ thread. It replaced [[BPR-2286]]'s follow-up window. Its conversation is not a t
 item's chat is a `core::follow_up_state` held by `application::follow_up_host`, every round a
 fresh tool-free run carrying the item and the earlier rounds, and its one apply action (Update
 suggested comment, Update draft or Draft reply) proposes text in the chat that changes nothing
-until Use. Close keeps every item's chat.
+until Use. Close keeps every item's chat. Since [[BPR-2333]] (owner, attended review
+`bbbd62f881b93ad3315947522fe41e0d`: "By default its taking up too much space and I need to be able
+to resize it") the column opens at 320 pixels beside a wide page and at three tenths of a narrower
+one, never under 260; a drag on the seam at its left edge resizes it up to six tenths of the page,
+and a double-click returns it to its default. The width a drag chose, or Reset, is the window's,
+kept through the workbench host in the local workbench settings (schema 38, `side_chat_width`) as
+Line details' height is.
 
 Since [[BPR-1934]] (owner, 2026-11-07: "Tour side chat should get suggestions
 like the agent tab has") an empty chat offers suggested prompts under its

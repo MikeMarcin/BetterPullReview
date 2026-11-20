@@ -29,6 +29,7 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/motion_observer.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
@@ -564,6 +565,13 @@ namespace bpr::app {
 		Window->comparison_surface()->set_line_details_resize_sink([this](std::optional<std::uint32_t> aHeight) {
 			if (!Closing && WorkbenchHost != nullptr) {
 				WorkbenchHost->resize_line_details(aHeight);
+			}
+		});
+		// [[BPR-2333]]. The window's own item side chat width, kept like
+		// Line details': an explicit drag or Reset, stored locally only.
+		Window->item_side_chat()->set_width_sink([this](std::optional<std::uint32_t> aWidth) {
+			if (!Closing && WorkbenchHost != nullptr) {
+				WorkbenchHost->resize_side_chat(aWidth);
 			}
 		});
 		Window->set_geometry_dispatch(

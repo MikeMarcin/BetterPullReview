@@ -1722,6 +1722,51 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-2333]]. The window's item side chat width takes Line
+	/// details' path: held until the record loads, merged on an orderly close,
+	/// projected on a restart, validated, and Reset to the default.
+	void test_side_chat_width_load_hold_validation_and_orderly_drain()
+	{
+		auto durable                     = fake_settings{ };
+		durable.Stored.FilesWidth        = 410U;
+		durable.Stored.LineDetailsHeight = 180U;
+		durable.Stored.SideChatWidth     = 300U;
+		{
+			auto first = harness{ { }, &durable };
+			first.Host.restore();
+			first.Host.resize_side_chat(360U);
+			first.Host.resize_side_chat(420U);
+			expect(durable.Stores == 0U, "the width waits for the unread window record");
+			first.Host.shutdown_orderly();
+			first.settle();
+			expect(first.Host.is_quiescent() && durable.Stored.SideChatWidth == 420U && durable.Stored.LineDetailsHeight == 180U
+					   && durable.Stored.FilesWidth == 410U,
+				   "orderly close merges the latest width into the loaded record and keeps the rest");
+		}
+		{
+			auto next = harness{ { }, &durable };
+			next.Host.restore();
+			next.settle();
+			expect(next.Host.layout().SideChatWidth == 420U
+					   && next.Projections.Published.back().Layout->SideChatWidth == std::optional{ std::optional<std::uint32_t>{ 420U } },
+				   "a restart projects the window's side chat width");
+			const auto stores = durable.Stores;
+			next.Host.resize_side_chat(application::maximum_side_chat_width + 1U);
+			next.Host.resize_side_chat(0U);
+			next.settle();
+			expect(durable.Stores == stores && next.Host.layout().SideChatWidth == 420U,
+				   "a width past the bound or zero cannot alter or write the preference");
+			next.Host.resize_side_chat(380U);
+			next.settle();
+			expect(durable.Stores == stores + 1U && durable.Stored.SideChatWidth == 380U, "a drag persists once");
+			next.Host.resize_side_chat(std::nullopt);
+			next.settle();
+			expect(!durable.Stored.SideChatWidth && next.Projections.Published.back().Layout->SideChatWidth.has_value()
+					   && !*next.Projections.Published.back().Layout->SideChatWidth,
+				   "Reset persists and projects the default width");
+		}
+	}
+
 	/// \brief [[BPR-1588]]. The Status drawer travels the summary's path:
 	/// held until the record loads, merged on an orderly close, validated, and
 	/// Reset to the default.
@@ -2658,6 +2703,7 @@ auto main() -> int
 	test_status_drawer_load_hold_validation_and_orderly_drain();
 	test_summary_reset_before_load_preserves_the_rest_of_the_record();
 	test_line_details_height_load_hold_validation_and_orderly_drain();
+	test_side_chat_width_load_hold_validation_and_orderly_drain();
 	test_orderly_shutdown_failure_and_forced_escalation();
 	test_the_signed_out_authority_is_valid_and_a_half_named_one_is_not();
 	test_invalid_limits_are_rejected();

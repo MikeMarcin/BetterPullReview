@@ -105,7 +105,9 @@ namespace bpr::adapters::sqlite::detail {
 	/// Thirty-five since [[BPR-2270]]: the Comment labels Feature's override.
 	/// Thirty-six since [[BPR-2299]]: each reading surface's own width.
 	/// Thirty-seven since [[BPR-2326]]: where Home lists others' drafts.
-	inline constexpr std::int64_t workbench_settings_schema_version = 37;
+	/// Thirty-eight since [[BPR-2333]]: each window's item side chat width,
+	/// the default width for a migrated row.
+	inline constexpr std::int64_t workbench_settings_schema_version = 38;
 
 	/// \brief Owns the durable workbench layout database.
 	///

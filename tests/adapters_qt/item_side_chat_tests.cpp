@@ -19,15 +19,19 @@
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
+#include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QToolButton>
 
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -289,6 +293,92 @@ namespace {
 		qt::fill_ask_menu(fileMenu, { }, qt::ask_menu_request{ .Anchor = core::quick_ask_anchor::file, .File = QStringLiteral("a.cpp"), .Thread = { }, .ThreadTitle = { } }, dispatch);
 		expect(fileMenu.findChild<QAction*>(QStringLiteral("quickAskFollowUp")) == nullptr, "a file's menu has none");
 	}
+
+	/// A drag of `aHandle` by `aDx` pixels with the left button, as a hand
+	/// makes one: press, one move, release.
+	void drag(QWidget& aHandle, const int aDx)
+	{
+		const auto  at     = QPointF{ 2.0, 20.0 };
+		const auto  global = QPointF{ aHandle.mapToGlobal(at.toPoint()) };
+		const auto  moved  = QPointF{ static_cast<qreal>(aDx), 0.0 };
+		QMouseEvent press{ QEvent::MouseButtonPress, at, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QMouseEvent move{ QEvent::MouseMove, at + moved, global + moved, Qt::NoButton, Qt::LeftButton, Qt::NoModifier };
+		QMouseEvent release{ QEvent::MouseButtonRelease, at + moved, global + moved, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(&aHandle, &press);
+		QApplication::sendEvent(&aHandle, &move);
+		QApplication::processEvents();
+		QApplication::sendEvent(&aHandle, &release);
+		QApplication::processEvents();
+	}
+
+	// [[BPR-2333]], owner at attended review bbbd62f8: "By default its taking
+	// up too much space and I need to be able to resize it." The column opens
+	// at 320 pixels beside a wide page (three tenths of a narrower one, never
+	// under 260), drags between 260 and six tenths of the page by the seam at
+	// its left edge, returns to its default on a double-click, reports what a
+	// drag or Reset chose, and adopts the window's stored width without
+	// reporting it back.
+	void test_the_column_opens_narrow_and_resizes_and_remembers()
+	{
+		QWidget     page;
+		auto* const row = new QHBoxLayout{ &page };
+		row->setContentsMargins(0, 0, 0, 0);
+		row->setSpacing(0);
+		auto* const report = new QWidget{ &page };
+		row->addWidget(report, 1);
+		auto* const chat = new qt::item_side_chat{ &page };
+		row->addWidget(chat, 0);
+		auto reported = std::vector<std::optional<std::uint32_t>>{ };
+		chat->set_width_sink([&reported](const std::optional<std::uint32_t> aWidth) { reported.push_back(aWidth); });
+		page.resize(1200, 700);
+		page.show();
+		chat->set_column_open(true);
+		QApplication::processEvents();
+		expect(chat->default_width() == qt::item_side_chat::default_column_width && chat->width() == 320,
+			   "beside a wide page the column opens at 320 pixels");
+		expect(report->width() >= 2 * chat->width(), "the report keeps at least twice the column's width");
+		auto* const handle = chat->resize_handle();
+		expect(handle != nullptr && handle->isVisible() && handle->cursor().shape() == Qt::SizeHorCursor && handle->geometry().left() == 0
+				   && handle->height() == chat->height() && !handle->accessibleName().isEmpty() && !handle->toolTip().isEmpty(),
+			   "the seam at the column's left edge is a named horizontal resize handle its full height");
+
+		drag(*handle, -100);
+		expect(chat->width() == 420 && reported == std::vector<std::optional<std::uint32_t>>{ 420U }, "dragging the seam left by 100 widens the column to 420 and reports it once");
+		drag(*handle, -2000);
+		expect(chat->maximum_width() == 720 && chat->width() == 720 && reported.back() == std::optional<std::uint32_t>{ 720U },
+			   "the column drags no wider than six tenths of the page");
+		drag(*handle, 2000);
+		expect(chat->width() == qt::item_side_chat::minimum_column_width && reported.back() == std::optional<std::uint32_t>{ 260U },
+			   "the column drags no narrower than 260");
+		QMouseEvent twice{ QEvent::MouseButtonDblClick, QPointF{ 2.0, 20.0 }, QPointF{ handle->mapToGlobal(QPoint{ 2, 20 }) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(handle, &twice);
+		QApplication::processEvents();
+		expect(chat->width() == 320 && reported.back() == std::nullopt && !chat->preferred_width().has_value(),
+			   "a double-click on the seam returns the column to its default and reports Reset");
+
+		const auto reports = reported.size();
+		chat->set_preferred_width(400U);
+		QApplication::processEvents();
+		expect(chat->width() == 400 && reported.size() == reports, "the window's stored width is adopted and not reported back");
+		chat->set_column_open(false);
+		chat->set_column_open(true);
+		QApplication::processEvents();
+		expect(chat->width() == 400, "closing and opening the column keeps its width");
+
+		chat->set_preferred_width(std::nullopt);
+		page.resize(800, 700);
+		QApplication::processEvents();
+		expect(chat->default_width() == 260 && chat->width() == 260 && chat->maximum_width() == 480,
+			   "beside a narrower page it opens at three tenths of it, never under 260, and drags to six tenths");
+		chat->set_preferred_width(1000U);
+		QApplication::processEvents();
+		expect(chat->width() == 480 && chat->preferred_width() == std::optional<std::uint32_t>{ 1000U },
+			   "a stored width wider than this page allows is shown at the bound and kept for a wider one");
+		page.resize(1800, 700);
+		QApplication::processEvents();
+		expect(chat->width() == 1000, "a wider page shows the stored width again");
+		page.hide();
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -300,6 +390,7 @@ auto main(int argc, char** argv) -> int
 	test_the_tour_chat_shares_the_parts();
 	test_a_report_finding_offers_ask_follow_up();
 	test_a_threads_ask_menu_offers_ask_about_this();
+	test_the_column_opens_narrow_and_resizes_and_remembers();
 	std::cout << "item-side-chat-tests:pass\n";
 	return EXIT_SUCCESS;
 }

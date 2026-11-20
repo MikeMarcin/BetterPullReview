@@ -3880,8 +3880,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-2325]] reseal: a finding's draft identity is kept with it and
 	# a deleted draft reopens it (window_agent_setup.cpp,
 	# window_review_drafts.cpp, window_composition.hpp).
+	# [[BPR-2333]] reseal: the window's item side chat width goes to the
+	# workbench host (window_construction.cpp), which stores it in the local
+	# workbench settings only. No grant, target, provider, credential,
+	# transport, GitHub write, mutation or publication path changes.
 	set(bpr_expected_production_app_manifest_digest
-        "099ec541484df361c8b1344eb723d6f6cbab222f27022099cfdb3dd1f35b4549"
+        "006099bbbcdc7b5da865287d372f79cc705a2312b9db16eaa2096a652f137ffb"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

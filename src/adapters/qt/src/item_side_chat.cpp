@@ -2,6 +2,8 @@
 
 #include "side_chat_parts.hpp"
 
+#include "bpr/qt/resize_handle_cursor.hpp"
+
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/drawer_parts.hpp"
@@ -18,14 +20,17 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QScrollArea>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace bpr::qt {
@@ -48,6 +53,76 @@ namespace bpr::qt {
 			}
 			return QStringLiteral("%1:%2–%3").arg(file).arg(aSubject.First).arg(aSubject.Last);
 		}
+
+		/// \brief [[BPR-2333]]. The column's left-edge seam: dragging it left
+		/// widens the column, a double-click returns it to the default width.
+		class side_chat_width_handle final : public QWidget
+		{
+		public:
+			explicit side_chat_width_handle(item_side_chat& aChat)
+				: QWidget{ &aChat }
+				, Chat{ aChat }
+			{
+				setObjectName(QStringLiteral("itemSideChatResizeHandle"));
+				setAccessibleName(QObject::tr("Resize the side chat"));
+				setToolTip(QObject::tr("Drag to resize the side chat; double-click for its default width"));
+				setCursor(Qt::SizeHorCursor);
+				setAttribute(Qt::WA_Hover, true);
+				hold_resize_cursor(*this);
+			}
+
+			/// Wide enough to aim at, from the font so it scales with it.
+			[[nodiscard]] auto sizeHint() const -> QSize override { return { std::max(6, fontMetrics().lineSpacing() / 3), 0 }; }
+
+		protected:
+			void mousePressEvent(QMouseEvent* aEvent) override
+			{
+				if (aEvent->button() != Qt::LeftButton) {
+					QWidget::mousePressEvent(aEvent);
+					return;
+				}
+				Origin = aEvent->globalPosition().x();
+				Start  = Chat.width();
+				aEvent->accept();
+			}
+			void mouseMoveEvent(QMouseEvent* aEvent) override
+			{
+				if (!Origin || (aEvent->buttons() & Qt::LeftButton) == 0) {
+					QWidget::mouseMoveEvent(aEvent);
+					return;
+				}
+				// The seam is the column's left edge: left makes it wider.
+				Chat.setFixedWidth(std::clamp(Start + static_cast<int>(std::lround(*Origin - aEvent->globalPosition().x())), item_side_chat::minimum_column_width, Chat.maximum_width()));
+				aEvent->accept();
+			}
+			void mouseReleaseEvent(QMouseEvent* aEvent) override
+			{
+				if (!Origin || aEvent->button() != Qt::LeftButton) {
+					QWidget::mouseReleaseEvent(aEvent);
+					return;
+				}
+				Origin.reset();
+				const auto chosen = Chat.width();
+				Chat.setMinimumWidth(item_side_chat::minimum_column_width);
+				Chat.setMaximumWidth(QWIDGETSIZE_MAX);
+				Chat.resize_to(chosen);
+				aEvent->accept();
+			}
+			void mouseDoubleClickEvent(QMouseEvent* aEvent) override
+			{
+				if (aEvent->button() == Qt::LeftButton) {
+					Chat.reset_width();
+					aEvent->accept();
+					return;
+				}
+				QWidget::mouseDoubleClickEvent(aEvent);
+			}
+
+		private:
+			item_side_chat&       Chat;
+			std::optional<double> Origin;
+			int                   Start = 0;
+		};
 
 		/// What the item is, as the top of the chat names it before quoting it.
 		[[nodiscard]] auto item_heading(const core::follow_up_subject_kind aKind) -> QString
@@ -148,7 +223,13 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("itemSideChat"));
 		setAccessibleName(tr("Side chat with the agent about one review item"));
-		setMinimumWidth(300);
+		setMinimumWidth(minimum_column_width);
+		// [[BPR-2333]]. The page beside it bounds its width; a page resize
+		// asks the layout for the column's width again.
+		Page = aParent;
+		if (aParent != nullptr) {
+			aParent->installEventFilter(this);
+		}
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(10, 8, 10, 10);
 		column->setSpacing(6);
@@ -299,12 +380,59 @@ namespace bpr::qt {
 				Intents.Propose(offers.front());
 			}
 		});
+		ResizeHandle = new side_chat_width_handle{ *this };
 		hide();
 		rebuild();
 		restyle();
 	}
 
-	auto item_side_chat::sizeHint() const -> QSize { return { 380, QWidget::sizeHint().height() }; }
+	auto item_side_chat::sizeHint() const -> QSize
+	{
+		const auto wanted = PreferredWidth ? static_cast<int>(*PreferredWidth) : default_width();
+		return { std::clamp(wanted, minimum_column_width, maximum_width()), QWidget::sizeHint().height() };
+	}
+
+	auto item_side_chat::default_width() const -> int
+	{
+		const auto page = Page ? Page->width() : 0;
+		return page <= 0 ? default_column_width : std::clamp(page * 3 / 10, minimum_column_width, default_column_width);
+	}
+
+	auto item_side_chat::maximum_width() const -> int
+	{
+		const auto page = Page ? Page->width() : 0;
+		return page <= 0 ? QWIDGETSIZE_MAX : std::max(minimum_column_width, page * 6 / 10);
+	}
+
+	void item_side_chat::set_preferred_width(const std::optional<std::uint32_t> aWidth)
+	{
+		if (aWidth && *aWidth == 0U) {
+			return;
+		}
+		PreferredWidth = aWidth;
+		updateGeometry();
+	}
+
+	void item_side_chat::set_width_sink(std::function<void(std::optional<std::uint32_t>)> aSink) { WidthSink = std::move(aSink); }
+
+	void item_side_chat::resize_to(const int aWidth)
+	{
+		const auto width = std::clamp(aWidth, minimum_column_width, std::max(minimum_column_width, maximum_width()));
+		PreferredWidth   = static_cast<std::uint32_t>(width);
+		updateGeometry();
+		if (WidthSink) {
+			WidthSink(PreferredWidth);
+		}
+	}
+
+	void item_side_chat::reset_width()
+	{
+		PreferredWidth.reset();
+		updateGeometry();
+		if (WidthSink) {
+			WidthSink(std::nullopt);
+		}
+	}
 
 	void item_side_chat::set_intents(item_side_chat_intents aIntents) { Intents = std::move(aIntents); }
 
@@ -694,8 +822,18 @@ namespace bpr::qt {
 		}
 	}
 
+	void item_side_chat::resizeEvent(QResizeEvent* aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		ResizeHandle->setGeometry(0, 0, ResizeHandle->sizeHint().width(), height());
+		ResizeHandle->raise();
+	}
+
 	bool item_side_chat::eventFilter(QObject* aWatched, QEvent* aEvent)
 	{
+		if (aEvent->type() == QEvent::Resize && aWatched == Page) {
+			updateGeometry();
+		}
 		if (aEvent->type() == QEvent::Resize && aWatched == Scroll->viewport()) {
 			QTimer::singleShot(0, this, [this] { fit(); });
 		}
