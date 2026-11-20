@@ -2,11 +2,15 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_ENTRY_DIALOG_HPP
 
 #include "bpr/core/agent_entry.hpp"
+#include "bpr/core/agent_program_bundle.hpp"
 
 #include <QDialog>
+#include <QString>
 
+#include <expected>
 #include <functional>
 #include <optional>
+#include <string>
 
 class QCheckBox;
 class QComboBox;
@@ -14,8 +18,22 @@ class QDialogButtonBox;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
+class QPushButton;
 
 namespace bpr::qt {
+	/// \brief [[BPR-2303]]. What the program field's Choose… asks of the host.
+	struct agent_program_host
+	{
+		/// Shows a chooser over `aParent` starting at `aStart` and answers the
+		/// path chosen, or empty. Empty: the platform's own chooser, which on
+		/// macOS lets an app bundle be chosen or browsed into.
+		std::function<QString(QWidget* aParent, const QString& aTitle, const QString& aStart)> Choose;
+		/// Reads the app bundle at a path that `core::names_app_bundle`
+		/// accepts, or none when it is not a folder. Empty: a `.app` path is
+		/// kept as written, as on Windows and Linux.
+		std::function<std::optional<core::app_bundle_listing>(const std::string& aBundle)> ReadBundle;
+	};
+
 	/// \brief [[BPR-1753]], owner amendment 2026-10-23. Adds or edits
 	/// one agent: its name, the protocol it speaks, its program, its fixed
 	/// arguments one per line, and its default model and effort.
@@ -27,7 +45,7 @@ namespace bpr::qt {
 	class agent_entry_dialog final : public QDialog
 	{
 	public:
-		explicit agent_entry_dialog(const core::agent_entry& aEntry, QWidget* aParent = nullptr);
+		explicit agent_entry_dialog(const core::agent_entry& aEntry, QWidget* aParent = nullptr, agent_program_host aHost = { });
 
 		[[nodiscard]] auto entry() const -> core::agent_entry;
 		[[nodiscard]] auto name() const noexcept -> QLineEdit* { return Name; }
@@ -46,10 +64,21 @@ namespace bpr::qt {
 		[[nodiscard]] auto builds() const noexcept -> QCheckBox* { return Builds; }
 		[[nodiscard]] auto problem() const noexcept -> QLabel* { return Problem; }
 		[[nodiscard]] auto buttons() const noexcept -> QDialogButtonBox* { return Buttons; }
+		[[nodiscard]] auto choose_button() const noexcept -> QPushButton* { return ChooseButton; }
 
 	private:
 		void settle();
 		void offer_efforts();
+		/// [[BPR-2303]]. Reads the program field as an app bundle when it
+		/// names one, through the host.
+		void read_bundle();
+		/// Puts the bundle's program in the field once it is known.
+		void show_bundle_program();
+
+		agent_program_host Host;
+		/// The program a `.app` in the field runs, or why it runs none; none
+		/// while the field names no bundle the host could read.
+		std::optional<std::expected<std::string, core::app_bundle_refusal>> Bundle;
 
 		core::agent_entry Base;
 		QLineEdit*        Name          = nullptr;
@@ -68,13 +97,14 @@ namespace bpr::qt {
 		QLabel*           BuildsMeaning = nullptr;
 		QLabel*           Problem       = nullptr;
 		QDialogButtonBox* Buttons       = nullptr;
+		QPushButton*      ChooseButton  = nullptr;
 	};
 
 	/// \brief How a view asks for an entry to be added or edited: the entry
 	/// to start from, and the one the reviewer accepted, or none. The default
 	/// opens `agent_entry_dialog`; a test answers without a window.
 	using agent_entry_editor = std::function<std::optional<core::agent_entry>(const core::agent_entry& aStart, QWidget* aParent)>;
-	[[nodiscard]] auto default_agent_entry_editor() -> agent_entry_editor;
+	[[nodiscard]] auto default_agent_entry_editor(agent_program_host aHost = { }) -> agent_entry_editor;
 } // namespace bpr::qt
 
 #endif // BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_ENTRY_DIALOG_HPP

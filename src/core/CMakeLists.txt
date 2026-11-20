@@ -118,6 +118,8 @@ add_library(
         src/agent_finding.cpp
         src/agent_finding_promotion.cpp
         src/agent_entry.cpp
+        # [[BPR-2303]]. An app bundle's program, from what the host read of it.
+        src/agent_program_bundle.cpp
         src/agent_configuration.cpp
         src/agent_grant.cpp
         src/agent_workspace_expiry.cpp

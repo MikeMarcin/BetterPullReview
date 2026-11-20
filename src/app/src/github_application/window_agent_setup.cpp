@@ -1,5 +1,6 @@
 #include "github_application/window_composition.hpp"
 
+#include "bpr/adapters/workspace/app_bundle_read.hpp"
 #include "bpr/application/agent_scratch_folder.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/git_smart_transport_port.hpp"
@@ -2005,6 +2006,15 @@ namespace bpr::app {
 											if (Window != nullptr) {
 												Window->statusBar()->showMessage(aText, 8000);
 											} } } };
+	#if defined(__APPLE__)
+		// [[BPR-2303]]. On macOS an app chosen or typed as an agent's program
+		// runs its main program; the bundle is read here, never in a widget.
+		{
+			const auto host = qt::agent_program_host{ .Choose = { }, .ReadBundle = [](const std::string& aBundle) { return adapters::workspace::read_app_bundle(aBundle); } };
+			Window->agent_programs()->set_editor(qt::default_agent_entry_editor(host));
+			Window->agent_setup()->set_entry_editor(qt::default_agent_entry_editor(host));
+		}
+	#endif
 		Window->agent_programs()->set_dispatch(qt::agent_programs_panel::dispatch{
 			// [[BPR-1859]]. Check agent is the setup's check, and its Stop
 			// the setup's Stop.

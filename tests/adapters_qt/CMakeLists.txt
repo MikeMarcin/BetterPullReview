@@ -1056,6 +1056,8 @@ target_link_libraries(
     test_better_pull_review_qt_agent_setup_view_tests
     PRIVATE
         BetterPullReview::AdapterQt
+        # [[BPR-2303]]. Fixture app bundles are read as the app reads them.
+        BetterPullReview::AdapterWorkspace
 )
 bpr_enable_hardening(test_better_pull_review_qt_agent_setup_view_tests)
 bpr_enable_warnings(test_better_pull_review_qt_agent_setup_view_tests)

@@ -1728,6 +1728,13 @@ bpr_enable_hardening(test_better_pull_review_agent_entry_core_tests)
 bpr_enable_warnings(test_better_pull_review_agent_entry_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_entry COMMAND test_better_pull_review_agent_entry_core_tests)
 set_tests_properties(core_agent_entry PROPERTIES PASS_REGULAR_EXPRESSION "agent-entry-tests:pass")
+# [[BPR-2303]]. An app bundle's program, from its listing.
+bpr_add_executable(test_better_pull_review_agent_program_bundle_core_tests agent_program_bundle_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_program_bundle_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_program_bundle_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_program_bundle_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_program_bundle COMMAND test_better_pull_review_agent_program_bundle_core_tests)
+set_tests_properties(core_agent_program_bundle PROPERTIES PASS_REGULAR_EXPRESSION "agent-program-bundle-tests:pass")
 
 # [[BPR-1779]]. The conversation views list comments; a review is the bundle
 # they were posted in, and only a verdict that matters adds a row of its own.

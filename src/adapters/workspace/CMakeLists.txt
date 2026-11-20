@@ -10,7 +10,13 @@ add_library(
         # [[BPR-1750]]. RFC-BPR-0092 D2: clone folders, read by
         # metadata, no links followed, nothing written or run.
         src/clone_folder_scan.cpp
+        # [[BPR-2303]]. An app bundle chosen as an agent's program: its
+        # Info.plist and Contents/MacOS listing, no links followed.
+        src/app_bundle_read.cpp
 )
+if(APPLE)
+    target_link_libraries(better_pull_review_adapter_workspace PRIVATE "-framework CoreFoundation")
+endif()
 add_library(
     BetterPullReview::AdapterWorkspace
     ALIAS

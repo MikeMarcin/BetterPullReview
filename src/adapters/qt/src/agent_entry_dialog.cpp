@@ -2,11 +2,16 @@
 
 #include "bpr/qt/quiet_push_button.hpp"
 
+#if defined(Q_OS_MACOS)
+	#include "program_chooser_mac.hpp"
+#endif
+
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -35,10 +40,34 @@ namespace bpr::qt {
 			}
 			return { };
 		}
+
+		/// [[BPR-2303]]. Why a chosen or typed app runs nothing, and what to do.
+		[[nodiscard]] auto bundle_words(const core::app_bundle_refusal aRefusal, const QString& aBundle) -> QString
+		{
+			const auto bundle = aBundle.endsWith(QLatin1Char{ '/' }) ? aBundle.chopped(1) : aBundle;
+			const auto name   = QFileInfo{ bundle }.fileName();
+			switch (aRefusal) {
+			case core::app_bundle_refusal::no_programs_folder:    return QObject::tr("%1 has no Contents/MacOS folder, so it has no program to run. Choose the program itself.").arg(name);
+			case core::app_bundle_refusal::named_program_missing: return QObject::tr("%1 names a main program that isn't in its Contents/MacOS folder. Choose the program inside the app instead.").arg(name);
+			case core::app_bundle_refusal::no_program:            return QObject::tr("%1 has no program in its Contents/MacOS folder. Choose the program inside the app instead.").arg(name);
+			case core::app_bundle_refusal::several_programs:      return QObject::tr("%1 has more than one program in its Contents/MacOS folder and doesn't name its main one. Choose the one to run inside the app.").arg(name);
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto platform_choose(QWidget* aParent, const QString& aTitle, const QString& aStart) -> QString
+		{
+#if defined(Q_OS_MACOS)
+			return detail::choose_program_mac(aParent, aTitle, aStart);
+#else
+			return QFileDialog::getOpenFileName(aParent, aTitle, aStart);
+#endif
+		}
 	} // namespace
 
-	agent_entry_dialog::agent_entry_dialog(const core::agent_entry& aEntry, QWidget* aParent)
+	agent_entry_dialog::agent_entry_dialog(const core::agent_entry& aEntry, QWidget* aParent, agent_program_host aHost)
 		: QDialog{ aParent }
+		, Host{ std::move(aHost) }
 		, Base{ aEntry }
 	{
 		setObjectName(QStringLiteral("agentEntryDialog"));
@@ -64,10 +93,13 @@ namespace bpr::qt {
 		programRow->addWidget(Program, 1);
 		auto* const browse = new quiet_push_button{ tr("Choose…"), this };
 		browse->setObjectName(QStringLiteral("agentEntryChoose"));
+		ChooseButton = browse;
 		connect(browse, &QPushButton::clicked, this, [this] {
-			const auto chosen = QFileDialog::getOpenFileName(this, tr("Choose the program"), Program->text());
+			const auto title  = tr("Choose the program");
+			const auto chosen = Host.Choose ? Host.Choose(this, title, Program->text()) : platform_choose(this, title, Program->text());
 			if (!chosen.isEmpty()) {
 				Program->setText(QDir::toNativeSeparators(chosen));
+				show_bundle_program();
 			}
 		});
 		programRow->addWidget(browse);
@@ -173,7 +205,13 @@ namespace bpr::qt {
 		offer_efforts();
 		Effort->setCurrentIndex(std::max(0, Effort->findData(text_of(aEntry.Effort))));
 		connect(Name, &QLineEdit::textChanged, this, [this] { settle(); });
-		connect(Program, &QLineEdit::textChanged, this, [this] { settle(); });
+		connect(Program, &QLineEdit::textChanged, this, [this] {
+			read_bundle();
+			settle();
+		});
+		// A typed or pasted app shows its program once the field is left; OK
+		// takes the program either way.
+		connect(Program, &QLineEdit::editingFinished, this, [this] { show_bundle_program(); });
 		connect(Arguments, &QPlainTextEdit::textChanged, this, [this] { settle(); });
 		connect(Check, &QPlainTextEdit::textChanged, this, [this] { settle(); });
 		connect(Model, &QLineEdit::textChanged, this, [this] { settle(); });
@@ -187,7 +225,27 @@ namespace bpr::qt {
 			offer_efforts();
 			settle();
 		});
+		read_bundle();
 		settle();
+	}
+
+	void agent_entry_dialog::read_bundle()
+	{
+		Bundle.reset();
+		const auto path = Program->text().trimmed().toStdString();
+		if (!Host.ReadBundle || !core::names_app_bundle(path)) {
+			return;
+		}
+		if (const auto listing = Host.ReadBundle(path)) {
+			Bundle = core::resolve_app_bundle_program(*listing);
+		}
+	}
+
+	void agent_entry_dialog::show_bundle_program()
+	{
+		if (Bundle && Bundle->has_value()) {
+			Program->setText(QString::fromStdString(**Bundle));
+		}
 	}
 
 	void agent_entry_dialog::offer_efforts()
@@ -218,7 +276,7 @@ namespace bpr::qt {
 		auto result     = Base;
 		result.Name     = Name->text().trimmed().toStdString();
 		result.Protocol = static_cast<core::agent_protocol>(Protocol->currentData().toInt());
-		result.Program  = Program->text().trimmed().toStdString();
+		result.Program  = Bundle && Bundle->has_value() ? **Bundle : Program->text().trimmed().toStdString();
 		result.Arguments.clear();
 		for (const auto& line : Arguments->toPlainText().split(QLatin1Char{ '\n' })) {
 			if (!line.trimmed().isEmpty()) {
@@ -254,15 +312,17 @@ namespace bpr::qt {
 	void agent_entry_dialog::settle()
 	{
 		const auto refusal = core::inspect_agent_entry(entry());
-		Problem->setText(refusal ? text_of(core::describe(*refusal)) : QString{ });
-		Problem->setVisible(refusal.has_value());
-		Buttons->button(QDialogButtonBox::Ok)->setEnabled(!refusal.has_value());
+		const auto bundle  = Bundle && !Bundle->has_value() ? bundle_words(Bundle->error(), Program->text().trimmed()) : QString{ };
+		Problem->setText(!bundle.isEmpty() ? bundle : refusal ? text_of(core::describe(*refusal))
+															  : QString{ });
+		Problem->setVisible(!bundle.isEmpty() || refusal.has_value());
+		Buttons->button(QDialogButtonBox::Ok)->setEnabled(bundle.isEmpty() && !refusal.has_value());
 	}
 
-	auto default_agent_entry_editor() -> agent_entry_editor
+	auto default_agent_entry_editor(agent_program_host aHost) -> agent_entry_editor
 	{
-		return [](const core::agent_entry& aStart, QWidget* aParent) -> std::optional<core::agent_entry> {
-			auto dialog = agent_entry_dialog{ aStart, aParent };
+		return [host = std::move(aHost)](const core::agent_entry& aStart, QWidget* aParent) -> std::optional<core::agent_entry> {
+			auto dialog = agent_entry_dialog{ aStart, aParent, host };
 			if (dialog.exec() != QDialog::Accepted) {
 				return std::nullopt;
 			}
