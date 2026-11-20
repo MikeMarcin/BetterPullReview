@@ -25,7 +25,7 @@ Every `gh` call reads `X-RateLimit-Remaining` and the course stops below
 `--rate-floor`.
 
     python3 tests/scripts/auto_merge_live_course.py \\
-        --tool /abs/build/dev/tests/github_contract/tool_reaction_live_course \\
+        --tool /abs/build/dev/tests/github_contract/reaction_live_course \\
         --work /abs/scratch/auto-merge-live
 """
 

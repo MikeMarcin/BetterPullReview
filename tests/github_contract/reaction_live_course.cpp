@@ -239,6 +239,33 @@ namespace {
 		}
 	};
 
+	/// [[BPR-2329]]. Every request of the shipped paged read, REST or
+	/// GraphQL, carried by `gh` exactly as the product compiled it.
+	class gh_paged_read_transport final : public github_wire_transport_port
+	{
+	public:
+		[[nodiscard]] auto perform(const github_wire_request& aRequest, std::stop_token) -> github_wire_completion override
+		{
+			if (!validate_outbound_read_request(aRequest.Wire).has_value()) {
+				fail("product-read-not-canonical");
+			}
+			auto endpoint = aRequest.Wire.Path.starts_with('/') ? aRequest.Wire.Path.substr(1U) : aRequest.Wire.Path;
+			if (!aRequest.Wire.Query.empty()) {
+				endpoint += (aRequest.Wire.Query.starts_with('?') ? "" : "?") + aRequest.Wire.Query;
+			}
+			const auto method = aRequest.Wire.Method == http_method::post ? "POST" : aRequest.Wire.Method == http_method::get ? "GET"
+																															  : "UNSUPPORTED";
+			if (std::string_view{ method } == "UNSUPPORTED") {
+				fail("paged-read-method");
+			}
+			auto response = run_gh(endpoint, method, aRequest.Wire.Headers, aRequest.Wire.Body, "paged-read");
+			if (!response) {
+				return github_wire_error{ .Correlation = aRequest.Correlation, .Error = { .Failure = application::github_provider_failure::unavailable } };
+			}
+			return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(*response) };
+		}
+	};
+
 	class lease final : public application::review_mutation_transport_lease
 	{
 	};
@@ -776,14 +803,14 @@ namespace {
 	/// change auto-merge: the line Merge shows and what it offers.
 	[[nodiscard]] auto overview_auto_merge(const std::string& aStep) -> std::optional<application::overview_auto_merge>
 	{
-		auto       transport = gh_read_transport{ };
+		auto       transport = gh_paged_read_transport{ };
 		const auto read      = perform_paged_github_read(transport, read_profile(), read_request(), core::provider_snapshot_id{ 77U }, { });
 		if (!read) {
 			fail(aStep + ":read-failed:requests=" + std::to_string(Requests));
 		}
 		auto context             = application::overview_context{ };
 		context.AutoMergeControl = true;
-		const auto projected     = application::project_pull_request_overview(*read, context);
+		const auto  projected    = application::project_pull_request_overview(*read, context);
 		const auto& state        = projected.AutoMerge;
 		std::cout << "REACTION_LIVE:" << aStep << ":merge-state=" << projected.MergeState << " auto-merge=" << (state ? state->Line : std::string{ "absent" })
 				  << " offer=" << (state && state->Offer.Change ? std::string{ core::name(*state->Offer.Change) } : std::string{ "none" }) << " methods=";

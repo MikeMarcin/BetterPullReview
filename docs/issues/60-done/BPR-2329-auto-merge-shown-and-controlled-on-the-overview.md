@@ -123,8 +123,58 @@ Live, MikeMarcin/BPR-Test (owner approved and the coordinator turned on
   methods allowed; the product's `EnableAutoMerge` document was refused
   with "Pull request is in unstable status". Nothing was enabled, so nothing
   needed disabling; #186 is closed and its branch deleted.
-- So the Overview correctly offers no Enable on BPR-Test today. A live
-  enable-then-disable needs a pull request GitHub reports `BLOCKED`, which on
-  BPR-Test needs a branch rule with a required check or review: a further
-  settings change for the owner to approve. The success path is covered by
-  the fixture courses above.
+- So, before the branch rule below, the Overview correctly offered no Enable
+  on BPR-Test: GitHub enables auto-merge only on a pull request it reports
+  `BLOCKED`.
+
+### Live enable-then-disable (2026-11-20, after the owner approved a branch rule)
+
+The owner approved ("Yes, add it.") one branch protection rule on
+MikeMarcin/BPR-Test `main`, added and left in place. Its settings as GitHub
+reports them (`GET repos/MikeMarcin/BPR-Test/branches/main/protection`):
+
+- `required_status_checks`: `strict: false`, `contexts: ["bpr-required-check"]`
+  (`checks: [{"context":"bpr-required-check","app_id":null}]`), a commit
+  status the course posts itself;
+- `enforce_admins: false`; `required_pull_request_reviews: null` (no review
+  required); `restrictions: null` (pushes not restricted);
+- `required_linear_history`, `allow_force_pushes`, `allow_deletions`,
+  `required_conversation_resolution`: all `false` (defaults).
+
+Repository setting `allow_auto_merge: true` (turned on by the coordinator
+with the owner's approval) is left on.
+
+`tests/scripts/auto_merge_live_course.py` with `tool_reaction_live_course`
+(`-DBPR_BUILD_LIVE_REACTION_COURSE=ON`, its new `--auto-merge-enable` and
+`--auto-merge-disable` modes) ran on `main` at `c9637b1ff` plus the course
+commit. Every request was the product's own compiled request carried by `gh`:
+the shipped `review_mutation_session::change_auto_merge`, and the shipped
+paged read (`perform_paged_github_read`) decided by the shipped
+`project_pull_request_overview` with a connection that can change auto-merge.
+Pull request #189 (branch `bpr-auto-merge-20261120-133721`, head status
+`bpr-required-check` pending):
+
+```text
+auto-merge-live:pull:189:state:BLOCKED:can-enable:True
+REACTION_LIVE:auto-merge-before:merge-state=Waiting for 1 required check auto-merge=Auto-merge is off. offer=enable methods=merge,squash,rebase,
+REACTION_LIVE:auto-merge-enable:answered writes=1 enabled=1 written=1 method=squash
+REACTION_LIVE:auto-merge-enable-again:answered writes=0 enabled=1 written=0 method=squash
+REACTION_LIVE:auto-merge-after-enable:merge-state=Waiting for 1 required check auto-merge=Auto-merge is enabled (squash) by MikeMarcin: GitHub merges it once every requirement is met. offer=disable methods=
+auto-merge-live:github-after-enable:{"mergeMethod": "SQUASH", "enabledBy": {"login": "MikeMarcin"}}
+REACTION_LIVE:auto-merge-disable:answered writes=1 enabled=0 written=1 method=none
+REACTION_LIVE:auto-merge-disable-again:answered writes=0 enabled=0 written=0 method=none
+REACTION_LIVE:auto-merge-after-disable:merge-state=Waiting for 1 required check auto-merge=Auto-merge is off. offer=enable methods=merge,squash,rebase,
+auto-merge-live:github-after-disable:null
+auto-merge-live:cleaned:bpr-auto-merge-20261120-133721
+auto-merge-live:OK
+```
+
+Enable and disable each wrote once; asking again sent nothing; GitHub (read
+separately through `gh`) and the Overview projection agreed after each step.
+The heading also reads [[BPR-2327]]'s "Waiting for 1 required check", not
+Conflicts. #189 is closed with auto-merge off and its branch deleted; the
+pending status was never made successful, so nothing merged. Two earlier
+attempts (#187, #188) stopped before any auto-merge write (a wrong tool path,
+then the read transport carrying only GraphQL; fixed by
+`gh_paged_read_transport`) and were closed and their branches deleted by the
+course's cleanup. `X-RateLimit-Remaining` stayed at or above 4,950.
