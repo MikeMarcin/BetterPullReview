@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2303"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Custom agent program chooser opens macOS app bundles",
+  "created": "2026-11-20T06:24:46.585240+00:00",
+  "base": "b577b4ba47212175aa94a2783cd4c0c7e4315654"
+}
