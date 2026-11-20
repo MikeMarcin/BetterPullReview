@@ -254,7 +254,7 @@ auto main(int argc, char** argv) -> int
 		auto* const card      = shown[1];
 		auto* const askButton = card->findChild<QPushButton*>(QStringLiteral("agentFindingFollowUp"));
 		expect(askButton != nullptr && askButton->isVisibleTo(tab), "the card offers Ask follow-up");
-		const auto comment  = [&card] {
+		const auto comment = [&card] {
 			const auto* const view = dynamic_cast<qt::markdown_body_view*>(card->findChild<QWidget*>(QStringLiteral("agentFindingComment")));
 			return view != nullptr ? view->original_body() : std::string{ "<no comment view>" };
 		};
@@ -298,8 +298,8 @@ auto main(int argc, char** argv) -> int
 		},
 			 "Draft comment is answered");
 		expect(report->keep_state(issue.Outline).Phase == qt::report_keep_phase::kept, "the finding is drafted: " + report->keep_state(issue.Outline).Why.toStdString());
-		const auto tonemap  = QStringLiteral("src/engine/shaders/post/tonemap.frag");
-		const auto isDraft  = [&tonemap](const qt::thread_card& aCard) { return aCard.Draft && (aCard.Path == tonemap || aCard.Path.isEmpty()) && (aCard.Line == 5U || aCard.StartLine == 5U || aCard.FirstLine == 5U); };
+		const auto tonemap = QStringLiteral("src/engine/shaders/post/tonemap.frag");
+		const auto isDraft = [&tonemap](const qt::thread_card& aCard) { return aCard.Draft && (aCard.Path == tonemap || aCard.Path.isEmpty()) && (aCard.Line == 5U || aCard.StartLine == 5U || aCard.FirstLine == 5U); };
 		if (!e2e::wait_until_plain([&] { return std::ranges::any_of(cards->cards(), isDraft); }, e2e::extended_agent_budget)) {
 			auto       listed = std::string{ };
 			const auto number = [](const std::optional<std::uint32_t>& aLine) { return aLine ? std::to_string(*aLine) : std::string{ "-" }; };
