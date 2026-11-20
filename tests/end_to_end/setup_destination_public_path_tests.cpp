@@ -1231,7 +1231,12 @@ namespace {
 		expect(fileChoice != nullptr && fileChoice->findText(QStringLiteral("src/engine/renderer.cpp")) >= 0, "renderer.cpp can be chosen");
 		fileChoice->setCurrentIndex(fileChoice->findText(QStringLiteral("src/engine/renderer.cpp")));
 		wait_for([&] { return panel->cards()->scope() == qt::cards_scope::this_file && panel->cards()->thread_count() == 7U; }, "one file's seven conversations",
-				 [&] { std::cerr << "threads=" << panel->cards()->thread_count() << '\n'; });
+				 [&] {
+					 std::cerr << "threads=" << panel->cards()->thread_count() << '\n';
+					 for (const auto& card : panel->cards()->cards()) {
+						 std::cerr << "card: draft=" << card.Draft << " kind=" << card.Kind.toStdString() << " path=" << card.Path.toStdString() << '\n';
+					 }
+				 });
 		look("file");
 		panel->filter_unresolved_button()->click();
 		QApplication::processEvents();
