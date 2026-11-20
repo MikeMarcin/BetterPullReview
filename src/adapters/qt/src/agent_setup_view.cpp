@@ -210,6 +210,14 @@ namespace bpr::qt {
 		case failure::settings_unreadable:
 			return QObject::tr("Your saved agents couldn't be read from %1, so no agent was checked. Open Settings › Agents for what to do.")
 				.arg(aDetail.isEmpty() ? QObject::tr("this profile's agent settings file") : QDir::toNativeSeparators(aDetail));
+		// [[BPR-2305]]. Which way instructions reach a custom Codex.
+		case failure::instructions_dropped:
+			return QObject::tr("%1 ignored BetterPullReview's instructions given as developer instructions, and followed them at the start of the prompt. Its launcher may set its own. Switch Instructions to At the start of the prompt.").arg(aAgent);
+		case failure::instructions_not_followed:
+			return QObject::tr("%1 answered, but followed BetterPullReview's instructions neither as developer instructions nor at the start of the prompt. Show the details for its answer.").arg(aAgent);
+		case failure::output_unreadable:
+			return QObject::tr("%1 answered, but not as Codex's JSON lines. If its program is a launcher that runs Codex in a terminal, update the launcher to a version that passes Codex's output through.").arg(aAgent)
+				+ (aDetail.startsWith(QStringLiteral("version: ")) ? QStringLiteral(" ") + QObject::tr("Its check says it is %1.").arg(aDetail.section(QLatin1Char{ '\n' }, 0, 0).mid(9).left(120)) : QString{ });
 		}
 		return { };
 	}
@@ -1105,7 +1113,7 @@ namespace bpr::qt {
 		const auto  agent     = Setup.State.Chosen.value_or(core::setup_agent::claude_code);
 		const auto  name      = name_for(agent);
 		const auto  introText = !Setup.ChecksSignIn
-			? tr("BetterPullReview checks your program and runs its configured check, if any, then makes the workspace once. This does not check sign-in. No question or code is sent.")
+			? tr("BetterPullReview checks your program and runs its configured check, if any, then makes the workspace once. This does not check sign-in. No code is sent; a custom Codex JSONL agent is asked one short question to see where its instructions arrive.")
 			: Setup.ChecksWrapper
 			? tr("BetterPullReview asks your Claude process wrapper for auth status --json and --version, using its saved arguments, and makes the workspace once. Sign-in is reported by your wrapper for its configured provider. No question or code is sent.")
 			: tr("Before your first question, BetterPullReview runs %1, which sends no question and no code, and makes the agent's workspace once.")

@@ -474,14 +474,25 @@ namespace {
 		ghes.Host->observe_policy(core::built_in_agent_policy(core::git_host_id{ 2U }, core::built_in_agent_host_kind::explicit_ghes));
 		ghes.Host->detect();
 		ghes.settle();
-		expect(ghes.state().State.Chosen == setup_agent::claude_code && !ghes.state().State.Rows.back().Verdict.Permitted, "on GHES Codex is listed, refused, and never chosen");
+		// [[BPR-2305]] (owner, 2026-11-19). Explicit GHES permits Codex.
+		expect(!ghes.state().State.Chosen && ghes.state().State.Rows.back().Verdict.Permitted, "on GHES Codex is listed and permitted, so two agents wait for the reviewer");
 		ghes.Host->choose(setup_agent::codex);
 		ghes.settle();
-		expect(ghes.state().State.Chosen == setup_agent::claude_code, "choosing a refused agent does not take it");
-		ghes.Process.Answers = { said(application::agent_run_outcome::success, R"({"loggedIn": true})") };
-		ghes.Host->check();
-		ghes.settle();
-		expect(!ghes.Process.Requests.empty() && ghes.Process.Requests.front().Arguments.front() == "auth", "only the permitted agent is checked");
+		expect(ghes.state().State.Chosen == setup_agent::codex, "and choosing Codex there takes it");
+
+		auto narrowed  = fixture{ };
+		narrowed.Codex = f.Codex;
+		narrowed.Host->observe_policy(core::agent_host_policy{ .Host = core::git_host_id{ 3U }, .Allowed = { core::claude_stream_json_profile_id } });
+		narrowed.Host->detect();
+		narrowed.settle();
+		expect(narrowed.state().State.Chosen == setup_agent::claude_code && !narrowed.state().State.Rows.back().Verdict.Permitted, "on a host that forbids it Codex is listed, refused, and never chosen");
+		narrowed.Host->choose(setup_agent::codex);
+		narrowed.settle();
+		expect(narrowed.state().State.Chosen == setup_agent::claude_code, "choosing a refused agent does not take it");
+		narrowed.Process.Answers = { said(application::agent_run_outcome::success, R"({"loggedIn": true})") };
+		narrowed.Host->check();
+		narrowed.settle();
+		expect(!narrowed.Process.Requests.empty() && narrowed.Process.Requests.front().Arguments.front() == "auth", "only the permitted agent is checked");
 	}
 
 	/// [[BPR-1753]], owner amendment 2026-10-23. The single settings
@@ -566,6 +577,60 @@ namespace {
 		expect(again.state().Preferences.Agents.size() == 2U && again.state().Preferences.Agents.back().Preset == setup_agent::claude_code
 				   && again.state().Preferences.PreferredAgent == again.state().Preferences.Agents.back().Id,
 			   "picking a popular agent in setup adds it to the list and chooses it");
+	}
+
+	/// [[BPR-2305]]. A custom Codex JSONL agent's check asks it one short
+	/// question with a rule. A fixture launcher that drops developer
+	/// instructions fails the check and the setup offers the prompt form;
+	/// switched, the check passes and names the launcher's version. A
+	/// launcher whose output is not Codex's JSON lines is named with its
+	/// version, not as a decoder error.
+	void test_a_custom_codex_check_proves_its_instructions_arrive()
+	{
+		auto f  = fixture{ };
+		f.Codex = core::agent_search_candidate{ .Path = "/usr/local/bin/codex" };
+		f.Host->load();
+		f.settle();
+		f.Host->add_agent({ .Name = "Launcher Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/launcher", .Arguments = { "--no-extra-output", "--codex" }, .CheckArguments = { "--version" } }, true);
+		f.settle();
+		expect(f.state().Preferences.Agents.size() == 1U, "the custom Codex is added");
+		const auto id       = f.state().Preferences.Agents.front().Id;
+		auto       answered = said(application::agent_run_outcome::success, "I am ready.");
+		auto       followed = said(application::agent_run_outcome::success, "I am ready.\nMARIGOLD-4127");
+		f.Process.Answers   = { said(application::agent_run_outcome::success, "launcher 0.7.0-pre"), answered, followed };
+		f.Host->check();
+		f.settle();
+		expect(f.Process.Requests.size() == 3U, "its own check, then the question as developer instructions, then at the start of the prompt");
+		const auto& asDeveloper = f.Process.Requests[1];
+		expect(asDeveloper.Protocol == core::agent_protocol::codex_jsonl_exec && asDeveloper.Executable == "/opt/work/bin/launcher" && asDeveloper.Arguments.front() == "--no-extra-output"
+				   && std::ranges::any_of(asDeveloper.Arguments, [](const std::string& aArgument) { return aArgument.starts_with("developer_instructions="); }),
+			   "the first question goes through the launcher with the rule as developer instructions");
+		expect(f.Process.Requests[2].Input.starts_with(application::codex_instructions_probe_rule), "the second has the rule at the start of the prompt");
+		expect(f.state().State.AgentCheck.State == setup_check_state::failed && f.state().State.AgentCheck.Failure == core::agent_setup_failure::instructions_dropped
+				   && f.state().InstructionsSwitch == std::optional{ id },
+			   "a launcher that drops developer instructions fails the check, and setup offers the prompt form");
+
+		auto switched         = f.state().Preferences.Agents.front();
+		switched.Instructions = core::agent_instruction_delivery::message;
+		f.Host->update_agent(switched);
+		f.settle();
+		f.Process.Requests.clear();
+		f.Process.Answers = { said(application::agent_run_outcome::success, "launcher 0.7.0-pre"), followed };
+		f.Host->check();
+		f.settle();
+		expect(f.Process.Requests.size() == 2U && f.Process.Requests[1].Input.starts_with(application::codex_instructions_probe_rule), "switched, it is asked once, with the rule in the prompt");
+		expect(f.state().State.AgentCheck.State == setup_check_state::passed && f.state().State.AgentCheck.Version == "launcher 0.7.0-pre" && !f.state().InstructionsSwitch,
+			   "and passes, naming the version its own check printed");
+
+		auto unreadable            = application::agent_run_result{ };
+		unreadable.Outcome         = application::agent_run_outcome::protocol_failure;
+		unreadable.ProtocolFailure = application::agent_protocol_failure::malformed_frame;
+		f.Process.Requests.clear();
+		f.Process.Answers = { said(application::agent_run_outcome::success, "launcher 0.6.2"), unreadable };
+		f.Host->check();
+		f.settle();
+		expect(f.state().State.AgentCheck.Failure == core::agent_setup_failure::output_unreadable && f.state().CheckDetail.starts_with("version: launcher 0.6.2\n"),
+			   "output that is not Codex's JSON lines is said as that, with the launcher's version");
 	}
 
 	[[nodiscard]] auto names(const application::agent_setup_projection& aProjection) -> std::vector<std::string>
@@ -894,8 +959,8 @@ namespace {
 	/// \brief [[BPR-2256]]. Before a review's host policy is observed the
 	/// setup is pending, not refused: every row is still refused by the core
 	/// (a missing policy permits nothing), and the projection says nothing
-	/// was decided. The Enterprise policy then permits Claude stream JSON and
-	/// an added agent of that protocol and refuses Codex for the host; with no
+	/// was decided. The Enterprise policy then permits Claude stream JSON, an
+	/// added agent of that protocol and, since [[BPR-2305]], Codex; with no
 	/// review the setup is pending again.
 	void test_policy_pending_until_observed()
 	{
@@ -918,9 +983,7 @@ namespace {
 		expect(!ghes.PolicyPending, "an observed policy ends the wait");
 		const auto row = [&ghes](const setup_agent aAgent) { return std::ranges::find(ghes.State.Rows, aAgent, &core::agent_setup_row::Agent); };
 		expect(row(setup_agent::claude_code) != ghes.State.Rows.end() && row(setup_agent::claude_code)->Verdict.Permitted, "on Enterprise Claude stream JSON is permitted");
-		expect(row(setup_agent::codex) != ghes.State.Rows.end() && !row(setup_agent::codex)->Verdict.Permitted
-				   && row(setup_agent::codex)->Verdict.Refusal == core::agent_invocation_refusal::profile_forbidden_on_host,
-			   "and Codex is refused by the host's policy, by name");
+		expect(row(setup_agent::codex) != ghes.State.Rows.end() && row(setup_agent::codex)->Verdict.Permitted, "and Codex is permitted (owner, 2026-11-19)");
 		const auto custom = std::ranges::find(ghes.Choices, std::string{ "Claude stream JSON" }, &core::agent_setup_choice::Name);
 		expect(custom != ghes.Choices.end() && custom->Entry != 0U && custom->Verdict.Permitted, "the added Claude stream JSON agent is permitted");
 
@@ -953,6 +1016,7 @@ auto main() -> int
 	test_check_all_keeps_each_result();
 	test_a_workspace_check_survives_a_restart();
 	test_the_setup_follows_the_list();
+	test_a_custom_codex_check_proves_its_instructions_arrive();
 	std::cout << "agent-setup-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

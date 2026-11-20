@@ -1302,7 +1302,10 @@ namespace bpr::adapters::sqlite {
 							record.Id          = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(checks->Value, 0), 0, 64));
 							record.Check.State = sqlite3_column_int64(checks->Value, 1) == 2 ? core::setup_check_state::passed : core::setup_check_state::failed;
 							if (const auto failure = sqlite3_column_int64(checks->Value, 2); failure >= 0 && record.Check.State == core::setup_check_state::failed) {
-								record.Check.Failure = static_cast<core::agent_setup_failure>(std::clamp<std::int64_t>(failure, 0, 7));
+								// [[BPR-2305]]. 9 to 11 are the Codex instruction and
+								// output checks; 8 (unreadable settings) is never kept.
+								record.Check.Failure = failure >= 9 && failure <= 11 ? static_cast<core::agent_setup_failure>(failure)
+																					 : static_cast<core::agent_setup_failure>(std::clamp<std::int64_t>(failure, 0, 7));
 							} else if (record.Check.State == core::setup_check_state::failed) {
 								record.Check.Failure = core::agent_setup_failure::status_unreadable;
 							}

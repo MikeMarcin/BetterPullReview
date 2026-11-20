@@ -2458,8 +2458,111 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-2305]]. Every event of `aKind` the decoder gives for a whole
+	/// stream, or its failure.
+	[[nodiscard]] auto decode_codex_stream(const std::string_view aStream) -> std::expected<std::vector<application::agent_protocol_event>, application::agent_protocol_failure>
+	{
+		auto decoder = application::agent_protocol_decoder{ core::agent_protocol::codex_jsonl_exec };
+		auto events  = decoder.push(aStream);
+		if (!events) {
+			return std::unexpected(events.error());
+		}
+		const auto trailing = decoder.finish();
+		if (!trailing) {
+			return std::unexpected(trailing.error());
+		}
+		events->insert(events->end(), trailing->begin(), trailing->end());
+		return events;
+	}
+
+	[[nodiscard]] auto events_of(const std::vector<application::agent_protocol_event>& aEvents, const application::agent_protocol_event_kind aKind) -> std::vector<application::agent_protocol_event>
+	{
+		auto kept = std::vector<application::agent_protocol_event>{ };
+		std::ranges::copy_if(aEvents, std::back_inserter(kept), [aKind](const application::agent_protocol_event& aEvent) { return aEvent.Kind == aKind; });
+		return kept;
+	}
+
+	/// [[BPR-2305]]. A stream shaped like Codex 0.167.2's through a sandbox
+	/// launcher (its content invented): two configuration warnings as
+	/// `error` items between `thread.started` and `turn.started`. It decodes
+	/// to the answer, with the two warnings beside it; a warning in the turn
+	/// is read the same way. A turn that fails still fails, warnings or not.
+	void test_codex_jsonl_reads_warnings_before_the_turn()
+	{
+		const auto warned = std::string{
+			"{\"type\":\"thread.started\",\"thread_id\":\"thread-41\"}\n"
+			"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"Codex is ignoring 1 unrecognized configuration setting: `retired_option` in the managed config.\"}}\n"
+			"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"error\",\"message\":\"Codex is ignoring 1 unrecognized configuration setting: `retired_option` in the user config.\"}}\n"
+			"{\"type\":\"turn.started\"}\n"
+			"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\",\"type\":\"agent_message\",\"text\":\"The change renames the cache key.\"}}\n"
+			"{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":10,\"output_tokens\":5}}\n"
+		};
+		const auto decoded = decode_codex_stream(warned);
+		expect(decoded.has_value(), "a stream that starts with warning items decodes");
+		const auto outputs  = events_of(*decoded, application::agent_protocol_event_kind::output);
+		const auto warnings = events_of(*decoded, application::agent_protocol_event_kind::harness_warning);
+		expect(outputs.size() == 1U && outputs.front().Text == "The change renames the cache key.", "to the answer");
+		expect(warnings.size() == 2U && warnings[0].Text.find("managed config") != std::string::npos && warnings[1].Text.find("user config") != std::string::npos && warnings[0].Item == "item_0",
+			   "with the two warnings, in order");
+
+		const auto inTurn = decode_codex_stream("{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n{\"type\":\"turn.started\"}\n"
+												"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\""
+												+ std::string(2000U, 'w') + "\"}}\n"
+																			"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"agent_message\",\"text\":\"done\"}}\n"
+																			"{\"type\":\"turn.completed\",\"usage\":{}}\n");
+		expect(inTurn && events_of(*inTurn, application::agent_protocol_event_kind::harness_warning).size() == 1U
+				   && events_of(*inTurn, application::agent_protocol_event_kind::harness_warning).front().Text.size() == application::maximum_agent_harness_warning_bytes,
+			   "a warning in the turn is one too, cut to its bound");
+
+		const auto failed = decode_codex_stream(warned.substr(0U, warned.find("{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\"")) + "{\"type\":\"turn.failed\",\"error\":{\"message\":\"stream disconnected\"}}\n");
+		expect(!failed && failed.error() == application::agent_protocol_failure::remote_failed, "a turn that fails after warnings still fails");
+		const auto errored = decode_codex_stream(warned.substr(0U, warned.find("{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\"")) + "{\"type\":\"error\",\"message\":\"stream error\"}\n");
+		expect(!errored && errored.error() == application::agent_protocol_failure::remote_failed, "and a top-level error in the turn still ends it (kept: no recovered stream was captured)");
+		const auto other = decode_codex_stream("{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"agent_message\",\"text\":\"early\"}}\n");
+		expect(!other && other.error() == application::agent_protocol_failure::malformed_frame, "before the turn only a warning item is read");
+		const auto ended = decode_codex_stream("{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"w\"}}\n");
+		expect(!ended, "a stream that ends after its warnings, with no turn, is not an answer");
+	}
+
+	/// [[BPR-2305]]. A file change names each path and how it ended; a turn
+	/// whose changes all failed is told apart from one that wrote.
+	void test_codex_jsonl_names_failed_file_changes()
+	{
+		const auto stream = std::string{
+			"{\"type\":\"thread.started\",\"thread_id\":\"t\"}\n{\"type\":\"turn.started\"}\n"
+			"{\"type\":\"item.started\",\"item\":{\"id\":\"item_1\",\"type\":\"file_change\",\"changes\":[{\"path\":\"/work/scratch/notes.txt\",\"kind\":\"add\"}],\"status\":\"in_progress\"}}\n"
+			"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_1\",\"type\":\"file_change\",\"changes\":[{\"path\":\"/work/scratch/notes.txt\",\"kind\":\"add\"},{\"path\":\"/work/scratch/plan.md\",\"kind\":\"update\"}],\"status\":\"failed\"}}\n"
+			"{\"type\":\"item.completed\",\"item\":{\"id\":\"item_2\",\"type\":\"agent_message\",\"text\":\"I wrote the notes.\"}}\n"
+			"{\"type\":\"turn.completed\",\"usage\":{}}\n"
+		};
+		const auto decoded = decode_codex_stream(stream);
+		expect(decoded.has_value(), "a turn with failed file changes still decodes");
+		const auto changes = events_of(*decoded, application::agent_protocol_event_kind::file_change_result);
+		expect(changes.size() == 2U && changes[0].Text == "/work/scratch/notes.txt" && changes[1].Text == "/work/scratch/plan.md" && changes[0].Item == "failed" && changes[1].Item == "failed",
+			   "each path of a failed change, once it ended");
+
+		auto result             = application::agent_run_result{ };
+		result.FailedWriteCount = 2U;
+		result.FailedWrites     = { "/work/scratch/notes.txt", "/work/scratch/plan.md" };
+		expect(application::writes_all_failed(result), "every change failed");
+		result.CompletedWriteCount = 1U;
+		expect(!application::writes_all_failed(result), "one written path is not that");
+		expect(!application::writes_all_failed(application::agent_run_result{ }), "nor is a turn that changed nothing");
+
+		auto diagnosis         = application::agent_run_diagnosis{ .Protocol = core::agent_protocol::codex_jsonl_exec, .Outcome = application::agent_run_outcome::success, .StandardOutputBytes = 10U };
+		diagnosis.Warnings     = 2U;
+		diagnosis.WritesFailed = 2U;
+		const auto line        = application::describe(diagnosis);
+		expect(line.ends_with(" warnings=2 writes_failed=2 writes_written=0") && line.find("scratch") == std::string::npos, "the diagnostic counts warnings and failed writes, never their text");
+		expect(application::parse_agent_run_diagnosis(line) == std::optional{ diagnosis }, "and reads back exactly");
+	}
+} // namespace
+
 auto main() -> int
 {
+	test_codex_jsonl_reads_warnings_before_the_turn();
+	test_codex_jsonl_names_failed_file_changes();
 	test_run_correlation_keeps_stale_facts_without_misattribution();
 	test_runtime_metadata_is_field_bound_and_never_inferred();
 	test_metadata_refuses_malformed_and_excess_facts();

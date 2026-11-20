@@ -133,6 +133,10 @@ namespace bpr::qt {
 		if (const auto written = aActivity.ScratchFiles.size(); written > 0U) {
 			parts << (written == 1U ? QObject::tr("1 file written in its scratch folder") : QObject::tr("%1 files written in its scratch folder").arg(written));
 		}
+		// [[BPR-2305]]. Warnings, such as a configuration setting it ignores.
+		if (const auto warned = aActivity.Warnings.size(); warned > 0U) {
+			parts << (warned == 1U ? QObject::tr("1 warning") : QObject::tr("%1 warnings").arg(warned));
+		}
 		const auto took = minutes > 0 ? QObject::tr("Worked for %1 min").arg(minutes) : QObject::tr("Worked for %1 s").arg(aSeconds);
 		return parts.isEmpty() ? took : took + QStringLiteral(": ") + parts.join(QStringLiteral(", "));
 	}
@@ -373,7 +377,7 @@ namespace bpr::qt {
 		Quiet->hide();
 		KeptWaitingAtMs.reset();
 		rebuild_rows();
-		const auto worked  = !aActivity.Helpers.empty() || aActivity.UnlistedHelpers > 0U || aActivity.FilesRead > 0U || aActivity.Commands > 0U || !aActivity.ScratchFiles.empty();
+		const auto worked  = !aActivity.Helpers.empty() || aActivity.UnlistedHelpers > 0U || aActivity.FilesRead > 0U || aActivity.Commands > 0U || !aActivity.ScratchFiles.empty() || !aActivity.Warnings.empty();
 		const auto blocker = QSignalBlocker{ Summary };
 		Summary->setChecked(false);
 		Summary->setArrowType(Qt::RightArrow);
@@ -553,6 +557,8 @@ namespace bpr::qt {
 			++row;
 		}
 		listed(tr("Wrote"), Activity.ScratchFiles, "agentActivityScratchFile");
+		// [[BPR-2305]]. What the agent warned about, as it said it.
+		listed(tr("Warning"), Activity.Warnings, "agentActivityWarning");
 	}
 
 	void agent_activity_view::tick()

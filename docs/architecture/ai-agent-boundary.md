@@ -30,9 +30,11 @@ The shipped immutable registry contains Codex App Server and Codex JSONL
 (`codex`), approved Claude stream JSON (`claude`), and the external terminal
 harness (`bpr-agent-terminal`). The Agent tab and Send to Agent name them by
 plain name: Claude Code, Codex, and a harness that reads plain text.
-GitHub.com permits all four profiles; an explicit GHES host refuses Codex
-before workspace or launcher effects and offers only the approved corporate
-alternatives.
+GitHub.com and an explicit GHES host permit all four profiles. Until the
+owner's decision of 2026-11-19 ([[BPR-2305]]: "Codex should be allowed on
+explicit GHES hosts", popular or custom) an explicit GHES host refused Codex;
+a host policy that leaves a profile out still refuses it in core, before
+workspace or launcher effects.
 
 **Looking for agents ([RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md), owner answer Q2).**
 This amends the earlier rule that merely showing the panel performs no
@@ -191,7 +193,40 @@ launcher starts as it is; with no wrapper saved the launch searches for it
 
 ## Host policy
 
-Git hosts map to allowed or required agent profiles. A corporate GHES profile can require the corporate Claude harness and forbid a personal provider. Unknown hosts have AI disabled until explicitly mapped.
+Git hosts map to allowed or required agent profiles. A host policy can require one profile and forbid another; the built-in explicit-GHES policy permits Codex since 2026-11-19 ([[BPR-2305]]). Unknown hosts have AI disabled until explicitly mapped.
+
+**Codex through a sandbox launcher ([[BPR-2305]]).** On a corporate Mac Codex
+can reach a GHES pull request through a launcher whose Codex mode runs the
+real Codex CLI, set up as a custom Codex (JSONL) agent: the launcher is the
+program and its own options the fixed arguments. An audit on 2026-11-19
+(codex-cli 0.167.2 through such a launcher) found:
+
+- **Warnings before the turn.** Codex writes configuration warnings as
+  `item.completed` items of type `error`, between `thread.started` and
+  `turn.started` as well as in the turn. The JSONL decoder reads them as
+  warnings (`harness_warning`), never failures: their text folds with the
+  turn's activity in the Agent tab, and the run's diagnostic counts them
+  (`warnings=N`) without their text. A top-level `error` event in the turn
+  still ends the run: no stream in which Codex recovered from one was
+  captured, so today's rule stands until one is. The App Server decoder
+  already reads past `configWarning`, `warning` and `item/completed`.
+- **Instructions.** The launcher dropped `-c developer_instructions=…`; the
+  same rules at the start of the prompt were followed. A Codex agent's
+  Instructions setting says where they go: "As developer instructions" (the
+  default) or "At the start of the prompt", where `exec` gets them right
+  after the fixed protocol line and before the request, one cacheable prefix.
+  A custom Codex JSONL agent's check asks one short read-only question with a
+  rule given its configured way; when developer instructions are ignored and
+  the prompt form is followed, the check says so and Settings offers "Use the
+  start of the prompt". Output that is not Codex's JSON lines (a launcher
+  before its pipe mode runs Codex under a terminal) is said as that, with the
+  version the agent's own check printed and the fix: update the launcher.
+- **Writes.** A granted write failed inside the launcher, likely Codex's own
+  sandbox nested in the launcher's. A turn whose file changes all failed
+  ends with words naming them instead of a normal answer, and its diagnostic
+  counts them (`writes_failed=N writes_written=N`). Whether a custom agent may
+  turn Codex's own sandbox off and rely on the launcher's is an open owner
+  security decision; nothing turns it off.
 
 ## Workspaces
 
@@ -958,7 +993,7 @@ so rather than pick the reassuring answer.
 | Dirty state is reported, unknown stays unknown | `application_agent_workspace` |
 | The launch surface only emits intents | `qt_agent_launch_panel` |
 | Scope is disclosed before launch is possible | `qt_agent_launch_panel` |
-| GHES policy refuses before effects | `application_agent_invocation_host` |
+| A host policy's refusal comes before effects; explicit GHES launches Codex ([[BPR-2305]]) | `application_agent_invocation_host` |
 | Stale/cancelled composed runs leak no child or owned workspace | `application_agent_invocation_host`, `application_agent_invocation_cancellation_contract`, `application_agent_invocation_staleness_contract` |
 | A same-path, same-marker substitute cannot retarget cleanup | `git_process_contract` |
 | Two fresh processes prove selected stdin, durable reopen, and next ID | `application_agent_invocation_composition_contract` |

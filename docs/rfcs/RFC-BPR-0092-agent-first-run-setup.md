@@ -1670,6 +1670,17 @@ is kept here).
   as properties for diagnostics and tests, and its tooltip names them only when
   a replay actually left something out.
 
+### Owner amendment (2026-11-19): Codex on an explicit GHES host
+
+The owner decided on 2026-11-19 that Codex is allowed on an explicit GHES
+host, popular or custom ([[BPR-2305]]). Setup on such a host looks for Codex
+and offers it like any other agent; nothing before workspace or launcher
+effects refuses it. AC02's "an explicit GHES host shows Codex disabled with
+its reason" now reads: a host whose policy leaves Codex out shows it disabled
+with its reason; the built-in explicit-GHES policy no longer does. A custom
+Codex JSONL agent's check also asks it one short question with a rule, to show
+where its instructions arrive ([[BPR-2305]]).
+
 ## Acceptance criteria
 
 - **AC01:** With no agent chosen for the profile, opening the Agent tab on a

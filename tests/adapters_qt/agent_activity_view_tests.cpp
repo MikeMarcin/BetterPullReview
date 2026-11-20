@@ -12,6 +12,7 @@
 #include <QPushButton>
 #include <QToolButton>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -205,6 +206,19 @@ auto main(int argc, char** argv) -> int
 		running.Activity          = core::apply_agent_activity({ }, update(kind::doing, { }, heredoc, core::agent_doing::running), 0U);
 		running.ActivityStartedMs = now;
 		expect(qt::agent_run_status_words(running, 1).contains(QStringLiteral("is running python3 - <<'EOF' …,")), "the live line: " + qt::agent_run_status_words(running, 1).toStdString());
+	}
+
+	// [[BPR-2305]]. The runtime's warnings (Codex's configuration warnings)
+	// fold with the turn: counted on the line, each said in full when opened.
+	{
+		auto warned     = core::agent_turn_activity{ };
+		warned.Warnings = { "Codex is ignoring 1 unrecognized configuration setting: `retired_option`.", "A second warning." };
+		auto folded     = qt::agent_activity_view{ };
+		folded.fold(warned, 4);
+		expect(!folded.isHidden() && folded.summary_text() == QStringLiteral("Worked for 4 s: 2 warnings"), "a turn that only warned still folds to a line: " + folded.summary_text().toStdString());
+		folded.summary_button()->click();
+		const auto rows = folded.findChildren<QLabel*>(QStringLiteral("agentActivityWarning"));
+		expect(rows.size() == 4 && std::ranges::any_of(rows, [](const QLabel* aRow) { return aRow->text().contains(QStringLiteral("retired_option")); }), "and opens to each warning as it was written");
 	}
 
 	auto quiet = qt::agent_activity_view{ };

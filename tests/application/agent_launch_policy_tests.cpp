@@ -469,6 +469,60 @@ namespace {
 		expect(appServer && appServer->DeferredContext.find("SKILL-RULE") != std::string::npos, "the App Server keeps it in the message");
 	}
 
+	/// [[BPR-2305]]. A Codex agent set to "At the start of the prompt" gets
+	/// BetterPullReview's rules first on stdin and the request after them, and
+	/// no `developer_instructions`; set to developer instructions it gets the
+	/// option and not the pasted rules. Through a launcher that drops the
+	/// option, the prompt form is the one that reaches the model.
+	void test_codex_rules_lead_the_prompt_at_the_start_of_the_prompt()
+	{
+		const auto rule   = std::string{ "RULE-7: answer in one paragraph." };
+		const auto codex  = profile(core::agent_protocol::codex_jsonl_exec);
+		const auto pasted = application::build_agent_launch(codex, supplement("What does this change do?"), reader(),
+															{ .Path = core::agent_run_path::agent_tab, .SystemInstructions = rule, .Instructions = core::agent_instruction_delivery::message });
+		expect(pasted.has_value(), "the prompt form launches");
+		// The fixed protocol line, then the rules, then the request.
+		const auto lead = "BPR-CONTEXT/2 CODEX-EXEC\n" + rule + "\n\n";
+		expect(pasted->Input.starts_with(lead) && pasted->Input.find("What does this change do?") > lead.size(), "the rules come first on stdin, then the request");
+		expect(pasted->Input.find(rule, lead.size()) == std::string::npos, "the rules are sent once");
+		expect(std::ranges::none_of(pasted->Arguments, [](const std::string& aArgument) { return aArgument.starts_with("developer_instructions="); }), "and no developer_instructions");
+		expect(pasted->InstructionsRoute == application::agent_instructions_route::pasted, "the route says they were pasted");
+		const auto again = application::build_agent_launch(codex, supplement("Another question entirely?"), reader(),
+														   { .Path = core::agent_run_path::agent_tab, .SystemInstructions = rule, .Instructions = core::agent_instruction_delivery::message });
+		expect(again && again->Input.starts_with(lead), "another question keeps the same prefix, so it can be read from cache");
+		const auto option = application::build_agent_launch(codex, supplement("What does this change do?"), reader(), { .Path = core::agent_run_path::agent_tab, .SystemInstructions = rule });
+		expect(option && option->Input.find(rule) == std::string::npos && has(option->Arguments, "developer_instructions=" + std::string{ "\"RULE-7: answer in one paragraph.\"" }),
+			   "developer instructions are the default, with nothing pasted");
+	}
+
+	/// [[BPR-2305]]. The instructions probe a custom Codex's check runs.
+	void test_the_codex_instructions_probe()
+	{
+		const auto codex   = profile(core::agent_protocol::codex_jsonl_exec);
+		const auto leading = std::vector<std::string>{ "--no-extra-output", "--codex" };
+		const auto option  = application::build_codex_instructions_probe(codex, "/opt/tools/launcher", leading, core::agent_instruction_delivery::system_prompt, reader());
+		expect(option.Executable == "/opt/tools/launcher" && option.Arguments.size() > 3U && option.Arguments[0] == "--no-extra-output" && option.Arguments[1] == "--codex" && option.Arguments[2] == "exec"
+				   && option.Arguments.back() == "-",
+			   "the launcher's own arguments come first, then exec, the prompt on stdin");
+		expect(has(option.Arguments, "--sandbox") && option.Arguments[index_of(option.Arguments, "--sandbox") + 1U] == "read-only" && has(option.Arguments, "--ephemeral") && has(option.Arguments, "mcp_servers={}"),
+			   "the probe is read-only, keeps no session and loads no MCP server");
+		expect(std::ranges::any_of(option.Arguments, [](const std::string& aArgument) { return aArgument.starts_with("developer_instructions=") && aArgument.find(application::codex_instructions_canary) != std::string::npos; })
+				   && option.Input == application::codex_instructions_probe_question,
+			   "as developer instructions: the rule is the option, the question the prompt");
+		const auto prompt = application::build_codex_instructions_probe(codex, "/opt/tools/launcher", leading, core::agent_instruction_delivery::message, reader());
+		expect(std::ranges::none_of(prompt.Arguments, [](const std::string& aArgument) { return aArgument.starts_with("developer_instructions="); })
+				   && prompt.Input.starts_with(application::codex_instructions_probe_rule) && prompt.Input.ends_with(application::codex_instructions_probe_question),
+			   "at the start of the prompt: the rule, then the question");
+		auto answered    = application::agent_run_result{ };
+		answered.Outcome = application::agent_run_outcome::success;
+		answered.AssistantItems.emplace_back("I am ready.");
+		expect(!application::codex_instructions_followed(answered), "an answer without the word did not follow the rule");
+		answered.AssistantItems.back() += "\nMARIGOLD-4127";
+		expect(application::codex_instructions_followed(answered), "an answer with it did");
+		answered.Outcome = application::agent_run_outcome::protocol_failure;
+		expect(!application::codex_instructions_followed(answered), "and a failed run never did");
+	}
+
 	/// [[BPR-2264]]. The Writing style comes after every other instruction:
 	/// last in the system prompt, or the request's last field where the
 	/// instructions are pasted. Named in the question too, it is sent once,
@@ -714,6 +768,8 @@ auto main(const int aCount, char** aArguments) -> int
 	test_a_local_draft_discussion_resumes_its_native_session();
 	test_the_review_skill_rides_the_system_prompt();
 	test_the_writing_style_follows_every_other_instruction();
+	test_codex_rules_lead_the_prompt_at_the_start_of_the_prompt();
+	test_the_codex_instructions_probe();
 	test_a_fresh_draft_carries_its_diff_up_front();
 	test_a_failed_sign_in_ends_the_run_at_once();
 	test_every_harness_run_reads_the_users_sign_in();

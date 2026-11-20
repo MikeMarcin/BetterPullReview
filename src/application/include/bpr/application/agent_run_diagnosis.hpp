@@ -71,6 +71,13 @@ namespace bpr::application {
 		/// The frame types the decoder read past, comma separated; never
 		/// their content.
 		std::string ReadPast;
+		/// [[BPR-2305]]. How many warnings the runtime wrote; absent when
+		/// none. Never their text: it can name the person's own paths.
+		std::optional<std::uint64_t> Warnings;
+		/// [[BPR-2305]]. How many file-change paths failed and how many were
+		/// written, when any failed. Never the paths.
+		std::optional<std::uint64_t> WritesFailed;
+		std::uint64_t                WritesWritten = 0U;
 
 		auto operator<=>(const agent_run_diagnosis&) const = default;
 	};
@@ -88,8 +95,10 @@ namespace bpr::application {
 	/// `longest_silence_ms=N`, `held_ms=N held_bound_ms=N` when the turn was
 	/// held after its answer, `held_out=on` when the bound ended it and
 	/// `stopped_after_answer=on` when a stop came after the answer
-	/// ([[BPR-2261]]), and `read_past=system/post_turn_summary,...`
-	/// ([[BPR-2004]]).
+	/// ([[BPR-2261]]), `read_past=system/post_turn_summary,...`
+	/// ([[BPR-2004]]), then `warnings=N` when the runtime wrote warnings and
+	/// `writes_failed=N writes_written=N` when a file change failed
+	/// ([[BPR-2305]]).
 	[[nodiscard]] auto describe(const agent_run_diagnosis& aDiagnosis) -> std::string;
 	/// \brief Reads exactly what `describe` writes, and nothing else.
 	[[nodiscard]] auto parse_agent_run_diagnosis(std::string_view aText) -> std::optional<agent_run_diagnosis>;

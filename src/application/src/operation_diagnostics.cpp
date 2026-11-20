@@ -136,15 +136,18 @@ namespace bpr::application {
 	{
 		using failure = core::operation_failure;
 		switch (aFailure) {
-		case core::agent_setup_failure::agent_not_found:       return failure::agent_not_found;
-		case core::agent_setup_failure::program_refused:       return failure::program_refused;
-		case core::agent_setup_failure::no_program_chosen:     return failure::no_program_chosen;
-		case core::agent_setup_failure::not_signed_in:         return failure::not_signed_in;
-		case core::agent_setup_failure::failed_to_start:       return failure::failed_to_start;
-		case core::agent_setup_failure::status_unreadable:     return failure::status_unreadable;
-		case core::agent_setup_failure::timed_out:             return failure::timed_out;
-		case core::agent_setup_failure::workspace_unavailable: return failure::workspace_unavailable;
-		case core::agent_setup_failure::settings_unreadable:   return failure::store_unreadable;
+		case core::agent_setup_failure::agent_not_found:           return failure::agent_not_found;
+		case core::agent_setup_failure::program_refused:           return failure::program_refused;
+		case core::agent_setup_failure::no_program_chosen:         return failure::no_program_chosen;
+		case core::agent_setup_failure::not_signed_in:             return failure::not_signed_in;
+		case core::agent_setup_failure::failed_to_start:           return failure::failed_to_start;
+		case core::agent_setup_failure::status_unreadable:         return failure::status_unreadable;
+		case core::agent_setup_failure::timed_out:                 return failure::timed_out;
+		case core::agent_setup_failure::workspace_unavailable:     return failure::workspace_unavailable;
+		case core::agent_setup_failure::settings_unreadable:       return failure::store_unreadable;
+		case core::agent_setup_failure::instructions_dropped:
+		case core::agent_setup_failure::instructions_not_followed: return failure::unsupported;
+		case core::agent_setup_failure::output_unreadable:         return failure::status_unreadable;
 		}
 		return failure::failed_to_start;
 	}

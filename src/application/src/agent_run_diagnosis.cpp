@@ -127,6 +127,12 @@ namespace bpr::application {
 		if (!aDiagnosis.ReadPast.empty()) {
 			text += " read_past=" + aDiagnosis.ReadPast;
 		}
+		if (aDiagnosis.Warnings) {
+			text += " warnings=" + std::to_string(*aDiagnosis.Warnings);
+		}
+		if (aDiagnosis.WritesFailed) {
+			text += " writes_failed=" + std::to_string(*aDiagnosis.WritesFailed) + " writes_written=" + std::to_string(aDiagnosis.WritesWritten);
+		}
 		return text;
 	}
 
@@ -254,6 +260,18 @@ namespace bpr::application {
 					return std::nullopt;
 				}
 				(key == "held_out" ? result.HeldOut : result.StoppedAfterAnswer) = true;
+			} else if (key == "warnings" || key == "writes_failed") {
+				auto count = read_number<std::uint64_t>(value);
+				if (!count) {
+					return std::nullopt;
+				}
+				(key == "warnings" ? result.Warnings : result.WritesFailed) = std::move(count);
+			} else if (key == "writes_written") {
+				const auto count = read_number<std::uint64_t>(value);
+				if (!count) {
+					return std::nullopt;
+				}
+				result.WritesWritten = *count;
 			} else if (key == "read_past") {
 				if (!read_past_list(value)) {
 					return std::nullopt;
@@ -314,6 +332,9 @@ namespace bpr::application {
 				   .HeldOut             = result.HeldOut,
 				   .StoppedAfterAnswer  = result.StoppedAfterAnswer,
 				   .ReadPast            = read_past_list(result.ReadPast) ? result.ReadPast : std::string{ },
+				   .Warnings            = result.HarnessWarningCount > 0U ? std::optional<std::uint64_t>{ result.HarnessWarningCount } : std::nullopt,
+				   .WritesFailed        = result.FailedWriteCount > 0U ? std::optional<std::uint64_t>{ result.FailedWriteCount } : std::nullopt,
+				   .WritesWritten       = result.FailedWriteCount > 0U ? result.CompletedWriteCount : 0U,
 			   });
 		return result;
 	}

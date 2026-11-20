@@ -150,9 +150,10 @@ namespace bpr::core {
 
 	/// \brief Builds the deterministic policy for one configured Git host.
 	///
-	/// \details GitHub.com permits every built-in profile. Explicit GHES permits
-	/// only the approved corporate Claude and external-terminal alternatives;
-	/// Codex remains forbidden even when a caller names it directly.
+	/// \details GitHub.com and an explicit GHES host both permit every
+	/// built-in profile, and so every added agent of those protocols
+	/// ([[BPR-1753]]). Until the owner's decision of 2026-11-19 ([[BPR-2305]])
+	/// an explicit GHES host refused both Codex profiles.
 	[[nodiscard]] auto built_in_agent_policy(
 		git_host_id              aHost,
 		built_in_agent_host_kind aKind) -> agent_host_policy;

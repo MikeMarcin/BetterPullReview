@@ -1285,6 +1285,38 @@ namespace bpr::application {
 			return std::vector<agent_protocol_event>{ { .Kind = agent_protocol_event_kind::model_catalog, .Text = std::string{ aFrame.substr(result->Begin, result->End - result->Begin) } } };
 		}
 
+		/// [[BPR-2305]]. A Codex `error` item: a warning (a configuration
+		/// setting it ignores, from its own or a machine-wide config), never a
+		/// failure. Codex 0.167.2 writes them before `turn.started` as well as
+		/// in the turn. Its message, cut to its bound.
+		[[nodiscard]] auto codex_warning_event(const json_value& aItem, const std::string& aItemId) -> agent_protocol_event
+		{
+			const auto* message = string_member(aItem, "message");
+			auto        text    = message == nullptr ? std::string{ } : *message;
+			if (text.size() > maximum_agent_harness_warning_bytes) {
+				text.resize(maximum_agent_harness_warning_bytes);
+			}
+			return { .Kind = agent_protocol_event_kind::harness_warning, .Text = std::move(text), .Item = aItemId };
+		}
+
+		/// [[BPR-2305]]. How a completed Codex `file_change` item ended, one
+		/// event for each path it names (`changes[].path`): its `status` is
+		/// `completed` or `failed`. Any other status names nothing.
+		void append_file_change_results(const json_value& aItem, std::vector<agent_protocol_event>& aEvents)
+		{
+			const auto* status  = string_member(aItem, "status");
+			const auto* changes = member(aItem, "changes");
+			if (status == nullptr || (*status != "completed" && *status != "failed") || changes == nullptr || changes->Kind != json_kind::array_value) {
+				return;
+			}
+			for (const auto& change : changes->Elements) {
+				const auto* path = change.Kind == json_kind::object_value ? string_member(change, "path") : nullptr;
+				if (path != nullptr && !path->empty()) {
+					aEvents.push_back({ .Kind = agent_protocol_event_kind::file_change_result, .Text = path->substr(0U, maximum_agent_tool_activity_bytes), .Item = *status });
+				}
+			}
+		}
+
 		[[nodiscard]] auto decode_codex_jsonl_frame(
 			const json_value&      aRoot,
 			const std::string_view aFrame,
@@ -1308,6 +1340,17 @@ namespace bpr::application {
 			if (*type == "turn.started" && aPhase == 1U) {
 				aPhase = 2U;
 				return no_protocol_events();
+			}
+			// [[BPR-2305]]. A warning item before the turn: read, kept, and
+			// the stream goes on to `turn.started`.
+			if (*type == "item.completed" && aPhase == 1U) {
+				const auto* item     = object_member(aRoot, "item");
+				const auto* itemId   = item == nullptr ? nullptr : string_member(*item, "id");
+				const auto* itemType = item == nullptr ? nullptr : string_member(*item, "type");
+				if (itemId == nullptr || itemId->empty() || itemType == nullptr || *itemType != "error") {
+					return std::unexpected(agent_protocol_failure::malformed_frame);
+				}
+				return std::vector<agent_protocol_event>{ codex_warning_event(*item, *itemId) };
 			}
 			if ((*type == "turn.failed" || *type == "error") && aPhase == 2U) {
 				return std::unexpected(names_usage_limit(member(aRoot, *type == "error" ? "message" : "error")) ? agent_protocol_failure::usage_limit : agent_protocol_failure::remote_failed);
@@ -1340,8 +1383,15 @@ namespace bpr::application {
 																										   .Item = *itemId,
 																									   } };
 				}
+				// [[BPR-2305]]. A warning in the turn is read the same way.
+				if (*type == "item.completed" && *itemType == "error") {
+					return std::vector<agent_protocol_event>{ codex_warning_event(*item, *itemId) };
+				}
 				// [[BPR-2004]]. What it is doing, for the running block.
 				auto events = std::vector<agent_protocol_event>{ };
+				if (*type == "item.completed" && *itemType == "file_change") {
+					append_file_change_results(*item, events);
+				}
 				if (*type == "item.started" && *itemType == "command_execution") {
 					const auto* command = string_member(*item, "command");
 					events.push_back(doing_event(core::agent_doing::running, command == nullptr ? std::string{ } : whole_command(*command)));
@@ -3842,7 +3892,13 @@ namespace bpr::application {
 			arguments.insert(arguments.end(), claude_writing_restrictions.begin(), claude_writing_restrictions.end());
 		}
 		auto pasted = std::optional<core::agent_context_supplement>{ };
-		if (!aOptions.SystemInstructions.empty() && !systemPrompt) {
+		// [[BPR-2305]]. Codex `exec` reads its prompt from stdin as text: there
+		// the instructions lead the prompt, after only the fixed protocol line
+		// and ahead of the request, so they stay one cacheable prefix from run
+		// to run (a launcher that drops `developer_instructions` still has
+		// them read).
+		const auto rulesFirst = !aOptions.SystemInstructions.empty() && !systemPrompt && aProfile.Protocol == core::agent_protocol::codex_jsonl_exec;
+		if (!aOptions.SystemInstructions.empty() && !systemPrompt && !rulesFirst) {
 			pasted          = aSupplement;
 			pasted->Message = aOptions.SystemInstructions + (aSupplement.Message.empty() ? std::string{ } : "\n\n" + aSupplement.Message);
 		}
@@ -3852,7 +3908,8 @@ namespace bpr::application {
 			}
 			pasted->Brief->Skill->Text.clear();
 		}
-		auto payload = encode_agent_supplement(pasted ? *pasted : aSupplement);
+		auto payload = rulesFirst ? aOptions.SystemInstructions + "\n\n" : std::string{ };
+		payload += encode_agent_supplement(pasted ? *pasted : aSupplement);
 		encode_private_into(payload, aOptions);
 		// [[BPR-2004]], RFC-BPR-0103. Codex 0.167.0 reports no sub-agent on
 		// `exec --json` and ends there, and on the App Server never answers
@@ -4258,7 +4315,9 @@ namespace bpr::application {
 		case agent_protocol_event_kind::tool_activity:
 		case agent_protocol_event_kind::outside_list_ran:
 		case agent_protocol_event_kind::check_relaxed:
-		case agent_protocol_event_kind::activity:             break;
+		case agent_protocol_event_kind::activity:
+		case agent_protocol_event_kind::harness_warning:
+		case agent_protocol_event_kind::file_change_result:   break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
 	}
@@ -4896,6 +4955,44 @@ namespace bpr::application {
 		case agent_run_outcome::stale_result:            return core::agent_turn_outcome::set_aside;
 		}
 		return core::agent_turn_outcome::ended_without_answer;
+	}
+
+	auto build_codex_instructions_probe(const core::agent_profile& aProfile, std::string aExecutable, const std::span<const std::string> aLeading,
+										const core::agent_instruction_delivery aDelivery, const environment_reader& aParent) -> agent_launch_request
+	{
+		auto request       = agent_launch_request{ };
+		request.Protocol   = core::agent_protocol::codex_jsonl_exec;
+		request.Session    = core::agent_session_id{ 1U };
+		request.Executable = std::move(aExecutable);
+		request.Arguments.assign(aLeading.begin(), aLeading.end());
+		request.Arguments.insert(request.Arguments.end(), { "exec", "--json", "--skip-git-repo-check", "--ephemeral" });
+		request.Arguments.insert(request.Arguments.end(), codex_read_only_arguments.begin(), codex_read_only_arguments.end());
+		if (aDelivery == core::agent_instruction_delivery::system_prompt) {
+			request.Arguments.insert(request.Arguments.end(), { "-c", "developer_instructions=" + toml_string(codex_instructions_probe_rule) });
+			request.Input = std::string{ codex_instructions_probe_question };
+		} else {
+			request.Input = std::string{ codex_instructions_probe_rule } + "\n\n" + std::string{ codex_instructions_probe_question };
+		}
+		request.Arguments.emplace_back("-");
+		request.Environment = materialize_agent_environment(aProfile, aParent);
+		request.Path        = core::agent_run_path::agent_check;
+		request.Profile     = aProfile.Id;
+		return request;
+	}
+
+	auto codex_instructions_followed(const agent_run_result& aResult) -> bool
+	{
+		if (aResult.Outcome != agent_run_outcome::success) {
+			return false;
+		}
+		const auto holds = [](const std::string_view aText) { return aText.find(codex_instructions_canary) != std::string_view::npos; };
+		return std::ranges::any_of(aResult.AssistantItems, holds)
+			|| std::ranges::any_of(aResult.Events, [&holds](const agent_stream_event& aEvent) { return aEvent.Kind == agent_stream_kind::text && holds(aEvent.Text); });
+	}
+
+	auto writes_all_failed(const agent_run_result& aResult) noexcept -> bool
+	{
+		return aResult.FailedWriteCount > 0U && aResult.CompletedWriteCount == 0U;
 	}
 
 	auto name(const agent_protocol_failure aFailure) noexcept -> std::string_view

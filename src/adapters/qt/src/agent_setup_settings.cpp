@@ -796,6 +796,7 @@ namespace bpr::qt {
 				said             = which == core::agent_setup_failure::not_signed_in ? tr("Not signed in")
 					: which == core::agent_setup_failure::agent_not_found            ? tr("Not found")
 					: which == core::agent_setup_failure::timed_out                  ? tr("Didn't answer")
+					: which == core::agent_setup_failure::instructions_dropped       ? tr("Ignores developer instructions")
 																					 : tr("Check failed");
 				if (which == core::agent_setup_failure::not_signed_in && !sign_in_command(agent).isEmpty()) {
 					under = tr("Run %1 in a terminal, then check again.").arg(sign_in_command(agent));
@@ -813,6 +814,22 @@ namespace bpr::qt {
 		const auto rows = std::max(1, List->count());
 		const auto each = List->sizeHintForRow(0) > 0 ? List->sizeHintForRow(0) : List->fontMetrics().height() * 2 + 22;
 		List->setFixedHeight(rows * each + 2 * List->frameWidth());
+	}
+
+	void agent_programs_panel::switch_instructions()
+	{
+		const auto found = SwitchingEntry ? std::ranges::find(Agents, *SwitchingEntry, &core::agent_entry::Id) : Agents.end();
+		if (found == Agents.end() || !Dispatch.Update) {
+			return;
+		}
+		auto entry         = *found;
+		entry.Instructions = core::agent_instruction_delivery::message;
+		SwitchInstructions->hide();
+		Dispatch.Update(std::move(entry), [this, id = found->Id](const std::optional<core::agent_entry_refusal>& aRefusal) {
+			if (!aRefusal && Dispatch.CheckEntry) {
+				Dispatch.CheckEntry(id);
+			}
+		});
 	}
 
 	auto agent_programs_panel::roster_row_text(const int aRow) const -> QString
@@ -937,6 +954,15 @@ namespace bpr::qt {
 		signInLine->addWidget(copy);
 		signInLine->addStretch(1);
 		under->addWidget(SignInLine);
+		// [[BPR-2305]]. A custom Codex that ignores its developer
+		// instructions and follows the start of the prompt: one button
+		// switches it there and checks it again.
+		SwitchInstructions = new QPushButton{ tr("Use the start of the prompt"), CheckRows };
+		SwitchInstructions->setObjectName(QStringLiteral("settingsAgentSwitchInstructions"));
+		SwitchInstructions->setToolTip(tr("Sets this agent's Instructions to At the start of the prompt, then checks it again."));
+		SwitchInstructions->hide();
+		connect(SwitchInstructions, &QPushButton::clicked, this, [this] { switch_instructions(); });
+		under->addWidget(SwitchInstructions, 0, Qt::AlignLeft);
 		WorkspaceReason = new QLabel{ CheckRows };
 		WorkspaceReason->setObjectName(QStringLiteral("settingsWorkspaceCheckFailure"));
 		WorkspaceReason->setWordWrap(true);
@@ -998,7 +1024,7 @@ namespace bpr::qt {
 		case core::agent_check_offer::available: {
 			const auto agent = saved.value_or(core::setup_agent::claude_code);
 			said             = !setup.Detected ? tr("Looks for your agents, then checks the chosen one as the setup does. No question or code is sent.")
-				: !setup.ChecksSignIn          ? tr("Checks that %1's program can run, and runs its own check if it names one. No question or code is sent.").arg(name)
+				: !setup.ChecksSignIn          ? tr("Checks that %1's program can run, and runs its own check if it names one. No code is sent; a custom Codex JSONL agent is asked one short question to see where its instructions arrive.").arg(name)
 				: setup.ChecksWrapper          ? tr("Asks your Claude process wrapper for its sign-in status and version. No question or code is sent.")
 											   : tr("Runs %1, which sends no question and no code.").arg(status_command(agent));
 			said += QStringLiteral(" ")
@@ -1019,7 +1045,7 @@ namespace bpr::qt {
 			break;
 		}
 		CheckNote->setText(said);
-		CheckButton->setToolTip(running ? tr("A check is running. Stop it to start again.") : tr("Checks every agent in the list in turn. No question or code is sent."));
+		CheckButton->setToolTip(running ? tr("A check is running. Stop it to start again.") : tr("Checks every agent in the list in turn. No code is sent; a custom Codex JSONL agent is asked one short question."));
 		CheckButton->setAccessibleDescription(offer == core::agent_check_offer::available ? QString{ } : CheckButton->toolTip());
 		CheckProgress->setAccessibleName(said);
 
@@ -1054,6 +1080,8 @@ namespace bpr::qt {
 		const auto signIn = agentFailed && *state.AgentCheck.Failure == core::agent_setup_failure::not_signed_in && saved ? sign_in_command(*saved) : QString{ };
 		SignInCommand->setText(signIn);
 		SignInLine->setVisible(!signIn.isEmpty());
+		SwitchingEntry = agentFailed && *state.AgentCheck.Failure == core::agent_setup_failure::instructions_dropped ? setup.InstructionsSwitch : std::nullopt;
+		SwitchInstructions->setVisible(SwitchingEntry.has_value());
 		const auto workspaceFailed = state.WorkspaceCheck.State == core::setup_check_state::failed;
 		WorkspaceReason->setVisible(workspaceFailed);
 		WorkspaceReason->setText(!workspaceFailed             ? QString{ }

@@ -907,6 +907,52 @@ namespace {
 		skill.show_answer(application::review_skill_answer::copy_failed);
 		expect(skill.status_text().contains(QStringLiteral("nothing was removed")), "a failed Downloads copy says nothing was removed");
 	}
+	/// [[BPR-2305]]. A custom Codex whose check found its developer
+	/// instructions ignored: the failure says so, and one button switches the
+	/// agent to the start of the prompt and checks it again. A launcher whose
+	/// output is not Codex's is named with the version its check printed.
+	void test_settings_offers_the_prompt_form()
+	{
+		auto programs = qt::agent_programs_panel{ };
+		programs.resize(560, 400);
+		auto updated = std::vector<core::agent_entry>{ };
+		auto checked = std::vector<std::uint32_t>{ };
+		programs.set_dispatch({ .CheckEntry = [&checked](const std::uint32_t aId) { checked.push_back(aId); },
+								.Update     = [&updated](core::agent_entry aEntry, const qt::agent_programs_panel::answer& aAnswer) {
+                                    updated.push_back(std::move(aEntry));
+                                    aAnswer(std::nullopt); } });
+		auto preferences   = application::agent_setup_preferences{ };
+		preferences.Agents = *core::add_agent_entry({ }, core::agent_entry{ .Name = "Launcher Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/launcher" });
+		const auto id      = preferences.Agents.front().Id;
+		programs.present(preferences, { });
+		programs.show();
+		QApplication::processEvents();
+		auto check                     = qt::agent_check_presentation{ };
+		check.Setup.Preferences        = preferences;
+		check.Setup.Detected           = true;
+		check.Setup.ChecksSignIn       = false;
+		check.Setup.State.Chosen       = core::setup_agent::codex;
+		check.Setup.State.AgentCheck   = core::fail_check(core::agent_setup_failure::instructions_dropped);
+		check.Setup.InstructionsSwitch = id;
+		check.Decision                 = { .Offer = core::agent_check_offer::available };
+		programs.present_check(check);
+		expect(programs.switch_instructions_button()->isVisibleTo(&programs) && programs.check_result_text().contains(QStringLiteral("At the start of the prompt")),
+			   "the failure says the developer instructions were ignored and offers the prompt form");
+		programs.switch_instructions_button()->click();
+		expect(updated.size() == 1U && updated.front().Id == id && updated.front().Instructions == core::agent_instruction_delivery::message && checked == std::vector{ id },
+			   "the button switches that agent to the start of the prompt and checks it again");
+		check.Setup.State.AgentCheck = core::fail_check(core::agent_setup_failure::timed_out);
+		check.Setup.InstructionsSwitch.reset();
+		programs.present_check(check);
+		expect(!programs.switch_instructions_button()->isVisibleTo(&programs), "any other failure offers no switch");
+
+		const auto unreadable = qt::setup_failure_words(core::agent_setup_failure::output_unreadable, QStringLiteral("Launcher Codex"), QStringLiteral("version: launcher 0.6.2\nprotocol_failure"));
+		expect(unreadable.contains(QStringLiteral("update the launcher")) && unreadable.contains(QStringLiteral("launcher 0.6.2")) && !unreadable.contains(QStringLiteral("protocol_failure")),
+			   "an unreadable launcher is named with its version and the fix, not a decoder error");
+		expect(!qt::setup_failure_words(core::agent_setup_failure::output_unreadable, QStringLiteral("Launcher Codex"), QStringLiteral("protocol_failure")).contains(QStringLiteral("says it is")),
+			   "with no version printed none is claimed");
+	}
+
 	/// [[BPR-1859]]. Owner, 2026-11-04: "I want to be able to run agent
 	/// check from agent settings page". Check agent on Settings: an intent,
 	/// disabled with its reason, running with Stop and progress, and the
@@ -1193,6 +1239,7 @@ auto main(int argc, char** argv) -> int
 	test_check_and_ready();
 	test_settings_rows();
 	test_settings_check_agent();
+	test_settings_offers_the_prompt_form();
 	test_settings_unreadable();
 	test_program_from_an_app_bundle();
 	std::cout << "agent-setup-view-tests:pass\n";

@@ -160,6 +160,9 @@ namespace bpr::qt {
 		/// and its details, all on the page.
 		void               present_check(const agent_check_presentation& aCheck);
 		[[nodiscard]] auto check_button() const noexcept -> QPushButton* { return CheckButton; }
+		/// \brief [[BPR-2305]]. Use the start of the prompt: shown when a
+		/// custom Codex's check found its developer instructions ignored.
+		[[nodiscard]] auto switch_instructions_button() const noexcept -> QPushButton* { return SwitchInstructions; }
 		/// \brief [[BPR-2051]]. A roster row as read aloud and as tests read
 		/// it: the agent's name, its line under the name, and its state.
 		[[nodiscard]] auto roster_row_text(int aRow) const -> QString;
@@ -179,19 +182,22 @@ namespace bpr::qt {
 	private:
 		void                                    build_check(QVBoxLayout& aColumn, QHBoxLayout& aRow);
 		std::optional<agent_check_presentation> ShownCheck;
-		QPushButton*                            CheckButton     = nullptr;
-		QPushButton*                            StopCheckButton = nullptr;
-		QWidget*                                CheckProgress   = nullptr;
-		QLabel*                                 CheckNote       = nullptr;
-		QWidget*                                CheckRows       = nullptr;
-		QLabel*                                 AgentMark       = nullptr;
-		QLabel*                                 AgentRow        = nullptr;
-		QWidget*                                WorkspaceLine   = nullptr;
-		QLabel*                                 WorkspaceMark   = nullptr;
-		QLabel*                                 WorkspaceRow    = nullptr;
-		QLabel*                                 CheckFailure    = nullptr;
-		QWidget*                                SignInLine      = nullptr;
-		QLabel*                                 SignInCommand   = nullptr;
+		QPushButton*                            CheckButton        = nullptr;
+		QPushButton*                            StopCheckButton    = nullptr;
+		QWidget*                                CheckProgress      = nullptr;
+		QLabel*                                 CheckNote          = nullptr;
+		QWidget*                                CheckRows          = nullptr;
+		QLabel*                                 AgentMark          = nullptr;
+		QLabel*                                 AgentRow           = nullptr;
+		QWidget*                                WorkspaceLine      = nullptr;
+		QLabel*                                 WorkspaceMark      = nullptr;
+		QLabel*                                 WorkspaceRow       = nullptr;
+		QLabel*                                 CheckFailure       = nullptr;
+		QWidget*                                SignInLine         = nullptr;
+		QLabel*                                 SignInCommand      = nullptr;
+		QPushButton*                            SwitchInstructions = nullptr;
+		std::optional<std::uint32_t>            SwitchingEntry;
+		void                                    switch_instructions();
 		QToolButton*                            DetailsToggle   = nullptr;
 		QPlainTextEdit*                         DetailsText     = nullptr;
 		QLabel*                                 WorkspaceReason = nullptr;

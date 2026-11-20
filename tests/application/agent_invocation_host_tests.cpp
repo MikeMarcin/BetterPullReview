@@ -826,6 +826,8 @@ namespace {
 				core::built_in_agent_policy(
 					core::git_host_id{ 2U },
 					core::built_in_agent_host_kind::explicit_ghes),
+				// A host that maps a policy without Codex.
+				core::agent_host_policy{ .Host = core::git_host_id{ 3U }, .Allowed = { core::claude_stream_json_profile_id } },
 			},
 			WorkspaceRoot,
 			Sessions,
@@ -896,21 +898,32 @@ namespace {
 		}
 	}
 
-	void test_ghes_policy_refuses_codex_before_effects()
+	/// [[BPR-2305]] (owner, 2026-11-19). Explicit GHES launches Codex; a host
+	/// whose policy leaves a profile out still refuses it in core, before any
+	/// workspace or process effect.
+	void test_ghes_policy_permits_codex_and_a_refusal_precedes_effects()
 	{
+		for (const auto profileId : { core::codex_app_server_profile_id, core::codex_jsonl_profile_id }) {
+			auto test = harness{ };
+			test.Host.observe(core::application_session_id{ 1U }, authority(core::git_host_id{ 2U }), binding(core::git_host_id{ 2U }));
+			test.Host.dispatch(request(core::git_host_id{ 2U }, profileId));
+			test.settle();
+			expect(test.Projection.Refusals.empty() && test.Processes.Starts == 1U, "explicit GHES launches Codex");
+			expect(test.Host.is_quiescent(), "the GHES Codex run finishes its owned work");
+		}
 		auto test = harness{ };
 		test.Host.observe(
 			core::application_session_id{ 1U },
-			authority(core::git_host_id{ 2U }),
-			binding(core::git_host_id{ 2U }));
+			authority(core::git_host_id{ 3U }),
+			binding(core::git_host_id{ 3U }));
 		test.Host.dispatch(request(
-			core::git_host_id{ 2U }, core::codex_jsonl_profile_id));
+			core::git_host_id{ 3U }, core::codex_jsonl_profile_id));
 		expect(
 			!test.Projection.Refusals.empty()
 				&& test.Workspaces.Starts == 0U && test.Processes.Starts == 0U
 				&& test.Sessions.AdmissionAttempts == 0U
 				&& test.Host.statistics().CoreDecisions == 1U,
-			"explicit GHES Codex policy is decided by core before any workspace or process effect");
+			"a host policy that forbids Codex is decided by core before any workspace or process effect");
 	}
 
 	void test_context_refusal_precedes_durable_admission()
@@ -1154,12 +1167,14 @@ namespace {
 		{
 			auto test                   = harness{ };
 			test.Projection.ThrowRefuse = true;
+			// Host 3's policy forbids Codex ([[BPR-2305]]: explicit GHES no
+			// longer does).
 			test.Host.observe(
 				core::application_session_id{ 1U },
-				authority(core::git_host_id{ 2U }),
-				binding(core::git_host_id{ 2U }));
+				authority(core::git_host_id{ 3U }),
+				binding(core::git_host_id{ 3U }));
 			test.Host.dispatch(request(
-				core::git_host_id{ 2U }, core::codex_jsonl_profile_id));
+				core::git_host_id{ 3U }, core::codex_jsonl_profile_id));
 			expect(
 				test.Workspaces.Starts == 0U && test.Processes.Starts == 0U
 					&& test.Host.is_quiescent(),
@@ -2708,7 +2723,7 @@ auto main(const int aCount, char** aArguments) -> int
 	test_explicit_settings_cross_the_existing_invocation_host();
 	test_reopened_replay_uncertainty_is_visible_without_native_workspace();
 	test_session_admission_answers_later_and_admits_one_turn();
-	test_ghes_policy_refuses_codex_before_effects();
+	test_ghes_policy_permits_codex_and_a_refusal_precedes_effects();
 	test_context_refusal_precedes_durable_admission();
 	test_durable_admission_refusal_precedes_every_downstream_effect();
 	test_latest_retained_session_uses_every_core_classification_without_retargeting();

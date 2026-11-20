@@ -194,6 +194,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto kept_text() const -> QString { return KeptText; }
 		[[nodiscard]] auto last_failure() const noexcept -> std::optional<application::agent_protocol_failure> { return LastFailure; }
 		[[nodiscard]] auto unfinished_helpers() const -> const std::vector<std::string>& { return LastUnfinished; }
+		/// \brief [[BPR-2305]]. When every file change of the last turn
+		/// failed, the paths (bounded) and how many failed; otherwise none.
+		[[nodiscard]] auto failed_writes() const -> const std::vector<std::string>& { return LastFailedWrites; }
+		[[nodiscard]] auto failed_write_count() const noexcept -> std::uint32_t { return LastFailedWriteCount; }
 		[[nodiscard]] auto last_session_cost() const noexcept -> std::optional<core::agent_cost> { return LastSessionCost; }
 		/// [[BPR-1753]]. How the last request ended, while nothing runs.
 		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
@@ -281,6 +285,8 @@ namespace bpr::qt {
 		QString                                                        KeptText;
 		std::optional<application::agent_protocol_failure>             LastFailure;
 		std::vector<std::string>                                       LastUnfinished;
+		std::vector<std::string>                                       LastFailedWrites;
+		std::uint32_t                                                  LastFailedWriteCount = 0U;
 		std::optional<core::agent_cost>                                LastSessionCost;
 		phase                                                          Phase = phase::idle;
 		std::vector<std::function<void()>>                             ProgressObservers;

@@ -862,6 +862,37 @@ namespace {
 	/// catalog run asks Codex's App Server for `model/list` after its
 	/// handshake, reads past the notifications Codex 0.163 sends between, and
 	/// closes the input once the list is in. Frames as that Codex wrote them.
+	/// [[BPR-2305]]. A Codex run through a sandbox launcher (stream content
+	/// invented): its configuration warnings before the turn are kept with the
+	/// answer, and a turn whose file changes all failed names them; one that
+	/// wrote a path is not that.
+	void test_codex_warnings_and_failed_writes_reach_the_result()
+	{
+		using namespace application;
+		const auto warning = [](const std::string& aId, const std::string& aText) { return R"({"type":"item.completed","item":{"id":")" + aId + R"(","type":"error","message":")" + aText + R"("}})" + std::string{ "\n" }; };
+		const auto change  = [](const std::string& aId, const std::string& aPath, const std::string& aStatus) {
+			return R"({"type":"item.completed","item":{"id":")" + aId + R"(","type":"file_change","changes":[{"path":")" + aPath + R"(","kind":"add"}],"status":")" + aStatus + R"("}})" + std::string{ "\n" };
+		};
+		const auto     start  = std::string{ R"({"type":"thread.started","thread_id":"t"})" } + "\n";
+		const auto     turn   = std::string{ R"({"type":"turn.started"})" } + "\n";
+		const auto     answer = std::string{ R"({"type":"item.completed","item":{"id":"m","type":"agent_message","text":"I wrote the notes."}})" } + "\n";
+		const auto     end    = std::string{ R"({"type":"turn.completed","usage":{}})" } + "\n";
+		fake_transport failing;
+		failing.Output    = { { .Status = agent_protocol_pipe_read_status::data,
+								.Bytes  = start + warning("w0", "ignored setting in the managed config") + warning("w1", "ignored setting in the user config") + turn
+									+ change("c0", "/work/scratch/notes.txt", "failed") + change("c1", "/work/scratch/plan.md", "failed") + answer + end } };
+		const auto result = run(core::agent_protocol::codex_jsonl_exec, failing);
+		expect(result.Outcome == agent_run_outcome::success && result.AssistantItems == std::vector<std::string>{ "I wrote the notes." }, "the run reads past its warnings to the answer");
+		expect(result.HarnessWarningCount == 2U && result.HarnessWarnings == std::vector<std::string>{ "ignored setting in the managed config", "ignored setting in the user config" },
+			   "and keeps the two warnings");
+		expect(writes_all_failed(result) && result.FailedWrites == std::vector<std::string>{ "/work/scratch/notes.txt", "/work/scratch/plan.md" } && result.FailedWriteCount == 2U,
+			   "a turn whose file changes all failed names them");
+		fake_transport writing;
+		writing.Output   = { { .Status = agent_protocol_pipe_read_status::data, .Bytes = start + turn + change("c0", "/work/scratch/a.txt", "failed") + change("c1", "/work/scratch/b.txt", "completed") + answer + end } };
+		const auto wrote = run(core::agent_protocol::codex_jsonl_exec, writing);
+		expect(!writes_all_failed(wrote) && wrote.CompletedWriteCount == 1U && wrote.FailedWriteCount == 1U, "one written path is not a turn whose writes all failed");
+	}
+
 	void test_a_catalog_run_lists_the_harness_models()
 	{
 		auto transport   = fake_transport{ };
@@ -1422,6 +1453,7 @@ int main()
 	test_native_turns_leave_the_stream_open_and_fence_the_prior_turn();
 	test_native_idle_output_bound_and_no_inference();
 	test_a_catalog_run_lists_the_harness_models();
+	test_codex_warnings_and_failed_writes_reach_the_result();
 	test_claude_help_names_its_efforts();
 	test_complete_assistant_items_and_claims();
 	test_run_metadata_and_input_admission();

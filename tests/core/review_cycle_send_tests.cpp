@@ -106,11 +106,10 @@ namespace {
 			acknowledged(4, send_session_record(agent_protocol::claude_stream_json, "old")),
 		};
 		const auto corporate = send_offers(profiles, cycle_send_policy(folder, std::string_view{ "ghe.example.com" }), deliveries);
-		expect(corporate.size() == profiles.size(), "refused profiles stay listed");
+		expect(corporate.size() == profiles.size(), "every profile is listed");
+		// [[BPR-2305]] (owner, 2026-11-19). The corporate host permits Codex.
 		for (const auto codex : { codex_app_server_profile_id, codex_jsonl_profile_id }) {
-			const auto offer = offer_of(corporate, codex);
-			expect(!offer.offered() && offer.Verdict.Refusal == agent_invocation_refusal::profile_forbidden_on_host && offer.Verdict.RefusedBy == send_enterprise_host,
-				   "the corporate host refuses Codex, by name");
+			expect(offer_of(corporate, codex).offered(), "the corporate host offers Codex");
 		}
 		const auto claude = offer_of(corporate, claude_stream_json_profile_id);
 		expect(claude.offered() && claude.Continues && claude.Sessions == std::vector<std::string>{ "old", "new" }, "Claude continues its own sessions, newest first, each once");
@@ -144,10 +143,15 @@ namespace {
 		expect(denied && denied->Problem == cycle_send_problem::channel_refused && denied->Channel == cycle_authorization::channel_denied, "a denied channel stays denied");
 		const auto unknown = decide_send(cycle_authorization::allowed, profiles, github, deliveries, { .Profile = agent_profile_id{ 99 } });
 		expect(unknown && unknown->Problem == cycle_send_problem::profile_unknown, "only an installed profile");
-		const auto codex = decide_send(cycle_authorization::allowed, profiles, corporate, deliveries, { .Profile = codex_jsonl_profile_id });
+		// [[BPR-2305]]. Codex on the corporate host is sent; a profile a host
+		// does not list is still refused, by that host.
+		expect(!decide_send(cycle_authorization::allowed, profiles, corporate, deliveries, { .Profile = codex_jsonl_profile_id }), "Codex on the corporate host");
+		auto narrowed    = corporate;
+		narrowed.Allowed = { claude_stream_json_profile_id };
+		const auto codex = decide_send(cycle_authorization::allowed, profiles, narrowed, deliveries, { .Profile = codex_jsonl_profile_id });
 		expect(codex && codex->Problem == cycle_send_problem::profile_refused && codex->Verdict.Refusal == agent_invocation_refusal::profile_forbidden_on_host
 				   && codex->Verdict.RefusedBy == send_enterprise_host,
-			   "the denied GHES profile is refused, by its host");
+			   "a profile its host does not list is refused, by its host");
 		expect(stable_name(codex->Problem) == "profile_refused", "a stable name");
 
 		const auto terminal = decide_send(cycle_authorization::allowed, profiles, github, deliveries, { .Profile = external_terminal_profile_id, .Session = { .Continue = "s-1" } });

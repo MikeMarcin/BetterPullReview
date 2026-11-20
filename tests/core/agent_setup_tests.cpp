@@ -41,6 +41,13 @@ namespace {
 		return core::built_in_agent_policy(core::git_host_id{ 2U }, core::built_in_agent_host_kind::explicit_ghes);
 	}
 
+	/// A host that maps a policy without Codex: what explicit GHES was before
+	/// [[BPR-2305]], kept to prove a refused agent still has its row.
+	[[nodiscard]] auto without_codex() -> core::agent_host_policy
+	{
+		return core::agent_host_policy{ .Host = core::git_host_id{ 3U }, .Allowed = { core::claude_stream_json_profile_id, core::external_terminal_profile_id } };
+	}
+
 	[[nodiscard]] auto agents(const std::vector<agent_setup_row>& aRows) -> std::vector<setup_agent>
 	{
 		auto result = std::vector<setup_agent>{ };
@@ -91,11 +98,16 @@ namespace {
 		const auto harnessed = core::agent_setup_rows(saved, profiles, github_com(), codex_protocol_choice::app_server);
 		expect(agents(harnessed) == std::vector{ setup_agent::plain_text_harness }, "the plain-text harness is offered once its program is chosen");
 
+		// [[BPR-2305]] (owner, 2026-11-19). Explicit GHES permits Codex.
 		const auto onGhes = core::agent_setup_rows(found, profiles, ghes(), codex_protocol_choice::app_server);
-		expect(agents(onGhes) == std::vector{ setup_agent::claude_code, setup_agent::codex }, "a forbidden agent keeps its row");
-		expect(onGhes.front().Verdict.Permitted, "explicit GHES permits Claude");
-		expect(!onGhes.back().Verdict.Permitted && onGhes.back().Verdict.Refusal == core::agent_invocation_refusal::profile_forbidden_on_host,
-			   "explicit GHES refuses Codex and says why");
+		expect(agents(onGhes) == std::vector{ setup_agent::claude_code, setup_agent::codex } && onGhes.front().Verdict.Permitted && onGhes.back().Verdict.Permitted,
+			   "explicit GHES permits Claude and Codex");
+		const auto ghesJsonl = core::agent_setup_rows(found, profiles, ghes(), codex_protocol_choice::jsonl);
+		expect(ghesJsonl.back().Profile == core::codex_jsonl_profile_id && ghesJsonl.back().Verdict.Permitted, "and Codex JSONL there");
+		const auto refusing = core::agent_setup_rows(found, profiles, without_codex(), codex_protocol_choice::app_server);
+		expect(agents(refusing) == std::vector{ setup_agent::claude_code, setup_agent::codex }, "a forbidden agent keeps its row");
+		expect(!refusing.back().Verdict.Permitted && refusing.back().Verdict.Refusal == core::agent_invocation_refusal::profile_forbidden_on_host,
+			   "a host that forbids Codex refuses it and says why");
 		expect(core::agent_setup_rows(found, profiles, std::nullopt, codex_protocol_choice::app_server).front().Verdict.Refusal == core::agent_invocation_refusal::host_not_mapped,
 			   "an unmapped host permits nothing");
 
@@ -117,14 +129,19 @@ namespace {
 		expect(core::choose_setup_agent(both, setup_agent::codex) == setup_agent::codex, "a saved choice that is still found wins");
 		expect(core::choose_setup_agent(one, setup_agent::codex) == setup_agent::claude_code, "a saved choice that is gone gives way to the only found agent");
 		expect(!core::choose_setup_agent({ }, setup_agent::claude_code), "nothing found chooses nothing");
+		const auto refusing = core::agent_setup_rows(std::vector{ claude, codex }, profiles, without_codex(), codex_protocol_choice::app_server);
+		expect(core::choose_setup_agent(refusing, std::nullopt) == setup_agent::claude_code, "the only permitted agent is chosen; a forbidden one never is");
+		expect(core::choose_setup_agent(refusing, setup_agent::codex) == setup_agent::claude_code, "a saved forbidden choice is not taken");
+		// [[BPR-2305]]. On explicit GHES a saved Codex is taken like any other.
 		const auto onGhes = core::agent_setup_rows(std::vector{ claude, codex }, profiles, ghes(), codex_protocol_choice::app_server);
-		expect(core::choose_setup_agent(onGhes, std::nullopt) == setup_agent::claude_code, "the only permitted agent is chosen; a forbidden one never is");
-		expect(core::choose_setup_agent(onGhes, setup_agent::codex) == setup_agent::claude_code, "a saved forbidden choice is not taken");
+		expect(core::choose_setup_agent(onGhes, setup_agent::codex) == setup_agent::codex, "a saved Codex choice is taken on explicit GHES");
 
 		expect(core::searched_setup_agents(profiles, github_com(), codex_protocol_choice::app_server) == std::vector{ setup_agent::claude_code, setup_agent::codex },
 			   "github.com looks for Claude and Codex");
-		expect(core::searched_setup_agents(profiles, ghes(), codex_protocol_choice::app_server) == std::vector{ setup_agent::claude_code },
-			   "explicit GHES looks only for what it permits");
+		expect(core::searched_setup_agents(profiles, ghes(), codex_protocol_choice::app_server) == std::vector{ setup_agent::claude_code, setup_agent::codex },
+			   "explicit GHES looks for Claude and Codex too");
+		expect(core::searched_setup_agents(profiles, without_codex(), codex_protocol_choice::app_server) == std::vector{ setup_agent::claude_code },
+			   "a host looks only for what it permits");
 	}
 
 	void test_checks_and_steps()
@@ -140,11 +157,11 @@ namespace {
 		for (const auto failure :
 			 { agent_setup_failure::agent_not_found, agent_setup_failure::program_refused, agent_setup_failure::no_program_chosen, agent_setup_failure::not_signed_in,
 			   agent_setup_failure::failed_to_start, agent_setup_failure::status_unreadable, agent_setup_failure::timed_out, agent_setup_failure::workspace_unavailable,
-			   agent_setup_failure::settings_unreadable }) {
+			   agent_setup_failure::settings_unreadable, agent_setup_failure::instructions_dropped, agent_setup_failure::instructions_not_followed, agent_setup_failure::output_unreadable }) {
 			failureNames.insert(core::stable_name(failure));
 			expect(core::fail_check(failure).State == setup_check_state::failed && core::fail_check(failure).Failure == failure, "a failure is kept with its reason");
 		}
-		expect(failureNames.size() == 9U, "each failure has its own stable name");
+		expect(failureNames.size() == 12U, "each failure has its own stable name");
 
 		const auto profiles = core::built_in_agent_profiles();
 		auto       state    = core::agent_setup_state{ };

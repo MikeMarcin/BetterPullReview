@@ -367,7 +367,9 @@ namespace {
 		expect(!sheet->reply_box()->isVisible(), "and no longer waiting");
 		close_sheet(*sheet, lanes);
 
-		// A corporate account: the corporate host's refusal of Codex stands, by name.
+		// A corporate account: since [[BPR-2305]] (owner, 2026-11-19) the
+		// corporate host allows Codex, so it is choosable and carries no
+		// refusal glyph. Nothing is sent here.
 		desktop.set_publication_account([] { return std::optional{ application::github_publication_account{ .Login = "reviewer", .Host = "ghe.example.com" } }; });
 		desktop.host().compose();
 		settle(lanes);
@@ -378,15 +380,9 @@ namespace {
 		settle(lanes);
 		auto* const model = qobject_cast<QStandardItemModel*>(sheet->send_profile()->model());
 		const auto  codex = sheet->send_profile()->findData(QVariant::fromValue(core::codex_jsonl_profile_id.value()));
-		expect(model != nullptr && codex >= 0 && !model->item(codex)->isEnabled() && sheet->send_profile()->itemText(codex).endsWith(QStringLiteral("not allowed here")),
-			   "Codex listed, not choosable, under a corporate host");
-		expect(!sheet->send_profile()->itemIcon(codex).isNull() && sheet->send_profile()->itemIcon(sheet->send_profile()->currentIndex()).isNull() && !sheet->send_profile()->itemData(codex, Qt::ToolTipRole).toString().isEmpty(),
-			   "marked refused with a glyph, its reason the tooltip; an allowed agent carries none");
-		desktop.host().send({ .Profile = core::codex_jsonl_profile_id });
-		settle(lanes);
-		expect(contains(sheet->status()->text(), QStringLiteral("does not allow Codex (profile_forbidden_on_host)")) && page->projection().Facts.Rounds.size() == 2U,
-			   "the denied GHES profile is refused; nothing frozen");
-		expect(sends_in(agents / "codex-jsonl") == 0U && sends_in(claude) == 2U && sends_in(agents / "terminal") == 0U, "and nothing started in its place");
+		expect(model != nullptr && codex >= 0 && model->item(codex)->isEnabled() && !sheet->send_profile()->itemText(codex).endsWith(QStringLiteral("not allowed here")) && sheet->send_profile()->itemIcon(codex).isNull(),
+			   "Codex listed and choosable under a corporate host, with no refusal mark");
+		expect(page->projection().Facts.Rounds.size() == 2U && sends_in(agents / "codex-jsonl") == 0U && sends_in(claude) == 2U && sends_in(agents / "terminal") == 0U, "nothing frozen or started by looking");
 
 		// The external terminal gets the same bytes as plain text.
 		desktop.set_publication_account([] { return std::optional<application::github_publication_account>{ }; });

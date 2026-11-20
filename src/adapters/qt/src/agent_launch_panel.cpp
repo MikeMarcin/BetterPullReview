@@ -484,6 +484,8 @@ namespace bpr::qt {
 		KeptText.clear();
 		LastFailure.reset();
 		LastUnfinished.clear();
+		LastFailedWrites.clear();
+		LastFailedWriteCount = 0U;
 		RunningTurnCost.reset();
 		WorkspaceChecking = false;
 		Activity          = { };
@@ -600,6 +602,11 @@ namespace bpr::qt {
 		Activity       = core::end_agent_activity(std::move(Activity), static_cast<std::uint64_t>(qMax(qint64{ 0 }, agent_activity_clock_ms() - ActivityStartedMs)));
 		// [[BPR-2007]]. The host found these written in the scratch folder.
 		Activity.ScratchFiles = aResult.ScratchFiles;
+		// [[BPR-2305]]. The runtime's warnings fold with the turn, and a
+		// turn whose file changes all failed names them.
+		Activity.Warnings    = aResult.HarnessWarnings;
+		LastFailedWrites     = application::writes_all_failed(aResult) ? aResult.FailedWrites : std::vector<std::string>{ };
+		LastFailedWriteCount = application::writes_all_failed(aResult) ? aResult.FailedWriteCount : 0U;
 		if (aResult.Outcome != application::agent_run_outcome::success) {
 			Output->clear();
 			// [[BPR-1827]]. A run that read nothing still says what it

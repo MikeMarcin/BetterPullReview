@@ -269,6 +269,13 @@ namespace bpr::qt {
 		Builds->setEnabled(grants);
 		McpServers->setEnabled(grants);
 		Instructions->setEnabled(grants);
+		// [[BPR-2305]]. Codex names the two places by its own words: its
+		// developer instructions, or the start of the prompt it reads.
+		const auto codex = protocol == core::agent_protocol::codex_jsonl_exec || protocol == core::agent_protocol::codex_app_server;
+		Instructions->setItemText(0, codex ? tr("As developer instructions") : tr("System prompt"));
+		Instructions->setItemText(1, codex ? tr("At the start of the prompt") : tr("In the message"));
+		Instructions->setToolTip(codex ? tr("Where a built-in prompt's instructions go. Choose At the start of the prompt if Codex runs through a launcher that drops its developer instructions; Check tells you which one it follows.")
+									   : tr("Where a built-in prompt's instructions go. Choose In the message if this agent's wrapper ignores the system prompt."));
 	}
 
 	auto agent_entry_dialog::entry() const -> core::agent_entry

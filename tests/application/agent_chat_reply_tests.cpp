@@ -62,10 +62,11 @@ int main()
 	// [[BPR-1817]]. A send asks the agent the composer chose, and a refused
 	// send carries the one reason the composer says.
 	{
-		auto turns    = std::vector<application::agent_chat_turn_request>{ };
-		auto custom   = core::agent_profile{ .Id = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U), .DisplayName = "Fixture agent", .Executable = "/opt/agents/fixture", .Protocol = core::agent_protocol::claude_stream_json, .Workspace = core::agent_workspace_policy::disposable_review_workspace };
-		auto codex    = core::agent_profile{ .Id = core::codex_jsonl_profile_id, .DisplayName = "Codex", .Executable = "codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Workspace = core::agent_workspace_policy::disposable_review_workspace };
-		auto policies = std::vector{ core::built_in_agent_policy(core::git_host_id{ 2 }, core::built_in_agent_host_kind::explicit_ghes) };
+		auto turns  = std::vector<application::agent_chat_turn_request>{ };
+		auto custom = core::agent_profile{ .Id = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U), .DisplayName = "Fixture agent", .Executable = "/opt/agents/fixture", .Protocol = core::agent_protocol::claude_stream_json, .Workspace = core::agent_workspace_policy::disposable_review_workspace };
+		auto codex  = core::agent_profile{ .Id = core::codex_jsonl_profile_id, .DisplayName = "Codex", .Executable = "codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Workspace = core::agent_workspace_policy::disposable_review_workspace };
+		// A host that forbids Codex ([[BPR-2305]]: explicit GHES no longer does).
+		auto policies = std::vector{ core::agent_host_policy{ .Host = core::git_host_id{ 2 }, .Allowed = { core::claude_stream_json_profile_id, custom.Id } } };
 		auto outcomes = std::vector<application::agent_chat_outcome>{ };
 		class outcome_projection final : public application::agent_chat_projection_port
 		{

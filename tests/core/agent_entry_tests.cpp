@@ -51,9 +51,15 @@ namespace {
 			   "every slot is a valid profile of its protocol, shown under the entry's name");
 		const auto policy = core::built_in_agent_policy(core::git_host_id{ 1U }, core::built_in_agent_host_kind::github_com);
 		const auto ghes   = core::built_in_agent_policy(core::git_host_id{ 2U }, core::built_in_agent_host_kind::explicit_ghes);
+		// [[BPR-2305]] (owner, 2026-11-19). A custom Codex is allowed on
+		// explicit GHES because its protocol's built-in profile now is.
 		expect(std::ranges::find(policy.Allowed, codex) != policy.Allowed.end() && std::ranges::find(ghes.Allowed, claude) != ghes.Allowed.end()
-				   && std::ranges::find(ghes.Allowed, codex) == ghes.Allowed.end(),
+				   && std::ranges::find(ghes.Allowed, codex) != ghes.Allowed.end(),
 			   "an entry is allowed where its protocol's built-in profile is");
+		auto narrowed    = ghes;
+		narrowed.Allowed = { core::claude_stream_json_profile_id };
+		const auto rule  = [&](const core::agent_profile_id aSlot) { return core::decide_agent_invocation(*std::ranges::find(slots, aSlot, &core::agent_profile::Id), narrowed).Permitted; };
+		expect(!rule(codex), "an entry is not allowed where its protocol's built-in profile is not");
 	}
 
 	void test_what_an_entry_may_hold()
@@ -184,7 +190,10 @@ namespace {
 		facts.Policy    = core::built_in_agent_policy(core::git_host_id{ 2U }, core::built_in_agent_host_kind::explicit_ghes);
 		choices         = core::agent_setup_choices(facts);
 		expect(choices.size() == 2U && !choices[1].How && choices[1].Path.empty(), "an added popular agent whose program is not found has no program");
-		expect(choices[0].Verdict.Permitted && !choices[1].Verdict.Permitted, "each card carries its protocol's verdict on the host");
+		expect(choices[0].Verdict.Permitted && choices[1].Verdict.Permitted, "each card carries its protocol's verdict on the host: GHES permits Codex ([[BPR-2305]])");
+		facts.Policy = core::agent_host_policy{ .Host = core::git_host_id{ 3U }, .Allowed = { core::claude_stream_json_profile_id } };
+		choices      = core::agent_setup_choices(facts);
+		expect(choices[0].Verdict.Permitted && !choices[1].Verdict.Permitted, "and a host that forbids Codex refuses its card");
 		facts.Profiles = { };
 		expect(core::agent_setup_choices(facts).front().Verdict.Refusal == core::agent_invocation_refusal::profile_unknown, "a protocol with no profile is refused as unknown");
 		facts.Entries = { };

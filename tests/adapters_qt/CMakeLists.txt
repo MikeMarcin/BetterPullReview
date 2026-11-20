@@ -2272,6 +2272,13 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
     bpr_enable_warnings(test_agent_finding_cards_restart)
     bpr_add_network_isolated_test(NAME qt_agent_finding_cards_restart COMMAND test_agent_finding_cards_restart)
     set_tests_properties(qt_agent_finding_cards_restart PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-finding-cards-restart:pass" TIMEOUT 60)
+    # [[BPR-2305]]. A Codex turn through a sandbox launcher in the Agent tab.
+    bpr_add_executable(test_agent_codex_launcher_turn agent_codex_launcher_turn_tests.cpp)
+    target_link_libraries(test_agent_codex_launcher_turn PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_agent_codex_launcher_turn)
+    bpr_enable_warnings(test_agent_codex_launcher_turn)
+    bpr_add_network_isolated_test(NAME qt_agent_codex_launcher_turn COMMAND test_agent_codex_launcher_turn)
+    set_tests_properties(qt_agent_codex_launcher_turn PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-codex-launcher-turn:pass" TIMEOUT 60)
     # [[BPR-2241]]. A restored report's byline says how its turn ended.
     bpr_add_executable(test_agent_restored_byline agent_restored_byline_tests.cpp)
     target_link_libraries(test_agent_restored_byline PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)

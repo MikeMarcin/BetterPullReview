@@ -61,6 +61,19 @@ cannot become source truth or durable context identity.
 
 The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026-11-13: one comment is Local, Draft or Published, private notes become Local comments (marked with a computer icon, "Only on this computer"), and the Notes tab goes. For this RFC: the two context-supplement opt-ins read "Include my local comments" and "Include my drafts", with the same gates and bounds. Every other obligation here stands; no acceptance criterion is rewritten, and the change is built and verified under RFC-BPR-0127.
 
+### Owner amendment (2026-11-19): Codex on an explicit GHES host
+
+The owner decided on 2026-11-19 that Codex is allowed on an explicit GHES
+host, as a popular agent or as a custom agent ([[BPR-2305]]). The built-in
+GHES policy (`core::built_in_agent_policy`) now permits both Codex profiles
+beside the approved Claude stream JSON and external-terminal profiles, and an
+added agent of either Codex protocol follows through the [[BPR-1753]] rule.
+"Bind Git hosts to allowed/required agent profiles" stands: a host policy
+can still leave a profile out or require one, and a refusal is still decided
+in core before workspace or launcher effects. The acceptance criterion on a
+forbidden personal provider is unchanged and is now proved against a policy
+that leaves Codex out rather than against the built-in GHES policy.
+
 ## Acceptance criteria
 
 - Codex and corporate Claude fixture processes launch through their selected protocol with streamed output and cancellation.
