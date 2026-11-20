@@ -478,6 +478,15 @@ namespace bpr::core {
 	/// it is back in Needs me once a read says it is ready for review.
 	[[nodiscard]] auto home_section_for(const queue_item& aItem, home_draft_placement aDrafts = home_draft_placement::following) noexcept -> home_queue_section;
 
+	/// \brief [[BPR-2330]]. Whether a row waits quietly as another author's
+	/// draft: read as a draft, not mine, and Others' drafts on Following.
+	///
+	/// \details The owner, 2026-11-20, asked whether such a draft should still
+	/// notify: "Yes, stay quiet." While this holds the row interrupts for
+	/// nothing, whatever its bucket; once a read says it is ready, the usual
+	/// rules apply again. With Needs me it never holds.
+	[[nodiscard]] auto draft_waits_quietly(const queue_item& aItem, home_draft_placement aDrafts) noexcept -> bool;
+
 	/// \brief Whether one item is in this queue in the supplied role.
 	///
 	/// \details What "My role" filters by. GitHub's own `Role` is one way in;

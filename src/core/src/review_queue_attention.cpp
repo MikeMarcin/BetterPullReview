@@ -204,12 +204,17 @@ namespace bpr::core {
 		}
 		const auto section = home_section_for(aItem.Membership, aItem.Bucket);
 		// [[BPR-2326]]. Not mine (a draft of mine has its next move above) and
-		// not ready for review: nothing is asked of me yet. An unread draft
-		// status is not a draft.
-		if (section == home_queue_section::needs_you && aDrafts == home_draft_placement::following && aItem.Facts.Draft == std::optional{ true }) {
+		// not ready for review: nothing is asked of me yet.
+		if (section == home_queue_section::needs_you && draft_waits_quietly(aItem, aDrafts)) {
 			return home_queue_section::following;
 		}
 		return section;
+	}
+
+	auto draft_waits_quietly(const queue_item& aItem, const home_draft_placement aDrafts) noexcept -> bool
+	{
+		// An unread draft status is not a draft.
+		return aDrafts == home_draft_placement::following && aItem.Facts.Draft == std::optional{ true } && !aItem.Membership.authored();
 	}
 
 	auto name(const attention_bucket aBucket) noexcept -> std::string_view

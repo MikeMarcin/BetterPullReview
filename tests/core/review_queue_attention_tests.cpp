@@ -231,6 +231,25 @@ namespace {
 		expect(orderedDrafts.front().Ref == draft.Ref, "within Following, a draft asking for review sorts ahead of a quiet row");
 	}
 
+	/// [[BPR-2330]], the owner, 2026-11-20: "Yes, stay quiet."
+	void test_a_draft_waiting_in_following_is_quiet()
+	{
+		using placement      = core::home_draft_placement;
+		const auto requested = membership(core::github_role::requested_reviewer);
+		auto       draft     = core::queue_item{ .Ref = ref(1), .Membership = requested, .Bucket = core::attention_bucket::initial_review_requested };
+		draft.Facts.Draft    = true;
+		expect(core::draft_waits_quietly(draft, placement::following), "another author's draft in Following waits quietly");
+		expect(!core::draft_waits_quietly(draft, placement::needs_me), "with Needs me it does not");
+		auto ready        = draft;
+		ready.Facts.Draft = false;
+		expect(!core::draft_waits_quietly(ready, placement::following), "marked ready it does not");
+		ready.Facts.Draft = std::nullopt;
+		expect(!core::draft_waits_quietly(ready, placement::following), "an unread draft status is not a draft");
+		auto mine       = draft;
+		mine.Membership = membership(core::github_role::author);
+		expect(!core::draft_waits_quietly(mine, placement::following), "my own draft is not held quiet by this rule");
+	}
+
 	void test_observed_is_only_for_items_no_role_brought_in()
 	{
 		const auto activity
@@ -644,6 +663,7 @@ auto main() -> int
 	test_authored_never_displaces_work_the_reviewer_can_do();
 	test_my_draft_waits_on_nobody();
 	test_another_authors_draft_waits_in_following();
+	test_a_draft_waiting_in_following_is_quiet();
 	test_observed_is_only_for_items_no_role_brought_in();
 	test_every_bucket_names_and_explains_itself_distinctly();
 	test_the_queue_is_ordered_by_attention();

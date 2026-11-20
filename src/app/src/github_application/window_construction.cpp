@@ -1914,7 +1914,9 @@ namespace bpr::app {
 			if (!QueueActivity || QueueActivity->Ref != aRef) {
 				return false;
 			}
-			const auto request = application::notification_for(*item, QueueActivity->Activity.UnseenComments);
+			// [[BPR-2330]]. A draft waiting quietly in Following previews nothing.
+			const auto drafts  = Profile->WorkbenchPreferences && Profile->WorkbenchPreferences->accepted() ? Profile->WorkbenchPreferences->accepted()->Behaviour.OthersDrafts : core::home_draft_placement::following;
+			const auto request = application::notification_for(*item, QueueActivity->Activity.UnseenComments, drafts);
 			return request && Notifications->deliver(*request);
 		});
 

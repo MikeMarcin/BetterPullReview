@@ -1,13 +1,17 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_QUEUE_NOTIFICATION_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_QUEUE_NOTIFICATION_HPP
 
+#include "bpr/application/review_queue_refresh.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 
 #include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace bpr::application {
 	/// \brief What BetterPullReview asks the operating system to show.
@@ -84,10 +88,50 @@ namespace bpr::application {
 		core::attention_bucket aBucket) noexcept -> bool;
 
 	/// \brief Builds the request for one queue item, if it warrants one.
+	///
+	/// \details [[BPR-2330]]. Another author's draft waiting in Following
+	/// (`core::draft_waits_quietly` with `aDrafts`) warrants none.
 	[[nodiscard]] auto notification_for(
-		const core::queue_item& aItem,
-		std::uint32_t           aUnreadComments)
+		const core::queue_item&    aItem,
+		std::uint32_t              aUnreadComments,
+		core::home_draft_placement aDrafts = core::home_draft_placement::following)
 		-> std::optional<queue_notification_request>;
+
+	/// \brief [[BPR-2330]]. Whether one decided item may interrupt the
+	/// reviewer now: not ignored, a bucket worth it, and not another author's
+	/// draft waiting quietly in Following.
+	[[nodiscard]] auto notification_active(const core::queue_item& aItem, core::home_draft_placement aDrafts) noexcept -> bool;
+
+	/// \brief One item's notification state in one queue session: an item
+	/// notifies once when it enters a state, never again while it stays.
+	struct queue_notification_key
+	{
+		queue_session_id       Session;
+		core::pull_request_ref Ref;
+		core::attention_bucket Bucket = core::attention_bucket::quiet;
+
+		auto operator<=>(const queue_notification_key&) const = default;
+	};
+
+	/// \brief [[BPR-2330]]. The keys active after one projection, sorted and
+	/// unique, and the indices of the items that entered an active state in it.
+	struct queue_notification_step
+	{
+		std::vector<queue_notification_key> Active;
+		std::vector<std::size_t>            Due;
+
+		auto operator<=>(const queue_notification_step&) const = default;
+	};
+
+	/// \brief [[BPR-2330]]. Folds one projection's items into the active set.
+	///
+	/// \details An item is active while `notification_active` holds; it is due
+	/// when its key was not active before. A draft held quiet is never active,
+	/// so when it is marked ready its pending state is due then, once.
+	/// `aPrevious` is the last step's `Active`. Reads no clock.
+	[[nodiscard]] auto step_queue_notifications(std::span<const queue_notification_key> aPrevious, const queue_session_id& aSession,
+												std::span<const core::queue_item> aItems, core::home_draft_placement aDrafts)
+		-> queue_notification_step;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_QUEUE_NOTIFICATION_HPP
