@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2303"
 title: "A custom agent's program can be an app bundle or a program inside one (macOS)"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -81,4 +81,21 @@ never sets it.
 
 ## Evidence
 
-Filled in at closeout.
+Candidate `e650fa3e9` (rebased on main `32c2c083f`), dev preset, macOS:
+
+| Criterion | Check | Result |
+|---|---|---|
+| AC1, AC2 | `core_agent_program_bundle`: CFBundleExecutable chosen among several; named file kept whether or not it can run; name missing, a folder, or `../`, `.`, `..`, empty refused; no name with one, none or two executables; no `Contents/MacOS`; equal listings resolve alike | Passed |
+| AC1, AC2, AC4 | `qt_agent_setup_view` › `test_program_from_an_app_bundle`: real fixture bundles in a `QTemporaryDir` (XML Info.plist) read through `read_app_bundle`, chooser injected. Choosing `Work Agent.app` fills `…/Contents/MacOS/work-agent` (not its helper); a helper chosen inside is kept; no plist and one program resolves; Cancel changes nothing; a typed `.app/` is the program before the field is left and is shown once it is; Crowded, Misnamed and a removed `Contents/MacOS` are refused with the app's name and OK disabled; a missing `.app` and a plain path are left for the program check (plain path never read) | Passed |
+| AC5 | Same course: a dialog with no reader keeps `/Applications/Work Agent.app` as written; the composition installs the reader only under `__APPLE__`, and the default chooser is `QFileDialog` off macOS | Passed |
+| Boundaries | `architecture_boundaries`, `architecture_boundary_contract` (Qt adapter: no filesystem effect, no bare URL token) | Passed |
+| Regression | `core_agent_entry`, `workspace_clone_folder_scan` | Passed |
+| Standard | `format.py` (clang-format 22.1.8) and `tidy.py --warnings-as-errors` on every changed C++ file | Passed |
+| Docs | `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+
+AC3 (the native panel itself) is not driven by a test: the repository forbids
+driving the owner's desktop, and an `NSOpenPanel` cannot run offscreen. The
+panel's settings are in `program_chooser_mac.mm` and it compiles in the
+adapter; the owner's next Choose… on macOS is its first live use. Binary
+Info.plist reading rests on CoreFoundation, which the fixture course does not
+exercise (it writes XML).
