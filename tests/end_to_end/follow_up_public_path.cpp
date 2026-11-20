@@ -35,6 +35,7 @@
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/item_side_chat.hpp"
@@ -44,6 +45,7 @@
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QFrame>
@@ -339,6 +341,40 @@ auto main(int argc, char** argv) -> int
 			 "the draft holds the updated comment: " + cards->field_text(drafted->Id).value_or(QStringLiteral("<not open>")).toStdString());
 		expect(unpublished(), "nothing is published");
 
+		// [[BPR-2325]]. The draft deleted, the finding offers Draft comment
+		// again, and drafts the updated text again.
+		{
+			auto* remove = static_cast<QAbstractButton*>(nullptr);
+			wait([&] {
+				if (!cards->writing_draft()) {
+					cards->open_thread(drafted->Id);
+				}
+				QApplication::processEvents();
+				remove = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadDeleteDraft")) : nullptr;
+				return remove != nullptr && remove->isEnabled() && remove->isVisibleTo(&window);
+			},
+				 "the draft's Delete is offered");
+			remove->click();
+			QApplication::processEvents();
+			auto* const question = window.delete_draft_confirmation();
+			auto* const yes      = question != nullptr ? question->findChild<QAbstractButton*>(QStringLiteral("deleteDraftConfirmationConfirm")) : nullptr;
+			expect(yes != nullptr && question->isVisible(), "Delete asks first");
+			yes->click();
+			wait([&] { return std::ranges::none_of(cards->cards(), isDraft); }, "the draft is deleted");
+			wait([&] { return report->keep_state(issue.Outline).Phase == qt::report_keep_phase::offered; }, "the report's finding no longer says Drafted");
+			const auto again = report->dressed_view()->toPlainText();
+			expect(again.contains(QStringLiteral("Draft comment")) && card->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment")) != nullptr
+					   && card->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->isVisibleTo(card),
+				   "the report and the Agent tab card offer Draft comment again");
+			expect(report->press(issue.Outline, qt::report_link::keep), "Draft comment is pressed again");
+			wait([&] { return report->keep_state(issue.Outline).Phase == qt::report_keep_phase::kept; }, "the finding is drafted again: " + report->keep_state(issue.Outline).Why.toStdString());
+			wait([&] { return std::ranges::any_of(cards->cards(), isDraft); }, "a draft stands at the finding's line again");
+			const auto redrafted = std::ranges::find_if(cards->cards(), isDraft);
+			cards->open_thread(redrafted->Id);
+			wait([&] { return cards->field_text(redrafted->Id).value_or(QString{ }).contains(QStringLiteral("clamp the height as well as the width")); }, "with the finding's updated text");
+			expect(unpublished(), "nothing is published");
+		}
+
 		// [[BPR-2322]]. The log says what was asked and applied, and the
 		// anonymized export none of the words.
 		{
@@ -346,7 +382,9 @@ auto main(int argc, char** argv) -> int
 			expect(capture.has_value(), "the log is flushed for export");
 			const auto logs = tests::read_diagnostic_logs(*dataRoot);
 			for (const auto* const line : { "action=side_chat_ask failure=none", "action=side_chat_propose failure=none", "action=side_chat_apply failure=none", "apply=update_suggestion", "apply=update_draft", "apply=draft_reply",
-											"action=side_chat_apply failure=refused", "refusal=target_changed", "item=thread", "item=draft", "item=suggested_comment" }) {
+											"action=side_chat_apply failure=refused", "refusal=target_changed", "item=thread", "item=draft", "item=suggested_comment",
+											// [[BPR-2325]].
+											"action=finding_draft_cleared failure=none process=none exit=none duration_ms=0 count=1" }) {
 				expect(logs.find(line) != std::string::npos, std::string{ "the log has a side chat line with " } + line);
 			}
 			const auto document = application::prepare_diagnostic_export(logs, core::release_maintenance_revision{ 1U }, { .Policy = core::diagnostic_export_policy::anonymized }, *capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");

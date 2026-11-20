@@ -482,16 +482,17 @@ try {
 	// Owner report 2026-11-10, after BPR-2052. What was done with each finding
 	// card of a stored answer, read back after a restart.
 	{
-		auto       cards   = adapters::sqlite::make_agent_finding_card_store(scratch.path());
-		const auto block   = core::digest_agent_findings("{\"findings\":[]}");
-		const auto drafted = core::agent_finding_card_record{ .Findings = block, .Ordinal = 1U, .State = core::agent_finding_card_disposition::drafted };
+		auto       cards = adapters::sqlite::make_agent_finding_card_store(scratch.path());
+		const auto block = core::digest_agent_findings("{\"findings\":[]}");
+		// [[BPR-2325]]. A drafted card keeps the draft it made.
+		const auto drafted = core::agent_finding_card_record{ .Findings = block, .Ordinal = 1U, .State = core::agent_finding_card_disposition::drafted, .Note = 7U };
 		const auto refused = core::agent_finding_card_record{ .Findings = block, .Ordinal = 3U, .State = core::agent_finding_card_disposition::refused, .Why = "Not drafted: resolve the draft open at that line first." };
 		const auto noted   = core::agent_finding_card_record{ .Findings = block, .Ordinal = 2U, .State = core::agent_finding_card_disposition::noted, .Note = 42U };
 		expect(cards->load() == std::optional{ std::vector<core::agent_finding_card_record>{ } }, "no card is kept at first");
 		expect(cards->store(drafted) && cards->store(refused) && cards->store(noted), "drafted, refused and noted cards are kept");
 		cards.reset();
 		cards = adapters::sqlite::make_agent_finding_card_store(scratch.path());
-		expect(cards->load() == std::optional{ std::vector{ drafted, refused, noted } }, "a restart reads them back, least recently changed first");
+		expect(cards->load() == std::optional{ std::vector{ drafted, refused, noted } }, "a restart reads them back, least recently changed first, a drafted card with its draft");
 		auto undone  = refused;
 		undone.State = core::agent_finding_card_disposition::open;
 		expect(cards->store(undone) && cards->load() == std::optional{ std::vector{ drafted, noted } }, "an open card has no row");

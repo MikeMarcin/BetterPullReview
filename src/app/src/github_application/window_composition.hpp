@@ -1209,6 +1209,8 @@ namespace bpr::app {
 		[[nodiscard]] auto current(const core::bpr_window_context& aContext) const noexcept -> bool override;
 
 		void present_saved_drafts();
+		/// [[BPR-2325]]. Findings whose draft was deleted are open again.
+		void reopen_deleted_finding_drafts();
 
 		[[nodiscard]] auto reply_threads() const -> core::reply_thread_observation;
 
@@ -2761,6 +2763,9 @@ namespace bpr::app {
 		/// finding card of a stored answer: store, then host.
 		std::unique_ptr<application::agent_finding_card_store_port> AgentFindingCardStore;
 		std::unique_ptr<application::agent_finding_card_host>       AgentFindingCards;
+		/// [[BPR-2325]]. The drafts of drafted findings seen held, and by which
+		/// draft owner: one gone from that owner was deleted.
+		std::map<std::uint64_t, const application::shared_draft_application_host*> SeenFindingDrafts;
 		/// RFC-BPR-0125 (AC07). The names suggested prompts' turns were sent
 		/// under: store, then host.
 		std::unique_ptr<application::prompt_turn_name_store_port> PromptTurnNameStore;

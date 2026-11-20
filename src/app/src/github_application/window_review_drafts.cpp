@@ -3,6 +3,7 @@
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/application/github_host_authority.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 #include "bpr/application/reply_thread_observation.hpp"
 #include "bpr/application/review_preflight_observation.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
@@ -258,8 +259,59 @@ namespace bpr::app {
 			answer.Drafted.reset();
 			Window->agent_tab()->release_answer_draft(key);
 		}
+		reopen_deleted_finding_drafts();
 #endif
 	}
+
+#if defined(BPR_AGENT_INTEGRATIONS)
+	/// \brief [[BPR-2325]] (owner, 2026-11-20: "If I delete a draft comment
+	/// from a report, it looks like there's no way for me to re-add it").
+	/// A finding whose draft was deleted, by any route, is open again: its
+	/// kept record is forgotten (so a restart finds it open), and the report
+	/// and its Agent tab card offer Draft comment again.
+	///
+	/// \details A draft is deleted when the draft owner reads it discarded,
+	/// or no longer has it after this owner was seen holding it. A draft this
+	/// owner never held (another pull request's, or one not loaded yet)
+	/// changes nothing. A published draft is not deleted, so its finding
+	/// keeps saying Drafted.
+	void github_application::implementation::reopen_deleted_finding_drafts()
+	{
+		if (Closing || Window == nullptr || !AgentFindingCards || !SharedDrafts) {
+			return;
+		}
+		const auto* const owner   = SharedDrafts.get();
+		auto              cleared = std::uint32_t{ 0U };
+		for (const auto& record : AgentFindingCards->memory().records()) {
+			if (record.State != core::agent_finding_card_disposition::drafted || record.Note == 0U) {
+				continue;
+			}
+			const auto read = SharedDrafts->read(DraftConsumer, core::review_draft_id{ record.Note });
+			if (read.Accepted && read.Accepted->Draft.State != core::review_draft_state::discarded) {
+				SeenFindingDrafts[record.Note] = owner;
+				continue;
+			}
+			const auto seen = SeenFindingDrafts.find(record.Note);
+			if (!read.Accepted && (seen == SeenFindingDrafts.end() || seen->second != owner)) {
+				continue;
+			}
+			if (seen != SeenFindingDrafts.end()) {
+				SeenFindingDrafts.erase(seen);
+			}
+			AgentFindingCards->remember({ .Findings = record.Findings, .Ordinal = record.Ordinal });
+			if (auto* const tab = Window->agent_tab(); tab != nullptr) {
+				static_cast<void>(tab->reopen_drafted_finding(record.Findings, record.Ordinal));
+			}
+			if (auto* const report = Window->report_view(); report != nullptr) {
+				report->settle_keep({ .Findings = record.Findings, .Ordinal = record.Ordinal, .Card = true });
+			}
+			++cleared;
+		}
+		if (cleared != 0U) {
+			application::record_operation(Profile->DiagnosticLog.get(), { .Action = core::operation_action::finding_draft_cleared, .Count = cleared });
+		}
+	}
+#endif
 
 	/// \brief [[BPR-1374]]. The accepted snapshot's review threads, as the
 	/// core reads them for an unsent reply; incomplete with none.

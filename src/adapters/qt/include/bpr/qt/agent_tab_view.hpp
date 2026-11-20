@@ -448,7 +448,13 @@ namespace bpr::qt {
 		/// the card at `aOrdinal` of delivery `aSession`: the card shows it and
 		/// Draft drafts it. \returns Whether a card was there.
 		auto revise_finding(std::uint64_t aSession, std::size_t aOrdinal, const QString& aComment) -> bool;
+		/// \brief `aNote` is what the action made: the note when `noted`, the
+		/// review draft when `drafted` ([[BPR-2325]]).
 		void present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { }, std::uint64_t aNote = 0U);
+		/// \brief [[BPR-2325]]. The card at `aOrdinal` of the answer whose
+		/// findings block is `aFindings`, if it says Drafted, is open again:
+		/// its draft was deleted. \returns Whether a card was reopened.
+		auto reopen_drafted_finding(const core::agent_findings_digest& aFindings, std::size_t aOrdinal) -> bool;
 		/// \brief Owner report 2026-11-10, after BPR-2052. Where each state
 		/// `present_finding_card_state` gives a card under an answer with a
 		/// findings block is said, so the host keeps it.

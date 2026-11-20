@@ -324,6 +324,14 @@ namespace {
 		expect(!parse_operation_diagnosis("action=side_chat_ask failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 item=finding round=1 apply=none refusal=none question_chars=1 answer_chars=1 before_chars=0 after_chars=0"),
 			   "an unknown item kind is refused");
 		expect(character_count("héllo") == 5U && character_count("") == 0U, "lengths count characters, not bytes");
+		// [[BPR-2325]]. Findings reopened because their draft was deleted.
+		const auto cleared = operation_diagnosis{ .Action = operation_action::finding_draft_cleared, .Count = 2U };
+		expect(describe(cleared) == "action=finding_draft_cleared failure=none process=none exit=none duration_ms=0 count=2 written=0 read_back=0" && parse_operation_diagnosis(describe(cleared)) == cleared
+				   && family(operation_action::finding_draft_cleared) == operation_diagnosis_family::finding_card,
+			   "a cleared draft link is a finding card line");
+		auto failed    = cleared;
+		failed.Failure = operation_failure::refused;
+		expect(describe(failed).empty(), "and it cannot fail");
 	}
 } // namespace
 

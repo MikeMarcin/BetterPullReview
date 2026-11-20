@@ -55,6 +55,9 @@ namespace bpr::core {
 		/// [[BPR-2322]]. A question asked, a text proposed or a proposal used
 		/// in the side chat about one review item (`agent.side_chat`).
 		side_chat,
+		/// [[BPR-2325]]. What a finding card's kept disposition did on its
+		/// own (`agent.finding_card`).
+		finding_card,
 	};
 
 	/// \brief [[BPR-1828]]. What one operation line is about.
@@ -234,6 +237,9 @@ namespace bpr::core {
 		side_chat_propose,
 		/// [[BPR-2322]]. Use on a proposal: applied, or refused and why.
 		side_chat_apply,
+		/// [[BPR-2325]]. Findings whose draft was deleted are open again;
+		/// `Count` is how many.
+		finding_draft_cleared,
 	};
 
 	/// \brief [[RFC-BPR-0105]]. What a review submission line is about: what

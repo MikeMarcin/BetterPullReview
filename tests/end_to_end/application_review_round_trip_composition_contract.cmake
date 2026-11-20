@@ -3877,8 +3877,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# (window_follow_up.cpp, window_composition.hpp), its rounds are logged
 	# (window_tours.cpp), and a course reads the diagnostic log through the
 	# fixture access.
+	# [[BPR-2325]] reseal: a finding's draft identity is kept with it and
+	# a deleted draft reopens it (window_agent_setup.cpp,
+	# window_review_drafts.cpp, window_composition.hpp).
 	set(bpr_expected_production_app_manifest_digest
-        "242039375bec4e12512327c79867fcfe3ef61fc06d0926c75748b0b8c962dc5c"
+        "099ec541484df361c8b1344eb723d6f6cbab222f27022099cfdb3dd1f35b4549"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

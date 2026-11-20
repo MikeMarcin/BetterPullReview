@@ -531,6 +531,15 @@ try {
 			   && view.keep_state(view.findings()[2].Outline).Phase == bpr::qt::report_keep_phase::refused && said.contains(QStringLiteral("resolve the draft open")),
 		   "it says how many were drafted and which were not, and the refused one says why: " + view.draft_all_said().toStdString());
 	expect(view.draft_all_offered() == 1U && said.contains(QStringLiteral("Draft all (1)")), "the refused one is still offered");
+	// [[BPR-2325]]. B's draft was deleted: the host forgets its record, and
+	// the finding offers Draft comment again; A's, still there, keeps Drafted.
+	records.erase({ block, 1U });
+	view.settle_keep({ .Findings = block, .Ordinal = 1U, .Card = true });
+	QApplication::processEvents();
+	const auto reopened = view.dressed_view()->toPlainText();
+	expect(view.keep_state(view.findings()[0].Outline).Phase == bpr::qt::report_keep_phase::kept, "a finding whose draft is still there keeps Drafted");
+	expect(view.keep_state(view.findings()[1].Outline).Phase == bpr::qt::report_keep_phase::offered && view.draft_all_offered() == 2U && reopened.contains(QStringLiteral("Draft all (2)")),
+		   "the finding whose draft was deleted offers Draft comment again: " + reopened.toStdString());
 	check_inline_code();
 	check_keep_chip();
 	check_reading_width();

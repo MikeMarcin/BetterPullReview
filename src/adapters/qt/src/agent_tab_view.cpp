@@ -2357,7 +2357,7 @@ namespace bpr::qt {
 				// is open again.
 				.State = restored.State == agent_finding_card_state::working ? agent_finding_card_state::open : restored.State,
 				.Why   = restored.Why,
-				.Note  = restored.State == agent_finding_card_state::noted ? restored.Note : 0U,
+				.Note  = restored.State == agent_finding_card_state::noted || restored.State == agent_finding_card_state::drafted ? restored.Note : 0U,
 				.Turn  = aTurn,
 			});
 			auto* const widget = make_card(CardEntries.back(), Turns[aTurn].Widget);
@@ -3841,7 +3841,7 @@ namespace bpr::qt {
 		const auto settle = [aState, &aWhy, aNote](card_entry& aEntry) {
 			aEntry.State = aState;
 			aEntry.Why   = aWhy;
-			aEntry.Note  = aState == agent_finding_card_state::noted ? aNote : 0U;
+			aEntry.Note  = aState == agent_finding_card_state::noted || aState == agent_finding_card_state::drafted ? aNote : 0U;
 		};
 		for (auto& entry : CardEntries) {
 			if (entry.Session == aSession && entry.Ordinal == aOrdinal) {
@@ -3863,6 +3863,38 @@ namespace bpr::qt {
 				}
 			}
 		}
+	}
+
+	auto agent_tab_view::reopen_drafted_finding(const core::agent_findings_digest& aFindings, const std::size_t aOrdinal) -> bool
+	{
+		const auto reopen = [](card_entry& aEntry) {
+			aEntry.State = agent_finding_card_state::open;
+			aEntry.Why.clear();
+			aEntry.Note = 0U;
+		};
+		auto reopened = false;
+		for (auto& entry : CardEntries) {
+			if (entry.Ordinal == aOrdinal && entry.State == agent_finding_card_state::drafted && entry.Turn && *entry.Turn < Turns.size()
+				&& !Turns[*entry.Turn].FindingsBlock.empty() && core::digest_agent_findings(Turns[*entry.Turn].FindingsBlock) == aFindings) {
+				reopen(entry);
+				show_card_state(entry);
+				observe_card_state(Turns[*entry.Turn].FindingsBlock, entry);
+				reopened = true;
+			}
+		}
+		for (auto& kept : RetainedCards) {
+			if (kept.FindingsBlock.empty() || core::digest_agent_findings(kept.FindingsBlock) != aFindings) {
+				continue;
+			}
+			for (auto& entry : kept.Cards) {
+				if (entry.Ordinal == aOrdinal && entry.State == agent_finding_card_state::drafted) {
+					reopen(entry);
+					observe_card_state(kept.FindingsBlock, entry);
+					reopened = true;
+				}
+			}
+		}
+		return reopened;
 	}
 
 	void agent_tab_view::rebuild_findings()
