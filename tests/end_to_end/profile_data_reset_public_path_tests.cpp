@@ -233,8 +233,21 @@ try {
 	run.window()->show();
 	until([&] { return fs::exists(root / "state/v1/review-queue.sqlite3"); }, "the profile made its stores");
 	// [[BPR-2308]] retired the Review Cycles store; the tours store stands in.
-	until([&] { return fs::exists(root / "state/v1/review-tours.sqlite3") && fs::exists(root / "state/v1/appearance-settings.sqlite3") && fs::exists(root / "state/v1/epoch-catalog.sqlite3"); },
-		  "the profile made a store of each kind");
+	const auto missingStores = [&] {
+		auto missing = std::string{ };
+		for (const auto* name : { "review-tours", "appearance-settings", "epoch-catalog" }) {
+			if (!fs::exists(root / "state/v1" / (std::string{ name } + ".sqlite3"))) {
+				missing += std::string{ " " } + name;
+			}
+		}
+		return missing;
+	};
+	try {
+		until([&] { return missingStores().empty(); }, "the profile made a store of each kind");
+	} catch (...) {
+		std::cerr << "missing stores:" << missingStores() << '\n';
+		throw;
+	}
 
 	// An unacknowledged destructive reset never reaches the desktop.
 	{
