@@ -365,9 +365,9 @@ def build_review_directory(parent: Path) -> Path:
     review = parent / "review"
     review.mkdir(parents=True)
     packet = review / "operator-packet.md"
-    packet.write_text(packet_text(authority(SOURCE_TARGETS), SOURCE_COURSES))
+    packet.write_text(packet_text(authority(SOURCE_TARGETS), SOURCE_COURSES), newline="\n")
     (review / "operator-response.md").write_text(
-        response_text(packet.read_bytes()))
+        response_text(packet.read_bytes()), newline="\n")
     (review / "course-manifest.json").write_bytes(REC.canonical_json({
         "schema_name": REC.MANIFEST_SCHEMA,
         "schema_version": REC.MANIFEST_SCHEMA_VERSION,
@@ -856,7 +856,7 @@ class OutputContainmentTests(unittest.TestCase):
         self.review = Path(self.temporary.name) / "review"
         self.review.mkdir()
         self.packet = self.review / "operator-packet.md"
-        self.packet.write_text(packet_text())
+        self.packet.write_text(packet_text(), newline="\n")
         self.addCleanup(self.temporary.cleanup)
 
     def test_accepts_a_directory_beneath_the_review_directory(self) -> None:
@@ -963,9 +963,9 @@ class NoTrafficTests(unittest.TestCase):
         self.review = Path(self.temporary.name) / "review"
         self.review.mkdir()
         self.packet = self.review / "operator-packet.md"
-        self.packet.write_text(packet_text())
+        self.packet.write_text(packet_text(), newline="\n")
         self.response = self.review / "operator-response.md"
-        self.response.write_text(response_text(self.packet.read_bytes()))
+        self.response.write_text(response_text(self.packet.read_bytes()), newline="\n")
         auth = REC.parse_authority(self.packet.read_bytes())
         self.authority_sha = REC.sha256_bytes(REC.canonical_json(auth))
         self.manifest = self.review / "course-manifest.json"
@@ -1054,25 +1054,25 @@ class NoTrafficTests(unittest.TestCase):
             '"schema_version":1,"schema_version":1}',
             1,
         )
-        self.manifest.write_text(manifest)
+        self.manifest.write_text(manifest, newline="\n")
         self.assertEqual(REC.main(self.argv()), 3)
 
     def test_refuses_a_response_missing_the_statement(self) -> None:
         self.response.write_text(response_text(
-            self.packet.read_bytes(), "I approve something else entirely."))
+            self.packet.read_bytes(), "I approve something else entirely."), newline="\n")
         self.assertEqual(REC.main(self.argv()), 3)
 
     def test_refuses_a_response_bound_to_another_packet(self) -> None:
         response = response_text(self.packet.read_bytes()).replace(
             REC.sha256_bytes(self.packet.read_bytes()), "f" * 64)
-        self.response.write_text(response)
+        self.response.write_text(response, newline="\n")
         self.assertEqual(REC.main(self.argv()), 3)
 
     def test_refuses_stale_recorder_binding_before_any_request(self) -> None:
         current_digest = REC.sha256_bytes(Path(REC.__file__).read_bytes())
         packet = self.packet.read_text().replace(current_digest, "f" * 64)
-        self.packet.write_text(packet)
-        self.response.write_text(response_text(self.packet.read_bytes()))
+        self.packet.write_text(packet, newline="\n")
+        self.response.write_text(response_text(self.packet.read_bytes()), newline="\n")
         manifest = json.loads(self.manifest.read_bytes())
         manifest["packet_sha256"] = REC.sha256_bytes(self.packet.read_bytes())
         self.manifest.write_bytes(REC.canonical_json(manifest))
@@ -1100,12 +1100,12 @@ class NoTrafficTests(unittest.TestCase):
         )
         for response in responses:
             with self.subTest(response=response):
-                self.response.write_text(response)
+                self.response.write_text(response, newline="\n")
                 self.assertEqual(REC.main(self.argv()), 3)
 
     def test_capture_refuses_extra_response_prose_before_any_request(self) -> None:
         self.response.write_text(
-            response_text(self.packet.read_bytes()) + "\nHarmless note.\n")
+            response_text(self.packet.read_bytes()) + "\nHarmless note.\n", newline="\n")
         self.requests = 0
         original = REC.perform_request
 
@@ -1295,9 +1295,9 @@ class GraphqlExistingValidationTests(unittest.TestCase):
             "url": "https://api.github.com/graphql",
         }
         self.packet = self.review / "operator-packet.md"
-        self.packet.write_text(packet_text(authority([self.target])))
+        self.packet.write_text(packet_text(authority([self.target])), newline="\n")
         self.response = self.review / "operator-response.md"
-        self.response.write_text(response_text(self.packet.read_bytes()))
+        self.response.write_text(response_text(self.packet.read_bytes()), newline="\n")
         parsed_authority = REC.parse_authority(self.packet.read_bytes())
         self.authority_sha = REC.sha256_bytes(
             REC.canonical_json(parsed_authority))
@@ -1706,7 +1706,7 @@ class CaptureBindingTests(ReviewDirectoryMixin, unittest.TestCase):
         # touch the file, but verification asks only whether that commit stores
         # these bytes at this path. A later commit that leaves the capture alone
         # stores them too, and saying so is not a weaker claim.
-        (self.repository / "unrelated.txt").write_text("later work\n")
+        (self.repository / "unrelated.txt").write_text("later work\n", newline="\n")
         later_commit = self.commit_everything()
         self.assertEqual(REC.main(self.argv("--write-bindings")), 0)
         self.assertEqual(
@@ -2256,8 +2256,8 @@ class ConditionalCaptureTests(CaptureDriverMixin, unittest.TestCase):
             authority(
                 [conditional_target(digest, **target_overrides)],
                 version=REC.AUTHORITY_CONDITION_SOURCE_VERSION),
-            courses))
-        self.response.write_text(response_text(self.packet.read_bytes()))
+            courses), newline="\n")
+        self.response.write_text(response_text(self.packet.read_bytes()), newline="\n")
         self.manifest.write_bytes(REC.canonical_json({
             "schema_name": REC.MANIFEST_SCHEMA,
             "schema_version": REC.MANIFEST_SCHEMA_VERSION,
@@ -2480,8 +2480,8 @@ class SameRunConditionalCaptureTests(CaptureDriverMixin, unittest.TestCase):
         courses = self.PAIRED_COURSES if courses is None else courses
         self.packet.write_text(packet_text(
             authority(targets, version=REC.AUTHORITY_CONDITION_SOURCE_VERSION),
-            courses))
-        self.response.write_text(response_text(self.packet.read_bytes()))
+            courses), newline="\n")
+        self.response.write_text(response_text(self.packet.read_bytes()), newline="\n")
         self.manifest.write_bytes(REC.canonical_json({
             "schema_name": REC.MANIFEST_SCHEMA,
             "schema_version": REC.MANIFEST_SCHEMA_VERSION,
