@@ -81,8 +81,10 @@ Checked and left alone:
 
 macOS (arm64), dev preset in a task tree of its own built with
 `-gline-tables-only` debug info to stay inside the shared disk (behaviour is
-unchanged; only debug tables are smaller). Candidate: BPR-2332 `7c93a2fc7`,
-BPR-2334 `bc23441e6`, BPR-2333 `1dd688040` on main `02d9a2f84`. Every changed
+unchanged; only debug tables are smaller). Candidate: BPR-2332 `32d89181e`,
+BPR-2334 `fb4543543`, BPR-2333 `4a3cd3e15` on main `5f4d9c5b1` (first
+verified on main `02d9a2f84`, then the focused rows below again after the
+rebase over [[BPR-2329]]). Every changed
 C++ file passes `format_check.py` (clang-format 22.1.8) and `tidy.py
 --warnings-as-errors` (the changed `.cpp` files); `architecture_boundaries`
 and `python3 scripts/verify_documentation.py --root .` (`DOCUMENTATION_OK`)
