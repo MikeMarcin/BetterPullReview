@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2329"
 title: "Auto-merge is shown on the Overview and can be enabled or disabled there"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-2327"]
 priority: "P2"
@@ -77,3 +77,64 @@ after BPR-2327 landed. The change mirrors Ready for review's path
   retirement as the draft state's; Qt: Merge's auto-merge line gains Enable
   (method menu) and Disable with a status line.
 - Fixtures: the public-path fixture provider answers both mutations.
+
+## Checkpoint (2026-11-20, round 2)
+
+Work stopped at the coordinator's 3 GB free-disk line (2.4 GB free after the
+Qt build) with every layer but composition written and built. Branch
+`bpr-2329` (not on `main`) holds it as one WIP commit.
+
+Done and passing in the task tree:
+
+- Core `bpr/core/auto_merge.hpp`: offer, change decision (not open, not
+  allowed, already, not permitted, method not allowed), overlay.
+  `core_auto_merge` passes.
+- Read: `GetMergeAssessment` also asks `viewerCanEnableAutoMerge
+  viewerCanDisableAutoMerge baseRepository{autoMergeAllowed
+  mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed}` (inside
+  `pullRequest`); parsed into `github_merge_observation::AutoMergeSettings`,
+  absent meaning unknown. Field names checked live on BPR-Test.
+- Port, coordinator, application host (`change_auto_merge`, one-shot
+  `issue_auto_merge` grant, `permits_auto_merge`, terminal
+  `publish_auto_merge`), capability `ChangesAutoMerge`,
+  `pull_request_change::auto_merge`.
+- GitHub mutation contract: `ObserveAutoMerge`, `EnableAutoMerge`
+  (`mergeMethod`), `DisableAutoMerge`; observe first, write once, read back a
+  lost answer; live provider forwards it. `github_mutation_contract` and
+  `live_review_mutation_provider` pass (new
+  `test_auto_merge_goes_by_graphql_exactly`,
+  `test_auto_merge_is_observed_then_written_once`, including GitHub's live
+  refusal body).
+- Diagnostics: `change_draft_state`, `enable_auto_merge`,
+  `disable_auto_merge` actions (review-mutation lines, outcome and flags
+  only). **Found:** `with_review_mutation_diagnostics` never forwarded
+  `change_draft_state`, so with a diagnostic log (production) Ready for
+  review answered `unsupported`; the decorator now forwards both.
+- Projection: `overview_auto_merge` (line, pending, core offer), context
+  `ProjectedAutoMerge` and `AutoMergeControl`, `apply_auto_merge_state`.
+  `application_pull_request_overview` passes (existing courses).
+- Qt: Merge's auto-merge line, Enable auto-merge (menu of allowed methods),
+  Disable auto-merge, status line; `present_auto_merge_state`,
+  `workbench_window::publish_auto_merge`. `qt_pull_request_overview_page`
+  passes (existing courses). `architecture_boundaries` passes.
+
+Next action, in order:
+
+1. Composition (`github_application.cpp`, `window_composition.hpp`,
+   `window_construction.cpp`, `window_review_mutations.cpp`): mirror the
+   draft-state flow (`change_draft_state`, `publish_draft_state`,
+   `retire_draft_state_change`, `observe_draft_state_change`,
+   `present_overview_draft_state`) with an `auto_merge_overlay`; set
+   `AutoMergeControl` from `capabilities().ChangesAutoMerge`; wire
+   `overview_page()->set_auto_merge_dispatch`; refusal words per
+   `core::auto_merge_refusal` and `review_mutation_failure`.
+2. New courses: projection (view on/off, offer, not allowed, overlay in
+   place), Qt controls (menu methods, dispatch, busy, status), host
+   (`review_mutation_application_host_tests`: grant exclusivity and
+   terminal), and rerun `core_operation_diagnosis`, `github_paged_read`,
+   `coding_format_check`.
+3. Live: BPR-Test has `autoMergeAllowed: false` and its PRs are `CLEAN`;
+   GitHub refuses enable there ("Auto merge is not allowed for this
+   repository", checked live, nothing changed). A live enable-then-disable
+   needs the owner to turn on "Allow auto-merge" and a required check on a
+   BPR-Test branch (a settings change agents may not make).
