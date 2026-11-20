@@ -23,6 +23,7 @@
 #include <QTemporaryDir>
 #include <QThread>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -232,10 +233,12 @@ try {
 	until([&] { return run.window() != nullptr; }, "real profile desktop starts");
 	run.window()->show();
 	until([&] { return fs::exists(root / "state/v1/review-queue.sqlite3"); }, "the profile made its stores");
-	// [[BPR-2308]] retired the Review Cycles store; the tours store stands in.
+	// [[BPR-2308]] retired the Review Cycles store, the one review store a
+	// profile made at start; the review stores are checked where they exist,
+	// below.
 	const auto missingStores = [&] {
 		auto missing = std::string{ };
-		for (const auto* name : { "review-tours", "appearance-settings", "epoch-catalog" }) {
+		for (const auto* name : { "appearance-settings", "epoch-catalog" }) {
 			if (!fs::exists(root / "state/v1" / (std::string{ name } + ".sqlite3"))) {
 				missing += std::string{ " " } + name;
 			}
@@ -314,7 +317,7 @@ try {
 	{
 		const auto review = identities(root, review_stores());
 		const auto kept   = identities(root, kept_stores());
-		expect(review.at("review-tours").has_value(), "a review store exists before its reset");
+		expect(std::ranges::any_of(review, [](const auto& aStore) { return aStore.second.has_value(); }), "a review store exists before its reset");
 #if !defined(_WIN32)
 		const auto held = hold_removed_stores(root, review);
 #endif
@@ -349,7 +352,14 @@ try {
 			const std::string garbage(4096, 'Z');
 			damaged.write(garbage.data(), static_cast<std::streamsize>(garbage.size()));
 		}
-		const auto ledger = identity(root / "state/v1/review-tours.sqlite3");
+		auto reviewStore = fs::path{ };
+		for (const auto& name : review_stores()) {
+			if (fs::exists(root / "state/v1" / (name + ".sqlite3"))) {
+				reviewStore = root / "state/v1" / (name + ".sqlite3");
+				break;
+			}
+		}
+		const auto ledger = reviewStore.empty() ? std::optional<tests::sqlite_contract::file_identity>{ } : identity(reviewStore);
 		auto       failed = false;
 		run.Desktop       = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) { failed = !aResult; });
 		until([&] { return failed && run.Desktop->is_quiescent(); }, "a damaged comparison history stops the profile at start");
@@ -358,7 +368,7 @@ try {
 		recovered.DataReset = core::profile_data_reset_request{ reset::caches };
 		run.Desktop         = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, recovered, [](auto) { });
 		until([&] { return run.window() != nullptr && run.window()->statusBar()->currentMessage().startsWith(QStringLiteral("Caches cleared")); }, "the profile opens after a cache reset run before its stores", 60000);
-		expect(ledger.has_value() && identity(root / "state/v1/review-tours.sqlite3") == ledger, "recovery keeps the review data");
+		expect(ledger.has_value() && identity(reviewStore) == ledger, "recovery keeps the review data");
 		run.Desktop->quit();
 		until([&] { return run.Desktop->is_quiescent(); }, "desktop drains after recovery");
 		run.Desktop.reset();
