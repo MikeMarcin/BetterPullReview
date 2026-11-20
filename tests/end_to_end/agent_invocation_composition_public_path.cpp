@@ -1886,7 +1886,10 @@ auto main(int argc, char** argv) -> int
 		}
 		changeRepository()->click();
 		if (!wait_until([&] { return setup->isVisible() && button(QStringLiteral("agentSetupUseClone")) != nullptr && button(QStringLiteral("agentSetupUseClone"))->isEnabled(); })) {
-			return fail(*application, "wrapper-setup-repository", setup->step_text().toStdString());
+			const auto* const useClone = button(QStringLiteral("agentSetupUseClone"));
+			return fail(*application, "wrapper-setup-repository",
+						"visible=" + std::to_string(setup->isVisible()) + " button=" + std::to_string(useClone != nullptr) + " enabled=" + std::to_string(useClone != nullptr && useClone->isEnabled())
+							+ " buttons=" + std::to_string(setup->findChildren<QPushButton*>(QStringLiteral("agentSetupUseClone")).size()) + "\n" + setup->step_text().toStdString());
 		}
 		button(QStringLiteral("agentSetupUseClone"))->click();
 		if (!wait_until([&] { return button(QStringLiteral("agentSetupCheck")) != nullptr; })) {
