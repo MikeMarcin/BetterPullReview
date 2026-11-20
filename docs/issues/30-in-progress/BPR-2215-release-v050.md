@@ -523,3 +523,27 @@ Still open on Windows:
 
 Not run: the WSL2 i9 load-phase profile, and the full Release and Debug
 suites on both platforms and the eleven WSL2 timing courses at the lane head.
+
+### Ninth round, continued (2026-11-19)
+
+- **Setup-wrapper course, every platform.** Since BPR-2256 the agent setup is
+  not open by itself in this course: the pull request loaded (`files=1`,
+  "Pull request ready.") and the setup page stayed hidden behind the Agent tab,
+  on Ubuntu and on Windows. The course now opens setup from the Agent tab, as
+  the reviewer does. `agent_invocation_composition_contract` passes on Ubuntu
+  (lane head) and Windows (t19, `31b46c022`). `test_network_isolation_manifest`
+  passes on Windows at `31b46c022`.
+- **`review_tour_writing_wrapper`** passes on Ubuntu at the lane head; the
+  failure is Windows only and still open.
+- **`device_authorization` on Windows.** Run directly with the test's
+  environment and a 60 s budget, it passes: `PUBLIC_PATH_OK`, stage
+  `cancelled`, 16,754 ms. The registered flow's round trip to GitHub takes
+  about 17 s there against the 8 s self-test budget; the row passed in 2 to
+  3 s in BPR-0820's Windows record. Where the time goes is not measured.
+- **`git_process_contract` on Windows.** In t19 it failed at 20 s ("unexpected
+  reverse index fails exact on-disk validation"), and the next run could not
+  start it: Microsoft Defender detected `Trojan:Win32/Bearfoos.A!ml` (a
+  machine-learning heuristic) in the contract binary and in its copy as
+  `fake-exec\git.exe`, at 21:42 local during t19, and removed the binary. The
+  same binary passed in full in t12. Whether to exclude the build tree or
+  restore the file is the owner's.
