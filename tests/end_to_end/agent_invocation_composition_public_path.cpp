@@ -1755,7 +1755,7 @@ auto main(int argc, char** argv) -> int
 					return evidence.Quiescent && evidence.Statistics.ProcessStarts == previousStarts + 1U && panel->status_text().contains(QStringLiteral("success"));
 				},
 							extended_agent_budget)) {
-				const auto code = fail(*application, "native-first-turn", panel->status_text().toStdString());
+				const auto code = fail(*application, "native-first-turn", panel->status_text().toStdString() + "\noutput:" + panel->output_text().toStdString());
 				application.reset();
 				relayLog("native-first-turn");
 				return code;
