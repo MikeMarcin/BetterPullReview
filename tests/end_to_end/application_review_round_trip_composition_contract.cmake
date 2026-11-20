@@ -3886,8 +3886,10 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-2215]] reseal over main bafdd264f's app changes (BPR-2285 to
 	# BPR-2298), merged into this lane. No review mutation or submission
 	# path changed by the merge itself.
+	# [[BPR-2215]] reseal: the fixture agent admission splits a search PATH
+	# on the platform's list separator (window_agent_setup.cpp, tests only).
 	set(bpr_expected_production_app_manifest_digest
-        "d6bc5ad509830f3fcda2ee9ca791d186c4906b0cb07d8fb6301f383f2d172361"
+        "d15f207423f074a10a01dc8304d105f159d2bc24e0bee2752fd0d3429d8aaf25"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
