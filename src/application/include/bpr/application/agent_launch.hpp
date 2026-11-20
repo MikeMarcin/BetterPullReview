@@ -368,16 +368,9 @@ namespace bpr::application {
 		pasted,
 	};
 
-	/// \brief [[BPR-2142]], RFC-BPR-0104 (wrapper tests, 2026-11-11). The
-	/// Claude options that take several values. Each comes before `-p` and is
-	/// followed by another option, so none can take a prompt as its value.
-	inline constexpr std::array<std::string_view, 7> claude_variadic_options = {
-		"--add-dir", "--allowedTools", "--allowed-tools", "--disallowedTools", "--disallowed-tools", "--tools", "--mcp-config"
-	};
-
 	/// \brief [[BPR-2139]]. What an MCP-off Claude launch carries when no
 	/// restriction already does.
-	inline constexpr std::array<std::string_view, 3> claude_mcp_off_arguments = { "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})" };
+	inline constexpr std::array<std::string_view, 3> claude_mcp_off_arguments = { "--strict-mcp-config", "--mcp-config", core::claude_empty_mcp_configuration };
 
 	/// \brief RFC-BPR-0104, third review round (F1). The `-c` value that
 	/// makes Codex treat each checkout path as an untrusted project for the
@@ -496,6 +489,9 @@ namespace bpr::application {
 		unsupported_runtime_settings,
 		invalid_run_snapshot,
 		input_too_large,
+		/// [[BPR-2304]]. A Claude launch's arguments break a rule
+		/// `core::inspect_claude_arguments` holds; nothing is started.
+		unsafe_arguments,
 	};
 
 	/// \brief [[BPR-1375]]. The settings a tool-free writing launch gives

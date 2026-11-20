@@ -1833,6 +1833,47 @@ own, as they already were for a wrapper whose settings replace this app's;
 `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` still holds memory off, and the init
 check still refuses any tool or MCP server.
 
+**Every Claude launch keeps the audited argument rules ([[BPR-2304]],
+2026-11-19).** The owner's second harness audit of a sandboxing launcher
+(Claude Code 2.1.322) confirmed what the launch relies on and added one
+caution: the caller's environment may not reach the agent at all. Before a
+Claude stream-JSON launch is handed to the process port,
+`core::inspect_claude_arguments` checks this app's own arguments (an added
+agent's fixed arguments are prepended later, by `agent_entry_process`) and
+the launch is refused with `agent_launch_failure::unsafe_arguments` if any
+rule is broken:
+
+- `-p` (or `--print`) is present.
+- Instructions are never given as a file (`--append-system-prompt-file`,
+  `--system-prompt-file`): the audit saw the file form dropped with no trace,
+  while the inline form reached the model and was served from the prompt cache
+  on later calls even as the question changed.
+- Every option that takes several values (`core::claude_variadic_options`,
+  now including `--betas` and `--file`) comes before `-p`, so another option
+  always closes it (RFC-BPR-0104 AC11). The audit saw an open one swallow the
+  prompt.
+- Every path-scoped `Write(...)` permission rule has its `Edit(...)` twin: the
+  audit saw the `Edit` rule permit a write inside the folder and refuse one
+  outside, while a `Write` rule on its own allowed nothing.
+- A `--setting-sources` names only `user`; a launch in a pull request's
+  checkout and every tool-free or read-only run must name it.
+- Where MCP is off, `--strict-mcp-config` and only the empty configuration are
+  given.
+
+What the rules deliberately leave alone: the Agent tab in the reviewer's own
+checkout and a Review Cycle round read that folder's settings, and an agent
+whose MCP setting is `own` keeps its servers, as before. Instructions are
+pasted into the message only when the agent's switch says so or they would
+overflow a Windows command line. The audit's suggested order puts `-p` first,
+right after any fixed arguments; this app keeps `-p` after the multi-value
+options, as AC11 requires. The audit found the order makes no difference, so
+the change [[BPR-2178]] records for an earlier release that needed `-p`
+first stays with that card. Memory staying off for a custom agent's
+restricted run still depends on the environment variable alone, because no
+Claude option turns auto-memory off apart from `--settings`, and that option
+would replace the agent's sign-in. Through a launcher that drops the
+environment, the init frame reports `memory=on`, as above.
+
 The process starts in an empty folder of its own (`bpr-writing-XXXXXX` under
 the temporary folder), made by the agent adapter and removed when the request
 ends, never the review workspace, so nothing from the reviewed repository is

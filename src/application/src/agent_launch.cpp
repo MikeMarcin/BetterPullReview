@@ -3827,6 +3827,17 @@ namespace bpr::application {
 		case core::agent_protocol::external_terminal:
 			break;
 		}
+		// [[BPR-2304]]. The rules the owner's harness audits established hold
+		// for every Claude launch, or it is not started: only the user's
+		// settings in a pull request's checkout and on a restricted run, no
+		// MCP server where MCP is off.
+		if (aProfile.Protocol == core::agent_protocol::claude_stream_json) {
+			const auto restricted = aOptions.WritingOnly || aOptions.ReadOnlyTools;
+			const auto expected   = core::claude_argument_expectation{ .UserSettingsOnly = restricted || !aOptions.PullRequestCheckout.empty(), .McpOff = restricted || mcpOff };
+			if (core::inspect_claude_arguments(arguments, expected)) {
+				return std::unexpected(agent_launch_failure::unsafe_arguments);
+			}
+		}
 		if (aOptions.WritingOnly && aProfile.Protocol != core::agent_protocol::claude_stream_json) {
 			arguments.insert(arguments.end(), claude_writing_restrictions.begin(), claude_writing_restrictions.end());
 		}
@@ -3953,6 +3964,11 @@ namespace bpr::application {
 			if (aContinue) {
 				arguments.emplace_back("--resume");
 				arguments.push_back(*aContinue);
+			}
+			// [[BPR-2304]]. A round runs in the reviewer's own folder: its
+			// settings are theirs; MCP follows the agent's setting.
+			if (core::inspect_claude_arguments(arguments, { .McpOff = mcpOff })) {
+				return std::unexpected(agent_launch_failure::unsafe_arguments);
 			}
 			input = frame_agent_input(aProfile.Protocol, aDocument);
 			break;

@@ -13,6 +13,7 @@
 #include "bpr/core/agent_run_policy.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <expected>
 #include <iostream>
@@ -178,7 +179,7 @@ namespace {
 			const auto  print     = index_of(arguments, "-p");
 			expect(print < arguments.size(), "every Claude launch is in print mode");
 			for (auto at = std::size_t{ 0U }; at < arguments.size(); ++at) {
-				if (std::ranges::find(application::claude_variadic_options, arguments[at]) == application::claude_variadic_options.end()) {
+				if (std::ranges::find(core::claude_variadic_options, arguments[at]) == core::claude_variadic_options.end()) {
 					continue;
 				}
 				expect(at < print, "an option with several values comes before -p: " + arguments[at]);
@@ -190,6 +191,38 @@ namespace {
 			}
 			expect(!arguments.back().empty() && arguments.back() != "*", "a Claude launch never ends on an option's value that could take more");
 		}
+	}
+
+	/// [[BPR-2304]]. Every Claude launch this app builds keeps the rules the
+	/// owner's harness audit of 2026-11-19 established, as the core checks
+	/// them: inline instructions only, several-valued options closed before
+	/// `-p`, an `Edit` rule beside every scoped `Write` rule, only the
+	/// user's settings where the checkout or the run calls for it, and no MCP
+	/// server where MCP is off.
+	void test_every_claude_launch_keeps_the_audited_rules()
+	{
+		const auto claude  = profile(core::agent_protocol::claude_stream_json);
+		const auto scratch = application::agent_launch_grant{ .ScratchFolder = "/tmp/bpr-scratch/run-1" };
+		const auto grant   = application::agent_launch_grant{ .ScratchFolder = "/tmp/bpr-scratch/run-1", .BuildWorkspace = "/tmp/bpr-checkout" };
+		const auto checked = [](const std::expected<application::agent_launch_request, application::agent_launch_failure>& aLaunch, const core::claude_argument_expectation aExpected, const std::string_view aWhat) {
+			expect(aLaunch.has_value(), std::string{ aWhat } + ": the launch builds");
+			const auto problem = core::inspect_claude_arguments(aLaunch->Arguments, aExpected);
+			expect(!problem, std::string{ aWhat } + ": " + std::string{ problem ? core::stable_name(*problem) : "" });
+			return *aLaunch;
+		};
+		const auto user   = core::claude_argument_expectation{ .UserSettingsOnly = true, .McpOff = true };
+		const auto rule   = std::string{ "Answer in one sentence." };
+		const auto writes = checked(application::build_agent_launch(claude, supplement(), reader(), { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = rule }), user, "a writing run");
+		expect(std::ranges::search(writes.Arguments, std::array<std::string_view, 2>{ "--append-system-prompt", rule }).begin() != writes.Arguments.end(), "the instructions ride inline");
+		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .ReadOnlyTools = true, .Path = core::agent_run_path::tour_field_draft, .SystemInstructions = rule }), user, "a read-only run"));
+		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .WritingOnly = true, .Path = core::agent_run_path::local_draft_discussion }), user, "a resumed writing run"));
+		const auto granted = checked(application::build_agent_launch(claude, supplement(), reader(), { .Grant = grant, .PullRequestCheckout = { "/tmp/bpr-checkout" }, .SystemInstructions = rule }),
+									 { .UserSettingsOnly = true }, "a granted Agent tab run in a pull request's checkout");
+		expect(has(granted.Arguments, "Write(//tmp/bpr-scratch/run-1/**)") && has(granted.Arguments, "Edit(//tmp/bpr-scratch/run-1/**)"), "a scoped write is granted by its Edit rule, the Write rule beside it");
+		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .Grant = scratch, .Path = core::agent_run_path::follow_up }), { .McpOff = true }, "a fresh granted run"));
+		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .McpServers = core::agent_mcp_servers::own }), { }, "an Agent tab run with the agent's own MCP servers"));
+		static_cast<void>(checked(application::build_round_launch(claude, "round", std::string{ "session-1" }, "/tmp", reader()), { .McpOff = true }, "a resumed Review Cycle round"));
+		static_cast<void>(checked(application::build_round_launch(claude, "round", std::nullopt, "/tmp", reader(), core::agent_mcp_servers::own), { }, "a round with the agent's own MCP servers"));
 	}
 
 	/// RFC-BPR-0107 AC09. The instructions go in Claude's inline system
@@ -675,6 +708,7 @@ auto main(const int aCount, char** aArguments) -> int
 	test_each_launch_path_launches_in_its_session_mode();
 	test_mcp_servers_follow_the_agents_setting();
 	test_options_with_several_values_come_before_the_prompt_flag();
+	test_every_claude_launch_keeps_the_audited_rules();
 	test_built_in_instructions_reach_the_system_prompt();
 	test_the_writing_prompt_splits_into_instructions_and_material();
 	test_a_local_draft_discussion_resumes_its_native_session();

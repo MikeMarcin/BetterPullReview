@@ -5,6 +5,7 @@
 /// process or file.
 
 #include "bpr/application/agent_program_resolution.hpp"
+#include "bpr/core/agent_run_policy.hpp"
 
 #include <algorithm>
 #include <array>
@@ -13,6 +14,7 @@
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -315,6 +317,37 @@ namespace {
 			   "the stock Claude Code keeps this app's writing settings");
 		expect(others.Requests.empty(), "no launch reached the built-in profiles' resolution");
 	}
+
+	/// \brief [[BPR-2304]]. A custom Claude agent's fixed arguments come
+	/// first, as the harness audit's recommended shape has them, and this
+	/// app's own arguments follow unchanged. A fixed list that ends on an
+	/// option taking several values is closed by the option this app's
+	/// arguments start with, so it never takes one of them.
+	void test_a_custom_agents_fixed_arguments_come_first()
+	{
+		recording_port direct;
+		recording_port others;
+		auto           source = std::make_shared<application::agent_entry_source>();
+		auto           port   = application::agent_entry_process{ direct, others, source, [](const std::string_view) { return std::optional<agent_wrapper_refusal>{ }; },
+																  [] { return std::optional<core::claude_search_candidate>{ }; }, [](core::agent_program) { return std::optional<core::agent_search_candidate>{ }; } };
+		const auto     fixed  = std::vector<std::string>{ "--no-extra-output", "--add-dir", "/opt/work/shared" };
+		source->set(*core::add_agent_entry({ }, { .Name = "Sandbox launcher", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/launcher", .Arguments = fixed }));
+		const auto profile    = core::entry_profile_id(source->current().front());
+		auto       supplement = core::agent_context_supplement{ };
+		supplement.Session    = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile };
+		supplement.Message    = "What does this change do?";
+		const auto launch     = application::build_agent_launch({ .Id = profile, .DisplayName = "Sandbox launcher", .Executable = "claude", .Protocol = core::agent_protocol::claude_stream_json }, supplement,
+																[](const std::string&) -> std::optional<std::string> { return std::nullopt; },
+																{ .Path = core::agent_run_path::follow_up, .SystemInstructions = "Answer in one sentence." });
+		expect(launch.has_value(), "the launch builds");
+		static_cast<void>(port.run(*launch, 1));
+		expect(direct.Requests.size() == 1U, "the custom agent runs directly");
+		const auto& ran = direct.Requests.back().Arguments;
+		expect(ran.size() > fixed.size() && std::ranges::equal(std::span{ ran }.first(fixed.size()), fixed), "the fixed arguments lead");
+		expect(std::ranges::equal(std::span{ ran }.subspan(fixed.size()), launch->Arguments), "this app's arguments follow, unchanged");
+		expect(ran[fixed.size()].starts_with("-"), "an option closes the fixed --add-dir before anything of this app's");
+		expect(!core::inspect_claude_arguments(std::span{ ran }.subspan(fixed.size()), { .McpOff = true }), "this app's part keeps the audited rules");
+	}
 }
 
 auto main() -> int
@@ -325,6 +358,7 @@ auto main() -> int
 	test_pass_through();
 	test_added_agents_run_as_their_entries();
 	test_enhance_runs_the_custom_agent_on_its_own_sign_in();
+	test_a_custom_agents_fixed_arguments_come_first();
 	std::cout << "agent-program-resolution-tests:pass\n";
 	return EXIT_SUCCESS;
 }
