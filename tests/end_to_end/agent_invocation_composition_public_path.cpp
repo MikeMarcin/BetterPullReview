@@ -3021,7 +3021,8 @@ auto main(int argc, char** argv) -> int
 			&& field("brief.description.cut_bytes") == "0" && field("brief.file.count") != "0" && field("brief.skill.source") == "built_in"
 			// [[BPR-2140]]. The skill's text rides the system prompt where the
 			// agent takes one, and the brief says so; otherwise the brief has it.
-			&& field("brief.skill.version") == "5"
+			// [[BPR-2298]] made the shipped skill version 6.
+			&& field("brief.skill.version") == "6"
 			&& (field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos || (field("brief.skill.text") == "<absent>" && field("brief.skill.location") == "system_prompt"))
 			// [[BPR-2059]]. The shipped suggested-comment format rides the brief.
 			&& field("brief.comment_format.source") == "shipped" && field("brief.comment_format.version") == "suggested-comment-v3"
