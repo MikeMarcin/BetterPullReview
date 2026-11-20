@@ -567,12 +567,12 @@ namespace {
 			   "the resident menus retain their accessible names");
 		const auto fileActions = file->actions();
 		// [[BPR-1863]]. New Window leads, before a separator.
-		expect(fileActions.size() == 5 && fileActions[0] == menu.new_window_action() && fileActions[1]->isSeparator()
+		// [[BPR-2308]] retired Open Project… with Review Cycles.
+		expect(fileActions.size() == 4 && fileActions[0] == menu.new_window_action() && fileActions[1]->isSeparator()
 				   && fileActions[2] == menu.quit_action()
-				   && fileActions[3]->text() == QStringLiteral("Open Project…") && !fileActions[3]->isEnabled()
-				   && fileActions[4]->text() == QStringLiteral("Close Tab") && !fileActions[4]->isEnabled(),
-			   "File opens with New Window and retains Open Project… and Close Tab after Quit, disabled with no window");
-		expect(fileActions[4]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
+				   && fileActions[3]->text() == QStringLiteral("Close Tab") && !fileActions[3]->isEnabled(),
+			   "File opens with New Window and retains Close Tab after Quit, disabled with no window");
+		expect(fileActions[3]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
 				   && pullRequestActions[10]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
 				   && pullRequestActions[11]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
 				   && pullRequestActions[8]->shortcut().isEmpty() && viewActions[19]->shortcut().isEmpty(),
@@ -586,7 +586,7 @@ namespace {
 				   && viewActions[26]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
 			   "tab navigation keeps the Control key");
 #endif
-		for (auto* const action : { fileActions[3], fileActions[4], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[9], viewActions[13], viewActions[14], viewActions[15], viewActions[19], viewActions[21], viewActions[22], viewActions[23], viewActions[25], viewActions[26], pullRequestActions[0], pullRequestActions[1], pullRequestActions[4], pullRequestActions[5], pullRequestActions[8], pullRequestActions[10], pullRequestActions[11], pullRequestActions[12], pullRequestActions[13], helpActions[0], helpActions[2], helpActions[3], helpActions[5], helpActions[6] }) {
+		for (auto* const action : { fileActions[3], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[9], viewActions[13], viewActions[14], viewActions[15], viewActions[19], viewActions[21], viewActions[22], viewActions[23], viewActions[25], viewActions[26], pullRequestActions[0], pullRequestActions[1], pullRequestActions[4], pullRequestActions[5], pullRequestActions[8], pullRequestActions[10], pullRequestActions[11], pullRequestActions[12], pullRequestActions[13], helpActions[0], helpActions[2], helpActions[3], helpActions[5], helpActions[6] }) {
 			action->trigger();
 		}
 		expect(managed == 1U && quit == 1U && intents.size() == 2U,
