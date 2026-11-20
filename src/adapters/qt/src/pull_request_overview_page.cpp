@@ -887,6 +887,41 @@ namespace bpr::qt {
 		MergeNotes = makeText(attentionDetails, QStringLiteral("overviewMergeNotes"));
 		MergeNotes->hide();
 		attention.Details->addWidget(MergeNotes);
+		// [[BPR-2329]]. Auto-merge: its line, Enable (a menu of the methods the
+		// repository allows) or Disable, and how a change is going.
+		AutoMergeBox              = new QWidget{ attentionDetails };
+		auto* const autoMergeBody = new QVBoxLayout{ AutoMergeBox };
+		autoMergeBody->setContentsMargins(0, 2, 0, 0);
+		autoMergeBody->setSpacing(4);
+		AutoMergeLine = makeText(AutoMergeBox, QStringLiteral("overviewAutoMergeLine"));
+		autoMergeBody->addWidget(AutoMergeLine);
+		auto* const autoMergeActions = new QHBoxLayout{ };
+		autoMergeActions->setContentsMargins(0, 0, 0, 0);
+		EnableAutoMerge = new QToolButton{ AutoMergeBox };
+		EnableAutoMerge->setObjectName(QStringLiteral("overviewEnableAutoMerge"));
+		EnableAutoMerge->setText(QStringLiteral("Enable auto-merge"));
+		EnableAutoMerge->setToolTip(QStringLiteral("Have GitHub merge this pull request once every requirement is met"));
+		EnableAutoMerge->setPopupMode(QToolButton::InstantPopup);
+		EnableAutoMerge->setMenu(new QMenu{ EnableAutoMerge });
+		EnableAutoMerge->hide();
+		DisableAutoMerge = new QPushButton{ QStringLiteral("Disable auto-merge"), AutoMergeBox };
+		DisableAutoMerge->setObjectName(QStringLiteral("overviewDisableAutoMerge"));
+		DisableAutoMerge->setToolTip(QStringLiteral("Stop GitHub from merging this pull request on its own"));
+		DisableAutoMerge->hide();
+		connect(DisableAutoMerge, &QAbstractButton::clicked, this, [this] {
+			if (AutoMergeDispatch && !AutoMergeBusy) {
+				AutoMergeDispatch(core::auto_merge_change::disable, std::nullopt);
+			}
+		});
+		autoMergeActions->addWidget(EnableAutoMerge);
+		autoMergeActions->addWidget(DisableAutoMerge);
+		autoMergeActions->addStretch(1);
+		autoMergeBody->addLayout(autoMergeActions);
+		AutoMergeStatus = makeText(AutoMergeBox, QStringLiteral("overviewAutoMergeStatus"));
+		AutoMergeStatus->hide();
+		autoMergeBody->addWidget(AutoMergeStatus);
+		AutoMergeBox->hide();
+		attention.Details->addWidget(AutoMergeBox);
 		// [[BPR-1579]]. A disclosure bar drawn from the theme, not the style.
 		RequirementDisclosure = new disclosure_button{ attentionDetails };
 		RequirementDisclosure->setObjectName(QStringLiteral("overviewRequirementDisclosure"));

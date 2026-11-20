@@ -115,6 +115,26 @@ namespace bpr::application {
 				finish(kind, watch, failure_of(result), marks);
 				return result;
 			}
+			// [[BPR-2329]]. A draft-state change and an auto-merge change reach
+			// the provider through this record too; before, a draft-state
+			// change stopped here as unsupported.
+			[[nodiscard]] auto change_draft_state(const review_draft_state_request& aRequest, std::stop_token aStop)
+				-> std::expected<review_draft_state_receipt, review_mutation_failure> override
+			{
+				const auto watch  = start(action::change_draft_state);
+				auto       result = Provider->change_draft_state(aRequest, std::move(aStop));
+				finish(action::change_draft_state, watch, failure_of(result), result ? flags{ .Written = result->Written, .ReadBack = result->ConfirmedByReadBack } : flags{ });
+				return result;
+			}
+			[[nodiscard]] auto change_auto_merge(const review_auto_merge_request& aRequest, std::stop_token aStop)
+				-> std::expected<review_auto_merge_receipt, review_mutation_failure> override
+			{
+				const auto kind   = aRequest.Change == core::auto_merge_change::enable ? action::enable_auto_merge : action::disable_auto_merge;
+				const auto watch  = start(kind);
+				auto       result = Provider->change_auto_merge(aRequest, std::move(aStop));
+				finish(kind, watch, failure_of(result), result ? flags{ .Written = result->Written, .ReadBack = result->ConfirmedByReadBack } : flags{ });
+				return result;
+			}
 			[[nodiscard]] auto reconcile_publication(const review_mutation_request& aRequest, std::stop_token aStop) -> review_mutation_submission override
 			{
 				const auto watch  = operation_stopwatch{ };

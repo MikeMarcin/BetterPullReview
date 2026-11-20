@@ -2261,7 +2261,7 @@ namespace bpr::adapters::github::detail {
 				query += ",$after:String!";
 			}
 			query += "){repository(owner:$owner,name:$name){id pullRequest(number:$number){id headRefOid baseRefOid baseRefName ";
-			query += assessment ? "mergeStateStatus reviewDecision autoMergeRequest{enabledAt mergeMethod enabledBy{login}} isInMergeQueue mergeQueueEntry{state position}" : "reviewRequests(first:100";
+			query += assessment ? "mergeStateStatus reviewDecision autoMergeRequest{enabledAt mergeMethod enabledBy{login}} isInMergeQueue mergeQueueEntry{state position} viewerCanEnableAutoMerge viewerCanDisableAutoMerge baseRepository{autoMergeAllowed mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed}" : "reviewRequests(first:100";
 			if (!assessment) {
 				if (!aRequest.ReviewCursor.empty()) {
 					query += ",after:$after";

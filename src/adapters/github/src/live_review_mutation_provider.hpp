@@ -79,6 +79,12 @@ namespace bpr::adapters::github {
 			const application::review_draft_state_request& aRequest,
 			std::stop_token                                aStop)
 			-> std::expected<application::review_draft_state_receipt, application::review_mutation_failure> override;
+		/// [[BPR-2329]]. Enables or disables auto-merge through the leased
+		/// GraphQL read and write.
+		[[nodiscard]] auto change_auto_merge(
+			const application::review_auto_merge_request& aRequest,
+			std::stop_token                               aStop)
+			-> std::expected<application::review_auto_merge_receipt, application::review_mutation_failure> override;
 		[[nodiscard]] auto reconcile_publication(const application::review_mutation_request&, std::stop_token) -> application::review_mutation_submission override;
 		void               repair_pending_publications(std::stop_token) override;
 		[[nodiscard]] auto capabilities() const

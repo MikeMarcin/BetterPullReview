@@ -579,6 +579,10 @@ namespace bpr::qt {
 		/// Overview's chip, banner and Merge redraw, and nothing else is
 		/// visited. An overview not yet presented is published whole.
 		void publish_draft_state(const application::pull_request_overview_projection& aProjection);
+		/// \brief [[BPR-2329]]. Adopts a change to the presented overview's
+		/// auto-merge alone: Merge redraws and nothing else is visited. An
+		/// overview not yet presented is published whole.
+		void publish_auto_merge(const application::pull_request_overview_projection& aProjection);
 		/// \brief [[BPR-1852]]. The draft chip beside the pull request's name
 		/// in the title row: shown while the pull request is an open draft
 		/// (the read's state, or the viewer's change it has not caught up with).

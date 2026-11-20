@@ -6,6 +6,7 @@
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/core/appearance_contrast.hpp"
+#include "bpr/core/auto_merge.hpp"
 #include "bpr/core/draft_state.hpp"
 #include "bpr/core/github_window_read.hpp"
 #include "bpr/core/reviewer_request.hpp"
@@ -826,6 +827,21 @@ namespace bpr::qt {
 		/// none, is refused, for the caller to present whole.
 		/// \returns Whether the change was taken.
 		[[nodiscard]] auto present_draft_state(const application::pull_request_overview_projection& aProjection) -> bool;
+		/// \brief [[BPR-2329]]. Where Enable auto-merge (with the method
+		/// chosen) and Disable auto-merge go. Nothing is sent by the page.
+		void set_auto_merge_dispatch(std::function<void(core::auto_merge_change, std::optional<core::merge_method>)> aDispatch);
+		/// \brief [[BPR-2329]]. Says how a change is going under auto-merge's
+		/// line; `aBusy` keeps its buttons from being pressed until GitHub
+		/// answers. An empty text clears the line.
+		void present_auto_merge_status(const QString& aText, bool aBusy = false);
+		/// \brief [[BPR-2329]]. Takes auto-merge of the overview already
+		/// presented and redraws only Merge; another pull request, or none, is
+		/// refused, for the caller to present whole.
+		[[nodiscard]] auto present_auto_merge_state(const application::pull_request_overview_projection& aProjection) -> bool;
+		[[nodiscard]] auto enable_auto_merge_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto disable_auto_merge_button() const noexcept -> QAbstractButton*;
+		[[nodiscard]] auto auto_merge_line() const noexcept -> QLabel*;
+		[[nodiscard]] auto auto_merge_status() const noexcept -> QLabel*;
 		[[nodiscard]] auto draft_chip() const noexcept -> QWidget*;
 		[[nodiscard]] auto ready_for_review_button() const noexcept -> QAbstractButton*;
 		[[nodiscard]] auto convert_to_draft_button() const noexcept -> QAbstractButton*;
@@ -936,48 +952,57 @@ namespace bpr::qt {
 		QLabel*                                                      MergeConditions  = nullptr;
 		/// [[BPR-2327]]. The conflict's sentence, files, actions and commands,
 		/// what else is required beside it, and auto-merge and the queue.
-		QWidget*                                                    MergeConflictBox  = nullptr;
-		QLabel*                                                     ConflictSentence  = nullptr;
-		QVBoxLayout*                                                ConflictFiles     = nullptr;
-		QLabel*                                                     ConflictFilesNote = nullptr;
-		QPushButton*                                                ResolveOnGitHub   = nullptr;
-		QPushButton*                                                CopyCommands      = nullptr;
-		QLabel*                                                     ConflictCommands  = nullptr;
-		QLabel*                                                     AlsoRequired      = nullptr;
-		QLabel*                                                     MergeNotes        = nullptr;
-		std::function<void()>                                       ConflictsPageDispatch;
-		QVBoxLayout*                                                Requests              = nullptr;
-		QLabel*                                                     RequestsNote          = nullptr;
-		QLabel*                                                     RequirementDetails    = nullptr;
-		QToolButton*                                                RequirementDisclosure = nullptr;
-		QWidget*                                                    CheckDetails          = nullptr;
-		QLabel*                                                     ChecksNote            = nullptr;
-		QTreeWidget*                                                CheckList             = nullptr;
-		QLabel*                                                     CheckHeading          = nullptr;
-		QPlainTextEdit*                                             CheckDescription      = nullptr;
-		QPushButton*                                                CheckOpen             = nullptr;
-		QHash<QString, QTreeWidgetItem*>                            CheckItems;
-		std::function<void(const std::string&, const std::string&)> CheckLinkDispatch;
-		overview_colours                                            Colours;
-		overview_path_dispatch                                      FileDispatch;
-		overview_path_dispatch                                      WaitingOpenDispatch;
-		overview_path_dispatch                                      CachedSourceDispatch;
-		bool                                                        Cached               = false;
-		std::size_t                                                 RequestRowBuilds     = 0U;
-		std::size_t                                                 ReviewRequestUpdates = 0U;
-		std::string                                                 CachedBase, CachedHead;
-		QPlainTextEdit*                                             CachedSource     = nullptr;
-		QPushButton*                                                CachedSourceBack = nullptr;
-		QHBoxLayout*                                                TechnicalRow     = nullptr;
-		QLabel*                                                     Title            = nullptr;
-		QLabel*                                                     Summary          = nullptr;
-		overview_summary_splitter*                                  SummarySplit     = nullptr;
-		QWidget*                                                    SummaryPane      = nullptr;
-		QWidget*                                                    FilesPane        = nullptr;
-		overview_description_view*                                  Body             = nullptr;
-		QWidget*                                                    Header           = nullptr;
-		QWidget*                                                    Side             = nullptr;
-		QLabel*                                                     EmptyBody        = nullptr;
+		QWidget*              MergeConflictBox  = nullptr;
+		QLabel*               ConflictSentence  = nullptr;
+		QVBoxLayout*          ConflictFiles     = nullptr;
+		QLabel*               ConflictFilesNote = nullptr;
+		QPushButton*          ResolveOnGitHub   = nullptr;
+		QPushButton*          CopyCommands      = nullptr;
+		QLabel*               ConflictCommands  = nullptr;
+		QLabel*               AlsoRequired      = nullptr;
+		QLabel*               MergeNotes        = nullptr;
+		std::function<void()> ConflictsPageDispatch;
+		/// [[BPR-2329]]. Auto-merge's line, its two buttons and its status.
+		QWidget*                                                                        AutoMergeBox     = nullptr;
+		QLabel*                                                                         AutoMergeLine    = nullptr;
+		QToolButton*                                                                    EnableAutoMerge  = nullptr;
+		QPushButton*                                                                    DisableAutoMerge = nullptr;
+		QLabel*                                                                         AutoMergeStatus  = nullptr;
+		std::function<void(core::auto_merge_change, std::optional<core::merge_method>)> AutoMergeDispatch;
+		bool                                                                            AutoMergeBusy = false;
+		void                                                                            present_auto_merge_controls();
+		QVBoxLayout*                                                                    Requests              = nullptr;
+		QLabel*                                                                         RequestsNote          = nullptr;
+		QLabel*                                                                         RequirementDetails    = nullptr;
+		QToolButton*                                                                    RequirementDisclosure = nullptr;
+		QWidget*                                                                        CheckDetails          = nullptr;
+		QLabel*                                                                         ChecksNote            = nullptr;
+		QTreeWidget*                                                                    CheckList             = nullptr;
+		QLabel*                                                                         CheckHeading          = nullptr;
+		QPlainTextEdit*                                                                 CheckDescription      = nullptr;
+		QPushButton*                                                                    CheckOpen             = nullptr;
+		QHash<QString, QTreeWidgetItem*>                                                CheckItems;
+		std::function<void(const std::string&, const std::string&)>                     CheckLinkDispatch;
+		overview_colours                                                                Colours;
+		overview_path_dispatch                                                          FileDispatch;
+		overview_path_dispatch                                                          WaitingOpenDispatch;
+		overview_path_dispatch                                                          CachedSourceDispatch;
+		bool                                                                            Cached               = false;
+		std::size_t                                                                     RequestRowBuilds     = 0U;
+		std::size_t                                                                     ReviewRequestUpdates = 0U;
+		std::string                                                                     CachedBase, CachedHead;
+		QPlainTextEdit*                                                                 CachedSource     = nullptr;
+		QPushButton*                                                                    CachedSourceBack = nullptr;
+		QHBoxLayout*                                                                    TechnicalRow     = nullptr;
+		QLabel*                                                                         Title            = nullptr;
+		QLabel*                                                                         Summary          = nullptr;
+		overview_summary_splitter*                                                      SummarySplit     = nullptr;
+		QWidget*                                                                        SummaryPane      = nullptr;
+		QWidget*                                                                        FilesPane        = nullptr;
+		overview_description_view*                                                      Body             = nullptr;
+		QWidget*                                                                        Header           = nullptr;
+		QWidget*                                                                        Side             = nullptr;
+		QLabel*                                                                         EmptyBody        = nullptr;
 		/// [[BPR-1774]]. The description's edit controls and editor.
 		QWidget*                                              DescriptionCorner = nullptr;
 		QToolButton*                                          DescriptionEdit   = nullptr;

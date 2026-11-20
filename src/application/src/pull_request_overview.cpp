@@ -518,7 +518,7 @@ namespace bpr::application {
 			}
 			auto& notes = aProjection.MergeNotes;
 			notes.clear();
-			if (observed && aMerge.AutoMerge == true) {
+			if (observed && aMerge.AutoMerge == true && !aMerge.AutoMergeSettings) {
 				auto line = std::string{ "Auto-merge is enabled" };
 				if (aMerge.AutoMergeRequest && aMerge.AutoMergeRequest->Method) {
 					line += " (" + std::string{ method_name(*aMerge.AutoMergeRequest->Method) } + ")";
@@ -545,6 +545,81 @@ namespace bpr::application {
 				}
 				notes.push_back(line + ".");
 			}
+		}
+
+		[[nodiscard]] auto core_method(const github_merge_method aMethod) -> core::merge_method
+		{
+			switch (aMethod) {
+			case github_merge_method::merge:  return core::merge_method::merge;
+			case github_merge_method::squash: return core::merge_method::squash;
+			case github_merge_method::rebase: return core::merge_method::rebase;
+			}
+			return core::merge_method::merge;
+		}
+
+		[[nodiscard]] auto method_words(const core::merge_method aMethod) -> std::string_view
+		{
+			switch (aMethod) {
+			case core::merge_method::merge:  return "merge commit";
+			case core::merge_method::squash: return "squash";
+			case core::merge_method::rebase: return "rebase";
+			}
+			return "merge commit";
+		}
+
+		/// \brief [[BPR-2329]]. Auto-merge's line and offer, from the read's
+		/// settings and the viewer's own change the core projects over it.
+		void present_auto_merge(const github_pull_request_snapshot& aSnapshot, const std::optional<core::projected_auto_merge>& aProjected, const bool aControl, pull_request_overview_projection& aProjection)
+		{
+			const auto& merge = aSnapshot.Merge;
+			if (!merge.AutoMergeSettings || !merge.AutoMergeSettings->Allowed || (merge.Availability != github_observation_availability::available && !merge.Stale)) {
+				aProjection.AutoMerge.reset();
+				return;
+			}
+			const auto& settings = *merge.AutoMergeSettings;
+			const auto  read     = merge.AutoMerge.value_or(false);
+			const auto  shown    = aProjected.value_or(core::projected_auto_merge{ .Enabled = read });
+			auto        method   = shown.Method;
+			auto        by       = std::string{ };
+			if (shown.Enabled && read && merge.AutoMergeRequest) {
+				if (!method && merge.AutoMergeRequest->Method) {
+					method = core_method(*merge.AutoMergeRequest->Method);
+				}
+				by = merge.AutoMergeRequest->EnabledBy;
+			} else if (shown.Enabled) {
+				by = aSnapshot.Viewer.Login;
+			}
+			auto state    = overview_auto_merge{ };
+			state.Enabled = shown.Enabled;
+			state.Pending = shown.Pending;
+			if (shown.Enabled) {
+				state.Line = "Auto-merge is enabled";
+				if (method) {
+					state.Line += " (" + std::string{ method_words(*method) } + ")";
+				}
+				if (!by.empty()) {
+					state.Line += " by " + by;
+				}
+				state.Line += ": GitHub merges it once every requirement is met.";
+			} else {
+				state.Line = "Auto-merge is off.";
+			}
+			if (shown.Pending) {
+				state.Line += " Waiting for GitHub.";
+			}
+			if (aControl && !shown.Pending) {
+				// GitHub's word on the viewer was given for the read's state; once
+				// the viewer's own change is answered, its reverse is theirs too.
+				state.Offer = core::auto_merge_offered({
+					.Open             = aSnapshot.PullRequest.State == github_pull_request_state::open,
+					.Allowed          = settings.Allowed,
+					.Enabled          = shown.Enabled,
+					.ViewerCanEnable  = settings.ViewerCanEnable || (read && !shown.Enabled),
+					.ViewerCanDisable = settings.ViewerCanDisable || (!read && shown.Enabled),
+					.Methods          = { .Merge = settings.MergeCommit, .Squash = settings.Squash, .Rebase = settings.Rebase },
+				});
+			}
+			aProjection.AutoMerge = std::move(state);
 		}
 
 		void project_merge_requirements(const github_pull_request_snapshot& aSnapshot, pull_request_overview_projection& aProjection, const overview_check_policy_index& aChecks)
@@ -861,6 +936,16 @@ namespace bpr::application {
 		return before != std::tie(aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails, aProjection.MergeConflict, aProjection.MergeNotes);
 	}
 
+	auto apply_auto_merge_state(pull_request_overview_projection&               aProjection,
+								const github_pull_request_snapshot&             aSnapshot,
+								const std::optional<core::projected_auto_merge> aProjected,
+								const bool                                      aControl) -> bool
+	{
+		const auto before = aProjection.AutoMerge;
+		present_auto_merge(aSnapshot, aProjected, aControl, aProjection);
+		return before != aProjection.AutoMerge;
+	}
+
 	auto project_loading_overview_people(const github_pull_request_snapshot& aPeople) -> overview_people_projection
 	{
 		auto       roster = participant_roster{ aPeople.Viewer.Login };
@@ -1046,6 +1131,7 @@ namespace bpr::application {
 		project_checks(aSnapshot, projection, checkPolicy);
 		projection.ConflictingPaths = aContext.ConflictingPaths;
 		project_merge_requirements(aSnapshot, projection, checkPolicy);
+		present_auto_merge(aSnapshot, aContext.ProjectedAutoMerge, aContext.AutoMergeControl, projection);
 		sort_check_rows(projection);
 		project_status(aSnapshot, projection);
 

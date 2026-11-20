@@ -263,6 +263,9 @@ namespace {
 		case review_mutation_operation::observe_pull_request_draft_state:   return "observe_pull_request_draft_state";
 		case review_mutation_operation::mark_pull_request_ready_for_review: return "mark_pull_request_ready_for_review";
 		case review_mutation_operation::convert_pull_request_to_draft:      return "convert_pull_request_to_draft";
+		case review_mutation_operation::observe_pull_request_auto_merge:    return "observe_pull_request_auto_merge";
+		case review_mutation_operation::enable_pull_request_auto_merge:     return "enable_pull_request_auto_merge";
+		case review_mutation_operation::disable_pull_request_auto_merge:    return "disable_pull_request_auto_merge";
 		}
 		return "unknown";
 	}

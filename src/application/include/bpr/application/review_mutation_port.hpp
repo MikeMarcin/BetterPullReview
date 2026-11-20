@@ -5,6 +5,7 @@
 #include "bpr/application/private_review_store.hpp"
 #include "bpr/application/review_synchronization.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/auto_merge.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/draft_state.hpp"
@@ -103,6 +104,8 @@ namespace bpr::application {
 		/// [[BPR-1852]]. Marks the pull request ready for review and converts
 		/// it back to a draft.
 		bool ChangesDraftState = false;
+		/// [[BPR-2329]]. Enables and disables auto-merge.
+		bool ChangesAutoMerge = false;
 
 		auto operator<=>(const review_provider_capabilities&) const = default;
 	};
@@ -612,6 +615,33 @@ namespace bpr::application {
 		auto operator<=>(const review_draft_state_receipt&) const = default;
 	};
 
+	/// \brief [[BPR-2329]]. Asks the provider to enable auto-merge with a
+	/// method, or to disable it; bound as a draft-state change is.
+	struct review_auto_merge_request
+	{
+		core::review_mutation_target                Target;
+		core::github_account_id                     ActingIdentity;
+		core::auto_merge_change                     Change = core::auto_merge_change::enable;
+		std::optional<core::merge_method>           Method;
+		std::optional<review_mutation_live_binding> LiveBinding;
+
+		auto operator<=>(const review_auto_merge_request&) const = default;
+	};
+
+	/// \brief [[BPR-2329]]. The provider's answer: whether auto-merge is on
+	/// now, and how that was learned.
+	struct review_auto_merge_receipt
+	{
+		bool                              Enabled = false;
+		std::optional<core::merge_method> Method;
+		/// A write was sent; false when GitHub already had the state asked.
+		bool Written = false;
+		/// The write's own answer was lost, and the state read back is the one asked.
+		bool ConfirmedByReadBack = false;
+
+		auto operator<=>(const review_auto_merge_receipt&) const = default;
+	};
+
 	class review_mutation_port
 	{
 	public:
@@ -737,6 +767,17 @@ namespace bpr::application {
 			const review_draft_state_request& aRequest,
 			std::stop_token                   aStop)
 			-> std::expected<review_draft_state_receipt, review_mutation_failure>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected(review_mutation_failure::unsupported);
+		}
+		/// \brief [[BPR-2329]]. Enables or disables auto-merge; a provider
+		/// without the capability answers `unsupported`.
+		[[nodiscard]] virtual auto change_auto_merge(
+			const review_auto_merge_request& aRequest,
+			std::stop_token                  aStop)
+			-> std::expected<review_auto_merge_receipt, review_mutation_failure>
 		{
 			static_cast<void>(aRequest);
 			static_cast<void>(aStop);

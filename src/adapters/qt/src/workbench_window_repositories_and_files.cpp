@@ -1835,6 +1835,19 @@ namespace bpr::qt {
 		PresentedOverview->MergeNotes         = aProjection.MergeNotes;
 	}
 
+	void workbench_window::publish_auto_merge(const application::pull_request_overview_projection& aProjection)
+	{
+		if (OverviewPage == nullptr || (PresentedOverview.has_value() && *PresentedOverview == aProjection)) {
+			return;
+		}
+		if (!PresentedOverview.has_value() || !OverviewPage->present_auto_merge_state(aProjection)) {
+			publish(aProjection);
+			return;
+		}
+		PresentedOverview->AutoMerge  = aProjection.AutoMerge;
+		PresentedOverview->MergeNotes = aProjection.MergeNotes;
+	}
+
 	void workbench_window::present_strip_draft(const bool aDraft)
 	{
 		if (IdentityDraft == aDraft) {

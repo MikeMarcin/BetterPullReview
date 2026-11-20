@@ -261,6 +261,28 @@ namespace bpr::application {
 		auto operator==(const review_draft_state_terminal&) const -> bool = default;
 	};
 
+	/// \brief [[BPR-2329]]. Asks the host to enable auto-merge with a method,
+	/// or to disable it.
+	struct review_auto_merge_publication_request
+	{
+		core::auto_merge_change           Change = core::auto_merge_change::enable;
+		std::optional<core::merge_method> Method;
+
+		auto operator<=>(const review_auto_merge_publication_request&) const = default;
+	};
+
+	/// \brief [[BPR-2329]]. One auto-merge change's terminal.
+	struct review_auto_merge_terminal
+	{
+		review_mutation_request_context                                   Context;
+		review_auto_merge_publication_request                             Request;
+		std::expected<review_auto_merge_receipt, review_mutation_failure> Result{
+			std::unexpected(review_mutation_failure::unavailable)
+		};
+
+		auto operator==(const review_auto_merge_terminal&) const -> bool = default;
+	};
+
 	class review_mutation_projection_port
 	{
 	public:
@@ -300,6 +322,12 @@ namespace bpr::application {
 		/// \brief [[BPR-1852]]. A sink that does not change the draft state
 		/// ignores its terminals.
 		virtual void publish_draft_state(const review_draft_state_terminal& aTerminal)
+		{
+			static_cast<void>(aTerminal);
+		}
+		/// \brief [[BPR-2329]]. A sink that does not change auto-merge ignores
+		/// its terminals.
+		virtual void publish_auto_merge(const review_auto_merge_terminal& aTerminal)
 		{
 			static_cast<void>(aTerminal);
 		}
@@ -385,6 +413,8 @@ namespace bpr::application {
 		std::uint64_t ReviewerRequests = 0U;
 		/// [[BPR-1852]]. Draft-state changes GitHub answered.
 		std::uint64_t DraftStateChanges = 0U;
+		/// [[BPR-2329]]. Auto-merge changes GitHub answered.
+		std::uint64_t AutoMergeChanges = 0U;
 
 		auto operator<=>(const review_mutation_application_host_statistics&) const
 			= default;
@@ -480,6 +510,13 @@ namespace bpr::application {
 		[[nodiscard]] auto change_draft_state(
 			review_draft_state_publication_request aRequest,
 			review_mutation_execution_grant        aRequestGrant = { })
+			-> review_mutation_request_context;
+		/// \brief [[BPR-2329]]. Enables or disables auto-merge under a one-shot
+		/// grant bound to the accepted target, actor and that change; refused
+		/// before any effect when the provider does not change auto-merge.
+		[[nodiscard]] auto change_auto_merge(
+			review_auto_merge_publication_request aRequest,
+			review_mutation_execution_grant       aRequestGrant = { })
 			-> review_mutation_request_context;
 		/// \brief [[BPR-1345]]. Where a new comment on this selection would go,
 

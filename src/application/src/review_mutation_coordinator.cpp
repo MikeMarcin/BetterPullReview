@@ -341,6 +341,43 @@ namespace bpr::application {
 		return Provider->change_draft_state(request, aStop);
 	}
 
+	auto review_mutation_coordinator::change_auto_merge(
+		const core::auto_merge_change           aChange,
+		const std::optional<core::merge_method> aMethod,
+		const std::stop_token                   aStop)
+		-> std::expected<review_auto_merge_receipt, review_mutation_failure>
+	{
+		++Statistics.Attempts;
+		if (aStop.stop_requested()) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::cancelled);
+		}
+		if (Provider == nullptr) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::undesignated_target);
+		}
+		// [[BPR-2329]]. Auto-merge belongs to the pull request, as its draft
+		// state does: a moved head is acknowledged.
+		if (auto confirmed = confirm_target(true, aStop); !confirmed) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(confirmed.error());
+		}
+		auto request = review_auto_merge_request{
+			.Target         = Designated,
+			.ActingIdentity = ActingIdentity,
+			.Change         = aChange,
+			.Method         = aMethod,
+		};
+		if (TargetBinding.has_value() && ActingIdentityBinding.has_value()) {
+			request.LiveBinding = review_mutation_live_binding{
+				.Target         = *TargetBinding,
+				.ActingIdentity = *ActingIdentityBinding,
+			};
+		}
+		++Statistics.Submissions;
+		return Provider->change_auto_merge(request, aStop);
+	}
+
 	auto review_mutation_coordinator::publish_attempt(
 		const core::review_publication_proposal&      aProposal,
 		review_mutation_anchor_binding                aAnchor,

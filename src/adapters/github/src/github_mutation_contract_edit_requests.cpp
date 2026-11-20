@@ -75,6 +75,26 @@ namespace bpr::adapters::github::detail {
 			"pullRequest{id databaseId number isDraft state viewerCanUpdate repository{id databaseId nameWithOwner}}}}"
 		};
 
+		/// [[BPR-2329]]. The pull request an auto-merge change reaches, bound as
+		/// a draft-state change's is, with its auto-merge request, whether it is
+		/// open, the repository's auto-merge settings and GitHub's word on
+		/// whether this viewer may enable or disable it. The writes answer
+		/// with the same selection.
+		constexpr auto observe_auto_merge_document = std::string_view{
+			"query ObserveAutoMerge($pullRequest:ID!){node(id:$pullRequest){... on PullRequest{"
+			"id databaseId number state viewerCanEnableAutoMerge viewerCanDisableAutoMerge autoMergeRequest{mergeMethod} baseRepository{autoMergeAllowed mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed} repository{id databaseId nameWithOwner}}}}"
+		};
+
+		constexpr auto enable_auto_merge_document = std::string_view{
+			"mutation EnableAutoMerge($pullRequest:ID!,$method:PullRequestMergeMethod!){enablePullRequestAutoMerge(input:{pullRequestId:$pullRequest,mergeMethod:$method}){"
+			"pullRequest{id databaseId number state viewerCanEnableAutoMerge viewerCanDisableAutoMerge autoMergeRequest{mergeMethod} baseRepository{autoMergeAllowed mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed} repository{id databaseId nameWithOwner}}}}"
+		};
+
+		constexpr auto disable_auto_merge_document = std::string_view{
+			"mutation DisableAutoMerge($pullRequest:ID!){disablePullRequestAutoMerge(input:{pullRequestId:$pullRequest}){"
+			"pullRequest{id databaseId number state viewerCanEnableAutoMerge viewerCanDisableAutoMerge autoMergeRequest{mergeMethod} baseRepository{autoMergeAllowed mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed} repository{id databaseId nameWithOwner}}}}"
+		};
+
 		/// [[BPR-1775]]. One of the viewer's published comments, named by its
 		/// node, of one of the three kinds that can be edited, with its body,
 		/// GitHub's word on whether this viewer may update it, and the pull
@@ -693,6 +713,28 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 
+		// [[BPR-2329]]. An auto-merge change's envelope: the pull request's
+		// node, and the method an enable asks for.
+		struct auto_merge_variables_json
+		{
+			std::string_view                PullRequest;
+			std::optional<std::string_view> Method;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("pullRequest", &auto_merge_variables_json::PullRequest, "method", &auto_merge_variables_json::Method);
+			};
+		};
+
+		struct auto_merge_query_json
+		{
+			std::string_view          Query;
+			auto_merge_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &auto_merge_query_json::Query, "variables", &auto_merge_query_json::Variables);
+			};
+		};
+
 		/// \brief [[BPR-1804]]. One person as GitHub listed them, or none
 		/// when the entry is not a person who may be asked.
 		[[nodiscard]] auto reviewer_person(const reviewer_user_json& aUser) -> std::optional<core::reviewer_candidate>
@@ -963,6 +1005,60 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
+		/// \brief [[BPR-2329]]. One auto-merge document for the designated pull
+		/// request, bound as a draft-state change is. Only an enable carries a
+		/// method, and it must carry one.
+		[[nodiscard]] auto compile_auto_merge_document(
+			const application::review_auto_merge_request& aRequest,
+			const application::github_server_contract     aServer,
+			const review_mutation_operation               aOperation,
+			const std::string_view                        aDocument)
+			-> review_mutation_request_result
+		{
+			const auto enable = aOperation == review_mutation_operation::enable_pull_request_auto_merge;
+			if (!valid_server(aServer) || !aRequest.LiveBinding.has_value()
+				|| !application::valid(aRequest.LiveBinding->Target)
+				|| !application::valid(aRequest.LiveBinding->ActingIdentity)
+				|| aRequest.LiveBinding->Target.ServerContract != aServer
+				|| aRequest.Target != aRequest.LiveBinding->Target.Semantic
+				|| aRequest.ActingIdentity != aRequest.LiveBinding->ActingIdentity.Account
+				|| !graphql_token(aRequest.LiveBinding->Target.PullRequestNodeId)
+				|| (aRequest.Change != core::auto_merge_change::enable && aRequest.Change != core::auto_merge_change::disable)
+				|| (aRequest.Change == core::auto_merge_change::enable && !aRequest.Method.has_value())
+				|| (aRequest.Change == core::auto_merge_change::disable && aRequest.Method.has_value())) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+			auto method = std::optional<std::string_view>{ };
+			if (enable) {
+				switch (*aRequest.Method) {
+				case core::merge_method::merge:  method = "MERGE"; break;
+				case core::merge_method::squash: method = "SQUASH"; break;
+				case core::merge_method::rebase: method = "REBASE"; break;
+				}
+				if (!method) {
+					return failed(review_mutation_contract_failure::invalid_request);
+				}
+			}
+			auto headers = common_headers();
+			headers.push_back({ .Name = "Content-Type", .Value = "application/json" });
+			auto body = glz::write<review_json_options{ }>(auto_merge_query_json{
+				.Query     = aDocument,
+				.Variables = { .PullRequest = aRequest.LiveBinding->Target.PullRequestNodeId, .Method = method },
+			});
+			if (!body.has_value() || body->empty() || body->size() > maximum_review_mutation_body_bytes) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+			return review_mutation_wire_request{
+				.Semantic  = aRequest,
+				.Server    = aServer,
+				.Operation = aOperation,
+				.Method    = http_method::post,
+				.Path      = std::string{ graphql_path(aServer) },
+				.Headers   = std::move(headers),
+				.Body      = std::move(*body),
+			};
+		}
+
 		// Owner decision de5b5b6d, mandate r3. This evidence describes one
 		// immutable PR pair, not a service-wide interpretation of the message.
 		[[nodiscard]] auto recorded_target_matches(const application::review_mutation_target_binding& aTarget) -> bool
@@ -1165,6 +1261,38 @@ namespace bpr::adapters::github::detail {
 		-> review_mutation_request_result
 	{
 		return compile_draft_state_document(aRequest, aServer, review_mutation_operation::observe_pull_request_draft_state, observe_draft_state_document);
+	}
+
+	auto compile_auto_merge_request(
+		const application::review_auto_merge_request& aRequest,
+		const application::github_server_contract     aServer)
+		-> review_mutation_request_result
+	{
+		// [[BPR-2329]]. The change asked names its own mutation.
+		return aRequest.Change == core::auto_merge_change::disable
+			? compile_auto_merge_document(aRequest, aServer, review_mutation_operation::disable_pull_request_auto_merge, disable_auto_merge_document)
+			: compile_auto_merge_document(aRequest, aServer, review_mutation_operation::enable_pull_request_auto_merge, enable_auto_merge_document);
+	}
+
+	auto compile_auto_merge_observation_request(
+		const application::review_auto_merge_request& aRequest,
+		const application::github_server_contract     aServer)
+		-> review_mutation_request_result
+	{
+		// The read carries no method: the observation is the same for both changes.
+		auto observed   = aRequest;
+		observed.Change = core::auto_merge_change::disable;
+		observed.Method.reset();
+		auto compiled = compile_auto_merge_document(observed, aServer, review_mutation_operation::observe_pull_request_auto_merge, observe_auto_merge_document);
+		if (!compiled.has_value()) {
+			return compiled;
+		}
+		if ((aRequest.Change == core::auto_merge_change::enable && !aRequest.Method.has_value())
+			|| (aRequest.Change == core::auto_merge_change::disable && aRequest.Method.has_value())) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		compiled->Semantic = aRequest;
+		return compiled;
 	}
 
 	auto compile_comment_edit_request(
@@ -1420,6 +1548,10 @@ namespace bpr::adapters::github::detail {
 						canonical = aRequest.Operation == review_mutation_operation::observe_pull_request_draft_state
 							? compile_draft_state_observation_request(aSemantic, aRequest.Server)
 							: compile_draft_state_request(aSemantic, aRequest.Server);
+					} else if constexpr (std::same_as<semantic_type, application::review_auto_merge_request>) {
+						canonical = aRequest.Operation == review_mutation_operation::observe_pull_request_auto_merge
+							? compile_auto_merge_observation_request(aSemantic, aRequest.Server)
+							: compile_auto_merge_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_comment_edit_request>) {
 						canonical = aRequest.Operation == review_mutation_operation::observe_comment_for_edit
 							? compile_comment_observation_request(aSemantic, aRequest.Server)

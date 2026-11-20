@@ -140,6 +140,15 @@ namespace bpr::adapters::github::detail {
 		mark_pull_request_ready_for_review,
 		/// [[BPR-1852]]. GraphQL: `convertPullRequestToDraft`.
 		convert_pull_request_to_draft,
+		/// [[BPR-2329]]. GraphQL: the pull request's auto-merge request,
+		/// `state`, the repository's auto-merge settings and GitHub's word on
+		/// the viewer, asked before auto-merge is changed and once after an
+		/// ambiguous write.
+		observe_pull_request_auto_merge,
+		/// [[BPR-2329]]. GraphQL: `enablePullRequestAutoMerge`.
+		enable_pull_request_auto_merge,
+		/// [[BPR-2329]]. GraphQL: `disablePullRequestAutoMerge`.
+		disable_pull_request_auto_merge,
 	};
 
 	/// \brief [[BPR-1018]]. What a transport demands of one operation's
@@ -226,7 +235,8 @@ namespace bpr::adapters::github::detail {
 			application::review_description_request,
 			application::review_comment_edit_request,
 			application::review_reviewer_request,
-			application::review_draft_state_request>;
+			application::review_draft_state_request,
+			application::review_auto_merge_request>;
 
 		semantic_type Semantic;
 
@@ -611,6 +621,44 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_response&           aResponse,
 		const application::review_draft_state_request& aExpected)
 		-> review_mutation_parse_result<review_draft_state_observation>;
+	/// \brief [[BPR-2329]]. Auto-merge on the pull request, as an answer bound
+	/// to the designated pull request gave it.
+	struct review_auto_merge_observation
+	{
+		bool                              Enabled = false;
+		std::optional<core::merge_method> Method;
+		bool                              Open             = false;
+		bool                              Allowed          = false;
+		bool                              ViewerCanEnable  = false;
+		bool                              ViewerCanDisable = false;
+		core::allowed_merge_methods       Methods;
+
+		auto operator<=>(const review_auto_merge_observation&) const = default;
+	};
+	/// \brief [[BPR-2329]]. Compiles `EnableAutoMerge` (with its method) or
+	/// `DisableAutoMerge` for the designated pull request.
+	[[nodiscard]] auto compile_auto_merge_request(
+		const application::review_auto_merge_request& aRequest,
+		application::github_server_contract           aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-2329]]. Compiles `ObserveAutoMerge`, with every guard the
+	/// mutation has.
+	[[nodiscard]] auto compile_auto_merge_observation_request(
+		const application::review_auto_merge_request& aRequest,
+		application::github_server_contract           aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	[[nodiscard]] auto parse_auto_merge_observation(
+		const review_mutation_wire_response&          aResponse,
+		const application::review_auto_merge_request& aExpected)
+		-> review_mutation_parse_result<review_auto_merge_observation>;
+	/// \brief [[BPR-2329]]. A write's answer: only the designated pull
+	/// request; a null payload is GraphQL's refusal (`unexpected_body`).
+	[[nodiscard]] auto parse_auto_merge_response(
+		const review_mutation_wire_response&          aResponse,
+		const application::review_auto_merge_request& aExpected)
+		-> review_mutation_parse_result<review_auto_merge_observation>;
 	/// \brief Compiles an exact-head REST review with an explicit submission event.
 
 	[[nodiscard]] auto compile_review_submission_request(
@@ -1067,7 +1115,20 @@ namespace bpr::adapters::github::detail {
 			std::stop_token                                aStop = { })
 			-> std::expected<application::review_draft_state_receipt, application::review_mutation_failure>;
 
+		/// \brief [[BPR-2329]]. Enables or disables auto-merge as a draft-state
+		/// change is made: observed first, nothing sent when GitHub already
+		/// has the state asked or refuses it, written once, an ambiguous
+		/// outcome confirmed by one read back.
+		[[nodiscard]] auto change_auto_merge(
+			const application::review_auto_merge_request& aRequest,
+			std::stop_token                               aStop = { })
+			-> std::expected<application::review_auto_merge_receipt, application::review_mutation_failure>;
+
 	private:
+		[[nodiscard]] auto observe_auto_merge(
+			const application::review_auto_merge_request& aRequest,
+			std::stop_token                               aStop)
+			-> std::expected<review_auto_merge_observation, application::review_mutation_failure>;
 		[[nodiscard]] auto observe_draft_state(
 			const application::review_draft_state_request& aRequest,
 			std::stop_token                                aStop)

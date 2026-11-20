@@ -246,6 +246,13 @@ namespace bpr::core {
 		/// remembered tabs: `count` came back and `tabs_dropped` did not,
 		/// their files gone from the pull request.
 		tabs_restore,
+		/// [[BPR-2329]]. One draft-state change (Ready for review or Convert
+		/// to draft) GitHub was asked for, and its outcome.
+		change_draft_state,
+		/// [[BPR-2329]]. One Enable auto-merge, and its outcome.
+		enable_auto_merge,
+		/// [[BPR-2329]]. One Disable auto-merge, and its outcome.
+		disable_auto_merge,
 	};
 
 	/// \brief [[RFC-BPR-0105]]. What a review submission line is about: what

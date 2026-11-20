@@ -854,24 +854,49 @@ namespace bpr::adapters::github::detail {
 				.Position = json_is_null(position) ? std::nullopt : uint32(position),
 			};
 		}
-		aSnapshot.Merge.AutoMergeRequest = std::move(request);
-		aSnapshot.Merge.InMergeQueue     = inQueue;
-		aSnapshot.Merge.QueueEntry       = place;
-		const auto value                 = text(state);
-		using assessment                 = application::github_merge_assessment;
-		aSnapshot.Merge.Assessment       = value == "BEHIND" ? assessment::behind : value == "BLOCKED" ? assessment::blocked
-			: value == "CLEAN"                                                                         ? assessment::clean
-			: value == "DIRTY"                                                                         ? assessment::conflicts
-			: value == "DRAFT"                                                                         ? assessment::draft
-			: value == "HAS_HOOKS"                                                                     ? assessment::hooks
-			: value == "UNSTABLE"                                                                      ? assessment::unstable
-																									   : assessment::unknown;
-		using decision                   = application::github_review_decision;
-		aSnapshot.Merge.Review           = text(review) == "APPROVED" ? decision::approved : text(review) == "CHANGES_REQUESTED" ? decision::changes_requested
-			: text(review) == "REVIEW_REQUIRED"                                                                                  ? decision::required
-																																 : decision::unknown;
-		aSnapshot.Merge.AutoMerge        = !json_is_null(automatic);
-		aSnapshot.Merge.Availability     = observation::available;
+		// [[BPR-2329]]. Auto-merge's settings and the viewer's word, when the
+		// read asked: all of them, or none.
+		const auto canEnable = json_member(aPull, "viewerCanEnableAutoMerge"), canDisable = json_member(aPull, "viewerCanDisableAutoMerge"), base = json_member(aPull, "baseRepository");
+		auto       settings = std::optional<application::github_auto_merge_settings>{ };
+		if (!json_is_undefined(canEnable) || !json_is_undefined(canDisable) || !json_is_undefined(base)) {
+			if (!json_is_bool(canEnable) || !json_is_bool(canDisable) || !json_is_object(base)
+				|| !has_exact_keys(json_object(base), { "autoMergeAllowed", "mergeCommitAllowed", "rebaseMergeAllowed", "squashMergeAllowed" })) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			const auto repository = json_object(base);
+			for (const auto* key : { "autoMergeAllowed", "mergeCommitAllowed", "rebaseMergeAllowed", "squashMergeAllowed" }) {
+				if (!json_is_bool(json_member(repository, key))) {
+					return failed(application::github_provider_failure::malformed_response);
+				}
+			}
+			settings = application::github_auto_merge_settings{
+				.Allowed          = json_bool(json_member(repository, "autoMergeAllowed")),
+				.MergeCommit      = json_bool(json_member(repository, "mergeCommitAllowed")),
+				.Squash           = json_bool(json_member(repository, "squashMergeAllowed")),
+				.Rebase           = json_bool(json_member(repository, "rebaseMergeAllowed")),
+				.ViewerCanEnable  = json_bool(canEnable),
+				.ViewerCanDisable = json_bool(canDisable),
+			};
+		}
+		aSnapshot.Merge.AutoMergeSettings = settings;
+		aSnapshot.Merge.AutoMergeRequest  = std::move(request);
+		aSnapshot.Merge.InMergeQueue      = inQueue;
+		aSnapshot.Merge.QueueEntry        = place;
+		const auto value                  = text(state);
+		using assessment                  = application::github_merge_assessment;
+		aSnapshot.Merge.Assessment        = value == "BEHIND" ? assessment::behind : value == "BLOCKED" ? assessment::blocked
+			: value == "CLEAN"                                                                          ? assessment::clean
+			: value == "DIRTY"                                                                          ? assessment::conflicts
+			: value == "DRAFT"                                                                          ? assessment::draft
+			: value == "HAS_HOOKS"                                                                      ? assessment::hooks
+			: value == "UNSTABLE"                                                                       ? assessment::unstable
+																										: assessment::unknown;
+		using decision                    = application::github_review_decision;
+		aSnapshot.Merge.Review            = text(review) == "APPROVED" ? decision::approved : text(review) == "CHANGES_REQUESTED" ? decision::changes_requested
+			: text(review) == "REVIEW_REQUIRED"                                                                                   ? decision::required
+																																  : decision::unknown;
+		aSnapshot.Merge.AutoMerge         = !json_is_null(automatic);
+		aSnapshot.Merge.Availability      = observation::available;
 		return { };
 	}
 

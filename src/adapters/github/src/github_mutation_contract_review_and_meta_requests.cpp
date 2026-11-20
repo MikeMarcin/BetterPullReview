@@ -974,6 +974,10 @@ namespace bpr::adapters::github::detail {
 		case operation::observe_pull_request_draft_state:
 		case operation::mark_pull_request_ready_for_review:
 		case operation::convert_pull_request_to_draft:
+		// [[BPR-2329]]. Nor does an auto-merge change.
+		case operation::observe_pull_request_auto_merge:
+		case operation::enable_pull_request_auto_merge:
+		case operation::disable_pull_request_auto_merge:
 			return review_mutation_exchange{
 
 				.Method  = http_method::post,

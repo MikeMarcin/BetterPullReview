@@ -536,6 +536,15 @@ namespace bpr::application {
 		std::string EnabledBy;
 		auto        operator<=>(const github_auto_merge_request&) const = default;
 	};
+	/// \brief [[BPR-2329]]. Whether the repository allows auto-merge and with
+	/// which methods, and GitHub's word on whether this viewer may enable or
+	/// disable it on this pull request.
+	struct github_auto_merge_settings
+	{
+		bool Allowed = false, MergeCommit = false, Squash = false, Rebase = false;
+		bool ViewerCanEnable = false, ViewerCanDisable = false;
+		auto operator<=>(const github_auto_merge_settings&) const = default;
+	};
 	/// \brief Server assessment bound to the accepted PR/head/base; grants no merge authority.
 	struct github_merge_observation
 	{
@@ -549,8 +558,10 @@ namespace bpr::application {
 		/// [[BPR-2327]]. Absent when the read did not ask.
 		std::optional<bool>                     InMergeQueue;
 		std::optional<github_merge_queue_entry> QueueEntry;
-		bool                                    Stale                                              = false;
-		auto                                    operator<=>(const github_merge_observation&) const = default;
+		/// [[BPR-2329]]. Absent when the read did not ask.
+		std::optional<github_auto_merge_settings> AutoMergeSettings;
+		bool                                      Stale                                              = false;
+		auto                                      operator<=>(const github_merge_observation&) const = default;
 	};
 	/// \brief A check context required by an applicable branch policy, optionally tied to an app.
 	struct github_required_check
