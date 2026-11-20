@@ -4503,6 +4503,80 @@ namespace {
 		return process.readAllStandardOutput().trimmed().toStdString();
 	}
 
+	#if defined(Q_OS_MACOS)
+	/// [[BPR-2321]]. The linked clone of \ref run_linked_clone_checkout_contract
+	/// with an ignored folder of many small files inside a tracked folder, then
+	/// with untracked files scattered across many folders. The ignored files are
+	/// never cloned and `clean` removes none; the workspace is ready in about
+	/// the time the clone with none took. Scattered past the seed's bound, every
+	/// file is checked out, and the trace says so.
+	///
+	/// \details `BPR_TEST_SEED_IGNORED_FILES` sets the ignored file count
+	/// (100,000 by default; the files are empty).
+	template <typename TMaterialize, typename TCheck, typename TWritten>
+	void run_linked_clone_ignored_content(const std::filesystem::path& aClone, TMaterialize& aMaterialize, const core::workspace_seed_trace& aSeed,
+										  const TCheck& aCheck, const TWritten& aWritten, const std::chrono::milliseconds aBaseline)
+	{
+		auto ignoredFiles = std::size_t{ 100000U };
+		if (const auto* const configured = std::getenv("BPR_TEST_SEED_IGNORED_FILES"); configured != nullptr && *configured != '\0') {
+			ignoredFiles = static_cast<std::size_t>(std::strtoull(configured, nullptr, 10));
+		}
+		// `build/` is ignored: a vendored dependency tree inside module3.
+		const auto ignored = aClone / "module3" / "build" / "dependencies";
+		for (std::size_t file = 0U; file < ignoredFiles; ++file) {
+			const auto folder = ignored / ("package" + std::to_string(file / 1000U));
+			if (file % 1000U == 0U) {
+				std::filesystem::create_directories(folder);
+			}
+			std::ofstream{ folder / ("part" + std::to_string(file % 1000U) + ".h") };
+		}
+		{
+			auto [workspace, elapsed] = aMaterialize();
+			const auto tree           = std::filesystem::path{ workspace.Workspace.Path };
+			aCheck(tree);
+			const auto writes = aWritten(tree);
+			std::cout << "LINKED_CLONE_IGNORED:files=20003:ignored=" << ignoredFiles << ":seeded_ms=" << elapsed.count() << ":baseline_ms=" << aBaseline.count() << ":walk_ms=" << aSeed.WalkMilliseconds
+					  << ":clone_ms=" << aSeed.CloneMilliseconds << ":refresh_ms=" << aSeed.RefreshMilliseconds << ":checkout_ms=" << aSeed.CheckoutMilliseconds << ":clean_ms=" << aSeed.CleanMilliseconds
+					  << ":folders=" << aSeed.FoldersCloned << ":files=" << aSeed.FilesCloned << ":written=" << aSeed.FilesWritten << ":cleaned=" << aSeed.Cleaned << '\n';
+			require(aSeed.Outcome == core::workspace_seed_outcome::seeded, "a clone with ignored content is still a cache");
+			require(aSeed.Cleaned == 0U && aSeed.FilesCloned + aSeed.FoldersCloned <= 500U, "none of the ignored files is cloned, and clean removes none");
+			require(writes <= 5U, "only the files that differ are written");
+		}
+		std::filesystem::remove_all(ignored);
+		// Untracked files in a few folders: those folders' files are cloned
+		// one by one, within the bound.
+		const auto scatter = [&](const int aFolders) {
+			for (int folder = 10; folder < 10 + aFolders; ++folder) {
+				write_text(aClone / ("module" + std::to_string(folder)) / "stray.txt", "the reviewer's scratch\n");
+			}
+		};
+		const auto gather = [&](const int aFolders) {
+			for (int folder = 10; folder < 10 + aFolders; ++folder) {
+				std::filesystem::remove(aClone / ("module" + std::to_string(folder)) / "stray.txt");
+			}
+		};
+		scatter(10);
+		{
+			auto [workspace, elapsed] = aMaterialize();
+			aCheck(std::filesystem::path{ workspace.Workspace.Path });
+			require(!std::filesystem::exists(std::filesystem::path{ workspace.Workspace.Path } / "module10" / "stray.txt"), "a stray untracked file is not cloned");
+			std::cout << "LINKED_CLONE_SCATTERED:folders=10:ms=" << elapsed.count() << ":outcome=" << static_cast<unsigned>(aSeed.Outcome) << ":files=" << aSeed.FilesCloned << ":cleaned=" << aSeed.Cleaned << '\n';
+			require(aSeed.Outcome == core::workspace_seed_outcome::seeded && aSeed.Cleaned == 0U, "a few folders with untracked files still seed");
+		}
+		gather(10);
+		// In 60 of the 100 folders: cloning their files one by one would take
+		// more calls than half the head's files, so every file is checked out.
+		scatter(60);
+		{
+			auto [workspace, elapsed] = aMaterialize();
+			aCheck(std::filesystem::path{ workspace.Workspace.Path });
+			std::cout << "LINKED_CLONE_SCATTERED:folders=60:ms=" << elapsed.count() << ":outcome=" << static_cast<unsigned>(aSeed.Outcome) << ":written=" << aSeed.FilesWritten << ":cleaned=" << aSeed.Cleaned << '\n';
+			require(aSeed.Outcome == core::workspace_seed_outcome::too_spread && aSeed.FilesWritten == 20003U && aSeed.Cleaned == 0U, "past the bound the log names the fallback, and every file is checked out");
+		}
+		gather(60);
+	}
+	#endif
+
 	auto run_linked_clone_checkout_contract() -> void
 	{
 		temporary_root root{ "git-linked-clone-checkout" };
@@ -4558,7 +4632,9 @@ namespace {
 		const auto oid     = [](const std::string& aHex) {
 			return core::git_commit_oid{ core::git_hash_algorithm::sha1, object<application::git_commit_id>(aHex, application::git_hash_algorithm::sha1).Digest };
 		};
-		const auto authority   = workspace_authority();
+		const auto authority = workspace_authority();
+		// [[BPR-2321]]. The last materialization's seed, as its log line names it.
+		auto       seed        = core::workspace_seed_trace{ };
 		const auto materialize = [&]() {
 			const auto parent = root.Path / ("neighbourhood-" + std::to_string(session));
 			std::filesystem::create_directory(parent);
@@ -4579,10 +4655,12 @@ namespace {
 			made.Materialization.ParentDirectory             = parent;
 			made.Materialization.HistoryClone                = clone;
 			made.Materialization.RetainForSession            = true;
+			made.Source.Trace                                = std::make_shared<core::workspace_trace>();
 			const auto started                               = std::chrono::steady_clock::now();
 			auto       owned                                 = adapter->materialize_agent_workspace(made, { });
 			const auto elapsed                               = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started);
 			require(owned.has_value(), "a retained workspace borrowing the clone is made");
+			seed = made.Source.Trace->Seed;
 			return std::pair{ std::move(*owned), elapsed };
 		};
 		// The files written, rather than cloned: newer than the clone's.
@@ -4605,6 +4683,7 @@ namespace {
 		};
 
 		auto [seeded, seededTime] = materialize();
+		const auto seededTrace    = seed;
 		const auto tree           = std::filesystem::path{ seeded.Workspace.Path };
 		check(tree);
 		const auto seededWrites = written(tree);
@@ -4621,6 +4700,17 @@ namespace {
 	#endif
 		require(fullWrites >= 20000U, "without the clone's index every file is written");
 		require(read_text(git / "index") == cloneIndex && run_clone_git(git, { "rev-parse", "HEAD" }) == base, "nothing in the clone changed");
+	#if defined(Q_OS_MACOS)
+		// [[BPR-2321]]. The clone's untracked notes and ignored build folder
+		// are never cloned: their folders are made and the head's files in them
+		// cloned one by one, so `clean` finds nothing.
+		require(seededTrace.Outcome == core::workspace_seed_outcome::seeded && seededTrace.Cleaned == 0U && seededTrace.FilesCloned <= 402U && seededTrace.FoldersCloned >= 97U,
+				"the seed clones the pure folders whole, the head's files in the others, and cleans nothing");
+		run_linked_clone_ignored_content(clone, materialize, seed, check, written, seededTime);
+		require(read_text(git / "index") == cloneIndex && run_clone_git(git, { "rev-parse", "HEAD" }) == base, "nothing in the clone changed");
+	#else
+		static_cast<void>(seededTrace);
+	#endif
 		// A clone whose index hides a file it lacks (skip-worktree) is no
 		// cache: every file is checked out.
 		static_cast<void>(run_clone_git(git, { "update-index", "--skip-worktree", "module4/source4.cpp" }));

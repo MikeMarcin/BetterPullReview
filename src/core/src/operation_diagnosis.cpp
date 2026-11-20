@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <limits>
 #include <system_error>
+#include <utility>
 
 namespace bpr::core {
 	namespace {
@@ -54,6 +55,9 @@ namespace bpr::core {
 		static_assert(workspace_command_names.size() == static_cast<std::size_t>(workspace_git_command::other) + 1U);
 		constexpr auto workspace_error_names = std::array<std::string_view, 5>{ "none", "could_not_read", "failed_to_traverse_parents", "missing_object", "other" };
 		static_assert(workspace_error_names.size() == static_cast<std::size_t>(workspace_git_error::other) + 1U);
+		// [[BPR-2321]].
+		constexpr auto workspace_seed_names = std::array<std::string_view, 5>{ "none", "seeded", "too_spread", "refused", "failed" };
+		static_assert(workspace_seed_names.size() == static_cast<std::size_t>(workspace_seed_outcome::failed) + 1U);
 
 		// [[BPR-1831]]. The store names, by each store file's fixed name.
 		constexpr std::array<std::string_view, 24> store_names{ "unknown", "other", "agent_setup", "appearance_settings", "diagnostic_preferences", "workbench_settings", "review_queue", "review_ledger", "review_tours", "review_cycles", "review_overviews", "window_restoration", "remembered_connections", "device_bindings", "review_mutation_recovery", "epoch_catalog", "markdown_images", "insights", "profile_registry", "release_update", "update_draft_recovery", "clone_ledger", "view_filters", "pull_request_activity" };
@@ -287,6 +291,11 @@ namespace bpr::core {
 		return named(workspace_error_names, aError);
 	}
 
+	auto name(const workspace_seed_outcome aOutcome) noexcept -> std::string_view
+	{
+		return named(workspace_seed_names, aOutcome);
+	}
+
 	auto classify_workspace_git_error(const std::string_view aStandardError) noexcept -> workspace_git_error
 	{
 		if (aStandardError.find_first_not_of(" \t\r\n") == std::string_view::npos) {
@@ -345,7 +354,8 @@ namespace bpr::core {
 		// [[BPR-2295]]. A workspace trace only on a materialization line.
 		if (aDiagnosis.Workspace
 			&& (aDiagnosis.Action != operation_action::workspace_materialize || name(aDiagnosis.Workspace->Source).empty() || name(aDiagnosis.Workspace->Command).empty()
-				|| name(aDiagnosis.Workspace->GitError).empty())) {
+				|| name(aDiagnosis.Workspace->GitError).empty() || name(aDiagnosis.Workspace->Seed.Outcome).empty()
+				|| (aDiagnosis.Workspace->Seed.Outcome == workspace_seed_outcome::none && aDiagnosis.Workspace->Seed != workspace_seed_trace{ }))) {
 			return false;
 		}
 		return kind == operation_diagnosis_family::review_mutation || aDiagnosis.Tour || (!aDiagnosis.Written && !aDiagnosis.ReadBack);
@@ -405,6 +415,20 @@ namespace bpr::core {
 			text += name(trace.Command);
 			text += " git_error=";
 			text += name(trace.GitError);
+			// [[BPR-2321]]. The seed's steps, only when one was tried.
+			if (const auto& seed = trace.Seed; seed.Outcome != workspace_seed_outcome::none) {
+				text += " seed=";
+				text += name(seed.Outcome);
+				text += " seed_walk_ms=" + std::to_string(seed.WalkMilliseconds);
+				text += " seed_clone_ms=" + std::to_string(seed.CloneMilliseconds);
+				text += " seed_refresh_ms=" + std::to_string(seed.RefreshMilliseconds);
+				text += " seed_checkout_ms=" + std::to_string(seed.CheckoutMilliseconds);
+				text += " seed_clean_ms=" + std::to_string(seed.CleanMilliseconds);
+				text += " seed_folders=" + std::to_string(seed.FoldersCloned);
+				text += " seed_files=" + std::to_string(seed.FilesCloned);
+				text += " seed_written=" + std::to_string(seed.FilesWritten);
+				text += " seed_cleaned=" + std::to_string(seed.Cleaned);
+			}
 		}
 		return text;
 	}
@@ -469,10 +493,35 @@ namespace bpr::core {
 			const auto cloneHead = clone ? flag(aText, "clone_head") : std::nullopt;
 			const auto command   = cloneHead ? enumerated<workspace_git_command>(aText, "git", workspace_command_names) : std::nullopt;
 			const auto error     = command ? enumerated<workspace_git_error>(aText, "git_error", workspace_error_names) : std::nullopt;
-			if (!error || !aText.empty()) {
+			if (!error) {
 				return std::nullopt;
 			}
 			result.Workspace = workspace_trace{ .Source = *source, .Sparse = *sparse, .CloneGiven = *clone, .CloneHeldHead = *cloneHead, .Command = *command, .GitError = *error };
+			// [[BPR-2321]]. The seed's steps, when the line carries them.
+			if (!aText.empty()) {
+				const auto outcome = enumerated<workspace_seed_outcome>(aText, "seed", workspace_seed_names);
+				auto&      seed    = result.Workspace->Seed;
+				auto       read    = outcome.has_value() && *outcome != workspace_seed_outcome::none;
+				for (const auto& [key, field] : std::array<std::pair<std::string_view, std::uint32_t*>, 9>{ { { "seed_walk_ms", &seed.WalkMilliseconds },
+																											  { "seed_clone_ms", &seed.CloneMilliseconds },
+																											  { "seed_refresh_ms", &seed.RefreshMilliseconds },
+																											  { "seed_checkout_ms", &seed.CheckoutMilliseconds },
+																											  { "seed_clean_ms", &seed.CleanMilliseconds },
+																											  { "seed_folders", &seed.FoldersCloned },
+																											  { "seed_files", &seed.FilesCloned },
+																											  { "seed_written", &seed.FilesWritten },
+																											  { "seed_cleaned", &seed.Cleaned } } }) {
+					const auto value = read ? number(aText, key) : std::nullopt;
+					read             = value.has_value();
+					if (read) {
+						*field = *value;
+					}
+				}
+				if (!read || !aText.empty()) {
+					return std::nullopt;
+				}
+				seed.Outcome = *outcome;
+			}
 		} else if (!aText.empty()) {
 			result.Store      = enumerated<operation_store>(aText, "store", store_names);
 			const auto schema = result.Store ? number(aText, "schema") : std::nullopt;

@@ -585,6 +585,49 @@ namespace bpr::core {
 		other,
 	};
 
+	/// \brief [[BPR-2321]]. What became of seeding a workspace from the
+	/// linked clone's working tree ([[BPR-2294]]).
+	enum class workspace_seed_outcome : std::uint8_t {
+		/// No seed was tried: no clone, a managed clone, or not macOS.
+		none,
+		/// The workspace was seeded from the clone.
+		seeded,
+		/// The clone's extra files were so spread out that seeding would
+		/// take more clone calls than its bound: every file was checked out.
+		too_spread,
+		/// The clone was no cache (a submodule, a hidden index entry, an
+		/// index too large): every file was checked out.
+		refused,
+		/// A step failed part way: every file was checked out.
+		failed,
+	};
+
+	/// \brief [[BPR-2321]]. The seed's steps and counts, on the
+	/// `workspace_materialize` line.
+	///
+	/// \details `FoldersCloned` and `FilesCloned` count the `clonefile`
+	/// calls (a whole folder, or one file in a folder that held something
+	/// the head does not); `FilesWritten` the files checked out instead;
+	/// `Cleaned` the entries `clean` reported removing (a whole untracked
+	/// folder is one). After a fallback, `CheckoutMilliseconds` and
+	/// `Cleaned` are the full checkout's, and `FilesWritten` the head's file
+	/// count once the seed had read the head's tree.
+	struct workspace_seed_trace
+	{
+		workspace_seed_outcome Outcome              = workspace_seed_outcome::none;
+		std::uint32_t          WalkMilliseconds     = 0U;
+		std::uint32_t          CloneMilliseconds    = 0U;
+		std::uint32_t          RefreshMilliseconds  = 0U;
+		std::uint32_t          CheckoutMilliseconds = 0U;
+		std::uint32_t          CleanMilliseconds    = 0U;
+		std::uint32_t          FoldersCloned        = 0U;
+		std::uint32_t          FilesCloned          = 0U;
+		std::uint32_t          FilesWritten         = 0U;
+		std::uint32_t          Cleaned              = 0U;
+
+		auto operator<=>(const workspace_seed_trace&) const = default;
+	};
+
 	/// \brief [[BPR-2295]]. How one agent workspace was made, or why not.
 	struct workspace_trace
 	{
@@ -594,6 +637,8 @@ namespace bpr::core {
 		bool                  CloneHeldHead = false;
 		workspace_git_command Command       = workspace_git_command::none;
 		workspace_git_error   GitError      = workspace_git_error::none;
+		/// [[BPR-2321]]. Written only when a seed was tried.
+		workspace_seed_trace Seed;
 
 		auto operator<=>(const workspace_trace&) const = default;
 	};
@@ -601,6 +646,7 @@ namespace bpr::core {
 	[[nodiscard]] auto name(workspace_source aSource) noexcept -> std::string_view;
 	[[nodiscard]] auto name(workspace_git_command aCommand) noexcept -> std::string_view;
 	[[nodiscard]] auto name(workspace_git_error aError) noexcept -> std::string_view;
+	[[nodiscard]] auto name(workspace_seed_outcome aOutcome) noexcept -> std::string_view;
 
 	/// \brief [[BPR-2295]]. The class of Git's standard error on a failed
 	/// workspace command: its first recognized line, never its text.
@@ -646,7 +692,10 @@ namespace bpr::core {
 		/// [[BPR-2295]]. Exactly on a finished `workspace_materialize` line,
 		/// when the host knows it, written after the fixed keys as
 		/// `source=SOURCE sparse=0|1 clone=0|1 clone_head=0|1 git=COMMAND
-		/// git_error=CLASS`.
+		/// git_error=CLASS`. [[BPR-2321]]: when a seed from the linked clone
+		/// was tried, then `seed=OUTCOME seed_walk_ms=N seed_clone_ms=N
+		/// seed_refresh_ms=N seed_checkout_ms=N seed_clean_ms=N
+		/// seed_folders=N seed_files=N seed_written=N seed_cleaned=N`.
 		std::optional<workspace_trace> Workspace = std::nullopt;
 
 		auto operator<=>(const operation_diagnosis&) const = default;

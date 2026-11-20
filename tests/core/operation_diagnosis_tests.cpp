@@ -269,12 +269,32 @@ namespace {
 		expect(!parse_operation_diagnosis("action=workspace_materialize failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 source=borrowed sparse=1 clone=1 clone_head=1 git=none git_error=none path=/x").has_value(),
 			   "nothing follows the trace");
 	}
+
+	/// [[BPR-2321]]. A seed from the linked clone names its outcome, each
+	/// step's time and its counts; a line with no seed is unchanged.
+	void test_workspace_seed_trace()
+	{
+		const auto seeded = operation_diagnosis{ .Action = operation_action::workspace_materialize, .DurationMilliseconds = 900U, .Workspace = workspace_trace{ .Source = workspace_source::borrowed, .Sparse = true, .CloneGiven = true, .CloneHeldHead = true, .Seed = workspace_seed_trace{ .Outcome = workspace_seed_outcome::seeded, .WalkMilliseconds = 40U, .CloneMilliseconds = 230U, .RefreshMilliseconds = 200U, .CheckoutMilliseconds = 5U, .CleanMilliseconds = 30U, .FoldersCloned = 98U, .FilesCloned = 402U, .FilesWritten = 3U, .Cleaned = 0U } } };
+		expect(describe(seeded).ends_with("git=none git_error=none seed=seeded seed_walk_ms=40 seed_clone_ms=230 seed_refresh_ms=200 seed_checkout_ms=5 seed_clean_ms=30 seed_folders=98 seed_files=402 seed_written=3 seed_cleaned=0"),
+			   "the seed's steps and counts follow the trace");
+		expect(parse_operation_diagnosis(describe(seeded)) == seeded, "and read back");
+		const auto spread = operation_diagnosis{ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Source = workspace_source::borrowed, .CloneGiven = true, .Seed = workspace_seed_trace{ .Outcome = workspace_seed_outcome::too_spread, .WalkMilliseconds = 12U, .CheckoutMilliseconds = 1800U, .FilesWritten = 20003U } } };
+		expect(describe(spread).find(" seed=too_spread ") != std::string::npos && parse_operation_diagnosis(describe(spread)) == spread, "a fallback names which");
+		expect(describe({ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Seed = workspace_seed_trace{ .Cleaned = 4U } } }).empty(), "counts with no seed are no line");
+		expect(describe({ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Seed = workspace_seed_trace{ .Outcome = static_cast<workspace_seed_outcome>(40) } } }).empty(), "an unknown outcome is no line");
+		const auto prefix = std::string{ "action=workspace_materialize failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 source=borrowed sparse=1 clone=1 clone_head=1 git=none git_error=none" };
+		expect(!parse_operation_diagnosis(prefix + " seed=none seed_walk_ms=0 seed_clone_ms=0 seed_refresh_ms=0 seed_checkout_ms=0 seed_clean_ms=0 seed_folders=0 seed_files=0 seed_written=0 seed_cleaned=0").has_value(), "no seed is written as none");
+		expect(!parse_operation_diagnosis(prefix + " seed=seeded seed_walk_ms=1").has_value(), "a seed names every step");
+		expect(!parse_operation_diagnosis(prefix + " seed=seeded seed_walk_ms=0 seed_clone_ms=0 seed_refresh_ms=0 seed_checkout_ms=0 seed_clean_ms=0 seed_folders=0 seed_files=0 seed_written=0 seed_cleaned=0 path=/x").has_value(),
+			   "nothing follows the seed");
+	}
 } // namespace
 
 int main()
 {
 	test_line();
 	test_workspace_trace();
+	test_workspace_seed_trace();
 	test_review_submission_lines();
 	test_tour_publication_trace();
 	test_refusals();
