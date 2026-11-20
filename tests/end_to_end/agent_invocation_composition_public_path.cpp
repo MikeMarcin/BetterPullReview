@@ -1899,6 +1899,7 @@ auto main(int argc, char** argv) -> int
 					hidden += std::string{ at->metaObject()->className() } + "/" + at->objectName().toStdString() + " ";
 				}
 			}
+			relayLog("wrapper-setup-repository");
 			return fail(*application, "wrapper-setup-repository",
 						"visible=" + std::to_string(setup->isVisible()) + " button=" + std::to_string(useClone != nullptr) + " enabled=" + std::to_string(useClone != nullptr && useClone->isEnabled())
 							+ " buttons=" + std::to_string(setup->findChildren<QPushButton*>(QStringLiteral("agentSetupUseClone")).size()) + " tray-tab=" + std::to_string(window.tray_tabs()->currentIndex())
