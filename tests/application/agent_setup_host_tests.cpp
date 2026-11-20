@@ -105,22 +105,32 @@ namespace {
 
 	constexpr auto unreadable_file = std::string_view{ "/home/me/profile/state/v1/agent-setup.sqlite3" };
 
+	/// The kept agent list holding one Claude Code entry whose program is a wrapper.
+	[[nodiscard]] auto kept_wrapper(const std::string& aPath) -> application::agent_setup_preferences
+	{
+		auto entry       = core::preset_agent_entry(setup_agent::claude_code, core::codex_protocol_choice::app_server, aPath);
+		entry.Id         = 1U;
+		auto kept        = application::agent_setup_preferences{ };
+		kept.Agents      = { entry };
+		kept.AgentsMoved = true;
+		return kept;
+	}
+
 	struct fixture
 	{
-		std::shared_ptr<recording_log>                              Log = std::make_shared<recording_log>();
-		application::manual_executor                                Effects;
-		application::manual_executor                                Checks;
-		application::manual_executor                                Decision;
-		scripted_port                                               Process;
-		memory_store                                                Store;
-		std::shared_ptr<application::claude_process_wrapper_source> Wrapper  = std::make_shared<application::claude_process_wrapper_source>();
-		std::shared_ptr<application::agent_program_source>          Programs = std::make_shared<application::agent_program_source>();
-		std::optional<core::agent_search_candidate>                 Claude   = core::agent_search_candidate{ .Path = "/opt/homebrew/bin/claude" };
-		std::optional<core::agent_search_candidate>                 Codex;
-		std::optional<core::agent_wrapper_refusal>                  Refusal;
-		std::vector<std::string>                                    Inspected;
-		std::vector<application::agent_setup_projection>            Published;
-		std::unique_ptr<application::agent_setup_host>              Host;
+		std::shared_ptr<recording_log>                     Log = std::make_shared<recording_log>();
+		application::manual_executor                       Effects;
+		application::manual_executor                       Checks;
+		application::manual_executor                       Decision;
+		scripted_port                                      Process;
+		memory_store                                       Store;
+		std::shared_ptr<application::agent_program_source> Programs = std::make_shared<application::agent_program_source>();
+		std::optional<core::agent_search_candidate>        Claude   = core::agent_search_candidate{ .Path = "/opt/homebrew/bin/claude" };
+		std::optional<core::agent_search_candidate>        Codex;
+		std::optional<core::agent_wrapper_refusal>         Refusal;
+		std::vector<std::string>                           Inspected;
+		std::vector<application::agent_setup_projection>   Published;
+		std::unique_ptr<application::agent_setup_host>     Host;
 
 		explicit fixture(const bool aObservePolicy = true)
 		{
@@ -134,9 +144,8 @@ namespace {
 						Inspected.emplace_back(aPath);
 						return Refusal;
 					},
-				.ClaudeWrapper = Wrapper,
-				.Programs      = Programs,
-				.Parent        = [](const std::string& aName) -> std::optional<std::string> {
+				.Programs = Programs,
+				.Parent   = [](const std::string& aName) -> std::optional<std::string> {
 					return aName == "HOME" ? std::optional<std::string>{ "/home/me" } : std::nullopt;
 				},
 				.Profiles = core::built_in_agent_profiles(),
@@ -190,9 +199,11 @@ namespace {
 
 	void test_saved_programs_win()
 	{
-		auto f  = fixture{ };
-		f.Codex = core::agent_search_candidate{ .Path = "/usr/local/bin/codex", .Origin = core::agent_found_in::usual_folder };
-		f.Wrapper->set("/opt/tools/claude-gateway");
+		auto f         = fixture{ };
+		f.Codex        = core::agent_search_candidate{ .Path = "/usr/local/bin/codex", .Origin = core::agent_found_in::usual_folder };
+		f.Store.Stored = kept_wrapper("/opt/tools/claude-gateway");
+		f.Host->load();
+		f.settle();
 		auto answered = std::optional<std::optional<core::agent_wrapper_refusal>>{ };
 		f.Host->set_program(setup_agent::plain_text_harness, "/opt/corp/harness", [&answered](const std::optional<core::agent_wrapper_refusal> aRefusal) { answered = aRefusal; });
 		f.settle();
@@ -267,8 +278,8 @@ namespace {
 
 	void test_auto_chosen_wrapper_keeps_its_entry()
 	{
-		auto f = fixture{ };
-		f.Wrapper->set("/opt/corp/bedrock-wrapper");
+		auto f         = fixture{ };
+		f.Store.Stored = kept_wrapper("/opt/corp/bedrock-wrapper");
 		f.Host->load();
 		f.Host->detect();
 		f.settle();
@@ -276,7 +287,7 @@ namespace {
 		entry.Arguments = { "--no-extra-output" };
 		f.Host->update_agent(entry);
 		f.settle();
-		expect(f.state().Preferences.PreferredAgent == 0U, "a migrated auto-chosen wrapper can have no saved preferred entry yet");
+		expect(f.state().Preferences.PreferredAgent == 0U, "an auto-chosen wrapper can have no saved preferred entry yet");
 		f.Process.Answers = { said(application::agent_run_outcome::success,
 								   R"({
   "loggedIn": true,
@@ -291,7 +302,7 @@ namespace {
 		f.settle();
 		expect(f.Process.Requests.size() == 2U && f.Process.Requests.front().Executable == entry.Program
 				   && f.Process.Requests.front().Arguments == std::vector<std::string>{ "--no-extra-output", "auth", "status", "--json" },
-			   "an auto-chosen migrated wrapper keeps its saved entry's fixed arguments for the status check");
+			   "an auto-chosen wrapper keeps its saved entry's fixed arguments for the status check");
 		expect(f.Process.Requests.back().Arguments == std::vector<std::string>{ "--no-extra-output", "--version" }, "the version check keeps the same fixed arguments");
 		expect(f.state().ChecksWrapper && f.state().State.AgentCheck.State == setup_check_state::passed && f.state().State.AgentCheck.Version == "2.1.296", "the owner's pretty third-party Bedrock status is accepted without a normal Claude login");
 		expect(f.state().Preferences.PreferredAgent == entry.Id && f.Store.Stored->PreferredAgent == entry.Id, "successful setup saves the exact checked entry for subsequent launches");
@@ -306,14 +317,14 @@ namespace {
 		expect(f.state().State.AgentCheck.Failure == core::agent_setup_failure::status_unreadable, "a wrapper's unreadable response is still never accepted as signed in");
 	}
 
-	void test_reset_does_not_resurrect_legacy_wrapper()
+	void test_reset_does_not_resurrect_saved_wrapper()
 	{
-		auto f = fixture{ };
-		f.Wrapper->set("/opt/corp/legacy-wrapper");
+		auto f         = fixture{ };
+		f.Store.Stored = kept_wrapper("/opt/corp/saved-wrapper");
 		f.Host->load();
 		f.Host->detect();
 		f.settle();
-		expect(f.state().State.Rows.front().Path == "/opt/corp/legacy-wrapper", "the legacy wrapper migrates into the canonical list once");
+		expect(f.state().State.Rows.front().Path == "/opt/corp/saved-wrapper", "the saved wrapper is Claude's row");
 		auto entry      = f.state().Preferences.Agents.front();
 		entry.Arguments = { "--no-extra-output" };
 		f.Host->update_agent(entry);
@@ -323,16 +334,15 @@ namespace {
 		f.settle();
 		expect(f.state().Preferences.Agents.empty() && f.state().Preferences.AgentsMoved && f.state().State.Rows.front().Path == f.Claude->Path
 				   && f.state().State.Rows.front().How != core::agent_found_how::saved_program,
-			   "Reset detects ordinary Claude without resurrecting the legacy wrapper after dropping its fixed args");
+			   "Reset detects ordinary Claude without resurrecting the saved wrapper after dropping its fixed args");
 		const auto saved = f.Store.Stored;
 		f.Host->shutdown();
-		auto next = fixture{ };
-		next.Wrapper->set("/opt/corp/legacy-wrapper");
+		auto next         = fixture{ };
 		next.Store.Stored = saved;
 		next.Host->load();
 		next.Host->detect();
 		next.settle();
-		expect(next.state().Preferences.Agents.empty() && next.state().State.Rows.front().Path == next.Claude->Path, "a new host over the persisted reset never reimports or rediscovers the old wrapper");
+		expect(next.state().Preferences.Agents.empty() && next.state().State.Rows.front().Path == next.Claude->Path, "a new host over the persisted reset never rediscovers the old wrapper");
 	}
 
 	void test_setup_details_are_bounded_and_separate()
@@ -496,29 +506,22 @@ namespace {
 	}
 
 	/// [[BPR-1753]], owner amendment 2026-10-23. The single settings
-	/// move into the agent list once; a custom agent is added and chosen, and
+	/// are not moved into the agent list; a custom agent is added and chosen, and
 	/// its program and fixed arguments are what setup checks.
 	void test_the_agent_list()
 	{
 		auto f                       = fixture{ };
 		f.Store.Stored->Chosen       = setup_agent::claude_code;
 		f.Store.Stored->ClaudeEffort = "high";
-		f.Wrapper->set("/opt/work/bin/claude-wrapper");
 		f.Host->load();
 		f.settle();
-		const auto moved = f.state().Preferences.Agents;
-		expect(moved.size() == 1U && moved.front().Name == "Claude Code" && moved.front().Program == "/opt/work/bin/claude-wrapper" && moved.front().Effort == "high"
-				   && f.state().Preferences.AgentsMoved && f.state().Preferences.PreferredAgent == moved.front().Id && f.Store.Stored->Agents == moved,
-			   "the chosen Claude Code and its wrapper move into the list, once, and are kept");
-		f.Host->remove_agent(moved.front().Id);
-		f.settle();
-		expect(f.state().Preferences.Agents.empty() && f.state().Preferences.PreferredAgent == 0U, "an agent is removed");
+		expect(f.state().Preferences.Agents.empty() && f.state().Preferences.AgentsMoved && f.Store.Stored->AgentsMoved && f.Store.Stored->Agents.empty(),
+			   "settings kept before agents were a list are not read into it (owner, 2026-11-20)");
 		auto again         = fixture{ };
 		again.Store.Stored = f.Store.Stored;
-		again.Wrapper->set("/opt/work/bin/claude-wrapper");
 		again.Host->load();
 		again.settle();
-		expect(again.state().Preferences.Agents.empty(), "a removed agent does not come back at the next load");
+		expect(again.state().Preferences.Agents.empty(), "nor at the next load");
 		// Owner look v004: the Agent tab's Suggestions toggle is kept.
 		expect(!again.state().Preferences.SuggestionsHidden, "the suggestions show by default");
 		again.Host->set_suggestions_hidden(true);
@@ -1006,7 +1009,7 @@ auto main() -> int
 	test_saved_programs_win();
 	test_status_check();
 	test_auto_chosen_wrapper_keeps_its_entry();
-	test_reset_does_not_resurrect_legacy_wrapper();
+	test_reset_does_not_resurrect_saved_wrapper();
 	test_setup_details_are_bounded_and_separate();
 	test_codex_and_stop();
 	test_check_diagnostics();

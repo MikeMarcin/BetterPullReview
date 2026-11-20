@@ -556,20 +556,17 @@ namespace {
 
 	void test_wrapper_setup_through_the_launcher(const std::filesystem::path& aRoot)
 	{
-		const auto wrapper = copy_canary(aRoot, "setup-corporate-wrapper");
-		auto       source  = std::make_shared<application::claude_process_wrapper_source>();
-		source->set(text(wrapper));
-		auto launcher = adapters::agent::agent_process_launcher{ };
-		auto lane     = application::manual_executor{ };
-		auto host     = application::agent_setup_host{ application::agent_setup_dependencies{
-			.Process       = &launcher,
-			.Inspect       = &adapters::agent::inspect_claude_process_wrapper,
-			.ClaudeWrapper = source,
-			.Parent        = parent,
-			.Profiles      = core::built_in_agent_profiles(),
-			.Effects       = &lane,
-			.Checks        = &lane,
-			.Decision      = &lane,
+		const auto wrapper  = copy_canary(aRoot, "setup-corporate-wrapper");
+		auto       launcher = adapters::agent::agent_process_launcher{ };
+		auto       lane     = application::manual_executor{ };
+		auto       host     = application::agent_setup_host{ application::agent_setup_dependencies{
+			.Process  = &launcher,
+			.Inspect  = &adapters::agent::inspect_claude_process_wrapper,
+			.Parent   = parent,
+			.Profiles = core::built_in_agent_profiles(),
+			.Effects  = &lane,
+			.Checks   = &lane,
+			.Decision = &lane,
 		} };
 		// First prove the observed pretty JSON survives the real supervisor
 		// and plain-line capture, while an unsuppressed banner stays unreadable.

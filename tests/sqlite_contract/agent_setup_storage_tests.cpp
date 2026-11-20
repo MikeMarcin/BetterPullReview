@@ -221,9 +221,8 @@ namespace {
 					inspected.emplace_back(aPath);
 					return std::optional<core::agent_wrapper_refusal>{ };
 				},
-			.ClaudeWrapper = std::make_shared<application::claude_process_wrapper_source>(),
-			.Programs      = std::make_shared<application::agent_program_source>(),
-			.Parent        = [](const std::string&) { return std::optional<std::string>{ }; },
+			.Programs = std::make_shared<application::agent_program_source>(),
+			.Parent   = [](const std::string&) { return std::optional<std::string>{ }; },
 			.Profiles = core::built_in_agent_profiles(),
 			.Effects  = &effects,
 			.Checks   = &checks,
@@ -452,10 +451,7 @@ try {
 		expect(sqlite3_exec(database, "DELETE FROM agent_conversation_outcomes WHERE number=9", nullptr, nullptr, nullptr) == SQLITE_OK, "a thread stored before outcomes were kept");
 		sqlite3_close_v2(database);
 	}
-	auto legacy       = ended;
-	legacy[0].Outcome = bpr::core::agent_turn_outcome::ended_without_answer;
-	legacy[2].Outcome = bpr::core::agent_turn_outcome::ended_without_answer;
-	expect(talks->load(failed) == std::optional{ legacy }, "an old stopped turn reads back as one that ended without an answer, an old answer as an answer");
+	expect(talks->load(failed) == std::optional{ turns{ } }, "turns kept before their outcomes were are left out, and the thread still loads");
 	expect(talks->store(failed, { }) && talks->load(failed) == std::optional{ turns{ } }, "Clear session removes the outcomes with the turns");
 	// [[BPR-2261]]. A file made before `closed_with_app` checked the outcome
 	// against the ten before it: its table is rebuilt, its rows kept, and a
@@ -749,15 +745,9 @@ try {
 	expect(replayHistory && replayHistory->Replay && replayHistory->Turns.size() == 2U && replayHistory->ReplaySource == restored->Id, "restart preserves replay mode, source link and retained prose");
 	expect(replayHistory->Turns.back().Seconds == std::optional<std::uint32_t>{ 72U }, "a replay keeps how long each turn took");
 	expect(!natives->replay("authority:agent-b:agent-tab", "claude", binding, restored->Id), "replay source cannot cross agent authority");
-	expect(talks->store(pull, thread), "seed explicit legacy source after earlier clear");
-	const auto legacyHistory = natives->history(scope, "claude", "", pull);
-	expect(legacyHistory && !legacyHistory->Legacy.empty() && legacyHistory->Selected == replayed->Id, "legacy slots remain unassigned labelled sources alongside exact selected generation");
-	const auto legacySource = legacyHistory->Legacy.front().Id;
-	auto       legacyReplay = natives->replay(scope, "claude", binding, legacySource, pull);
-	expect(legacyReplay && legacyReplay->Replay && legacyReplay->ReplaySource == legacySource && legacyReplay->Handle.empty() && !legacyReplay->Workspace, "legacy prose moves only to explicitly chosen destination without fake native handle");
-	expect(!natives->replay(scope, "claude", binding, legacySource), "legacy replay requires explicit accepted PR source identity");
+	expect(!natives->replay(scope, "claude", binding, "legacy:1"), "a numbered agent slot is no replay source");
 	const auto fromReplay = natives->choose(scope, "claude", binding, "");
-	expect(fromReplay && !fromReplay->Replay && fromReplay->Id != legacyReplay->Id, "New session from replay starts empty native generation and preserves source");
+	expect(fromReplay && !fromReplay->Replay && fromReplay->Id != replayed->Id, "New session from replay starts empty native generation and preserves source");
 	expect(natives->choose(scope, "claude", binding, restored->Id).has_value(), "restore original native provenance after replay");
 
 	const auto removedScope = std::string{ "authority:agent-a:tour:71:0:3:9" };
@@ -784,7 +774,6 @@ try {
 	legacyNew.Number = 7000U;
 	expect(!talks->store(legacyNew, thread), "legacy writer shares full native plus legacy capacity and cannot prune protected ownership");
 	expect(talks->store(workCodex, thread) && talks->load(workCodex) == std::optional{ thread }, "existing legacy projection may be updated at full capacity without losing another history");
-	expect(natives->history(scope, "claude")->Legacy.empty(), "legacy identity sources appear only for explicit accepted PR key");
 	expect(!natives->replay(scope, "claude", binding, restored->Id), "full replay admission refuses without changing native source");
 	const auto protectedHistory = natives->find("authority:agent-b:agent-tab", "claude", binding);
 	expect(protectedHistory && *protectedHistory && (**protectedHistory).Id == otherNative->Id, "capacity refusal never prunes protected native history");

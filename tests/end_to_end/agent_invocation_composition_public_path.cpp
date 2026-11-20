@@ -1187,27 +1187,10 @@ auto main(int argc, char** argv) -> int
 				if (!send(QStringLiteral("verify-replay")) || !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("transcript-replay-ok")) || !std::filesystem::exists(workspace / ".bpr-native-fixture-state")) {
 					return fail(*application, "replay-shared-workspace", panel->output_text().toStdString());
 				}
-				// Explicit unknown legacy source -> currently selected destination.
-				QAction* legacy = nullptr;
 				for (auto* item : histories->actions()) {
-					if (item->menu()) {
-						for (auto* child : item->menu()->actions()) {
-							if (child->data().toString() == QStringLiteral("legacy:1")) {
-								legacy = child;
-								break;
-							}
-						}
+					if (item->menu() != nullptr) {
+						return fail(*application, "numbered-agent-slot-offered");
 					}
-				}
-				if (!legacy || !legacy->text().contains(QStringLiteral("identity unknown"))) {
-					return fail(*application, "legacy-unknown-source");
-				}
-				legacy->trigger();
-				if (!wait_until([&] { return tab->turn_count() == 1U && tab->turn_answer(0U).contains(QStringLiteral("legacy replay canary")) && tab->ask_button()->isEnabled(); })) {
-					return fail(*application, "legacy-explicit-destination");
-				}
-				if (!send(QStringLiteral("verify-replay")) || !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("transcript-replay-ok"))) {
-					return fail(*application, "legacy-replay-send", panel->output_text().toStdString());
 				}
 			} else {
 				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->turn_count() >= 2U && tab->ask_button()->isEnabled(); })) {

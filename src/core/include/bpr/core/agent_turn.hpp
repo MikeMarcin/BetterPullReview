@@ -54,11 +54,6 @@ namespace bpr::core {
 	/// version does not declare.
 	[[nodiscard]] auto agent_turn_outcome_of(std::uint8_t aOrdinal) noexcept -> std::optional<agent_turn_outcome>;
 
-	/// \brief How a turn stored before its outcome was kept ended, from the
-	/// ending line this application wrote for it: "Stopped after …" is a run
-	/// that ended without an answer; anything else was an answer.
-	[[nodiscard]] auto legacy_agent_turn_outcome(std::string_view aEnding) noexcept -> agent_turn_outcome;
-
 	/// \brief The one way back an error turn offers.
 	enum class agent_turn_recovery : std::uint8_t {
 		none,

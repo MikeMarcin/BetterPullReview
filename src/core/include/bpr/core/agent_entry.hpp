@@ -212,27 +212,6 @@ namespace bpr::core {
 	/// found card; none when `Chosen` is none. A path that is empty or longer
 	/// than `maximum_agent_text_bytes` is not a found program.
 	[[nodiscard]] auto agent_setup_choices(const agent_setup_choice_facts& aFacts) -> std::vector<agent_setup_choice>;
-
-	/// \brief What a profile kept before agents were a list.
-	struct legacy_agent_settings
-	{
-		std::optional<setup_agent> Chosen;
-		codex_protocol_choice      CodexProtocol = codex_protocol_choice::app_server;
-		std::string                ClaudeWrapper;
-		std::string                ClaudeModel;
-		std::string                ClaudeEffort;
-		std::string                CodexProgram;
-		std::string                CodexModel;
-		std::string                CodexEffort;
-		std::string                HarnessProgram;
-	};
-
-	/// \brief The list those settings mean: Claude Code (with its wrapper as
-	/// its program) when it was chosen or had a wrapper, Codex when it was
-	/// chosen or had a program, and the plain-text harness when it had a
-	/// program, the chosen one first. A value that would not be kept is left
-	/// at the agent's default rather than refusing the move.
-	[[nodiscard]] auto migrate_agent_entries(const legacy_agent_settings& aSettings) -> std::vector<agent_entry>;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_ENTRY_HPP

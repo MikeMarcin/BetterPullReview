@@ -756,7 +756,7 @@ namespace {
 		{
 			return Records.contains(aScope) ? std::optional{ Records.at(aScope) } : std::nullopt;
 		}
-		auto history(const std::string& aScope, const std::string&, const std::string&, const std::optional<application::agent_conversation_key>&) -> std::expected<application::native_agent_history_projection, application::native_agent_storage_failure> override
+		auto history(const std::string& aScope, const std::string&, const std::string&) -> std::expected<application::native_agent_history_projection, application::native_agent_storage_failure> override
 		{
 			auto view = application::native_agent_history_projection{ };
 			if (Records.contains(aScope)) {

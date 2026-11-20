@@ -430,8 +430,7 @@ replay. Native handles and conversational memory remain separate. One BPR turn
 uses that tree at a time; a competing turn refuses as busy. Changed source
 bindings retain separate trees, and conflicting legacy trees are preserved with
 an explicit New session path to the shared tree. Unsupported backends use a labelled
-empty replay generation when starting fresh. Legacy numeric agent slots have
-unknown identities until an explicit replay destination is chosen. Failed saves,
+empty replay generation when starting fresh. Failed saves,
 uncertain sends and unsafe storage admission remain visible and preserve existing
 ownership. [RFC-BPR-0096 qualification](../verification/RFC-BPR-0096.md) scopes the
 actual installed versions, permissions, retention limits and remaining gaps.

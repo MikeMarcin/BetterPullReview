@@ -257,40 +257,23 @@ namespace bpr::application {
 				Dependencies.Effects, [store = Dependencies.Store, preferences = Projection.Preferences] { return store->store(preferences); }, [](bool) { });
 		}
 
-		/// [[BPR-1753]]. The single settings, moved into the list once.
+		/// [[BPR-1753]]. Agents are a list. Settings kept before they were
+		/// are not read into it (owner, 2026-11-20: no legacy support): an
+		/// unmoved profile starts with the list it has.
 		void move_into_list()
 		{
-			auto& preferences = Projection.Preferences;
-			if (preferences.AgentsMoved) {
-				auto changed = false;
-				for (auto& entry : preferences.Agents) {
-					if (entry.Identity.empty()) {
-						entry.Identity = mint_agent_identity();
-						changed        = true;
-					}
-				}
-				if (changed) {
-					save();
-				}
-				return;
-			}
-			auto legacy           = core::legacy_agent_settings{ };
-			legacy.Chosen         = preferences.Chosen;
-			legacy.CodexProtocol  = preferences.CodexProtocol;
-			legacy.ClaudeWrapper  = Dependencies.ClaudeWrapper ? Dependencies.ClaudeWrapper->current() : std::string{ };
-			legacy.ClaudeModel    = Dependencies.LegacyClaudeModel ? Dependencies.LegacyClaudeModel() : std::string{ };
-			legacy.ClaudeEffort   = preferences.ClaudeEffort;
-			legacy.CodexProgram   = preferences.CodexProgram;
-			legacy.CodexModel     = preferences.CodexModel;
-			legacy.CodexEffort    = preferences.CodexEffort;
-			legacy.HarnessProgram = preferences.HarnessProgram;
-			preferences.Agents    = core::migrate_agent_entries(legacy);
+			auto& preferences       = Projection.Preferences;
+			auto  changed           = !preferences.AgentsMoved;
+			preferences.AgentsMoved = true;
 			for (auto& entry : preferences.Agents) {
-				entry.Identity = mint_agent_identity();
+				if (entry.Identity.empty()) {
+					entry.Identity = mint_agent_identity();
+					changed        = true;
+				}
 			}
-			preferences.AgentsMoved    = true;
-			preferences.PreferredAgent = preferences.Agents.empty() || !preferences.Chosen ? 0U : preferences.Agents.front().Id;
-			save();
+			if (changed) {
+				save();
+			}
 		}
 
 		/// The entry setup chose, when there is one; while Check all runs,
@@ -498,14 +481,10 @@ namespace bpr::application {
 			// designated-initializer temporary's defaulted strings as
 			// maybe-uninitialized once it is moved.
 			auto snapshot = inputs{ };
-			// [[BPR-1769]]. The legacy wrapper is an input to migration
-			// only. Once moved, the canonical list (including an empty reset
-			// list) decides whether a saved wrapper exists.
+			// [[BPR-1769]]. The list (including an empty reset list) decides
+			// whether a saved wrapper exists.
 			const auto* const claude = core::find_preset_entry(host.Projection.Preferences.Agents, core::setup_agent::claude_code);
-			snapshot.Wrapper         = host.Projection.Preferences.AgentsMoved
-				? (claude != nullptr ? claude->Program : std::string{ })
-				: host.Dependencies.ClaudeWrapper ? host.Dependencies.ClaudeWrapper->current()
-												  : std::string{ };
+			snapshot.Wrapper         = claude != nullptr ? claude->Program : std::string{ };
 			snapshot.Codex           = host.Projection.Preferences.CodexProgram;
 			snapshot.Harness         = host.Projection.Preferences.HarnessProgram;
 			snapshot.Inspect         = host.Dependencies.Inspect;

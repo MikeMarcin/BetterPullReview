@@ -123,30 +123,6 @@ namespace {
 		}
 		expect(core::add_agent_entry(full, work("One more", core::agent_protocol::claude_stream_json, { })).error() == core::agent_entry_refusal::too_many_entries, "the list is bounded");
 	}
-
-	void test_migration()
-	{
-		auto settings          = core::legacy_agent_settings{ };
-		settings.Chosen        = core::setup_agent::codex;
-		settings.CodexProtocol = core::codex_protocol_choice::jsonl;
-		settings.CodexProgram  = "/opt/codex/bin/codex";
-		settings.CodexEffort   = "high";
-		settings.ClaudeWrapper = "/opt/work/bin/claude-wrapper";
-		settings.ClaudeModel   = "opus";
-		settings.ClaudeEffort  = "not one";
-		const auto moved       = core::migrate_agent_entries(settings);
-		expect(moved.size() == 2U && moved[0].Name == "Codex" && moved[0].Protocol == core::agent_protocol::codex_jsonl_exec && moved[0].Program == settings.CodexProgram
-				   && moved[0].Effort == "high" && moved[0].Preset == core::setup_agent::codex,
-			   "the chosen Codex comes first, with its program, protocol and effort");
-		expect(moved[1].Name == "Claude Code" && moved[1].Program == settings.ClaudeWrapper && moved[1].Model == "opus" && moved[1].Effort.empty(),
-			   "the Claude wrapper becomes Claude Code's program, and an effort that is not one word is left at its default");
-		expect(!core::inspect_agent_entries(moved), "the moved list is one that may be kept");
-		expect(core::migrate_agent_entries({ }).empty(), "nothing set up moves to an empty list, so no stock agent appears unasked");
-		auto harness           = core::legacy_agent_settings{ };
-		harness.HarnessProgram = "/usr/local/bin/my-harness";
-		const auto plain       = core::migrate_agent_entries(harness);
-		expect(plain.size() == 1U && plain[0].Protocol == core::agent_protocol::external_terminal && !plain[0].Preset, "a plain-text harness with a program moves as a custom agent");
-	}
 } // namespace
 
 namespace {
@@ -206,7 +182,6 @@ auto main() -> int
 	test_the_owners_two_wrappers();
 	test_what_an_entry_may_hold();
 	test_edits();
-	test_migration();
 	test_setup_choices();
 	std::cout << "agent-entry-tests:pass\n";
 	return EXIT_SUCCESS;

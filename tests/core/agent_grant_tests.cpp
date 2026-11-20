@@ -33,16 +33,10 @@ namespace {
 
 	void test_entry_defaults()
 	{
-		// AC08: a new agent and one carried over start with the folder on and
-		// builds off.
+		// AC08: a new agent starts with the folder on and builds off.
 		const auto added = core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { });
 		expect(added.ScratchStarts, "a new agent's scratch folder starts on");
 		expect(!added.BuildsAndTests, "a new agent's builds start off");
-		auto legacy   = core::legacy_agent_settings{ };
-		legacy.Chosen = core::setup_agent::codex;
-		for (const auto& entry : core::migrate_agent_entries(legacy)) {
-			expect(entry.ScratchStarts && !entry.BuildsAndTests, "a carried-over agent starts with the folder on and builds off");
-		}
 	}
 
 	void test_scratch_follows_start_until_chosen()

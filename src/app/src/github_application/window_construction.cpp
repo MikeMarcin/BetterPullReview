@@ -1465,12 +1465,11 @@ namespace bpr::app {
 				const auto file        = adapters::sqlite::agent_setup_store_file(ApplicationDataRoot).u8string();
 				dependencies.StoreFile = std::string{ file.begin(), file.end() };
 			}
-			dependencies.Process       = AgentSetupLauncher.get();
-			dependencies.Locate        = locate_agent_program();
-			dependencies.Inspect       = &adapters::agent::inspect_claude_process_wrapper;
-			dependencies.ClaudeWrapper = ClaudeWrapperSource;
-			dependencies.Programs      = AgentProgramSource;
-			dependencies.Parent        = [](const std::string& aName) -> std::optional<std::string> {
+			dependencies.Process  = AgentSetupLauncher.get();
+			dependencies.Locate   = locate_agent_program();
+			dependencies.Inspect  = &adapters::agent::inspect_claude_process_wrapper;
+			dependencies.Programs = AgentProgramSource;
+			dependencies.Parent   = [](const std::string& aName) -> std::optional<std::string> {
 				if (!qEnvironmentVariableIsSet(aName.c_str())) {
 					return std::nullopt;
 				}

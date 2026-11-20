@@ -102,18 +102,14 @@ namespace bpr::application {
 		/// when it cannot be read.
 		std::string StoreFile;
 		/// The check's own process port, never the agent host's.
-		agent_process_port*                                  Process = nullptr;
-		agent_program_locator                                Locate;
-		agent_wrapper_inspector                              Inspect;
-		std::shared_ptr<const claude_process_wrapper_source> ClaudeWrapper;
+		agent_process_port*     Process = nullptr;
+		agent_program_locator   Locate;
+		agent_wrapper_inspector Inspect;
 		/// Written whenever the saved programs change, so every launch of the
 		/// window runs what setup saved.
 		std::shared_ptr<agent_program_source> Programs;
 		environment_reader                    Parent;
-		/// [[BPR-1753]]. The profile's Claude › Model, moved into the
-		/// Claude Code entry once.
-		std::function<std::string()>     LegacyClaudeModel;
-		std::vector<core::agent_profile> Profiles;
+		std::vector<core::agent_profile>      Profiles;
 		/// [[BPR-2177]]. Names the popular agents go by (`agent_setup_projection::Names`).
 		std::map<core::setup_agent, std::string> Names;
 		/// Metadata reads and store writes.

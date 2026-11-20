@@ -39,9 +39,6 @@ namespace {
 		}
 		expect(names.size() == core::agent_turn_outcome_count && !names.contains(std::string_view{ }), "every outcome has its own stable name");
 		expect(!core::agent_turn_outcome_of(static_cast<std::uint8_t>(core::agent_turn_outcome_count)).has_value(), "an undeclared ordinal is none");
-		expect(core::legacy_agent_turn_outcome("Stopped after 0:15.") == agent_turn_outcome::ended_without_answer, "a kept stopped ending is not an answer");
-		expect(core::legacy_agent_turn_outcome("Claude Code answered in 0:12.") == agent_turn_outcome::answered, "a kept answered ending is an answer");
-		expect(core::legacy_agent_turn_outcome("") == agent_turn_outcome::answered, "an empty kept ending is taken as an answer, as before");
 	}
 
 	void test_answer_actions()

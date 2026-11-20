@@ -874,15 +874,11 @@ namespace bpr::app {
 			return;
 		}
 		AgentWorkspaceSweepAfterHistory = AgentWorkspaceSweepAfterHistory || aChoice.has_value();
-		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice), AgentConversation ? AgentConversation->projection().Key : std::nullopt);
+		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice));
 	}
 	void github_application::implementation::present_agent_native_history(const application::native_agent_history_projection& aView)
 	{
 		if (Closing || !Window) {
-			return;
-		}
-		if (aView.ReadOnly) {
-			Window->agent_tab()->present_native_history(aView);
 			return;
 		}
 		AgentNativeHistory = aView;

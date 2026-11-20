@@ -2471,23 +2471,6 @@ namespace bpr::qt {
 
 	void agent_tab_view::present_native_history(const application::native_agent_history_projection& aView)
 	{
-		if (aView.ReadOnly) {
-			auto* dialog = new QDialog{ this };
-			dialog->setAttribute(Qt::WA_DeleteOnClose);
-			dialog->setWindowTitle(tr("Legacy history (agent identity unknown)"));
-			auto* column = new QVBoxLayout{ dialog };
-			auto* text   = new QPlainTextEdit{ dialog };
-			text->setReadOnly(true);
-			auto body = tr("Legacy saved questions and replies. Native tool observations and workspace state were not retained. Viewing sends no question. Choose an explicit replay destination in History to continue.\n\n");
-			for (const auto& turn : aView.Turns) {
-				body += QString::fromStdString(turn.Asked) + QStringLiteral("\n\n") + QString::fromStdString(turn.Answered) + QStringLiteral("\n\n");
-			}
-			text->setPlainText(body);
-			column->addWidget(text);
-			dialog->resize(600, 480);
-			dialog->show();
-			return;
-		}
 		NativeHistoryView = aView;
 		ClearSession->setEnabled(!aView.Loading && State != agent_tab_state::working);
 		if (aView.Loading) {
@@ -2517,17 +2500,6 @@ namespace bpr::qt {
 			if (NativeHistoryDispatch) {
 				NativeHistoryDispatch("replay:" + id);
 			} });
-		if (!aView.Legacy.empty()) {
-			auto* legacy = NativeHistoryMenu->addMenu(tr("Legacy histories (agent identity unknown)"));
-			for (const auto& entry : aView.Legacy) {
-				auto* inspect = legacy->addAction(tr("View %1").arg(QString::fromStdString(entry.Title)));
-				connect(inspect, &QAction::triggered, this, [this, id = entry.Id] {if(NativeHistoryDispatch) {NativeHistoryDispatch("view:"+id);} });
-				auto* action = legacy->addAction(tr("Replay %1 with selected agent (%2 turns)").arg(QString::fromStdString(entry.Title)).arg(entry.Turns));
-				action->setData(QString::fromStdString(entry.Id));
-				action->setEnabled(State != agent_tab_state::working);
-				connect(action, &QAction::triggered, this, [this, id = entry.Id] {if(NativeHistoryDispatch) {NativeHistoryDispatch("replay:"+id);} });
-			}
-		}
 		NativeHistoryMenu->addSeparator();
 		for (const auto& entry : aView.Entries) {
 			auto  title = QString::fromStdString(entry.Title).simplified().left(72);
