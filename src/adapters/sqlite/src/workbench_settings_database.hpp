@@ -103,7 +103,8 @@ namespace bpr::adapters::sqlite::detail {
 	/// the note's when only that was changed, and the note's column is empty.
 	/// Thirty-four since [[BPR-2264]]: the Writing style Feature's override.
 	/// Thirty-five since [[BPR-2270]]: the Comment labels Feature's override.
-	inline constexpr std::int64_t workbench_settings_schema_version = 35;
+	/// Thirty-six since [[BPR-2299]]: each reading surface's own width.
+	inline constexpr std::int64_t workbench_settings_schema_version = 36;
 
 	/// \brief Owns the durable workbench layout database.
 	///

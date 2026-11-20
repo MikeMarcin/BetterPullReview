@@ -8,6 +8,7 @@
 #include "../../src/app/src/discuss_busy_fixture.hpp"
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/core/workbench_interaction.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -101,9 +102,12 @@ try {
 	settle();
 
 	const auto& lines = cards->timeline_lines();
-	// The column: centred, 820 wide, the band's chips on its edges.
+	// The column: centred, the Reading width's default wide ([[BPR-2299]];
+	// it had been 820 of its own), the band's chips on its edges.
 	const auto [left, width] = cards->column();
-	expect(width == 820 && left > 8, "Discuss's list is a centred column 820 wide by default");
+	const auto readingWidth  = static_cast<int>(*core::reading_width_limit(core::default_reading_width));
+	std::cout << "DISCUSS_COLUMN " << left << "+" << width << " of " << cards->viewport()->width() << '\n';
+	expect(width == readingWidth && left > 8, "Discuss's list is a centred column the Reading width wide by default");
 	// Each file named once over the threads that follow one another on it.
 	auto files = 0;
 	auto folds = 0;
@@ -142,7 +146,7 @@ try {
 	render(QStringLiteral("discuss-1280x800"), 1280, 800);
 	render(QStringLiteral("discuss-1728x1117"), 1728, 1117);
 	render(QStringLiteral("discuss-2560x1440"), 2560, 1440);
-	expect(cards->column().second == 820, "the column stays 820 on a wide window");
+	expect(cards->column().second == readingWidth, "the column stays the Reading width on a wide window");
 	// The reviews, their previews and the bot reports, further down.
 	const auto scroll_to = [&](const std::string& aId) {
 		const auto found = std::ranges::find(cards->cards(), aId, &qt::thread_card::Id);
@@ -222,7 +226,7 @@ try {
 		const auto fileAt     = onlyFile->mapTo(&window, QPoint{ 0, 0 }).x();
 		const auto edge       = cards->viewport()->mapTo(&window, QPoint{ 0, 0 }).x() + fileColumn.first;
 		std::cout << "ONLY_THIS_FILE " << w << "x" << h << " column=" << fileColumn.first << "+" << fileColumn.second << " whole=" << wholeColumn.first << "+" << wholeColumn.second << " toggle=" << fileAt << " was=" << wholeAt << " edge=" << edge << '\n';
-		expect(fileColumn == wholeColumn && fileColumn.second == 820, "Only this file keeps the centred column");
+		expect(fileColumn == wholeColumn && fileColumn.second == readingWidth, "Only this file keeps the centred column");
 		expect(fileAt == wholeAt && std::abs(fileAt - edge) <= 2, "the band keeps the column's edges and its toggle does not move");
 		render(QStringLiteral("discuss-only-this-file-%1x%2").arg(w).arg(h), w, h);
 		onlyFile->click();

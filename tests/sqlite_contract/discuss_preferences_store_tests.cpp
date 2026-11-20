@@ -1,6 +1,7 @@
-// [[BPR-2171]]. `discuss.sqlite3`: each repository's bot marks and the
-// column's width round-trip through a relaunch; a damaged mark is left out;
-// a newer build's store is left for that build.
+// [[BPR-2171]]. `discuss.sqlite3`: each repository's bot marks round-trip
+// through a relaunch; a damaged mark is left out; a newer build's store is
+// left for that build. [[BPR-2299]]: a store that still holds the retired
+// Discuss column loads, the column ignored and dropped.
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/discuss_preferences_store.hpp"
 #include "bpr/core/profile_data_reset.hpp"
@@ -40,7 +41,6 @@ try {
 	const auto repository = core::repository_mark_key("github.com", "bpr-fixtures", "conversations");
 	auto       chosen     = core::mark_author({ }, repository, "renovate-helper", true);
 	chosen                = core::mark_author(std::move(chosen), repository, "codecov[bot]", false);
-	chosen.Column         = core::discuss_column::wide;
 	expect(adapters::sqlite::store_discuss_preferences(root, chosen), "the preferences are written");
 	expect(std::filesystem::exists(root / "state/v1/discuss.sqlite3"), "into their own file under state/v1");
 	const auto relaunched = adapters::sqlite::load_discuss_preferences(root);
@@ -57,6 +57,21 @@ try {
 	const auto newer = adapters::sqlite::load_discuss_preferences(root);
 	expect(!newer.Writable && newer.Preferences == core::discuss_preferences{ }, "a newer build's store reads as nothing and is not writable");
 	expect(!adapters::sqlite::store_discuss_preferences(root, chosen), "a write refuses to replace it");
+
+	// [[BPR-2299]]. A store as a build before then wrote it, with Discuss's
+	// own column width (Wide, 2), loads its marks and ignores the width.
+	{
+		tests::sqlite_contract::scratch_root older{ "discuss-preferences-older" };
+		const auto&                          olderRoot = older.path();
+		auto                                 marks     = core::mark_author({ }, repository, "renovate-helper", true);
+		expect(adapters::sqlite::store_discuss_preferences(olderRoot, marks), "a store to age");
+		tamper(olderRoot, "DROP TABLE discuss; CREATE TABLE discuss(singleton INTEGER PRIMARY KEY CHECK(singleton=1), version INTEGER NOT NULL, discuss_column INTEGER NOT NULL) STRICT;"
+						  " INSERT INTO discuss VALUES(1,1,2)");
+		const auto loaded = adapters::sqlite::load_discuss_preferences(olderRoot);
+		expect(!loaded.Recovered && loaded.Writable && loaded.Preferences == marks, "an older store with the Discuss column loads, the column ignored");
+		marks = core::mark_author(std::move(marks), repository, "other-helper", true);
+		expect(adapters::sqlite::store_discuss_preferences(olderRoot, marks) && adapters::sqlite::load_discuss_preferences(olderRoot).Preferences == marks, "and takes the next write");
+	}
 
 	expect(core::profile_data_store_area("discuss") == core::profile_data_area::settings, "Reset settings removes it");
 

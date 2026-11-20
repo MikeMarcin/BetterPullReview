@@ -179,11 +179,14 @@ namespace bpr::qt {
 			.CenterRibbonWidth = CenterRibbonWidth != nullptr ? static_cast<std::uint32_t>(CenterRibbonWidth->value()) : Behaviour.CenterRibbonWidth,
 			.MarkdownImages    = BehaviourOptions[9].empty() ? Behaviour.MarkdownImages : static_cast<application::review_markdown_images>(chosen(9U)),
 			.ReadingWidth      = BehaviourOptions[10].empty() ? Behaviour.ReadingWidth : static_cast<core::reading_width>(chosen(10U)),
-			.FinishReview      = FinishReviewSwitches[0] == nullptr ? Behaviour.FinishReview : core::review_finish_settings{
-																								   .Comment        = finishChoice(FinishReviewSwitches[0]),
-																								   .Approve        = finishChoice(FinishReviewSwitches[1]),
-																								   .RequestChanges = finishChoice(FinishReviewSwitches[2]),
-																							   },
+			// [[BPR-2299]]. Set in the Advanced dialog, which asks for its own
+			// record; any other control keeps what was last asked for.
+			.ReadingOverrides = AskedBehaviour.value_or(Behaviour).ReadingOverrides,
+			.FinishReview     = FinishReviewSwitches[0] == nullptr ? Behaviour.FinishReview : core::review_finish_settings{
+																								  .Comment        = finishChoice(FinishReviewSwitches[0]),
+																								  .Approve        = finishChoice(FinishReviewSwitches[1]),
+																								  .RequestChanges = finishChoice(FinishReviewSwitches[2]),
+																							  },
 		};
 	}
 
@@ -251,12 +254,10 @@ namespace bpr::qt {
 		ViewFilterRemember = std::move(aRemember);
 	}
 
-	void workbench_window::set_discuss_preferences(std::function<core::discuss_preferences()> aRead, std::function<void(const std::string&, const std::string&, bool)> aMark,
-												   std::function<void(core::discuss_column)> aColumn)
+	void workbench_window::set_discuss_preferences(std::function<core::discuss_preferences()> aRead, std::function<void(const std::string&, const std::string&, bool)> aMark)
 	{
 		DiscussPreferencesRead = std::move(aRead);
 		DiscussMark            = std::move(aMark);
-		DiscussColumnDispatch  = std::move(aColumn);
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
 			ConversationPanel->cards()->set_author_bot_dispatch([this](const std::string& aLogin, const bool aBot) {
 				if (DiscussMark && !DiscussRepository.empty()) {
@@ -270,25 +271,12 @@ namespace bpr::qt {
 
 	void workbench_window::apply_discuss_preferences()
 	{
-		// [[BPR-2171]]. This repository's bot marks and the column's width.
+		// [[BPR-2171]]. This repository's bot marks; the column's width is
+		// the Reading width's ([[BPR-2299]], `apply_reading_width`).
 		const auto preferences = DiscussPreferencesRead ? DiscussPreferencesRead() : core::discuss_preferences{ };
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
-			auto* const cards = ConversationPanel->cards();
-			cards->set_author_bots(core::marks_of(preferences, DiscussRepository));
-			const auto width = core::discuss_column_width(preferences.Column);
-			cards->set_column_width(width.has_value() ? std::optional{ static_cast<int>(*width) } : std::nullopt);
+			ConversationPanel->cards()->set_author_bots(core::marks_of(preferences, DiscussRepository));
 		}
-		const auto chosen = static_cast<std::size_t>(preferences.Column);
-		if (chosen < DiscussColumnButtons.size() && !DiscussColumnButtons[chosen]->isChecked()) {
-			const auto applying = std::exchange(ApplyingBehaviour, true);
-			DiscussColumnButtons[chosen]->setChecked(true);
-			ApplyingBehaviour = applying;
-		}
-	}
-
-	auto workbench_window::discuss_column_buttons() const -> const std::vector<QAbstractButton*>&
-	{
-		return DiscussColumnButtons;
 	}
 
 	auto workbench_window::view_filters() const noexcept -> const core::view_filter_state&

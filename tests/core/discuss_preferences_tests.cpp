@@ -37,27 +37,19 @@ namespace {
 		expect(mark_author({ }, "", "jiayin", true).Marks.empty() && mark_author({ }, repository, "", true).Marks.empty(), "no repository or login changes nothing");
 	}
 
-	void column()
-	{
-		expect(default_discuss_column == discuss_column::column && discuss_column_width(discuss_column::column) == 820U, "the column is 820 points by default");
-		expect(!discuss_column_width(discuss_column::full).has_value(), "Full width has no limit");
-	}
-
 	void stored()
 	{
-		auto preferences   = mark_author({ }, "github.com/a/b", "Person", true);
-		preferences        = mark_author(std::move(preferences), "github.com/a/b", "app[bot]", false);
-		preferences.Column = discuss_column::wide;
-		const auto row     = stored_discuss_preferences_of(preferences);
-		expect(row.Column == 2 && row.Marks.size() == 2U && row.Marks.front().Login == "app[bot]" && row.Marks.front().Bot == 0, "stored in key order, logins folded");
+		auto preferences = mark_author({ }, "github.com/a/b", "Person", true);
+		preferences      = mark_author(std::move(preferences), "github.com/a/b", "app[bot]", false);
+		const auto row   = stored_discuss_preferences_of(preferences);
+		expect(row.Marks.size() == 2U && row.Marks.front().Login == "app[bot]" && row.Marks.front().Bot == 0, "stored in key order, logins folded");
 		const auto read = read_discuss_preferences(row);
 		expect(read.Preferences == preferences && !read.Recovered && read.Writable, "what is stored reads back");
 		expect(read_discuss_preferences(std::nullopt) == discuss_preferences_read{ }, "nothing stored is nothing chosen");
 		auto damaged = row;
 		damaged.Marks.push_back(stored_author_mark{ .Repository = "github.com/a/b", .Login = "x", .Bot = 7 });
-		damaged.Column       = 9;
 		const auto recovered = read_discuss_preferences(damaged);
-		expect(recovered.Recovered && recovered.Preferences.Column == default_discuss_column && recovered.Preferences.Marks == preferences.Marks, "a damaged value is left out, the rest kept");
+		expect(recovered.Recovered && recovered.Preferences.Marks == preferences.Marks, "a damaged value is left out, the rest kept");
 		auto newer    = row;
 		newer.Version = discuss_preferences_version + 1;
 		expect(!read_discuss_preferences(newer).Writable && read_discuss_preferences(newer).Preferences == discuss_preferences{ }, "a newer build's store is read as nothing and kept");
@@ -67,7 +59,6 @@ namespace {
 auto main() -> int
 {
 	detection();
-	column();
 	stored();
 	if (Failures != 0) {
 		std::cerr << Failures << " expectation(s) failed\n";

@@ -990,7 +990,7 @@ namespace {
 		for (const auto& [window, width] : { width_case{ 1'280, core::reading_width::wide }, width_case{ 1'900, core::reading_width::wide }, width_case{ 3'440, core::reading_width::wide },
 											 width_case{ 1'900, core::reading_width::narrow }, width_case{ 3'440, core::reading_width::medium },
 											 width_case{ 3'440, core::reading_width::full } }) {
-			finder.set_reading_width(width);
+			finder.set_reading_limit(core::reading_width_limit(width));
 			finder.resize(window, 700);
 			QApplication::processEvents();
 			finder.list()->scrollTo(finder.list()->model()->index(0, 0));
@@ -1001,15 +1001,15 @@ namespace {
 			expect(row.width() == page(), "the row's rectangle is the page's width");
 			expect(trailing.right() == row.left() + 6 + column - 1 && trailing.right() <= row.right(),
 				   "the people, counts and state end at the reading column's right edge: " + std::to_string(window) + " " + std::to_string(static_cast<int>(width)));
-			if (width == core::reading_width::wide && window <= 2'560) {
-				expect(trailing.right() >= page() - 8 - 1, "an ordinary window's rows reach the page's right edge");
+			if (const auto limit = core::reading_width_limit(width); !limit.has_value() || static_cast<int>(*limit) >= page() - 14) {
+				expect(trailing.right() >= page() - 8 - 1, "rows narrower than the reading width reach the page's right edge");
 			}
 			if (width != core::reading_width::full && window == 3'440) {
 				expect(trailing.right() < page() - 400, "an ultra-wide window's rows stop at the reading width");
 			}
 		}
 		// Negative control: the 880-pixel cap the rows had would fail here.
-		finder.set_reading_width(core::reading_width::wide);
+		finder.set_reading_limit(core::reading_width_limit(core::reading_width::wide));
 		finder.resize(1'900, 700);
 		QApplication::processEvents();
 		expect(finder.trailing_rect(t656).right() > 880 + 200, "a 1900-pixel window's rows run past the old 880-pixel cap");
@@ -1017,7 +1017,7 @@ namespace {
 		// window, for the owner's look.
 		for (const auto& [option, label] : { std::pair{ core::reading_width::narrow, "narrow" }, std::pair{ core::reading_width::medium, "medium" },
 											 std::pair{ core::reading_width::wide, "wide" }, std::pair{ core::reading_width::full, "full" } }) {
-			finder.set_reading_width(option);
+			finder.set_reading_limit(core::reading_width_limit(option));
 			for (const auto window : { 1'900, 3'440 }) {
 				finder.resize(window, 520);
 				QApplication::processEvents();
@@ -1027,7 +1027,7 @@ namespace {
 				}
 			}
 		}
-		finder.set_reading_width(core::reading_width::wide);
+		finder.set_reading_limit(core::reading_width_limit(core::reading_width::wide));
 		// Renders, hover and selected rows, Light and Dark, ordinary and
 		// ultra-wide.
 		for (const auto& [name, base, text] : { std::tuple{ "light", QColor{ 0xFF, 0xFF, 0xFF }, QColor{ 0x1F, 0x23, 0x28 } }, std::tuple{ "dark", QColor{ 0x22, 0x27, 0x2E }, QColor{ 0xE6, 0xED, 0xF3 } } }) {

@@ -99,11 +99,6 @@ namespace bpr::core {
 			result.Recovered = true;
 			return result;
 		}
-		if (aStored->Column >= 0 && aStored->Column <= static_cast<std::int64_t>(discuss_column::full)) {
-			result.Preferences.Column = static_cast<discuss_column>(aStored->Column);
-		} else {
-			result.Recovered = true;
-		}
 		for (const auto& mark : aStored->Marks) {
 			const auto login = author_mark_key(mark.Login);
 			if (!storable(mark.Repository) || !storable(login) || (mark.Bot != 0 && mark.Bot != 1) || mark.Repository != fold(mark.Repository)) {
@@ -117,8 +112,7 @@ namespace bpr::core {
 
 	auto stored_discuss_preferences_of(const discuss_preferences& aPreferences) -> stored_discuss_preferences
 	{
-		auto stored   = stored_discuss_preferences{ };
-		stored.Column = static_cast<std::int64_t>(aPreferences.Column);
+		auto stored = stored_discuss_preferences{ };
 		for (const auto& [repository, marks] : aPreferences.Marks) {
 			for (const auto& [login, bot] : marks) {
 				stored.Marks.push_back(stored_author_mark{ .Repository = repository, .Login = login, .Bot = bot ? 1 : 0 });

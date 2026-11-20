@@ -11,6 +11,7 @@
 #include <QAccessible>
 #include <QAccessibleAnnouncementEvent>
 #include <QApplication>
+#include <QBoxLayout>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QHBoxLayout>
@@ -107,8 +108,8 @@ namespace bpr::qt {
 			std::function<int(int, int)> Height;
 		};
 
-		// docs/design/report-card-v4/SPEC.md, the drawings' points.
-		constexpr int column_width      = 572;
+		// docs/design/report-card-v4/SPEC.md, the drawings' points. The
+		// column's width is the reading width's ([[BPR-2299]]).
 		constexpr int title_top         = 22;
 		constexpr int button_right      = 14;
 		constexpr int button_top        = 12;
@@ -294,7 +295,6 @@ namespace bpr::qt {
 		auto* const centre = new QHBoxLayout{ page };
 		centre->setContentsMargins(24, title_top, 24 + button_width + button_right, 32);
 		Column = new QWidget{ page };
-		Column->setMaximumWidth(column_width);
 		// The page is laid out at the column's width, which the scroll area
 		// gives it after the view's own resize: a report opened while the
 		// column was still narrow left its code boxes one pixel wide.
@@ -386,6 +386,8 @@ namespace bpr::qt {
 		centre->addWidget(Column, 100);
 		centre->addStretch(1);
 		Scroll->setWidget(page);
+		// [[BPR-2299]]. As wide as the reading width lets it.
+		set_reading_limit(ReadingLimit);
 
 		// The floating button: the pane's, not the page's.
 		MenuButton = new QToolButton{ this };
@@ -607,6 +609,20 @@ namespace bpr::qt {
 			cursor.setBlockFormat(spacing);
 		}
 		fit_body();
+	}
+
+	void agent_report_view::set_reading_limit(const std::optional<std::uint32_t> aLimit)
+	{
+		ReadingLimit = aLimit;
+		// The column's resize lays the page and its code boxes out again
+		// (`eventFilter`), so the report shown takes the width at once.
+		Column->setMaximumWidth(aLimit.has_value() ? static_cast<int>(*aLimit) : QWIDGETSIZE_MAX);
+		// Capped, the stretches either side centre it; uncapped they take
+		// nothing and it fills the room.
+		if (auto* const centre = qobject_cast<QBoxLayout*>(Column->parentWidget()->layout()); centre != nullptr && centre->count() == 3) {
+			centre->setStretch(0, aLimit.has_value() ? 1 : 0);
+			centre->setStretch(2, aLimit.has_value() ? 1 : 0);
+		}
 	}
 
 	void agent_report_view::fit_body()

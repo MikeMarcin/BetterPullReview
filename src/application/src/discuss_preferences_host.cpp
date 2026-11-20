@@ -92,13 +92,6 @@ namespace bpr::application {
 		return Impl->change(core::mark_author(Impl->Preferences, aRepository, aLogin, aBot));
 	}
 
-	auto discuss_preferences_host::set_column(const core::discuss_column aColumn) -> bool
-	{
-		auto next   = Impl->Preferences;
-		next.Column = aColumn;
-		return Impl->change(std::move(next));
-	}
-
 	auto discuss_preferences_host::recovered() const noexcept -> bool
 	{
 		return Impl->Recovered;

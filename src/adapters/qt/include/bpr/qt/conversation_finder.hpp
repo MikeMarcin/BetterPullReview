@@ -345,9 +345,11 @@ namespace bpr::qt {
 		/// author's posts on the pull request are new; without a count the
 		/// rows' own posts are counted.
 		void set_author_read_dispatch(std::function<void(const std::string&)> aDispatch, std::function<std::size_t(const QString&)> aUnreadCount = { });
-		/// \brief [[BPR-1584]]. How wide the rows grow on a wide page.
-		void               set_reading_width(core::reading_width aWidth);
-		[[nodiscard]] auto reading_width() const noexcept -> core::reading_width;
+		/// \brief [[BPR-1584]], [[BPR-2299]]. How wide the rows grow on a
+		/// wide page: Threads' width as the core resolved it; none for the
+		/// whole page.
+		void               set_reading_limit(std::optional<std::uint32_t> aLimit);
+		[[nodiscard]] auto reading_limit() const noexcept -> std::optional<std::uint32_t>;
 		/// \brief Esc on an empty search.
 		void set_leave_dispatch(std::function<void()> aDispatch);
 
@@ -529,7 +531,7 @@ namespace bpr::qt {
 		std::function<void(std::uint64_t, bool)>   MoveDispatch;
 		std::function<void(const std::string&)>    AuthorReadDispatch;
 		std::function<std::size_t(const QString&)> AuthorUnreadCount;
-		core::reading_width                        ReadingWidth = core::default_reading_width;
+		std::optional<std::uint32_t>               ReadingLimit = core::reading_width_limit(core::default_reading_width);
 		std::function<void()>                      LeaveDispatch;
 
 		QWidget*              Bar          = nullptr;

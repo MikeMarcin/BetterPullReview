@@ -2633,19 +2633,19 @@ namespace bpr::qt {
 		AuthorUnreadCount  = std::move(aUnreadCount);
 	}
 
-	void conversation_finder::set_reading_width(const core::reading_width aWidth)
+	void conversation_finder::set_reading_limit(const std::optional<std::uint32_t> aLimit)
 	{
-		if (ReadingWidth == aWidth) {
+		if (ReadingLimit == aLimit) {
 			return;
 		}
-		ReadingWidth = aWidth;
+		ReadingLimit = aLimit;
 		List->doItemsLayout();
 		List->viewport()->update();
 	}
 
-	auto conversation_finder::reading_width() const noexcept -> core::reading_width
+	auto conversation_finder::reading_limit() const noexcept -> std::optional<std::uint32_t>
 	{
-		return ReadingWidth;
+		return ReadingLimit;
 	}
 
 	auto conversation_finder::review_button_rect(const std::string& aRowKey) const -> QRect
@@ -2955,7 +2955,7 @@ namespace bpr::qt {
 		// [[BPR-1584]]. The rows fill the page up to the reading width; the
 		// people, counts and state stay at their right end.
 		const auto page  = std::max(0, aRect.width() - list_left - list_right);
-		const auto width = static_cast<int>(core::reading_column_width(ReadingWidth, static_cast<std::uint32_t>(page)));
+		const auto width = ReadingLimit.has_value() ? std::min(page, static_cast<int>(*ReadingLimit)) : page;
 		geometry.Box     = QRect{ aRect.left() + list_left, aRect.bottom() - row_height + 1, std::max(0, width), row_height };
 		if (aItem >= Items.size() || Items[aItem]->Header) {
 			return geometry;
@@ -3085,7 +3085,7 @@ namespace bpr::qt {
 	{
 		const auto colours = note_colours_of(palette(), New, Route);
 		const auto page    = std::max(0, aRect.width() - list_left - list_right);
-		const auto width   = static_cast<int>(core::reading_column_width(ReadingWidth, static_cast<std::uint32_t>(page)));
+		const auto width   = ReadingLimit.has_value() ? std::min(page, static_cast<int>(*ReadingLimit)) : page;
 		const auto box     = QRect{ aRect.left() + list_left, aRect.bottom() - row_height + 1, width, row_height };
 		aPainter.save();
 		aPainter.setRenderHint(QPainter::Antialiasing, true);

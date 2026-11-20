@@ -15,6 +15,7 @@
 #include "bpr/core/suggestion_applicability.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
+#include "bpr/core/workbench_interaction.hpp"
 #include "bpr/qt/enhance_control.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -853,7 +854,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-2171]]. Mark as bot (true) or Not a bot, by login.
 		void set_author_bot_dispatch(std::function<void(const std::string&, bool)> aDispatch);
 		/// \brief [[BPR-2171]]. Discuss's centred column, in logical pixels;
-		/// none for the whole width.
+		/// none for the whole width. [[BPR-2299]]: Discuss's reading width.
 		void               set_column_width(std::optional<int> aWidth);
 		[[nodiscard]] auto column_width() const noexcept -> std::optional<int>;
 		/// \brief [[BPR-2171]]. Where the list's column is: its left edge and
@@ -1315,13 +1316,14 @@ namespace bpr::qt {
 		/// [[BPR-2171]].
 		core::author_bot_marks                        BotMarks;
 		std::function<void(const std::string&, bool)> AuthorBotDispatch;
-		std::optional<int>                            ColumnLimit = 820;
-		std::set<std::string>                         Unfolded;
-		std::size_t                                   FoldedComments   = 0U;
-		std::size_t                                   FoldedThreads    = 0U;
-		std::size_t                                   FoldedUnresolved = 0U;
-		[[nodiscard]] auto                            card_width_for(const thread_card& aCard) const -> std::pair<int, int>;
-		void                                          unfold_for(const std::string& aId);
+		/// [[BPR-2299]]. The default Reading width's until the window says.
+		std::optional<int>    ColumnLimit = static_cast<int>(*core::reading_width_limit(core::default_reading_width));
+		std::set<std::string> Unfolded;
+		std::size_t           FoldedComments   = 0U;
+		std::size_t           FoldedThreads    = 0U;
+		std::size_t           FoldedUnresolved = 0U;
+		[[nodiscard]] auto    card_width_for(const thread_card& aCard) const -> std::pair<int, int>;
+		void                  unfold_for(const std::string& aId);
 		/// [[BPR-1779]]. The pull request's comments and their unread, as the
 		/// Pull request chip counts them: comments, not reviews.
 		mutable std::optional<std::pair<std::size_t, std::size_t>> PullRequestCounts;

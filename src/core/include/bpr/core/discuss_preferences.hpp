@@ -2,8 +2,8 @@
 #define BPR_CORE_DISCUSS_PREFERENCES_HPP
 
 /// \file
-/// \brief [[BPR-2171]]. Who Discuss treats as a bot, and how wide its column
-/// is: the profile's Discuss preferences.
+/// \brief [[BPR-2171]]. Who Discuss treats as a bot: the profile's Discuss
+/// preferences.
 ///
 /// \details The owner, 2026-11-13, on folding bot comments: "I dunno how you
 /// detect bots [...] Do we need the ability to mark a user as a bot and store
@@ -12,8 +12,8 @@
 /// can then be marked as a bot, or as not one, in one repository; the mark
 /// is kept on this computer and is the answer there.
 ///
-/// On the column: "should be a setting, Centered I think." Discuss's list is
-/// a centred column 820 points wide unless chosen otherwise.
+/// Discuss's list is a centred column as wide as the Reading width
+/// ([[BPR-2299]]); the column setting it had of its own is gone.
 ///
 /// Pure: equal inputs give equal answers.
 
@@ -45,39 +45,11 @@ namespace bpr::core {
 	/// mark when there is one, otherwise what GitHub says.
 	[[nodiscard]] auto author_is_bot(std::string_view aLogin, const author_bot_marks& aMarks) -> bool;
 
-	/// \brief How wide Discuss's centred column is.
-	/// \details Ordinal values are the stored form's contract.
-	enum class discuss_column : std::uint8_t {
-		narrow = 0,
-		column = 1,
-		wide   = 2,
-		full   = 3,
-	};
-
-	inline constexpr discuss_column default_discuss_column = discuss_column::column;
-
-	/// \brief The column's width in logical pixels; none for Full width.
-	[[nodiscard]] constexpr auto discuss_column_width(const discuss_column aColumn) noexcept -> std::optional<std::uint32_t>
-	{
-		switch (aColumn) {
-		case discuss_column::narrow:
-			return 680U;
-		case discuss_column::column:
-			return 820U;
-		case discuss_column::wide:
-			return 1'100U;
-		case discuss_column::full:
-			return std::nullopt;
-		}
-		return 820U;
-	}
-
 	/// \brief The profile's Discuss preferences.
 	struct discuss_preferences
 	{
 		/// Each repository's marks, by `repository_mark_key`.
 		std::map<std::string, author_bot_marks, std::less<>> Marks;
-		discuss_column                                       Column = default_discuss_column;
 
 		auto operator==(const discuss_preferences&) const -> bool = default;
 	};
@@ -110,7 +82,6 @@ namespace bpr::core {
 	struct stored_discuss_preferences
 	{
 		std::int64_t                    Version = discuss_preferences_version;
-		std::int64_t                    Column  = static_cast<std::int64_t>(default_discuss_column);
 		std::vector<stored_author_mark> Marks;
 
 		auto operator==(const stored_discuss_preferences&) const -> bool = default;
@@ -131,8 +102,7 @@ namespace bpr::core {
 
 	/// \brief Reads the stored preferences; none when nothing is stored.
 	/// \details Each mark is checked on its own: one that cannot be read is
-	/// left out and the read reports it recovered; an unknown column reads
-	/// as the default.
+	/// left out and the read reports it recovered.
 	[[nodiscard]] auto read_discuss_preferences(const std::optional<stored_discuss_preferences>& aStored) -> discuss_preferences_read;
 
 	/// \brief What this build stores for the preferences, marks in key order.

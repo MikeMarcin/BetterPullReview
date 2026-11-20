@@ -568,8 +568,6 @@ namespace bpr::qt {
 			// chosen layout A draws it (RFC-BPR-0085 D6), with no thread list; a
 			// maximized draft keeps its list beside it ([[BPR-1212]]).
 			const auto focused = CompositionPage != nullptr && CompositionPage == ComposeReviewPage;
-			const auto column  = core::reading_width_limit(Behaviour.ReadingWidth);
-			static_cast<void>(column);
 			if (focused) {
 				centre_review_page();
 			}
@@ -578,14 +576,11 @@ namespace bpr::qt {
 			}
 			if (ConversationPanel != nullptr) {
 				const auto listed = CompositionPage != nullptr && ConversationPanel->parentWidget() == DiscussPage;
-				// [[BPR-1584]]. Discuss's notes stop at the reading width,
-				// at the page's left, as Threads' rows do; beside the code
-				// the drawer keeps its own bounds.
-				const auto limit = core::reading_width_limit(Behaviour.ReadingWidth);
-				const auto read  = ConversationPanel->parentWidget() == DiscussPage && limit.has_value()
-					? static_cast<int>(std::min<std::uint32_t>(*limit, QWIDGETSIZE_MAX))
-					: QWIDGETSIZE_MAX;
-				ConversationPanel->setMaximumWidth(listed ? discuss_composer_list_width : read);
+				// [[BPR-2299]]. Discuss's notes are a centred column the
+				// reading width wide inside the whole page
+				// (`apply_reading_width`); beside the code the drawer keeps
+				// its own bounds.
+				ConversationPanel->setMaximumWidth(listed ? discuss_composer_list_width : QWIDGETSIZE_MAX);
 				if (ConversationPanel->parentWidget() == DiscussPage) {
 					static_cast<QBoxLayout*>(DiscussPage->layout())->setStretchFactor(ConversationPanel, listed ? 0 : 1);
 				}
@@ -594,8 +589,7 @@ namespace bpr::qt {
 		if (ToggleStatusDrawerAction != nullptr) {
 			ToggleStatusDrawerAction->setEnabled(page == OverviewPage);
 		}
-		// [[BPR-2171]]. Another window may have marked a bot or changed the
-		// column: Discuss shows the profile's preferences as they are now.
+		// [[BPR-2171]]. Another window may have marked a bot: Discuss shows the profile's preferences as they are now.
 		if (page == DiscussPage && CentreStack->currentWidget() != DiscussPage) {
 			apply_discuss_preferences();
 		}

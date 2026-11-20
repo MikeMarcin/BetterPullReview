@@ -71,7 +71,9 @@ namespace bpr::adapters::sqlite::detail {
 		/// forty-five.
 		/// [[BPR-2270]]: version thirty-five's Comment labels Feature,
 		/// forty-six.
-		constexpr std::size_t MaximumTableColumns = 46U;
+		/// [[BPR-2299]]: version thirty-six's three reading surfaces' widths,
+		/// forty-nine.
+		constexpr std::size_t MaximumTableColumns = 49U;
 
 		/// \brief Writes the layout table's definition under one name.
 		///
@@ -226,7 +228,16 @@ namespace bpr::adapters::sqlite::detail {
 				  "writing_style TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_style AS BLOB)) <= 8192),"
 				  // [[BPR-2270]]. Schema version 35: the Comment labels Feature
 				  // (its column avoids "comment", which names review content).
-				  "writing_label_convention TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_label_convention AS BLOB)) <= 8192)) STRICT";
+				  "writing_label_convention TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_label_convention AS BLOB)) <= 8192),"
+				  // [[BPR-2299]]. Schema version 36: Reading width › Advanced,
+				  // each reading surface's own width in `core::reading_surface`'s
+				  // order (`core::stored_reading_override`): 0 follows the
+				  // Reading width, the default, so a migrated row follows it;
+				  // -1 is the whole page; a width below Narrow's is held to it
+				  // when read.
+				  "reading_threads INTEGER NOT NULL DEFAULT 0 CHECK(reading_threads BETWEEN -1 AND 3840),"
+				  "reading_discuss INTEGER NOT NULL DEFAULT 0 CHECK(reading_discuss BETWEEN -1 AND 3840),"
+				  "reading_reports INTEGER NOT NULL DEFAULT 0 CHECK(reading_reports BETWEEN -1 AND 3840)) STRICT";
 		}
 
 		static_assert(core::maximum_feedback_label_columns_text == 256U);
@@ -450,6 +461,7 @@ namespace bpr::adapters::sqlite::detail {
 				: aVersion <= 32                       ? ",writing_local_run_check"
 				: aVersion <= 33                       ? ",writing_style"
 				: aVersion <= 34                       ? ",writing_label_convention"
+				: aVersion <= 35                       ? ",reading_threads"
 													   : "";
 			if (!cut.empty()) {
 				sql.resize(sql.find(cut));
@@ -480,7 +492,7 @@ namespace bpr::adapters::sqlite::detail {
 				+ (aVersion >= 6 ? ",drawer_controls" : "") + (aVersion >= 7 ? ",one_pane" : "")
 				+ (aVersion >= 11 ? ",writing_revision,writing_problem,writing_solution,writing_outline,writing_stop" : "")
 				+ (aVersion >= 12 ? ",feedback_marks" : "") + (aVersion >= 13 ? ",label_helper,overview_counts,label_columns" : "")
-				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "") + (aVersion >= 20 ? ",center_ribbon_width" : "") + (aVersion >= 21 ? ",markdown_images" : "") + (aVersion >= 22 ? ",reading_width" : "") + (aVersion >= 24 ? ",finish_review" : "") + (aVersion >= 25 ? ",writing_enhance_stop,writing_enhance_draft,writing_enhance_note" : "") + (aVersion >= 26 ? ",writing_suggestion_format" : "") + (aVersion >= 28 ? ",writing_local_description,writing_local_discussion" : "") + (aVersion >= 29 ? ",writing_local_commit_message" : "") + (aVersion >= 30 ? ",writing_review_latest_upload,writing_review_proposed_fix" : "") + (aVersion >= 31 ? ",writing_review_explain_file" : "") + (aVersion >= 32 ? ",writing_review_suggest_change" : "") + (aVersion >= 33 ? ",writing_local_run_check" : "") + (aVersion >= 34 ? ",writing_style" : "");
+				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "") + (aVersion >= 20 ? ",center_ribbon_width" : "") + (aVersion >= 21 ? ",markdown_images" : "") + (aVersion >= 22 ? ",reading_width" : "") + (aVersion >= 24 ? ",finish_review" : "") + (aVersion >= 25 ? ",writing_enhance_stop,writing_enhance_draft,writing_enhance_note" : "") + (aVersion >= 26 ? ",writing_suggestion_format" : "") + (aVersion >= 28 ? ",writing_local_description,writing_local_discussion" : "") + (aVersion >= 29 ? ",writing_local_commit_message" : "") + (aVersion >= 30 ? ",writing_review_latest_upload,writing_review_proposed_fix" : "") + (aVersion >= 31 ? ",writing_review_explain_file" : "") + (aVersion >= 32 ? ",writing_review_suggest_change" : "") + (aVersion >= 33 ? ",writing_local_run_check" : "") + (aVersion >= 34 ? ",writing_style" : "") + (aVersion >= 35 ? ",writing_label_convention" : "");
 			std::vector<std::string> statements;
 			if (aVersion >= 5) {
 				statements.emplace_back("ALTER TABLE workbench_preferences RENAME TO workbench_layout");
@@ -687,6 +699,12 @@ namespace bpr::adapters::sqlite::detail {
 						if (value < application::minimum_workbench_drawer_width || value > application::maximum_workbench_drawer_width) {
 							return false;
 						}
+					} else if (name == "reading_threads" || name == "reading_discuss" || name == "reading_reports") {
+						// [[BPR-2299]]. As the CHECK has it; a width below
+						// Narrow's is held to it when read, not refused.
+						if (value < -1 || value > core::maximum_reading_override) {
+							return false;
+						}
 					} else if (name == "center_ribbon_width") {
 						if (value < application::minimum_center_ribbon_width || value > application::maximum_center_ribbon_width) {
 							return false;
@@ -871,7 +889,8 @@ namespace bpr::adapters::sqlite::detail {
 			// RFC-BPR-0120: version thirty-three adds one, so thirty-two is too.
 			// [[BPR-2264]]: version thirty-four adds one, so thirty-three is too.
 			// [[BPR-2270]]: version thirty-five adds one, so thirty-four is too.
-			if (*current < 0 || *current > 34) {
+			// [[BPR-2299]]: version thirty-six adds three, so thirty-five is too.
+			if (*current < 0 || *current > 35) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -1223,8 +1242,9 @@ namespace bpr::adapters::sqlite::detail {
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
 			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review,"
 			"writing_enhance_stop, writing_enhance_draft, writing_enhance_note, writing_suggestion_format, writing_local_description, writing_local_discussion, writing_local_commit_message,"
-			"writing_review_latest_upload, writing_review_proposed_fix, writing_review_explain_file, writing_review_suggest_change, writing_local_run_check, writing_style, writing_label_convention) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39, ?40, ?41, ?42, ?43, ?44, ?45) "
+			"writing_review_latest_upload, writing_review_proposed_fix, writing_review_explain_file, writing_review_suggest_change, writing_local_run_check, writing_style, writing_label_convention,"
+			"reading_threads, reading_discuss, reading_reports) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39, ?40, ?41, ?42, ?43, ?44, ?45, ?46, ?47, ?48) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -1249,7 +1269,8 @@ namespace bpr::adapters::sqlite::detail {
 			"writing_local_discussion = excluded.writing_local_discussion, writing_local_commit_message = excluded.writing_local_commit_message,"
 			"writing_review_latest_upload = excluded.writing_review_latest_upload, writing_review_proposed_fix = excluded.writing_review_proposed_fix,"
 			"writing_review_explain_file = excluded.writing_review_explain_file, writing_review_suggest_change = excluded.writing_review_suggest_change,"
-			"writing_local_run_check = excluded.writing_local_run_check, writing_style = excluded.writing_style, writing_label_convention = excluded.writing_label_convention");
+			"writing_local_run_check = excluded.writing_local_run_check, writing_style = excluded.writing_style, writing_label_convention = excluded.writing_label_convention,"
+			"reading_threads = excluded.reading_threads, reading_discuss = excluded.reading_discuss, reading_reports = excluded.reading_reports");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -1284,6 +1305,9 @@ namespace bpr::adapters::sqlite::detail {
 			|| ::sqlite3_bind_int64(statement->Value, 28, static_cast<std::int64_t>(aSettings.Behaviour.CenterRibbonWidth)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 29, static_cast<std::int64_t>(aSettings.Behaviour.MarkdownImages)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 30, static_cast<std::int64_t>(aSettings.Behaviour.ReadingWidth)) != SQLITE_OK
+			|| ::sqlite3_bind_int64(statement->Value, 46, core::stored_reading_override(aSettings.Behaviour.ReadingOverrides[0])) != SQLITE_OK
+			|| ::sqlite3_bind_int64(statement->Value, 47, core::stored_reading_override(aSettings.Behaviour.ReadingOverrides[1])) != SQLITE_OK
+			|| ::sqlite3_bind_int64(statement->Value, 48, core::stored_reading_override(aSettings.Behaviour.ReadingOverrides[2])) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 31, finish_review_bits(aSettings.Behaviour.FinishReview)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 14, static_cast<std::int64_t>(aSettings.OnePane)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(
@@ -1593,7 +1617,8 @@ namespace bpr::adapters::sqlite::detail {
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
 			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review,"
 			"writing_enhance_stop, writing_enhance_draft, writing_enhance_note, writing_suggestion_format, writing_local_description, writing_local_discussion, writing_local_commit_message,"
-			"writing_review_latest_upload, writing_review_proposed_fix, writing_review_explain_file, writing_review_suggest_change, writing_local_run_check, writing_style, writing_label_convention "
+			"writing_review_latest_upload, writing_review_proposed_fix, writing_review_explain_file, writing_review_suggest_change, writing_local_run_check, writing_style, writing_label_convention,"
+			"reading_threads, reading_discuss, reading_reports "
 			"FROM workbench_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -1675,6 +1700,17 @@ namespace bpr::adapters::sqlite::detail {
 		const auto readingWidth = preference_of(::sqlite3_column_int64(statement->Value, 29), core::reading_width::full);
 		// [[BPR-1816]]. Column 30, after reading_width.
 		const auto finishReview = finish_review_of(::sqlite3_column_int64(statement->Value, 30));
+		// [[BPR-2299]]. Columns 45 to 47, after writing_label_convention: each
+		// reading surface's own width, held to the bounds as it is read.
+		auto readingOverrides = core::reading_overrides{ };
+		for (auto surface = std::size_t{ 0U }; surface < core::reading_surface_count; ++surface) {
+			const auto read = core::read_reading_override(::sqlite3_column_int64(statement->Value, 45 + static_cast<int>(surface)));
+			if (!read) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			readingOverrides[surface] = *read;
+		}
+		static_assert(core::reading_surface_count == 3U, "a reading surface needs its own column");
 		if (ribbonWidth < application::minimum_center_ribbon_width || ribbonWidth > application::maximum_center_ribbon_width) {
 			return std::unexpected(failure::integrity_failure);
 		}
@@ -1758,6 +1794,7 @@ namespace bpr::adapters::sqlite::detail {
 				.CenterRibbonWidth    = static_cast<std::uint32_t>(ribbonWidth),
 				.MarkdownImages       = *markdownImages,
 				.ReadingWidth         = *readingWidth,
+				.ReadingOverrides     = readingOverrides,
 				.FinishReview         = *finishReview,
 			},
 			.WritingHooks  = std::move(hooks),

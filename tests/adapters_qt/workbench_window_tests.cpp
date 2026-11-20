@@ -44,6 +44,7 @@
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/reading_width_dialog.hpp"
 #include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -22140,9 +22141,12 @@ namespace {
 		}
 	}
 
-	/// [[BPR-1584]]. Discuss's notes and Threads' rows stop at the reading
-	/// width, set in Settings and applied live; the code comparison fills its
-	/// width with the drawers open at every choice.
+	/// [[BPR-1584]], [[BPR-2299]]. Threads' rows, Discuss's centred list and
+	/// a report's page stop at the reading width, set in Settings and applied
+	/// live; the code comparison fills its width with the drawers open at
+	/// every choice. Advanced gives one surface a width of its own (a preset,
+	/// the whole page or a custom width never narrower than Narrow's), live,
+	/// and Use Reading width for all takes them back.
 	void test_reading_width_is_never_the_code()
 	{
 		auto  fixture = thread_moves_fixture{ 3'440 };
@@ -22152,19 +22156,35 @@ namespace {
 		auto* const panel  = window.conversation_panel();
 		auto* const finder = window.finder();
 		auto* const editor = window.behaviour_editor();
-		expect(editor != nullptr, "the Review rows exist");
+		auto* const report = window.report_view();
+		expect(editor != nullptr && report != nullptr && panel->cards() != nullptr, "the Review rows, the report page and Discuss's list exist");
 		const auto button = [&window](const char* aName) {
 			auto* const found = window.findChild<QToolButton*>(QString::fromLatin1(aName));
 			expect(found != nullptr, std::string{ "the reading width offers " } + aName);
 			return found;
 		};
 		expect(button("readingWidthWide")->isChecked(), "Wide is the default");
+		expect(window.findChild<QWidget*>(QStringLiteral("discussColumn")) == nullptr && window.findChild<QWidget*>(QStringLiteral("discussColumnRowLabel")) == nullptr,
+			   "Discuss has no column setting of its own any more");
 		auto* const info = window.findChild<QWidget*>(QStringLiteral("readingWidthInfo"));
 		expect(info != nullptr && (info->toolTip().contains(QStringLiteral("code comparison")) || info->accessibleDescription().contains(QStringLiteral("code comparison")) || info->accessibleName().contains(QStringLiteral("code comparison"))),
 			   "the setting says it never applies to the code");
 		const auto comparisonWidth = [&window] {
 			const auto* const surface = window.comparison_surface();
 			return surface->left_pane()->width() + surface->right_pane()->width();
+		};
+		const auto discussPage = [&window] { return window.findChild<QWidget*>(QStringLiteral("workbenchDiscussPage"))->width(); };
+		// Each surface's width as the window shows it: Threads' and the
+		// report's limits, Discuss's centred list in a page-wide panel.
+		const auto expectSurfaces = [&](const std::optional<std::uint32_t> aThreads, const std::optional<std::uint32_t> aDiscuss, const std::optional<std::uint32_t> aReports, const std::string& aAt) {
+			window.choose_modality(qt::review_modality::discuss);
+			process_events();
+			expect(panel->width() == discussPage() && panel->x() == 0, "Discuss's panel takes the page" + aAt);
+			const auto cards = panel->cards()->column_width();
+			expect(cards == (aDiscuss.has_value() ? std::optional{ static_cast<int>(*aDiscuss) } : std::nullopt), "Discuss's centred list is its reading width" + aAt);
+			expect(finder->reading_limit() == aThreads, "Threads' rows stop at theirs" + aAt);
+			expect(report->reading_limit() == aReports, "a report's page stops at its" + aAt);
+			expect(report->column()->maximumWidth() == (aReports.has_value() ? static_cast<int>(*aReports) : QWIDGETSIZE_MAX), "and its column with it" + aAt);
 		};
 		window.choose_modality(qt::review_modality::review);
 		process_events();
@@ -22181,29 +22201,59 @@ namespace {
 			window.choose_modality(qt::review_modality::review);
 			process_events();
 			expect(comparisonWidth() == codeAtWide, std::string{ "the comparison panes are unchanged at " } + name);
-			window.choose_modality(qt::review_modality::discuss);
-			process_events();
-			const auto page   = window.findChild<QWidget*>(QStringLiteral("workbenchDiscussPage"))->width();
-			const auto column = static_cast<int>(core::reading_column_width(width, static_cast<std::uint32_t>(page)));
-			expect(panel->width() == column && panel->x() == 0, std::string{ "Discuss's notes take the reading width at the page's left: " } + name);
-			expect(finder->reading_width() == width, "Threads follows the same setting live");
+			const auto limit = core::reading_width_limit(width);
+			expectSurfaces(limit, limit, limit, std::string{ " at " } + name);
 			save_render(window, QStringLiteral("reading-width-discuss-3440-%1").arg(QString::fromLatin1(name)));
-			// The same choice in an ordinary window.
-			window.resize(1'900, 900);
-			process_events();
-			const auto ordinary = window.findChild<QWidget*>(QStringLiteral("workbenchDiscussPage"))->width();
-			expect(panel->width() == static_cast<int>(core::reading_column_width(width, static_cast<std::uint32_t>(ordinary))), std::string{ "and in an ordinary window: " } + name);
-			save_render(window, QStringLiteral("reading-width-discuss-1900-%1").arg(QString::fromLatin1(name)));
-			window.resize(3'440, 900);
-			process_events();
 		}
+		// [[BPR-2299]]. Advanced, opened from the row beside the presets.
+		button("readingWidthAdvancedOpen")->click();
+		process_events();
+		auto* const advanced = window.reading_width_advanced();
+		expect(advanced != nullptr && advanced->isVisible(), "Advanced opens its dialog");
+		expect(advanced->bounds_note()->text().contains(QStringLiteral("720")) && advanced->custom_width(core::reading_surface::reports)->minimum() == 720,
+			   "the dialog says a custom width is at least Narrow's 720 pixels, and its box holds to it");
+		auto* const reports = advanced->choices(core::reading_surface::reports);
+		expect(reports->currentIndex() == static_cast<int>(qt::reading_width_dialog::choice::reading_width) && reports->currentText().contains(QStringLiteral("Wide")),
+			   "every surface starts on Use Reading width, which names the width it is");
+		const auto publishLast = [&] {
+			expect(!fixture.Behaviour.empty(), "the change dispatches the whole record");
+			window.publish(application::workbench_projection{ .Behaviour = fixture.Behaviour.back() });
+			process_events();
+		};
+		fixture.Behaviour.clear();
+		reports->setCurrentIndex(static_cast<int>(qt::reading_width_dialog::choice::custom));
+		advanced->custom_width(core::reading_surface::reports)->setValue(1'480);
+		publishLast();
+		const auto wide = core::reading_width_limit(core::reading_width::wide);
+		expect(fixture.Behaviour.back().ReadingOverrides[static_cast<std::size_t>(core::reading_surface::reports)] == core::reading_override_of(1'480U), "a custom width for reports is asked for");
+		expectSurfaces(wide, wide, 1'480U, " with reports at a custom 1480");
+		// Typed too small, the box holds it to Narrow's width.
+		advanced->custom_width(core::reading_surface::reports)->setValue(300);
+		publishLast();
+		expectSurfaces(wide, wide, 720U, " with a custom width typed below the minimum");
+		advanced->choices(core::reading_surface::threads)->setCurrentIndex(static_cast<int>(qt::reading_width_dialog::choice::full));
+		publishLast();
+		advanced->choices(core::reading_surface::discuss)->setCurrentIndex(static_cast<int>(qt::reading_width_dialog::choice::narrow));
+		publishLast();
+		expectSurfaces(std::nullopt, 720U, 720U, " with Threads at the whole page and Discuss at Narrow");
+		expect(fixture.Behaviour.back().ReadingWidth == core::reading_width::wide, "the Reading width itself is unchanged");
+		// The Reading width still moves every surface that follows it.
+		button("readingWidthMedium")->click();
+		publishLast();
+		expect(fixture.Behaviour.back().ReadingOverrides[static_cast<std::size_t>(core::reading_surface::discuss)] == core::reading_override_of(720U), "a preset keeps the surfaces' own widths");
+		button("readingWidthWide")->click();
+		publishLast();
+		advanced->reset_button()->click();
+		publishLast();
+		expect(fixture.Behaviour.back().ReadingOverrides == core::reading_overrides{ }, "Use Reading width for all takes every own width back");
+		expectSurfaces(wide, wide, wide, " after Use Reading width for all");
+		expect(advanced->choices(core::reading_surface::threads)->currentIndex() == static_cast<int>(qt::reading_width_dialog::choice::reading_width), "and the dialog shows it");
+		advanced->close();
 		// Negative control: Full width is the whole page, so a cap left in
 		// place would show here.
 		button("readingWidthFull")->click();
-		window.publish(application::workbench_projection{ .Behaviour = fixture.Behaviour.back() });
-		window.choose_modality(qt::review_modality::discuss);
-		process_events();
-		expect(panel->width() == window.findChild<QWidget*>(QStringLiteral("workbenchDiscussPage"))->width(), "negative control: Full width leaves Discuss uncapped");
+		publishLast();
+		expectSurfaces(std::nullopt, std::nullopt, std::nullopt, " at Full width");
 		window.hide();
 	}
 

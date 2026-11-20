@@ -189,6 +189,7 @@ namespace bpr::qt {
 	class review_cycle_view;
 	class local_draft_parts;
 	class view_picker;
+	class reading_width_dialog;
 
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
 	using workbench_intent_dispatch = std::function<void(core::workbench_interaction_intent)>;
@@ -1084,15 +1085,16 @@ namespace bpr::qt {
 		/// memory is never pushed into a window: each keeps its own filters.
 		void set_view_filter_memory(std::function<core::view_filter_defaults()> aDefaults, std::function<void(const core::view_filter_remember&)> aRemember);
 		/// \brief [[BPR-2171]]. The profile's Discuss preferences: what they
-		/// are now, a Mark as bot or Not a bot in a repository, and the
-		/// column's width. The window shows them on each pull request and
-		/// each time Discuss shows.
-		void set_discuss_preferences(std::function<core::discuss_preferences()> aRead, std::function<void(const std::string&, const std::string&, bool)> aMark,
-									 std::function<void(core::discuss_column)> aColumn);
+		/// are now, and a Mark as bot or Not a bot in a repository. The window
+		/// shows them on each pull request and each time Discuss shows.
+		void set_discuss_preferences(std::function<core::discuss_preferences()> aRead, std::function<void(const std::string&, const std::string&, bool)> aMark);
 		/// \brief [[BPR-2171]]. Shows the profile's Discuss preferences again.
 		void apply_discuss_preferences();
-		/// \brief [[BPR-2171]]. Settings › Review › Reading: Discuss column.
-		[[nodiscard]] auto discuss_column_buttons() const -> const std::vector<QAbstractButton*>&;
+		/// \brief [[BPR-2299]]. Settings › Review › Reading width › Advanced:
+		/// opens it, made the first time, showing the preferences as they are.
+		void open_reading_width_advanced();
+		/// \brief [[BPR-2299]]. The Advanced dialog; none until first opened.
+		[[nodiscard]] auto reading_width_advanced() const noexcept -> reading_width_dialog* { return ReadingAdvanced; }
 		/// \brief [[BPR-1844]]. This window's filters, view by view, as the
 		/// pull request opened with them and the reviewer then chose; a
 		/// filter the window cleared by itself (a reveal, a count's listing)
@@ -2747,7 +2749,8 @@ namespace bpr::qt {
 		void apply_line_details();
 		/// RFC-BPR-0084 Q3. Shows or hides images in descriptions and comments.
 		void apply_markdown_images();
-		/// [[BPR-1584]]. Threads' and Discuss's reading width; never the code.
+		/// [[BPR-1584]]. Threads', Discuss's and ([[BPR-2299]]) reports' reading
+		/// width; never the code.
 		void apply_reading_width();
 		/// [[BPR-1581]]. My draft in Discuss's composer, as Maximize opens it.
 		auto show_draft_in_discuss(const std::string& aCard) -> bool;
@@ -3954,10 +3957,10 @@ namespace bpr::qt {
 		/// [[BPR-2171]].
 		std::function<core::discuss_preferences()>                        DiscussPreferencesRead;
 		std::function<void(const std::string&, const std::string&, bool)> DiscussMark;
-		std::function<void(core::discuss_column)>                         DiscussColumnDispatch;
 		std::string                                                       DiscussRepository;
-		std::vector<QAbstractButton*>                                     DiscussColumnButtons;
-		std::function<void(const core::view_filter_remember&)>            ViewFilterRemember;
+		/// [[BPR-2299]].
+		reading_width_dialog*                                  ReadingAdvanced = nullptr;
+		std::function<void(const core::view_filter_remember&)> ViewFilterRemember;
 		/// Set once the host has published the preferences; until then a pull
 		/// request that opens takes the defaults and is revisited when they land.
 		bool                                                                     BehaviourPublished    = false;

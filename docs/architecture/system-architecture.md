@@ -319,9 +319,10 @@ its artifacts pinned; core reads such a record (and a publication plan whose
 digest covered evidence, after checking that digest) and drops the evidence.
 
 BPR-2171 keeps the profile's Discuss preferences in its own
-`state/v1/discuss.sqlite3`: the width of Discuss's centred column and, per
-repository (`host/owner/name`, folded), the authors marked as a bot or as not
-one. `core/discuss_preferences.hpp` decides who is a bot (a mark in that
+`state/v1/discuss.sqlite3`: per repository (`host/owner/name`, folded), the
+authors marked as a bot or as not one. The width of Discuss's centred column it
+also held is gone ([[BPR-2299]]): the Reading width sets it, and opening a store
+that still has the column drops it unread. `core/discuss_preferences.hpp` decides who is a bot (a mark in that
 repository, otherwise GitHub's App login, held as `<name>[bot]`), drops a mark
 that says what GitHub says, and reads the stored form (a damaged mark is left
 out; a newer build's store reads as nothing and is never overwritten). The
