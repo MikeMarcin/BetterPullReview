@@ -645,3 +645,18 @@ Windows Release failures at `2ca2bdf5f` and their fixes:
 Defender made no detection after 2026-11-19 21:42. Two untracked copies of the
 retired `bpr-cycle` skill in the PC's source tree were moved to
 `preflight-fix-r1\stale-bpr-cycle-skill`.
+
+WSL2 i9 at `afeb013b7` (own tree, Release at `-j8`, PC otherwise idle), the
+eleven large-review courses three times: 10 of 11 passed in each run (30 of
+33 rows).
+
+| Run | Failed row | Miss |
+| --- | --- | --- |
+| 1 | `application_large_review_launch` | `ProcessToHomeMarkerMs` 1238.1 against 1000 |
+| 2 | `application_large_review_launch` | `ProcessToHomeMarkerMs` 1058.8 against 1000; `paged_review_and_git_load_input_gap` 142.8 against 100 |
+| 3 | `application_large_review_pathological` | `paged_review_and_git_load` input gap |
+
+The input gap is the owner's waived BPR-2317 exception, met here in the launch
+and pathological courses as well as responsiveness (which passed all three
+runs). `ProcessToHomeMarkerMs` is a separate launch budget (1000 ms) that the
+sixth round's re-measured basis did not cover; it is the open item.
