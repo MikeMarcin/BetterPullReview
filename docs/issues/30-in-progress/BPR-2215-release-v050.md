@@ -565,3 +565,17 @@ suites on both platforms and the eleven WSL2 timing courses at the lane head.
   BPR-2286 added `window_follow_up.cpp` on main without listing it in the
   contract's app source inventory or production manifest; both now name it,
   and the production digest is resealed.
+- **WSL2 i9 load-phase input gap, located.** `application_large_review_responsiveness`
+  at `82ed12f26` under `perf` (cpu-clock, 1 kHz, DWARF stacks; perf built from
+  Ubuntu's `linux-perf` package unpacked without root), six runs: the phase's
+  gap was 106 to 135 ms, 90 to 113 ms of it the GUI thread's own CPU. In each
+  run the phase's longest main-thread stretches are single posted events of
+  112 to 123 ms, twice per phase (about 36 ms in, and again later), all in
+  `diff_workbench::rebuild_geometry` → `plain_text_pane_measurement::advance`
+  → `pane_block_measurer::height`, which is Qt text layout and HarfBuzz shaping
+  (`QTextLine::layout_helper`, `QTextEngine::shapeText`). `rebuild_geometry`
+  checks its 4 ms slice only between groups of 16 lines, and a native block is
+  measured whole, so one long block in the fixture's diff holds the thread for
+  the whole layout. Not fixed: a change to how one long block is measured is a
+  product change and is the owner's to schedule.
+- The round-trip contract passes on the WSL2 i9 at `82ed12f26`.
