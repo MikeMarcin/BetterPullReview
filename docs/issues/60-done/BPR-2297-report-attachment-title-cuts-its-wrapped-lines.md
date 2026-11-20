@@ -86,3 +86,15 @@ Format check passed on the four touched C++ files; clang-tidy passed on
 findings that are on main unchanged (`press_offer`'s parameter names, the
 copy of `aChosen`), outside this change. `verify_documentation.py` passed.
 The `frontend-design` skill was loaded for this Qt surface.
+
+## Follow-up: the whole-title tooltip (2026-11-19)
+
+The row showed its whole title through `QToolTip::showText` in an `event()`
+override. That failed `architecture_boundaries` ([[BPR-1354]]: no Qt source
+places a tooltip at the pointer), and it never ran: the row's own "Open
+report" tooltip is answered first by the application-wide anchored
+placement. The row now names its tooltip with `anchor_tooltips`: a shortened
+title shows "Open report: <title>" anchored to the row, a title shown whole
+keeps "Open report". `test_report_attachment_title` now hovers both rows and
+checks the text and the anchored geometry; `architecture_boundaries` and
+`qt_report_attachment_title_scale_100/125/200` pass.

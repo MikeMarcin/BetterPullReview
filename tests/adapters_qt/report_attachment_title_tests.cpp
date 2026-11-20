@@ -14,14 +14,17 @@
 
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/line_bounded_label.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QApplication>
 #include <QComboBox>
 #include <QFontMetrics>
+#include <QHelpEvent>
 #include <QLabel>
 #include <QPushButton>
+#include <QScreen>
 #include <QTabWidget>
 
 #include <cstdlib>
@@ -167,6 +170,25 @@ namespace {
 			expect(bounded->elided(bounded->contentsRect().width()) && bounded->shown_lines(bounded->contentsRect().width()).size() == bounded->maximum_lines(),
 				   "in a narrow drawer the long title is shortened on its last whole line");
 		}
+		// Hovering the shortened title shows it whole, next to its row
+		// ([[BPR-1354]]'s anchored placement); a title shown whole keeps the
+		// row's "Open report".
+		const auto hover = [](QPushButton& aRow) {
+			qt::hide_anchored_tooltip();
+			auto help = QHelpEvent{ QEvent::ToolTip, aRow.rect().center(), aRow.mapToGlobal(aRow.rect().center()) };
+			QApplication::sendEvent(&aRow, &help);
+			return qobject_cast<const QLabel*>(qt::anchored_tooltip());
+		};
+		if (const auto* const tip = hover(*longRow)) {
+			const auto anchor = QRect{ longRow->mapToGlobal(QPoint{ }), longRow->size() };
+			expect(tip->text() == QStringLiteral("Open report: ") + longTitle, "hovering a shortened title shows it whole: " + tip->text().toStdString());
+			expect(tip->geometry() == qt::anchored_tooltip_geometry(anchor, tip->size(), longRow->screen()->availableGeometry()), "the whole title's tooltip is anchored to its row");
+		} else {
+			expect(false, "hovering a shortened title shows a tooltip");
+		}
+		const auto* const shortTip = hover(*shortRow);
+		expect(shortTip != nullptr && shortTip->text() == QStringLiteral("Open report"), "a title shown whole keeps the row's tooltip");
+		qt::hide_anchored_tooltip();
 		publish_drawer(window, 640U);
 		checkBoth(QStringLiteral("wide drawer"));
 		// A larger application font: the title's lines follow its metrics.

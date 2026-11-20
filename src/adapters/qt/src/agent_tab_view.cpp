@@ -19,6 +19,7 @@
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/disclosure_button.hpp"
@@ -46,7 +47,6 @@
 #include <QFrame>
 #include <QGuiApplication>
 #include <QHBoxLayout>
-#include <QHelpEvent>
 #include <QInputDialog>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
@@ -63,6 +63,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPlainTextEdit>
+#include <QPoint>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QResizeEvent>
@@ -74,12 +75,12 @@
 #include <QTextCursor>
 #include <QTimer>
 #include <QToolButton>
-#include <QToolTip>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <array>
 #include <limits>
+#include <optional>
 #include <tuple>
 #include <utility>
 
@@ -302,6 +303,13 @@ namespace bpr::qt {
 				// [[BPR-2215]]. The page icon's height, so the layout that
 				// places the row never gives it less than the icon needs.
 				row->addStrut(30);
+				// [[BPR-2297]]. A shortened title is whole in the tooltip,
+				// anchored to the row ([[BPR-1354]]); a title shown whole
+				// keeps the row's own "Open report".
+				anchor_tooltips(*this, [this](QPoint) -> std::optional<anchored_tooltip_target> {
+					const auto shortened = Title->elided(Title->contentsRect().width());
+					return anchored_tooltip_target{ .Anchor = rect(), .Text = shortened ? tr("Open report: %1").arg(Title->text()) : toolTip() };
+				});
 			}
 
 			[[nodiscard]] auto title() const noexcept -> line_bounded_label* { return Title; }
@@ -385,16 +393,6 @@ namespace bpr::qt {
 					return;
 				}
 				QPushButton::keyPressEvent(aEvent);
-			}
-
-			/// [[BPR-2297]]. A shortened title is whole in the tooltip.
-			auto event(QEvent* aEvent) -> bool override
-			{
-				if (aEvent->type() == QEvent::ToolTip && Title->elided(Title->contentsRect().width())) {
-					QToolTip::showText(static_cast<QHelpEvent*>(aEvent)->globalPos(), tr("Open report: %1").arg(Title->text()), this);
-					return true;
-				}
-				return QPushButton::event(aEvent);
 			}
 
 		private:
