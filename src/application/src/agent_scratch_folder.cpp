@@ -223,8 +223,14 @@ namespace bpr::application {
 			if (handle == INVALID_HANDLE_VALUE) {
 				return std::nullopt;
 			}
-			auto       buffer = std::vector<wchar_t>(32768U);
-			const auto length = ::GetFinalPathNameByHandleW(handle, buffer.data(), static_cast<DWORD>(buffer.size()), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+			auto buffer = std::vector<wchar_t>(32768U);
+			auto length = ::GetFinalPathNameByHandleW(handle, buffer.data(), static_cast<DWORD>(buffer.size()), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+			if (length == 0U) {
+				// Normalizing reads every ancestor's name, which an
+				// AppContainer may be refused; the name it was opened by
+				// needs no ancestor.
+				length = ::GetFinalPathNameByHandleW(handle, buffer.data(), static_cast<DWORD>(buffer.size()), FILE_NAME_OPENED | VOLUME_NAME_DOS);
+			}
 			::CloseHandle(handle);
 			if (length == 0U || length >= buffer.size()) {
 				return std::nullopt;
