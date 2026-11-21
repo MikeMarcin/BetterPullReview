@@ -1993,6 +1993,20 @@ auto main(int argc, char** argv) -> int
 			QDir{ }.mkpath(renderSettings);
 			static_cast<void>(programs->grab().save(renderSettings + QStringLiteral("/composed-settings-check-failed.png")));
 		}
+		// [[BPR-2345]]. The successful check kept its workspace and a check
+		// again reuses it, so the reviewer's Remove in Settings drops it first:
+		// the next check then builds a workspace, which the marker fails.
+		if (!wait_until([&] { return programs->workspace_remove_button()->isEnabled(); }, extended_agent_budget)) {
+			return fail(*application, "wrapper-setup-kept-workspace", programs->workspace_usage_label()->text().toStdString());
+		}
+		programs->workspace_remove_button()->click();
+		if (!wait_until([&] { return programs->workspace_question() != nullptr && programs->workspace_question()->isVisible(); })) {
+			return fail(*application, "wrapper-setup-remove-question");
+		}
+		programs->workspace_question()->accept();
+		if (!wait_until([&] { return programs->workspace_usage_label()->text().startsWith(QStringLiteral("Retained agent workspaces: none.")); }, extended_agent_budget)) {
+			return fail(*application, "wrapper-setup-kept-workspace-removed", programs->workspace_usage_label()->text().toStdString());
+		}
 		{
 			auto marker = std::ofstream{ diagnosticGit->parent_path() / workspace_failure_marker };
 			marker << "fail the workspace after the successful setup check\n";

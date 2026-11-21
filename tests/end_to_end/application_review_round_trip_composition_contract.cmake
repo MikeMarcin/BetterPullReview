@@ -3947,8 +3947,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-2215]] reseal: profile startup asks again for a held lease whose
 	# owner does not answer, for up to two seconds (application_startup.cpp).
 	# No grant, provider, transport, mutation or publication path changes.
+	# [[BPR-2345]] reseal: a passed workspace check measures the retained
+	# workspaces again (window_agent_setup.cpp), so Settings counts the one
+	# the check kept. Local measurement only; no grant, provider, transport,
+	# mutation or publication path changes.
 	set(bpr_expected_production_app_manifest_digest
-        "f0ba31e2220624670300167a6459fa3ed6035e0208bd276cbeee47c634be70b8"
+        "f490f939deaa91321976c89705f6e2aa03c3f1033b05fea9cfaae2eee6fcf88f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
