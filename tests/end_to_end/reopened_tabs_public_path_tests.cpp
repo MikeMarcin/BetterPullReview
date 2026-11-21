@@ -130,6 +130,12 @@ namespace {
 	{
 		aSession.Owner->begin_shutdown();
 		wait_for([&] { return aSession.Owner->status().ShutdownComplete; }, "reopened tabs course drains all commands");
+		// [[BPR-2215]]. The desktop is quit and drained before it goes, as an
+		// application quits it: destroyed at once, it released the profile
+		// after the next start asked for it, which refused the restart (2 of
+		// 10 on macOS).
+		aSession.Desktop->quit();
+		wait_for([&] { return aSession.Desktop->is_quiescent(); }, "the reopened tabs course's desktop drains");
 		aSession.Desktop.reset();
 		aSession.Owner  = nullptr;
 		aSession.Window = nullptr;
