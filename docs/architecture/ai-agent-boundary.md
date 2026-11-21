@@ -16,10 +16,11 @@
   (`brief.report_format`, the returning and Explain prompts). The Qt adapter
   draws the Ask controls and menus, the report card and the report's tab (a
   page of Qt rich text with the Agent tab's code boxes), in the theme's report
-  colours. Under a report card the Agent tab shows the report's tally on its
-  side, one bar of a segment a label in its tone, sized by count and with
-  its label and count beside it, each opening the report at its first
-  finding ([[BPR-2336]]), and not the finding cards the report holds
+  colours. Under a report card the Agent tab shows the report's tally as a
+  donut, a slice a label in its tone and exactly its share of the count,
+  with a legend of swatch, label and count beside it; a slice or a legend
+  row opens the report at its label's first finding ([[BPR-2344]], after
+  [[BPR-2336]]'s bar), and not the finding cards the report holds
   (`core::report_held_cards`, [[BPR-2331]]);
   the report offers what those cards did.
 

@@ -3,14 +3,16 @@
 /// they're part of the report and remove them from the agent's tab. We can
 /// put a brief summary in the agents tab below the report."). A report turn
 /// in the Agent tab shows its attachment and, under it, the report's tally
-/// on its side, and no finding card the report holds.
+/// as a donut, and no finding card the report holds.
 ///
 /// \details In a real window's Agent tab: a restored review turn whose report
 /// holds two of its three cards and a short turn that is no report; the
 /// summary's rows read whole at the narrowest and a wide drawer and with a
 /// larger font; a row opens the report at its label's first finding; and a
 /// live report turn that ends at the conversation's end leaves its
-/// attachment in view. Registered at 1.0, 1.25 and 2.0 scale.
+/// attachment in view. [[BPR-2344]]: the summary is a donut, each slice
+/// exactly its count's share, with a legend beside it; a slice or a row
+/// opens the report. Registered at 1.0, 1.25 and 2.0 scale.
 
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_workspace.hpp"
@@ -18,6 +20,7 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/report_tally_view.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
@@ -26,8 +29,11 @@
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QComboBox>
+#include <QEnterEvent>
 #include <QEventLoop>
 #include <QFontMetrics>
+#include <QHelpEvent>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLayout>
@@ -47,6 +53,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <iostream>
+#include <numbers>
 #include <optional>
 #include <string>
 #include <variant>
@@ -140,50 +147,96 @@ namespace {
 		return card;
 	}
 
-	/// [[BPR-2336]]. The summary is one bar: each count's segment in its
-	/// tone, one under the other with only the meter's gap between them, as
-	/// tall as its share; beside each its word and count, whole and apart.
-	/// The summary never needs more room than the drawer gives, and each
-	/// count is in view.
+	/// [[BPR-2344]]. Each slice is exactly its count's share of the circle,
+	/// in the report's order from twelve o'clock, and the slices make the
+	/// whole circle.
+	void expect_exact_slices(const qt::report_tally_view& aTally, const std::string& aWhere)
+	{
+		const auto rows = aTally.rows();
+		auto       next = 0.0;
+		for (const auto* const row : rows) {
+			const auto said  = aWhere + ", " + row->count().Word;
+			const auto share = 360.0 * static_cast<double>(row->count().Count) / static_cast<double>(aTally.total());
+			expect(std::abs(aTally.slice_start(row->index()) - next) < 1e-9, said + ": the slice starts where the one before ends, " + std::to_string(aTally.slice_start(row->index())) + " for " + std::to_string(next));
+			expect(std::abs(aTally.slice_span(row->index()) - share) < 1e-9, said + ": the slice is its count's share, " + std::to_string(aTally.slice_span(row->index())) + " degrees for " + std::to_string(share));
+			next += aTally.slice_span(row->index());
+		}
+		expect(std::abs(next - 360.0) < 1e-9, aWhere + ": the slices make the whole circle, " + std::to_string(next));
+	}
+
+	/// [[BPR-2344]]. What the donut draws: at the middle of each slice its
+	/// colour, and under every angle the slice the angle falls in.
+	void expect_drawn_slices(const qt::report_tally_view& aTally, const std::string& aWhere)
+	{
+		auto* const pie   = aTally.pie();
+		const auto  image = pie->grab().toImage();
+		const auto  scale = image.devicePixelRatio();
+		for (const auto* const row : aTally.rows()) {
+			const auto said   = aWhere + ", " + row->count().Word;
+			const auto middle = pie->slice_middle(row->index());
+			expect(pie->slice_at(middle) == row->index(), said + ": the slice's middle is in its slice");
+			const auto fill = aTally.fill_of(row->count());
+			if (fill.alpha() == 255) {
+				const auto drawn = image.pixelColor(static_cast<int>(middle.x() * scale), static_cast<int>(middle.y() * scale));
+				const auto near  = std::abs(drawn.red() - fill.red()) <= 6 && std::abs(drawn.green() - fill.green()) <= 6 && std::abs(drawn.blue() - fill.blue()) <= 6;
+				expect(near, said + ": the slice wears its tone, " + drawn.name().toStdString() + " for " + fill.name().toStdString());
+			}
+		}
+		// Every angle, on the ring, belongs to the slice it falls in.
+		const auto ring = (pie->outer_radius() + pie->inner_radius()) / 2.0;
+		for (auto degree = 0; degree < 360; ++degree) {
+			const auto angle   = degree + 0.5;
+			const auto radians = angle * std::numbers::pi / 180.0;
+			const auto at      = pie->centre() + QPointF{ ring * std::sin(radians), -ring * std::cos(radians) };
+			const auto rows    = aTally.rows();
+			const auto owner   = std::ranges::find_if(rows, [&](const qt::report_tally_row* const aRow) { return angle >= aTally.slice_start(aRow->index()) && angle < aTally.slice_start(aRow->index()) + aTally.slice_span(aRow->index()); });
+			expect(owner != rows.end() && pie->slice_at(at) == (*owner)->index(), aWhere + ": the angle " + std::to_string(angle) + " is in its slice");
+		}
+		expect(!pie->slice_at(pie->centre()).has_value(), aWhere + ": the hole is no slice");
+	}
+
+	/// [[BPR-2344]]. The summary is a donut and its legend: a row a count in
+	/// the report's order, its swatch, word and count whole and apart, the
+	/// legend beside the donut. The summary never needs more room than the
+	/// drawer gives, and each count is in view.
 	void expect_whole(qt::report_tally_view& aTally, QScrollArea& aScroll, const std::string& aWhere)
 	{
 		// A drawer's new width settles over several layout passes.
 		wait(150);
-		expect(aTally.isVisible(), aWhere + ": the summary shows");
+		expect(aTally.isVisible() && aTally.pie()->isVisible(), aWhere + ": the summary shows its donut");
 		if (const auto pans = aScroll.horizontalScrollBar()->maximum(); pans != 0) {
-			std::cout << "BPR-2336 " << aWhere << ": the conversation pans " << pans << " px, as it does without the summary\n";
+			std::cout << "BPR-2344 " << aWhere << ": the conversation pans " << pans << " px, as it does without the summary\n";
 		}
 		// The summary never asks for more than the drawer gives, so it is
 		// never why the conversation pans sideways.
 		const auto needs = aTally.mapTo(aScroll.widget(), QPoint{ }).x() + aTally.minimumSizeHint().width();
+		std::cout << "BPR-2344 " << aWhere << ": the summary needs " << needs << " of " << aScroll.viewport()->width() << '\n';
 		expect(needs <= aScroll.viewport()->width(), aWhere + ": the summary fits the drawer, " + std::to_string(needs) + " of " + std::to_string(aScroll.viewport()->width()));
 		const auto rows = aTally.rows();
 		expect(!rows.empty(), aWhere + ": the summary has its counts");
+		const auto pie = QRect{ aTally.pie()->mapTo(&aTally, QPoint{ }), aTally.pie()->size() };
+		expect(aTally.rect().contains(pie), aWhere + ": the donut is inside the summary");
 		auto previous = std::optional<QRect>{ };
-		auto bands    = 0;
 		for (std::size_t index = 0U; index < rows.size(); ++index) {
 			auto* const row     = rows[index];
 			const auto  word    = QString::fromStdString(row->count().Word);
 			const auto  said    = aWhere + ", " + word.toStdString();
 			const auto  metrics = QFontMetrics{ row->font() };
-			expect(row->isVisible() && aTally.rect().contains(row->geometry()), said + ": the band shows inside the summary");
-			expect(row->width() >= row->minimumSizeHint().width() && row->height() == aTally.band_height(index),
-				   said + ": the band has the room it needs, " + std::to_string(row->width()) + "x" + std::to_string(row->height()) + " for " + std::to_string(row->minimumSizeHint().width()) + "x" + std::to_string(aTally.band_height(index)));
-			bands += row->height();
+			const auto  placed  = QRect{ row->mapTo(&aTally, QPoint{ }), row->size() };
+			expect(row->index() == index, said + ": the row is in the report's order");
+			expect(row->isVisible() && aTally.rect().contains(placed), said + ": the row shows inside the summary");
+			expect(placed.left() > pie.right(), said + ": the row stands beside the donut");
+			expect(row->width() >= row->minimumSizeHint().width() && row->height() == aTally.line_height(),
+				   said + ": the row has the room it needs, " + std::to_string(row->width()) + "x" + std::to_string(row->height()) + " for " + std::to_string(row->minimumSizeHint().width()) + "x" + std::to_string(aTally.line_height()));
 			const auto box = row->rect();
-			expect(box.contains(row->segment_rect()) && box.contains(row->word_rect()) && box.contains(row->count_rect()), said + ": segment, word and count are inside the band");
+			expect(box.contains(row->swatch_rect()) && box.contains(row->word_rect()) && box.contains(row->count_rect()), said + ": swatch, word and count are inside the row");
 			expect(row->word_rect().width() >= metrics.horizontalAdvance(word) && row->word_rect().height() >= metrics.height(), said + ": the word is whole");
-			expect(row->segment_rect().right() < row->word_rect().left() && row->word_rect().right() < row->count_rect().left(), said + ": the label stands beside its segment, its word before its count");
-			const auto segment = QRect{ row->mapTo(&aTally, row->segment_rect().topLeft()), row->segment_rect().size() };
-			const auto middle  = row->word_rect().center().y();
-			expect(middle >= row->segment_rect().top() && middle <= row->segment_rect().bottom(), said + ": the label is beside its own segment");
-			expect(segment.width() == qt::report_tally_view::bar_width && segment.height() >= metrics.height(), said + ": the segment is the bar's width and at least a line tall");
+			expect(row->swatch_rect().right() < row->word_rect().left() && row->word_rect().right() < row->count_rect().left(), said + ": swatch, word and count stand apart, in that order");
 			if (previous) {
-				expect(segment.left() == previous->left(), said + ": the segment is in the same bar as the one above");
-				const auto gap = segment.top() - previous->bottom() - 1;
-				expect(gap >= 1 && gap <= 3, said + ": the segment follows the one above with only the meter's gap, " + std::to_string(gap));
+				expect(placed.left() == previous->left() && placed.width() == previous->width() && placed.top() == previous->bottom() + 1, said + ": the row is under the one before, as wide");
+				expect(row->count_rect().right() == rows[index - 1U]->count_rect().right(), said + ": the counts make one column");
 			}
-			previous = segment;
+			previous = placed;
 			// Where the rest of the conversation already makes it pan (its
 			// turns need more than the narrowest drawer at a large font), the
 			// summary is measured by what it needs, above.
@@ -192,19 +245,102 @@ namespace {
 				expect(shownRight < aScroll.viewport()->width(), said + ": the count is in view, its right at " + std::to_string(shownRight) + " of " + std::to_string(aScroll.viewport()->width()));
 			}
 		}
-		expect(bands == aTally.bar_height(), aWhere + ": the bands make the whole bar");
-		// Sized by count: a larger count stands taller, equal counts equally.
-		for (std::size_t one = 0U; one < rows.size(); ++one) {
-			for (std::size_t other = 0U; other < rows.size(); ++other) {
-				const auto ones   = rows[one]->count().Count;
-				const auto others = rows[other]->count().Count;
-				if (ones > others) {
-					expect(rows[one]->height() > rows[other]->height(), aWhere + ": " + rows[one]->count().Word + " stands taller than " + rows[other]->count().Word);
-				} else if (ones == others) {
-					expect(std::abs(rows[one]->height() - rows[other]->height()) <= 1, aWhere + ": " + rows[one]->count().Word + " stands as tall as " + rows[other]->count().Word);
-				}
+		expect_exact_slices(aTally, aWhere);
+		expect_drawn_slices(aTally, aWhere);
+	}
+
+	/// [[BPR-2344]]. A summary on its own: a report of one label is one whole
+	/// ring; three to one is three quarters and a quarter.
+	void test_the_donut_is_exact()
+	{
+		auto       one   = qt::report_tally_view{ };
+		const auto issue = core::dressed_count{ .Word = "issue", .Count = 3U, .Tone = core::report_tone::open, .First = 2U };
+		one.set_counts({ issue });
+		one.resize(one.sizeHint());
+		one.show();
+		settle();
+		expect(one.rows().size() == 1U && one.slice_start(0U) == 0.0 && one.slice_span(0U) == 360.0, "a single label is the whole circle");
+		expect_drawn_slices(one, "a single label");
+		if (const auto renderRoot = qEnvironmentVariable("BPR_REPORT_SUMMARY_RENDER"); !renderRoot.isEmpty()) {
+			static_cast<void>(one.grab().save(renderRoot + QStringLiteral("/summary-single-label.png")));
+		}
+		// The ring is whole: no gap at twelve o'clock or anywhere.
+		{
+			auto* const pie   = one.pie();
+			const auto  image = pie->grab().toImage();
+			const auto  scale = image.devicePixelRatio();
+			const auto  fill  = one.fill_of(issue);
+			const auto  ring  = (pie->outer_radius() + pie->inner_radius()) / 2.0;
+			for (auto degree = 0; degree < 360; degree += 3) {
+				const auto radians = degree * std::numbers::pi / 180.0;
+				const auto at      = pie->centre() + QPointF{ ring * std::sin(radians), -ring * std::cos(radians) };
+				const auto drawn   = image.pixelColor(static_cast<int>(at.x() * scale), static_cast<int>(at.y() * scale));
+				expect(std::abs(drawn.red() - fill.red()) <= 6 && std::abs(drawn.green() - fill.green()) <= 6 && std::abs(drawn.blue() - fill.blue()) <= 6,
+					   "a single label's ring is whole at " + std::to_string(degree) + " degrees: " + drawn.name().toStdString());
 			}
 		}
+		auto       two    = qt::report_tally_view{ };
+		const auto praise = core::dressed_count{ .Word = "praise", .Count = 1U, .Tone = core::report_tone::done, .First = 9U };
+		auto       opened = std::vector<std::uint32_t>{ };
+		two.set_open([&opened](const std::uint32_t aFirst) { opened.push_back(aFirst); });
+		two.set_counts({ issue, praise });
+		two.resize(two.sizeHint());
+		two.show();
+		settle();
+		expect(two.slice_start(1U) == 270.0 && two.slice_span(0U) == 270.0 && two.slice_span(1U) == 90.0, "three to one is three quarters and a quarter");
+		expect_exact_slices(two, "three to one");
+		expect_drawn_slices(two, "three to one");
+		// Hovering a slice lights its row; hovering a row lights its slice.
+		// No row has focus, which lights its slice too.
+		if (auto* const focused = QApplication::focusWidget()) {
+			focused->clearFocus();
+		}
+		settle();
+		expect(!two.highlighted().has_value(), "with no pointer and no focus nothing is lit");
+		auto* const pie  = two.pie();
+		const auto  at   = pie->slice_middle(1U);
+		auto        move = QMouseEvent{ QEvent::MouseMove, at, pie->mapToGlobal(at), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(pie, &move);
+		expect(two.highlighted() == std::optional<std::size_t>{ 1U }, "hovering the praise slice lights the praise row");
+		const auto lifted = pie->grab().toImage();
+		{
+			// The lit slice stands out of the ring: just past its edge it is drawn.
+			const auto radians = (two.slice_start(1U) + 45.0) * std::numbers::pi / 180.0;
+			const auto reach   = pie->outer_radius() + 1.5;
+			const auto out     = pie->centre() + QPointF{ reach * std::sin(radians), -reach * std::cos(radians) };
+			const auto scale   = lifted.devicePixelRatio();
+			expect(lifted.pixelColor(static_cast<int>(out.x() * scale), static_cast<int>(out.y() * scale)).alpha() > 128, "the hovered slice stands out of the ring");
+		}
+		auto leave = QEvent{ QEvent::Leave };
+		QApplication::sendEvent(pie, &leave);
+		expect(!two.highlighted().has_value(), "leaving the donut lights nothing");
+		auto* const first = two.rows().front();
+		auto        enter = QEnterEvent{ QPointF{ 4.0, 4.0 }, QPointF{ 4.0, 4.0 }, first->mapToGlobal(QPointF{ 4.0, 4.0 }) };
+		QApplication::sendEvent(first, &enter);
+		expect(two.highlighted() == std::optional<std::size_t>{ 0U }, "hovering the issue row lights the issue slice");
+		QApplication::sendEvent(first, &leave);
+		expect(!two.highlighted().has_value(), "leaving the row lights nothing");
+		// A slice's tooltip is its row's, beside the slice; the hole has none.
+		{
+			const auto middle = pie->slice_middle(1U);
+			auto       help   = QHelpEvent{ QEvent::ToolTip, middle.toPoint(), pie->mapToGlobal(middle.toPoint()) };
+			QApplication::sendEvent(pie, &help);
+			const auto* const tip   = qobject_cast<QLabel*>(qt::anchored_tooltip());
+			const auto        shown = tip != nullptr && tip->text() == two.rows().back()->toolTip();
+			expect(shown, "a slice's tooltip is its row's");
+			qt::hide_anchored_tooltip();
+		}
+		// A press on a slice opens the report at it; on the hole, nothing.
+		const auto press_at = [&](const QPointF aAt) {
+			auto press = QMouseEvent{ QEvent::MouseButtonPress, aAt, pie->mapToGlobal(aAt), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			auto lift  = QMouseEvent{ QEvent::MouseButtonRelease, aAt, pie->mapToGlobal(aAt), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(pie, &press);
+			QApplication::sendEvent(pie, &lift);
+		};
+		press_at(pie->slice_middle(0U));
+		press_at(pie->centre());
+		press_at(pie->slice_middle(1U));
+		expect(opened == std::vector<std::uint32_t>{ 2U, 9U }, "a press on a slice opens the report at its first item, a press in the hole does nothing");
 	}
 
 	void test_a_report_turn_shows_its_summary_not_its_cards()
@@ -270,6 +406,7 @@ namespace {
 		settle();
 		expect_whole(*tally, *scroll, "wide drawer, larger font");
 		publish_drawer(window, 280U);
+		render(QStringLiteral("summary-narrow-larger-font"));
 		expect_whole(*tally, *scroll, "narrowest drawer, larger font");
 		QApplication::setFont(original);
 		publish_drawer(window, 360U);
@@ -305,32 +442,37 @@ namespace {
 		settle();
 		expect(opened.size() == 2U && opened.back().Heading == tally->rows().front()->count().First && report->section_top(static_cast<int>(opened.back().Heading)) <= 24,
 			   "pressing another row moves the open report to its first finding");
-		// [[BPR-2336]]. Pressing a count's segment of the bar opens the report
-		// at it, as pressing its label does.
+		// [[BPR-2344]]. Pressing a count's slice of the donut opens the report
+		// at it, as pressing its legend row does.
 		{
 			auto* const praise = tally->rows().back();
-			const auto  at     = QPointF{ praise->segment_rect().center() };
-			const auto  global = QPointF{ praise->mapToGlobal(at.toPoint()) };
+			auto* const pie    = tally->pie();
+			const auto  at     = pie->slice_middle(praise->index());
+			const auto  global = pie->mapToGlobal(at);
 			auto        press  = QMouseEvent{ QEvent::MouseButtonPress, at, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 			auto        lift   = QMouseEvent{ QEvent::MouseButtonRelease, at, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
-			QApplication::sendEvent(praise, &press);
-			QApplication::sendEvent(praise, &lift);
+			QApplication::sendEvent(pie, &press);
+			QApplication::sendEvent(pie, &lift);
 			settle();
-			expect(opened.size() == 3U && opened.back().Heading == praise->count().First, "pressing a count's segment opens the report at its first finding");
+			expect(opened.size() == 3U && opened.back().Heading == praise->count().First, "pressing a count's slice opens the report at its first finding");
 			opened.pop_back();
 		}
-		// And from the keyboard: a band takes focus, says what it counts, and
-		// Space opens the report at it.
+		// And from the keyboard: a row takes focus, says what it counts, and
+		// Space opens the report at it; its slice stands out while it has
+		// focus.
 		{
 			auto* const nitpick = tally->rows().at(2U);
-			expect(nitpick->focusPolicy() == Qt::StrongFocus && nitpick->accessibleName() == QStringLiteral("nitpick: 1"), "a band takes focus and names its count");
+			expect(nitpick->focusPolicy() == Qt::StrongFocus && nitpick->accessibleName() == QStringLiteral("nitpick: 1") && nitpick->toolTip() == QStringLiteral("Open the report at its first nitpick"),
+				   "a row takes focus, names its count and says what it opens");
 			nitpick->setFocus(Qt::TabFocusReason);
+			settle();
+			expect(tally->highlighted() == std::optional<std::size_t>{ nitpick->index() }, "a focused row lights its slice");
 			auto down = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
 			auto up   = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
 			QApplication::sendEvent(nitpick, &down);
 			QApplication::sendEvent(nitpick, &up);
 			settle();
-			expect(opened.size() == 3U && opened.back().Heading == nitpick->count().First, "Space on a focused band opens the report at its first finding");
+			expect(opened.size() == 3U && opened.back().Heading == nitpick->count().First, "Space on a focused row opens the report at its first finding");
 			opened.pop_back();
 		}
 		// The attachment's own Open opens it where it opens.
@@ -417,6 +559,18 @@ namespace {
 		auto rows = tally->rows();
 		std::ranges::stable_partition(rows, [](const qt::report_tally_row* const aRow) { return aRow->count().Word == "suggestion"; });
 		expect(rows.front()->count().Word == "suggestion", "the summary counts a suggestion");
+		// [[BPR-2344]]. The suggestion through its slice of the donut, the
+		// rest through their legend rows.
+		{
+			auto* const pie   = tally->pie();
+			const auto  at    = pie->slice_middle(rows.front()->index());
+			auto        press = QMouseEvent{ QEvent::MouseButtonPress, at, pie->mapToGlobal(at), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			auto        lift  = QMouseEvent{ QEvent::MouseButtonRelease, at, pie->mapToGlobal(at), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(pie, &press);
+			QApplication::sendEvent(pie, &lift);
+			settle();
+			expect_item_whole(window, static_cast<int>(rows.front()->count().First), "the summary's suggestion slice");
+		}
 		for (auto* const row : rows) {
 			row->click();
 			settle();
@@ -483,6 +637,7 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_the_donut_is_exact();
 	test_a_report_turn_shows_its_summary_not_its_cards();
 	test_a_jump_shows_its_item_whole_under_the_tab_header();
 	test_a_report_turn_ends_with_its_attachment_in_view();

@@ -1582,8 +1582,9 @@ namespace bpr::qt {
 				}
 			});
 			cardColumn->addWidget(row);
-			// [[BPR-2331]]. Under the attachment, the report's tally turned
-			// on its side; a row opens the report at the first it counts.
+			// [[BPR-2331]]. Under the attachment, the report's tally as a
+			// donut ([[BPR-2344]]); a slice or a legend row opens the report at
+			// the first it counts.
 			auto* const tally = new report_tally_view{ card };
 			tally->set_tones(tones());
 			tally->set_open([this, serial](const std::uint32_t aFirst) {
