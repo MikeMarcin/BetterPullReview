@@ -1102,8 +1102,12 @@ auto main(int argc, char** argv) -> int
 				expect(server->StagedReview->Body == coldReview && server->StagedDescription == originalTemplate, "the tour comment and the description are unchanged");
 			}
 			const auto originalStops = cold.shown().Draft->Stops;
+			const auto prePush       = cold.shown().Draft->ObservedHead.value_or(cold.shown().Draft->Head);
 			expect(access::reaccept_fixture_revision(*application, true), "changed-head fixture enters actual accepted-revision path");
-			wait([&] { return cold.shown().Draft && cold.shown().Draft->ObservedHead && cold.shown().Draft->Stops.front().Preparation == core::tour_preparation::needs_attention; }, "changed head exposes explanation attention");
+			// Keyed on the pushed head itself, as the sibling course is: an
+			// observation of the head before the push is not the push.
+			wait([&] { return cold.shown().Draft && cold.shown().Draft->ObservedHead && *cold.shown().Draft->ObservedHead != prePush && cold.shown().Draft->Stops.front().Preparation == core::tour_preparation::needs_attention; },
+				 "changed head exposes explanation attention");
 			cold.outline()->setCurrentRow(0);
 			// [[BPR-2014]], RFC-BPR-0106. The stop was accepted before the push.
 			// This fixture's second head is a new handoff with no readable
@@ -1117,7 +1121,13 @@ auto main(int argc, char** argv) -> int
 			const auto& pushed     = cold.shown().Draft->Stops.front();
 			const auto  uncompared = "an uncompared push leaves the stop Changed since accepted, not compared yet: " + std::string{ core::stable_name(decided().State) } + "/"
 				+ std::string{ core::stable_name(decided().Reason) } + " title=[" + pushed.Title + "] accepted-title=[" + (pushed.Acceptance ? pushed.Acceptance->Title : std::string{ "-" })
-				+ "] body=[" + pushed.Body + "] accepted-body=[" + (pushed.Acceptance ? pushed.Acceptance->Body : std::string{ "-" }) + "]";
+				+ "] body=[" + pushed.Body + "] accepted-body=[" + (pushed.Acceptance ? pushed.Acceptance->Body : std::string{ "-" }) + "] head="
+				+ std::string{ core::canonical_hex(cold.shown().Draft->Head).view() } + " observed="
+				+ (cold.shown().Draft->ObservedHead ? std::string{ core::canonical_hex(*cold.shown().Draft->ObservedHead).view() } : std::string{ "none" })
+				+ " preparation=" + std::to_string(static_cast<int>(pushed.Preparation)) + " material="
+				+ (pushed.Acceptance && !pushed.Acceptance->Material.empty() ? std::string{ core::canonical_hex(pushed.Acceptance->Material.front().Range.Commit).view() } + "@"
+						   + std::string{ core::canonical_hex(pushed.Acceptance->Material.front().CheckedAt).view() }
+																			 : std::string{ "none" });
 			expect(decided().State == core::tour_acceptance_state::changed && decided().Reason == core::tour_acceptance_reason::unchecked, uncompared.c_str());
 			// The stop's Accept, which replaces the Head changed chip. Critical
 			// review finding 3: pressed while its lines are not compared yet,
