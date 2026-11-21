@@ -3929,8 +3929,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-2215]] reseal over main 6a07d4ce1 (above) merged into this lane,
 	# with this lane's app changes listed before it. No review mutation or
 	# submission path changed by the merge itself.
+	# [[BPR-2215]] reseal: review_submission_workflow::started matches the
+	# attempt's own send context rather than the workflow's latest operation,
+	# so the send note is written when another operation or a host retirement
+	# replaced that context. The send, its grant and its terminal are
+	# unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "8690e238020dc3bb9740d1272247919da24983a97d4d1b4d0c4d97c896d09982"
+        "0bca4d5dee1f100515ae3c1cb970f40962ff0422f1ed50197da6eaeb9f9d9d86"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
