@@ -500,6 +500,26 @@ namespace bpr::core {
 			const auto word = lower_ascii(strip(aLabel.substr(0U, aLabel.find(' '))));
 			return !word.empty() && std::ranges::find(conventional_labels, std::string_view{ word }) != conventional_labels.end();
 		}
+
+		/// \brief [[BPR-2352]]. `aLines` as a fenced block naming
+		/// `aLanguage`, its fence longer than any run of backticks in them.
+		[[nodiscard]] auto fenced_code(const std::string_view aLanguage, const std::vector<std::string>& aLines) -> std::string
+		{
+			auto longest = std::size_t{ 2U };
+			for (const auto& line : aLines) {
+				auto run = std::size_t{ 0U };
+				for (const auto each : line) {
+					run     = each == '`' ? run + 1U : 0U;
+					longest = std::max(longest, run);
+				}
+			}
+			const auto fence = std::string(longest + 1U, '`');
+			auto       text  = fence + std::string{ aLanguage } + "\n";
+			for (const auto& line : aLines) {
+				text += line + "\n";
+			}
+			return text + fence;
+		}
 	} // namespace
 
 	auto report_tone_of(const std::string_view aWord) -> report_tone
@@ -939,9 +959,18 @@ namespace bpr::core {
 				}
 				if (finding.Comment.empty()) {
 					finding.Comment = item.Label.empty() ? item.Heading : item.Label + ": " + item.Heading;
+					// [[BPR-2352]]. The item's first code block quotes the
+					// lines at fault, which the comment sits on, and is left
+					// out; a code block after it is a fix written in the
+					// file's language, kept in the comment as written.
+					auto quoted = false;
 					for (const auto& part : item.Body) {
 						if (part.Kind == dressed_block_kind::paragraph && !part.Text.empty()) {
 							finding.Comment += "\n\n" + part.Text;
+						} else if (part.Kind == dressed_block_kind::code) {
+							if (std::exchange(quoted, true)) {
+								finding.Comment += "\n\n" + fenced_code(part.Language, part.Lines);
+							}
 						}
 					}
 					if (proposes) {

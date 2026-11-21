@@ -3047,7 +3047,7 @@ auto main(int argc, char** argv) -> int
 			&& field("brief.skill.version") == "6"
 			&& (field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos || (field("brief.skill.text") == "<absent>" && field("brief.skill.location") == "system_prompt"))
 			// [[BPR-2059]]. The shipped suggested-comment format rides the brief.
-			&& field("brief.comment_format.source") == "shipped" && field("brief.comment_format.version") == "suggested-comment-v3"
+			&& field("brief.comment_format.source") == "shipped" && field("brief.comment_format.version") == "suggested-comment-v4"
 			&& field("brief.comment_format.text").find("the problem in one sentence, what goes wrong because of it, then the fix.") != std::string::npos
 			// [[BPR-1753]], owner decision (b): the first turn about this
 			// pull request carries no earlier one.

@@ -423,7 +423,7 @@ namespace {
 			}
 			expect(names == QStringList{ "outline", "comment", "feedback", "enhance-stop", "enhance-writing", "suggested-comment", "local-description", "local-discussion", "local-commit-message", "review-latest-upload", "review-proposed-fix", "review-explain-file", "review-suggest-change", "local-run-check", "writing-style", "comment-labels" },
 				   "the hooks are listed in their stable order, [[BPR-2051]] the Enhance prompts, [[BPR-2059]] the suggested-comment format and RFC-BPR-0110's local-authoring prompts last");
-			expect(listed[5].toObject()["purpose"] == "review.suggested-comment" && listed[5].toObject()["version"] == "suggested-comment-v3", "[[BPR-2059]] the format names its purpose and version");
+			expect(listed[5].toObject()["purpose"] == "review.suggested-comment" && listed[5].toObject()["version"] == "suggested-comment-v4", "[[BPR-2059]] the format names its purpose and version");
 			expect(listed[4].toObject()["purpose"] == "enhance.writing" && listed[4].toObject()["version"] == "enhance-writing-v1" && listed[1].toObject()["purpose"] == "tour.stop-comment",
 				   "[[BPR-2051]] each hook names its stable purpose and its own default's version");
 			const auto shipped = listed[2].toObject();

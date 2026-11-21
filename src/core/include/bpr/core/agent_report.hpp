@@ -422,8 +422,10 @@ namespace bpr::core {
 		std::uint32_t Last  = 0U;
 		report_keep   Keep  = report_keep::none;
 		/// What the draft or the Local comment starts from: the label and the
-		/// finding in a few words, why, and the proposed change as a
-		/// suggestion GitHub can apply.
+		/// finding in a few words, why, and the proposed change: a fenced
+		/// block in the file's language after the quoted lines, as written,
+		/// or a suggestion GitHub can apply ([[BPR-2352]]: a suggestion
+		/// only for a small, exact fix of exactly those lines).
 		std::string Comment;
 		/// [[BPR-2231]]. The finding card it is: the position in
 		/// `report_findings`' `aSuggested` of the card at the same place.

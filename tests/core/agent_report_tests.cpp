@@ -4,6 +4,7 @@
 #include "bpr/core/agent_report.hpp"
 #include "bpr/core/agent_report_keep.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
@@ -285,6 +286,22 @@ namespace {
 				   && report_findings(own)[0].Comment == "P1: The lock is dropped\n\nTake it again." && report_findings(own)[1].Comment == "The name misleads\n\nRename it.",
 			   "a review's items draft whatever they are headed with, and a missing verdict is no error");
 		expect(report_findings(dress_report("# What `a.cpp` does\n\nS.\n\n## How it works\n\n### resize\n\n`src/a.cpp:9`\n\nIt resizes.\n")).empty(), "a report that is not a review offers no keep action on its items");
+
+		// [[BPR-2352]] (owner, 2026-11-21: "Reserve actual github suggestion
+		// blocks for very clear and obviously correct fixes"). A fix written
+		// in the file's language, after the quoted lines, drafts as written:
+		// nothing depends on a suggestion being there.
+		const auto languageFix      = dress_report("# Review of #9\n\n**Verdict:** Ready with comments\n\nOne thing.\n\n## Worth a look\n\n### suggestion: Cache the measure\n\n`src/a.cpp:20-21`\n\nThe width is measured twice a frame.\n\n"
+												   "```cpp\nauto w = measure(row);\nauto h = measure(row);\n```\n\nMeasure once and keep both.\n\n```cpp\nconst auto size = measure_both(row); // ``` stays code\n```\n");
+		const auto languageFindings = report_findings(languageFix);
+		expect(languageFindings.size() == 1U && languageFindings[0].Keep == report_keep::draft_comment && languageFindings[0].First == 20U && languageFindings[0].Last == 21U
+				   && languageFindings[0].Comment
+					   == "suggestion: Cache the measure\n\nThe width is measured twice a frame.\n\nMeasure once and keep both.\n\n````cpp\nconst auto size = measure_both(row); // ``` stays code\n````",
+			   "a fix in the file's language drafts at its place, after the quoted lines it leaves out, in a fence its code cannot close:\n" + languageFindings[0].Comment);
+		const auto& languageItem = languageFix.Sections.at(0U).Items.at(0U);
+		expect(std::ranges::none_of(languageItem.Body, [](const dressed_block& aBlock) { return aBlock.Kind == dressed_block_kind::suggestion; })
+				   && std::ranges::count(languageItem.Body, dressed_block_kind::code, &dressed_block::Kind) == 2,
+			   "a language block is code to show, never a suggested change");
 	}
 
 	/// [[BPR-2231]], [[BPR-2232]]. A report's finding is its card when one is

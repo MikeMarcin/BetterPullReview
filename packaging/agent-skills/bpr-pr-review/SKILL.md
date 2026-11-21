@@ -3,7 +3,7 @@ name: bpr-pr-review
 description: "Review one GitHub pull request that BetterPullReview hands you with a review brief and a workspace at its exact head: read the brief, follow the change through the code, verify each finding before reporting it, say whether the pull request introduced it, and say what you could not verify. Use when a BetterPullReview review request names this skill."
 compatibility: Works in any harness BetterPullReview starts (Claude Code, Codex or a plain-text harness). Needs only the brief on standard input and the workspace as the working directory; no BetterPullReview command, network access or credential.
 metadata:
-  bpr-version: 6
+  bpr-version: 7
   role: review-method
 ---
 
@@ -34,6 +34,7 @@ BetterPullReview shows each finding as a card under your answer, from which the 
 ```
 
 - `path` is the file's path in the workspace, as `brief.file.N.path` names it; `startLine` and `endLine` are one-based and inclusive, at the head (add `"side": "left"` for a line only in the base).
+- Write a fix in `suggestedComment` as a fenced block in the file's language. Use a fenced `suggestion` block only when the fix is small, exact, self-contained and obviously correct, and replaces exactly the head lines it names in a file the pull request changes; a sketch, a fix that reaches other lines or files, or one that needs another change to build stays a block in the file's language.
 - When `suggestedComment` holds a fenced `suggestion` block, `startLine` and `endLine` are exactly the head lines the block replaces, first to last, a line it keeps unchanged included. GitHub replaces those lines with the block, so a block that rewrites lines 40 to 43 is at `"startLine": 40, "endLine": 43`, never only at the line at fault. Name the same lines in the report's place for the finding.
 - `severity` is `trivial`, `minor`, `major` or `critical`; `category` is `correctness`, `security`, `performance`, `maintainability`, `style`, `documentation` or `other`; `confidence` is `low`, `medium` or `high`.
 - `claim` is one sentence; `evidence` is how you know; `suggestedComment` is what you would write on the pull request, in the reviewer's voice, and is what a draft comment starts from. Write it as the next section says.

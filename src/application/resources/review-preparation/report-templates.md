@@ -14,7 +14,7 @@ Rules for every report:
 - A short thing is a list row: a hyphen, the place in backticks, then what to know. Where the template gives rows a label, write the label first, in bold.
 - Every place in the code is written `path:line` in backticks. Never a bare file name and never a link.
 - Quote code in a fenced block that names its language. Eight lines at most, and only the lines that matter.
-- To propose a change, put a fenced block marked suggestion after the item's reasons, holding the lines as they should read. GitHub replaces exactly the lines the item names with the block, so the place names every line the block rewrites, first to last, a line the block keeps unchanged included: a block that rewrites lines 10 to 14 is at `path:10-14`, never at the one line at fault.
+- To propose a change, write the lines as they should read in a fenced block that names the file's language, after the item's reasons. Mark the block suggestion instead only when the fix is small, exact, self-contained and obviously correct, and replaces exactly the lines the item names in a file the pull request changes. GitHub offers to commit a suggestion in place of exactly those lines, so its place names every line the block rewrites, first to last, a line the block keeps unchanged included: a block that rewrites lines 10 to 14 is at `path:10-14`, never at the one line at fault. A fix that is a sketch, reaches other lines or files, needs another change to build, or is a matter of judgement stays a block in the file's language.
 - Plain sentences. No heading below level three, no tables, no bold except where the template has it, no emoji and no closing remarks.
 - Say only what the code and the conversations show. What you could not check goes in the section the template has for it.
 
@@ -64,7 +64,7 @@ The question says what to review, which sections the review has, how to grade a 
 - Each section the question names is a level-two heading, in the question's order.
 - A finding is an item: a level-three heading that opens with the finding's grade and a colon, then the finding in a few words. The next line is its one place: the line or lines a comment on it belongs on, in a file the pull request changes, numbered as the head has them. One place only; name any other in the reasons.
 - Under the place, the reasons, written as the comment the reviewer would leave there: what is wrong and what it causes, then what to do, in two to four sentences that stand without the rest of the report.
-- Quote the lines at fault in a fenced block that names its language. Write a fix of a few lines as a fenced block marked suggestion, holding exactly the lines that replace the lines the place names. The place then names every line the block replaces, first to last, `path:first-last`, a line it keeps unchanged included, and never only the line at fault: GitHub replaces exactly those lines with the block. Never write a fix in a plain code block.
+- Quote the lines at fault in a fenced block that names its language. Write a fix after the quote as a second fenced block in the file's language, holding the lines as they should read. Mark the fix suggestion instead only when it is small, exact, self-contained and obviously correct, and replaces exactly the lines the place names in a file the pull request changes. The place then names every line the block replaces, first to last, `path:first-last`, a line it keeps unchanged included, and never only the line at fault: GitHub replaces exactly those lines with the block. Anything less certain stays a block in the file's language: a sketch, a fix that reaches other lines or files, or one on lines the pull request does not change. Never write a fix in a code block that names no language.
 - What was not read or could not be checked is a row in the last section: the place or the thing first, then why. The row is about the thing: no "I", no "did not" said of yourself.
 - If the request asks for a findings block, add it after the report, listing the same findings in the same order at the same lines. The report is still the answer the reviewer reads: do not shorten it to a summary of the block.
 
@@ -87,8 +87,8 @@ What is wrong and what it causes. What to do.
 the lines at fault
 ```
 
-```suggestion
-the lines as they should read
+```language
+the fix, as the lines should read
 ```
 
 ## The last section the question names

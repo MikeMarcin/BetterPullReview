@@ -11,6 +11,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
 namespace {
 	using namespace bpr;
 	void expect(bool aOk, const char* aMessage)
@@ -194,10 +195,10 @@ int main()
 		{
 			auto hooks = core::writing_hook_settings{ };
 			expect(application::default_writing_hook(core::writing_hook::suggested_comment).starts_with("# Suggested comments")
-					   && application::writing_hook_version_of(core::writing_hook::suggested_comment) == "suggested-comment-v3" && !core::enhance_hook(core::writing_hook::suggested_comment),
+					   && application::writing_hook_version_of(core::writing_hook::suggested_comment) == "suggested-comment-v4" && !core::enhance_hook(core::writing_hook::suggested_comment),
 				   "the suggested-comment format ships its own default and version, and is not an Enhance prompt");
 			const auto shipped = application::suggested_comment_format(hooks);
-			expect(shipped && shipped->Source == core::feedback_guidance_source::shipped && shipped->Version == "suggested-comment-v3"
+			expect(shipped && shipped->Source == core::feedback_guidance_source::shipped && shipped->Version == "suggested-comment-v4"
 					   && shipped->Text == application::default_writing_hook(core::writing_hook::suggested_comment),
 				   "with no override the brief carries the shipped default");
 			hooks.Overrides[static_cast<std::size_t>(core::writing_hook::suggested_comment)] = "Use Conventional Comments labels.";
@@ -347,6 +348,44 @@ int main()
 				   && description.find("It is not a comment") != std::string_view::npos,
 			   "Description writing asks for a title-free description in three parts");
 		expect(application::writing_hook_version_of(core::writing_hook::local_description) == "local-description-v2", "its version moved with its text");
+	}
+	// [[BPR-2352]] (owner, 2026-11-21: "Unless something is a clear and
+	// obvious fix we should favor just writing language blocks like ```cpp```
+	// instead. Reserve actual github suggestion blocks for very clear and
+	// obviously correct fixes"). Every shipped instruction that asks for a
+	// proposed change asks for a block in the file's language, and for a
+	// suggestion only for a small, exact, obviously correct fix of exactly
+	// the lines named; none still asks for a suggestion for every fix.
+	{
+		const auto languageFirst = std::string_view{ "write the lines as they should read in a fenced block that names the file's language" };
+		const auto onlyWhen      = std::string_view{ "Mark the block suggestion instead only when the fix is small, exact, self-contained and obviously correct, and replaces exactly the lines the item names" };
+		const auto oldRule       = std::string_view{ "put a fenced block marked suggestion after the item's reasons" };
+		const auto templates     = application::report_templates_guidance();
+		for (const auto& [name, text] : std::array<std::pair<std::string_view, std::string_view>, 4>{ {
+				 { "report templates", templates.Text },
+				 { "What changed since my review", application::default_writing_hook(core::writing_hook::review_latest_upload) },
+				 { "Was this addressed?", application::default_writing_hook(core::writing_hook::review_proposed_fix) },
+				 { "Explain this file", application::default_writing_hook(core::writing_hook::review_explain_file) },
+			 } }) {
+			expect(text.find(languageFirst) != std::string_view::npos && text.find(onlyWhen) != std::string_view::npos && text.find(oldRule) == std::string_view::npos,
+				   (std::string{ name } + " proposes a change in the file's language and keeps suggestion for a small, exact, obviously correct fix").c_str());
+		}
+		expect(templates.Version == "report-templates-v3", "the report templates' version moved with their text");
+		const auto review = std::string_view{ templates.Text };
+		expect(review.find("Write a fix after the quote as a second fenced block in the file's language") != std::string_view::npos
+				   && review.find("Mark the fix suggestion instead only when it is small, exact, self-contained and obviously correct") != std::string_view::npos
+				   && review.find("or one on lines the pull request does not change") != std::string_view::npos
+				   && review.find("Write a fix of a few lines as a fenced block marked suggestion") == std::string_view::npos
+				   && review.find("```suggestion") == std::string_view::npos && review.find("```language\nthe fix, as the lines should read\n```") != std::string_view::npos,
+			   "a review's fix follows its quote in the file's language; its template shows a language block, not a suggestion");
+		const auto format = application::default_writing_hook(core::writing_hook::suggested_comment);
+		expect(format.find("Use a fenced `suggestion` block only for a fix that is small, exact, self-contained and obviously correct, and replaces exactly the lines the comment is on") != std::string_view::npos
+				   && format.find("anything less certain stays a block in the file's language") != std::string_view::npos,
+			   "a suggested comment writes a fix in the file's language unless it is a small, exact, obviously correct fix of its lines");
+		expect(application::writing_hook_version_of(core::writing_hook::review_latest_upload) == "review-latest-upload-v3"
+				   && application::writing_hook_version_of(core::writing_hook::review_proposed_fix) == "review-proposed-fix-v3"
+				   && application::writing_hook_version_of(core::writing_hook::review_explain_file) == "review-explain-file-v3",
+			   "each version moved with its text");
 	}
 	std::cout << "writing-delivery-tests:pass\n";
 }

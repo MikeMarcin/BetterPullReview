@@ -77,7 +77,9 @@ namespace bpr::application {
 	/// [[BPR-2264]] v2: the problem, what goes wrong, then the fix.
 	/// [[BPR-2270]] v3: a label as the Comment labels Feature asks, when the
 	/// request carries it; otherwise none.
-	inline constexpr std::string_view suggested_comment_hook_version = "suggested-comment-v3";
+	/// [[BPR-2352]] v4: a fix in the file's language; a `suggestion` block
+	/// only for a small, exact, obviously correct fix of the comment's lines.
+	inline constexpr std::string_view suggested_comment_hook_version = "suggested-comment-v4";
 	/// \brief RFC-BPR-0110 ([[BPR-2026]]) Versions of the shipped
 	/// local-authoring prompts, `resources/review-preparation/local-*.md`.
 	inline constexpr std::string_view local_description_hook_version = "local-description-v2";
@@ -87,11 +89,14 @@ namespace bpr::application {
 	inline constexpr std::string_view local_commit_message_hook_version = "local-commit-message-v1";
 	/// \brief RFC-BPR-0116 ([[BPR-2073]], [[BPR-2074]]). Versions of the
 	/// returning questions' prompts, `resources/review-preparation/review-*.md`.
-	inline constexpr std::string_view review_latest_upload_hook_version = "review-latest-upload-v2";
-	inline constexpr std::string_view review_proposed_fix_hook_version  = "review-proposed-fix-v2";
+	/// [[BPR-2352]] v3 (and Explain this file's v3, the report templates'
+	/// v3): a proposed change in the file's language, a suggestion only for
+	/// a small, exact, obviously correct fix of exactly the named lines.
+	inline constexpr std::string_view review_latest_upload_hook_version = "review-latest-upload-v3";
+	inline constexpr std::string_view review_proposed_fix_hook_version  = "review-proposed-fix-v3";
 	/// \brief RFC-BPR-0117 ([[BPR-2076]]). Version of Explain this file's
 	/// prompt, `resources/review-preparation/review-explain-file.md`.
-	inline constexpr std::string_view review_explain_file_hook_version = "review-explain-file-v2";
+	inline constexpr std::string_view review_explain_file_hook_version = "review-explain-file-v3";
 	/// \brief RFC-BPR-0118 ([[BPR-2078]]). Version of Suggest the change's
 	/// prompt, `resources/review-preparation/review-suggest-change.md`.
 	inline constexpr std::string_view review_suggest_change_hook_version = "review-suggest-change-v1";
@@ -145,7 +150,7 @@ namespace bpr::application {
 	/// returning questions (What could this change break?, a review): the
 	/// shared rules and those two templates,
 	/// `resources/review-preparation/report-templates.md`.
-	inline constexpr std::string_view report_templates_version = "report-templates-v2";
+	inline constexpr std::string_view report_templates_version = "report-templates-v3";
 	[[nodiscard]] auto                report_templates_guidance() -> core::supplement_feedback_guidance;
 	/// \brief [[BPR-2264]]. The Writing style Feature (`/bpr:writing-style`)
 	/// as a request carries it: a fixed line that keeps every format the

@@ -38,14 +38,19 @@ namespace {
 		std::ifstream input{ BPR_TEST_REVIEW_SKILL, std::ios::binary };
 		const auto    text  = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
 		const auto    facts = core::inspect_review_skill(text);
-		expect(!text.empty() && facts.has_value() && facts->Version == 6U && facts->Description.starts_with("Review one GitHub pull request"),
-			   "the shipped bpr-pr-review is a review skill of version 6");
+		expect(!text.empty() && facts.has_value() && facts->Version == 7U && facts->Description.starts_with("Review one GitHub pull request"),
+			   "the shipped bpr-pr-review is a review skill of version 7");
 		// [[BPR-1753]], owner decision (a) 2026-10-23: every review
 		// prompt answers with a summary, even with no finding; and decision
 		// (b): the conversation so far is the agent's to continue.
 		expect(text.find("brief.conversation") != std::string::npos && text.find("summary") != std::string::npos,
 			   "the shipped skill reads the conversation and always ends with a summary");
 		expect(text.find(")BPR\"") == std::string::npos, "the shipped text can be embedded as a raw string");
+		// [[BPR-2352]] (owner, 2026-11-21: "Reserve actual github suggestion
+		// blocks for very clear and obviously correct fixes"). Version 7.
+		expect(text.find("Write a fix in `suggestedComment` as a fenced block in the file's language.") != std::string::npos
+				   && text.find("Use a fenced `suggestion` block only when the fix is small, exact, self-contained and obviously correct") != std::string::npos,
+			   "the shipped skill writes a fix in the file's language and keeps suggestion for a small, exact, obviously correct fix");
 		// [[BPR-2059]], owner 2026-11-10: suggested comments were "just a big
 		// wall of text" that restated the finding and led with a label the
 		// card already shows. The skill defers to the reviewer's editable

@@ -592,6 +592,25 @@ where `decide_comment_range` takes the range, else its first line as before,
 and the card says which lines it was drafted on. Publishing carries
 `start_line`/`start_side` as for any range draft.
 
+**A fix is code in the file's language; a suggestion is the exception
+([[BPR-2352]], owner 2026-11-21: "Reserve actual github suggestion blocks
+for very clear and obviously correct fixes").** The review skill (version 7),
+the report prompts (`report-templates-v3`, `review-latest-upload-v3`,
+`review-proposed-fix-v3`, `review-explain-file-v3`) and the suggested-comment
+format (`suggested-comment-v4`) ask for a proposed change as a fenced block
+in the file's language. A ```` ```suggestion ```` block is reserved for a
+small, exact, self-contained and obviously correct fix that replaces exactly
+the named lines in a file the pull request changes. Nothing depends on a
+suggestion being there. A finding with a language block drafts at its
+place, and `decide_agent_suggestion_range` leaves the range as it is, because
+it reads only a suggestion. A language block does not make the body
+`requires_line_subject` (`classify_review_body`), so
+`plan_review_publication` may still fall back to a file comment for it. When a
+finding has no comment of its own, `report_findings` leaves out the item's
+first code block, which quotes the lines at fault. Each code block after it
+is a fix and is kept in the draft as written. The fence is longer than any
+backtick run inside it.
+
 **Suggested comments carry Conventional Comments labels ([[BPR-1861]],
 owner 2026-11-04).** The review skill (version 3) asks every
 `suggestedComment`, and any reply written for the reviewer to post, to open

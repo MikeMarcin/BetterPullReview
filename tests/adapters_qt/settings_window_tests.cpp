@@ -712,7 +712,7 @@ auto main(int argc, char** argv) -> int
 		{
 			const auto index = static_cast<std::size_t>(core::writing_hook::suggested_comment);
 			panel->select_hook(core::writing_hook::suggested_comment);
-			expect(text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::suggested_comment) && source->text().contains(QStringLiteral("suggested-comment-v3"))
+			expect(text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::suggested_comment) && source->text().contains(QStringLiteral("suggested-comment-v4"))
 					   && !test->isEnabled(),
 				   "the suggested-comment format shows its shipped text and version");
 			text->setPlainText("Short comments");

@@ -336,7 +336,7 @@ namespace {
 		const auto hook   = core::writing_hook::review_explain_file;
 		const auto prompt = std::string{ application::default_writing_hook(hook) };
 		expect(!prompt.empty() && application::writing_hook_purpose(hook) == "review.explain-file" && application::writing_hook_of_purpose("review.explain-file") == hook
-				   && application::writing_hook_version_of(hook) == "review-explain-file-v2",
+				   && application::writing_hook_version_of(hook) == "review-explain-file-v3",
 			   "Explain this file has its own prompt, purpose and version");
 		const auto launch = application::build_agent_launch(claude, value, reader(), { .WritingOnly = true, .Path = core::agent_run_path::assistance_first_answer, .SystemInstructions = prompt });
 		expect(launch && has(launch->Arguments, "--no-session-persistence") && !has(launch->Arguments, "--resume"), "a fresh run: no session saved or resumed");
