@@ -1,5 +1,7 @@
 #include "bpr/qt/agent_setup_view.hpp"
 
+#include "bpr/core/terminal_text.hpp"
+
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
@@ -80,7 +82,8 @@ namespace bpr::qt {
 			output->setAccessibleName(aTitle);
 			output->setReadOnly(true);
 			output->setFont(code_font(parent->font()));
-			output->setPlainText(aDetail.empty() ? QObject::tr("No process output was returned.") : text_of(aDetail));
+			// [[BPR-2215]]. What the process printed, without its terminal colours.
+			output->setPlainText(aDetail.empty() ? QObject::tr("No process output was returned.") : text_of(core::plain_terminal_text(aDetail)));
 			output->setMinimumHeight(96);
 			output->setMaximumHeight(144);
 			body->addWidget(output);
@@ -306,7 +309,7 @@ namespace bpr::qt {
 		}
 		const auto* const entry  = checked_entry(aSetup);
 		const auto        name   = entry != nullptr ? text_of(entry->Name) : aFallback;
-		const auto        detail = text_of(aSetup.CheckDetail);
+		const auto        detail = text_of(core::plain_terminal_text(aSetup.CheckDetail));
 		const auto        output = [&detail] { return detail.isEmpty() ? QString{ } : QStringLiteral(" ") + detail; };
 		if (entry == nullptr || entry->Preset) {
 			return setup_failure_words(*at.Failure, name, detail);

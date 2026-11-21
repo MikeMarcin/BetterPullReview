@@ -1,5 +1,7 @@
 #include "bpr/qt/local_draft_parts.hpp"
 
+#include "bpr/core/terminal_text.hpp"
+
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/local_draft_publication_area.hpp"
 #include "bpr/qt/local_draft_workflow_area.hpp"
@@ -696,7 +698,7 @@ namespace bpr::qt {
 						 .arg(view.Comparison.Bases.size());
 			break;
 		case application::local_draft_recovery::git:
-			lines << QStringLiteral("Git could not read this repository%1").arg(view.Git && !view.Git->Detail.empty() ? QStringLiteral(": %1").arg(text_of(view.Git->Detail)) : QStringLiteral("."));
+			lines << QStringLiteral("Git could not read this repository%1").arg(view.Git && !view.Git->Detail.empty() ? QStringLiteral(": %1").arg(text_of(core::plain_terminal_text(view.Git->Detail))) : QStringLiteral("."));
 			break;
 		case application::local_draft_recovery::store: break;
 		}

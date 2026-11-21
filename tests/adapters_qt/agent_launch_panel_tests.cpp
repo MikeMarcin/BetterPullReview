@@ -599,6 +599,10 @@ namespace {
 		const auto signIn         = qt::agent_launch_panel::failure_log(result);
 		expect(signIn.contains(QStringLiteral("The line it ended at:\n{\"type\":\"system\",\"subtype\":\"api_retry\"")) && !signIn.contains(QStringLiteral("couldn't read")),
 			   "a failed sign-in names the line it ended at");
+		// [[BPR-2215]] (owner, 0.5.0 build 75). Its coloured errors show as plain text.
+		result.StandardError = "\x1b[0;31merror:\x1b[0m \x1b[1mtoken\x1b[22m expired\n";
+		const auto coloured  = qt::agent_launch_panel::failure_log(result);
+		expect(coloured.contains(QStringLiteral("Last lines of its errors:\nerror: token expired")) && !coloured.contains(QChar{ 0x1b }), "coloured errors show as plain text: " + coloured.toStdString());
 	}
 
 	/// [[BPR-2261]], AC5. While it prepares, a run that checks the retained

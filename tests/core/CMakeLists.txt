@@ -752,6 +752,14 @@ bpr_enable_warnings(test_better_pull_review_agent_wrapper_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_wrapper COMMAND test_better_pull_review_agent_wrapper_core_tests)
 set_tests_properties(core_agent_wrapper PROPERTIES PASS_REGULAR_EXPRESSION "agent-wrapper-tests:pass")
 
+# [[BPR-2215]]. Process output shown without its terminal escape sequences.
+bpr_add_executable(test_better_pull_review_terminal_text_core_tests terminal_text_tests.cpp)
+target_link_libraries(test_better_pull_review_terminal_text_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_terminal_text_core_tests)
+bpr_enable_warnings(test_better_pull_review_terminal_text_core_tests)
+bpr_add_network_isolated_test(NAME core_terminal_text COMMAND test_better_pull_review_terminal_text_core_tests)
+set_tests_properties(core_terminal_text PROPERTIES PASS_REGULAR_EXPRESSION "terminal-text-tests:pass")
+
 # [[BPR-1748]]. RFC-BPR-0092's agent setup: rows, choice, checks, steps.
 bpr_add_executable(test_better_pull_review_agent_setup_core_tests agent_setup_tests.cpp)
 target_link_libraries(test_better_pull_review_agent_setup_core_tests PRIVATE BetterPullReview::Core)
