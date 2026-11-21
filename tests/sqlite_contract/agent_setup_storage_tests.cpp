@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <string>
@@ -748,6 +749,76 @@ try {
 	const auto reopenedShared = natives->shared_workspace("exact-authority:base:head", *newSession);
 	expect(reopenedShared && *reopenedShared && (**reopenedShared).Workspace.Path == restored->Workspace->Workspace.Path,
 		   "restart and New session retain shared files even while the original owner is unselected");
+	// [[BPR-2345]]. The workspace Agent setup's check made is kept as the pull
+	// request's before any conversation holds it: after a restart the first
+	// turn reads it, holding it makes it that conversation's, and expiry
+	// lists it once throughout.
+	{
+		const auto keptKey             = std::string{ "kept-authority:base:head" };
+		auto       probed              = application::owned_agent_workspace{ };
+		probed.Workspace.Path          = "/synthetic-probed-workspace";
+		probed.Workspace.Shallow       = true;
+		probed.Workspace.PinnedHead    = binding.HeadOid;
+		probed.SparseMissingObjects    = "?" + std::string(40U, 'b') + "\n";
+		probed.OwnershipMarker         = "probe-marker";
+		probed.Session                 = core::agent_session_id{ (std::uint64_t{ 1U } << 63U) + 1U };
+		probed.DirectoryIdentity       = { .Opaque = { 2U, 7U, 0U, 1U } };
+		auto otherHead                 = probed;
+		otherHead.Workspace.PinnedHead = changedBinding.HeadOid;
+		expect(!natives->keep_workspace(keptKey, binding, otherHead), "a workspace of another head is not kept");
+		expect(natives->keep_workspace(keptKey, binding, probed) && !natives->keep_workspace(keptKey, binding, probed), "one workspace is kept under a key");
+		expect(!natives->keep_workspace("exact-authority:base:head", binding, probed), "none where a conversation already holds the pull request's workspace");
+		natives                = adapters::sqlite::make_native_agent_session_store(scratch.path());
+		const auto keptListing = [&]() {
+			auto matching = std::vector<application::retained_workspace_record>{ };
+			if (const auto records = natives->retained_workspaces()) {
+				std::ranges::copy_if(*records, std::back_inserter(matching), [&](const application::retained_workspace_record& aRecord) { return aRecord.Workspace.Workspace.Path == probed.Workspace.Path; });
+			}
+			return matching;
+		};
+		const auto waiting = keptListing();
+		expect(waiting.size() == 1U && waiting.front().Keys == std::vector<std::string>{ keptKey } && !waiting.front().Ended && waiting.front().LastUse.has_value(),
+			   "expiry lists the kept workspace under its key, waiting for its first turn");
+		auto firstTurn = natives->select("authority:agent-c:agent-tab", "claude", binding);
+		expect(firstTurn && !firstTurn->Workspace, "the first turn's conversation holds no workspace");
+		const auto found = natives->shared_workspace(keptKey, *firstTurn);
+		expect(found && *found && (**found).Workspace.Path == probed.Workspace.Path && (**found).Session == probed.Session && (**found).OwnershipMarker == probed.OwnershipMarker
+				   && (**found).DirectoryIdentity == probed.DirectoryIdentity && (**found).SparseMissingObjects == probed.SparseMissingObjects,
+			   "after a restart the first turn reads the kept workspace, its reserved identity and sparse evidence");
+		auto movedHead    = *firstTurn;
+		movedHead.Binding = changedBinding;
+		expect(!natives->shared_workspace(keptKey, movedHead), "a conversation at another head is refused it");
+		firstTurn->Workspace    = **found;
+		firstTurn->WorkspaceKey = keptKey;
+		expect(natives->store(*firstTurn), "the first turn holds it");
+		const auto held = keptListing();
+		expect(held.size() == 1U && held.front().Keys == std::vector<std::string>{ keptKey }, "held, it is listed once, as the conversation's");
+		expect(natives->forget_workspace(probed) && keptListing().empty(), "forgotten, nothing lists it");
+		auto later = natives->select("authority:agent-d:agent-tab", "claude", binding);
+		expect(later && natives->shared_workspace(keptKey, *later).value_or(std::optional{ probed }) == std::nullopt, "and no turn reads it again");
+		// Kept for a head its pull request's selected conversation has moved
+		// past: ended, so expiry removes it first.
+		const auto pullRequestKey = std::string{ "1:2:3:4:5:6:7:8:::17:host:cache:scope:base:head" };
+		auto       leftBehind     = probed;
+		leftBehind.Workspace.Path = "/synthetic-left-behind-workspace";
+		expect(natives->keep_workspace(pullRequestKey, binding, leftBehind), "kept for the pull request's head");
+		const auto endedFor = [&]() -> std::optional<bool> {
+			const auto records = natives->retained_workspaces();
+			if (!records) {
+				return std::nullopt;
+			}
+			for (const auto& record : *records) {
+				if (record.Workspace.Workspace.Path == leftBehind.Workspace.Path) {
+					return record.Ended;
+				}
+			}
+			return std::nullopt;
+		};
+		expect(endedFor() == std::optional{ false }, "while no conversation of its pull request is selected, it waits");
+		expect(natives->select("1:2:3:4:5:6:7:8:agent-e:agent-tab", "claude", changedBinding).has_value() && endedFor() == std::optional{ true },
+			   "a selected conversation at another head ends it");
+		expect(natives->forget_workspace(leftBehind), "and it is forgotten");
+	}
 
 	expect(durableHistory && durableHistory->Selected == restored->Id && durableHistory->Turns.size() == 2U && durableHistory->Turns.back().Answered == "Late original answer", "restart preserves selected generation and originating late transcript");
 	expect(durableHistory->Turns.back().Steered == steeredTurn.Steered && durableHistory->Turns.front().Steered.empty(), "restart keeps each turn's steered messages, in order, with their steps and states");

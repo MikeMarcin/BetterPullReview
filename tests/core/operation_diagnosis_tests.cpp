@@ -293,20 +293,57 @@ namespace {
 
 	/// [[BPR-2321]]. A seed from the linked clone names its outcome, each
 	/// step's time and its counts; a line with no seed is unchanged.
+	/// [[BPR-2345]]. A failed seed names its step, and a fallback its own
+	/// times.
 	void test_workspace_seed_trace()
 	{
 		const auto seeded = operation_diagnosis{ .Action = operation_action::workspace_materialize, .DurationMilliseconds = 900U, .Workspace = workspace_trace{ .Source = workspace_source::borrowed, .Sparse = true, .CloneGiven = true, .CloneHeldHead = true, .Seed = workspace_seed_trace{ .Outcome = workspace_seed_outcome::seeded, .WalkMilliseconds = 40U, .CloneMilliseconds = 230U, .RefreshMilliseconds = 200U, .CheckoutMilliseconds = 5U, .CleanMilliseconds = 30U, .FoldersCloned = 98U, .FilesCloned = 402U, .FilesWritten = 3U, .Cleaned = 0U } } };
-		expect(describe(seeded).ends_with("git=none git_error=none seed=seeded seed_walk_ms=40 seed_clone_ms=230 seed_refresh_ms=200 seed_checkout_ms=5 seed_clean_ms=30 seed_folders=98 seed_files=402 seed_written=3 seed_cleaned=0"),
+		expect(describe(seeded).ends_with("git=none git_error=none seed=seeded seed_walk_ms=40 seed_clone_ms=230 seed_refresh_ms=200 seed_checkout_ms=5 seed_clean_ms=30 seed_folders=98 seed_files=402 seed_written=3 seed_cleaned=0 seed_rewritten=0"),
 			   "the seed's steps and counts follow the trace");
 		expect(parse_operation_diagnosis(describe(seeded)) == seeded, "and read back");
-		const auto spread = operation_diagnosis{ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Source = workspace_source::borrowed, .CloneGiven = true, .Seed = workspace_seed_trace{ .Outcome = workspace_seed_outcome::too_spread, .WalkMilliseconds = 12U, .CheckoutMilliseconds = 1800U, .FilesWritten = 20003U } } };
-		expect(describe(spread).find(" seed=too_spread ") != std::string::npos && parse_operation_diagnosis(describe(spread)) == spread, "a fallback names which");
+		const auto spread = operation_diagnosis{ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Source = workspace_source::borrowed, .CloneGiven = true, .Seed = workspace_seed_trace{ .Outcome = workspace_seed_outcome::too_spread, .WalkMilliseconds = 12U, .FilesWritten = 20003U, .FallbackCheckoutMilliseconds = 1800U, .FallbackCleanMilliseconds = 40U } } };
+		expect(describe(spread).find(" seed=too_spread ") != std::string::npos && describe(spread).ends_with(" seed_rewritten=0 fallback_checkout_ms=1800 fallback_clean_ms=40 fallback_cleaned=0") && parse_operation_diagnosis(describe(spread)) == spread,
+			   "a fallback names which, and the full checkout's own times");
+		// [[BPR-2345]]. A failed seed names its step, and for the final check
+		// what it found; the seed's own checkout and clean stay its own.
+		auto failedSeed                         = workspace_seed_trace{ .Outcome = workspace_seed_outcome::failed, .CheckoutMilliseconds = 7U, .CleanMilliseconds = 9U, .FilesWritten = 9U, .Rewritten = 4U };
+		failedSeed.Step                         = workspace_seed_step::verify;
+		failedSeed.Modified                     = 4U;
+		failedSeed.Untracked                    = 1U;
+		failedSeed.FallbackCheckoutMilliseconds = 14273U;
+		failedSeed.FallbackCleanMilliseconds    = 676U;
+		const auto failed                       = operation_diagnosis{ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Source = workspace_source::borrowed, .CloneGiven = true, .CloneHeldHead = true, .Seed = failedSeed } };
+		expect(describe(failed).ends_with(" seed=failed seed_walk_ms=0 seed_clone_ms=0 seed_refresh_ms=0 seed_checkout_ms=7 seed_clean_ms=9 seed_folders=0 seed_files=0 seed_written=9 seed_cleaned=0 seed_rewritten=4 seed_step=verify seed_modified=4 seed_untracked=1 fallback_checkout_ms=14273 fallback_clean_ms=676 fallback_cleaned=0"),
+			   "a failed seed names its step and what the final check found: " + describe(failed));
+		expect(parse_operation_diagnosis(describe(failed)) == failed, "and reads back");
+		auto listed                 = failed;
+		listed.Workspace->Seed.Step = workspace_seed_step::list;
+		expect(describe(listed).empty(), "counts of what the final check found belong to verify alone");
+		listed.Workspace->Seed.Modified  = 0U;
+		listed.Workspace->Seed.Untracked = 0U;
+		expect(describe(listed).find(" seed_step=list seed_modified=0 seed_untracked=0 ") != std::string::npos && parse_operation_diagnosis(describe(listed)) == listed, "any step can be named");
+		auto unnamed                 = listed;
+		unnamed.Workspace->Seed.Step = workspace_seed_step::none;
+		expect(describe(unnamed).empty(), "a failed seed always names its step");
+		auto stepped                 = seeded;
+		stepped.Workspace->Seed.Step = workspace_seed_step::clone;
+		expect(describe(stepped).empty(), "a seed that did not fail names no step");
+		auto seededFallback                                      = seeded;
+		seededFallback.Workspace->Seed.FallbackCleanMilliseconds = 3U;
+		expect(describe(seededFallback).empty(), "a seed that seeded has no fallback");
 		expect(describe({ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Seed = workspace_seed_trace{ .Cleaned = 4U } } }).empty(), "counts with no seed are no line");
 		expect(describe({ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Seed = workspace_seed_trace{ .Outcome = static_cast<workspace_seed_outcome>(40) } } }).empty(), "an unknown outcome is no line");
 		const auto prefix = std::string{ "action=workspace_materialize failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 source=borrowed sparse=1 clone=1 clone_head=1 git=none git_error=none" };
 		expect(!parse_operation_diagnosis(prefix + " seed=none seed_walk_ms=0 seed_clone_ms=0 seed_refresh_ms=0 seed_checkout_ms=0 seed_clean_ms=0 seed_folders=0 seed_files=0 seed_written=0 seed_cleaned=0").has_value(), "no seed is written as none");
 		expect(!parse_operation_diagnosis(prefix + " seed=seeded seed_walk_ms=1").has_value(), "a seed names every step");
-		expect(!parse_operation_diagnosis(prefix + " seed=seeded seed_walk_ms=0 seed_clone_ms=0 seed_refresh_ms=0 seed_checkout_ms=0 seed_clean_ms=0 seed_folders=0 seed_files=0 seed_written=0 seed_cleaned=0 path=/x").has_value(),
+		expect(!parse_operation_diagnosis(prefix + " seed=seeded seed_walk_ms=0 seed_clone_ms=0 seed_refresh_ms=0 seed_checkout_ms=0 seed_clean_ms=0 seed_folders=0 seed_files=0 seed_written=0 seed_cleaned=0").has_value(), "a seed names what it checked out again");
+		expect(!parse_operation_diagnosis(prefix + " seed=failed seed_walk_ms=0 seed_clone_ms=0 seed_refresh_ms=0 seed_checkout_ms=0 seed_clean_ms=0 seed_folders=0 seed_files=0 seed_written=0 seed_cleaned=0 seed_rewritten=0 fallback_checkout_ms=0 fallback_clean_ms=0 fallback_cleaned=0").has_value(),
+			   "a failed seed names its step");
+		expect(!parse_operation_diagnosis(prefix + " seed=failed seed_walk_ms=0 seed_clone_ms=0 seed_refresh_ms=0 seed_checkout_ms=0 seed_clean_ms=0 seed_folders=0 seed_files=0 seed_written=0 seed_cleaned=0 seed_rewritten=0 seed_step=list seed_modified=2 seed_untracked=0 fallback_checkout_ms=0 fallback_clean_ms=0 fallback_cleaned=0").has_value(),
+			   "only the final check counts what it found");
+		expect(!parse_operation_diagnosis(prefix + " seed=too_spread seed_walk_ms=0 seed_clone_ms=0 seed_refresh_ms=0 seed_checkout_ms=0 seed_clean_ms=0 seed_folders=0 seed_files=0 seed_written=0 seed_cleaned=0 seed_rewritten=0").has_value(),
+			   "a fallback names its own times");
+		expect(!parse_operation_diagnosis(prefix + " seed=seeded seed_walk_ms=0 seed_clone_ms=0 seed_refresh_ms=0 seed_checkout_ms=0 seed_clean_ms=0 seed_folders=0 seed_files=0 seed_written=0 seed_cleaned=0 seed_rewritten=0 path=/x").has_value(),
 			   "nothing follows the seed");
 	}
 } // namespace

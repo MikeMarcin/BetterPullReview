@@ -392,12 +392,19 @@ files as well refuses as `history_missing`, which the turn names without
 offering a resend. The `workspace_materialize` line says the source taken,
 whether the review was sparse, whether a clone was given and held the head,
 and on a failure the Git command and its words as a fixed class, never an
-object name or a path.
+object name or a path. When the workspace was seeded from the linked clone,
+the line also names the seed's outcome, steps and counts, the step a failed
+seed stopped at, and the full checkout's own times after a fallback
+([[BPR-2321]], [[BPR-2345]]).
 This is in place of
 the `git worktree` the RFC first described, which the owner accepted on
-2026-10-22. Check it works makes and removes the same workspace through the
-agent host's `probe_workspace`, with a session identity from a reserved range,
-no admitted session and no process.
+2026-10-22. Check it works makes the same workspace through the agent host's
+`probe_workspace`, with a session identity from a reserved range, no admitted
+session and no process. Since [[BPR-2345]] it asks for the workspace a turn
+would make (retained, from the same clone) and keeps it as the pull request's
+retained workspace under its key, so the first turn reattaches it instead of
+making it again; expiry counts it from when it was kept. Only a workspace
+the store will not keep (a conversation already holds one) is removed.
 
 ## Context supplement
 

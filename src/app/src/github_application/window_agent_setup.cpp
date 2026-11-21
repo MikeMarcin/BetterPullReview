@@ -1620,7 +1620,7 @@ namespace bpr::app {
 		auto workspaceKey = application::agent_workspace_key(authority, binding);
 		LastWorkspaceProbeReason.reset();
 		AgentSetup->set_workspace_check({ .State = core::setup_check_state::running });
-		AgentHost->probe_workspace(state.ApplicationSession, authority, std::move(binding), linked_history_clone(false), [this, failed, stop, generation, key = std::move(workspaceKey)](std::expected<application::prepared_workspace, application::agent_workspace_error> aProbed) {
+		AgentHost->probe_workspace(state.ApplicationSession, authority, std::move(binding), linked_history_clone(false), linked_history_clone_managed(false), [this, failed, stop, generation, key = std::move(workspaceKey)](std::expected<application::prepared_workspace, application::agent_workspace_error> aProbed) {
 									   if (Closing || !AgentSetup || generation != AgentSetupWorkspaceGeneration) {
 										   return;
 									   }

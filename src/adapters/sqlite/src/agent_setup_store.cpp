@@ -476,6 +476,15 @@ namespace bpr::adapters::sqlite {
 									"CREATE TABLE IF NOT EXISTS native_agent_workspace_use("
 									"workspace TEXT PRIMARY KEY CHECK(length(CAST(workspace AS BLOB)) BETWEEN 1 AND 4096),"
 									"used INTEGER NOT NULL CHECK(used >= 0)) STRICT")
+				// [[BPR-2345]]. A pull request's retained workspace Agent setup's
+				// check made before any conversation held it, by its pull request
+				// key, with the columns a conversation keeps its workspace in.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS native_agent_kept_workspaces("
+									"scope TEXT PRIMARY KEY CHECK(length(CAST(scope AS BLOB)) BETWEEN 1 AND 4096), base TEXT NOT NULL, head TEXT NOT NULL,"
+									"workspace TEXT NOT NULL CHECK(length(CAST(workspace AS BLOB)) BETWEEN 1 AND 4096), parent TEXT NOT NULL, marker TEXT NOT NULL,"
+									"application INTEGER NOT NULL, session INTEGER NOT NULL, directory BLOB NOT NULL, guard TEXT NOT NULL, guard_identity BLOB NOT NULL,"
+									"shallow INTEGER NOT NULL, missing TEXT CHECK(missing IS NULL OR length(CAST(missing AS BLOB)) <= 67108864)) STRICT")
 				// Owner look v004: whether the Agent tab's suggestions are hidden.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_suggestions("
@@ -1507,6 +1516,31 @@ namespace bpr::adapters::sqlite {
 			}
 			return std::optional<application::owned_agent_workspace>{ };
 		}
+		/// [[BPR-2345]]. The workspace Agent setup's check kept under \p aKey,
+		/// read as a conversation's is: its columns at the same positions.
+		[[nodiscard]] auto read_kept_workspace(sqlite3* aDatabase, const std::string& aKey)
+			-> std::expected<std::optional<application::owned_agent_workspace>, application::native_agent_storage_failure>
+		{
+			using failure = application::native_agent_storage_failure;
+			auto row      = detail::prepare(aDatabase, "SELECT '', '', base, head, 0, 0, '', 2, 0, workspace, parent, marker, application, session, directory, guard, guard_identity, shallow, missing "
+													   "FROM native_agent_kept_workspaces WHERE scope=?1");
+			if (!row) {
+				return std::unexpected(failure::unavailable);
+			}
+			bind_text(row->Value, 1, aKey);
+			const auto status = sqlite3_step(row->Value);
+			if (status == SQLITE_DONE) {
+				return std::optional<application::owned_agent_workspace>{ };
+			}
+			if (status != SQLITE_ROW) {
+				return std::unexpected(failure::unavailable);
+			}
+			auto workspace = read_native_workspace(aDatabase, row->Value);
+			if (workspace && *workspace) {
+				(**workspace).SparseMissingObjects = column_text(row->Value, 18);
+			}
+			return workspace;
+		}
 		/// [[BPR-1753]], owner decision (b) 2026-10-23. Each pull
 		class native_agent_session_store final : public application::native_agent_session_store_port
 		{
@@ -1532,7 +1566,17 @@ namespace bpr::adapters::sqlite {
 				bind_text(row->Value, 1, aKey);
 				const auto status = sqlite3_step(row->Value);
 				if (status == SQLITE_DONE) {
-					return aSession.Workspace;
+					// [[BPR-2345]]. A conversation's own workspace first; then the
+					// one Agent setup's check kept for the pull request.
+					if (aSession.Workspace) {
+						return aSession.Workspace;
+					}
+					auto kept = read_kept_workspace(connection->Database.get(), aKey);
+					if (kept && *kept
+						&& ((**kept).Workspace.PinnedHead != aSession.Binding.HeadOid || ((**kept).RequiredBase && *(**kept).RequiredBase != aSession.Binding.BaseOid))) {
+						return std::unexpected(failure::conflict);
+					}
+					return kept;
 				}
 				if (status != SQLITE_ROW) {
 					return std::unexpected(failure::unavailable);
@@ -2115,6 +2159,19 @@ namespace bpr::adapters::sqlite {
 					if (sqlite3_step(exact->Value) != SQLITE_ROW) {
 						return false;
 					}
+					// [[BPR-2345]]. The workspace Agent setup's check kept is now
+					// this conversation's.
+					auto adopted = detail::prepare(connection->Database.get(), "DELETE FROM native_agent_kept_workspaces WHERE scope=?1 AND workspace=?2 AND marker=?3 AND directory=?4");
+					if (!adopted) {
+						return false;
+					}
+					bind_text(adopted->Value, 1, aSession.WorkspaceKey);
+					bind_text(adopted->Value, 2, workspace.Workspace.Path);
+					bind_text(adopted->Value, 3, workspace.OwnershipMarker);
+					sqlite3_bind_blob(adopted->Value, 4, workspace.DirectoryIdentity.Opaque.data(), 32, SQLITE_TRANSIENT);
+					if (sqlite3_step(adopted->Value) != SQLITE_DONE) {
+						return false;
+					}
 				}
 				if (!detail::execute(connection->Database.get(), "COMMIT")) {
 					return false;
@@ -2191,8 +2248,104 @@ namespace bpr::adapters::sqlite {
 						}
 					}
 				}
+				// [[BPR-2345]]. Those Agent setup's check kept: waiting for their
+				// first turn, they end once a conversation holds another
+				// workspace under their key, or once their pull request has
+				// selected conversations and none is at their base and head.
+				auto kept = detail::prepare(db, "SELECT k.scope, EXISTS(SELECT 1 FROM native_agent_workspaces AS w WHERE w.scope=k.scope), k.base, k.head FROM native_agent_kept_workspaces AS k ORDER BY k.scope");
+				if (!kept) {
+					return std::unexpected(failure::unavailable);
+				}
+				for (auto status = sqlite3_step(kept->Value); status != SQLITE_DONE; status = sqlite3_step(kept->Value)) {
+					if (status != SQLITE_ROW || records.size() >= 4096U) {
+						return std::unexpected(failure::unavailable);
+					}
+					auto key       = column_text(kept->Value, 0).value_or("");
+					auto workspace = read_kept_workspace(db, key);
+					if (!workspace || !*workspace) {
+						continue;
+					}
+					const auto held = std::ranges::any_of(records, [&](const application::retained_workspace_record& aRecord) {
+						return aRecord.Workspace.Workspace.Path == (**workspace).Workspace.Path && aRecord.Workspace.OwnershipMarker == (**workspace).OwnershipMarker
+							&& aRecord.Workspace.DirectoryIdentity == (**workspace).DirectoryIdentity;
+					});
+					if (held) {
+						continue;
+					}
+					const auto pullRequest = pull_request_of(key);
+					const auto base        = column_text(kept->Value, 2).value_or("");
+					const auto head        = column_text(kept->Value, 3).value_or("");
+					const auto opened      = std::ranges::any_of(selected, [&](const auto& aSelected) { return std::get<0>(aSelected) == pullRequest; });
+					const auto reached     = std::ranges::any_of(selected, [&](const auto& aSelected) { return std::get<0>(aSelected) == pullRequest && std::get<1>(aSelected) == base && std::get<2>(aSelected) == head; });
+					auto       record      = application::retained_workspace_record{ };
+					record.Workspace       = std::move(**workspace);
+					record.Keys.push_back(std::move(key));
+					record.Ended = sqlite3_column_int(kept->Value, 1) != 0 || (opened && !reached);
+					sqlite3_reset(used->Value);
+					bind_text(used->Value, 1, record.Workspace.Workspace.Path);
+					if (sqlite3_step(used->Value) == SQLITE_ROW) {
+						record.LastUse = sqlite3_column_int64(used->Value, 0);
+					}
+					records.push_back(std::move(record));
+				}
 				static_cast<void>(detail::execute(db, "COMMIT"));
 				return records;
+			}
+			auto keep_workspace(const std::string& aKey, const core::agent_revision_binding& aBinding, const application::owned_agent_workspace& aWorkspace) -> bool override
+			{
+				if (aKey.empty() || aKey.size() > 4096U || aWorkspace.Workspace.Path.empty() || aWorkspace.Workspace.Path.size() > 4096U || aWorkspace.Workspace.PinnedHead != aBinding.HeadOid
+					|| (aWorkspace.SparseMissingObjects && aWorkspace.SparseMissingObjects->size() > 64U * 1024U * 1024U)) {
+					return false;
+				}
+				auto connection = open(Root);
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
+					return false;
+				}
+				auto* const db = connection->Database.get();
+				// A conversation already holds a workspace under the key: the
+				// check's own is not the pull request's.
+				auto held = detail::prepare(db, "SELECT 1 FROM native_agent_workspaces WHERE scope=?1");
+				if (!held) {
+					return false;
+				}
+				bind_text(held->Value, 1, aKey);
+				if (sqlite3_step(held->Value) != SQLITE_DONE) {
+					return false;
+				}
+				auto row = detail::prepare(db, "INSERT INTO native_agent_kept_workspaces(scope,base,head,workspace,parent,marker,application,session,directory,guard,guard_identity,shallow,missing) "
+											   "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13) ON CONFLICT(scope) DO NOTHING");
+				if (!row) {
+					return false;
+				}
+				const auto guard = aWorkspace.LifetimeGuard.value_or(application::agent_workspace_lifetime_guard{ });
+				bind_text(row->Value, 1, aKey);
+				bind_text(row->Value, 2, std::string{ core::canonical_hex(aBinding.BaseOid).view() });
+				bind_text(row->Value, 3, std::string{ core::canonical_hex(aBinding.HeadOid).view() });
+				bind_text(row->Value, 4, aWorkspace.Workspace.Path);
+				bind_text(row->Value, 5, aWorkspace.ParentDirectory.string());
+				bind_text(row->Value, 6, aWorkspace.OwnershipMarker);
+				sqlite3_bind_int64(row->Value, 7, static_cast<sqlite3_int64>(aWorkspace.ApplicationSession.value()));
+				sqlite3_bind_int64(row->Value, 8, static_cast<sqlite3_int64>(aWorkspace.Session.value()));
+				sqlite3_bind_blob(row->Value, 9, aWorkspace.DirectoryIdentity.Opaque.data(), 32, SQLITE_TRANSIENT);
+				bind_text(row->Value, 10, guard.Path);
+				sqlite3_bind_blob(row->Value, 11, guard.FileIdentity.data(), 32, SQLITE_TRANSIENT);
+				sqlite3_bind_int(row->Value, 12, aWorkspace.Workspace.Shallow ? 1 : 0);
+				if (aWorkspace.SparseMissingObjects) {
+					bind_text(row->Value, 13, *aWorkspace.SparseMissingObjects);
+				} else {
+					sqlite3_bind_null(row->Value, 13);
+				}
+				if (sqlite3_step(row->Value) != SQLITE_DONE || sqlite3_changes(db) != 1) {
+					return false;
+				}
+				// Expiry counts its days from now.
+				auto used = detail::prepare(db, "INSERT INTO native_agent_workspace_use(workspace,used) VALUES(?1,?2) ON CONFLICT(workspace) DO UPDATE SET used=max(used,excluded.used)");
+				if (!used) {
+					return false;
+				}
+				bind_text(used->Value, 1, aWorkspace.Workspace.Path);
+				sqlite3_bind_int64(used->Value, 2, std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+				return sqlite3_step(used->Value) == SQLITE_DONE && detail::execute(db, "COMMIT").has_value();
 			}
 			auto forget_workspace(const application::owned_agent_workspace& aWorkspace) -> bool override
 			{
@@ -2213,6 +2366,8 @@ namespace bpr::adapters::sqlite {
 						 "DELETE FROM native_agent_workspaces WHERE conversation IN (SELECT id FROM native_agent_sessions WHERE workspace=?1 AND marker=?2 AND directory=?3)",
 						 "DELETE FROM native_agent_sparse_objects WHERE conversation IN (SELECT id FROM native_agent_sessions WHERE workspace=?1 AND marker=?2 AND directory=?3)",
 						 "UPDATE native_agent_sessions SET workspace='',parent='',marker='',application=0,session=0,directory=zeroblob(32),guard='',guard_identity=zeroblob(32),shallow=0,revision=revision+1 WHERE workspace=?1 AND marker=?2 AND directory=?3",
+						 // [[BPR-2345]].
+						 "DELETE FROM native_agent_kept_workspaces WHERE workspace=?1 AND marker=?2 AND directory=?3",
 					 }) {
 					auto row = detail::prepare(db, statement);
 					if (!row) {

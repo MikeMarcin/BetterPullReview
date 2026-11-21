@@ -299,12 +299,17 @@ namespace bpr::application {
 		/// for this binding, it is checked as a reattaching turn checks it
 		/// instead, and nothing is made or removed; one a turn holds now
 		/// passes as it is.
+		/// [[BPR-2345]]. With none kept, the workspace it makes is the one a
+		/// turn would make (retained, from the same clone), and it is kept as
+		/// the pull request's retained workspace (`keep_workspace`) instead of
+		/// removed, so the first turn reattaches it rather than making it
+		/// again. Only when it cannot be kept is it removed.
 		/// \details No session is admitted and no agent runs: the probe's
 		/// session identity is from a reserved range no durable session uses.
 		/// It counts toward quiescence until it answers.
 		using workspace_probe_answer = std::function<void(std::expected<prepared_workspace, agent_workspace_error>)>;
 		void probe_workspace(core::application_session_id aApplicationSession, core::pull_request_authority aAuthority, core::agent_revision_binding aBinding,
-							 std::optional<std::filesystem::path> aHistoryClone, workspace_probe_answer aAnswer, std::stop_token aStop = { });
+							 std::optional<std::filesystem::path> aHistoryClone, bool aHistoryCloneManaged, workspace_probe_answer aAnswer, std::stop_token aStop = { });
 
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		/// \brief [[BPR-2181]]. Called on the decision lane when the host is

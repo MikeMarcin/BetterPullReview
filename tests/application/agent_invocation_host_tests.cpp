@@ -757,6 +757,9 @@ namespace {
 			-> std::expected<std::optional<application::owned_agent_workspace>, application::native_agent_storage_failure> override
 		{
 			if (!SharedWorkspaces.contains(aKey)) {
+				if (!aSession.Workspace && Kept.contains(aKey)) {
+					return std::optional{ Kept.at(aKey) };
+				}
 				return aSession.Workspace;
 			}
 			const auto& saved = SharedWorkspaces.at(aKey);
@@ -785,6 +788,16 @@ namespace {
 			Appended.push_back(aTurn);
 			return !FailAppend && !FailStore;
 		}
+		/// [[BPR-2345]]. What Agent setup's check kept, by its key.
+		std::map<std::string, application::owned_agent_workspace> Kept;
+		bool                                                      FailKeep = false;
+		auto                                                      keep_workspace(const std::string& aKey, const core::agent_revision_binding& aBinding, const application::owned_agent_workspace& aWorkspace) -> bool override
+		{
+			if (FailKeep || SharedWorkspaces.contains(aKey) || aWorkspace.Workspace.PinnedHead != aBinding.HeadOid) {
+				return false;
+			}
+			return Kept.try_emplace(aKey, aWorkspace).second;
+		}
 		auto store(application::native_agent_session& aSession) -> bool override
 		{
 			auto& stored = Records.at(aSession.Scope);
@@ -793,6 +806,9 @@ namespace {
 			}
 			if (!aSession.WorkspaceKey.empty() && aSession.Workspace) {
 				SharedWorkspaces.try_emplace(aSession.WorkspaceKey, *aSession.Workspace);
+				if (Kept.contains(aSession.WorkspaceKey) && Kept.at(aSession.WorkspaceKey).Workspace.Path == aSession.Workspace->Workspace.Path) {
+					Kept.erase(aSession.WorkspaceKey);
+				}
 			}
 			++aSession.Revision;
 			stored = aSession;
@@ -1996,15 +2012,18 @@ namespace {
 	}
 
 	/// [[BPR-1751]], RFC-BPR-0092 Check it works. The workspace probe
-	/// makes and removes the workspace an Ask would make, admits no session,
-	/// starts no process, answers on the decision lane and holds quiescence
-	/// until it does; a failure comes back with its reason.
+	/// makes the workspace an Ask would make, admits no session, starts no
+	/// process, answers on the decision lane and holds quiescence until it
+	/// does; a failure comes back with its reason. [[BPR-2345]]: the
+	/// workspace is kept as the pull request's, and removed only when the
+	/// store will not keep it.
 	void test_workspace_probe_makes_and_removes_a_workspace_without_a_session()
 	{
-		auto       test   = harness{ };
-		const auto hostId = core::git_host_id{ 1U };
-		auto       answer = std::optional<std::expected<application::prepared_workspace, application::agent_workspace_error>>{ };
-		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::filesystem::path{ "/tmp/reviewer-clone" },
+		auto       test              = harness{ };
+		const auto hostId            = core::git_host_id{ 1U };
+		test.NativeSessions.FailKeep = true;
+		auto answer                  = std::optional<std::expected<application::prepared_workspace, application::agent_workspace_error>>{ };
+		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::filesystem::path{ "/tmp/reviewer-clone" }, true,
 								  [&answer](auto aProbed) { answer = std::move(aProbed); });
 		expect(!test.Host.is_quiescent() && !answer, "a posted probe holds quiescence");
 		test.Effects.drain();
@@ -2013,12 +2032,13 @@ namespace {
 		expect(answer && answer->has_value() && test.Workspaces.Starts == 1U && test.Workspaces.Cleanups == 1U && test.Processes.Starts == 0U && test.Host.is_quiescent(),
 			   "the probe makes the workspace, removes it and runs nothing");
 		expect(test.Workspaces.LastRequest && test.Workspaces.LastRequest->HistoryClone == std::filesystem::path{ "/tmp/reviewer-clone" }
-				   && test.Workspaces.LastRequest->Session.Id.value() >= (std::uint64_t{ 1U } << 63U) && test.Workspaces.LastRequest->ParentDirectory == test.Workspaces.LastCleanup->ParentDirectory,
-			   "it carries the linked clone and a reserved session identity");
+				   && test.Workspaces.LastRequest->Session.Id.value() >= (std::uint64_t{ 1U } << 63U) && test.Workspaces.LastRequest->ParentDirectory == test.Workspaces.LastCleanup->ParentDirectory
+				   && test.Workspaces.LastRequest->HistoryCloneManaged && test.Workspaces.LastRequest->RetainForSession,
+			   "it carries the linked clone, whether it is the managed one, a reserved session identity, and asks for a retained workspace as a turn does");
 		expect(test.Projection.Finished.empty(), "no session finishes: none was admitted");
 		auto cancellation = std::stop_source{ };
 		answer.reset();
-		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, [&answer](auto aProbed) { answer = std::move(aProbed); }, cancellation.get_token());
+		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, false, [&answer](auto aProbed) { answer = std::move(aProbed); }, cancellation.get_token());
 		cancellation.request_stop();
 		test.settle();
 		expect(answer && !answer->has_value() && answer->error().Code == application::agent_workspace_failure::cancelled && test.Workspaces.Cleanups == 1U && test.Host.is_quiescent(), "Stop reaches a pending workspace probe's own token and settles it without leaking a workspace");
@@ -2026,7 +2046,7 @@ namespace {
 		test.Workspaces.MaterializationFailure = application::agent_workspace_error{ application::agent_workspace_failure::unavailable, "no head",
 																					 application::agent_workspace_unavailable_reason::download_failed };
 		answer.reset();
-		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, [&answer](auto aProbed) { answer = std::move(aProbed); });
+		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, false, [&answer](auto aProbed) { answer = std::move(aProbed); });
 		test.settle();
 		expect(answer && !answer->has_value() && answer->error().Reason == application::agent_workspace_unavailable_reason::download_failed && test.Workspaces.Cleanups == 1U
 				   && test.Host.is_quiescent(),
@@ -2099,16 +2119,47 @@ namespace {
 		};
 		test.NativeSessions.SharedWorkspaces.emplace(application::agent_workspace_key(authority(hostId), binding(hostId)), kept);
 		auto answer = std::optional<std::expected<application::prepared_workspace, application::agent_workspace_error>>{ };
-		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, [&answer](auto aProbed) { answer = std::move(aProbed); });
+		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, false, [&answer](auto aProbed) { answer = std::move(aProbed); });
 		test.settle();
 		expect(answer && answer->has_value() && (*answer)->Path == owned_root() + "/retained", "the check passes on the retained workspace");
 		expect(test.Workspaces.Starts == 0U && test.Workspaces.Cleanups == 0U && test.Workspaces.Inspections == 1U, "it is checked, never cloned again or removed");
 
 		test.Workspaces.InspectFails = true;
 		answer.reset();
-		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, [&answer](auto aProbed) { answer = std::move(aProbed); });
+		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, false, [&answer](auto aProbed) { answer = std::move(aProbed); });
 		test.settle();
 		expect(answer && !answer->has_value() && test.Workspaces.Starts == 0U, "a retained workspace that fails its check fails the row");
+	}
+
+	/// [[BPR-2345]], AC3. With no retained workspace, Check it works makes
+	/// the one the first turn would make and keeps it as the pull request's:
+	/// the first turn reattaches it, so one workspace is made and none is
+	/// removed.
+	void test_workspace_probe_keeps_the_workspace_for_the_first_turn()
+	{
+		auto       test   = harness{ };
+		const auto input  = agent_tab_turn();
+		const auto key    = application::agent_workspace_key(input.Authority, input.Context.Binding);
+		auto       answer = std::optional<std::expected<application::prepared_workspace, application::agent_workspace_error>>{ };
+		test.Host.probe_workspace(input.ApplicationSession, input.Authority, input.Context.Binding, std::nullopt, false, [&answer](auto aProbed) { answer = std::move(aProbed); });
+		test.settle();
+		expect(answer && answer->has_value() && test.Workspaces.Starts == 1U && test.Workspaces.Cleanups == 0U && test.NativeSessions.Kept.contains(key),
+			   "the check makes the workspace and keeps it under the pull request's key");
+		expect(test.Workspaces.LastRequest && test.Workspaces.LastRequest->RetainForSession && !test.Workspaces.LastRequest->HistoryCloneManaged, "as a retained workspace, the one a turn asks for");
+		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		test.settle();
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == 1U && test.Workspaces.Starts == 1U && test.Workspaces.Inspections == 1U && test.Workspaces.Cleanups == 0U,
+			   "the first turn reattaches it: one workspace made, none removed");
+		expect(test.Processes.LastRequest && test.Processes.LastRequest->WorkingDirectory == (*answer)->Path, "the turn runs in the workspace the check made");
+		expect(!test.NativeSessions.Kept.contains(key) && test.NativeSessions.SharedWorkspaces.contains(key), "it is now the conversation's");
+
+		// A second check finds the retained workspace and makes nothing.
+		answer.reset();
+		test.Host.probe_workspace(input.ApplicationSession, input.Authority, input.Context.Binding, std::nullopt, false, [&answer](auto aProbed) { answer = std::move(aProbed); });
+		test.settle();
+		expect(answer && answer->has_value() && test.Workspaces.Starts == 1U && test.Workspaces.Cleanups == 0U, "a later check makes nothing");
 	}
 }
 
@@ -2804,6 +2855,7 @@ auto main(const int aCount, char** aArguments) -> int
 	test_a_promoted_finding_reaches_only_the_note_authority();
 	test_workspace_probe_makes_and_removes_a_workspace_without_a_session();
 	test_workspace_probe_checks_a_retained_workspace_without_cloning();
+	test_workspace_probe_keeps_the_workspace_for_the_first_turn();
 	test_a_turn_is_kept_as_it_ended();
 	test_the_brief_names_the_workspace_that_was_made();
 	test_a_run_has_no_time_limit_unless_one_is_set();

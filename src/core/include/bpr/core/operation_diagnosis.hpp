@@ -633,16 +633,45 @@ namespace bpr::core {
 		failed,
 	};
 
+	/// \brief [[BPR-2345]]. The seed step that failed, on a `seed=failed`
+	/// line.
+	enum class workspace_seed_step : std::uint8_t {
+		/// No step failed: the seed was not tried, or did not fail.
+		none,
+		/// Reading the head's tree (`ls-tree`).
+		list,
+		/// Listing the clone's folders.
+		walk,
+		/// Copying the clone's index, or making the workspace's folders.
+		clone,
+		/// Seeding the index from the head (`config`, `read-tree`, the
+		/// hidden-entry check).
+		read_tree,
+		/// Finding the files that differ (`update-index --refresh`,
+		/// `diff-files`).
+		refresh,
+		/// Checking the differing files out (`checkout-index`).
+		checkout,
+		/// The last guard (`clean -ffdx`) and its refresh.
+		clean,
+		/// The final check: files still modified, or untracked.
+		verify,
+	};
+
 	/// \brief [[BPR-2321]]. The seed's steps and counts, on the
 	/// `workspace_materialize` line.
 	///
 	/// \details `FoldersCloned` and `FilesCloned` count the `clonefile`
 	/// calls (a whole folder, or one file in a folder that held something
-	/// the head does not); `FilesWritten` the files checked out instead;
+	/// the head does not); `FilesWritten` the files checked out instead
+	/// (the head's file count until the seed had found which differ);
 	/// `Cleaned` the entries `clean` reported removing (a whole untracked
-	/// folder is one). After a fallback, `CheckoutMilliseconds` and
-	/// `Cleaned` are the full checkout's, and `FilesWritten` the head's file
-	/// count once the seed had read the head's tree.
+	/// folder is one). [[BPR-2345]]: `CheckoutMilliseconds`,
+	/// `CleanMilliseconds` and `Cleaned` are always the seed's own; after a
+	/// fallback the full checkout's are the `Fallback` fields. `Rewritten`
+	/// counts the files the final check found modified and the seed checked
+	/// out once more. On a failed seed, `Step` names the step, and for
+	/// `verify` `Modified` and `Untracked` what the final check found.
 	struct workspace_seed_trace
 	{
 		workspace_seed_outcome Outcome              = workspace_seed_outcome::none;
@@ -655,6 +684,14 @@ namespace bpr::core {
 		std::uint32_t          FilesCloned          = 0U;
 		std::uint32_t          FilesWritten         = 0U;
 		std::uint32_t          Cleaned              = 0U;
+		/// [[BPR-2345]].
+		std::uint32_t       Rewritten                    = 0U;
+		workspace_seed_step Step                         = workspace_seed_step::none;
+		std::uint32_t       Modified                     = 0U;
+		std::uint32_t       Untracked                    = 0U;
+		std::uint32_t       FallbackCheckoutMilliseconds = 0U;
+		std::uint32_t       FallbackCleanMilliseconds    = 0U;
+		std::uint32_t       FallbackCleaned              = 0U;
 
 		auto operator<=>(const workspace_seed_trace&) const = default;
 	};
@@ -678,6 +715,7 @@ namespace bpr::core {
 	[[nodiscard]] auto name(workspace_git_command aCommand) noexcept -> std::string_view;
 	[[nodiscard]] auto name(workspace_git_error aError) noexcept -> std::string_view;
 	[[nodiscard]] auto name(workspace_seed_outcome aOutcome) noexcept -> std::string_view;
+	[[nodiscard]] auto name(workspace_seed_step aStep) noexcept -> std::string_view;
 
 	/// \brief [[BPR-2295]]. The class of Git's standard error on a failed
 	/// workspace command: its first recognized line, never its text.
@@ -750,6 +788,10 @@ namespace bpr::core {
 		/// was tried, then `seed=OUTCOME seed_walk_ms=N seed_clone_ms=N
 		/// seed_refresh_ms=N seed_checkout_ms=N seed_clean_ms=N
 		/// seed_folders=N seed_files=N seed_written=N seed_cleaned=N`.
+		/// [[BPR-2345]]: then `seed_rewritten=N`; on a failed seed
+		/// `seed_step=STEP seed_modified=N seed_untracked=N`; and when the
+		/// seed did not seed, the full checkout's `fallback_checkout_ms=N
+		/// fallback_clean_ms=N fallback_cleaned=N`.
 		std::optional<workspace_trace> Workspace = std::nullopt;
 		/// [[BPR-2322]]. Exactly on a side chat line, written after the fixed
 		/// keys as `item=KIND round=N apply=ACTION|none refusal=REFUSAL

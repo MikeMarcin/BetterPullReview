@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2345"
 title: "An agent workspace still takes about a minute on a large repository: the seed reads the head's tree with quoted paths, so a non-ASCII file name sends it to a full checkout, and Agent setup builds a whole workspace only to delete it before the turn builds it again"
-status: "Backlog"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "windows", "linux"]
-metadata: {"kind":"defect","found_by":"owner, 2026-11-21, build 72 on macOS (APFS): a new Agent tab workspace on a large repository's pull request still felt like about 45 s after BPR-2321. The BPR-2321 log fields showed seed=failed on both of two workspace builds; a scratch reproduction of the seed, read-only on the linked clone, found the cause and confirmed both fixes","related_cards":["BPR-2256","BPR-2261","BPR-2289","BPR-2293","BPR-2294","BPR-2295","BPR-2321"],"related_rfcs":["RFC-BPR-0092","RFC-BPR-0108"]}
+metadata: {"kind":"defect","reservation":"docs/issues/_reservations/BPR-2345--BPR-2345--fd28b5ae63f3.json","acceptance":["AC1","AC2","AC3","AC4","AC5"],"owner_step":"pending","found_by":"owner, 2026-11-21, build 72 on macOS (APFS): a new Agent tab workspace on a large repository's pull request still felt like about 45 s after BPR-2321. The BPR-2321 log fields showed seed=failed on both of two workspace builds; a scratch reproduction of the seed, read-only on the linked clone, found the cause and confirmed both fixes","related_cards":["BPR-2256","BPR-2261","BPR-2289","BPR-2293","BPR-2294","BPR-2295","BPR-2321"],"related_rfcs":["RFC-BPR-0092","RFC-BPR-0108"]}
 acceptance: []
 ---
 
@@ -202,3 +202,153 @@ turn. The log shows one `workspace_materialize` with `seed=seeded`.
   61 s (`mode=complete_closure source=host linked_clone=0`) although the
   linked clone held both commits. It is carded separately once a Verbose log
   confirms it.
+
+## Resolution
+
+### 1. The head's paths, unquoted
+
+`seed_from_linked_clone` (`src/adapters/git/src/installed_git_process.cpp`)
+reads the head with Git's own `ls-tree -r -t -z` lines (`<mode> SP <type>
+SP <oid> TAB <path>`), which `-z` never quotes, instead of
+`--format=%(objectmode) %(path)`. Confirmed in a scratch repository on Git
+2.50.1 as well as the owner's 2.54.0: `--format`'s `%(path)` is quoted with
+`-z`, the default line is not. A listed path that still begins with `"`
+answers `seed=refused` and every file is checked out.
+
+The other path-bearing reads in the adapters were checked: every other
+`ls-tree`, `ls-files`, `diff-files`, `diff-tree --name-status`, `diff
+--name-status` and `status --porcelain=v2` read uses `-z` without a
+`%(path)` format, and the remaining `--format`s name objects, refs, times
+or subjects (`%(objectname)`, `%(refname)`, `%ct`, `%s`). None needed a
+change.
+
+### 2. What the seed writes is recorded
+
+The seed's `checkout-index` passes `-u`, so the index takes the written
+files' stat data. When the final check still finds files modified (and none
+untracked), they are checked out once more with `-u` and checked again
+before the seed gives up; the count is `seed_rewritten`.
+
+### 3. The failed step is named
+
+`core::workspace_seed_trace` gains `Step` (`seed_step=list|walk|clone|
+read_tree|refresh|checkout|clean|verify`), `Modified` and `Untracked`
+(written on every `seed=failed` line, non-zero only for `verify`),
+`Rewritten`, and `fallback_checkout_ms`, `fallback_clean_ms` and
+`fallback_cleaned`, written whenever the seed did not seed.
+`seed_checkout_ms`, `seed_clean_ms` and `seed_cleaned` are now always the
+seed's own. The line round-trips through `parse_operation_diagnosis`, and a
+trace that breaks these rules (a failed seed with no step, a step on a
+seeded one, counts on a step other than `verify`, fallback times on a
+seeded one) is no line. The seed resets its trace at each attempt.
+
+### 4. The probe's workspace is kept
+
+Decision: **keep**. The probe can ask for exactly the workspace a turn asks
+for. Both go through the same `materialize_agent_workspace` with the same
+application session, authority, binding, parent and clone; the probe now
+also passes `HistoryCloneManaged` (the window gives it
+`linked_history_clone_managed(false)`, as a chat turn's request does) and
+`RetainForSession` (whenever the host has a session store, as a native
+turn's does). What differs is the session identity and profile. A reattach
+uses the identity the kept record carries, as it already does for a
+workspace another conversation made, so the turn's check accepts it. The
+`sparse=1` against `sparse=0` in the owner's log is not a request field: it
+is decided by how the review's cache was loaded
+(`epoch_host_materialization.cpp`), and the reattach inspection checks the
+workspace whatever made it.
+
+Probing without materializing was rejected. It proves less (no seed, no
+checkout, no borrowed-history check), and the turn would still pay the
+whole build after the agent was chosen. Holding the disk is what a turn
+does anyway, and the kept workspace sits under the same [[BPR-2293]]
+expiry and Settings' Remove as any other.
+
+How: `native_agent_session_store_port::keep_workspace(key, binding,
+workspace)`. The SQLite store keeps it in a new
+`native_agent_kept_workspaces` table, keyed by the [[BPR-2261]] pull
+request key, with the columns a conversation keeps its workspace in (and
+its sparse evidence). `shared_workspace` answers it to a conversation
+holding none. A turn that stores its conversation with the key takes it
+over (the kept row is deleted in the same transaction). `retained_workspaces`
+lists it once, for expiry, from when it was kept (`native_agent_workspace_use`).
+It counts as ended (removed first by the policy sweep) once a conversation
+holds another workspace under its key, or once its pull request has a
+selected conversation and none is at its base and head; with no
+conversation yet it waits for its days. `forget_workspace` clears it. The host keeps it only when the store
+accepts it. When a conversation already holds a workspace under the key,
+another is kept, or the write fails, the probe removes its own as before.
+The probe still releases the pull request's lease while it builds, so a
+turn sent meanwhile is not refused; it builds its own, and the store then
+refuses to keep the probe's.
+
+A first turn that is not a native session (writing-only, an existing
+checkout) does not reattach it; the kept workspace then waits for a native
+turn or its expiry.
+
+### 5. Tests
+
+- `git_process_contract`, `run_linked_clone_unicode_contract` (macOS): a
+  clone with `assets/fø.bin` (LFS-style: the clone's clean filter stores a
+  129-byte pointer for 1,870 bytes of content, so the clone's index records
+  1,870), `assets/x\u0301.txt` and ten other folders. The head is seeded,
+  with all 11 folders cloned whole, only `.gitattributes` cloned on its own,
+  nothing rewritten and no fallback. With the LFS file missing from the clone
+  the folder is still cloned whole and the file checked out as its pointer,
+  and the seed passes its final check. A head with a top-level `"quoted.txt`
+  is `refused` (step none) and checked out whole. The clone's index and
+  HEAD are unchanged.
+- Mutation checks, the same course: with the old `--format` listing it fails
+  (`seed=refused` through the new quote refusal, nothing cloned); with
+  `checkout-index` without `-u` it fails at the second case with
+  `seed=failed seed_step=verify seed_rewritten=1 seed_modified=1`, the
+  owner's failure, now named.
+- `core_operation_diagnosis`: the new keys, their rules and round trip.
+- `application_agent_invocation_host`,
+  `test_workspace_probe_keeps_the_workspace_for_the_first_turn`: the probe
+  makes one retained workspace and keeps it under the pull request key; the
+  first Agent tab turn reattaches it (one materialization, one inspection,
+  no cleanup, the launch's working folder is the probe's); a second check
+  makes nothing. The [[BPR-1751]] probe test now asks the store to refuse,
+  and still sees the workspace made and removed, carrying the managed-clone
+  flag and a retained request.
+- `sqlite_agent_setup_storage`: keep, refuse a second or a held key or
+  another head, read after a restart with the reserved identity and sparse
+  evidence, conflict at another head, take-over by the first turn, listed
+  once throughout, forgotten; one kept for a head the pull request's
+  selected conversation has moved past is ended.
+
+## Evidence
+
+Tested at `869339e79` (branch `bpr-2345-workspace-seed` on main
+`4dd1f89b7`), dev preset (Debug), macOS arm64, APFS. Landed rebased over
+`88c765f7b` ([[BPR-2344]]: the Qt report summary and one paragraph of
+`ai-agent-boundary.md`, no file this card touches but that document); the
+documentation gate and the composition digests were run again after the
+rebase. Fixtures were made in scratch
+folders by the tests and removed by them; the owner's repositories were not
+used.
+
+| Criterion | Check | Result |
+|---|---|---|
+| AC1 | `git_process_contract` (62.8 s; limit 180 s): `LINKED_CLONE_UNICODE:outcome=seeded:step=none:folders=11:files=1:written=1:rewritten=0`, then with the LFS file missing `folders=11:files=1:written=2:rewritten=0`, then `outcome=refused` for the quoted head. BPR-2294/2321 courses unchanged: `LINKED_CLONE_CHECKOUT seeded_ms=909 full_ms=1877`, `LINKED_CLONE_IGNORED seeded_ms=857 cleaned=0`, `SCATTERED:folders=10 seeded`, `SCATTERED:folders=60 too_spread written=20003` | Passed; both mutation checks fail as described |
+| AC2 | `core_operation_diagnosis`; the `-u` mutation run logged `seed_step=verify seed_modified=1` | Passed |
+| AC3 | `application_agent_invocation_host` (`test_workspace_probe_keeps_the_workspace_for_the_first_turn`), `sqlite_agent_setup_storage`, `retained_workspace_expiry` | Passed |
+| AC4 | The owner's repository, from choosing the agent to the turn starting | Pending: owner step |
+| AC5 | `architecture_boundaries` (23.3 s), the tests above, `python3 scripts/verify_documentation.py --root .`, clang-format 22 on the 12 changed C++ files, clang-tidy on the changed translation units; the composition contract's pinned digests through its inventory mode (`ASYNC_MUTATION_HOST_INVENTORY_OK`) after the [[BPR-2345]] manifest reseal | Passed |
+
+`application_review_round_trip_composition_contract` itself was not run:
+it needs the full application, which this lane did not build. Its digest
+checks were run through the contract's own inventory mode. The first full
+dev run on main should include it.
+
+## Owner step (pending)
+
+As above, on the corporate Mac with the same repository and linked clone:
+open a pull request with no retained workspace, choose the agent, and start
+a turn. Expected in the Standard log: one `workspace_materialize` with
+`seed=seeded` (no `workspace_cleanup` after it), then the turn's workspace
+check and `agent.run.started`. The time from choosing the agent to the
+turn starting should be about the seed's (under 10 s). If the seed still
+fails, the line now names `seed_step`, and for `verify` how many files
+were modified and untracked.

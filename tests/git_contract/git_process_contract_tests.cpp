@@ -4741,6 +4741,151 @@ namespace {
 		require(resumed.has_value(), "the workspace resumes after the clone's gc");
 		require(read_text(tree / "module5" / "source5.cpp") == "// the agent's edit\n", "the agent's edit is kept");
 	}
+
+	#if defined(Q_OS_MACOS)
+	/// [[BPR-2345]]. A linked clone whose head holds file names that are not
+	/// ASCII (`ø`, and a name with a combining mark) in a tracked folder, one
+	/// of them LFS-style: the clone holds its content, the head a pointer of
+	/// another size. The seed reads the head's paths unquoted, so the folder
+	/// is cloned whole and the workspace is seeded; with the file missing from
+	/// the clone it is checked out as its pointer and the index takes that
+	/// file's size, so the final check passes; a head path that still begins
+	/// with a quote is refused, not failed.
+	auto run_linked_clone_unicode_contract() -> void
+	{
+		temporary_root root{ "git-linked-clone-unicode" };
+		const auto     cacheIsolation = root.Path / "cache";
+		require(std::filesystem::create_directory(cacheIsolation), "create the cache isolation");
+		std::filesystem::permissions(cacheIsolation, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		auto       adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, root.Path / "registry");
+		const auto cache   = repository_path(cacheIsolation, '1');
+		initialize_repository(*adapter, cache, application::git_hash_algorithm::sha1);
+		const auto clone = root.Path / "clone";
+		std::filesystem::create_directories(clone);
+		const auto git = clone / ".git";
+		static_cast<void>(run_clone_git(git, { "init", "--quiet" }));
+		// The clone's LFS: its clean filter stores a pointer for the content,
+		// so the clone's index records the content's size for the pointer's
+		// blob. Workspace Git clears the filters and writes the pointer.
+		const auto pointer = std::string{ "version https://git-lfs.github.com/spec/v1\noid sha256:" } + std::string(64U, 'a') + "\nsize 1870\n";
+		const auto content = std::string(1870U, 'L');
+		write_text(root.Path / "pointer", pointer);
+		static_cast<void>(run_clone_git(git, { "config", "filter.lfs.clean", "cat >/dev/null; cat '" + (root.Path / "pointer").string() + "'" }));
+		for (int folder = 0; folder < 10; ++folder) {
+			const auto directory = clone / ("module" + std::to_string(folder));
+			std::filesystem::create_directories(directory);
+			for (int file = 0; file < 20; ++file) {
+				write_text(directory / ("source" + std::to_string(file) + ".cpp"), "// module " + std::to_string(folder) + " file " + std::to_string(file) + "\n");
+			}
+		}
+		// `fø.bin` (UTF-8 c3 b8) and `x́.txt` (x and U+0301, which no
+		// normalization composes).
+		const auto lfsName       = std::string{ "f\xc3\xb8.bin" };
+		const auto combiningName = std::string{ "x\xcc\x81.txt" };
+		std::filesystem::create_directories(clone / "assets");
+		write_text(clone / "assets" / "plain.txt", "plain\n");
+		write_text(clone / "assets" / lfsName, content);
+		write_text(clone / "assets" / combiningName, "a combining mark\n");
+		write_text(clone / ".gitattributes", "*.bin filter=lfs\n");
+		static_cast<void>(run_clone_git(git, { "add", "-A" }));
+		static_cast<void>(run_clone_git(git, { "commit", "--quiet", "-m", "base" }));
+		const auto base = run_clone_git(git, { "rev-parse", "HEAD" });
+		require(run_clone_git(git, { "cat-file", "-p", "HEAD:assets/" + lfsName }) + "\n" == pointer, "the head holds the LFS file as its pointer");
+		write_text(clone / "module7" / "source3.cpp", "// changed by the pull request\n");
+		static_cast<void>(run_clone_git(git, { "add", "-A" }));
+		static_cast<void>(run_clone_git(git, { "commit", "--quiet", "-m", "head" }));
+		const auto head = run_clone_git(git, { "rev-parse", "HEAD" });
+		// Another head adds a top-level file whose name begins with a quote.
+		write_text(clone / "\"quoted.txt", "quoted\n");
+		static_cast<void>(run_clone_git(git, { "add", "-A" }));
+		static_cast<void>(run_clone_git(git, { "commit", "--quiet", "-m", "quoted" }));
+		const auto quoted = run_clone_git(git, { "rev-parse", "HEAD" });
+		static_cast<void>(run_clone_git(git, { "reset", "--quiet", "--hard", base }));
+		require(read_text(clone / "assets" / lfsName) == content, "the clone holds the LFS file's content");
+		const auto old = std::filesystem::file_time_type::clock::now() - std::chrono::hours{ 24 * 365 };
+		for (const auto& entry : std::filesystem::recursive_directory_iterator{ clone }) {
+			if (entry.is_regular_file() && entry.path().string().find("/.git/") == std::string::npos) {
+				std::filesystem::last_write_time(entry.path(), old);
+			}
+		}
+		static_cast<void>(run_clone_git(git, { "update-index", "-q", "--refresh" }));
+		const auto cloneIndex = read_text(git / "index");
+
+		auto       session = std::uint64_t{ 90U };
+		const auto oid     = [](const std::string& aHex) {
+			return core::git_commit_oid{ core::git_hash_algorithm::sha1, object<application::git_commit_id>(aHex, application::git_hash_algorithm::sha1).Digest };
+		};
+		const auto authority   = workspace_authority();
+		auto       seed        = core::workspace_seed_trace{ };
+		const auto materialize = [&](const std::string& aHead) {
+			const auto parent = root.Path / ("neighbourhood-" + std::to_string(session));
+			std::filesystem::create_directory(parent);
+			std::filesystem::permissions(parent, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+			auto made                                        = application::git_agent_workspace_request{ };
+			made.Repository                                  = cache;
+			made.Materialization.ApplicationSession          = core::application_session_id{ 1U };
+			made.Materialization.Authority                   = authority;
+			made.Materialization.Session.Id                  = core::agent_session_id{ session++ };
+			made.Materialization.Session.Profile             = core::external_terminal_profile_id;
+			made.Materialization.Session.Binding.Host        = authority.Host;
+			made.Materialization.Session.Binding.Repository  = authority.Repository;
+			made.Materialization.Session.Binding.PullRequest = authority.PullRequest;
+			made.Materialization.Session.Binding.BaseOid     = oid(base);
+			made.Materialization.Session.Binding.HeadOid     = oid(aHead);
+			made.Materialization.Session.Binding.LeftEpoch   = core::epoch_ordinal{ 1U };
+			made.Materialization.Session.Binding.RightEpoch  = core::epoch_ordinal{ 1U };
+			made.Materialization.ParentDirectory             = parent;
+			made.Materialization.HistoryClone                = clone;
+			made.Materialization.RetainForSession            = true;
+			made.Source.Trace                                = std::make_shared<core::workspace_trace>();
+			auto owned                                       = adapter->materialize_agent_workspace(made, { });
+			require(owned.has_value(), "a retained workspace borrowing the clone is made");
+			seed = made.Source.Trace->Seed;
+			std::cout << "LINKED_CLONE_UNICODE:head=" << aHead.substr(0U, 8U) << ":outcome=" << static_cast<unsigned>(seed.Outcome) << ":step=" << static_cast<unsigned>(seed.Step)
+					  << ":folders=" << seed.FoldersCloned << ":files=" << seed.FilesCloned << ":written=" << seed.FilesWritten << ":rewritten=" << seed.Rewritten
+					  << ":modified=" << seed.Modified << ":untracked=" << seed.Untracked << '\n';
+			return std::filesystem::path{ owned->Workspace.Path };
+		};
+		const auto clean = [](const std::filesystem::path& aTree) {
+			require(run_clone_git(aTree / ".git", { "status", "--porcelain" }).empty(), "the workspace is the head, clean");
+			require(read_text(aTree / "module7" / "source3.cpp") == "// changed by the pull request\n", "the head's changed file is there");
+		};
+
+		// Seeded: every folder, `assets` with its unicode names included, is
+		// cloned whole; only `.gitattributes`, beside the clone's `.git`, is
+		// cloned on its own. The LFS file is the clone's.
+		{
+			const auto tree = materialize(head);
+			clean(tree);
+			require(seed.Outcome == core::workspace_seed_outcome::seeded && seed.Step == core::workspace_seed_step::none, "a head with unicode names in a tracked folder is seeded");
+			require(seed.FoldersCloned == 11U && seed.FilesCloned == 1U && seed.Rewritten == 0U && seed.Cleaned == 0U, "the folder holding them is cloned whole, and nothing is written again");
+			require(seed.FallbackCheckoutMilliseconds == 0U && seed.FallbackCleanMilliseconds == 0U, "nothing falls back");
+			require(read_text(tree / "assets" / lfsName) == content && read_text(tree / "assets" / combiningName) == "a combining mark\n", "the unicode files are the clone's");
+		}
+		// The LFS file missing from the clone: its folder is still cloned
+		// whole, and the file is checked out as its pointer, 129 bytes where
+		// the clone's index recorded 1,870. The index takes the written size.
+		std::filesystem::remove(clone / "assets" / lfsName);
+		{
+			const auto tree = materialize(head);
+			clean(tree);
+			require(seed.Outcome == core::workspace_seed_outcome::seeded && seed.FoldersCloned == 11U, "a file checked out at another size than the clone recorded still seeds");
+			require(seed.FilesWritten == 2U && seed.Rewritten == 0U, "the changed file and the missing one are written once");
+			require(read_text(tree / "assets" / lfsName) == pointer, "the missing LFS file is its pointer");
+		}
+		write_text(clone / "assets" / lfsName, content);
+		std::filesystem::last_write_time(clone / "assets" / lfsName, old);
+		// A head path that still begins with a quote: refused, and every file
+		// is checked out.
+		{
+			const auto tree = materialize(quoted);
+			require(run_clone_git(tree / ".git", { "status", "--porcelain" }).empty() && read_text(tree / "\"quoted.txt") == "quoted\n", "the quoted head is checked out whole");
+			require(seed.Outcome == core::workspace_seed_outcome::refused && seed.Step == core::workspace_seed_step::none,
+					"a listing with a path still quoted is refused, not failed");
+		}
+		require(read_text(git / "index") == cloneIndex && run_clone_git(git, { "rev-parse", "HEAD" }) == base, "nothing in the clone changed");
+	}
+	#endif
 #endif
 
 	auto run_borrowed_history_workspace_contract(const bool aInventoryControl = false, const bool aRetained = false) -> void
@@ -5507,6 +5652,9 @@ try {
 	run_borrowed_history_workspace_contract(false, true);
 	run_incomplete_clone_history_workspace_contract();
 	run_linked_clone_checkout_contract();
+	#if defined(Q_OS_MACOS)
+	run_linked_clone_unicode_contract();
+	#endif
 #endif
 #if defined(_WIN32)
 	run_windows_inherited_handle_contract();

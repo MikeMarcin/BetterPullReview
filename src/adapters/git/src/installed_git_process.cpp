@@ -4946,6 +4946,12 @@ namespace bpr::adapters::git {
 			/// volume, or any step that fails answers false, and the caller
 			/// checks every file out as before. \p aTrace takes the outcome, each
 			/// step's time and the counts.
+			/// [[BPR-2345]]. The head's tree is read in Git's own `-z` lines,
+			/// whose paths are never quoted; a path still quoted is refused. The
+			/// differing files are checked out with `-u`, so the index takes
+			/// their stat data; files the final check still finds modified are
+			/// checked out once more before the seed gives up, and a failed seed
+			/// names its step.
 			template <typename TSubmit>
 			[[nodiscard]] auto seed_from_linked_clone(const std::filesystem::path& aWorkspace, const std::string& aClone, const std::string& aHead, TSubmit& aSubmit,
 													  core::workspace_seed_trace& aTrace, const std::stop_token aStop) -> bool
@@ -4960,6 +4966,7 @@ namespace bpr::adapters::git {
 					return static_cast<std::uint32_t>(std::min<std::size_t>(aValue, std::numeric_limits<std::uint32_t>::max()));
 				};
 				auto step          = seed_clock::now();
+				aTrace             = core::workspace_seed_trace{ };
 				aTrace.Outcome     = core::workspace_seed_outcome::refused;
 				const auto root    = resolve_canonical_existing(path_from_text(aClone));
 				const auto objects = checkout_objects(aClone);
@@ -4977,16 +4984,23 @@ namespace bpr::adapters::git {
 					arguments.insert(arguments.end(), std::make_move_iterator(aArguments.begin()), std::make_move_iterator(aArguments.end()));
 					return aSubmit(process_request{ .Arguments = std::move(arguments), .Input = memory_input{ std::move(aInput) }, .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U, .AllowExitOne = aExitOne }, aStop);
 				};
-				const auto failed = [&]() {
+				// [[BPR-2345]]. A failed seed names the step it failed at.
+				const auto failed = [&](const core::workspace_seed_step aStep) {
 					aTrace.Outcome = core::workspace_seed_outcome::failed;
+					aTrace.Step    = aStep;
 					return false;
 				};
+				using seed_step = core::workspace_seed_step;
 
 				// The head's tree, folders included, read in the workspace: each
 				// folder's entries by name, as a folder, a regular file or a link.
-				const auto listing = run({ "ls-tree", "-r", "-t", "-z", "--format=%(objectmode) %(path)", aHead });
+				// [[BPR-2345]]. Git's own `-z` lines (`<mode> SP <type> SP <oid>
+				// TAB <path>`), whose paths are never quoted: `--format`'s
+				// `%(path)` is quoted as `core.quotePath` says even with `-z`, so
+				// a file named with `ø` was filed under a folder named `"dir`.
+				const auto listing = run({ "ls-tree", "-r", "-t", "-z", aHead });
 				if (!listing) {
-					return failed();
+					return failed(seed_step::list);
 				}
 				auto folders = std::unordered_map<std::string, std::unordered_map<std::string, char>>{ };
 				folders[std::string{ }];
@@ -4996,11 +5010,17 @@ namespace bpr::adapters::git {
 					const auto entry = std::string_view{ listing->StandardOutput }.substr(at, end == std::string::npos ? std::string::npos : end - at);
 					at               = end == std::string::npos ? listing->StandardOutput.size() : end + 1U;
 					const auto space = entry.find(' ');
-					if (space == std::string_view::npos || space + 1U == entry.size()) {
-						return failed();
+					const auto tab   = entry.find('\t');
+					if (space == std::string_view::npos || tab == std::string_view::npos || space > tab || tab + 1U == entry.size()) {
+						return failed(seed_step::list);
 					}
 					const auto mode = entry.substr(0U, space);
-					const auto path = entry.substr(space + 1U);
+					const auto path = entry.substr(tab + 1U);
+					// A path still quoted would be filed under the wrong folder: a
+					// later Git that quotes these lines too is no cache, openly.
+					if (path.front() == '"') {
+						return false;
+					}
 					// A submodule's folder in the clone is a repository of its
 					// own: never cloned into a workspace.
 					const auto kind = mode == "040000" ? 'd' : mode == "100644" || mode == "100755" ? 'f'
@@ -5048,7 +5068,7 @@ namespace bpr::adapters::git {
 				auto pending = std::vector<std::string>{ std::string { } };
 				while (!pending.empty()) {
 					if (aStop.stop_requested()) {
-						return failed();
+						return failed(seed_step::walk);
 					}
 					auto folder = std::move(pending.back());
 					pending.pop_back();
@@ -5075,7 +5095,7 @@ namespace bpr::adapters::git {
 						}
 					}
 					if (error) {
-						return failed();
+						return failed(seed_step::walk);
 					}
 					order.push_back(std::move(folder));
 				}
@@ -5123,14 +5143,14 @@ namespace bpr::adapters::git {
 
 				step = seed_clock::now();
 				if (!std::filesystem::copy_file(index, aWorkspace / ".git" / "index", std::filesystem::copy_options::overwrite_existing, error) || error) {
-					return failed();
+					return failed(seed_step::clone);
 				}
 				std::filesystem::permissions(aWorkspace / ".git" / "index", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace, error);
 				for (const auto& [path, kind] : plan) {
 					const auto target = aWorkspace / path;
 					if (kind == 'm') {
 						if (!std::filesystem::create_directory(target, error) || error) {
-							return failed();
+							return failed(seed_step::clone);
 						}
 						continue;
 					}
@@ -5144,17 +5164,17 @@ namespace bpr::adapters::git {
 
 				step = seed_clock::now();
 				if (!run({ "config", "--local", "core.checkStat", "minimal" }) || !run({ "config", "--local", "core.trustctime", "false" })) {
-					return failed();
+					return failed(seed_step::read_tree);
 				}
 				if (!run({ "read-tree", "--reset", aHead })) {
 					std::filesystem::remove(aWorkspace / ".git" / "index", error);
-					return failed();
+					return failed(seed_step::read_tree);
 				}
 				// An entry the clone marked skip-worktree or assume-unchanged
 				// would hide a missing or different file from the refresh.
 				const auto tags = run({ "ls-files", "-v", "-z" });
 				if (!tags) {
-					return failed();
+					return failed(seed_step::read_tree);
 				}
 				for (std::size_t at = 0U; at < tags->StandardOutput.size();) {
 					if (tags->StandardOutput[at] != 'H') {
@@ -5165,18 +5185,25 @@ namespace bpr::adapters::git {
 					at             = end == std::string::npos ? tags->StandardOutput.size() : end + 1U;
 				}
 				if (!run({ "update-index", "-q", "--refresh" }, true)) {
-					return failed();
+					return failed(seed_step::refresh);
 				}
 				const auto differing = run({ "diff-files", "--name-only", "-z" });
 				if (!differing) {
-					return failed();
+					return failed(seed_step::refresh);
 				}
 				aTrace.RefreshMilliseconds = since(step);
 
+				// [[BPR-2345]]. `-u`: the index takes the written files' stat
+				// data. Without it an entry kept the clone's, and a file written
+				// at another size (an LFS pointer where the clone holds the
+				// content) read as modified, unhashed, at the final check.
+				const auto write = [&](std::string aPaths) {
+					return aPaths.empty() || run({ "checkout-index", "--force", "-u", "-z", "--stdin" }, false, std::move(aPaths)).has_value();
+				};
 				step                = seed_clock::now();
 				aTrace.FilesWritten = count(static_cast<std::size_t>(std::ranges::count(differing->StandardOutput, '\0')));
-				if (!differing->StandardOutput.empty() && !run({ "checkout-index", "--force", "-z", "--stdin" }, false, differing->StandardOutput)) {
-					return failed();
+				if (!write(differing->StandardOutput)) {
+					return failed(seed_step::checkout);
 				}
 				aTrace.CheckoutMilliseconds = since(step);
 
@@ -5186,18 +5213,32 @@ namespace bpr::adapters::git {
 				step               = seed_clock::now();
 				const auto cleaned = run({ "clean", "-ffdx" });
 				if (!cleaned) {
-					return failed();
+					return failed(seed_step::clean);
 				}
 				aTrace.Cleaned = count(static_cast<std::size_t>(std::ranges::count(cleaned->StandardOutput, '\n')));
 				if (!run({ "update-index", "-q", "--refresh" }, true)) {
-					return failed();
+					return failed(seed_step::clean);
 				}
-				// The tree is the head's, and nothing else is in it.
-				const auto changed       = run({ "diff-files", "--quiet" }, true);
-				const auto untracked     = run({ "ls-files", "--others", "-z" });
 				aTrace.CleanMilliseconds = since(step);
-				if (!changed || changed->ExitCode != 0 || !untracked || !untracked->StandardOutput.empty()) {
-					return failed();
+				// The tree is the head's, and nothing else is in it. [[BPR-2345]]:
+				// files still modified are checked out once more and checked
+				// again before the seed gives up.
+				auto modified  = run({ "diff-files", "--name-only", "-z" });
+				auto untracked = run({ "ls-files", "--others", "-z" });
+				if (modified && untracked && untracked->StandardOutput.empty() && !modified->StandardOutput.empty()) {
+					aTrace.Rewritten = count(static_cast<std::size_t>(std::ranges::count(modified->StandardOutput, '\0')));
+					if (!write(modified->StandardOutput) || !run({ "update-index", "-q", "--refresh" }, true)) {
+						return failed(seed_step::verify);
+					}
+					modified  = run({ "diff-files", "--name-only", "-z" });
+					untracked = run({ "ls-files", "--others", "-z" });
+				}
+				if (!modified || !untracked || !modified->StandardOutput.empty() || !untracked->StandardOutput.empty()) {
+					if (modified && untracked) {
+						aTrace.Modified  = count(static_cast<std::size_t>(std::ranges::count(modified->StandardOutput, '\0')));
+						aTrace.Untracked = count(static_cast<std::size_t>(std::ranges::count(untracked->StandardOutput, '\0')));
+					}
+					return failed(seed_step::verify);
 				}
 				aTrace.Outcome = core::workspace_seed_outcome::seeded;
 				return true;
@@ -5660,7 +5701,8 @@ namespace bpr::adapters::git {
 					checkedOut = true;
 				}
 				// [[BPR-2321]]. A seed that was tried and fell back names the full
-				// checkout's time and what its clean removed.
+				// checkout's time and what its clean removed; [[BPR-2345]] apart
+				// from the seed's own.
 				const auto fellBack  = trace.Seed.Outcome != core::workspace_seed_outcome::none && !checkedOut;
 				const auto checkout  = std::chrono::steady_clock::now();
 				const auto sinceStep = [](const std::chrono::steady_clock::time_point aStart) {
@@ -5699,7 +5741,7 @@ namespace bpr::adapters::git {
 					}
 					const auto cleaning = std::chrono::steady_clock::now();
 					if (fellBack) {
-						trace.Seed.CheckoutMilliseconds = sinceStep(checkout);
+						trace.Seed.FallbackCheckoutMilliseconds = sinceStep(checkout);
 					}
 					// A seed that stopped part way may have left a clone's
 					// untracked files behind.
@@ -5710,8 +5752,8 @@ namespace bpr::adapters::git {
 						return fail(cleaned.error());
 					}
 					if (fellBack) {
-						trace.Seed.CleanMilliseconds = sinceStep(cleaning);
-						trace.Seed.Cleaned           = static_cast<std::uint32_t>(std::min<std::size_t>(static_cast<std::size_t>(std::ranges::count(cleaned->StandardOutput, '\n')), std::numeric_limits<std::uint32_t>::max()));
+						trace.Seed.FallbackCleanMilliseconds = sinceStep(cleaning);
+						trace.Seed.FallbackCleaned           = static_cast<std::uint32_t>(std::min<std::size_t>(static_cast<std::size_t>(std::ranges::count(cleaned->StandardOutput, '\n')), std::numeric_limits<std::uint32_t>::max()));
 					}
 				}
 				if (!write_private_file(destination / ".git" / "HEAD", headText + "\n")) {

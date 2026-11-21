@@ -147,6 +147,21 @@ namespace bpr::application {
 			static_cast<void>(aWorkspace);
 			return false;
 		}
+		/// \brief [[BPR-2345]]. Keeps \p aWorkspace, which Agent setup's check
+		/// made for \p aBinding, as the pull request's retained workspace under
+		/// \p aKey (`agent_workspace_key`) before any conversation holds it:
+		/// `shared_workspace` answers it to the first turn, which reattaches
+		/// it, and `retained_workspaces` lists it for expiry. Answers false,
+		/// and keeps nothing, when a conversation already holds a workspace
+		/// under the key, another is kept there, or it could not be written;
+		/// the caller then removes its own.
+		[[nodiscard]] virtual auto keep_workspace(const std::string& aKey, const core::agent_revision_binding& aBinding, const owned_agent_workspace& aWorkspace) -> bool
+		{
+			static_cast<void>(aKey);
+			static_cast<void>(aBinding);
+			static_cast<void>(aWorkspace);
+			return false;
+		}
 
 	private:
 		std::mutex                                                  WorkspaceLocksMutex;

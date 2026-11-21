@@ -3939,8 +3939,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# code could not yet be realigned to a new head is compared once it can.
 	# Read-only comparison; no grant, provider, transport, mutation or
 	# publication path changes.
+	# [[BPR-2345]] reseal: window_agent_setup.cpp passes the agent host's
+	# probe_workspace whether the linked clone is the managed one, so Check it
+	# works asks for the workspace a turn would make; the host keeps it for
+	# the pull request's first turn. No grant, provider, transport, mutation
+	# or publication path changes.
 	set(bpr_expected_production_app_manifest_digest
-        "153b87fc517c3262b1d0212a326f5db8a65809a9a50d2690f2008ed30346b266"
+        "0ff573a00e016ac2a2bea0c875e47fd69bf1119344e2d4d86c3bc7cfda11b384"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

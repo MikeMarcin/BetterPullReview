@@ -62,6 +62,9 @@ namespace bpr::core {
 		// [[BPR-2321]].
 		constexpr auto workspace_seed_names = std::array<std::string_view, 5>{ "none", "seeded", "too_spread", "refused", "failed" };
 		static_assert(workspace_seed_names.size() == static_cast<std::size_t>(workspace_seed_outcome::failed) + 1U);
+		// [[BPR-2345]].
+		constexpr auto workspace_seed_step_names = std::array<std::string_view, 9>{ "none", "list", "walk", "clone", "read_tree", "refresh", "checkout", "clean", "verify" };
+		static_assert(workspace_seed_step_names.size() == static_cast<std::size_t>(workspace_seed_step::verify) + 1U);
 
 		// [[BPR-1831]]. The store names, by each store file's fixed name.
 		constexpr std::array<std::string_view, 24> store_names{ "unknown", "other", "agent_setup", "appearance_settings", "diagnostic_preferences", "workbench_settings", "review_queue", "review_ledger", "review_tours", "review_cycles", "review_overviews", "window_restoration", "remembered_connections", "device_bindings", "review_mutation_recovery", "epoch_catalog", "markdown_images", "insights", "profile_registry", "release_update", "update_draft_recovery", "clone_ledger", "view_filters", "pull_request_activity" };
@@ -139,6 +142,19 @@ namespace bpr::core {
 			}
 			const auto found = std::ranges::find(aNames, *value);
 			return found == aNames.end() ? std::nullopt : std::optional{ static_cast<TEnum>(found - aNames.begin()) };
+		}
+
+		/// [[BPR-2345]]. A failed seed names a known step and only it does;
+		/// counts of what the final check found only on `verify`; the
+		/// fallback's times only when the seed did not seed.
+		[[nodiscard]] auto valid(const workspace_seed_trace& aSeed) noexcept -> bool
+		{
+			const auto failed    = aSeed.Outcome == workspace_seed_outcome::failed;
+			const auto fellBack  = aSeed.Outcome != workspace_seed_outcome::none && aSeed.Outcome != workspace_seed_outcome::seeded;
+			const auto knownStep = static_cast<std::size_t>(aSeed.Step) < workspace_seed_step_names.size();
+			return knownStep && failed == (aSeed.Step != workspace_seed_step::none)
+				&& (aSeed.Step == workspace_seed_step::verify || (aSeed.Modified == 0U && aSeed.Untracked == 0U))
+				&& (fellBack || (aSeed.FallbackCheckoutMilliseconds == 0U && aSeed.FallbackCleanMilliseconds == 0U && aSeed.FallbackCleaned == 0U));
 		}
 
 		[[nodiscard]] auto within(const operation_failure aFailure, const operation_failure aFirst, const operation_failure aLast) noexcept -> bool
@@ -342,6 +358,11 @@ namespace bpr::core {
 		return named(workspace_seed_names, aOutcome);
 	}
 
+	auto name(const workspace_seed_step aStep) noexcept -> std::string_view
+	{
+		return named(workspace_seed_step_names, aStep);
+	}
+
 	auto classify_workspace_git_error(const std::string_view aStandardError) noexcept -> workspace_git_error
 	{
 		if (aStandardError.find_first_not_of(" \t\r\n") == std::string_view::npos) {
@@ -401,7 +422,7 @@ namespace bpr::core {
 		if (aDiagnosis.Workspace
 			&& (aDiagnosis.Action != operation_action::workspace_materialize || name(aDiagnosis.Workspace->Source).empty() || name(aDiagnosis.Workspace->Command).empty()
 				|| name(aDiagnosis.Workspace->GitError).empty() || name(aDiagnosis.Workspace->Seed.Outcome).empty()
-				|| (aDiagnosis.Workspace->Seed.Outcome == workspace_seed_outcome::none && aDiagnosis.Workspace->Seed != workspace_seed_trace{ }))) {
+				|| (aDiagnosis.Workspace->Seed.Outcome == workspace_seed_outcome::none && aDiagnosis.Workspace->Seed != workspace_seed_trace{ }) || !valid(aDiagnosis.Workspace->Seed))) {
 			return false;
 		}
 		// [[BPR-2322]]. A side chat trace exactly on a side chat line: an
@@ -493,6 +514,19 @@ namespace bpr::core {
 				text += " seed_files=" + std::to_string(seed.FilesCloned);
 				text += " seed_written=" + std::to_string(seed.FilesWritten);
 				text += " seed_cleaned=" + std::to_string(seed.Cleaned);
+				// [[BPR-2345]].
+				text += " seed_rewritten=" + std::to_string(seed.Rewritten);
+				if (seed.Outcome == workspace_seed_outcome::failed) {
+					text += " seed_step=";
+					text += name(seed.Step);
+					text += " seed_modified=" + std::to_string(seed.Modified);
+					text += " seed_untracked=" + std::to_string(seed.Untracked);
+				}
+				if (seed.Outcome != workspace_seed_outcome::seeded) {
+					text += " fallback_checkout_ms=" + std::to_string(seed.FallbackCheckoutMilliseconds);
+					text += " fallback_clean_ms=" + std::to_string(seed.FallbackCleanMilliseconds);
+					text += " fallback_cleaned=" + std::to_string(seed.FallbackCleaned);
+				}
 			}
 		}
 		if (aDiagnosis.SideChat) {
@@ -584,25 +618,52 @@ namespace bpr::core {
 				const auto outcome = enumerated<workspace_seed_outcome>(aText, "seed", workspace_seed_names);
 				auto&      seed    = result.Workspace->Seed;
 				auto       read    = outcome.has_value() && *outcome != workspace_seed_outcome::none;
-				for (const auto& [key, field] : std::array<std::pair<std::string_view, std::uint32_t*>, 9>{ { { "seed_walk_ms", &seed.WalkMilliseconds },
-																											  { "seed_clone_ms", &seed.CloneMilliseconds },
-																											  { "seed_refresh_ms", &seed.RefreshMilliseconds },
-																											  { "seed_checkout_ms", &seed.CheckoutMilliseconds },
-																											  { "seed_clean_ms", &seed.CleanMilliseconds },
-																											  { "seed_folders", &seed.FoldersCloned },
-																											  { "seed_files", &seed.FilesCloned },
-																											  { "seed_written", &seed.FilesWritten },
-																											  { "seed_cleaned", &seed.Cleaned } } }) {
+				for (const auto& [key, field] : std::array<std::pair<std::string_view, std::uint32_t*>, 10>{ { { "seed_walk_ms", &seed.WalkMilliseconds },
+																											   { "seed_clone_ms", &seed.CloneMilliseconds },
+																											   { "seed_refresh_ms", &seed.RefreshMilliseconds },
+																											   { "seed_checkout_ms", &seed.CheckoutMilliseconds },
+																											   { "seed_clean_ms", &seed.CleanMilliseconds },
+																											   { "seed_folders", &seed.FoldersCloned },
+																											   { "seed_files", &seed.FilesCloned },
+																											   { "seed_written", &seed.FilesWritten },
+																											   { "seed_cleaned", &seed.Cleaned },
+																											   { "seed_rewritten", &seed.Rewritten } } }) {
 					const auto value = read ? number(aText, key) : std::nullopt;
 					read             = value.has_value();
 					if (read) {
 						*field = *value;
 					}
 				}
+				// [[BPR-2345]]. The failed step, then the fallback's own times.
+				if (read && *outcome == workspace_seed_outcome::failed) {
+					const auto step     = enumerated<workspace_seed_step>(aText, "seed_step", workspace_seed_step_names);
+					const auto modified = step ? number(aText, "seed_modified") : std::nullopt;
+					const auto left     = modified ? number(aText, "seed_untracked") : std::nullopt;
+					read                = left.has_value();
+					if (read) {
+						seed.Step      = *step;
+						seed.Modified  = *modified;
+						seed.Untracked = *left;
+					}
+				}
+				if (read && *outcome != workspace_seed_outcome::seeded) {
+					for (const auto& [key, field] : std::array<std::pair<std::string_view, std::uint32_t*>, 3>{ { { "fallback_checkout_ms", &seed.FallbackCheckoutMilliseconds },
+																												  { "fallback_clean_ms", &seed.FallbackCleanMilliseconds },
+																												  { "fallback_cleaned", &seed.FallbackCleaned } } }) {
+						const auto value = read ? number(aText, key) : std::nullopt;
+						read             = value.has_value();
+						if (read) {
+							*field = *value;
+						}
+					}
+				}
 				if (!read || !aText.empty()) {
 					return std::nullopt;
 				}
 				seed.Outcome = *outcome;
+				if (!valid(seed)) {
+					return std::nullopt;
+				}
 			}
 		} else if (aText.starts_with("item=")) {
 			// [[BPR-2322]]. A side chat line's trace.

@@ -2068,7 +2068,8 @@ namespace bpr::application {
 	}
 
 	void agent_invocation_host::probe_workspace(const core::application_session_id aApplicationSession, core::pull_request_authority aAuthority,
-												core::agent_revision_binding aBinding, std::optional<std::filesystem::path> aHistoryClone, workspace_probe_answer aAnswer, std::stop_token aStop)
+												core::agent_revision_binding aBinding, std::optional<std::filesystem::path> aHistoryClone, const bool aHistoryCloneManaged, workspace_probe_answer aAnswer,
+												std::stop_token aStop)
 	{
 		const auto host = Implementation;
 		if (host->Closing.load(std::memory_order_acquire) || aStop.stop_requested()) {
@@ -2088,6 +2089,11 @@ namespace bpr::application {
 		request.Session.Binding    = std::move(aBinding);
 		request.ParentDirectory    = host->WorkspaceParent;
 		request.HistoryClone       = std::move(aHistoryClone);
+		// [[BPR-2345]]. What a turn would ask for: a workspace kept for the
+		// pull request's conversations, from the same clone, so the first
+		// turn reattaches the one the check made.
+		request.HistoryCloneManaged = request.HistoryClone.has_value() && aHistoryCloneManaged;
+		request.RetainForSession    = host->NativeSessions != nullptr;
 		++host->Probes;
 		try {
 			host->Effects.post([weak = std::weak_ptr{ host }, probe = std::move(request), answer = std::move(aAnswer), stop = std::move(aStop)]() mutable {
@@ -2106,7 +2112,8 @@ namespace bpr::application {
 					// there is one, is checked as a turn reattaching checks
 					// it, and nothing is cloned again; one a turn holds now is
 					// in use, and that turn checked it. Only with none is one
-					// made, and removed again.
+					// made. [[BPR-2345]]: and kept as the pull request's
+					// retained workspace; removed only when it cannot be.
 					auto retained  = std::optional<owned_agent_workspace>{ };
 					auto busy      = false;
 					auto lease     = std::unique_ptr<agent_workspace_turn_lease>{ };
@@ -2138,8 +2145,18 @@ namespace bpr::application {
 						lease.reset();
 						auto made = self->Workspaces.materialize_agent_workspace(probe, stop);
 						if (made) {
-							result = made->Workspace;
-							static_cast<void>(self->Workspaces.cleanup_agent_workspace(*made, { }));
+							result    = made->Workspace;
+							auto kept = false;
+							if (probe.RetainForSession) {
+								try {
+									kept = self->NativeSessions->keep_workspace(agent_workspace_key(probe.Authority, probe.Session.Binding), probe.Session.Binding, *made);
+								} catch (...) {
+									kept = false;
+								}
+							}
+							if (!kept) {
+								static_cast<void>(self->Workspaces.cleanup_agent_workspace(*made, { }));
+							}
 						} else {
 							result = std::unexpected(std::move(made.error()));
 						}
