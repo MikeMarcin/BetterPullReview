@@ -1114,7 +1114,11 @@ auto main(int argc, char** argv) -> int
 			expect(originalStops.front().Acceptance.has_value(), "the stop was accepted before the push");
 			cold.go_to_stop(cold.shown().Draft->Stops.front().Id);
 			saved(cold);
-			expect(decided().State == core::tour_acceptance_state::changed && decided().Reason == core::tour_acceptance_reason::unchecked, "an uncompared push leaves the stop Changed since accepted, not compared yet");
+			const auto& pushed     = cold.shown().Draft->Stops.front();
+			const auto  uncompared = "an uncompared push leaves the stop Changed since accepted, not compared yet: " + std::string{ core::stable_name(decided().State) } + "/"
+				+ std::string{ core::stable_name(decided().Reason) } + " title=[" + pushed.Title + "] accepted-title=[" + (pushed.Acceptance ? pushed.Acceptance->Title : std::string{ "-" })
+				+ "] body=[" + pushed.Body + "] accepted-body=[" + (pushed.Acceptance ? pushed.Acceptance->Body : std::string{ "-" }) + "]";
+			expect(decided().State == core::tour_acceptance_state::changed && decided().Reason == core::tour_acceptance_reason::unchecked, uncompared.c_str());
 			// The stop's Accept, which replaces the Head changed chip. Critical
 			// review finding 3: pressed while its lines are not compared yet,
 			// it keeps them to compare and is never green on unread evidence.
