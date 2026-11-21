@@ -1787,8 +1787,11 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "native-visible-answer");
 			}
 			const auto after = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
-			if (after.Statistics.WorkspaceStarts != (course == "native-session-reopen" ? 0U : 1U)) {
-				return fail(*application, "native-retained-workspace");
+			// [[BPR-2345]]. Agent setup keeps the workspace its check made, and
+			// the first turn takes it, so no turn here starts one: the first
+			// session's turns use setup's, and a reopened one its retained one.
+			if (after.Statistics.WorkspaceStarts != 0U) {
+				return fail(*application, "native-retained-workspace", "workspace-starts=" + std::to_string(after.Statistics.WorkspaceStarts));
 			}
 			// Visible New session waits for admission and retains the completed native generation.
 			QMetaObject::invokeMethod(window.agent_tab()->history_button()->menu(), "aboutToShow");
