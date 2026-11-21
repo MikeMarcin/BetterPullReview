@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2339",
+    "BPR-2340",
+    "BPR-2341",
+    "BPR-2342"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-2215 known 0.5.0 intermittents: tour reconciliation race, inline publish fallback, restoration grant settle, large-review history drain",
+  "created": "2026-11-21T07:12:14.248274+00:00",
+  "base": "384779db1013fbf6666c201368fe529624b401e7"
+}
