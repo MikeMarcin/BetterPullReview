@@ -187,16 +187,26 @@ namespace {
 	}
 
 #if defined(BPR_TEST_AGENT_SETUP_HOST)
-	/// A process port that runs nothing and records what it was asked.
+	/// A process port that runs nothing and records what it was asked. Since
+	/// [[BPR-2320]] a custom Claude agent's check ends with one stream JSON
+	/// turn through its program; that turn is answered as Claude answers it,
+	/// with its init frame and a line of text.
 	class recording_process final : public application::agent_process_port
 	{
 	public:
 		[[nodiscard]] auto run(const application::agent_launch_request& aRequest, int, const application::agent_output_sink& = { }, std::stop_token = { }) -> application::agent_run_result override
 		{
 			Requests.push_back(aRequest);
-			auto result    = application::agent_run_result{ };
-			result.Outcome = application::agent_run_outcome::success;
-			result.Session = aRequest.Session;
+			auto result     = application::agent_run_result{ };
+			result.Outcome  = application::agent_run_outcome::success;
+			result.ExitCode = 0;
+			result.Session  = aRequest.Session;
+			if (aRequest.Protocol == core::agent_protocol::claude_stream_json) {
+				auto event = application::agent_stream_event{ };
+				event.Text = "I am ready.";
+				result.Events.push_back(std::move(event));
+				result.Metadata.ProtocolReported.push_back({ .Basis = "claude_stream_json.system/init: session_id,model,claude_code_version" });
+			}
 			return result;
 		}
 		void cancel() noexcept override { }
