@@ -736,3 +736,19 @@ passed this time and `application_approximate_diff_public_path` failed
 (input gap 116 ms). Evidence: `ubuntu-release-full-2ca2bdf5f-junit.xml` and
 `ubuntu-release-full-ef838fc9f-junit.xml` in
 `/Users/jaeger/.codex/release-runs/v0.5.0-20261116/ubuntu-r1/`.
+
+### The launch course's Home marker on Linux (2026-11-21)
+
+Owner: measure `ProcessToHomeMarkerMs` again on disk, as the startup and
+close budgets were. Ten runs of `application_large_review_launch` on the idle
+WSL2 i9 at `098a744ac`: 670–1268 ms warm, one cold first run 7409 ms. The
+Linux limit is now **1550 ms** (the worst warm plus 22%, the startup rule);
+macOS and Windows keep 1000. Basis recorded in
+`docs/verification/BPR-0967-station-budgets-2026-10-01.md`. Four of the ten
+fixtures still exited 1 on the waived [[BPR-2317]] input gap (102–135 ms).
+
+Windows Release at `7f42d0429`: 1034 rows, 1032 passed;
+`sqlite_profile_registry_storage` (the course's damaged copy was not private
+on Windows, fixed) and `test_network_isolation_manifest`
+(`application_reopened_tabs` measured contained and pinned
+`private-data-root-refused`) pass at `098a744ac`.

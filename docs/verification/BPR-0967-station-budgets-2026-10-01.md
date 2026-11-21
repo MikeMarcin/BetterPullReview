@@ -38,6 +38,25 @@ in the control, five samples in a 50 ms hold), and `HeapSummary` costs up to
 35.5 ms under the byte course's heap: its largest interval there is 46.0 ms.
 Windows sampled heap peaks are lower bounds with that resolution.
 
+### The launch course's Home marker on Linux — [[BPR-2215]], 2026-11-21
+
+The launch course's own `ProcessToHomeMarkerMs` limit (1000 ms, in
+`tests/end_to_end/large_review_launch.py`) was not part of the measure above
+and missed on the WSL2 i9 (1238 and 1059 ms at `afeb013b7`). Measured again
+the same way: ten runs of `application_large_review_launch` on the idle WSL2
+i9 at `098a744ac` (Release, `-j8`, its own tree, data root on disk):
+
+| Measure | Observed | Linux limit |
+| --- | --- | --- |
+| Process start to Home's first render (`ProcessToHomeMarkerMs`) | 670–1268 ms warm; one cold first run 7409 ms | **1550** (the worst warm plus 22%), was 1000 |
+
+`ProcessToMainMarkerMs` stayed at 10–15 ms warm (533 ms in the cold first
+run) against 100 and is kept. Four runs' fixtures exited 1 on
+`paged_review_and_git_load_input_gap` (102–135 ms), the owner's waived
+[[BPR-2317]] exception, and the cold run also on its startup renders. macOS
+and Windows keep 1000 ms. The run logs are in the PC's WSL2
+`~/bpr-v050-timing-r1-logs/measure-home/`.
+
 ## Limits
 
 Rule: a Mac limit is kept when the platform's highest optimized observation is
