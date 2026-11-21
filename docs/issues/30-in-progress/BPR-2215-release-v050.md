@@ -660,3 +660,79 @@ The input gap is the owner's waived BPR-2317 exception, met here in the launch
 and pathological courses as well as responsiveness (which passed all three
 runs). `ProcessToHomeMarkerMs` is a separate launch budget (1000 ms) that the
 sixth round's re-measured basis did not cover; it is the open item.
+
+## Ubuntu Release on the Lima guest (2026-11-20)
+
+Branch `claude/release-0-5-0-ubuntu` from the lane at `2ca2bdf5f`, on the
+Intel Mac's Ubuntu 26.04 Lima guest (6 vCPUs), Release only (owner: Debug is
+out of scope for this round).
+
+**Phase 31 at `2ca2bdf5f`: 1046 rows, 1033 passed, 13 failed.** Ten were
+large-review timing rows; three were new, each failing alone every time:
+
+- `qt_profiles_settings_panel` and
+  `application_profile_data_reset_public_path`: [[BPR-2308]] retired Review
+  Cycles and left both tests expecting Open Project… and a
+  `review-cycles.sqlite3` that no build makes. Test faults on every platform.
+  The File menu is New Window, a separator, Quit and Close Tab; the reset
+  course writes the store an earlier build left (unread, still removed by
+  Reset review data), since a fresh profile now holds no review store.
+  (Merged into the Windows lane, which had fixed both too: the lane keeps its
+  menu course, the same change, and its reset course, which makes a real tours
+  store through the SQLite adapter rather than a placeholder file.)
+- `application_ask_report_public_path`: **product fault**, exposed by
+  [[BPR-2299]]'s reading width. In a report shorter than the pane,
+  `go_to_heading` grows the tail so the heading can reach the top (look
+  ask-v008), then scrolled to the heading's place measured before the room
+  was made. Laid out with the room, the heading moved from 274 to 293 px
+  (maximum 285); the scroll stopped at 266, the heading stayed 27 px down and
+  the section read as the one before. The heading is now measured again after
+  the room is made. The report and Ask rows pass (7 of 7).
+
+**The tour-cli tree with tests** (`cmake --preset tour-cli -B
+build/tour-cli-tests -DBUILD_TESTING=ON -DCMAKE_TEST_BUILD_DEPENDS=ON`):
+
+- `host_operation_diagnostics` and `agent_setup_storage` linked hosts that
+  only an agent-integrations graph compiles. Their clone-scan and setup-host
+  checks now compile only there (`BPR_TEST_CLONE_LINK_HOST`,
+  `BPR_TEST_AGENT_SETUP_HOST`); the rest runs everywhere. Both pass.
+- `tour_cli_loopback_provider`: three test faults, no product change. The
+  Qt-free graph builds no logging adapter, so the row passes
+  `--diagnostics $<TARGET_EXISTS:BetterPullReview::AdapterLogging>` and expects
+  no session file without it. Since [[BPR-1560]] the epoch compares from
+  GitHub's merge base, and the fake answered `compare` 404, so the base anchor
+  was unavailable and `add` refused "Pinned source authority is unavailable";
+  the fake answers it from the real `git merge-base`. [[BPR-2014]] publishes
+  only accepted stops and `ready 1` (relayed) does not accept, so the course
+  readies its stop in a walk. Passes.
+- `dependency_modernization_contract` expected Quill in any graph with a Qt
+  target; it now keys on `Qt6::Widgets`. Passes in both trees.
+- Not fixed: `skill_pr_tour_package` (the guest's MASK-deployed
+  `.claude/skills/pr-tour` predates [[BPR-2274]]; a redeploy, not a source
+  change) and `architecture_boundary_contract`, which took 1722 to 1926 s in
+  every Ubuntu Release suite and stops at plain ctest's 1500 s default there.
+
+**`application_composition_contract` (item 3) is guest capacity.** The row
+is `RUN_SERIAL` and rebuilds its persistent tests-off Release tree at
+`CMAKE_BUILD_PARALLEL_LEVEL` jobs, default 2. Warm it took 22 to 34 s. Cold
+(after a broad source change) at 2 jobs it took 1987 and 2028 s against the
+Linux 2160 s budget; a cold scratch tree at 6 jobs took 1371 s. The guest's
+runs export `CMAKE_BUILD_PARALLEL_LEVEL=6`; the budget is unchanged.
+
+| Candidate, platform | Rows | Result |
+| --- | --- | --- |
+| `2ca2bdf5f` Ubuntu (Lima) Release, full suite | 1046 | 1033 passed, 13 failed |
+| `ef838fc9f` Ubuntu (Lima) tour-cli tests-on, tour rows | 10 | 10 passed (loopback at `ef838fc9f`) |
+| `e548e5e0a` Ubuntu (Lima) tour-cli tests-on, whole tree | 378 | 374 passed, 4 failed (three fixed or explained above, loopback since fixed) |
+| **`ef838fc9f` Ubuntu (Lima) Release, full suite** | 1046 | **1036 passed, 10 failed: the large-review timing rows only** |
+
+The ten at `ef838fc9f`, all timing or budget misses, are judged on the WSL2
+i9 (owner, 2026-11-18): `application_large_review_benchmark`,
+`_responsiveness`, `_launch`, `_active_work`, `_pathological`,
+`_prepared_open`, `_history`, `application_unavailable_diff_public_path`,
+`application_approximate_diff_public_path` and
+`application_first_tab_comparison`. `application_large_review_resources`
+passed this time and `application_approximate_diff_public_path` failed
+(input gap 116 ms). Evidence: `ubuntu-release-full-2ca2bdf5f-junit.xml` and
+`ubuntu-release-full-ef838fc9f-junit.xml` in
+`/Users/jaeger/.codex/release-runs/v0.5.0-20261116/ubuntu-r1/`.

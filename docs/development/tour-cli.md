@@ -281,8 +281,10 @@ network.
 
 Behind the proxy the course answers as github.com and api.github.com: the
 device flow, `/user`, the nine capability parts and the github-com contract
-fixture's pull request read, and Git's smart HTTP protocol v2 from a real
-`git upload-pack` over the cli-read-v1 objects. On Linux the vault is a
+fixture's pull request read, the merge base the epoch compares from
+([[BPR-1560]]'s `compare`, answered from the real `git merge-base`), and Git's
+smart HTTP protocol v2 from a real `git upload-pack` over the cli-read-v1
+objects. On Linux the vault is a
 private Secret Service (a private bus and a test-only keyring, as the
 `linux_secret_service_*` rows use) and the course runs, each as one `bpr`
 process under a 30-second bound: a never-signed-in `open` (exit 5
@@ -299,7 +301,10 @@ there is the user's own. On macOS, outside ctest, `--gh` adds `connect` and
 `tests/end_to_end/rfc0015_cli_read_fixture.py` on a temporary `PATH`; inside
 ctest gh's own `sandbox-exec` cannot start, so those rows report `not-run`.
 `--seed-binary` lets a second build prepare the profile for the
-failing-before controls.
+failing-before controls. `--diagnostics 1` says the graph links the diagnostic
+logging adapter, so the refused `open` must leave one typed `tour.operation`
+failure in the profile's log; with `0` (the Qt-free `tour-cli` preset builds
+no logging adapter) it must leave no session file.
 
 `connect --transport native` now ends only when the renewal material is stored
 under the account `/user` named and the profile's binding is remembered, as

@@ -1286,16 +1286,25 @@ namespace bpr::qt {
 			return;
 		}
 		auto* const bar    = Scroll->verticalScrollBar();
-		const auto  wanted = aIndex == 0 ? 0 : std::max(0, offset - 8);
+		auto        wanted = aIndex == 0 ? 0 : std::max(0, offset - 8);
 		// Look ask-v008: a report that fits the pane (or a last section
 		// shorter than it) cannot scroll its heading to the top; the room
 		// under it is made first.
-		if (wanted > bar->maximum()) {
+		for (auto pass = 0; pass < 2 && wanted > bar->maximum(); ++pass) {
 			// The page is as tall as its least height or the pane, so the
 			// least height is what the room is added to.
 			const auto least = Scroll->widget()->minimumSizeHint().height();
 			Tail->setFixedHeight(Tail->height() + std::max(0, wanted + Scroll->viewport()->height() - least));
 			settle();
+			// [[BPR-2215]]. Laid out with the room, the heading can sit lower
+			// than before (19 px in Ubuntu's offscreen ask report course):
+			// scrolled to its old place it stopped short, and the section
+			// read as the one before. Its place is measured again.
+			const auto moved = heading_offset(aIndex);
+			if (moved < 0) {
+				return;
+			}
+			wanted = std::max(0, moved - 8);
 		}
 		bar->setValue(wanted);
 	}
