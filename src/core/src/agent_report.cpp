@@ -931,8 +931,20 @@ namespace bpr::core {
 				}
 				// RFC-BPR-0127: a line takes a draft; anything else is kept
 				// local, on its file or on the pull request.
-				finding.Keep     = decide_keep({ .ThreadReply = false, .LineTakesDraft = finding.First != 0U, .FileInPullRequest = !finding.Path.empty() }).Kind == keep_kind::draft ? report_keep::draft_comment
-																																													 : report_keep::keep_local;
+				finding.Keep = decide_keep({ .ThreadReply = false, .LineTakesDraft = finding.First != 0U, .FileInPullRequest = !finding.Path.empty() }).Kind == keep_kind::draft ? report_keep::draft_comment
+																																												 : report_keep::keep_local;
+				// [[BPR-2352]]. The item's fixes in the file's language: each
+				// code block after its first, which quotes the lines at fault.
+				const auto fixes = [&] {
+					auto text   = std::string{ };
+					auto quoted = false;
+					for (const auto& part : item.Body) {
+						if (part.Kind == dressed_block_kind::code && std::exchange(quoted, true)) {
+							text += "\n\n" + fenced_code(part.Language, part.Lines);
+						}
+					}
+					return text;
+				};
 				const auto block = [&] {
 					auto text = std::string{ "```suggestion\n" };
 					for (const auto& line : suggestion->Lines) {
@@ -952,6 +964,11 @@ namespace bpr::core {
 								finding.Comment = suggested.Comment;
 								if (proposes && finding.Comment.find("```suggestion") == std::string::npos) {
 									finding.Comment += "\n\n" + block();
+								} else if (!proposes && finding.Comment.find("```") == std::string::npos && finding.Comment.find("~~~") == std::string::npos) {
+									// [[BPR-2352]] (owner, 2026-11-21: "The code block
+									// didn't appear in the suggested comment"). The
+									// agent's words, then the report's fix as written.
+									finding.Comment += fixes();
 								}
 							}
 						}
@@ -967,10 +984,8 @@ namespace bpr::core {
 					for (const auto& part : item.Body) {
 						if (part.Kind == dressed_block_kind::paragraph && !part.Text.empty()) {
 							finding.Comment += "\n\n" + part.Text;
-						} else if (part.Kind == dressed_block_kind::code) {
-							if (std::exchange(quoted, true)) {
-								finding.Comment += "\n\n" + fenced_code(part.Language, part.Lines);
-							}
+						} else if (part.Kind == dressed_block_kind::code && std::exchange(quoted, true)) {
+							finding.Comment += "\n\n" + fenced_code(part.Language, part.Lines);
 						}
 					}
 					if (proposes) {

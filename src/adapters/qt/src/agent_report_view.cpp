@@ -759,8 +759,10 @@ namespace bpr::qt {
 			actions.Dismiss      = static_cast<bool>(DismissDispatch);
 			for (const auto& finding : Findings) {
 				if (finding.Card && *finding.Card < Document.Cards.size()) {
+					// [[BPR-2352]]. As Draft comment drafts it: the agent's
+					// words with the report's fix.
 					if (const auto& comment = Document.Cards[*finding.Card].Finding.SuggestedComment; comment && !core::writing_blank(*comment)) {
-						actions.Suggested[finding.Outline] = QString::fromStdString(*comment);
+						actions.Suggested[finding.Outline] = QString::fromStdString(finding.Comment);
 					}
 				}
 			}

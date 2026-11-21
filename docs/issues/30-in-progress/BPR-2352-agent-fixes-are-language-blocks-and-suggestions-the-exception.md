@@ -83,6 +83,35 @@ These were checked:
   as well as the width is a small, exact, obviously correct fix of exactly
   lines 12 to 13.
 
+## Owner review (2026-11-21)
+
+A frozen build of this branch merged with
+`claude/context-aware-code-highlighting` was reviewed in session
+`4708604404524750554d23a4282d7890`. The review-only branch
+`claude/review-composer-and-context` made the fixture's blocking fix a
+```` ```cpp ```` block. The verdict was **Reject**: "The code block didn't
+appear in the suggested comment."
+
+- **Cause.** The finding had an agent card with its own `suggestedComment`.
+  In that path `report_findings` appended only a ```` ```suggestion ````
+  block, never a fix in the file's language. The report's "Suggested
+  comment" line also showed the card's raw text, escaped as one paragraph.
+- **Fix.**
+  - When the agent's comment holds no code block of its own,
+    `report_findings` appends the item's fix (each code block after the
+    quote) to it. Draft comment, Draft all and Go to draft all draft that
+    text.
+  - The report's "Suggested comment" (and "Suggested comment, updated")
+    shows the comment Draft comment drafts. Its words are text, and each
+    fenced block is the report's own code box (`comment_html` in
+    `report_page.cpp`).
+- **Tests.**
+  - `core_agent_report`: the card's comment gets the fix, and a comment that
+    already holds a code block is kept as written.
+  - `qt_agent_report_view`: the suggested comment shows its words and the
+    fix as a third code box, with no fence as text.
+  - `qt_item_side_chat` still passes.
+
 ## Acceptance
 
 - AC1. Each shipped instruction that asks for a proposed change asks for a
@@ -90,8 +119,9 @@ These were checked:
   self-contained, obviously correct fix of exactly the named lines. No
   instruction still asks for a suggestion for every fix.
 - AC2. A review finding whose fix is a language block drafts that block at
-  its place. The quote of the lines at fault is left out, and nothing is
-  read as a suggested change.
+  its place, with or without the agent's own comment. The report's
+  Suggested comment shows it as a code box. The quote of the lines at fault
+  is left out, and nothing is read as a suggested change.
 - AC3. Versions moved with their texts, and every test that pins a version
   follows it.
 - AC4. `core_agent_report`, `core_review_skill`,

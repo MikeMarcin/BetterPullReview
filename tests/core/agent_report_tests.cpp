@@ -298,6 +298,15 @@ namespace {
 				   && languageFindings[0].Comment
 					   == "suggestion: Cache the measure\n\nThe width is measured twice a frame.\n\nMeasure once and keep both.\n\n````cpp\nconst auto size = measure_both(row); // ``` stays code\n````",
 			   "a fix in the file's language drafts at its place, after the quoted lines it leaves out, in a fence its code cannot close:\n" + languageFindings[0].Comment);
+		// The owner, 2026-11-21: "The code block didn't appear in the
+		// suggested comment." The agent's own comment for the finding gets
+		// the report's fix too, unless it already holds a code block.
+		const auto carded = report_findings(languageFix, { { .Path = "src/a.cpp", .First = 20U, .Last = 21U, .Comment = "suggestion: measure the row once." } });
+		expect(carded.size() == 1U && carded[0].Card == std::optional<std::size_t>{ 0U }
+				   && carded[0].Comment == "suggestion: measure the row once.\n\n````cpp\nconst auto size = measure_both(row); // ``` stays code\n````",
+			   "the agent's suggested comment carries the report's fix in the file's language:\n" + carded[0].Comment);
+		const auto ownCode = report_findings(languageFix, { { .Path = "src/a.cpp", .First = 20U, .Last = 21U, .Comment = "suggestion: measure once.\n\n```cpp\nmeasure_both(row);\n```" } });
+		expect(ownCode[0].Comment == "suggestion: measure once.\n\n```cpp\nmeasure_both(row);\n```", "an agent comment that holds its own code block is kept as written");
 		const auto& languageItem = languageFix.Sections.at(0U).Items.at(0U);
 		expect(std::ranges::none_of(languageItem.Body, [](const dressed_block& aBlock) { return aBlock.Kind == dressed_block_kind::suggestion; })
 				   && std::ranges::count(languageItem.Body, dressed_block_kind::code, &dressed_block::Kind) == 2,

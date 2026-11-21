@@ -622,6 +622,35 @@ try {
 		expect(!view.undo_draft_all(), "Undo is offered once");
 		view.set_dismiss_dispatch({ });
 	}
+	// [[BPR-2352]] (owner, 2026-11-21: "The code block didn't appear in
+	// the suggested comment"). A finding whose fix is a block in the file's
+	// language, and whose card's comment is only words: the suggested
+	// comment shows the fix as a code box, and Draft comment drafts it.
+	{
+		const auto review                = QStringLiteral("# Review of #31\n\n**Verdict:** Needs changes\n\nOne thing.\n\n## Must fix\n\n### issue (blocking): A zero height still asserts\n\n`src/r.cpp:12-13`\n\n"
+														  "The height is not clamped.\n\n```cpp\nTarget.resize(extent{ width, aSize.Height });\n```\n\nClamp it as well:\n\n"
+														  "```cpp\nconst auto height = std::max(aSize.Height, 1);\nTarget.resize(extent{ width, height });\n```\n");
+		const auto fixBlock              = bpr::core::digest_agent_findings("[{\"fix\":1}]");
+		auto       fixCard               = bpr::qt::agent_report_card{ .Session = 79U, .Ordinal = 0U, .Finding = { }, .Key = { .Findings = fixBlock, .Ordinal = 0U } };
+		fixCard.Finding.Path             = "src/r.cpp";
+		fixCard.Finding.SuggestedComment = "issue (blocking): the height is not clamped. Clamp both.";
+		view.present({ .Turn      = 11U,
+					   .Title     = QStringLiteral("Review of #31"),
+					   .Markdown  = review,
+					   .Question  = QStringLiteral("Review this pull request"),
+					   .Byline    = { },
+					   .Suggested = { { .Path = "src/r.cpp", .First = 12U, .Last = 13U, .Comment = "issue (blocking): the height is not clamped. Clamp both." } },
+					   .Cards     = { fixCard },
+					   .Answer    = review });
+		QApplication::processEvents();
+		const auto& finding = view.findings().at(0U);
+		expect(finding.Comment.ends_with("```cpp\nconst auto height = std::max(aSize.Height, 1);\nTarget.resize(extent{ width, height });\n```"), "the finding's comment carries the fix: " + finding.Comment);
+		const auto shown = view.dressed_view()->toPlainText();
+		const auto at    = shown.indexOf(QStringLiteral("Suggested comment:"));
+		expect(at >= 0 && shown.indexOf(QStringLiteral("Clamp both."), at) > at, "the suggested comment shows its words");
+		expect(view.code_views().size() == 3U, "the suggested comment's fix is a code box of its own, after the item's two: " + std::to_string(view.code_views().size()));
+		expect(!shown.mid(at).contains(QStringLiteral("```")), "and no fence shows as text");
+	}
 	check_inline_code();
 	check_keep_chip();
 	check_reading_width();

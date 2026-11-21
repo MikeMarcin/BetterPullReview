@@ -148,6 +148,80 @@ namespace bpr::qt {
 			return QStringLiteral("<td valign=\"top\" style=\"padding:5px 12px 4px 0;color:%1;%2\">%3</td>").arg(aColour, aStrong ? QStringLiteral("font-weight:600;") : QString{ }, aText.toHtmlEscaped());
 		}
 
+		/// A fenced block as the page's own HTML code box.
+		[[nodiscard]] auto code_box_html(const dressed_block& aBlock, const palette& aPalette) -> QString
+		{
+			auto lines = QStringList{ };
+			for (auto index = std::size_t{ 0U }; index < aBlock.Lines.size(); ++index) {
+				auto line = QString::fromStdString(aBlock.Lines[index]).toHtmlEscaped();
+				if (aBlock.FirstLine) {
+					line = QStringLiteral("<span style=\"color:%1\">%2</span>  %3").arg(aPalette.Faint).arg(*aBlock.FirstLine + index, 4).arg(line);
+				}
+				lines << line;
+			}
+			return QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"8\" style=\"margin-top:10px;border:1px solid %1;border-collapse:collapse\" bgcolor=\"%2\">"
+								  "<tr><td><pre style=\"margin:0;font-family:%3;font-size:13px;color:%4\">%5</pre></td></tr></table>")
+				.arg(aPalette.Line, aPalette.Wash, mono(), aPalette.Ink, lines.join(QLatin1Char{ '\n' }));
+		}
+
+		/// \brief [[BPR-2352]] (owner, 2026-11-21: "The code block didn't
+		/// appear in the suggested comment"). A suggested comment as the page
+		/// shows it, after `aLabel`: its words as written, and each fenced
+		/// block, a fix in the file's language or a suggestion, as the page's
+		/// own code box. The boxes stay page HTML, not collected code views:
+		/// the plain box the owner accepted, without Copy or Wrap.
+		[[nodiscard]] auto comment_html(const QString& aLabel, const QString& aComment, const palette& aPalette) -> QString
+		{
+			auto       html      = QString{ };
+			auto       lead      = aLabel.toHtmlEscaped() + QLatin1Char{ ' ' };
+			auto       words     = QStringList{ };
+			auto       fence     = QString{ };
+			auto       code      = dressed_block{ .Kind = dressed_block_kind::code };
+			const auto paragraph = [&] {
+				const auto text = words.join(QLatin1Char{ '\n' }).trimmed();
+				words.clear();
+				if (text.isEmpty() && lead.isEmpty()) {
+					return;
+				}
+				html += QStringLiteral("<p style=\"margin-top:6px;font-family:%1;font-size:13px;color:%2;white-space:pre-wrap\">%3<span style=\"color:%4\">%5</span></p>")
+							.arg(sans(), aPalette.Faint, std::exchange(lead, QString{ }), aPalette.Ink, text.toHtmlEscaped());
+			};
+			for (const auto& line : aComment.split(QLatin1Char{ '\n' })) {
+				const auto bare = line.trimmed();
+				if (fence.isEmpty()) {
+					const auto mark = bare.isEmpty() ? QChar{ } : bare.front();
+					auto       run  = qsizetype{ 0 };
+					while (run < bare.size() && (mark == QLatin1Char{ '`' } || mark == QLatin1Char{ '~' }) && bare[run] == mark) {
+						++run;
+					}
+					auto indent = qsizetype{ 0 };
+					while (indent < line.size() && line[indent] == QLatin1Char{ ' ' }) {
+						++indent;
+					}
+					if (run >= 3 && indent <= 3) {
+						paragraph();
+						fence         = bare.left(run);
+						code.Language = bare.mid(run).trimmed().toStdString();
+						code.Lines.clear();
+						continue;
+					}
+					words << line;
+					continue;
+				}
+				if (bare.startsWith(fence) && bare.count(fence.front()) == bare.size()) {
+					html += code_box_html(code, aPalette);
+					fence.clear();
+					continue;
+				}
+				code.Lines.push_back(line.toStdString());
+			}
+			if (!fence.isEmpty()) {
+				html += code_box_html(code, aPalette);
+			}
+			paragraph();
+			return html;
+		}
+
 		/// One keep action's row: the chip and what it does, or what became
 		/// of it. `aOutline` 0 is the summary's.
 		[[nodiscard]] auto keep_row(const std::uint32_t aOutline, const core::report_keep aKeep, const QString& aWhere, const bool aGoes, const palette& aPalette) -> QString
@@ -201,9 +275,7 @@ namespace bpr::qt {
 			const auto suggested = Actions->Suggested.find(aOutline);
 			if (edited != Actions->Revised.end() || suggested != Actions->Suggested.end()) {
 				const auto updated = edited != Actions->Revised.end();
-				revised            = QStringLiteral("<p style=\"margin-top:6px;font-family:%1;font-size:13px;color:%2;white-space:pre-wrap\">%3 <span style=\"color:%4\">%5</span></p>")
-										 .arg(sans(), aPalette.Faint, (updated ? QObject::tr("Suggested comment, updated:") : QObject::tr("Suggested comment:")).toHtmlEscaped(), aPalette.Ink,
-											  (updated ? edited->second : suggested->second).toHtmlEscaped());
+				revised            = comment_html(updated ? QObject::tr("Suggested comment, updated:") : QObject::tr("Suggested comment:"), updated ? edited->second : suggested->second, aPalette);
 			}
 			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells) + revised;
 		}
@@ -320,17 +392,7 @@ namespace bpr::qt {
 				const auto place = aItem != nullptr ? core::read_report_place(aItem->Place) : std::nullopt;
 				return code_marker({ .Language = aBlock.Language, .Lines = aBlock.Lines, .FirstLine = aBlock.FirstLine, .Path = place ? place->Path : std::string{ } });
 			}
-			auto lines = QStringList{ };
-			for (auto index = std::size_t{ 0U }; index < aBlock.Lines.size(); ++index) {
-				auto line = QString::fromStdString(aBlock.Lines[index]).toHtmlEscaped();
-				if (aBlock.FirstLine) {
-					line = QStringLiteral("<span style=\"color:%1\">%2</span>  %3").arg(aPalette.Faint).arg(*aBlock.FirstLine + index, 4).arg(line);
-				}
-				lines << line;
-			}
-			return QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"8\" style=\"margin-top:10px;border:1px solid %1;border-collapse:collapse\" bgcolor=\"%2\">"
-								  "<tr><td><pre style=\"margin:0;font-family:%3;font-size:13px;color:%4\">%5</pre></td></tr></table>")
-				.arg(aPalette.Line, aPalette.Wash, mono(), aPalette.Ink, lines.join(QLatin1Char{ '\n' }));
+			return code_box_html(aBlock, aPalette);
 		}
 
 		[[nodiscard]] auto suggestion_html(const dressed_block& aBlock, const dressed_item& aItem, const palette& aPalette) -> QString
