@@ -567,6 +567,13 @@ namespace bpr::qt {
 		present_draft_controls();
 		MergeState->hide();
 		MergeConditions->hide();
+		MergeConflictBox->hide();
+		AlsoRequired->hide();
+		MergeNotes->hide();
+		AutoMergeBox->hide();
+		AutoMergeBusy = false;
+		AutoMergeStatus->clear();
+		AutoMergeStatus->hide();
 		RequestsNote->hide();
 		while (Requests->count() != 0) {
 			auto* const item = Requests->takeAt(0);

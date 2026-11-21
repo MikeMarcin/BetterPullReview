@@ -32,12 +32,15 @@ namespace {
 	}
 
 	/// A process port that answers each run from a script and records it.
+	/// [[BPR-2320]]. Like the process launcher, it takes no request that
+	/// names neither a working folder nor a folder of its own.
 	class scripted_port final : public application::agent_process_port
 	{
 	public:
 		[[nodiscard]] auto run(const application::agent_launch_request& aRequest, const int aTimeout, const application::agent_output_sink& = { }, std::stop_token = { })
 			-> application::agent_run_result override
 		{
+			expect(application::names_agent_folder(aRequest), "every request the setup host runs names a working folder or is WritingOnly");
 			Requests.push_back(aRequest);
 			Timeouts.push_back(aTimeout);
 			auto result = application::agent_run_result{ };
@@ -624,6 +627,8 @@ namespace {
 		expect(f.Process.Requests.size() == 2U && f.Process.Requests[1].Input.starts_with(application::codex_instructions_probe_rule), "switched, it is asked once, with the rule in the prompt");
 		expect(f.state().State.AgentCheck.State == setup_check_state::passed && f.state().State.AgentCheck.Version == "launcher 0.7.0-pre" && !f.state().InstructionsSwitch,
 			   "and passes, naming the version its own check printed");
+		expect(f.state().CheckedEntry == std::optional{ id } && f.state().CheckStep == application::agent_check_step::instructions_probe, "the result names the entry it checked and its probe (BPR-2320)");
+		expect(std::ranges::all_of(f.Process.Requests, [](const application::agent_launch_request& aRequest) { return aRequest.WritingOnly; }), "its check and its probe each run in an empty folder of their own");
 
 		auto unreadable            = application::agent_run_result{ };
 		unreadable.Outcome         = application::agent_run_outcome::protocol_failure;
@@ -634,6 +639,76 @@ namespace {
 		f.settle();
 		expect(f.state().State.AgentCheck.Failure == core::agent_setup_failure::output_unreadable && f.state().CheckDetail.starts_with("version: launcher 0.6.2\n"),
 			   "output that is not Codex's JSON lines is said as that, with the launcher's version");
+	}
+
+	/// [[BPR-2320]]. A custom Claude agent's check asks one short stream
+	/// JSON turn through its program. A program that prints plain text and
+	/// exits 0 fails with the protocol named, its first line and its
+	/// version; one that answers with Claude's init frame passes. A failed
+	/// own check names that step, and the result names the checked entry
+	/// when another is preferred.
+	void test_a_custom_claude_check_proves_it_answers_in_stream_json()
+	{
+		auto f = fixture{ };
+		f.Host->load();
+		f.settle();
+		f.Host->add_agent({ .Name = "Launcher Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/launcher", .Arguments = { "--no-extra-output", "--skip-skills-upgrade" }, .CheckArguments = { "--version" } }, true);
+		f.settle();
+		const auto id = f.state().Preferences.Agents.front().Id;
+
+		auto plain               = said(application::agent_run_outcome::protocol_failure, { });
+		plain.ProtocolFailure    = application::agent_protocol_failure::malformed_frame;
+		plain.RejectedOutputLine = "Welcome to the launcher";
+		f.Process.Answers        = { said(application::agent_run_outcome::success, "launcher 0.7.0-pre"), plain };
+		f.Host->check();
+		f.settle();
+		expect(f.Process.Requests.size() == 2U && f.Process.Requests[1].Protocol == core::agent_protocol::claude_stream_json && f.Process.Requests[1].Arguments.front() == "--no-extra-output"
+				   && f.Process.Requests[1].WritingOnly,
+			   "its own check, then one stream JSON turn through its program, in an empty folder");
+		expect(f.state().State.AgentCheck.Failure == core::agent_setup_failure::output_unreadable && f.state().CheckDetail.starts_with("version: launcher 0.7.0-pre\nwrote: Welcome to the launcher\n")
+				   && f.state().CheckStep == application::agent_check_step::protocol_probe && f.state().CheckedEntry == std::optional{ id },
+			   "plain text fails as not the protocol, with its first line and its version");
+
+		f.Process.Requests.clear();
+		f.Process.Answers = { said(application::agent_run_outcome::success, "launcher 0.7.0-pre"), said(application::agent_run_outcome::success, { }) };
+		f.Host->check();
+		f.settle();
+		expect(f.state().State.AgentCheck.Failure == core::agent_setup_failure::output_unreadable && f.state().CheckDetail.find("wrote: nothing\n") != std::string::npos,
+			   "a program that writes nothing and exits 0 fails the same way");
+
+		auto answered = said(application::agent_run_outcome::success, "I am ready.");
+		answered.Metadata.ProtocolReported.push_back({ .Basis = "claude_stream_json.system/init: session_id,model,claude_code_version" });
+		f.Process.Answers = { said(application::agent_run_outcome::success, "launcher 0.7.0-pre"), answered };
+		f.Host->check();
+		f.settle();
+		expect(f.state().State.AgentCheck.State == setup_check_state::passed && f.state().State.AgentCheck.Version == "launcher 0.7.0-pre", "an answer with Claude's init frame passes");
+
+		f.Process.Answers = { said(application::agent_run_outcome::failed_to_start, { }, std::nullopt) };
+		f.Host->check();
+		f.settle();
+		expect(f.state().State.AgentCheck.Failure == core::agent_setup_failure::failed_to_start && f.state().CheckStep == application::agent_check_step::check_command,
+			   "a check command that did not start is named as that step");
+
+		// A Codex entry checked while a Claude one, never checked, is
+		// preferred: the owner's report, where the Codex failure was named
+		// "Claude Code".
+		auto g  = fixture{ };
+		g.Codex = core::agent_search_candidate{ .Path = "/usr/local/bin/codex" };
+		g.Host->load();
+		g.settle();
+		g.Host->add_agent({ .Name = "Launcher Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/launcher" }, true);
+		g.Host->add_agent({ .Name = "Launcher Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/launcher", .Arguments = { "--codex" } }, false);
+		g.settle();
+		const auto claude = g.state().Preferences.Agents.front().Id;
+		const auto codex  = g.state().Preferences.Agents.back().Id;
+		expect(codex != claude && g.state().Preferences.PreferredAgent == claude, "the Claude entry is preferred");
+		g.Process.Answers = { said(application::agent_run_outcome::failed_to_start, { }, std::nullopt) };
+		g.Host->check_entry(codex);
+		g.settle();
+		expect(g.Process.Requests.size() == 1U && g.Process.Requests.front().Protocol == core::agent_protocol::codex_jsonl_exec, "only the Codex entry's probe ran");
+		expect(g.state().CheckedEntry == std::optional{ codex } && g.state().CheckStep == application::agent_check_step::instructions_probe
+				   && g.state().State.AgentCheck.Failure == core::agent_setup_failure::failed_to_start,
+			   "the result names the Codex entry checked, not the preferred one");
 	}
 
 	[[nodiscard]] auto names(const application::agent_setup_projection& aProjection) -> std::vector<std::string>
@@ -1020,6 +1095,7 @@ auto main() -> int
 	test_a_workspace_check_survives_a_restart();
 	test_the_setup_follows_the_list();
 	test_a_custom_codex_check_proves_its_instructions_arrive();
+	test_a_custom_claude_check_proves_it_answers_in_stream_json();
 	std::cout << "agent-setup-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -1,6 +1,7 @@
 #include "bpr/application/profile_registry.hpp"
 
 #include <algorithm>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <stdexcept>
@@ -38,6 +39,37 @@ namespace bpr::application {
 		return aProfile == core::default_bpr_profile_id ? "legacy" : "profile-" + std::to_string(aProfile.value());
 	}
 
+	auto listed_profile_order(const profile_registry_snapshot& aSnapshot) -> std::vector<core::bpr_profile_id>
+	{
+		if (!aSnapshot.Order.empty()) {
+			return aSnapshot.Order;
+		}
+		auto result = std::vector<core::bpr_profile_id>{ };
+		result.reserve(aSnapshot.Profiles.size());
+		std::ranges::transform(aSnapshot.Profiles, std::back_inserter(result), [](const auto& aEntry) { return aEntry.Profile.Id; });
+		return result;
+	}
+
+	auto moved_profile_order(std::vector<core::bpr_profile_id> aOrder, const core::bpr_profile_id aProfile, const int aDelta) -> std::optional<std::vector<core::bpr_profile_id>>
+	{
+		const auto found = std::ranges::find(aOrder, aProfile);
+		if (found == aOrder.end()) {
+			return std::nullopt;
+		}
+		const auto from = found - aOrder.begin();
+		const auto to   = from + aDelta;
+		if (aDelta == 0 || to < 0 || to >= std::ssize(aOrder)) {
+			return std::nullopt;
+		}
+		const auto first = aOrder.begin();
+		if (to < from) {
+			std::rotate(first + to, first + from, first + from + 1);
+		} else {
+			std::rotate(first + from, first + from + 1, first + to + 1);
+		}
+		return aOrder;
+	}
+
 	auto valid(const profile_registry_snapshot& aSnapshot) -> bool
 	{
 		if (aSnapshot.Revision == 0U || !aSnapshot.DefaultAdopted
@@ -52,6 +84,15 @@ namespace bpr::application {
 				return false;
 			}
 			previous = entry.Profile.Id.value();
+		}
+		// [[BPR-2318]]. An order names every profile once, or is absent.
+		if (!aSnapshot.Order.empty()) {
+			auto listed = aSnapshot.Order;
+			std::ranges::sort(listed);
+			if (listed.size() != aSnapshot.Profiles.size()
+				|| !std::ranges::equal(listed, aSnapshot.Profiles, { }, { }, [](const auto& aEntry) { return aEntry.Profile.Id; })) {
+				return false;
+			}
 		}
 		return catalog_of(aSnapshot).has_value();
 	}
@@ -267,7 +308,35 @@ namespace bpr::application {
 											   profile.Profile.Id == core::default_bpr_profile_id ? profile_root_mode::legacy : profile_root_mode::isolated,
 											   profile_root_identity(profile.Profile.Id), profile.Retained });
 			}
+			// [[BPR-2318]]. A new profile is listed last.
+			if (!candidate.Order.empty() && !aProfile) {
+				candidate.Order.push_back(*id);
+			}
 			return submit(std::move(candidate), id);
+		}
+
+		[[nodiscard]] auto move(const core::bpr_profile_id aProfile, const int aDelta) -> profile_registry_result<void>
+		{
+			if (auto admitted = ready(); !admitted) {
+				return admitted;
+			}
+			if (!Accepted) {
+				return std::unexpected(profile_registry_failure::not_loaded);
+			}
+			if (Accepted->Revision == std::numeric_limits<std::uint64_t>::max()) {
+				return std::unexpected(profile_registry_failure::identity_exhausted);
+			}
+			auto order = moved_profile_order(listed_profile_order(*Accepted), aProfile, aDelta);
+			if (!order) {
+				return std::unexpected(profile_registry_failure::unknown_profile);
+			}
+			auto candidate = *Accepted;
+			candidate.Revision += 1U;
+			candidate.Order = std::move(*order);
+			if (!valid_profile_registry_update(*Accepted, candidate)) {
+				return std::unexpected(profile_registry_failure::corrupt);
+			}
+			return submit(std::move(candidate), aProfile);
 		}
 	};
 
@@ -283,6 +352,7 @@ namespace bpr::application {
 	auto profile_registry_host::reload() -> profile_registry_result<void> { return Implementation->submit({ }, { }); }
 	auto profile_registry_host::create(const std::string_view aLabel) -> profile_registry_result<void> { return Implementation->edit({ }, aLabel); }
 	auto profile_registry_host::rename(const core::bpr_profile_id aProfile, const std::string_view aLabel) -> profile_registry_result<void> { return Implementation->edit(aProfile, aLabel); }
+	auto profile_registry_host::move(const core::bpr_profile_id aProfile, const int aDelta) -> profile_registry_result<void> { return Implementation->move(aProfile, aDelta); }
 	auto profile_registry_host::save_window_state(const core::profile_window_state& aState) -> profile_registry_result<void> { return Implementation->save_window_state(aState); }
 	void profile_registry_host::cancel()
 	{

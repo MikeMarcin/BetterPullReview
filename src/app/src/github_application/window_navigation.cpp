@@ -272,6 +272,8 @@ namespace bpr::app {
 		}
 		const auto pending        = *PendingRestoration;
 		ReadingRestoreUnavailable = !aSuccess;
+		// [[BPR-2324]]. Resume brings back the tabs itself.
+		RememberedTabs.reset();
 		ReadingRestoration.reset();
 		PendingRestoration.reset();
 		ReadingComparisonRequest.reset();
@@ -576,7 +578,57 @@ namespace bpr::app {
 			ObservedTabFile.reset();
 			TabHost->reset();
 		}
+		// [[BPR-2324]]. A pull request this window was not showing brings
+		// back the tabs its Recently viewed entry remembers, once its files
+		// are known. Resume brings its own and lets these go.
+		if (TabDestination != std::optional{ aDestination }) {
+			RememberedTabs.reset();
+			if (Profile->ReviewRestoration) {
+				const auto& recent = Profile->ReviewRestoration->recent();
+				if (const auto entry = std::ranges::find(recent, aDestination, &core::window_recent_review::Destination);
+					entry != recent.end() && entry->Tabs && !entry->Tabs->Tabs.empty()) {
+					RememberedTabs = entry->Tabs;
+				}
+			}
+		}
 		TabDestination = aDestination;
+	}
+
+	/// \brief [[BPR-2324]]. Brings back the tabs the pull request remembered,
+	/// once the comparison it accepted has its files.
+	///
+	/// \details The core decides what comes back: tabs whose file the pull
+	/// request no longer has are dropped, and a file the reviewer opened
+	/// first becomes the active tab. Outside Review the tabs are taken
+	/// without loading, and the active one loads on the way into Review.
+	/// Returns whether the tabs own this observation: they were held for the
+	/// files, or brought back.
+	auto github_application::implementation::reopen_remembered_tabs() -> bool
+	{
+		if (!RememberedTabs) {
+			return false;
+		}
+		if (ReadingRestoration || PendingRestoration || !WorkbenchHost->state().Navigation.has_value()) {
+			return true;
+		}
+		const auto remembered = *std::exchange(RememberedTabs, std::nullopt);
+		const auto chosen     = ReopenChoice ? ReopenChoice : TabHost->state().Chosen;
+		// Tabs the reviewer already opened on this visit stand.
+		if (!TabHost->state().Tabs.empty() || !EpochHost->state().AcceptedComparison) {
+			return false;
+		}
+		auto present = std::vector<bool>{ };
+		present.reserve(remembered.Tabs.size());
+		for (const auto& tab : remembered.Tabs) {
+			present.push_back(tab.File.has_value() && WorkbenchHost->contains_file(*tab.File));
+		}
+		const auto load     = tab_modality(WorkbenchHost->state().Modality);
+		const auto decision = TabHost->reopen(remembered, *EpochHost->state().AcceptedComparison, present, chosen, load);
+		ObservedTabFile     = WorkbenchHost->selected();
+#if defined(BPR_BUILD_TESTING)
+		LastReopenedTabs = decision;
+#endif
+		return decision.has_value() && !decision->Tabs.Tabs.empty();
 	}
 
 	/// \brief [[BPR-1573]]. Close review on Home.
@@ -606,6 +658,7 @@ namespace bpr::app {
 			TabHost->reset();
 		}
 		TabDestination.reset();
+		RememberedTabs.reset();
 	}
 
 	void github_application::implementation::cancel_review_navigation()
@@ -876,7 +929,7 @@ namespace bpr::app {
 				TabHost->apply(core::set_window_comparison_intent{ .Comparison = accepted });
 			}
 		}
-		if (!showsTab) {
+		if (reopen_remembered_tabs() || !showsTab) {
 			return;
 		}
 		// [[BPR-1527]]. A first file gesture can precede its accepted
@@ -954,7 +1007,8 @@ namespace bpr::app {
 	/// \brief Keeps the tabs with the window's accepted destination.
 	void github_application::implementation::retain_tabs(const core::window_review_tabs& aTabs)
 	{
-		if (Closing || PendingRestoration || ReadingRestoreUnavailable || !ReadingDestination || !Profile->ReviewRestoration) {
+		// [[BPR-2324]]. Remembered tabs not yet brought back stay remembered.
+		if (Closing || PendingRestoration || ReadingRestoreUnavailable || RememberedTabs || !ReadingDestination || !Profile->ReviewRestoration) {
 			return;
 		}
 		static_cast<void>(Profile->ReviewRestoration->accepted_tabs(DraftWindow, *ReadingDestination, aTabs));

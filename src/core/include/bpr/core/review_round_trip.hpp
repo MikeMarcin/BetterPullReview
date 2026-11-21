@@ -381,6 +381,8 @@ namespace bpr::core {
 		/// [[BPR-1852]]. Mark the pull request ready for review, or convert
 		/// it to a draft.
 		draft_state,
+		/// [[BPR-2329]]. Enable or disable auto-merge.
+		auto_merge,
 	};
 
 	/// \brief [[BPR-1826]]. Whether a change is written to a pull request in

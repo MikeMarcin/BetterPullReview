@@ -177,6 +177,7 @@ namespace bpr::qt {
 			.LineDetails       = BehaviourOptions[8].empty() ? Behaviour.LineDetails : static_cast<application::review_line_details>(chosen(8U)),
 			.CenterRibbonWidth = CenterRibbonWidth != nullptr ? static_cast<std::uint32_t>(CenterRibbonWidth->value()) : Behaviour.CenterRibbonWidth,
 			.MarkdownImages    = BehaviourOptions[9].empty() ? Behaviour.MarkdownImages : static_cast<application::review_markdown_images>(chosen(9U)),
+			.OthersDrafts      = BehaviourOptions[11].empty() ? Behaviour.OthersDrafts : static_cast<core::home_draft_placement>(chosen(11U)),
 			.ReadingWidth      = BehaviourOptions[10].empty() ? Behaviour.ReadingWidth : static_cast<core::reading_width>(chosen(10U)),
 			// [[BPR-2299]]. Set in the Advanced dialog, which asks for its own
 			// record; any other control keeps what was last asked for.

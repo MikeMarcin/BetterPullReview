@@ -235,11 +235,119 @@ namespace bpr::qt {
 		return plain(aAgent);
 	}
 
+	namespace {
+		/// [[BPR-2320]]. The entry the running check is on, else the one
+		/// whose result is shown.
+		[[nodiscard]] auto checked_entry(const application::agent_setup_projection& aSetup) -> const core::agent_entry*
+		{
+			const auto id = aSetup.Checking ? aSetup.CheckingEntry : aSetup.CheckedEntry;
+			if (!id) {
+				return nullptr;
+			}
+			const auto& agents = aSetup.Preferences.Agents;
+			const auto  found  = std::ranges::find(agents, *id, &core::agent_entry::Id);
+			return found == agents.end() ? nullptr : &*found;
+		}
+
+		/// [[BPR-2320]]. What a custom entry's check ran: the step that
+		/// failed before its probe, else the last step its settings ask for.
+		[[nodiscard]] auto custom_step(const application::agent_setup_projection& aSetup, const core::agent_entry& aEntry) -> application::agent_check_step
+		{
+			using step = application::agent_check_step;
+			if (aSetup.State.AgentCheck.State == core::setup_check_state::failed && !aSetup.Checking && (aSetup.CheckStep == step::program || aSetup.CheckStep == step::check_command)) {
+				return aSetup.CheckStep;
+			}
+			return aEntry.Protocol == core::agent_protocol::codex_jsonl_exec  ? step::instructions_probe
+				: aEntry.Protocol == core::agent_protocol::claude_stream_json ? step::protocol_probe
+				: aEntry.CheckArguments.empty()                               ? step::program
+																			  : step::check_command;
+		}
+	} // namespace
+
+	auto checked_agent_name(const application::agent_setup_projection& aSetup, const QString& aFallback) -> QString
+	{
+		const auto* const entry = checked_entry(aSetup);
+		return entry != nullptr ? text_of(entry->Name) : aFallback;
+	}
+
 	auto agent_check_words(const application::agent_setup_projection& aSetup, const QString& aAgent) -> QString
 	{
-		return !aSetup.ChecksSignIn ? QObject::tr("%1 is available").arg(aAgent)
+		using step              = application::agent_check_step;
+		const auto* const entry = checked_entry(aSetup);
+		const auto        name  = entry != nullptr ? text_of(entry->Name) : aAgent;
+		if (entry != nullptr && !entry->Preset) {
+			switch (custom_step(aSetup, *entry)) {
+			case step::instructions_probe: return QObject::tr("%1's instructions reach the model").arg(name);
+			case step::protocol_probe:     return QObject::tr("%1 answers in Claude Code's stream JSON").arg(name);
+			case step::check_command:      return QObject::tr("%1's check command passes").arg(name);
+			case step::unknown:
+			case step::sign_in:
+			case step::program:            break;
+			}
+			return QObject::tr("%1's program can run").arg(name);
+		}
+		if (entry != nullptr) {
+			return entry->Preset == core::setup_agent::plain_text_harness                ? QObject::tr("%1 is available").arg(name)
+				: aSetup.ChecksWrapper && entry->Id == aSetup.Preferences.PreferredAgent ? QObject::tr("Claude process wrapper reports signed in")
+																						 : QObject::tr("%1 is signed in").arg(name);
+		}
+		return !aSetup.ChecksSignIn ? QObject::tr("%1 is available").arg(name)
 			: aSetup.ChecksWrapper  ? QObject::tr("Claude process wrapper reports signed in")
-									: QObject::tr("%1 is signed in").arg(aAgent);
+									: QObject::tr("%1 is signed in").arg(name);
+	}
+
+	auto agent_check_failure_words(const application::agent_setup_projection& aSetup, const QString& aFallback) -> QString
+	{
+		using step     = application::agent_check_step;
+		using failure  = core::agent_setup_failure;
+		const auto& at = aSetup.State.AgentCheck;
+		if (!at.Failure) {
+			return { };
+		}
+		const auto* const entry  = checked_entry(aSetup);
+		const auto        name   = entry != nullptr ? text_of(entry->Name) : aFallback;
+		const auto        detail = text_of(aSetup.CheckDetail);
+		const auto        output = [&detail] { return detail.isEmpty() ? QString{ } : QStringLiteral(" ") + detail; };
+		if (entry == nullptr || entry->Preset) {
+			return setup_failure_words(*at.Failure, name, detail);
+		}
+		// [[BPR-2320]]. A custom check says which of its steps failed.
+		const auto ran = aSetup.CheckStep;
+		if (ran == step::check_command) {
+			switch (*at.Failure) {
+			case failure::failed_to_start:   return QObject::tr("%1's check command didn't start.").arg(name) + output();
+			case failure::status_unreadable: return QObject::tr("%1's check command failed. Show the details for what it printed.").arg(name);
+			case failure::timed_out:         return QObject::tr("%1's check command didn't finish within 15 seconds. Check again.").arg(name);
+			default:                         break;
+			}
+		}
+		if (ran == step::instructions_probe || ran == step::protocol_probe) {
+			const auto probe = ran == step::instructions_probe ? QObject::tr("%1's instructions probe").arg(name) : QObject::tr("%1's test turn").arg(name);
+			switch (*at.Failure) {
+			case failure::failed_to_start: return QObject::tr("%1 didn't start.").arg(probe) + output();
+			case failure::timed_out:       return QObject::tr("%1 got no answer within 2 minutes. Check again.").arg(probe);
+			default:                       break;
+			}
+		}
+		if (*at.Failure == failure::output_unreadable && entry->Protocol == core::agent_protocol::claude_stream_json) {
+			const auto line = [&detail](const QString& aPrefix) {
+				for (const auto& part : detail.split(QLatin1Char{ '\n' })) {
+					if (part.startsWith(aPrefix)) {
+						return part.mid(aPrefix.size()).left(120);
+					}
+				}
+				return QString{ };
+			};
+			auto words = QObject::tr("%1 answered, but not in Claude Code's stream JSON. If its program opens a window, choose the launcher's command-line program instead.").arg(name);
+			if (const auto wrote = line(QStringLiteral("wrote: ")); !wrote.isEmpty()) {
+				words += QStringLiteral(" ") + (wrote == QStringLiteral("nothing") ? QObject::tr("It wrote nothing.") : QObject::tr("Its first line: %1").arg(wrote));
+			}
+			if (const auto version = line(QStringLiteral("version: ")); !version.isEmpty()) {
+				words += QStringLiteral(" ") + QObject::tr("Its check says it is %1.").arg(version);
+			}
+			return words;
+		}
+		return setup_failure_words(*at.Failure, name, detail);
 	}
 
 	auto setup_passed_colour(const QPalette& aPalette) -> QColor { return aPalette.color(QPalette::Window).lightness() < 128 ? QColor{ 0x3F, 0xB9, 0x50 } : QColor{ 0x1A, 0x7F, 0x37 }; }
@@ -1113,7 +1221,7 @@ namespace bpr::qt {
 		const auto  agent     = Setup.State.Chosen.value_or(core::setup_agent::claude_code);
 		const auto  name      = name_for(agent);
 		const auto  introText = !Setup.ChecksSignIn
-			? tr("BetterPullReview checks your program and runs its configured check, if any, then makes the workspace once. This does not check sign-in. No code is sent; a custom Codex JSONL agent is asked one short question to see where its instructions arrive.")
+			? tr("BetterPullReview checks your program and runs its configured check, if any, then makes the workspace once. This does not check sign-in. No code is sent; a custom Codex JSONL agent is asked one short question to see where its instructions arrive, and a custom Claude agent one to see it answers in stream JSON.")
 			: Setup.ChecksWrapper
 			? tr("BetterPullReview asks your Claude process wrapper for auth status --json and --version, using its saved arguments, and makes the workspace once. Sign-in is reported by your wrapper for its configured provider. No question or code is sent.")
 			: tr("Before your first question, BetterPullReview runs %1, which sends no question and no code, and makes the agent's workspace once.")
@@ -1152,7 +1260,7 @@ namespace bpr::qt {
 		// A failed row says what failed and what to do.
 		const auto failed = [&](const core::setup_check& aCheck) { return aCheck.State == core::setup_check_state::failed && aCheck.Failure.has_value(); };
 		if (failed(Setup.State.AgentCheck)) {
-			auto* const why = words(setup_failure_words(*Setup.State.AgentCheck.Failure, name, text_of(Setup.CheckDetail)), parent);
+			auto* const why = words(agent_check_failure_words(Setup, name), parent);
 			why->setObjectName(QStringLiteral("agentSetupCheckFailure"));
 			aBody.addWidget(why);
 			if (*Setup.State.AgentCheck.Failure == core::agent_setup_failure::not_signed_in && !sign_in_command(agent).isEmpty()) {

@@ -496,6 +496,63 @@ namespace bpr::application {
 			std::memory_order_acq_rel,
 			std::memory_order_acquire);
 	}
+	review_mutation_execution_authority::review_mutation_execution_authority(
+		review_mutation_thread_scope          aScope,
+		review_auto_merge_publication_request aRequest)
+		: AutoMergeRequest{ aRequest }
+		, Scope{ .ApplicationSession  = aScope.ApplicationSession,
+				 .WorkbenchGeneration = aScope.WorkbenchGeneration,
+				 .Target              = aScope.Target,
+				 .ActingIdentity      = aScope.ActingIdentity }
+		, Target{ aScope.Target }
+		, ActingIdentity{ aScope.ActingIdentity }
+		, ExpiresAt{ std::chrono::steady_clock::now() + std::chrono::minutes{ 5 } }
+		, Kind{ kind::user_one_shot }
+		, Bound{ true }
+	{
+	}
+	auto review_mutation_execution_authority::permits_auto_merge(
+		const review_mutation_thread_scope&          aScope,
+		const review_auto_merge_publication_request& aRequest) noexcept -> bool
+	{
+		// [[BPR-2329]]. The scope's `Thread` is the pull request's own node,
+		// as a description edit's is.
+		if (aScope.ApplicationSession.value() == 0U || aScope.WorkbenchGeneration.value() == 0U
+			|| !valid(aScope.Target) || !valid(aScope.ActingIdentity)
+			|| aScope.Thread.empty() || aScope.Thread != aScope.Target.PullRequestNodeId
+			|| Revoked.load(std::memory_order_acquire)) {
+			return false;
+		}
+		std::scoped_lock lock{ Mutex };
+		if (!Bound || Revoked.load(std::memory_order_relaxed)
+			|| !ActingIdentity.has_value()
+			|| Scope.ApplicationSession != aScope.ApplicationSession
+			|| Scope.WorkbenchGeneration != aScope.WorkbenchGeneration
+			|| Scope.Target != aScope.Target
+			|| *ActingIdentity != aScope.ActingIdentity) {
+			return false;
+		}
+		// A one-shot grant issued for anything else permits no draft-state
+		// change, and one issued for a change permits only that change.
+		if (Kind == kind::user_one_shot
+			&& (Request.has_value() || ThreadRequest.has_value() || ReactionRequest.has_value() || DescriptionRequest.has_value()
+				|| CommentEditRequest.has_value() || ReviewerRequest.has_value() || DraftStateRequest.has_value() || !AutoMergeRequest || *AutoMergeRequest != aRequest)) {
+			return false;
+		}
+		if (Kind == kind::testing_reusable) {
+			return true;
+		}
+		if (std::chrono::steady_clock::now() >= ExpiresAt) {
+			Revoked.store(true, std::memory_order_release);
+			return false;
+		}
+		auto expected = false;
+		return Consumed.compare_exchange_strong(
+			expected,
+			true,
+			std::memory_order_acq_rel,
+			std::memory_order_acquire);
+	}
 	void review_mutation_execution_authority::revoke() noexcept
 	{
 		std::scoped_lock lock{ Mutex };
@@ -561,6 +618,33 @@ namespace bpr::application {
 		core::application_session_id aSession, core::request_generation aGeneration,
 		review_mutation_target_binding aTarget, review_mutation_acting_identity aActor,
 		review_draft_state_publication_request aRequest) -> review_mutation_execution_grant
+	{
+#if defined(BPR_APPLICATION_TESTING)
+		static_cast<void>(aSession);
+		static_cast<void>(aGeneration);
+		static_cast<void>(aTarget);
+		static_cast<void>(aActor);
+		static_cast<void>(aRequest);
+		return { };
+#else
+		if (aSession.value() == 0U || aGeneration.value() == 0U
+			|| !valid(aTarget) || !valid(aActor) || aTarget.PullRequestNodeId.empty()) {
+			return { };
+		}
+		auto node = aTarget.PullRequestNodeId;
+		return review_mutation_execution_grant{ new review_mutation_execution_authority{
+			review_mutation_thread_scope{ .ApplicationSession  = aSession,
+										  .WorkbenchGeneration = aGeneration,
+										  .Target              = std::move(aTarget),
+										  .ActingIdentity      = std::move(aActor),
+										  .Thread              = std::move(node) },
+			aRequest } };
+#endif
+	}
+	auto detail::review_mutation_user_authority_issuer::issue_auto_merge(
+		core::application_session_id aSession, core::request_generation aGeneration,
+		review_mutation_target_binding aTarget, review_mutation_acting_identity aActor,
+		review_auto_merge_publication_request aRequest) -> review_mutation_execution_grant
 	{
 #if defined(BPR_APPLICATION_TESTING)
 		static_cast<void>(aSession);
@@ -811,6 +895,13 @@ namespace bpr::application {
 			review_mutation_request_context        Context;
 			review_draft_state_publication_request Request;
 			std::stop_source                       Stop;
+		};
+		// [[BPR-2329]]. One auto-merge change in flight, kept like a draft-state change.
+		struct auto_merge_record final
+		{
+			review_mutation_request_context       Context;
+			review_auto_merge_publication_request Request;
+			std::stop_source                      Stop;
 		};
 
 		implementation(
@@ -2160,6 +2251,134 @@ namespace bpr::application {
 				}
 			}
 		}
+		[[nodiscard]] auto change_auto_merge(review_auto_merge_publication_request aRequest,
+											 review_mutation_execution_grant       aRequestGrant)
+			-> review_mutation_request_context
+		{
+			auto record = std::make_shared<auto_merge_record>(auto_merge_record{
+				.Context = context(),
+				.Request = aRequest,
+				.Stop    = { },
+			});
+			auto grant  = review_mutation_execution_grant{ };
+			{
+				std::scoped_lock lock{ Mutex };
+				++Statistics.Attempts;
+				if (Closing) {
+					++Statistics.RefusedBeforeEffect;
+					return {
+						.Session    = Session,
+						.Generation = Generation,
+					};
+				}
+				grant = aRequestGrant ? std::move(aRequestGrant) : Grant;
+			}
+			if (!Coordinator.capabilities().ChangesAutoMerge) {
+				refuse_auto_merge(record, review_mutation_failure::unsupported);
+				return record->Context;
+			}
+			if (!valid(TargetBinding) || !valid(ActingIdentityBinding)) {
+				refuse_auto_merge(record, review_mutation_failure::undesignated_target);
+				return record->Context;
+			}
+			const auto scope = review_mutation_thread_scope{
+				.ApplicationSession  = Session,
+				.WorkbenchGeneration = Generation,
+				.Target              = TargetBinding,
+				.ActingIdentity      = ActingIdentityBinding,
+				.Thread              = TargetBinding.PullRequestNodeId,
+			};
+			{
+				std::scoped_lock lock{ Mutex };
+				if (Closing || OutstandingAutoMerges.size() >= maximum_outstanding_review_mutations
+					|| grant == nullptr || !grant->bind_thread(scope)
+					|| !grant->permits_auto_merge(scope, record->Request)) {
+					++Statistics.RefusedBeforeEffect;
+				} else {
+					OutstandingAutoMerges.emplace(record->Context.Request.value(), record);
+					AutoMergeQueue.push_back(record);
+					++Statistics.EffectsQueued;
+					auto self = shared_from_this();
+					try {
+						Effects.post([self] { self->drain_auto_merges(); });
+						return record->Context;
+					} catch (...) {
+						OutstandingAutoMerges.erase(record->Context.Request.value());
+						AutoMergeQueue.pop_back();
+					}
+				}
+			}
+			refuse_auto_merge(record, review_mutation_failure::unavailable);
+			return record->Context;
+		}
+		void refuse_auto_merge(const std::shared_ptr<auto_merge_record>& aRecord,
+							   const review_mutation_failure             aFailure)
+		{
+			auto self = shared_from_this();
+			try {
+				DecisionLane.post([self, aRecord, aFailure] {
+					self->complete_auto_merge(aRecord, std::unexpected(aFailure));
+				});
+			} catch (...) {
+				complete_auto_merge(aRecord, std::unexpected(aFailure));
+			}
+		}
+		void drain_auto_merges()
+		{
+			for (;;) {
+				auto record = std::shared_ptr<auto_merge_record>{ };
+				{
+					std::scoped_lock lock{ Mutex };
+					if (AutoMergeQueue.empty()) {
+						return;
+					}
+					record = std::move(AutoMergeQueue.front());
+					AutoMergeQueue.pop_front();
+				}
+				auto result = std::expected<review_auto_merge_receipt, review_mutation_failure>{
+					std::unexpected(review_mutation_failure::cancelled)
+				};
+				if (!record->Stop.stop_requested()) {
+					try {
+						result = Coordinator.change_auto_merge(record->Request.Change, record->Request.Method, record->Stop.get_token());
+					} catch (...) {
+						result = std::unexpected(review_mutation_failure::unavailable);
+					}
+				}
+				auto self = shared_from_this();
+				DecisionLane.post([self, record, answer = std::move(result)]() mutable {
+					self->complete_auto_merge(record, std::move(answer));
+				});
+			}
+		}
+		void complete_auto_merge(
+			const std::shared_ptr<auto_merge_record>&                         aRecord,
+			std::expected<review_auto_merge_receipt, review_mutation_failure> aResult)
+		{
+			auto publish = false;
+			{
+				std::scoped_lock lock{ Mutex };
+				OutstandingAutoMerges.erase(aRecord->Context.Request.value());
+				++Statistics.Completions;
+				publish = !Closing;
+				if (publish) {
+					++Statistics.TerminalsPublished;
+					if (aResult.has_value()) {
+						++Statistics.AutoMergeChanges;
+					}
+				}
+			}
+			if (publish) {
+				try {
+					Projection.publish_auto_merge(review_auto_merge_terminal{
+						.Context = aRecord->Context,
+						.Request = aRecord->Request,
+						.Result  = std::move(aResult),
+					});
+				} catch (...) {
+				}
+			}
+		}
 		[[nodiscard]] auto publish(review_mutation_publication_request aRequest,
 								   review_mutation_execution_grant     aRequestGrant)
 			-> review_mutation_request_context
@@ -2267,6 +2486,11 @@ namespace bpr::application {
 					++Statistics.ShutdownRequestsStopped;
 				}
 			}
+			for (auto& entry : OutstandingAutoMerges) {
+				if (entry.second->Stop.request_stop()) {
+					++Statistics.ShutdownRequestsStopped;
+				}
+			}
 		}
 
 		std::unique_ptr<review_mutation_port> OwnedProvider;
@@ -2299,6 +2523,8 @@ namespace bpr::application {
 		std::map<std::uint64_t, std::shared_ptr<reviewer_record>>     OutstandingReviewers;
 		std::deque<std::shared_ptr<draft_state_record>>               DraftStateQueue;
 		std::map<std::uint64_t, std::shared_ptr<draft_state_record>>  OutstandingDraftStates;
+		std::deque<std::shared_ptr<auto_merge_record>>                AutoMergeQueue;
+		std::map<std::uint64_t, std::shared_ptr<auto_merge_record>>   OutstandingAutoMerges;
 
 		std::shared_ptr<request_record>             Active;
 		review_mutation_application_host_statistics Statistics;
@@ -2441,6 +2667,14 @@ namespace bpr::application {
 		return Implementation->change_draft_state(aRequest, std::move(aRequestGrant));
 	}
 
+	auto review_mutation_application_host::change_auto_merge(
+		review_auto_merge_publication_request aRequest,
+		review_mutation_execution_grant       aRequestGrant)
+		-> review_mutation_request_context
+	{
+		return Implementation->change_auto_merge(aRequest, std::move(aRequestGrant));
+	}
+
 	void review_mutation_application_host::cancel(
 		const review_mutation_request_context aContext) noexcept
 	{
@@ -2505,6 +2739,7 @@ namespace bpr::application {
 			&& Implementation->OutstandingDescriptions.empty()
 			&& Implementation->OutstandingCommentEdits.empty()
 			&& Implementation->OutstandingDraftStates.empty()
+			&& Implementation->OutstandingAutoMerges.empty()
 			&& Implementation->EffectQueue.empty()
 			&& !Implementation->DrainScheduled
 			&& !Implementation->RepairPending;
@@ -2519,7 +2754,8 @@ namespace bpr::application {
 			+ Implementation->OutstandingReactions.size()
 			+ Implementation->OutstandingDescriptions.size()
 			+ Implementation->OutstandingCommentEdits.size()
-			+ Implementation->OutstandingDraftStates.size();
+			+ Implementation->OutstandingDraftStates.size()
+			+ Implementation->OutstandingAutoMerges.size();
 	}
 
 	auto review_mutation_application_host::statistics() const noexcept

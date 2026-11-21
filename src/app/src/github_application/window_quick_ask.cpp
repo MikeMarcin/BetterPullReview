@@ -227,21 +227,46 @@ namespace bpr::app {
 			// one; the report stays in front. Nothing is published.
 			report->set_placeable([this](const qt::report_draft& aDraft) { return aDraft.Keep == core::report_keep::draft_comment && agent_finding_placeable(report_card_request(aDraft).Finding); });
 			report->set_draft_all_dispatch([this, report](std::vector<qt::report_draft> aDrafts, const core::draft_all_outcome& aPlanned, qt::report_draft_all_done aDone) {
-				// A batch the Agent tab never numbers, so never its to undo.
-				auto request = qt::agent_draft_all_request{ .Batch = (std::uint64_t{ 1U } << 63U) | ++ReportDraftAllBatch, .Cards = { }, .Planned = aPlanned };
-				auto keys    = std::vector<core::report_finding_key>{ };
+				// A batch the Agent tab never numbers; the report's own Undo
+				// ([[BPR-2331]]) takes it back.
+				auto       request = qt::agent_draft_all_request{ .Batch = (std::uint64_t{ 1U } << 63U) | ++ReportDraftAllBatch, .Cards = { }, .Planned = aPlanned };
+				const auto batch   = request.Batch;
+				const auto turn    = report->document().Turn;
+				auto       keys    = std::vector<core::report_finding_key>{ };
 				for (const auto& draft : aDrafts) {
 					request.Cards.push_back(report_card_request(draft));
 					keys.push_back(draft.Key);
 				}
 				draft_all_agent_cards(
 					std::move(request),
-					[aDone](const core::draft_all_outcome& aOutcome, bool) {
+					[this, aDone, batch, turn](const core::draft_all_outcome& aOutcome, const bool aUndoable) {
 						if (aDone) {
 							aDone(aOutcome);
 						}
+						if (auto* const view = !Closing && Window != nullptr ? Window->report_view() : nullptr; view != nullptr) {
+							view->offer_draft_all_undo(turn, aUndoable ? qt::report_draft_all_undo{ [this, batch](qt::report_draft_all_undo_done aUndone) { undo_draft_all(batch, std::move(aUndone)); } } : qt::report_draft_all_undo{ });
+						}
 					},
-					std::move(keys), report->document().Turn);
+					std::move(keys), turn);
+			});
+			// [[BPR-2331]]. Dismiss and its Undo, which the finding's Agent
+			// tab card offered: a card's through its card, so the card and
+			// the report keep one state; a finding no card carries under the
+			// report's own record. Nothing is made.
+			report->set_dismiss_dispatch([this, report](const qt::report_draft& aFinding, const bool aDismiss) {
+				if (Closing) {
+					return;
+				}
+				if (aFinding.Card) {
+					auto request   = report_card_request(aFinding);
+					request.Action = aDismiss ? qt::agent_finding_card_action::dismiss : qt::agent_finding_card_action::undo_dismiss;
+					act_on_agent_card(request);
+					return;
+				}
+				if (AgentFindingCards) {
+					AgentFindingCards->remember({ .Findings = aFinding.Key.Findings, .Ordinal = aFinding.Key.Ordinal, .State = aDismiss ? core::agent_finding_card_disposition::dismissed : core::agent_finding_card_disposition::open });
+				}
+				report->settle_keep(aFinding.Key);
 			});
 			// Go to draft, Go to comment: the file, at the finding's lines.
 			report->set_go_dispatch([this](const qt::report_draft& aDraft) {

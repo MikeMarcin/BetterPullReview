@@ -2,8 +2,10 @@
 /// \brief [[BPR-2286]] (owner, 2026-11-19). Ask follow-up on a finding (a
 /// report's or an Agent tab card's) and Ask about this on a thread or a draft
 /// composer: the item read from what the window holds, the follow-up host's
-/// rounds shown in the follow-up window, and Use putting the proposal in place
-/// (the finding's suggested comment, the draft's field, the thread's reply
+/// rounds shown in the item's side chat beside the report or the code
+/// ([[BPR-2322]], owner 2026-11-20: "something akin to the side chat from the
+/// tour onto the report tab"), and Use putting the proposal in place (the
+/// finding's suggested comment, the draft's field, the thread's reply
 /// composer). Nothing is posted: the reviewer publishes, as ever.
 
 #include "github_application/window_composition.hpp"
@@ -14,8 +16,8 @@
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
-#include "bpr/qt/follow_up_window.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/item_side_chat.hpp"
 
 #include <string_view>
 
@@ -102,6 +104,24 @@ namespace bpr::app {
 				open_follow_up(std::move(subject));
 			});
 		}
+		Window->item_side_chat()->set_intents({
+			.Ask     = [this](const QString& aQuestion) { ask_follow_up(aQuestion); },
+			.Propose = [this](const core::follow_up_apply aApply) { propose_follow_up(aApply); },
+			.Use     = [this](const std::uint64_t aProposal) { use_follow_up(aProposal); },
+			.Discard = [this](const std::uint64_t aProposal) { static_cast<void>(FollowUp != nullptr && FollowUp->discard(aProposal)); },
+			.Stop    = [this] {
+				if (FollowUp != nullptr) {
+					FollowUp->stop();
+				} },
+			.Closed  = [this] {
+				if (FollowUp != nullptr && !Closing) {
+					FollowUp->close();
+				} },
+			.Reveal  = [this](const core::follow_up_subject& aSubject) {
+				if (!Closing && Window != nullptr && !aSubject.Path.empty() && aSubject.First != 0U) {
+					static_cast<void>(Window->go_to_file_line(QString::fromStdString(aSubject.Path), aSubject.First, false, aSubject.Last));
+				} },
+		});
 		Window->conversation_panel()->cards()->set_ask_about_dispatch([this](const std::string& aIdentity, const QString& aText) { follow_up_conversation(aIdentity, aText); });
 	}
 
@@ -152,44 +172,35 @@ namespace bpr::app {
 		open_follow_up(std::move(subject));
 	}
 
+	/// Opens the item's side chat beside the report or the code. Asked from
+	/// the Agent tab while neither shows, the code at the item's place is
+	/// brought up so the chat stands beside it.
 	void github_application::implementation::open_follow_up(core::follow_up_subject aSubject)
 	{
 		if (Closing || Window == nullptr || FollowUp == nullptr) {
 			return;
 		}
-		if (FollowUpWindow.isNull()) {
-			FollowUpWindow = new qt::follow_up_window{ Window.get() };
-			FollowUpWindow->set_intents({
-				.Ask     = [this](const QString& aQuestion) { ask_follow_up(aQuestion); },
-				.Propose = [this](const core::follow_up_apply aApply) { propose_follow_up(aApply); },
-				.Use     = [this](const std::uint64_t aProposal) { use_follow_up(aProposal); },
-				.Discard = [this](const std::uint64_t aProposal) { static_cast<void>(FollowUp != nullptr && FollowUp->discard(aProposal)); },
-				.Stop    = [this] {
-					if (FollowUp != nullptr) {
-						FollowUp->stop();
-					} },
-				.Closed  = [this] {
-					if (FollowUp != nullptr && !Closing) {
-						FollowUp->close();
-					} },
-			});
-		}
+		auto       path  = QString::fromStdString(aSubject.Path);
+		const auto first = aSubject.First;
+		const auto last  = aSubject.Last;
 		if (!FollowUp->open(std::move(aSubject))) {
 			return;
 		}
-		FollowUpWindow->show();
-		FollowUpWindow->raise();
-		FollowUpWindow->activateWindow();
-		FollowUpWindow->question_field()->setFocus(Qt::OtherFocusReason);
+		auto* const chat = Window->item_side_chat();
+		chat->set_column_open(true);
+		if (!chat->isVisible() && !path.isEmpty() && first != 0U) {
+			static_cast<void>(Window->go_to_file_line(path, first, false, last));
+			chat->set_column_open(true);
+		}
 	}
 
 	void github_application::implementation::present_follow_up(const application::follow_up_projection& aProjection)
 	{
-		if (Closing || FollowUpWindow.isNull() || !aProjection.Open) {
+		if (Closing || Window == nullptr || !aProjection.Open) {
 			return;
 		}
 		const auto profile = writing_agent();
-		FollowUpWindow->present(*aProjection.Open, profile ? agent_display_name(*profile) : QString{ }, QString::fromStdString(aProjection.RunFailure));
+		Window->item_side_chat()->present(*aProjection.Open, profile ? agent_display_name(*profile) : QString{ }, QString::fromStdString(aProjection.RunFailure));
 	}
 
 	auto github_application::implementation::follow_up_agent() -> std::optional<application::follow_up_agent>
@@ -216,12 +227,12 @@ namespace bpr::app {
 
 	void github_application::implementation::ask_follow_up(const QString& aQuestion)
 	{
-		if (Closing || FollowUp == nullptr || FollowUpWindow.isNull()) {
+		if (Closing || FollowUp == nullptr || Window == nullptr) {
 			return;
 		}
 		auto agent = follow_up_agent();
 		if (!agent || !FollowUp->available()) {
-			FollowUpWindow->show_status(QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker in the window's footer. Nothing was sent."));
+			Window->item_side_chat()->show_status(QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker in the window's footer. Nothing was sent."));
 			return;
 		}
 		static_cast<void>(FollowUp->ask(std::move(*agent), aQuestion.toStdString()));
@@ -251,17 +262,17 @@ namespace bpr::app {
 
 	void github_application::implementation::propose_follow_up(const core::follow_up_apply aApply)
 	{
-		if (Closing || FollowUp == nullptr || FollowUpWindow.isNull() || !FollowUp->projection().Open) {
+		if (Closing || FollowUp == nullptr || Window == nullptr || !FollowUp->projection().Open) {
 			return;
 		}
 		auto agent = follow_up_agent();
 		if (!agent || !FollowUp->available()) {
-			FollowUpWindow->show_status(QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker in the window's footer. Nothing was sent."));
+			Window->item_side_chat()->show_status(QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker in the window's footer. Nothing was sent."));
 			return;
 		}
 		auto base = follow_up_target(*FollowUp->projection().Open, aApply);
 		if (!base) {
-			FollowUpWindow->show_status(QStringLiteral("Open the draft in Comments to update it. Nothing was sent."));
+			Window->item_side_chat()->show_status(QStringLiteral("Open the draft in Comments to update it. Nothing was sent."));
 			return;
 		}
 		static_cast<void>(FollowUp->propose(std::move(*agent), aApply, std::move(*base)));
@@ -269,13 +280,13 @@ namespace bpr::app {
 
 	void github_application::implementation::use_follow_up(const std::uint64_t aProposal)
 	{
-		if (Closing || FollowUp == nullptr || FollowUpWindow.isNull() || !FollowUp->projection().Open || !FollowUp->projection().Open->Proposal) {
+		if (Closing || FollowUp == nullptr || Window == nullptr || !FollowUp->projection().Open || !FollowUp->projection().Open->Proposal) {
 			return;
 		}
 		const auto apply   = FollowUp->projection().Open->Proposal->Apply;
 		const auto current = follow_up_target(*FollowUp->projection().Open, apply);
 		if (!current) {
-			FollowUpWindow->show_status(QStringLiteral("Open the draft in Comments to update it. Nothing was replaced."));
+			Window->item_side_chat()->show_status(QStringLiteral("Open the draft in Comments to update it. Nothing was replaced."));
 			return;
 		}
 		const auto base    = FollowUp->projection().Open->Proposal->Base;
@@ -293,23 +304,23 @@ namespace bpr::app {
 			if (auto* const report = Window->report_view(); report != nullptr) {
 				report->refresh_keeps();
 			}
-			FollowUpWindow->show_status(QStringLiteral("Suggested comment updated. Draft comment drafts it from now on; nothing is posted."));
+			Window->item_side_chat()->show_status(QStringLiteral("Suggested comment updated. Draft comment drafts it from now on; nothing is posted."));
 			return;
 		}
 		case core::follow_up_apply::update_draft:
 			if (Window->conversation_panel()->cards()->replace_field_text(decided.Key, QString::fromStdString(base), text)) {
-				FollowUpWindow->show_status(QStringLiteral("Draft updated. Undo in the comment takes it back; nothing is posted."));
+				Window->item_side_chat()->show_status(QStringLiteral("Draft updated. Undo in the comment takes it back; nothing is posted."));
 			} else {
-				FollowUpWindow->show_status(QStringLiteral("The draft cannot be edited now, so nothing was replaced."));
+				Window->item_side_chat()->show_status(QStringLiteral("The draft cannot be edited now, so nothing was replaced."));
 			}
 			return;
 		case core::follow_up_apply::draft_reply:
 			Window->draft_thread_reply(decided.Key, text, [this, alive = std::weak_ptr<const int>{ WindowLifetime }](const bool aWritten) {
-				if (alive.expired() || Closing || FollowUpWindow.isNull()) {
+				if (alive.expired() || Closing || Window == nullptr) {
 					return;
 				}
-				FollowUpWindow->show_status(aWritten ? QStringLiteral("The reply is in the conversation's reply composer. Nothing is posted until you publish it.")
-													 : QStringLiteral("The reply composer did not open; the words are on the clipboard."));
+				Window->item_side_chat()->show_status(aWritten ? QStringLiteral("The reply is in the conversation's reply composer. Nothing is posted until you publish it.")
+															   : QStringLiteral("The reply composer did not open; the words are on the clipboard."));
 			});
 			return;
 		}

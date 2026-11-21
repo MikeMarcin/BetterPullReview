@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2338"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "report jump-to lands the target below the pane's top with a margin",
+  "created": "2026-11-20T23:02:51.296030+00:00",
+  "base": "c27fe51fe3702adbb8ae5ab7821dda24cf153f35"
+}

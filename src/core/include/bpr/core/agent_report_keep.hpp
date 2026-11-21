@@ -71,6 +71,7 @@ namespace bpr::core {
 	[[nodiscard]] auto report_finding_standing_of(agent_finding_card_disposition aKept) noexcept -> report_finding_standing;
 	/// \brief The record a finished keep action leaves: Draft comment drafts,
 	/// Keep local keeps a Local comment (with its note), a refusal says why.
+	/// [[BPR-2325]]: a draft keeps the review draft it made, as `aNote`.
 	[[nodiscard]] auto report_keep_record(const report_finding_key& aKey, report_keep aKeep, bool aMade, std::string aWhy = { }, std::uint64_t aNote = 0U) -> agent_finding_card_record;
 
 	/// \brief One finding as Draft all from the report reads it.

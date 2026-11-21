@@ -249,8 +249,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto consequence_label() const noexcept -> QLabel*;
 		/// \brief RFC-BPR-0015's GitHub CLI offer; null unless the host has a GitHub CLI profile.
 		[[nodiscard]] auto cli_offer_button() const noexcept -> QPushButton*;
-		/// \brief RFC-BPR-0015's configured-CLI trust warning; null unless the host has a GitHub CLI profile.
+		/// \brief RFC-BPR-0015's configured-CLI trust line, one short sentence; null unless the host has a GitHub CLI profile.
 		[[nodiscard]] auto cli_trust_warning() const noexcept -> QLabel*;
+		/// \brief The info glyph beside the trust line that holds RFC-BPR-0015's full trust disclosure ([[BPR-2319]]); null with it.
+		[[nodiscard]] auto cli_trust_details() const noexcept -> info_glyph*;
 		[[nodiscard]] auto sign_in_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto sign_out_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto connect_button() const noexcept -> QPushButton*;
@@ -289,6 +291,7 @@ namespace bpr::qt {
 		void apply_rows();
 		void apply_cli_accounts();
 		void refresh_native_appearance();
+		void fit_label_column();
 
 		std::vector<application::github_profile_option> Options;
 		server_card_gestures                            Gestures;
@@ -308,6 +311,7 @@ namespace bpr::qt {
 		device_authorization_panel* DevicePanel      = nullptr;
 		QPushButton*                CliOfferButton   = nullptr;
 		QLabel*                     CliTrustWarning  = nullptr;
+		info_glyph*                 CliTrustDetails  = nullptr;
 		QPushButton*                SignInButton     = nullptr;
 		QPushButton*                SignOutButton    = nullptr;
 		QPushButton*                ConnectButton    = nullptr;
@@ -319,6 +323,10 @@ namespace bpr::qt {
 		QWidget*                    RateLimitRow     = nullptr;
 		QWidget*                    DetailsRow       = nullptr;
 		std::array<QFrame*, 4>      RowHairlines{ };
+		/// [[BPR-2332]]. Access, Rate limit and Details: one label column,
+		/// as wide as the widest of the three.
+		std::array<QGridLayout*, 3> LabelGrids{ };
+		std::array<QWidget*, 3>     LabelCells{ };
 		QWidget*                    RememberRow    = nullptr;
 		QWidget*                    ForgetRow      = nullptr;
 		QCheckBox*                  RememberSwitch = nullptr;

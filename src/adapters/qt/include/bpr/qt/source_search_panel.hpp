@@ -130,6 +130,12 @@ namespace bpr::qt {
 		void               copy_selected() const;
 		/// The rows Copy and Copy Path read: the selection, else the current row.
 		[[nodiscard]] auto chosen_rows() const -> QModelIndexList;
+		/// [[BPR-2334]]. The rows a row's menu acts on: the selection when
+		/// `aRow` is in it, else `aRow` alone, as a right-click leaves the
+		/// selection where it was.
+		[[nodiscard]] auto menu_rows(const QModelIndex& aRow) const -> QModelIndexList;
+		/// `aRows` as Copy writes them.
+		[[nodiscard]] auto text_of(const QModelIndexList& aRows) const -> QString;
 	};
 }
 #endif

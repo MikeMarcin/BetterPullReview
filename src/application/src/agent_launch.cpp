@@ -4685,6 +4685,14 @@ namespace bpr::application {
 				Failed = true;
 				return std::unexpected(decoded.error());
 			}
+			// [[BPR-2320]]. The first line read past is kept for a run that
+			// then fails: a program's plain text names what it is.
+			if (Protocol == core::agent_protocol::claude_stream_json && SkippedLine.empty()) {
+				const auto start = frame.find_first_not_of(" \t\r");
+				if (start != std::string::npos && frame[start] != '{') {
+					SkippedLine = frame.substr(start, std::min(frame.size() - start, maximum_agent_rejected_line_bytes));
+				}
+			}
 			if (Protocol == core::agent_protocol::external_terminal) {
 				for (auto& event : *decoded) {
 					if (event.Kind == agent_protocol_event_kind::output) {
@@ -4925,7 +4933,41 @@ namespace bpr::application {
 		request.Environment = materialize_agent_environment(aProfile, aParent);
 		request.Path        = core::agent_run_path::agent_check;
 		request.Profile     = aProfile.Id;
+		// [[BPR-2320]]. Not a review: an empty folder of its own, made for
+		// the run and removed after it, as the agent's own check runs. With
+		// no folder the process launcher refuses it before it starts.
+		request.WritingOnly = true;
 		return request;
+	}
+
+	auto names_agent_folder(const agent_launch_request& aRequest) noexcept -> bool { return aRequest.WritingOnly || !aRequest.WorkingDirectory.empty(); }
+
+	auto build_claude_stream_probe(const core::agent_profile& aProfile, std::string aExecutable, const std::span<const std::string> aLeading, const environment_reader& aParent,
+								   const agent_run_checks aChecks) -> agent_launch_request
+	{
+		auto request       = agent_launch_request{ };
+		request.Protocol   = core::agent_protocol::claude_stream_json;
+		request.Session    = core::agent_session_id{ 1U };
+		request.Executable = std::move(aExecutable);
+		request.Arguments.assign(aLeading.begin(), aLeading.end());
+		request.Arguments.emplace_back("-p");
+		request.Arguments.insert(request.Arguments.end(), claude_writing_restrictions.begin(), claude_writing_restrictions.end());
+		request.Arguments.insert(request.Arguments.end(), { "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" });
+		// The question holds nothing JSON escapes.
+		request.Input       = std::string{ R"({"type":"user","message":{"role":"user","content":[{"type":"text","text":")" } + std::string{ claude_stream_probe_question } + "\"}]}}\n";
+		request.Environment = materialize_agent_environment(aProfile, aParent);
+		request.Environment.emplace_back(claude_writing_environment.first, claude_writing_environment.second);
+		request.Path        = core::agent_run_path::agent_check;
+		request.Profile     = aProfile.Id;
+		request.RunChecks   = aChecks;
+		request.WritingOnly = true;
+		return request;
+	}
+
+	auto claude_stream_answered(const agent_run_result& aResult) -> bool
+	{
+		return aResult.Outcome == agent_run_outcome::success
+			&& std::ranges::any_of(aResult.Metadata.ProtocolReported, [](const core::agent_reported_facts& aFacts) { return aFacts.Basis.starts_with("claude_stream_json.system/init"); });
 	}
 
 	auto codex_instructions_followed(const agent_run_result& aResult) -> bool

@@ -1349,6 +1349,194 @@ namespace bpr::app {
 		present_overview_draft_state();
 	}
 
+	auto github_application::implementation::projected_auto_merge(const application::github_pull_request_snapshot& aSnapshot) const -> std::optional<core::projected_auto_merge>
+	{
+		if (!AutoMergeOverlay.held() || AutoMergeOverlayPullRequest != std::optional{ reviewer_overlay_key(aSnapshot) }) {
+			return std::nullopt;
+		}
+		return core::project_auto_merge(aSnapshot.Merge.AutoMerge.value_or(false), AutoMergeOverlay);
+	}
+
+	auto github_application::implementation::auto_merge_control() const -> bool
+	{
+		return ReviewMutationHost != nullptr && ReviewMutationHost->capabilities().ChangesAutoMerge;
+	}
+
+	/// \brief [[BPR-2329]]. A new accepted read reconciles the viewer's
+	/// auto-merge change with GitHub's; another pull request drops it.
+	void github_application::implementation::observe_auto_merge_change()
+	{
+		if (!WindowRead || !WindowRead->accepted_snapshot() || !AutoMergeOverlayPullRequest) {
+			return;
+		}
+		const auto& snapshot = *WindowRead->accepted_snapshot();
+		if (reviewer_overlay_key(snapshot) != *AutoMergeOverlayPullRequest) {
+			AutoMergeOverlay = { };
+			AutoMergeOverlayPullRequest.reset();
+			return;
+		}
+		core::observe_auto_merge(AutoMergeOverlay, snapshot.Merge.AutoMerge.value_or(false));
+	}
+
+	/// \brief [[BPR-2329]]. A change asked, answered or withdrawn moves
+	/// Merge's auto-merge line and buttons in place; nothing is read.
+	void github_application::implementation::present_overview_auto_merge()
+	{
+		if (Closing || Window == nullptr || !WindowRead || !WindowRead->accepted_snapshot()) {
+			return;
+		}
+		const auto& snapshot = *WindowRead->accepted_snapshot();
+		if (!PublishedOverview || OverviewResolutionsSnapshot != std::optional{ snapshot.Snapshot }) {
+			return;
+		}
+		if (application::apply_auto_merge_state(*PublishedOverview, snapshot, projected_auto_merge(snapshot), auto_merge_control())) {
+			Window->publish_auto_merge(*PublishedOverview);
+		}
+	}
+
+	/// \brief [[BPR-2329]]. Enable auto-merge (with a method) or Disable, from
+	/// Merge: the core decides on the gesture from the accepted read, the
+	/// window shows the change at once, and the host writes it once under a
+	/// one-shot grant after GitHub, asked first, says it still applies.
+	void github_application::implementation::change_auto_merge(const core::auto_merge_change aChange, const std::optional<core::merge_method> aMethod)
+	{
+		auto* const page = Window != nullptr ? Window->overview_page() : nullptr;
+		if (Closing || page == nullptr) {
+			return;
+		}
+		++AutoMergeGestures;
+		if (!WindowRead || !WindowRead->accepted_snapshot() || !WindowRead->accepted_snapshot()->Merge.AutoMergeSettings) {
+			++AutoMergeRefusals;
+			page->present_auto_merge_status(QStringLiteral("The pull request is still loading. Try again when it has."));
+			return;
+		}
+		const auto& snapshot = *WindowRead->accepted_snapshot();
+		const auto& settings = *snapshot.Merge.AutoMergeSettings;
+		const auto  read     = snapshot.Merge.AutoMerge.value_or(false);
+		const auto  shown    = projected_auto_merge(snapshot).value_or(core::projected_auto_merge{ .Enabled = read });
+		const auto  facts    = core::auto_merge_facts{
+			.Open             = snapshot.PullRequest.State == application::github_pull_request_state::open,
+			.Allowed          = settings.Allowed,
+			.Enabled          = shown.Enabled,
+			.ViewerCanEnable  = settings.ViewerCanEnable || (read && !shown.Enabled),
+			.ViewerCanDisable = settings.ViewerCanDisable || (!read && shown.Enabled),
+			.Methods          = { .Merge = settings.MergeCommit, .Squash = settings.Squash, .Rebase = settings.Rebase },
+		};
+		const auto refusal = core::decide_auto_merge_change(facts, aChange, aMethod);
+		const auto enable  = aChange == core::auto_merge_change::enable;
+		switch (refusal) {
+		case core::auto_merge_refusal::not_open:
+			++AutoMergeRefusals;
+			page->present_auto_merge_status(QStringLiteral("This pull request is closed, so auto-merge cannot change."));
+			return;
+		case core::auto_merge_refusal::not_allowed:
+			++AutoMergeRefusals;
+			page->present_auto_merge_status(QStringLiteral("This repository does not allow auto-merge. A repository admin can turn it on in GitHub's settings."));
+			return;
+		case core::auto_merge_refusal::already:
+			++AutoMergeRefusals;
+			page->present_auto_merge_status(enable ? QStringLiteral("Auto-merge is already enabled.") : QStringLiteral("Auto-merge is already off."));
+			return;
+		case core::auto_merge_refusal::not_permitted:
+			++AutoMergeRefusals;
+			page->present_auto_merge_status(enable ? QStringLiteral("GitHub does not let you enable auto-merge on this pull request.") : QStringLiteral("GitHub does not let you disable auto-merge on this pull request."));
+			return;
+		case core::auto_merge_refusal::method_not_allowed:
+			++AutoMergeRefusals;
+			page->present_auto_merge_status(QStringLiteral("This repository does not allow that merge method. Choose another."));
+			return;
+		case core::auto_merge_refusal::none:
+			break;
+		}
+		if (!auto_merge_control()) {
+			++AutoMergeRefusals;
+			page->present_auto_merge_status(QStringLiteral("This connection cannot change auto-merge."));
+			return;
+		}
+		if (PendingAutoMerge.has_value()) {
+			page->present_auto_merge_status(QStringLiteral("Waiting for GitHub to answer the last change."), true);
+			return;
+		}
+		auto request = application::review_auto_merge_publication_request{ .Change = aChange, .Method = enable ? aMethod : std::nullopt };
+		auto grant   = review_mutation_gesture_grant(
+			std::nullopt,
+			[&request](const core::application_session_id           aSession,
+					   const core::request_generation               aGeneration,
+					   application::review_mutation_target_binding  aTarget,
+					   application::review_mutation_acting_identity aActor) {
+				return application::detail::review_mutation_user_authority_issuer::issue_auto_merge(
+					aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
+			});
+		AutoMergeOverlayPullRequest = reviewer_overlay_key(snapshot);
+		core::begin_auto_merge_change(AutoMergeOverlay, ++AutoMergeRequests, aChange, request.Method);
+		PendingAutoMerge = pending_auto_merge{ .Request = AutoMergeRequests, .Change = aChange };
+		page->present_auto_merge_status(QString{ }, true);
+		present_overview_auto_merge();
+		PendingAutoMerge->Context = ReviewMutationHost->change_auto_merge(request, std::move(grant));
+	}
+
+	void github_application::implementation::publish_auto_merge(const application::review_auto_merge_terminal& aTerminal)
+	{
+		if (Closing || Window == nullptr || !PendingAutoMerge.has_value() || PendingAutoMerge->Context != aTerminal.Context) {
+			return;
+		}
+		const auto request = PendingAutoMerge->Request;
+		PendingAutoMerge.reset();
+		auto* const page   = Window->overview_page();
+		const auto  enable = aTerminal.Request.Change == core::auto_merge_change::enable;
+		if (!aTerminal.Result.has_value()) {
+			++AutoMergeFailures;
+			core::abandon_auto_merge_change(AutoMergeOverlay, request);
+			auto words = QString{ };
+			switch (aTerminal.Result.error()) {
+			case application::review_mutation_failure::refused_by_server:
+				words = enable ? QStringLiteral("GitHub did not let you enable auto-merge. Nothing changed. GitHub refuses it on a pull request that can already be merged, or when the repository or your permission does not allow it.")
+							   : QStringLiteral("GitHub did not let you disable auto-merge. Nothing changed.");
+				break;
+			case application::review_mutation_failure::not_confirmed:
+				words = QStringLiteral("GitHub does not show the change; it was not sent twice. Check the pull request, then try again.");
+				break;
+			case application::review_mutation_failure::target_moved:
+			case application::review_mutation_failure::undesignated_target:
+			case application::review_mutation_failure::target_unavailable:
+				words = QStringLiteral("The pull request changed on GitHub, so nothing was sent. Refresh and try again.");
+				break;
+			case application::review_mutation_failure::cancelled:
+				words = QStringLiteral("The change was stopped. Nothing more is sent.");
+				break;
+			default:
+				words = QStringLiteral("The connection could not change auto-merge (%1). Try again.").arg(QString::fromUtf8(application::name(aTerminal.Result.error())));
+				break;
+			}
+			if (page != nullptr) {
+				page->present_auto_merge_status(words);
+			}
+			present_overview_auto_merge();
+			return;
+		}
+		++AutoMergeCompletions;
+		core::settle_auto_merge_change(AutoMergeOverlay, request, aTerminal.Result->Enabled);
+		if (page != nullptr) {
+			page->present_auto_merge_status(aTerminal.Result->Enabled == enable ? QString{ } : QStringLiteral("GitHub still shows auto-merge as it was. Nothing changed."));
+		}
+		present_overview_auto_merge();
+	}
+
+	/// \brief [[BPR-2329]]. A retired host answers nothing more: a change
+	/// still waiting is withdrawn and said to have gone unanswered.
+	void github_application::implementation::retire_auto_merge_change()
+	{
+		if (!PendingAutoMerge.has_value()) {
+			return;
+		}
+		core::abandon_auto_merge_change(AutoMergeOverlay, PendingAutoMerge->Request);
+		PendingAutoMerge.reset();
+		if (Window != nullptr && Window->overview_page() != nullptr) {
+			Window->overview_page()->present_auto_merge_status(QStringLiteral("The connection closed before GitHub answered. Check the pull request, then try again."));
+		}
+		present_overview_auto_merge();
+	}
+
 	void github_application::implementation::publish_reviewers(const application::review_reviewer_terminal& aTerminal)
 	{
 		if (Closing || Window == nullptr) {

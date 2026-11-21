@@ -3,6 +3,7 @@
 #include "bpr/core/agent_draft_all.hpp"
 #include "bpr/core/agent_report.hpp"
 #include "bpr/core/agent_report_keep.hpp"
+#include "bpr/core/review_preparation.hpp"
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "markdown_document.hpp"
@@ -129,6 +130,26 @@ namespace bpr::qt {
 		constexpr int kind_conversation = 2;
 		constexpr int kind_source       = 3;
 		constexpr int kind_copy         = 4;
+
+		/// [[BPR-2338]]. Where the item a heading block heads starts, in
+		/// `aView`'s viewport: the border of the outermost box the block is
+		/// in (its bounding rect starts there, under its margin) (a finding's box, whose label and place stand above its
+		/// heading; a section's rule), else the block's own line.
+		[[nodiscard]] auto item_top(const QTextEdit& aView, const QTextBlock& aBlock) -> int
+		{
+			const auto  line = aView.cursorRect(QTextCursor{ aBlock }).top();
+			auto* const root = aView.document()->rootFrame();
+			auto*       box  = QTextCursor{ aBlock }.currentFrame();
+			while (box != nullptr && box != root && box->parentFrame() != root) {
+				box = box->parentFrame();
+			}
+			if (box == nullptr || box == root) {
+				return line;
+			}
+			const auto drawn = aView.document()->documentLayout()->frameBoundingRect(box);
+			const auto top   = static_cast<int>(std::floor(drawn.top())) - aView.verticalScrollBar()->value();
+			return std::min(line, top);
+		}
 
 		[[nodiscard]] auto menu_glyph(const QColor& aInk) -> QIcon
 		{
@@ -733,7 +754,17 @@ namespace bpr::qt {
 			actions.DraftAll     = draft_all_offered();
 			actions.DraftAllBusy = DraftAllBusy[Document.Turn];
 			actions.DraftAllSaid = draft_all_said();
-			actions.Link         = [this](const std::uint32_t aOutline, const report_link aLink) {
+			// [[BPR-2331]]. What the Agent tab's cards offered and showed.
+			actions.DraftAllUndo = DraftAllUndo.contains(Document.Turn);
+			actions.Dismiss      = static_cast<bool>(DismissDispatch);
+			for (const auto& finding : Findings) {
+				if (finding.Card && *finding.Card < Document.Cards.size()) {
+					if (const auto& comment = Document.Cards[*finding.Card].Finding.SuggestedComment; comment && !core::writing_blank(*comment)) {
+						actions.Suggested[finding.Outline] = QString::fromStdString(*comment);
+					}
+				}
+			}
+			actions.Link = [this](const std::uint32_t aOutline, const report_link aLink) {
 				auto token = QStringLiteral("report-action-%1%2").arg(QRandomGenerator::global()->generate64(), 16, 16, QLatin1Char{ '0' }).arg(QRandomGenerator::global()->generate64(), 16, 16, QLatin1Char{ '0' });
 				ActionLinks.emplace(token, std::pair{ aOutline, aLink });
 				return token;
@@ -886,11 +917,16 @@ namespace bpr::qt {
 		}
 		const auto record = KeepRecords(keep_key(aOutline));
 		switch (core::report_finding_standing_of(record.State)) {
-		case core::report_finding_standing::drafted:
+		case core::report_finding_standing::drafted: {
+			// [[BPR-2331]]. What its draft said of its lines, if anything.
+			const auto key  = keep_key(aOutline);
+			const auto said = std::ranges::find_if(DraftedSaid, [&key](const auto& aSaid) { return aSaid.first.Findings == key.Findings && aSaid.first.Ordinal == key.Ordinal; });
+			return { .Phase = report_keep_phase::kept, .Why = said == DraftedSaid.end() ? QString{ } : said->second };
+		}
 		case core::report_finding_standing::kept_local: return { .Phase = report_keep_phase::kept };
 		case core::report_finding_standing::refused:    return { .Phase = report_keep_phase::refused, .Why = QString::fromStdString(record.Why) };
-		case core::report_finding_standing::open:
-		case core::report_finding_standing::dismissed:  return { };
+		case core::report_finding_standing::dismissed:  return { .Phase = report_keep_phase::dismissed };
+		case core::report_finding_standing::open:       return { };
 		}
 		return { };
 	}
@@ -1114,6 +1150,61 @@ namespace bpr::qt {
 		}
 	}
 
+	void agent_report_view::set_dismiss_dispatch(report_dismiss_dispatch aDispatch)
+	{
+		DismissDispatch = std::move(aDispatch);
+		if (Scroll != nullptr && Dressed != nullptr) {
+			render_dressed();
+		}
+	}
+
+	void agent_report_view::offer_draft_all_undo(const std::uint64_t aTurn, report_draft_all_undo aUndo)
+	{
+		if (aUndo) {
+			DraftAllUndo[aTurn] = std::move(aUndo);
+		} else {
+			DraftAllUndo.erase(aTurn);
+		}
+		if (Document.Turn == aTurn) {
+			render_dressed();
+		}
+	}
+
+	auto agent_report_view::undo_draft_all() -> bool
+	{
+		const auto turn  = Document.Turn;
+		const auto found = DraftAllUndo.find(turn);
+		if (found == DraftAllUndo.end() || DraftAllBusy[turn]) {
+			return false;
+		}
+		auto undo = std::move(found->second);
+		DraftAllUndo.erase(found);
+		DraftAllBusy[turn] = true;
+		DraftAllSaid[turn] = tr("Removing the drafts\u2026");
+		render_dressed();
+		undo([this, turn, alive = QPointer<agent_report_view>{ this }](const std::size_t aRemoved, const std::size_t aKept) {
+			if (alive.isNull()) {
+				return;
+			}
+			const auto counted = [](const std::size_t aCount) { return aCount == 1U ? tr("1 draft") : tr("%1 drafts").arg(aCount); };
+			const auto removed = aRemoved == 0U ? tr("Nothing removed.") : tr("Removed %1.").arg(counted(aRemoved));
+			DraftAllBusy[turn] = false;
+			DraftAllSaid[turn] = aKept == 0U ? removed : removed + QLatin1Char{ ' ' } + tr("Kept %1 you changed since.").arg(counted(aKept));
+			if (Document.Turn == turn) {
+				render_dressed();
+			}
+		});
+		return true;
+	}
+
+	void agent_report_view::say_drafted(const core::report_finding_key& aKey, const QString& aSaid)
+	{
+		std::erase_if(DraftedSaid, [&aKey](const auto& aEntry) { return aEntry.first.Findings == aKey.Findings && aEntry.first.Ordinal == aKey.Ordinal; });
+		if (!aSaid.isEmpty()) {
+			DraftedSaid.emplace_back(aKey, aSaid);
+		}
+	}
+
 	auto agent_report_view::press(const std::uint32_t aOutline, const report_link aLink) -> bool
 	{
 		const auto request = keep_request(aOutline);
@@ -1128,6 +1219,22 @@ namespace bpr::qt {
 			return true;
 		}
 		const auto state = keep_state(aOutline);
+		// [[BPR-2331]]. Dismiss where its keep action is offered; Undo where
+		// it was dismissed.
+		if (aLink == report_link::dismiss || aLink == report_link::undo_dismiss) {
+			const auto dismissing = aLink == report_link::dismiss;
+			const auto offered    = dismissing ? state.Phase == report_keep_phase::offered || state.Phase == report_keep_phase::refused : state.Phase == report_keep_phase::dismissed;
+			if (aOutline == 0U || !DismissDispatch || !offered) {
+				return false;
+			}
+			if (!KeepRecords) {
+				Keeps[Document.Turn][aOutline] = dismissing ? report_keep_state{ .Phase = report_keep_phase::dismissed } : report_keep_state{ };
+			}
+			DismissDispatch(*request, dismissing);
+			render_dressed();
+			announce(dismissing ? tr("Dismissed. Undo takes it back.") : tr("No longer dismissed."));
+			return true;
+		}
 		if (aLink == report_link::go) {
 			if (state.Phase != report_keep_phase::kept || !GoDispatch) {
 				return false;
@@ -1135,7 +1242,7 @@ namespace bpr::qt {
 			GoDispatch(*request);
 			return true;
 		}
-		if (state.Phase == report_keep_phase::working || state.Phase == report_keep_phase::kept || !DraftDispatch) {
+		if (state.Phase == report_keep_phase::working || state.Phase == report_keep_phase::kept || state.Phase == report_keep_phase::dismissed || !DraftDispatch) {
 			return false;
 		}
 		const auto turn       = Document.Turn;
@@ -1222,6 +1329,10 @@ namespace bpr::qt {
 			static_cast<void>(press_draft_all());
 			return;
 		}
+		if (link == report_link::undo_draft_all) {
+			static_cast<void>(undo_draft_all());
+			return;
+		}
 		static_cast<void>(press(outline, link));
 	}
 
@@ -1265,8 +1376,16 @@ namespace bpr::qt {
 			}
 			return view->mapTo(Scroll->widget(), view->cursorRect(found).topLeft()).y();
 		}
-		auto cursor = QTextCursor{ block };
-		return view->mapTo(Scroll->widget(), view->cursorRect(cursor).topLeft()).y();
+		// [[BPR-2338]] (owner, 2026-11-20: "the thing we're jumping to is cut
+		// off by the tab header"). The heading is not the item's top: a
+		// finding's label line stands above it in its box.
+		return view->mapTo(Scroll->widget(), QPoint{ 0, item_top(*view, block) }).y();
+	}
+
+	auto agent_report_view::jump_margin() const -> int
+	{
+		const auto* const view = shown_text();
+		return (view != nullptr ? view->fontMetrics() : fontMetrics()).lineSpacing();
 	}
 
 	void agent_report_view::go_to_heading(const int aIndex)
@@ -1280,33 +1399,33 @@ namespace bpr::qt {
 			QEvent request{ QEvent::LayoutRequest };
 			QCoreApplication::sendEvent(Scroll, &request);
 		};
-		settle();
-		const auto offset = heading_offset(aIndex);
-		if (offset < 0) {
-			return;
-		}
-		auto* const bar    = Scroll->verticalScrollBar();
-		auto        wanted = aIndex == 0 ? 0 : std::max(0, offset - 8);
-		// Look ask-v008: a report that fits the pane (or a last section
-		// shorter than it) cannot scroll its heading to the top; the room
-		// under it is made first.
-		for (auto pass = 0; pass < 2 && wanted > bar->maximum(); ++pass) {
-			// The page is as tall as its least height or the pane, so the
-			// least height is what the room is added to.
-			const auto least = Scroll->widget()->minimumSizeHint().height();
-			Tail->setFixedHeight(Tail->height() + std::max(0, wanted + Scroll->viewport()->height() - least));
+		auto* const bar = Scroll->verticalScrollBar();
+		// [[BPR-2338]]. Measuring a freshly drawn page lays it out further
+		// (the page's height follows its text, and what stands above it
+		// moves), so the item is aimed at again until it holds still where
+		// it was aimed.
+		for (auto pass = 0; pass < 4; ++pass) {
 			settle();
-			// [[BPR-2215]]. Laid out with the room, the heading can sit lower
-			// than before (19 px in Ubuntu's offscreen ask report course):
-			// scrolled to its old place it stopped short, and the section
-			// read as the one before. Its place is measured again.
-			const auto moved = heading_offset(aIndex);
-			if (moved < 0) {
+			const auto offset = heading_offset(aIndex);
+			if (offset < 0) {
 				return;
 			}
-			wanted = std::max(0, moved - 8);
+			const auto wanted = aIndex == 0 ? 0 : std::max(0, offset - jump_margin());
+			// Look ask-v008: a report that fits the pane (or a last section
+			// shorter than it) cannot scroll its heading to the top; the
+			// room under it is made first.
+			if (wanted > bar->maximum()) {
+				// The page is as tall as its least height or the pane, so
+				// the least height is what the room is added to.
+				const auto least = Scroll->widget()->minimumSizeHint().height();
+				Tail->setFixedHeight(Tail->height() + std::max(0, wanted + Scroll->viewport()->height() - least));
+				settle();
+			}
+			bar->setValue(wanted);
+			if (heading_offset(aIndex) == offset && bar->value() == wanted) {
+				return;
+			}
 		}
-		bar->setValue(wanted);
 	}
 
 	auto agent_report_view::section_top(const int aIndex) const -> int
@@ -1318,6 +1437,7 @@ namespace bpr::qt {
 	auto agent_report_view::current_section() const -> int
 	{
 		const auto top     = Scroll->verticalScrollBar()->value();
+		const auto margin  = jump_margin();
 		const auto atEnd   = Scroll->verticalScrollBar()->value() >= Scroll->verticalScrollBar()->maximum() && Scroll->verticalScrollBar()->maximum() > 0;
 		auto       current = 0;
 		for (auto index = 1; static_cast<std::size_t>(index) <= Headings.size(); ++index) {
@@ -1327,7 +1447,7 @@ namespace bpr::qt {
 			}
 			// At the end, where the last headings cannot reach the top, the
 			// last heading on screen.
-			if (offset - 8 <= top || (atEnd && offset < top + Scroll->viewport()->height())) {
+			if (offset - margin <= top || (atEnd && offset < top + Scroll->viewport()->height())) {
 				current = index;
 			}
 		}

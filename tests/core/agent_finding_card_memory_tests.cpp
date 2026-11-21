@@ -2,6 +2,7 @@
 // card of a stored answer, kept by its block's digest and its place.
 
 #include "bpr/core/agent_finding_card_memory.hpp"
+#include "bpr/core/agent_report_keep.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -56,6 +57,34 @@ namespace {
 		auto drafted = card({ }, 0U, agent_finding_card_disposition::drafted);
 		drafted.Why  = "stale";
 		expect(normalized(drafted).Why.empty(), "only a refusal keeps a reason");
+		// [[BPR-2325]]. A drafted card keeps the draft it made; a dismissed
+		// one keeps nothing.
+		drafted.Note = 11U;
+		expect(normalized(drafted).Note == 11U, "a drafted card keeps its draft");
+		auto dismissed = card({ }, 0U, agent_finding_card_disposition::dismissed);
+		dismissed.Note = 11U;
+		expect(normalized(dismissed).Note == 0U, "a dismissed card keeps nothing it made");
+	}
+
+	/// [[BPR-2325]]. The cards a deleted draft had made.
+	void test_drafted_as()
+	{
+		const auto block  = digest_agent_findings("block");
+		auto       memory = agent_finding_card_memory{ };
+		auto       one    = card(block, 0U, agent_finding_card_disposition::drafted);
+		one.Note          = 5U;
+		auto other        = card(block, 1U, agent_finding_card_disposition::drafted);
+		other.Note        = 6U;
+		auto noted        = card(block, 2U, agent_finding_card_disposition::noted);
+		noted.Note        = 5U;
+		static_cast<void>(memory.remember(one));
+		static_cast<void>(memory.remember(other));
+		static_cast<void>(memory.remember(noted));
+		static_cast<void>(memory.remember(card(block, 3U, agent_finding_card_disposition::drafted)));
+		const auto found = memory.drafted_as(5U);
+		expect(found.size() == 1U && found.front().Ordinal == 0U, "only the card drafted as that draft, not a note with the same number");
+		expect(memory.drafted_as(0U).empty(), "a card drafted before drafts were kept is never one");
+		expect(report_keep_record({ .Findings = block, .Ordinal = 4U }, report_keep::draft_comment, true, { }, 9U).Note == 9U, "a report's Draft comment keeps its draft");
 	}
 
 	void test_adopt_keeps_newer_and_bounds()
@@ -84,6 +113,7 @@ auto main() -> int
 	test_digest_and_session();
 	test_remember_recall_and_forget();
 	test_normalized();
+	test_drafted_as();
 	test_adopt_keeps_newer_and_bounds();
 	std::cout << "agent-finding-card-memory:pass\n";
 	return EXIT_SUCCESS;

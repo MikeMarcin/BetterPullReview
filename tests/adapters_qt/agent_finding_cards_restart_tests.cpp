@@ -21,6 +21,7 @@
 #include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_finding_card_memory.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
@@ -277,7 +278,8 @@ namespace {
 			agent->turn_cards(0U)[1]->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->click();
 			settle();
 			expect(asked.size() == 1U && asked.back().Ordinal == 1U, "Add as draft comment asks the host for the second finding");
-			agent->present_finding_card_state(asked.back().Session, asked.back().Ordinal, qt::agent_finding_card_state::drafted);
+			// [[BPR-2325]]. With the draft it made.
+			agent->present_finding_card_state(asked.back().Session, asked.back().Ordinal, qt::agent_finding_card_state::drafted, { }, 42U);
 			settle();
 			expect_cards(*agent, 3U, 1U, 0U, "once one is added");
 			expect(keeping.Host->memory().size() == 1U, "the drafted card is kept, and nothing else");
@@ -300,6 +302,7 @@ namespace {
 				std::cerr << "finding-cards-restart: loaded=" << keeping.Host->is_loaded() << " kept=" << keeping.Host->memory().size() << " root=" << path.string() << '\n';
 			}
 			expect(keeping.Host->is_loaded() && keeping.Host->memory().size() == 1U, "the fresh host reads the one kept card back");
+			expect(keeping.cards(answer).size() == 4U && keeping.cards(answer)[1].Note == 42U, "a drafted card comes back with the draft it made");
 			agent->present_thread(native_thread(answer, keeping.cards(answer)));
 			settle();
 			expect(agent->turn_count() == 1U && agent->turn_answer(0U) == QStringLiteral("Four places want a second look."), "the restored turn shows its answer without the block");
@@ -347,6 +350,16 @@ namespace {
 			agent->present_thread(native_thread(answer, keeping.cards(answer)));
 			settle();
 			expect_cards(*agent, 1U, 2U, 1U, "the native history after another restart");
+			// [[BPR-2325]]. Card 1's draft was deleted: it offers Add as draft
+			// comment again, and is kept open, so a restart finds it open.
+			keeping.observe(*agent);
+			const auto block = core::digest_agent_findings(core::split_agent_answer(answer).Payload);
+			expect(agent->reopen_drafted_finding(block, 1U) && state_of(agent->turn_cards(0U)[1]) == qt::agent_finding_card_state::open, "a card whose draft was deleted is open again");
+			expect(!agent->reopen_drafted_finding(block, 3U) && state_of(agent->turn_cards(0U)[3]) == qt::agent_finding_card_state::refused, "only a drafted card is reopened");
+			settle();
+			expect_cards(*agent, 2U, 1U, 1U, "after a draft is deleted");
+			expect(keeping.Host->memory().recall(block, 1U).State == core::agent_finding_card_disposition::open, "and it is kept open");
+			agent->set_finding_card_observer({ });
 			window.hide();
 		}
 	}

@@ -19,6 +19,10 @@ class QListWidgetItem;
 class QPushButton;
 
 namespace bpr::qt {
+	namespace detail {
+		class list_row_handles;
+	}
+
 	/// \brief One sentence per profile-management refusal.
 	///
 	/// \details [[BPR-0777]]. Shared with the windows, because RFC-BPR-0033 routes a
@@ -70,6 +74,8 @@ namespace bpr::qt {
 		void focus_profiles();
 
 		[[nodiscard]] auto profiles() const noexcept -> QListWidget* { return Profiles; }
+		/// \brief [[BPR-2318]]. The row's grip, or null.
+		[[nodiscard]] auto profile_grip(int aRow) const -> QWidget*;
 		/// \brief The in-place editor, which exists only while renaming or creating.
 		[[nodiscard]] auto name_editor() const noexcept -> QLineEdit* { return Name; }
 		/// \brief "New profile": appends a row already in its editor.
@@ -98,6 +104,10 @@ namespace bpr::qt {
 		bool eventFilter(QObject* aObject, QEvent* aEvent) override;
 
 	private:
+		/// [[BPR-2318]]. Moves the row's profile `aDelta` places, through the host.
+		void                      move_profile(int aRow, int aDelta);
+		void                      request_move(core::bpr_profile_id aProfile, int aDelta);
+		detail::list_row_handles* Handles = nullptr;
 		enum class edit_mode : std::uint8_t {
 			none,
 			rename,

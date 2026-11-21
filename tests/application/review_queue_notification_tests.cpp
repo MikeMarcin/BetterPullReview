@@ -1,10 +1,12 @@
 #include "bpr/application/review_queue_notification.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdlib>
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -218,6 +220,57 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-2330]], the owner, 2026-11-20: "Yes, stay quiet." Another
+	/// author's draft in Following never notifies; marked ready, its pending
+	/// request notifies then, once; with Needs me it notifies as before.
+	void test_a_draft_waiting_in_following_stays_quiet()
+	{
+		using placement   = core::home_draft_placement;
+		auto draft        = core::queue_item{ .Ref = ref(), .Membership = { .Role = core::github_role::requested_reviewer }, .Bucket = core::attention_bucket::initial_review_requested };
+		draft.Facts.Draft = true;
+		for (const auto bucket : every_bucket) {
+			auto any   = draft;
+			any.Bucket = bucket;
+			expect(!application::notification_for(any, 2U).has_value() && !application::notification_active(any, placement::following),
+				   "no bucket of another author's draft in Following notifies");
+			expect(application::notification_active(any, placement::needs_me) == application::warrants_notification(bucket),
+				   "with Needs me, the bucket decides as before");
+		}
+
+		const auto session = application::queue_session_id{ .Host = "github.com", .Account = "reviewer", .Generation = 1U };
+		auto       active  = std::vector<application::queue_notification_key>{ };
+		for (auto refresh = 0; refresh < 3; ++refresh) {
+			auto step = application::step_queue_notifications(active, session, std::array{ draft }, placement::following);
+			expect(step.Due.empty() && step.Active.empty(), "refresh after refresh, the draft's request stays quiet");
+			active = std::move(step.Active);
+		}
+		auto ready        = draft;
+		ready.Facts.Draft = false;
+		auto marked       = application::step_queue_notifications(active, session, std::array{ ready }, placement::following);
+		expect(marked.Due == std::vector<std::size_t>{ 0U } && marked.Active.size() == 1U, "marked ready, its pending request is due");
+		expect(application::notification_for(ready, 0U).has_value(), "and builds a request");
+		active = std::move(marked.Active);
+		for (auto refresh = 0; refresh < 3; ++refresh) {
+			auto step = application::step_queue_notifications(active, session, std::array{ ready }, placement::following);
+			expect(step.Due.empty() && step.Active.size() == 1U, "once: later refreshes in the same state do not notify again");
+			active = std::move(step.Active);
+		}
+
+		const auto needsMe = application::step_queue_notifications({ }, session, std::array{ draft }, placement::needs_me);
+		expect(needsMe.Due == std::vector<std::size_t>{ 0U } && application::notification_for(draft, 0U, placement::needs_me).has_value(),
+			   "with Needs me, the draft's request notifies as before");
+
+		auto mine            = draft;
+		mine.Membership.Role = core::github_role::author;
+		mine.Bucket          = core::attention_bucket::new_comments_or_author_replies;
+		expect(application::notification_active(mine, placement::following), "comments on my own draft still notify");
+		auto ignored    = ready;
+		ignored.Ignored = true;
+		expect(application::step_queue_notifications({ }, session, std::array{ ignored }, placement::needs_me).Due.empty(), "an ignored row stays quiet");
+	}
+} // namespace
+
 auto main() -> int
 {
 	test_a_notification_carries_no_repository_content();
@@ -226,6 +279,7 @@ auto main() -> int
 	test_only_buckets_that_ask_something_notify();
 	test_the_link_is_a_local_reference_to_the_right_review();
 	test_each_notifying_bucket_reads_differently();
+	test_a_draft_waiting_in_following_stays_quiet();
 
 	std::cout << "review-queue-notification-tests:pass\n";
 	return EXIT_SUCCESS;

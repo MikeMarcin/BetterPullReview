@@ -252,6 +252,7 @@
         "application_attended_recent_replay",
         "application_change_arrows_across_files",
         "application_close_review",
+        "application_reopened_tabs",
         "application_conversation_read_public_path",
         "application_cpp_identifier_appearance",
         "application_description_edit_contract",

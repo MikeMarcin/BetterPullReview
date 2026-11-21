@@ -289,6 +289,33 @@ stays as written and the publication preview says so. Each chat is its own threa
 isolated by agent entry incarnation, draft/reset generation and stable thread identity. Native turns receive current tour data without replaying BPR's shortened transcript as their memory. The conversation window described
 next is the copyable record of every chat.
 
+Since [[BPR-2322]] (owner, 2026-11-20: "make it use something akin to the side chat from the
+tour onto the report tab") the tour's chat is built from parts it shares with the side chat about
+one review item (`side_chat_parts.hpp`: the seam, the author's bubble, a proposal's frame, Return
+to send and how bubbles fit the column, with the public `composer_field` and `passage_chip`).
+`qt::item_side_chat` is that second chat: a column beside the report or the code, opened by Ask
+follow-up on a report's finding or a finding card and by Ask about this on the draft composer or a
+thread. It replaced [[BPR-2286]]'s follow-up window. Its conversation is not a tour session: each
+item's chat is a `core::follow_up_state` held by `application::follow_up_host`, every round a
+fresh tool-free run carrying the item and the earlier rounds, and its one apply action (Update
+suggested comment, Update draft or Draft reply) proposes text in the chat that changes nothing
+until Use. Close keeps every item's chat. Since [[BPR-2333]] (owner, attended review
+`bbbd62f881b93ad3315947522fe41e0d`: "By default its taking up too much space and I need to be able
+to resize it") the column opens at 320 pixels beside a wide page and at three tenths of a narrower
+one, never under 260; a drag on the seam at its left edge resizes it up to six tenths of the page,
+and a double-click returns it to its default. The width a drag chose, or Reset, is the window's,
+kept through the workbench host in the local workbench settings (schema 38, `side_chat_width`) as
+Line details' height is. Since [[BPR-2337]] (owner, attended review
+`b64bbc238073ff3b665048b611ef1c60`: "side chat is staying open when i switch off that tab. it
+should be part of that tab") the column belongs to the document tab it was opened in (the report's
+tab, or the file's tab for a draft or a thread): another tab hides it with its chat, words and width
+kept, its own tab shows it again, and closing its tab closes it. Opened where no tab shows it, the
+tab its opening brings up is its own. In the same review ("The send button on both the side chats
+(report and tour) should be positioned more like the agent tab") both side chats took the Agent
+tab's composer row (`composer_parts.hpp`: the field's insets, a thin rule under the words, and Send,
+the default button with the send arrow, ending the row under it), which the Agent tab builds from
+the same parts.
+
 Since [[BPR-1934]] (owner, 2026-11-07: "Tour side chat should get suggestions
 like the agent tab has") an empty chat offers suggested prompts under its
 invitation, in the Agent tab's own component (`agent_suggestion_list`,

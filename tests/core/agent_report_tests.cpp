@@ -176,6 +176,9 @@ namespace {
 				   && rows[0].Place == "src/engine/renderer.cpp:12" && rows[0].Text == "Clamp the size." && rows[1].Tone == report_tone::neutral,
 			   "rows: the bold label, the place, the rest");
 		expect(report.Tally.size() == 2U && report.Tally[0].Word == "issue" && report.Tally[1].Word == "praise", "the tally by label");
+		// [[BPR-2331]]. Each count names where its first item is in the menu.
+		expect(report.Tally[0].First == issue.Outline && report.Tally[1].First == report.Sections[1].Items[0].Outline && report.Tally[0].First != 0U && report.Tally[1].First > report.Tally[0].First,
+			   "a count names its first item's row");
 		const auto place = read_report_place("src/a.cpp:12-14");
 		expect(place && place->Path == "src/a.cpp" && place->First == 12U && place->Last == 14U && !read_report_place("src/a.cpp") && !read_report_place("a b:1"), "places");
 		expect(dress_report("Just an answer.\n\nNo headings.").Sections.empty(), "an answer without sections is not dressed");
@@ -192,6 +195,7 @@ namespace {
 		const auto report = dress_report("# What changed since your review\n\nTwo commits.\n\n## Changed\n\n### Rendering\n\n- `src/engine/renderer.cpp:12` Clamped.\n- `src/engine/renderer.h:31` Commented.\n\n"
 										 "```cpp\nconst auto width = 1;\n```\n\n### Tests\n\n- `tests/engine/renderer_tests.cpp:6` Covered.\n\n## Merged main\n\n- Merged main (9 commits). None touched this pull request's files.\n");
 		expect(report.Tally.size() == 2U && report.Tally[0].Word == "rendering" && report.Tally[0].Count == 2U && report.Tally[1].Word == "tests", "areas tally their rows");
+		expect(report.Tally[0].First == report.Sections.at(0U).Items.at(0U).Outline && report.Tally[1].First == report.Sections[0].Items.at(1U).Outline, "an area's count names its row");
 		const auto& area = report.Sections.at(0U).Items.at(0U);
 		expect(area.Label.empty() && area.Place.empty() && area.Body.at(1U).FirstLine == 12U, "an area's code is numbered from its first row's place");
 		expect(report.Sections.at(1U).Intro.at(0U).Rows.at(0U).Place.empty(), "a row without a place");
@@ -251,6 +255,10 @@ namespace {
 		expect(suggested[0].Comment == "issue: clamp the height as well as the width.\n\n```suggestion\nconst auto height = std::max(aSize.Height, 1);\nTarget.resize(extent{ width, height });\n```"
 				   && suggested[1].Comment == findings[1].Comment,
 			   "the agent's suggested comment for an overlapping place, with the report's suggestion; others as the report says them");
+		// [[BPR-2331]]. The report holds the card at its finding's place; the
+		// card at another place is the Agent tab's to show.
+		expect(report_held_cards(suggested, 2U) == std::vector<bool>{ true, false } && report_held_cards(findings, 3U) == std::vector<bool>(3U, false),
+			   "the report holds only the cards its findings are");
 		expect(report_findings(dress_report("# What changed\n\nS.\n\n## Changed\n\n### Rendering\n\n- `src/a.cpp:1` x\n")).empty(), "a report without findings offers nothing");
 
 		expect(report_summary_comment(report)

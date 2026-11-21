@@ -18943,6 +18943,46 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-2326]]. Settings › Review › Home: Others' drafts
+	/// dispatches the whole record, and Home's model takes the published
+	/// placement, so the rows move without a reload.
+	void test_others_drafts_preference_follows_the_projection()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		auto records = std::vector<application::review_behaviour_settings>{ };
+		window.set_behaviour_dispatch([&records](const application::review_behaviour_settings& aSettings) {
+			records.push_back(aSettings);
+		});
+		window.show();
+		window.publish(every_primary_command_offered());
+		process_events();
+		const auto button = [&window](const char* const aName) {
+			auto* const found = window.findChild<QToolButton*>(QString::fromLatin1(aName));
+			expect(found != nullptr, "the Others' drafts row names its options");
+			return found;
+		};
+		auto* const home = window.queue_landing();
+		expect(button("othersDraftsFollowing")->isChecked() && !button("othersDraftsNeedsMe")->isChecked() && home->draft_placement() == core::home_draft_placement::following,
+			   "others' drafts start in Following");
+		expect(button("othersDraftsNeedsMe")->accessibleName() == QStringLiteral("Others' drafts: Needs me") && window.findChild<QToolButton*>(QStringLiteral("othersDraftsInfo")) != nullptr
+				   && window.findChild<QToolButton*>(QStringLiteral("resetHomeBehaviour")) != nullptr,
+			   "the row has accessible choices, an information glyph and its own Reset");
+		button("othersDraftsNeedsMe")->click();
+		expect(records.size() == 1U && records.back().OthersDrafts == core::home_draft_placement::needs_me && records.back().MarkdownImages == application::review_behaviour_settings{ }.MarkdownImages,
+			   "Needs me dispatches the whole record with only the placement changed");
+		expect(home->draft_placement() == core::home_draft_placement::following, "nothing changes until the host publishes the choice");
+		window.publish(application::workbench_projection{ .Behaviour = records.back() });
+		process_events();
+		expect(home->draft_placement() == core::home_draft_placement::needs_me && button("othersDraftsNeedsMe")->isChecked(), "a published Needs me reaches Home and moves the row");
+		button("resetHomeBehaviour")->click();
+		expect(records.size() == 2U && records.back().OthersDrafts == core::home_draft_placement::following, "Reset returns the row to Following");
+		window.publish(application::workbench_projection{ .Behaviour = records.back() });
+		process_events();
+		expect(home->draft_placement() == core::home_draft_placement::following && button("othersDraftsFollowing")->isChecked(), "a published Following reaches Home again");
+		window.hide();
+	}
+
 	/// \brief [[BPR-1512]]. Settings edits wait for accepted publication and resize the real ribbon.
 	void test_center_ribbon_width_settings_and_rendering()
 	{
@@ -19603,7 +19643,7 @@ namespace {
 		expect(enterprise->signed_in() && enterprise->login_label()->text() == QStringLiteral("enterprise-reviewer")
 				   && enterprise->consequence_label()->isVisibleTo(page)
 				   && enterprise->consequence_label()->text()
-					   == QStringLiteral("Signed in with a token for this session only; it is asked for again after a restart.")
+					   == QStringLiteral("Signed in with a token for this session only.")
 				   && !toggle->isChecked() && toggle->isVisibleTo(page),
 			   "an enterprise server signed in with a token says the session is kept for this session only");
 		intents.clear();
@@ -25967,6 +26007,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_center_ribbon_width_settings_and_rendering", &test_center_ribbon_width_settings_and_rendering);
 		runCase("test_line_details_view_menu_and_settings_follow_the_projection", &test_line_details_view_menu_and_settings_follow_the_projection);
 		runCase("test_markdown_images_preference_follows_the_projection", &test_markdown_images_preference_follows_the_projection);
+		runCase("test_others_drafts_preference_follows_the_projection", &test_others_drafts_preference_follows_the_projection);
 		runCase("test_finish_review_settings_follow_the_projection", &test_finish_review_settings_follow_the_projection);
 		if (!listCases) {
 			std::cout << "center-ribbon-width:pass\n";
@@ -26381,6 +26422,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_hidden_drawer_controls_leave_no_column_and_no_hide_button", &test_hidden_drawer_controls_leave_no_column_and_no_hide_button);
 	runCase("test_line_details_view_menu_and_settings_follow_the_projection", &test_line_details_view_menu_and_settings_follow_the_projection);
 	runCase("test_markdown_images_preference_follows_the_projection", &test_markdown_images_preference_follows_the_projection);
+	runCase("test_others_drafts_preference_follows_the_projection", &test_others_drafts_preference_follows_the_projection);
 	runCase("test_finish_review_settings_follow_the_projection", &test_finish_review_settings_follow_the_projection);
 	runCase("test_continue_review_and_opening_honour_the_modality_preferences", &test_continue_review_and_opening_honour_the_modality_preferences);
 	runCase("test_comments_filter_and_return_comparison_preferences_apply_on_open", &test_comments_filter_and_return_comparison_preferences_apply_on_open);

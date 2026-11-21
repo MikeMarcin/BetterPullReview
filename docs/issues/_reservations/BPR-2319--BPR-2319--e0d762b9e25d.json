@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2319"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Accounts and hosts: short GitHub CLI trust line, full detail behind an info glyph",
+  "created": "2026-11-20T17:51:31.224550+00:00",
+  "base": "103d897a11db67ae22b49487698329eeac3314ca"
+}

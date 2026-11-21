@@ -4900,6 +4900,20 @@ set_tests_properties(application_close_review PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}"
     TIMEOUT 180 PASS_REGULAR_EXPRESSION "close review course passed")
 
+# BPR-2324: a pull request opened again by the bar brings back its tabs, in
+# the same session and after a restart, dropping a tab whose file is gone.
+bpr_add_executable(test_reopened_tabs_public_path reopened_tabs_public_path_tests.cpp)
+target_link_libraries(test_reopened_tabs_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_reopened_tabs_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_reopened_tabs_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_reopened_tabs_public_path)
+bpr_enable_warnings(test_reopened_tabs_public_path)
+bpr_add_network_isolated_test(NAME application_reopened_tabs WINDOWS_UNCONTAINED
+    COMMAND test_reopened_tabs_public_path)
+set_tests_properties(application_reopened_tabs PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    TIMEOUT 240 PASS_REGULAR_EXPRESSION "reopened tabs course passed")
+
 # RFC-BPR-0077: native Find through the shipped window, epoch actor and installed Git.
 bpr_add_executable(test_source_find_public_path source_find_public_path_tests.cpp)
 target_link_libraries(test_source_find_public_path PRIVATE BetterPullReview::Composition)

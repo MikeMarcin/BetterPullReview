@@ -58,6 +58,8 @@ namespace bpr::core {
 			record.Why   = std::move(aWhy);
 		} else if (aKeep == report_keep::draft_comment) {
 			record.State = agent_finding_card_disposition::drafted;
+			// [[BPR-2325]]. The draft it made, so its deletion reopens it.
+			record.Note = aNote;
 		} else if (aKeep == report_keep::keep_local) {
 			record.State = agent_finding_card_disposition::noted;
 			record.Note  = aNote;

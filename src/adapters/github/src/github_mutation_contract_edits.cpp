@@ -338,6 +338,110 @@ namespace bpr::adapters::github::detail {
 		return *observed;
 	}
 
+	auto review_mutation_session::observe_auto_merge(
+		const application::review_auto_merge_request& aRequest,
+		const std::stop_token                         aStop)
+		-> std::expected<review_auto_merge_observation, application::review_mutation_failure>
+	{
+		const auto wire = compile_auto_merge_observation_request(aRequest, Configuration.CredentialContext.Authority.ServerContract);
+		if (!wire.has_value()) {
+			return std::unexpected(map_contract_failure(wire.error()));
+		}
+		auto response = perform(*wire, aStop, { });
+		if (!response.has_value()) {
+			return std::unexpected(response.error());
+		}
+		auto observed = parse_auto_merge_observation(*response, aRequest);
+		if (!observed.has_value()) {
+			return std::unexpected(map_contract_failure(observed.error()));
+		}
+		return *observed;
+	}
+
+	auto review_mutation_session::change_auto_merge(
+		const application::review_auto_merge_request& aRequest,
+		const std::stop_token                         aStop)
+		-> std::expected<application::review_auto_merge_receipt, application::review_mutation_failure>
+	{
+		try {
+			std::scoped_lock                lock{ Mutex };
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return std::unexpected(operation.failure());
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			if (Lease == nullptr || !Lease->active()) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			if (!valid(Configuration) || !aRequest.LiveBinding.has_value()
+				|| aRequest.LiveBinding->Target != Configuration.Target
+				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
+				return std::unexpected(application::review_mutation_failure::undesignated_target);
+			}
+			// [[BPR-2329]]. Bound to the pull request before anything is
+			// written, with what GitHub has now; the core decides from that.
+			const auto before = observe_auto_merge(aRequest, aStop);
+			if (!before.has_value()) {
+				return std::unexpected(before.error());
+			}
+			const auto facts = core::auto_merge_facts{
+				.Open             = before->Open,
+				.Allowed          = before->Allowed,
+				.Enabled          = before->Enabled,
+				.ViewerCanEnable  = before->ViewerCanEnable,
+				.ViewerCanDisable = before->ViewerCanDisable,
+				.Methods          = before->Methods,
+			};
+			switch (core::decide_auto_merge_change(facts, aRequest.Change, aRequest.Method)) {
+			case core::auto_merge_refusal::already:
+				return application::review_auto_merge_receipt{ .Enabled = before->Enabled, .Method = before->Method };
+			case core::auto_merge_refusal::not_open:
+				return std::unexpected(application::review_mutation_failure::target_unavailable);
+			case core::auto_merge_refusal::not_allowed:
+			case core::auto_merge_refusal::not_permitted:
+			case core::auto_merge_refusal::method_not_allowed:
+				return std::unexpected(application::review_mutation_failure::refused_by_server);
+			case core::auto_merge_refusal::none:
+				break;
+			}
+			const auto wire = compile_auto_merge_request(aRequest, Configuration.CredentialContext.Authority.ServerContract);
+			if (!wire.has_value()) {
+				return std::unexpected(map_contract_failure(wire.error()));
+			}
+			const auto wanted   = aRequest.Change == core::auto_merge_change::enable;
+			auto       failure  = application::review_mutation_failure::unavailable;
+			const auto response = perform(*wire, aStop, { });
+			if (response.has_value()) {
+				const auto observed = parse_auto_merge_response(*response, aRequest);
+				if (observed.has_value()) {
+					return application::review_auto_merge_receipt{ .Enabled = observed->Enabled, .Method = observed->Method, .Written = true };
+				}
+				if (observed.error() == review_mutation_contract_failure::unexpected_body) {
+					return std::unexpected(application::review_mutation_failure::refused_by_server);
+				}
+				if (observed.error() == review_mutation_contract_failure::identity_mismatch) {
+					return std::unexpected(map_contract_failure(observed.error()));
+				}
+				failure = map_contract_failure(observed.error());
+			} else {
+				failure = response.error();
+			}
+			if (failure == application::review_mutation_failure::cancelled || aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			// Ambiguous: ask once; the write is never sent again.
+			const auto after = observe_auto_merge(aRequest, aStop);
+			if (after.has_value() && after->Enabled == wanted) {
+				return application::review_auto_merge_receipt{ .Enabled = after->Enabled, .Method = after->Method, .Written = true, .ConfirmedByReadBack = true };
+			}
+			return std::unexpected(after.has_value() ? application::review_mutation_failure::not_confirmed : failure);
+		} catch (const std::bad_alloc&) {
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
+	}
+
 	auto review_mutation_session::change_draft_state(
 		const application::review_draft_state_request& aRequest,
 		const std::stop_token                          aStop)

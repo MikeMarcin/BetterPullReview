@@ -43,6 +43,7 @@
 #include <string_view>
 #include <thread>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -117,6 +118,13 @@ namespace bpr::adapters::git {
 		inline constexpr std::uint64_t    maximum_pack_index_bytes    = 4ULL * 1024ULL * 1024ULL * 1024ULL;
 		inline constexpr qint64           maximum_pending_input_bytes = 64 * 1024;
 		inline constexpr std::string_view transaction_success         = "start: ok\nprepare: ok\ncommit: ok\n";
+		/// [[BPR-2321]]. The most `clonefile` calls a seed from the linked
+		/// clone may make; it also makes no more than half the head's files.
+		/// One call per file took 3.0 s for 22,000 files ([[BPR-2294]]),
+		/// against a full `checkout-index` of 1.6-2.2 s per 20,000 on that
+		/// fixture and 15.2 s for 79,739 on the owner's repository: past half
+		/// the files, checking every file out is no slower.
+		inline constexpr std::size_t maximum_seed_clone_calls = 50000U;
 
 		struct process_success
 		{
@@ -4915,27 +4923,44 @@ namespace bpr::adapters::git {
 				};
 			}
 
-			/// [[BPR-2294]]. Checks out \p aHead in \p aWorkspace from the
-			/// linked clone at \p aClone, writing only what differs.
+			/// [[BPR-2294]], [[BPR-2321]]. Checks out \p aHead in \p aWorkspace
+			/// from the linked clone at \p aClone, writing only what differs.
 			///
-			/// \details macOS only (APFS `clonefile`). Each top-level folder of
-			/// the head that is a real folder in the clone's working tree is
-			/// cloned copy-on-write; the clone's index is copied, never shared,
-			/// and `read-tree --reset` keeps its stat data wherever its entry is
-			/// the head's. With `core.checkStat=minimal` and
-			/// `core.trustctime=false` in the workspace, a refresh then finds
-			/// clean every cloned file the clone had clean, the files that
-			/// differ (or were dirty or missing) are checked out, and
-			/// `clean -ffdx` removes whatever the clone held untracked or
-			/// ignored before any agent starts. Nothing is written to the clone,
+			/// \details macOS only (APFS `clonefile`). The clone's working tree
+			/// is walked once, folder by folder, without following links, and
+			/// only along the head's own folders. A folder whose entries are all
+			/// in the head's tree at that path, all the way down, is cloned
+			/// copy-on-write whole; a folder that holds anything else (ignored,
+			/// untracked, a nested repository) is made empty and the walk goes
+			/// into it, cloning each of the head's regular files on its own. So
+			/// no file the head does not track is copied. More clone calls than
+			/// \ref maximum_seed_clone_calls, or than half the head's files,
+			/// answer false before anything is cloned. The clone's index is
+			/// copied, never shared, and `read-tree --reset` keeps its stat data
+			/// wherever its entry is the head's. With `core.checkStat=minimal`
+			/// and `core.trustctime=false` in the workspace, a refresh then finds
+			/// clean every cloned file the clone had clean, the files that differ
+			/// (or were dirty, missing or links) are checked out, and `clean
+			/// -ffdx` stays as the last guard. Nothing is written to the clone,
 			/// and no Git runs in it. A head with a submodule, a clone on another
 			/// volume, or any step that fails answers false, and the caller
-			/// checks every file out as before.
+			/// checks every file out as before. \p aTrace takes the outcome, each
+			/// step's time and the counts.
 			template <typename TSubmit>
 			[[nodiscard]] auto seed_from_linked_clone(const std::filesystem::path& aWorkspace, const std::string& aClone, const std::string& aHead, TSubmit& aSubmit,
-													  const std::stop_token aStop) -> bool
+													  core::workspace_seed_trace& aTrace, const std::stop_token aStop) -> bool
 			{
 #if defined(Q_OS_MACOS)
+				using seed_clock = std::chrono::steady_clock;
+				const auto since = [](const seed_clock::time_point aStart) {
+					const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(seed_clock::now() - aStart).count();
+					return static_cast<std::uint32_t>(std::clamp<std::chrono::milliseconds::rep>(elapsed, 0, std::numeric_limits<std::uint32_t>::max()));
+				};
+				const auto count = [](const std::size_t aValue) {
+					return static_cast<std::uint32_t>(std::min<std::size_t>(aValue, std::numeric_limits<std::uint32_t>::max()));
+				};
+				auto step          = seed_clock::now();
+				aTrace.Outcome     = core::workspace_seed_outcome::refused;
 				const auto root    = resolve_canonical_existing(path_from_text(aClone));
 				const auto objects = checkout_objects(aClone);
 				if (!root || !objects) {
@@ -4952,86 +4977,236 @@ namespace bpr::adapters::git {
 					arguments.insert(arguments.end(), std::make_move_iterator(aArguments.begin()), std::make_move_iterator(aArguments.end()));
 					return aSubmit(process_request{ .Arguments = std::move(arguments), .Input = memory_input{ std::move(aInput) }, .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U, .AllowExitOne = aExitOne }, aStop);
 				};
-				// A submodule's folder in the clone is a repository of its own:
-				// never cloned into a workspace.
-				const auto modes = run({ "ls-tree", "-r", "-z", "--format=%(objectmode)", aHead });
-				if (!modes || modes->StandardOutput.find("160000") != std::string::npos) {
+				const auto failed = [&]() {
+					aTrace.Outcome = core::workspace_seed_outcome::failed;
 					return false;
+				};
+
+				// The head's tree, folders included, read in the workspace: each
+				// folder's entries by name, as a folder, a regular file or a link.
+				const auto listing = run({ "ls-tree", "-r", "-t", "-z", "--format=%(objectmode) %(path)", aHead });
+				if (!listing) {
+					return failed();
 				}
-				const auto top = run({ "ls-tree", "-z", "--format=%(objecttype) %(path)", aHead });
-				if (!top) {
-					return false;
+				auto folders = std::unordered_map<std::string, std::unordered_map<std::string, char>>{ };
+				folders[std::string{ }];
+				auto files = std::size_t{ 0U };
+				for (std::size_t at = 0U; at < listing->StandardOutput.size();) {
+					const auto end   = listing->StandardOutput.find('\0', at);
+					const auto entry = std::string_view{ listing->StandardOutput }.substr(at, end == std::string::npos ? std::string::npos : end - at);
+					at               = end == std::string::npos ? listing->StandardOutput.size() : end + 1U;
+					const auto space = entry.find(' ');
+					if (space == std::string_view::npos || space + 1U == entry.size()) {
+						return failed();
+					}
+					const auto mode = entry.substr(0U, space);
+					const auto path = entry.substr(space + 1U);
+					// A submodule's folder in the clone is a repository of its
+					// own: never cloned into a workspace.
+					const auto kind = mode == "040000" ? 'd' : mode == "100644" || mode == "100755" ? 'f'
+						: mode == "120000"                                                          ? 'l'
+																									: '\0';
+					if (kind == '\0') {
+						return false;
+					}
+					const auto slash  = path.rfind('/');
+					const auto parent = slash == std::string_view::npos ? std::string_view{ } : path.substr(0U, slash);
+					const auto name   = slash == std::string_view::npos ? path : path.substr(slash + 1U);
+					if (name.empty() || name == "." || name == ".." || std::ranges::equal(name, std::string_view{ ".git" }, [](char aLeft, char aRight) { return std::tolower(static_cast<unsigned char>(aLeft)) == aRight; })) {
+						return false;
+					}
+					folders[std::string{ parent }].emplace(name, kind);
+					if (kind == 'd') {
+						folders.try_emplace(std::string{ path });
+					} else {
+						++files;
+					}
 				}
+				aTrace.FilesWritten = count(files);
+
+				// The clone's folders along the head's, listed once, links not
+				// followed. A folder is pure when everything in it is the head's
+				// entry of the same kind, all the way down; the clone's root holds
+				// `.git`, and never is.
+				struct walked_folder
+				{
+					bool                                      Pure = true;
+					std::vector<std::pair<std::string, char>> Present;
+				};
+				// A folder's entry, as a path from the root.
+				const auto child = [](const std::string& aFolder, const std::string& aName) {
+					if (aFolder.empty()) {
+						return aName;
+					}
+					auto path = aFolder;
+					path += '/';
+					path += aName;
+					return path;
+				};
+				auto walked  = std::unordered_map<std::string, walked_folder>{ };
+				auto order   = std::vector<std::string>{ };
+				auto pending = std::vector<std::string>{ std::string { } };
+				while (!pending.empty()) {
+					if (aStop.stop_requested()) {
+						return failed();
+					}
+					auto folder = std::move(pending.back());
+					pending.pop_back();
+					const auto& head  = folders.at(folder);
+					auto&       state = walked[folder];
+					state.Pure        = !folder.empty();
+					for (std::filesystem::directory_iterator it{ folder.empty() ? *root : *root / folder, error }, last; !error && it != last; it.increment(error)) {
+						const auto name  = it->path().filename().native();
+						const auto found = head.find(name);
+						const auto type  = it->symlink_status(error).type();
+						if (error) {
+							break;
+						}
+						const auto kind = type == std::filesystem::file_type::directory ? 'd' : type == std::filesystem::file_type::regular ? 'f'
+							: type == std::filesystem::file_type::symlink                                                                   ? 'l'
+																																			: '\0';
+						if (found == head.end() || found->second != kind) {
+							state.Pure = false;
+							continue;
+						}
+						state.Present.emplace_back(name, kind);
+						if (kind == 'd') {
+							pending.push_back(child(folder, name));
+						}
+					}
+					if (error) {
+						return failed();
+					}
+					order.push_back(std::move(folder));
+				}
+				// Children were listed after their parents: in reverse, each
+				// folder's purity is final before its parent's is decided.
+				for (auto folder = order.rbegin(); folder != order.rend(); ++folder) {
+					auto& state = walked.at(*folder);
+					for (const auto& [name, kind] : state.Present) {
+						if (state.Pure && kind == 'd' && !walked.at(child(*folder, name)).Pure) {
+							state.Pure = false;
+						}
+					}
+				}
+				// What to make and clone, parents first: a pure folder whole, an
+				// impure one made empty with its regular files cloned one by one.
+				// Links, and what the clone lacks, are checked out.
+				const auto limit = std::min(maximum_seed_clone_calls, files / 2U);
+				auto       plan  = std::vector<std::pair<std::string, char>>{ };
+				auto       calls = std::size_t{ 0U };
+				pending.assign(1U, std::string{ });
+				while (!pending.empty()) {
+					auto folder = std::move(pending.back());
+					pending.pop_back();
+					if (!folder.empty()) {
+						plan.emplace_back(folder, 'm');
+					}
+					for (const auto& [name, kind] : walked.at(folder).Present) {
+						auto path = child(folder, name);
+						if (kind == 'd' && !walked.at(path).Pure) {
+							pending.push_back(std::move(path));
+						} else if (kind != 'l') {
+							plan.emplace_back(std::move(path), kind);
+							++calls;
+						}
+					}
+					if (calls > limit) {
+						// So spread out that cloning would cost more than checking
+						// every file out.
+						aTrace.WalkMilliseconds = since(step);
+						aTrace.Outcome          = core::workspace_seed_outcome::too_spread;
+						return false;
+					}
+				}
+				aTrace.WalkMilliseconds = since(step);
+
+				step = seed_clock::now();
 				if (!std::filesystem::copy_file(index, aWorkspace / ".git" / "index", std::filesystem::copy_options::overwrite_existing, error) || error) {
-					return false;
+					return failed();
 				}
 				std::filesystem::permissions(aWorkspace / ".git" / "index", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace, error);
-				const auto& listing = top->StandardOutput;
-				for (std::size_t at = 0U; at < listing.size();) {
-					const auto end   = listing.find('\0', at);
-					const auto entry = std::string_view{ listing }.substr(at, end == std::string::npos ? std::string::npos : end - at);
-					at               = end == std::string::npos ? listing.size() : end + 1U;
-					if (!entry.starts_with("tree ")) {
+				for (const auto& [path, kind] : plan) {
+					const auto target = aWorkspace / path;
+					if (kind == 'm') {
+						if (!std::filesystem::create_directory(target, error) || error) {
+							return failed();
+						}
 						continue;
 					}
-					const auto name = std::string{ entry.substr(5U) };
-					if (name.empty() || name == "." || name == ".." || name.find('/') != std::string::npos || std::ranges::equal(name, std::string_view{ ".git" }, [](char aLeft, char aRight) { return std::tolower(static_cast<unsigned char>(aLeft)) == aRight; })) {
-						continue;
-					}
-					const auto source = *root / name;
-					if (std::filesystem::symlink_status(source, error).type() != std::filesystem::file_type::directory || error) {
-						error.clear();
-						continue;
-					}
-					if (::clonefile(source.c_str(), (aWorkspace / name).c_str(), CLONE_NOFOLLOW | CLONE_NOOWNERCOPY) != 0) {
+					if (::clonefile((*root / path).c_str(), target.c_str(), CLONE_NOFOLLOW | CLONE_NOOWNERCOPY) != 0) {
 						// Another volume, or no clone support: the rest is checked out.
 						break;
 					}
+					++(kind == 'd' ? aTrace.FoldersCloned : aTrace.FilesCloned);
 				}
+				aTrace.CloneMilliseconds = since(step);
+
+				step = seed_clock::now();
 				if (!run({ "config", "--local", "core.checkStat", "minimal" }) || !run({ "config", "--local", "core.trustctime", "false" })) {
-					return false;
+					return failed();
 				}
 				if (!run({ "read-tree", "--reset", aHead })) {
 					std::filesystem::remove(aWorkspace / ".git" / "index", error);
-					return false;
+					return failed();
 				}
 				// An entry the clone marked skip-worktree or assume-unchanged
 				// would hide a missing or different file from the refresh.
 				const auto tags = run({ "ls-files", "-v", "-z" });
 				if (!tags) {
-					return false;
+					return failed();
 				}
 				for (std::size_t at = 0U; at < tags->StandardOutput.size();) {
 					if (tags->StandardOutput[at] != 'H') {
+						aTrace.Outcome = core::workspace_seed_outcome::refused;
 						return false;
 					}
 					const auto end = tags->StandardOutput.find('\0', at);
 					at             = end == std::string::npos ? tags->StandardOutput.size() : end + 1U;
 				}
 				if (!run({ "update-index", "-q", "--refresh" }, true)) {
-					return false;
+					return failed();
 				}
 				const auto differing = run({ "diff-files", "--name-only", "-z" });
 				if (!differing) {
-					return false;
+					return failed();
 				}
+				aTrace.RefreshMilliseconds = since(step);
+
+				step                = seed_clock::now();
+				aTrace.FilesWritten = count(static_cast<std::size_t>(std::ranges::count(differing->StandardOutput, '\0')));
 				if (!differing->StandardOutput.empty() && !run({ "checkout-index", "--force", "-z", "--stdin" }, false, differing->StandardOutput)) {
-					return false;
+					return failed();
 				}
-				// The files just written carry new stat data: the index takes it,
-				// hashing only them.
-				if (!run({ "clean", "-ffdxq" }) || !run({ "update-index", "-q", "--refresh" }, true)) {
-					return false;
+				aTrace.CheckoutMilliseconds = since(step);
+
+				// The last guard: unless the clone changed between the walk and
+				// the clones, `clean` finds nothing. The files just written carry
+				// new stat data: the index takes it, hashing only them.
+				step               = seed_clock::now();
+				const auto cleaned = run({ "clean", "-ffdx" });
+				if (!cleaned) {
+					return failed();
+				}
+				aTrace.Cleaned = count(static_cast<std::size_t>(std::ranges::count(cleaned->StandardOutput, '\n')));
+				if (!run({ "update-index", "-q", "--refresh" }, true)) {
+					return failed();
 				}
 				// The tree is the head's, and nothing else is in it.
-				const auto changed   = run({ "diff-files", "--quiet" }, true);
-				const auto untracked = run({ "ls-files", "--others", "-z" });
-				return changed && changed->ExitCode == 0 && untracked && untracked->StandardOutput.empty();
+				const auto changed       = run({ "diff-files", "--quiet" }, true);
+				const auto untracked     = run({ "ls-files", "--others", "-z" });
+				aTrace.CleanMilliseconds = since(step);
+				if (!changed || changed->ExitCode != 0 || !untracked || !untracked->StandardOutput.empty()) {
+					return failed();
+				}
+				aTrace.Outcome = core::workspace_seed_outcome::seeded;
+				return true;
 #else
 				static_cast<void>(aWorkspace);
 				static_cast<void>(aClone);
 				static_cast<void>(aHead);
 				static_cast<void>(aSubmit);
+				static_cast<void>(aTrace);
 				static_cast<void>(aStop);
 				return false;
 #endif
@@ -5481,9 +5656,17 @@ namespace bpr::adapters::git {
 				// write, its index seeds the workspace's, and only the files
 				// that differ from the head are written.
 				if (!checkedOut && borrowed && !materialization.HistoryCloneManaged
-					&& seed_from_linked_clone(destination, path_text(*materialization.HistoryClone), headText, submitWorkspace, aStop)) {
+					&& seed_from_linked_clone(destination, path_text(*materialization.HistoryClone), headText, submitWorkspace, trace.Seed, aStop)) {
 					checkedOut = true;
 				}
+				// [[BPR-2321]]. A seed that was tried and fell back names the full
+				// checkout's time and what its clean removed.
+				const auto fellBack  = trace.Seed.Outcome != core::workspace_seed_outcome::none && !checkedOut;
+				const auto checkout  = std::chrono::steady_clock::now();
+				const auto sinceStep = [](const std::chrono::steady_clock::time_point aStart) {
+					const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - aStart).count();
+					return static_cast<std::uint32_t>(std::clamp<std::chrono::milliseconds::rep>(elapsed, 0, std::numeric_limits<std::uint32_t>::max()));
+				};
 				if (!checkedOut) {
 					// A seed that stopped part way leaves the clone's index, whose
 					// entries would keep its flags and stat data.
@@ -5514,12 +5697,21 @@ namespace bpr::adapters::git {
 					if (!materialized.has_value()) {
 						return fail(materialized.error());
 					}
+					const auto cleaning = std::chrono::steady_clock::now();
+					if (fellBack) {
+						trace.Seed.CheckoutMilliseconds = sinceStep(checkout);
+					}
 					// A seed that stopped part way may have left a clone's
 					// untracked files behind.
 					arguments = workspace_git_arguments(destination, HooksRoot);
-					append_arguments(arguments, "clean", "-ffdxq");
-					if (const auto cleaned = submitWorkspace(process_request{ .Arguments = std::move(arguments), .Timeout = pack_process_timeout }, aStop); !cleaned.has_value()) {
+					append_arguments(arguments, "clean", "-ffdx");
+					const auto cleaned = submitWorkspace(process_request{ .Arguments = std::move(arguments), .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U }, aStop);
+					if (!cleaned.has_value()) {
 						return fail(cleaned.error());
+					}
+					if (fellBack) {
+						trace.Seed.CleanMilliseconds = sinceStep(cleaning);
+						trace.Seed.Cleaned           = static_cast<std::uint32_t>(std::min<std::size_t>(static_cast<std::size_t>(std::ranges::count(cleaned->StandardOutput, '\n')), std::numeric_limits<std::uint32_t>::max()));
 					}
 				}
 				if (!write_private_file(destination / ".git" / "HEAD", headText + "\n")) {

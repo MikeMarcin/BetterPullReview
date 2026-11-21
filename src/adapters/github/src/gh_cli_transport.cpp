@@ -2264,7 +2264,9 @@ namespace bpr::adapters::github::detail {
 			|| aRequest.Wire.Operation == review_mutation_operation::edit_review_body
 			|| aRequest.Wire.Operation == review_mutation_operation::request_reviews
 			|| aRequest.Wire.Operation == review_mutation_operation::mark_pull_request_ready_for_review
-			|| aRequest.Wire.Operation == review_mutation_operation::convert_pull_request_to_draft;
+			|| aRequest.Wire.Operation == review_mutation_operation::convert_pull_request_to_draft
+			|| aRequest.Wire.Operation == review_mutation_operation::enable_pull_request_auto_merge
+			|| aRequest.Wire.Operation == review_mutation_operation::disable_pull_request_auto_merge;
 		const auto graphql = aRequest.Wire.Operation == review_mutation_operation::staged_update_pending_comment || stateWrite || reply
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread_comments
@@ -2272,7 +2274,8 @@ namespace bpr::adapters::github::detail {
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_pull_request_description
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_comment_for_edit
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_reviewers
-			|| aRequest.Wire.Operation == review_mutation_operation::observe_pull_request_draft_state;
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_pull_request_draft_state
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_pull_request_auto_merge;
 
 		const auto exchange = review_mutation_exchange_for(aRequest.Wire.Operation);
 		if (!exchange || exchange->Graphql != graphql

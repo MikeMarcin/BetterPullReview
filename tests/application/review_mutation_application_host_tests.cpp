@@ -341,7 +341,7 @@ namespace {
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
-			return { .ResolvesThreads = Resolves, .RecordsViewedState = false, .Reacts = Reacts, .EditsDescription = EditsDescription, .EditsComments = EditsComments, .RequestsReviewers = RequestsReviewers, .ChangesDraftState = ChangesDraftState };
+			return { .ResolvesThreads = Resolves, .RecordsViewedState = false, .Reacts = Reacts, .EditsDescription = EditsDescription, .EditsComments = EditsComments, .RequestsReviewers = RequestsReviewers, .ChangesDraftState = ChangesDraftState, .ChangesAutoMerge = ChangesAutoMerge };
 		}
 		auto set_reaction(
 			const application::review_reaction_request& aRequest,
@@ -421,6 +421,19 @@ namespace {
 		}
 		bool                                                 ChangesDraftState = false;
 		std::vector<application::review_draft_state_request> Drafted;
+		auto                                                 change_auto_merge(
+			const application::review_auto_merge_request& aRequest,
+			const std::stop_token                         aStop)
+			-> std::expected<application::review_auto_merge_receipt, application::review_mutation_failure> override
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			AutoMerged.push_back(aRequest);
+			return application::review_auto_merge_receipt{ .Enabled = aRequest.Change == core::auto_merge_change::enable, .Method = aRequest.Method, .Written = true };
+		}
+		bool                                                ChangesAutoMerge = false;
+		std::vector<application::review_auto_merge_request> AutoMerged;
 
 		auto resolve_thread(
 			const application::review_thread_resolution_request& aRequest,
@@ -481,7 +494,12 @@ namespace {
 			DraftStates.push_back(aTerminal);
 		}
 		std::vector<application::review_draft_state_terminal> DraftStates;
-		void                                                  publish_comment_edit(const application::review_comment_edit_terminal& aTerminal) override
+		void                                                  publish_auto_merge(const application::review_auto_merge_terminal& aTerminal) override
+		{
+			AutoMerges.push_back(aTerminal);
+		}
+		std::vector<application::review_auto_merge_terminal> AutoMerges;
+		void                                                 publish_comment_edit(const application::review_comment_edit_terminal& aTerminal) override
 		{
 			CommentEdits.push_back(aTerminal);
 		}
@@ -1268,16 +1286,16 @@ namespace {
 		expect(application::valid(live_target()) && application::valid_identity(live_target()), "an open binding is valid for every change");
 		expect(!application::valid(closed) && application::valid_identity(closed), "a closed one keeps a valid identity but not the open-only contract");
 		expect(application::valid_for(closed, change::thread_resolution), "and takes a thread's resolution");
-		for (const auto other : { change::publication, change::reaction, change::description_edit, change::comment_edit, change::reviewer_request, change::draft_state }) {
+		for (const auto other : { change::publication, change::reaction, change::description_edit, change::comment_edit, change::reviewer_request, change::draft_state, change::auto_merge }) {
 			expect(!application::valid_for(closed, other) && application::valid_for(live_target(), other), "and no other change");
 		}
 		auto unnamed              = closed;
 		unnamed.PullRequestNodeId = "";
 		expect(!application::valid_identity(unnamed) && !application::valid_for(unnamed, change::thread_resolution), "a closed binding's identity is still checked in full");
-		const auto all = application::review_provider_capabilities{ .ResolvesThreads = true, .RecordsViewedState = false, .Reacts = true, .EditsDescription = true, .EditsComments = true, .RequestsReviewers = true, .ChangesDraftState = true };
+		const auto all = application::review_provider_capabilities{ .ResolvesThreads = true, .RecordsViewedState = false, .Reacts = true, .EditsDescription = true, .EditsComments = true, .RequestsReviewers = true, .ChangesDraftState = true, .ChangesAutoMerge = true };
 		expect(application::capabilities_for(live_target(), all) == all, "an open binding keeps every capability");
 		const auto masked = application::capabilities_for(closed, all);
-		expect(masked.ResolvesThreads && !masked.Reacts && !masked.EditsDescription && !masked.EditsComments && !masked.RequestsReviewers && !masked.ChangesDraftState,
+		expect(masked.ResolvesThreads && !masked.Reacts && !masked.EditsDescription && !masked.EditsComments && !masked.RequestsReviewers && !masked.ChangesDraftState && !masked.ChangesAutoMerge,
 			   "a closed one keeps only thread resolution");
 		auto noResolution            = all;
 		noResolution.ResolvesThreads = false;
@@ -1598,6 +1616,62 @@ namespace {
 		host.shutdown();
 		effects.run_next();
 		expect(observed->Drafted.size() == 1U, "a change stopped by shutdown never reaches the provider");
+	}
+
+	/// [[BPR-2329]]. An auto-merge change is admitted like a draft-state
+	/// change: the capability, a grant that permits it, a grant issued for
+	/// anything else permits none, and the terminal carries GitHub's answer.
+	void test_an_auto_merge_change_needs_the_capability_and_a_permitting_grant()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+			&projection,
+		};
+		const auto request = application::review_auto_merge_publication_request{ .Change = core::auto_merge_change::enable, .Method = core::merge_method::squash };
+		const auto refused = [&](const application::review_mutation_failure aFailure, const char* const aWhy) {
+			expect(effects.pending() == 0U && decisions.pending() == 1U, aWhy);
+			decisions.run_next();
+			expect(!projection.AutoMerges.empty() && !projection.AutoMerges.back().Result.has_value() && projection.AutoMerges.back().Result.error() == aFailure, aWhy);
+		};
+		static_cast<void>(host.change_auto_merge(request));
+		refused(application::review_mutation_failure::unsupported, "without the provider's capability the change is refused before any effect");
+		observed->ChangesAutoMerge = true;
+		static_cast<void>(host.change_auto_merge(request, application::make_review_mutation_testing_grant(core::application_session_id{ 4U }, core::request_generation{ 8U }, live_target(), acting_identity())));
+		refused(application::review_mutation_failure::unavailable, "another session's grant permits nothing");
+		static_cast<void>(host.change_auto_merge(request, application::make_review_mutation_testing_grant(core::application_session_id{ 3U }, core::request_generation{ 8U }, live_target(), acting_identity(), publication_request())));
+		refused(application::review_mutation_failure::unavailable, "a one-shot grant issued for a publication permits no auto-merge change");
+		expect(observed->AutoMerged.empty() && host.statistics().AutoMergeChanges == 0U, "no refusal reached the provider");
+
+		const auto context = host.change_auto_merge(request);
+		expect(context.Request.value() != 0U && effects.pending() == 1U && observed->AutoMerged.empty(), "an admitted change is queued and returns immediately");
+		effects.run_next();
+		expect(observed->AutoMerged.size() == 1U && observed->AutoMerged.front().Change == core::auto_merge_change::enable && observed->AutoMerged.front().Method == core::merge_method::squash
+				   && observed->AutoMerged.front().LiveBinding.has_value() && observed->AutoMerged.front().LiveBinding->Target == live_target(),
+			   "the effect asks the provider for exactly one change with its method, bound to the target and the actor");
+		expect(!host.is_quiescent() && host.outstanding_requests() == 1U, "a held auto-merge terminal keeps the host alive");
+		decisions.run_next();
+		expect(projection.AutoMerges.back().Context == context && projection.AutoMerges.back().Result.has_value() && projection.AutoMerges.back().Result->Enabled
+				   && projection.AutoMerges.back().Request == request && host.statistics().AutoMergeChanges == 1U && host.is_quiescent(),
+			   "the terminal carries GitHub's answer");
+
+		const auto stopped = host.change_auto_merge({ .Change = core::auto_merge_change::disable });
+		host.cancel(stopped);
+		host.shutdown();
+		effects.run_next();
+		expect(observed->AutoMerged.size() == 1U, "a change stopped by shutdown never reaches the provider");
 	}
 
 	/// [[BPR-1804]]. A reviewer search is a read: it needs the capability but
@@ -2483,6 +2557,7 @@ auto main() -> int
 	test_a_reaction_needs_the_capability_and_a_permitting_grant();
 	test_a_description_edit_needs_the_capability_and_a_permitting_grant();
 	test_a_draft_state_change_needs_the_capability_and_a_permitting_grant();
+	test_an_auto_merge_change_needs_the_capability_and_a_permitting_grant();
 	test_reviewers_are_searched_freely_and_requested_under_a_grant();
 	test_a_comment_edit_needs_the_capability_and_a_permitting_grant();
 

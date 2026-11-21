@@ -84,23 +84,36 @@ namespace bpr::application {
 													 /// [[BPR-1830]]. A tour imported, or read or published by `bpr tour`.
 													 tour_operation,
 													 /// [[BPR-1830]]. A Review Cycle round frozen, granted, read, answered or moved.
-													 cycle_round };
+													 cycle_round,
+													 /// [[BPR-2322]]. A side chat question, proposal or Use.
+													 side_chat,
+													 /// [[BPR-2325]]. A finding card's kept state, cleared.
+													 finding_card,
+													 /// [[BPR-2324]]. A window's document tabs brought back.
+													 workbench_tabs };
 	/// \brief The logged `op` name of each diagnostic operation, in order.
 	/// \details The logger writes and the export classifier admits exactly
 	/// these, so the two never disagree about the vocabulary ([[BPR-1828]]).
-	inline constexpr std::array<std::string_view, 23> diagnostic_operation_names{
+	inline constexpr std::array<std::string_view, 26> diagnostic_operation_names{
 		"application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment",
 		"github.review_submission", "github.discovery", "agent.run", "agent.setup_check", "agent.workspace", "github.review_mutation",
 		"github.sign_in", "credential.vault", "updater.release",
 		// [[BPR-1831]].
 		"storage.database", "workspace.clone_scan", "search.source", "image.fetch", "notification.delivery",
 		// [[BPR-1830]].
-		"agent.mcp_helper", "tour.operation", "cycle.round"
+		"agent.mcp_helper", "tour.operation", "cycle.round",
+		// [[BPR-2322]].
+		"agent.side_chat",
+		// [[BPR-2325]].
+		"agent.finding_card",
+		// [[BPR-2324]].
+		"workbench.tabs"
 	};
 	/// \brief [[BPR-1828]]. A record's category: the operation name before its
 	/// first dot (`application`, `epoch`, `github`, `agent`, and since
 	/// [[BPR-1831]] `storage`, `workspace`, `search`, `image`, `notification`, and
-	/// since [[BPR-1830]] `tour` and `cycle`).
+	/// since [[BPR-1830]] `tour` and `cycle`, and since [[BPR-2324]]
+	/// `workbench`).
 	[[nodiscard]] constexpr auto diagnostic_category(const std::string_view aOperation) noexcept -> std::string_view
 	{
 		return aOperation.substr(0U, aOperation.find('.'));

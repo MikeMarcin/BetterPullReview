@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2327",
+    "BPR-2328"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Overview conflict status; follow-up local conflicting paths",
+  "created": "2026-11-20T20:16:09.329596+00:00",
+  "base": "c5f6b793646a912b7698b1f60ac25a1ce7e68c86"
+}

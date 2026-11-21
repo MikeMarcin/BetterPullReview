@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -582,10 +583,47 @@ namespace {
 		reentrant.drain();
 		expect(reentrant.Output.Commands.empty() && reentrant.Host.is_quiescent(), "reentrant shutdown before command delivery cannot start a runtime or strand an undelivered reservation");
 	}
+
+	/// [[BPR-2318]]. Every list of profiles follows the order the registry saves.
+	void test_profiles_are_listed_in_the_saved_order()
+	{
+		fixture test;
+		test.load();
+		const auto work = test.create();
+		test.Host.apply(create_bpr_profile_intent{ "Home" });
+		test.drain();
+		const auto home  = test.Store.Snapshot.Profiles.back().Profile.Id;
+		const auto order = [&test] {
+			auto result = std::vector<core::bpr_profile_id>{ };
+			for (const auto& item : test.Output.last().Profiles) {
+				result.push_back(item.Profile);
+			}
+			return result;
+		};
+		expect(order() == std::vector{ core::default_bpr_profile_id, work, home }, "with no order saved, profiles are listed by identity");
+		test.Host.apply(move_bpr_profile_intent{ home, -2 });
+		expect(order() == std::vector{ core::default_bpr_profile_id, work, home } && test.Output.last().Busy, "a move is not shown before it is saved");
+		test.drain();
+		expect(order() == std::vector{ home, core::default_bpr_profile_id, work } && test.Output.last().AcceptedEdit && test.Output.last().AcceptedEdit->Operation == profile_management_operation::move
+				   && test.Output.last().AcceptedEdit->Profile == home && test.Output.Commands.empty(),
+			   "the saved move lists the profile in its new place and opens nothing");
+		test.Host.apply(rename_bpr_profile_intent{ work, "Office" });
+		test.drain();
+		expect(order() == std::vector{ home, core::default_bpr_profile_id, work }, "a rename keeps the order");
+		test.Host.apply(move_bpr_profile_intent{ home, -1 });
+		expect(test.Output.last().Failure && test.Output.last().Failure->Operation == profile_management_operation::move && test.Output.last().Failure->Reason == profile_management_failure::unknown_profile
+				   && order() == std::vector{ home, core::default_bpr_profile_id, work },
+			   "a move off the top is refused and the list keeps its order");
+		auto restarted           = fixture{ };
+		restarted.Store.Snapshot = test.Store.Snapshot;
+		restarted.load();
+		expect(restarted.Output.last().Profiles.front().Profile == home, "the order is kept across a restart");
+	}
 }
 
 int main()
 {
+	test_profiles_are_listed_in_the_saved_order();
 	test_failed_startup_during_sibling_save_cannot_resurrect();
 	test_native_focus_survives_pending_save();
 	test_uncertain_save_reload_and_exact_retry();

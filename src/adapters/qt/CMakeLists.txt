@@ -17,6 +17,7 @@ add_library(
         src/local_draft_workflow_area.cpp
         src/wrapping_row.cpp
         src/line_bounded_label.cpp
+        src/report_tally_view.cpp
         src/application_menu_wording.cpp
         src/workbench_window_author_mode.cpp
         src/author_description_editor.cpp
@@ -83,7 +84,9 @@ add_library(
         src/agent_report_view.cpp
         src/report_page.cpp
         src/reading_width_dialog.cpp
-        src/follow_up_window.cpp
+        src/item_side_chat.cpp
+        src/side_chat_parts.cpp
+        src/composer_parts.cpp
         src/prompt_words.cpp
         src/prompts_page.cpp
         src/agent_run_settings_picker.cpp
@@ -96,6 +99,8 @@ add_library(
         src/agent_configuration_dialogs.cpp
         src/profile_settings_parts.cpp
         src/folder_list_editor.cpp
+        src/list_row_handles.cpp
+        src/argument_list_editor.cpp
         src/desktop_menu_bar.cpp
         src/device_authorization_panel.cpp
         src/dif_runtime.cpp

@@ -50,6 +50,11 @@ namespace bpr::application::detail {
 													core::request_generation aGeneration, review_mutation_target_binding aTarget,
 													review_mutation_acting_identity aActor, review_draft_state_publication_request aRequest)
 			-> review_mutation_execution_grant;
+		/// \brief [[BPR-2329]]. The one-shot grant for one exact auto-merge change.
+		[[nodiscard]] static auto issue_auto_merge(core::application_session_id aSession,
+												   core::request_generation aGeneration, review_mutation_target_binding aTarget,
+												   review_mutation_acting_identity aActor, review_auto_merge_publication_request aRequest)
+			-> review_mutation_execution_grant;
 		/// \brief [[BPR-1775]]. The one-shot grant for one exact comment edit.
 		[[nodiscard]] static auto issue_comment_edit(core::application_session_id aSession,
 													 core::request_generation aGeneration, review_mutation_target_binding aTarget,
@@ -290,6 +295,14 @@ namespace bpr::application {
 		[[nodiscard]] auto permits_draft_state(
 			const review_mutation_thread_scope&           aScope,
 			const review_draft_state_publication_request& aRequest) noexcept -> bool;
+		// [[BPR-2329]]. An auto-merge change binds and is permitted like a
+		// draft-state change.
+		explicit review_mutation_execution_authority(
+			review_mutation_thread_scope          aScope,
+			review_auto_merge_publication_request aRequest);
+		[[nodiscard]] auto permits_auto_merge(
+			const review_mutation_thread_scope&          aScope,
+			const review_auto_merge_publication_request& aRequest) noexcept -> bool;
 		void revoke() noexcept;
 
 		friend class review_mutation_application_host;
@@ -316,6 +329,7 @@ namespace bpr::application {
 		std::optional<review_comment_edit_publication_request>      CommentEditRequest;
 		std::optional<review_reviewer_publication_request>          ReviewerRequest;
 		std::optional<review_draft_state_publication_request>       DraftStateRequest;
+		std::optional<review_auto_merge_publication_request>        AutoMergeRequest;
 		mutable std::mutex                                          Mutex;
 		review_mutation_execution_scope                             Scope;
 		review_mutation_target_binding                              Target;

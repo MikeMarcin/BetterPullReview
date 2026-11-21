@@ -36,6 +36,10 @@ class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
+	namespace detail {
+		class list_row_handles;
+	}
+
 	/// \brief [[BPR-1753]], RFC-BPR-0092, owner amendment 2026-10-23
 	/// ("for the actual settings it should be more like add agent"). Settings ›
 	/// Agents: the agents the Agent tab offers, in order, with
@@ -124,6 +128,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto remove_button() const noexcept -> QPushButton* { return RemoveButton; }
 		[[nodiscard]] auto up_button() const noexcept -> QPushButton* { return UpButton; }
 		[[nodiscard]] auto down_button() const noexcept -> QPushButton* { return DownButton; }
+		/// \brief [[BPR-2318]]. The row's grip and trash, or null.
+		[[nodiscard]] auto agent_grip(int aRow) const -> QWidget*;
+		[[nodiscard]] auto agent_trash(int aRow) const -> QToolButton*;
+		/// \brief [[BPR-2318]]. The question a row's trash, Remove or Delete
+		/// asks before an agent is removed, while it is open, or null.
+		[[nodiscard]] auto remove_question() const noexcept -> QDialog* { return RemoveQuestion; }
 		[[nodiscard]] auto status() const noexcept -> QLabel* { return Status; }
 		[[nodiscard]] auto run_limit_toggle() const noexcept -> QCheckBox* { return RunLimitOn; }
 		[[nodiscard]] auto run_limit_minutes() const noexcept -> QSpinBox* { return RunLimit; }
@@ -178,6 +188,8 @@ namespace bpr::qt {
 		/// The marks' colours come from the palette: a palette or style change
 		/// draws them again.
 		void changeEvent(QEvent* aEvent) override;
+		/// [[BPR-2318]]. Return and Enter on the list open the selected agent.
+		auto eventFilter(QObject* aObject, QEvent* aEvent) -> bool override;
 
 	private:
 		void                                    build_check(QVBoxLayout& aColumn, QHBoxLayout& aRow);
@@ -215,32 +227,36 @@ namespace bpr::qt {
 		void                                               present_roster();
 		void                                               say(const QString& aText);
 		void                                               open_row_menu(const QPoint& aAt);
-		QListWidget*                                       List            = nullptr;
-		QPushButton*                                       AddButton       = nullptr;
-		QPushButton*                                       EditButton      = nullptr;
-		QPushButton*                                       RemoveButton    = nullptr;
-		QPushButton*                                       UpButton        = nullptr;
-		QPushButton*                                       DownButton      = nullptr;
-		QLabel*                                            Status          = nullptr;
-		QCheckBox*                                         RunLimitOn      = nullptr;
-		QToolButton*                                       FollowUpQueue   = nullptr;
-		QToolButton*                                       FollowUpSteer   = nullptr;
-		QSpinBox*                                          RunLimit        = nullptr;
-		QSpinBox*                                          ScratchLimit    = nullptr;
-		QCheckBox*                                         ScratchKeepOn   = nullptr;
-		QSpinBox*                                          ScratchKeepDays = nullptr;
-		QLabel*                                            ScratchUsage    = nullptr;
-		QPushButton*                                       ScratchClear    = nullptr;
-		void                                               send_scratch_policy();
-		QSpinBox*                                          WorkspaceCap      = nullptr;
-		QCheckBox*                                         WorkspaceKeepOn   = nullptr;
-		QSpinBox*                                          WorkspaceKeepDays = nullptr;
-		QLabel*                                            WorkspaceUsage    = nullptr;
-		QPushButton*                                       WorkspaceRemove   = nullptr;
-		QPointer<QDialog>                                  WorkspaceQuestion;
-		std::optional<workspace_usage>                     ShownWorkspaces;
-		void                                               send_workspace_policy();
-		void                                               send_run_limit();
+		/// [[BPR-2318]]. Asks before the selected agent is removed.
+		void                           ask_remove();
+		detail::list_row_handles*      Handles = nullptr;
+		QPointer<QDialog>              RemoveQuestion;
+		QListWidget*                   List            = nullptr;
+		QPushButton*                   AddButton       = nullptr;
+		QPushButton*                   EditButton      = nullptr;
+		QPushButton*                   RemoveButton    = nullptr;
+		QPushButton*                   UpButton        = nullptr;
+		QPushButton*                   DownButton      = nullptr;
+		QLabel*                        Status          = nullptr;
+		QCheckBox*                     RunLimitOn      = nullptr;
+		QToolButton*                   FollowUpQueue   = nullptr;
+		QToolButton*                   FollowUpSteer   = nullptr;
+		QSpinBox*                      RunLimit        = nullptr;
+		QSpinBox*                      ScratchLimit    = nullptr;
+		QCheckBox*                     ScratchKeepOn   = nullptr;
+		QSpinBox*                      ScratchKeepDays = nullptr;
+		QLabel*                        ScratchUsage    = nullptr;
+		QPushButton*                   ScratchClear    = nullptr;
+		void                           send_scratch_policy();
+		QSpinBox*                      WorkspaceCap      = nullptr;
+		QCheckBox*                     WorkspaceKeepOn   = nullptr;
+		QSpinBox*                      WorkspaceKeepDays = nullptr;
+		QLabel*                        WorkspaceUsage    = nullptr;
+		QPushButton*                   WorkspaceRemove   = nullptr;
+		QPointer<QDialog>              WorkspaceQuestion;
+		std::optional<workspace_usage> ShownWorkspaces;
+		void                           send_workspace_policy();
+		void                           send_run_limit();
 		/// [[BPR-2254]]. The file the saved agents could not be read from.
 		QString      UnreadableFile;
 		QWidget*     Unreadable      = nullptr;

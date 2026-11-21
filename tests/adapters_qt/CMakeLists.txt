@@ -662,16 +662,17 @@ bpr_add_network_isolated_test(NAME qt_author_description_editor COMMAND test_bet
 set_tests_properties(qt_author_description_editor PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
     PASS_REGULAR_EXPRESSION "author-description-editor-tests:pass" TIMEOUT 120)
-# [[BPR-2286]]. The follow-up window, a report finding's Ask follow-up and a
+# [[BPR-2322]]. The side chat about one review item (which replaced
+# BPR-2286's follow-up window), a report finding's Ask follow-up and a
 # thread's Ask about this.
-bpr_add_executable(test_better_pull_review_qt_follow_up_window_tests follow_up_window_tests.cpp)
-target_link_libraries(test_better_pull_review_qt_follow_up_window_tests PRIVATE BetterPullReview::AdapterQt)
-bpr_enable_hardening(test_better_pull_review_qt_follow_up_window_tests)
-bpr_enable_warnings(test_better_pull_review_qt_follow_up_window_tests)
-bpr_add_network_isolated_test(NAME qt_follow_up_window COMMAND test_better_pull_review_qt_follow_up_window_tests)
-set_tests_properties(qt_follow_up_window PROPERTIES
+bpr_add_executable(test_better_pull_review_qt_item_side_chat_tests item_side_chat_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_item_side_chat_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_item_side_chat_tests)
+bpr_enable_warnings(test_better_pull_review_qt_item_side_chat_tests)
+bpr_add_network_isolated_test(NAME qt_item_side_chat COMMAND test_better_pull_review_qt_item_side_chat_tests)
+set_tests_properties(qt_item_side_chat PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
-    PASS_REGULAR_EXPRESSION "follow-up-window-tests:pass" TIMEOUT 120)
+    PASS_REGULAR_EXPRESSION "item-side-chat-tests:pass" TIMEOUT 120)
 # [[BPR-1094]]. The Overview's chips at 125% and 200%: every built-in theme,
 # Icons and Letters, identity, ?, Open and All, whole counts, +n, the keyboard
 # route and scrolling. The 100% row above runs the same test.
@@ -1214,6 +1215,23 @@ bpr_add_network_isolated_test(NAME qt_claude_process_wrapper COMMAND test_better
 set_tests_properties(qt_claude_process_wrapper PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment}"
     PASS_REGULAR_EXPRESSION "claude-process-wrapper-tests:pass"
+    TIMEOUT 120)
+
+# [[BPR-2320]]. A custom agent's Check through the real process launcher and
+# the canary as its program: the Codex instructions probe runs in a removed
+# empty folder, a custom Claude agent must answer in stream JSON, and the
+# result's words name the checked entry.
+bpr_add_executable(test_better_pull_review_qt_custom_agent_check_tests custom_agent_check_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_custom_agent_check_tests PRIVATE BetterPullReview::AdapterAgent BetterPullReview::AdapterQt BetterPullReview::Platform Qt6::Core $<$<PLATFORM_ID:Windows>:Advapi32>)
+target_compile_definitions(test_better_pull_review_qt_custom_agent_check_tests PRIVATE
+    "BPR_AGENT_CANARY_EXECUTABLE=\"$<TARGET_FILE:test_better_pull_review_agent_canary>\"")
+add_dependencies(test_better_pull_review_qt_custom_agent_check_tests test_better_pull_review_agent_canary)
+bpr_enable_hardening(test_better_pull_review_qt_custom_agent_check_tests)
+bpr_enable_warnings(test_better_pull_review_qt_custom_agent_check_tests)
+bpr_add_network_isolated_test(NAME qt_custom_agent_check COMMAND test_better_pull_review_qt_custom_agent_check_tests)
+set_tests_properties(qt_custom_agent_check PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "custom-agent-check-tests:pass"
     TIMEOUT 120)
 
 # [[BPR-1229]]. The durable private-input course, split from the canary on
@@ -2304,6 +2322,42 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
             PROPERTIES
                 ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_report_title_whole}.${bpr_report_title_fraction}"
                 PASS_REGULAR_EXPRESSION "report-attachment-title:pass"
+                TIMEOUT 60
+        )
+    endforeach()
+    # [[BPR-2331]]. A report turn shows its summary, not its finding cards;
+    # the summary is whole at 1.0, 1.25 and 2.0 scale.
+    bpr_add_executable(test_agent_report_summary agent_report_summary_tests.cpp)
+    target_link_libraries(test_agent_report_summary PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_agent_report_summary)
+    bpr_enable_warnings(test_agent_report_summary)
+    foreach(bpr_report_summary_scale IN ITEMS 100 125 200)
+        math(EXPR bpr_report_summary_whole "${bpr_report_summary_scale} / 100")
+        math(EXPR bpr_report_summary_fraction "${bpr_report_summary_scale} % 100")
+        bpr_add_network_isolated_test(NAME qt_agent_report_summary_scale_${bpr_report_summary_scale} COMMAND test_agent_report_summary)
+        set_tests_properties(
+            qt_agent_report_summary_scale_${bpr_report_summary_scale}
+            PROPERTIES
+                ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_report_summary_whole}.${bpr_report_summary_fraction}"
+                PASS_REGULAR_EXPRESSION "agent-report-summary:pass"
+                TIMEOUT 60
+        )
+    endforeach()
+    # [[BPR-2337]]. The item side chat belongs to its document tab; in it and
+    # the tour's side chat Send stands as the Agent tab's, at 1.0 and 2.0.
+    bpr_add_executable(test_side_chat_tab_and_send side_chat_tab_and_send_tests.cpp)
+    target_link_libraries(test_side_chat_tab_and_send PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_side_chat_tab_and_send)
+    bpr_enable_warnings(test_side_chat_tab_and_send)
+    foreach(bpr_side_chat_send_scale IN ITEMS 100 200)
+        math(EXPR bpr_side_chat_send_whole "${bpr_side_chat_send_scale} / 100")
+        math(EXPR bpr_side_chat_send_fraction "${bpr_side_chat_send_scale} % 100")
+        bpr_add_network_isolated_test(NAME qt_side_chat_tab_and_send_scale_${bpr_side_chat_send_scale} COMMAND test_side_chat_tab_and_send)
+        set_tests_properties(
+            qt_side_chat_tab_and_send_scale_${bpr_side_chat_send_scale}
+            PROPERTIES
+                ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_side_chat_send_whole}.${bpr_side_chat_send_fraction}"
+                PASS_REGULAR_EXPRESSION "side-chat-tab-and-send:pass"
                 TIMEOUT 60
         )
     endforeach()

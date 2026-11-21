@@ -1,5 +1,6 @@
 #include "bpr/core/document_tabs.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -503,6 +504,118 @@ namespace {
 		expect(later.Tabs.size() == 3U && later.Tabs[0].Id.value() == 41U, "a refused restoration leaves the state as it was");
 		expect(!persisted(document_tabs_state{ }), "nothing persists before the window has a comparison");
 	}
+	/// \brief [[BPR-2324]]. Three remembered tabs: file 1 at line 30 on the
+	/// window's pair, file 2 on its own pair (2, 3) at line 7, and file 3 on
+	/// the window's pair, active in the middle.
+	auto remembered_three() -> window_review_tabs
+	{
+		return { .WindowComparison = pair(1, 2),
+				 .Tabs             = { { pair(1, 2), file(1), line(1, 30) }, { pair(2, 3), file(2), line(2, 7) }, { pair(1, 2), file(3), std::nullopt } },
+				 .Active           = 1U };
+	}
+
+	void test_a_reopened_pull_request_keeps_order_active_pairs_and_readings()
+	{
+		const auto remembered = remembered_three();
+		const auto same       = reopen_tabs(remembered, pair(1, 2), { true, true, true }, std::nullopt);
+		expect(same && same->Restored == 3U && same->Dropped == 0U && same->Tabs == remembered,
+			   "the same comparison brings every tab back as it was: order, active tab, pairs and readings");
+		const auto moved = reopen_tabs(remembered, pair(1, 4), { true, true, true }, std::nullopt);
+		expect(moved && valid(moved->Tabs) && moved->Tabs.WindowComparison == pair(1, 4) && moved->Tabs.Active == 1U,
+			   "a newer accepted comparison becomes the window's, with the same tab active");
+		expect(moved->Tabs.Tabs[0] == window_review_position{ pair(1, 4), file(1), std::nullopt } && moved->Tabs.Tabs[2].Comparison == pair(1, 4),
+			   "a tab that followed the window takes the new comparison, and leaves its reading behind");
+		expect(moved->Tabs.Tabs[1] == remembered.Tabs[1], "a tab with its own pair keeps the pair and its reading");
+		auto otherCatalog                       = pair(1, 4);
+		otherCatalog.Left.Identity.Incarnation  = identity<epoch_catalog_incarnation_id>(9U);
+		otherCatalog.Right.Identity.Incarnation = otherCatalog.Left.Identity.Incarnation;
+		const auto rebuilt                      = reopen_tabs(remembered, otherCatalog, { true, true, true }, std::nullopt);
+		expect(rebuilt && valid(rebuilt->Tabs)
+				   && std::ranges::all_of(rebuilt->Tabs.Tabs, [&](const window_review_position& aTab) { return aTab.Comparison == otherCatalog && !aTab.Selection; }),
+			   "in a catalog made again, every tab takes the accepted comparison, its reading left behind");
+	}
+
+	void test_a_reopened_pull_request_drops_tabs_whose_file_is_gone()
+	{
+		const auto remembered = remembered_three();
+		const auto dropped    = reopen_tabs(remembered, pair(1, 2), { true, false, true }, std::nullopt);
+		expect(dropped && dropped->Restored == 2U && dropped->Dropped == 1U && dropped->Tabs.Tabs.size() == 2U
+				   && dropped->Tabs.Tabs[0].File == file(1) && dropped->Tabs.Tabs[1].File == file(3),
+			   "a tab whose file the pull request no longer has is dropped, the others keep their order");
+		expect(dropped->Tabs.Active == 1U, "the dropped active tab's next neighbour becomes active");
+		const auto last = reopen_tabs(remembered, pair(1, 2), { true, true, false }, std::nullopt);
+		expect(last && last->Tabs.Active == 1U && last->Tabs.Tabs.size() == 2U, "a surviving active tab stays active");
+		auto lastActive   = remembered;
+		lastActive.Active = 2U;
+		const auto before = reopen_tabs(lastActive, pair(1, 2), { true, true, false }, std::nullopt);
+		expect(before && before->Tabs.Active == 1U && before->Tabs.Tabs[1].File == file(2),
+			   "when the dropped active tab was last, the previous neighbour becomes active");
+		const auto none = reopen_tabs(remembered, pair(1, 2), { false, false, false }, std::nullopt);
+		expect(none && none->Restored == 0U && none->Dropped == 3U && none->Tabs.Tabs.empty() && !none->Tabs.Active && valid(none->Tabs),
+			   "when no file is left, nothing comes back and every tab counts as dropped");
+	}
+
+	void test_a_file_chosen_first_becomes_the_active_tab()
+	{
+		const auto remembered = remembered_three();
+		const auto shown      = reopen_tabs(remembered, pair(1, 2), { true, true, true }, file(3));
+		expect(shown && shown->Tabs.Tabs.size() == 3U && shown->Tabs.Active == 2U && shown->Restored == 3U,
+			   "a chosen file a returning tab already shows makes that tab active");
+		const auto added = reopen_tabs(remembered, pair(1, 2), { true, true, true }, file(9));
+		expect(added && added->Tabs.Tabs.size() == 4U && added->Tabs.Active == 2U
+				   && added->Tabs.Tabs[2] == window_review_position{ pair(1, 2), file(9), std::nullopt } && added->Restored == 3U,
+			   "another chosen file opens in a new tab after the remembered active one, and is active");
+		const auto ownPair = reopen_tabs(remembered, pair(1, 2), { true, true, true }, file(2));
+		expect(ownPair && ownPair->Tabs.Tabs.size() == 4U && ownPair->Tabs.Tabs[2].Comparison == pair(1, 2),
+			   "a tab showing the file on its own pair is not the window's view of it");
+		const auto alone = reopen_tabs(remembered, pair(1, 2), { false, false, false }, file(9));
+		expect(alone && alone->Tabs.Tabs.size() == 1U && alone->Tabs.Active == 0U && alone->Restored == 0U && alone->Dropped == 3U,
+			   "with nothing left to come back, the chosen file is the only tab");
+		auto full = window_review_tabs{ .WindowComparison = pair(1, 2), .Tabs = { }, .Active = 4U };
+		for (std::uint8_t index = 0U; index < maximum_document_tabs; ++index) {
+			full.Tabs.push_back({ pair(1, 2), file(static_cast<std::uint8_t>(20U + index)), std::nullopt });
+		}
+		const auto bounded = reopen_tabs(full, pair(1, 2), std::vector<bool>(full.Tabs.size(), true), file(9));
+		expect(bounded && bounded->Tabs.Tabs.size() == maximum_document_tabs && bounded->Tabs.Active == 4U && bounded->Tabs.Tabs[4].File == file(9),
+			   "at the bound, the active tab shows the chosen file instead");
+	}
+
+	void test_a_reopen_refuses_what_it_cannot_trust()
+	{
+		const auto remembered = remembered_three();
+		expect(!reopen_tabs(remembered, pair(1, 2), { true, true }, std::nullopt), "a presence list of another length is refused");
+		auto unavailable               = pair(1, 2);
+		unavailable.Right.Availability = anchor_availability::unavailable;
+		expect(!reopen_tabs(remembered, unavailable, { true, true, true }, std::nullopt), "an accepted comparison that is not exact is refused");
+		auto broken   = remembered;
+		broken.Active = 5U;
+		expect(!reopen_tabs(broken, pair(1, 2), { true, true, true }, std::nullopt), "an invalid remembered collection is refused");
+		expect(!reopen_tabs(remembered, pair(1, 2), { true, true, true }, file_identity{ }), "an invalid chosen file is refused");
+	}
+
+	void test_reopened_tabs_load_only_where_a_tab_is_shown()
+	{
+		const auto remembered = remembered_three();
+		auto       overview   = document_tabs_state{ };
+		overview.LastTab      = 10U;
+		const auto taken      = restore_reopened(overview, remembered, false);
+		expect(taken.Changed && !taken.Load && !overview.Pending && overview.Tabs.size() == 3U && overview.Active == overview.Tabs[1].Id
+				   && std::ranges::all_of(overview.Tabs, [](const document_tab& aTab) { return aTab.State == document_tab_view_state::idle; }),
+			   "outside Review the tabs come back with the active one chosen and nothing loading");
+		expect(persisted(overview) == remembered, "tabs taken without loading persist as they came back");
+		const auto entered = reload_active(overview);
+		expect(entered.Load && entered.Load->Tab == overview.Tabs[1].Id && entered.Load->View == remembered.Tabs[1],
+			   "returning to Review loads the active tab's view");
+		auto       review = document_tabs_state{ };
+		const auto loaded = restore_reopened(review, remembered, true);
+		expect(loaded.Load && loaded.Load->View == remembered.Tabs[1] && review.Pending == loaded.Load,
+			   "in Review the active tab loads at once");
+		auto       empty   = document_tabs_state{ };
+		const auto nothing = restore_reopened(empty, window_review_tabs{ .WindowComparison = pair(1, 2), .Tabs = { }, .Active = std::nullopt }, true);
+		expect(nothing.Changed && !nothing.Load && empty.Tabs.empty() && empty.WindowComparison == pair(1, 2),
+			   "an empty reopening leaves the window's comparison and no tab");
+	}
+
 	void test_completion_and_reading_are_one_transition()
 	{
 		auto state = document_tabs_state{ };
@@ -609,6 +722,11 @@ auto main() -> int
 	test_the_reading_position_is_the_presented_views();
 	test_the_collection_is_bounded();
 	test_restoration_keeps_order_active_pairs_positions_and_the_window();
+	test_a_reopened_pull_request_keeps_order_active_pairs_and_readings();
+	test_a_reopened_pull_request_drops_tabs_whose_file_is_gone();
+	test_a_file_chosen_first_becomes_the_active_tab();
+	test_a_reopen_refuses_what_it_cannot_trust();
+	test_reopened_tabs_load_only_where_a_tab_is_shown();
 	test_a_report_is_a_tab_beside_the_files();
 	test_the_later_of_a_file_choice_and_a_report_keeps_the_front();
 	std::cout << "All document tab core tests passed\n";

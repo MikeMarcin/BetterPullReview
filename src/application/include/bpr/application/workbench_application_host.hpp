@@ -140,6 +140,9 @@ namespace bpr::application {
 		/// \brief [[BPR-1334]]. Validates and persists only this window's
 		/// explicit Line details height or Reset.
 		void resize_line_details(std::optional<std::uint32_t> aHeight);
+		/// \brief [[BPR-2333]]. Validates and persists only this window's
+		/// explicit item side chat width or Reset.
+		void resize_side_chat(std::optional<std::uint32_t> aWidth);
 		/// \brief [[BPR-1588]]. Validates and persists only this window's
 		/// Status drawer: its width (empty resets it) and its collapsed state.
 		void apply_status_drawer(workbench_status_drawer aDrawer);

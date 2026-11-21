@@ -101,6 +101,9 @@ namespace bpr::qt {
 		kept,
 		/// Not made, and why.
 		refused,
+		/// [[BPR-2331]]. Dismissed: set aside, nothing made; Undo takes it
+		/// back.
+		dismissed,
 	};
 	struct report_keep_state
 	{
@@ -119,6 +122,13 @@ namespace bpr::qt {
 		draft_all,
 		/// [[BPR-2286]]. Ask follow-up on a finding.
 		ask,
+		/// [[BPR-2331]]. Dismiss a finding, and take that back: the Agent
+		/// tab's finding card offered them, and the report now holds it.
+		dismiss,
+		undo_dismiss,
+		/// [[BPR-2331]]. Undo the drafts the report's last Draft all made,
+		/// as the Agent tab's Draft all offered.
+		undo_draft_all,
 	};
 
 	/// \brief [[BPR-2219]] (docs/design/review-report-v1, A). The page's keep
@@ -145,6 +155,13 @@ namespace bpr::qt {
 		/// shows the comment it now drafts, by its row in the menu.
 		bool                             FollowUp = false;
 		std::map<std::uint32_t, QString> Revised;
+		/// [[BPR-2331]]. Dismiss is offered beside each finding's keep
+		/// action; the comment the agent suggested for a finding, by its
+		/// row, as its Agent tab card showed it; and Undo of the last Draft
+		/// all.
+		bool                             Dismiss = false;
+		std::map<std::uint32_t, QString> Suggested;
+		bool                             DraftAllUndo = false;
 	};
 
 	/// \brief [[BPR-2219]], round 2 (owner, look review-report-v001: "redesign

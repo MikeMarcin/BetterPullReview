@@ -453,6 +453,22 @@ header, menus and older-pair notice. Tabs persist through the existing
 restoration host, and shutdown drains their posted terminals on the decision
 lane before releasing the window.
 
+[[BPR-2324]] brings the tabs back on every way back to a pull request, not only
+Resume. When a window adopts a pull request it was not showing, it holds the
+tabs that pull request's recently viewed entry remembers. It does not save the
+empty set it starts with over them. Once the accepted comparison has its file
+list, the core's `reopen_tabs` decides what returns. Tabs whose file is gone
+are dropped. A tab that followed the window takes the accepted comparison and
+keeps its reading only when the comparison is unchanged. A tab with its own
+pair keeps it while the pair is in the accepted catalog. The remembered active
+tab stays active, or its next surviving neighbour does. A file the reviewer
+opened first becomes the active tab. `document_tab_host::reopen` restores the
+result, loading the active tab only in Review (`restore_reopened`). Outside
+Review it loads on the way in. The host also writes one Standard
+`workbench.tabs` line, `action=tabs_restore` with `count` and `tabs_dropped`,
+counts only, so an anonymized export carries no more. Resume keeps its own
+exact course.
+
 RFC-BPR-0076 routes the four existing file/change QAction presses through normal
 Review entry before interpreting source navigation. Core still projects legal
 commands and exact bounds and decides the remembered drawer transition. The
@@ -2215,6 +2231,10 @@ second mutation lane, or full model reset is introduced.
 ## Authored Home section allocation (RFC-BPR-0066)
 
 The core's `home_section_for` classifies each accepted queue row from its own author-role/authored-discovery membership and unchanged attention bucket. Waiting-only authored rows stay in Waiting on others; other authored rows go to My pull requests. The Qt landing model projects this decision separately from its attention color role, and the existing window publication restores exact selected identity after accepted refresh. No new provider work, enrollment, notification policy or repository-drawer attention is introduced.
+
+[[BPR-2326]] adds one input: `home_draft_placement`, the profile's Settings › Review › Home choice (`review_behaviour_settings::OthersDrafts`, workbench settings schema 37, `others_drafts` in the `.bprsettings` Review section). With Following, the default, a row another author still holds as a draft (`queue_item_facts::Draft` read true) whose section would be Needs me is in Following; Needs me keeps the earlier placement. The bucket, reason, ordering and notification eligibility are unchanged, so the row returns to Needs me on the first read that says it is ready for review. The landing model holds the published placement and reports only rows whose section moves; authored drafts keep their Draft next move in My pull requests.
+
+[[BPR-2330]] (owner, 2026-11-20: "Yes, stay quiet") makes the same row silent: `core::draft_waits_quietly` holds for another author's draft read as one while Others' drafts is Following, and `application::notification_active` then refuses it whatever its bucket. `application::step_queue_notifications` keeps the profile runtime's active set (one key per session, pull request and bucket); a quiet draft is never active, so when a read says it is ready its pending state is due then, once. With Needs me notifications are as before.
 
 The host's window-owned `home_view_state` adds bit 16 for My pull requests without changing the original collapse bits. Workbench settings schema 19 widens the private window row's collapse bound to 31 and transactionally rebuilds older tables with all existing fields copied. The new bit starts zero on upgrade; named group/band collapse remains window-session state. Profile defaults carry no Home view.
 

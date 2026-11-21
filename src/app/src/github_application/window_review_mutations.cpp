@@ -154,6 +154,7 @@ namespace bpr::app {
 			observe_conversation_state();
 			observe_reviewer_request_state();
 			observe_draft_state_change();
+			observe_auto_merge_change();
 		}
 		Window->publish(placed ? *placed : aUpdate);
 		if (aUpdate.PullRequest) {
@@ -164,6 +165,8 @@ namespace bpr::app {
 			// [[BPR-1852]]. The title row's chip shows the viewer's change
 			// over the read until a read agrees; the author's action follows.
 			present_overview_draft_state();
+			// [[BPR-2329]]. And auto-merge, the same way.
+			present_overview_auto_merge();
 		}
 		select_published_conversation();
 
@@ -326,6 +329,8 @@ namespace bpr::app {
 		retire_reviewer_picker();
 		// [[BPR-1852]]. Nor a draft-state change.
 		retire_draft_state_change();
+		// [[BPR-2329]]. Nor an auto-merge change.
+		retire_auto_merge_change();
 	}
 
 	/// [[BPR-1824]]. Why this session's accepted read cannot have its

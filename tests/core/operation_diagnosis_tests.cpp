@@ -246,6 +246,27 @@ namespace {
 		expect(parse_operation_diagnosis(describe(invalid)) == invalid, "an invalid part and its comment read back");
 		expect(describe({ .Action = operation_action::review_submit_wait, .Submission = review_submission_note::review_lane, .Refusal = review_submission_refusal{ } }).empty(), "a refusal only on an end or repair line");
 	}
+	/// [[BPR-2324]]. A reopened pull request's tabs: how many came back and
+	/// how many were dropped, and nothing that names a file.
+	void test_tabs_restore_line()
+	{
+		const auto restored = operation_diagnosis{ .Action = operation_action::tabs_restore, .Count = 3U, .TabsDropped = 1U };
+		expect(describe(restored) == "action=tabs_restore failure=none process=none exit=none duration_ms=0 count=3 written=0 read_back=0 tabs_dropped=1",
+			   "a tabs line counts the tabs that came back and those dropped");
+		expect(parse_operation_diagnosis(describe(restored)) == restored && family(restored.Action) == operation_diagnosis_family::workbench_tabs,
+			   "and reads back as a workbench tabs line");
+		expect(describe({ .Action = operation_action::tabs_restore, .Count = 3U }).empty(), "a tabs line always names its dropped count");
+		expect(describe({ .Action = operation_action::resolve_thread, .TabsDropped = 0U }).empty(), "only a tabs line names one");
+		expect(describe({ .Action = operation_action::tabs_restore, .Failure = operation_failure::unavailable, .TabsDropped = 0U }).empty(),
+			   "dropped tabs are counted, not failed");
+		expect(!parse_operation_diagnosis("action=tabs_restore failure=none process=none exit=none duration_ms=0 count=3 written=0 read_back=0 tabs_dropped=1 path=PRIVATE"),
+			   "nothing follows the dropped count");
+		expect(!parse_operation_diagnosis("action=tabs_restore failure=none process=none exit=none duration_ms=0 count=3 written=0 read_back=0"),
+			   "a tabs line without its dropped count is not one");
+		expect(!parse_operation_diagnosis("action=tabs_restore failure=none process=none exit=none duration_ms=0 count=3 written=0 read_back=0 tabs_dropped=01"),
+			   "the dropped count is a plain decimal");
+		expect(family(operation_action::review_submit_repair) == operation_diagnosis_family::review_mutation, "the line before it keeps its family");
+	}
 	/// [[BPR-2295]]. A workspace line names its source, the review's
 	/// loading, the clone and, on a failure, the Git command and Git's words
 	/// as a class; never an object or a path.
@@ -269,18 +290,85 @@ namespace {
 		expect(!parse_operation_diagnosis("action=workspace_materialize failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 source=borrowed sparse=1 clone=1 clone_head=1 git=none git_error=none path=/x").has_value(),
 			   "nothing follows the trace");
 	}
+
+	/// [[BPR-2321]]. A seed from the linked clone names its outcome, each
+	/// step's time and its counts; a line with no seed is unchanged.
+	void test_workspace_seed_trace()
+	{
+		const auto seeded = operation_diagnosis{ .Action = operation_action::workspace_materialize, .DurationMilliseconds = 900U, .Workspace = workspace_trace{ .Source = workspace_source::borrowed, .Sparse = true, .CloneGiven = true, .CloneHeldHead = true, .Seed = workspace_seed_trace{ .Outcome = workspace_seed_outcome::seeded, .WalkMilliseconds = 40U, .CloneMilliseconds = 230U, .RefreshMilliseconds = 200U, .CheckoutMilliseconds = 5U, .CleanMilliseconds = 30U, .FoldersCloned = 98U, .FilesCloned = 402U, .FilesWritten = 3U, .Cleaned = 0U } } };
+		expect(describe(seeded).ends_with("git=none git_error=none seed=seeded seed_walk_ms=40 seed_clone_ms=230 seed_refresh_ms=200 seed_checkout_ms=5 seed_clean_ms=30 seed_folders=98 seed_files=402 seed_written=3 seed_cleaned=0"),
+			   "the seed's steps and counts follow the trace");
+		expect(parse_operation_diagnosis(describe(seeded)) == seeded, "and read back");
+		const auto spread = operation_diagnosis{ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Source = workspace_source::borrowed, .CloneGiven = true, .Seed = workspace_seed_trace{ .Outcome = workspace_seed_outcome::too_spread, .WalkMilliseconds = 12U, .CheckoutMilliseconds = 1800U, .FilesWritten = 20003U } } };
+		expect(describe(spread).find(" seed=too_spread ") != std::string::npos && parse_operation_diagnosis(describe(spread)) == spread, "a fallback names which");
+		expect(describe({ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Seed = workspace_seed_trace{ .Cleaned = 4U } } }).empty(), "counts with no seed are no line");
+		expect(describe({ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Seed = workspace_seed_trace{ .Outcome = static_cast<workspace_seed_outcome>(40) } } }).empty(), "an unknown outcome is no line");
+		const auto prefix = std::string{ "action=workspace_materialize failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 source=borrowed sparse=1 clone=1 clone_head=1 git=none git_error=none" };
+		expect(!parse_operation_diagnosis(prefix + " seed=none seed_walk_ms=0 seed_clone_ms=0 seed_refresh_ms=0 seed_checkout_ms=0 seed_clean_ms=0 seed_folders=0 seed_files=0 seed_written=0 seed_cleaned=0").has_value(), "no seed is written as none");
+		expect(!parse_operation_diagnosis(prefix + " seed=seeded seed_walk_ms=1").has_value(), "a seed names every step");
+		expect(!parse_operation_diagnosis(prefix + " seed=seeded seed_walk_ms=0 seed_clone_ms=0 seed_refresh_ms=0 seed_checkout_ms=0 seed_clean_ms=0 seed_folders=0 seed_files=0 seed_written=0 seed_cleaned=0 path=/x").has_value(),
+			   "nothing follows the seed");
+	}
+} // namespace
+
+namespace {
+	/// [[BPR-2322]]. A side chat line: the item's kind, the round, the apply
+	/// action, the refusal and the texts' lengths, and nothing else.
+	void test_side_chat_lines()
+	{
+		auto asked = operation_diagnosis{ .Action = operation_action::side_chat_ask, .DurationMilliseconds = 1200U, .SideChat = side_chat_trace{ .Item = follow_up_subject_kind::suggested_comment, .Round = 2U, .QuestionChars = 31U, .AnswerChars = 410U } };
+		expect(describe(asked) == "action=side_chat_ask failure=none process=none exit=none duration_ms=1200 count=0 written=0 read_back=0 item=suggested_comment round=2 apply=none refusal=none question_chars=31 answer_chars=410 before_chars=0 after_chars=0",
+			   "an asked line holds its trace in order");
+		expect(parse_operation_diagnosis(describe(asked)) == asked && family(operation_action::side_chat_ask) == operation_diagnosis_family::side_chat, "and reads back as a side chat line");
+		auto used = operation_diagnosis{ .Action = operation_action::side_chat_apply, .Failure = operation_failure::refused, .SideChat = side_chat_trace{ .Item = follow_up_subject_kind::draft, .Round = 1U, .Apply = follow_up_apply::update_draft, .Refusal = follow_up_refusal::target_changed, .BeforeChars = 17U, .AfterChars = 64U } };
+		expect(parse_operation_diagnosis(describe(used)) == used && describe(used).find("apply=update_draft refusal=target_changed") != std::string::npos, "a refused Use reads back with its action and why");
+		auto stopped              = asked;
+		stopped.Failure           = operation_failure::cancelled;
+		stopped.SideChat->Refusal = follow_up_refusal::failed;
+		expect(parse_operation_diagnosis(describe(stopped)) == stopped, "a stopped question reads back");
+		// What is not a side chat line is refused.
+		auto noTrace     = asked;
+		noTrace.SideChat = std::nullopt;
+		expect(describe(noTrace).empty(), "a side chat line carries its trace");
+		auto applyOnAsk            = asked;
+		applyOnAsk.SideChat->Apply = follow_up_apply::draft_reply;
+		expect(describe(applyOnAsk).empty(), "a question names no apply action");
+		auto noApply            = used;
+		noApply.SideChat->Apply = std::nullopt;
+		expect(describe(noApply).empty(), "a Use names its apply action");
+		auto silent    = used;
+		silent.Failure = operation_failure::none;
+		expect(describe(silent).empty(), "a refusal is a failed line");
+		auto elsewhere = operation_diagnosis{ .Action = operation_action::tour_import, .SideChat = asked.SideChat };
+		expect(describe(elsewhere).empty(), "a side chat trace only on a side chat line");
+		expect(!parse_operation_diagnosis(describe(asked) + " question=Why"), "no words after the trace");
+		expect(!parse_operation_diagnosis("action=side_chat_ask failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 item=finding round=1 apply=none refusal=none question_chars=1 answer_chars=1 before_chars=0 after_chars=0"),
+			   "an unknown item kind is refused");
+		expect(character_count("héllo") == 5U && character_count("") == 0U, "lengths count characters, not bytes");
+		// [[BPR-2325]]. Findings reopened because their draft was deleted.
+		const auto cleared = operation_diagnosis{ .Action = operation_action::finding_draft_cleared, .Count = 2U };
+		expect(describe(cleared) == "action=finding_draft_cleared failure=none process=none exit=none duration_ms=0 count=2 written=0 read_back=0" && parse_operation_diagnosis(describe(cleared)) == cleared
+				   && family(operation_action::finding_draft_cleared) == operation_diagnosis_family::finding_card,
+			   "a cleared draft link is a finding card line");
+		auto failed    = cleared;
+		failed.Failure = operation_failure::refused;
+		expect(describe(failed).empty(), "and it cannot fail");
+	}
 } // namespace
 
 int main()
 {
+	test_side_chat_lines();
 	test_line();
 	test_workspace_trace();
+	test_workspace_seed_trace();
 	test_review_submission_lines();
 	test_tour_publication_trace();
 	test_refusals();
 	test_account_and_update_lines();
 	test_storage_and_host_lines();
 	test_helper_tour_and_round_lines();
+	test_tabs_restore_line();
 	std::cout << "operation-diagnosis-tests:pass\n";
 	return EXIT_SUCCESS;
 }

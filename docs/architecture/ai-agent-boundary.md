@@ -16,7 +16,12 @@
   (`brief.report_format`, the returning and Explain prompts). The Qt adapter
   draws the Ask controls and menus, the report card and the report's tab (a
   page of Qt rich text with the Agent tab's code boxes), in the theme's report
-  colours.
+  colours. Under a report card the Agent tab shows the report's tally on its
+  side, one bar of a segment a label in its tone, sized by count and with
+  its label and count beside it, each opening the report at its first
+  finding ([[BPR-2336]]), and not the finding cards the report holds
+  (`core::report_held_cards`, [[BPR-2331]]);
+  the report offers what those cards did.
 
 ## Principle
 
@@ -220,6 +225,18 @@ program and its own options the fixed arguments. An audit on 2026-11-19
   start of the prompt". Output that is not Codex's JSON lines (a launcher
   before its pipe mode runs Codex under a terminal) is said as that, with the
   version the agent's own check printed and the fix: update the launcher.
+  The probe, like the agent's own check, runs in an empty folder of its own
+  that is removed after it ([[BPR-2320]]: it named no folder at first, so the
+  process launcher refused it before Codex started and no custom Codex JSONL
+  agent could pass Check). A request names a working folder or is
+  `WritingOnly` (`names_agent_folder`); the setup host tests' process port
+  refuses any other. A custom Claude (stream JSON) agent's check likewise asks
+  one short tool-free turn and passes only on an answer in stream JSON with
+  Claude's init frame; a program that writes nothing or plain text (a
+  launcher's double-click entry, which opens a terminal) fails naming the
+  protocol, the first line it wrote and its version. A check result names the
+  entry it checked and what its last step ran, never the preferred agent and
+  never "signed in" for a custom agent.
 - **Writes.** A granted write failed inside the launcher, likely Codex's own
   sandbox nested in the launcher's. A turn whose file changes all failed
   ends with words naming them instead of a normal answer, and its diagnostic

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2335"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "An Agent tab turn makes the conversation pan sideways at the drawer's narrowest width",
+  "created": "2026-11-20T21:38:03.631143+00:00",
+  "base": "f9b3cc60b12d071616da26e21e85aa4d7e6d85f6"
+}

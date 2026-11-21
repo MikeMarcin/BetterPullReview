@@ -69,6 +69,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDialog>
 #include <QDir>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
@@ -883,6 +884,11 @@ namespace {
 		// Removed in Settings.
 		programs->agent_list()->setCurrentRow(listed(QStringLiteral("Spare agent")));
 		programs->remove_button()->click();
+		// [[BPR-2318]]. Remove asks first.
+		if (programs->remove_question() == nullptr) {
+			return fail(aApplication, "remove-asks", "Remove opened no question");
+		}
+		programs->remove_question()->accept();
 		auto removed = wait_terms{ };
 		if (!wait_until_reporting(removed, [&](wait_terms& aTerms) {
 				return aTerms.require("spare-gone-from-settings", listed(QStringLiteral("Spare agent")) < 0)

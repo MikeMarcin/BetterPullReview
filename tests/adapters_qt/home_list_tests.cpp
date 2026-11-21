@@ -1005,6 +1005,47 @@ namespace {
 			   "a queue of only ignored rows says nothing needs me, above Ignored");
 	}
 
+	/// [[BPR-2326]]. The owner, 2026-11-20: "We need to move drafts out of
+	/// needs me by default. Maybe we can stick them into following while they
+	/// are in draft." A draft I am asked to review waits in Following with
+	/// its Draft chip; Settings' Needs me moves it back live, and so does the
+	/// read that says it is ready for review.
+	void test_another_authors_draft_waits_in_following()
+	{
+		home_fixture home;
+		auto         resets  = 0;
+		auto         context = QObject{ };
+		QObject::connect(&home.Source, &QAbstractItemModel::modelReset, &context, [&resets] { ++resets; });
+		auto draft        = item(1, bucket::initial_review_requested, 0U, "Still a sketch");
+		draft.Facts.Draft = true;
+		home.Source.apply(core::ordered_queue(std::vector{ draft, item(2, bucket::initial_review_requested), item(3, bucket::quiet) }));
+		home.List.set_queue_status(true, true);
+		home.List.show();
+		home.List.refresh();
+		settle(100);
+		const auto counts = [&home] {
+			return std::pair{ home.List.state_panel(qt::home_group::needs_you)->count(), home.List.state_panel(qt::home_group::following)->count() };
+		};
+		expect(home.Source.draft_placement() == core::home_draft_placement::following, "Following is the model's default");
+		expect(counts() == std::pair{ 1, 2 }, "the draft waits in Following, not Needs me");
+		const auto row = home.List.state_model(qt::home_group::following)->index(0, 0);
+		expect(row.data(qt::home_row_role::title).toString() == QStringLiteral("Still a sketch") && row.data(qt::home_row_role::draft).toBool(),
+			   "it leads Following and carries its Draft chip");
+		expect(buckets_in(home, qt::home_group::following).front() == bucket::initial_review_requested, "its bucket, and so its reason, is unchanged");
+
+		home.Source.set_draft_placement(core::home_draft_placement::needs_me);
+		settle(100);
+		expect(counts() == std::pair{ 2, 1 } && resets == 0, "Settings' Needs me moves it back at once, without a reset");
+		home.Source.set_draft_placement(core::home_draft_placement::following);
+		settle(100);
+		expect(counts() == std::pair{ 1, 2 }, "and Following moves it out again");
+
+		draft.Facts.Draft = false;
+		home.Source.apply_item(draft);
+		settle(100);
+		expect(counts() == std::pair{ 2, 1 } && resets == 0, "marked ready for review, it is back in Needs me");
+	}
+
 	// A row the core moves to another state moves panels without a reset and keeps its place.
 	void test_a_row_that_changes_state_moves_panels_and_keeps_its_place()
 	{
@@ -1685,6 +1726,9 @@ namespace {
 			queue[0].Facts.Title = "A complete draft title with enough literal text to wrap across the narrow Home row without elision";
 			queue[1].Facts.Draft = false;
 			queue[1].Ref.Account = "second-account";
+			// [[BPR-2326]]. The draft asked of me stays in Needs me, where this
+			// look measures it, only with Settings' Needs me.
+			home.Source.set_draft_placement(core::home_draft_placement::needs_me);
 			home.Source.apply(queue);
 			home.Source.set_reviewing(queue[0].Ref);
 			home.List.set_queue_status(true, true);
@@ -2247,6 +2291,7 @@ auto main(int argc, char** argv) -> int
 	test_recent_rows_offer_open_on_github_and_no_resume();
 	test_ignored_is_last_collapsed_and_offers_unignore(renderPath);
 	test_a_row_that_changes_state_moves_panels_and_keeps_its_place();
+	test_another_authors_draft_waits_in_following();
 	test_a_wheel_over_rows_scrolls_the_page();
 	// [[BPR-0783]]. Group, the state bands, the account chips and the keyboard.
 	test_group_none_without_state_headers_is_one_marked_list();

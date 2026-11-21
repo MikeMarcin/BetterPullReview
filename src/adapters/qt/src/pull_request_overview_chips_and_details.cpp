@@ -1,4 +1,5 @@
 #include "bpr/qt/commit_filter_view.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
@@ -51,6 +52,7 @@
 #include <QSplitter>
 #include <QString>
 #include <QStringDecoder>
+#include <QStringList>
 #include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
@@ -581,7 +583,138 @@ namespace bpr::qt {
 	void pull_request_overview_page::present_merge(const application::pull_request_overview_projection& aProjection)
 	{
 		present_merge_details(aProjection.MergeState, aProjection.MergeTone, aProjection.Status.OpenConditions, aProjection.RequirementDetails);
+		present_merge_conflict(aProjection);
 		present_request_rows();
+	}
+
+	void pull_request_overview_page::present_merge_conflict(const application::pull_request_overview_projection& aProjection)
+	{
+		while (ConflictFiles->count() != 0) {
+			auto* const item = ConflictFiles->takeAt(0);
+			delete item->widget();
+			delete item;
+		}
+		const auto& conflict = aProjection.MergeConflict;
+		if (conflict) {
+			ConflictSentence->setText(QStringLiteral("GitHub cannot merge until the conflicts with %1 are resolved.").arg(with_break_opportunities(text(conflict->Base))));
+			ConflictSentence->setAccessibleName(QStringLiteral("GitHub cannot merge until the conflicts with %1 are resolved.").arg(text(conflict->Base)));
+			if (conflict->Files) {
+				for (const auto& path : *conflict->Files) {
+					auto* const row = new drawer_link_row{ MergeConflictBox };
+					row->setObjectName(QStringLiteral("overviewConflictFile"));
+					row->present_line(with_break_opportunities(text(path)), Colours.Unread);
+					row->setAccessibleName(QStringLiteral("Open %1").arg(text(path)));
+					row->setToolTip(QStringLiteral("Open this file in the review"));
+					row->setProperty("path", text(path));
+					connect(row, &QAbstractButton::clicked, this, [this, opened = text(path)] {
+						if (FileDispatch) {
+							FileDispatch(opened);
+						}
+					});
+					ConflictFiles->addWidget(row);
+				}
+			}
+			ConflictFilesNote->setVisible(!conflict->Files);
+			const auto commands = text(conflict->CommandHint);
+			ConflictCommands->setText(with_break_opportunities(commands));
+			ConflictCommands->setAccessibleName(commands);
+			ConflictCommands->setProperty("commands", commands);
+		}
+		MergeConflictBox->setVisible(conflict.has_value());
+		AlsoRequired->setVisible(conflict.has_value() && !aProjection.Status.OpenConditions.empty());
+		auto notes = QStringList{ };
+		for (const auto& note : aProjection.MergeNotes) {
+			notes.push_back(text(note));
+		}
+		MergeNotes->setText(with_break_opportunities(notes.join(QLatin1Char{ '\n' })));
+		MergeNotes->setAccessibleName(notes.join(QStringLiteral(" ")));
+		MergeNotes->setVisible(!notes.isEmpty());
+		present_auto_merge_controls();
+	}
+
+	void pull_request_overview_page::present_auto_merge_controls()
+	{
+		const auto state = Projection ? Projection->AutoMerge : std::optional<application::overview_auto_merge>{ };
+		AutoMergeBox->setVisible(state.has_value());
+		if (!state) {
+			return;
+		}
+		AutoMergeLine->setText(with_break_opportunities(text(state->Line)));
+		AutoMergeLine->setAccessibleName(text(state->Line));
+		const auto offer = state->Offer.Change;
+		auto*      menu  = EnableAutoMerge->menu();
+		menu->clear();
+		for (const auto method : state->Offer.Methods) {
+			const auto  words  = method == core::merge_method::squash ? QStringLiteral("Squash and merge")
+				: method == core::merge_method::rebase                ? QStringLiteral("Rebase and merge")
+																	  : QStringLiteral("Create a merge commit");
+			auto* const action = menu->addAction(words);
+			action->setObjectName(QStringLiteral("overviewAutoMergeMethod"));
+			connect(action, &QAction::triggered, this, [this, method] {
+				if (AutoMergeDispatch && !AutoMergeBusy) {
+					AutoMergeDispatch(core::auto_merge_change::enable, method);
+				}
+			});
+		}
+		EnableAutoMerge->setVisible(offer == core::auto_merge_change::enable);
+		DisableAutoMerge->setVisible(offer == core::auto_merge_change::disable);
+		EnableAutoMerge->setEnabled(!AutoMergeBusy);
+		DisableAutoMerge->setEnabled(!AutoMergeBusy);
+	}
+
+	void pull_request_overview_page::set_auto_merge_dispatch(std::function<void(core::auto_merge_change, std::optional<core::merge_method>)> aDispatch)
+	{
+		AutoMergeDispatch = std::move(aDispatch);
+	}
+
+	void pull_request_overview_page::present_auto_merge_status(const QString& aText, const bool aBusy)
+	{
+		AutoMergeBusy = aBusy;
+		AutoMergeStatus->setText(aText);
+		AutoMergeStatus->setVisible(!aText.isEmpty());
+		// What GitHub refused is said in the defect ink, as a draft-state refusal is.
+		auto ink = palette();
+		if (!aText.isEmpty() && !aBusy) {
+			ink.setColor(QPalette::WindowText, Colours.Defect);
+		}
+		AutoMergeStatus->setPalette(ink);
+		present_auto_merge_controls();
+	}
+
+	auto pull_request_overview_page::present_auto_merge_state(const application::pull_request_overview_projection& aProjection) -> bool
+	{
+		if (!Projection.has_value() || Cached || Projection->Owner != aProjection.Owner || Projection->RepositoryName != aProjection.RepositoryName || Projection->Number != aProjection.Number) {
+			return false;
+		}
+		Projection->AutoMerge  = aProjection.AutoMerge;
+		Projection->MergeNotes = aProjection.MergeNotes;
+		present_merge(*Projection);
+		return true;
+	}
+
+	auto pull_request_overview_page::enable_auto_merge_button() const noexcept -> QToolButton*
+	{
+		return EnableAutoMerge;
+	}
+
+	auto pull_request_overview_page::disable_auto_merge_button() const noexcept -> QAbstractButton*
+	{
+		return DisableAutoMerge;
+	}
+
+	auto pull_request_overview_page::auto_merge_line() const noexcept -> QLabel*
+	{
+		return AutoMergeLine;
+	}
+
+	auto pull_request_overview_page::auto_merge_status() const noexcept -> QLabel*
+	{
+		return AutoMergeStatus;
+	}
+
+	void pull_request_overview_page::set_conflicts_page_dispatch(std::function<void()> aDispatch)
+	{
+		ConflictsPageDispatch = std::move(aDispatch);
 	}
 
 	void pull_request_overview_page::present_merge_details(const std::string& aState, const application::overview_merge_tone aTone, const std::vector<std::string>& aConditions, const std::string& aDetails)
@@ -603,8 +736,14 @@ namespace bpr::qt {
 		auto statePalette = MergeState->palette();
 		statePalette.setColor(QPalette::WindowText, tone);
 		MergeState->setPalette(statePalette);
-		MergeState->setText(text(aState));
-		MergeState->setAccessibleName(QStringLiteral("Merge state: %1").arg(MergeState->text()));
+		MergeState->setText(with_break_opportunities(text(aState)));
+		MergeState->setAccessibleName(QStringLiteral("Merge state: %1").arg(text(aState)));
+		// [[BPR-2327]]. The conflict and the notes are the projection's;
+		// present_merge_conflict shows them.
+		MergeConflictBox->hide();
+		AlsoRequired->hide();
+		MergeNotes->hide();
+		AutoMergeBox->hide();
 		MergeState->show();
 
 		// [[BPR-1589]]. Each failed check is named in Needs attention; the
@@ -613,7 +752,7 @@ namespace bpr::qt {
 		for (const auto& condition : aConditions) {
 			conditions.push_back(text(condition));
 		}
-		MergeConditions->setText(conditions.join(QLatin1Char{ '\n' }));
+		MergeConditions->setText(with_break_opportunities(conditions.join(QLatin1Char{ '\n' })));
 		MergeConditions->setAccessibleName(conditions.join(QStringLiteral(". ")));
 		MergeConditions->setVisible(!conditions.isEmpty());
 

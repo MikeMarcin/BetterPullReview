@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2334"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "right-click opens a row's context menu without selecting or opening it",
+  "created": "2026-11-20T20:50:25.353025+00:00",
+  "base": "e9311e2d75b750f928fe34b1da65e586fbb73170"
+}

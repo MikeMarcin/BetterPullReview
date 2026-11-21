@@ -424,6 +424,42 @@ namespace bpr::app {
 		return result;
 	}
 
+	auto detail::github_application_fixture_access::reopened_tabs(
+		const github_application& aApplication) -> reopened_tabs_evidence
+	{
+		auto        result         = reopened_tabs_evidence{ };
+		const auto* implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result;
+		}
+		result.Last = implementation->LastReopenedTabs;
+		result.Held = implementation->RememberedTabs.has_value();
+		if (implementation->LastSelectedDiff && implementation->Window != nullptr
+			&& implementation->Window->comparison_surface()->current_result() != nullptr) {
+			result.ShownPath = implementation->LastSelectedDiff->Request.File.PresentationPath;
+		}
+		return result;
+	}
+
+	auto detail::github_application_fixture_access::remember_missing_tab(
+		github_application& aApplication, const std::string_view aPath) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->TabHost == nullptr || !implementation->ReadingDestination
+			|| !aApplication.Profile || !aApplication.Profile->ReviewRestoration) {
+			return false;
+		}
+		auto tabs = core::persisted(implementation->TabHost->state());
+		if (!tabs || tabs->Tabs.empty() || tabs->Tabs.size() >= core::maximum_document_tabs) {
+			return false;
+		}
+		tabs->Tabs.push_back({ .Comparison = tabs->WindowComparison, .File = core::file_identity_of(aPath), .Selection = std::nullopt });
+		aApplication.Profile->ReviewRestoration->accepted_tabs(implementation->DraftWindow, *implementation->ReadingDestination, *tabs);
+		const auto& recent = aApplication.Profile->ReviewRestoration->recent();
+		const auto  entry  = std::ranges::find(recent, *implementation->ReadingDestination, &core::window_recent_review::Destination);
+		return entry != recent.end() && entry->Tabs == tabs;
+	}
+
 	auto detail::github_application_fixture_access::evidence(
 		const github_application& aApplication) noexcept
 		-> detail::github_public_path_fixture_evidence

@@ -19,6 +19,7 @@
 #include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
+#include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_strip.hpp"
@@ -263,30 +264,43 @@ namespace {
 		expect(cliCard->cli_offer_button() != nullptr && nativeCard->cli_offer_button() == nullptr
 				   && !cliCard->cli_offer_button()->isVisibleTo(cliCard),
 			   "only the server with a GitHub CLI profile has the GitHub CLI offer, and it is not offered while GitHub CLI is already the card's way in");
-		expect(!warning->isHidden() && warning->wordWrap() && warning->textFormat() == Qt::PlainText,
-			   "the CLI card shows a wrapped literal warning before Connect");
+		expect(!warning->isHidden() && !warning->wordWrap() && warning->textFormat() == Qt::PlainText,
+			   "the CLI card shows a one-line literal trust line before Connect");
+		// [[BPR-2319]]. The card says one short sentence; RFC-BPR-0015's full
+		// disclosure is the info glyph's beside it, on hover, focus and press,
+		// and is its accessible description.
+		auto* const details = cliCard->cli_trust_details();
+		expect(warning->text() == QStringLiteral("Uses gh's sign-in for this account; the token isn't saved.")
+				   && !warning->text().contains(QLatin1Char('\n')) && warning->text().size() <= 80,
+			   "the CLI trust line is one short sentence");
+		expect(details != nullptr && nativeCard->cli_trust_details() == nullptr && cliCard->isAncestorOf(details)
+				   && details->objectName() == QStringLiteral("githubCliTrustDetails") && !details->isHidden()
+				   && details->toolTip() == details->consequence() && details->accessibleDescription() == details->consequence()
+				   && details->focusPolicy() == Qt::StrongFocus && !details->accessibleName().isEmpty(),
+			   "the full CLI trust disclosure sits in a keyboard-reachable info glyph beside the trust line, on the CLI card only");
+		const auto disclosure = details != nullptr ? details->consequence() : QString{ };
 		for (const auto* phrase : { "this server", "existing gh sign-in", "transient credential", "exact account", "executable", "private account configuration", "CA", "redirects", "child-process", "gh 2.96 or later", "does not authorize publishing" }) {
-			expect(warning->text().contains(QString::fromLatin1(phrase)), std::string{ "CLI warning states each residual trust risk and read boundary: " } + phrase);
+			expect(disclosure.contains(QString::fromLatin1(phrase)), std::string{ "the CLI trust disclosure states each residual trust risk and read boundary: " } + phrase);
 		}
 #if defined(__APPLE__)
 		for (const auto* phrase : { "file writes are denied", "owned temporary object store", "shell credential helper", "Git 2.49 or later", "checked locally", "32 MiB" }) {
-			expect(warning->text().contains(QString::fromLatin1(phrase)), std::string{ "the macOS CLI card states its confinement and full-diff boundary: " } + phrase);
+			expect(disclosure.contains(QString::fromLatin1(phrase)), std::string{ "the macOS CLI disclosure states its confinement and full-diff boundary: " } + phrase);
 		}
 #else
 		for (const auto* phrase : { "file writes are not denied", "private configuration is removed", "Full diffs may run Git", "shell credential helper", "temporary folder of yours that is removed afterwards", "Git 2.49 or later", "checked locally", "32 MiB per-file limit" }) {
-			expect(warning->text().contains(QString::fromLatin1(phrase)), std::string{ "the CLI card states this platform's residual boundary: " } + phrase);
+			expect(disclosure.contains(QString::fromLatin1(phrase)), std::string{ "the CLI disclosure states this platform's residual boundary: " } + phrase);
 		}
-		expect(!warning->text().contains(QStringLiteral("file writes are denied")) && !warning->text().contains(QStringLiteral("supervised temporary-store cutoff")), "the CLI card does not promise macOS write denial or its supervised store cutoff on this platform");
+		expect(!disclosure.contains(QStringLiteral("file writes are denied")) && !disclosure.contains(QStringLiteral("supervised temporary-store cutoff")), "the CLI disclosure does not promise macOS write denial or its supervised store cutoff on this platform");
 #endif
 		const auto host = QString::fromStdString(cliCard->hostname());
 		expect(!host.isEmpty() && cliCard->host_label()->text() == host
-				   && !warning->text().contains(host, Qt::CaseInsensitive),
-			   "the warning says this server rather than naming the host its card's header already names");
+				   && !warning->text().contains(host, Qt::CaseInsensitive) && !disclosure.contains(host, Qt::CaseInsensitive),
+			   "the trust line and its disclosure say this server rather than naming the host its card's header already names");
 		// Profile projection is independent of the shared sign-in dialog,
 		// whose native setup hides cards for unrelated hosts.
 		window.connect_github_profile(core::host_profile_id{ 12U });
-		expect(window.session_panel()->selected_profile() == core::host_profile_id{ 12U } && !warning->isHidden()
-				   && warning->text().contains(QStringLiteral("this server"))
+		expect(window.session_panel()->selected_profile() == core::host_profile_id{ 12U } && !warning->isHidden() && !details->isHidden()
+				   && disclosure.contains(QStringLiteral("this server"))
 				   && !warning->text().contains(host, Qt::CaseInsensitive),
 			   "choosing the native host leaves the warning on the CLI card, where the opt-in is made, still without the host");
 		window.connect_github_profile(core::host_profile_id{ 11U });
@@ -301,6 +315,35 @@ namespace {
 		expect(!warning->isHidden() && nativeCard->cli_trust_warning() == nullptr
 				   && cliCard->connect_button()->isVisibleTo(cliCard),
 			   "a projected native identity leaves the warning beside the CLI card's Connect, before it replaces that session");
+
+		// [[BPR-2319]]. A GitHub CLI session holds no token of BetterPullReview's,
+		// so its card does not say it signed in with one: the trust line
+		// beneath the login says how it signs in, once.
+		const auto cliSession = application::github_session_projection{
+			.Profile = core::host_profile_id{ 11U },
+			.Host    = core::git_host_id{ 21U },
+			.Account = core::github_account_id{ 52U },
+			.Login   = "octo-reviewer",
+			.Grant   = application::github_grant_projection{ .Kind = application::github_grant_kind_projection::token },
+		};
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status   = core::github_status_delta{ .Status = core::github_status::session_ready },
+				.Identity = core::github_identity_delta{
+					.Profile    = cliSession.Profile,
+					.Host       = cliSession.Host,
+					.Account    = cliSession.Account,
+					.Generation = core::github_identity_generation{ 3U },
+				},
+			},
+			.Session = cliSession,
+		});
+		QApplication::processEvents();
+		expect(cliCard->signed_in() && cliCard->login_label()->text() == QStringLiteral("octo-reviewer")
+				   && !cliCard->consequence_label()->isVisibleTo(cliCard)
+				   && !cliCard->consequence_label()->text().contains(QStringLiteral("token for this session"))
+				   && warning->isVisibleTo(cliCard) && details->isVisibleTo(cliCard),
+			   "a signed-in GitHub CLI card says how it signs in once, in the trust line, and claims no session-only token");
 	}
 
 	// [[BPR-0933]], RFC-BPR-0032 amendment r1. The read consent is said in the
@@ -8028,11 +8071,13 @@ namespace {
 		expect(window.findChildren<QLabel*>(QStringLiteral("githubCliTrustWarning")).size() == 2
 				   && std::ranges::all_of(cards, [](const qt::server_card* const aCard) {
 						  auto* const warning = aCard->cli_trust_warning();
-						  return warning != nullptr && aCard->isAncestorOf(warning)
+						  auto* const details = aCard->cli_trust_details();
+						  return warning != nullptr && details != nullptr && aCard->isAncestorOf(warning)
 							  && aCard->findChildren<QLabel*>(QStringLiteral("githubCliTrustWarning")) == QList<QLabel*>{ warning }
-						  && warning->isVisibleTo(aCard)
-							  && warning->text().contains(QStringLiteral("this server"))
-							  && !warning->text().contains(QString::fromStdString(aCard->hostname()), Qt::CaseInsensitive);
+						  && warning->isVisibleTo(aCard) && details->isVisibleTo(aCard)
+							  && details->consequence().contains(QStringLiteral("this server"))
+							  && !warning->text().contains(QString::fromStdString(aCard->hostname()), Qt::CaseInsensitive)
+							  && !details->consequence().contains(QString::fromStdString(aCard->hostname()), Qt::CaseInsensitive);
 					  }),
 			   "exactly one trust warning per server, in that server's card, saying this server rather than its host");
 		expect(github->sign_in_button()->isVisibleTo(github) && github->sign_in_button()->isDefault()

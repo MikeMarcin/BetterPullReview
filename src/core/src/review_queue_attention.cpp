@@ -194,7 +194,7 @@ namespace bpr::core {
 		return aItem.Bucket == attention_bucket::quiet && !merge_blocked(aItem.Facts.Waiting);
 	}
 
-	auto home_section_for(const queue_item& aItem) noexcept -> home_queue_section
+	auto home_section_for(const queue_item& aItem, const home_draft_placement aDrafts) noexcept -> home_queue_section
 	{
 		if (aItem.Ignored) {
 			return home_queue_section::ignored;
@@ -202,7 +202,19 @@ namespace bpr::core {
 		if (const auto move = next_move_for(aItem); move) {
 			return *move == authored_next_move::waiting ? home_queue_section::waiting_on_others : home_queue_section::my_pull_requests;
 		}
-		return home_section_for(aItem.Membership, aItem.Bucket);
+		const auto section = home_section_for(aItem.Membership, aItem.Bucket);
+		// [[BPR-2326]]. Not mine (a draft of mine has its next move above) and
+		// not ready for review: nothing is asked of me yet.
+		if (section == home_queue_section::needs_you && draft_waits_quietly(aItem, aDrafts)) {
+			return home_queue_section::following;
+		}
+		return section;
+	}
+
+	auto draft_waits_quietly(const queue_item& aItem, const home_draft_placement aDrafts) noexcept -> bool
+	{
+		// An unread draft status is not a draft.
+		return aDrafts == home_draft_placement::following && aItem.Facts.Draft == std::optional{ true } && !aItem.Membership.authored();
 	}
 
 	auto name(const attention_bucket aBucket) noexcept -> std::string_view

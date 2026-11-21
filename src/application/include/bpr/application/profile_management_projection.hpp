@@ -21,7 +21,8 @@ namespace bpr::application {
 															 open,
 															 new_window,
 															 close,
-															 quit };
+															 quit,
+															 move };
 	enum class profile_management_failure : std::uint8_t {
 		registry_unavailable,
 		invalid_registry,
@@ -75,6 +76,13 @@ namespace bpr::application {
 		core::bpr_profile_id Profile;
 		std::string          Label;
 	};
+	/// \brief [[BPR-2318]]. Moves a profile `Delta` places in the list
+	/// (negative: up). Every list of profiles follows the saved order.
+	struct move_bpr_profile_intent
+	{
+		core::bpr_profile_id Profile;
+		int                  Delta = 0;
+	};
 	struct open_bpr_profile_intent
 	{
 		core::bpr_profile_id Profile;
@@ -91,7 +99,7 @@ namespace bpr::application {
 		std::optional<core::window_review_destination> Review{ };
 	};
 
-	using profile_management_intent   = std::variant<reload_bpr_profiles_intent, create_bpr_profile_intent, rename_bpr_profile_intent, open_bpr_profile_intent, new_bpr_window_intent>;
+	using profile_management_intent   = std::variant<reload_bpr_profiles_intent, create_bpr_profile_intent, rename_bpr_profile_intent, open_bpr_profile_intent, new_bpr_window_intent, move_bpr_profile_intent>;
 	using profile_management_dispatch = std::function<void(profile_management_intent)>;
 
 	enum class profile_runtime_command_kind : std::uint8_t { start,

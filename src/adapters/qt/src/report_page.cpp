@@ -163,6 +163,9 @@ namespace bpr::qt {
 			auto       cells  = QString{ };
 			// [[BPR-2286]]. Ask follow-up, beside a finding's keep action.
 			const auto ask = Actions->FollowUp && aOutline != 0U ? chip(Actions->Link(aOutline, report_link::ask), QObject::tr("Ask follow-up"), aPalette.Ink, aPalette) + spacer : QString{ };
+			// [[BPR-2331]]. Dismiss, beside a finding's keep action, as its
+			// Agent tab card had it.
+			const auto dismiss = Actions->Dismiss && aOutline != 0U ? chip(Actions->Link(aOutline, report_link::dismiss), QObject::tr("Dismiss"), aPalette.Ink, aPalette) + spacer : QString{ };
 			switch (state.Phase) {
 			case report_keep_phase::working: cells = beside(draft ? QObject::tr("Drafting\u2026") : QObject::tr("Keeping\u2026"), aPalette.Faint, false); break;
 			case report_keep_phase::kept:
@@ -171,21 +174,36 @@ namespace bpr::qt {
 					cells += chip(Actions->Link(aOutline, report_link::go), draft ? QObject::tr("Go to draft") : QObject::tr("Go to comment"), aPalette.Link, aPalette) + spacer;
 				}
 				cells += ask;
-				cells += beside(aOutline == 0U ? QObject::tr("A local comment on the pull request. %1").arg(unsent) : unsent, aPalette.Faint, false);
+				// [[BPR-2331]]. What the draft says of its lines, when it says
+				// something ([[BPR-2298]]), as its card said it.
+				cells += beside(!state.Why.isEmpty() ? state.Why
+									: aOutline == 0U ? QObject::tr("A local comment on the pull request. %1").arg(unsent)
+													 : unsent,
+								aPalette.Faint, false);
+				break;
+			case report_keep_phase::dismissed:
+				cells = beside(QObject::tr("Dismissed"), aPalette.Dim, true) + chip(Actions->Link(aOutline, report_link::undo_dismiss), QObject::tr("Undo"), aPalette.Ink, aPalette) + spacer;
+				cells += beside(QObject::tr("Nothing was made"), aPalette.Faint, false);
 				break;
 			case report_keep_phase::refused:
 			case report_keep_phase::offered:
 				cells = chip(Actions->Link(aOutline, report_link::keep), aOutline == 0U ? QObject::tr("Keep summary") : draft ? QObject::tr("Draft comment")
 																															  : QObject::tr("Keep local"),
 							 aPalette.Ink, aPalette)
-					+ spacer + ask;
+					+ spacer + dismiss + ask;
 				cells += state.Phase == report_keep_phase::refused ? beside(state.Why, aPalette.Roles.Tones.Open.name(), false) : beside(QStringLiteral("%1. %2").arg(aWhere, unsent), aPalette.Faint, false);
 				break;
 			}
 			auto revised = QString{ };
-			if (const auto edited = Actions->Revised.find(aOutline); edited != Actions->Revised.end()) {
-				revised = QStringLiteral("<p style=\"margin-top:6px;font-family:%1;font-size:13px;color:%2\">%3 <span style=\"color:%4\">%5</span></p>")
-							  .arg(sans(), aPalette.Faint, QObject::tr("Suggested comment, updated:").toHtmlEscaped(), aPalette.Ink, edited->second.toHtmlEscaped());
+			// [[BPR-2331]]. The comment Draft comment drafts: a follow-up's
+			// update, else the one the agent suggested, as its card showed it.
+			const auto edited    = Actions->Revised.find(aOutline);
+			const auto suggested = Actions->Suggested.find(aOutline);
+			if (edited != Actions->Revised.end() || suggested != Actions->Suggested.end()) {
+				const auto updated = edited != Actions->Revised.end();
+				revised            = QStringLiteral("<p style=\"margin-top:6px;font-family:%1;font-size:13px;color:%2;white-space:pre-wrap\">%3 <span style=\"color:%4\">%5</span></p>")
+										 .arg(sans(), aPalette.Faint, (updated ? QObject::tr("Suggested comment, updated:") : QObject::tr("Suggested comment:")).toHtmlEscaped(), aPalette.Ink,
+											  (updated ? edited->second : suggested->second).toHtmlEscaped());
 			}
 			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells) + revised;
 		}
@@ -194,7 +212,7 @@ namespace bpr::qt {
 		/// finding to draft, and what it is doing or last did.
 		[[nodiscard]] auto draft_all_row(const palette& aPalette) -> QString
 		{
-			if (Actions == nullptr || !Actions->Link || (Actions->DraftAll == 0U && !Actions->DraftAllBusy && Actions->DraftAllSaid.isEmpty())) {
+			if (Actions == nullptr || !Actions->Link || (Actions->DraftAll == 0U && !Actions->DraftAllBusy && Actions->DraftAllSaid.isEmpty() && !Actions->DraftAllUndo)) {
 				return { };
 			}
 			auto cells = QString{ };
@@ -203,6 +221,10 @@ namespace bpr::qt {
 			}
 			cells += Actions->DraftAllSaid.isEmpty() ? beside(QObject::tr("Each finding not yet drafted, at its lines. Nothing is published"), aPalette.Faint)
 													 : beside(Actions->DraftAllSaid, Actions->DraftAllBusy ? aPalette.Faint : aPalette.Dim);
+			// [[BPR-2331]]. Its Undo, beside what it did, as the Agent tab's.
+			if (Actions->DraftAllUndo && !Actions->DraftAllBusy) {
+				cells += chip(Actions->Link(0U, report_link::undo_draft_all), QObject::tr("Undo"), aPalette.Ink, aPalette);
+			}
 			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells);
 		}
 

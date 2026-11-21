@@ -604,6 +604,12 @@ namespace {
 			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation MarkReadyForReview" };
 		case operation::convert_pull_request_to_draft:
 			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation ConvertToDraft" };
+		case operation::observe_pull_request_auto_merge:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "query ObserveAutoMerge" };
+		case operation::enable_pull_request_auto_merge:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation EnableAutoMerge" };
+		case operation::disable_pull_request_auto_merge:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation DisableAutoMerge" };
 		}
 		return std::nullopt;
 	}
@@ -751,6 +757,17 @@ namespace {
 		};
 		auto draftConvert   = draftReady;
 		draftConvert.Change = core::draft_state_change::convert_to_draft;
+		// [[BPR-2329]].
+		const auto autoEnable = application::review_auto_merge_request{
+			.Target         = serverTarget.Semantic,
+			.ActingIdentity = identity().Account,
+			.Change         = core::auto_merge_change::enable,
+			.Method         = core::merge_method::squash,
+			.LiveBinding    = reply.LiveBinding,
+		};
+		auto autoDisable   = autoEnable;
+		autoDisable.Change = core::auto_merge_change::disable;
+		autoDisable.Method.reset();
 		return std::array{
 
 			compile_target_observation_request(serverTarget, aServer),
@@ -797,6 +814,9 @@ namespace {
 			compile_draft_state_observation_request(draftReady, aServer),
 			compile_draft_state_request(draftReady, aServer),
 			compile_draft_state_request(draftConvert, aServer),
+			compile_auto_merge_observation_request(autoEnable, aServer),
+			compile_auto_merge_request(autoEnable, aServer),
+			compile_auto_merge_request(autoDisable, aServer),
 		};
 	}
 
@@ -859,6 +879,9 @@ namespace {
 			row{ operation::observe_pull_request_draft_state, http_method::post, true, 200, false },
 			row{ operation::mark_pull_request_ready_for_review, http_method::post, true, 200, false },
 			row{ operation::convert_pull_request_to_draft, http_method::post, true, 200, false },
+			row{ operation::observe_pull_request_auto_merge, http_method::post, true, 200, false },
+			row{ operation::enable_pull_request_auto_merge, http_method::post, true, 200, false },
+			row{ operation::disable_pull_request_auto_merge, http_method::post, true, 200, false },
 		};
 
 		for (const auto& [op, method, graphql, status, witnessed] : rows) {
@@ -1303,6 +1326,69 @@ namespace {
 	// [[BPR-1852]]. The draft state goes by one read and one of two writes:
 	// each names the pull request by its node, revalidates canonically, and is
 	// held to the designated pull request.
+	/// [[BPR-2329]]. Auto-merge goes by one read and one of two writes, each
+	/// naming the pull request by its node and held to the designated pull
+	/// request; only an enable carries a method.
+	void test_auto_merge_goes_by_graphql_exactly()
+	{
+		const auto enable = application::review_auto_merge_request{
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Change         = core::auto_merge_change::enable,
+			.Method         = core::merge_method::rebase,
+			.LiveBinding    = request().LiveBinding,
+		};
+		const auto selection = std::string{ "id databaseId number state viewerCanEnableAutoMerge viewerCanDisableAutoMerge autoMergeRequest{mergeMethod} baseRepository{autoMergeAllowed mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed} repository{id databaseId nameWithOwner}" };
+		const auto write     = compile_auto_merge_request(enable);
+		expect(write.has_value() && write->Operation == review_mutation_operation::enable_pull_request_auto_merge && write->Path == "/graphql"
+				   && write->Body
+					   == "{\"query\":\"mutation EnableAutoMerge($pullRequest:ID!,$method:PullRequestMergeMethod!){enablePullRequestAutoMerge(input:{pullRequestId:$pullRequest,mergeMethod:$method}){pullRequest{" + selection
+						   + "}}}\",\"variables\":{\"pullRequest\":\"PR_kwDOTyvof879G6NV\",\"method\":\"REBASE\"}}",
+			   "Enable is the reserved write with the method asked");
+		auto disable   = enable;
+		disable.Change = core::auto_merge_change::disable;
+		disable.Method.reset();
+		const auto off  = compile_auto_merge_request(disable);
+		const auto read = compile_auto_merge_observation_request(enable);
+		expect(off.has_value() && off->Operation == review_mutation_operation::disable_pull_request_auto_merge && off->Body.find("\"method\"") == std::string::npos
+				   && read.has_value() && read->Operation == review_mutation_operation::observe_pull_request_auto_merge && read->Body.find("\"method\"") == std::string::npos,
+			   "Disable and the read carry no method");
+		for (const auto& wire : { *write, *off, *read }) {
+			expect(validate_outbound_review_mutation_request(wire).has_value(), "each auto-merge request revalidates canonically");
+		}
+		auto swapped      = *write;
+		swapped.Semantic  = disable;
+		auto spoofed      = *read;
+		spoofed.Operation = review_mutation_operation::enable_pull_request_auto_merge;
+		expect(!validate_outbound_review_mutation_request(swapped).has_value() && !validate_outbound_review_mutation_request(spoofed).has_value(), "the other change, or a read passed off as a write, is refused");
+		auto noMethod = enable;
+		noMethod.Method.reset();
+		auto methodOff      = disable;
+		methodOff.Method    = core::merge_method::squash;
+		auto unbound        = enable;
+		unbound.LiveBinding = std::nullopt;
+		for (const auto& refused : { noMethod, methodOff, unbound }) {
+			expect(!compile_auto_merge_request(refused).has_value(), "an enable without a method, a disable with one, or an unbound change is refused before the wire");
+		}
+
+		const auto pull = [](const std::string_view aRequest, const std::string_view aId = "PR_kwDOTyvof879G6NV") {
+			return "{\"id\":\"" + std::string{ aId } + "\",\"databaseId\":4246446933,\"number\":1,\"state\":\"OPEN\",\"viewerCanEnableAutoMerge\":true,\"viewerCanDisableAutoMerge\":false,\"autoMergeRequest\":" + std::string{ aRequest }
+			+ ",\"baseRepository\":{\"autoMergeAllowed\":true,\"mergeCommitAllowed\":true,\"squashMergeAllowed\":false,\"rebaseMergeAllowed\":true},\"repository\":{\"id\":\"R_kgDOTyvofw\",\"databaseId\":1328277631,\"nameWithOwner\":\"MikeMarcin/BPR-Test\"}}";
+		};
+		const auto node = [](const std::string& aPull) { return review_mutation_wire_response{ .Status = 200, .Body = "{\"data\":{\"node\":" + aPull + "}}" }; };
+		const auto off2 = parse_auto_merge_observation(node(pull("null")), enable);
+		expect(off2.has_value() && !off2->Enabled && off2->Open && off2->Allowed && off2->ViewerCanEnable && !off2->ViewerCanDisable && off2->Methods == core::allowed_merge_methods{ .Merge = true, .Squash = false, .Rebase = true },
+			   "off, with the repository's settings and GitHub's word on the viewer");
+		const auto on = parse_auto_merge_observation(node(pull("{\"mergeMethod\":\"MERGE\"}")), enable);
+		expect(on.has_value() && on->Enabled && on->Method == core::merge_method::merge, "on, with its method");
+		expect(parse_auto_merge_observation(node(pull("{\"mergeMethod\":\"FAST_FORWARD\"}")), enable).error() == review_mutation_contract_failure::malformed_response, "an unknown method is malformed");
+		expect(parse_auto_merge_observation(node(pull("null", "PR_kwDOTyvof879Gzzz")), enable).error() == review_mutation_contract_failure::identity_mismatch, "another pull request is refused");
+		const auto written = parse_auto_merge_response({ .Status = 200, .Body = "{\"data\":{\"enablePullRequestAutoMerge\":{\"pullRequest\":" + pull("{\"mergeMethod\":\"REBASE\"}") + "}}}" }, enable);
+		expect(written.has_value() && written->Enabled && written->Method == core::merge_method::rebase, "the write's answer is read under its own name");
+		const auto refused = parse_auto_merge_response({ .Status = 200, .Body = R"({"data":{"enablePullRequestAutoMerge":null},"errors":[{"type":"UNPROCESSABLE","path":["enablePullRequestAutoMerge"],"locations":[{"line":1,"column":18}],"message":"Auto merge is not allowed for this repository"}]})" }, enable);
+		expect(!refused && refused.error() == review_mutation_contract_failure::unexpected_body, "GitHub's refusal, as it answered live, is told apart");
+	}
+
 	void test_the_draft_state_goes_by_graphql_exactly()
 	{
 		const auto ready = application::review_draft_state_request{
@@ -3077,6 +3163,7 @@ auto main() -> int
 	test_a_published_comment_goes_by_graphql_exactly();
 	test_reviewers_go_by_graphql_exactly();
 	test_the_draft_state_goes_by_graphql_exactly();
+	test_auto_merge_goes_by_graphql_exactly();
 	test_recorded_reaction_and_resolution_answers();
 
 	test_a_reply_is_reconciled_through_its_thread();

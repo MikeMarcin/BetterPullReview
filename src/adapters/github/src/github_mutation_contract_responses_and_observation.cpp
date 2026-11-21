@@ -207,6 +207,166 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 
+		// [[BPR-2329]]. The pull request as an auto-merge answer names it.
+		struct auto_merge_request_json
+		{
+			std::optional<std::string> MergeMethod;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("mergeMethod", &auto_merge_request_json::MergeMethod);
+			};
+		};
+
+		struct auto_merge_repository_json
+		{
+			bool AutoMergeAllowed   = false;
+			bool MergeCommitAllowed = false;
+			bool SquashMergeAllowed = false;
+			bool RebaseMergeAllowed = false;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"autoMergeAllowed", &auto_merge_repository_json::AutoMergeAllowed,
+					"mergeCommitAllowed", &auto_merge_repository_json::MergeCommitAllowed,
+					"squashMergeAllowed", &auto_merge_repository_json::SquashMergeAllowed,
+					"rebaseMergeAllowed", &auto_merge_repository_json::RebaseMergeAllowed);
+			};
+		};
+
+		struct auto_merge_pull_request_json
+		{
+			std::string                                           Id;
+			std::uint64_t                                         DatabaseId = 0U;
+			std::uint64_t                                         Number     = 0U;
+			std::string                                           State;
+			bool                                                  ViewerCanEnableAutoMerge  = false;
+			bool                                                  ViewerCanDisableAutoMerge = false;
+			std::variant<auto_merge_request_json, std::nullptr_t> AutoMergeRequest{ nullptr };
+			auto_merge_repository_json                            BaseRepository;
+			thread_repository_json                                Repository;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &auto_merge_pull_request_json::Id,
+					"databaseId", &auto_merge_pull_request_json::DatabaseId,
+					"number", &auto_merge_pull_request_json::Number,
+					"state", &auto_merge_pull_request_json::State,
+					"viewerCanEnableAutoMerge", &auto_merge_pull_request_json::ViewerCanEnableAutoMerge,
+					"viewerCanDisableAutoMerge", &auto_merge_pull_request_json::ViewerCanDisableAutoMerge,
+					"autoMergeRequest", &auto_merge_pull_request_json::AutoMergeRequest,
+					"baseRepository", &auto_merge_pull_request_json::BaseRepository,
+					"repository", &auto_merge_pull_request_json::Repository);
+			};
+		};
+
+		struct auto_merge_node_data_json
+		{
+			std::variant<auto_merge_pull_request_json, std::nullptr_t> Node;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("node", &auto_merge_node_data_json::Node);
+			};
+		};
+
+		struct auto_merge_node_response_json
+		{
+			auto_merge_node_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &auto_merge_node_response_json::Data);
+			};
+		};
+
+		struct auto_merge_payload_json
+		{
+			auto_merge_pull_request_json PullRequest;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("pullRequest", &auto_merge_payload_json::PullRequest);
+			};
+		};
+
+		struct enable_auto_merge_data_json
+		{
+			std::variant<auto_merge_payload_json, std::nullptr_t> Change;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("enablePullRequestAutoMerge", &enable_auto_merge_data_json::Change);
+			};
+		};
+
+		struct enable_auto_merge_response_json
+		{
+			enable_auto_merge_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &enable_auto_merge_response_json::Data);
+			};
+		};
+
+		struct disable_auto_merge_data_json
+		{
+			std::variant<auto_merge_payload_json, std::nullptr_t> Change;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("disablePullRequestAutoMerge", &disable_auto_merge_data_json::Change);
+			};
+		};
+
+		struct disable_auto_merge_response_json
+		{
+			disable_auto_merge_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &disable_auto_merge_response_json::Data);
+			};
+		};
+
+		/// [[BPR-2329]]. Auto-merge, held to the designated pull request by
+		/// every identity the target binds; a state or method GitHub does not
+		/// name is malformed.
+		[[nodiscard]] auto auto_merge_observation(
+			const auto_merge_pull_request_json&           aPullRequest,
+			const application::review_auto_merge_request& aExpected)
+			-> review_mutation_parse_result<review_auto_merge_observation>
+		{
+			const auto bound = thread_pull_request_json{
+				.Id         = aPullRequest.Id,
+				.DatabaseId = aPullRequest.DatabaseId,
+				.Number     = aPullRequest.Number,
+				.Repository = aPullRequest.Repository,
+			};
+			if (!aExpected.LiveBinding.has_value() || !binds_designated_pull_request(bound, aExpected.LiveBinding->Target)) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			if (aPullRequest.State != "OPEN" && aPullRequest.State != "CLOSED" && aPullRequest.State != "MERGED") {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			auto observation = review_auto_merge_observation{
+				.Open             = aPullRequest.State == "OPEN",
+				.Allowed          = aPullRequest.BaseRepository.AutoMergeAllowed,
+				.ViewerCanEnable  = aPullRequest.ViewerCanEnableAutoMerge,
+				.ViewerCanDisable = aPullRequest.ViewerCanDisableAutoMerge,
+				.Methods          = { .Merge = aPullRequest.BaseRepository.MergeCommitAllowed, .Squash = aPullRequest.BaseRepository.SquashMergeAllowed, .Rebase = aPullRequest.BaseRepository.RebaseMergeAllowed },
+			};
+			if (const auto* const request = std::get_if<auto_merge_request_json>(&aPullRequest.AutoMergeRequest)) {
+				observation.Enabled = true;
+				if (request->MergeMethod) {
+					const auto& method = *request->MergeMethod;
+					if (method == "MERGE") {
+						observation.Method = core::merge_method::merge;
+					} else if (method == "SQUASH") {
+						observation.Method = core::merge_method::squash;
+					} else if (method == "REBASE") {
+						observation.Method = core::merge_method::rebase;
+					} else {
+						return failed(review_mutation_contract_failure::malformed_response);
+					}
+				}
+			}
+			return observation;
+		}
+
 		/// [[BPR-1852]]. The draft state, held to the designated pull request
 		/// by every identity the target binds; a state GitHub does not name is
 		/// malformed.
@@ -761,6 +921,57 @@ namespace bpr::adapters::github::detail {
 			return failed(review_mutation_contract_failure::unexpected_body);
 		}
 		return draft_state_observation(std::get<draft_state_payload_json>(*payload).PullRequest, aExpected);
+	}
+
+	auto parse_auto_merge_observation(
+		const review_mutation_wire_response&          aResponse,
+		const application::review_auto_merge_request& aExpected)
+		-> review_mutation_parse_result<review_auto_merge_observation>
+	{
+		if (!aExpected.LiveBinding.has_value()
+			|| !compile_auto_merge_observation_request(aExpected, aExpected.LiveBinding->Target.ServerContract).has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		const auto response = document<auto_merge_node_response_json>(aResponse);
+		if (!response.has_value()) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		if (std::holds_alternative<std::nullptr_t>(response->Data.Node)) {
+			return failed(review_mutation_contract_failure::target_unavailable);
+		}
+		return auto_merge_observation(std::get<auto_merge_pull_request_json>(response->Data.Node), aExpected);
+	}
+
+	auto parse_auto_merge_response(
+		const review_mutation_wire_response&          aResponse,
+		const application::review_auto_merge_request& aExpected)
+		-> review_mutation_parse_result<review_auto_merge_observation>
+	{
+		if (!aExpected.LiveBinding.has_value() || !compile_auto_merge_request(aExpected, aExpected.LiveBinding->Target.ServerContract).has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		auto payload = std::optional<std::variant<auto_merge_payload_json, std::nullptr_t>>{ };
+		if (aExpected.Change == core::auto_merge_change::disable) {
+			if (auto response = document<disable_auto_merge_response_json>(aResponse); response.has_value()) {
+				payload = std::move(response->Data.Change);
+			}
+		} else if (auto response = document<enable_auto_merge_response_json>(aResponse); response.has_value()) {
+			payload = std::move(response->Data.Change);
+		}
+		if (!payload.has_value()) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		// A null payload is GraphQL's refusal of the mutation: nothing written.
+		if (std::holds_alternative<std::nullptr_t>(*payload)) {
+			return failed(review_mutation_contract_failure::unexpected_body);
+		}
+		return auto_merge_observation(std::get<auto_merge_payload_json>(*payload).PullRequest, aExpected);
 	}
 
 	auto parse_comment_observation(

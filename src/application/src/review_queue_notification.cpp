@@ -1,5 +1,8 @@
 #include "bpr/application/review_queue_notification.hpp"
 
+#include <algorithm>
+#include <utility>
+
 namespace bpr::application {
 	auto notification_title(const queue_notification_request& aRequest)
 		-> std::string
@@ -56,13 +59,42 @@ namespace bpr::application {
 		return false;
 	}
 
-	auto notification_for(
-		const core::queue_item& aItem, const std::uint32_t aUnreadComments)
-		-> std::optional<queue_notification_request>
+	auto notification_active(const core::queue_item& aItem, const core::home_draft_placement aDrafts) noexcept -> bool
 	{
 		// [[BPR-1683]]. The reviewer said this one is not asking for
 		// their attention; interrupting them about it would be the opposite.
-		if (aItem.Ignored || !warrants_notification(aItem.Bucket)) {
+		// [[BPR-2330]]. Nor is a draft nobody has asked them to read yet.
+		return !aItem.Ignored && warrants_notification(aItem.Bucket) && !core::draft_waits_quietly(aItem, aDrafts);
+	}
+
+	auto step_queue_notifications(const std::span<const queue_notification_key> aPrevious, const queue_session_id& aSession,
+								  const std::span<const core::queue_item> aItems, const core::home_draft_placement aDrafts)
+		-> queue_notification_step
+	{
+		auto step = queue_notification_step{ };
+		step.Active.reserve(aItems.size());
+		for (std::size_t index = 0U; index < aItems.size(); ++index) {
+			const auto& item = aItems[index];
+			if (!notification_active(item, aDrafts)) {
+				continue;
+			}
+			auto key = queue_notification_key{ .Session = aSession, .Ref = item.Ref, .Bucket = item.Bucket };
+			if (!std::ranges::binary_search(aPrevious, key) && !std::ranges::contains(step.Active, key)) {
+				step.Due.push_back(index);
+			}
+			step.Active.push_back(std::move(key));
+		}
+		std::ranges::sort(step.Active);
+		const auto unique = std::ranges::unique(step.Active);
+		step.Active.erase(unique.begin(), unique.end());
+		return step;
+	}
+
+	auto notification_for(
+		const core::queue_item& aItem, const std::uint32_t aUnreadComments, const core::home_draft_placement aDrafts)
+		-> std::optional<queue_notification_request>
+	{
+		if (!notification_active(aItem, aDrafts)) {
 			return std::nullopt;
 		}
 		return queue_notification_request{

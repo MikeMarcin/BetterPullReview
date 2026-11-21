@@ -63,14 +63,17 @@ namespace bpr::core {
 		agent_finding_card_disposition State   = agent_finding_card_disposition::open;
 		/// Why it was refused; empty for every other disposition.
 		std::string Why;
-		/// The private note Save as note made; 0 unless `noted`.
+		/// What the card's action made: the private note Save as note made
+		/// when `noted`, or ([[BPR-2325]]) the review draft Draft comment
+		/// made when `drafted` (0 for a card drafted before that was kept);
+		/// 0 for every other disposition.
 		std::uint64_t Note = 0U;
 
 		auto operator<=>(const agent_finding_card_record&) const = default;
 	};
 
 	/// \brief The record as it is kept: the reason only with a refusal, bounded,
-	/// and the note only with `noted`.
+	/// and what it made only with `noted` or `drafted`.
 	[[nodiscard]] auto normalized(agent_finding_card_record aRecord) -> agent_finding_card_record;
 
 	/// \brief The delivery identity a restored card carries, derived from its
@@ -98,6 +101,9 @@ namespace bpr::core {
 		[[nodiscard]] auto recall(const agent_findings_digest& aFindings, std::uint32_t aOrdinal) const -> agent_finding_card_record;
 		/// \brief Every kept record, least recently changed first.
 		[[nodiscard]] auto records() const -> std::vector<agent_finding_card_record>;
+		/// \brief [[BPR-2325]]. The cards drafted as the review draft
+		/// `aDraft`, least recently changed first; none for 0.
+		[[nodiscard]] auto drafted_as(std::uint64_t aDraft) const -> std::vector<agent_finding_card_record>;
 		[[nodiscard]] auto size() const noexcept -> std::size_t { return Records.size(); }
 
 	private:

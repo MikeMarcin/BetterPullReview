@@ -434,9 +434,8 @@ namespace bpr::app {
 		if (aProjection.UpdatedItem && (!QueueActivity || QueueActivity->Ref != aProjection.UpdatedItem->Ref)) {
 			return;
 		}
-		const auto items  = aProjection.UpdatedItem ? std::span<const core::queue_item>{ &*aProjection.UpdatedItem, 1U } : std::span<const core::queue_item>{ aProjection.Items };
-		auto       active = std::vector<queue_notification_transition>{ };
-		active.reserve(items.size());
+		const auto items   = aProjection.UpdatedItem ? std::span<const core::queue_item>{ &*aProjection.UpdatedItem, 1U } : std::span<const core::queue_item>{ aProjection.Items };
+		auto       trusted = std::vector<core::queue_item>{ };
 		for (const auto& item : items) {
 			// [[BPR-1780]]. Compared as the queue decided it, with the
 			// item's draft status.
@@ -448,27 +447,23 @@ namespace bpr::app {
 				&& item.Bucket
 					== core::bucket_for(
 						item.Membership, activity);
-			if (!trustedActivity
-				|| !application::warrants_notification(item.Bucket)) {
-				continue;
+			if (trustedActivity) {
+				trusted.push_back(item);
 			}
-			const auto transition = queue_notification_transition{
-				.Session = aProjection.Session,
-				.Ref     = item.Ref,
-				.Bucket  = item.Bucket,
-			};
-			active.push_back(transition);
-			if (std::ranges::binary_search(
-					ActiveQueueNotifications, transition)) {
-				continue;
-			}
+		}
+		// [[BPR-2330]]. Another author's draft waiting in Following is never
+		// active, so the state it holds when marked ready is due then, once.
+		const auto drafts = WorkbenchPreferences && WorkbenchPreferences->accepted() ? WorkbenchPreferences->accepted()->Behaviour.OthersDrafts : core::home_draft_placement::following;
+		auto       step   = application::step_queue_notifications(ActiveQueueNotifications, aProjection.Session, trusted, drafts);
+		for (const auto index : step.Due) {
+			const auto& item = trusted[index];
 #if defined(BPR_BUILD_TESTING)
 			if (DisableNotificationRequestWire) {
 				continue;
 			}
 #endif
 			const auto unseen  = QueueActivity->Activity.UnseenComments;
-			const auto request = application::notification_for(item, unseen);
+			const auto request = application::notification_for(item, unseen, drafts);
 			if (!request.has_value() || !core::permits_notification(aProjection.Preferences.Notifications, item.Bucket)) {
 				continue;
 			}
@@ -477,10 +472,7 @@ namespace bpr::app {
 				static_cast<void>(Notifications->deliver(*request));
 			}
 		}
-		std::ranges::sort(active);
-		const auto unique = std::ranges::unique(active);
-		active.erase(unique.begin(), unique.end());
-		ActiveQueueNotifications = std::move(active);
+		ActiveQueueNotifications = std::move(step.Active);
 	}
 #if defined(BPR_AGENT_INTEGRATIONS)
 	/// RFC-BPR-0126 AC04 ([[BPR-2151]], [[BPR-2181]]). The profile's session

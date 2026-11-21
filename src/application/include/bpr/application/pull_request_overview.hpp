@@ -7,6 +7,7 @@
 #include "bpr/application/overview_checks_projection.hpp"
 #include "bpr/application/overview_status_sections.hpp"
 #include "bpr/application/review_ledger_port.hpp"
+#include "bpr/core/auto_merge.hpp"
 #include "bpr/core/draft_state.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/file_progress_mark.hpp"
@@ -158,6 +159,32 @@ namespace bpr::application {
 		auto operator<=>(const overview_status&) const = default;
 	};
 
+	/// \brief [[BPR-2327]]. A conflict with the base, as Merge shows it.
+	struct overview_merge_conflict
+	{
+		std::string Base;
+		/// The conflicting paths, when a local merge check supplied them;
+		/// absent when nothing did. GitHub's API does not report them.
+		std::optional<std::vector<std::string>> Files;
+		/// Lines to resolve it from a terminal, ready to copy.
+		std::string CommandHint;
+
+		auto operator<=>(const overview_merge_conflict&) const = default;
+	};
+
+	/// \brief [[BPR-2329]]. Auto-merge as Merge shows it and what it offers.
+	struct overview_auto_merge
+	{
+		bool Enabled = false;
+		/// The viewer's change is shown and GitHub has not answered yet.
+		bool        Pending = false;
+		std::string Line;
+		/// Empty when the connection cannot change auto-merge.
+		core::auto_merge_offer Offer;
+
+		auto operator<=>(const overview_auto_merge&) const = default;
+	};
+
 	/// \brief Which one action the overview offers.
 	enum class overview_entry_kind : std::uint8_t {
 		/// First visit: nothing read, no last review.
@@ -199,9 +226,20 @@ namespace bpr::application {
 		std::string                       ChecksNote;
 		/// [[BPR-1405]]. The assessment in a word or two, then one short line
 		/// per unmet condition. The evidence limits live in the details.
-		std::string                          MergeState;
-		overview_merge_tone                  MergeTone = overview_merge_tone::unknown;
-		std::vector<std::string>             MergeConditions;
+		std::string              MergeState;
+		overview_merge_tone      MergeTone = overview_merge_tone::unknown;
+		std::vector<std::string> MergeConditions;
+		/// [[BPR-2327]]. Present while GitHub assesses a conflict.
+		std::optional<overview_merge_conflict> MergeConflict;
+		/// [[BPR-2327]]. The context's conflicting paths, kept so a conflict
+		/// that returns in place lists them again.
+		std::optional<std::vector<std::string>> ConflictingPaths;
+		/// [[BPR-2327]]. Auto-merge and the merge queue, one line each, apart
+		/// from what blocks the merge.
+		std::vector<std::string> MergeNotes;
+		/// [[BPR-2329]]. Present when the read says the repository allows
+		/// auto-merge; its line then replaces the note above.
+		std::optional<overview_auto_merge>   AutoMerge;
 		std::vector<overview_review_request> ReviewRequests;
 		/// Why the roster is partial or last known; empty when it is complete,
 		/// so an empty complete roster says nothing.
@@ -243,6 +281,9 @@ namespace bpr::application {
 		std::optional<core::git_commit_oid> Head;
 		/// Paths changed between my last review and the head, when resolved.
 		std::optional<std::vector<std::string>> ChangedSinceReviewPaths;
+		/// [[BPR-2327]]. The paths a local merge check found conflicting, when
+		/// one ran; nothing supplies them yet ([[BPR-2328]]).
+		std::optional<std::vector<std::string>> ConflictingPaths;
 		std::optional<std::size_t>              DraftedComments;
 		/// [[BPR-1841]]. Threads whose resolution the viewer changed since the
 		/// read, by GitHub thread id, with the state the core projects. The
@@ -256,6 +297,11 @@ namespace bpr::application {
 		/// the viewer's own change is held (`core::project_draft_state`); none
 		/// leaves the read's.
 		std::optional<core::projected_draft_state> ProjectedDraft;
+		/// [[BPR-2329]]. The auto-merge state the core projects over the read
+		/// while the viewer's own change is held; none leaves the read's.
+		std::optional<core::projected_auto_merge> ProjectedAutoMerge;
+		/// [[BPR-2329]]. The connection in use can change auto-merge.
+		bool AutoMergeControl = false;
 		/// [[BPR-1898]]. Composition supplies the local load outcomes separately.
 		overview_readiness ReceiptsReadiness = overview_readiness::ready;
 		overview_readiness PrivateReadiness  = overview_readiness::ready;
@@ -303,6 +349,15 @@ namespace bpr::application {
 	[[nodiscard]] auto apply_draft_state(pull_request_overview_projection&          aProjection,
 										 const github_pull_request_snapshot&        aSnapshot,
 										 std::optional<core::projected_draft_state> aProjected) -> bool;
+
+	/// \brief [[BPR-2329]]. Auto-merge decided again for `aProjected` over
+	/// the read, as projecting the whole overview with it would decide;
+	/// nothing else is visited.
+	/// \returns Whether the overview changed.
+	[[nodiscard]] auto apply_auto_merge_state(pull_request_overview_projection&         aProjection,
+											  const github_pull_request_snapshot&       aSnapshot,
+											  std::optional<core::projected_auto_merge> aProjected,
+											  bool                                      aControl) -> bool;
 
 	/// \brief What one or more durable receipt changes did to a published overview.
 	///

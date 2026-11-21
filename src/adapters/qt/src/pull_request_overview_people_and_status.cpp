@@ -825,6 +825,8 @@ namespace bpr::qt {
 		Projection->MergeState         = aProjection.MergeState;
 		Projection->MergeTone          = aProjection.MergeTone;
 		Projection->RequirementDetails = aProjection.RequirementDetails;
+		Projection->MergeConflict      = aProjection.MergeConflict;
+		Projection->MergeNotes         = aProjection.MergeNotes;
 		ShownDraft                     = aProjection.Draft;
 		ShownDraftPending              = aProjection.DraftPending;
 		present_draft_controls();

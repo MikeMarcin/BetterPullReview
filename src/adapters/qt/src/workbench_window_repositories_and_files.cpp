@@ -12,6 +12,7 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/local_draft_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_review_panel.hpp"
@@ -329,6 +330,10 @@ namespace bpr::qt {
 			if (aProjection.Layout->LineDetailsHeight && ComparisonSurface != nullptr) {
 				ComparisonSurface->set_line_details_height(*aProjection.Layout->LineDetailsHeight);
 			}
+			// [[BPR-2333]]. This window's item side chat width, once loaded.
+			if (aProjection.Layout->SideChatWidth && ItemSideChat != nullptr) {
+				ItemSideChat->set_preferred_width(*aProjection.Layout->SideChatWidth);
+			}
 			++Statistics.LayoutUpdates;
 		}
 		if (aProjection.Behaviour) {
@@ -346,6 +351,10 @@ namespace bpr::qt {
 			apply_line_details();
 			apply_markdown_images();
 			apply_reading_width();
+			// [[BPR-2326]]. Home lists others' drafts where the profile says.
+			if (QueueLanding != nullptr) {
+				QueueLanding->set_draft_placement(Behaviour.OthersDrafts);
+			}
 			ComparisonSurface->set_center_ribbon_width(Behaviour.CenterRibbonWidth);
 			consider_mark_read_when_fully_seen();
 			// A pull request that opened before the preferences landed takes
@@ -1294,6 +1303,13 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::set_conflicts_page_dispatch(std::function<void()> aDispatch)
+	{
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_conflicts_page_dispatch(std::move(aDispatch));
+		}
+	}
+
 	void workbench_window::set_commit_rematch_dispatch(std::function<void(const application::commit_filter_rematch_gesture&)> aDispatch)
 	{
 		if (FilesCommitChip != nullptr) {
@@ -1820,6 +1836,21 @@ namespace bpr::qt {
 		PresentedOverview->MergeState         = aProjection.MergeState;
 		PresentedOverview->MergeTone          = aProjection.MergeTone;
 		PresentedOverview->RequirementDetails = aProjection.RequirementDetails;
+		PresentedOverview->MergeConflict      = aProjection.MergeConflict;
+		PresentedOverview->MergeNotes         = aProjection.MergeNotes;
+	}
+
+	void workbench_window::publish_auto_merge(const application::pull_request_overview_projection& aProjection)
+	{
+		if (OverviewPage == nullptr || (PresentedOverview.has_value() && *PresentedOverview == aProjection)) {
+			return;
+		}
+		if (!PresentedOverview.has_value() || !OverviewPage->present_auto_merge_state(aProjection)) {
+			publish(aProjection);
+			return;
+		}
+		PresentedOverview->AutoMerge  = aProjection.AutoMerge;
+		PresentedOverview->MergeNotes = aProjection.MergeNotes;
 	}
 
 	void workbench_window::present_strip_draft(const bool aDraft)

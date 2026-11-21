@@ -3,6 +3,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/resident_filter.hpp"
 #include "bpr/qt/steady_columns.hpp"
+#include "context_click.hpp"
 #include "copy_relative_path_action.hpp"
 
 #include <QContextMenuEvent>
@@ -1033,6 +1034,7 @@ namespace bpr::qt {
 		// width wherever scroll bars take space, so a bar that comes when
 		// opened folders outgrow the tree moves no count at the right edge.
 		new steady_columns{ *this, 0 };
+		open_menu_without_choosing(*this);
 	}
 
 	auto files_tree_view::tree_model() const noexcept -> files_tree_model*

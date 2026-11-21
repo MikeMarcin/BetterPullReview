@@ -1,6 +1,7 @@
 #include "bpr/qt/generated_files_view.hpp"
 
 #include "bpr/qt/quiet_tool_button.hpp"
+#include "context_click.hpp"
 
 #include <QAbstractItemView>
 #include <QAction>
@@ -159,6 +160,7 @@ namespace bpr::qt {
 			}
 		});
 		List->setContextMenuPolicy(Qt::CustomContextMenu);
+		open_menu_without_choosing(*List);
 		connect(List, &QWidget::customContextMenuRequested, this, [this](const QPoint& aPosition) {
 			const auto at  = List->indexAt(aPosition);
 			const auto row = at.isValid() ? at.row() : List->indexOfTopLevelItem(List->currentItem());

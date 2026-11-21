@@ -101,6 +101,14 @@ namespace bpr::adapters::github {
 		return Session.change_draft_state(aRequest, aStop);
 	}
 
+	auto live_review_mutation_provider::change_auto_merge(
+		const application::review_auto_merge_request& aRequest,
+		const std::stop_token                         aStop)
+		-> std::expected<application::review_auto_merge_receipt, application::review_mutation_failure>
+	{
+		return Session.change_auto_merge(aRequest, aStop);
+	}
+
 	auto live_review_mutation_provider::reconcile_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission
 	{
 		return Session.reconcile_publication(aRequest, aStop);
@@ -118,6 +126,7 @@ namespace bpr::adapters::github {
 		// [[BPR-1774]]. And the pull request's description is replaced.
 		// [[BPR-1775]]. And the viewer's published comments.
 		// [[BPR-1852]]. And the pull request's draft state.
+		// [[BPR-2329]]. And its auto-merge.
 		return {
 			.ResolvesThreads    = true,
 			.RecordsViewedState = false,
@@ -126,6 +135,7 @@ namespace bpr::adapters::github {
 			.EditsComments      = true,
 			.RequestsReviewers  = true,
 			.ChangesDraftState  = true,
+			.ChangesAutoMerge   = true,
 		};
 	}
 

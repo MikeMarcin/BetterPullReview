@@ -43,6 +43,10 @@ namespace {
 			std::pair{ QStringLiteral("agent.mcp_helper"), QStringLiteral("agent") },
 			std::pair{ QStringLiteral("tour.operation"), QStringLiteral("tour") },
 			std::pair{ QStringLiteral("cycle.round"), QStringLiteral("cycle") },
+			// [[BPR-2322]].
+			std::pair{ QStringLiteral("agent.side_chat"), QStringLiteral("agent") },
+			// [[BPR-2324]].
+			std::pair{ QStringLiteral("workbench.tabs"), QStringLiteral("workbench") },
 		};
 		for (const auto& [operation, category] : cases) {
 			expect(tests::diagnostic_record_category_matches(operation, category), "each recorded operation belongs to its named family");

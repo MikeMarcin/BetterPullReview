@@ -184,6 +184,8 @@ add_library(
         src/window_title.cpp
         src/reviewer_request.cpp
         src/draft_state.cpp
+        src/merge_blockers.cpp
+        src/auto_merge.cpp
     src/review_publication_policy.cpp
         src/revisioned_review_draft.cpp
         src/reply_draft_standing.cpp

@@ -5,6 +5,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -271,10 +272,58 @@ namespace {
 		expect(host.accepted()->Profiles[0].RetainedWindows == catalog.state().Profiles[0].Live, "ordinary profile edit retains exact window state");
 	}
 
+	/// [[BPR-2318]] (owner, 2026-11-20: "Ps profiles needs the same drag
+	/// handle"). The list order is saved with the registry; a registry saved
+	/// before it lists profiles by identity.
+	void test_profile_order()
+	{
+		const auto id = [](const std::uint64_t aValue) { return core::bpr_profile_id{ aValue }; };
+		expect(moved_profile_order({ id(1), id(2), id(3) }, id(3), -2) == std::vector{ id(3), id(1), id(2) }
+				   && moved_profile_order({ id(1), id(2), id(3) }, id(1), 2) == std::vector{ id(2), id(3), id(1) }
+				   && moved_profile_order({ id(1), id(2), id(3) }, id(2), 1) == std::vector{ id(1), id(3), id(2) },
+			   "a profile moves any number of places up or down");
+		expect(!moved_profile_order({ id(1), id(2) }, id(1), -1) && !moved_profile_order({ id(1), id(2) }, id(2), 1) && !moved_profile_order({ id(1), id(2) }, id(3), 1)
+				   && !moved_profile_order({ id(1), id(2) }, id(1), 0),
+			   "no move leaves the list, names a profile it does not hold or goes nowhere");
+
+		memory_store          store;
+		manual_executor       effects;
+		manual_executor       decisions;
+		projection            output;
+		profile_registry_host host{ store, effects, decisions, output, core::application_session_id{ 1U } };
+		expect(host.reload().has_value(), "load submits");
+		effects.drain();
+		decisions.drain();
+		expect(host.accepted()->Order.empty() && listed_profile_order(*host.accepted()) == std::vector{ id(1) }, "a registry saved before the order lists profiles by identity");
+		for (const auto* const label : { "Work", "Home" }) {
+			expect(host.create(label).has_value(), "create submits");
+			effects.drain();
+			decisions.drain();
+		}
+		expect(host.accepted()->Order.empty(), "creating profiles adds no order while none was chosen");
+		expect(host.move(id(3), -2).has_value(), "move submits");
+		expect(host.accepted()->Order.empty(), "a move is not accepted before it is saved");
+		effects.drain();
+		decisions.drain();
+		expect(store.Durable.Order == std::vector{ id(3), id(1), id(2) } && host.accepted()->Order == store.Durable.Order && output.Events.back().Profile == id(3) && !output.Events.back().Failure,
+			   "the saved order is accepted and names the moved profile");
+		expect(host.accepted()->Profiles[0].Profile.Id == id(1) && host.accepted()->Profiles[2].Profile.Label == "Home", "identities, labels and roots keep their places");
+		expect(host.create("Spare").has_value(), "create submits");
+		effects.drain();
+		decisions.drain();
+		expect(store.Durable.Order == std::vector{ id(3), id(1), id(2), id(4) }, "a profile created after a move is listed last");
+		expect(!host.move(id(4), 1) && !host.move(id(9), -1), "a move off the list or of an unknown profile is refused before anything is written");
+		auto unordered  = store.Durable;
+		unordered.Order = { id(1), id(1), id(2), id(3) };
+		expect(!valid(unordered), "an order naming a profile twice is invalid");
+		unordered.Order = { id(1), id(2), id(3) };
+		expect(!valid(unordered), "an order missing a profile is invalid");
+	}
 }
 
 int main()
 {
+	test_profile_order();
 	test_narrow_window_state_save();
 	test_window_update_authority();
 	test_durable_acceptance_and_cancellation();

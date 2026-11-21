@@ -1679,7 +1679,11 @@ effects refuses it. AC02's "an explicit GHES host shows Codex disabled with
 its reason" now reads: a host whose policy leaves Codex out shows it disabled
 with its reason; the built-in explicit-GHES policy no longer does. A custom
 Codex JSONL agent's check also asks it one short question with a rule, to show
-where its instructions arrive ([[BPR-2305]]).
+where its instructions arrive ([[BPR-2305]]); that question runs in an empty
+folder of its own, as the agent's own check does ([[BPR-2320]]). A custom
+Claude agent's check asks one short stream JSON turn, so a program that opens
+a window or prints text fails Check naming the protocol, and every check
+result names the entry it checked ([[BPR-2320]]).
 
 ### Owner amendment (2026-11-19): a custom Codex agent may rely on its launcher's sandbox
 

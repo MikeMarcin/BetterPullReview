@@ -311,6 +311,60 @@ namespace bpr::core {
 	[[nodiscard]] auto persisted(const document_tabs_state& aState)
 		-> std::optional<window_review_tabs>;
 
+	/// \brief [[BPR-2324]]. What a pull request opened again brings back of
+	/// the tabs it remembered.
+	///
+	/// \details `Tabs` is a valid collection on the comparison the reopened
+	/// pull request accepted; it is empty, with no active tab, when nothing
+	/// came back. `Restored` counts the remembered tabs that came back and
+	/// `Dropped` those whose file the pull request no longer has. A file the
+	/// reviewer chose first and that no remembered tab shows is in `Tabs` but
+	/// in neither count.
+	struct reopened_tabs
+	{
+		window_review_tabs Tabs;
+		std::uint32_t      Restored = 0U;
+		std::uint32_t      Dropped  = 0U;
+
+		auto operator==(const reopened_tabs&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-2324]]. Decides which remembered tabs a pull request
+	/// opened again brings back, in their order.
+	///
+	/// \details `aPresent` says, tab by tab, whether the pull request's
+	/// current comparison still has the tab's file; a tab whose file it does
+	/// not have is dropped. A tab that was on the remembered window's
+	/// comparison takes `aAccepted`, keeping its reading only when that is
+	/// the comparison it was remembered with. A tab with its own pair keeps
+	/// the pair and its reading while the pair is in `aAccepted`'s catalog,
+	/// and otherwise takes `aAccepted` as the others do. The remembered
+	/// active tab stays active; when it was dropped, its next surviving
+	/// neighbour is, or the previous one when none follows. `aChosen`, a file
+	/// the reviewer opened before the tabs came back, wins: the tab already
+	/// showing it on `aAccepted` becomes active, or a new tab for it opens
+	/// after the active one (at the bound, the active tab shows it instead).
+	/// A remembered collection that is not valid, an `aAccepted` that is not
+	/// an exact pair, an `aPresent` of another length or an invalid
+	/// `aChosen` is refused with nothing.
+	[[nodiscard]] auto reopen_tabs(
+		const window_review_tabs&           aRemembered,
+		const comparison_pair&              aAccepted,
+		const std::vector<bool>&            aPresent,
+		const std::optional<file_identity>& aChosen) -> std::optional<reopened_tabs>;
+
+	/// \brief [[BPR-2324]]. Replaces the state with a reopened pull
+	/// request's tabs, as `restore` does, loading the active tab only when
+	/// `aLoad`.
+	///
+	/// \details A window not showing a tab (Overview, Discuss) takes the tabs
+	/// without presenting any: its active tab loads when the reviewer
+	/// returns to Review, through `reload_active`.
+	[[nodiscard]] auto restore_reopened(
+		document_tabs_state&      aState,
+		const window_review_tabs& aTabs,
+		bool                      aLoad) -> document_tabs_output;
+
 	/// \brief Whether a tab's pair differs from the window's, which its label
 	/// says.
 	[[nodiscard]] auto has_own_comparison(

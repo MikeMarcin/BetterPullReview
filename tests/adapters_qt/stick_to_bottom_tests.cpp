@@ -10,14 +10,14 @@
 /// turn runs, a row that grows, shrinks and grows again never moves the view
 /// back up, and the turn's end lets the held height go. Checked on a bare
 /// scroll area with the nested scroll latch installed, on the Agent tab as a
-/// turn streams, and on the follow-up window as rounds arrive.
+/// turn streams, and on an item's side chat as rounds arrive.
 
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_workspace.hpp"
 #include "bpr/core/agent_follow_up.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
-#include "bpr/qt/follow_up_window.hpp"
+#include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/nested_scroll_latch.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -324,7 +324,7 @@ namespace {
 		window.hide();
 	}
 
-	void test_the_follow_up_window_follows_new_rounds()
+	void test_the_item_side_chat_follows_new_rounds()
 	{
 		auto subject  = core::follow_up_subject{ };
 		subject.Kind  = core::follow_up_subject_kind::suggested_comment;
@@ -335,33 +335,36 @@ namespace {
 		subject.Title = "A zero height still reaches the swap chain.";
 		subject.Text  = "issue (blocking): clamp both.";
 		auto state    = core::open_follow_up(subject);
-		auto window   = qt::follow_up_window{ };
-		window.resize(380, 420);
-		window.present(state, QStringLiteral("Fixture agent"), { });
-		window.show();
+		auto page     = QWidget{ };
+		auto chat     = new qt::item_side_chat{ &page };
+		page.resize(380, 420);
+		chat->resize(380, 420);
+		chat->present(state, QStringLiteral("Fixture agent"), { });
+		page.show();
+		chat->set_column_open(true);
 		settle();
-		auto* const scroll = window.findChild<QScrollArea*>(QStringLiteral("followUpRounds"));
-		expect(scroll != nullptr && qt::stick_to_bottom::of(*scroll) != nullptr, "the follow-up window follows its end");
+		auto* const scroll = chat->findChild<QScrollArea*>(QStringLiteral("itemSideChatScroll"));
+		expect(scroll != nullptr && qt::stick_to_bottom::of(*scroll) != nullptr, "the item's side chat follows its end");
 		auto       round = 0;
 		const auto ask   = [&] {
 			const auto question = "Why is round " + std::to_string(++round) + " blocking?";
 			static_cast<void>(core::ask_follow_up(state, question));
-			window.present(state, QStringLiteral("Fixture agent"), { });
+			chat->present(state, QStringLiteral("Fixture agent"), { });
 			settle();
 			static_cast<void>(core::settle_follow_up(state, state.Pending, std::string{ "Because a zero height reaches the swap chain, and the renderer asserts when the window is minimised. Clamp both sides before the swap." }));
-			window.present(state, QStringLiteral("Fixture agent"), { });
+			chat->present(state, QStringLiteral("Fixture agent"), { });
 			settle();
 		};
 		for (int each = 0; each < 6; ++each) {
 			ask();
 		}
-		expect(at_end(*scroll), "new rounds keep the window at its end: " + where(*scroll));
+		expect(at_end(*scroll), "new rounds keep the chat at its end: " + where(*scroll));
 
 		wheel_up(*scroll);
 		const auto readAt = scroll->verticalScrollBar()->value();
 		expect(readAt < scroll->verticalScrollBar()->maximum(), "the reader scrolled up: " + where(*scroll));
 		ask();
-		expect(scroll->verticalScrollBar()->value() == readAt, "a window scrolled up stays where the reader put it: " + where(*scroll));
+		expect(scroll->verticalScrollBar()->value() == readAt, "a chat scrolled up stays where the reader put it: " + where(*scroll));
 
 		scroll->verticalScrollBar()->setValue(scroll->verticalScrollBar()->maximum());
 		ask();
@@ -376,7 +379,7 @@ auto main(int argc, char** argv) -> int
 	test_a_transcript_at_its_end_follows_and_one_scrolled_up_stays();
 	test_tool_rows_that_grow_and_shrink_never_move_the_view_back_up();
 	test_the_agent_tab_follows_a_streaming_turn();
-	test_the_follow_up_window_follows_new_rounds();
+	test_the_item_side_chat_follows_new_rounds();
 	std::cout << "stick-to-bottom:pass\n";
 	return EXIT_SUCCESS;
 }

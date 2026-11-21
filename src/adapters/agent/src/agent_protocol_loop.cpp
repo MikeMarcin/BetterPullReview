@@ -760,7 +760,9 @@ namespace bpr::adapters::agent::detail {
 				Result.AssistantItems      = Decoder.assistant_items();
 				Result.StandardOutputBytes = Decoder.pushed_bytes();
 				if (ProtocolFailure) {
-					Result.RejectedOutputLine = Decoder.rejected_line();
+					// [[BPR-2320]]. A run that refused no line names the
+					// first it read past: a program's plain text.
+					Result.RejectedOutputLine = Decoder.rejected_line().empty() ? Decoder.skipped_line() : Decoder.rejected_line();
 				}
 				for (const auto& report : Decoder.metadata().ProtocolReported) {
 					auto appended = core::append_runtime_report(Result.Metadata, report);

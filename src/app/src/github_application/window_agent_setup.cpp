@@ -424,7 +424,9 @@ namespace bpr::app {
 		const auto lines   = agent_draft_lines(*surface->current_result(), side, finding.Lines, text);
 		const auto at      = lines.Anchor;
 		auto       refused = [state] { state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: resolve the draft open at that line first.")); };
-		auto       done    = [state, said = lines.Said] { state(qt::agent_finding_card_state::drafted, said); };
+		// [[BPR-2325]]. The draft it made is kept with it, so deleting that
+		// draft opens the finding again.
+		auto done = [this, state, said = lines.Said] { state(qt::agent_finding_card_state::drafted, said, ReviewDraft && ReviewDraft->Id.value() <= core::maximum_private_identity ? ReviewDraft->Id.value() : 0U); };
 		if (ReviewDraft && ReviewDraft->Anchor.Comparison == at.Comparison && ReviewDraft->Anchor.Side == at.Side && ReviewDraft->Anchor.Line == at.Line) {
 			promote_private_item(text, std::move(refused), std::move(done), lines.StartLine);
 			return;
@@ -564,8 +566,9 @@ namespace bpr::app {
 			for (; run.Next < run.Queue.size(); ++run.Next) {
 				run.Outcome = core::settle_draft_all(run.Outcome, core::draft_all_result::refused);
 			}
-			const auto report   = !run.ReportKeys.empty();
-			const auto undoable = !run.Made.empty() && !report;
+			const auto report = !run.ReportKeys.empty();
+			// [[BPR-2331]]. A report's Draft all is undone from the report.
+			const auto undoable = !run.Made.empty();
 			if (report) {
 				close_behind_report();
 			}
@@ -745,9 +748,12 @@ namespace bpr::app {
 		}
 		const auto findings = core::digest_agent_findings(aChange.FindingsBlock);
 		AgentFindingCards->remember({ .Findings = findings, .Ordinal = static_cast<std::uint32_t>(aChange.Ordinal), .State = *state, .Why = aChange.Why.toStdString(), .Note = aChange.Note });
-		// [[BPR-2231]]. A report finding that is this card says so too.
+		// [[BPR-2231]]. A report finding that is this card says so too;
+		// [[BPR-2331]] with what its draft said of its lines.
 		if (Window != nullptr && Window->report_view() != nullptr) {
-			Window->report_view()->settle_keep({ .Findings = findings, .Ordinal = static_cast<std::uint32_t>(aChange.Ordinal), .Card = true });
+			const auto key = core::report_finding_key{ .Findings = findings, .Ordinal = static_cast<std::uint32_t>(aChange.Ordinal), .Card = true };
+			Window->report_view()->say_drafted(key, aChange.State == qt::agent_finding_card_state::drafted ? aChange.Why : QString{ });
+			Window->report_view()->settle_keep(key);
 		}
 	}
 
@@ -759,6 +765,7 @@ namespace bpr::app {
 		}
 		AgentFindingCards->remember(core::report_keep_record(aKey, aState == qt::agent_finding_card_state::noted ? core::report_keep::keep_local : core::report_keep::draft_comment, made, aWhy.toStdString(), aNote));
 		if (Window != nullptr && Window->report_view() != nullptr) {
+			Window->report_view()->say_drafted(aKey, aState == qt::agent_finding_card_state::drafted ? aWhy : QString{ });
 			Window->report_view()->settle_keep(aKey);
 		}
 	}

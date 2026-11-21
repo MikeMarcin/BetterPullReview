@@ -29,6 +29,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
+#include "composer_parts.hpp"
 #include "conversation_glyphs.hpp"
 
 #include <QAbstractItemModel>
@@ -68,6 +69,7 @@
 #include <QRegularExpression>
 #include <QResizeEvent>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyleOptionToolButton>
@@ -183,24 +185,6 @@ namespace bpr::qt {
 			}
 
 		private:
-		};
-
-		/// \brief A thin rule inside the question field, in its outline's colour.
-		class rule_line final : public QWidget
-		{
-		public:
-			explicit rule_line(QWidget* aParent)
-				: QWidget{ aParent }
-			{
-				setFixedHeight(1);
-			}
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QPainter{ this };
-				painter.fillRect(rect(), mixed(palette().color(QPalette::Active, QPalette::Base), palette().color(QPalette::Active, QPalette::WindowText), 0.14));
-			}
 		};
 
 		/// \brief [[BPR-2059]]. A finding's file and lines, shortened in the
@@ -822,7 +806,9 @@ namespace bpr::qt {
 		auto* const field    = new rounded{ rounded::look::field, ask };
 		Field                = field;
 		auto* const fieldCol = new QVBoxLayout{ field };
-		fieldCol->setContentsMargins(8, 6, 6, 6);
+		// [[BPR-2337]]. The insets, the rule and the send row every agent
+		// composer shares (`composer_parts.hpp`).
+		composer::set_field_margins(*fieldCol);
 		fieldCol->setSpacing(4);
 		field->installEventFilter(this);
 		Chips = chip_label(field, QStringLiteral("agentContextChips"));
@@ -926,12 +912,8 @@ namespace bpr::qt {
 		Notice->setForegroundRole(QPalette::PlaceholderText);
 		Notice->hide();
 		fieldCol->addWidget(Notice);
-		auto* const rule = new rule_line{ field };
-		rule->setObjectName(QStringLiteral("agentComposerRule"));
-		fieldCol->addWidget(rule);
-		auto* const askRow = new QHBoxLayout{ };
+		auto* const askRow = composer::add_send_row(*field, *fieldCol);
 		AskRow             = askRow;
-		askRow->setSpacing(2);
 		// [[BPR-2002]]. Attaches the lines selected in the code again, after
 		// the chip's close button detached them.
 		Context = make_drawer_tool(field, drawer_icon(drawer_glyph::plus, palette()), tr("Attach the lines selected in the code"), QStringLiteral("agentAddContext"));
@@ -986,11 +968,7 @@ namespace bpr::qt {
 		// picker left the drawers for the pull request window's footer, one
 		// choice for the Agent tab, the tour chat, Enhance and Draft the tour.
 		// The tab borrows the footer's picker for /model and /effort.
-		Ask = new QPushButton{ field };
-		Ask->setObjectName(QStringLiteral("agentAsk"));
-		Ask->setDefault(true);
-		Ask->setIcon(drawer_icon(drawer_glyph::send, palette()));
-		Ask->setAccessibleName(tr("Send"));
+		Ask = composer::make_send_button(*field, QStringLiteral("agentAsk"));
 		Ask->setToolTip(send_tip());
 		// Send, or Stop while the agent works: one place, always in reach.
 		connect(Ask, &QPushButton::clicked, this, [this] {
@@ -1019,7 +997,6 @@ namespace bpr::qt {
 			PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
 		});
 		askRow->addWidget(Ask);
-		fieldCol->addLayout(askRow);
 		PickerRow = new QHBoxLayout{ };
 		PickerRow->setSpacing(0);
 		PickerRow->addStretch(1);
@@ -1605,6 +1582,17 @@ namespace bpr::qt {
 				}
 			});
 			cardColumn->addWidget(row);
+			// [[BPR-2331]]. Under the attachment, the report's tally turned
+			// on its side; a row opens the report at the first it counts.
+			auto* const tally = new report_tally_view{ card };
+			tally->set_tones(tones());
+			tally->set_open([this, serial](const std::uint32_t aFirst) {
+				if (const auto at = turn_of(serial)) {
+					open_report(*at, aFirst);
+				}
+			});
+			cardColumn->addWidget(tally);
+			aTurn.Tally = tally;
 			card->hide();
 			replyColumn->addWidget(card);
 			aTurn.ReportCard  = card;
@@ -2032,6 +2020,7 @@ namespace bpr::qt {
 			show_verdict(aTurn);
 			aTurn.ReportCard->setVisible(report);
 		}
+		aTurn.ReportShown = report;
 
 		// Owner look v004: the files and lines the answer names are links;
 		// Copy and Keep local keep the answer as the agent wrote it.
@@ -2043,6 +2032,9 @@ namespace bpr::qt {
 		aTurn.Answer->set_body(shown.toStdString(), "agent-turn-" + std::to_string(aTurn.Serial) + (report ? "-summary" : ""));
 		aTurn.Answer->setVisible(!body.isEmpty());
 		fit_answer(*aTurn.Answer);
+		if (const auto at = turn_of(aTurn.Serial)) {
+			place_report_findings(*at);
+		}
 	}
 
 	void agent_tab_view::show_steered(turn& aTurn)
@@ -2357,12 +2349,13 @@ namespace bpr::qt {
 				// is open again.
 				.State = restored.State == agent_finding_card_state::working ? agent_finding_card_state::open : restored.State,
 				.Why   = restored.Why,
-				.Note  = restored.State == agent_finding_card_state::noted ? restored.Note : 0U,
+				.Note  = restored.State == agent_finding_card_state::noted || restored.State == agent_finding_card_state::drafted ? restored.Note : 0U,
 				.Turn  = aTurn,
 			});
 			auto* const widget = make_card(CardEntries.back(), Turns[aTurn].Widget);
 			Turns[aTurn].CardColumn->addWidget(widget);
 		}
+		place_report_findings(aTurn);
 	}
 
 	void agent_tab_view::observe_card_state(const std::string& aFindingsBlock, const card_entry& aEntry) const
@@ -2418,6 +2411,7 @@ namespace bpr::qt {
 			auto* const widget = make_card(CardEntries.back(), Turns[aTurn].Widget);
 			Turns[aTurn].CardColumn->addWidget(widget);
 		}
+		place_report_findings(aTurn);
 		return true;
 	}
 
@@ -2995,27 +2989,109 @@ namespace bpr::qt {
 		ExplainObserver(progress);
 	}
 
-	void agent_tab_view::open_report(const std::size_t aTurn)
+	auto agent_tab_view::report_markdown(const std::size_t aTurn) const -> QString
 	{
-		if (aTurn >= Turns.size() || !ReportDispatch) {
-			return;
-		}
 		const auto& turn = Turns[aTurn];
 		// References are links in the report as they are in the answer.
-		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(turn.AnswerText, LineResolve(), turn.ContextFile) : turn.AnswerText;
-		// [[BPR-2219]]. The comments the agent suggested for this turn's
-		// findings, by place: the report's findings draft from them.
-		// [[BPR-2231]]: every card of the turn, so a report finding at a
-		// card's place is that card and shares its one state.
-		auto       suggested = std::vector<core::report_suggested_comment>{ };
-		auto       cards     = std::vector<agent_report_card>{ };
-		const auto block     = core::digest_agent_findings(turn.FindingsBlock);
+		return LineNavigate && LineResolve ? agent_markdown_with_reference_links(turn.AnswerText, LineResolve(), turn.ContextFile) : turn.AnswerText;
+	}
+
+	auto agent_tab_view::report_suggestions(const std::size_t aTurn) const -> std::vector<core::report_suggested_comment>
+	{
+		auto suggested = std::vector<core::report_suggested_comment>{ };
 		for (const auto& entry : CardEntries) {
 			if (entry.Turn == std::optional{ aTurn } && entry.Ordinal <= std::numeric_limits<std::uint32_t>::max()) {
 				suggested.push_back({ .Path    = entry.Finding.Path,
 									  .First   = entry.Finding.Lines.Begin + 1U,
 									  .Last    = std::max(entry.Finding.Lines.End, entry.Finding.Lines.Begin + 1U),
 									  .Comment = entry.Finding.SuggestedComment ? *entry.Finding.SuggestedComment : std::string{ } });
+			}
+		}
+		return suggested;
+	}
+
+	void agent_tab_view::place_report_findings(const std::size_t aTurn)
+	{
+		if (aTurn >= Turns.size()) {
+			return;
+		}
+		auto&      turn   = Turns[aTurn];
+		const auto report = turn.ReportShown && turn.Done;
+		auto       held   = std::vector<bool>{ };
+		auto       tally  = std::vector<core::dressed_count>{ };
+		if (report) {
+			// The report as its tab reads it (`agent_report_view::present`).
+			const auto text      = core::read_report_answer(report_markdown(aTurn).toStdString()).Report;
+			const auto dressed   = core::dress_report(text, turn.ReportTitle != nullptr ? turn.ReportTitle->text().toStdString() : std::string{ });
+			const auto suggested = report_suggestions(aTurn);
+			held                 = core::report_held_cards(core::report_findings(dressed, suggested), suggested.size());
+			tally                = dressed.Tally;
+		}
+		auto position = std::size_t{ 0U };
+		for (auto& entry : CardEntries) {
+			if (entry.Turn != std::optional{ aTurn } || entry.Ordinal > std::numeric_limits<std::uint32_t>::max()) {
+				continue;
+			}
+			entry.Held = position < held.size() && held[position];
+			++position;
+			if (entry.Widget != nullptr) {
+				entry.Widget->setVisible(!entry.Held);
+			}
+		}
+		if (turn.Tally != nullptr) {
+			turn.Tally->set_counts(tally);
+		}
+		refresh_draft_all(aTurn);
+	}
+
+	auto agent_tab_view::turn_report_tally(const std::size_t aTurn) const -> report_tally_view* { return aTurn < Turns.size() ? Turns[aTurn].Tally.data() : nullptr; }
+
+	auto agent_tab_view::finding_card_held(const std::size_t aCard) const -> bool { return aCard < CardEntries.size() && CardEntries[aCard].Held; }
+
+	void agent_tab_view::keep_report_in_view(const std::uint64_t aSerial)
+	{
+		const auto at     = turn_of(aSerial);
+		auto*      scroll = qobject_cast<QScrollArea*>(Viewport != nullptr ? Viewport->parentWidget() : nullptr);
+		if (!at || scroll == nullptr || scroll->widget() == nullptr) {
+			return;
+		}
+		auto* const card  = Turns[*at].ReportCard.data();
+		auto* const stick = stick_to_bottom::of(*scroll);
+		if (card == nullptr || card->isHidden() || !Turns[*at].ReportShown || stick == nullptr || !stick->pinned()) {
+			return;
+		}
+		// Laid out now, inner first, so the range is the ended turn's.
+		if (auto* const layout = scroll->widget()->layout(); layout != nullptr) {
+			layout->activate();
+		}
+		QEvent request{ QEvent::LayoutRequest };
+		QCoreApplication::sendEvent(scroll, &request);
+		// Followed to the end, the conversation can stand past the
+		// attachment; it comes back to show it, with a little of what is
+		// above it.
+		auto* const bar = scroll->verticalScrollBar();
+		const auto  top = std::max(0, card->mapTo(scroll->widget(), QPoint{ }).y() - 12);
+		if (bar->value() > top) {
+			bar->setValue(top);
+		}
+	}
+
+	void agent_tab_view::open_report(const std::size_t aTurn, const std::uint32_t aHeading)
+	{
+		if (aTurn >= Turns.size() || !ReportDispatch) {
+			return;
+		}
+		const auto& turn  = Turns[aTurn];
+		const auto  shown = report_markdown(aTurn);
+		// [[BPR-2219]]. The comments the agent suggested for this turn's
+		// findings, by place: the report's findings draft from them.
+		// [[BPR-2231]]: every card of the turn, so a report finding at a
+		// card's place is that card and shares its one state.
+		auto       suggested = report_suggestions(aTurn);
+		auto       cards     = std::vector<agent_report_card>{ };
+		const auto block     = core::digest_agent_findings(turn.FindingsBlock);
+		for (const auto& entry : CardEntries) {
+			if (entry.Turn == std::optional{ aTurn } && entry.Ordinal <= std::numeric_limits<std::uint32_t>::max()) {
 				cards.push_back({ .Session = entry.Session, .Ordinal = entry.Ordinal, .Finding = entry.Finding, .Key = { .Findings = block, .Ordinal = static_cast<std::uint32_t>(entry.Ordinal) } });
 			}
 		}
@@ -3032,6 +3108,7 @@ namespace bpr::qt {
 			.Suggested = std::move(suggested),
 			.Cards     = std::move(cards),
 			.Answer    = turn.AnswerText.trimmed(),
+			.Heading   = aHeading,
 		});
 	}
 
@@ -3251,6 +3328,8 @@ namespace bpr::qt {
 		if (succeeded && FindingsPresented != FindingsAtTurn) {
 			claim_findings(Turns.size() - 1U);
 		}
+		// [[BPR-2331]]. Once the end's own growth is laid out.
+		QTimer::singleShot(0, this, [this, serial = current.Serial] { keep_report_in_view(serial); });
 		ClearSession->setVisible(true);
 		if (!current.Explain.isEmpty()) {
 			publish_explain(Turns.size() - 1U, std::nullopt, footer, succeeded, seconds);
@@ -3517,6 +3596,9 @@ namespace bpr::qt {
 				dress_answer(*kept.Answer);
 			}
 			show_verdict(kept);
+			if (kept.Tally != nullptr) {
+				kept.Tally->set_tones(tones());
+			}
 		}
 		for (const auto& entry : CardEntries) {
 			colour_card(entry);
@@ -3841,7 +3923,7 @@ namespace bpr::qt {
 		const auto settle = [aState, &aWhy, aNote](card_entry& aEntry) {
 			aEntry.State = aState;
 			aEntry.Why   = aWhy;
-			aEntry.Note  = aState == agent_finding_card_state::noted ? aNote : 0U;
+			aEntry.Note  = aState == agent_finding_card_state::noted || aState == agent_finding_card_state::drafted ? aNote : 0U;
 		};
 		for (auto& entry : CardEntries) {
 			if (entry.Session == aSession && entry.Ordinal == aOrdinal) {
@@ -3863,6 +3945,38 @@ namespace bpr::qt {
 				}
 			}
 		}
+	}
+
+	auto agent_tab_view::reopen_drafted_finding(const core::agent_findings_digest& aFindings, const std::size_t aOrdinal) -> bool
+	{
+		const auto reopen = [](card_entry& aEntry) {
+			aEntry.State = agent_finding_card_state::open;
+			aEntry.Why.clear();
+			aEntry.Note = 0U;
+		};
+		auto reopened = false;
+		for (auto& entry : CardEntries) {
+			if (entry.Ordinal == aOrdinal && entry.State == agent_finding_card_state::drafted && entry.Turn && *entry.Turn < Turns.size()
+				&& !Turns[*entry.Turn].FindingsBlock.empty() && core::digest_agent_findings(Turns[*entry.Turn].FindingsBlock) == aFindings) {
+				reopen(entry);
+				show_card_state(entry);
+				observe_card_state(Turns[*entry.Turn].FindingsBlock, entry);
+				reopened = true;
+			}
+		}
+		for (auto& kept : RetainedCards) {
+			if (kept.FindingsBlock.empty() || core::digest_agent_findings(kept.FindingsBlock) != aFindings) {
+				continue;
+			}
+			for (auto& entry : kept.Cards) {
+				if (entry.Ordinal == aOrdinal && entry.State == agent_finding_card_state::drafted) {
+					reopen(entry);
+					observe_card_state(kept.FindingsBlock, entry);
+					reopened = true;
+				}
+			}
+		}
+		return reopened;
 	}
 
 	void agent_tab_view::rebuild_findings()
@@ -3925,7 +4039,7 @@ namespace bpr::qt {
 			auto* const card = make_card(CardEntries.back(), Turns[aTurn].Widget);
 			Turns[aTurn].CardColumn->addWidget(card);
 		}
-		refresh_draft_all(aTurn);
+		place_report_findings(aTurn);
 	}
 
 	auto agent_tab_view::make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*
@@ -4365,7 +4479,10 @@ namespace bpr::qt {
 		turn.DraftAll->setText(tr("Draft all (%1)").arg(offered));
 		turn.DraftAll->setVisible(offered > 0U || turn.DraftAllBusy);
 		turn.DraftAll->setEnabled(offered > 0U && !turn.DraftAllBusy && DraftAllDispatch != nullptr);
-		turn.DraftAllRow->setVisible(DraftAllDispatch != nullptr && (several || !turn.DraftAllState->isHidden()));
+		// [[BPR-2331]]. A report that holds the turn's cards offers its own
+		// Draft all ([[BPR-2232]]).
+		const auto held = std::ranges::any_of(CardEntries, [aTurn](const card_entry& aEntry) { return aEntry.Turn == std::optional{ aTurn } && aEntry.Held; });
+		turn.DraftAllRow->setVisible(!held && DraftAllDispatch != nullptr && (several || !turn.DraftAllState->isHidden()));
 	}
 
 	void agent_tab_view::draft_all(const std::size_t aTurn)

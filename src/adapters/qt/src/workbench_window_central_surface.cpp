@@ -15,6 +15,7 @@
 #include "bpr/qt/home_filter_field.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
+#include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
@@ -470,13 +471,39 @@ namespace bpr::qt {
 		ReportView = new agent_report_view{ ComparisonPage };
 		ReportView->hide();
 		ExplainCard = new explain_file_card{ ComparisonPage };
-		comparisonColumn->addWidget(ExplainCard);
+		// [[BPR-2322]], owner 2026-11-20: "make it use something akin to the
+		// side chat from the tour onto the report tab". Beside the report (or
+		// the code a draft or thread is on), the side chat about one review
+		// item, as the Tour tab's chat sits beside the tour. Every widget
+		// keeps the comparison page as its parent; the hidden chat takes no
+		// room, so every geometry is what it was.
+		auto* const besideChat = new QHBoxLayout{ };
+		besideChat->setContentsMargins(0, 0, 0, 0);
+		besideChat->setSpacing(0);
+		auto* const documentColumn = new QVBoxLayout{ };
+		documentColumn->setContentsMargins(0, 0, 0, 0);
+		documentColumn->setSpacing(0);
+		documentColumn->addWidget(ExplainCard);
 		// RFC-BPR-0089 M3. Over a split file's diff, its per-commit diffs; it
 		// takes no room while hidden, so every other diff keeps its geometry.
 		SplitStrip = new split_diff_strip{ ComparisonPage };
-		comparisonColumn->addWidget(SplitStrip);
-		comparisonColumn->addWidget(ComparisonSurface, 1);
-		comparisonColumn->addWidget(ReportView, 1);
+		documentColumn->addWidget(SplitStrip);
+		documentColumn->addWidget(ComparisonSurface, 1);
+		documentColumn->addWidget(ReportView, 1);
+		besideChat->addLayout(documentColumn, 1);
+		ItemSideChat = new qt::item_side_chat{ ComparisonPage };
+		besideChat->addWidget(ItemSideChat, 0);
+		// [[BPR-2337]]. Opened, the chat belongs to the tab it opened in;
+		// closed, to none.
+		ItemSideChat->set_open_observer([this](const bool aOpen) {
+			if (aOpen) {
+				adopt_side_chat_tab();
+			} else {
+				SideChatTab.reset();
+				SideChatAdopts = false;
+			}
+		});
+		comparisonColumn->addLayout(besideChat, 1);
 		update_idle_direction();
 		ComparisonSurface->set_status_observer([this](const QString& aText, const bool aNotable) {
 			update_go_to_line_action();

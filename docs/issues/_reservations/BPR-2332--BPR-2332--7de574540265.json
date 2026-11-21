@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2332"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Accounts & hosts server card is compact and a GitHub CLI fixture shows its trust line",
+  "created": "2026-11-20T20:50:24.101151+00:00",
+  "base": "e9311e2d75b750f928fe34b1da65e586fbb73170"
+}

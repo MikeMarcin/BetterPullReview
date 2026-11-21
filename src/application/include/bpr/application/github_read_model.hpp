@@ -510,6 +510,41 @@ namespace bpr::application {
 													   required,
 													   approved,
 													   changes_requested };
+	/// \brief [[BPR-2327]]. GitHub's `PullRequestMergeMethod`.
+	enum class github_merge_method : std::uint8_t { merge,
+													squash,
+													rebase };
+	/// \brief [[BPR-2327]]. GitHub's `MergeQueueEntryState`.
+	enum class github_merge_queue_state : std::uint8_t { queued,
+														 awaiting_checks,
+														 mergeable,
+														 unmergeable,
+														 locked };
+	/// \brief [[BPR-2327]]. The pull request's place in its base's merge queue.
+	struct github_merge_queue_entry
+	{
+		github_merge_queue_state     State = github_merge_queue_state::queued;
+		std::optional<std::uint32_t> Position;
+		auto                         operator<=>(const github_merge_queue_entry&) const = default;
+	};
+	/// \brief [[BPR-2327]]. Who enabled auto-merge, and how it will merge,
+	/// when the read asked.
+	struct github_auto_merge_request
+	{
+		std::optional<github_merge_method> Method;
+		/// Empty when GitHub hides the account.
+		std::string EnabledBy;
+		auto        operator<=>(const github_auto_merge_request&) const = default;
+	};
+	/// \brief [[BPR-2329]]. Whether the repository allows auto-merge and with
+	/// which methods, and GitHub's word on whether this viewer may enable or
+	/// disable it on this pull request.
+	struct github_auto_merge_settings
+	{
+		bool Allowed = false, MergeCommit = false, Squash = false, Rebase = false;
+		bool ViewerCanEnable = false, ViewerCanDisable = false;
+		auto operator<=>(const github_auto_merge_settings&) const = default;
+	};
 	/// \brief Server assessment bound to the accepted PR/head/base; grants no merge authority.
 	struct github_merge_observation
 	{
@@ -517,8 +552,16 @@ namespace bpr::application {
 		github_merge_assessment         Assessment   = github_merge_assessment::unknown;
 		github_review_decision          Review       = github_review_decision::unknown;
 		std::optional<bool>             AutoMerge;
-		bool                            Stale                                              = false;
-		auto                            operator<=>(const github_merge_observation&) const = default;
+		/// [[BPR-2327]]. Auto-merge's details; absent when it is off or the
+		/// read did not ask.
+		std::optional<github_auto_merge_request> AutoMergeRequest;
+		/// [[BPR-2327]]. Absent when the read did not ask.
+		std::optional<bool>                     InMergeQueue;
+		std::optional<github_merge_queue_entry> QueueEntry;
+		/// [[BPR-2329]]. Absent when the read did not ask.
+		std::optional<github_auto_merge_settings> AutoMergeSettings;
+		bool                                      Stale                                              = false;
+		auto                                      operator<=>(const github_merge_observation&) const = default;
 	};
 	/// \brief A check context required by an applicable branch policy, optionally tied to an app.
 	struct github_required_check

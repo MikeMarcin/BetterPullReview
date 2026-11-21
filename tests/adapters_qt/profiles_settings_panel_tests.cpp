@@ -17,9 +17,11 @@
 #include <QPushButton>
 #include <memory>
 
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -592,6 +594,60 @@ namespace {
 		expect(managed == 1U && quit == 1U && intents.size() == 2U,
 			   "the disabled scaffolding commands cause no desktop effect");
 	}
+	/// [[BPR-2318]] (owner, 2026-11-20: "Ps profiles needs the same drag
+	/// handle"). A grip on every row; a drag or Alt+Up and Alt+Down ask the
+	/// host to move the profile, and the list shows what the host saves.
+	void test_profiles_are_reordered_by_grip_and_keyboard()
+	{
+		qt::settings_window shell;
+		auto* const         panel = new qt::profiles_settings_panel;
+		shell.adopt_panel(qt::settings_page::profiles, panel);
+		std::vector<application::profile_management_intent> intents;
+		panel->set_dispatch([&intents](auto aIntent) { intents.push_back(std::move(aIntent)); });
+		auto accepted = projection();
+		accepted.Profiles.push_back({ core::bpr_profile_id{ 3U }, "Home", application::profile_management_runtime::closed });
+		panel->set_current_profile(core::default_bpr_profile_id);
+		panel->adopt(accepted);
+		shell.present(qt::settings_page::profiles);
+		QApplication::processEvents();
+		auto* const list = panel->profiles();
+		for (auto row = 0; row < 3; ++row) {
+			auto* const grip = panel->profile_grip(row);
+			const auto  rect = list->visualItemRect(list->item(row));
+			expect(grip != nullptr && grip->isVisible() && grip->geometry().left() == rect.left() && rect.contains(grip->geometry()), "every profile row has a visible grip at its left");
+		}
+		expect(panel->profile_grip(1)->accessibleName() == QStringLiteral("Reorder Work & Research") && panel->profile_grip(1)->testAttribute(Qt::WA_TransparentForMouseEvents)
+				   && list->dragDropMode() == QAbstractItemView::InternalMove && list->dragEnabled(),
+			   "the grip is named for its profile and a press on it starts the list's drag");
+		const auto moved = [&intents]() -> std::pair<std::uint64_t, int> {
+			const auto* const move = intents.empty() ? nullptr : std::get_if<application::move_bpr_profile_intent>(&intents.back());
+			return move == nullptr ? std::pair{ std::uint64_t{ 0U }, 0 } : std::pair{ move->Profile.value(), move->Delta };
+		};
+		list->setCurrentRow(2);
+		auto up = QKeyEvent{ QEvent::KeyPress, Qt::Key_Up, Qt::AltModifier };
+		QApplication::sendEvent(list, &up);
+		expect(moved() == std::pair{ std::uint64_t{ 3U }, -1 } && list->item(2)->text() == QStringLiteral("Home"), "Alt+Up asks to move the selected profile; the row waits for the host");
+		list->setCurrentRow(0);
+		const auto before = intents.size();
+		QApplication::sendEvent(list, &up);
+		expect(intents.size() == before, "the first profile goes no higher");
+		static_cast<void>(list->model()->moveRow(QModelIndex{ }, 0, QModelIndex{ }, 3));
+		expect(moved() == std::pair{ std::uint64_t{ 1U }, 2 }, "a profile dropped two places down asks to move it there");
+		accepted.Profiles = { accepted.Profiles[1], accepted.Profiles[2], accepted.Profiles[0] };
+		panel->adopt(accepted);
+		expect(list->item(0)->text() == QStringLiteral("Work & Research") && list->item(2)->text() == QStringLiteral("Default") && panel->profile_grip(2)->accessibleName() == QStringLiteral("Reorder Default"),
+			   "the list shows the host's order, and the grips follow");
+		panel->create_button()->click();
+		expect(!list->dragEnabled(), "no profile is dragged while one is being named");
+		list->setCurrentRow(1);
+		const auto naming = intents.size();
+		auto       down   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::AltModifier };
+		QApplication::sendEvent(list, &down);
+		expect(intents.size() == naming, "nor moved from the keyboard");
+		panel->cancel_button()->click();
+		expect(list->dragEnabled() && list->count() == 3, "Cancel gives the grips back");
+	}
+
 	// [[BPR-2198]] (owner, 2026-11-15). Import Profile Settings… and Export
 	// Profile Settings… are on Profiles, with the one line under them.
 	void test_share_profile_settings()
@@ -632,6 +688,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	test_the_sheet_is_rows_edited_in_place();
 	test_keyboard_accessibility_and_compact_layout();
+	test_profiles_are_reordered_by_grip_and_keyboard();
 	test_share_profile_settings();
 	test_profile_owned_settings_mount_and_session_lifetime();
 	test_native_profiles_menu_keeps_action_identity();

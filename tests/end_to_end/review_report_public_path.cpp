@@ -281,9 +281,15 @@ auto main(int argc, char** argv) -> int
 			return said != nullptr ? said->text() : QString{ };
 		};
 		expect(issue.Card == std::optional<std::size_t>{ 0U } && findings[1].Card == std::optional<std::size_t>{ 1U } && tab->turn_cards(before).size() == 2U, "the issue and the tonemap question are the answer's two finding cards");
+		// [[BPR-2331]]. The report holds both cards: the Agent tab shows its
+		// summary under the attachment and neither card. The cards still
+		// carry each finding's one state.
+		expect(std::ranges::all_of(tab->turn_cards(before), [](const QWidget* aCard) { return aCard->isHidden(); }) && tab->turn_report_tally(before) != nullptr && !tab->turn_report_tally(before)->isHidden() && !tab->turn_report_tally(before)->counts().empty(),
+			   "the Agent tab shows the report's summary, not its finding cards");
 		wait([&] { return cardState(0U).startsWith(QStringLiteral("Drafted")); }, "the issue's card reads Drafted: " + cardState(0U).toStdString());
-		// And the other way round: the tonemap card's own Draft, and the
-		// report reads Drafted at that finding.
+		// And the other way round: the tonemap card's own Draft (the path
+		// the host's Draft all takes), and the report reads Drafted at that
+		// finding.
 		auto* const tonemapDraft = tab->turn_cards(before)[1]->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
 		expect(tonemapDraft != nullptr && tonemapDraft->isEnabled(), "the tonemap card offers Draft");
 		tonemapDraft->click();

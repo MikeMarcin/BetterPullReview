@@ -987,6 +987,7 @@ namespace bpr::application {
 			aTrace.CloneHeldHead = waiter->Trace.CloneHeldHead;
 			aTrace.Command       = waiter->Trace.Command;
 			aTrace.GitError      = waiter->Trace.GitError;
+			aTrace.Seed          = waiter->Trace.Seed;
 			return std::move(*waiter->Result);
 		}
 		// Bounded by `WorkspaceWait`, not `BlobWait`: this writes a whole

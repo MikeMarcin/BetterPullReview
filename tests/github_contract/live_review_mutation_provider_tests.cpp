@@ -595,6 +595,9 @@ namespace {
 		case review_mutation_operation::observe_pull_request_draft_state:   return "observe_pull_request_draft_state";
 		case review_mutation_operation::mark_pull_request_ready_for_review: return "mark_pull_request_ready_for_review";
 		case review_mutation_operation::convert_pull_request_to_draft:      return "convert_pull_request_to_draft";
+		case review_mutation_operation::observe_pull_request_auto_merge:    return "observe_pull_request_auto_merge";
+		case review_mutation_operation::enable_pull_request_auto_merge:     return "enable_pull_request_auto_merge";
+		case review_mutation_operation::disable_pull_request_auto_merge:    return "disable_pull_request_auto_merge";
 
 		case review_mutation_operation::observe_pull_request:
 			return "observe_pull_request";
@@ -2021,6 +2024,16 @@ namespace {
 			return Session->change_draft_state(aRequest, aStop);
 		}
 
+		auto change_auto_merge(
+			const application::review_auto_merge_request& aRequest,
+			const std::stop_token                         aStop)
+			-> std::expected<
+				application::review_auto_merge_receipt,
+				application::review_mutation_failure> override
+		{
+			return Session->change_auto_merge(aRequest, aStop);
+		}
+
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
@@ -2708,6 +2721,118 @@ namespace {
 			   "the coordinator confirms the target before a change");
 	}
 
+	/// [[BPR-2329]]. The pull request as an auto-merge answer gives it.
+	[[nodiscard]] auto auto_merge_pull(const std::optional<std::string_view> aMethod, const bool aAllowed = true, const bool aCan = true, const std::string_view aState = "OPEN") -> std::string
+	{
+		return std::string{ R"({"id":"PR_kwDOTyvof879G6NV","databaseId":4246446933,"number":1,"state":")" } + std::string{ aState } + R"(","viewerCanEnableAutoMerge":)" + (aCan ? "true" : "false")
+			+ R"(,"viewerCanDisableAutoMerge":)" + (aCan ? "true" : "false") + R"(,"autoMergeRequest":)" + (aMethod ? R"({"mergeMethod":")" + std::string{ *aMethod } + R"("})" : std::string{ "null" })
+			+ R"(,"baseRepository":{"autoMergeAllowed":)" + (aAllowed ? "true" : "false") + R"(,"mergeCommitAllowed":false,"squashMergeAllowed":true,"rebaseMergeAllowed":true})"
+			+ R"(,"repository":{"id":"R_kgDOTyvofw","databaseId":1328277631,"nameWithOwner":"MikeMarcin/BPR-Test"}})";
+	}
+	[[nodiscard]] auto auto_merge_observed(const std::optional<std::string_view> aMethod, const bool aAllowed = true, const bool aCan = true, const std::string_view aState = "OPEN") -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"node":)" + auto_merge_pull(aMethod, aAllowed, aCan, aState) + "}}" } };
+	}
+	[[nodiscard]] auto auto_merge_written(const std::string_view aMutation, const std::optional<std::string_view> aMethod) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{")" + std::string{ aMutation } + R"(":{"pullRequest":)" + auto_merge_pull(aMethod) + "}}}" } };
+	}
+	[[nodiscard]] auto auto_merge_request(const core::auto_merge_change aChange, const std::optional<core::merge_method> aMethod) -> application::review_auto_merge_request
+	{
+		return application::review_auto_merge_request{
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Change         = aChange,
+			.Method         = aMethod,
+			.LiveBinding    = application::review_mutation_live_binding{ .Target = target(), .ActingIdentity = identity() },
+		};
+	}
+
+	// [[BPR-2329]]. Auto-merge is observed, then enabled or disabled once:
+	// nothing is sent when it is already in the state asked or GitHub would
+	// refuse it; GitHub's refusal of the write (a repository that does not
+	// allow auto-merge answers so, live) is not read back; a lost answer is
+	// read back once; the coordinator confirms the target first.
+	void test_auto_merge_is_observed_then_written_once()
+	{
+		using change = core::auto_merge_change;
+		auto enable  = fake_transport{ };
+		enable.answer(graphql("ObserveAutoMerge"), auto_merge_observed(std::nullopt));
+		enable.answer(graphql("EnableAutoMerge"), auto_merge_written("enablePullRequestAutoMerge", "SQUASH"));
+		auto       enableSession = review_mutation_session{ enable, configuration(), mutation_lease(), make_recovery() };
+		const auto enabled       = enableSession.change_auto_merge(auto_merge_request(change::enable, core::merge_method::squash));
+		expect(enabled.has_value() && enabled->Written && enabled->Enabled && enabled->Method == core::merge_method::squash && enable.Requests.size() == 2U
+				   && enable.Requests[0].Wire.Operation == review_mutation_operation::observe_pull_request_auto_merge
+				   && enable.Requests[1].Wire.Body.find(R"("method":"SQUASH")") != std::string::npos,
+			   "observed, then enabled once with the method asked");
+
+		auto disable = fake_transport{ };
+		disable.answer(graphql("ObserveAutoMerge"), auto_merge_observed("SQUASH"));
+		disable.answer(graphql("DisableAutoMerge"), auto_merge_written("disablePullRequestAutoMerge", std::nullopt));
+		auto       disableSession = review_mutation_session{ disable, configuration(), mutation_lease(), make_recovery() };
+		const auto disabled       = disableSession.change_auto_merge(auto_merge_request(change::disable, std::nullopt));
+		expect(disabled.has_value() && disabled->Written && !disabled->Enabled && count_operation(disable, review_mutation_operation::disable_pull_request_auto_merge) == 1U
+				   && disable.Requests[1].Wire.Body.find("\"method\"") == std::string::npos,
+			   "Disable is its own write and carries no method");
+
+		auto already = fake_transport{ };
+		already.answer(graphql("ObserveAutoMerge"), auto_merge_observed("REBASE"));
+		auto       alreadySession = review_mutation_session{ already, configuration(), mutation_lease(), make_recovery() };
+		const auto kept           = alreadySession.change_auto_merge(auto_merge_request(change::enable, core::merge_method::squash));
+		expect(kept.has_value() && !kept->Written && kept->Enabled && kept->Method == core::merge_method::rebase && already.Requests.size() == 1U, "already on is not written");
+
+		for (const auto& [allowed, can, why] : { std::tuple{ false, true, "a repository that does not allow it" }, std::tuple{ true, false, "a viewer GitHub does not let enable it" } }) {
+			auto refusedBefore = fake_transport{ };
+			refusedBefore.answer(graphql("ObserveAutoMerge"), auto_merge_observed(std::nullopt, allowed, can));
+			auto       refusedSession = review_mutation_session{ refusedBefore, configuration(), mutation_lease(), make_recovery() };
+			const auto refused        = refusedSession.change_auto_merge(auto_merge_request(change::enable, core::merge_method::squash));
+			expect(!refused && refused.error() == application::review_mutation_failure::refused_by_server && refusedBefore.Requests.size() == 1U, std::string{ why } + " is refused before any write");
+		}
+		auto method = fake_transport{ };
+		method.answer(graphql("ObserveAutoMerge"), auto_merge_observed(std::nullopt));
+		auto       methodSession = review_mutation_session{ method, configuration(), mutation_lease(), make_recovery() };
+		const auto noMerge       = methodSession.change_auto_merge(auto_merge_request(change::enable, core::merge_method::merge));
+		expect(!noMerge && noMerge.error() == application::review_mutation_failure::refused_by_server && method.Requests.size() == 1U, "a method the repository does not allow is never sent");
+
+		auto closed = fake_transport{ };
+		closed.answer(graphql("ObserveAutoMerge"), auto_merge_observed(std::nullopt, true, true, "MERGED"));
+		auto       closedSession = review_mutation_session{ closed, configuration(), mutation_lease(), make_recovery() };
+		const auto shut          = closedSession.change_auto_merge(auto_merge_request(change::enable, core::merge_method::squash));
+		expect(!shut && shut.error() == application::review_mutation_failure::target_unavailable, "a merged pull request is not written");
+
+		// The answer GitHub gave live for a repository that does not allow auto-merge.
+		auto refusedWrite = fake_transport{ };
+		refusedWrite.answer(graphql("ObserveAutoMerge"), auto_merge_observed(std::nullopt));
+		refusedWrite.answer(graphql("EnableAutoMerge"), github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"enablePullRequestAutoMerge":null},"errors":[{"type":"UNPROCESSABLE","path":["enablePullRequestAutoMerge"],"locations":[{"line":1,"column":18}],"message":"Auto merge is not allowed for this repository"}]})" } });
+		auto       refusedWriteSession = review_mutation_session{ refusedWrite, configuration(), mutation_lease(), make_recovery() };
+		const auto refusal             = refusedWriteSession.change_auto_merge(auto_merge_request(change::enable, core::merge_method::squash));
+		expect(!refusal && refusal.error() == application::review_mutation_failure::refused_by_server && refusedWrite.Requests.size() == 2U, "GitHub's refusal is not read back");
+
+		for (const auto took : { true, false }) {
+			auto ambiguous = fake_transport{ };
+			ambiguous.answer(graphql("ObserveAutoMerge"), auto_merge_observed(std::nullopt));
+			ambiguous.answer(graphql("EnableAutoMerge"), github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = github_mutation_transmission::indeterminate });
+			ambiguous.answer(graphql("ObserveAutoMerge"), auto_merge_observed(took ? std::optional<std::string_view>{ "SQUASH" } : std::nullopt));
+			auto       ambiguousSession = review_mutation_session{ ambiguous, configuration(), mutation_lease(), make_recovery() };
+			const auto result           = ambiguousSession.change_auto_merge(auto_merge_request(change::enable, core::merge_method::squash));
+			expect(ambiguous.Requests.size() == 3U && count_operation(ambiguous, review_mutation_operation::enable_pull_request_auto_merge) == 1U, "an ambiguous enable is read back once, never sent twice");
+			expect(took ? (result.has_value() && result->ConfirmedByReadBack && result->Enabled) : (!result && result.error() == application::review_mutation_failure::not_confirmed),
+				   took ? "the read back confirms it" : "a state GitHub does not show is not_confirmed");
+		}
+
+		auto coordinated = fake_transport{ };
+		coordinated.answer(pull_request_get(), target_response());
+		coordinated.answer(viewer_get(), viewer_response());
+		coordinated.answer(graphql("ObserveAutoMerge"), auto_merge_observed("SQUASH"));
+		coordinated.answer(graphql("DisableAutoMerge"), auto_merge_written("disablePullRequestAutoMerge", std::nullopt));
+		auto       coordinatedSession = review_mutation_session{ coordinated, configuration(), mutation_lease(), make_recovery() };
+		auto       port               = session_port{ coordinatedSession };
+		auto       coordinator        = application::review_mutation_coordinator{ port, target(), identity() };
+		const auto viaCoordinator     = coordinator.change_auto_merge(change::disable, std::nullopt);
+		expect(viaCoordinator.has_value() && viaCoordinator->Written && coordinator.statistics().TargetObservations == 1U && coordinated.Requests.size() == 4U,
+			   "the coordinator confirms the target before a change");
+	}
+
 	/// [[BPR-1775]]. One of the viewer's comments (or another's) as an edit
 	/// answer gives it.
 	[[nodiscard]] auto comment_json(const std::string_view aTypename, const std::string_view aBody, const bool aCan = true, const bool aDesignated = true, const std::string_view aId = "IC_kwDOcomment1", const bool aMine = true) -> std::string
@@ -3112,6 +3237,7 @@ namespace {
 		row{ "a_published_comment_is_observed_then_written_once", &test_a_published_comment_is_observed_then_written_once },
 		row{ "a_review_request_is_observed_then_written_once", &test_a_review_request_is_observed_then_written_once },
 		row{ "the_draft_state_is_observed_then_written_once", &test_the_draft_state_is_observed_then_written_once },
+		row{ "auto_merge_is_observed_then_written_once", &test_auto_merge_is_observed_then_written_once },
 
 		row{ "a_left_comment_on_a_stacked_pull_request", &test_a_left_comment_on_a_stacked_pull_request },
 	};

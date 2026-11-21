@@ -142,6 +142,7 @@ namespace bpr::qt {
 	class generated_files_row;
 	class split_diff_strip;
 	class destructive_question;
+	class item_side_chat;
 	/// \brief [[BPR-1336]]. Whether an editable text field keeps a typed
 	/// Control+Alt character from the window's shortcuts.
 	///
@@ -578,6 +579,10 @@ namespace bpr::qt {
 		/// Overview's chip, banner and Merge redraw, and nothing else is
 		/// visited. An overview not yet presented is published whole.
 		void publish_draft_state(const application::pull_request_overview_projection& aProjection);
+		/// \brief [[BPR-2329]]. Adopts a change to the presented overview's
+		/// auto-merge alone: Merge redraws and nothing else is visited. An
+		/// overview not yet presented is published whole.
+		void publish_auto_merge(const application::pull_request_overview_projection& aProjection);
 		/// \brief [[BPR-1852]]. The draft chip beside the pull request's name
 		/// in the title row: shown while the pull request is an open draft
 		/// (the read's state, or the viewer's change it has not caught up with).
@@ -612,6 +617,8 @@ namespace bpr::qt {
 		void set_commit_filter_shown_dispatch(std::function<void()> aDispatch);
 		/// \brief Open on GitHub for one commit.
 		void set_commit_open_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief [[BPR-2327]]. Resolve on GitHub pressed in the Overview's Merge.
+		void set_conflicts_page_dispatch(std::function<void()> aDispatch);
 		/// \brief RFC-BPR-0089 M3. A rematch offer chosen in a chip or the
 		/// Commits tab, after a force push.
 		void set_commit_rematch_dispatch(std::function<void(const application::commit_filter_rematch_gesture&)> aDispatch);
@@ -1305,6 +1312,14 @@ namespace bpr::qt {
 		/// tab beside the files (owner, Q8), its title and Markdown as given.
 		void               open_report(const std::string& aKey, const agent_report_document& aReport);
 		[[nodiscard]] auto report_view() const noexcept -> agent_report_view* { return ReportView; }
+		/// \brief [[BPR-2322]]. The side chat about one review item (a
+		/// report's finding or a finding card, a draft, a thread), the column
+		/// beside the report or the code. Hidden until an item is asked about.
+		[[nodiscard]] auto item_side_chat() const noexcept -> qt::item_side_chat* { return ItemSideChat; }
+		/// \brief [[BPR-2337]]. The document tab the open side chat belongs
+		/// to: the one it was opened in, or none while it waits for the tab it
+		/// was opened toward (or while it is closed).
+		[[nodiscard]] auto item_side_chat_tab() const noexcept -> std::optional<core::document_tab_id> { return SideChatTab; }
 		/// \brief Whether the active tab is a report.
 		[[nodiscard]] auto report_shown() const noexcept -> bool { return ReportShown; }
 		/// \brief [[BPR-2258]], owner 2026-11-18: "I'd rather stay on the
@@ -3094,12 +3109,22 @@ namespace bpr::qt {
 		void                                  press_suggest_change();
 		/// RFC-BPR-0117. Explain this file's control, its card and where a
 		/// press goes.
-		QToolButton*                                 ExplainFileButton = nullptr;
-		ask_menu_button*                             FileAskButton     = nullptr;
-		ask_menu_button*                             ReviewAskButton   = nullptr;
-		ask_menu_source                              QuickAskSource;
-		ask_menu_dispatch                            QuickAskDispatch;
-		agent_report_view*                           ReportView  = nullptr;
+		QToolButton*        ExplainFileButton = nullptr;
+		ask_menu_button*    FileAskButton     = nullptr;
+		ask_menu_button*    ReviewAskButton   = nullptr;
+		ask_menu_source     QuickAskSource;
+		ask_menu_dispatch   QuickAskDispatch;
+		agent_report_view*  ReportView   = nullptr;
+		qt::item_side_chat* ItemSideChat = nullptr;
+		/// [[BPR-2337]] (owner, attended review b64bbc23: "side chat is
+		/// staying open when i switch off that tab. it should be part of that
+		/// tab"). The tab the side chat was opened in; it shows only while
+		/// that tab is active and closes with it. `SideChatAdopts`: it was
+		/// opened while no tab showed it, so the next active tab is its own.
+		std::optional<core::document_tab_id>         SideChatTab;
+		bool                                         SideChatAdopts = false;
+		void                                         adopt_side_chat_tab();
+		void                                         place_item_side_chat();
 		bool                                         ReportShown = false;
 		bool                                         ReportHeld  = false;
 		std::map<std::string, agent_report_document> Reports;
@@ -3883,7 +3908,7 @@ namespace bpr::qt {
 		application::review_behaviour_settings    Behaviour;
 		QWidget*                                  BehaviourEditor = nullptr;
 		QWidget*                                  CommentsEditor  = nullptr;
-		std::array<std::vector<QToolButton*>, 11> BehaviourOptions{ };
+		std::array<std::vector<QToolButton*>, 12> BehaviourOptions{ };
 		feedback_mark_preview*                    FeedbackMarksPreview = nullptr;
 		/// [[BPR-1088]]. The rest of Comment labels: the helper's switch, the
 		/// Overview chips, what a load left out of them, and Mark colours.

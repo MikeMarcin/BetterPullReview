@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_OPERATION_DIAGNOSIS_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_OPERATION_DIAGNOSIS_HPP
 
+#include "bpr/core/agent_follow_up.hpp"
 #include "bpr/core/review_submission_refusal.hpp"
 
 #include <compare>
@@ -51,6 +52,14 @@ namespace bpr::core {
 		/// [[BPR-1830]]. A Review Cycle round frozen, granted, read, answered,
 		/// exported, imported or sent (`cycle.round`).
 		cycle_round,
+		/// [[BPR-2322]]. A question asked, a text proposed or a proposal used
+		/// in the side chat about one review item (`agent.side_chat`).
+		side_chat,
+		/// [[BPR-2325]]. What a finding card's kept disposition did on its
+		/// own (`agent.finding_card`).
+		finding_card,
+		/// [[BPR-2324]]. A window's document tabs (`workbench.tabs`).
+		workbench_tabs,
 	};
 
 	/// \brief [[BPR-1828]]. What one operation line is about.
@@ -222,6 +231,28 @@ namespace bpr::core {
 		/// itself (`submit_subject=repairing`), and how the repair went
 		/// (`repaired`: the same request sent again; `repair_failed`).
 		review_submit_repair,
+		/// [[BPR-2322]]. One question in an item's side chat, from its send
+		/// to its answer (or why there is none).
+		side_chat_ask,
+		/// [[BPR-2322]]. One apply action's text asked for (Update suggested
+		/// comment, Update draft, Draft reply), until it is shown or refused.
+		side_chat_propose,
+		/// [[BPR-2322]]. Use on a proposal: applied, or refused and why.
+		side_chat_apply,
+		/// [[BPR-2325]]. Findings whose draft was deleted are open again;
+		/// `Count` is how many.
+		finding_draft_cleared,
+		/// [[BPR-2324]]. A pull request opened again brought back its
+		/// remembered tabs: `count` came back and `tabs_dropped` did not,
+		/// their files gone from the pull request.
+		tabs_restore,
+		/// [[BPR-2329]]. One draft-state change (Ready for review or Convert
+		/// to draft) GitHub was asked for, and its outcome.
+		change_draft_state,
+		/// [[BPR-2329]]. One Enable auto-merge, and its outcome.
+		enable_auto_merge,
+		/// [[BPR-2329]]. One Disable auto-merge, and its outcome.
+		disable_auto_merge,
 	};
 
 	/// \brief [[RFC-BPR-0105]]. What a review submission line is about: what
@@ -585,6 +616,49 @@ namespace bpr::core {
 		other,
 	};
 
+	/// \brief [[BPR-2321]]. What became of seeding a workspace from the
+	/// linked clone's working tree ([[BPR-2294]]).
+	enum class workspace_seed_outcome : std::uint8_t {
+		/// No seed was tried: no clone, a managed clone, or not macOS.
+		none,
+		/// The workspace was seeded from the clone.
+		seeded,
+		/// The clone's extra files were so spread out that seeding would
+		/// take more clone calls than its bound: every file was checked out.
+		too_spread,
+		/// The clone was no cache (a submodule, a hidden index entry, an
+		/// index too large): every file was checked out.
+		refused,
+		/// A step failed part way: every file was checked out.
+		failed,
+	};
+
+	/// \brief [[BPR-2321]]. The seed's steps and counts, on the
+	/// `workspace_materialize` line.
+	///
+	/// \details `FoldersCloned` and `FilesCloned` count the `clonefile`
+	/// calls (a whole folder, or one file in a folder that held something
+	/// the head does not); `FilesWritten` the files checked out instead;
+	/// `Cleaned` the entries `clean` reported removing (a whole untracked
+	/// folder is one). After a fallback, `CheckoutMilliseconds` and
+	/// `Cleaned` are the full checkout's, and `FilesWritten` the head's file
+	/// count once the seed had read the head's tree.
+	struct workspace_seed_trace
+	{
+		workspace_seed_outcome Outcome              = workspace_seed_outcome::none;
+		std::uint32_t          WalkMilliseconds     = 0U;
+		std::uint32_t          CloneMilliseconds    = 0U;
+		std::uint32_t          RefreshMilliseconds  = 0U;
+		std::uint32_t          CheckoutMilliseconds = 0U;
+		std::uint32_t          CleanMilliseconds    = 0U;
+		std::uint32_t          FoldersCloned        = 0U;
+		std::uint32_t          FilesCloned          = 0U;
+		std::uint32_t          FilesWritten         = 0U;
+		std::uint32_t          Cleaned              = 0U;
+
+		auto operator<=>(const workspace_seed_trace&) const = default;
+	};
+
 	/// \brief [[BPR-2295]]. How one agent workspace was made, or why not.
 	struct workspace_trace
 	{
@@ -594,6 +668,8 @@ namespace bpr::core {
 		bool                  CloneHeldHead = false;
 		workspace_git_command Command       = workspace_git_command::none;
 		workspace_git_error   GitError      = workspace_git_error::none;
+		/// [[BPR-2321]]. Written only when a seed was tried.
+		workspace_seed_trace Seed;
 
 		auto operator<=>(const workspace_trace&) const = default;
 	};
@@ -601,10 +677,34 @@ namespace bpr::core {
 	[[nodiscard]] auto name(workspace_source aSource) noexcept -> std::string_view;
 	[[nodiscard]] auto name(workspace_git_command aCommand) noexcept -> std::string_view;
 	[[nodiscard]] auto name(workspace_git_error aError) noexcept -> std::string_view;
+	[[nodiscard]] auto name(workspace_seed_outcome aOutcome) noexcept -> std::string_view;
 
 	/// \brief [[BPR-2295]]. The class of Git's standard error on a failed
 	/// workspace command: its first recognized line, never its text.
 	[[nodiscard]] auto classify_workspace_git_error(std::string_view aStandardError) noexcept -> workspace_git_error;
+
+	/// \brief [[BPR-2322]]. What a side chat line is about, without any of
+	/// its words: the item's kind, the round, the apply action and the
+	/// core's refusal. No question, answer, proposal, title, path or key.
+	struct side_chat_trace
+	{
+		follow_up_subject_kind Item = follow_up_subject_kind::suggested_comment;
+		/// The round the question is (from 1), or the rounds the chat had
+		/// when the text was asked for or used.
+		std::uint32_t                  Round = 0U;
+		std::optional<follow_up_apply> Apply;
+		follow_up_refusal              Refusal = follow_up_refusal::none;
+		/// Lengths in characters (Unicode code points), never the text: the
+		/// question asked; the answer, or the text proposed; and, for a
+		/// proposal or a Use, the text it replaces (before) and the one put
+		/// in its place (after).
+		std::uint32_t QuestionChars = 0U;
+		std::uint32_t AnswerChars   = 0U;
+		std::uint32_t BeforeChars   = 0U;
+		std::uint32_t AfterChars    = 0U;
+
+		auto operator<=>(const side_chat_trace&) const = default;
+	};
 
 	/// \brief [[BPR-1828]]. One host operation's diagnostic line: enums,
 	/// counts, a duration and an exit code only.
@@ -646,13 +746,28 @@ namespace bpr::core {
 		/// [[BPR-2295]]. Exactly on a finished `workspace_materialize` line,
 		/// when the host knows it, written after the fixed keys as
 		/// `source=SOURCE sparse=0|1 clone=0|1 clone_head=0|1 git=COMMAND
-		/// git_error=CLASS`.
+		/// git_error=CLASS`. [[BPR-2321]]: when a seed from the linked clone
+		/// was tried, then `seed=OUTCOME seed_walk_ms=N seed_clone_ms=N
+		/// seed_refresh_ms=N seed_checkout_ms=N seed_clean_ms=N
+		/// seed_folders=N seed_files=N seed_written=N seed_cleaned=N`.
 		std::optional<workspace_trace> Workspace = std::nullopt;
+		/// [[BPR-2322]]. Exactly on a side chat line, written after the fixed
+		/// keys as `item=KIND round=N apply=ACTION|none refusal=REFUSAL
+		/// question_chars=N answer_chars=N before_chars=N after_chars=N`.
+		std::optional<side_chat_trace> SideChat = std::nullopt;
+		/// [[BPR-2324]]. Exactly on a `tabs_restore` line, written after the
+		/// fixed keys as `tabs_dropped=N`: the remembered tabs that did not
+		/// come back.
+		std::optional<std::uint32_t> TabsDropped = std::nullopt;
 
 		auto operator<=>(const operation_diagnosis&) const = default;
 	};
 
 	[[nodiscard]] auto family(operation_action aAction) noexcept -> operation_diagnosis_family;
+
+	/// \brief [[BPR-2322]]. The characters (Unicode code points) of UTF-8
+	/// `aText`, saturated to 32 bits: what a side chat line says of a text.
+	[[nodiscard]] auto character_count(std::string_view aText) noexcept -> std::uint32_t;
 
 	/// \brief The stable lower-case names, empty outside each set.
 	[[nodiscard]] auto name(operation_action aAction) noexcept -> std::string_view;

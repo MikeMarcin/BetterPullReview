@@ -13,6 +13,7 @@
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include "bpr/qt/steady_columns.hpp"
+#include "context_click.hpp"
 #include "conversation_glyphs.hpp"
 #include "overview_summary_splitter.hpp"
 #include "pull_request_overview_support.hpp"
@@ -22,11 +23,14 @@
 #include <QAbstractItemView>
 #include <QAbstractScrollArea>
 #include <QBoxLayout>
+#include <QClipboard>
 #include <QCursor>
 #include <QFlags>
 #include <QFont>
+#include <QFontDatabase>
 #include <QFontMetrics>
 #include <QFrame>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QIcon>
@@ -638,6 +642,7 @@ namespace bpr::qt {
 		});
 		Files->viewport()->installEventFilter(this);
 		Files->installEventFilter(this);
+		open_menu_without_choosing(*Files);
 		Files->setContextMenuPolicy(Qt::CustomContextMenu);
 		connect(Files, &QWidget::customContextMenuRequested, this, [this](const QPoint& aPosition) {
 			auto index = Files->indexAt(aPosition);
@@ -825,8 +830,100 @@ namespace bpr::qt {
 		stateFont.setWeight(QFont::DemiBold);
 		MergeState->setFont(stateFont);
 		attention.Details->addWidget(MergeState);
+		// [[BPR-2327]]. A conflict, as GitHub's merge box shows it: why GitHub
+		// cannot merge, the files when known, and how to resolve them.
+		MergeConflictBox         = new QWidget{ attentionDetails };
+		auto* const conflictBody = new QVBoxLayout{ MergeConflictBox };
+		conflictBody->setContentsMargins(0, 0, 0, 4);
+		conflictBody->setSpacing(4);
+		ConflictSentence = makeText(MergeConflictBox, QStringLiteral("overviewConflictSentence"));
+		conflictBody->addWidget(ConflictSentence);
+		ConflictFiles = new QVBoxLayout{ };
+		ConflictFiles->setContentsMargins(0, 0, 0, 0);
+		ConflictFiles->setSpacing(0);
+		conflictBody->addLayout(ConflictFiles);
+		ConflictFilesNote = makeText(MergeConflictBox, QStringLiteral("overviewConflictFilesNote"));
+		ConflictFilesNote->setForegroundRole(QPalette::PlaceholderText);
+		ConflictFilesNote->setText(QStringLiteral("GitHub does not report which files conflict. Resolve on GitHub lists them."));
+		conflictBody->addWidget(ConflictFilesNote);
+		auto* const conflictActions = new QHBoxLayout{ };
+		conflictActions->setContentsMargins(0, 2, 0, 0);
+		ResolveOnGitHub = new QPushButton{ QStringLiteral("Resolve on GitHub"), MergeConflictBox };
+		ResolveOnGitHub->setObjectName(QStringLiteral("overviewResolveOnGitHub"));
+		ResolveOnGitHub->setToolTip(QStringLiteral("Open the pull request's conflicts page in the browser"));
+		connect(ResolveOnGitHub, &QAbstractButton::clicked, this, [this] {
+			if (ConflictsPageDispatch) {
+				ConflictsPageDispatch();
+			}
+		});
+		CopyCommands = new QPushButton{ QStringLiteral("Copy commands"), MergeConflictBox };
+		CopyCommands->setObjectName(QStringLiteral("overviewCopyConflictCommands"));
+		CopyCommands->setToolTip(QStringLiteral("Copy the commands that merge the base into this branch"));
+		connect(CopyCommands, &QAbstractButton::clicked, this, [this] {
+			if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
+				clipboard->setText(ConflictCommands->property("commands").toString());
+			}
+		});
+		conflictActions->addWidget(ResolveOnGitHub);
+		conflictActions->addWidget(CopyCommands);
+		conflictActions->addStretch(1);
+		conflictBody->addLayout(conflictActions);
+		auto* const commandsLead = makeText(MergeConflictBox, QStringLiteral("overviewConflictCommandsLead"));
+		commandsLead->setForegroundRole(QPalette::PlaceholderText);
+		commandsLead->setText(QStringLiteral("Or resolve them on the command line:"));
+		conflictBody->addWidget(commandsLead);
+		ConflictCommands = makeText(MergeConflictBox, QStringLiteral("overviewConflictCommands"));
+		ConflictCommands->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+		conflictBody->addWidget(ConflictCommands);
+		MergeConflictBox->hide();
+		attention.Details->addWidget(MergeConflictBox);
+		AlsoRequired = makeText(attentionDetails, QStringLiteral("overviewAlsoRequired"));
+		AlsoRequired->setText(QStringLiteral("Also required"));
+		auto alsoFont = AlsoRequired->font();
+		alsoFont.setWeight(QFont::DemiBold);
+		AlsoRequired->setFont(alsoFont);
+		AlsoRequired->hide();
+		attention.Details->addWidget(AlsoRequired);
 		MergeConditions = makeText(attentionDetails, QStringLiteral("overviewMergeConditions"));
 		attention.Details->addWidget(MergeConditions);
+		MergeNotes = makeText(attentionDetails, QStringLiteral("overviewMergeNotes"));
+		MergeNotes->hide();
+		attention.Details->addWidget(MergeNotes);
+		// [[BPR-2329]]. Auto-merge: its line, Enable (a menu of the methods the
+		// repository allows) or Disable, and how a change is going.
+		AutoMergeBox              = new QWidget{ attentionDetails };
+		auto* const autoMergeBody = new QVBoxLayout{ AutoMergeBox };
+		autoMergeBody->setContentsMargins(0, 2, 0, 0);
+		autoMergeBody->setSpacing(4);
+		AutoMergeLine = makeText(AutoMergeBox, QStringLiteral("overviewAutoMergeLine"));
+		autoMergeBody->addWidget(AutoMergeLine);
+		auto* const autoMergeActions = new QHBoxLayout{ };
+		autoMergeActions->setContentsMargins(0, 0, 0, 0);
+		EnableAutoMerge = new QToolButton{ AutoMergeBox };
+		EnableAutoMerge->setObjectName(QStringLiteral("overviewEnableAutoMerge"));
+		EnableAutoMerge->setText(QStringLiteral("Enable auto-merge"));
+		EnableAutoMerge->setToolTip(QStringLiteral("Have GitHub merge this pull request once every requirement is met"));
+		EnableAutoMerge->setPopupMode(QToolButton::InstantPopup);
+		EnableAutoMerge->setMenu(new QMenu{ EnableAutoMerge });
+		EnableAutoMerge->hide();
+		DisableAutoMerge = new QPushButton{ QStringLiteral("Disable auto-merge"), AutoMergeBox };
+		DisableAutoMerge->setObjectName(QStringLiteral("overviewDisableAutoMerge"));
+		DisableAutoMerge->setToolTip(QStringLiteral("Stop GitHub from merging this pull request on its own"));
+		DisableAutoMerge->hide();
+		connect(DisableAutoMerge, &QAbstractButton::clicked, this, [this] {
+			if (AutoMergeDispatch && !AutoMergeBusy) {
+				AutoMergeDispatch(core::auto_merge_change::disable, std::nullopt);
+			}
+		});
+		autoMergeActions->addWidget(EnableAutoMerge);
+		autoMergeActions->addWidget(DisableAutoMerge);
+		autoMergeActions->addStretch(1);
+		autoMergeBody->addLayout(autoMergeActions);
+		AutoMergeStatus = makeText(AutoMergeBox, QStringLiteral("overviewAutoMergeStatus"));
+		AutoMergeStatus->hide();
+		autoMergeBody->addWidget(AutoMergeStatus);
+		AutoMergeBox->hide();
+		attention.Details->addWidget(AutoMergeBox);
 		// [[BPR-1579]]. A disclosure bar drawn from the theme, not the style.
 		RequirementDisclosure = new disclosure_button{ attentionDetails };
 		RequirementDisclosure->setObjectName(QStringLiteral("overviewRequirementDisclosure"));

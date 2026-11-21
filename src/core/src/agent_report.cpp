@@ -798,10 +798,10 @@ namespace bpr::core {
 					if (auto found = std::ranges::find(labels, word, &dressed_count::Word); found != labels.end()) {
 						++found->Count;
 					} else {
-						labels.push_back({ .Word = word, .Count = 1U, .Tone = item.Tone });
+						labels.push_back({ .Word = word, .Count = 1U, .Tone = item.Tone, .First = item.Outline });
 					}
 				} else if (item.Place.empty() && rows > 0U) {
-					areas.push_back({ .Word = lower_ascii(item.Heading), .Count = rows });
+					areas.push_back({ .Word = lower_ascii(item.Heading), .Count = rows, .First = item.Outline });
 				}
 			}
 		}
@@ -952,6 +952,17 @@ namespace bpr::core {
 			}
 		}
 		return findings;
+	}
+
+	auto report_held_cards(const std::vector<report_finding>& aFindings, const std::size_t aCards) -> std::vector<bool>
+	{
+		auto held = std::vector<bool>(aCards, false);
+		for (const auto& finding : aFindings) {
+			if (finding.Card && *finding.Card < aCards) {
+				held[*finding.Card] = true;
+			}
+		}
+		return held;
 	}
 
 	auto report_summary_comment(const dressed_report& aReport) -> std::string

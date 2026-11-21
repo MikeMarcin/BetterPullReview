@@ -29,6 +29,7 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/motion_observer.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
@@ -353,6 +354,9 @@ namespace bpr::app {
 		// and the Pull Request menu.
 		Window->set_draft_state_dispatch(
 			[this](const core::draft_state_change aChange) { change_draft_state(aChange); });
+		// [[BPR-2329]]. Enable auto-merge (with its method) and Disable, in Merge.
+		Window->overview_page()->set_auto_merge_dispatch(
+			[this](const core::auto_merge_change aChange, const std::optional<core::merge_method> aMethod) { change_auto_merge(aChange, aMethod); });
 		// [[BPR-1804]]. Request review in People and its picker.
 		Window->overview_page()->set_reviewer_picker_dispatch(
 			[this](const qt::reviewer_picker_gesture& aGesture) { reviewer_gesture(aGesture); });
@@ -522,6 +526,12 @@ namespace bpr::app {
 				static_cast<void>(WindowRead->open_pull_request_commit_page(aCommit, Profile->WindowBrowser));
 			}
 		});
+		// [[BPR-2327]]. Resolve on GitHub: the accepted pull request's conflicts page.
+		Window->set_conflicts_page_dispatch([this] {
+			if (!Closing && WindowRead) {
+				static_cast<void>(WindowRead->open_pull_request_conflicts_page(Profile->WindowBrowser));
+			}
+		});
 		Window->set_overview_drill_down_dispatch(
 			[this](const application::overview_drill_down& aDrillDown) {
 				if (!Closing && FeedbackRequest) {
@@ -555,6 +565,13 @@ namespace bpr::app {
 		Window->comparison_surface()->set_line_details_resize_sink([this](std::optional<std::uint32_t> aHeight) {
 			if (!Closing && WorkbenchHost != nullptr) {
 				WorkbenchHost->resize_line_details(aHeight);
+			}
+		});
+		// [[BPR-2333]]. The window's own item side chat width, kept like
+		// Line details': an explicit drag or Reset, stored locally only.
+		Window->item_side_chat()->set_width_sink([this](std::optional<std::uint32_t> aWidth) {
+			if (!Closing && WorkbenchHost != nullptr) {
+				WorkbenchHost->resize_side_chat(aWidth);
 			}
 		});
 		Window->set_geometry_dispatch(
@@ -1813,7 +1830,7 @@ namespace bpr::app {
 		TabPorts = std::make_unique<document_tab_ports>(*this);
 		TabHost  = std::make_unique<application::document_tab_host>(
 			DecisionLane, *TabPorts, *TabPorts,
-			[this](const core::window_review_tabs& aTabs) { retain_tabs(aTabs); });
+			[this](const core::window_review_tabs& aTabs) { retain_tabs(aTabs); }, DiagnosticLog);
 		PrFind = std::make_unique<pr_search_controller>(*Window->pr_search(), *Window->comparison_surface(), *EpochHost, SourceRegex, ReviewerDecisions, Profile->SearchEffects, [this] { return pr_search_scope(); }, [this](const core::source_search_scope& aScope, const application::source_corpus_entry& aEntry, const pr_search_controller::result_tab aTab) -> std::optional<core::document_tab_id> {
                 if(pr_search_scope()!=std::optional{aScope}){return {};}
                 cancel_review_navigation();cancel_restoration(false);abandon_tab_load();
@@ -1908,7 +1925,9 @@ namespace bpr::app {
 			if (!QueueActivity || QueueActivity->Ref != aRef) {
 				return false;
 			}
-			const auto request = application::notification_for(*item, QueueActivity->Activity.UnseenComments);
+			// [[BPR-2330]]. A draft waiting quietly in Following previews nothing.
+			const auto drafts  = Profile->WorkbenchPreferences && Profile->WorkbenchPreferences->accepted() ? Profile->WorkbenchPreferences->accepted()->Behaviour.OthersDrafts : core::home_draft_placement::following;
+			const auto request = application::notification_for(*item, QueueActivity->Activity.UnseenComments, drafts);
 			return request && Notifications->deliver(*request);
 		});
 

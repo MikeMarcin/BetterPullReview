@@ -9,6 +9,7 @@
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/review_preparation.hpp"
+#include "bpr/core/review_queue_attention.hpp"
 #include "bpr/core/review_submission.hpp"
 #include "bpr/core/view_filter_memory.hpp"
 #include "bpr/core/workbench_interaction.hpp"
@@ -1156,6 +1157,9 @@ namespace bpr::application {
 		std::uint32_t CenterRibbonWidth = default_center_ribbon_width;
 		/// RFC-BPR-0084 Q3. Images in descriptions and comments load by default.
 		review_markdown_images MarkdownImages = review_markdown_images::load;
+		/// [[BPR-2326]]. Where Home lists another author's draft that would
+		/// need me: Following by default (owner, 2026-11-20).
+		core::home_draft_placement OthersDrafts = core::home_draft_placement::following;
 		/// [[BPR-1584]], [[BPR-2299]]. How wide every reading column grows;
 		/// never the code.
 		core::reading_width ReadingWidth = core::default_reading_width;
@@ -1204,6 +1208,8 @@ namespace bpr::application {
 			<= static_cast<std::uint8_t>(review_line_details::hidden)
 			&& static_cast<std::uint8_t>(aSettings.MarkdownImages)
 			<= static_cast<std::uint8_t>(review_markdown_images::off)
+			&& static_cast<std::uint8_t>(aSettings.OthersDrafts)
+			<= static_cast<std::uint8_t>(core::home_draft_placement::needs_me)
 			&& aSettings.CenterRibbonWidth >= minimum_center_ribbon_width
 			&& aSettings.CenterRibbonWidth <= maximum_center_ribbon_width
 			&& core::valid(aSettings.ReadingWidth)
@@ -1237,6 +1243,17 @@ namespace bpr::application {
 	[[nodiscard]] constexpr auto valid_line_details_height(const std::optional<std::uint32_t> aHeight) noexcept -> bool
 	{
 		return !aHeight || (*aHeight > 0U && *aHeight <= maximum_line_details_height);
+	}
+
+	/// \brief [[BPR-2333]]. The widest item side chat a window keeps, in
+	/// logical pixels: wider than any screen the window can have. The column
+	/// itself bounds what it shows by the page beside it.
+	inline constexpr std::uint32_t maximum_side_chat_width = 16'384U;
+
+	/// \brief An empty width (the default) or one between 1 and the maximum.
+	[[nodiscard]] constexpr auto valid_side_chat_width(const std::optional<std::uint32_t> aWidth) noexcept -> bool
+	{
+		return !aWidth || (*aWidth > 0U && *aWidth <= maximum_side_chat_width);
 	}
 
 	/// \brief [[BPR-1588]]. The Overview's Status drawer: the narrowest and
@@ -1307,6 +1324,9 @@ namespace bpr::application {
 		std::optional<std::uint32_t> LineDetailsHeight = { };
 		/// [[BPR-1588]]. This window's Status drawer on the Overview.
 		workbench_status_drawer StatusDrawer = { };
+		/// [[BPR-2333]]. This window's preferred item side chat width in
+		/// logical pixels; empty is the default width.
+		std::optional<std::uint32_t> SideChatWidth = { };
 		/// [[BPR-1375]]. The profile's Claude model, carried here only
 		/// because this record is what the store writes.
 		std::string ClaudeModel = { };
@@ -1332,8 +1352,10 @@ namespace bpr::application {
 		/// [[BPR-1334]].
 		std::optional<std::uint32_t> LineDetailsHeight = { };
 		/// [[BPR-1588]].
-		workbench_status_drawer StatusDrawer                                      = { };
-		auto                    operator<=>(const workbench_window_layout&) const = default;
+		workbench_status_drawer StatusDrawer = { };
+		/// [[BPR-2333]].
+		std::optional<std::uint32_t> SideChatWidth                                     = { };
+		auto                         operator<=>(const workbench_window_layout&) const = default;
 	};
 	struct workbench_profile_preferences
 	{
@@ -1354,7 +1376,7 @@ namespace bpr::application {
 	{
 		return { aSettings.Files, aSettings.Conversations, aSettings.Repositories, aSettings.LineNumbers, aSettings.OnePane,
 				 aSettings.FilesWidth, aSettings.ConversationsWidth, aSettings.RepositoriesWidth, aSettings.Home, aSettings.Geometry,
-				 aSettings.UpdatesLine, aSettings.SummaryFraction, aSettings.LineDetailsHeight, aSettings.StatusDrawer };
+				 aSettings.UpdatesLine, aSettings.SummaryFraction, aSettings.LineDetailsHeight, aSettings.StatusDrawer, aSettings.SideChatWidth };
 	}
 	[[nodiscard]] inline auto combined_layout(const workbench_window_layout&   aLayout,
 											  const review_behaviour_settings& aBehaviour) -> workbench_layout_settings
@@ -1365,6 +1387,7 @@ namespace bpr::application {
 		result.SummaryFraction   = aLayout.SummaryFraction;
 		result.LineDetailsHeight = aLayout.LineDetailsHeight;
 		result.StatusDrawer      = aLayout.StatusDrawer;
+		result.SideChatWidth     = aLayout.SideChatWidth;
 		return result;
 	}
 	[[nodiscard]] inline auto valid(const workbench_window_layout& aLayout) noexcept -> bool
@@ -1377,7 +1400,7 @@ namespace bpr::application {
 			&& width(aLayout.FilesWidth) && width(aLayout.ConversationsWidth) && width(aLayout.RepositoriesWidth)
 			&& valid(aLayout.Home) && valid(aLayout.Geometry)
 			&& (!aLayout.SummaryFraction || (*aLayout.SummaryFraction > 0 && *aLayout.SummaryFraction < 10000))
-			&& valid_line_details_height(aLayout.LineDetailsHeight) && valid(aLayout.StatusDrawer)
+			&& valid_line_details_height(aLayout.LineDetailsHeight) && valid(aLayout.StatusDrawer) && valid_side_chat_width(aLayout.SideChatWidth)
 			&& (aLayout.UpdatesLine == core::workbench_updates_line::folded || aLayout.UpdatesLine == core::workbench_updates_line::open);
 	}
 	[[nodiscard]] inline auto valid(const workbench_profile_preferences& aPreferences) noexcept -> bool
@@ -1386,7 +1409,7 @@ namespace bpr::application {
 			&& aPreferences.NewWindowDefaults.Geometry == workbench_window_geometry{ }
 		&& aPreferences.NewWindowDefaults.UpdatesLine == core::workbench_updates_line::folded
 			&& !aPreferences.NewWindowDefaults.SummaryFraction && !aPreferences.NewWindowDefaults.LineDetailsHeight
-			&& aPreferences.NewWindowDefaults.StatusDrawer == workbench_status_drawer{ };
+			&& aPreferences.NewWindowDefaults.StatusDrawer == workbench_status_drawer{ } && !aPreferences.NewWindowDefaults.SideChatWidth;
 	}
 	inline constexpr std::size_t maximum_workbench_window_layouts = 32U;
 	enum class workbench_settings_failure : std::uint8_t {
@@ -1478,6 +1501,8 @@ namespace bpr::application {
 		/// [[BPR-1588]]. The window's Status drawer, absent until the window
 		/// layout is loaded.
 		std::optional<workbench_status_drawer> StatusDrawer = { };
+		/// [[BPR-2333]]. The same as Line details' for the item side chat's width.
+		std::optional<std::optional<std::uint32_t>> SideChatWidth = { };
 
 		auto operator<=>(const workbench_layout_delta&) const = default;
 	};

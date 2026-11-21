@@ -375,6 +375,10 @@ The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026
 
 The owner, 2026-11-20, on the Status drawer: "These look like links and I want to click them but I have to go find the go to them button all the way off to the side. Can we let you just click them? The same with avatars to expand people and conflicts with Master to expand needs attention." [[BPR-2314]]: the new-posts lines in My review are themselves the action (pointer, Space and Return), and their Go to them buttons are gone; People's faces open People's roster, and Needs attention's conflicts row opens that section to Merge's conditions, each as the section's header does. Nothing else in Status is drawn in the link ink. AC03's other obligations stand.
 
+### Owner amendment (2026-11-20): Merge says what blocks it and how to resolve a conflict
+
+The owner, 2026-11-20, comparing GitHub's merge box with the Overview: "can we improve our status for conflicts? GitHub is much more useful here." [[BPR-2327]]: Merge's heading is decided from every blocker the core sees (`core::order_merge_blockers`, `core::decide_merge_headline`): the most serious kind leads and the rest are counted ("Conflicts with <base>, and 1 more requirement"; a required check that has not reported alone reads "Waiting for 1 required check", never Conflicts). A conflict opens to why GitHub cannot merge, the conflicting files as rows that open the file when a local merge check supplied them (GitHub's API does not report them; [[BPR-2328]] owns computing them), otherwise a line saying so, Resolve on GitHub (the pull request's conflicts page) and the command-line steps with Copy commands. Merge's other conditions follow under Also required. Auto-merge and the merge queue each have their own line, read in the same merge-assessment query. Long condition text breaks at slashes, hyphens, underscores, dots and colons instead of running past the drawer. AC03's other obligations stand.
+
 ## Acceptance criteria
 
 - **AC01 Shared parts:** the drawer header, card, ownership marks and empty

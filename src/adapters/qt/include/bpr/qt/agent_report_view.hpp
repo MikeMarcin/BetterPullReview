@@ -78,6 +78,9 @@ namespace bpr::qt {
 		/// findings no card carries are kept under (`digest_report_findings`
 		/// of its report).
 		QString Answer;
+		/// [[BPR-2331]]. The menu row to open at (an Agent tab summary
+		/// row's first item); 0 opens it where it opens.
+		std::uint32_t Heading = 0U;
 	};
 
 	/// \brief RFC-BPR-0128 ([[BPR-2166]], owner Q8: "file tab is more
@@ -122,6 +125,12 @@ namespace bpr::qt {
 	/// the batch ended. Each finding's state goes through the records.
 	using report_draft_all_done     = std::function<void(const core::draft_all_outcome& aOutcome)>;
 	using report_draft_all_dispatch = std::function<void(std::vector<report_draft> aDrafts, const core::draft_all_outcome& aPlanned, report_draft_all_done aDone)>;
+	/// \brief [[BPR-2331]]. Undo of a Draft all: removes the drafts it made
+	/// that are unchanged since, and says how many it removed and kept.
+	using report_draft_all_undo_done = std::function<void(std::size_t aRemoved, std::size_t aKept)>;
+	using report_draft_all_undo      = std::function<void(report_draft_all_undo_done aDone)>;
+	/// \brief [[BPR-2331]]. Dismiss a finding (`aDismiss`) or take that back.
+	using report_dismiss_dispatch = std::function<void(const report_draft& aFinding, bool aDismiss)>;
 
 	class agent_report_view final : public QWidget
 	{
@@ -137,15 +146,21 @@ namespace bpr::qt {
 		/// Agent tab at the report's turn.
 		void set_conversation_dispatch(std::function<void(std::uint64_t aTurn)> aDispatch);
 		/// \brief Scrolls so section `aIndex` of the menu (0: Summary, the
-		/// top) is at the top of the pane.
+		/// top) is at the top of the pane: the top of its item (a finding's
+		/// box, from its rule and label line; a section's rule) `jump_margin`
+		/// below the pane's top.
 		void go_to_heading(int aIndex);
+		/// \brief [[BPR-2338]]. How far below the pane's top a section's item
+		/// stands after `go_to_heading`: one line of the page's font.
+		[[nodiscard]] auto jump_margin() const -> int;
 		/// \brief Opens the menu's popover, its current section focused.
 		void open_menu();
 		/// \brief The menu's row for the section being read: the last heading
 		/// at or above the pane's top; Summary before the first.
 		[[nodiscard]] auto current_section() const -> int;
-		/// \brief Where section `aIndex`'s heading stands in the pane, from
-		/// the top of what shows; -1 when the report has no such heading.
+		/// \brief Where the top of section `aIndex`'s item (its box or rule,
+		/// else its heading's line) stands in the pane, from the top of what
+		/// shows; -1 when the report has no such heading.
 		[[nodiscard]] auto section_top(int aIndex) const -> int;
 
 		/// \brief docs/design/report-templates-v2, [[BPR-2236]]. The theme's
@@ -182,11 +197,23 @@ namespace bpr::qt {
 		/// updated it, if one did: its keep action drafts that, and the page
 		/// shows it.
 		void set_revision_source(std::function<std::optional<QString>(const report_draft&)> aSource);
+		/// \brief [[BPR-2331]]. Dismiss and its Undo on a finding, which its
+		/// Agent tab card offered; the host keeps the finding's one state.
+		void set_dismiss_dispatch(report_dismiss_dispatch aDispatch);
+		/// \brief [[BPR-2331]]. The last Draft all of turn `aTurn`'s report
+		/// can be undone, by `aUndo`, as the Agent tab's could.
+		void offer_draft_all_undo(std::uint64_t aTurn, report_draft_all_undo aUndo);
+		/// \brief [[BPR-2331]]. What the draft made for the finding at `aKey`
+		/// says of its lines ([[BPR-2298]]), shown beside Drafted.
+		void say_drafted(const core::report_finding_key& aKey, const QString& aSaid);
 		/// \brief [[BPR-2232]]. How many findings Draft all would draft (the
 		/// count its link shows); 0 when it is not offered.
 		[[nodiscard]] auto draft_all_offered() const -> std::size_t;
 		/// \brief [[BPR-2232]]. Presses Draft all; false when it is not offered.
 		auto press_draft_all() -> bool;
+		/// \brief [[BPR-2331]]. Presses Undo of the last Draft all; false when
+		/// it is not offered.
+		auto undo_draft_all() -> bool;
 		/// \brief [[BPR-2232]]. What the report says of its last Draft all:
 		/// under way, or how many were drafted and which were not.
 		[[nodiscard]] auto        draft_all_said() const -> QString;
@@ -256,6 +283,7 @@ namespace bpr::qt {
 		void               locate_headings();
 		void               apply_colours();
 		[[nodiscard]] auto shown_text() const -> QTextEdit*;
+		/// The top of section `aIndex`'s item in the page.
 		[[nodiscard]] auto heading_offset(int aIndex) const -> int;
 		[[nodiscard]] auto native_colours() const -> report_colours;
 		[[nodiscard]] auto keep_request(std::uint32_t aOutline) const -> std::optional<report_draft>;
@@ -294,10 +322,15 @@ namespace bpr::qt {
 		QString                     LastAnnouncement;
 		/// [[BPR-2232]]. Draft all, by the report's turn: under way, and what
 		/// its last press said.
-		std::map<std::uint64_t, bool>            DraftAllBusy;
-		std::map<std::uint64_t, QString>         DraftAllSaid;
-		report_draft_all_dispatch                DraftAllDispatch;
-		std::function<bool(const report_draft&)> Placeable;
+		std::map<std::uint64_t, bool>    DraftAllBusy;
+		std::map<std::uint64_t, QString> DraftAllSaid;
+		/// [[BPR-2331]]. The Undo of each turn's last Draft all, while it
+		/// can be undone; Dismiss; and what each draft said of its lines.
+		std::map<std::uint64_t, report_draft_all_undo>            DraftAllUndo;
+		report_dismiss_dispatch                                   DismissDispatch;
+		std::vector<std::pair<core::report_finding_key, QString>> DraftedSaid;
+		report_draft_all_dispatch                                 DraftAllDispatch;
+		std::function<bool(const report_draft&)>                  Placeable;
 		/// This render's keep links, by token.
 		std::map<QString, std::pair<std::uint32_t, report_link>>   ActionLinks;
 		report_draft_dispatch                                      DraftDispatch;

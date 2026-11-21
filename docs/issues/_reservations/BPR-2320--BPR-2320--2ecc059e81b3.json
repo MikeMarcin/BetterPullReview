@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2320"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Custom Codex check instructions probe has no working folder",
+  "created": "2026-11-20T17:57:52.368667+00:00",
+  "base": "f81d9438fdff8314b0043e54ae57fcaba231a298"
+}

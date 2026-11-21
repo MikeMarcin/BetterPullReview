@@ -130,6 +130,13 @@ namespace bpr::application {
 			core::draft_state_change aChange,
 			std::stop_token          aStop = { })
 			-> std::expected<review_draft_state_receipt, review_mutation_failure>;
+		/// \brief [[BPR-2329]]. Enables or disables auto-merge through the
+		/// provider after confirming the target as a draft-state change does.
+		[[nodiscard]] auto change_auto_merge(
+			core::auto_merge_change           aChange,
+			std::optional<core::merge_method> aMethod,
+			std::stop_token                   aStop = { })
+			-> std::expected<review_auto_merge_receipt, review_mutation_failure>;
 		[[nodiscard]] auto designated() const noexcept
 			-> const core::review_mutation_target&;
 		[[nodiscard]] auto capabilities() const -> review_provider_capabilities;

@@ -4,6 +4,7 @@
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
+#include "bpr/application/review_queue_notification.hpp"
 #include "bpr/application/review_queue_refresh.hpp"
 #include "bpr/core/review_queue.hpp"
 #include "bpr/core/review_queue_attention.hpp"
@@ -67,15 +68,8 @@ namespace bpr::app {
 		std::optional<application::queue_refresh_completion> Retained;
 	};
 
-	struct queue_notification_transition
-	{
-		application::queue_session_id Session;
-		core::pull_request_ref        Ref;
-		core::attention_bucket        Bucket
-			= core::attention_bucket::quiet;
-
-		auto operator<=>(const queue_notification_transition&) const = default;
-	};
+	/// [[BPR-2330]]. The application decides which states are active.
+	using queue_notification_transition = application::queue_notification_key;
 
 	struct queue_activity_baseline
 	{

@@ -3,6 +3,7 @@
 
 #include "bpr/core/agent_entry.hpp"
 #include "bpr/core/agent_program_bundle.hpp"
+#include "bpr/qt/argument_list_editor.hpp"
 
 #include <QDialog>
 #include <QString>
@@ -36,11 +37,11 @@ namespace bpr::qt {
 
 	/// \brief [[BPR-1753]], owner amendment 2026-10-23. Adds or edits
 	/// one agent: its name, the protocol it speaks, its program, its fixed
-	/// arguments one per line, and its default model and effort.
+	/// arguments one per row ([[BPR-2318]]), and its default model and effort.
 	///
 	/// \details Presentation only: `core::inspect_agent_entry` says whether
 	/// the entry may be kept, and OK waits until it may. The arguments are
-	/// taken as written, one per line, and are never split or quoted further;
+	/// taken as written, one per row, and are never split or quoted further;
 	/// nothing runs them through a shell.
 	class agent_entry_dialog final : public QDialog
 	{
@@ -51,7 +52,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto name() const noexcept -> QLineEdit* { return Name; }
 		[[nodiscard]] auto protocol() const noexcept -> QComboBox* { return Protocol; }
 		[[nodiscard]] auto program() const noexcept -> QLineEdit* { return Program; }
-		[[nodiscard]] auto arguments() const noexcept -> QPlainTextEdit* { return Arguments; }
+		/// [[BPR-2318]]. The arguments, one per row.
+		[[nodiscard]] auto arguments() const noexcept -> argument_list_editor* { return Arguments; }
 		[[nodiscard]] auto model() const noexcept -> QLineEdit* { return Model; }
 		[[nodiscard]] auto check() const noexcept -> QPlainTextEdit* { return Check; }
 		[[nodiscard]] auto effort() const noexcept -> QComboBox* { return Effort; }
@@ -83,18 +85,18 @@ namespace bpr::qt {
 		/// while the field names no bundle the host could read.
 		std::optional<std::expected<std::string, core::app_bundle_refusal>> Bundle;
 
-		core::agent_entry Base;
-		QLineEdit*        Name                   = nullptr;
-		QComboBox*        Protocol               = nullptr;
-		QLineEdit*        Program                = nullptr;
-		QPlainTextEdit*   Arguments              = nullptr;
-		QPlainTextEdit*   Check                  = nullptr;
-		QLineEdit*        Model                  = nullptr;
-		QComboBox*        Effort                 = nullptr;
-		QCheckBox*        StrictChecks           = nullptr;
-		QCheckBox*        LauncherSandbox        = nullptr;
-		QLabel*           LauncherSandboxMeaning = nullptr;
-		QComboBox*        ScratchStarts          = nullptr;
+		core::agent_entry     Base;
+		QLineEdit*            Name                   = nullptr;
+		QComboBox*            Protocol               = nullptr;
+		QLineEdit*            Program                = nullptr;
+		argument_list_editor* Arguments              = nullptr;
+		QPlainTextEdit*       Check                  = nullptr;
+		QLineEdit*            Model                  = nullptr;
+		QComboBox*            Effort                 = nullptr;
+		QCheckBox*            StrictChecks           = nullptr;
+		QCheckBox*            LauncherSandbox        = nullptr;
+		QLabel*               LauncherSandboxMeaning = nullptr;
+		QComboBox*            ScratchStarts          = nullptr;
 		/// [[BPR-2139]], [[BPR-2140]] (owner, 2026-11-12).
 		QComboBox*        McpServers    = nullptr;
 		QComboBox*        Instructions  = nullptr;

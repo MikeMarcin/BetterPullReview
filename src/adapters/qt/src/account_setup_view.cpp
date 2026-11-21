@@ -805,11 +805,9 @@ namespace bpr::qt {
 		if (!login.isEmpty()) {
 			// The consent, said where the choice is made: the short decision,
 			// then RFC-BPR-0015's full residual-risk text behind a disclosure.
-			auto* const consent = words(tr("BetterPullReview will use %1's existing gh sign-in for reads and won't save its token. "
-										   "The connection is reused until you sign out. Connecting doesn't let BetterPullReview publish: "
-										   "every review, comment and tour asks you first.")
-											.arg(login),
-										parent);
+			// [[BPR-2319]]. One sentence; reuse and the publishing boundary are
+			// in What connecting allows.
+			auto* const consent = words(tr("BetterPullReview uses %1's existing gh sign-in and doesn't save its token.").arg(login), parent);
 			consent->setObjectName(QStringLiteral("accountSetupConsent"));
 			aBody.addWidget(consent);
 		}

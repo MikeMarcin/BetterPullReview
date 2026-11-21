@@ -1199,6 +1199,29 @@ namespace bpr::qt {
 				aNext.OpenModality     = application::review_behaviour_settings{ }.OpenModality;
 				aNext.ReturnComparison = application::review_behaviour_settings{ }.ReturnComparison;
 			});
+		// [[BPR-2326]]. The owner, 2026-11-20: "We need to move drafts out of
+		// needs me by default. Maybe we can stick them into following while
+		// they are in draft." Following is the default; Needs me keeps the
+		// placement Home had before.
+		auto* const draftsInfo = new info_glyph{ QStringLiteral("A pull request someone else still has in draft waits in Following, even when you're asked to review it, and moves to Needs me once it's marked ready for review. Your own drafts stay in My pull requests."), BehaviourEditor };
+		draftsInfo->setObjectName(QStringLiteral("othersDraftsInfo"));
+		addGroup(
+			column,
+			QStringLiteral("Home"),
+			QStringLiteral("resetHomeBehaviour"),
+			{
+				row{ 11U,
+					 QStringLiteral("Others' drafts"),
+					 QStringLiteral("othersDrafts"),
+					 { { QStringLiteral("Following"), QStringLiteral("othersDraftsFollowing") },
+					   { QStringLiteral("Needs me"), QStringLiteral("othersDraftsNeedsMe") } },
+					 draftsInfo,
+					 nullptr,
+					 4 },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.OthersDrafts = application::review_behaviour_settings{ }.OthersDrafts;
+			});
 		// [[BPR-1584]]. The owner, 2026-10-17: "We can make that capped width
 		// a setting." [[BPR-2299]] (owner, 2026-11-19: "I think we can just
 		// use reading with for everything"): every reading column, never the
@@ -1762,6 +1785,7 @@ namespace bpr::qt {
 		check(8U, static_cast<std::size_t>(Behaviour.LineDetails));
 		check(9U, static_cast<std::size_t>(Behaviour.MarkdownImages));
 		check(10U, static_cast<std::size_t>(Behaviour.ReadingWidth));
+		check(11U, static_cast<std::size_t>(Behaviour.OthersDrafts));
 		if (CenterRibbonWidth != nullptr) {
 			CenterRibbonWidth->setValue(static_cast<int>(Behaviour.CenterRibbonWidth));
 		}

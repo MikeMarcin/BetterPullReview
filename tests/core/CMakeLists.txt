@@ -575,6 +575,44 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_draft_state_core_tests
 )
 
+# [[BPR-2329]]. Auto-merge's offer, decisions and overlay.
+bpr_add_executable(
+    test_better_pull_review_auto_merge_core_tests
+    auto_merge_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_auto_merge_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_auto_merge_core_tests)
+bpr_enable_warnings(test_better_pull_review_auto_merge_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_auto_merge
+    COMMAND test_better_pull_review_auto_merge_core_tests
+)
+
+# [[BPR-2327]]. Merge's blockers in order and the heading they decide.
+bpr_add_executable(
+    test_better_pull_review_merge_blockers_core_tests
+    merge_blockers_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_merge_blockers_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_merge_blockers_core_tests)
+bpr_enable_warnings(test_better_pull_review_merge_blockers_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_merge_blockers
+    COMMAND test_better_pull_review_merge_blockers_core_tests
+)
+
 # [[BPR-1804]]. The reviewer picker's transitions and decisions.
 bpr_add_executable(
     test_better_pull_review_reviewer_request_core_tests

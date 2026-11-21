@@ -2829,8 +2829,14 @@ function(bpr_verify_full_application_digest source_variable)
 	# editor saved. No provider, grant, admission, mutation branch or
 	# publication change. [[BPR-2315]], sealed with it: the two automatic
 	# refreshes after an edit name their cause (core::refresh_cause::edit).
+	# [[BPR-2329]] reseal: github_application.cpp gains the auto-merge
+	# gesture, terminal, read reconciliation and retirement beside the
+	# draft state's (core::decide_auto_merge_change, a one-shot
+	# issue_auto_merge grant, ReviewMutationHost->change_auto_merge). The
+	# production compose_review_mutation branch is unchanged; the provider
+	# reaches change_auto_merge through the same erased, diagnosed port.
 	set(bpr_expected_full_application_digest
-        "7040814ec37f3c95ad6edd808ac50de4e35eb30a7c2d202036f9aadd6885a05b"
+        "df310055e7d9abd9759e953827b1b4063b3897d682c031b8917be07d15c097bd"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3899,11 +3905,32 @@ function(bpr_verify_app_source_tree app_source_root)
 	# 2290, 2291, 2293, 2295, 2298, 2299, 2301, 2303, 2307, 2310, 2311 and 2315.
 	# No review or tour provider, grant issuer, admission or mutation branch
 	# changes here; the mutation-branch digest below is checked separately.
-	# [[BPR-2215]] reseal over main 9e8deb514 (above) merged into this lane,
+	# [[BPR-2322]] reseal: the item's side chat replaces the follow-up window
+	# (window_follow_up.cpp, window_composition.hpp), its rounds are logged
+	# (window_tours.cpp), and a course reads the diagnostic log through the
+	# fixture access.
+	# [[BPR-2325]] reseal: a finding's draft identity is kept with it and
+	# a deleted draft reopens it (window_agent_setup.cpp,
+	# window_review_drafts.cpp, window_composition.hpp).
+	# [[BPR-2333]] reseal: the window's item side chat width goes to the
+	# workbench host (window_construction.cpp), which stores it in the local
+	# workbench settings only. No grant, target, provider, credential,
+	# transport, GitHub write, mutation or publication path changes.
+	# [[BPR-2329]] reseal: auto-merge's gesture and terminal
+	# (github_application.cpp, window_composition.hpp), its projection and
+	# capability in the Overview's context (window_read_state.cpp), its read
+	# reconciliation and retirement (window_review_mutations.cpp) and its
+	# dispatch (window_construction.cpp). The production mutation branch,
+	# grant issuers' bindings, provider and transport are unchanged.
+	# [[BPR-2338]] reseal: main.cpp's attended fixture check of the report
+	# menu takes a section a line below the pane's top
+	# (agent_report_view::jump_margin). Presentation check only; no grant,
+	# provider, transport, mutation or publication path changes.
+	# [[BPR-2215]] reseal over main 6a07d4ce1 (above) merged into this lane,
 	# with this lane's app changes listed before it. No review mutation or
 	# submission path changed by the merge itself.
 	set(bpr_expected_production_app_manifest_digest
-        "70b6da6123a96aef7cd6317affe43f4f6c5ac0f3acb23c0696082975c31ec8b0"
+        "8690e238020dc3bb9740d1272247919da24983a97d4d1b4d0c4d97c896d09982"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

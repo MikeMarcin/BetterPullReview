@@ -40,6 +40,8 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace {
 	using bpr::tests::expect;
@@ -547,6 +549,79 @@ try {
 			   && view.keep_state(view.findings()[2].Outline).Phase == bpr::qt::report_keep_phase::refused && said.contains(QStringLiteral("resolve the draft open")),
 		   "it says how many were drafted and which were not, and the refused one says why: " + view.draft_all_said().toStdString());
 	expect(view.draft_all_offered() == 1U && said.contains(QStringLiteral("Draft all (1)")), "the refused one is still offered");
+	// [[BPR-2325]]. B's draft was deleted: the host forgets its record, and
+	// the finding offers Draft comment again; A's, still there, keeps Drafted.
+	records.erase({ block, 1U });
+	view.settle_keep({ .Findings = block, .Ordinal = 1U, .Card = true });
+	QApplication::processEvents();
+	const auto reopened = view.dressed_view()->toPlainText();
+	expect(view.keep_state(view.findings()[0].Outline).Phase == bpr::qt::report_keep_phase::kept, "a finding whose draft is still there keeps Drafted");
+	expect(view.keep_state(view.findings()[1].Outline).Phase == bpr::qt::report_keep_phase::offered && view.draft_all_offered() == 2U && reopened.contains(QStringLiteral("Draft all (2)")),
+		   "the finding whose draft was deleted offers Draft comment again: " + reopened.toStdString());
+	// [[BPR-2331]]. The Agent tab no longer shows a finding card the report
+	// holds, so what the card offered is on the report: Dismiss and its Undo,
+	// the suggested comment, what a draft said of its lines, and Undo of
+	// Draft all.
+	{
+		auto dismissals = std::vector<std::pair<QString, bool>>{ };
+		view.set_dismiss_dispatch([&records, &dismissals](const bpr::qt::report_draft& aFinding, const bool aDismiss) {
+			dismissals.emplace_back(aFinding.Path, aDismiss);
+			auto record                                              = bpr::core::agent_finding_card_record{ };
+			record.Findings                                          = aFinding.Key.Findings;
+			record.Ordinal                                           = aFinding.Key.Ordinal;
+			record.State                                             = aDismiss ? bpr::core::agent_finding_card_disposition::dismissed : bpr::core::agent_finding_card_disposition::open;
+			records[{ aFinding.Key.Findings, aFinding.Key.Ordinal }] = record;
+		});
+		const auto cardBlock               = bpr::core::digest_agent_findings("[{}]");
+		auto       commented               = bpr::qt::agent_report_card{ .Session = 78U, .Ordinal = 0U, .Finding = { }, .Key = { .Findings = cardBlock, .Ordinal = 0U } };
+		commented.Finding.Path             = "src/a.cpp";
+		commented.Finding.SuggestedComment = "issue: say why A matters.";
+		view.present({ .Turn      = 10U,
+					   .Title     = QStringLiteral("Review of #30"),
+					   .Markdown  = three,
+					   .Question  = QStringLiteral("Review this pull request"),
+					   .Byline    = { },
+					   .Suggested = { { .Path = "src/a.cpp", .First = 3U, .Last = 3U, .Comment = "issue: say why A matters." } },
+					   .Cards     = { commented },
+					   .Answer    = three });
+		QApplication::processEvents();
+		const auto a = view.findings().at(0U).Outline;
+		const auto b = view.findings().at(1U).Outline;
+		expect(view.findings()[0].Card == std::optional<std::size_t>{ 0U } && !view.findings()[1].Card, "A is its card, B no card's");
+		auto shownText = view.dressed_view()->toPlainText();
+		expect(shownText.contains(QStringLiteral("Suggested comment:")) && shownText.contains(QStringLiteral("issue: say why A matters.")), "the suggested comment shows on its finding, as its card showed it");
+		expect(shownText.count(QStringLiteral("Dismiss")) >= 2, "Dismiss is offered beside the findings' keep actions");
+		expect(view.press(a, bpr::qt::report_link::dismiss) && dismissals.size() == 1U && dismissals.back() == std::pair{ QStringLiteral("src/a.cpp"), true }
+				   && view.keep_state(a).Phase == bpr::qt::report_keep_phase::dismissed,
+			   "Dismiss dismisses the card's finding through its card's record");
+		shownText = view.dressed_view()->toPlainText();
+		expect(shownText.contains(QStringLiteral("Dismissed")) && shownText.contains(QStringLiteral("Undo")) && !view.press(a, bpr::qt::report_link::keep) && !view.press(a, bpr::qt::report_link::dismiss),
+			   "a dismissed finding says so with Undo, and offers no keep action until it is undone");
+		expect(view.press(a, bpr::qt::report_link::undo_dismiss) && dismissals.back() == std::pair{ QStringLiteral("src/a.cpp"), false } && view.keep_state(a).Phase == bpr::qt::report_keep_phase::offered,
+			   "Undo takes the dismissal back");
+		expect(view.press(b, bpr::qt::report_link::dismiss) && view.keep_state(b).Phase == bpr::qt::report_keep_phase::dismissed, "a finding no card carries is dismissed under the report's own record");
+		expect(!view.press(0U, bpr::qt::report_link::dismiss), "the summary is not dismissed");
+		// What its draft said of its lines ([[BPR-2298]]) stands beside Drafted.
+		records[{ cardBlock, 0U }] = { .Findings = cardBlock, .Ordinal = 0U, .State = bpr::core::agent_finding_card_disposition::drafted };
+		view.say_drafted({ .Findings = cardBlock, .Ordinal = 0U, .Card = true }, QStringLiteral("Drafted on lines 3 to 5, widened to its suggestion."));
+		view.settle_keep({ .Findings = cardBlock, .Ordinal = 0U, .Card = true });
+		QApplication::processEvents();
+		expect(view.keep_state(a).Phase == bpr::qt::report_keep_phase::kept && view.keep_state(a).Why == QStringLiteral("Drafted on lines 3 to 5, widened to its suggestion.")
+				   && view.dressed_view()->toPlainText().contains(QStringLiteral("widened to its suggestion")) && view.dressed_view()->toPlainText().contains(QStringLiteral("Go to draft")),
+			   "Drafted says what the draft said of its lines");
+		// Undo of the last Draft all.
+		auto undone = false;
+		view.offer_draft_all_undo(10U, [&undone](bpr::qt::report_draft_all_undo_done aDone) {
+			undone = true;
+			aDone(2U, 1U);
+		});
+		QApplication::processEvents();
+		expect(view.dressed_view()->toPlainText().count(QStringLiteral("Undo")) >= 1, "Draft all's Undo is offered");
+		expect(view.undo_draft_all() && undone && view.draft_all_said() == QStringLiteral("Removed 2 drafts. Kept 1 draft you changed since.") && view.dressed_view()->toPlainText().contains(view.draft_all_said()),
+			   "Undo removes the batch's drafts and says what it removed and kept: " + view.draft_all_said().toStdString());
+		expect(!view.undo_draft_all(), "Undo is offered once");
+		view.set_dismiss_dispatch({ });
+	}
 	check_inline_code();
 	check_keep_chip();
 	check_reading_width();

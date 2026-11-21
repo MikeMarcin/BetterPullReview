@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2333"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "the item side chat column is narrower by default and resizable",
+  "created": "2026-11-20T20:50:24.743990+00:00",
+  "base": "e9311e2d75b750f928fe34b1da65e586fbb73170"
+}

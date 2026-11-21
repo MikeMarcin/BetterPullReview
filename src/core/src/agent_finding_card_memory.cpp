@@ -34,7 +34,7 @@ namespace bpr::core {
 			}
 			aRecord.Why.resize(size);
 		}
-		if (aRecord.State != agent_finding_card_disposition::noted) {
+		if (aRecord.State != agent_finding_card_disposition::noted && aRecord.State != agent_finding_card_disposition::drafted) {
 			aRecord.Note = 0U;
 		}
 		return aRecord;
@@ -101,6 +101,20 @@ namespace bpr::core {
 	{
 		const auto found = Records.find(std::pair{ aFindings, aOrdinal });
 		return found != Records.end() ? found->second.Record : agent_finding_card_record{ .Findings = aFindings, .Ordinal = aOrdinal };
+	}
+
+	auto agent_finding_card_memory::drafted_as(const std::uint64_t aDraft) const -> std::vector<agent_finding_card_record>
+	{
+		auto drafted = std::vector<agent_finding_card_record>{ };
+		if (aDraft == 0U) {
+			return drafted;
+		}
+		for (auto& record : records()) {
+			if (record.State == agent_finding_card_disposition::drafted && record.Note == aDraft) {
+				drafted.push_back(std::move(record));
+			}
+		}
+		return drafted;
 	}
 
 	auto agent_finding_card_memory::records() const -> std::vector<agent_finding_card_record>

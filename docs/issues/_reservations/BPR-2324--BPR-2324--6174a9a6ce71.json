@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2324"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "a reopened pull request brings back its tabs",
+  "created": "2026-11-20T19:27:51.256835+00:00",
+  "base": "5d65ce638fb106ddc61fba851fc5ffbadecd94e5"
+}

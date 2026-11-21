@@ -105,19 +105,32 @@ namespace bpr::qt::detail {
 #endif
 	}
 
-	// [[BPR-0772]]. The card's header names the host, so the warning says
-	// "this server" and the host appears once on the card (RFC-BPR-0032 A4).
+	// [[BPR-2319]]. What a server card says about a GitHub CLI connection, in
+	// one sentence a reviewer reads. The owner, 2026-11-20, on the paragraph
+	// this replaced: "No one is going to read something this long on
+	// accounts". The full disclosure stays one press away, in the info glyph
+	// beside it (`cli_trust_warning_text`).
+	[[nodiscard]] inline auto cli_trust_summary_text() -> QString
+	{
+		return QStringLiteral("Uses gh's sign-in for this account; the token isn't saved.");
+	}
+
+	// [[BPR-0772]], [[BPR-2319]]. RFC-BPR-0015's complete residual-trust
+	// disclosure, said by the info glyph beside the card's trust line. The
+	// card's header names the host, so it says "this server" and the host
+	// appears once on the card (RFC-BPR-0032 A4). Paragraphs, because a
+	// popover is read in pieces.
 	[[nodiscard]] inline auto cli_trust_warning_text() -> QString
 	{
 		return QStringLiteral(
 				   "Connect uses the chosen account's existing gh sign-in on this server without saving its token. "
 				   "Each operation retrieves a transient credential and validates that exact account; changing gh's active account does not redirect it. "
-				   "This connection is reused until you sign out or replace it. "
+				   "This connection is reused until you sign out or replace it.\n\n"
 				   "You trust the configured CLI executable, CA certificates, redirects and child-process behavior. "
-				   "Calls use private account configuration, excluding ambient socket routing and CLI environment overrides. ")
-			+ cli_platform_confinement_text()
+				   "Calls use private account configuration, excluding ambient socket routing and CLI environment overrides.\n\n")
+			+ cli_platform_confinement_text().trimmed()
 			+ QStringLiteral(
-				   "Owned token buffers are cleared after children finish; system/child memory, swap and crash dumps remain outside exact erasure guarantees. "
+				   "\n\nOwned token buffers are cleared after children finish; system/child memory, swap and crash dumps remain outside exact erasure guarantees.\n\n"
 				   "Read trust does not authorize publishing; ordinary review, comment and tour gestures supply exact-operation authority.");
 	}
 

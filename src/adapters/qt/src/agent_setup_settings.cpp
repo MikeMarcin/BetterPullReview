@@ -2,6 +2,7 @@
 
 #include "bpr/qt/destructive_question.hpp"
 
+#include "list_row_handles.hpp"
 #include "pull_request_overview_support.hpp"
 
 #include "bpr/qt/agent_run_settings_picker.hpp"
@@ -20,6 +21,7 @@
 #include <QFontDatabase>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -95,9 +97,11 @@ namespace bpr::qt {
 
 		/// \brief [[BPR-2051]], owner decision 2026-11-11 (mockup "A ·
 		/// Roster"). One added agent: its check ring, its name over its model
-		/// and effort (or what to do), its state at the right and a chevron,
-		/// for the sheet a click opens. Native selection and focus are drawn
-		/// first; every colour is the palette's or the setup's own.
+		/// and effort (or what to do), and its state at the right. [[BPR-2318]]:
+		/// the row's grip sits in the gutter at its left and its trash at its
+		/// right, so the chevron that said a click opens the sheet is gone; a
+		/// click selects. Native selection and focus are drawn first; every
+		/// colour is the palette's or the setup's own.
 		class roster_delegate final : public QStyledItemDelegate
 		{
 		public:
@@ -127,11 +131,11 @@ namespace bpr::qt {
 				// The row's rule, under every row but the last.
 				if (aIndex.row() + 1 < aIndex.model()->rowCount()) {
 					aPainter->setPen(QPen{ mixed(palette.color(QPalette::Base), palette.color(QPalette::Text), 0.12), 1.0 });
-					aPainter->drawLine(QPointF{ rect.left() + 48.0, rect.bottom() + 0.5 }, QPointF{ static_cast<qreal>(rect.right()), rect.bottom() + 0.5 });
+					aPainter->drawLine(QPointF{ rect.left() + 48.0 + detail::row_grip_gutter, rect.bottom() + 0.5 }, QPointF{ static_cast<qreal>(rect.right()), rect.bottom() + 0.5 });
 				}
 				// The ring: passed, failed, checking or not checked.
 				const auto state = static_cast<core::setup_check_state>(aIndex.data(ring_role).toInt());
-				const auto ring  = QRectF{ rect.left() + 14.0, rect.center().y() - 10.0, 20.0, 20.0 };
+				const auto ring  = QRectF{ rect.left() + 14.0 + detail::row_grip_gutter, rect.center().y() - 10.0, 20.0, 20.0 };
 				auto       mark  = quiet;
 				switch (state) {
 				case core::setup_check_state::passed:  mark = setup_passed_colour(palette); break;
@@ -156,20 +160,17 @@ namespace bpr::qt {
 					aPainter->drawLine(QPointF{ c.x() - 3.5, c.y() - 3.5 }, QPointF{ c.x() + 3.5, c.y() + 3.5 });
 					aPainter->drawLine(QPointF{ c.x() + 3.5, c.y() - 3.5 }, QPointF{ c.x() - 3.5, c.y() + 3.5 });
 				}
-				// The chevron, then the state, right-aligned.
-				const auto chevron = QPointF{ rect.right() - 16.0, static_cast<qreal>(rect.center().y()) };
-				aPainter->setPen(QPen{ quiet, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
-				aPainter->drawPolyline(std::array{ chevron + QPointF{ -2.5, -5.0 }, chevron + QPointF{ 2.5, 0.0 }, chevron + QPointF{ -2.5, 5.0 } }.data(), 3);
+				// The state, right-aligned before the row's trash.
 				const auto metrics  = QFontMetrics{ option.font };
 				const auto said     = aIndex.data(state_role).toString();
 				const auto failed   = aIndex.data(failed_role).toBool();
 				const auto stateW   = std::min(metrics.horizontalAdvance(said) + 2, rect.width() / 3);
-				const auto stateBox = QRect{ rect.right() - 30 - stateW, rect.top(), stateW, rect.height() };
+				const auto stateBox = QRect{ rect.right() - detail::row_trash_room - 4 - stateW, rect.top(), stateW, rect.height() };
 				aPainter->setFont(option.font);
 				aPainter->setPen(failed && !selected ? setup_failed_colour(palette) : quiet);
 				aPainter->drawText(stateBox, Qt::AlignRight | Qt::AlignVCenter, metrics.elidedText(said, Qt::ElideRight, stateW));
 				// The name over its line.
-				const auto left  = rect.left() + 48;
+				const auto left  = rect.left() + 48 + detail::row_grip_gutter;
 				const auto right = stateBox.left() - 12;
 				auto       bold  = option.font;
 				bold.setWeight(QFont::DemiBold);
@@ -198,7 +199,7 @@ namespace bpr::qt {
 		auto* const top = new QHBoxLayout{ };
 		top->setSpacing(10);
 		top->addWidget(heading(tr("Agents"), this), 0, Qt::AlignBaseline);
-		auto* const lead = note(tr("A pull request picks one of these in its footer. Drag to reorder."), this);
+		auto* const lead = note(tr("A pull request picks one of these in its footer, in this order. Double-click an agent to change it; drag its grip to reorder."), this);
 		lead->setObjectName(QStringLiteral("settingsAgentsLead"));
 		top->addWidget(lead, 1, Qt::AlignBaseline);
 		column->addLayout(top);
@@ -215,9 +216,12 @@ namespace bpr::qt {
 		List->setContextMenuPolicy(Qt::CustomContextMenu);
 		List->setMouseTracking(true);
 		connect(List, &QListWidget::currentRowChanged, this, [this] { settle_buttons(); });
-		// A row opens its sheet; its menu holds the rest.
-		connect(List, &QListWidget::itemClicked, this, [this] { EditButton->click(); });
-		connect(List, &QListWidget::itemActivated, this, [this] { EditButton->click(); });
+		// [[BPR-2318]] (owner, 2026-11-20: "a single click on an agent opens
+		// it's settings page but that should just select it. Double click and
+		// enter to open"). A click selects; a double-click, Return or Enter
+		// opens its sheet; its menu holds the rest.
+		connect(List, &QListWidget::itemDoubleClicked, this, [this] { EditButton->click(); });
+		List->installEventFilter(this);
 		connect(List, &QWidget::customContextMenuRequested, this, [this](const QPoint& aAt) { open_row_menu(aAt); });
 		// Dragged to a new place: moved there one step at a time, as Move up
 		// and Move down do, so the saved order is the one shown.
@@ -233,6 +237,14 @@ namespace bpr::qt {
 			}
 		});
 		column->addWidget(List);
+		// [[BPR-2318]]. Each row's grip and trash; Alt+Up and Alt+Down move
+		// the selected agent and Delete removes it, after the question.
+		Handles = new detail::list_row_handles{ *List, { .Name = [this](const int aRow) {
+																 const auto* const item = List->item(aRow);
+																 return item == nullptr ? QString{ } : item->data(name_role).toString(); }, .Move = [this](const int aRow, const int aDelta) {
+																 if (aRow >= 0 && static_cast<std::size_t>(aRow) < Agents.size() && Dispatch.Move && UnreadableFile.isEmpty()) {
+																	 Dispatch.Move(Agents[static_cast<std::size_t>(aRow)].Id, aDelta);
+																 } }, .Remove = [this](int) { RemoveButton->click(); }, .TrashName = QStringLiteral("settingsAgentTrash") } };
 		// [[BPR-2254]]. In the list's place while the saved agents cannot be
 		// read: what happened, that nothing was changed, and what to do.
 		Unreadable = new QWidget{ this };
@@ -314,11 +326,7 @@ namespace bpr::qt {
 		RemoveButton = new quiet_push_button{ tr("Remove"), this };
 		RemoveButton->setObjectName(QStringLiteral("settingsRemoveAgent"));
 		RemoveButton->hide();
-		connect(RemoveButton, &QPushButton::clicked, this, [this] {
-			if (const auto* const entry = selected(); entry != nullptr && Dispatch.Remove) {
-				Dispatch.Remove(entry->Id);
-			}
-		});
+		connect(RemoveButton, &QPushButton::clicked, this, [this] { ask_remove(); });
 		UpButton = new quiet_push_button{ tr("Move up"), this };
 		UpButton->setObjectName(QStringLiteral("settingsAgentUp"));
 		UpButton->hide();
@@ -612,6 +620,46 @@ namespace bpr::qt {
 			}
 		});
 		question->open();
+	}
+
+	void agent_programs_panel::ask_remove()
+	{
+		const auto* const entry = selected();
+		if (entry == nullptr || !Dispatch.Remove || !UnreadableFile.isEmpty() || (RemoveQuestion && RemoveQuestion->isVisible())) {
+			return;
+		}
+		// [[BPR-2318]] (owner, 2026-11-20: "a visible trashcan on each row to
+		// remove the agent with a confirmation"). Every agent can be removed,
+		// a popular one too: Add agent… offers it again while it is found.
+		const auto  name     = text_of(entry->Name);
+		auto* const question = new destructive_question(*this, QStringLiteral("removeAgent"), tr("Remove %1?").arg(name),
+														tr("%1 and its settings leave the agent list, and pull requests stop offering it. This cannot be undone.").arg(name),
+														tr("Remove agent"));
+		connect(question, &QDialog::finished, question, &QObject::deleteLater);
+		RemoveQuestion = question;
+		connect(question, &QDialog::accepted, this, [this, id = entry->Id] {
+			if (Dispatch.Remove) {
+				Dispatch.Remove(id);
+			}
+		});
+		question->open();
+	}
+
+	auto agent_programs_panel::agent_grip(const int aRow) const -> QWidget* { return Handles->grip(aRow); }
+
+	auto agent_programs_panel::agent_trash(const int aRow) const -> QToolButton* { return Handles->trash(aRow); }
+
+	auto agent_programs_panel::eventFilter(QObject* const aObject, QEvent* const aEvent) -> bool
+	{
+		// [[BPR-2318]]. Return and Enter open the selected agent's sheet.
+		if (aObject == List && aEvent->type() == QEvent::KeyPress) {
+			const auto* const key = static_cast<QKeyEvent*>(aEvent);
+			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() & ~Qt::KeypadModifier) == Qt::NoModifier && List->currentRow() >= 0) {
+				EditButton->click();
+				return true;
+			}
+		}
+		return QWidget::eventFilter(aObject, aEvent);
 	}
 
 	void agent_programs_panel::set_editor(agent_entry_editor aEditor) { Editor = std::move(aEditor); }
@@ -1024,7 +1072,7 @@ namespace bpr::qt {
 		case core::agent_check_offer::available: {
 			const auto agent = saved.value_or(core::setup_agent::claude_code);
 			said             = !setup.Detected ? tr("Looks for your agents, then checks the chosen one as the setup does. No question or code is sent.")
-				: !setup.ChecksSignIn          ? tr("Checks that %1's program can run, and runs its own check if it names one. No code is sent; a custom Codex JSONL agent is asked one short question to see where its instructions arrive.").arg(name)
+				: !setup.ChecksSignIn          ? tr("Checks that %1's program can run, and runs its own check if it names one. No code is sent; a custom Codex JSONL agent is asked one short question to see where its instructions arrive, and a custom Claude agent one to see it answers in stream JSON.").arg(name)
 				: setup.ChecksWrapper          ? tr("Asks your Claude process wrapper for its sign-in status and version. No question or code is sent.")
 											   : tr("Runs %1, which sends no question and no code.").arg(status_command(agent));
 			said += QStringLiteral(" ")
@@ -1033,7 +1081,7 @@ namespace bpr::qt {
 		}
 		case core::agent_check_offer::running:
 			said = setup.Checking && workspaceRunning ? tr("Checking %1 and preparing the workspace…").arg(name)
-				: setup.Checking                      ? (setup.Detected ? tr("Checking %1…").arg(name) : tr("Looking for your agents…"))
+				: setup.Checking                      ? (setup.Detected ? tr("Checking %1…").arg(checked_agent_name(setup, name)) : tr("Looking for your agents…"))
 													  : tr("Preparing the workspace…");
 			break;
 		case core::agent_check_offer::no_agent:   said = tr("Add an agent, then check it here."); break;
@@ -1045,7 +1093,7 @@ namespace bpr::qt {
 			break;
 		}
 		CheckNote->setText(said);
-		CheckButton->setToolTip(running ? tr("A check is running. Stop it to start again.") : tr("Checks every agent in the list in turn. No code is sent; a custom Codex JSONL agent is asked one short question."));
+		CheckButton->setToolTip(running ? tr("A check is running. Stop it to start again.") : tr("Checks every agent in the list in turn. No code is sent; a custom Codex or Claude agent is asked one short question."));
 		CheckButton->setAccessibleDescription(offer == core::agent_check_offer::available ? QString{ } : CheckButton->toolTip());
 		CheckProgress->setAccessibleName(said);
 
@@ -1076,7 +1124,7 @@ namespace bpr::qt {
 
 		const auto agentFailed = state.AgentCheck.State == core::setup_check_state::failed && state.AgentCheck.Failure.has_value();
 		CheckFailure->setVisible(agentFailed);
-		CheckFailure->setText(agentFailed ? setup_failure_words(*state.AgentCheck.Failure, name, text_of(setup.CheckDetail)) : QString{ });
+		CheckFailure->setText(agentFailed ? agent_check_failure_words(setup, name) : QString{ });
 		const auto signIn = agentFailed && *state.AgentCheck.Failure == core::agent_setup_failure::not_signed_in && saved ? sign_in_command(*saved) : QString{ };
 		SignInCommand->setText(signIn);
 		SignInLine->setVisible(!signIn.isEmpty());

@@ -71,6 +71,7 @@
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/appearance_model.hpp"
+#include "bpr/core/auto_merge.hpp"
 #include "bpr/core/commit_filter.hpp"
 #include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/conversation_mutation_lifecycle.hpp"
@@ -117,7 +118,6 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
-#include "bpr/qt/follow_up_window.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -312,6 +312,18 @@ namespace bpr::app {
 		/// diff, so Review owes the active tab's view once its files return.
 		bool RefreshKeptTabView      = false;
 		bool RevalidatingKeptTabView = false;
+		/// \brief [[BPR-2324]]. The tabs the pull request just opened
+		/// remembered, held until its files are known and they come back.
+		/// While held, the empty set the window starts with is not saved over
+		/// them.
+		std::optional<core::window_review_tabs> RememberedTabs;
+		/// \brief [[BPR-2324]]. A file the reviewer opened while no tab was
+		/// active, which the returning tabs make active.
+		std::optional<core::file_identity> ReopenChoice;
+#if defined(BPR_BUILD_TESTING)
+		/// \brief [[BPR-2324]]. What the last reopened pull request brought back.
+		std::optional<core::reopened_tabs> LastReopenedTabs;
+#endif
 		/// \brief [[BPR-1539]]. The pull request the tabs were opened in.
 		/// `ReadingDestination` cannot say: opening another pull request
 		/// invalidates the shown one, which clears it, before the new read is
@@ -352,6 +364,7 @@ namespace bpr::app {
 		void               drive_tab();
 		void               observe_tab_changes();
 		auto               represent_refreshed_tab() -> bool;
+		auto               reopen_remembered_tabs() -> bool;
 		void               observe_tab_reading();
 		void               retain_tabs(const core::window_review_tabs& aTabs);
 		void               retain_reading_position();
@@ -562,7 +575,6 @@ namespace bpr::app {
 		/// updated it, by its follow-up key.
 		std::unique_ptr<worker_executor>                  FollowUpLane;
 		std::unique_ptr<application::follow_up_host>      FollowUp;
-		QPointer<qt::follow_up_window>                    FollowUpWindow;
 		std::map<std::string, std::string>                FollowUpRevisions;
 		std::uint64_t                                     WritingHookSubscription = 0;
 		std::unique_ptr<review_tour_publication_workflow> TourPublication;
@@ -1211,6 +1223,8 @@ namespace bpr::app {
 		[[nodiscard]] auto current(const core::bpr_window_context& aContext) const noexcept -> bool override;
 
 		void present_saved_drafts();
+		/// [[BPR-2325]]. Findings whose draft was deleted are open again.
+		void reopen_deleted_finding_drafts();
 
 		[[nodiscard]] auto reply_threads() const -> core::reply_thread_observation;
 
@@ -1400,6 +1414,17 @@ namespace bpr::app {
 		void publish_draft_state(const application::review_draft_state_terminal& aTerminal) override;
 
 		void retire_draft_state_change();
+
+		/// \brief [[BPR-2329]]. Auto-merge: the core's projection over a read,
+		/// whether the connection can change it, the gesture, GitHub's answer,
+		/// a new read, and a retired host.
+		[[nodiscard]] auto projected_auto_merge(const application::github_pull_request_snapshot& aSnapshot) const -> std::optional<core::projected_auto_merge>;
+		[[nodiscard]] auto auto_merge_control() const -> bool;
+		void               observe_auto_merge_change();
+		void               present_overview_auto_merge();
+		void               change_auto_merge(core::auto_merge_change aChange, std::optional<core::merge_method> aMethod);
+		void               publish_auto_merge(const application::review_auto_merge_terminal& aTerminal) override;
+		void               retire_auto_merge_change();
 
 		void publish_reviewers(const application::review_reviewer_terminal& aTerminal) override;
 
@@ -2642,6 +2667,23 @@ namespace bpr::app {
 		std::size_t                        DraftStateCompletions     = 0U;
 		std::size_t                        DraftStateFailures        = 0U;
 		std::size_t                        OverviewDraftStateUpdates = 0U;
+		/// [[BPR-2329]]. The viewer's auto-merge change that reads have not
+		/// caught up with, the pull request it was asked on, the change in
+		/// flight, and what came of changes.
+		struct pending_auto_merge
+		{
+			application::review_mutation_request_context Context;
+			std::uint64_t                                Request = 0U;
+			core::auto_merge_change                      Change  = core::auto_merge_change::enable;
+		};
+		core::auto_merge_overlay          AutoMergeOverlay;
+		std::optional<std::string>        AutoMergeOverlayPullRequest;
+		std::optional<pending_auto_merge> PendingAutoMerge;
+		std::uint64_t                     AutoMergeRequests    = 0U;
+		std::size_t                       AutoMergeGestures    = 0U;
+		std::size_t                       AutoMergeRefusals    = 0U;
+		std::size_t                       AutoMergeCompletions = 0U;
+		std::size_t                       AutoMergeFailures    = 0U;
 		/// [[BPR-1775]]. The comment save in flight, and what came of saves.
 		std::optional<application::review_mutation_request_context> PendingCommentEdit;
 		std::size_t                                                 CommentEditGestures    = 0U;
@@ -2765,6 +2807,9 @@ namespace bpr::app {
 		/// finding card of a stored answer: store, then host.
 		std::unique_ptr<application::agent_finding_card_store_port> AgentFindingCardStore;
 		std::unique_ptr<application::agent_finding_card_host>       AgentFindingCards;
+		/// [[BPR-2325]]. The drafts of drafted findings seen held, and by which
+		/// draft owner: one gone from that owner was deleted.
+		std::map<std::uint64_t, const application::shared_draft_application_host*> SeenFindingDrafts;
 		/// RFC-BPR-0125 (AC07). The names suggested prompts' turns were sent
 		/// under: store, then host.
 		std::unique_ptr<application::prompt_turn_name_store_port> PromptTurnNameStore;

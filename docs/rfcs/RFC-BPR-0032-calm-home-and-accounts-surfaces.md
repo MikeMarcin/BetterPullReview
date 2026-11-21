@@ -28,6 +28,22 @@ way, sign in, confirm and ready as numbered steps in one surface, with the
 device code, gh's accounts, the GitHub CLI consent and an Enterprise token in
 it. The dialog, the consent question and the token prompt are removed.
 
+Owner amendment, 2026-11-20 ([[BPR-2319]]): no text on Accounts & hosts or
+in the account setup runs longer than one short sentence. A server card's
+GitHub CLI trust warning is one sentence ("Uses gh's sign-in for this account;
+the token isn't saved.") with RFC-BPR-0015's full residual-trust disclosure in
+the info glyph beside it, on hover, focus and press and as its accessible
+description. A signed-in GitHub CLI card claims no session-only token. The
+account setup's consent is one sentence; reuse and the publishing boundary
+stay behind What connecting allows.
+
+Owner amendment, 2026-11-20 ([[BPR-2332]], attended review
+`bbbd62f881b93ad3315947522fe41e0d`: "Feels like a lot of wasted space"): a
+server card's rows are 32 pixels tall, as Settings › Appearance's are, and its
+header and account insets are 8 pixels; its label column is as wide as its
+widest label rather than a fixed width. The row height of 44 in the rhythm
+below holds for Home.
+
 ## Summary and scope
 
 Home and the Accounts & hosts page of Settings are the surfaces a reviewer
@@ -83,8 +99,8 @@ A server card has a header, an account row, and rows.
 - **Account row.** A letter avatar, the login in the row weight, and one
   consequence sentence built from the existing grant projection ("Signed in with
   a device grant on 2026-09-13; renews itself and is remembered on this Mac.";
-  "Signed in with a token for this session only; it is asked for again after a
-  restart."). At the right, Sign out. Signed out, the row reads "No account" with
+  "Signed in with a token for this session only."; shortened by the owner's
+  2026-11-20 amendment, [[BPR-2319]]). At the right, Sign out. Signed out, the row reads "No account" with
   the sentence "Sign in starts a device code; the session is remembered on this
   Mac." and one filled Sign in button, the page's only filled control. A server
   that is configured but not the active host offers Connect in the same place;
