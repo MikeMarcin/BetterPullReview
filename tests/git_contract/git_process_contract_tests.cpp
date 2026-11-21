@@ -4518,7 +4518,15 @@ namespace {
 										  const TCheck& aCheck, const TWritten& aWritten, const std::chrono::milliseconds aBaseline)
 	{
 		auto ignoredFiles = std::size_t{ 100000U };
-		if (const auto* const configured = std::getenv("BPR_TEST_SEED_IGNORED_FILES"); configured != nullptr && *configured != '\0') {
+		#if defined(_MSC_VER)
+			#pragma warning(push)
+			#pragma warning(disable : 4996)
+		#endif
+		const auto* const configured = std::getenv("BPR_TEST_SEED_IGNORED_FILES");
+		#if defined(_MSC_VER)
+			#pragma warning(pop)
+		#endif
+		if (configured != nullptr && *configured != '\0') {
 			ignoredFiles = static_cast<std::size_t>(std::strtoull(configured, nullptr, 10));
 		}
 		// `build/` is ignored: a vendored dependency tree inside module3.
