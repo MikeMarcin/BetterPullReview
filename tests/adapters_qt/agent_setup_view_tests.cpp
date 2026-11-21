@@ -632,6 +632,18 @@ namespace {
 		expect(gitOutput->isVisibleTo(&test.View) && gitOutput->toPlainText().toStdString() == test.Setup.WorkspaceDetail, "the workspace disclosure opens its own log");
 		test.show();
 		expect(test.View.findChild<QToolButton*>(QStringLiteral("agentSetupShowDetails"))->isChecked(), "an unchanged projection preserves the open disclosure");
+		// [[BPR-2215]] (owner, 0.5.0 build 75: "␛[0;31m…␛[0m" in the details).
+		test.Setup.CheckDetail     = "nonzero_exit (exit 1)\nstderr:\n\x1b[0;31merror:\x1b[0m \x1b[1msign-in\x1b[22m expired \xe2\x9c\x97\x1b]8;;https://example.invalid\x1b\\ link\x1b]8;;\x1b\\\x1b[0;3";
+		test.Setup.WorkspaceDetail = "\x1b[33mwarning:\x1b[m fetch \x1b[38;2;255;0;0mfailed\x1b[39m";
+		test.show();
+		output    = test.View.findChild<QPlainTextEdit*>(QStringLiteral("agentSetupShowDetailsText"));
+		gitOutput = test.View.findChild<QPlainTextEdit*>(QStringLiteral("agentSetupShowWorkspaceLogText"));
+		expect(output != nullptr && gitOutput != nullptr && output->toPlainText() == QStringLiteral("nonzero_exit (exit 1)\nstderr:\nerror: sign-in expired \u2717 link")
+				   && gitOutput->toPlainText() == QStringLiteral("warning: fetch failed") && !test.text().contains(QChar{ 0x1b }),
+			   "coloured process output shows as plain text in both boxes");
+		test.Setup.CheckDetail     = "nonzero_exit (exit 7)\nstderr:\nSSO fixture expired <a href=\"https://example.invalid\">literal</a>";
+		test.Setup.WorkspaceDetail = "fatal: fixture download failed from <redacted-url>";
+		test.show();
 		render(test.View, QStringLiteral("check-details"));
 		test.Setup.ChecksWrapper    = true;
 		test.Setup.State.AgentCheck = core::fail_check(core::agent_setup_failure::status_unreadable);
@@ -1255,6 +1267,12 @@ namespace {
 		expect(shown(details) && !shown(text), "its details wait behind Show details");
 		details->click();
 		expect(shown(text) && text->toPlainText().contains(QStringLiteral("loggedIn")), "Show details shows the check's own output");
+		// [[BPR-2215]]. Coloured stderr shows as plain text here too.
+		setup.CheckDetail = "nonzero_exit (exit 1)\nstderr:\n\x1b[0;31merror:\x1b[0m not signed in";
+		programs.present_check(check);
+		expect(text->toPlainText() == QStringLiteral("nonzero_exit (exit 1)\nstderr:\nerror: not signed in"), "Settings' details show coloured output as plain text: " + text->toPlainText().toStdString());
+		setup.CheckDetail = "success (exit 0)\n{\"loggedIn\": false}";
+		programs.present_check(check);
 		programs.resize(560, programs.sizeHint().height());
 		render(programs, QStringLiteral("settings-check-failed"));
 

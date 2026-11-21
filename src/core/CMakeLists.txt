@@ -112,6 +112,7 @@ add_library(
         src/agent_run_policy.cpp
         src/agent_profile.cpp
         src/agent_wrapper.cpp
+        src/terminal_text.cpp
         src/agent_setup.cpp
         src/account_setup.cpp
         src/agent_turn.cpp

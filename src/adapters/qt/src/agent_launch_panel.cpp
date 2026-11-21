@@ -4,6 +4,7 @@
 #include "bpr/core/agent_entry.hpp"
 
 #include "bpr/core/agent_setup.hpp"
+#include "bpr/core/terminal_text.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QAction>
@@ -123,7 +124,7 @@ namespace bpr::qt {
 						.arg(aResult.StandardOutputBytes)
 						.arg(aResult.StandardError.size());
 		if (!aResult.RejectedOutputLine.empty()) {
-			auto line = QString::fromUtf8(aResult.RejectedOutputLine.data(), static_cast<qsizetype>(aResult.RejectedOutputLine.size()));
+			auto line = QString::fromStdString(core::plain_terminal_text(aResult.RejectedOutputLine));
 			if (line.size() > 400) {
 				line = line.left(400) + QStringLiteral("…");
 			}
@@ -137,7 +138,7 @@ namespace bpr::qt {
 		}
 		if (!aResult.StandardError.empty()) {
 			sections << QStringLiteral("Last lines of its errors:\n%1")
-							.arg(tail(QString::fromUtf8(aResult.StandardError.data(), static_cast<qsizetype>(aResult.StandardError.size())), 20, 4000));
+							.arg(tail(QString::fromStdString(core::plain_terminal_text(aResult.StandardError)), 20, 4000));
 		}
 		return sections.join(QStringLiteral("\n\n"));
 	}
@@ -568,7 +569,9 @@ namespace bpr::qt {
 			}
 		}
 		if (aEvent.Kind == application::agent_stream_kind::text) {
-			Output->appendPlainText(QString::fromStdString(aEvent.Text));
+			// [[BPR-2215]]. What a program prints is shown without terminal
+			// colours; so are its errors below.
+			Output->appendPlainText(QString::fromStdString(core::plain_terminal_text(aEvent.Text)));
 		}
 		// [[BPR-2252]]. The turn's cost so far, said on its running line.
 		if (aEvent.Kind == application::agent_stream_kind::cost) {
@@ -614,8 +617,7 @@ namespace bpr::qt {
 			if (aResult.Outcome == application::agent_run_outcome::protocol_failure || aResult.StandardOutputBytes != 0U) {
 				Output->setPlainText(failure_log(aResult));
 			} else if (!aResult.StandardError.empty()) {
-				Output->setPlainText(
-					QString::fromStdString(aResult.StandardError));
+				Output->setPlainText(QString::fromStdString(core::plain_terminal_text(aResult.StandardError)));
 			}
 		}
 		LastOutcome         = aResult.Outcome;

@@ -1,5 +1,7 @@
 #include "bpr/qt/agent_setup_settings.hpp"
 
+#include "bpr/core/terminal_text.hpp"
+
 #include "bpr/qt/destructive_question.hpp"
 
 #include "list_row_handles.hpp"
@@ -1146,7 +1148,8 @@ namespace bpr::qt {
 			DetailsToggle->setChecked(false);
 		}
 		ShownDetail = detail;
-		DetailsText->setPlainText(detail.empty() ? tr("No process output was returned.") : text_of(detail));
+		// [[BPR-2215]]. What the processes printed, without terminal colours.
+		DetailsText->setPlainText(detail.empty() ? tr("No process output was returned.") : text_of(core::plain_terminal_text(detail)));
 	}
 
 	auto agent_programs_panel::check_result_text() const -> QString
