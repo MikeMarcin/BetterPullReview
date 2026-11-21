@@ -413,7 +413,8 @@ namespace {
 		submit(*first, 17);
 		expect(first->findChild<QPushButton*>(QStringLiteral("homeSetupContinue"))->isHidden(), "an account opens the destination without a stop");
 		accepted(aOwner, aFirst, 17);
-		wait_for([&] { return github_application_fixture_access::device_binding_durable(aOwner); }, "remembered grant settles before Quit");
+		wait_for([&] { return github_application_fixture_access::device_binding_durable(aOwner); }, "remembered grant settles before Quit", [&] { std::cerr << "remembered-grant store-idle=" << github_application_fixture_access::device_binding_store_idle(aOwner)
+																																							<< " session=" << static_cast<int>(first->session_panel()->status()) << '\n'; });
 		select_reading(aOwner, aFirst, 0, false, aEarlyGesture);
 		const auto firstReading = reading(*first);
 		trigger(*first, "newBprWindowAction");
