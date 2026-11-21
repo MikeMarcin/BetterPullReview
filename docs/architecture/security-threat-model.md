@@ -1032,7 +1032,7 @@ statements and bounded values. Local [WAL](https://sqlite.org/wal.html) mode wit
 [`synchronous=FULL`](https://sqlite.org/pragma.html#pragma_synchronous) is
 required; a network filesystem is not supported.
 
-BetterPullReview builds verified, download-only SQLite 3.53.4 source as one
+BetterPullReview builds verified, download-only SQLite 3.54.1 source as one
 static library without a system fallback. After cache validation, only the
 verified `sqlite3.c` and `sqlite3.h` are copied into a controlled build-tree
 staging directory; unverified cache siblings cannot shadow platform headers or

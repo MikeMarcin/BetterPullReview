@@ -347,7 +347,7 @@ The [tour CLI](tour-cli.md) and [local PR drafts CLI](draft-cli.md) guides cover
 | `better_pull_review_application` | Host, effect/decision ports, serialized completion, manual executor |
 | `better_pull_review_adapter_github` | Normalized provider, native-HTTPS, credential-vault, and recorded-test adapters |
 | `better_pull_review_adapter_git` | Concrete Qt Core/`QProcess` installed-Git local pack/object/ref adapter |
-| `better_pull_review_sqlite3` | Verified CPM-acquired static SQLite 3.53.4 provider, exposed as `BetterPullReview::SQLite3` |
+| `better_pull_review_sqlite3` | Verified CPM-acquired static SQLite 3.54.1 provider, exposed as `BetterPullReview::SQLite3` |
 | `better_pull_review_adapter_sqlite` | Concrete BPEC v1 epoch-catalog storage and operation-state adapter |
 | `better_pull_review_adapter_ai` | Capability boundary established for a later RFC |
 | `better_pull_review_adapter_agent` | Agent launch adapter and protocol loop; only with `BPR_BUILD_AGENT_INTEGRATIONS` |

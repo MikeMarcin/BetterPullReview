@@ -43,7 +43,7 @@ The Qt presentation adapter is part of the imperative shell. It is not an archit
 - Qt 6 Widgets, Core, Gui, Network, and required platform integration
 - CMake 4.4.2 and Ninja
 - Centralized package discovery for prebuilt Qt, libsecret, libxcb, Python, and Git
-- SQLite 3.53.4 through a verified CPM-acquired, directly linked C API
+- SQLite 3.54.1 through a verified CPM-acquired, directly linked C API
 - Installed Git executable through `QProcess`
 - Native HTTPS as the default production GitHub authentication transport
 - Explicit macOS CLI read opt-in under RFC-BPR-0015 (Auto-Verified 2026-09-23);

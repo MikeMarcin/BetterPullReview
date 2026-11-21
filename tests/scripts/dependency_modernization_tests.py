@@ -874,7 +874,7 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertIn('LOCK "${sqlite_lock}"', provider)
         self.assertIn("GUARD FUNCTION", provider)
         self.assertIn(
-            "628a44cfe82c66aed1ccbbe85a562d2e33ebe64b3288981ed76285612227934e",
+            "92281c86e2957f9b9305890f9ac04204caa7b677cc868dc326d942689df28e30",
             provider,
         )
         self.assertIn("BPR_SQLITE_SOURCE_DIR", target)
@@ -924,7 +924,7 @@ class DependencyModernizationTests(unittest.TestCase):
                         self.assertEqual(configured.returncode, 0, diagnostic)
                     else:
                         self.assertNotEqual(configured.returncode, 0)
-                        self.assertIn("SQLite 3.53.4", diagnostic)
+                        self.assertIn("SQLite 3.54.1", diagnostic)
 
     def test_sqlite_staging_excludes_unverified_cache_headers(self) -> None:
         with contained_temporary_directory() as temporary_directory:
@@ -936,6 +936,11 @@ class DependencyModernizationTests(unittest.TestCase):
                 CPM_SOURCE_CACHE / "bprsqlite",
                 cache / "bprsqlite",
             )
+            # A cache kept across a SQLite upgrade also holds the earlier
+            # release; only the pinned one is the cache this course poisons.
+            pinned = (SQLITE_SOURCE / "sqlite3.c").read_bytes()
+            for earlier in [path for path in (cache / "bprsqlite").rglob("sqlite3.c") if path.read_bytes() != pinned]:
+                shutil.rmtree(earlier.parent)
             cached_sources = list((cache / "bprsqlite").rglob("sqlite3.c"))
             self.assertEqual(len(cached_sources), 1)
             (cached_sources[0].parent / "stdlib.h").write_text(
@@ -996,7 +1001,7 @@ class DependencyModernizationTests(unittest.TestCase):
             # path, not the separator, so both are compared with one spelling
             # (BPR-0426).
             command = sqlite_commands[0]["command"].replace("\\", "/")
-            self.assertIn("_bpr/sqlite/3.53.4", command)
+            self.assertIn("_bpr/sqlite/3.54.1", command)
             self.assertNotIn((cache / "bprsqlite").as_posix(), command)
 
     def test_sqlite_staging_rejects_unexpected_generated_entries(self) -> None:
@@ -1013,7 +1018,7 @@ class DependencyModernizationTests(unittest.TestCase):
             )
             stage = (
                 Path(temporary_directory)
-                / "build/_bpr/sqlite/3.53.4"
+                / "build/_bpr/sqlite/3.54.1"
             )
             (stage / "unexpected.h").write_text(
                 "#error unexpected staging input\n",
@@ -1034,15 +1039,15 @@ class DependencyModernizationTests(unittest.TestCase):
         cases = (
             (
                 "sqlite3.h",
-                '"3.53.4"',
-                '"3.53.3"',
+                '"3.54.1"',
+                '"3.54.0"',
                 "BPR_SQLITE_H_SHA3_256",
                 "wrong SQLITE_VERSION",
             ),
             (
                 "sqlite3.c",
-                "2026-07-24 19:02:57",
-                "2026-07-24 19:02:58",
+                "2026-10-16 14:45:20",
+                "2026-10-16 14:45:21",
                 "BPR_SQLITE_C_SHA3_256",
                 "wrong SQLITE_SOURCE_ID",
             ),
@@ -1088,7 +1093,7 @@ class DependencyModernizationTests(unittest.TestCase):
     def test_sqlite_archive_hash_mismatch_is_rejected(self) -> None:
         with contained_temporary_directory() as temporary_directory:
             temporary = Path(temporary_directory)
-            corrupt_archive = temporary / "sqlite-amalgamation-3530400.zip"
+            corrupt_archive = temporary / "sqlite-amalgamation-3540100.zip"
             corrupt_archive.write_bytes(b"not the verified SQLite archive")
             provider_directory = temporary / "cmake"
             provider_directory.mkdir()
@@ -1142,7 +1147,7 @@ class DependencyModernizationTests(unittest.TestCase):
             diagnostic = rejected.stdout + rejected.stderr
             self.assertIn("does not match expected value", diagnostic)
             self.assertIn(
-                "628a44cfe82c66aed1ccbbe85a562d2e33ebe64b3288981ed76285612227934e",
+                "92281c86e2957f9b9305890f9ac04204caa7b677cc868dc326d942689df28e30",
                 diagnostic,
             )
 
@@ -1172,7 +1177,7 @@ class DependencyModernizationTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (package / "BprSQLiteConfigVersion.cmake").write_text(
-                "set(PACKAGE_VERSION 3.53.4)\n"
+                "set(PACKAGE_VERSION 3.54.1)\n"
                 "set(PACKAGE_VERSION_COMPATIBLE TRUE)\n",
                 encoding="utf-8",
             )

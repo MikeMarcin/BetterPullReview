@@ -113,16 +113,16 @@ Baseline date: 2026-07-30
 - Windows handle-relative, no-replace file rename information:
   https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_rename_info
 
-BetterPullReview acquires pinned SQLite 3.53.4 with download-only CPM 0.43.1,
-released 2026-07-24, from the official
-`sqlite-amalgamation-3530400.zip`. Its `SQLITE_SOURCE_ID` is
-`2026-07-24 19:02:57 bf7c7f30031888f4e796e429ab3978879485813aaca6f641c7b33e4e09459bcc`.
+BetterPullReview acquires pinned SQLite 3.54.1 with download-only CPM 0.43.1,
+released 2026-10-16, from the official
+`sqlite-amalgamation-3540100.zip`. Its `SQLITE_SOURCE_ID` is
+`2026-10-16 14:45:20 555e07ef33f69a0957d24d8e555b702464a131d6f1607f4c3c1e4551e8e6ca76`.
 The official archive SHA3-256 is
-`628a44cfe82c66aed1ccbbe85a562d2e33ebe64b3288981ed76285612227934e`,
+`92281c86e2957f9b9305890f9ac04204caa7b677cc868dc326d942689df28e30`,
 and the published `sqlite3.c` SHA3-256 is
-`67f423e9ebbbdc473cbc4772c872ee6b89f31fde4ed0279a5c25d5f65c043a16`.
+`e2b869d3003b33c942b7dd7063604fbc53553e1b66609570df39b9b7b558ee81`.
 The repository intake measurement for `sqlite3.h` is
-`89d0de498b1012938bb78dc18b68fea52e26f7f7b6db6347d126a2e58b86a05c`.
+`15ef3f5dbc4a7a980f828fa0d1e473cee5a124e7bb77e9bc70fc0bfa3f9a2af8`.
 Reproducible intake, official URLs, and the compile/runtime policy are recorded
 in [`PROVENANCE.md`](../third_party/sqlite/PROVENANCE.md) and
 [`COMPILE_OPTIONS.md`](../third_party/sqlite/COMPILE_OPTIONS.md). The static
