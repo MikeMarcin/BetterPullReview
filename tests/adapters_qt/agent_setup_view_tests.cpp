@@ -1193,6 +1193,46 @@ namespace {
 	/// check from agent settings page". Check agent on Settings: an intent,
 	/// disabled with its reason, running with Stop and progress, and the
 	/// result inline: a pass, or the failure, its remedy and its details.
+	void test_settings_check_agent();
+
+	/// \brief [[BPR-2348]]. A custom entry with its own Program never reads
+	/// "Not found" (a result an earlier build kept reads as a failed check),
+	/// while an entry that relies on the search still does; and a custom
+	/// entry's failed check shows, in its details, the program it ran.
+	void test_custom_entry_check_names_its_program()
+	{
+		auto programs = qt::agent_programs_panel{ };
+		programs.resize(560, 420);
+		programs.set_dispatch({ .Check = [] { }, .StopCheck = [] { } });
+		auto preferences        = application::agent_setup_preferences{ };
+		preferences.Agents      = *core::add_agent_entry({ }, { .Name = "Launcher Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/corp/bin/launcher", .Arguments = { "--codex" } });
+		preferences.Agents      = *core::add_agent_entry(preferences.Agents, core::preset_agent_entry(core::setup_agent::codex, core::codex_protocol_choice::app_server, { }));
+		preferences.EntryChecks = { { .Id = preferences.Agents[0].Id, .Check = core::fail_check(core::agent_setup_failure::agent_not_found) },
+									{ .Id = preferences.Agents[1].Id, .Check = core::fail_check(core::agent_setup_failure::agent_not_found) } };
+		programs.present(preferences, { });
+		programs.show();
+		QApplication::processEvents();
+		expect(!programs.roster_row_text(0).contains(QStringLiteral("Not found")) && programs.roster_row_text(0).contains(QStringLiteral("Check failed")),
+			   "a custom entry with its own Program never reads Not found: " + programs.roster_row_text(0).toStdString());
+		expect(programs.roster_row_text(1).contains(QStringLiteral("Not found")), "a popular agent that relies on the search still can: " + programs.roster_row_text(1).toStdString());
+
+		auto check                   = qt::agent_check_presentation{ };
+		check.Setup.Preferences      = preferences;
+		check.Setup.Detected         = true;
+		check.Setup.State.Chosen     = core::setup_agent::codex;
+		check.Setup.State.AgentCheck = core::fail_check(core::agent_setup_failure::status_unreadable);
+		check.Setup.CheckedEntry     = preferences.Agents[0].Id;
+		check.Setup.CheckDetail      = "Ran: /opt/corp/bin/launcher --codex …and the check's own\nnonzero_exit (exit 2)\nstderr:\nERROR: --no-extra-output must be the first argument";
+		check.Decision               = { .Offer = core::agent_check_offer::available };
+		programs.present_check(check);
+		auto* const details = programs.findChild<QToolButton*>(QStringLiteral("settingsAgentCheckDetails"));
+		auto* const text    = programs.findChild<QPlainTextEdit*>(QStringLiteral("settingsAgentCheckDetailsText"));
+		expect(details != nullptr && text != nullptr, "the failed check has details");
+		details->click();
+		expect(text->toPlainText().startsWith(QStringLiteral("Ran: /opt/corp/bin/launcher --codex")), "its details name the program it ran first: " + text->toPlainText().toStdString());
+		programs.hide();
+	}
+
 	void test_settings_check_agent()
 	{
 		auto programs = qt::agent_programs_panel{ };
@@ -1484,6 +1524,7 @@ auto main(int argc, char** argv) -> int
 	test_arguments_editor();
 	test_add_argument_stays_below_the_rows();
 	test_settings_check_agent();
+	test_custom_entry_check_names_its_program();
 	test_settings_offers_the_prompt_form();
 	test_settings_unreadable();
 	test_program_from_an_app_bundle();

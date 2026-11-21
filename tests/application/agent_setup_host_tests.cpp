@@ -637,7 +637,7 @@ namespace {
 		f.Process.Answers = { said(application::agent_run_outcome::success, "launcher 0.6.2"), unreadable };
 		f.Host->check();
 		f.settle();
-		expect(f.state().State.AgentCheck.Failure == core::agent_setup_failure::output_unreadable && f.state().CheckDetail.starts_with("version: launcher 0.6.2\n"),
+		expect(f.state().State.AgentCheck.Failure == core::agent_setup_failure::output_unreadable && f.state().CheckDetail.starts_with("Ran: /opt/work/bin/launcher --no-extra-output --codex …and the check's own\nversion: launcher 0.6.2\n"),
 			   "output that is not Codex's JSON lines is said as that, with the launcher's version");
 	}
 
@@ -665,7 +665,7 @@ namespace {
 		expect(f.Process.Requests.size() == 2U && f.Process.Requests[1].Protocol == core::agent_protocol::claude_stream_json && f.Process.Requests[1].Arguments.front() == "--no-extra-output"
 				   && f.Process.Requests[1].WritingOnly,
 			   "its own check, then one stream JSON turn through its program, in an empty folder");
-		expect(f.state().State.AgentCheck.Failure == core::agent_setup_failure::output_unreadable && f.state().CheckDetail.starts_with("version: launcher 0.7.0-pre\nwrote: Welcome to the launcher\n")
+		expect(f.state().State.AgentCheck.Failure == core::agent_setup_failure::output_unreadable && f.state().CheckDetail.starts_with("Ran: /opt/work/bin/launcher --no-extra-output --skip-skills-upgrade …and the check's own\nversion: launcher 0.7.0-pre\nwrote: Welcome to the launcher\n")
 				   && f.state().CheckStep == application::agent_check_step::protocol_probe && f.state().CheckedEntry == std::optional{ id },
 			   "plain text fails as not the protocol, with its first line and its version");
 
@@ -709,6 +709,124 @@ namespace {
 		expect(g.state().CheckedEntry == std::optional{ codex } && g.state().CheckStep == application::agent_check_step::instructions_probe
 				   && g.state().State.AgentCheck.Failure == core::agent_setup_failure::failed_to_start,
 			   "the result names the Codex entry checked, not the preferred one");
+	}
+
+	/// \brief [[BPR-2348]]. A custom entry is checked with its own Program
+	/// and arguments, the command its turns run: never a program the search
+	/// found for its kind (a shim on PATH), whichever entry is preferred,
+	/// and whether or not the search finds one. A Program that cannot run is
+	/// refused by name, and the details say what ran.
+	void test_a_custom_entry_is_checked_with_its_own_program()
+	{
+		const auto launcher = std::string{ "/opt/corp/bin/launcher" };
+		const auto entry    = [&launcher](std::string aName, std::string aProgram = { }) {
+			auto value         = core::agent_entry{ .Name = std::move(aName), .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = aProgram.empty() ? launcher : std::move(aProgram), .Arguments = { "--no-extra-output", "--codex" }, .CheckArguments = { "--version" } };
+			value.Instructions = core::agent_instruction_delivery::message;
+			return value;
+		};
+		const auto passing = [] {
+			return std::vector{ said(application::agent_run_outcome::success, "launcher 0.7.0-pre"), said(application::agent_run_outcome::success, "I am ready.\nMARIGOLD-4127") };
+		};
+		const auto ranOwn = [](const std::vector<application::agent_launch_request>& aRequests, const std::string& aProgram) {
+			return !aRequests.empty() && std::ranges::all_of(aRequests, [&aProgram](const application::agent_launch_request& aRequest) { return aRequest.Executable == aProgram; });
+		};
+		// A shim on PATH for Codex, and a preferred Claude entry of another program.
+		{
+			auto f  = fixture{ };
+			f.Codex = core::agent_search_candidate{ .Path = "/Users/me/.local/bin/codex" };
+			f.Host->load();
+			f.settle();
+			f.Host->add_agent({ .Name = "Launcher Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/corp/bin/claude-launcher" }, true);
+			f.Host->add_agent(entry("Launcher Codex"), false);
+			f.Host->detect();
+			f.settle();
+			const auto codex = f.state().Preferences.Agents.back().Id;
+			expect(f.state().Preferences.PreferredAgent == f.state().Preferences.Agents.front().Id, "the Claude entry is preferred");
+			f.Process.Answers = passing();
+			f.Host->check_entry(codex);
+			f.settle();
+			expect(f.Process.Requests.size() == 2U && ranOwn(f.Process.Requests, launcher), "its check command and its probe run the entry's own Program, never the shim found on PATH");
+			expect(f.Process.Requests[0].Arguments == std::vector<std::string>{ "--version" } && f.Process.Requests[1].Arguments.size() > 2U
+					   && f.Process.Requests[1].Arguments[0] == "--no-extra-output" && f.Process.Requests[1].Arguments[1] == "--codex"
+					   && std::ranges::count(f.Process.Requests[1].Arguments, std::string{ "--no-extra-output" }) == 1,
+				   "with its own check command, and its arguments once, first, as its turns get them");
+			expect(f.state().State.AgentCheck.State == setup_check_state::passed && f.state().CheckedEntry == std::optional{ codex }, "and it passes");
+		}
+		// Check all with two custom Codex entries: each runs its own Program.
+		{
+			auto f  = fixture{ };
+			f.Codex = core::agent_search_candidate{ .Path = "/Users/me/.local/bin/codex" };
+			f.Host->load();
+			f.settle();
+			f.Host->add_agent(entry("First Codex", "/opt/corp/bin/first"), true);
+			f.Host->add_agent(entry("Second Codex", "/opt/corp/bin/second"), false);
+			f.Host->detect();
+			f.settle();
+			auto answers = passing();
+			std::ranges::move(passing(), std::back_inserter(answers));
+			f.Process.Answers = std::move(answers);
+			f.Host->check_all();
+			f.settle();
+			const auto& requests = f.Process.Requests;
+			expect(requests.size() == 4U && requests[0].Executable == "/opt/corp/bin/first" && requests[1].Executable == "/opt/corp/bin/first" && requests[2].Executable == "/opt/corp/bin/second"
+					   && requests[3].Executable == "/opt/corp/bin/second",
+				   "Check all runs each entry's own Program");
+			const auto& kept = f.state().Preferences.EntryChecks;
+			expect(kept.size() == 2U && std::ranges::all_of(kept, [](const application::agent_entry_check_record& aRecord) { return aRecord.Check.State == setup_check_state::passed; }), "and both pass");
+		}
+		// No Codex found anywhere: the entry is still checked, and passes.
+		{
+			auto f = fixture{ };
+			f.Host->load();
+			f.settle();
+			f.Host->add_agent(entry("Launcher Codex"), true);
+			f.Host->detect();
+			f.settle();
+			expect(std::ranges::none_of(f.state().State.Rows, [](const core::agent_setup_row& aRow) { return aRow.Agent == setup_agent::codex && aRow.Path != "/opt/corp/bin/launcher"; }),
+				   "no other Codex is found");
+			f.Process.Answers = passing();
+			f.Host->check_all();
+			f.settle();
+			expect(ranOwn(f.Process.Requests, launcher) && f.state().Preferences.EntryChecks.size() == 1U && f.state().Preferences.EntryChecks.front().Check.State == setup_check_state::passed,
+				   "with nothing found it runs its own Program and passes, never 'not found'");
+			const auto failures = [&f] {
+				auto texts = std::vector<std::string>{ };
+				for (const auto& event : f.Log->Events) {
+					texts.emplace_back(event.Summary.text());
+				}
+				return texts;
+			}();
+			expect(std::ranges::none_of(failures, [](const std::string& aLine) { return aLine.find("agent_not_found") != std::string::npos; }), "and no agent_not_found is settled");
+		}
+		// A Program that cannot run is refused by name, and runs nothing.
+		{
+			auto f    = fixture{ };
+			f.Refusal = core::agent_wrapper_refusal::missing;
+			f.Host->load();
+			f.settle();
+			f.Host->add_agent(entry("Gone Codex", "/opt/corp/bin/gone"), true);
+			f.settle();
+			// Added while the inspector refused nothing, then the file is gone.
+			f.Host->check_all();
+			f.settle();
+			const auto& kept = f.state().Preferences.EntryChecks;
+			expect(f.Process.Requests.empty() && kept.size() == 1U && kept.front().Check.Failure == core::agent_setup_failure::program_refused, "a missing Program is refused, running nothing");
+			expect(f.state().CheckDetail.starts_with("/opt/corp/bin/gone: "), "naming the path, then why: " + f.state().CheckDetail);
+		}
+		// A failed check's details name what ran.
+		{
+			auto f = fixture{ };
+			f.Host->load();
+			f.settle();
+			f.Host->add_agent(entry("Launcher Codex"), true);
+			f.Host->detect();
+			f.settle();
+			f.Process.Answers = { said(application::agent_run_outcome::success, "launcher 0.7.0-pre"), said(application::agent_run_outcome::nonzero_exit, "must be the first argument", 2) };
+			f.Host->check();
+			f.settle();
+			expect(f.state().State.AgentCheck.State == setup_check_state::failed && f.state().CheckDetail.starts_with("Ran: /opt/corp/bin/launcher --no-extra-output --codex …and the check's own\n"),
+				   "the details name the program and the entry's arguments first: " + f.state().CheckDetail);
+		}
 	}
 
 	[[nodiscard]] auto names(const application::agent_setup_projection& aProjection) -> std::vector<std::string>
@@ -1092,6 +1210,7 @@ auto main() -> int
 	test_the_agent_list();
 	test_check_from_settings();
 	test_check_all_keeps_each_result();
+	test_a_custom_entry_is_checked_with_its_own_program();
 	test_a_workspace_check_survives_a_restart();
 	test_the_setup_follows_the_list();
 	test_a_custom_codex_check_proves_its_instructions_arrive();
