@@ -2,6 +2,7 @@
 
 #include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/application/review_queue_refresh.hpp"
+#include "bpr/core/code_context_roles.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/header_source_navigation.hpp"
 #include "bpr/core/hex.hpp"
@@ -980,6 +981,7 @@ namespace bpr::app {
 				++DisplayAdoptedClassifications;
 			}
 		}
+		learn_markdown_code_context();
 	}
 
 	/// \brief Hands one published classification to every side it describes.
@@ -1055,6 +1057,52 @@ namespace bpr::app {
 				++DroppedClassifications;
 			}
 		}
+		learn_markdown_code_context();
+	}
+
+	/// \brief [[BPR-2351]]. Reads the names of the file on screen off its
+	/// head's classification, for code anchored to it: a finding's place, a
+	/// thread's file, a tour stop's.
+	///
+	/// \details Only the reviewed revision teaches: the right side of an
+	/// unfiltered comparison whose right is the pull request's head, with
+	/// both its bytes (the diff on screen) and its spans (the panes') already
+	/// held. Nothing is read or classified for it. The readers asked about
+	/// that file are answered again, from the cache.
+	void github_application::implementation::learn_markdown_code_context()
+	{
+		if (Closing || Window == nullptr || AppearanceHost == nullptr || MarkdownCode == nullptr || !SelectedDiffPublication) {
+			return;
+		}
+		auto* const surface = Window->comparison_surface();
+		const auto& context = surface->current_context();
+		const auto& shown   = surface->current_result();
+		const auto& spans   = surface->token_spans(core::diff_side::right);
+		if (!context || !shown || !spans || shown->Alignment.Key != context->Key || SelectedDiffPublication->Key != context->Key || !context->Key.RightBlob || context->Key.Filter
+			|| !shown->RightDocument || !conversation_endpoint_is_current(SelectedDiffPublication->Request.Diff.Comparison, core::diff_side::right)) {
+			return;
+		}
+		const auto blob  = *context->Key.RightBlob;
+		const auto known = std::ranges::find_if(ClassifiedDefinitions, [&blob](const auto& aEntry) { return aEntry.first == blob; });
+		if (known == ClassifiedDefinitions.end()) {
+			return;
+		}
+		const auto  key  = AppearanceHost->classification_key({ .Blob = blob, .Definition = known->second });
+		const auto& path = SelectedDiffPublication->Request.File.PresentationPath;
+		auto        kept = std::ranges::find(MarkdownCodeContexts, path, &std::pair<std::string, application::markdown_code_context>::first);
+		if (kept != MarkdownCodeContexts.end() && kept->second.File == key) {
+			return;
+		}
+		const auto& bytes  = shown->RightDocument->Bytes;
+		auto        roles  = core::code_context_roles_of(std::string_view{ reinterpret_cast<const char*>(bytes.data()), bytes.size() }, *spans);
+		auto        learnt = application::markdown_code_context{ .File = key, .Roles = std::make_shared<const core::code_context_roles>(std::move(roles)) };
+		if (kept != MarkdownCodeContexts.end()) {
+			MarkdownCodeContexts.erase(kept);
+		} else if (MarkdownCodeContexts.size() >= MaximumMarkdownCodeContexts) {
+			MarkdownCodeContexts.erase(MarkdownCodeContexts.begin());
+		}
+		MarkdownCodeContexts.emplace_back(path, std::move(learnt));
+		MarkdownCode->context_changed(path);
 	}
 
 	/// \brief Reads the operating system's appearance as a bounded fact.

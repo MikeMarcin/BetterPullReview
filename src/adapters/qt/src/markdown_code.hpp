@@ -139,6 +139,12 @@ namespace bpr::qt::detail {
 		/// leaves inline code plain. Kept through `clear` and `place`.
 		void               set_inline_selector(std::string aSelector);
 		[[nodiscard]] auto inline_selector() const noexcept -> const std::string& { return InlineSelector; }
+		/// \brief [[BPR-2351]]. The reviewed file this body's code is
+		/// anchored to, asked with every request; answers for another anchor
+		/// are not taken. Empty, the default, anchors to none. Kept through
+		/// `clear` and `place`.
+		void               set_anchor(std::string aAnchor) { Anchor = std::move(aAnchor); }
+		[[nodiscard]] auto anchor() const noexcept -> const std::string& { return Anchor; }
 		/// \brief The inline code texts of the body, once each, and their spans.
 		struct inline_code
 		{
@@ -215,6 +221,7 @@ namespace bpr::qt::detail {
 		void                     place_inline(const QTextDocument& aDocument);
 		std::vector<block>       Blocks;
 		std::string              InlineSelector;
+		std::string              Anchor;
 		std::vector<inline_code> Inline;
 		markdown_code_colours    Colours;
 		QFont                    CodeFont;

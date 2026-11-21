@@ -10,6 +10,8 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
+#include "bpr/core/code_context_roles.hpp"
+#include "bpr/core/git_objects.hpp"
 #include "bpr/core/markdown_code.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_report_view.hpp"
@@ -44,12 +46,15 @@
 
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <deque>
 #include <functional>
 #include <iostream>
 #include <map>
 #include <optional>
+#include <span>
+#include <stop_token>
 #include <string>
 #include <utility>
 #include <vector>
@@ -945,6 +950,108 @@ namespace {
 		expect(std::ranges::all_of(block.layout()->formats(), [&](const QTextLayout::FormatRange& aRange) { return aRange.start >= at && aRange.start + aRange.length <= at + 13; }),
 			   "and nothing outside the span");
 	}
+
+	/// [[BPR-2351]] (owner, 2026-11-21: "when we syntax highlight for a
+	/// report finding are we using the context of where the comment is
+	/// located to find names of symbols? Seems like we should."). A finding's
+	/// `cpp` block names a snake_case type its excerpt never declares; the
+	/// file at the finding's place does. Its own grammar leaves the name
+	/// plain; once the file view's classification of that file is held, the
+	/// block colours it as a type, and a name the file does not have keeps
+	/// the block's own colour.
+	void check_report_file_context(composed& aPath)
+	{
+		constexpr auto path = std::string_view{ "src/engine/swap_chain.cpp" };
+		constexpr auto file = std::string_view{
+			"namespace engine {\n"
+			"struct frame_size { int Width; int Height; };\n"
+			"auto clamp_size(frame_size aSize) -> frame_size;\n"
+			"}\n"
+		};
+		// The file view's classification of the file: the same packaged
+		// classifier and C++ refinement the panes use.
+		const auto bytes = std::span{ reinterpret_cast<const std::uint8_t*>(file.data()), file.size() };
+		const auto blob  = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1);
+		expect(blob.has_value(), "the file has a blob identity");
+		const auto key = application::token_span_cache_key{ .Blob = *blob, .Definition = aPath.Catalog.definition_for_path(path) };
+		aPath.Texts.hold(*blob, std::make_shared<const std::string>(file));
+		const auto classified = aPath.Classifier.classify({ .Context = { }, .Key = key, .MaximumSpans = 4096U }, std::stop_token{ });
+		aPath.Texts.release(*blob);
+		expect(classified.Status == application::syntax_classification_status::available, "the file is classified");
+		const auto roles = std::make_shared<const core::code_context_roles>(core::code_context_roles_of(file, classified.Spans));
+		expect(core::code_context_role(*roles, "frame_size") == core::appearance_role::syntax_type, "the file declares frame_size, a type");
+
+		auto learnt = false;
+		auto asked  = std::vector<std::string>{ };
+		aPath.Host.set_context_source([&](const std::string_view aAnchor) -> std::optional<application::markdown_code_context> {
+			asked.emplace_back(aAnchor);
+			if (!learnt || aAnchor != path) {
+				return std::nullopt;
+			}
+			return application::markdown_code_context{ .File = key, .Roles = roles };
+		});
+
+		auto report = qt::agent_report_view{ };
+		report.resize(820, 700);
+		report.show();
+		report.set_dresser([&aPath](qt::markdown_body_view& aView) {
+			aView.set_code_theme(code_theme(core::appearance_variant::light));
+			aPath.bind(aView);
+		});
+		const auto deliver = [&aPath, &report] {
+			while (!aPath.Effects.Tasks.empty() || !aPath.Decisions.Tasks.empty()) {
+				for (auto* lane : { &aPath.Effects, &aPath.Decisions }) {
+					while (!lane->Tasks.empty()) {
+						auto task = std::move(lane->Tasks.front());
+						lane->Tasks.pop_front();
+						task();
+					}
+				}
+			}
+			for (const auto& publication : std::exchange(aPath.Published, { })) {
+				report.apply_code_syntax(publication);
+			}
+			settle();
+		};
+		const auto markdown = QStringLiteral("# Review of #22\n\n**Verdict:** Needs changes\n\nOne thing must be fixed.\n\n## Must fix\n\n### issue (blocking): A zero height still asserts\n\n"
+											 "`src/engine/swap_chain.cpp:2-3`\n\n"
+											 "The clamp keeps the width and drops the height.\n\n"
+											 "```cpp\nframe_size clamped = clamp_size(size);\n```\n");
+		report.present({ .Turn = 1U, .Title = QStringLiteral("Review of #22"), .Markdown = markdown, .Question = QStringLiteral("Review this pull request"), .Byline = { } });
+		settle();
+		deliver();
+		expect(report.dressed_shown() && report.code_views().size() == 1U, "the finding's code is one box on the page");
+		auto* const box   = report.code_views().front();
+		const auto* store = box->code_store();
+		expect(store != nullptr && store->anchor() == path, "the box is anchored to the finding's file");
+		const auto typeColour = code_theme(core::appearance_variant::light).Colors[static_cast<std::size_t>(core::appearance_role::syntax_type)];
+		const auto colours    = code_theme(core::appearance_variant::light).Colors;
+		const auto coloured   = [&](const int aStart, const int aLength, const QColor& aColour) {
+			const auto found = std::ranges::find_if(store->blocks(), [](const auto& aBlock) { return aBlock.Text && aBlock.Text->starts_with("frame_size"); });
+			if (found == store->blocks().end()) {
+				return false;
+			}
+			const auto formats = store->line_formats_of(*found, 0U, colours);
+			return std::ranges::any_of(formats, [&](const QTextLayout::FormatRange& aRange) {
+				return aRange.start == aStart && aRange.length == aLength && aRange.format.foreground().color() == aColour;
+			});
+		};
+		expect(!coloured(0, 10, typeColour), "before the file is shown, the excerpt alone leaves frame_size plain");
+		expect(std::ranges::find(asked, std::string{ path }) != asked.end(), "the block asked for its file's context, and none was there");
+
+		// The file view classifies the file: its names arrive, and the box is
+		// coloured again, from the cache.
+		learnt                = true;
+		const auto classifies = aPath.Host.classifications();
+		aPath.Host.context_changed(path);
+		deliver();
+		expect(aPath.Host.classifications() == classifies, "recolouring classifies nothing");
+		expect(coloured(0, 10, typeColour), "a type declared only in the finding's file is coloured as a type");
+		expect(coloured(21, 10, colours[static_cast<std::size_t>(core::appearance_role::syntax_function)]), "the block's own function keeps its colour");
+		expect(!std::ranges::any_of(store->line_formats_of(store->blocks().front(), 0U, colours), [&](const QTextLayout::FormatRange& aRange) { return aRange.start == 11 || aRange.start == 32; }),
+			   "names the file does not have stay as the block coloured them");
+		aPath.Host.set_context_source({ });
+	}
 } // namespace
 
 int main(int aArgc, char** aArgv)
@@ -960,6 +1067,7 @@ try {
 	check_arrival(view, path);
 	check_inline(path);
 	check_report_member_access(path);
+	check_report_file_context(path);
 	check_reopened_agent_answer();
 	check_diff(view);
 	check_suggestions(view);

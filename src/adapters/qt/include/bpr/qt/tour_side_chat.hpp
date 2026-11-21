@@ -418,6 +418,9 @@ namespace bpr::qt {
 		/// [[BPR-1914]] v004. The file inline code in a chat is coloured as:
 		/// a stop's own file, or the language most of the tour's stops are in.
 		[[nodiscard]] auto inline_selector() const -> std::string;
+		/// \brief [[BPR-2351]]. The file a stop's chat is about, which its
+		/// code is anchored to; empty for the whole tour's chat.
+		[[nodiscard]] auto code_context() const -> std::string;
 		void               refresh_header();
 		void               refresh_actions();
 		void               show_passage();

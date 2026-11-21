@@ -1759,6 +1759,18 @@ namespace bpr::qt {
 		}
 	}
 
+	void markdown_body_view::set_code_context(std::string aAnchor)
+	{
+		if (Code->anchor() == aAnchor) {
+			return;
+		}
+		Code->set_anchor(std::move(aAnchor));
+		if (!Body.empty()) {
+			prepare_rendered();
+			height_changed();
+		}
+	}
+
 	void markdown_body_view::set_suggestions(std::optional<markdown_suggestion_presentation> aSuggestions)
 	{
 		if (Suggestions == aSuggestions) {

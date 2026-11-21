@@ -3951,8 +3951,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# workspaces again (window_agent_setup.cpp), so Settings counts the one
 	# the check kept. Local measurement only; no grant, provider, transport,
 	# mutation or publication path changes.
+	# [[BPR-2351]] reseal: window_construction.cpp gives the Markdown
+	# code host a context source, and window_workbench.cpp learns the shown
+	# head file's identifier roles from the panes' spans for code anchored
+	# to it. Read-only presentation; no grant, provider, transport,
+	# mutation or publication path changes.
 	set(bpr_expected_production_app_manifest_digest
-        "f490f939deaa91321976c89705f6e2aa03c3f1033b05fea9cfaae2eee6fcf88f"
+        "3ce3715df38d564e1edfe20d170ad7cd4907018d3f912d0b2444e71ab66c17f5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

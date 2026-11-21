@@ -292,6 +292,35 @@ spans without classifying again. Tour previews and dialogs have no dispatch
 and show code uncoloured, as they show images as placeholders. Adjacent fenced
 blocks stand 8 px apart, as GitHub draws them.
 
+**The file's names ([[BPR-2351]]).** A block anchored to a reviewed file
+borrows that file's identifier roles. The anchor is the finding's place for a
+report finding's code box, the thread's file for a thread's posts, and the
+stop's file for a tour stop's side chat; other readers anchor to nothing. The
+reader sends the anchor's repository path with each request, and accepts
+only answers for that anchor. When the panes have shown the file at the pull
+request's head, unfiltered, the composition reads names and roles from
+the bytes on screen and the panes' refined spans
+(`core::code_context_roles_of`). A name keeps one role among namespace, type,
+function, enum member and macro; a type that is also called stays a type,
+and any other mix of roles, including variable or constant, drops the name.
+The host then repaints the block's own identifiers by name
+(`core::borrow_code_context_roles`). The block's grammar still decides every
+span, so only an identifier it left plain or gave a heuristic type, function
+or macro role takes the file's role. After `.` or `->` only a function is
+borrowed; before `::` only a namespace or a type. Strings, comments, keywords,
+built-ins, directive lines and the block's own namespaces and enum members
+are never repainted. A name the file does not have, such as a new name in a
+proposed fix, keeps the block's own role. The block is still classified once
+per text and definition. The borrowed spans are cached by the block's key and
+the file's classification key (128 entries), so the same block in two files
+can differ and a new head is a new entry. A block's language must match its
+file's (C and C++ count as one family). Nothing is fetched for a file the
+panes have not shown: such a block keeps its own colours, and when the file's
+names arrive the recent anchored asks for it (at most 256) are answered again
+from the cache. At most 32 files' names are held. The composition reads each
+file's names once per head on the GUI thread, with at most 16,384 names of at
+most 128 bytes. No new event is logged.
+
 **Diff blocks.** `diff`, `patch` and `udiff` blocks mark each line by GitHub's
 `source.diff` grammar, rule for rule (`core::markdown_diff_marks`): added and
 removed lines and `+++`/`---` file headers are tinted behind their text in

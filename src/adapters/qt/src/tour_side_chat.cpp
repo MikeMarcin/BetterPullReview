@@ -1510,18 +1510,34 @@ namespace bpr::qt {
 		return lines;
 	}
 
+	namespace {
+		/// \brief The file a stop is on: its source, else its destination.
+		[[nodiscard]] auto stop_path(const core::tour_stop& aStop) -> std::string
+		{
+			if (const auto& source = aStop.Mapped ? aStop.Mapped : aStop.Original; source) {
+				return source->Path;
+			}
+			return aStop.Destination ? aStop.Destination->Path : std::string{ };
+		}
+	} // namespace
+
+	auto tour_side_chat::code_context() const -> std::string
+	{
+		const auto thread = current();
+		if (!thread || !Draft || thread->Kind != core::tour_thread_kind::stop) {
+			return { };
+		}
+		const auto found = std::ranges::find(Draft->Stops, thread->Stop, &core::tour_stop::Id);
+		return found != Draft->Stops.end() ? stop_path(*found) : std::string{ };
+	}
+
 	auto tour_side_chat::inline_selector() const -> std::string
 	{
 		const auto thread = current();
 		if (!thread || !Draft) {
 			return { };
 		}
-		const auto pathOf = [](const core::tour_stop& aStop) -> std::string {
-			if (const auto& source = aStop.Mapped ? aStop.Mapped : aStop.Original; source) {
-				return source->Path;
-			}
-			return aStop.Destination ? aStop.Destination->Path : std::string{ };
-		};
+		const auto pathOf = stop_path;
 		if (thread->Kind == core::tour_thread_kind::stop) {
 			const auto found = std::ranges::find(Draft->Stops, thread->Stop, &core::tour_stop::Id);
 			if (found != Draft->Stops.end()) {
@@ -1572,6 +1588,8 @@ namespace bpr::qt {
 		// being highlighted only blocks". Inline code reads as the part's
 		// code does; with no language it stays plain monospace on its wash.
 		view->set_inline_code_selector(aInlineSelector);
+		// [[BPR-2351]]. A stop's chat reads its code with the stop's file.
+		view->set_code_context(code_context());
 		view->setFocusPolicy(Qt::NoFocus);
 		if (CodeFont != QFont{ }) {
 			view->set_code_font(CodeFont, TabStop);

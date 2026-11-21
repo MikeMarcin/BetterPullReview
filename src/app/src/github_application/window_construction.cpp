@@ -1958,6 +1958,12 @@ namespace bpr::app {
 				}
 			});
 		MarkdownCode->observe_work(Profile->InsightsRecorder);
+		// [[BPR-2351]]. Code anchored to a reviewed file borrows the names
+		// its classified head gave, when the panes have shown it.
+		MarkdownCode->set_context_source([this](const std::string_view aAnchor) -> std::optional<application::markdown_code_context> {
+			const auto found = std::ranges::find(MarkdownCodeContexts, aAnchor, [](const auto& aEntry) -> std::string_view { return aEntry.first; });
+			return found == MarkdownCodeContexts.end() ? std::nullopt : std::optional{ found->second };
+		});
 		Window->set_markdown_code_dispatch([this](std::vector<application::markdown_code_syntax_request> aRequests) {
 			if (!Closing && MarkdownCode) {
 				MarkdownCode->request(aRequests);

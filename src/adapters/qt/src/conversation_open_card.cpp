@@ -1563,6 +1563,8 @@ namespace bpr::qt {
 		}
 		// [[BPR-1564]]. Before the body, so it is read once.
 		Reader->set_suggestions(aStyle.Suggestions);
+		// [[BPR-2351]]. Likewise the file its code borrows names from.
+		Reader->set_code_context(aStyle.CodeContext);
 		// [[BPR-1802]]. Likewise the repository its permalinks are judged by.
 		Reader->set_permalink_repository(aStyle.PermalinkRepository);
 		// [[BPR-1806]]. A published tour stop reads as one: its plate over

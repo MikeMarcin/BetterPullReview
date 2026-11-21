@@ -4,6 +4,7 @@
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/insights_observer.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/core/code_context_roles.hpp"
 #include "bpr/core/epoch_model.hpp"
 
 #include <cstddef>
@@ -25,12 +26,21 @@
 /// its own, over the same classifier and definitions as the panes, and
 /// publishes the spans with the same text and file name, so a reader can tell
 /// they are for a block it shows. It holds no reader, no body and no colour.
+///
+/// [[BPR-2351]]. A block anchored to a reviewed file (a finding's place, a
+/// thread's file, a tour stop's) names that file. When the composition
+/// already holds the file view's classification of it, the block borrows the
+/// file's identifier roles (`core::borrow_code_context_roles`); otherwise it
+/// is coloured from its own text alone, and again when the file's arrive.
 namespace bpr::application {
 	/// \brief A block's text, and the file name that chooses its definition.
 	struct markdown_code_syntax_request
 	{
 		std::string                        Selector;
 		std::shared_ptr<const std::string> Text;
+		/// [[BPR-2351]]. The repository path of the reviewed file the block
+		/// is anchored to; empty for a block anchored to none.
+		std::string Anchor = { };
 	};
 
 	/// \brief The spans of one block's text, for every reader showing it.
@@ -39,6 +49,18 @@ namespace bpr::application {
 		std::string                        Selector;
 		std::shared_ptr<const std::string> Text;
 		shared_token_spans                 Spans;
+		/// [[BPR-2351]]. The anchor it was asked with: the spans are for
+		/// blocks anchored there.
+		std::string Anchor = { };
+	};
+
+	/// \brief [[BPR-2351]]. What an anchored block borrows from its file:
+	/// the names and roles of the file view's classification, and the key
+	/// that classification is cached under, which names the facts.
+	struct markdown_code_context
+	{
+		token_span_cache_key                            File;
+		std::shared_ptr<const core::code_context_roles> Roles;
 	};
 
 	/// \brief The texts being classified, read by identity on the effect lane.
@@ -78,6 +100,9 @@ namespace bpr::application {
 	public:
 		using definition_resolver = std::function<std::optional<syntax_definition_version>(std::string_view)>;
 		using publisher           = std::function<void(const markdown_code_syntax_publication&)>;
+		/// \brief [[BPR-2351]]. The context an anchor already has, read
+		/// without any fetch; none when its file has not been classified.
+		using context_resolver = std::function<std::optional<markdown_code_context>(std::string_view)>;
 
 		/// \param aDefinitionFor The definition a file name selects; none for
 		/// plain text, which is never classified.
@@ -88,7 +113,13 @@ namespace bpr::application {
 		auto operator=(const markdown_code_syntax_host&) -> markdown_code_syntax_host& = delete;
 
 		/// \brief Asks for each block's spans; a cached text answers at once.
-		void               request(const std::vector<markdown_code_syntax_request>& aRequests);
+		void request(const std::vector<markdown_code_syntax_request>& aRequests);
+		/// \brief [[BPR-2351]]. Where an anchored block's file context comes
+		/// from. Unset, every block is coloured from its own text alone.
+		void set_context_source(context_resolver aContextFor);
+		/// \brief [[BPR-2351]]. The context of `aAnchor` changed: the blocks
+		/// recently asked about there are answered again, from the cache.
+		void               context_changed(std::string_view aAnchor);
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		/// \brief Texts the classifier was asked about.
@@ -97,6 +128,11 @@ namespace bpr::application {
 		[[nodiscard]] auto cache_hits() const noexcept -> std::size_t;
 		/// \brief Requests refused: plain, too large, or no identity.
 		[[nodiscard]] auto refused() const noexcept -> std::size_t;
+		/// \brief [[BPR-2351]]. Anchored answers that borrowed a file's roles,
+		/// computed rather than served from the borrowed cache.
+		[[nodiscard]] auto borrowed() const noexcept -> std::size_t;
+		/// \brief [[BPR-2351]]. Anchored answers served from the borrowed cache.
+		[[nodiscard]] auto borrowed_hits() const noexcept -> std::size_t;
 		[[nodiscard]] auto waiting() const noexcept -> std::size_t;
 
 		void observe_work(std::shared_ptr<insights_observer> aObserver);

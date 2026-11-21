@@ -105,6 +105,9 @@ namespace bpr::qt {
 		std::optional<markdown_code_theme> CodeTheme;
 		/// [[BPR-1564]]. A comment on lines: how its suggestions show.
 		std::optional<markdown_suggestion_presentation> Suggestions;
+		/// [[BPR-2351]]. The file the thread is on, which its posts' code is
+		/// anchored to; empty for a conversation comment.
+		std::string CodeContext;
 		/// [[BPR-1775]]. Edit is offered on my own published comments.
 		bool CommentEditOffered = false;
 		/// [[BPR-1806]]. Open in tour is offered on a published tour stop.

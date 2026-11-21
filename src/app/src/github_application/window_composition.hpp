@@ -2214,6 +2214,10 @@ namespace bpr::app {
 		void adopt_classification(
 			const application::token_span_publication& aSpans);
 
+		/// \brief [[BPR-2351]]. Keeps the names of the reviewed file on
+		/// screen, read off its classified head, for code anchored to it.
+		void learn_markdown_code_context();
+
 		[[nodiscard]] static auto native_appearance_observation() noexcept
 			-> core::appearance_observation;
 
@@ -3133,6 +3137,14 @@ namespace bpr::app {
 		std::unique_ptr<application::markdown_blob_snippet_host>      MarkdownSnippets;
 		std::uint64_t                                                 MotionSubscription = 0U;
 		decltype(github_profile_runtime::QueueStore)&                 QueueStore         = Profile->QueueStore;
+
+		/// [[BPR-2351]]. The names of the reviewed files shown at their
+		/// head, by path, newest last; anchored code borrows them. Learnt
+		/// only from what the panes already classified, so nothing is read
+		/// for them.
+		static constexpr auto                                                   MaximumMarkdownCodeContexts = std::size_t{ 32U };
+		std::vector<std::pair<std::string, application::markdown_code_context>> MarkdownCodeContexts;
+
 #if defined(BPR_BUILD_TESTING)
 		decltype(github_profile_runtime::QueueStoreRefusesForTesting)& QueueStoreRefusesForTesting = Profile->QueueStoreRefusesForTesting;
 #endif

@@ -153,6 +153,11 @@ namespace bpr::qt {
 		/// through the same dispatch as fenced code. Empty, the default for
 		/// every body that does not ask, leaves inline code plain.
 		void set_inline_code_selector(std::string aSelector);
+		/// \brief [[BPR-2351]]. The repository path of the reviewed file
+		/// this body's code is anchored to (a finding's place, a thread's
+		/// file), asked with every code request so it may borrow that file's
+		/// names. Empty, the default, anchors to none.
+		void set_code_context(std::string aAnchor);
 		/// \brief [[BPR-2266]]. Colours the inline code (fixed-pitch runs) of
 		/// another document that shows this body's text, as this body colours
 		/// its own: a report's page drawn from the same Markdown.

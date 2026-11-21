@@ -791,6 +791,9 @@ namespace bpr::qt {
 					view->set_in_place(true);
 					view->set_code_block_tools(true);
 					view->set_code_first_line(slot.Suggestion ? std::nullopt : slot.FirstLine);
+					// [[BPR-2351]]. Before the dresser binds the dispatch, so the
+					// first request already names the finding's file.
+					view->set_code_context(slot.Path);
 					if (Dresser) {
 						Dresser(*view);
 					}

@@ -605,12 +605,12 @@ namespace bpr::qt::detail {
 	auto markdown_code_store::requests() const -> std::vector<application::markdown_code_syntax_request>
 	{
 		auto       requests = std::vector<application::markdown_code_syntax_request>{ };
-		const auto add      = [&requests](const std::string& aSelector, const std::shared_ptr<const std::string>& aText) {
+		const auto add      = [this, &requests](const std::string& aSelector, const std::shared_ptr<const std::string>& aText) {
 			if (aSelector.empty() || !aText) {
 				return;
 			}
 			if (std::ranges::none_of(requests, [&](const application::markdown_code_syntax_request& aRequest) { return aRequest.Selector == aSelector && *aRequest.Text == *aText; })) {
-				requests.push_back({ .Selector = aSelector, .Text = aText });
+				requests.push_back({ .Selector = aSelector, .Text = aText, .Anchor = Anchor });
 			}
 		};
 		for (const auto& entry : Blocks) {
@@ -627,7 +627,9 @@ namespace bpr::qt::detail {
 
 	auto markdown_code_store::apply(const application::markdown_code_syntax_publication& aSpans) -> bool
 	{
-		if (!aSpans.Text || !aSpans.Spans) {
+		// [[BPR-2351]]. Spans asked under another anchor borrowed another
+		// file's names, or none.
+		if (!aSpans.Text || !aSpans.Spans || aSpans.Anchor != Anchor) {
 			return false;
 		}
 		auto taken = false;

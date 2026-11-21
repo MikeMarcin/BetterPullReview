@@ -84,7 +84,9 @@ namespace bpr::qt {
 		/// it shows as the Agent tab shows a suggested change.
 		bool                     Suggestion = false;
 		std::vector<std::string> Replaced;
-		std::string              Path;
+		/// The finding's file: a suggestion's, and the file every code block
+		/// under the finding is anchored to ([[BPR-2351]]).
+		std::string Path;
 
 		auto operator==(const report_code_slot&) const -> bool = default;
 	};

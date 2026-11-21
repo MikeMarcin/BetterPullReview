@@ -312,10 +312,13 @@ namespace bpr::qt {
 			return QStringLiteral("<a name=\"%1%2\"></a>").arg(QString::fromLatin1(report_heading_anchor)).arg(aOutline);
 		}
 
-		[[nodiscard]] auto code_html(const dressed_block& aBlock, const palette& aPalette) -> QString
+		[[nodiscard]] auto code_html(const dressed_block& aBlock, const dressed_item* aItem, const palette& aPalette) -> QString
 		{
 			if (Collected != nullptr) {
-				return code_marker({ .Language = aBlock.Language, .Lines = aBlock.Lines, .FirstLine = aBlock.FirstLine });
+				// [[BPR-2351]]. Code under a finding's place is anchored to
+				// that file, so it can read with the file's names.
+				const auto place = aItem != nullptr ? core::read_report_place(aItem->Place) : std::nullopt;
+				return code_marker({ .Language = aBlock.Language, .Lines = aBlock.Lines, .FirstLine = aBlock.FirstLine, .Path = place ? place->Path : std::string{ } });
 			}
 			auto lines = QStringList{ };
 			for (auto index = std::size_t{ 0U }; index < aBlock.Lines.size(); ++index) {
@@ -406,9 +409,9 @@ namespace bpr::qt {
 								.arg(aPalette.Dim, sans(), aPalette.Ink, QObject::tr("Check"), inline_html(block.Text, aPalette));
 					break;
 				case dressed_block_kind::rows: html += rows_html(block.Rows, aPalette); break;
-				case dressed_block_kind::code: html += code_html(block, aPalette); break;
+				case dressed_block_kind::code: html += code_html(block, aItem, aPalette); break;
 				case dressed_block_kind::suggestion:
-					html += aItem != nullptr && !aItem->Place.empty() ? suggestion_html(block, *aItem, aPalette) : code_html(block, aPalette);
+					html += aItem != nullptr && !aItem->Place.empty() ? suggestion_html(block, *aItem, aPalette) : code_html(block, aItem, aPalette);
 					break;
 				}
 			}

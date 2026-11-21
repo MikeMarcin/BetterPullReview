@@ -2,14 +2,20 @@
 // each text and definition once, the cache answering a second reader, plain
 // and oversized text never classified, a failure ending only its own text,
 // and shutdown leaving nothing to publish.
+// [[BPR-2351]]. A block anchored to a reviewed file borrows that file's
+// names when the composition holds them, keyed by the file, with no fetch.
 
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/core/markdown_code.hpp"
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <deque>
 #include <functional>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -68,7 +74,10 @@ namespace {
 			}
 			Read.push_back(*text);
 			answer.Status = application::syntax_classification_status::available;
-			auto line     = std::uint32_t{ 0U };
+			if (Plain) {
+				return answer;
+			}
+			auto line = std::uint32_t{ 0U };
 			for (auto at = std::size_t{ 0U }; at <= text->size(); ++line) {
 				const auto end = std::min(text->find('\n', at), text->size());
 				if (end > at) {
@@ -83,6 +92,9 @@ namespace {
 		std::vector<std::string>          Read;
 		std::size_t                       Calls = 0U;
 		bool                              Fail  = false;
+		/// Answers no span: every name is left plain, as a grammar leaves a
+		/// snake_case type it cannot see declared.
+		bool Plain = false;
 	};
 
 	auto definition_for(const std::string_view aSelector) -> std::optional<application::syntax_definition_version>
@@ -178,12 +190,115 @@ namespace {
 		host.request({ request("code.py", "later = 1") });
 		expect(effects.Tasks.empty() && host.refused() == 2U, "requests after shutdown are refused");
 	}
+	auto anchored(std::string aSelector, std::string aText, std::string aAnchor) -> application::markdown_code_syntax_request
+	{
+		auto asked   = request(std::move(aSelector), std::move(aText));
+		asked.Anchor = std::move(aAnchor);
+		return asked;
+	}
+
+	/// \brief A file's context, as the composition learns it from the panes.
+	auto context_of(const std::uint8_t aBlob, std::string aDefinition, const core::appearance_role aRole) -> application::markdown_code_context
+	{
+		auto bytes = std::array<std::uint8_t, 32>{ };
+		bytes.fill(aBlob);
+		const auto file = application::token_span_cache_key{ .Blob = core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes }, .Definition = { .Name = std::move(aDefinition), .Version = 1U } };
+		return { .File = file, .Roles = std::make_shared<const core::code_context_roles>(core::code_context_roles{ .Names = { { .Name = "frame_size", .Role = aRole } } }) };
+	}
+
+	auto only_role(const application::markdown_code_syntax_publication& aPublication) -> std::optional<core::appearance_role>
+	{
+		if (!aPublication.Spans || aPublication.Spans->size() != 1U) {
+			return std::nullopt;
+		}
+		return aPublication.Spans->front().Role;
+	}
+
+	void borrows_file_context()
+	{
+		auto texts       = application::markdown_code_texts{ };
+		auto classifier  = fake_classifier{ texts };
+		classifier.Plain = true;
+		auto effects     = manual_executor{ };
+		auto decisions   = manual_executor{ };
+		auto published   = std::vector<application::markdown_code_syntax_publication>{ };
+		auto host        = application::markdown_code_syntax_host{ classifier, texts, effects, decisions, definition_for,
+																   [&](const application::markdown_code_syntax_publication& aPublication) { published.push_back(aPublication); } };
+		auto contexts    = std::map<std::string, application::markdown_code_context, std::less<>>{
+			{ "src/a.cpp", context_of(1U, "C++", core::appearance_role::syntax_type) },
+			{ "src/b.cpp", context_of(2U, "C++", core::appearance_role::syntax_namespace) },
+			{ "tools/gen.py", context_of(3U, "Python", core::appearance_role::syntax_type) },
+		};
+		auto asked = std::vector<std::string>{ };
+		host.set_context_source([&](const std::string_view aAnchor) -> std::optional<application::markdown_code_context> {
+			asked.emplace_back(aAnchor);
+			const auto found = contexts.find(aAnchor);
+			return found == contexts.end() ? std::nullopt : std::optional{ found->second };
+		});
+		const auto drain = [&] {
+			while (!effects.Tasks.empty() || !decisions.Tasks.empty()) {
+				effects.run();
+				decisions.run();
+			}
+		};
+		const auto answer = [&](const std::string& aAnchor) -> const application::markdown_code_syntax_publication* {
+			const auto found = std::ranges::find(published, aAnchor, &application::markdown_code_syntax_publication::Anchor);
+			return found == published.end() ? nullptr : &*found;
+		};
+
+		// One text, four readers: two files, a file in another language, and none.
+		constexpr auto block = "frame_size size;";
+		host.request({ anchored("code.cpp", block, "src/a.cpp"), anchored("code.cpp", block, "src/b.cpp"), anchored("code.cpp", block, "tools/gen.py"), request("code.cpp", block) });
+		drain();
+		expect(classifier.Calls == 1U, "one classification of the text, whatever it is anchored to");
+		expect(published.size() == 4U, "each anchor is answered: " + std::to_string(published.size()));
+		expect(answer("src/a.cpp") && only_role(*answer("src/a.cpp")) == core::appearance_role::syntax_type, "anchored to a file that declares it, the name is a type");
+		expect(answer("src/b.cpp") && only_role(*answer("src/b.cpp")) == core::appearance_role::syntax_namespace, "the same block in another file reads with that file's names");
+		expect(answer("tools/gen.py") && answer("tools/gen.py")->Spans->empty(), "a file in another language lends nothing");
+		expect(answer("") && answer("")->Spans->empty(), "an unanchored block is coloured from its own text alone");
+		expect(std::ranges::count(asked, std::string{ }) == 0, "an unanchored block asks for no context");
+		expect(host.borrowed() == 2U && host.borrowed_hits() == 0U, "two borrowings computed");
+
+		// The borrowed cache is keyed by the block and the file.
+		published.clear();
+		host.request({ anchored("code.cpp", block, "src/a.cpp"), anchored("code.cpp", block, "src/b.cpp") });
+		expect(published.size() == 2U && effects.Tasks.empty(), "both answered within the request");
+		expect(host.borrowed() == 2U && host.borrowed_hits() == 2U, "each from its own file's cached entry");
+		expect(only_role(*answer("src/a.cpp")) == core::appearance_role::syntax_type && only_role(*answer("src/b.cpp")) == core::appearance_role::syntax_namespace, "the cache never serves one file's spans to another");
+
+		// A file classified again (a new head) is a new entry.
+		contexts["src/a.cpp"] = context_of(4U, "C++", core::appearance_role::syntax_function);
+		published.clear();
+		host.request({ anchored("code.cpp", block, "src/a.cpp") });
+		expect(published.size() == 1U && only_role(published.front()) == core::appearance_role::syntax_function && host.borrowed() == 3U, "a file's new classification is borrowed afresh");
+
+		// No context yet: the block's own spans, nothing fetched; when the
+		// file's context arrives the block is answered again from the cache.
+		published.clear();
+		asked.clear();
+		host.request({ anchored("code.cpp", block, "src/c.cpp") });
+		expect(published.size() == 1U && published.front().Anchor == "src/c.cpp" && published.front().Spans->empty(), "a file not yet shown lends nothing");
+		expect(asked == std::vector<std::string>{ "src/c.cpp" } && effects.Tasks.empty() && classifier.Calls == 1U, "nothing is read or classified for the file");
+		contexts["src/c.cpp"] = context_of(5U, "C++", core::appearance_role::syntax_type);
+		published.clear();
+		host.context_changed("src/c.cpp");
+		expect(published.size() == 1U && published.front().Anchor == "src/c.cpp" && only_role(published.front()) == core::appearance_role::syntax_type, "the block is recoloured when its file's names arrive");
+		expect(effects.Tasks.empty() && classifier.Calls == 1U, "from the cache, classifying nothing");
+		published.clear();
+		host.context_changed("src/elsewhere.cpp");
+		expect(published.empty(), "another file's arrival answers nothing");
+
+		host.shutdown();
+		host.context_changed("src/c.cpp");
+		expect(published.empty(), "nothing after shutdown");
+	}
 } // namespace
 
 int main()
 {
 	classifies_once();
 	bounds_and_failures();
+	borrows_file_context();
 	std::cout << "markdown-code-syntax-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

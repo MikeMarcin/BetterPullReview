@@ -3870,6 +3870,9 @@ namespace bpr::qt {
 		style.Colours.CodeInk        = CodeInk;
 		style.CodeTheme              = CodeTheme;
 		style.PermalinkRepository    = PermalinkRepository;
+		if (!card.Path.isEmpty()) {
+			style.CodeContext = card.Path.toStdString();
+		}
 		// [[BPR-1564]]. A published comment on lines shows its suggestions as
 		// GitHub does: against the commented lines while the thread is current
 		// on the compared file, otherwise the suggested lines alone.

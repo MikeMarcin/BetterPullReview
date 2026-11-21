@@ -32,14 +32,55 @@ namespace bpr::application {
 		return found == Texts.end() ? std::nullopt : std::optional{ *found->Text };
 	}
 
+	namespace {
+		/// \brief [[BPR-2351]]. Whether a block of `aBlock`'s language may
+		/// borrow from a file of `aFile`'s: the same definition, or C and C++,
+		/// whose identifiers and roles are one family (a `.h` beside a
+		/// `cpp` block).
+		[[nodiscard]] auto shares_names(const syntax_definition_version& aBlock, const syntax_definition_version& aFile) noexcept -> bool
+		{
+			const auto family = [](const std::string_view aName) { return aName == "C" || aName == cpp_syntax_definition_name; };
+			return aBlock.Name == aFile.Name || (family(aBlock.Name) && family(aFile.Name));
+		}
+	} // namespace
+
 	struct markdown_code_syntax_host::implementation final : appearance_projection_port
 	{
+		/// \brief One reader's ask: the file name that chose the definition,
+		/// and the reviewed file the block is anchored to, if any.
+		struct asker
+		{
+			std::string Selector;
+			std::string Anchor;
+
+			auto operator==(const asker&) const -> bool = default;
+		};
+
 		struct wanted
 		{
 			token_span_cache_key               Key;
 			std::shared_ptr<const std::string> Text;
-			/// Every file name a reader asked with: each is answered.
-			std::vector<std::string> Selectors;
+			/// Every reader's ask: each is answered.
+			std::vector<asker> Askers;
+		};
+
+		/// \brief [[BPR-2351]]. A block's spans with a file's roles borrowed,
+		/// by the block's key and the file's: the same block in two files can
+		/// differ, and a file classified again is a new entry.
+		struct borrowing
+		{
+			token_span_cache_key Block;
+			token_span_cache_key File;
+			shared_token_spans   Spans;
+		};
+
+		/// \brief [[BPR-2351]]. An anchored ask, kept so a file's context
+		/// arriving later can answer it again.
+		struct anchored
+		{
+			std::string                        Anchor;
+			std::string                        Selector;
+			std::shared_ptr<const std::string> Text;
 		};
 
 		implementation(syntax_classification_port& aClassifier, markdown_code_texts& aTexts, effect_executor& aEffects, decision_executor& aDecisions,
@@ -62,9 +103,61 @@ namespace bpr::application {
 		void request(const std::vector<markdown_code_syntax_request>& aRequests)
 		{
 			for (const auto& request : aRequests) {
+				remember(request);
 				want(request);
 			}
 			submit();
+		}
+
+		/// \brief Keeps an anchored ask, newest last, at most `Limits.Waiting`.
+		void remember(const markdown_code_syntax_request& aRequest)
+		{
+			if (Closing || aRequest.Anchor.empty() || !aRequest.Text || !ContextFor) {
+				return;
+			}
+			std::erase_if(Anchored, [&aRequest](const anchored& aKept) { return aKept.Anchor == aRequest.Anchor && aKept.Selector == aRequest.Selector && *aKept.Text == *aRequest.Text; });
+			if (Anchored.size() >= std::max<std::size_t>(Limits.Waiting, 1U)) {
+				Anchored.pop_front();
+			}
+			Anchored.push_back({ .Anchor = aRequest.Anchor, .Selector = aRequest.Selector, .Text = aRequest.Text });
+		}
+
+		void context_changed(const std::string_view aAnchor)
+		{
+			auto again = std::vector<markdown_code_syntax_request>{ };
+			for (const auto& kept : Anchored) {
+				if (kept.Anchor == aAnchor) {
+					again.push_back({ .Selector = kept.Selector, .Text = kept.Text, .Anchor = kept.Anchor });
+				}
+			}
+			if (!again.empty()) {
+				request(again);
+			}
+		}
+
+		/// \brief The spans one asker is answered with: the block's own, or
+		/// with its file's roles borrowed when that file's context is held.
+		[[nodiscard]] auto answer_for(const wanted& aFinished, const asker& aAsker, const shared_token_spans& aOwn) -> shared_token_spans
+		{
+			if (aAsker.Anchor.empty() || !ContextFor || !aOwn) {
+				return aOwn;
+			}
+			const auto context = ContextFor(aAsker.Anchor);
+			if (!context || !context->Roles || !shares_names(aFinished.Key.Definition, context->File.Definition)) {
+				return aOwn;
+			}
+			const auto same = [&](const borrowing& aEntry) { return aEntry.Block == aFinished.Key && aEntry.File == context->File; };
+			if (const auto found = std::ranges::find_if(Borrowed, same); found != Borrowed.end()) {
+				++BorrowedHits;
+				return found->Spans;
+			}
+			auto spans = std::make_shared<const token_span_list>(core::borrow_code_context_roles(*aFinished.Text, *aOwn, *context->Roles, core::markdown_code_classified_bytes));
+			++Borrowings;
+			if (Borrowed.size() >= std::max<std::size_t>(Limits.Cached, 1U)) {
+				Borrowed.pop_front();
+			}
+			Borrowed.push_back({ .Block = aFinished.Key, .File = context->File, .Spans = spans });
+			return spans;
 		}
 
 		void want(const markdown_code_syntax_request& aRequest)
@@ -82,25 +175,26 @@ namespace bpr::application {
 				++Refused;
 				return;
 			}
-			const auto key         = token_span_cache_key{ .Blob = *blob, .Definition = *definition };
-			const auto addSelector = [&aRequest](wanted& aWanted) {
-				if (std::ranges::find(aWanted.Selectors, aRequest.Selector) == aWanted.Selectors.end()) {
-					aWanted.Selectors.push_back(aRequest.Selector);
+			const auto key      = token_span_cache_key{ .Blob = *blob, .Definition = *definition };
+			const auto who      = asker{ .Selector = aRequest.Selector, .Anchor = aRequest.Anchor };
+			const auto addAsker = [&who](wanted& aWanted) {
+				if (std::ranges::find(aWanted.Askers, who) == aWanted.Askers.end()) {
+					aWanted.Askers.push_back(who);
 				}
 			};
 			if (Classifying && Classifying->Key == key) {
-				addSelector(*Classifying);
+				addAsker(*Classifying);
 				return;
 			}
 			if (const auto found = std::ranges::find(Waiting, key, &wanted::Key); found != Waiting.end()) {
-				addSelector(*found);
+				addAsker(*found);
 				return;
 			}
 			if (Waiting.size() >= Limits.Waiting) {
 				// The newest texts are the ones on screen; the oldest gives way.
 				Waiting.pop_front();
 			}
-			Waiting.push_back({ .Key = key, .Text = aRequest.Text, .Selectors = { aRequest.Selector } });
+			Waiting.push_back({ .Key = key, .Text = aRequest.Text, .Askers = { who } });
 		}
 
 		void submit()
@@ -126,8 +220,8 @@ namespace bpr::application {
 			Classifying.reset();
 			Texts.release(finished.Key.Blob);
 			if (!Closing && aSpans != nullptr && aSpans->Key == finished.Key && Publish) {
-				for (auto& selector : finished.Selectors) {
-					Publish({ .Selector = std::move(selector), .Text = finished.Text, .Spans = aSpans->Spans });
+				for (const auto& who : finished.Askers) {
+					Publish({ .Selector = who.Selector, .Text = finished.Text, .Spans = answer_for(finished, who, aSpans->Spans), .Anchor = who.Anchor });
 				}
 			}
 			if (!Submitting) {
@@ -151,11 +245,16 @@ namespace bpr::application {
 		publisher                              Publish;
 		markdown_code_syntax_limits            Limits;
 		syntax_classification_application_host Host;
+		context_resolver                       ContextFor;
 		std::optional<wanted>                  Classifying;
 		std::deque<wanted>                     Waiting;
-		std::size_t                            Refused    = 0U;
-		bool                                   Closing    = false;
-		bool                                   Submitting = false;
+		std::deque<borrowing>                  Borrowed;
+		std::deque<anchored>                   Anchored;
+		std::size_t                            Refused      = 0U;
+		std::size_t                            Borrowings   = 0U;
+		std::size_t                            BorrowedHits = 0U;
+		bool                                   Closing      = false;
+		bool                                   Submitting   = false;
 	};
 
 	void markdown_code_syntax_host::observe_work(std::shared_ptr<insights_observer> aObserver) { Implementation->Host.observe_work(std::move(aObserver)); }
@@ -176,6 +275,15 @@ namespace bpr::application {
 		Implementation->request(aRequests);
 	}
 
+	void markdown_code_syntax_host::set_context_source(context_resolver aContextFor) { Implementation->ContextFor = std::move(aContextFor); }
+
+	void markdown_code_syntax_host::context_changed(const std::string_view aAnchor)
+	{
+		if (!Implementation->Closing && !aAnchor.empty()) {
+			Implementation->context_changed(aAnchor);
+		}
+	}
+
 	void markdown_code_syntax_host::shutdown()
 	{
 		if (Implementation->Closing) {
@@ -183,6 +291,8 @@ namespace bpr::application {
 		}
 		Implementation->Closing = true;
 		Implementation->Waiting.clear();
+		Implementation->Anchored.clear();
+		Implementation->Borrowed.clear();
 		Implementation->Host.shutdown();
 	}
 
@@ -190,5 +300,7 @@ namespace bpr::application {
 	auto markdown_code_syntax_host::classifications() const noexcept -> std::size_t { return Implementation->Host.classification_submissions(); }
 	auto markdown_code_syntax_host::cache_hits() const noexcept -> std::size_t { return Implementation->Host.cache_hits(); }
 	auto markdown_code_syntax_host::refused() const noexcept -> std::size_t { return Implementation->Refused; }
+	auto markdown_code_syntax_host::borrowed() const noexcept -> std::size_t { return Implementation->Borrowings; }
+	auto markdown_code_syntax_host::borrowed_hits() const noexcept -> std::size_t { return Implementation->BorrowedHits; }
 	auto markdown_code_syntax_host::waiting() const noexcept -> std::size_t { return Implementation->Waiting.size(); }
 } // namespace bpr::application
