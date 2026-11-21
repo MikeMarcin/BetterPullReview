@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2348"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Custom agent Check runs the found program, not the entry's own Program",
+  "created": "2026-11-21T19:55:39.800387+00:00",
+  "base": "dfe341540d95f5ce9628cbaa79ee98308ea1e478"
+}
