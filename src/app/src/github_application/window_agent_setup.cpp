@@ -1632,6 +1632,9 @@ namespace bpr::app {
 									   if (aProbed) {
 										   LastWorkspaceProbeReason.reset();
 										   AgentSetup->settle_workspace_check(key, { .State = core::setup_check_state::passed });
+										   // [[BPR-2345]]. The check keeps the workspace it made:
+										   // Settings counts it and offers to remove it.
+										   Profile->sweep_agent_workspaces(application::retained_workspace_sweep::survey);
 										   return;
 									   }
 									   AgentSetup->settle_workspace_check(key, core::fail_check(core::agent_setup_failure::workspace_unavailable));

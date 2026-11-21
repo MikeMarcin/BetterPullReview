@@ -65,7 +65,7 @@ release graph.
 | Input | Exact owner / version at the inspected source | Distribution accounting |
 |---|---|---|
 | Qt | `cmake/BprQtProvider.cmake`, `BprDependencies.cmake`: pinned default 6.12.0, or explicit caller-installed package; syntax requires at least 6.9 | Dynamic runtime, platform/TLS plugins and Qt's own bundled transitive components; inspect actual files, license/source-offer obligations and search paths. |
-| SQLite | `cmake/BprSQLiteProvider.cmake`, `third_party/sqlite/`: 3.53.4, controlled C/header staging, static link | Include static code/provenance even though no SQLite dylib appears in a runtime scan. Extension loading is compiled out. |
+| SQLite | `cmake/BprSQLiteProvider.cmake`, `third_party/sqlite/`: 3.54.1, controlled C/header staging, static link | Include static code/provenance even though no SQLite dylib appears in a runtime scan. Extension loading is compiled out. |
 | KSyntaxHighlighting | `cmake/BprSyntaxHighlightingProvider.cmake`, `third_party/ksyntaxhighlighting/`: 6.28.1, static library/definitions; ECM 6.28.0 is its build input | Include the library, embedded definitions and their notices/terms. Static linking does not remove source-offer/relinking analysis. ECM is not a runtime library. |
 | Quill and bundled fmt | `cmake/BprQuillProvider.cmake`, `third_party/quill/`: 13.0.0, controlled headers | Code is compiled into the logging adapter; retained MIT/fmt notices are inputs to the delivered notices, not proof they were packaged. |
 | Glaze | `cmake/BprGlazeProvider.cmake`, `third_party/glaze/`: 8.3.0, controlled headers | Used by the production GitHub adapter as well as fixtures; include compiled code and its retained notice. |

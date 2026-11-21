@@ -61,8 +61,8 @@ trusted-schema compile default is defense in depth and does not replace the
 adapter's per-connection setting and verification.
 
 `SQLITE_OMIT_ATTACH` is intentionally not used with the official pre-generated
-3.53.4 amalgamation. A direct target-native probe found that option excludes
-the attachment implementation while the generated parser still references
+amalgamation (probed at 3.53.4; the pin is now 3.54.1). A direct
+target-native probe found that option excludes the attachment implementation while the generated parser still references
 internal attachment and vacuum functions, leaving unresolved symbols in the
 static archive. `SQLITE_MAX_ATTACHED=0` keeps the exact upstream amalgamation
 link-complete and directly enforces the required zero-attachment capacity. The

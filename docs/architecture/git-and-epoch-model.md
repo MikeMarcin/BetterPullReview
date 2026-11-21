@@ -975,7 +975,7 @@ repository name, URL, raw process output, or raw provider error.
 There are no generic JSON payload rows, views, triggers, caller-provided SQL,
 or `ATTACH`.
 
-The adapter builds verified, CPM-acquired SQLite 3.53.4 source as one static
+The adapter builds verified, CPM-acquired SQLite 3.54.1 source as one static
 library with no system-library lookup or fallback. Its release, source
 identity, and SHA3-256 measurements are recorded in
 [`third_party/sqlite/PROVENANCE.md`](../../third_party/sqlite/PROVENANCE.md),

@@ -1787,8 +1787,11 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "native-visible-answer");
 			}
 			const auto after = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
-			if (after.Statistics.WorkspaceStarts != (course == "native-session-reopen" ? 0U : 1U)) {
-				return fail(*application, "native-retained-workspace");
+			// [[BPR-2345]]. Agent setup keeps the workspace its check made, and
+			// the first turn takes it, so no turn here starts one: the first
+			// session's turns use setup's, and a reopened one its retained one.
+			if (after.Statistics.WorkspaceStarts != 0U) {
+				return fail(*application, "native-retained-workspace", "workspace-starts=" + std::to_string(after.Statistics.WorkspaceStarts));
 			}
 			// Visible New session waits for admission and retains the completed native generation.
 			QMetaObject::invokeMethod(window.agent_tab()->history_button()->menu(), "aboutToShow");
@@ -1989,6 +1992,20 @@ auto main(int argc, char** argv) -> int
 		if (!renderSettings.isEmpty()) {
 			QDir{ }.mkpath(renderSettings);
 			static_cast<void>(programs->grab().save(renderSettings + QStringLiteral("/composed-settings-check-failed.png")));
+		}
+		// [[BPR-2345]]. The successful check kept its workspace and a check
+		// again reuses it, so the reviewer's Remove in Settings drops it first:
+		// the next check then builds a workspace, which the marker fails.
+		if (!wait_until([&] { return programs->workspace_remove_button()->isEnabled(); }, extended_agent_budget)) {
+			return fail(*application, "wrapper-setup-kept-workspace", programs->workspace_usage_label()->text().toStdString());
+		}
+		programs->workspace_remove_button()->click();
+		if (!wait_until([&] { return programs->workspace_question() != nullptr && programs->workspace_question()->isVisible(); })) {
+			return fail(*application, "wrapper-setup-remove-question");
+		}
+		programs->workspace_question()->accept();
+		if (!wait_until([&] { return programs->workspace_usage_label()->text().startsWith(QStringLiteral("Retained agent workspaces: none.")); }, extended_agent_budget)) {
+			return fail(*application, "wrapper-setup-kept-workspace-removed", programs->workspace_usage_label()->text().toStdString());
 		}
 		{
 			auto marker = std::ofstream{ diagnosticGit->parent_path() / workspace_failure_marker };

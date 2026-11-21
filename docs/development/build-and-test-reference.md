@@ -233,7 +233,7 @@ The Qt-free `core-only` preset does not acquire it. Provenance is recorded in
 Producer hints are `Qt6_ROOT`/`Qt6_DIR`, `Python3_ROOT_DIR`, `Git_ROOT`,
 `CMAKE_PREFIX_PATH`, and `PKG_CONFIG_PATH`. `CPM_SOURCE_CACHE` selects the
 shared source cache used by the exact
-CPM 0.43.1 loader and SQLite 3.53.4 download-only provider. Presets use
+CPM 0.43.1 loader and SQLite 3.54.1 download-only provider. Presets use
 `build/.cpm-cache` so `dev` and `core-only` reuse the same verified source.
 
 For a fail-closed cached configure, reuse an already generated build tree and
@@ -2722,7 +2722,7 @@ production operating-system CSPRNG, recovery-before-mint ordering, and fresh
 retry after a catalog-reported collision; no BPR-0044 test claims entropy
 quality.
 
-The catalog builds verified, CPM-acquired SQLite 3.53.4 source as one static
+The catalog builds verified, CPM-acquired SQLite 3.54.1 source as one static
 library without a system fallback. Runtime admission verifies BPEC
 application/schema identity,
 the exact 18-table/16-index schema, integrity and foreign keys, prepared
