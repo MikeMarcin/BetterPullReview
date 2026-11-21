@@ -62,8 +62,11 @@ namespace bpr::qt {
 	{
 	public:
 		/// The ring's outer diameter; the hole is `hole` of it.
-		static constexpr int    diameter = 72;
-		static constexpr double hole     = 0.56;
+		static constexpr int diameter = 72;
+		/// The diameter where the drawer is too narrow for the ring at
+		/// `diameter` beside its legend.
+		static constexpr int    compact_diameter = 56;
+		static constexpr double hole             = 0.56;
 		/// How far a highlighted slice stands out of the ring.
 		static constexpr int lift = 3;
 
@@ -79,6 +82,10 @@ namespace bpr::qt {
 		/// \brief The middle of the slice at `aIndex`'s ring: half way
 		/// round it, half way across it.
 		[[nodiscard]] auto slice_middle(std::size_t aIndex) const -> QPointF;
+		/// \brief The ring's outer diameter now: `diameter`, or
+		/// `compact_diameter` in a narrow drawer.
+		[[nodiscard]] auto ring_diameter() const noexcept -> int { return Diameter; }
+		void               set_ring_diameter(int aDiameter);
 
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
@@ -97,6 +104,7 @@ namespace bpr::qt {
 
 		report_tally_view&         View;
 		std::optional<std::size_t> Pressed;
+		int                        Diameter = diameter;
 	};
 
 	/// \brief [[BPR-2331]] (owner, 2026-11-20: "We can put a brief summary in
@@ -106,8 +114,9 @@ namespace bpr::qt {
 	/// the report's counts and beside it their legend.
 	/// \details The slices and the legend rows are in the report's order and
 	/// its tones. The legend's rows are measured from the current font; the
-	/// donut keeps its size, so the summary fits the narrowest drawer at a
-	/// large font.
+	/// donut keeps its size where it has the room, and is smaller only where
+	/// the drawer is too narrow for it beside the legend (Ubuntu's larger
+	/// font in the narrowest drawer, build 76), so the summary fits.
 	class report_tally_view final : public QWidget
 	{
 	public:
@@ -127,6 +136,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto rows() const -> std::vector<report_tally_row*>;
 		[[nodiscard]] auto counts() const -> std::vector<core::dressed_count>;
 		[[nodiscard]] auto pie() const noexcept -> report_tally_pie* { return Pie; }
+		/// \brief The least width: the smaller donut beside the legend.
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 
 		/// \brief A legend row's height: one line of the current font.
 		[[nodiscard]] auto line_height() const -> int;
@@ -157,8 +168,13 @@ namespace bpr::qt {
 	protected:
 		/// The rows' sizes follow its font: a new font measures them again.
 		void changeEvent(QEvent* aEvent) override;
+		void resizeEvent(QResizeEvent* aEvent) override;
 
 	private:
+		/// The width the summary needs with a ring of `aDiameter`.
+		[[nodiscard]] auto width_for(int aDiameter) const -> int;
+		/// The ring at its full size where the width holds it.
+		void                                      fit_ring();
 		std::vector<report_tally_row*>            Rows;
 		report_tally_pie*                         Pie    = nullptr;
 		QWidget*                                  Legend = nullptr;

@@ -179,13 +179,23 @@ namespace bpr::qt {
 		});
 	}
 
-	auto report_tally_pie::sizeHint() const -> QSize { return { diameter + (2 * lift), diameter + (2 * lift) }; }
+	auto report_tally_pie::sizeHint() const -> QSize { return { Diameter + (2 * lift), Diameter + (2 * lift) }; }
+
+	void report_tally_pie::set_ring_diameter(const int aDiameter)
+	{
+		if (aDiameter == Diameter) {
+			return;
+		}
+		Diameter = aDiameter;
+		setFixedSize(sizeHint());
+		update();
+	}
 
 	auto report_tally_pie::minimumSizeHint() const -> QSize { return sizeHint(); }
 
 	auto report_tally_pie::centre() const -> QPointF { return QRectF{ rect() }.center(); }
 
-	auto report_tally_pie::outer_radius() const -> double { return diameter / 2.0; }
+	auto report_tally_pie::outer_radius() const -> double { return Diameter / 2.0; }
 
 	auto report_tally_pie::inner_radius() const -> double { return outer_radius() * hole; }
 
@@ -306,6 +316,9 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("agentTurnReportTally"));
 		auto* const row = new QHBoxLayout{ this };
+		// The view's least width is its own (`minimumSizeHint`): the layout
+		// would hold it at the full donut's.
+		row->setSizeConstraint(QLayout::SetNoConstraint);
 		row->setContentsMargins(0, 6, 0, 0);
 		row->setSpacing(legend_gap);
 		Pie = new report_tally_pie{ *this };
@@ -348,6 +361,7 @@ namespace bpr::qt {
 		Pie->update();
 		setVisible(!aCounts.empty());
 		updateGeometry();
+		fit_ring();
 	}
 
 	void report_tally_view::set_tones(const tone_colours& aTones)
@@ -445,6 +459,27 @@ namespace bpr::qt {
 		}
 	}
 
+	auto report_tally_view::width_for(const int aDiameter) const -> int
+	{
+		const auto margins = layout()->contentsMargins();
+		return margins.left() + aDiameter + (2 * report_tally_pie::lift) + legend_gap + Legend->minimumSizeHint().width() + margins.right();
+	}
+
+	auto report_tally_view::minimumSizeHint() const -> QSize
+	{
+		auto least = QWidget::minimumSizeHint();
+		least.setWidth(width_for(report_tally_pie::compact_diameter));
+		return least;
+	}
+
+	void report_tally_view::resizeEvent(QResizeEvent* aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		fit_ring();
+	}
+
+	void report_tally_view::fit_ring() { Pie->set_ring_diameter(width() >= width_for(report_tally_pie::diameter) ? report_tally_pie::diameter : report_tally_pie::compact_diameter); }
+
 	void report_tally_view::changeEvent(QEvent* aEvent)
 	{
 		QWidget::changeEvent(aEvent);
@@ -457,6 +492,7 @@ namespace bpr::qt {
 			}
 			layout()->invalidate();
 			updateGeometry();
+			fit_ring();
 		}
 	}
 } // namespace bpr::qt
