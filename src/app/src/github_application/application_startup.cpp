@@ -21,9 +21,12 @@
 #include "review_mutation_execution_authority.hpp"
 #include "terminal_diagnostics.hpp"
 
+#include <chrono>
 #include <exception>
+#include <optional>
 #include <stdexcept>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #if defined(BPR_BUILD_TESTING)
@@ -234,15 +237,30 @@ namespace bpr::app {
 			return std::unexpected(aStop.stop_requested() ? application::profile_startup_failure::cancelled : application::profile_startup_failure::root_unavailable);
 		}
 		auto lease = adapters::sqlite::acquire_profile_runtime_lease(*root, aStop);
+		// [[BPR-2215]]. A held lease whose owner does not answer is asked for
+		// again for up to two seconds. A process the last owner forked keeps
+		// the lease's directory open until it has closed its descriptors and
+		// run its program, and in its own process group it outlives the
+		// owner: seen on macOS under load, a "(better_pull_revi)" child held
+		// the root just after the owner exited, and the next start was
+		// refused as indeterminate.
+		auto outcome = std::optional<application::profile_activation_outcome>{ };
+		for (auto attempt = 0; OwnerOnly && !lease && lease.error() == application::profile_runtime_lease_failure::busy && !aStop.stop_requested(); ++attempt) {
+			const auto routed = adapters::sqlite::send_profile_activation(*root, Config.Profile, Config.ProfileLaunchIntent, aStop);
+			outcome           = routed ? *routed : routed.error();
+			if (*outcome != application::profile_activation_outcome::indeterminate || attempt == 20) {
+				break;
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 100 });
+			lease = adapters::sqlite::acquire_profile_runtime_lease(*root, aStop);
+		}
 		if (!lease) {
-			if (OwnerOnly && lease.error() == application::profile_runtime_lease_failure::busy) {
-				const auto routed  = adapters::sqlite::send_profile_activation(*root, Config.Profile, Config.ProfileLaunchIntent, aStop);
-				const auto outcome = routed ? *routed : routed.error();
-				if (outcome == application::profile_activation_outcome::queued) {
+			if (outcome) {
+				if (*outcome == application::profile_activation_outcome::queued) {
 					Handoff = github_application_startup_failure::activation_queued;
-				} else if (outcome == application::profile_activation_outcome::refused) {
+				} else if (*outcome == application::profile_activation_outcome::refused) {
 					Handoff = github_application_startup_failure::activation_refused;
-				} else if (outcome == application::profile_activation_outcome::indeterminate) {
+				} else if (*outcome == application::profile_activation_outcome::indeterminate) {
 					Handoff = github_application_startup_failure::activation_indeterminate;
 				}
 			}
