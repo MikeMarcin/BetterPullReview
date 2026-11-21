@@ -795,3 +795,50 @@ From the owner, in chat, relayed by the coordinator:
   in Release at the candidate; the rest are reused. This is an owner-authorized
   bridge beyond the skill's default evidence-reuse boundary, for this release
   only. The path-to-row mapping is recorded here.
+
+## Build 73: the superseded all-platform candidate (2026-11-21)
+
+Build 73 (`v0.5.0-build.73`, source `3b68c7dec`, cohort `367e80eb…`) was the
+first all-platform candidate: notes and BPR-2213's Fixed entry at
+`3f5dfb129`, previous Windows floor 0.4.2 / 0.4.60, the observed Windows and
+Ubuntu configurations identical to build 60's. Main moved past its
+allocation (BPR-2344 and BPR-2345 allocations), and the owner chose a new
+number on top of main; build 73 was never published. Its notarized Mac set and
+signed Ubuntu DEB set (signatures verified, `verify_release_package.py` OK for
+the DEB and per-user runtimes) are kept; its Windows MSI was never packaged.
+
+**Evidence bridge.** The only product change between each platform's
+evidence head and build 73 was `window_workbench.cpp` (`ed5e79de9`), linked
+through the composition library by 113 executables: 818 rows, 827 with the
+changed tests, the isolation manifest and the documentation rows, of 1075.
+Instead of reusing the other 248, the full comprehensive Release suite ran
+at build 73 on every platform:
+
+| Platform | Result | Failed |
+|---|---|---|
+| macOS | 1074/1075 | `application_profile_recovery_public_path` (1 of 3 alone; fixed by `6f694e651`) |
+| Ubuntu 26.04 (Lima guest) | 1044/1055 | the ten large-review timing rows judged on WSL2, and `application_pending_states_public_path` (3 of 3 alone pass; [[BPR-2346]]) |
+| Windows | 1033/1034 | `application_dependable_session_public_path` (3 of 3 alone pass; [[BPR-2347]]) |
+
+The owner's later decision (BPR-2344, BPR-2345 and the store schema change)
+requires the full comprehensive Release suite on all three platforms at the
+next all-platform candidate, with no reuse.
+
+## Vulnerability scans for 0.5.0 (owner, 2026-11-21)
+
+The owner reversed the earlier skip: scans run as for 0.4.2 (Grype on each
+final artifact's SPDX, unfiltered, bound by
+`verify_release_vulnerability_scan.py`). Findings already waived in a 0.4.x
+release are waived again for 0.5.0; new findings go to the owner. A
+rehearsal on build 73's Mac and Ubuntu artifacts (Grype 0.120.1, database
+v6.1.10 built 2026-11-21T06:20Z) found the 23 carried findings per platform
+(Tika mimetypes, D-Bus headers, the pre-2026 Bitnami SQLite rows, zlib and
+the 0.4.0 HarfBuzz waiver) and eleven new Bitnami advisories against SQLite
+3.53.4, `BIT-sqlite-2026-119371` to `-119379`, `-119586` and `-119591`.
+SQLite moved to 3.54.1 on main.
+
+- **`BIT-sqlite-2026-119586` does not affect BetterPullReview** (owner,
+  2026-11-21): it is in the sqlite3 shell's `.recover`; BetterPullReview
+  does not ship the shell, and no fixed SQLite release exists.
+
+Each release's exact-artifact results are recorded below as they are scanned.

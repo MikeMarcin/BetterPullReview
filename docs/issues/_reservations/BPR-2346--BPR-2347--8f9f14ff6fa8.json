@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2346",
+    "BPR-2347"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-2215 0.5.0 intermittents: pending_states on Ubuntu, dependable_session on Windows",
+  "created": "2026-11-21T18:18:02.306542+00:00",
+  "base": "98a0da1b8bbedaed889fac90b9ae6a74e8091ff3"
+}
