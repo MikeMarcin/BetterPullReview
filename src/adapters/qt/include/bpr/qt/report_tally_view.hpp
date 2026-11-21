@@ -124,6 +124,11 @@ namespace bpr::qt {
 		static constexpr int legend_gap = 12;
 
 		explicit report_tally_view(QWidget* aParent = nullptr);
+		/// The rows go first: a row that loses focus tells the view, and the
+		/// view's own part must still be there to hear it.
+		~report_tally_view() override;
+		report_tally_view(const report_tally_view&)                    = delete;
+		auto operator=(const report_tally_view&) -> report_tally_view& = delete;
 
 		/// \brief The counts, in the report's order; none hides the view.
 		void set_counts(const std::vector<core::dressed_count>& aCounts);

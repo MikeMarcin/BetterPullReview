@@ -335,6 +335,16 @@ namespace bpr::qt {
 		hide();
 	}
 
+	report_tally_view::~report_tally_view()
+	{
+		// Build 76, Ubuntu: a summary closed with a row focused had the
+		// row's focus-out reach the view after its own part had gone.
+		const auto rows = std::exchange(Rows, { });
+		for (auto* const row : rows) {
+			delete row;
+		}
+	}
+
 	void report_tally_view::set_counts(const std::vector<core::dressed_count>& aCounts)
 	{
 		if (aCounts == counts()) {
