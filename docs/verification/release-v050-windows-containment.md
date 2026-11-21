@@ -219,3 +219,9 @@ SHA-256 was the same before and after.
 
 Pinned `private-data-root-refused`, `qprocess-named-pipe`,
 `qprocess-named-pipe` and `private-data-root-refused`.
+
+## `application_reopened_tabs` — measured at `5389a35c9`
+
+Release, interactive session 1, the same program before and after: direct exit
+0 (18.34 s); contained exit 8, first observation `FAILED: private reopened tabs
+course root`. Pinned `private-data-root-refused`.

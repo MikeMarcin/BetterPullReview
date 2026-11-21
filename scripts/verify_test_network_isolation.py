@@ -440,8 +440,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # measured ([[BPR-1631]]).
     "application_close_review": "owner-private-acl-denied",
     # [[BPR-2324]]. A reopened pull request's tabs, the same fixture
-    # profile root as Close review; not yet run on Windows.
-    "application_reopened_tabs": "unmeasured (registered on macOS)",
+    # profile root as Close review. Measured contained at 5389a35c9 (Release;
+    # passed directly in 18.3 s): "FAILED: private reopened tabs course root".
+    "application_reopened_tabs": "private-data-root-refused",
     # [[BPR-1355]]. The thread-words course of the same setup-destination
     # executable. Measured on JaegAW 2026-10-09 at 64e145116: passes
     # uncontained; contained through the sandbox launcher it fails "private
