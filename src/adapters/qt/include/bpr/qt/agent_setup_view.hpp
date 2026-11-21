@@ -7,6 +7,7 @@
 #include "bpr/core/agent_setup.hpp"
 
 #include "bpr/qt/agent_entry_dialog.hpp"
+#include "bpr/qt/elapsed_words_label.hpp"
 #include <QColor>
 #include <QPalette>
 #include <QString>
@@ -93,6 +94,9 @@ namespace bpr::qt {
 		void set_entry_editor(agent_entry_editor aEditor);
 		/// Called whenever `needed()` or the ready line may have changed.
 		void set_change_observer(std::function<void()> aObserver);
+		/// \brief [[BPR-2215]]. The clock a running workspace check's time is
+		/// read on, the one its start was stamped on; a test's own.
+		void set_clock(steady_milliseconds aClock) { Clock = std::move(aClock); }
 
 		void present(const application::agent_setup_projection& aSetup, const application::clone_link_projection& aClones, const agent_setup_facts& aFacts);
 		/// **Set up agent…** and **Change repository folder…**: show the
@@ -123,10 +127,11 @@ namespace bpr::qt {
 		void               build_no_clone_choice(QVBoxLayout& aBody);
 		[[nodiscard]] auto agent_name() const -> QString;
 		/// The chosen custom agent's own name for its kind, or the plain name.
-		[[nodiscard]] auto name_for(core::setup_agent aAgent) const -> QString;
-		void               add_custom_agent();
-		agent_entry_editor Editor = default_agent_entry_editor();
-		[[nodiscard]] auto workspace_words() const -> QString;
+		[[nodiscard]] auto  name_for(core::setup_agent aAgent) const -> QString;
+		void                add_custom_agent();
+		agent_entry_editor  Editor = default_agent_entry_editor();
+		steady_milliseconds Clock;
+		[[nodiscard]] auto  workspace_words() const -> QString;
 
 		agent_setup_intents                 Intents;
 		std::function<void()>               Changed;

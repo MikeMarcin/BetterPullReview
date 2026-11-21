@@ -3,6 +3,7 @@
 #include "bpr/core/terminal_text.hpp"
 
 #include "bpr/qt/disclosure_button.hpp"
+#include "bpr/qt/elapsed_words_label.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
 #include "setup_step_parts.hpp"
@@ -1310,7 +1311,14 @@ namespace bpr::qt {
 																   : tr("Preparing workspace…");
 			progress->setAccessibleName(status);
 			buttons->addWidget(progress);
-			buttons->addWidget(words(status, parent));
+			// [[BPR-2215]] (owner, 0.5.0 build 76). A workspace being prepared
+			// says how long it has taken, from when the host started it.
+			auto* const said = new elapsed_words_label{ parent, Clock };
+			said->setObjectName(QStringLiteral("agentSetupRunning"));
+			said->setWordWrap(true);
+			said->setTextFormat(Qt::PlainText);
+			said->present(status, workspaceRunning ? Setup.WorkspaceCheckStartedMs : std::nullopt);
+			buttons->addWidget(said);
 		} else {
 			const auto  ran   = Setup.State.AgentCheck.State != core::setup_check_state::not_run || Setup.State.WorkspaceCheck.State != core::setup_check_state::not_run;
 			auto* const check = primary_button(ran ? tr("Check again") : tr("Check"), parent, QStringLiteral("agentSetupCheck"));

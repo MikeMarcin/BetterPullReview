@@ -15,6 +15,7 @@
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/argument_list_editor.hpp"
+#include "bpr/qt/elapsed_words_label.hpp"
 #include "bpr/qt/folder_list_editor.hpp"
 
 #include <QAction>
@@ -23,6 +24,7 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QEventLoop>
 #include <QFile>
 #include <QKeyEvent>
 #include <QLabel>
@@ -39,6 +41,7 @@
 #include <QSpinBox>
 #include <QStyleFactory>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QToolButton>
 
 #include <algorithm>
@@ -1147,6 +1150,54 @@ namespace {
 		}
 	}
 
+	/// [[BPR-2215]] (owner, 0.5.0 build 76: "Preparing workspace… 0:12").
+	/// While the workspace is prepared the setup says for how long, from the
+	/// instant the host stamped, on a test clock: it ticks,
+	/// keeps its start when the tab is left and shown again, and goes when
+	/// the preparation ends. Its accessible name is the words alone.
+	void test_preparing_workspace_shows_its_time()
+	{
+		const auto wait = [](const int aMilliseconds) {
+			auto loop = QEventLoop{ };
+			QTimer::singleShot(aMilliseconds, &loop, &QEventLoop::quit);
+			loop.exec();
+		};
+		auto now  = std::int64_t{ 5'000'000 };
+		auto test = fixture{ };
+		test.View.set_clock([&now] { return now; });
+		test.Setup.State.Rows              = { row(core::setup_agent::claude_code, "/opt/homebrew/bin/claude", core::agent_found_how::on_path) };
+		test.Setup.State.Chosen            = core::setup_agent::claude_code;
+		test.Clones.Linked                 = application::repository_link{ .Host = "github.com", .Repository = 7U, .Owner = "bpr-fixtures", .Name = "engine", .Path = "/Users/me/Documents/GitHub/engine", .Remote = "origin" };
+		test.Setup.State.RepositoryChosen  = true;
+		test.Setup.State.AgentCheck        = { .State = core::setup_check_state::passed };
+		test.Setup.State.WorkspaceCheck    = { .State = core::setup_check_state::running };
+		test.Setup.WorkspaceCheckStartedMs = now - 12'400;
+		test.View.resize(520, 600);
+		test.View.show();
+		test.show();
+		const auto label = [&test] { return dynamic_cast<qt::elapsed_words_label*>(test.View.findChild<QLabel*>(QStringLiteral("agentSetupRunning"))); };
+		expect(label() != nullptr && label()->text() == QStringLiteral("Preparing workspace\u2026 0:12") && label()->accessibleName() == QStringLiteral("Preparing workspace\u2026") && label()->ticking(),
+			   "preparing the workspace says how long it has taken, and its name is the words alone");
+		now += 1'000;
+		wait(800);
+		expect(label()->text() == QStringLiteral("Preparing workspace\u2026 0:13") && label()->accessibleName() == QStringLiteral("Preparing workspace\u2026"), "it ticks once a second: " + label()->text().toStdString());
+		test.View.hide();
+		QApplication::processEvents();
+		expect(!label()->ticking(), "it stops ticking while the tab is not shown");
+		now += 60'000;
+		test.View.show();
+		test.show();
+		expect(label()->text() == QStringLiteral("Preparing workspace\u2026 1:13") && label()->ticking(), "back on the tab, it keeps the host's start: " + label()->text().toStdString());
+		test.Setup.WorkspaceCheckStartedMs = now - (3'600'000 + 61'000);
+		test.show();
+		expect(label()->text() == QStringLiteral("Preparing workspace\u2026 1:01:01"), "an hour reads as h:mm:ss: " + label()->text().toStdString());
+		test.Setup.State.WorkspaceCheck = { .State = core::setup_check_state::passed };
+		test.Setup.WorkspaceCheckStartedMs.reset();
+		test.show();
+		expect(label() == nullptr, "the time goes when the preparation ends");
+		test.View.hide();
+	}
+
 	void test_settings_offers_the_prompt_form()
 	{
 		auto programs = qt::agent_programs_panel{ };
@@ -1483,6 +1534,7 @@ auto main(int argc, char** argv) -> int
 	test_settings_rows_select_open_remove_reorder();
 	test_arguments_editor();
 	test_add_argument_stays_below_the_rows();
+	test_preparing_workspace_shows_its_time();
 	test_settings_check_agent();
 	test_settings_offers_the_prompt_form();
 	test_settings_unreadable();

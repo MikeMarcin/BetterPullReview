@@ -79,6 +79,7 @@ add_library(
         src/agent_reference_links.cpp
         src/agent_suggestion_list.cpp
         src/agent_run_status.cpp
+        src/elapsed_words_label.cpp
         src/explain_file_card.cpp
         src/ask_menu.cpp
         src/agent_report_view.cpp

@@ -134,6 +134,7 @@ namespace {
 		std::vector<std::string>                           Inspected;
 		std::vector<application::agent_setup_projection>   Published;
 		std::unique_ptr<application::agent_setup_host>     Host;
+		std::int64_t                                       Now = 40'000;
 
 		explicit fixture(const bool aObservePolicy = true)
 		{
@@ -151,12 +152,13 @@ namespace {
 				.Parent   = [](const std::string& aName) -> std::optional<std::string> {
 					return aName == "HOME" ? std::optional<std::string>{ "/home/me" } : std::nullopt;
 				},
-				.Profiles = core::built_in_agent_profiles(),
-				.Effects  = &Effects,
-				.Checks   = &Checks,
-				.Decision = &Decision,
-				.Publish  = [this](const application::agent_setup_projection& aProjection) { Published.push_back(aProjection); },
-				.Log      = Log,
+				.Profiles           = core::built_in_agent_profiles(),
+				.Effects            = &Effects,
+				.Checks             = &Checks,
+				.Decision           = &Decision,
+				.Publish            = [this](const application::agent_setup_projection& aProjection) { Published.push_back(aProjection); },
+				.Log                = Log,
+				.SteadyMilliseconds = [this] { return Now; },
 			});
 			if (aObservePolicy) {
 				Host->observe_policy(core::built_in_agent_policy(core::git_host_id{ 1U }, core::built_in_agent_host_kind::github_com));
@@ -369,6 +371,16 @@ namespace {
 			   "bounded workspace log is separate from the agent's diagnostic");
 		f.Host->set_workspace_check({ .State = setup_check_state::running });
 		expect(f.state().WorkspaceDetail.empty(), "a new workspace check clears old output");
+		// [[BPR-2215]] (owner, 0.5.0 build 76). The running check keeps the
+		// instant it started across projections, and loses it when it ends.
+		expect(f.state().WorkspaceCheckStartedMs == std::optional<std::int64_t>{ 40'000 }, "a running workspace check carries when it started");
+		f.Now = 52'000;
+		f.Host->set_repository_chosen(!f.state().State.RepositoryChosen);
+		expect(f.state().WorkspaceCheckStartedMs == std::optional<std::int64_t>{ 40'000 }, "another projection keeps that start");
+		f.Host->set_workspace_check({ .State = setup_check_state::passed });
+		expect(!f.state().WorkspaceCheckStartedMs, "an ended check has no start");
+		f.Host->set_workspace_check({ .State = setup_check_state::running });
+		expect(f.state().WorkspaceCheckStartedMs == std::optional<std::int64_t>{ 52'000 }, "the next check starts its own time");
 		f.Host->restart();
 		expect(f.state().CheckDetail.empty() && f.state().WorkspaceDetail.empty(), "restart clears both details");
 		f.settle();

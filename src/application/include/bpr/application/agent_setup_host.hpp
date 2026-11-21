@@ -64,6 +64,10 @@ namespace bpr::application {
 		/// Bounded, adapter-redacted workspace diagnostic text, local to this
 		/// setup window and separate from the agent's output.
 		std::string WorkspaceDetail;
+		/// [[BPR-2215]] (owner, 0.5.0 build 76). When the running workspace
+		/// check started, in `agent_setup_dependencies::SteadyMilliseconds`;
+		/// none while none runs. Shown as its running time.
+		std::optional<std::int64_t> WorkspaceCheckStartedMs;
 		/// Owner look v006. What each added agent's harness said it offers,
 		/// by entry id, once asked; an entry being asked is in `Cataloguing`.
 		std::map<std::uint32_t, agent_harness_catalog> Catalogs;
@@ -146,6 +150,9 @@ namespace bpr::application {
 		/// run count and duration; never its program, output or detail.
 		/// Optional.
 		std::shared_ptr<diagnostic_log_port> Log;
+		/// [[BPR-2215]]. A monotonic clock in milliseconds, for when a
+		/// workspace check started. Optional: the steady clock.
+		std::function<std::int64_t()> SteadyMilliseconds;
 	};
 
 	/// \brief [[BPR-1749]], RFC-BPR-0092 M2. The host half of agent

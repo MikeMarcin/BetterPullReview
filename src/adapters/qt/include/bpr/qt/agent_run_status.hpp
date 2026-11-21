@@ -84,7 +84,7 @@ namespace bpr::qt {
 	/// 12 commands".
 	[[nodiscard]] auto agent_activity_summary_words(const core::agent_turn_activity& aActivity, qint64 aSeconds) -> QString;
 
-	/// \brief `m:ss`, the time a run has taken.
+	/// \brief `m:ss`, the time a run has taken; `h:mm:ss` from an hour.
 	[[nodiscard]] auto agent_elapsed_words(qint64 aSeconds) -> QString;
 	/// \brief The live line: "● Claude is thinking, 0:12." The Agent tab's
 	/// turns and every tour chat say a running request with these words.
