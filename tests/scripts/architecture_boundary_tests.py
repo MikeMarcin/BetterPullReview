@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import concurrent.futures
+import os
 import sys
 import re
 from pathlib import Path
 import shutil
 import subprocess
+import time
 import unittest
 
 
@@ -6819,5 +6822,79 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         )
 
 
+def _flatten(suite: unittest.TestSuite) -> list[unittest.TestCase]:
+    cases: list[unittest.TestCase] = []
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            cases.extend(_flatten(item))
+        else:
+            cases.append(item)
+    return cases
+
+
+def run_concurrently(jobs: int) -> int:
+    """Run every case, `jobs` at a time, and report them all.
+
+    Each case stages its own contained temporary tree and spends its time in a
+    `cmake -P` child, so the cases share nothing and the interpreter lock is
+    not held while they wait. A case keeps its own `TestResult`; nothing is
+    skipped or stopped early, and the count that ran must equal the count the
+    loader found.
+    """
+    cases = _flatten(
+        unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    )
+
+    def run_one(case: unittest.TestCase) -> tuple[unittest.TestResult, float]:
+        result = unittest.TestResult()
+        started = time.monotonic()
+        case.run(result)
+        return result, time.monotonic() - started
+
+    started = time.monotonic()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+        outcomes = list(pool.map(run_one, cases))
+    elapsed = time.monotonic() - started
+
+    ran = 0
+    problems: list[tuple[str, str, str]] = []
+    for case, (result, _) in zip(cases, outcomes):
+        ran += result.testsRun
+        for kind, entries in (
+            ("ERROR", result.errors),
+            ("FAIL", result.failures),
+            ("UNEXPECTED SUCCESS", [(t, "") for t in result.unexpectedSuccesses]),
+            ("SKIPPED", result.skipped),
+        ):
+            for failed, detail in entries:
+                problems.append((kind, str(failed), detail))
+    for kind, name, detail in problems:
+        print(f"{'=' * 70}\n{kind}: {name}\n{'-' * 70}\n{detail}", file=sys.stderr)
+    slowest = sorted(
+        zip(cases, outcomes), key=lambda item: item[1][1], reverse=True
+    )[:5]
+    for case, (_, seconds) in slowest:
+        print(f"{seconds:8.2f}s {case.id()}", file=sys.stderr)
+    print(
+        f"Ran {ran} of {len(cases)} tests in {elapsed:.3f}s, {jobs} at a time",
+        file=sys.stderr,
+    )
+    if problems or ran != len(cases) or not cases:
+        print(f"FAILED (problems={len(problems)})", file=sys.stderr)
+        return 1
+    print("OK", file=sys.stderr)
+    return 0
+
+
+def contract_jobs() -> int:
+    configured = os.environ.get("BPR_CONTRACT_JOBS") or "4"
+    if not re.fullmatch(r"[1-9][0-9]*", configured):
+        raise ValueError("BPR_CONTRACT_JOBS must be a positive integer")
+    return min(int(configured), 8)
+
+
 if __name__ == "__main__":
-    unittest.main()
+    # Any argument (a case name, -v, -k) keeps unittest's own serial runner.
+    if len(sys.argv) > 1 or contract_jobs() == 1:
+        unittest.main()
+    sys.exit(run_concurrently(contract_jobs()))

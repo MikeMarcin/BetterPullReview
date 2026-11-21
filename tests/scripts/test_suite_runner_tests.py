@@ -519,13 +519,26 @@ if name == "documentation_structure" and (root / "fail").exists():
         for configured, expected in ((None, 2), ("", 2), ("1", 1), ("4", 4), ("8", 8), ("32", 8)):
             with self.subTest(configured=configured), patch.dict(os.environ):
                 os.environ.pop("CMAKE_BUILD_PARALLEL_LEVEL", None)
+                os.environ.pop("BPR_EXCLUSIVE_ROW_BUILD_JOBS", None)
                 if configured is not None:
                     os.environ["CMAKE_BUILD_PARALLEL_LEVEL"] = configured
                 self.assertEqual(composition["composition_build_jobs"](), expected)
-        for configured in ("0", "-1", "invalid", " ", "1.5"):
-            with self.subTest(configured=configured), patch.dict(os.environ, {"CMAKE_BUILD_PARALLEL_LEVEL": configured}):
-                with self.assertRaisesRegex(ValueError, "positive integer"):
-                    composition["composition_build_jobs"]()
+        # The suite runner's width applies only when the producer set none.
+        for producer, runner, expected in ((None, "8", 8), ("", "6", 6), ("3", "8", 3), (None, "32", 8), (None, "", 2)):
+            with self.subTest(producer=producer, runner=runner), patch.dict(os.environ):
+                os.environ.pop("CMAKE_BUILD_PARALLEL_LEVEL", None)
+                if producer is not None:
+                    os.environ["CMAKE_BUILD_PARALLEL_LEVEL"] = producer
+                os.environ["BPR_EXCLUSIVE_ROW_BUILD_JOBS"] = runner
+                self.assertEqual(composition["composition_build_jobs"](), expected)
+        for variable in ("CMAKE_BUILD_PARALLEL_LEVEL", "BPR_EXCLUSIVE_ROW_BUILD_JOBS"):
+            for configured in ("0", "-1", "invalid", " ", "1.5"):
+                with self.subTest(variable=variable, configured=configured), patch.dict(os.environ):
+                    os.environ.pop("CMAKE_BUILD_PARALLEL_LEVEL", None)
+                    os.environ.pop("BPR_EXCLUSIVE_ROW_BUILD_JOBS", None)
+                    os.environ[variable] = configured
+                    with self.assertRaisesRegex(ValueError, "positive integer"):
+                        composition["composition_build_jobs"]()
 
     def test_historical_log_keeps_failure_skip_and_wall_time_distinct(self):
         with ContainedTemporaryDirectory() as temporary:

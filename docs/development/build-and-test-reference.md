@@ -314,9 +314,14 @@ unchanged compiler outputs survive between runs. A cold checkout still pays
 for that first build; no prior verdict or unverified executable is reused.
 Standalone execution without `--release-build-dir` remains disposable.
 The nested build honors the producer's `CMAKE_BUILD_PARALLEL_LEVEL`, capped at
-eight compiler jobs; unset/empty retains two, and invalid/nonpositive settings
-fail. Its row remains exclusive, and compilation finishes before binary/runtime
-checks begin. This changes build scheduling, not graph inputs or acceptance.
+eight compiler jobs. When the producer sets none, `scripts/run_test_suite.py`
+supplies eight through `BPR_EXCLUSIVE_ROW_BUILD_JOBS`, because CTest runs this
+row alone; a standalone run with neither variable retains two. Invalid or
+nonpositive settings fail. Its row remains exclusive, and compilation finishes
+before binary/runtime checks begin. This changes build scheduling, not graph
+inputs or acceptance. Windows suite rounds t25 and t35 of the 0.5.0 release
+logged `COMPOSITION_BUILD_JOBS: 2`: no release command set the producer's
+variable.
 
 A fresh Git checkout does not contain the ignored MASK-deployed test tooling.
 Register that owned checkout with its existing locked versions through the normal

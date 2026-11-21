@@ -221,6 +221,10 @@ bpr_add_network_isolated_test(
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/architecture_boundary_tests.py"
 )
+# The contract runs its cases four at a time (BPR_CONTRACT_JOBS, at most 8),
+# each one a `cmake -P` child over its own staged tree. Tell CTest so the row
+# is counted as four of the suite's slots rather than one.
+set_tests_properties(architecture_boundary_contract PROPERTIES PROCESSORS 4)
 
 bpr_add_network_isolated_test(
     NAME git_protocol_boundary

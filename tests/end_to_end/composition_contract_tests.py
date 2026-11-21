@@ -99,10 +99,17 @@ ARGUMENTS, UNITTEST_ARGUMENTS = parse_arguments()
 
 
 def composition_build_jobs() -> int:
-    configured = os.environ.get("CMAKE_BUILD_PARALLEL_LEVEL") or "2"
-    if not re.fullmatch(r"[1-9][0-9]*", configured):
-        raise ValueError("CMAKE_BUILD_PARALLEL_LEVEL must be a positive integer")
-    return min(int(configured), 8)
+    # The producer's CMAKE_BUILD_PARALLEL_LEVEL wins. Without it, the complete
+    # suite runner names how wide a row it schedules alone may build
+    # (BPR_EXCLUSIVE_ROW_BUILD_JOBS); a standalone run keeps two, because
+    # nothing then says the machine is this row's.
+    for variable in ("CMAKE_BUILD_PARALLEL_LEVEL", "BPR_EXCLUSIVE_ROW_BUILD_JOBS"):
+        configured = os.environ.get(variable)
+        if configured:
+            if not re.fullmatch(r"[1-9][0-9]*", configured):
+                raise ValueError(f"{variable} must be a positive integer")
+            return min(int(configured), 8)
+    return 2
 
 
 # What a diagnostic must say for a hostile snippet to have been stopped by the

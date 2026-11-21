@@ -127,6 +127,10 @@ def validate_command_owned_row(row: dict, props: dict, root: Path = ROOT) -> Non
         raise ValueError(f"Invalid command ownership declaration: {row['name']}")
 
 
+# How wide a build nested in an exclusive row may run under this runner.
+EXCLUSIVE_ROW_BUILD_JOBS = 8
+
+
 def validate_schedule(manifest: dict) -> None:
     """Keep exclusive courses alone; admit only declared isolated correctness."""
     for row in manifest["tests"]:
@@ -704,6 +708,12 @@ def main() -> int:
         print(json.dumps(validate_request(args.profile, args.heavy_group, args.change_scope,
                                          args.include_tests_regex, args.tests_regex, args.failures_first), indent=2))
         return 0
+    # CTest runs an exclusive row alone, so a build nested in one may use the
+    # machine. A row reads this only when the producer set no
+    # CMAKE_BUILD_PARALLEL_LEVEL; before this, the composition contract's
+    # nested Release build ran two jobs wide on every producer that forgot to.
+    if not os.environ.get("BPR_EXCLUSIVE_ROW_BUILD_JOBS"):
+        os.environ["BPR_EXCLUSIVE_ROW_BUILD_JOBS"] = str(EXCLUSIVE_ROW_BUILD_JOBS)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
     output = args.output_dir or ROOT / "build/test-results" / args.preset / stamp
     if bool(args.phase_ledger) != bool(args.phase_context):
