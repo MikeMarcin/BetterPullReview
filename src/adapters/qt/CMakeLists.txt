@@ -88,6 +88,7 @@ add_library(
         src/item_side_chat.cpp
         src/side_chat_parts.cpp
         src/composer_parts.cpp
+        src/fenced_code_highlighter.cpp
         src/prompt_words.cpp
         src/prompts_page.cpp
         src/agent_run_settings_picker.cpp

@@ -45,6 +45,7 @@
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
+#include <QTextLayout>
 #include <QThread>
 #include <QToolButton>
 #include <QWheelEvent>
@@ -2030,9 +2031,9 @@ namespace {
 		QApplication::processEvents();
 		auto* const change = view.findChild<QWidget*>(QStringLiteral("threadDraftChange"));
 		expect(change != nullptr && change->isVisible() && change->accessibleDescription().contains(QStringLiteral("removes 1, adds 1"))
-				   && view.draft_editor()->lineWrapMode() == QPlainTextEdit::NoWrap
+				   && view.draft_editor()->lineWrapMode() == QPlainTextEdit::WidgetWidth
 				   && view.draft_editor()->textCursor().position() == view.draft_editor()->toPlainText().lastIndexOf(QLatin1Char{ '\n' }),
-			   "a suggestion shows what it changes, unwrapped, with the caret at the end of the block's last line");
+			   "a suggestion shows what it changes, the field still wraps, and the caret is at the end of the block's last line");
 		view.end_draft();
 		QApplication::processEvents();
 		expect(!view.writing_draft() && view.open_thread_id().empty() && std::ranges::any_of(view.cards(), &qt::thread_card::Draft),
@@ -4113,6 +4114,83 @@ namespace {
 		expect(bar->maximum() == 0 && rows->focusPolicy() == Qt::NoFocus, "a short change has no horizontal range and no tab stop");
 	}
 
+	/// \brief The fonts `aBlock` is laid out in, besides the field's own.
+	[[nodiscard]] auto block_fonts(const QTextBlock& aBlock) -> std::vector<QString>
+	{
+		auto families = std::vector<QString>{ };
+		for (const auto& range : aBlock.layout()->formats()) {
+			if (range.format.hasProperty(QTextFormat::FontFamilies)) {
+				families.push_back(range.format.font().family());
+			}
+		}
+		return families;
+	}
+
+	/// \brief [[BPR-2353]] (owner, 2026-11-21: "as soon as you make a
+	/// ```suggestion block in a comment draft that whole comment gets rendered
+	/// as an un-word-wrapped block including things outside of the code
+	/// block"). A fenced block, a suggestion or any language, is code on its
+	/// own lines only: the field keeps its font, wraps and never pans
+	/// sideways; the words before and after the block wrap in it; the fence
+	/// and code lines are in the drawer's code font.
+	auto test_a_fenced_block_styles_only_its_own_lines(const QString& aDirectory) -> void
+	{
+		const auto before = std::string{ "This clamps the width before the measure, so a narrow column never reports a negative span to the layout pass." };
+		const auto after  = std::string{ "The same pattern recurs in the footer measurement, which could share this helper rather than repeating the clamp." };
+		const auto check  = [&](const std::string& aFence, const std::string& aClosing, const bool aSuggestion, const QString& aShot) {
+			qt::conversation_cards_view view;
+			view.resize(320, 760);
+			view.show();
+			QApplication::processEvents();
+			const auto body = before + "\n\n" + aFence + "\nint b = std::max(width, 0);\n" + aClosing + "\n\n" + after;
+			open_composer(view, body);
+			auto presentation = qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1") };
+			if (aSuggestion) {
+				presentation.Change = core::suggested_change{ .Fenced = true, .Removed = { "int b = width;" }, .Added = { "int b = std::max(width, 0);" } };
+			}
+			view.present_draft(presentation);
+			settle_card();
+			auto* const field = view.draft_editor();
+			expect(field != nullptr, "the composer has its field");
+			if (!aDirectory.isEmpty()) {
+				expect(view.grab().save(aDirectory + aShot), "render the composer with a fenced block");
+			}
+			const auto& what = aFence;
+			expect(field->lineWrapMode() == QPlainTextEdit::WidgetWidth && field->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff,
+				   what + ": the field wraps at its width and has no sideways scroll");
+			expect(field->font() != view.code_font(), what + ": the field keeps its own font, not the code font");
+			if (aSuggestion) {
+				expect(field->textCursor().block().blockNumber() == 3 && field->textCursor().atBlockEnd(), what + ": the caret is at the end of the block's last line, not after the words under it");
+			}
+			auto* const document = field->document();
+			const auto  first    = document->findBlockByNumber(0);
+			const auto  fence    = document->findBlockByNumber(2);
+			const auto  code     = document->findBlockByNumber(3);
+			const auto  closing  = document->findBlockByNumber(4);
+			const auto  last     = document->findBlockByNumber(6);
+			expect(first.layout()->lineCount() > 1 && last.layout()->lineCount() > 1, what + ": the words before and after the block wrap");
+			expect(block_fonts(first).empty() && block_fonts(last).empty(), what + ": the words keep the field's font");
+			const auto codeFamily = view.code_font().family();
+			for (const auto& block : { fence, code, closing }) {
+				const auto fonts = block_fonts(block);
+				expect(!fonts.empty() && std::ranges::all_of(fonts, [&](const QString& aFamily) { return aFamily == codeFamily; }),
+					   what + ": each of the block's lines, its fences included, is in the code font");
+			}
+			expect(code.layout()->formats().front().format.foreground() != fence.layout()->formats().front().format.foreground(),
+				   what + ": the fences are quieter than the code between them");
+			// Typing after the block keeps the words outside it as words.
+			auto cursor = field->textCursor();
+			cursor.movePosition(QTextCursor::End);
+			field->setTextCursor(cursor);
+			field->insertPlainText(QStringLiteral(" Worth a follow-up."));
+			QApplication::processEvents();
+			expect(block_fonts(field->document()->lastBlock()).empty(), what + ": text typed after the block stays prose");
+		};
+		check("```suggestion", "```", true, QStringLiteral("/fenced-suggestion-composer.png"));
+		check("```cpp", "```", false, QStringLiteral("/fenced-cpp-composer.png"));
+		check("~~~python", "~~~", false, QStringLiteral("/fenced-tilde-composer.png"));
+	}
+
 	/// \brief [[BPR-2273]]. The owner: "A long draft comment neither scrolls
 	/// with 2 finger MacBook gestures (scroll wheel) nor expands to fit the
 	/// contents". The composer grows with its text to about 60% of the
@@ -4371,6 +4449,11 @@ auto main(int argc, char** argv) -> int
 		std::cout << "render-bpr-2271:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-fenced-composer") {
+		test_a_fenced_block_styles_only_its_own_lines(QString::fromLocal8Bit(argv[2]));
+		std::cout << "render-fenced-composer:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc > 2 && std::string_view{ argv[1] } == "--render-bpr-2273") {
 		test_a_long_draft_grows_then_scrolls(QString::fromLocal8Bit(argv[2]));
 		std::cout << "render-bpr-2273:pass\n";
@@ -4432,6 +4515,7 @@ auto main(int argc, char** argv) -> int
 	test_my_comments_are_edited_in_place();
 	test_a_suggested_change_scrolls_sideways_in_its_box({ });
 	test_a_long_draft_grows_then_scrolls({ });
+	test_a_fenced_block_styles_only_its_own_lines({ });
 	std::cout << "conversation-cards-view-tests:pass\n";
 
 	return EXIT_SUCCESS;

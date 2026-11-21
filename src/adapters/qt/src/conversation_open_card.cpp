@@ -13,6 +13,7 @@
 #include "comment_state_toggle.hpp"
 #include "conversation_glyphs.hpp"
 #include "conversation_reactions.hpp"
+#include "fenced_code_highlighter.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
@@ -424,10 +425,12 @@ namespace bpr::qt {
 				}
 				Fitting = true;
 				// The plain layout measures the document in lines, wrapped
-				// lines included.
+				// lines included. [[BPR-2353]] A fenced block's lines are in
+				// the code font, whose lines may be taller: the blocks' own
+				// heights count when they come to more.
 				const auto measure = [this] {
 					const auto lines = std::max<qreal>(1.0, document()->size().height());
-					return static_cast<int>(std::ceil(lines * fontMetrics().lineSpacing())) + 2;
+					return static_cast<int>(std::ceil(std::max(lines * fontMetrics().lineSpacing(), laid_out_height()))) + 2;
 				};
 				auto pixels = measure();
 				if (pixels > Maximum && verticalScrollBarPolicy() != Qt::ScrollBarAsNeeded) {
@@ -458,6 +461,20 @@ namespace bpr::qt {
 			/// The field's own height changed.
 			std::function<void()> Refit;
 
+			/// \brief [[BPR-2353]]. A fenced code block, of any language
+			/// or a suggestion, is code on its own lines only; the words
+			/// around it keep the field's font and wrap as they always do.
+			void set_code_font(const QFont& aFont)
+			{
+				CodeFont = aFont;
+				if (Fences == nullptr) {
+					Fences = new fenced_code_highlighter{ document(), CodeFont, quiet() };
+				} else {
+					Fences->set_style(CodeFont, quiet());
+				}
+				fit();
+			}
+
 			/// \brief [[BPR-2273]]. The tallest the field grows before it
 			/// scrolls: about 60% of the drawer, as the drawer says.
 			void set_maximum(const int aMaximum)
@@ -471,8 +488,25 @@ namespace bpr::qt {
 			}
 
 		private:
-			bool Fitting = false;
-			int  Maximum = reply_maximum;
+			[[nodiscard]] auto quiet() const -> QColor
+			{
+				return palette().color(QPalette::Active, QPalette::PlaceholderText);
+			}
+
+			/// The laid-out blocks' heights, in pixels.
+			[[nodiscard]] auto laid_out_height() const -> qreal
+			{
+				auto height = qreal{ 0.0 };
+				for (auto block = document()->firstBlock(); block.isValid(); block = block.next()) {
+					height += blockBoundingRect(block).height();
+				}
+				return height;
+			}
+
+			bool                     Fitting  = false;
+			int                      Maximum  = reply_maximum;
+			fenced_code_highlighter* Fences   = nullptr;
+			QFont                    CodeFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
 
 		public:
 			/// RFC-BPR-0118. Adds the field's own items to its right-click menu.
@@ -483,6 +517,14 @@ namespace bpr::qt {
 			{
 				QPlainTextEdit::resizeEvent(aEvent);
 				fit();
+			}
+
+			void changeEvent(QEvent* aEvent) override
+			{
+				QPlainTextEdit::changeEvent(aEvent);
+				if (Fences != nullptr && aEvent->type() == QEvent::PaletteChange) {
+					Fences->set_style(CodeFont, quiet());
+				}
 			}
 
 			void contextMenuEvent(QContextMenuEvent* aEvent) override
@@ -2963,6 +3005,7 @@ namespace bpr::qt {
 				}
 			};
 			static_cast<reply_text*>(ReplyBox)->set_maximum(FieldMaximum);
+			static_cast<reply_text*>(ReplyBox)->set_code_font(Style.CodeFont);
 			ReplyBox->viewport()->installEventFilter(this);
 			ReplyBox->setAccessibleName(aCard.ReplyOnThread ? QStringLiteral("Reply to the outdated thread")
 											: aCard.Line    ? QStringLiteral("Reply to the thread on line %1").arg(*aCard.Line)
@@ -3105,6 +3148,7 @@ namespace bpr::qt {
 			}
 		};
 		static_cast<reply_text*>(ReplyBox)->set_maximum(FieldMaximum);
+		static_cast<reply_text*>(ReplyBox)->set_code_font(Style.CodeFont);
 		ReplyBox->viewport()->installEventFilter(this);
 		const auto line = aCard.Line.value_or(0U);
 		ReplyBox->setAccessibleName(QStringLiteral("Comment on line %1").arg(line));
@@ -3529,23 +3573,28 @@ namespace bpr::qt {
 			ReplyBox->setPlainText(aDraft->Body);
 			auto cursor = ReplyBox->textCursor();
 			cursor.movePosition(QTextCursor::End);
+			// [[BPR-2353]]. Words may follow the block: the caret goes to
+			// the line before the block's closing fence, not the text's last.
 			if (aDraft->Change.has_value() && !aDraft->InCode && !aDraft->Body.isEmpty()) {
-				if (const auto last = aDraft->Body.lastIndexOf(QLatin1Char{ '\n' }); last > 0) {
+				const auto opening = aDraft->Body.lastIndexOf(QStringLiteral("```suggestion"));
+				const auto closing = opening < 0 ? qsizetype{ -1 } : aDraft->Body.indexOf(QStringLiteral("\n```"), opening);
+				if (const auto last = closing > 0 ? closing : aDraft->Body.lastIndexOf(QLatin1Char{ '\n' }); last > 0) {
 					cursor.setPosition(static_cast<int>(last));
 				}
 			}
 			ReplyBox->setTextCursor(cursor);
 			Applying = false;
 		}
-		// A suggestion is code: monospaced and unwrapped, as it will apply.
+		// [[BPR-2353]] (owner, 2026-11-21). A suggestion no longer turns
+		// the whole field into code: the field keeps its font and wraps, and
+		// its highlighter sets only a fenced block's own lines in the code
+		// font. The exact lines, unwrapped, are the change view's under it,
+		// and the drawer never pans sideways.
 		// [[RFC-BPR-0090]]. Written in the code, the field holds words only.
 		const auto inCode    = aDraft.has_value() && aDraft->InCode;
 		const auto suggested = aDraft.has_value() && (aDraft->Change.has_value() || inCode);
 		const auto fenced    = aDraft.has_value() && aDraft->Change.has_value() && !inCode;
-		ReplyBox->setFont(fenced ? Style.CodeFont : font());
-		ReplyBox->setTabStopDistance(QFontMetricsF{ ReplyBox->font() }.horizontalAdvance(QLatin1Char{ ' ' }) * 4.0);
-		ReplyBox->setLineWrapMode(fenced ? QPlainTextEdit::NoWrap : QPlainTextEdit::WidgetWidth);
-		ReplyBox->setHorizontalScrollBarPolicy(fenced ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
+		ReplyBox->setTabStopDistance(QFontMetricsF{ Style.CodeFont }.horizontalAdvance(QLatin1Char{ ' ' }) * 4.0);
 		const auto lines = aDraft.has_value() && !aDraft->Lines.isEmpty() ? aDraft->Lines : ReplyBox->accessibleName().section(QLatin1Char{ ' ' }, 2, -1);
 		if (aDraft.has_value() && !aDraft->Lines.isEmpty()) {
 			ReplyBox->setAccessibleName(QStringLiteral("%1 on %2").arg(suggested ? QStringLiteral("Suggested change") : QStringLiteral("Comment"), aDraft->Lines.toLower()));
