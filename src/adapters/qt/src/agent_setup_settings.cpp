@@ -843,11 +843,15 @@ namespace bpr::qt {
 			} else if (kept && kept->State == core::setup_check_state::failed) {
 				bad              = true;
 				const auto which = kept->Failure.value_or(core::agent_setup_failure::status_unreadable);
-				said             = which == core::agent_setup_failure::not_signed_in ? tr("Not signed in")
-					: which == core::agent_setup_failure::agent_not_found            ? tr("Not found")
-					: which == core::agent_setup_failure::timed_out                  ? tr("Didn't answer")
-					: which == core::agent_setup_failure::instructions_dropped       ? tr("Ignores developer instructions")
-																					 : tr("Check failed");
+				// [[BPR-2348]]. An entry with its own Program is checked with
+				// it, so it is never "not found"; a result an earlier build
+				// kept for it reads as a failed check.
+				const auto lost = which == core::agent_setup_failure::agent_not_found && (entry.Preset || entry.Program.empty());
+				said            = which == core::agent_setup_failure::not_signed_in ? tr("Not signed in")
+					: lost                                                          ? tr("Not found")
+					: which == core::agent_setup_failure::timed_out                 ? tr("Didn't answer")
+					: which == core::agent_setup_failure::instructions_dropped      ? tr("Ignores developer instructions")
+																					: tr("Check failed");
 				if (which == core::agent_setup_failure::not_signed_in && !sign_in_command(agent).isEmpty()) {
 					under = tr("Run %1 in a terminal, then check again.").arg(sign_in_command(agent));
 				}
