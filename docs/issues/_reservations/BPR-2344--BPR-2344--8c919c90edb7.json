@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2344"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Agent tab report summary as a pie with a legend",
+  "created": "2026-11-21T16:20:00.493158+00:00",
+  "base": "3b68c7dec7768acc08cdc38138500957e67f1da3"
+}
