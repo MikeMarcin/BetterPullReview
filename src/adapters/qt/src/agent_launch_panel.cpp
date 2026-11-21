@@ -480,6 +480,7 @@ namespace bpr::qt {
 		}
 		ActiveInvocation = aIdentity;
 		Output->clear();
+		TerminalCarry.clear();
 		Steered.clear();
 		StopReason.clear();
 		KeptText.clear();
@@ -527,6 +528,7 @@ namespace bpr::qt {
 			return;
 		}
 		Output->clear();
+		TerminalCarry.clear();
 		Status->setText(
 			QStringLiteral("Running in %1")
 				.arg(QString::fromStdString(aWorkspace.Path)));
@@ -570,8 +572,13 @@ namespace bpr::qt {
 		}
 		if (aEvent.Kind == application::agent_stream_kind::text) {
 			// [[BPR-2215]]. What a program prints is shown without terminal
-			// colours; so are its errors below.
-			Output->appendPlainText(QString::fromStdString(core::plain_terminal_text(aEvent.Text)));
+			// colours; so are its errors below. A sequence split between two
+			// chunks waits for its end.
+			auto piece    = core::plain_terminal_chunk(TerminalCarry, aEvent.Text);
+			TerminalCarry = std::move(piece.Carry);
+			if (!piece.Text.empty() || aEvent.Text.empty()) {
+				Output->appendPlainText(QString::fromStdString(piece.Text));
+			}
 		}
 		// [[BPR-2252]]. The turn's cost so far, said on its running line.
 		if (aEvent.Kind == application::agent_stream_kind::cost) {
@@ -593,6 +600,8 @@ namespace bpr::qt {
 			|| aResult.Session != aIdentity.Session.Id) {
 			return;
 		}
+		// [[BPR-2215]]. A sequence the stream ended inside is dropped.
+		TerminalCarry.clear();
 		// [[BPR-2153]]. Each steered message as it ended.
 		for (std::size_t index = 0U; index < Steered.size() && index < aResult.SteeredInputs.size(); ++index) {
 			Steered[index].Disposition = aResult.SteeredInputs[index].Disposition;

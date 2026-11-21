@@ -144,6 +144,9 @@ namespace bpr::qt {
 	auto agent_elapsed_words(const qint64 aSeconds) -> QString
 	{
 		const auto seconds = aSeconds < 0 ? qint64{ 0 } : aSeconds;
+		if (seconds >= 3600) {
+			return QStringLiteral("%1:%2:%3").arg(seconds / 3600).arg(seconds / 60 % 60, 2, 10, QLatin1Char{ '0' }).arg(seconds % 60, 2, 10, QLatin1Char{ '0' });
+		}
 		return QStringLiteral("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char{ '0' });
 	}
 

@@ -386,6 +386,29 @@ namespace {
 		}
 	}
 
+	/// [[BPR-2215]]. A program's coloured output shows as plain text in the
+	/// run's output, a sequence split between two chunks too; one the stream
+	/// ends inside never shows.
+	void test_streamed_output_is_plain_across_chunks()
+	{
+		auto       panel    = qt::agent_launch_panel{ };
+		const auto identity = application::agent_invocation_projection_identity{
+			.ApplicationSession   = core::application_session_id{ 1U },
+			.Session              = { .Id = core::agent_session_id{ 2U } },
+			.InvocationGeneration = 1U,
+		};
+		panel.admit(identity);
+		panel.start(identity, application::prepared_workspace{ .Path = "/tmp/plain-stream" });
+		for (const auto* const chunk : { "\x1b[0;3", "1merror:\x1b[0m sign-in expired\x1b]8;;https://example.invalid\x1b", "\\link\x1b]8;;\x07 done", "\x1b[0;3" }) {
+			panel.stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Text = chunk });
+		}
+		panel.finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
+		const auto shown = panel.output_text();
+		expect(shown.contains(QStringLiteral("error: sign-in expired")) && shown.contains(QStringLiteral("link done")) && !shown.contains(QChar{ 0x1b }) && !shown.contains(QStringLiteral("1m"))
+				   && !shown.contains(QStringLiteral("example.invalid")),
+			   "streamed coloured output shows as plain text across chunks: " + shown.toStdString());
+	}
+
 	/// \brief Terminal projection is visible and failed answer output is cleared.
 	void test_projection_uses_the_shipped_visible_controls()
 	{
@@ -640,6 +663,7 @@ auto main(int argc, char** argv) -> int
 	test_private_context_choices_are_explicit_identity_only_and_reset();
 	test_latest_session_metadata_and_staleness_are_visible_without_retargeting();
 	test_projection_uses_the_shipped_visible_controls();
+	test_streamed_output_is_plain_across_chunks();
 	test_prestart_terminals_keep_the_exact_admitted_identity();
 	test_a_failed_run_log_says_what_happened();
 	test_a_retained_workspace_check_is_said_as_one();

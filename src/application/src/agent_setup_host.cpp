@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <initializer_list>
 #include <random>
@@ -293,6 +294,14 @@ namespace bpr::application {
 		void publish()
 		{
 			derive();
+			// [[BPR-2215]]. A running workspace check keeps the instant it
+			// started across every projection until it ends.
+			if (Projection.State.WorkspaceCheck.State != core::setup_check_state::running) {
+				Projection.WorkspaceCheckStartedMs.reset();
+			} else if (!Projection.WorkspaceCheckStartedMs) {
+				Projection.WorkspaceCheckStartedMs = Dependencies.SteadyMilliseconds ? Dependencies.SteadyMilliseconds()
+																					 : std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+			}
 			++Projection.Generation;
 			if (Dependencies.Publish) {
 				try {
