@@ -4244,6 +4244,44 @@ namespace {
 		if (!aDirectory.isEmpty()) {
 			expect(view.grab().save(aDirectory + QStringLiteral("/code-box-composer-scrolled.png")), "render the scrolled code box");
 		}
+		// The owner, 2026-11-21: "my sideways scrolling gestures are not
+		// scrolling it". A trackpad's sideways swipe over the box, delivered
+		// as the platform delivers it (phases, pixels, momentum), moves the
+		// box and nothing else, through the drawer's gesture latch.
+		{
+			const auto global = field->viewport()->mapToGlobal(QPoint{ 60, rowOf(code).center().y() });
+			const auto phased = [&view, global](const Qt::ScrollPhase aPhase, const QPoint aPixels, const QPoint aAngle) {
+				auto* const handle = view.window()->windowHandle();
+				QWindowSystemInterface::handleWheelEvent(handle, handle->mapFromGlobal(global), global, aPixels, aAngle, Qt::NoModifier, aPhase);
+				QWindowSystemInterface::flushWindowSystemEvents();
+				QApplication::processEvents();
+			};
+			const auto drawer = view.verticalScrollBar()->value();
+			bar->setValue(0);
+			phased(Qt::ScrollBegin, { }, { });
+			for (auto move = 0; move < 4; ++move) {
+				phased(Qt::ScrollUpdate, QPoint{ -12, 1 }, QPoint{ -96, 8 });
+			}
+			const auto swiped = bar->value();
+			for (auto coast = 0; coast < 4; ++coast) {
+				phased(Qt::ScrollMomentum, QPoint{ -6, 0 }, QPoint{ -48, 0 });
+			}
+			phased(Qt::ScrollEnd, { }, { });
+			std::cout << "code box swipe: " << swiped << " then " << bar->value() << " of " << bar->maximum() << '\n';
+			expect(swiped > 0 && bar->value() > swiped, "a sideways trackpad swipe over the box scrolls it, and its momentum carries on");
+			expect(field->horizontalScrollBar()->value() == 0 && view.horizontalScrollBar()->value() == 0 && view.verticalScrollBar()->value() == drawer, "the field and the drawer stay where they are");
+			const auto far = bar->value();
+			phased(Qt::ScrollBegin, { }, { });
+			phased(Qt::ScrollUpdate, QPoint{ 24, 0 }, QPoint{ 192, 0 });
+			phased(Qt::ScrollEnd, { }, { });
+			expect(bar->value() < far, "a swipe the other way scrolls it back");
+			// A mouse's sideways notches, with no phase.
+			bar->setValue(0);
+			phased(Qt::NoScrollPhase, { }, QPoint{ -120, 0 });
+			expect(bar->value() > 0, "a sideways wheel notch scrolls the box");
+			bar->setValue(bar->maximum() / 2);
+			QApplication::processEvents();
+		}
 		// Clicking in the scrolled box puts the caret on the character shown.
 		const auto clicked = field->cursorForPosition(QPoint{ 14, rowOf(code).center().y() });
 		expect(clicked.block() == code && clicked.positionInBlock() > 0, "a click in the scrolled box lands on the character it shows");
@@ -4288,6 +4326,79 @@ namespace {
 		field->undo();
 		QApplication::processEvents();
 		expect(document->toPlainText() == QString::fromStdString(body), "and undo takes the typed block back whole");
+	}
+
+	/// \brief [[BPR-2355]] (owner, 2026-11-21: "can we do syntax
+	/// highlighting? Also if we could make the language into a picker"). The
+	/// composer's code box is coloured by the reader's syntax service once
+	/// typing pauses, and its header's picker rewrites the block's language
+	/// as one undoable edit.
+	auto test_a_code_box_is_coloured_and_names_its_language() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(320, 760);
+		auto       theme                                                              = qt::markdown_code_theme{ };
+		const auto keyword                                                            = QColor{ 0xC0, 0x10, 0x20 };
+		theme.Colors[static_cast<std::size_t>(core::appearance_role::syntax_keyword)] = keyword;
+		view.set_code_theme(theme);
+		auto sent = std::vector<application::markdown_code_syntax_request>{ };
+		view.set_code_syntax_dispatch([&sent](std::vector<application::markdown_code_syntax_request> aRequests) { sent.insert(sent.end(), aRequests.begin(), aRequests.end()); });
+		view.show();
+		QApplication::processEvents();
+		const auto body = std::string{ "Measure once.\n\n```cpp\nint b = 2;\nint c = 3;\n```\n\nThanks." };
+		open_composer(view, body);
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		settle_card();
+		const auto pause = [] {
+			QElapsedTimer elapsed;
+			elapsed.start();
+			while (elapsed.elapsed() < 450) {
+				QApplication::processEvents();
+				QThread::msleep(5);
+			}
+		};
+		pause();
+		const auto asked = std::ranges::find(sent, std::string{ "int b = 2;\nint c = 3;" }, [](const application::markdown_code_syntax_request& aRequest) { return *aRequest.Text; });
+		expect(asked != sent.end() && asked->Selector == "code.cpp", "once typing pauses the block's code is asked for, as C++");
+		auto* const field = view.draft_editor();
+		const auto  code  = field->document()->findBlockByNumber(3);
+		expect(std::ranges::none_of(code.layout()->formats(), [&](const QTextLayout::FormatRange& aRange) { return aRange.format.foreground().color() == keyword; }), "no colour before the answer");
+		auto spans = std::make_shared<const application::token_span_list>(application::token_span_list{ { .Line = 0U, .Column = 0U, .Length = 3U, .Role = core::appearance_role::syntax_keyword },
+																										{ .Line = 1U, .Column = 0U, .Length = 3U, .Role = core::appearance_role::syntax_keyword } });
+		view.apply_markdown_code_syntax({ .Selector = asked->Selector, .Text = asked->Text, .Spans = spans });
+		QApplication::processEvents();
+		const auto coloured = [&](const QTextBlock& aBlock) {
+			return std::ranges::any_of(aBlock.layout()->formats(), [&](const QTextLayout::FormatRange& aRange) { return aRange.start == 0 && aRange.length == 3 && aRange.format.foreground().color() == keyword; });
+		};
+		expect(coloured(code) && coloured(field->document()->findBlockByNumber(4)), "the answer colours each code line");
+		expect(!coloured(field->document()->findBlockByNumber(0)) && !coloured(field->document()->findBlockByNumber(2)), "the words and the fence keep their own colours");
+		// Typing in one line keeps the other's colour until the new answer.
+		auto cursor = QTextCursor{ field->document()->findBlockByNumber(4) };
+		cursor.movePosition(QTextCursor::EndOfBlock);
+		field->setTextCursor(cursor);
+		field->insertPlainText(QStringLiteral(" // c"));
+		QApplication::processEvents();
+		expect(coloured(field->document()->findBlockByNumber(3)), "an unchanged line keeps its colour while the block changes");
+		pause();
+		expect(std::ranges::any_of(sent, [](const application::markdown_code_syntax_request& aRequest) { return *aRequest.Text == "int b = 2;\nint c = 3; // c"; }), "the changed block is asked for again");
+		field->undo();
+		// The picker names the language and rewrites it as one edit.
+		auto* const picker = field->viewport()->findChild<QToolButton*>(QStringLiteral("threadCodeBlockLanguage"));
+		expect(picker != nullptr && picker->isVisible() && picker->text() == QStringLiteral("C++") && picker->accessibleName() == QStringLiteral("Language: C++"), "the header's picker names the block's language");
+		const auto choices = picker->menu()->actions();
+		const auto python  = std::ranges::find_if(choices, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Python"); });
+		expect(python != choices.end(), "the picker offers Python");
+		(*python)->trigger();
+		QApplication::processEvents();
+		expect(field->toPlainText() == QString::fromStdString(body).replace(QStringLiteral("```cpp"), QStringLiteral("```python")) && picker->text() == QStringLiteral("Python"),
+			   "choosing Python rewrites the fence's language and nothing else");
+		field->undo();
+		QApplication::processEvents();
+		expect(field->toPlainText() == QString::fromStdString(body) && picker->text() == QStringLiteral("C++"), "one undo takes the choice back");
+		const auto suggestion = std::ranges::find_if(choices, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Suggested change"); });
+		(*suggestion)->trigger();
+		QApplication::processEvents();
+		expect(field->toPlainText().contains(QStringLiteral("```suggestion\nint b = 2;")) && picker->text() == QStringLiteral("Suggested change"), "a block can be made a suggestion, and back");
 	}
 
 	/// \brief [[BPR-2273]]. The owner: "A long draft comment neither scrolls
@@ -4621,6 +4732,7 @@ auto main(int argc, char** argv) -> int
 	test_a_long_draft_grows_then_scrolls({ });
 	test_a_fenced_block_styles_only_its_own_lines({ });
 	test_a_code_block_is_its_own_box({ });
+	test_a_code_box_is_coloured_and_names_its_language();
 	std::cout << "conversation-cards-view-tests:pass\n";
 
 	return EXIT_SUCCESS;

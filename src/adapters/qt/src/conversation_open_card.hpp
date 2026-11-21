@@ -480,6 +480,9 @@ namespace bpr::qt {
 		void set_permalink_repository(const std::optional<core::markdown_repository>& aRepository);
 		/// \brief Colours every post showing the answer's code.
 		void apply_code_syntax(const application::markdown_code_syntax_publication& aSpans);
+		/// \brief [[BPR-2355]]. Colours the comment field's code blocks
+		/// through the card's code request.
+		void bind_code_syntax(const thread_card& aCard);
 		/// \brief Asks again for every published post's code.
 		void                                request_code_syntax();
 		void                                set_code_theme(const markdown_code_theme& aTheme);

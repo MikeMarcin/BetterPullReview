@@ -4,6 +4,8 @@
 #include <QTextCharFormat>
 #include <QTextDocument>
 
+#include <utility>
+
 namespace bpr::qt {
 	namespace {
 		/// The block state packs the line's role, its fence's character and
@@ -73,6 +75,12 @@ namespace bpr::qt {
 		rehighlight();
 	}
 
+	void fenced_code_highlighter::set_code_colours(code_colours aColours)
+	{
+		Colours = std::move(aColours);
+		rehighlight();
+	}
+
 	auto fenced_code_highlighter::role_of(const QTextBlock& aBlock) -> line_role
 	{
 		return aBlock.isValid() ? decode_role(aBlock.userState()) : line_role::prose;
@@ -105,5 +113,12 @@ namespace bpr::qt {
 			format.setForeground(Quiet);
 		}
 		setFormat(0, static_cast<int>(aText.size()), format);
+		if (role == line_role::code && Colours) {
+			for (const auto& range : Colours(currentBlock())) {
+				auto coloured = format;
+				coloured.merge(range.format);
+				setFormat(range.start, range.length, coloured);
+			}
+		}
 	}
 } // namespace bpr::qt

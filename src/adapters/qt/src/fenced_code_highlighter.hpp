@@ -3,7 +3,11 @@
 
 #include <QColor>
 #include <QFont>
+#include <QList>
 #include <QSyntaxHighlighter>
+#include <QTextLayout>
+
+#include <functional>
 
 class QTextBlock;
 class QTextDocument;
@@ -46,6 +50,14 @@ namespace bpr::qt {
 		/// its font or palette changes.
 		void set_style(const QFont& aFont, const QColor& aQuiet);
 
+		/// \brief [[BPR-2355]]. A code line's syntax colours, over its code
+		/// font: given the line's block, its ranges, or none while its
+		/// classification has not come.
+		using code_colours = std::function<QList<QTextLayout::FormatRange>(const QTextBlock&)>;
+
+		/// \brief Colours code lines by `aColours` from now on.
+		void set_code_colours(code_colours aColours);
+
 		/// \brief What `aBlock` is, as this highlighter last styled it;
 		/// `prose` for a block it has not seen.
 		[[nodiscard]] static auto role_of(const QTextBlock& aBlock) -> line_role;
@@ -54,8 +66,9 @@ namespace bpr::qt {
 		void highlightBlock(const QString& aText) override;
 
 	private:
-		QFont  CodeFont;
-		QColor Quiet;
+		QFont        CodeFont;
+		QColor       Quiet;
+		code_colours Colours;
 	};
 } // namespace bpr::qt
 

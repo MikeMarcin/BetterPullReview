@@ -135,8 +135,11 @@ namespace bpr::qt {
 				// over, whatever range its hidden bar reports: under the
 				// macOS style an in-place reader's vertical bar keeps a range
 				// its page does not have, and the gesture went nowhere.
+				// [[BPR-2354]]. A scroller that moves part of itself, whose
+				// bars cannot say so (the comment field's code boxes scroll
+				// sideways, the field never does), is offered it as well.
 				for (auto index = std::size_t{ 0U }; index + 1U < areas.size() && Owner == nullptr; ++index) {
-					if (can_move(*areas[index], axis, delta) && deliver(*areas[index], *wheel)) {
+					if ((can_move(*areas[index], axis, delta) || areas[index]->property(scrolls_itself_property).toBool()) && deliver(*areas[index], *wheel)) {
 						Owner = areas[index];
 					}
 				}

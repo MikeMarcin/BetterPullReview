@@ -31,6 +31,13 @@ namespace bpr::qt {
 	class nested_scroll_latch final : public QObject
 	{
 	public:
+		/// \brief [[BPR-2354]]. A scroll area with this property true moves
+		/// part of itself in ways its bars do not show (the comment field's
+		/// code boxes scroll sideways on their own): it is offered a
+		/// gesture's first movement whatever its bars say, and owns the
+		/// gesture only if it takes that movement.
+		static constexpr auto scrolls_itself_property = "bprScrollsItself";
+
 		/// \brief Installs the latch on the application; again, does nothing.
 		static void install();
 		/// \brief Whether the wheel event being delivered is the latch's

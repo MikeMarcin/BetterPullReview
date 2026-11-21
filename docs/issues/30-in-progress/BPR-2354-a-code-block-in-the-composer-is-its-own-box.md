@@ -79,6 +79,35 @@ we do for agent replies inside the composer?"
   vertical scroll still steps by lines, as a plain field does, so a step
   may stop a few pixels inside a padded row.
 
+## Owner review (2026-11-21)
+
+In session `4708604404524750554d23a4282d7890` (this branch merged with
+`claude/context-aware-code-highlighting`) the box layout and the sideways
+scroll were both **Accepted**, with one note: "my sideways scrolling
+gestures are not scrolling it."
+
+- **Cause.** The drawer's gesture latch, `nested_scroll_latch`
+  ([[BPR-2279]], [[BPR-2292]]), offers a trackpad gesture's first movement
+  only to a scroll area whose own bar can move that way. The comment
+  field's sideways range is always zero by design, so the field was passed
+  over and the drawer took every swipe. A mouse's sideways notches, which
+  have no phase, did reach the box.
+- **Fix.** `nested_scroll_latch::scrolls_itself_property`
+  (`bprScrollsItself`). A scroll area that moves part of itself is offered
+  the first movement whatever its bars say. It owns the gesture only if it
+  takes that movement, so a box at its end is passed over. The comment
+  field sets it. Its `wheelEvent` keeps a gesture on the block it began
+  over, momentum included, and accepts a movement only when the block
+  moved.
+- **Test.** `test_a_code_block_is_its_own_box` sends swipes through the
+  platform (`QWindowSystemInterface`: ScrollBegin, ScrollUpdate with
+  pixels, ScrollMomentum, ScrollEnd), so the latch takes part. The box
+  scrolls and its momentum carries on, while the field and the drawer stay
+  put. A swipe back scrolls it back, and a mouse's notch scrolls it. Run
+  without the property, the same test fails as the owner saw it: the swipe
+  moved the box 0 of 383 pixels.
+- Syntax colouring and the language picker are [[BPR-2355]].
+
 ## Acceptance
 
 - AC1. The words before and after a fenced block wrap. The block's long
@@ -115,4 +144,4 @@ the exact revision.
   Accept/Reject question about the box, one about the sideways scroll.
 - The composed courses that type in the composer (`application_*` and
   `qt_composed_github`) were not built here. They are for the landing round.
-- Syntax colouring in the composer's code box (see Decisions).
+- Syntax colouring in the composer's code box: done in [[BPR-2355]].

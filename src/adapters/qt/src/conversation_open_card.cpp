@@ -4,6 +4,7 @@
 
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/comment_edit.hpp"
+#include "bpr/core/markdown_code.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
@@ -19,15 +20,18 @@
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/identity_avatar.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/nested_scroll_latch.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 #include "bpr/qt/thread_pick_gestures.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QFontDatabase>
 #include <QFontMetricsF>
@@ -408,6 +412,7 @@ namespace bpr::qt {
 				Code             = new composer_code_layout{ text };
 				text->setDocumentLayout(Code);
 				setDocument(text);
+				setProperty(nested_scroll_latch::scrolls_itself_property, true);
 				setLineWrapMode(QPlainTextEdit::WidgetWidth);
 				setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
 				setObjectName(QStringLiteral("threadReplyText"));
@@ -426,6 +431,114 @@ namespace bpr::qt {
 				// bar follows the field as it scrolls and changes.
 				connect(this, &QPlainTextEdit::cursorPositionChanged, this, [this] { reveal_caret(); });
 				connect(this, &QPlainTextEdit::updateRequest, this, [this] { sync_bars(); });
+				// [[BPR-2355]]. A block's colours are asked for once typing
+				// pauses.
+				SyntaxTimer = new QTimer{ this };
+				SyntaxTimer->setSingleShot(true);
+				SyntaxTimer->setInterval(syntax_pause_ms);
+				connect(SyntaxTimer, &QTimer::timeout, this, [this] { request_syntax(); });
+				connect(this, &QPlainTextEdit::textChanged, this, [this] {
+					if (SyntaxDispatch) {
+						SyntaxTimer->start();
+					}
+				});
+			}
+
+			/// \brief How long typing pauses before a block's colours are
+			/// asked for.
+			static constexpr int syntax_pause_ms = 300;
+
+			/// \brief [[BPR-2355]] (owner, 2026-11-21: "can we do syntax
+			/// highlighting?"). Colours each block's code as the reader colours
+			/// it: its text is classified by the reader's syntax service
+			/// (`aDispatch`), by the file name its language names, or by
+			/// `aSuggestionSelector`, the commented file, for a suggestion;
+			/// the answers come back by `apply_code_syntax`, and `aTheme` is
+			/// the review panes' colours.
+			void set_syntax(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch, std::optional<markdown_code_theme> aTheme, std::string aSuggestionSelector)
+			{
+				SyntaxDispatch     = std::move(aDispatch);
+				Theme              = std::move(aTheme);
+				SuggestionSelector = std::move(aSuggestionSelector);
+				if (Fences != nullptr) {
+					Fences->set_code_colours([this](const QTextBlock& aBlock) { return colours_of(aBlock); });
+				}
+				if (SyntaxDispatch) {
+					SyntaxTimer->start();
+				}
+			}
+
+			/// \brief Takes the classification of a block's text this field
+			/// asked for; any other is not this field's.
+			void apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)
+			{
+				if (!aSpans.Text || !aSpans.Spans) {
+					return;
+				}
+				const auto asked = std::ranges::find_if(Asked, [&aSpans](const std::pair<std::string, std::string>& aAsked) { return aAsked.first == aSpans.Selector && aAsked.second == *aSpans.Text; });
+				if (asked == Asked.end()) {
+					return;
+				}
+				Asked.erase(asked);
+				auto entry     = classified_block{ .Selector = aSpans.Selector, .Text = *aSpans.Text };
+				entry.Lines    = lines_of(*aSpans.Text);
+				entry.Classify = classify_text_lines(bytes_of(*aSpans.Text), aSpans.Spans);
+				Known.insert(Known.begin(), std::move(entry));
+				if (Known.size() > known_blocks) {
+					Known.pop_back();
+				}
+				if (Fences != nullptr) {
+					Fences->rehighlight();
+				}
+			}
+
+			/// \brief The languages the header's picker offers: the info
+			/// string written, and the name shown.
+			static constexpr auto picker_languages = std::array<std::pair<const char*, const char*>, 16>{ {
+				{ "cpp", "C++" },
+				{ "c", "C" },
+				{ "csharp", "C#" },
+				{ "go", "Go" },
+				{ "java", "Java" },
+				{ "javascript", "JavaScript" },
+				{ "typescript", "TypeScript" },
+				{ "python", "Python" },
+				{ "rust", "Rust" },
+				{ "swift", "Swift" },
+				{ "shell", "Shell" },
+				{ "cmake", "CMake" },
+				{ "json", "JSON" },
+				{ "yaml", "YAML" },
+				{ "diff", "Diff" },
+				{ "", "Plain text" },
+			} };
+
+			/// \brief [[BPR-2355]]. Writes `aInfo` as block `aRun`'s
+			/// language, in its opening fence, as one undoable edit.
+			auto set_language(const std::size_t aRun, const QString& aInfo) -> bool
+			{
+				const auto& runs = Code->runs();
+				if (aRun >= runs.size() || isReadOnly()) {
+					return false;
+				}
+				const auto fence = document()->findBlockByNumber(runs[aRun].First);
+				const auto text  = fence.text();
+				auto       at    = qsizetype{ 0 };
+				while (at < text.size() && text[at] == QLatin1Char{ ' ' }) {
+					++at;
+				}
+				const auto mark = at < text.size() ? text[at] : QChar{ };
+				while (at < text.size() && text[at] == mark) {
+					++at;
+				}
+				auto cursor = QTextCursor{ fence };
+				cursor.setPosition(fence.position() + static_cast<int>(at));
+				cursor.setPosition(fence.position() + static_cast<int>(text.size()), QTextCursor::KeepAnchor);
+				if (cursor.selectedText() == aInfo) {
+					return false;
+				}
+				cursor.insertText(aInfo);
+				return true;
 			}
 
 			void fit()
@@ -650,6 +763,197 @@ namespace bpr::qt {
 				for (auto index = used; index < Bars.size(); ++index) {
 					Bars[index]->hide();
 				}
+				sync_pickers();
+			}
+
+			/// \brief The name a block's language shows under in its picker.
+			[[nodiscard]] static auto language_name(const std::string& aInfo) -> QString
+			{
+				const auto language = core::markdown_code_language_of(aInfo);
+				if (language.Kind == core::markdown_code_kind::suggestion) {
+					return QStringLiteral("Suggested change");
+				}
+				if (!language.Name.empty()) {
+					return QString::fromUtf8(language.Name.data(), static_cast<qsizetype>(language.Name.size()));
+				}
+				const auto word = QString::fromStdString(aInfo).section(QLatin1Char{ ' ' }, 0, 0);
+				return word.isEmpty() ? QStringLiteral("Plain text") : word;
+			}
+
+			/// \brief [[BPR-2355]] (owner, 2026-11-21: "if we could make the
+			/// language into a picker"). Each block's language as a picker at
+			/// the right end of its header row; a choice rewrites the opening
+			/// fence's language as one undoable edit. The fence stays the
+			/// draft's own text.
+			void sync_pickers()
+			{
+				const auto& runs   = Code->runs();
+				const auto  ink    = colours();
+				const auto  offset = contentOffset();
+				for (auto index = std::size_t{ 0U }; index < runs.size(); ++index) {
+					if (index == Pickers.size()) {
+						auto* const picker = new quiet_tool_button{ viewport() };
+						picker->setObjectName(QStringLiteral("threadCodeBlockLanguage"));
+						picker->setFocusPolicy(Qt::NoFocus);
+						picker->setToolButtonStyle(Qt::ToolButtonTextOnly);
+						picker->setPopupMode(QToolButton::InstantPopup);
+						auto* const menu = new QMenu{ picker };
+						menu->setObjectName(QStringLiteral("threadCodeBlockLanguages"));
+						const auto add = [this, menu, picker](const QString& aName, const QString& aInfo) {
+							auto* const action = menu->addAction(aName);
+							connect(action, &QAction::triggered, this, [this, picker, aInfo] {
+								const auto at = static_cast<std::size_t>(std::ranges::find(Pickers, picker) - Pickers.begin());
+								if (at < PickerRuns.size()) {
+									static_cast<void>(set_language(PickerRuns[at], aInfo));
+								}
+							});
+						};
+						add(QStringLiteral("Suggested change"), QStringLiteral("suggestion"));
+						menu->addSeparator();
+						for (const auto& [info, name] : picker_languages) {
+							add(QString::fromUtf8(name), QString::fromUtf8(info));
+						}
+						picker->setMenu(menu);
+						Pickers.push_back(picker);
+						PickerRuns.push_back(0U);
+					}
+					auto* const picker = Pickers[index];
+					PickerRuns[index]  = index;
+					const auto fence   = document()->findBlockByNumber(runs[index].First);
+					const auto name    = language_name(info_of(fence.text()));
+					picker->setText(name);
+					picker->setAccessibleName(QStringLiteral("Language: %1").arg(name));
+					picker->setToolTip(QStringLiteral("Change the block's language"));
+					picker->set_surface_colours(ink.Header, palette().color(QPalette::Active, QPalette::PlaceholderText));
+					picker->setEnabled(!isReadOnly());
+					const auto row    = blockBoundingGeometry(fence).translated(offset);
+					const auto height = std::max(16, static_cast<int>(row.height()) - 4);
+					const auto width  = picker->sizeHint().width();
+					picker->setGeometry(viewport()->width() - static_cast<int>(composer_code_layout::inset) - width, static_cast<int>(row.top()) + (static_cast<int>(row.height()) - height) / 2, width, height);
+					picker->show();
+				}
+				for (auto index = runs.size(); index < Pickers.size(); ++index) {
+					Pickers[index]->hide();
+				}
+			}
+
+			/// One block's classification, as it came: the selector and text
+			/// it was asked for, its lines, and its spans.
+			struct classified_block
+			{
+				std::string              Selector;
+				std::string              Text;
+				std::vector<std::string> Lines;
+				classified_text          Classify;
+			};
+
+			/// The classifications kept, newest first: a line keeps its
+			/// colours while the block around it changes, until the new
+			/// answer comes.
+			static constexpr std::size_t known_blocks = 16U;
+
+			[[nodiscard]] static auto bytes_of(const std::string& aText) -> std::span<const std::uint8_t>
+			{
+				return { reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() };
+			}
+
+			[[nodiscard]] static auto lines_of(const std::string& aText) -> std::vector<std::string>
+			{
+				auto lines = std::vector<std::string>{ };
+				auto begin = std::size_t{ 0U };
+				for (auto end = aText.find('\n'); end != std::string::npos; end = aText.find('\n', begin)) {
+					lines.push_back(aText.substr(begin, end - begin));
+					begin = end + 1U;
+				}
+				lines.push_back(aText.substr(begin));
+				return lines;
+			}
+
+			/// \brief The info string of an opening fence line.
+			[[nodiscard]] static auto info_of(const QString& aFence) -> std::string
+			{
+				const auto bare = aFence.trimmed();
+				auto       at   = qsizetype{ 0 };
+				while (at < bare.size() && bare[at] == bare.front()) {
+					++at;
+				}
+				return bare.mid(at).trimmed().toStdString();
+			}
+
+			/// \brief The file name a block's language is classified as: its
+			/// language's, or for a suggestion the commented file's.
+			[[nodiscard]] auto selector_of(const std::string& aInfo) const -> std::string
+			{
+				const auto language = core::markdown_code_language_of(aInfo);
+				switch (language.Kind) {
+				case core::markdown_code_kind::language:   return std::string{ language.Selector };
+				case core::markdown_code_kind::suggestion: return SuggestionSelector;
+				case core::markdown_code_kind::plain:
+				case core::markdown_code_kind::diff:       break;
+				}
+				return { };
+			}
+
+			/// \brief Asks for the classification of each block whose text
+			/// has none yet.
+			void request_syntax()
+			{
+				if (!SyntaxDispatch || !Theme) {
+					return;
+				}
+				auto requests = std::vector<application::markdown_code_syntax_request>{ };
+				for (const auto& run : Code->runs()) {
+					const auto selector = selector_of(info_of(document()->findBlockByNumber(run.First).text()));
+					auto       text     = std::string{ };
+					const auto last     = run.Closed ? run.Last - 1 : run.Last;
+					for (auto block = document()->findBlockByNumber(run.First + 1); block.isValid() && block.blockNumber() <= last; block = block.next()) {
+						text += (block.blockNumber() == run.First + 1 ? "" : "\n") + block.text().toStdString();
+					}
+					const auto same = [&](const auto& aEntry) { return aEntry.first == selector && aEntry.second == text; };
+					if (selector.empty() || text.empty() || std::ranges::any_of(Asked, same)
+						|| std::ranges::any_of(Known, [&](const classified_block& aKnown) { return aKnown.Selector == selector && aKnown.Text == text; })) {
+						continue;
+					}
+					Asked.emplace_back(selector, text);
+					requests.push_back({ .Selector = selector, .Text = std::make_shared<const std::string>(std::move(text)) });
+				}
+				while (Asked.size() > known_blocks * 2U) {
+					Asked.erase(Asked.begin());
+				}
+				if (!requests.empty()) {
+					SyntaxDispatch(std::move(requests));
+				}
+			}
+
+			/// \brief A code line's colours, from the newest classification
+			/// of its block that has this line at this place.
+			[[nodiscard]] auto colours_of(const QTextBlock& aBlock) const -> QList<QTextLayout::FormatRange>
+			{
+				if (!Theme) {
+					return { };
+				}
+				auto index = std::size_t{ 0U };
+				auto fence = aBlock.previous();
+				while (fence.isValid() && fenced_code_highlighter::role_of(fence) == fenced_code_highlighter::line_role::code) {
+					++index;
+					fence = fence.previous();
+				}
+				if (!fence.isValid() || fenced_code_highlighter::role_of(fence) != fenced_code_highlighter::line_role::opening_fence) {
+					return { };
+				}
+				const auto selector = selector_of(info_of(fence.text()));
+				const auto line     = aBlock.text().toStdString();
+				for (const auto& entry : Known) {
+					if (entry.Selector != selector || index >= entry.Lines.size() || entry.Lines[index] != line) {
+						continue;
+					}
+					auto begin = std::uint64_t{ 0U };
+					for (auto at = std::size_t{ 0U }; at < index; ++at) {
+						begin += entry.Lines[at].size() + 1U;
+					}
+					return code_syntax_format_ranges_at(entry.Classify, begin, bytes_of(line), Theme->Colors);
+				}
+				return { };
 			}
 
 			/// \brief Brings the caret into its block's box when it is in
@@ -671,9 +975,21 @@ namespace bpr::qt {
 			int                      Maximum = reply_maximum;
 			fenced_code_highlighter* Fences  = nullptr;
 			composer_code_layout*    Code    = nullptr;
-			std::vector<QScrollBar*> Bars;
-			std::vector<std::size_t> BarRuns;
-			QFont                    CodeFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+			/// The block a sideways gesture began over.
+			std::optional<std::size_t> WheelRun;
+			/// [[BPR-2355]]. The header's language pickers, by block.
+			std::vector<quiet_tool_button*> Pickers;
+			std::vector<std::size_t>        PickerRuns;
+			/// [[BPR-2355]]. Syntax colouring.
+			std::function<void(std::vector<application::markdown_code_syntax_request>)> SyntaxDispatch;
+			std::optional<markdown_code_theme>                                          Theme;
+			std::string                                                                 SuggestionSelector;
+			QTimer*                                                                     SyntaxTimer = nullptr;
+			std::vector<std::pair<std::string, std::string>>                            Asked;
+			std::vector<classified_block>                                               Known;
+			std::vector<QScrollBar*>                                                    Bars;
+			std::vector<std::size_t>                                                    BarRuns;
+			QFont                                                                       CodeFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
 
 		public:
 			/// RFC-BPR-0118. Adds the field's own items to its right-click menu.
@@ -704,20 +1020,37 @@ namespace bpr::qt {
 				paint_boxes(true);
 			}
 
-			/// [[BPR-2354]]. A sideways wheel or trackpad over a block wider
-			/// than its box moves that block; anything else is the field's.
+			/// [[BPR-2354]] (owner, 2026-11-21: "my sideways scrolling
+			/// gestures are not scrolling it"). A sideways wheel or trackpad
+			/// over a block wider than its box moves that block; a trackpad
+			/// gesture stays with the block it began over, momentum
+			/// included. It is taken only when it moved the block, so the
+			/// drawer's latch passes a block at its end over. Anything else
+			/// is the field's.
 			void wheelEvent(QWheelEvent* aEvent) override
 			{
 				const auto pixels = aEvent->pixelDelta();
 				const auto delta  = pixels.isNull() ? aEvent->angleDelta() : pixels;
-				if (std::abs(delta.x()) > std::abs(delta.y())) {
+				const auto phase  = aEvent->phase();
+				if (phase == Qt::NoScrollPhase || phase == Qt::ScrollBegin || !WheelRun) {
+					WheelRun.reset();
 					const auto block = cursorForPosition(aEvent->position().toPoint()).block();
 					if (const auto run = Code->run_of(block.blockNumber()); run && Code->runs()[*run].Room > 0.0) {
-						const auto step = pixels.isNull() ? static_cast<qreal>(delta.x()) / 120.0 * 3.0 * QFontMetricsF{ CodeFont }.horizontalAdvance(QLatin1Char{ '0' }) : static_cast<qreal>(delta.x());
-						Code->set_scroll(*run, Code->runs()[*run].Scroll - step);
-						aEvent->accept();
-						return;
+						WheelRun = run;
 					}
+				}
+				if (std::abs(delta.x()) > std::abs(delta.y()) && WheelRun && *WheelRun < Code->runs().size()) {
+					const auto before = Code->runs()[*WheelRun].Scroll;
+					const auto step   = pixels.isNull() ? static_cast<qreal>(delta.x()) / 120.0 * 3.0 * QFontMetricsF{ CodeFont }.horizontalAdvance(QLatin1Char{ '0' }) : static_cast<qreal>(delta.x());
+					Code->set_scroll(*WheelRun, before - step);
+					aEvent->setAccepted(Code->runs()[*WheelRun].Scroll != before);
+					return;
+				}
+				if (phase == Qt::ScrollBegin && delta.isNull()) {
+					// A trackpad's gesture begins without movement; it is
+					// decided by its first one.
+					aEvent->ignore();
+					return;
 				}
 				QPlainTextEdit::wheelEvent(aEvent);
 			}
@@ -3209,6 +3542,7 @@ namespace bpr::qt {
 			};
 			static_cast<reply_text*>(ReplyBox)->set_maximum(FieldMaximum);
 			static_cast<reply_text*>(ReplyBox)->set_code_font(Style.CodeFont);
+			bind_code_syntax(aCard);
 			ReplyBox->viewport()->installEventFilter(this);
 			ReplyBox->setAccessibleName(aCard.ReplyOnThread ? QStringLiteral("Reply to the outdated thread")
 											: aCard.Line    ? QStringLiteral("Reply to the thread on line %1").arg(*aCard.Line)
@@ -3352,6 +3686,7 @@ namespace bpr::qt {
 		};
 		static_cast<reply_text*>(ReplyBox)->set_maximum(FieldMaximum);
 		static_cast<reply_text*>(ReplyBox)->set_code_font(Style.CodeFont);
+		bind_code_syntax(aCard);
 		ReplyBox->viewport()->installEventFilter(this);
 		const auto line = aCard.Line.value_or(0U);
 		ReplyBox->setAccessibleName(QStringLiteral("Comment on line %1").arg(line));
@@ -4652,6 +4987,27 @@ namespace bpr::qt {
 		for (auto* const view : posts()) {
 			view->reader()->apply_code_syntax(aSpans);
 		}
+		if (auto* const field = dynamic_cast<reply_text*>(ReplyBox); field != nullptr) {
+			field->apply_code_syntax(aSpans);
+		}
+	}
+
+	void open_thread_card::bind_code_syntax(const thread_card& aCard)
+	{
+		// [[BPR-2355]]. The field's code blocks are classified through the
+		// card's own request, as its posts' are; a suggestion by the
+		// commented file.
+		auto* const field = dynamic_cast<reply_text*>(ReplyBox);
+		if (field == nullptr) {
+			return;
+		}
+		field->set_syntax(
+			[this](std::vector<application::markdown_code_syntax_request> aRequests) {
+				if (CodeRequest) {
+					CodeRequest(std::move(aRequests));
+				}
+			},
+			Style.CodeTheme, Style.Suggestions ? Style.Suggestions->Path : aCard.Path.toStdString());
 	}
 
 	void open_thread_card::request_code_syntax()
