@@ -187,7 +187,9 @@ namespace {
 	}
 
 #if defined(BPR_TEST_AGENT_SETUP_HOST)
-	/// A process port that runs nothing and records what it was asked.
+	/// A process port that runs nothing and records what it was asked. A
+	/// stream JSON turn answers with Claude's init frame, as a working custom
+	/// Claude agent does: [[BPR-2320]]'s check passes only on it.
 	class recording_process final : public application::agent_process_port
 	{
 	public:
@@ -197,6 +199,9 @@ namespace {
 			auto result    = application::agent_run_result{ };
 			result.Outcome = application::agent_run_outcome::success;
 			result.Session = aRequest.Session;
+			if (aRequest.Protocol == core::agent_protocol::claude_stream_json) {
+				result.Metadata.ProtocolReported.push_back({ .Basis = "claude_stream_json.system/init: session_id,model,claude_code_version" });
+			}
 			return result;
 		}
 		void cancel() noexcept override { }

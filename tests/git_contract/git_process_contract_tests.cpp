@@ -4518,8 +4518,8 @@ namespace {
 										  const TCheck& aCheck, const TWritten& aWritten, const std::chrono::milliseconds aBaseline)
 	{
 		auto ignoredFiles = std::size_t{ 100000U };
-		if (const auto* const configured = std::getenv("BPR_TEST_SEED_IGNORED_FILES"); configured != nullptr && *configured != '\0') {
-			ignoredFiles = static_cast<std::size_t>(std::strtoull(configured, nullptr, 10));
+		if (const auto configured = qgetenv("BPR_TEST_SEED_IGNORED_FILES"); !configured.isEmpty()) {
+			ignoredFiles = static_cast<std::size_t>(configured.toULongLong());
 		}
 		// `build/` is ignored: a vendored dependency tree inside module3.
 		const auto ignored = aClone / "module3" / "build" / "dependencies";
