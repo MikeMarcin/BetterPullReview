@@ -967,8 +967,12 @@ auto main(int aArgc, char** aArgv) -> int
 			if (phase != "missing-grant") {
 				expect_no_vault_attempts(evidence);
 			} else {
-				expect(evidence.VaultRetrieveAttempts > 0U && !evidence.CredentialRetrieved,
-					   "negative control: empty-vault failed lookup increments raw admission attempts");
+				// [[BPR-2215]]. Startup asks the vault on its own lane, and
+				// nothing on screen waits for it: a refused restart shows the
+				// same empty Home before and after. Under disk load on Ubuntu
+				// the lookup had not run when this was read once.
+				wait_for([&] { return github_application_fixture_access::evidence(*owner).VaultRetrieveAttempts > 0U; }, "the empty vault is asked at startup");
+				expect(!github_application_fixture_access::evidence(*owner).CredentialRetrieved, "negative control: empty-vault failed lookup increments raw admission attempts");
 			}
 		}
 		if (!anonymous && !failure) {
