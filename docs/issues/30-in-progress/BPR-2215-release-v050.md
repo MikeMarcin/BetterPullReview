@@ -842,3 +842,15 @@ SQLite moved to 3.54.1 on main.
   does not ship the shell, and no fixed SQLite release exists.
 
 Each release's exact-artifact results are recorded below as they are scanned.
+
+### Build 74 (macOS prerelease) scan result (2026-11-21)
+
+`v0.5.0-build.74` (source `003439076`, SQLite 3.54.1), scanned from the
+downloaded release assets: the DMG's SPDX, Grype 0.120.1, database v6.1.10
+built 2026-11-21T06:20Z. Raw gate exit 2, 24 matches and 24 advisories, bound
+to the exact DMG and SPDX by `verify_release_vulnerability_scan.py` (exit 2,
+as the gate stays failed while any match remains). 23 are the carried 0.4.x
+findings, waived again for 0.5.0. The one other is `BIT-sqlite-2026-119586`
+(High), recorded above as not affecting BetterPullReview. The other ten 2026
+SQLite advisories from build 73's rehearsal are gone with 3.54.1. No finding
+awaits the owner. Windows and Ubuntu are scanned at the all-platform build.
