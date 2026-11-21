@@ -752,3 +752,22 @@ Windows Release at `7f42d0429`: 1034 rows, 1032 passed;
 on Windows, fixed) and `test_network_isolation_manifest`
 (`application_reopened_tabs` measured contained and pinned
 `private-data-root-refused`) pass at `098a744ac`.
+
+### Known 0.5.0 intermittents (owner's standing rule, 2026-11-21)
+
+Intermittents that would hold the release are waived for 0.5.0, each with a
+Backlog card:
+
+- `application_review_tour_publication_reconciliation`: a product race; a
+  pull request read that started before the app's own tour publication lands
+  after it and is taken as a website edit, or moves the observed head back
+  (the fixture's late `observe_head` revert). [[BPR-2339]].
+- `application_inline_publish_cli_consent`: under load the comment falls back
+  to a file permalink ("Its comparison is not ready"); the course should wait
+  for the comparison after its rereads, and the fallback needs a product
+  answer. [[BPR-2340]].
+- `application_profile_window_review_restoration_public_path`, "remembered
+  grant settles before Quit": not reproduced; the course now names the
+  session, refresh and binding-store paths on a miss. [[BPR-2341]].
+- `application_large_review_history`: an epoch-drain stall seen once on the
+  Ubuntu guest; a timing course, judged on the WSL2 i9. [[BPR-2342]].
