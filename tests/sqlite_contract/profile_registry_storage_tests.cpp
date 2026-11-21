@@ -171,6 +171,10 @@ namespace {
 			sqlite3_close(raw);
 			auto       damaged = adapters::sqlite::make_profile_registry_store(copy.Root);
 			const auto read    = damaged->load({ });
+			if (read || (read.error() != profile_registry_failure::corrupt && read.error() != profile_registry_failure::schema_mismatch)) {
+				std::cerr << "registry-damage: " << mutation << " read=" << read.has_value() << " error=" << (read ? -1 : static_cast<int>(read.error()))
+						  << " order=" << (read ? read->Order.size() : 0U) << '\n';
+			}
 			expect(!read && (read.error() == profile_registry_failure::corrupt || read.error() == profile_registry_failure::schema_mismatch), "a gap, a stranger or a missing profile in the order, or an extra table, is refused");
 		}
 	}
