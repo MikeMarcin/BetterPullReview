@@ -67,6 +67,10 @@ block, the caret landed on the blank line before them.
   box and the drawer rule. The exact lines, unwrapped and scrolling sideways
   in their own box, are the suggested change view under the field
   ([[BPR-2271]]).
+- Superseded in part by [[BPR-2354]] (owner, 2026-11-21: "Can we not do
+  the nested code block element like we do for agent replies inside the
+  composer?"): a code-aware layout now keeps a block's lines unwrapped in
+  their own box with their own sideways scroll, while the words still wrap.
 
 ## Acceptance
 

@@ -4191,6 +4191,105 @@ namespace {
 		check("~~~python", "~~~", false, QStringLiteral("/fenced-tilde-composer.png"));
 	}
 
+	/// \brief [[BPR-2354]] (owner, 2026-11-21: "Can we not do the nested
+	/// code block element like we do for agent replies inside the
+	/// composer?"). A fenced block in the composer is its own box: its lines
+	/// unwrapped, scrolling sideways on their own bar, while the words around
+	/// it wrap and the field never scrolls sideways. It is still one text:
+	/// the caret and a selection cross into it, undo takes an edit in it
+	/// back, and the text is the draft's, fences and all.
+	auto test_a_code_block_is_its_own_box(const QString& aDirectory) -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(320, 760);
+		view.show();
+		QApplication::processEvents();
+		const auto before   = std::string{ "The widest column is measured on every call, which the profile shows as the hot spot in a long table." };
+		const auto after    = std::string{ "Measuring once per layout pass, as the header already does, would keep this off the frame." };
+		const auto longLine = std::string{ "\tconst auto widest = measure(first_column, second_column, third_column, fourth_column, fifth_column);" };
+		const auto body     = before + "\n\n```cpp\n" + longLine + "\nint b = 2;\n```\n\n" + after;
+		open_composer(view, body);
+		view.present_draft(qt::draft_composer_presentation{ .Body = QString::fromStdString(body), .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		settle_card();
+		auto* const field = view.draft_editor();
+		expect(field != nullptr, "the composer has its field");
+		auto* const document = field->document();
+		expect(document->toPlainText() == QString::fromStdString(body), "the field's text is the draft's, fences and all");
+		const auto prose   = document->findBlockByNumber(0);
+		const auto fence   = document->findBlockByNumber(2);
+		const auto code    = document->findBlockByNumber(3);
+		const auto shorter = document->findBlockByNumber(4);
+		const auto last    = document->findBlockByNumber(7);
+		expect(prose.layout()->lineCount() > 1 && last.layout()->lineCount() > 1, "the words before and after the block wrap");
+		expect(code.layout()->lineCount() == 1 && code.layout()->lineAt(0).naturalTextWidth() > field->viewport()->width(), "the long code line is one line, wider than the field");
+		expect(field->horizontalScrollBar()->maximum() == 0 && field->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff, "the field itself never scrolls sideways");
+		auto* const bar = field->viewport()->findChild<QScrollBar*>(QStringLiteral("threadCodeBlockScroll"));
+		expect(bar != nullptr && bar->isVisible() && bar->maximum() > 0, "the block has its own sideways bar");
+		const auto barTop = bar->mapTo(field->viewport(), QPoint{ 0, 0 }).y();
+		const auto rowOf  = [field](const QTextBlock& aBlock) {
+			auto at = QTextCursor{ aBlock };
+			return field->cursorRect(at);
+		};
+		expect(barTop >= rowOf(shorter).bottom() - 1, "the bar sits under the block's last code line");
+		if (!aDirectory.isEmpty()) {
+			expect(view.grab().save(aDirectory + QStringLiteral("/code-box-composer.png")), "render the composer's code box");
+		}
+		const auto proseX = prose.layout()->lineAt(0).x();
+		const auto fenceX = fence.layout()->lineAt(0).x();
+		const auto codeX  = code.layout()->lineAt(0).x();
+		bar->setValue(bar->maximum() / 2);
+		QApplication::processEvents();
+		expect(code.layout()->lineAt(0).x() < codeX && shorter.layout()->lineAt(0).x() == code.layout()->lineAt(0).x(), "the bar moves every code line of the block together");
+		expect(prose.layout()->lineAt(0).x() == proseX && fence.layout()->lineAt(0).x() == fenceX && field->horizontalScrollBar()->value() == 0, "the words, the fence and the field stay where they are");
+		if (!aDirectory.isEmpty()) {
+			expect(view.grab().save(aDirectory + QStringLiteral("/code-box-composer-scrolled.png")), "render the scrolled code box");
+		}
+		// Clicking in the scrolled box puts the caret on the character shown.
+		const auto clicked = field->cursorForPosition(QPoint{ 14, rowOf(code).center().y() });
+		expect(clicked.block() == code && clicked.positionInBlock() > 0, "a click in the scrolled box lands on the character it shows");
+		// The caret crosses from the words into the block, and the block
+		// scrolls to keep it in sight.
+		auto cursor = field->textCursor();
+		cursor.setPosition(code.position());
+		field->setTextCursor(cursor);
+		QApplication::processEvents();
+		expect(bar->value() == 0, "the caret at the line's start brings its start into sight");
+		field->moveCursor(QTextCursor::EndOfBlock);
+		QApplication::processEvents();
+		const auto caret = field->cursorRect();
+		expect(bar->value() == bar->maximum() && caret.right() <= field->viewport()->width() && caret.left() >= 0, "the caret at the line's end scrolls the block, not the field, to show it");
+		cursor = field->textCursor();
+		cursor.setPosition(document->findBlockByNumber(1).position());
+		field->setTextCursor(cursor);
+		field->moveCursor(QTextCursor::Down);
+		field->moveCursor(QTextCursor::Down);
+		expect(field->textCursor().block() == code, "Down moves from the words through the fence into the code");
+		// A selection runs across the boundary and copies as one text.
+		cursor.setPosition(prose.position() + 4);
+		cursor.setPosition(code.position() + 10, QTextCursor::KeepAnchor);
+		field->setTextCursor(cursor);
+		const auto selected = field->textCursor().selectedText();
+		expect(selected.contains(QStringLiteral("```cpp")) && selected.contains(QChar::ParagraphSeparator) && selected.endsWith(QString::fromStdString(longLine.substr(0U, 10U))),
+			   "a selection crosses from the words into the block");
+		// An edit in the block is undone like any other.
+		cursor.setPosition(shorter.position() + shorter.length() - 1);
+		field->setTextCursor(cursor);
+		field->insertPlainText(QStringLiteral(" // one"));
+		expect(document->toPlainText().contains(QStringLiteral("int b = 2; // one")), "the block's code is written in place");
+		field->undo();
+		expect(document->toPlainText() == QString::fromStdString(body) && document->findBlockByNumber(3).layout()->lineCount() == 1, "undo takes it back, and the block is still unwrapped");
+		// Typing a fence in the words makes a box; deleting it makes words.
+		cursor.movePosition(QTextCursor::End);
+		field->setTextCursor(cursor);
+		field->insertPlainText(QStringLiteral("\n\n```\n") + QString::fromStdString(longLine) + QStringLiteral("\n```"));
+		QApplication::processEvents();
+		const auto typed = document->findBlockByNumber(document->blockCount() - 2);
+		expect(typed.layout()->lineCount() == 1 && typed.layout()->textOption().wrapMode() == QTextOption::NoWrap, "a block typed in the field is a box at once");
+		field->undo();
+		QApplication::processEvents();
+		expect(document->toPlainText() == QString::fromStdString(body), "and undo takes the typed block back whole");
+	}
+
 	/// \brief [[BPR-2273]]. The owner: "A long draft comment neither scrolls
 	/// with 2 finger MacBook gestures (scroll wheel) nor expands to fit the
 	/// contents". The composer grows with its text to about 60% of the
@@ -4454,6 +4553,11 @@ auto main(int argc, char** argv) -> int
 		std::cout << "render-fenced-composer:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-code-box") {
+		test_a_code_block_is_its_own_box(QString::fromLocal8Bit(argv[2]));
+		std::cout << "render-code-box:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc > 2 && std::string_view{ argv[1] } == "--render-bpr-2273") {
 		test_a_long_draft_grows_then_scrolls(QString::fromLocal8Bit(argv[2]));
 		std::cout << "render-bpr-2273:pass\n";
@@ -4516,6 +4620,7 @@ auto main(int argc, char** argv) -> int
 	test_a_suggested_change_scrolls_sideways_in_its_box({ });
 	test_a_long_draft_grows_then_scrolls({ });
 	test_a_fenced_block_styles_only_its_own_lines({ });
+	test_a_code_block_is_its_own_box({ });
 	std::cout << "conversation-cards-view-tests:pass\n";
 
 	return EXIT_SUCCESS;

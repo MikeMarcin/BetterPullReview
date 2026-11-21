@@ -11,6 +11,7 @@
 
 #include "button_surface.hpp"
 #include "comment_state_toggle.hpp"
+#include "composer_code_layout.hpp"
 #include "conversation_glyphs.hpp"
 #include "conversation_reactions.hpp"
 #include "fenced_code_highlighter.hpp"
@@ -59,6 +60,8 @@
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextLayout>
+#include <QTextOption>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -398,6 +401,15 @@ namespace bpr::qt {
 			explicit reply_text(QWidget* aParent)
 				: QPlainTextEdit{ aParent }
 			{
+				// [[BPR-2354]]. One plain text document, laid out so its
+				// fenced blocks are unwrapped boxes with their own sideways
+				// scroll; everything else about the field is a plain field's.
+				auto* const text = new QTextDocument{ this };
+				Code             = new composer_code_layout{ text };
+				text->setDocumentLayout(Code);
+				setDocument(text);
+				setLineWrapMode(QPlainTextEdit::WidgetWidth);
+				setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
 				setObjectName(QStringLiteral("threadReplyText"));
 				setFrameShape(QFrame::NoFrame);
 				setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -409,6 +421,11 @@ namespace bpr::qt {
 				setPlaceholderText(QStringLiteral("Reply. Start with a label, as in question: or issue (blocking):"));
 				fit();
 				connect(this, &QPlainTextEdit::textChanged, this, [this] { fit(); });
+				Code->set_bar_extent(style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, this));
+				// The caret stays in sight inside its block, and each block's
+				// bar follows the field as it scrolls and changes.
+				connect(this, &QPlainTextEdit::cursorPositionChanged, this, [this] { reveal_caret(); });
+				connect(this, &QPlainTextEdit::updateRequest, this, [this] { sync_bars(); });
 			}
 
 			void fit()
@@ -503,9 +520,159 @@ namespace bpr::qt {
 				return height;
 			}
 
-			bool                     Fitting  = false;
-			int                      Maximum  = reply_maximum;
-			fenced_code_highlighter* Fences   = nullptr;
+			/// The box's colours: the agent reply's code box's, from the
+			/// field's palette.
+			struct box_colours
+			{
+				QColor Back;
+				QColor Header;
+				QColor Rule;
+			};
+
+			[[nodiscard]] auto colours() const -> box_colours
+			{
+				const auto back = palette().color(QPalette::Active, QPalette::Window);
+				const auto ink  = palette().color(QPalette::Active, QPalette::Text);
+				return { .Back = back, .Header = mix(back, ink, 0.045), .Rule = mix(back, ink, 0.18) };
+			}
+
+			/// A block's box in the viewport, its header row's bottom, and the
+			/// rows its code moves in.
+			struct box_shape
+			{
+				QRectF        Box;
+				qreal         HeaderBottom = 0.0;
+				QList<QRectF> CodeRows;
+				qreal         CodeBottom = 0.0;
+			};
+
+			[[nodiscard]] auto shape_of(const composer_code_layout::code_run& aRun) const -> box_shape
+			{
+				auto       shape  = box_shape{ };
+				const auto offset = contentOffset();
+				const auto width  = static_cast<qreal>(viewport()->width());
+				auto       top    = 0.0;
+				auto       bottom = 0.0;
+				for (auto block = document()->findBlockByNumber(aRun.First); block.isValid() && block.blockNumber() <= aRun.Last; block = block.next()) {
+					const auto rect = blockBoundingGeometry(block).translated(offset);
+					if (block.blockNumber() == aRun.First) {
+						top                = rect.top();
+						shape.HeaderBottom = rect.bottom();
+					}
+					if (fenced_code_highlighter::role_of(block) == fenced_code_highlighter::line_role::code) {
+						shape.CodeRows.push_back(QRectF{ 0.0, rect.top(), width, rect.height() });
+						shape.CodeBottom = rect.bottom();
+					}
+					bottom = rect.bottom();
+				}
+				shape.Box = QRectF{ 0.5, top + 0.5, std::max(1.0, width - 1.0), std::max(1.0, bottom - top - 1.0) };
+				return shape;
+			}
+
+			/// \brief Paints each fenced block's box: under the text, its
+			/// ground and header band; over it, the gutters its scrolled code
+			/// may not show in, and its outline.
+			void paint_boxes(const bool aOver)
+			{
+				auto       painter = QPainter{ viewport() };
+				const auto ink     = colours();
+				const auto visible = QRectF{ viewport()->rect() };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				for (const auto& run : Code->runs()) {
+					const auto shape = shape_of(run);
+					if (!shape.Box.intersects(visible)) {
+						continue;
+					}
+					auto path = QPainterPath{ };
+					path.addRoundedRect(shape.Box, 6.0, 6.0);
+					if (!aOver) {
+						painter.fillPath(path, ink.Back);
+						painter.save();
+						painter.setClipPath(path);
+						painter.fillRect(QRectF{ shape.Box.left(), shape.Box.top(), shape.Box.width(), shape.HeaderBottom - shape.Box.top() }, ink.Header);
+						painter.restore();
+						painter.setPen(QPen{ ink.Rule, 1.0 });
+						painter.drawLine(QPointF{ shape.Box.left(), shape.HeaderBottom - 0.5 }, QPointF{ shape.Box.right(), shape.HeaderBottom - 0.5 });
+						continue;
+					}
+					painter.save();
+					painter.setClipPath(path);
+					const auto side = composer_code_layout::inset - 2.0;
+					for (const auto& row : shape.CodeRows) {
+						painter.fillRect(QRectF{ shape.Box.left(), row.top(), side, row.height() }, ink.Back);
+						painter.fillRect(QRectF{ shape.Box.right() - side, row.top(), side, row.height() }, ink.Back);
+					}
+					painter.restore();
+					painter.setPen(QPen{ ink.Rule, 1.0 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawPath(path);
+				}
+			}
+
+			/// \brief One sideways bar under each block wider than its box,
+			/// placed under its last code row.
+			void sync_bars()
+			{
+				const auto& runs = Code->runs();
+				auto        used = std::size_t{ 0U };
+				for (auto index = std::size_t{ 0U }; index < runs.size(); ++index) {
+					const auto& run = runs[index];
+					if (run.Room <= 0.0) {
+						continue;
+					}
+					if (used == Bars.size()) {
+						auto* const bar = new QScrollBar{ Qt::Horizontal, viewport() };
+						bar->setObjectName(QStringLiteral("threadCodeBlockScroll"));
+						bar->setFocusPolicy(Qt::NoFocus);
+						Bars.push_back(bar);
+						BarRuns.push_back(0U);
+						connect(bar, &QScrollBar::valueChanged, this, [this, bar](const int aValue) {
+							const auto at = static_cast<std::size_t>(std::ranges::find(Bars, bar) - Bars.begin());
+							if (at < BarRuns.size()) {
+								Code->set_scroll(BarRuns[at], aValue);
+							}
+						});
+					}
+					auto* const bar  = Bars[used];
+					BarRuns[used]    = index;
+					const auto shape = shape_of(run);
+					const auto inner = std::max(1, viewport()->width() - 2 * static_cast<int>(composer_code_layout::inset));
+					const auto block = QSignalBlocker{ bar };
+					bar->setRange(0, static_cast<int>(std::ceil(run.Room)));
+					bar->setPageStep(inner);
+					bar->setSingleStep(std::max(1, QFontMetrics{ CodeFont }.horizontalAdvance(QLatin1Char{ '0' }) * 2));
+					bar->setValue(static_cast<int>(std::lround(run.Scroll)));
+					const auto extent = style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, this);
+					bar->setGeometry(static_cast<int>(composer_code_layout::inset), static_cast<int>(std::lround(shape.CodeBottom - composer_code_layout::pad - extent)), inner, extent);
+					bar->show();
+					++used;
+				}
+				for (auto index = used; index < Bars.size(); ++index) {
+					Bars[index]->hide();
+				}
+			}
+
+			/// \brief Brings the caret into its block's box when it is in
+			/// code.
+			void reveal_caret()
+			{
+				const auto cursor = textCursor();
+				const auto block  = cursor.block();
+				if (!Code->run_of(block.blockNumber()) || block.layout()->lineCount() == 0) {
+					return;
+				}
+				const auto line = block.layout()->lineForTextPosition(cursor.positionInBlock());
+				if (line.isValid()) {
+					Code->reveal(block, line.cursorToX(cursor.positionInBlock()));
+				}
+			}
+
+			bool                     Fitting = false;
+			int                      Maximum = reply_maximum;
+			fenced_code_highlighter* Fences  = nullptr;
+			composer_code_layout*    Code    = nullptr;
+			std::vector<QScrollBar*> Bars;
+			std::vector<std::size_t> BarRuns;
 			QFont                    CodeFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
 
 		public:
@@ -516,7 +683,43 @@ namespace bpr::qt {
 			void resizeEvent(QResizeEvent* aEvent) override
 			{
 				QPlainTextEdit::resizeEvent(aEvent);
+				Code->set_box_width(viewport()->width());
 				fit();
+			}
+
+			auto viewportEvent(QEvent* aEvent) -> bool override
+			{
+				const auto handled = QPlainTextEdit::viewportEvent(aEvent);
+				if (aEvent->type() == QEvent::Resize) {
+					Code->set_box_width(viewport()->width());
+					sync_bars();
+				}
+				return handled;
+			}
+
+			void paintEvent(QPaintEvent* aEvent) override
+			{
+				paint_boxes(false);
+				QPlainTextEdit::paintEvent(aEvent);
+				paint_boxes(true);
+			}
+
+			/// [[BPR-2354]]. A sideways wheel or trackpad over a block wider
+			/// than its box moves that block; anything else is the field's.
+			void wheelEvent(QWheelEvent* aEvent) override
+			{
+				const auto pixels = aEvent->pixelDelta();
+				const auto delta  = pixels.isNull() ? aEvent->angleDelta() : pixels;
+				if (std::abs(delta.x()) > std::abs(delta.y())) {
+					const auto block = cursorForPosition(aEvent->position().toPoint()).block();
+					if (const auto run = Code->run_of(block.blockNumber()); run && Code->runs()[*run].Room > 0.0) {
+						const auto step = pixels.isNull() ? static_cast<qreal>(delta.x()) / 120.0 * 3.0 * QFontMetricsF{ CodeFont }.horizontalAdvance(QLatin1Char{ '0' }) : static_cast<qreal>(delta.x());
+						Code->set_scroll(*run, Code->runs()[*run].Scroll - step);
+						aEvent->accept();
+						return;
+					}
+				}
+				QPlainTextEdit::wheelEvent(aEvent);
 			}
 
 			void changeEvent(QEvent* aEvent) override
