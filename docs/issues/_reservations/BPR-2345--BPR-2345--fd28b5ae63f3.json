@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2345"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "workspace seed quoted unicode paths and setup throwaway workspace",
+  "created": "2026-11-21T16:20:50.452036+00:00",
+  "base": "e16ebad1a14e8166243c0d4e7e3b3ef3a07cab2e"
+}
