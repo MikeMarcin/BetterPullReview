@@ -3934,8 +3934,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# so the send note is written when another operation or a host retirement
 	# replaced that context. The send, its grant and its terminal are
 	# unchanged.
+	# [[BPR-2215]] reseal: window_workbench.cpp asks for a tour's material
+	# check again when a selected diff is published, so a stop whose accepted
+	# code could not yet be realigned to a new head is compared once it can.
+	# Read-only comparison; no grant, provider, transport, mutation or
+	# publication path changes.
 	set(bpr_expected_production_app_manifest_digest
-        "0bca4d5dee1f100515ae3c1cb970f40962ff0422f1ed50197da6eaeb9f9d9d86"
+        "153b87fc517c3262b1d0212a326f5db8a65809a9a50d2690f2008ed30346b266"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
