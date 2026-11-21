@@ -1093,6 +1093,48 @@ namespace {
 		dialog.hide();
 	}
 
+	/// Owner, 0.5.0 build 75: Add argument drew over the second argument row.
+	/// The dialog opens at its own size, as `exec` shows it; Add argument and
+	/// its hint sit below every row the list shows, for one to four
+	/// arguments and after a reorder, a removal and an addition.
+	void test_add_argument_stays_below_the_rows()
+	{
+		const auto clear_of_rows = [](qt::agent_entry_dialog& aDialog, const char* aWhen) {
+			QApplication::processEvents();
+			auto* const editor = aDialog.arguments();
+			auto* const list   = editor->list();
+			const auto  add    = QRect{ editor->add_button()->mapTo(&aDialog, QPoint{ }), editor->add_button()->size() };
+			const auto  hint   = editor->findChild<QLabel*>(QStringLiteral("agentEntryArgumentsHint"));
+			const auto  below  = QRect{ hint->mapTo(&aDialog, QPoint{ }), hint->size() };
+			const auto  frame  = QRect{ list->mapTo(&aDialog, QPoint{ }), list->size() };
+			auto        clear  = !add.intersects(frame) && !below.intersects(frame) && add.height() >= editor->add_button()->sizeHint().height();
+			for (auto row = 0; row < list->count(); ++row) {
+				const auto rect = list->visualItemRect(list->item(row)).translated(list->viewport()->mapTo(&aDialog, QPoint{ }));
+				clear           = clear && !add.intersects(rect) && !below.intersects(rect);
+			}
+			expect(clear, std::string{ "Add argument and its hint sit below the argument rows " } + aWhen + " (" + std::to_string(list->count()) + " rows, list " + std::to_string(frame.top()) + "+" + std::to_string(frame.height()) + ", add " + std::to_string(add.top()) + "+" + std::to_string(add.height()) + ", hint " + std::to_string(below.top()) + "+" + std::to_string(below.height()) + ")");
+		};
+		for (const auto count : { 0U, 1U, 2U, 3U, 4U }) {
+			auto arguments = std::vector<std::string>{ };
+			for (auto at = 0U; at < count; ++at) {
+				arguments.push_back("--argument-" + std::to_string(at + 1U));
+			}
+			auto dialog = qt::agent_entry_dialog{ core::agent_entry{ .Name = "Work", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/claude", .Arguments = arguments } };
+			dialog.show();
+			clear_of_rows(dialog, "when the dialog opens");
+			if (count >= 2U) {
+				dialog.arguments()->list()->setCurrentRow(1);
+				key_on(*dialog.arguments()->list(), Qt::Key_Up, Qt::AltModifier);
+				clear_of_rows(dialog, "after a reorder");
+				dialog.arguments()->trash(0)->click();
+				clear_of_rows(dialog, "after a removal");
+			}
+			dialog.arguments()->add_button()->click();
+			clear_of_rows(dialog, "while a new row is edited");
+			dialog.hide();
+		}
+	}
+
 	void test_settings_offers_the_prompt_form()
 	{
 		auto programs = qt::agent_programs_panel{ };
@@ -1422,6 +1464,7 @@ auto main(int argc, char** argv) -> int
 	test_settings_rows();
 	test_settings_rows_select_open_remove_reorder();
 	test_arguments_editor();
+	test_add_argument_stays_below_the_rows();
 	test_settings_check_agent();
 	test_settings_offers_the_prompt_form();
 	test_settings_unreadable();

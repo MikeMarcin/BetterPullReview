@@ -10,6 +10,7 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -18,6 +19,8 @@
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QResizeEvent>
+#include <QScreen>
 #include <QStyle>
 #include <QVBoxLayout>
 
@@ -341,6 +344,37 @@ namespace bpr::qt {
 															  : QString{ });
 		Problem->setVisible(!bundle.isEmpty() || refusal.has_value());
 		Buttons->button(QDialogButtonBox::Ok)->setEnabled(bundle.isEmpty() && !refusal.has_value());
+	}
+
+	auto agent_entry_dialog::event(QEvent* aEvent) -> bool
+	{
+		const auto handled = QDialog::event(aEvent);
+		if (aEvent->type() == QEvent::LayoutRequest) {
+			fit_height();
+		}
+		return handled;
+	}
+
+	void agent_entry_dialog::resizeEvent(QResizeEvent* aEvent)
+	{
+		QDialog::resizeEvent(aEvent);
+		fit_height();
+	}
+
+	void agent_entry_dialog::fit_height()
+	{
+		auto* const column = layout();
+		if (column == nullptr || !column->hasHeightForWidth()) {
+			return;
+		}
+		auto need = column->totalHeightForWidth(width());
+		if (const auto* const shown = screen(); shown != nullptr) {
+			need = std::min(need, shown->availableGeometry().height());
+		}
+		need = std::max(need, column->totalMinimumSize().height());
+		if (need > 0 && need != minimumHeight()) {
+			setMinimumHeight(need);
+		}
 	}
 
 	auto default_agent_entry_editor(agent_program_host aHost) -> agent_entry_editor

@@ -16,10 +16,12 @@
 class QCheckBox;
 class QComboBox;
 class QDialogButtonBox;
+class QEvent;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
 class QPushButton;
+class QResizeEvent;
 
 namespace bpr::qt {
 	/// \brief [[BPR-2303]]. What the program field's Choose… asks of the host.
@@ -71,7 +73,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto buttons() const noexcept -> QDialogButtonBox* { return Buttons; }
 		[[nodiscard]] auto choose_button() const noexcept -> QPushButton* { return ChooseButton; }
 
+	protected:
+		auto event(QEvent* aEvent) -> bool override;
+		void resizeEvent(QResizeEvent* aEvent) override;
+
 	private:
+		/// Owner, 0.5.0 build 75: Add argument drew over the second argument
+		/// row. The wrapped words need more height than the dialog's own
+		/// minimum says, and a window opens at most two thirds of the screen
+		/// tall, so the rows were squeezed. The dialog is kept at least as
+		/// tall as its contents need at its width, within the screen.
+		void fit_height();
 		void settle();
 		void offer_efforts();
 		/// [[BPR-2303]]. Reads the program field as an app bundle when it
