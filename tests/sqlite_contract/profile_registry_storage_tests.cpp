@@ -153,18 +153,18 @@ namespace {
 		for (const auto mutation : { "DELETE FROM profile_registry_order WHERE position=0", "UPDATE profile_registry_order SET profile_id='9' WHERE position=2",
 									 "DELETE FROM profile_registry_order WHERE position=2", "CREATE TABLE extra(x)" }) {
 			const auto copy = scratch_directory{ };
-			std::filesystem::create_directories(copy.database().parent_path());
-			std::filesystem::copy_file(scratch.database(), copy.database());
-			// [[BPR-2215]]. With its log: a write the closed store left in it
-			// (seen on Windows) is part of the registry being damaged.
-			for (const auto* suffix : { "-wal", "-shm" }) {
-				auto source = scratch.database();
-				source += suffix;
-				if (std::filesystem::exists(source)) {
-					auto target = copy.database();
-					target += suffix;
-					std::filesystem::copy_file(source, target);
-				}
+			// [[BPR-2215]]. The copy's folder and file are the store's own,
+			// made by its first open, so they are as private as the store asks
+			// (a folder made here is not, on Windows); the registry's pages are
+			// then copied into it.
+			static_cast<void>(adapters::sqlite::make_profile_registry_store(copy.Root)->load({ }));
+			{
+				auto* source = raw_open(scratch.database());
+				auto* target = raw_open(copy.database());
+				auto* backup = sqlite3_backup_init(target, "main", source, "main");
+				expect(backup != nullptr && sqlite3_backup_step(backup, -1) == SQLITE_DONE && sqlite3_backup_finish(backup) == SQLITE_OK, "the registry is copied into the copy's store");
+				sqlite3_close(source);
+				sqlite3_close(target);
 			}
 			auto* raw = raw_open(copy.database());
 			execute(raw, std::string{ "PRAGMA foreign_keys=OFF; " } + mutation);
