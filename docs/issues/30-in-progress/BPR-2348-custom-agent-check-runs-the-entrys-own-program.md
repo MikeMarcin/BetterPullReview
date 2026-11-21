@@ -203,3 +203,51 @@ details name the launcher's own path.
 
 - The launcher's shims and its first-argument rule.
 - How a popular agent's preset is found ([[BPR-1769]], [[BPR-1859]]).
+
+## Evidence (2026-11-21, macOS, Debug dev tree)
+
+Commit `1260584c9` on `claude/release-0-5-0-custom-agent-check-program`.
+
+As built: `own_program_entry()` in `agent_setup_host.cpp` is the entry being
+checked when it names a Program and its host's policy permits it (its Agent
+step card's verdict). `start_check` then takes that Program, not the row
+detection found for its kind, and skips the "not found" settles. A custom
+entry runs its check command (`CheckArguments`) and its probe with the
+Program, the probe after the entry's arguments, as `agent_entry_process`
+runs its turns. A popular agent's preset that names a Program is checked
+with it the same way; one that names none keeps the found program. A
+Program the inspector refuses fails `program_refused` with the detail
+"<path>: <why>". A failed custom check's details begin
+"Ran: <Program> <entry arguments> …and the check's own" (the probe) or
+"Ran: <Program> <check arguments>" (its own check command). Settings'
+roster reads "Check failed", not "Not found", for a kept `agent_not_found`
+on an entry with its own Program.
+
+- AC1, AC2. `application_agent_setup_host`
+  (`test_a_custom_entry_is_checked_with_its_own_program`): with a `codex`
+  located at `~/.local/bin/codex` and a preferred Claude entry of another
+  program, the Codex entry's check command and probe both run its own
+  Program, its arguments once and first; Check all over two custom Codex
+  entries runs each one's own Program. With the host change reverted the
+  test fails at "its check command and its probe run the entry's own
+  Program, never the shim found on PATH".
+- AC3. The same test: with no Codex located anywhere the entry runs its own
+  Program and passes, and no `agent_not_found` is logged; a Program the
+  inspector reports missing fails `program_refused`, runs nothing, and its
+  detail starts with the path. `qt_agent_setup_view`
+  (`test_custom_entry_check_names_its_program`): the roster never reads
+  "Not found" for an entry with its own Program, and still does for a
+  popular agent that relies on the search.
+- AC4. The host test's failed probe's details start with "Ran:
+  /opt/corp/bin/launcher --no-extra-output --codex …and the check's own";
+  the Qt test shows the details naming the program first. BPR-2305's and
+  BPR-2320's detail assertions now expect that line first.
+- AC5. Passed: `application_agent_setup_host`, `qt_agent_setup_view`,
+  `qt_settings_window`, `application_agent_invocation_composition_contract`,
+  `application_review_round_trip_composition_contract` (no `src/app` file
+  changed, so no reseal), `architecture_boundaries`; clang-format 22 check
+  and clang-tidy on the changed files (one finding, `clear_of_rows` in
+  `agent_setup_view_tests.cpp`, is on main already); `python3
+  scripts/verify_documentation.py --root .`.
+- Owner step: pending. It needs the corporate Mac and its launcher.
+
