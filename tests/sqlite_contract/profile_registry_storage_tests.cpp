@@ -155,6 +155,17 @@ namespace {
 			const auto copy = scratch_directory{ };
 			std::filesystem::create_directories(copy.database().parent_path());
 			std::filesystem::copy_file(scratch.database(), copy.database());
+			// [[BPR-2215]]. With its log: a write the closed store left in it
+			// (seen on Windows) is part of the registry being damaged.
+			for (const auto* suffix : { "-wal", "-shm" }) {
+				auto source = scratch.database();
+				source += suffix;
+				if (std::filesystem::exists(source)) {
+					auto target = copy.database();
+					target += suffix;
+					std::filesystem::copy_file(source, target);
+				}
+			}
 			auto* raw = raw_open(copy.database());
 			execute(raw, std::string{ "PRAGMA foreign_keys=OFF; " } + mutation);
 			sqlite3_close(raw);
