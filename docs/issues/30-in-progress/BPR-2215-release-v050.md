@@ -771,3 +771,8 @@ Backlog card:
   session, refresh and binding-store paths on a miss. [[BPR-2341]].
 - `application_large_review_history`: an epoch-drain stall seen once on the
   Ubuntu guest; a timing course, judged on the WSL2 i9. [[BPR-2342]].
+- `application_review_tour_publication_push` (macOS, 2 of 15 at
+  `ed5e79de9`): after a push, a tour stop can stay "not compared yet" with no
+  later trigger; `ed5e79de9`'s re-check on a published diff narrows it and is
+  kept. Next step is logging tour-material checks against diff publications.
+  [[BPR-2343]].
