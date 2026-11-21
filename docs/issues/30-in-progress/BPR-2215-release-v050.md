@@ -776,3 +776,22 @@ Backlog card:
   later trigger; `ed5e79de9`'s re-check on a published diff narrows it and is
   kept. Next step is logging tour-material checks against diff publications.
   [[BPR-2343]].
+
+## Stable 0.5.0: owner decisions (2026-11-21)
+
+From the owner, in chat, relayed by the coordinator:
+
+- **Debug waived for 0.5.0** ("Waive Debug for 0.5.0"). Stable 0.5.0 is
+  released on comprehensive Release evidence only; native Debug functional
+  qualification is waived for this release. The standing Debug timing policy
+  is unchanged, and this waiver does not carry to another release.
+- **Stable sign-off** ("This is me signing off."). The stable acceptance and
+  publication authorization records for `--copy-stable` cite this sign-off.
+  They are bound to the exact assets of the all-platform numbered prerelease
+  once it exists, and their asset bindings are shown to the coordinator before
+  the copy.
+- **Release evidence carried to the candidate.** Rows whose inputs the commits
+  from each platform's evidence head to the candidate touch are rerun natively
+  in Release at the candidate; the rest are reused. This is an owner-authorized
+  bridge beyond the skill's default evidence-reuse boundary, for this release
+  only. The path-to-row mapping is recorded here.
