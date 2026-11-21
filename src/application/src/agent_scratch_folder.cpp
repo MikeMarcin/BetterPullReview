@@ -11,6 +11,16 @@
 	#include <fcntl.h>
 	#include <sys/param.h>
 	#include <unistd.h>
+#elif defined(_WIN32)
+	#if !defined(NOMINMAX)
+		#define NOMINMAX
+	#endif
+	#if !defined(WIN32_LEAN_AND_MEAN)
+		#define WIN32_LEAN_AND_MEAN
+	#endif
+	#include <Windows.h>
+
+	#include <vector>
 #endif
 
 namespace bpr::application {
@@ -204,6 +214,32 @@ namespace bpr::application {
 				return std::nullopt;
 			}
 			return std::string{ buffer.data() };
+#elif defined(_WIN32)
+			// The final path of the opened folder. `canonical` walks every
+			// ancestor, which an AppContainer may not list ("Access is
+			// denied"); the folder itself it may open.
+			const auto wide   = std::filesystem::path{ aPath }.native();
+			const auto handle = ::CreateFileW(wide.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+			if (handle == INVALID_HANDLE_VALUE) {
+				return std::nullopt;
+			}
+			auto buffer = std::vector<wchar_t>(32768U);
+			auto length = ::GetFinalPathNameByHandleW(handle, buffer.data(), static_cast<DWORD>(buffer.size()), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+			if (length == 0U) {
+				// Normalizing reads every ancestor's name, which an
+				// AppContainer may be refused; the name it was opened by
+				// needs no ancestor.
+				length = ::GetFinalPathNameByHandleW(handle, buffer.data(), static_cast<DWORD>(buffer.size()), FILE_NAME_OPENED | VOLUME_NAME_DOS);
+			}
+			::CloseHandle(handle);
+			if (length == 0U || length >= buffer.size()) {
+				return std::nullopt;
+			}
+			auto name = std::wstring_view{ buffer.data(), length };
+			if (name.starts_with(L"\\\\?\\")) {
+				name.remove_prefix(4U);
+			}
+			return std::filesystem::path{ name }.string();
 #else
 			// Elsewhere the kernel's name for a folder is its resolved path.
 			auto       failed   = std::error_code{ };
@@ -215,13 +251,24 @@ namespace bpr::application {
 
 	auto agent_checkout_spellings(const std::string& aPath) -> std::optional<std::vector<std::string>>
 	{
-		auto       failed    = std::error_code{ };
-		const auto canonical = aPath.empty() ? std::filesystem::path{ } : std::filesystem::canonical(std::filesystem::path{ aPath }, failed);
-		if (aPath.empty() || failed || !std::filesystem::is_directory(canonical, failed) || failed) {
+		if (aPath.empty()) {
 			return std::nullopt;
 		}
 		const auto opened = opened_folder_path(aPath);
 		if (!opened) {
+			return std::nullopt;
+		}
+		auto failed    = std::error_code{ };
+		auto canonical = std::filesystem::canonical(std::filesystem::path{ aPath }, failed);
+#if defined(_WIN32)
+		// Inside an AppContainer `canonical` is refused; the opened folder's
+		// final path is the same name.
+		if (failed) {
+			failed.clear();
+			canonical = std::filesystem::path{ *opened };
+		}
+#endif
+		if (failed || !std::filesystem::is_directory(canonical, failed) || failed) {
 			return std::nullopt;
 		}
 		auto result = std::vector<std::string>{ aPath };

@@ -2357,8 +2357,10 @@ namespace bpr::app {
 		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
 		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
 		/// [[BPR-2183]]. The diff host's last accepted publication, what
-		/// `shown_alignment` reads.
-		std::shared_ptr<const core::computed_file_diff> AcceptedDiff;
+		/// `shown_alignment` reads. Not an owner: the comparison surface owns
+		/// what it shows, and a pruned or deleted comparison is released with
+		/// it rather than kept here (large-review resources course).
+		std::weak_ptr<const core::computed_file_diff> AcceptedDiff;
 
 		decltype(github_profile_runtime::Profiles)&                 Profiles                 = Profile->Profiles;
 		decltype(github_profile_runtime::ProfileOptions)&           ProfileOptions           = Profile->ProfileOptions;

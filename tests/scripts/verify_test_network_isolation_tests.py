@@ -774,6 +774,9 @@ class ConfiguredManifestTests(unittest.TestCase):
                 # observations, without an inferred Win32 or ACL cause.
                 "fresh-discuss-preferences-store-predicate-failed",
                 "agent-configuration-store-predicate-failed",
+                "prompt-turn-name-store-predicate-failed",
+                "agent-finding-card-store-predicate-failed",
+                "prompt-pack-store-predicate-failed",
                 "profile-root-refused",
                 "child-exit-3-without-output",
                 "application-startup-refused",

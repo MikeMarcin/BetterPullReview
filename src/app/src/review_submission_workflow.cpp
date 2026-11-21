@@ -145,7 +145,11 @@ namespace bpr::app {
 
 	void review_submission_workflow::started(const application::review_submission_host_context& aContext)
 	{
-		if (Closing || !Context || aContext != *Context || !Attempt || Attempt->Sending || !Pending || Pending->IdempotencyKey != Attempt->Key) {
+		// [[BPR-2215]]. The attempt's own send, by the context it was sent
+		// under: Context is the workflow's latest operation and is reset when
+		// a host is retired or another operation starts, which dropped this
+		// note while the send went on (dependable session, intermittently).
+		if (Closing || !Attempt || !Attempt->Sent || aContext != *Attempt->Sent || Attempt->Sending || !Pending || Pending->IdempotencyKey != Attempt->Key) {
 			return;
 		}
 		note(core::operation_action::review_submit_wait, Attempt->Waiting, Attempt->WaitStarted);

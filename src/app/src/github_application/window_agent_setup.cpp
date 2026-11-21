@@ -144,8 +144,11 @@ namespace bpr::app {
 			}
 			auto        start = std::size_t{ 0 };
 			const auto& path  = search->PathVariable;
+			// The platform's list separator: a Windows drive's colon is part
+			// of its folder.
+			const auto separator = QDir::listSeparator().toLatin1();
 			while (start <= path.size()) {
-				const auto end = std::min(path.find_first_of(":;", start), path.size());
+				const auto end = std::min(path.find(separator, start), path.size());
 				if (end > start) {
 					folders.emplace_back(path.substr(start, end - start));
 				}

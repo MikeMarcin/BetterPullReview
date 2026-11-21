@@ -1231,7 +1231,13 @@ namespace {
 		expect(fileChoice != nullptr && fileChoice->findText(QStringLiteral("src/engine/renderer.cpp")) >= 0, "renderer.cpp can be chosen");
 		fileChoice->setCurrentIndex(fileChoice->findText(QStringLiteral("src/engine/renderer.cpp")));
 		wait_for([&] { return panel->cards()->scope() == qt::cards_scope::this_file && panel->cards()->thread_count() == 7U; }, "one file's seven conversations",
-				 [&] { std::cerr << "threads=" << panel->cards()->thread_count() << '\n'; });
+				 [&] {
+					 std::cerr << "threads=" << panel->cards()->thread_count() << " folded=" << panel->cards()->folded_count() << '\n';
+					 for (const auto& card : panel->cards()->cards()) {
+						 std::cerr << "card: id=" << card.Id << " draft=" << card.Draft << " resolved=" << card.Resolved << " unread=" << card.UnreadCount << " kind=" << card.Kind.toStdString()
+								   << " path=" << card.Path.toStdString() << '\n';
+					 }
+				 });
 		look("file");
 		panel->filter_unresolved_button()->click();
 		QApplication::processEvents();
@@ -1465,6 +1471,14 @@ namespace {
 			// [[BPR-2007]]. Clearing scratch folders keeps the agents' chats.
 			if (word.Where.startsWith(QStringLiteral("QPushButton settingsScratchClear ("))) {
 				text.remove(QStringLiteral("The agents' conversations stay."));
+			}
+			// [[BPR-2293]]. A retained agent workspace belongs to an agent
+			// conversation, which removing the workspace keeps.
+			if (word.Where.startsWith(QStringLiteral("QCheckBox settingsWorkspaceKeepOn ("))) {
+				text.remove(QStringLiteral("A workspace whose conversation was replaced goes too."));
+			}
+			if (word.Where.startsWith(QStringLiteral("QPushButton settingsWorkspaceRemove ("))) {
+				text.remove(QStringLiteral("The conversations stay;"));
 			}
 			// [[BPR-1773]], RFC-BPR-0094: the shipped asks on a conversation
 			// (a thread or a private note), now listed in Settings' Prompts

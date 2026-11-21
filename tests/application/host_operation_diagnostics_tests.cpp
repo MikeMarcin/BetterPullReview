@@ -5,7 +5,9 @@
 /// fetches are aggregated per window; answers pass through unchanged; and no
 /// folder, remote, address, login, title or body reaches a record.
 
-#include "bpr/application/clone_link_host.hpp"
+#if defined(BPR_TEST_CLONE_LINK_HOST)
+	#include "bpr/application/clone_link_host.hpp"
+#endif
 #include "bpr/application/host_operation_diagnostics.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/notification_delivery.hpp"
@@ -217,6 +219,7 @@ namespace {
 		static_cast<void>(unlogged.deliver(request));
 	}
 
+#if defined(BPR_TEST_CLONE_LINK_HOST)
 	struct clone_fixture
 	{
 		struct store final : application::clone_link_store_port
@@ -355,6 +358,7 @@ namespace {
 			fixture->Log->expect_private(diagnostic_operation::clone_scan, { canary, "PRIVATE", "token", "github.com", "origin" });
 		}
 	}
+#endif
 
 	void test_search_status_names()
 	{
@@ -374,7 +378,9 @@ auto main() -> int
 	test_aggregation();
 	test_image_fetches();
 	test_notifications();
+#if defined(BPR_TEST_CLONE_LINK_HOST)
 	test_clone_scan();
+#endif
 	test_search_status_names();
 	std::cout << "host-operation-diagnostics-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -153,13 +153,28 @@ namespace {
 		for (const auto mutation : { "DELETE FROM profile_registry_order WHERE position=0", "UPDATE profile_registry_order SET profile_id='9' WHERE position=2",
 									 "DELETE FROM profile_registry_order WHERE position=2", "CREATE TABLE extra(x)" }) {
 			const auto copy = scratch_directory{ };
-			std::filesystem::create_directories(copy.database().parent_path());
-			std::filesystem::copy_file(scratch.database(), copy.database());
+			// [[BPR-2215]]. The copy's folder and file are the store's own,
+			// made by its first open, so they are as private as the store asks
+			// (a folder made here is not, on Windows); the registry's pages are
+			// then copied into it.
+			static_cast<void>(adapters::sqlite::make_profile_registry_store(copy.Root)->load({ }));
+			{
+				auto* source = raw_open(scratch.database());
+				auto* target = raw_open(copy.database());
+				auto* backup = sqlite3_backup_init(target, "main", source, "main");
+				expect(backup != nullptr && sqlite3_backup_step(backup, -1) == SQLITE_DONE && sqlite3_backup_finish(backup) == SQLITE_OK, "the registry is copied into the copy's store");
+				sqlite3_close(source);
+				sqlite3_close(target);
+			}
 			auto* raw = raw_open(copy.database());
 			execute(raw, std::string{ "PRAGMA foreign_keys=OFF; " } + mutation);
 			sqlite3_close(raw);
 			auto       damaged = adapters::sqlite::make_profile_registry_store(copy.Root);
 			const auto read    = damaged->load({ });
+			if (read || (read.error() != profile_registry_failure::corrupt && read.error() != profile_registry_failure::schema_mismatch)) {
+				std::cerr << "registry-damage: " << mutation << " read=" << read.has_value() << " error=" << (read ? -1 : static_cast<int>(read.error()))
+						  << " order=" << (read ? read->Order.size() : 0U) << '\n';
+			}
 			expect(!read && (read.error() == profile_registry_failure::corrupt || read.error() == profile_registry_failure::schema_mismatch), "a gap, a stranger or a missing profile in the order, or an extra table, is refused");
 		}
 	}

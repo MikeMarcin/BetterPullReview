@@ -20,11 +20,34 @@
 
 namespace bpr::application {
 	namespace {
+		/// [[BPR-2007]]. A TOML basic string: a quote, a backslash and every
+		/// control character escaped. Outside the integration
+		/// block: the Codex instructions probe needs it in every build.
+		[[nodiscard]] auto toml_string(const std::string_view aText) -> std::string
+		{
+			auto result = std::string{ "\"" };
+			for (const auto character : aText) {
+				const auto byte = static_cast<unsigned char>(character);
+				if (character == '\\' || character == '"') {
+					result += '\\';
+					result += character;
+				} else if (byte < 0x20U || byte == 0x7FU) {
+					constexpr auto digits = std::string_view{ "0123456789ABCDEF" };
+					result += "\\u00";
+					result += digits[byte >> 4U];
+					result += digits[byte & 0x0FU];
+				} else {
+					result += character;
+				}
+			}
+			return result + "\"";
+		}
 		/// \brief A native session handle as a harness reports it: 1 to 128
 		/// ASCII letters, digits, `.`, `_` and `-`, starting with a letter or
 		/// digit, so a harness never reads it as an option. ([[BPR-2308]]
-		/// moved it here from the retired Review Cycle send.)
-		[[nodiscard]] auto native_session_name(const std::string_view aName) noexcept -> bool
+		/// moved it here from the retired Review Cycle send.) Used only with
+		/// agent integrations.
+		[[nodiscard, maybe_unused]] auto native_session_name(const std::string_view aName) noexcept -> bool
 		{
 			const auto alphanumeric = [](const char aSymbol) { return (aSymbol >= 'a' && aSymbol <= 'z') || (aSymbol >= 'A' && aSymbol <= 'Z') || (aSymbol >= '0' && aSymbol <= '9'); };
 			return !aName.empty() && aName.size() <= 128U && alphanumeric(aName.front())
@@ -2642,6 +2665,26 @@ namespace bpr::application {
 		return "invalid_agent_context";
 	}
 
+	/// Outside the integration block: the Codex instructions probe needs it
+	/// in every build.
+	auto materialize_agent_environment(
+		const core::agent_profile& aProfile,
+		const environment_reader&  aParent)
+		-> std::vector<std::pair<std::string, std::string>>
+	{
+		auto result = std::vector<std::pair<std::string, std::string>>{ };
+		if (!aParent || !core::valid(aProfile)) {
+			return result;
+		}
+		result.reserve(aProfile.AllowedEnvironment.size());
+		for (const auto& name : aProfile.AllowedEnvironment) {
+			if (auto value = aParent(name); value.has_value()) {
+				result.emplace_back(name, std::move(*value));
+			}
+		}
+		return result;
+	}
+
 #if defined(BPR_AGENT_INTEGRATIONS)
 	auto build_agent_context_supplement(
 		const agent_context_observation& aObservation,
@@ -2825,24 +2868,6 @@ namespace bpr::application {
 			return std::unexpected(agent_context_failure::invalid_observation);
 		}
 		return *built;
-	}
-
-	auto materialize_agent_environment(
-		const core::agent_profile& aProfile,
-		const environment_reader&  aParent)
-		-> std::vector<std::pair<std::string, std::string>>
-	{
-		auto result = std::vector<std::pair<std::string, std::string>>{ };
-		if (!aParent || !core::valid(aProfile)) {
-			return result;
-		}
-		result.reserve(aProfile.AllowedEnvironment.size());
-		for (const auto& name : aProfile.AllowedEnvironment) {
-			if (auto value = aParent(name); value.has_value()) {
-				result.emplace_back(name, std::move(*value));
-			}
-		}
-		return result;
 	}
 
 	namespace {
@@ -3544,27 +3569,6 @@ namespace bpr::application {
 				aArguments.emplace_back("-c");
 				aArguments.push_back("model_reasoning_effort=\"" + *aSettings.Effort + "\"");
 			}
-		}
-		/// [[BPR-2007]]. A TOML basic string: a quote, a backslash and every
-		/// control character escaped.
-		[[nodiscard]] auto toml_string(const std::string_view aText) -> std::string
-		{
-			auto result = std::string{ "\"" };
-			for (const auto character : aText) {
-				const auto byte = static_cast<unsigned char>(character);
-				if (character == '\\' || character == '"') {
-					result += '\\';
-					result += character;
-				} else if (byte < 0x20U || byte == 0x7FU) {
-					constexpr auto digits = std::string_view{ "0123456789ABCDEF" };
-					result += "\\u00";
-					result += digits[byte >> 4U];
-					result += digits[byte & 0x0FU];
-				} else {
-					result += character;
-				}
-			}
-			return result + "\"";
 		}
 		/// [[BPR-2140]]. An argument's length once a Windows command line
 		/// quotes it: every quote and backslash may double, plus the quotes.

@@ -52,7 +52,12 @@ MARKERS = {
     "LARGE_REVIEW_HOME_RENDERED": "ProcessToHomeMarkerMs",
 }
 SCHEDULE_MARKERS = {"main": "ProcessToMainMarkerMs", "home": "ProcessToHomeMarkerMs"}
-LIMITS_MS = {"ProcessToMainMarkerMs": 100, "ProcessToHomeMarkerMs": 1000}
+# [[BPR-2215]], owner decision 2026-11-21 (the option (a) precedent of
+# 2026-11-18). Linux measures Home with the data root on disk, as its isolated
+# rows keep it: ten runs on the WSL2 i9 at 098a744ac gave 670 to 1268 ms warm
+# (one cold first run 7409 ms), so its limit is the worst warm plus 22%,
+# as composition startup's is. macOS and Windows keep 1000 ms.
+LIMITS_MS = {"ProcessToMainMarkerMs": 100, "ProcessToHomeMarkerMs": 1550 if sys.platform.startswith("linux") else 1000}
 RETRYABLE = "LARGE_REVIEW_TIMING_RETRYABLE"
 
 

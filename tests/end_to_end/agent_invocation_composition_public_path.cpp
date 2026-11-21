@@ -1,3 +1,4 @@
+#include "../support/diagnostic_files.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
@@ -66,6 +67,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -762,6 +764,16 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	const auto& dataRoot = *privateRoot;
+	// The application's own sanitized log, relayed after a failure that the
+	// window can only summarize ("could not be made", workspace_unavailable).
+	const auto relayLog = [&dataRoot](const char* aCourse) {
+		auto records = std::istringstream{ bpr::tests::read_diagnostic_logs(dataRoot) };
+		for (std::string record; std::getline(records, record);) {
+			if (record.find("\"severity\":\"info\"") == std::string::npos) {
+				std::cerr << aCourse << "-diagnostic:" << record << '\n';
+			}
+		}
+	};
 
 	auto diagnosticGitRoot = workspaceDiagnostic ? std::make_unique<QTemporaryDir>() : nullptr;
 	if (diagnosticGitRoot && !diagnosticGitRoot->isValid()) {
@@ -1074,7 +1086,10 @@ auto main(int argc, char** argv) -> int
 		}
 		setup->findChild<QPushButton*>(QStringLiteral("agentSetupCheck"))->click();
 		if (!wait_until([&] { return !setup->needed() && window.agent_tab()->state() != qt::agent_tab_state::setting_up; }, extended_agent_budget)) {
-			return fail(*application, "native-setup-ready", setup->step_text().toStdString());
+			const auto code = fail(*application, "native-setup-ready", setup->step_text().toStdString());
+			application.reset();
+			relayLog("native-setup");
+			return code;
 		}
 		if (replayCourse) {
 			const auto profile = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
@@ -1723,7 +1738,15 @@ auto main(int argc, char** argv) -> int
 					return evidence.Quiescent && evidence.Statistics.ProcessStarts == previousStarts + 1U && panel->status_text().contains(QStringLiteral("success"));
 				},
 							extended_agent_budget)) {
-				return fail(*application, "native-first-turn", panel->status_text().toStdString());
+				// Whether startup recovery refused the workspace neighbourhood,
+				// and whether that folder exists: a refusal leaves none.
+				const auto neighbourhood = dataRoot.parent_path() / (dataRoot.filename().native() + std::filesystem::path{ "-agent-workspaces-v1" }.native());
+				const auto code          = fail(*application, "native-first-turn",
+												panel->status_text().toStdString() + "\noutput:" + panel->output_text().toStdString() + "\nrecovery-refused="
+													+ std::to_string(application->status().AgentWorkspaceRecoveryRefused) + " neighbourhood-exists=" + std::to_string(std::filesystem::exists(neighbourhood)));
+				application.reset();
+				relayLog("native-first-turn");
+				return code;
 			}
 			const auto first = panel->output_text().toStdString();
 			if (first.find("process=") == std::string::npos
@@ -1840,6 +1863,10 @@ auto main(int argc, char** argv) -> int
 			window.ai_tools_action()->trigger();
 		}
 		window.tray_tabs()->setCurrentIndex(2);
+		// [[BPR-2215]]. Since main's BPR-2256 merge the setup is not open on
+		// its own here (its page stayed hidden behind the Agent tab on Ubuntu
+		// and Windows), so the course opens it as the reviewer does.
+		window.open_agent_setup();
 		auto* const setup            = window.agent_setup();
 		const auto  button           = [setup](const QString& aName) { return setup->findChild<QPushButton*>(aName); };
 		const auto  changeRepository = [setup] {
@@ -1851,7 +1878,20 @@ auto main(int argc, char** argv) -> int
 		}
 		changeRepository()->click();
 		if (!wait_until([&] { return setup->isVisible() && button(QStringLiteral("agentSetupUseClone")) != nullptr && button(QStringLiteral("agentSetupUseClone"))->isEnabled(); })) {
-			return fail(*application, "wrapper-setup-repository", setup->step_text().toStdString());
+			const auto* const useClone = button(QStringLiteral("agentSetupUseClone"));
+			// The first hidden widget from the setup up, by class and name.
+			auto hidden = std::string{ };
+			for (const QWidget* at = setup; at != nullptr; at = at->parentWidget()) {
+				if (at->isHidden()) {
+					hidden += std::string{ at->metaObject()->className() } + "/" + at->objectName().toStdString() + " ";
+				}
+			}
+			relayLog("wrapper-setup-repository");
+			return fail(*application, "wrapper-setup-repository",
+						"visible=" + std::to_string(setup->isVisible()) + " button=" + std::to_string(useClone != nullptr) + " enabled=" + std::to_string(useClone != nullptr && useClone->isEnabled())
+							+ " buttons=" + std::to_string(setup->findChildren<QPushButton*>(QStringLiteral("agentSetupUseClone")).size()) + " tray-tab=" + std::to_string(window.tray_tabs()->currentIndex())
+							+ " files=" + std::to_string(window.files_drawer()->contents_view()->model()->rowCount()) + " github=" + window.github_status_text()
+							+ " hidden=" + hidden + "\n" + setup->step_text().toStdString());
 		}
 		button(QStringLiteral("agentSetupUseClone"))->click();
 		if (!wait_until([&] { return button(QStringLiteral("agentSetupCheck")) != nullptr; })) {
@@ -2986,7 +3026,8 @@ auto main(int argc, char** argv) -> int
 			&& field("brief.description.cut_bytes") == "0" && field("brief.file.count") != "0" && field("brief.skill.source") == "built_in"
 			// [[BPR-2140]]. The skill's text rides the system prompt where the
 			// agent takes one, and the brief says so; otherwise the brief has it.
-			&& field("brief.skill.version") == "5"
+			// [[BPR-2298]] made the shipped skill version 6.
+			&& field("brief.skill.version") == "6"
 			&& (field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos || (field("brief.skill.text") == "<absent>" && field("brief.skill.location") == "system_prompt"))
 			// [[BPR-2059]]. The shipped suggested-comment format rides the brief.
 			&& field("brief.comment_format.source") == "shipped" && field("brief.comment_format.version") == "suggested-comment-v3"
@@ -3106,7 +3147,48 @@ auto main(int argc, char** argv) -> int
 						  : 0U)
 				  << ':'
 				  << (composedSession.has_value() ? composedSession->value() : 0U)
-				  << ':' << liveWindows.size() << ':' << invokingWindow << '\n';
+				  << ':' << liveWindows.size() << ':' << invokingWindow
+				  << "\nagent-exact-context-terms: launcher="
+				  << exact_agent_process_launcher_path(evidence, panel->statistics().StartIntents == 1U)
+				  << " cwd_set=" << cwd.has_value()
+				  << " cwd_gone=" << (cwd.has_value() && !std::filesystem::exists(*cwd))
+				  << " root_set=" << !evidence.WorkspaceRoot.empty()
+				  << " root_exists=" << (!evidence.WorkspaceRoot.empty() && std::filesystem::exists(evidence.WorkspaceRoot))
+				  << " outside_cache=" << outsideCache
+				  << " relative=" << relativeWorkspace.generic_string()
+				  << " data_root=" << dataRoot.generic_string()
+				  << " authorities=" << acceptedAuthorities
+				  << " fields_equal=" << (actualFields.has_value() && expectedFields.has_value() && *actualFields == *expectedFields)
+				  << " brief=" << briefSays
+				  << " forbidden=" << containsForbiddenContext << '\n';
+		if (actualFields.has_value() && expectedFields.has_value()) {
+			for (const auto& [name, value] : *actualFields) {
+				const auto found = expectedFields->find(name);
+				if (found == expectedFields->end() || found->second != value) {
+					std::cerr << "agent-exact-context-field-differs: " << name << '\n';
+				}
+			}
+			for (const auto& [name, value] : *expectedFields) {
+				if (!actualFields->contains(name)) {
+					std::cerr << "agent-exact-context-field-missing: " << name << '\n';
+				}
+			}
+			for (const auto* name : { "schema", "file.count", "file.0.read", "file.0.changed_since_review", "last_reviewed_head.present",
+									  "defect.count", "selection.present", "selection.mapping_confidence", "selection.source_text.present",
+									  "note.count", "draft.count" }) {
+				const auto found = actualFields->find(name);
+				std::cerr << "agent-exact-context-field: " << name << '=' << (found == actualFields->end() ? std::string{ "<absent>" } : found->second) << '\n';
+			}
+			std::cerr << "agent-exact-context-private: body=" << (actualFields->contains("private.0.body") && actualFields->at("private.0.body") == selectedSource)
+					  << " chat=" << (actualFields->contains("chat_message") && actualFields->at("chat_message") == privateQuestion) << '\n';
+			if (!briefSays) {
+				for (const auto& [name, value] : *actualFields) {
+					if (name.starts_with("brief.") && !name.ends_with(".text")) {
+						std::cerr << "agent-exact-context-brief: " << name << '=' << value.substr(0, 160) << '\n';
+					}
+				}
+			}
+		}
 	}
 	const auto shutdownComplete = shutdown(*application);
 	const auto rootRemoved      = shutdownComplete

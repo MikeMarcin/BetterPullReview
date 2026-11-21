@@ -2399,7 +2399,16 @@ namespace bpr::adapters::sqlite {
 				|| aConfiguration.PullRequest <= 0) {
 				return std::unexpected(failure::unavailable);
 			}
-			auto directory = detail::open_state_directory(aConfiguration.StorageRoot);
+			// [[BPR-2215]]. A review opens the mutation, off-hunk and submission
+			// journals, which share this one file, from several threads at once.
+			// Two first opens raced each other's schema: on Windows a concurrent
+			// opener read the half-made journal as integrity_failure (forty
+			// rounds of three concurrent first opens, round 0), and the review
+			// then reported "Review recovery is unavailable". The opens and the
+			// schema they establish are taken one at a time in this process.
+			static auto opening   = std::mutex{ };
+			const auto  one       = std::scoped_lock{ opening };
+			auto        directory = detail::open_state_directory(aConfiguration.StorageRoot);
 			if (!directory || !detail::sqlite_runtime_ready()) {
 				return std::unexpected(failure::unavailable);
 			}

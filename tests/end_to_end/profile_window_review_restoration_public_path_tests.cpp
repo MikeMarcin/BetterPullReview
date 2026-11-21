@@ -413,7 +413,22 @@ namespace {
 		submit(*first, 17);
 		expect(first->findChild<QPushButton*>(QStringLiteral("homeSetupContinue"))->isHidden(), "an account opens the destination without a stop");
 		accepted(aOwner, aFirst, 17);
-		wait_for([&] { return github_application_fixture_access::device_binding_durable(aOwner); }, "remembered grant settles before Quit");
+		// [[BPR-2215]]. Failed 2 of 5 Ubuntu suites. On a miss: where the
+		// binding chain stands, and whether it settles later (slow) or never
+		// (stuck); the course still fails.
+		wait_for([&] { return github_application_fixture_access::device_binding_durable(aOwner); }, "remembered grant settles before Quit", [&] {
+			const auto evidence = github_application_fixture_access::evidence(aOwner);
+			std::cerr << "remembered-grant status=" << first->session_panel()->status_text() << " reason=" << first->session_panel()->diagnostic_text()
+					  << " refresh=" << static_cast<int>(aOwner.status().DeviceAuthorizationRefreshState) << " store-idle=" << github_application_fixture_access::device_binding_store_idle(aOwner)
+					  << " vault-store-attempts=" << evidence.VaultStoreAttempts << " vault-stores=" << evidence.VaultStores << " refresh-stores=" << evidence.RefreshStores
+					  << " refresh-retained=" << evidence.RefreshRetained << '\n';
+			QElapsedTimer later;
+			later.start();
+			while (!github_application_fixture_access::device_binding_durable(aOwner) && later.elapsed() < 60000) {
+				QApplication::processEvents();
+				QThread::msleep(5);
+			}
+			std::cerr << "remembered-grant durable-after-wait=" << github_application_fixture_access::device_binding_durable(aOwner) << " extra-ms=" << later.elapsed() << '\n'; });
 		select_reading(aOwner, aFirst, 0, false, aEarlyGesture);
 		const auto firstReading = reading(*first);
 		trigger(*first, "newBprWindowAction");
@@ -966,8 +981,12 @@ auto main(int aArgc, char** aArgv) -> int
 			if (phase != "missing-grant") {
 				expect_no_vault_attempts(evidence);
 			} else {
-				expect(evidence.VaultRetrieveAttempts > 0U && !evidence.CredentialRetrieved,
-					   "negative control: empty-vault failed lookup increments raw admission attempts");
+				// [[BPR-2215]]. Startup asks the vault on its own lane, and
+				// nothing on screen waits for it: a refused restart shows the
+				// same empty Home before and after. Under disk load on Ubuntu
+				// the lookup had not run when this was read once.
+				wait_for([&] { return github_application_fixture_access::evidence(*owner).VaultRetrieveAttempts > 0U; }, "the empty vault is asked at startup");
+				expect(!github_application_fixture_access::evidence(*owner).CredentialRetrieved, "negative control: empty-vault failed lookup increments raw admission attempts");
 			}
 		}
 		if (!anonymous && !failure) {

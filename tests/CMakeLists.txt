@@ -54,7 +54,7 @@ if(BPR_BUILD_TOUR_CLI)
     endif()
     bpr_add_network_isolated_test(NAME tour_cli_loopback_provider WINDOWS_UNCONTAINED LOOPBACK_PORT_COUNT 1
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_loopback_tests.py" "$<TARGET_FILE:app_bpr>"
-        ${bpr_tour_loopback_openssl})
+        --diagnostics "$<TARGET_EXISTS:BetterPullReview::AdapterLogging>" ${bpr_tour_loopback_openssl})
     set_tests_properties(tour_cli_loopback_provider PROPERTIES TIMEOUT 300 PASS_REGULAR_EXPRESSION "tour-cli-loopback:pass")
 endif()
 
@@ -1498,9 +1498,15 @@ set_tests_properties(qualification_case_inventory_contract PROPERTIES TIMEOUT 30
 bpr_add_network_isolated_test(NAME profile_recovery_connection_lifetime_contract
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/profile_recovery_connection_lifetime_tests.py")
 set_tests_properties(profile_recovery_connection_lifetime_contract PROPERTIES TIMEOUT 30)
-bpr_add_network_isolated_test(NAME record_rfc0017_anonymous_contracts_recorder
-    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/record_rfc0017_anonymous_contracts_tests.py")
-set_tests_properties(record_rfc0017_anonymous_contracts_recorder PROPERTIES TIMEOUT 120)
+# [[BPR-2215]]. Not on Windows: the recorder makes each capture durable by
+# syncing its directory, which Python cannot open there ("capture bindings
+# directory cannot be opened for durable sync", measured uncontained at
+# 5c0a5c902), and its contract asserts that sync.
+if(NOT WIN32)
+    bpr_add_network_isolated_test(NAME record_rfc0017_anonymous_contracts_recorder
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/record_rfc0017_anonymous_contracts_tests.py")
+    set_tests_properties(record_rfc0017_anonymous_contracts_recorder PROPERTIES TIMEOUT 120)
+endif()
 bpr_add_network_isolated_test(NAME settings_inventory_comparison_contract
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/settings_inventory_comparison_tests.py")
 set_tests_properties(settings_inventory_comparison_contract PROPERTIES TIMEOUT 30)

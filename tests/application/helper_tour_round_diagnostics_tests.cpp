@@ -207,12 +207,8 @@ namespace {
 				   && application::tour_cli_failure(canary, 5) == failure::unavailable && application::tour_cli_failure(canary, 6) == failure::outcome_unknown && application::tour_cli_failure(canary, 7) == failure::local_failure
 				   && application::tour_cli_failure(canary, 99) == failure::local_failure,
 			   "otherwise its exit status does, and an unknown code is never copied");
-		expect(application::operation_failure_of(application::cycle_store_failure::quota) == failure::quota && application::operation_failure_of(application::cycle_store_failure::cancelled) == failure::cancelled
-				   && application::operation_failure_of(application::cycle_store_failure::store_damaged) == failure::store_damaged,
-			   "a cycle store failure is named");
-		expect(application::operation_failure_of(core::cycle_authorization::allowed) == failure::none && application::operation_failure_of(core::cycle_authorization::revoked) == failure::revoked
-				   && application::operation_failure_of(core::cycle_authorization::channel_denied) == failure::not_authorized,
-			   "a grant's authorization is named");
+		// [[BPR-2308]] retired Review Cycles with their store failures and
+		// grant authorizations, so only the diagnosis family is still named.
 		expect(application::diagnostic_operation_of(core::operation_action::mcp_helper_request) == diagnostic_operation::mcp_helper
 				   && application::diagnostic_operation_of(core::operation_action::tour_publish) == diagnostic_operation::tour_operation
 				   && application::diagnostic_operation_of(core::operation_action::cycle_round_grant) == diagnostic_operation::cycle_round,

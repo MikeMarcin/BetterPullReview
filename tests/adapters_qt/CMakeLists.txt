@@ -2288,7 +2288,10 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
     target_link_libraries(test_agent_finding_cards_restart PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application BetterPullReview::AdapterSQLite BetterPullReview::Platform $<$<PLATFORM_ID:Windows>:Advapi32>)
     bpr_enable_hardening(test_agent_finding_cards_restart)
     bpr_enable_warnings(test_agent_finding_cards_restart)
-    bpr_add_network_isolated_test(NAME qt_agent_finding_cards_restart COMMAND test_agent_finding_cards_restart)
+    # [[BPR-2215]]. The agent setup store opens outside an AppContainer, as
+    # sqlite_agent_setup_storage does; contained on Windows its restart reads
+    # nothing back (measured at cb200dfa9).
+    bpr_add_network_isolated_test(NAME qt_agent_finding_cards_restart WINDOWS_UNCONTAINED COMMAND test_agent_finding_cards_restart)
     set_tests_properties(qt_agent_finding_cards_restart PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "agent-finding-cards-restart:pass" TIMEOUT 60)
     # [[BPR-2305]]. A Codex turn through a sandbox launcher in the Agent tab.
     bpr_add_executable(test_agent_codex_launcher_turn agent_codex_launcher_turn_tests.cpp)
@@ -2364,7 +2367,10 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
     target_link_libraries(test_prompt_macro_chips PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application BetterPullReview::AdapterSQLite BetterPullReview::Platform $<$<PLATFORM_ID:Windows>:Advapi32>)
     bpr_enable_hardening(test_prompt_macro_chips)
     bpr_enable_warnings(test_prompt_macro_chips)
-    bpr_add_network_isolated_test(NAME qt_prompt_macro_chips COMMAND test_prompt_macro_chips)
+    # [[BPR-2215]]. The agent setup store opens outside an AppContainer, as
+    # sqlite_agent_setup_storage does; contained on Windows its restart reads
+    # nothing back (measured at cb200dfa9).
+    bpr_add_network_isolated_test(NAME qt_prompt_macro_chips WINDOWS_UNCONTAINED COMMAND test_prompt_macro_chips)
     set_tests_properties(qt_prompt_macro_chips PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "prompt-macro-chips:pass" TIMEOUT 60)
     # [[BPR-2179]]. Settings › Prompts: Surfaces above the Prompt library.
     bpr_add_executable(test_prompts_page prompts_page_tests.cpp)

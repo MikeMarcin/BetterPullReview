@@ -643,7 +643,13 @@ namespace bpr::qt {
 		AutoMergeLine->setAccessibleName(text(state->Line));
 		const auto offer = state->Offer.Change;
 		auto*      menu  = EnableAutoMerge->menu();
-		menu->clear();
+		// [[BPR-2215]]. A method's own `triggered` can reach here (the window
+		// presents the new state from its dispatch), so the old actions are
+		// taken off the menu and deleted once their signal has returned.
+		for (auto* const action : menu->actions()) {
+			menu->removeAction(action);
+			action->deleteLater();
+		}
 		for (const auto method : state->Offer.Methods) {
 			const auto  words  = method == core::merge_method::squash ? QStringLiteral("Squash and merge")
 				: method == core::merge_method::rebase                ? QStringLiteral("Rebase and merge")
@@ -678,7 +684,11 @@ namespace bpr::qt {
 			ink.setColor(QPalette::WindowText, Colours.Defect);
 		}
 		AutoMergeStatus->setPalette(ink);
-		present_auto_merge_controls();
+		// Only the buttons' readiness follows a status: the offered methods
+		// are the projection's, and rebuilding them here deleted the actions a
+		// caller still held (a use after free on Ubuntu, [[BPR-2215]]).
+		EnableAutoMerge->setEnabled(!AutoMergeBusy);
+		DisableAutoMerge->setEnabled(!AutoMergeBusy);
 	}
 
 	auto pull_request_overview_page::present_auto_merge_state(const application::pull_request_overview_projection& aProjection) -> bool

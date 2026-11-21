@@ -379,9 +379,31 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_review_seen_stays_public_path": "private-desktop-root-refused",
     "application_review_seen_fails_public_path": "private-desktop-root-refused",
     "application_commit_asks_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-2149]]. The prompt-pack store's course, measured contained at
+    # fb60e393e: "FAILED: the sender's prompts are stored".
+    "sqlite_prompt_pack_storage": "prompt-pack-store-predicate-failed",
+    # [[BPR-2215]], measured contained at cb200dfa9: the agent setup store's
+    # restart reads nothing back ("AC07 the store gives the name back after a
+    # restart"; "the fresh host reads the one kept card back").
+    "qt_prompt_macro_chips": "prompt-turn-name-store-predicate-failed",
+    "qt_agent_finding_cards_restart": "agent-finding-card-store-predicate-failed",
     # [[BPR-2280]], [[BPR-2281]]. Draft Description with the fixture agent
-    # and Save in Author.
+    # and Save in Author. Registered only off Windows (`if(APPLE OR UNIX)`).
     "application_draft_description_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-2290]] and [[BPR-2298]] rows main added at bafdd264f, measured
+    # contained at 4d26a890d (Release; each passed directly): "QProcess:
+    # CreateNamedPipe failed. (Access is denied.)" then "FAILED: start fixture
+    # Git", and "private data root refused".
+    "git_haves_trimmed_pack_historical": "qprocess-named-pipe",
+    "git_haves_trimmed_pack_historical-wall": "qprocess-named-pipe",
+    "application_agent_suggestion_range_public_path": "private-data-root-refused",
+    # [[BPR-2261]]. A held turn restored after quit, the agent-chat course's
+    # own binary; measured contained at fb60e393e it exits silently, as its
+    # sibling helpers courses do when the private test root is refused.
+    "application_agent_chat_held_turn_public_path": "private-test-root-refused",
+    # Registered on main without an entry; measured contained at 4d26a890d
+    # (Release; passed directly): "private data root refused".
+    "application_window_file_drop_public_path": "private-data-root-refused",
     "application_follow_up_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
     "application_open_pull_request_activity_public_path": "private-desktop-root-refused",
@@ -418,8 +440,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # measured ([[BPR-1631]]).
     "application_close_review": "owner-private-acl-denied",
     # [[BPR-2324]]. A reopened pull request's tabs, the same fixture
-    # profile root as Close review; not yet run on Windows.
-    "application_reopened_tabs": "unmeasured (registered on macOS)",
+    # profile root as Close review. Measured contained at 5389a35c9 (Release;
+    # passed directly in 18.3 s): "FAILED: private reopened tabs course root".
+    "application_reopened_tabs": "private-data-root-refused",
     # [[BPR-1355]]. The thread-words course of the same setup-destination
     # executable. Measured on JaegAW 2026-10-09 at 64e145116: passes
     # uncontained; contained through the sandbox launcher it fails "private

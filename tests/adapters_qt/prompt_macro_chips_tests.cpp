@@ -412,6 +412,14 @@ namespace {
 		host.load();
 		lane.drain();
 		const auto recalled = host.names().recall(kept.back().Question.toStdString());
+		if (recalled != std::optional<std::string>{ "Long pass on renderer.cpp" }) {
+			// Straight to the store, past the host: which of open, write and
+			// read refuses.
+			auto       probe  = adapters::sqlite::make_prompt_turn_name_store(rootPath);
+			const auto wrote  = probe->store({ .Asked = "probe question", .Name = "Probe name" });
+			const auto loaded = probe->load();
+			std::cerr << "prompt-turn-names: root=" << rootPath.string() << " probe_wrote=" << wrote << " probe_loaded=" << loaded.has_value() << " rows=" << (loaded ? loaded->size() : 0U) << '\n';
+		}
 		expect(recalled == std::optional<std::string>{ "Long pass on renderer.cpp" }, "AC07 the store gives the name back after a restart");
 		auto restarted = kept;
 		for (auto& each : restarted) {

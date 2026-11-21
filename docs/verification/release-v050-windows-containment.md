@@ -167,3 +167,61 @@ The direct courses pass in 7.81, 9.08 and 8.59 seconds. The receipt is
 stdout/stderr pairs and generated CTest files are in `measure-release-3.zip`
 (SHA-256
 `6a8ec7a06e1addd3190e809c6398918377710874955037f612cb0fa070cf3dd7`).
+
+## Agent setup store courses — `cb200dfa9`
+
+`qt_prompt_macro_chips` and `qt_agent_finding_cards_restart` open the agent
+setup store, which the application opens outside any AppContainer and whose
+own course, `sqlite_agent_setup_storage`, is already registered
+`WINDOWS_UNCONTAINED`. In the full Windows Release suite at `cb200dfa9` they
+ran contained. Each one's restart read nothing back: "AC07 the store gives the
+name back after a restart" (a direct probe neither wrote nor read), and "the
+fresh host reads the one kept card back" (loaded, nothing kept). Both are now
+registered `WINDOWS_UNCONTAINED`, pinned
+`prompt-turn-name-store-predicate-failed` and
+`agent-finding-card-store-predicate-failed`.
+
+`record_rfc0017_anonymous_contracts_recorder` failed contained in both full
+suites (`f5343b1e1`, `cb200dfa9`): Git for Windows' `git init --quiet` could
+not create `.git/HEAD` in the AppContainer's temporary folder ("cannot lock
+ref 'HEAD'"). It was registered `WINDOWS_UNCONTAINED` and pinned
+`scratch-git-init-failed`. Uncontained at `5c0a5c902`, once its fixtures wrote
+LF, the recorder itself refused: "capture bindings directory cannot be opened
+for durable sync". It syncs each capture's directory, which Python cannot open
+on Windows, and its contract asserts that sync, so the row is now registered
+only off Windows and the pin is gone.
+
+## Rows main added by `392dffc6f` — measured at `fb60e393e`
+
+| Course | Direct exit | Contained exit | First contained observation |
+| --- | --- | --- | --- |
+| `sqlite_prompt_pack_storage` | 0 | 8 | `FAILED: the sender's prompts are stored` |
+| `application_agent_chat_held_turn_public_path` | 0 | 8 | no output (exits as the agent-chat helpers courses do when the private test root is refused) |
+
+Pinned `prompt-pack-store-predicate-failed` and `private-test-root-refused`.
+`application_draft_description_public_path` is registered only off Windows
+and stays unmeasured, as do the commit-asks and report courses.
+`application_window_file_drop_public_path` is pinned unmeasured until the next
+Windows measurement.
+
+## `application_window_file_drop_public_path` and rows main added by `bafdd264f` — measured at `4d26a890d`
+
+Release, interactive session 1, each row run once directly through CTest and
+once with the same command under the AppContainer launcher. Every program's
+SHA-256 was the same before and after.
+
+| Course | Direct exit | Contained exit | First contained observation |
+| --- | --- | --- | --- |
+| `application_window_file_drop_public_path` | 0 (1.69 s) | 8 | `private data root refused` |
+| `git_haves_trimmed_pack_historical` | 0 (4.67 s) | 8 | `QProcess: CreateNamedPipe failed. (Access is denied.)`, then `FAILED: start fixture Git` |
+| `git_haves_trimmed_pack_historical-wall` | 0 (2.97 s) | 8 | the same |
+| `application_agent_suggestion_range_public_path` | 0 (5.73 s) | 8 | `private data root refused` |
+
+Pinned `private-data-root-refused`, `qprocess-named-pipe`,
+`qprocess-named-pipe` and `private-data-root-refused`.
+
+## `application_reopened_tabs` — measured at `5389a35c9`
+
+Release, interactive session 1, the same program before and after: direct exit
+0 (18.34 s); contained exit 8, first observation `FAILED: private reopened tabs
+course root`. Pinned `private-data-root-refused`.

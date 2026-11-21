@@ -605,7 +605,7 @@ void test_review_section()
 		   "Others' drafts is a choice of following or needs_me");
 	expect(bytes->find("\"others_drafts\": \"needs_me\"") != std::string::npos, "the export names the drafts placement");
 	const auto drafts = core::decode_agent_configuration(R"({"format":"bpr.profile-settings","version":4,"exported_by":"","agents":[],"prompts":[],"review":{"others_drafts":"following"}})", local);
-	expect(drafts && drafts->Review && drafts->Review->Review.Choices[static_cast<std::size_t>(core::review_setting::others_drafts)] == std::optional<std::uint8_t>{ 0U }
+	expect(drafts && drafts->Review && drafts->Review->Review.Choices[static_cast<std::size_t>(core::review_setting::others_drafts)] == std::optional<std::uint8_t>{ std::uint8_t{ 0U } }
 			   && drafts->Review->Ignored.empty(),
 		   "a file's Following reads as the first choice");
 	expect(read->Review->Review.Choices[static_cast<std::size_t>(core::review_setting::others_drafts)].has_value() && !odd->Review->Review.Choices[static_cast<std::size_t>(core::review_setting::others_drafts)].has_value(),

@@ -301,3 +301,478 @@ Still failing at `f5343b1e1`:
 Evidence: `windows-release-full-f5343b1e1-junit.xml` and
 `ubuntu-release-full-f5343b1e1-junit.xml` in
 `/Users/jaeger/.codex/release-runs/v0.5.0-20261116/windows-preflight-fix-r1/`.
+
+## Fifth round: WSL2 i9 timing, prompt packs and the Windows tail (2026-11-18)
+
+Lane recreated from main `9304efc4b` (BPR-2149 prompt packs), later merged
+with main `975ebff1e` (build 66).
+
+**WSL2 i9 timing (owner: "On the WSL2 i9").** Own tree
+`~/bpr-v050-timing-r1` on the PC's WSL2 Ubuntu 26.04, Release at `-j8`, PC
+otherwise idle, three runs of the eleven courses at `9304efc4b`:
+
+| Course | Runs passed | Miss |
+| --- | --- | --- |
+| benchmark, unavailable, approximate, first tab, pathological, prepared open, history | 3 of 3 each | none |
+| `application_large_review_responsiveness` | 0 of 3 | `composition_startup_render` / `main_to_home_render` 1083–1263 ms (5803 ms cold) against 1000 |
+| `application_large_review_launch` | 0 of 3 | the same, 1127–1266 ms |
+| `application_large_review_active_work` | 1 of 3 | `active_close_quiescence` 117.9 ms against 100 |
+| `application_large_review_resources` | 0 of 3 | functional: maintenance kept the raw diff (fixed, below) |
+
+The startup misses come from where the course's data root lives, not from a
+change in the application. `/tmp` on the WSL2 host is tmpfs (fsync about
+0.002 ms) and `/var/tmp` is the ext4 VHD (fsync about 2.5 ms). Since this
+lane's BPR-2095 repair, isolated Linux rows set `TMPDIR=/var/tmp`, because
+the Git cache refuses tmpfs. Run directly, the launch course's
+`MainToHomeRenderMs` was 323 and 327 ms with the data root on `/tmp`, and 722
+and 671 ms on `/var/tmp`. The budgets' basis (`e257b236a`) was measured with
+the data root on tmpfs. **Owner decision needed:** re-base the startup and
+close budgets on a disk-backed data root, or put only the Git cache on a
+generation-answering filesystem (a product change) so the course's data root
+can stay on tmpfs.
+
+Fixed this round:
+
+- `application_large_review_resources` (every platform): the composition kept
+  the last accepted diff as a shared owner (BPR-2183), so prune and delete
+  never released it; it is now a weak reference, read only while the surface
+  shows that comparison. Production app digest resealed.
+- `test_network_isolation_manifest`: BPR-2149's `sqlite_prompt_pack_storage`
+  had no pin; it is pinned unmeasured until Windows measures it.
+- `qt_agent_report_view` on Windows: QTemporaryDir's owner-only mode left the
+  AppContainer unable to write; the course makes a folder that inherits.
+
+| Candidate, platform | Rows | Result |
+| --- | --- | --- |
+| `9304efc4b` WSL2 i9 Release, the eleven ×3 | 33 | 22 passed, 11 failed |
+| `9304efc4b` Ubuntu (Lima) Release, full suite | 1066 | 1051 passed, 15 failed |
+| `bd4134653` Windows Release, the 23 failing | 23 | 6 passed, 17 failed |
+| `1d6f85283` Windows Release, five of them | 5 | 3 passed, 2 failed |
+
+At `9304efc4b` on Ubuntu, `test_network_isolation_manifest`, both composition
+digests and `large_review_resources` are fixed on the lane. The ten other
+large-review courses are judged on the WSL2 i9. `local_comments_composition`
+AC03 fails every time on Ubuntu and is not yet diagnosed.
+
+On Windows, the review-flow courses (`label_publication_recovery`,
+`review_seen` and its variants, `review_submission_composition`,
+`local_comments_composition`) all stop at "Review recovery is unavailable" in
+the full suite, but `label_publication_recovery` and `review_seen_stays`
+pass in a five-row round, so the cause depends on what ran before them.
+These are still open on Windows:
+
+- The contained store restarts (`qt_prompt_macro_chips`,
+  `qt_agent_finding_cards_restart`: loaded, nothing read back).
+- The contained native agent host (`agent_invocation_host`: workspace made,
+  then `failed_to_start`, most likely `agent_checkout_spellings`'
+  `canonical` refused inside the AppContainer).
+- Native workspace creation in the uncontained courses.
+- The RFC-0017 recorder's `git init` inside the AppContainer.
+- `review_tour_writing_wrapper`.
+
+## Sixth round: new startup and close basis, and the Windows store courses (2026-11-18)
+
+- **Budget basis (owner option (a)).** The Linux startup and close budgets
+  were measured again on the WSL2 i9 with the data root on disk: 1500 ms and
+  160 ms. Evidence and margins are in
+  `docs/verification/BPR-0967-station-budgets-2026-10-01.md`. The 100 ms
+  input target is unchanged. `paged_review_and_git_load` exceeded it in 9 of
+  30 on-disk runs (104–134 ms, mostly the GUI thread's own CPU time), which is
+  a real miss still to locate.
+- **Main merged** through `3314a7eb2` (BPR-2254, BPR-2255, build 68,
+  BPR-2256), with the production app digest resealed for each app change.
+- **Windows registrations.** `qt_prompt_macro_chips`,
+  `qt_agent_finding_cards_restart` and the RFC-0017 recorder are now
+  `WINDOWS_UNCONTAINED`, with their measured observations pinned (see the
+  containment record). `sqlite_prompt_pack_storage` is still to be measured.
+- **Windows review recovery.** The intermittent "Review recovery is
+  unavailable" is the review-mutation-recovery store refusing its open with
+  `invalid_permissions` (the app's own log). Which course fails varies from
+  run to run (`scale_125` passes and `scale_200` fails; `review_seen` passes
+  and `_stays` fails), which points to a race in the Windows private-store
+  open, not to test order.
+
+| Candidate, platform | Rows | Result |
+| --- | --- | --- |
+| `744b0e7fb` WSL2 i9, startup/close courses ×10 | 30 | basis recorded (see above) |
+| `cb200dfa9` Ubuntu (Lima) Release, full suite | 1066 | 1054 passed, 12 failed (10 large-review timing judged on WSL2; `review_submission_scale_125`, `review_tour_publication_reconciliation`) |
+| `cb200dfa9` Windows Release, full suite | 1050 | 1030 passed, 20 failed |
+| `6afbf3268` Windows Release, 21 review and agent rows | 21 | 10 passed, 11 failed |
+
+## Seventh round: stopped for more build changes (2026-11-19)
+
+Stopped at the owner's word ("more changes are coming into the build"),
+with no new suite started. Since the sixth round:
+
+- **Review recovery race, confirmed.** A probe in
+  `sqlite_review_mutation_recovery_storage` opens the one new journal from
+  three threads at once (the mutation, off-hunk and submission stores a review
+  opens together). On Windows at `166fe62f7`, two of the three openers failed
+  with `integrity_failure` in the first of forty rounds: the schema was half
+  made by another opener. The journal's opens and schema are now serialized
+  in-process. The fix has not been run on Windows yet. The app's own log in
+  the failing review courses showed `invalid_permissions` at open, which may
+  be a second face of the same concurrent first open; that is unconfirmed.
+- **Custom agent on Windows.** A grant names POSIX paths, so on Windows the
+  turn runs without one; the course now expects that there.
+- **Native agent workspace on Windows.** The course now relays the app's
+  diagnostic log when the workspace check fails. The cause is still unknown.
+- Not done: measuring `sqlite_prompt_pack_storage` on Windows, the WSL2 i9
+  load-phase stall, and the full Release and Debug suites at the lane head.
+
+## Eighth round: main 392dffc6f merged; recovery race fixed on Windows (2026-11-19)
+
+Main `392dffc6f` merged (conflicts in the round-trip contract's digest and the
+Windows manifest resolved; production app digest recomputed). Stopped at the
+owner's word with no suite started.
+
+Fixed:
+
+- **Windows review recovery.** Taking the journal's first opens one at a time
+  fixed every review-flow course. In the 31-row round at `d8b110483`, these
+  passed: `start_review`, `label_publication_recovery`,
+  `review_submission_composition` (100, 125 and 200%), `discuss_top`,
+  `header_source_navigation`, `review_navigation_entry`,
+  `review_submission_cli_ordinary`, `dependable_session`,
+  `home_approve_again`, `review_seen` (and `_stays` and `_fails`),
+  `local_comments_composition`, `agent_crash_recovery`, the new journal
+  concurrency course, and the two agent setup store courses.
+- **Main's known failures.**
+  - `application_review_round_trip_composition_contract`: the full
+    `github_application.cpp` digest was resealed over BPR-2281, and the
+    stale-head probe reads BPR-2263's sentence for a moved head. Passes on
+    Ubuntu and Windows.
+  - `qualification_case_inventory_contract` and
+    `command_correctness_registry_contract`: BPR-2262's case was added to the
+    inventory. Both pass on both platforms.
+  - `test_network_isolation_manifest`: `sqlite_prompt_pack_storage`
+    (`prompt-pack-store-predicate-failed`) and the held-turn course
+    (`private-test-root-refused`) were measured on Windows and pinned. The
+    file-drop course is pinned unmeasured.
+  - `dependable_session`, `start_review` and `agent_crash_recovery` passed on
+    both platforms.
+  - `review_cycle_parity` is registered only where `app_bpr` builds and was
+    not run here.
+- **Custom agent on Windows.** It now expects no grant there, and passes.
+
+Still open on Windows (31-row round at `d8b110483`, then the 8-row round at
+`2f3a99042`):
+
+- The native agent's copy of the pull request is never made:
+  `agent.workspace.failed action=workspace_materialize failure=copy_failed`
+  (`native_agent_sessions`, `agent_invocation_composition_contract`).
+- The contained native host still refuses: "The pull request's checkout could
+  not be resolved", even after the GetFinalPathNameByHandleW change
+  (`agent_invocation_host`, `agent_workspace_entry_limit`).
+- `device_authorization`: the run's 8 s budget expires at stage 1 with the
+  device flow cancelled (8092 ms).
+- `review_tour_writing_wrapper`: "writing child process and cleanup finish".
+- The RFC-0017 recorder, uncontained: its bindings are refused ("response
+  does not bind this packet exactly once"), and `core.autocrlf=false` in its
+  scratch Git did not change that.
+- `application_window_file_drop_public_path` is still to be measured.
+
+Not run: the WSL2 i9 load-phase profile, and the full Release and Debug
+suites on both platforms and the eleven WSL2 timing courses at the lane head.
+
+## Ninth round: main bafdd264f merged; Windows agent workspace courses (2026-11-19)
+
+Main `bafdd264f` (BPR-2285 to BPR-2298) merged; production app digest
+recomputed. Windows rounds t10 to t15 ran in the interactive producer context
+(scheduled task, session 1); t10, t11 and t15 were probe builds on side
+branches, not on the lane.
+
+Fixed:
+
+- **The native agent's copy (`copy_failed`).** Not the product: the native
+  session course made its root with the contained helper, which on Windows
+  inherits the temporary folder's AppContainer grants, so startup recovery
+  refused the workspace folder beside its data root and every native turn
+  found none. The course now narrows its root to the user, as the ownership
+  course does. `native_agent_sessions` passes (t12, `6d2ceba96`).
+- **The seed's exact context.** BPR-2298 moved the shipped review skill to
+  version 6; the contract still asked for 5 and failed on every platform. The
+  seed and reopen pass. A failure now names each term.
+- **Checkout resolution in the contained host.** The host test's fake checkout
+  was `/tmp/...`, the drive root on Windows, which a contained test cannot
+  create. It now lives in the temporary folder there; grants, which are POSIX
+  rules, are checked as absent on Windows. `agent_invocation_host` and
+  `agent_workspace_entry_limit` pass. The product also falls back to the
+  folder's opened name when Windows refuses to normalize it.
+- **`git_process_contract`.** BPR-2294's 20,003-file course takes 214.65 s on
+  Windows (Release, t12); the Windows timeout is 430 s.
+- **RFC-0017 recorder.** Its fixtures now write LF. Uncontained it then
+  refuses every capture: Python cannot open a directory on Windows to sync it,
+  and the contract asserts that sync. The row is registered off Windows.
+- **Manifest.** The file-drop course and main's three new rows were measured
+  contained at `4d26a890d` and pinned (see the containment record).
+  `test_network_isolation_manifest` should pass at the lane head.
+
+Still open on Windows:
+
+- `agent_invocation_composition_contract`, setup-wrapper course: the window's
+  `agentSetup` widget is hidden (`visible=0 ... hidden=QWidget/agentSetup`)
+  and its step says "Waiting for the pull request to load". The log has no
+  warning or error. It passed on Ubuntu at the 2026-11-16 sweep.
+- `review_tour_writing_wrapper`: with the scoped agent on PATH as claude, the
+  writing request starts no process and logs no run; the two failed runs
+  logged are the no-claude control's. Staging the copy early changed nothing,
+  and no `failed_to_start` site in the invocation host or launcher fired (t15
+  probe).
+- `device_authorization`: the 8 s budget expires at stage 1; unchanged.
+
+Not run: the WSL2 i9 load-phase profile, and the full Release and Debug
+suites on both platforms and the eleven WSL2 timing courses at the lane head.
+
+### Ninth round, continued (2026-11-19)
+
+- **Setup-wrapper course, every platform.** Since BPR-2256 the agent setup is
+  not open by itself in this course: the pull request loaded (`files=1`,
+  "Pull request ready.") and the setup page stayed hidden behind the Agent tab,
+  on Ubuntu and on Windows. The course now opens setup from the Agent tab, as
+  the reviewer does. `agent_invocation_composition_contract` passes on Ubuntu
+  (lane head) and Windows (t19, `31b46c022`). `test_network_isolation_manifest`
+  passes on Windows at `31b46c022`.
+- **`review_tour_writing_wrapper`** passes on Ubuntu at the lane head; the
+  failure is Windows only and still open.
+- **`device_authorization` on Windows.** Run directly with the test's
+  environment and a 60 s budget, it passes: `PUBLIC_PATH_OK`, stage
+  `cancelled`, 16,754 ms. The registered flow's round trip to GitHub takes
+  about 17 s there against the 8 s self-test budget; the row passed in 2 to
+  3 s in BPR-0820's Windows record. Where the time goes is not measured.
+- **`git_process_contract` on Windows.** In t19 it failed at 20 s ("unexpected
+  reverse index fails exact on-disk validation"), and the next run could not
+  start it: Microsoft Defender detected `Trojan:Win32/Bearfoos.A!ml` (a
+  machine-learning heuristic) in the contract binary and in its copy as
+  `fake-exec\git.exe`, at 21:42 local during t19, and removed the binary. The
+  same binary passed in full in t12. Whether to exclude the build tree or
+  restore the file is the owner's.
+- **`review_tour_writing_wrapper` on Windows: fixed.** The fixture agent
+  admission split a claude search PATH on `:` as well as `;`, so on Windows
+  `C:/...\claude-search` became `C` and `/...\claude-search`; the claude the
+  course put on that PATH was found and then refused before the launcher,
+  ending the run as `failed_to_start` with no words. It now splits on
+  `QDir::listSeparator()` (testing builds only). Passes on Windows (t23,
+  `3f6c4853e`), with `review_tour_composition` and `enhance_comment_note`.
+- **`device_authorization`'s time is the PC's network.** With stage
+  timestamps (probe, t22): `requested` at 0 ms, `awaiting_authorization` at
+  8,558 ms, `cancelling` at 8,573 ms, `cancelled` at 8,606 ms; the run took
+  8,737 ms. All of it is the device-code request to GitHub. From the PC,
+  `curl` to `https://github.com/login/device/code` took 3.3 to 6.0 s (TCP
+  connect 1.4 to 3.5 s); from the Mac, 0.16 to 0.20 s. The row passed at
+  7.45 s in t21 and failed at 8.1 s before. The budget is unchanged.
+- **`application_review_round_trip_composition_contract`, every platform.**
+  BPR-2286 added `window_follow_up.cpp` on main without listing it in the
+  contract's app source inventory or production manifest; both now name it,
+  and the production digest is resealed.
+- **WSL2 i9 load-phase input gap, located.** `application_large_review_responsiveness`
+  at `82ed12f26` under `perf` (cpu-clock, 1 kHz, DWARF stacks; perf built from
+  Ubuntu's `linux-perf` package unpacked without root), six runs: the phase's
+  gap was 106 to 135 ms, 90 to 113 ms of it the GUI thread's own CPU. In each
+  run the phase's longest main-thread stretches are single posted events of
+  112 to 123 ms, twice per phase (about 36 ms in, and again later), all in
+  `diff_workbench::rebuild_geometry` → `plain_text_pane_measurement::advance`
+  → `pane_block_measurer::height`, which is Qt text layout and HarfBuzz shaping
+  (`QTextLine::layout_helper`, `QTextEngine::shapeText`). `rebuild_geometry`
+  checks its 4 ms slice only between groups of 16 lines, and a native block is
+  measured whole, so one long block in the fixture's diff holds the thread for
+  the whole layout. Not fixed: a change to how one long block is measured is a
+  product change and is the owner's to schedule.
+- The round-trip contract passes on the WSL2 i9 at `82ed12f26`.
+
+### Owner decisions (2026-11-20)
+
+- **Known Release timing exception for 0.5.0, waived by the owner:**
+  `application_large_review_responsiveness`'s
+  `paged_review_and_git_load_input_gap` on the WSL2 i9, 104 to 134 ms against
+  the 100 ms input target in 9 of 30 runs (106 to 135 ms in the six profiled
+  runs), from one long text block's layout in
+  `diff_workbench::rebuild_geometry` → `pane_block_measurer::height` (profile
+  above). The fix is [[BPR-2317]] in Backlog. The row's other checks still
+  count.
+- **`application_device_authorization_public_path` budget: 20 s on every
+  platform** (owner). Its run waits for GitHub's device-code answer; on the
+  Windows qualification PC that took 8,558 ms, and curl to the endpoint 3.3
+  to 6.0 s against 0.16 to 0.20 s from a Mac. The row's CTest timeout is 30 s
+  so the bound still holds three quarters of it.
+
+## Tenth round: main 9e8deb514 merged; Release only (2026-11-20)
+
+Main `9e8deb514` (BPR-2299 to BPR-2316) merged. Owner: Release only for now;
+this lane owns Windows and the WSL2 timing courses, and a separate agent took
+the Ubuntu guest over after its Release suite.
+
+Build fixes main needed (BPR-2308 and others):
+`helper_tour_round_diagnostics_tests.cpp` called BPR-2308's removed cycle
+failure names; `toml_string` and `materialize_agent_environment` sat inside the
+agent-integration block while the Codex instructions probe outside it called
+them (tour-cli preset); `native_session_name` and BPR-2303's macOS-only bundle
+helpers failed GCC's unused-function check. Inventories: the workbench and
+qualification case inventories follow their sources (no case changed); the
+round-trip contract's app inventory and production manifest name
+`window_follow_up.cpp`.
+
+| Candidate, platform | Rows | Result |
+| --- | --- | --- |
+| `78c6b3908` Ubuntu (Lima) Release, full | 1085 | 1071 passed, 14 failed |
+| `2ca2bdf5f` Ubuntu (Lima) Release, full | 1046 | 1033 passed, 13 failed (10 large-review timing judged on WSL2; `qt_profiles_settings_panel`, `profile_data_reset`, `ask_report`) |
+| `2ca2bdf5f` Windows Release, full | 1025 | 1018 passed, 7 failed |
+| `afeb013b7` Windows Release, the 7 and neighbours | 6 | 6 passed |
+
+Windows Release failures at `2ca2bdf5f` and their fixes:
+
+- `qt_profiles_settings_panel` (also Ubuntu): BPR-2308 retired Open Project…;
+  the course expects New Window, Quit and Close Tab.
+- `application_profile_data_reset_public_path` (also Ubuntu): the profile made
+  the cycles store at start and makes no review store now; the course makes
+  the tours store (as a draft's target does) so the review reset and the cache
+  recovery have one to check.
+- `github_cli_process_runner` (Windows): the progress-bounded runner summed
+  directory-entry sizes, which on Windows lag a file still open for writing,
+  so a growing pack looked idle and a fetch was stopped at its idle bound. It
+  now asks each file for its size.
+- `application_discuss_top_public_path` (Windows, after any other course): a
+  product bug. `relayout` kept the last timeline's folded counts when it laid
+  out one file's threads outside the timeline, so Discuss counted 14
+  conversations on a file with seven. Folded counts reset on every layout.
+- `application_dependable_session_public_path` and
+  `application_composition_contract` (timeout at 1800 s in the full suite)
+  passed when rerun (13.9 s and 720 s).
+- `application_large_review_launch`: `theme_dark` 160.6 ms against 100 in one
+  run, passed alone twice. Recorded, not changed.
+
+`git_process_contract` passes with the owner's Defender exclusion (199.6 s);
+Defender made no detection after 2026-11-19 21:42. Two untracked copies of the
+retired `bpr-cycle` skill in the PC's source tree were moved to
+`preflight-fix-r1\stale-bpr-cycle-skill`.
+
+WSL2 i9 at `afeb013b7` (own tree, Release at `-j8`, PC otherwise idle), the
+eleven large-review courses three times: 10 of 11 passed in each run (30 of
+33 rows).
+
+| Run | Failed row | Miss |
+| --- | --- | --- |
+| 1 | `application_large_review_launch` | `ProcessToHomeMarkerMs` 1238.1 against 1000 |
+| 2 | `application_large_review_launch` | `ProcessToHomeMarkerMs` 1058.8 against 1000; `paged_review_and_git_load_input_gap` 142.8 against 100 |
+| 3 | `application_large_review_pathological` | `paged_review_and_git_load` input gap |
+
+The input gap is the owner's waived BPR-2317 exception, met here in the launch
+and pathological courses as well as responsiveness (which passed all three
+runs). `ProcessToHomeMarkerMs` is a separate launch budget (1000 ms) that the
+sixth round's re-measured basis did not cover; it is the open item.
+
+## Ubuntu Release on the Lima guest (2026-11-20)
+
+Branch `claude/release-0-5-0-ubuntu` from the lane at `2ca2bdf5f`, on the
+Intel Mac's Ubuntu 26.04 Lima guest (6 vCPUs), Release only (owner: Debug is
+out of scope for this round).
+
+**Phase 31 at `2ca2bdf5f`: 1046 rows, 1033 passed, 13 failed.** Ten were
+large-review timing rows; three were new, each failing alone every time:
+
+- `qt_profiles_settings_panel` and
+  `application_profile_data_reset_public_path`: [[BPR-2308]] retired Review
+  Cycles and left both tests expecting Open Project… and a
+  `review-cycles.sqlite3` that no build makes. Test faults on every platform.
+  The File menu is New Window, a separator, Quit and Close Tab; the reset
+  course writes the store an earlier build left (unread, still removed by
+  Reset review data), since a fresh profile now holds no review store.
+  (Merged into the Windows lane, which had fixed both too: the lane keeps its
+  menu course, the same change, and its reset course, which makes a real tours
+  store through the SQLite adapter rather than a placeholder file.)
+- `application_ask_report_public_path`: **product fault**, exposed by
+  [[BPR-2299]]'s reading width. In a report shorter than the pane,
+  `go_to_heading` grows the tail so the heading can reach the top (look
+  ask-v008), then scrolled to the heading's place measured before the room
+  was made. Laid out with the room, the heading moved from 274 to 293 px
+  (maximum 285); the scroll stopped at 266, the heading stayed 27 px down and
+  the section read as the one before. The heading is now measured again after
+  the room is made. The report and Ask rows pass (7 of 7).
+
+**The tour-cli tree with tests** (`cmake --preset tour-cli -B
+build/tour-cli-tests -DBUILD_TESTING=ON -DCMAKE_TEST_BUILD_DEPENDS=ON`):
+
+- `host_operation_diagnostics` and `agent_setup_storage` linked hosts that
+  only an agent-integrations graph compiles. Their clone-scan and setup-host
+  checks now compile only there (`BPR_TEST_CLONE_LINK_HOST`,
+  `BPR_TEST_AGENT_SETUP_HOST`); the rest runs everywhere. Both pass.
+- `tour_cli_loopback_provider`: three test faults, no product change. The
+  Qt-free graph builds no logging adapter, so the row passes
+  `--diagnostics $<TARGET_EXISTS:BetterPullReview::AdapterLogging>` and expects
+  no session file without it. Since [[BPR-1560]] the epoch compares from
+  GitHub's merge base, and the fake answered `compare` 404, so the base anchor
+  was unavailable and `add` refused "Pinned source authority is unavailable";
+  the fake answers it from the real `git merge-base`. [[BPR-2014]] publishes
+  only accepted stops and `ready 1` (relayed) does not accept, so the course
+  readies its stop in a walk. Passes.
+- `dependency_modernization_contract` expected Quill in any graph with a Qt
+  target; it now keys on `Qt6::Widgets`. Passes in both trees.
+- Not fixed: `skill_pr_tour_package` (the guest's MASK-deployed
+  `.claude/skills/pr-tour` predates [[BPR-2274]]; a redeploy, not a source
+  change) and `architecture_boundary_contract`, which took 1722 to 1926 s in
+  every Ubuntu Release suite and stops at plain ctest's 1500 s default there.
+
+**`application_composition_contract` (item 3) is guest capacity.** The row
+is `RUN_SERIAL` and rebuilds its persistent tests-off Release tree at
+`CMAKE_BUILD_PARALLEL_LEVEL` jobs, default 2. Warm it took 22 to 34 s. Cold
+(after a broad source change) at 2 jobs it took 1987 and 2028 s against the
+Linux 2160 s budget; a cold scratch tree at 6 jobs took 1371 s. The guest's
+runs export `CMAKE_BUILD_PARALLEL_LEVEL=6`; the budget is unchanged.
+
+| Candidate, platform | Rows | Result |
+| --- | --- | --- |
+| `2ca2bdf5f` Ubuntu (Lima) Release, full suite | 1046 | 1033 passed, 13 failed |
+| `ef838fc9f` Ubuntu (Lima) tour-cli tests-on, tour rows | 10 | 10 passed (loopback at `ef838fc9f`) |
+| `e548e5e0a` Ubuntu (Lima) tour-cli tests-on, whole tree | 378 | 374 passed, 4 failed (three fixed or explained above, loopback since fixed) |
+| **`ef838fc9f` Ubuntu (Lima) Release, full suite** | 1046 | **1036 passed, 10 failed: the large-review timing rows only** |
+
+The ten at `ef838fc9f`, all timing or budget misses, are judged on the WSL2
+i9 (owner, 2026-11-18): `application_large_review_benchmark`,
+`_responsiveness`, `_launch`, `_active_work`, `_pathological`,
+`_prepared_open`, `_history`, `application_unavailable_diff_public_path`,
+`application_approximate_diff_public_path` and
+`application_first_tab_comparison`. `application_large_review_resources`
+passed this time and `application_approximate_diff_public_path` failed
+(input gap 116 ms). Evidence: `ubuntu-release-full-2ca2bdf5f-junit.xml` and
+`ubuntu-release-full-ef838fc9f-junit.xml` in
+`/Users/jaeger/.codex/release-runs/v0.5.0-20261116/ubuntu-r1/`.
+
+### The launch course's Home marker on Linux (2026-11-21)
+
+Owner: measure `ProcessToHomeMarkerMs` again on disk, as the startup and
+close budgets were. Ten runs of `application_large_review_launch` on the idle
+WSL2 i9 at `098a744ac`: 670–1268 ms warm, one cold first run 7409 ms. The
+Linux limit is now **1550 ms** (the worst warm plus 22%, the startup rule);
+macOS and Windows keep 1000. Basis recorded in
+`docs/verification/BPR-0967-station-budgets-2026-10-01.md`. Four of the ten
+fixtures still exited 1 on the waived [[BPR-2317]] input gap (102–135 ms).
+
+Windows Release at `7f42d0429`: 1034 rows, 1032 passed;
+`sqlite_profile_registry_storage` (the course's damaged copy was not private
+on Windows, fixed) and `test_network_isolation_manifest`
+(`application_reopened_tabs` measured contained and pinned
+`private-data-root-refused`) pass at `098a744ac`.
+
+### Known 0.5.0 intermittents (owner's standing rule, 2026-11-21)
+
+Intermittents that would hold the release are waived for 0.5.0, each with a
+Backlog card:
+
+- `application_review_tour_publication_reconciliation`: a product race; a
+  pull request read that started before the app's own tour publication lands
+  after it and is taken as a website edit, or moves the observed head back
+  (the fixture's late `observe_head` revert). [[BPR-2339]].
+- `application_inline_publish_cli_consent`: under load the comment falls back
+  to a file permalink ("Its comparison is not ready"); the course should wait
+  for the comparison after its rereads, and the fallback needs a product
+  answer. [[BPR-2340]].
+- `application_profile_window_review_restoration_public_path`, "remembered
+  grant settles before Quit": not reproduced; the course now names the
+  session, refresh and binding-store paths on a miss. [[BPR-2341]].
+- `application_large_review_history`: an epoch-drain stall seen once on the
+  Ubuntu guest; a timing course, judged on the WSL2 i9. [[BPR-2342]].
+- `application_review_tour_publication_push` (macOS, 2 of 15 at
+  `ed5e79de9`): after a push, a tour stop can stay "not compared yet" with no
+  later trigger; `ed5e79de9`'s re-check on a published diff narrows it and is
+  kept. Next step is logging tour-material checks against diff publications.
+  [[BPR-2343]].

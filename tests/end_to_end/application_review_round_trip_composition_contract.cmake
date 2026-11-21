@@ -2817,6 +2817,11 @@ function(bpr_verify_full_application_digest source_variable)
 	# the viewer's own case for Author (core::author_case_of over the same
 	# draft-state reading). No provider, admission, mutation branch,
 	# publication or source-inventory change.
+	# [[BPR-2280]], [[BPR-2281]] reseal (BPR-2215, at main 392dffc6f): Draft
+	# Description beside the description in Author, a tool-free writing run
+	# of the window's agent whose answer lands in Author's editor, sent only
+	# on Save (request_description_draft and its offer). No provider,
+	# admission, mutation branch, publication or source-inventory change.
 	# [[BPR-2308]] reseal of [[BPR-2280]] and [[BPR-2281]], unsealed on main:
 	# the description's edit is offered in Author's editor too, behind the
 	# same core::description_edit_offered gate and the same mutation host's
@@ -3863,12 +3868,33 @@ function(bpr_verify_app_source_tree app_source_root)
 	# panel's destroyed handler in its destructor, and a running tour turn
 	# shows its cost so far (window_tours.cpp). No review mutation or
 	# submission path changed.
+	# [[BPR-2215]] reseal: the composition's accepted diff is no longer an
+	# owner of the comparison (window_composition.hpp, window_construction.cpp,
+	# window_local_comments.cpp), and BPR-2149's prompt packs in
+	# window_agent_setup.cpp, merged from main. No review mutation or submission path changed.
+	# [[BPR-2254]] reseal: Settings says when the agent store cannot be read
+	# (window_agent_setup.cpp, window_construction.cpp), merged from main. No
+	# review mutation or submission path changed.
+	# [[BPR-2256]] reseal: the Agent drawer waits in a loading state for the
+	# host policy, and the workspace check waits for the comparison, merged
+	# from main. No review mutation or submission path changed.
 	# [[BPR-2269]] reseal: a reread that keeps the head keeps the private
 	# review open, bound and restored (window_review_ledger.cpp,
 	# private_review_workflow), so a submission's pending comments stay
 	# holdable; a replaced draft owner reads its drafts again. Also seals
 	# BPR-2265's unsealed app changes. The submission path is unchanged; its
 	# comment hold now finds the private store.
+	# [[BPR-2215]] reseal: this lane's app changes above and main's at
+	# 392dffc6f together, and the round-trip course's stale-head probe reads
+	# BPR-2263's sentence for a moved head (fixture_review_round_trip_course.cpp,
+	# tests only). No review mutation or submission path changed.
+	# [[BPR-2215]] reseal over main bafdd264f's app changes (BPR-2285 to
+	# BPR-2298), merged into this lane. No review mutation or submission
+	# path changed by the merge itself.
+	# [[BPR-2215]] reseal: the fixture agent admission splits a search PATH
+	# on the platform's list separator (window_agent_setup.cpp, tests only).
+	# [[BPR-2215]] BPR-2286 added window_follow_up.cpp on main without adding
+	# it to the source inventory or this manifest; both now name it.
 	# [[BPR-2308]] reseal: Review Cycles and `bpr cycle` are retired. The
 	# cycle CLI, session, commands and owner service and review_cycle_desktop
 	# leave the tree and the inventory; the owner channel no longer routes a
@@ -3900,8 +3926,21 @@ function(bpr_verify_app_source_tree app_source_root)
 	# menu takes a section a line below the pane's top
 	# (agent_report_view::jump_margin). Presentation check only; no grant,
 	# provider, transport, mutation or publication path changes.
+	# [[BPR-2215]] reseal over main 6a07d4ce1 (above) merged into this lane,
+	# with this lane's app changes listed before it. No review mutation or
+	# submission path changed by the merge itself.
+	# [[BPR-2215]] reseal: review_submission_workflow::started matches the
+	# attempt's own send context rather than the workflow's latest operation,
+	# so the send note is written when another operation or a host retirement
+	# replaced that context. The send, its grant and its terminal are
+	# unchanged.
+	# [[BPR-2215]] reseal: window_workbench.cpp asks for a tour's material
+	# check again when a selected diff is published, so a stop whose accepted
+	# code could not yet be realigned to a new head is compared once it can.
+	# Read-only comparison; no grant, provider, transport, mutation or
+	# publication path changes.
 	set(bpr_expected_production_app_manifest_digest
-        "1ae0061165d1f8aacb4c38954e040783c4f77a63cc78796fe3958a3be833ab0b"
+        "153b87fc517c3262b1d0212a326f5db8a65809a9a50d2690f2008ed30346b266"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

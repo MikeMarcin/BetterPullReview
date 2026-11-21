@@ -500,6 +500,7 @@ namespace bpr::app {
 				present_filtered_comment();
 				present_review_comment_holds();
 				observe_head_moves();
+				check_tour_material();
 #if defined(BPR_BUILD_TESTING)
 				++SelectedDiffPublications;
 				LastSelectedDiff = aPublication;
@@ -526,6 +527,13 @@ namespace bpr::app {
 		// [[BPR-1735]]. GitHub's own diff can be read once a file is shown.
 		present_review_comment_holds();
 		observe_head_moves();
+		// [[BPR-2215]]. A tour stop's accepted code is compared with the new
+		// head only once the epoch can realign to it. A check made at the
+		// tour's last presentation, before this comparison was published,
+		// asked nothing and nothing asked again: the stops stayed "not
+		// compared yet" (application_review_tour_publication_push under
+		// suite load). It is asked again here.
+		check_tour_material();
 		request_diff(
 			aPublication.Key,
 			aPublication.Request.Diff.Comparison,

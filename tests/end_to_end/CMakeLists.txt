@@ -228,6 +228,13 @@ bpr_bound_automated_run(
 # symbols. The tests-disabled Release absence scan is a separate closeout
 # command in docs/development/build-and-test-reference.md, exactly as the CLI one is: a
 # tests-enabled graph cannot prove what a tests-disabled binary omits.
+# [[BPR-2215]], owner decision 2026-11-20. A registered platform's real flow
+# waits for GitHub's device-code answer, which is the network's time, not the
+# application's: on the Windows qualification PC the request took 8,558 ms to
+# `awaiting_authorization`, and curl to the same endpoint 3.3 to 6.0 s (TCP
+# connect 1.4 to 3.5 s) against 0.16 to 0.20 s from a Mac. So this row's run
+# has 20 s on every platform instead of the shared self-test budget.
+set(bpr_device_authorization_budget_ms 20000)
 bpr_add_network_isolated_test(
     NAME application_device_authorization_public_path
     WINDOWS_UNCONTAINED
@@ -236,7 +243,7 @@ bpr_add_network_isolated_test(
         --self-test
         --device-authorization-probe
         --automated-run-budget-ms
-        ${bpr_self_test_budget_ms}
+        ${bpr_device_authorization_budget_ms}
 )
 set_tests_properties(
     application_device_authorization_public_path
@@ -247,9 +254,9 @@ set_tests_properties(
 )
 bpr_bound_automated_run(
     application_device_authorization_public_path
-    TIMEOUT 15
+    TIMEOUT 30
     DEBUG_TIMEOUT 120
-    BUDGET_MS ${bpr_self_test_budget_ms}
+    BUDGET_MS ${bpr_device_authorization_budget_ms}
     RUNS 1
     RESERVE_MS 2000
 )

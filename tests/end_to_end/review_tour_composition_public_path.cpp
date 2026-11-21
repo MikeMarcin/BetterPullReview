@@ -71,6 +71,7 @@
 #include <array>
 #include <iostream>
 #include <source_location>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -1856,6 +1857,13 @@ auto main(int argc, char** argv) -> int
 		std::cerr << "review-tour-composition:fail " << error.what() << '\n';
 		std::cerr << application->window().tour_editor()->findChild<QLabel*>(QStringLiteral("tourSaveStatus"))->text().toStdString() << " writing=" << application->window().tour_editor()->findChild<QLabel*>(QStringLiteral("tourWritingStatus"))->text().toStdString() << " agent=" << application->window().agent_panel()->status_text().toStdString() << "\n";
 		shutdown(*application);
+		// The log's warnings and errors, which say why a run did not start.
+		auto records = std::istringstream{ bpr::tests::read_diagnostic_logs(*dataRoot) };
+		for (std::string record; std::getline(records, record);) {
+			if (record.find("\"severity\":\"info\"") == std::string::npos) {
+				std::cerr << "review-tour-composition-diagnostic:" << record << '\n';
+			}
+		}
 		return EXIT_FAILURE;
 	}
 }
