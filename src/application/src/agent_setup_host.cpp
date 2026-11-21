@@ -24,6 +24,35 @@ namespace bpr::application {
 			return aText;
 		}
 
+		/// [[BPR-2348]]. What a custom agent's check ran: its program by path
+		/// and its arguments as the entry lists them, then, when the check
+		/// added its own, that it did. Nothing here is not already in the entry.
+		[[nodiscard]] auto ran_words(const std::string& aProgram, const std::vector<std::string>& aArguments, const bool aCheckAdds) -> std::string
+		{
+			auto words = "Ran: " + aProgram;
+			for (const auto& argument : aArguments) {
+				words += ' ';
+				words += argument;
+			}
+			if (aCheckAdds) {
+				words += " …and the check's own";
+			}
+			return words;
+		}
+
+		/// The details: what ran first, then the run's own, bounded together.
+		[[nodiscard]] auto ran_with(std::string aRan, std::string aDetail) -> std::string
+		{
+			if (aRan.size() + 1U >= maximum_agent_check_detail_bytes) {
+				aRan.resize(maximum_agent_check_detail_bytes / 2U);
+			}
+			const auto room = maximum_agent_check_detail_bytes - aRan.size() - 1U;
+			if (aDetail.size() > room) {
+				aDetail.erase(0U, aDetail.size() - room);
+			}
+			return aDetail.empty() ? aRan : aRan + "\n" + aDetail;
+		}
+
 		[[nodiscard]] auto detail_of(const agent_run_result& aResult) -> std::string
 		{
 			auto outcome = std::string{ name(aResult.Outcome) };
@@ -365,6 +394,20 @@ namespace bpr::application {
 			}
 			const auto row = std::ranges::find(state.Rows, *agent, &core::agent_setup_row::Agent);
 			return row == state.Rows.end() || !row->Verdict.Permitted ? nullptr : &*row;
+		}
+
+		/// \brief [[BPR-2348]]. The entry being checked when it names its own
+		/// Program and its host's policy permits it: it is checked with that
+		/// Program, whatever detection found for its kind. None otherwise, and
+		/// the check takes the program found for the entry's kind.
+		[[nodiscard]] auto own_program_entry() const -> const core::agent_entry*
+		{
+			const auto* const entry = preferred_entry();
+			if (entry == nullptr || entry->Program.empty()) {
+				return nullptr;
+			}
+			const auto choice = std::ranges::find(Projection.Choices, entry->Id, &core::agent_setup_choice::Entry);
+			return choice != Projection.Choices.end() && choice->Verdict.Permitted ? entry : nullptr;
 		}
 
 		/// [[BPR-1828]]. A check's start: its kind and its stopwatch.
@@ -1173,8 +1216,13 @@ namespace bpr::application {
 			host.refuse_check();
 			return;
 		}
-		const auto* const row = host.chosen_row();
-		if (row == nullptr && host.CheckingOverride) {
+		// [[BPR-2348]]. An entry with its own Program is checked with that
+		// Program and its arguments, as `agent_entry_process` runs its turns:
+		// not the program detection found for its kind, which may be another
+		// install or a shim on the app's PATH, and which may be none.
+		const auto* const own = host.own_program_entry();
+		const auto* const row = own != nullptr ? nullptr : host.chosen_row();
+		if (own == nullptr && row == nullptr && host.CheckingOverride) {
 			// [[BPR-2051]]. An entry whose agent was not found here, or is not
 			// allowed: its check says so, and Check all goes on.
 			const auto* const entry      = host.preferred_entry();
@@ -1185,7 +1233,7 @@ namespace bpr::application {
 			host.settle_check(generation, agent, core::fail_check(core::agent_setup_failure::agent_not_found), { }, { }, agent_check_step::unknown);
 			return;
 		}
-		if (row == nullptr) {
+		if (own == nullptr && row == nullptr) {
 			// [[BPR-1859]]. The saved agent is not found any more: the check
 			// says so, with what to do. Any other missing choice is the
 			// offer's to explain; nothing runs.
@@ -1200,8 +1248,8 @@ namespace bpr::application {
 			return;
 		}
 		const auto generation            = ++host.CheckGeneration;
-		const auto agent                 = row->Agent;
-		const auto path                  = row->Path;
+		const auto agent                 = own != nullptr ? (own->Preset ? *own->Preset : core::setup_agent_of(own->Protocol)) : row->Agent;
+		const auto path                  = own != nullptr ? own->Program : row->Path;
 		host.CheckStop                   = std::stop_source{ };
 		host.Projection.Checking         = true;
 		host.Projection.State.AgentCheck = { .State = core::setup_check_state::running };
@@ -1215,18 +1263,18 @@ namespace bpr::application {
 		// Owner decision 2026-10-23. A custom agent's check is that its
 		// program can be launched and, when it names one, that its own check
 		// exits 0; a popular agent keeps its sign-in status check.
-		if (const auto* const entry = host.preferred_entry(); entry != nullptr && !entry->Preset && core::setup_agent_of(entry->Protocol) == agent) {
-			const auto profile = std::ranges::find(host.Dependencies.Profiles, entry->Protocol, &core::agent_profile::Protocol);
-			auto       own     = std::optional<agent_launch_request>{ };
+		if (const auto* const entry = host.preferred_entry(); entry != nullptr && !entry->Preset && (entry == own || core::setup_agent_of(entry->Protocol) == agent)) {
+			const auto profile  = std::ranges::find(host.Dependencies.Profiles, entry->Protocol, &core::agent_profile::Protocol);
+			auto       ownCheck = std::optional<agent_launch_request>{ };
 			if (!entry->CheckArguments.empty() && profile != host.Dependencies.Profiles.end()) {
-				own              = agent_launch_request{ };
-				own->Protocol    = core::agent_protocol::external_terminal;
-				own->Session     = core::agent_session_id{ 1U };
-				own->Executable  = path;
-				own->Arguments   = entry->CheckArguments;
-				own->WritingOnly = true;
-				own->Path        = core::agent_run_path::agent_check;
-				own->Environment = materialize_agent_environment(*profile, host.Dependencies.Parent);
+				ownCheck              = agent_launch_request{ };
+				ownCheck->Protocol    = core::agent_protocol::external_terminal;
+				ownCheck->Session     = core::agent_session_id{ 1U };
+				ownCheck->Executable  = path;
+				ownCheck->Arguments   = entry->CheckArguments;
+				ownCheck->WritingOnly = true;
+				ownCheck->Path        = core::agent_run_path::agent_check;
+				ownCheck->Environment = materialize_agent_environment(*profile, host.Dependencies.Parent);
 			}
 			// [[BPR-2305]]. A custom Codex JSONL agent is also asked one short
 			// question with a rule, given the way its Instructions setting
@@ -1253,10 +1301,11 @@ namespace bpr::application {
 			host.begin_check(core::operation_action::agent_custom_check);
 			host.off_lane(
 				host.Dependencies.Checks,
-				[inspect = host.Dependencies.Inspect, process = host.Dependencies.Process, path, check = std::move(own), probe = std::move(instructionsProbe), stop = host.CheckStop.get_token()]() mutable {
+				[inspect = host.Dependencies.Inspect, process = host.Dependencies.Process, path, probeRan = ran_words(path, entry->Arguments, true), check = std::move(ownCheck), probe = std::move(instructionsProbe), stop = host.CheckStop.get_token()]() mutable {
 					const auto refusal = inspect ? inspect(path) : std::optional{ core::agent_wrapper_refusal::missing };
 					if (refusal) {
-						return custom{ .Check = core::fail_check(core::agent_setup_failure::program_refused), .Detail = std::string{ core::describe(*refusal) } };
+						// [[BPR-2348]]. Refused by name: the path, then why.
+						return custom{ .Check = core::fail_check(core::agent_setup_failure::program_refused), .Detail = path + ": " + std::string{ core::describe(*refusal) } };
 					}
 					if (process == nullptr || (!check && !probe)) {
 						return custom{ .Check = core::setup_check{ .State = core::setup_check_state::passed } };
@@ -1269,7 +1318,7 @@ namespace bpr::application {
 						runs           = 1U;
 						last           = run_of(ran, runs);
 						if (ran.Outcome != agent_run_outcome::success) {
-							return custom{ .Check = core::fail_check(unanswered(ran.Outcome).value_or(core::agent_setup_failure::status_unreadable)), .Detail = detail_of(ran), .Run = last, .Step = agent_check_step::check_command };
+							return custom{ .Check = core::fail_check(unanswered(ran.Outcome).value_or(core::agent_setup_failure::status_unreadable)), .Detail = ran_with(ran_words(check->Executable, check->Arguments, false), detail_of(ran)), .Run = last, .Step = agent_check_step::check_command };
 						}
 						said = first_line_of(ran);
 					}
@@ -1279,7 +1328,7 @@ namespace bpr::application {
 					const auto claude = probe->Profile.Protocol == core::agent_protocol::claude_stream_json;
 					auto       answer = claude ? probe_claude_stream(*process, *probe, said, stop) : probe_codex_instructions(*process, *probe, said, stop);
 					answer.Run.Runs += runs;
-					return custom{ .Check = std::move(answer.Check), .Detail = std::move(answer.Detail), .Run = answer.Run, .Step = claude ? agent_check_step::protocol_probe : agent_check_step::instructions_probe };
+					return custom{ .Check = std::move(answer.Check), .Detail = ran_with(probeRan, std::move(answer.Detail)), .Run = answer.Run, .Step = claude ? agent_check_step::protocol_probe : agent_check_step::instructions_probe };
 				},
 				[self = shared_from_this(), generation, agent, id = entry->Id](custom aAnswer) {
 					if (generation == self->CheckGeneration) {
