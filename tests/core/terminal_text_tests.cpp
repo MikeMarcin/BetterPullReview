@@ -5,10 +5,14 @@
 
 #include "bpr/core/terminal_text.hpp"
 
+#include <array>
+#include <cstddef>
 #include <cstdlib>
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace {
 	using bpr::core::plain_terminal_text;
@@ -67,6 +71,47 @@ auto main() -> int
 				 "b",
 				 "an ESC before a UTF-8 character goes alone");
 	expect(plain_terminal_text(std::string(100000U, 'x') + "\x1b[0m") == std::string(100000U, 'x'), "a long capture keeps its text");
+	// A stream split anywhere reads as the whole: at every byte, into two
+	// chunks and into one-byte chunks, for SGR, OSC ended by BEL and OSC
+	// ended by ST, a tail of an unfinished sequence dropped at the end.
+	using bpr::core::plain_terminal_chunk;
+	const auto streamed = [](const std::vector<std::string_view>& aChunks) {
+		auto text  = std::string{ };
+		auto carry = std::string{ };
+		for (const auto chunk : aChunks) {
+			auto piece = plain_terminal_chunk(carry, chunk);
+			text += piece.Text;
+			carry = std::move(piece.Carry);
+		}
+		return text;
+	};
+	for (const auto whole : std::array<std::string_view, 6U>{
+			 "before \x1b[0;31mred\x1b[0m after\n",
+			 "\x1b[38;2;255;128;0morange\x1b[m",
+			 "title \x1b]0;window title\x07 text",
+			 "a \x1b]8;;https://example.com/a\x1b\\link\x1b]8;;\x1b\\ b",
+			 "caf\xc3\xa9 \x1b[32m\xe2\x9c\x93\x1b[0m done",
+			 "kept\x1b]0;cut off",
+		 }) {
+		const auto plain = plain_terminal_text(whole);
+		for (auto at = std::size_t{ 0U }; at <= whole.size(); ++at) {
+			const auto two = streamed({ whole.substr(0U, at), whole.substr(at) });
+			expect(two == plain, "a stream split at byte " + std::to_string(at) + " of \"" + plain + "\" reads as the whole: got \"" + two + "\"");
+			const auto first = plain_terminal_chunk({ }, whole.substr(0U, at));
+			expect(first.Text.find('\x1b') == std::string::npos && plain.starts_with(first.Text), "the text before the split shows nothing of a sequence it splits");
+		}
+		auto bytes = std::vector<std::string_view>{ };
+		for (auto at = std::size_t{ 0U }; at < whole.size(); ++at) {
+			bytes.push_back(whole.substr(at, 1U));
+		}
+		expect(streamed(bytes) == plain, "a stream one byte at a time reads as the whole: " + plain);
+	}
+	expect(plain_terminal_chunk({ }, "red\x1b[0;3") == bpr::core::plain_terminal_piece{ .Text = "red", .Carry = "\x1b[0;3" }, "an unfinished SGR is held back");
+	expect(plain_terminal_chunk({ }, "x\x1b]8;;https://e\x1b") == bpr::core::plain_terminal_piece{ .Text = "x", .Carry = "\x1b]8;;https://e\x1b" }, "an OSC cut inside its ST is held back whole");
+	expect(plain_terminal_chunk("\x1b[0;3", "1mred") == bpr::core::plain_terminal_piece{ .Text = "red" }, "the next chunk finishes it");
+	expect(plain_terminal_chunk({ }, "done\n") == bpr::core::plain_terminal_piece{ .Text = "done\n" }, "a chunk with no escape holds nothing");
+	const auto runaway = plain_terminal_chunk({ }, "x\x1b]" + std::string(bpr::core::maximum_terminal_carry_bytes, 'a'));
+	expect(runaway == bpr::core::plain_terminal_piece{ .Text = "x" }, "an unfinished sequence longer than the bound is removed, not held");
 	std::cout << "terminal-text-tests:pass\n";
 	return EXIT_SUCCESS;
 }

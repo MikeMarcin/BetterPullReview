@@ -12,6 +12,7 @@
 #include <functional>
 #include <optional>
 #include <span>
+#include <string>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -283,14 +284,17 @@ namespace bpr::qt {
 		qint64                                                         ActivityStartedMs = 0;
 		bool                                                           ActivityReported  = false;
 		QString                                                        KeptText;
-		std::optional<application::agent_protocol_failure>             LastFailure;
-		std::vector<std::string>                                       LastUnfinished;
-		std::vector<std::string>                                       LastFailedWrites;
-		std::uint32_t                                                  LastFailedWriteCount = 0U;
-		std::optional<core::agent_cost>                                LastSessionCost;
-		phase                                                          Phase = phase::idle;
-		std::vector<std::function<void()>>                             ProgressObservers;
-		void                                                           progressed();
+		/// [[BPR-2215]]. An escape sequence the last text chunk ended inside,
+		/// read again with the next; dropped when the run ends.
+		std::string                                        TerminalCarry;
+		std::optional<application::agent_protocol_failure> LastFailure;
+		std::vector<std::string>                           LastUnfinished;
+		std::vector<std::string>                           LastFailedWrites;
+		std::uint32_t                                      LastFailedWriteCount = 0U;
+		std::optional<core::agent_cost>                    LastSessionCost;
+		phase                                              Phase = phase::idle;
+		std::vector<std::function<void()>>                 ProgressObservers;
+		void                                               progressed();
 		std::optional<application::agent_invocation_projection_identity>
 														ActiveInvocation;
 		std::vector<application::agent_steered_message> Steered;
