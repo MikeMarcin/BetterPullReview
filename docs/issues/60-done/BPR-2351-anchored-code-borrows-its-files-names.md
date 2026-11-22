@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2351"
 title: "Code anchored to a reviewed file is coloured with that file's names"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0036"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"feature","origin":"owner question 2026-11-21, relayed by the coordinator","owner_note":"when we syntax highlight for a report finding are we using the context of where the comment is located to find names of symbols? Seems like we should.","governing_rfc":"RFC-BPR-0036","related_cards":["BPR-1562","BPR-1714","BPR-2277"],"branch":"claude/context-aware-code-highlighting","provisional_id":"BPR-2351: allocate on main after the release freeze and replace every occurrence"}
+metadata: {"kind":"feature","origin":"owner question 2026-11-21, relayed by the coordinator","owner_note":"when we syntax highlight for a report finding are we using the context of where the comment is located to find names of symbols? Seems like we should.","governing_rfc":"RFC-BPR-0036","related_cards":["BPR-1562","BPR-1714","BPR-2277"],"branch":"claude/context-aware-code-highlighting","reservation":"docs/issues/_reservations/BPR-2351--BPR-2351--a5ed157fbeea.json","provisional_id":"BPR-XXXX-C","acceptance":["AC1","AC2","AC3","AC4"],"attended_review":{"session":"4708604404524750554d23a4282d7890","candidate":"report-code-file-names","decision":"accepted","date":"2026-11-21"}}
 acceptance: []
 ---
 
@@ -122,13 +122,29 @@ function role.
   probe step needs the full application executable, which this disk-limited
   run did not build.
 
-## Remaining
+## Owner acceptance
 
-- Allocate the ID on main and replace `BPR-2351` everywhere on the branch
-  (card name, code comments, the doc and the contract note).
-- Rebase on main after the freeze. Reseal the composition manifest digest over
-  the merged tree. Build the app, then run the round-trip composition probe
-  and the full dev suite once.
-- The draft composer is not anchored here, because another lane owns that
-  file. The Agent tab's item side chat is not anchored here either. Each can
-  call `set_code_context` with its file.
+The owner accepted the change in attended review session
+`4708604404524750554d23a4282d7890`, candidate `report-code-file-names`, on
+2026-11-21.
+
+## Landing evidence (main, macOS, Debug)
+
+- The branch was rebased onto main `2b644c1eb` after the 0.5.0 freeze lifted.
+  The provisional `BPR-XXXX-C` became `BPR-2351` in the card, code and test
+  comments, `docs/architecture/native-markdown.md`, the contract note and the
+  commit subject.
+- The production app manifest digest was resealed over the merged tree
+  (`1a8ba61a…`). The full dev build (2,645 steps) succeeded in a fresh
+  configure, and `application_review_round_trip_composition_contract` passed
+  in full, including the probe step.
+- `core_code_context_roles`, `application_markdown_code_syntax_host`,
+  `qt_markdown_code_{1_0,1_25,2_0}`, `qt_agent_report_view`,
+  `qt_conversation_cards_view`, `qt_tour_side_chat`, `qt_tour_chat_in_tab`
+  and `architecture_boundaries` passed. `coding-format-check` and the
+  documentation gate passed.
+
+## Follow-up scope (not part of this card)
+
+- The draft composer and the Agent tab's item side chat are not anchored.
+  Each can call `set_code_context` with its file.

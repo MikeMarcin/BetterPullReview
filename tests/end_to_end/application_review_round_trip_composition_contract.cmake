@@ -3956,8 +3956,10 @@ function(bpr_verify_app_source_tree app_source_root)
 	# head file's identifier roles from the panes' spans for code anchored
 	# to it. Read-only presentation; no grant, provider, transport,
 	# mutation or publication path changes.
+	# [[BPR-2351]] reseal over main 2b644c1eb (above) merged into this
+	# change. No review mutation or submission path changed by the merge.
 	set(bpr_expected_production_app_manifest_digest
-        "3ce3715df38d564e1edfe20d170ad7cd4907018d3f912d0b2444e71ab66c17f5"
+        "1a8ba61aa25cea654fb8cb482b90329947b5509ad4a0f2f774e96c33ec4abb6a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
