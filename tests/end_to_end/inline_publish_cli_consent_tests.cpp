@@ -286,13 +286,13 @@ namespace {
 				expect(github_application_fixture_access::reread_pull_request(*application), "the pull request is read again");
 				wait_for([&] { const auto progress = github_application_fixture_access::window_read_progress(*application); return progress.Snapshot && progress.Snapshot != snapshot && !progress.Reading; }, "the reread installs the pull request again, renewing the publishing lease");
 			}
-			// [[BPR-2340]]. The reread installs the pull request before its
-			// selected file comparison is ready for inline publication.
+			// [[BPR-2340]]. A reread can keep the old comparison on screen
+			// while the workbench restores the selection and its new request.
 			const auto file = core::file_identity_of(path);
 			wait_for([&] {
 				const auto current = github_application_fixture_access::epoch_refresh_identity(*application);
-				return current.AcceptedComparison && !current.ComparisonPending && !current.TabPending
-					&& current.DiffRequestMatches && current.PublicationDisplayed && current.PublishedFile == file
+				return current.AcceptedComparison && !current.ComparisonPending && !current.TabPending && !current.TabLoad
+					&& current.SelectedFile == file && current.DiffRequestMatches && current.PublicationDisplayed && current.PublishedFile == file
 					&& current.PublishedComparison == current.AcceptedComparison;
 			},
 					 "review.cpp's exact comparison is shown after both rereads");
