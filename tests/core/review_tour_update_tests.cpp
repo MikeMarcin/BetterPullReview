@@ -4,6 +4,7 @@
 #include "bpr/core/review_tour_revision.hpp"
 #include "bpr/core/review_tour_update.hpp"
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
@@ -215,10 +216,17 @@ int main()
 		expect(std::ranges::none_of(tour.Stops, tour_stop_text_edited), "a stop published as written is not edited");
 		tour.Stops[0].Body += " more";
 		expect(tour_stop_text_edited(tour.Stops[0]), "a changed stop is edited");
+		const auto navigation = std::array{
+			tour_markdown_link{ "Previous", tour.Stops[0].Remote->WebUrl },
+			tour_markdown_link{ "Tour overview", tour.Remote->WebUrl },
+			tour_markdown_link{ "Next", tour.Stops[2].Remote->WebUrl },
+		};
 		tour.Stops[1].Baseline->DraftText = tour.Stops[1].Body;
 		tour.Stops[1].Body                = "Exact explanation 2 ([`review.cpp:2-4`](https://github.com/o/r/blob/abc/review.cpp#L2-L4))";
-		tour.Stops[1].Baseline->Raw       = *render_tour_stop(tour.Stops[1].Title, 2, tour.Stops[1].Body, { });
-		tour.Stops[1].Body                = *tour.Stops[1].Baseline->DraftText;
+		const auto rendered               = render_tour_stop(tour.Stops[1].Title, 2, tour.Stops[1].Body, navigation);
+		expect(rendered.has_value(), "the published fixture has a valid navigation footer");
+		tour.Stops[1].Baseline->Raw = *rendered;
+		tour.Stops[1].Body          = *tour.Stops[1].Baseline->DraftText;
 		expect(!tour_stop_text_edited(tour.Stops[1]), "a stop whose author's text is the published one is not edited, though its comment carries permalinks");
 		tour.Stops[1].Body += " (`review.cpp:3-4`)";
 		expect(tour_stop_text_edited(tour.Stops[1]), "an edit since publishing is edited");
