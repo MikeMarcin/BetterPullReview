@@ -1091,8 +1091,16 @@ auto main(int argc, char** argv) -> int
 			cold.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
 			expect(cold.publication_preview()->original_body().contains("The PR description will not be edited."), "the update preview says the description is left alone");
 			expect(cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->isEnabled(), "cold-profile author can explicitly edit the existing tour");
+			const auto beforePublicationSnapshot = access::window_read_progress(*application).Snapshot;
 			cold.findChild<QPushButton*>(QStringLiteral("tourPublish"))->click();
 			wait([&] { return cold.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"))->text().startsWith("Published:"); }, "cold-profile stop update preserves imported actor and source binding");
+			// The fixture's injected handoff leaves the server on its original head.
+			// Finish the publication's real reread before injecting the push.
+			wait([&] {
+				const auto progress = access::window_read_progress(*application);
+				return progress.Snapshot.has_value() && progress.Snapshot != beforePublicationSnapshot && !progress.Reading;
+			},
+				 "published cold-profile pull request snapshot settles before the push");
 			saved(cold);
 			{
 				std::scoped_lock lock{ server->Mutex };
