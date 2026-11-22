@@ -210,6 +210,22 @@ $tables | ConvertTo-Json -Depth 10 -Compress
             self.assertTrue(item["url"].startswith("https://"))
             self.assertRegex(item.get("sha256", item.get("sha3_256")), r"^[0-9a-f]{64}$")
         self.assertNotIn("LibArchive", {item["name"] for item in runtime.components({"platform": "Windows"})})
+        for system, expected_count in (("Darwin", 31), ("Windows", 30), ("Linux", 34)):
+            with self.subTest(system=system):
+                self.assertEqual(len(runtime.source_entries(runtime.components({"platform": system}))), expected_count)
+
+    def test_quill_backport_build_inputs_ship_with_sources_on_every_platform(self):
+        backport = "cmake/BprQuillProvider.cmake"
+        provenance = "third_party/quill/PROVENANCE.md"
+        expected = {
+            "Quill-13.0.0.tar.gz": ("sha256", "88b4a1542125577a4d51cf444c51e34d63618c422ba6a4fa9bd23894b49d696b"),
+            f"Quill-13.0.0-build/{backport}": ("sha256", runtime.digest(ROOT / backport)),
+            f"Quill-13.0.0-build/{provenance}": ("sha256", runtime.digest(ROOT / provenance)),
+        }
+        for system in ("Darwin", "Windows", "Linux"):
+            with self.subTest(system=system):
+                entries = runtime.source_entries(runtime.components({"platform": system}))
+                self.assertEqual({name: digest for name, digest in entries.items() if name.startswith("Quill-")}, expected)
 
     def test_mimalloc_source_and_notice_match_provider(self):
         import hashlib
@@ -402,7 +418,8 @@ $tables | ConvertTo-Json -Depth 10 -Compress
 
     def test_linux_icu_source_binary_and_notice_contract_is_platform_scoped(self):
         import hashlib
-        item = next(v for v in runtime.components({"platform": "Linux"}) if v["name"] == "ICU")
+        components = runtime.components({"platform": "Linux"})
+        item = next(v for v in components if v["name"] == "ICU")
         self.assertEqual(item["version"], "73.2")
         self.assertEqual(item["sha256"], "818a80712ed3caacd9b652305e01afc7fa167e6f2e94996da44b90c2ab604ce1")
         self.assertEqual(item["qtRuntime"]["qtVersion"], "6.12.0")
@@ -411,7 +428,11 @@ $tables | ConvertTo-Json -Depth 10 -Compress
                          {"packaging/linux_icu.py", "third_party/icu/rebuild/README.md", "LICENSE"})
         for entry in item["buildInputs"]:
             self.assertEqual(runtime.digest(ROOT / entry["path"]), entry["sha256"])
-        self.assertEqual(len(runtime.source_entries(runtime.components({"platform": "Linux"}))), 32)
+        linux_entries = runtime.source_entries(components)
+        expected_icu = {"ICU-73.2.tar.gz": ("sha256", item["sha256"])}
+        for entry in item["buildInputs"]:
+            expected_icu[f"ICU-73.2-build/{entry['path']}"] = ("sha256", entry["sha256"])
+        self.assertEqual({name: digest for name, digest in linux_entries.items() if name.startswith("ICU-")}, expected_icu)
         notice = ROOT / "third_party/icu/LICENSE"
         self.assertIn(hashlib.sha256(notice.read_bytes()).hexdigest(), (notice.parent / "PROVENANCE.md").read_text())
         self.assertIn("ICU License - ICU 1.8.1 to ICU 57.1", notice.read_text())
@@ -419,7 +440,9 @@ $tables | ConvertTo-Json -Depth 10 -Compress
         self.assertIn("File: config.guess", notice.read_text())
         self.assertIn("icu/LICENSE", runtime.notice_files({"platform": "Linux"}))
         for system in ("Darwin", "Windows"):
-            self.assertNotIn(item, runtime.components({"platform": system}))
+            other_components = runtime.components({"platform": system})
+            self.assertNotIn(item, other_components)
+            self.assertFalse(any(name.startswith("ICU-") for name in runtime.source_entries(other_components)))
             self.assertEqual(runtime.notice_files({"platform": system}), runtime.NOTICE_FILES)
 
     def test_linux_icu_origin_version_name_and_bytes_fail_closed(self):
