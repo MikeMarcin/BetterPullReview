@@ -2182,8 +2182,12 @@ auto main(int argc, char** argv) -> int
 			})) {
 			return fail(*application, "semantic-selection", semantic.render());
 		}
-		if (!window.read_action()->isEnabled()) {
-			return fail(*application, "receipt-action");
+		// The ledger can publish the selected file's receipt after the diff.
+		auto receiptReady = wait_terms{ };
+		if (!wait_until_reporting(receiptReady, [&window](wait_terms& aTerms) {
+				return aTerms.require("read-enabled", window.read_action()->isEnabled());
+			})) {
+			return fail(*application, "receipt-action", receiptReady.render());
 		}
 		// Reinvocation must retain the receipt persisted by the killed run.
 		// Triggering this toggle again would undo that receipt.
