@@ -551,8 +551,9 @@ class DependencyModernizationTests(unittest.TestCase):
 
     def test_quill_provider_is_pinned_and_download_only(self) -> None:
         provider = (ROOT / "cmake/BprQuillProvider.cmake").read_text(encoding="utf-8")
-        self.assertIn("88b4a1542125577a4d51cf444c51e34d63618c422ba6a4fa9bd23894b49d696b", provider)
-        self.assertIn("2061083", provider)
+        self.assertIn("https://codeload.github.com/odygrd/quill/tar.gz/refs/tags/v13.1.0", provider)
+        self.assertIn("a08b93bafc7e712b28eb47e4a1ed9b60fc01ac7fad3ce269f1f100560a506a85", provider)
+        self.assertIn("2099468", provider)
         self.assertIn("BPR_DEPENDENCY_OFFLINE", provider)
         self.assertIn("FETCHCONTENT_SOURCE_DIR_BPRQUILL", provider)
         self.assertIn("file(SHA256", provider)

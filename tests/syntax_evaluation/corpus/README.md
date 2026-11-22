@@ -18,7 +18,7 @@ in a scratch directory.
 | 1 | `contract` | `tests/fixtures/syntax/*.cpp`. Every C++ path of every commit in the `cpp-identifiers-v1`, `header-source-v1`, `uiforetw-74` and `large-review-v1` packs, deduplicated by blob id. The head side of the `directxmath-336` patches. | `contract` |
 | 2 | `first-party` | Every C++ file under `src/` at commit `530d92eaff1578413c0e669f476e740387441152`, read with `git archive`, never from the working tree. | `first-party` |
 | 2 | `first-party` (source `first-party-concat`) | Four L-class inputs in `first-party-concat/`, each made of whole first-party files in sorted path order. Files are added while the total stays at or under a target of 1,500,000, 3,000,000, 6,000,000 or 8,000,000 bytes, so each input stops before the first file that would pass its target. The entry records its `parents`. These inputs have no accuracy labels: joining files changes what one blob declares. | none |
-| 3 | `third-party` | The C++ members of the Abseil, RE2, Glaze and Quill archives the build pins, plus the verified KSyntaxHighlighting 6.28.1 source tree in the CPM cache. Never committed. | `abseil`, `re2`, `glaze`, `quill`, `ksyntaxhighlighting` |
+| 3 | `third-party` | The C++ members of the Abseil, RE2, Glaze and Quill archives pinned for the evaluation, plus the verified KSyntaxHighlighting 6.28.1 source tree in the CPM cache. Never committed. | `abseil`, `re2`, `glaze`, `quill`, `ksyntaxhighlighting` |
 | 4 | `gap` | `tests/fixtures/syntax/evaluation/gap/*.cpp`, when that directory exists. | the integrator's `gap.jsonl` |
 | 5 | `fragments` | Seeded share-sheet excerpts and hunks built from classes 1 to 3. | `fragments` (rule F) |
 | 6 | `malformed` | Seeded malformed and pathological input. | none |
@@ -36,9 +36,10 @@ region and not the whole head file.
 ### Third-party verification
 
 Each archive is checked against the SHA-256 and byte size in the manifest
-before any member is read. The values are the ones in
-`cmake/BprRe2Provider.cmake`, `cmake/BprGlazeProvider.cmake` and
-`cmake/BprQuillProvider.cmake`. KSyntaxHighlighting is not cached as an
+before any member is read. The values record the dependency pins used by the
+evaluation. To reproduce the committed labels, use the original
+[`quill-v13.0.0.tar.gz`](https://codeload.github.com/odygrd/quill/tar.gz/refs/tags/v13.0.0)
+in the evaluation cache. KSyntaxHighlighting is not cached as an
 archive. Its extracted source under `bprksyntaxhighlighting/<hash>/` is
 accepted only when its source manifest digest equals
 `BPR_KSYNTAXHIGHLIGHTING_SOURCE_SHA256`. That digest is computed as

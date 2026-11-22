@@ -3291,10 +3291,10 @@ packet or treat a fixture or official service description as executed evidence.
 
 ## Basic local diagnostics
 
-BPR-0602 uses pinned Quill v13.0.0 through a dedicated logging adapter. The
-provider verifies the archive hash and size, stages its headers, and does not
-execute upstream tests, examples or install rules. The core-only graph does not
-acquire Quill. License and bundled fmt notices are in `third_party/quill/`.
+The dedicated logging adapter uses pinned Quill v13.1.0. The provider verifies
+the archive hash and size and stages its upstream headers directly. It skips
+upstream tests, examples and install rules. Only the Qt graph acquires Quill.
+License and bundled fmt notices are in `third_party/quill/`.
 
 The focused native recovery courses are `logging_session_retention` and
 `logging_crash_recovery`. The latter kills a live child after a confirmed flush,

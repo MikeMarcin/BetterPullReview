@@ -457,7 +457,7 @@ closed the RFC on 2026-09-27 with designated publication evidence.
 
 RFC-BPR-0027 records the owner's request for useful local diagnostic logging,
 Standard/Verbose detail and privacy/export controls inspired by AllTheThings.
-Quill v13.0.0 supplies the foundation in [[BPR-0602]], after [[BPR-0600]]
+Quill v13.0.0 supplied the original foundation in [[BPR-0602]], after [[BPR-0600]]
 planning. Mandate r2 activated the full advanced implementation, now qualified
 through BPR-1215–1219 with all three owner judgments accepted at cursor34.
 [[BPR-0603]] records aggregate acceptance; [[BPR-0601]] closes the RFC after
