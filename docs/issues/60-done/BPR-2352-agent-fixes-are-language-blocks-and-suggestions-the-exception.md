@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2352"
 title: "An agent writes a fix as a block in the file's language, and a suggestion only for a small, exact, obviously correct fix"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"prompt","target":"0.5.0","origin":"owner, 2026-11-21","placeholder_id":"allocate after the 0.5.0 freeze; replace BPR-2352 everywhere on the branch","related_cards":["BPR-2219","BPR-2298","BPR-2323","BPR-2059"],"related_rfcs":["RFC-BPR-0128"],"acceptance":["AC1","AC2","AC3","AC4"]}
+metadata: {"kind":"prompt","target":"0.5.0","origin":"owner, 2026-11-21","related_cards":["BPR-2219","BPR-2298","BPR-2323","BPR-2059"],"related_rfcs":["RFC-BPR-0128"],"acceptance":["AC1","AC2","AC3","AC4"],"provisional_id":"BPR-XXXX-A","branch":"claude/suggestion-guidance-and-composer","reservation":"docs/issues/_reservations/BPR-2352--BPR-2355--081e6197acbb.json","attended_review":[{"session":"4708604404524750554d23a4282d7890","decision":"rejected","date":"2026-11-21"},{"session":"772f868fd02ed420c8889a2d055f5fab","candidate":"fix in the suggested comment","decision":"accepted","date":"2026-11-22"}]}
 ---
 
 # BPR-2352: An agent writes a fix as a block in the file's language, and a suggestion only for a small, exact, obviously correct fix
@@ -109,7 +109,7 @@ appear in the suggested comment."
   - `core_agent_report`: the card's comment gets the fix, and a comment that
     already holds a code block is kept as written.
   - `qt_agent_report_view`: the suggested comment shows its words and the
-    fix as a third code box, with no fence as text.
+    fix in its own box, with no fence as text.
   - `qt_item_side_chat` still passes.
 
 ## Acceptance
@@ -140,7 +140,49 @@ a task build tree.
 | AC2 | `core_agent_report`: a review finding with a quote and a `cpp` fix drafts the fix in a four-backtick fence, without the quote, and holds no suggestion block | see commit |
 | AC3 | `application_review_skill_host`, `application_agent_launch_policy`, `application_writing_delivery` | see commit |
 
-Not run here (disk and scope), for the landing round: the composition tests
-that pin `suggested-comment-v4`, `qt_settings_window`,
-`application_tour_cli` and `application_agent_invocation_composition`.
-Their pins were updated as text only.
+The composition tests that pin `suggested-comment-v4`, `qt_settings_window`,
+`application_tour_cli` and `application_agent_invocation_composition` ran in
+the landing round below.
+
+## Owner acceptance
+
+- 2026-11-21, session `4708604404524750554d23a4282d7890`: **Reject** ("The
+  code block didn't appear in the suggested comment"), fixed as above.
+- 2026-11-22, session `772f868fd02ed420c8889a2d055f5fab`: the fix in the
+  suggested comment, **Accept**. The build judged drew the suggested
+  comment's fix as the report page's own plain code box, without Copy or
+  Wrap.
+
+## Landing evidence (main, macOS, Debug)
+
+- Allocated on main `084b8ff88` (`BPR-2352`..`BPR-2355`). The branch
+  `claude/suggestion-guidance-and-composer` was rebased onto it and each
+  commit rewritten so the provisional `BPR-XXXX-A`, `-B`, `-D` and `-E`
+  became `BPR-2352`, `BPR-2353`, `BPR-2354` and `BPR-2355` in the cards,
+  code and test comments, docs and commit subjects. The review-only fixture
+  commits of `claude/review-composer-2` were not brought.
+- Merge with [[BPR-2351]]: a report's suggested comment draws its fenced
+  blocks through `code_box_html`, the page's own plain HTML box that the owner
+  accepted, never a collected code view. It needs no anchor, because page
+  HTML is not coloured. `application_fixture_agent_every_ask` counts the
+  report's dressed blocks against its code views, and
+  `qt_agent_report_view` now expects the item's two views plus the fix
+  shown in the page.
+- The production app manifest digest needed no reseal:
+  `application_review_round_trip_composition_contract` passed over the
+  merged tree as it stood.
+- Full dev build in the lane tree succeeded. Passed:
+  `application_review_round_trip_composition_contract`,
+  `application_agent_invocation_composition_contract` (its review skill pin
+  moved to version 7 with this change), `tour_cli_composition`,
+  `tour_cli_process_commands` and `skill_pr_tour_package` (in a side tree
+  configured with `BPR_BUILD_TOUR_CLI=ON`), `qt_conversation_cards_view`,
+  `qt_agent_report_view`, `core_agent_report`, `core_review_skill`,
+  `application_writing_delivery`, `application_review_skill_host`,
+  `application_agent_launch_policy`, `qt_settings_window`,
+  `qt_composed_github_scale_100`, `qt_workbench_window_scale_100`,
+  `qt_item_side_chat`, `qt_tour_side_chat`,
+  `application_review_report_public_path`,
+  `application_follow_up_public_path`,
+  `application_fixture_agent_every_ask` and `architecture_boundaries`.
+  `coding-format-check` and the documentation gate passed.

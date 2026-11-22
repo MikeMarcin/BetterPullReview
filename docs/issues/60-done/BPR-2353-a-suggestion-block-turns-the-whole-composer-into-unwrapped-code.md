@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2353"
 title: "A suggestion block turns the whole comment composer into unwrapped code"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"defect","target":"0.5.0","origin":"owner, 2026-11-21","placeholder_id":"allocate after the 0.5.0 freeze; replace BPR-2353 everywhere on the branch","related_cards":["BPR-2271","BPR-2273","BPR-1590","BPR-2352"],"related_rfcs":["RFC-BPR-0090"],"acceptance":["AC1","AC2","AC3","AC4","AC5"]}
+metadata: {"kind":"defect","target":"0.5.0","origin":"owner, 2026-11-21","related_cards":["BPR-2271","BPR-2273","BPR-1590","BPR-2352"],"related_rfcs":["RFC-BPR-0090"],"acceptance":["AC1","AC2","AC3","AC4","AC5"],"provisional_id":"BPR-XXXX-B","branch":"claude/suggestion-guidance-and-composer","reservation":"docs/issues/_reservations/BPR-2352--BPR-2355--081e6197acbb.json","attended_review":[{"session":"4708604404524750554d23a4282d7890","decision":"accepted","date":"2026-11-21"}]}
 ---
 
 # BPR-2353: A suggestion block turns the whole comment composer into unwrapped code
@@ -98,9 +98,42 @@ the exact revision.
 | AC1–AC4 | `qt_conversation_cards_view`, `test_a_fenced_block_styles_only_its_own_lines` (suggestion, `cpp`, `~~~python`); renders through `--render-fenced-composer DIR` | see commit |
 | AC5 | as listed | see commit |
 
-## Remaining
+## Owner acceptance
 
-- The owner's look at a frozen build: a draft with words, a suggestion
-  block and words, and the same with a ```` ```cpp ```` block. One
-  Accept/Reject question each. Offscreen renders substitute the code
-  font's face, so only a native build shows the real look.
+2026-11-21, session `4708604404524750554d23a4282d7890`: the wrapping
+composer with a fenced block, **Accept**. The native look the offscreen
+renders could not show was judged in that frozen build.
+
+## Landing evidence (main, macOS, Debug)
+
+- Allocated on main `084b8ff88` (`BPR-2352`..`BPR-2355`). The branch
+  `claude/suggestion-guidance-and-composer` was rebased onto it and each
+  commit rewritten so the provisional `BPR-XXXX-A`, `-B`, `-D` and `-E`
+  became `BPR-2352`, `BPR-2353`, `BPR-2354` and `BPR-2355` in the cards,
+  code and test comments, docs and commit subjects. The review-only fixture
+  commits of `claude/review-composer-2` were not brought.
+- Merge with [[BPR-2351]]: a report's suggested comment draws its fenced
+  blocks through `code_box_html`, the page's own plain HTML box that the owner
+  accepted, never a collected code view. It needs no anchor, because page
+  HTML is not coloured. `application_fixture_agent_every_ask` counts the
+  report's dressed blocks against its code views, and
+  `qt_agent_report_view` now expects the item's two views plus the fix
+  shown in the page.
+- The production app manifest digest needed no reseal:
+  `application_review_round_trip_composition_contract` passed over the
+  merged tree as it stood.
+- Full dev build in the lane tree succeeded. Passed:
+  `application_review_round_trip_composition_contract`,
+  `application_agent_invocation_composition_contract` (its review skill pin
+  moved to version 7 with this change), `tour_cli_composition`,
+  `tour_cli_process_commands` and `skill_pr_tour_package` (in a side tree
+  configured with `BPR_BUILD_TOUR_CLI=ON`), `qt_conversation_cards_view`,
+  `qt_agent_report_view`, `core_agent_report`, `core_review_skill`,
+  `application_writing_delivery`, `application_review_skill_host`,
+  `application_agent_launch_policy`, `qt_settings_window`,
+  `qt_composed_github_scale_100`, `qt_workbench_window_scale_100`,
+  `qt_item_side_chat`, `qt_tour_side_chat`,
+  `application_review_report_public_path`,
+  `application_follow_up_public_path`,
+  `application_fixture_agent_every_ask` and `architecture_boundaries`.
+  `coding-format-check` and the documentation gate passed.

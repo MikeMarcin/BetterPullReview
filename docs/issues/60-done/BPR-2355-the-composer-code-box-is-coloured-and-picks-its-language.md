@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2355"
 title: "The composer's code box is coloured as the reader colours code, and its header picks the block's language"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-2354"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"ux","target":"0.5.0","origin":"owner, 2026-11-21, attended review session 4708604404524750554d23a4282d7890","placeholder_id":"allocate after the 0.5.0 freeze; replace BPR-2355 everywhere on the branch","related_cards":["BPR-2354","BPR-1562","BPR-1564"],"acceptance":["AC1","AC2","AC3","AC4"]}
+metadata: {"kind":"ux","target":"0.5.0","origin":"owner, 2026-11-21, attended review session 4708604404524750554d23a4282d7890","related_cards":["BPR-2354","BPR-1562","BPR-1564"],"acceptance":["AC1","AC2","AC3","AC4"],"provisional_id":"BPR-XXXX-E","branch":"claude/suggestion-guidance-and-composer","reservation":"docs/issues/_reservations/BPR-2352--BPR-2355--081e6197acbb.json","attended_review":[{"session":"772f868fd02ed420c8889a2d055f5fab","candidate":"colours","decision":"accepted","date":"2026-11-22"},{"session":"772f868fd02ed420c8889a2d055f5fab","candidate":"language picker","decision":"accepted","date":"2026-11-22"}]}
 ---
 
 # BPR-2355: The composer's code box is coloured, and its header picks the block's language
@@ -37,8 +37,14 @@ block. If that's hard we can leave it at this."
   - A line keeps its colours while it is unchanged at the same place, so
     typing in one line does not blank the rest before the new answer comes.
   - The words and the fences keep their own colours.
-  - No dependency on `claude/context-aware-code-highlighting`. Its file
-    anchoring can choose the selector later.
+  - [[BPR-2351]], landed on main first. A reply field's requests carry the
+    thread's file as their anchor, as the thread's posts do, so its code
+    borrows that file's names. The field takes only answers for its anchor,
+    and a newer answer for a block it already holds (sent again when the
+    file's names arrive) recolours the block. A new draft's field anchors to
+    nothing yet: the drafts drawer knows its file only as a
+    `core::file_identity`, with no path. Anchoring it needs the composition
+    to hand the drawer the file's path; that is follow-up scope.
 - **Language picker.** Each block's header row ends in a quiet picker, an
   `InstantPopup` `quiet_tool_button`. It names the block's language ("C++",
   "Suggested change", "Plain text"), and its accessible name is "Language:
@@ -91,10 +97,52 @@ the exact revision.
 | AC1–AC3 | `qt_conversation_cards_view`, `test_a_code_box_is_coloured_and_names_its_language` | see commit |
 | AC4 | as listed | see commit |
 
-## Remaining
+## Owner acceptance
 
-- The owner's look at a frozen fixture build with the real syntax service.
-  The test feeds the field a classification. One question about the
-  colours, one about the picker.
-- The composed courses that run the real syntax service through the
-  composer were not built here. They are for the landing round.
+- 2026-11-22, session `772f868fd02ed420c8889a2d055f5fab`: the colours,
+  **Accept**; the language picker, **Accept**.
+- Hidden fences were evaluated and left out (see "Hiding the fences" above).
+  The owner allowed it, and the picker covers the choice of language.
+
+## Landing evidence (main, macOS, Debug)
+
+- Allocated on main `084b8ff88` (`BPR-2352`..`BPR-2355`). The branch
+  `claude/suggestion-guidance-and-composer` was rebased onto it and each
+  commit rewritten so the provisional `BPR-XXXX-A`, `-B`, `-D` and `-E`
+  became `BPR-2352`, `BPR-2353`, `BPR-2354` and `BPR-2355` in the cards,
+  code and test comments, docs and commit subjects. The review-only fixture
+  commits of `claude/review-composer-2` were not brought.
+- Merge with [[BPR-2351]]: a report's suggested comment draws its fenced
+  blocks through `code_box_html`, the page's own plain HTML box that the owner
+  accepted, never a collected code view. It needs no anchor, because page
+  HTML is not coloured. `application_fixture_agent_every_ask` counts the
+  report's dressed blocks against its code views, and
+  `qt_agent_report_view` now expects the item's two views plus the fix
+  shown in the page.
+- The production app manifest digest needed no reseal:
+  `application_review_round_trip_composition_contract` passed over the
+  merged tree as it stood.
+- Full dev build in the lane tree succeeded. Passed:
+  `application_review_round_trip_composition_contract`,
+  `application_agent_invocation_composition_contract` (its review skill pin
+  moved to version 7 with this change), `tour_cli_composition`,
+  `tour_cli_process_commands` and `skill_pr_tour_package` (in a side tree
+  configured with `BPR_BUILD_TOUR_CLI=ON`), `qt_conversation_cards_view`,
+  `qt_agent_report_view`, `core_agent_report`, `core_review_skill`,
+  `application_writing_delivery`, `application_review_skill_host`,
+  `application_agent_launch_policy`, `qt_settings_window`,
+  `qt_composed_github_scale_100`, `qt_workbench_window_scale_100`,
+  `qt_item_side_chat`, `qt_tour_side_chat`,
+  `application_review_report_public_path`,
+  `application_follow_up_public_path`,
+  `application_fixture_agent_every_ask` and `architecture_boundaries`.
+  `coding-format-check` and the documentation gate passed.
+- [[BPR-2351]] in the composer: a reply's code boxes are anchored to the
+  thread's file (`test_a_reply_code_box_borrows_its_files_names`), and a
+  re-sent answer recolours a block the field already holds.
+
+## Follow-up scope (not part of this card)
+
+- A new draft's composer is not anchored. The drafts drawer holds its file
+  as a `core::file_identity` without a path, so the composition has to hand
+  it the path first.
