@@ -34,11 +34,13 @@ a measurement of one machine and one source revision, not a source audit.
 |---|---:|---:|---:|---:|
 | Overlapped A | 4 | 28.9 min (1731 s) | 114.1 min | 10 |
 | Overlapped B | 4 | 27.0 min (1619 s) | 107.9 min | 6 |
+| Serial control | 1 | 78.0 min (4678 s) | 78.0 min | 0 |
 
-505 of the 516 rows passed both overlapped passes. In that 18 November
-Windows run the comparable rows summed to about 91 minutes when run alone, so
-a row takes longer when overlapped and the set still finishes in about a
-third of the time. That comparison is across two builds.
+All three passes ran the same binaries. 505 of the 516 rows passed both
+overlapped passes, and every row passed alone. Those 505 rows sum to 73.4
+minutes alone and 105.7 minutes in overlapped pass A: a row takes longer when
+it shares the machine, and the set still finishes in a little over a third
+of the serial time.
 
 ## Rows kept serial
 
@@ -69,7 +71,10 @@ Kept serial without a failure:
   desktop. `application_windows_title_row` is the one such default-serial row
   today; it passed both passes and stays exclusive all the same.
 
-Why each of the eleven fails when overlapped is not diagnosed.
+All eleven passed in the serial control, so each fails only when it shares
+the machine. Whether that is a shared resource or a deadline missed under
+load is not diagnosed. The three `review_submission_composition` rows took
+about 50 seconds alone and reached their 90-second timeout when overlapped.
 
 ## What the landed schedule is
 
@@ -80,9 +85,9 @@ BPR-1670 allowlist, as before.
 
 ## Not established
 
-- A same-binary serial pass of the 516 rows was still running when this was
-  written: 316 rows in, no failures. Until it finishes, a row on the list
-  above may be failing for a reason other than overlap.
+- Two overlapped passes are a small sample. A row that collides rarely can
+  have passed both; it will show as an intermittent failure and belongs on
+  `KEEP_SERIAL` when it does.
 - No complete suite has run with the landed schedule, so the saving for a
   whole release run is not measured. The next Windows release run is that
   measurement.
@@ -90,3 +95,9 @@ BPR-1670 allowlist, as before.
 - A row added after this measurement overlaps in Windows Release without
   having been measured. One that needs the machine to itself must say
   `RUN_SERIAL TRUE`.
+
+## Evidence
+
+The three JUnit reports and the run summary are kept outside source under
+`/Users/jaeger/.codex/release-runs/gui-overlap-20261121/`. The experiment
+tree and its scheduled tasks were removed from the PC after the run.
