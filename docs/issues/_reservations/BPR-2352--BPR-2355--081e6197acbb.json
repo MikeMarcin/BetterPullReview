@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2352",
+    "BPR-2353",
+    "BPR-2354",
+    "BPR-2355"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "suggestion guidance and composer code box (A fixes as language blocks, B composer prose wraps, D fenced block own box, E colouring and language picker)",
+  "created": "2026-11-22T00:18:33.287060+00:00",
+  "base": "0ea902297fe15a2b9e7b01e4e6332638bf8cf58d"
+}
