@@ -274,7 +274,8 @@ namespace {
 		window.home_open_action()->trigger();
 		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "the pull request opens through the GitHub CLI session");
 
-		wait_for([&] { return github_application_fixture_access::reveal_fixture_file(*application, "review.cpp") == app::detail::fixture_file_reveal_result::shown; },
+		constexpr auto path = std::string_view{ "review.cpp" };
+		wait_for([&] { return github_application_fixture_access::reveal_fixture_file(*application, path) == app::detail::fixture_file_reveal_result::shown; },
 				 "review.cpp is shown in Review");
 		if (aCourse == course::published) {
 			// [[BPR-2265]]. Inline publishing reads the window's lease at
@@ -283,8 +284,18 @@ namespace {
 			for (auto round = 0; round < 2; ++round) {
 				const auto snapshot = github_application_fixture_access::window_read_progress(*application).Snapshot;
 				expect(github_application_fixture_access::reread_pull_request(*application), "the pull request is read again");
-				wait_for([&] { const auto progress = github_application_fixture_access::window_read_progress(*application); return progress.Snapshot != snapshot && !progress.Reading; }, "the reread installs the pull request again, renewing the publishing lease");
+				wait_for([&] { const auto progress = github_application_fixture_access::window_read_progress(*application); return progress.Snapshot && progress.Snapshot != snapshot && !progress.Reading; }, "the reread installs the pull request again, renewing the publishing lease");
 			}
+			// [[BPR-2340]]. The reread installs the pull request before its
+			// selected file comparison is ready for inline publication.
+			const auto file = core::file_identity_of(path);
+			wait_for([&] {
+				const auto current = github_application_fixture_access::epoch_refresh_identity(*application);
+				return current.AcceptedComparison && !current.ComparisonPending && !current.TabPending
+					&& current.DiffRequestMatches && current.PublicationDisplayed && current.PublishedFile == file
+					&& current.PublishedComparison == current.AcceptedComparison;
+			},
+					 "review.cpp's exact comparison is shown after both rereads");
 		}
 		const auto body = std::string{ "BPR-1329: published from the drawer after the GitHub CLI confirmation." };
 		wait_for([&] {
@@ -394,6 +405,8 @@ namespace {
 				  << " status=\"" << window.status_text().toStdString() << "\" editor_status=\"" << window.review_editor()->mutation_status_text().toStdString() << "\"\n";
 		expect(publishAsks == 0U, "ordinary Publish and retry open no CLI modal");
 		expect(after.NativePosts == before.NativePosts + 1U && after.StoredComments == 1U && after.LastBody == body, "the fixture server holds exactly the one comment, with the draft's text");
+		expect(after.FilePosts == before.FilePosts && !after.LastFile && after.LastPath == path && after.LastSide == "RIGHT" && after.LastLine.has_value(),
+			   "the fixture server receives the inline comment on a head line of review.cpp");
 		expect(shown, "the drawer shows the posted thread in place of the draft");
 		expect(posted_count(*cards, text) == 1U, "one posted thread, not two");
 		const auto* const posted = posted_card(*cards, text);
