@@ -343,6 +343,45 @@ namespace {
 		expect(opened == std::vector<std::uint32_t>{ 2U, 9U }, "a press on a slice opens the report at its first item, a press in the hole does nothing");
 	}
 
+	/// Build 76 (Ubuntu's larger font in the narrowest drawer). Given less
+	/// than the full donut and its legend need, the summary draws the
+	/// smaller donut with the legend beside it, every word whole; given the
+	/// room again, the full one.
+	void test_a_narrow_summary_draws_the_smaller_donut()
+	{
+		auto tally = qt::report_tally_view{ };
+		tally.set_counts({
+			core::dressed_count{ .Word = "issue", .Count = 3U, .Tone = core::report_tone::open, .First = 2U },
+			core::dressed_count{ .Word = "suggestion", .Count = 2U, .Tone = core::report_tone::neutral, .First = 5U },
+			core::dressed_count{ .Word = "praise", .Count = 1U, .Tone = core::report_tone::done, .First = 9U },
+		});
+		const auto least = tally.minimumSizeHint().width();
+		const auto full  = least + qt::report_tally_pie::diameter - qt::report_tally_pie::compact_diameter;
+		tally.resize(least, tally.sizeHint().height());
+		tally.show();
+		settle();
+		auto* const pie = tally.pie();
+		expect(pie->ring_diameter() == qt::report_tally_pie::compact_diameter && pie->width() == qt::report_tally_pie::compact_diameter + (2 * qt::report_tally_pie::lift),
+			   "at its least width the summary draws the smaller donut");
+		const auto rows = tally.rows();
+		for (auto* const row : rows) {
+			const auto placed = QRect{ row->mapTo(&tally, QPoint{ }), row->size() };
+			const auto word   = QString::fromStdString(row->count().Word);
+			expect(placed.left() > pie->geometry().right() && tally.rect().contains(placed) && row->width() >= row->minimumSizeHint().width()
+					   && row->word_rect().width() >= QFontMetrics{ row->font() }.horizontalAdvance(word),
+				   word.toStdString() + ": beside the smaller donut, inside the summary and whole");
+		}
+		expect_exact_slices(tally, "the smaller donut");
+		expect_drawn_slices(tally, "the smaller donut");
+		tally.resize(full - 1, tally.height());
+		settle();
+		expect(pie->ring_diameter() == qt::report_tally_pie::compact_diameter, "a pixel short of the full donut's room, it stays smaller");
+		tally.resize(full, tally.height());
+		settle();
+		expect(pie->ring_diameter() == qt::report_tally_pie::diameter, "with the room, the donut is full size again");
+		expect_drawn_slices(tally, "the full donut again");
+	}
+
 	void test_a_report_turn_shows_its_summary_not_its_cards()
 	{
 		qt::workbench_window window;
@@ -396,18 +435,30 @@ namespace {
 		publish_drawer(window, 280U);
 		render(QStringLiteral("summary-narrow"));
 		expect_whole(*tally, *scroll, "narrowest drawer");
+		// Build 76 (Ubuntu's larger font in the narrowest drawer). The donut
+		// keeps its full size wherever it fits beside the legend.
+		const auto fullRing = [&tally] { return tally->pie()->ring_diameter() == qt::report_tally_pie::diameter; };
+		expect(fullRing(), "narrowest drawer: the donut keeps its full size");
 		publish_drawer(window, 640U);
 		render(QStringLiteral("summary-wide"));
 		expect_whole(*tally, *scroll, "wide drawer");
+		expect(fullRing(), "wide drawer: the donut keeps its full size");
 		const auto original = QApplication::font();
 		auto       larger   = original;
 		larger.setPointSizeF(original.pointSizeF() * 1.6);
 		QApplication::setFont(larger);
 		settle();
 		expect_whole(*tally, *scroll, "wide drawer, larger font");
+		expect(fullRing(), "wide drawer, larger font: the donut keeps its full size");
 		publish_drawer(window, 280U);
 		render(QStringLiteral("summary-narrow-larger-font"));
 		expect_whole(*tally, *scroll, "narrowest drawer, larger font");
+		{
+			// Smaller only where the full donut beside the legend would not fit.
+			const auto full = tally->mapTo(scroll->widget(), QPoint{ }).x() + tally->minimumSizeHint().width() + qt::report_tally_pie::diameter - qt::report_tally_pie::compact_diameter;
+			std::cout << "BPR-2344 narrowest drawer, larger font: the donut is " << tally->pie()->ring_diameter() << " px; the full one needs " << full << " of " << scroll->viewport()->width() << '\n';
+			expect(fullRing() || full > scroll->viewport()->width(), "narrowest drawer, larger font: the donut is smaller only where the full one would not fit");
+		}
 		QApplication::setFont(original);
 		publish_drawer(window, 360U);
 
@@ -638,6 +689,7 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	test_the_donut_is_exact();
+	test_a_narrow_summary_draws_the_smaller_donut();
 	test_a_report_turn_shows_its_summary_not_its_cards();
 	test_a_jump_shows_its_item_whole_under_the_tab_header();
 	test_a_report_turn_ends_with_its_attachment_in_view();
