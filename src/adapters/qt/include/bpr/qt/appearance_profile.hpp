@@ -480,7 +480,9 @@ namespace bpr::qt {
 		/// \brief Applies the derived palette to one surface and its children.
 		///
 		/// \details This sets a widget-local palette. It writes no application
-		/// palette, installs no style, and adds no style sheet.
+		/// palette, installs no style, and adds no style sheet. A popup menu
+		/// opened from the surface wears the surface's palette when it is
+		/// shown ([[BPR-2356]]), rather than the desktop's.
 		void apply_to(QWidget& aSurface);
 
 		/// \brief Applies the UI font to one surface and its children.

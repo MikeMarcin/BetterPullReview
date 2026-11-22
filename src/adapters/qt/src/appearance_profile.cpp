@@ -3,6 +3,8 @@
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/qt/bundled_code_font.hpp"
 
+#include "popup_palette.hpp"
+
 #include <QCoreApplication>
 #include <QFontDatabase>
 #include <QFontMetricsF>
@@ -1254,6 +1256,9 @@ namespace bpr::qt {
 
 	void appearance_profile::apply_to(QWidget& aSurface)
 	{
+		// [[BPR-2356]]. A menu opened from the surface is a window of its
+		// own and would otherwise wear the desktop's palette.
+		detail::follow_opener_palette_in_popups();
 		aSurface.setPalette(derive(aSurface.palette()));
 		++Statistics.AppliedSurfaces;
 	}

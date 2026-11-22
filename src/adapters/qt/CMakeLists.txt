@@ -16,6 +16,7 @@ add_library(
         src/local_draft_publication_area.cpp
         src/local_draft_workflow_area.cpp
         src/wrapping_row.cpp
+        src/popup_palette.cpp
         src/line_bounded_label.cpp
         src/report_tally_view.cpp
         src/application_menu_wording.cpp

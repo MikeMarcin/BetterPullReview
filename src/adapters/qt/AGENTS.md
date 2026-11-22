@@ -50,8 +50,12 @@ themes, rendering mechanics, and event translation.
   outside a real `QToolBar`. Build those as `quiet_tool_button` or
   `quiet_push_button`: name a card's ground with `set_surface(Base)`, a
   ground no role holds (a code block's header) with `set_surface_colours`,
-  and a one-colour mark with `set_tinted`. A popup without a parent takes its
-  opener's palette with every role set. `qt_button_faces` and
+  and a one-colour mark with `set_tinted`. A popup is a window, and Qt gives
+  a window the desktop's palette, not its parent's: once a profile is
+  applied, every popup with a parent (a `QMenu`, a submenu) wears its
+  parent's palette as it is shown (`popup_palette.hpp`, [[BPR-2356]]). A
+  popup without a parent takes its opener's palette with every role set, and
+  a popup that sets its own palette keeps it. `qt_button_faces` and
   `qt_button_faces_cocoa` measure every such button against its painted face.
 - Preserve local expansion and selection across incremental accepted
   refreshes whenever the semantic identity still exists.

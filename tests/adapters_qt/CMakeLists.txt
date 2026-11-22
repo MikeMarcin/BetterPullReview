@@ -3138,3 +3138,22 @@ set_tests_properties(qt_document_tab_glyph PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment}"
     PASS_REGULAR_EXPRESSION "DOCUMENT_TAB_GLYPH_OK"
     TIMEOUT 60)
+
+# [[BPR-2356]]. The Review workbench's Ask and Comparing menus, opened for
+# real, wear the app's chosen appearance on the opposite desktop palette, and
+# System follows the desktop and its switch.
+bpr_add_executable(test_better_pull_review_qt_popup_palette_tests popup_palette_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_popup_palette_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_popup_palette_tests)
+bpr_enable_warnings(test_better_pull_review_qt_popup_palette_tests)
+bpr_add_network_isolated_test(
+    NAME qt_popup_palette
+    COMMAND test_better_pull_review_qt_popup_palette_tests
+)
+set_tests_properties(
+    qt_popup_palette
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "popup-palette-tests:pass"
+        TIMEOUT 120
+)
