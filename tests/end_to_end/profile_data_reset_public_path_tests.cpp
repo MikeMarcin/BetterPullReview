@@ -250,9 +250,38 @@ try {
 	options.RegisteredDeviceCourse = true;
 	options.IndependentWindowReads = true;
 	options.RepeatReadSessions     = true;
+#if defined(_WIN32) && !defined(NDEBUG)
+	// Use the existing reopen allowance for Windows Debug's first window.
+	constexpr auto initialWindowWaitMs = 60000;
+#else
+	constexpr auto initialWindowWaitMs = 30000;
+#endif
+	auto   startup      = std::optional<app::profile_desktop_startup_result>{ };
+	auto   startupClock = QElapsedTimer{ };
 	course run{ .Root = root };
-	run.Desktop = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [](auto) { });
-	until([&] { return run.window() != nullptr; }, "real profile desktop starts");
+	startupClock.start();
+	std::cerr << "PROFILE_RESET_STARTUP:begin\n";
+	run.Desktop = app::detail::github_application_fixture_access::start_desktop(
+		app::detail::github_public_path_fixture::profile_window_restoration_v1, options,
+		[&](app::profile_desktop_startup_result aResult) { startup = std::move(aResult); });
+	const auto startReturnedMs = startupClock.elapsed();
+	const auto refused         = [&] { return startup && !*startup; };
+	try {
+		until([&] { return refused() || run.window() != nullptr; }, "real profile desktop starts", initialWindowWaitMs);
+		expect(!refused() && run.window() != nullptr, "real profile desktop starts");
+	} catch (...) {
+		const auto source = app::startup_failure_source();
+		std::cerr << "PROFILE_RESET_STARTUP:failed completion=";
+		if (refused()) {
+			std::cerr << "refused failure_code=" << static_cast<int>(startup->error());
+		} else {
+			std::cerr << (startup ? "accepted" : "pending");
+		}
+		std::cerr << " refusal=" << app::profile_startup_refusal_name() << " source=" << source.substr(0U, source.find(": "))
+				  << " start_return_ms=" << startReturnedMs << " elapsed_ms=" << startupClock.elapsed() << " wait_limit_ms=" << initialWindowWaitMs << '\n';
+		throw;
+	}
+	std::cout << "PROFILE_RESET_STARTUP:window start_return_ms=" << startReturnedMs << " elapsed_ms=" << startupClock.elapsed() << " wait_limit_ms=" << initialWindowWaitMs << '\n';
 	run.window()->show();
 	until([&] { return fs::exists(root / "state/v1/review-queue.sqlite3"); }, "the profile made its stores");
 	// [[BPR-2308]] retired the Review Cycles store, the one review store a
