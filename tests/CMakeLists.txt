@@ -1601,3 +1601,31 @@ endif()
 if((WIN32 OR bpr_portable_release_registry) AND bpr_standard_correctness_inputs)
     bpr_apply_command_correctness_registry("${CMAKE_CURRENT_SOURCE_DIR}/command_correctness_registry.json")
 endif()
+
+# Measured on the native Windows Release graph only
+# (docs/verification/windows-release-gui-overlap.md); macOS, Linux and every
+# Debug graph keep the exclusive default. Configure with
+# -DBPR_WINDOWS_RELEASE_GUI_OVERLAP=OFF to get the exclusive schedule back.
+option(BPR_WINDOWS_RELEASE_GUI_OVERLAP
+    "Let GUI/application rows that are serial only by default overlap in the Windows Release graph" ON)
+if(WIN32 AND bpr_standard_correctness_inputs AND BPR_WINDOWS_RELEASE_GUI_OVERLAP)
+    bpr_overlap_unclassified_gui_rows(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURATION Release
+        KEEP_SERIAL
+            # Failed both overlapped passes.
+            application_cpp_identifier_appearance
+            application_enhance_comment_note_public_path
+            application_local_comments_composition_public_path
+            application_personal_discovery_public_path
+            application_setup_destination_public_path
+            # Failed one of the two.
+            application_automated_run_budget
+            application_dependable_session_public_path
+            application_personal_discovery_cli_public_path
+            application_review_submission_composition_public_path
+            application_review_submission_composition_scale_125
+            application_review_submission_composition_scale_200
+            # Builds a nested Release tree up to eight jobs wide.
+            application_composition_contract
+            # A dedicated performance course.
+            application_source_pr_search_performance)
+endif()

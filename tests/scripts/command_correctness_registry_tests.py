@@ -218,6 +218,66 @@ set_property(TEST one PROPERTY BPR_LOGICAL_COMMAND "worker;--correctness")
             self.assertTrue(props["RUN_SERIAL"])
             self.assertNotIn("bpr_command_owned", props["LABELS"])
 
+    def test_measured_overlap_frees_only_default_serial_rows_in_its_configuration(self):
+        for configuration, overlapped in (("Release", True), ("Debug", False), ("RelWithDebInfo", False)):
+            with self.subTest(configuration=configuration), ContainedTemporaryDirectory() as temporary:
+                root = Path(temporary)
+                directory = root / "tests/end_to_end"
+                directory.mkdir(parents=True)
+                module = (ROOT / "cmake/BprTestScheduling.cmake").as_posix()
+                (root / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.24)
+project(MeasuredOverlap NONE)
+enable_testing()
+include("{module}")
+add_subdirectory(tests/end_to_end)
+add_test(NAME core COMMAND worker)
+bpr_schedule_test_directory("${{CMAKE_CURRENT_SOURCE_DIR}}")
+bpr_allow_isolated_correctness(DIRECTORY "${{CMAKE_CURRENT_SOURCE_DIR}}/tests/end_to_end"
+    CONFIGURATIONS Debug MODE offscreen RESOURCE fixture TESTS audited_debug)
+bpr_overlap_unclassified_gui_rows(DIRECTORY "${{CMAKE_CURRENT_SOURCE_DIR}}" CONFIGURATION Release
+    KEEP_SERIAL kept gone)
+''')
+                (directory / "CMakeLists.txt").write_text('''foreach(name plain kept explicit audited_debug)
+    add_test(NAME ${name} COMMAND worker)
+    set_tests_properties(${name} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" RESOURCE_LOCK held)
+endforeach()
+set_tests_properties(explicit PROPERTIES RUN_SERIAL TRUE)
+add_test(NAME native COMMAND worker)
+set_tests_properties(native PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=windows")
+add_test(NAME overridden COMMAND worker)
+set_tests_properties(overridden PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" ENVIRONMENT_MODIFICATION "QT_QPA_PLATFORM=set:windows")
+add_test(NAME headless COMMAND worker)
+''')
+                build = root / "build"
+                configured = subprocess.run(["cmake", "-G", "Ninja", f"-DCMAKE_BUILD_TYPE={configuration}", "-S", str(root), "-B", str(build)], capture_output=True, text=True)
+                self.assertEqual(configured.returncode, 0, configured.stdout + configured.stderr)
+                self.assertIn("not a default-serial test: gone", configured.stdout)
+                manifest = json.loads(subprocess.run(["ctest", "--test-dir", str(build), "--show-only=json-v1"], capture_output=True, text=True, check=True).stdout)
+                rows = {row["name"]: {prop["name"]: prop["value"] for prop in row["properties"]} for row in manifest["tests"]}
+                def serial(name): return bool(rows[name].get("RUN_SERIAL", False))
+                def labels(name): return rows[name].get("LABELS", [])
+                # Only the row that is serial by nothing but the default is freed, and only in Release.
+                self.assertEqual(serial("plain"), not overlapped)
+                self.assertEqual("bpr_measured_overlap" in labels("plain"), overlapped)
+                self.assertIn("held", rows["plain"]["RESOURCE_LOCK"])
+                self.assertEqual(serial("headless"), not overlapped)
+                for name in ("kept", "explicit", "native", "overridden"):
+                    self.assertTrue(serial(name), name)
+                    self.assertNotIn("bpr_measured_overlap", labels(name))
+                self.assertFalse(serial("core"))
+                self.assertNotIn("bpr_measured_overlap", labels("core"))
+                # An audited Debug row keeps its own admission in Debug and is measured in Release.
+                self.assertEqual(serial("audited_debug"), configuration == "RelWithDebInfo")
+                self.assertEqual("bpr_isolated_correctness" in labels("audited_debug"), configuration == "Debug")
+                self.assertEqual("bpr_measured_overlap" in labels("audited_debug"), overlapped)
+                self.assertIn("bpr_isolated_correctness_fixture", rows["audited_debug"]["RESOURCE_LOCK"])
+                if configuration != "RelWithDebInfo":
+                    suite_manifest = {"tests": [dict(row, config=configuration) for row in manifest["tests"]]}
+                    for row in suite_manifest["tests"]:
+                        for prop in row["properties"]:
+                            if prop["name"] == "LABELS": prop["value"] = [item for item in prop["value"] if item]
+                    suite.validate_schedule(suite_manifest)
+
     def test_release_requires_explicit_audited_configuration(self):
         for configuration, audited, serial in (("Release", ["Debug"], True), ("Release", ["Debug", "Release"], False), ("RelWithDebInfo", ["Debug", "Release"], True)):
             result, row = self.configure_registry(lambda family, source: family.update(configurations=audited), configuration=configuration)

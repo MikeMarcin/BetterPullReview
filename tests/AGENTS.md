@@ -62,7 +62,12 @@ Tests are direct evidence, not naming evidence.
   machine's timing into a universal frame-rate guarantee. Run interactive Qt
   fixtures headlessly. Keep timing, native desktop, global-resource and
   unclassified courses serial; only the explicit Windows correctness allowlist
-  may overlap under its audited resource locks (BPR-1670/BPR-1673). The
+  may overlap under its audited resource locks (BPR-1670/BPR-1673). In the
+  native Windows Release graph only, a headless or offscreen row that is serial
+  just by the directory default may also overlap, by measurement
+  (`docs/verification/windows-release-gui-overlap.md`): a row that needs the
+  machine to itself there says `RUN_SERIAL TRUE`, and a row that fails only
+  when overlapped goes on the `KEEP_SERIAL` list in `tests/CMakeLists.txt`. The
   command-owned registry binds Debug, standard feature/diagnostic options,
   source/helper identities, exact argv/scale and reachable output ownership;
   optimized, unknown and unqualified native configurations stay exclusive.

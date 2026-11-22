@@ -602,6 +602,34 @@ if name == "documentation_structure" and (root / "fail").exists():
             suite.validate_schedule({"tests": [row]})
         suite.validate_schedule({"tests": [{"name": "core"}]})
 
+    def test_measured_overlap_admits_only_a_release_offscreen_row_that_is_not_exclusive(self):
+        def row(**changes):
+            properties = {"WORKING_DIRECTORY": "C:/build/tests/end_to_end", "ENVIRONMENT": ["QT_QPA_PLATFORM=offscreen"],
+                          "LABELS": ["bpr_serial_gui", "bpr_measured_overlap"]}
+            config = changes.pop("config", "Release")
+            properties.update(changes)
+            return {"name": "measured", "config": config, "properties": [
+                {"name": name, "value": value} for name, value in properties.items() if value is not None]}
+        suite.validate_schedule({"tests": [row()]})
+        suite.validate_schedule({"tests": [row(ENVIRONMENT=None)]})
+        for label, changes in (("debug", {"config": "Debug"}), ("unknown configuration", {"config": "RelWithDebInfo"}),
+                               ("still serial", {"RUN_SERIAL": True}),
+                               ("explicit", {"LABELS": ["bpr_serial_gui", "bpr_explicit_serial", "bpr_measured_overlap"]}),
+                               ("native desktop", {"ENVIRONMENT": ["QT_QPA_PLATFORM=windows"]}),
+                               ("platform override", {"ENVIRONMENT_MODIFICATION": ["QT_QPA_PLATFORM=set:windows"]})):
+            with self.subTest(case=label), self.assertRaisesRegex(ValueError, "Invalid measured overlap"):
+                suite.validate_schedule({"tests": [row(**changes)]})
+        # A row an audited declaration admits is judged by that declaration, never by both.
+        audited = self.isolated_row()
+        audited["config"] = "Debug"
+        suite.validate_schedule({"tests": [audited]})
+        audited["properties"][1]["value"].append("bpr_measured_overlap")
+        with self.assertRaisesRegex(ValueError, "Invalid measured overlap"):
+            suite.validate_schedule({"tests": [audited]})
+        # Without the label the same row is still refused for not being serial.
+        with self.assertRaisesRegex(ValueError, "not serial"):
+            suite.validate_schedule({"tests": [row(LABELS=["bpr_serial_gui"])]})
+
     def isolated_row(self, mode="offscreen"):
         properties = {
             "WORKING_DIRECTORY": "/build/tests/end_to_end",

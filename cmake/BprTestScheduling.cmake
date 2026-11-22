@@ -90,6 +90,70 @@ function(bpr_allow_isolated_correctness)
     endforeach()
 endfunction()
 
+# Measured, not audited. On 2026-11-21 the rows that are serial only by the
+# directory default above ran four at a time, twice, in the native Windows
+# Release graph: 505 of 516 passed both passes and the set took 27 to 29
+# minutes instead of the 108 to 114 its rows sum to
+# (docs/verification/windows-release-gui-overlap.md). In the named
+# configuration those rows may overlap. A row that asked for RUN_SERIAL
+# itself stays exclusive, and so does every KEEP_SERIAL row: the ones that
+# failed an overlapped pass, a nested build and a dedicated performance course.
+# Locks, fixtures and timeouts are untouched, and every other configuration
+# keeps the schedule it already had. Apply this after the audited
+# declarations: where one of them admits a row, that declaration stands.
+function(bpr_overlap_unclassified_gui_rows)
+    cmake_parse_arguments(PARSE_ARGV 0 overlap "" "DIRECTORY;CONFIGURATION" "KEEP_SERIAL")
+    if(overlap_UNPARSED_ARGUMENTS OR NOT overlap_DIRECTORY OR NOT overlap_CONFIGURATION STREQUAL "Release")
+        message(FATAL_ERROR "Measured overlap requires DIRECTORY and the measured CONFIGURATION Release")
+    endif()
+    set_property(GLOBAL PROPERTY BPR_MEASURED_OVERLAP_KEPT "")
+    _bpr_overlap_unclassified_directory("${overlap_DIRECTORY}" "${overlap_CONFIGURATION}" "${overlap_KEEP_SERIAL}")
+    get_property(kept GLOBAL PROPERTY BPR_MEASURED_OVERLAP_KEPT)
+    foreach(row IN LISTS overlap_KEEP_SERIAL)
+        if(NOT row IN_LIST kept)
+            message(STATUS "Measured overlap keeps a row serial that is not a default-serial test: ${row}")
+        endif()
+    endforeach()
+endfunction()
+
+function(_bpr_overlap_unclassified_directory directory configuration keep)
+    get_property(rows DIRECTORY "${directory}" PROPERTY TESTS)
+    foreach(row IN LISTS rows)
+        get_property(labels TEST "${row}" DIRECTORY "${directory}" PROPERTY LABELS)
+        if(NOT "${labels}" MATCHES "bpr_serial_gui" OR "${labels}" MATCHES "bpr_explicit_serial")
+            continue()
+        endif()
+        if(row IN_LIST keep)
+            set_property(GLOBAL APPEND PROPERTY BPR_MEASURED_OVERLAP_KEPT "${row}")
+            continue()
+        endif()
+        # A row on the native desktop shares it with every other row. Only a
+        # headless row or one on exactly the offscreen platform may overlap.
+        get_property(environment TEST "${row}" DIRECTORY "${directory}" PROPERTY ENVIRONMENT)
+        get_property(modifications TEST "${row}" DIRECTORY "${directory}" PROPERTY ENVIRONMENT_MODIFICATION)
+        set(native_desktop FALSE)
+        foreach(variable IN LISTS environment modifications)
+            string(TOUPPER "${variable}" normalized_variable)
+            if(normalized_variable MATCHES "^QT_QPA_PLATFORM=" AND NOT variable STREQUAL "QT_QPA_PLATFORM=offscreen")
+                set(native_desktop TRUE)
+            endif()
+        endforeach()
+        if(native_desktop)
+            continue()
+        endif()
+        # RUN_SERIAL is TRUE here, or an audited declaration's own expression.
+        get_property(serial TEST "${row}" DIRECTORY "${directory}" PROPERTY RUN_SERIAL)
+        set_property(TEST "${row}" DIRECTORY "${directory}" APPEND PROPERTY LABELS
+            "$<$<AND:$<CONFIG:${configuration}>,$<BOOL:${serial}>>:bpr_measured_overlap>")
+        set_tests_properties("${row}" DIRECTORY "${directory}" PROPERTIES
+            RUN_SERIAL "$<AND:$<BOOL:${serial}>,$<NOT:$<CONFIG:${configuration}>>>")
+    endforeach()
+    get_property(children DIRECTORY "${directory}" PROPERTY SUBDIRECTORIES)
+    foreach(child IN LISTS children)
+        _bpr_overlap_unclassified_directory("${child}" "${configuration}" "${keep}")
+    endforeach()
+endfunction()
+
 # [[BPR-1673]]. Apply only a named, source-bound command from the audited registry.
 # Drift falls back to the already installed exclusive schedule. Registration or
 # schema mistakes fail configure instead of creating an unaudited exception.

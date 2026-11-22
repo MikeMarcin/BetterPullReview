@@ -167,7 +167,15 @@ def validate_schedule(manifest: dict) -> None:
             if not declared:
                 raise ValueError(f"Invalid command ownership declaration: {row['name']}")
             validate_command_owned_row(row, props)
-        if (platforms or course or "bpr_serial_gui" in labels) and not props.get("RUN_SERIAL") and not declared:
+        # Measured overlap: only the Release graph, only a headless or offscreen
+        # row, and never one that is exclusive or audited in its own right.
+        measured = "bpr_measured_overlap" in labels
+        if measured and (row.get("config") != "Release" or declared or props.get("RUN_SERIAL")
+                         or "bpr_explicit_serial" in labels
+                         or any(item != "QT_QPA_PLATFORM=offscreen" for item in platforms)
+                         or any(item.upper().startswith("QT_QPA_PLATFORM=") for item in props.get("ENVIRONMENT_MODIFICATION", []))):
+            raise ValueError(f"Invalid measured overlap scheduling declaration: {row['name']}")
+        if (platforms or course or "bpr_serial_gui" in labels) and not props.get("RUN_SERIAL") and not declared and not measured:
             raise ValueError(f"Interactive/performance test is not serial: {row['name']}")
 
 

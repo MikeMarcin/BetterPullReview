@@ -263,7 +263,16 @@ all test commands, fixtures, assertions, budgets and timeouts remain unchanged.
 Other platforms retain their existing runtime schedule. See the
 [BPR-1670 native controls and ownership audit](../verification/BPR-1670-windows-suite-runtime.md).
 Additions require their own source/ownership audit and native causal evidence;
-using Qt or an offscreen plugin alone does not establish safe concurrency. Use
+using Qt or an offscreen plugin alone does not establish safe concurrency.
+
+The native Windows Release graph has one more route, by measurement instead
+of audit. A headless or offscreen row that is serial only by the directory
+default may overlap there, except the rows `tests/CMakeLists.txt` lists under
+`KEEP_SERIAL`; explicitly serial and native-desktop rows stay exclusive. The
+[measurement](../verification/windows-release-gui-overlap.md) records the
+passes and the rows kept serial. Configure with
+`-DBPR_WINDOWS_RELEASE_GUI_OVERLAP=OFF` for the exclusive schedule. Debug and
+the other platforms are unchanged. Use
 `--jobs 1` for a sequential diagnostic run. Avoid other builds or test runs on
 the machine when measuring responsiveness; CTest cannot serialize unrelated
 processes. The runner refuses a second complete-suite runner in this checkout
