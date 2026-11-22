@@ -648,7 +648,11 @@ try {
 		const auto shown = view.dressed_view()->toPlainText();
 		const auto at    = shown.indexOf(QStringLiteral("Suggested comment:"));
 		expect(at >= 0 && shown.indexOf(QStringLiteral("Clamp both."), at) > at, "the suggested comment shows its words");
-		expect(view.code_views().size() == 3U, "the suggested comment's fix is a code box of its own, after the item's two: " + std::to_string(view.code_views().size()));
+		// The fix is the page's own plain code box, as the owner accepted it
+		// (session 772f868fd02ed420c8889a2d055f5fab), not a code view with
+		// Copy and Wrap: the item's two blocks are the page's only views.
+		expect(view.code_views().size() == 2U, "the suggested comment's fix is not a code view of its own: " + std::to_string(view.code_views().size()));
+		expect(shown.indexOf(QStringLiteral("const auto height = std::max(aSize.Height, 1);"), at) > at, "the suggested comment shows the fix in its own box");
 		expect(!shown.mid(at).contains(QStringLiteral("```")), "and no fence shows as text");
 	}
 	check_inline_code();

@@ -4340,6 +4340,8 @@ namespace {
 		auto       theme                                                              = qt::markdown_code_theme{ };
 		const auto keyword                                                            = QColor{ 0xC0, 0x10, 0x20 };
 		theme.Colors[static_cast<std::size_t>(core::appearance_role::syntax_keyword)] = keyword;
+		const auto type                                                               = QColor{ 0x10, 0x60, 0xC0 };
+		theme.Colors[static_cast<std::size_t>(core::appearance_role::syntax_type)]    = type;
 		view.set_code_theme(theme);
 		auto sent = std::vector<application::markdown_code_syntax_request>{ };
 		view.set_code_syntax_dispatch([&sent](std::vector<application::markdown_code_syntax_request> aRequests) { sent.insert(sent.end(), aRequests.begin(), aRequests.end()); });
@@ -4360,17 +4362,31 @@ namespace {
 		pause();
 		const auto asked = std::ranges::find(sent, std::string{ "int b = 2;\nint c = 3;" }, [](const application::markdown_code_syntax_request& aRequest) { return *aRequest.Text; });
 		expect(asked != sent.end() && asked->Selector == "code.cpp", "once typing pauses the block's code is asked for, as C++");
+		// [[BPR-2351]]. The drafts drawer knows its file only by identity, so a
+		// new draft's blocks borrow no file's names yet; a reply's do, below.
+		expect(asked != sent.end() && asked->Anchor.empty(), "a new draft's block is anchored to no file");
 		auto* const field = view.draft_editor();
 		const auto  code  = field->document()->findBlockByNumber(3);
 		expect(std::ranges::none_of(code.layout()->formats(), [&](const QTextLayout::FormatRange& aRange) { return aRange.format.foreground().color() == keyword; }), "no colour before the answer");
-		auto spans = std::make_shared<const application::token_span_list>(application::token_span_list{ { .Line = 0U, .Column = 0U, .Length = 3U, .Role = core::appearance_role::syntax_keyword },
-																										{ .Line = 1U, .Column = 0U, .Length = 3U, .Role = core::appearance_role::syntax_keyword } });
-		view.apply_markdown_code_syntax({ .Selector = asked->Selector, .Text = asked->Text, .Spans = spans });
-		QApplication::processEvents();
+		auto       spans    = std::make_shared<const application::token_span_list>(application::token_span_list{ { .Line = 0U, .Column = 0U, .Length = 3U, .Role = core::appearance_role::syntax_keyword },
+																												 { .Line = 1U, .Column = 0U, .Length = 3U, .Role = core::appearance_role::syntax_keyword } });
 		const auto coloured = [&](const QTextBlock& aBlock) {
 			return std::ranges::any_of(aBlock.layout()->formats(), [&](const QTextLayout::FormatRange& aRange) { return aRange.start == 0 && aRange.length == 3 && aRange.format.foreground().color() == keyword; });
 		};
+		view.apply_markdown_code_syntax({ .Selector = asked->Selector, .Text = asked->Text, .Spans = spans, .Anchor = asked->Anchor });
+		QApplication::processEvents();
 		expect(coloured(code) && coloured(field->document()->findBlockByNumber(4)), "the answer colours each code line");
+		// [[BPR-2351]]. When the file's names arrive the block is answered
+		// again, and the field takes the newer colours.
+		auto borrowed = std::make_shared<const application::token_span_list>(application::token_span_list{ { .Line = 0U, .Column = 0U, .Length = 3U, .Role = core::appearance_role::syntax_type },
+																										   { .Line = 1U, .Column = 0U, .Length = 3U, .Role = core::appearance_role::syntax_keyword } });
+		view.apply_markdown_code_syntax({ .Selector = asked->Selector, .Text = asked->Text, .Spans = borrowed, .Anchor = asked->Anchor });
+		QApplication::processEvents();
+		expect(std::ranges::any_of(field->document()->findBlockByNumber(3).layout()->formats(), [&](const QTextLayout::FormatRange& aRange) { return aRange.start == 0 && aRange.format.foreground().color() == type; })
+				   && coloured(field->document()->findBlockByNumber(4)),
+			   "[[BPR-2351]] a newer answer for the block recolours it");
+		view.apply_markdown_code_syntax({ .Selector = asked->Selector, .Text = asked->Text, .Spans = spans, .Anchor = asked->Anchor });
+		QApplication::processEvents();
 		expect(!coloured(field->document()->findBlockByNumber(0)) && !coloured(field->document()->findBlockByNumber(2)), "the words and the fence keep their own colours");
 		// Typing in one line keeps the other's colour until the new answer.
 		auto cursor = QTextCursor{ field->document()->findBlockByNumber(4) };
@@ -4399,6 +4415,55 @@ namespace {
 		(*suggestion)->trigger();
 		QApplication::processEvents();
 		expect(field->toPlainText().contains(QStringLiteral("```suggestion\nint b = 2;")) && picker->text() == QStringLiteral("Suggested change"), "a block can be made a suggestion, and back");
+	}
+
+	/// \brief [[BPR-2355]], [[BPR-2351]]. A reply's code blocks are anchored
+	/// to the thread's file, as its posts are, so they borrow that file's
+	/// names; an answer asked under another anchor is not the field's.
+	auto test_a_reply_code_box_borrows_its_files_names() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(360, 700);
+		auto       theme                                                              = qt::markdown_code_theme{ };
+		const auto keyword                                                            = QColor{ 0xC0, 0x10, 0x20 };
+		theme.Colors[static_cast<std::size_t>(core::appearance_role::syntax_keyword)] = keyword;
+		view.set_code_theme(theme);
+		auto sent = std::vector<application::markdown_code_syntax_request>{ };
+		view.set_code_syntax_dispatch([&sent](std::vector<application::markdown_code_syntax_request> aRequests) { sent.insert(sent.end(), aRequests.begin(), aRequests.end()); });
+		view.show();
+		QApplication::processEvents();
+		view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return static_cast<int>(aLine) * 6; });
+		view.adopt({ thread("t10", "src/a.cpp", 10U), reply("c10", "t10", "a", "first") }, core::file_identity_of("src/a.cpp"));
+		view.set_action_dispatch([&view](const qt::card_action aAction, const std::string& aId) {
+			if (aAction == qt::card_action::reply) {
+				view.begin_reply(aId);
+			}
+		});
+		view.open_thread("t10");
+		settle_card();
+		view.setFocus(Qt::OtherFocusReason);
+		key(view, Qt::Key_R);
+		auto* const editor = view.reply_editor();
+		expect(editor != nullptr, "the reply field opens");
+		editor->setPlainText(QStringLiteral("Like this:\n\n```cpp\nint b = 2;\n```"));
+		QElapsedTimer elapsed;
+		elapsed.start();
+		while (elapsed.elapsed() < 450) {
+			QApplication::processEvents();
+			QThread::msleep(5);
+		}
+		const auto asked = std::ranges::find(sent, std::string{ "int b = 2;" }, [](const application::markdown_code_syntax_request& aRequest) { return *aRequest.Text; });
+		expect(asked != sent.end() && asked->Anchor == "src/a.cpp", "the reply's block is asked for anchored to the thread's file");
+		const auto coloured = [&] {
+			return std::ranges::any_of(editor->document()->findBlockByNumber(3).layout()->formats(), [&](const QTextLayout::FormatRange& aRange) { return aRange.start == 0 && aRange.length == 3 && aRange.format.foreground().color() == keyword; });
+		};
+		const auto spans = std::make_shared<const application::token_span_list>(application::token_span_list{ { .Line = 0U, .Column = 0U, .Length = 3U, .Role = core::appearance_role::syntax_keyword } });
+		view.apply_markdown_code_syntax({ .Selector = asked->Selector, .Text = asked->Text, .Spans = spans });
+		QApplication::processEvents();
+		expect(!coloured(), "an answer under no anchor is not the field's");
+		view.apply_markdown_code_syntax({ .Selector = asked->Selector, .Text = asked->Text, .Spans = spans, .Anchor = asked->Anchor });
+		QApplication::processEvents();
+		expect(coloured(), "the answer under the thread's file colours the block");
 	}
 
 	/// \brief [[BPR-2273]]. The owner: "A long draft comment neither scrolls
@@ -4733,6 +4798,7 @@ auto main(int argc, char** argv) -> int
 	test_a_fenced_block_styles_only_its_own_lines({ });
 	test_a_code_block_is_its_own_box({ });
 	test_a_code_box_is_coloured_and_names_its_language();
+	test_a_reply_code_box_borrows_its_files_names();
 	std::cout << "conversation-cards-view-tests:pass\n";
 
 	return EXIT_SUCCESS;

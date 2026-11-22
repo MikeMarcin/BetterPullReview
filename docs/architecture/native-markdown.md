@@ -294,8 +294,13 @@ blocks stand 8 px apart, as GitHub draws them.
 
 **The file's names ([[BPR-2351]]).** A block anchored to a reviewed file
 borrows that file's identifier roles. The anchor is the finding's place for a
-report finding's code box, the thread's file for a thread's posts, and the
-stop's file for a tour stop's side chat; other readers anchor to nothing. The
+report finding's code box, the thread's file for a thread's posts and for
+the code boxes of a reply being written to it ([[BPR-2355]]), and the stop's
+file for a tour stop's side chat; other readers anchor to nothing. A new
+draft's composer anchors to nothing yet: the drafts drawer knows its file
+only by identity, not by path. A report's suggested
+comment is drawn as the page's own HTML ([[BPR-2352]]), uncoloured, so it
+anchors to nothing. The
 reader sends the anchor's repository path with each request, and accepts
 only answers for that anchor. When the panes have shown the file at the pull
 request's head, unfiltered, the composition reads names and roles from

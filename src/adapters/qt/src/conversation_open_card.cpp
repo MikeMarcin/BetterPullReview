@@ -454,12 +454,16 @@ namespace bpr::qt {
 			/// (`aDispatch`), by the file name its language names, or by
 			/// `aSuggestionSelector`, the commented file, for a suggestion;
 			/// the answers come back by `apply_code_syntax`, and `aTheme` is
-			/// the review panes' colours.
-			void set_syntax(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch, std::optional<markdown_code_theme> aTheme, std::string aSuggestionSelector)
+			/// the review panes' colours. [[BPR-2351]]: `aAnchor`, the
+			/// commented file, is the file whose names the code borrows, as
+			/// the thread's posts do; empty for none.
+			void set_syntax(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch, std::optional<markdown_code_theme> aTheme, std::string aSuggestionSelector,
+							std::string aAnchor)
 			{
 				SyntaxDispatch     = std::move(aDispatch);
 				Theme              = std::move(aTheme);
 				SuggestionSelector = std::move(aSuggestionSelector);
+				Anchor             = std::move(aAnchor);
 				if (Fences != nullptr) {
 					Fences->set_code_colours([this](const QTextBlock& aBlock) { return colours_of(aBlock); });
 				}
@@ -469,17 +473,23 @@ namespace bpr::qt {
 			}
 
 			/// \brief Takes the classification of a block's text this field
-			/// asked for; any other is not this field's.
+			/// asked for, under its anchor, or a newer one of a block it
+			/// holds ([[BPR-2351]]: once the file's names arrive); any other
+			/// is not this field's.
 			void apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)
 			{
-				if (!aSpans.Text || !aSpans.Spans) {
+				if (!aSpans.Text || !aSpans.Spans || aSpans.Anchor != Anchor) {
 					return;
 				}
 				const auto asked = std::ranges::find_if(Asked, [&aSpans](const std::pair<std::string, std::string>& aAsked) { return aAsked.first == aSpans.Selector && aAsked.second == *aSpans.Text; });
-				if (asked == Asked.end()) {
+				const auto known = std::ranges::find_if(Known, [&aSpans](const classified_block& aKnown) { return aKnown.Selector == aSpans.Selector && aKnown.Text == *aSpans.Text; });
+				if (asked != Asked.end()) {
+					Asked.erase(asked);
+				} else if (known != Known.end()) {
+					Known.erase(known);
+				} else {
 					return;
 				}
-				Asked.erase(asked);
 				auto entry     = classified_block{ .Selector = aSpans.Selector, .Text = *aSpans.Text };
 				entry.Lines    = lines_of(*aSpans.Text);
 				entry.Classify = classify_text_lines(bytes_of(*aSpans.Text), aSpans.Spans);
@@ -915,7 +925,7 @@ namespace bpr::qt {
 						continue;
 					}
 					Asked.emplace_back(selector, text);
-					requests.push_back({ .Selector = selector, .Text = std::make_shared<const std::string>(std::move(text)) });
+					requests.push_back({ .Selector = selector, .Text = std::make_shared<const std::string>(std::move(text)), .Anchor = Anchor });
 				}
 				while (Asked.size() > known_blocks * 2U) {
 					Asked.erase(Asked.begin());
@@ -984,6 +994,7 @@ namespace bpr::qt {
 			std::function<void(std::vector<application::markdown_code_syntax_request>)> SyntaxDispatch;
 			std::optional<markdown_code_theme>                                          Theme;
 			std::string                                                                 SuggestionSelector;
+			std::string                                                                 Anchor;
 			QTimer*                                                                     SyntaxTimer = nullptr;
 			std::vector<std::pair<std::string, std::string>>                            Asked;
 			std::vector<classified_block>                                               Known;
@@ -4996,7 +5007,8 @@ namespace bpr::qt {
 	{
 		// [[BPR-2355]]. The field's code blocks are classified through the
 		// card's own request, as its posts' are; a suggestion by the
-		// commented file.
+		// commented file, and its code borrowing that file's names
+		// ([[BPR-2351]]).
 		auto* const field = dynamic_cast<reply_text*>(ReplyBox);
 		if (field == nullptr) {
 			return;
@@ -5007,7 +5019,7 @@ namespace bpr::qt {
 					CodeRequest(std::move(aRequests));
 				}
 			},
-			Style.CodeTheme, Style.Suggestions ? Style.Suggestions->Path : aCard.Path.toStdString());
+			Style.CodeTheme, Style.Suggestions ? Style.Suggestions->Path : aCard.Path.toStdString(), Style.CodeContext);
 	}
 
 	void open_thread_card::request_code_syntax()
