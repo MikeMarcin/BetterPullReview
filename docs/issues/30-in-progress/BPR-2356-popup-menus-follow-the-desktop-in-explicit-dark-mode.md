@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2356"
 title: "Revision and Ask menus can open light with Appearance set to Dark"
-status: "Inbox"
+status: "In Progress"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 metadata: {"reported_in":"0.5.0 build 76","reproduced_on":"Ubuntu 26.04 x64, Qt xcb"}
