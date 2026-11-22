@@ -586,6 +586,30 @@ class PromotionAcceptanceTests(unittest.TestCase):
                 publisher.main()
             remote.assert_not_called()
 
+    def test_existing_release_updates_run_from_main_or_that_versions_release_branch(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            baseline = root / "baseline.json"
+            baseline.write_text(json.dumps({"source": SOURCE, "version": "0.4.0", "repository": publisher.REPOSITORY, "assets": [{"name": "mac.zip", **ROW}]}))
+            notes = root / "notes.md";notes.write_text("pending")
+            acceptance = root / "acceptance.json"
+            acceptance.write_text(json.dumps({"schema": "bpr.release-promotion-acceptance.v1", "accepted": False, "source": SOURCE, "version": "0.4.0", "remainingBlocking": ["qualification pending"]}))
+            artifact = root / "mac.zip";artifact.write_bytes(b"new")
+            argv = ["update_release.py", "--repo-root", str(root), "--version", "0.4.0", "--source-revision", SOURCE, "--visibility", "PUBLIC", "--notes-file", str(notes), "--baseline-inventory", str(baseline), "--promote", "--promotion-acceptance", str(acceptance)]
+            # The guard is the first refusal; past it, this fixture stops at its pending qualification.
+            for branch, refusal in (("main", "stable qualification"), ("release/0.4.0", "stable qualification"),
+                                    ("feature", "clean main or release/0.4.0 required"), ("release/0.4.1", "clean main or release/0.4.0 required"),
+                                    ("release/0.4", "clean main or release/0.4.0 required")):
+                def command(*args, **kwargs):
+                    if args[:3] == ("git", "status", "--porcelain"): return ""
+                    if args[:3] == ("git", "branch", "--show-current"): return branch
+                    if args[:3] == ("git", "diff", "--name-only"): return "packaging/update_release.py"
+                    raise AssertionError(args)
+                with self.subTest(branch=branch), patch.object(sys, "argv", argv), patch.object(publisher, "command", side_effect=command), patch.object(publisher, "selected_assets", return_value=({"mac.zip": artifact}, {"Darwin", "Windows", "Linux"})), patch.object(publisher.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)), patch.object(publisher, "guard") as remote:
+                    with self.assertRaisesRegex(ValueError, refusal):
+                        publisher.main()
+                    remote.assert_not_called()
+
     def test_pending_stable_qualification_refuses_before_remote_access(self):
         with ContainedTemporaryDirectory() as temporary:
             root = Path(temporary)

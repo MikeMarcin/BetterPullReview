@@ -212,7 +212,7 @@ with pathlib.Path({str(commands)!r}).open("a") as stream:
 if tool == "git":
     args = args[2:] if args[:1] == ["-C"] else args
     if args[:2] == ["rev-parse", "--verify"]: sys.exit(1)
-    if args[:1] == ["branch"]: print("main")
+    if args[:1] == ["branch"]: print(os.environ.get("FIXTURE_BRANCH", "main"))
     if args == ["rev-parse", "HEAD"]: print({self.revision!r})
     if args == ["remote", "get-url", "--push", "--all", "origin"]:
         print(os.environ.get("FIXTURE_PUSH_URL", "https://github.com/MikeMarcin/BetterPullReview.git"))
@@ -264,6 +264,27 @@ else:
         uploaded = [item for item in map(json.loads, commands.read_text().splitlines()) if item[:3] == ["gh", "release", "create"]]
         self.assertEqual(len(uploaded), 1)
         self.assertEqual(set(uploaded[0][4:uploaded[0].index("--repo")]), {str(dist / name) for name in files} | {str(dist / (name + ".sha256")) for name in files})
+
+    @unittest.skipIf(sys.platform == "win32", "the publisher requires Bash")
+    def test_publisher_pushes_the_tag_with_its_own_branch_and_refuses_any_other(self):
+        command, environment, commands, _, _ = self.publisher_fixture()
+        for branch in ("feature", "release/1.2.4", "release/1.2", "release/v1.2.3"):
+            commands.write_text("")
+            result = subprocess.run(command, env={**environment, "FIXTURE_BRANCH": branch}, text=True, capture_output=True)
+            with self.subTest(branch=branch):
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("main or release/1.2.3", result.stderr)
+                self.assertEqual(self.publication_mutations(commands), [])
+                self.assertFalse(any(item[0] == "gh" for item in map(json.loads, commands.read_text().splitlines())))
+        for branch in ("main", "release/1.2.3"):
+            commands.write_text("")
+            (self.root / "created").unlink(missing_ok=True)
+            result = subprocess.run(command, env={**environment, "FIXTURE_BRANCH": branch}, text=True, capture_output=True)
+            with self.subTest(branch=branch):
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                pushes = [item for item in map(json.loads, commands.read_text().splitlines()) if item[0] == "git" and "push" in item]
+                self.assertEqual(len(pushes), 1)
+                self.assertEqual(pushes[0][pushes[0].index("push"):], ["push", "--atomic", "origin", branch, "v1.2.3-build.1"])
 
     @unittest.skipIf(sys.platform == "win32", "the publisher requires Bash")
     def test_numbered_publisher_refuses_missing_cohort_and_changed_legacy_alias(self):

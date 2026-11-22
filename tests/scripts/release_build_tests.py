@@ -159,6 +159,66 @@ class ReleaseBuildTests(unittest.TestCase):
         cohort.check(cohort.read(frozen), self.root)
         self.assertEqual(self.git("status", "--porcelain"), "")
 
+    def test_release_branch_allocates_for_its_own_version_and_shares_the_numbers(self):
+        base = self.git("rev-parse", "HEAD")
+        # A branch that is not this source's own release branch cannot allocate.
+        for name in ("feature", "release/0.4.2", "release/0.4", "release/v0.4.1"):
+            self.git("switch", "-q", "-c", name, base)
+            with self.subTest(branch=name), self.assertRaisesRegex(ValueError, "main or release/0.4.1"):
+                self.allocate()
+            self.assertEqual(self.git("status", "--porcelain"), "")
+        self.git("switch", "-q", "-c", "release/0.4.1", base)
+        frozen = self.frozen()
+        self.assertEqual(frozen["allocation"]["number"], 1)
+        cohort.check(frozen, self.root, "0.4.1")
+        # main has moved on to the next version; its first number follows the branch's.
+        self.git("switch", "-q", "main")
+        (self.root / "CMakeLists.txt").write_text("project(\n BetterPullReview\n VERSION 0.4.2\n LANGUAGES CXX\n)\n")
+        self.commit("next version on main")
+        self.assertEqual(self.allocate()["number"], 2)
+        # A clone that has only history, no journal, still sees the branch's number.
+        self.git("checkout", "-q", "--", ".")
+        clone = Path(self.temporary.name) / "clone"
+        subprocess.run(["git", "clone", "--quiet", str(self.root), str(clone)], check=True)
+        self.assertGreaterEqual(cohort.allocation(clone, self.inputs)["number"], 2)
+
+    @unittest.skipIf(sys.platform == "win32", "publisher preparation shell needs Bash")
+    def test_publish_release_prepares_on_a_release_branch_and_reconciles_that_branch(self):
+        for name in ("tools/publish-release.sh", "packaging/release_build.py"):
+            target = self.root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((ROOT / name).read_bytes())
+        base = self.commit("public tooling")
+        remote = Path(self.temporary.name) / "origin.git"
+        subprocess.run(["git", "init", "--bare", "--quiet", str(remote)], check=True)
+        self.git("remote", "add", "origin", str(remote))
+        self.git("push", "--quiet", "-u", "origin", "main")
+        inputs = Path(self.temporary.name) / "inputs.json"
+        cohort.write(inputs, self.inputs)
+        command = ["bash", str(self.root / "tools/publish-release.sh"), "--prepare-candidate", "--candidate-inputs", str(inputs), "--cohort-output"]
+        self.git("switch", "-q", "-c", "feature")
+        result = subprocess.run(command + [str(Path(self.temporary.name) / "refused.json")], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("main or the release/VERSION branch", result.stderr)
+        # A new release branch has no remote yet: there is nothing to reconcile.
+        self.git("switch", "-q", "-c", "release/0.4.1", base)
+        output = Path(self.temporary.name) / "allocation.json"
+        result = subprocess.run(command + [str(output)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(cohort.read(output)["number"], 1)
+        self.commit("allocation only")
+        frozen = Path(self.temporary.name) / "cohort.json"
+        result = subprocess.run(["bash", str(self.root / "tools/publish-release.sh"), "--freeze-candidate", "1", "--cohort-output", str(frozen)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        cohort.check(cohort.read(frozen), self.root)
+        # Once the branch is published, a clone that is behind it must reconcile first.
+        self.git("push", "--quiet", "origin", "release/0.4.1")
+        self.git("reset", "-q", "--hard", base)
+        result = subprocess.run(command + [str(Path(self.temporary.name) / "behind.json")], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Reconcile authoritative release/0.4.1", result.stderr)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+
     def test_allocation_exhaustion_changes_nothing(self):
         cohort.write(self.root / cohort.COUNTER, {"schema": "bpr.release-counter.v1", "product": cohort.PRODUCT, "last": 9999})
         self.commit("exhausted history")

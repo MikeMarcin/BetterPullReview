@@ -19,7 +19,8 @@ Ordinary local configure/builds allocate nothing. After committing the source,
 collect `_bpr/release-observed.json` from each selected native graph into one
 external `bpr.release-inputs.v1` configuration, with named producers, complete
 observed flags/settings/toolchains and the previous actual Windows MSI identity.
-The clean main controller fetches/reconciles authoritative main and allocates:
+The clean controller, on `main` or that version's `release/X.Y.Z` branch,
+fetches/reconciles its authoritative branch and allocates:
 
 ```sh
 tools/publish-release.sh --prepare-candidate --candidate-inputs /absolute/inputs.json \
@@ -54,6 +55,17 @@ mixed source/configuration/cohorts. Existing unnumbered published releases retai
 the separate guarded append/promote flow; they are never retroactively numbered.
 Version selection, native qualification, security and publication authority stay
 separate. In particular v0.4.0 and its preview assets remain immutable.
+
+## Work from a release branch
+
+Cut `release/X.Y.Z` from `main` when release work starts and set `main` to the
+next version, so the next release's work does not move this candidate. Fixes
+reach the branch by `git cherry-pick -x` from `main`. Allocate, freeze, qualify
+and publish from the branch, then merge it into `main` after the stable
+release. The [branch rules](../../../docs/development/release-build-identity.md#release-branches)
+cover the shared build-number sequence and the single Windows upgrade line:
+carry each newly recorded Windows floor to `main` before `main` allocates.
+Releasing straight from `main` still works when nothing else is landing there.
 
 ## Select and prepare
 
@@ -214,7 +226,7 @@ the download table or a labelled notice, it has no download table before
 
 ## Publish once
 
-`tools/publish-release.sh` runs on clean `main`. With no manifest it selects the
+`tools/publish-release.sh` runs on clean `main` or clean `release/X.Y.Z`. With no manifest it selects the
 numbered macOS set under `build/releases/VERSION-build.N/`: eight canonical
 assets plus the exact legacy ZIP alias and checksum. Repeat
 `--manifest /absolute/path/to/INSTALLER.release.json` to select signed Windows
@@ -238,7 +250,7 @@ to both preflight and publication. The default continues to require private
 visibility; neither mode admits the other state. The publisher preserves
 exact repository identity and selected visibility guards,
 exact version/commit checks, checksum/source binding and atomic
-`main`/annotated-tag push. macOS variants still require a separate publisher
+branch/annotated-tag push; from a release branch it pushes that branch, never `main`. macOS variants still require a separate publisher
 extension; do not treat native manifests as arbitrary asset upload lists.
 `origin` must have one canonical GitHub HTTPS or SSH push URL for
 `MikeMarcin/BetterPullReview`. A wrong, aliased or multiple push destination is

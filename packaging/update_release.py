@@ -281,7 +281,9 @@ def main() -> None:
         tag = runtime.release_build.check(cohort, version=args.version)["native"]["releaseTag"]
     root = args.repo_root.resolve(strict=True)
     require(re.fullmatch(r"[0-9a-f]{40}", args.source_revision) is not None, "explicit full producer revision required")
-    require(not command("git", "status", "--porcelain", cwd=root) and command("git", "branch", "--show-current", cwd=root) == "main", "clean main required")
+    require(not command("git", "status", "--porcelain", cwd=root)
+            and command("git", "branch", "--show-current", cwd=root) in {"main", "release/" + args.version},
+            "clean main or release/" + args.version + " required")
     subprocess.run(["git", "merge-base", "--is-ancestor", args.source_revision, "HEAD"], cwd=root, check=True)
     changed = set(command("git", "diff", "--name-only", args.source_revision, "HEAD", cwd=root).splitlines())
     require(changed <= TOOL_PATHS, "tool revision changes producer inputs")

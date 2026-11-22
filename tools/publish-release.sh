@@ -204,9 +204,15 @@ if [[ "${PREPARE_CANDIDATE}" == 1 || -n "${FREEZE_CANDIDATE}" ]]; then
     [[ -n "${COHORT_OUTPUT}" && "${COHORT_OUTPUT}" == /* ]] || fail "Candidate output must be an absolute external path"
     if [[ "${PREPARE_CANDIDATE}" == 1 ]]; then
         [[ -z "${FREEZE_CANDIDATE}" && -n "${CANDIDATE_INPUTS}" ]] || fail "Preparation needs one complete candidate-inputs JSON"
-        # One controller reconciles authoritative main before reserving from another clone.
-        git -C "${ROOT_DIR}" fetch --no-tags origin main
-        git -C "${ROOT_DIR}" merge-base --is-ancestor origin/main HEAD || fail "Reconcile authoritative main before allocating"
+        # One controller reconciles the authoritative branch before reserving from
+        # another clone. A number another clone pushed is on main or on a release
+        # branch, so fetch them all: the allocator's floor reads every ref.
+        BRANCH="$(git -C "${ROOT_DIR}" branch --show-current)"
+        [[ "${BRANCH}" == "main" || "${BRANCH}" == release/* ]] || fail "Allocate from main or the release/VERSION branch"
+        git -C "${ROOT_DIR}" fetch --no-tags origin main '+refs/heads/release/*:refs/remotes/origin/release/*'
+        if git -C "${ROOT_DIR}" rev-parse --verify --quiet "refs/remotes/origin/${BRANCH}" >/dev/null; then
+            git -C "${ROOT_DIR}" merge-base --is-ancestor "origin/${BRANCH}" HEAD || fail "Reconcile authoritative ${BRANCH} before allocating"
+        fi
         python3 "${ROOT_DIR}/packaging/release_build.py" allocate --root "${ROOT_DIR}" --inputs "${CANDIDATE_INPUTS}" --output "${COHORT_OUTPUT}"
     else
         python3 "${ROOT_DIR}/packaging/release_build.py" freeze --root "${ROOT_DIR}" --number "${FREEZE_CANDIDATE}" --output "${COHORT_OUTPUT}"
@@ -226,12 +232,15 @@ check_notes_shape
 command -v gh >/dev/null 2>&1 || fail "Required command not found: gh"
 
 [[ -z "$(git -C "${ROOT_DIR}" status --porcelain)" ]] || fail "Working tree is not clean"
-[[ "$(git -C "${ROOT_DIR}" branch --show-current)" == "main" ]] || fail "Release must run from main"
 
 PROJECT_VERSION="$(sed -n '/^project(/,/^)/p' "${ROOT_DIR}/CMakeLists.txt" |
     sed -n 's/^[[:space:]]*VERSION[[:space:]]\{1,\}\([^[:space:]]\{1,\}\).*/\1/p' |
     head -n 1)"
 [[ "${PROJECT_VERSION}" == "${VERSION}" ]] || fail "CMake project version is ${PROJECT_VERSION}, not ${VERSION}"
+# main, or the branch named for exactly this version. The tag is pushed with
+# that branch, never with main from a release branch.
+BRANCH="$(git -C "${ROOT_DIR}" branch --show-current)"
+[[ "${BRANCH}" == "main" || "${BRANCH}" == "release/${VERSION}" ]] || fail "Release must run from main or release/${VERSION}"
 
 [[ $((APPEND_ASSETS + PROMOTE + COPY_STABLE)) -le 1 ]] || fail "Select one existing-source publication mode"
 if [[ "${APPEND_ASSETS}" == 1 || "${PROMOTE}" == 1 || "${COPY_STABLE}" == 1 ]]; then
@@ -326,7 +335,7 @@ fi
 
 repository_guard
 git -C "${ROOT_DIR}" tag -a "${TAG}" -m "${TAG}"
-git -C "${ROOT_DIR}" push --atomic origin main "${TAG}"
+git -C "${ROOT_DIR}" push --atomic origin "${BRANCH}" "${TAG}"
 
 repository_guard
 set --

@@ -41,7 +41,8 @@ metadata changes precedence is introduced.
 
 ## Allocation and source binding
 
-The publish-release preparation step owns allocation on clean main, after
+The publish-release preparation step owns allocation on clean `main` or on
+that version's [release branch](#release-branches), after
 product/configuration changes have been committed. Producers consume the
 resulting cohort; they never allocate independently. A tracked product counter
 and immutable numbered allocation receipts live under
@@ -49,8 +50,10 @@ and immutable numbered allocation receipts live under
 number durably before writing the tracked allocation, so an interrupted or
 abandoned preparation cannot recycle it in another linked checkout. Historical
 allocation paths on known refs set a high-water floor. The sole publisher must
-reconcile/fetch its authoritative main before allocating on another clone;
-offline competing allocators are not supported.
+reconcile/fetch its authoritative branch before allocating on another clone;
+preparation fetches `main` and every `release/*` branch first, because a number
+another clone pushed is on one of them. Offline competing allocators are not
+supported.
 
 Each allocation binds the pre-allocation source commit/tree, marketing version
 and a canonical JSON digest of the complete declared platform/preset/feature,
@@ -126,9 +129,47 @@ Native bundle/PE/MSI/DEB metadata must be inspected on their actual platforms.
 This feature does not waive release qualification, source/legal, security,
 signing, native trust or the separate future stable release policy.
 
+## Release branches
+
+A release is cut from `main` or from a branch named `release/X.Y.Z` whose
+`CMakeLists.txt` version is exactly `X.Y.Z`. The branch lets `main` take the
+next version's work while this one is qualified. The allocator, the publisher
+and the existing-release update path each refuse any other branch, and a
+release branch whose name differs from the version it holds.
+
+1. When release work starts, create `release/X.Y.Z` at the commit of `main`
+   to release, and set `main` to the next version.
+2. A fix lands on `main` and reaches the release branch by
+   `git cherry-pick -x`. A fix that only the release needs lands on the
+   branch and is carried forward to `main` the same way. Issue cards stay on
+   `main`, which remains the tracker's source of truth.
+3. Allocate, freeze, qualify and publish from the release branch. The
+   publisher pushes that branch with the tag in one atomic push; it does not
+   push `main`. A new release branch needs no remote before its first
+   allocation; once it has one, a clone behind it is refused until reconciled.
+4. After the stable release, merge the release branch into `main`, keeping
+   `main`'s version, so the receipts, the counter, the Windows floor and the
+   release record are in `main`'s history. Delete the branch only after that
+   merge: a receipt reachable from no fetched branch is invisible to another
+   clone's floor.
+
+Two rules hold across branches, and neither is new:
+
+- Build numbers are one sequence. The floor reads the allocation receipts on
+  every ref and the common-Git journal, so a number used on a release branch
+  is never issued again on `main`.
+- Windows has one upgrade line. The allocator refuses a branch whose recorded
+  Windows floor is older than a floor on any other ref, and a marketing
+  version lower than its floor. So when a release branch records a newly
+  published Windows installer, carry that floor commit to `main` before
+  `main` allocates again; and a release branch for an older version cannot
+  allocate once a newer version's Windows installer is the floor. A patch to
+  an older line after that needs a separate owner decision.
+
 ## Preparation commands and declared inputs
 
-Only the publisher controller allocates, on reconciled clean `main`. No CMake
+Only the publisher controller allocates, on reconciled clean `main` or
+`release/X.Y.Z`. No CMake
 preset, compiler invocation or package driver advances the counter. Supply an
 external `bpr.release-inputs.v1` JSON object with `producers` and
 `previousWindows`. Each named producer declares its platform (`Darwin`,

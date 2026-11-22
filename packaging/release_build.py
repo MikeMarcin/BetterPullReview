@@ -79,6 +79,19 @@ def marketing(root: Path, revision: str = "HEAD") -> str:
     return match[1]
 
 
+def release_branch(root: Path) -> str:
+    """Where a release is cut: main, or the branch named for this source's own version.
+
+    A release branch lets main move on to the next version while this one is
+    qualified; fixes reach it by cherry-pick. The name must equal the checked-in
+    marketing version, so a branch cannot allocate for a version it does not hold.
+    """
+    branch = git(root, "branch", "--show-current")
+    if branch not in {"main", "release/" + marketing(root)}:
+        raise ValueError("release allocation requires reconciled main or release/" + marketing(root))
+    return branch
+
+
 def native(version: str, number: int, previous: dict | None = None) -> dict:
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or type(number) is not int or not 1 <= number <= MAXIMUM:
         raise ValueError("release build number must be 1..9999 and version must have three components")
@@ -251,8 +264,7 @@ def validate_allocation_commit(root: Path, receipt: dict) -> str:
 
 
 def allocation(root: Path, inputs: dict) -> dict:
-    if git(root, "branch", "--show-current") != "main":
-        raise ValueError("release allocation requires authoritative reconciled main")
+    release_branch(root)
     inputs = configuration(inputs)
     version = marketing(root)
     config_digest = digest(inputs)
