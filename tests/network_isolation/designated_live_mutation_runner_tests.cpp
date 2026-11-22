@@ -128,25 +128,6 @@ namespace bpr::tests::network_isolation {
 				options);
 			expect(digestMismatch.Status == child_run_status::not_started, "surface identity mismatch refuses before fork");
 
-			int threadBlocker[2]{ -1, -1 };
-			expect(pipe(threadBlocker) == 0, "multithread refusal fixture creates pipe");
-			if (threadBlocker[0] >= 0 && threadBlocker[1] >= 0) {
-				std::thread extraThread([descriptor = threadBlocker[0]] {
-					char value{ };
-					while (read(descriptor, &value, sizeof(value)) < 0 && errno == EINTR) {
-					}
-					close(descriptor);
-				});
-				const auto  multithreaded = start_fixed_canary(
-					ValidCapability,
-					designated_live_canary_surface_sha256(),
-					options);
-				expect(multithreaded.Status == child_run_status::parent_multithreaded, "multithreaded parent refuses before fork");
-				expect(multithreaded.ObservedThreadCount >= 2, "multithreaded refusal reports observed count");
-				close(threadBlocker[1]);
-				extraThread.join();
-			}
-
 			std::array<char, 128>      pattern{ };
 			constexpr std::string_view prefix = "/tmp/bpr-designated-live-no-path.XXXXXX";
 			std::copy(prefix.begin(), prefix.end(), pattern.begin());
@@ -235,6 +216,27 @@ namespace bpr::tests::network_isolation {
 			expect(timedOut.Status == child_run_status::timed_out, "fixed child timeout is killed and typed");
 			expect(elapsed < std::chrono::seconds(2), "fixed child timeout remains bounded");
 		}
+
+		void test_multithreaded_parent_refuses()
+		{
+			int threadBlocker[2]{ -1, -1 };
+			expect(pipe(threadBlocker) == 0, "multithread refusal fixture creates pipe");
+			if (threadBlocker[0] >= 0 && threadBlocker[1] >= 0) {
+				std::thread extraThread([descriptor = threadBlocker[0]] {
+					char value{ };
+					while (read(descriptor, &value, sizeof(value)) < 0 && errno == EINTR) {
+					}
+					close(descriptor);
+				});
+				const auto  multithreaded = start_fixed_canary(
+					ValidCapability,
+					designated_live_canary_surface_sha256());
+				expect(multithreaded.Status == child_run_status::parent_multithreaded, "multithreaded parent refuses before fork");
+				expect(multithreaded.ObservedThreadCount >= 2, "multithreaded refusal reports observed count");
+				close(threadBlocker[1]);
+				extraThread.join();
+			}
+		}
 #else
 		void test_fixed_forked_canary()
 		{
@@ -252,6 +254,11 @@ int main()
 {
 	bpr::tests::network_isolation::test_identity_json();
 	bpr::tests::network_isolation::test_fixed_forked_canary();
+#if !defined(_WIN32)
+	// Linux may still list a joined thread in /proc/self/task during teardown.
+	// Finish the scenarios requiring one task before creating the extra thread.
+	bpr::tests::network_isolation::test_multithreaded_parent_refuses();
+#endif
 	if (bpr::tests::network_isolation::Failures != 0) {
 		return 1;
 	}
