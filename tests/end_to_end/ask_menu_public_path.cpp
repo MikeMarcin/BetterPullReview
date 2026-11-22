@@ -665,6 +665,15 @@ auto main(int argc, char** argv) -> int
 				}
 				return texts;
 			};
+			const auto openLineAsk = [&](qt::workbench_window& aWindow) {
+				wait([&] { return aWindow.go_to_file_line(path, 12U, false); }, "the file accepts line navigation");
+				wait([&] {
+					const auto context = aWindow.agent_tab()->suggestion_context_now();
+					return context.OpenFile == path && context.Lines && context.Lines->first == 12U && context.Lines->second == 12U;
+				},
+					 "Ask has the exact file and selected line");
+				aWindow.open_agent_question();
+			};
 			window.open_agent_question();
 			wait([&] { return chips().contains(QStringLiteral("Review this pull request")) && chips().contains(QStringLiteral("What could this change break?")); }, "the shipped chips show");
 			// [[BPR-2179]]: Settings › Prompts, Surfaces above the library.
@@ -737,9 +746,11 @@ auto main(int argc, char** argv) -> int
 				 "a new order made by drag reaches the chips");
 			// Turning one off removes its chip from the open window.
 			page->set_on("agent-tab.review-pull-request", false);
-			window.open_agent_question();
+			// Compare the prompts with the same selection before and after reset and restart.
+			openLineAsk(window);
 			wait([&] { return !chips().isEmpty() && !chips().contains(QStringLiteral("Review this pull request")); }, "its chip leaves the open window, no restart");
-			wait([&] { return chips().size() >= 3; }, "the chips show in their new order");
+			const auto explainLine = QStringLiteral("Explain %1 line 12").arg(path);
+			wait([&] { return chips().size() >= 3 && chips().contains(explainLine); }, "the chips show in their new order with the selected-line prompt");
 			const auto ordered = chips();
 			// AC13: the suggestions toggle still hides every chip.
 			tab->suggestions_toggle()->click();
@@ -754,7 +765,7 @@ auto main(int argc, char** argv) -> int
 			tab->reset_agents();
 			QApplication::processEvents();
 			agent_ready(window);
-			window.open_agent_question();
+			openLineAsk(window);
 			if (!e2e::wait_until_plain([&] { return chips() == ordered; }, e2e::extended_agent_budget)) {
 				throw std::runtime_error{ "Reset agents and setting up again changes no prompt: " + chips().join(QLatin1Char('|')).toStdString() + " not " + ordered.join(QLatin1Char('|')).toStdString() };
 			}
@@ -778,7 +789,7 @@ auto main(int argc, char** argv) -> int
 			reopened.home_open_action()->trigger();
 			wait([&] { return reopened.what_changed_action()->isEnabled(); }, "the pull request opens again");
 			agent_ready(reopened);
-			wait([&] { return reopened.go_to_file_line(path, 12U, false) && reopened.active_document_path() == path; }, "the file and its line, as before");
+			openLineAsk(reopened);
 			auto* const tab2   = reopened.agent_tab();
 			const auto  chips2 = [tab2] {
 				auto texts = QStringList{ };
@@ -789,7 +800,6 @@ auto main(int argc, char** argv) -> int
 				}
 				return texts;
 			};
-			reopened.open_agent_question();
 			if (!e2e::wait_until_plain([&] { return chips2() == ordered; }, e2e::extended_agent_budget)) {
 				throw std::runtime_error{ "the chip turned off and the new order survive a restart: " + chips2().join(QLatin1Char('|')).toStdString() + " not " + ordered.join(QLatin1Char('|')).toStdString() };
 			}
