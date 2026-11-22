@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2356"
+  ],
+  "reserve_for": "codex-popup-theme-issue",
+  "purpose": "File released popup appearance mismatch",
+  "created": "2026-11-22T01:02:02.583850+00:00",
+  "base": "2462d518ba01330af4bc320e946ed35731bcfe18"
+}
