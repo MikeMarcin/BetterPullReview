@@ -34,6 +34,7 @@
 #include <QThread>
 #include <QToolButton>
 
+#include <cstddef>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
@@ -192,6 +193,13 @@ try {
 		open(aIdentity);
 		wait_for([&] { return approve_button(*window) != nullptr && approve_button(*window)->isEnabled(); }, aWhat);
 	};
+	// The fixture records the send before the window receives its receipt.
+	// The confirmation's queued return to Home must settle before another open.
+	const auto awaitReviewFinish = [&](const std::size_t aConfirmedBefore) {
+		const auto finished = [&] { return editor->confirmed_submissions() > aConfirmedBefore && !window->finishing_at_home(); };
+		pump_until(finished, 10'000);
+		return finished();
+	};
 	QElapsedTimer clock;
 
 	// 1. AC02: work on the shared publication lane (a tour publication or a
@@ -204,18 +212,21 @@ try {
 	observe(*window, "second-opened", clock.elapsed());
 	pump_until([&] { return approve_button(*window)->isEnabled(); }, 10'000);
 	observe(*window, "second-after-wait", clock.elapsed());
-	const auto offered = approve_button(*window)->isEnabled();
-	auto       before  = submitted();
+	const auto offered             = approve_button(*window)->isEnabled();
+	auto       before              = submitted();
+	auto       confirmedBefore     = editor->confirmed_submissions();
+	auto       finishedWhileShared = false;
 	if (offered) {
 		approve_button(*window)->click();
 		observe(*window, "second-approve-pressed", clock.elapsed());
-		pump_until([&] { return submitted() > before; }, 10'000);
+		finishedWhileShared = awaitReviewFinish(confirmedBefore);
 		observe(*window, "second-after-approve", clock.elapsed());
 	}
-	const auto sentWhileShared = submitted() > before;
+	const auto sentWhileShared = submitted() == before + 1U;
 	release();
 	expect(offered, "Approve is offered on #18 while the shared publication lane is held");
 	expect(sentWhileShared, "Approve on #18 publishes while the shared publication lane is held");
+	expect(finishedWhileShared, "#18's confirmation settles while the shared publication lane is held");
 
 	// 2. AC02: #17's own submission still waiting on its lane when the
 	// reviewer leaves it for #18. #18's Approve does not wait for it.
@@ -226,11 +237,13 @@ try {
 	expect(editor->waiting_panel()->isVisible() && editor->waiting_title_label()->text() == QStringLiteral("Waiting to send your review"),
 		   "a submission that cannot start says it is waiting");
 	ready(second, "#18's Approve is offered while #17's submission is held");
-	before = submitted();
+	before          = submitted();
+	confirmedBefore = editor->confirmed_submissions();
 	approve_button(*window)->click();
-	pump_until([&] { return submitted() > before; }, 10'000);
+	const auto finishedWhileFirst = awaitReviewFinish(confirmedBefore);
 	observe(*window, "second-while-first-held", 0);
 	expect(submitted() == before + 1U, "#18 publishes while #17's own submission is held on its lane");
+	expect(finishedWhileFirst, "#18's confirmation settles while #17's own submission is held");
 	release();
 
 	// 2b. RFC-BPR-0114 AC06 ([[BPR-2065]]): a push in flight. The author's
@@ -238,11 +251,13 @@ try {
 	// or the network holds it, a review submission still completes.
 	release = access::hold_author_git_lane(*owner);
 	ready(second, "#18's Approve is offered while a push is in flight");
-	before = submitted();
+	before          = submitted();
+	confirmedBefore = editor->confirmed_submissions();
 	approve_button(*window)->click();
-	pump_until([&] { return submitted() > before; }, 10'000);
+	const auto finishedWhilePush = awaitReviewFinish(confirmedBefore);
 	observe(*window, "second-while-push-held", 0);
 	expect(submitted() == before + 1U, "RFC-BPR-0114 AC06: #18 publishes while a push holds the author's Git lane");
+	expect(finishedWhilePush, "#18's confirmation settles while a push holds the author's Git lane");
 	release();
 
 	// 2c. RFC-BPR-0111 AC07 ([[BPR-2029]]): a draft pull request's creation
@@ -252,11 +267,13 @@ try {
 	release = access::hold_local_draft_publication_lane(*owner);
 	expect(static_cast<bool>(release), "Create Draft PR's lane is composed");
 	ready(second, "#18's Approve is offered while a draft pull request's creation is in flight");
-	before = submitted();
+	before          = submitted();
+	confirmedBefore = editor->confirmed_submissions();
 	approve_button(*window)->click();
-	pump_until([&] { return submitted() > before; }, 10'000);
+	const auto finishedWhileCreation = awaitReviewFinish(confirmedBefore);
 	observe(*window, "second-while-creation-held", 0);
 	expect(submitted() == before + 1U, "RFC-BPR-0111 AC07: #18 publishes while a draft pull request's creation holds its lane");
+	expect(finishedWhileCreation, "#18's confirmation settles while a draft pull request's creation holds its lane");
 	release();
 
 	// 3. AC03: #18's own submission cannot start. It waits, says for what,
@@ -284,10 +301,12 @@ try {
 	expect(submitted() == before, "nothing was sent");
 	release();
 	QApplication::processEvents();
+	confirmedBefore = editor->confirmed_submissions();
 	editor->retry_button()->click();
-	pump_until([&] { return submitted() > before; }, 10'000);
+	const auto retryFinished = awaitReviewFinish(confirmedBefore);
 	observe(*window, "bounded-retried", clock.elapsed());
 	expect(submitted() == before + 1U, "Retry submits once the obstruction is gone");
+	expect(retryFinished, "Retry's confirmation settles before the next review opens");
 	access::set_review_submission_wait_bound(*owner, std::chrono::milliseconds{ 20'000 });
 
 	// 4. AC04: a submission superseded while it waits (the window's
