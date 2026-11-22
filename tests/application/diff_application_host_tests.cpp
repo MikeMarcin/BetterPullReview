@@ -19,6 +19,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <semaphore>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -1654,7 +1655,6 @@ namespace {
 				}
 				++ReadsByFile[seed];
 			}
-			Reads.fetch_add(1U);
 			auto observation = application::diff_blob_observation{
 				.Context = aRequest.Context,
 				.Side    = aRequest.Side,
@@ -1692,7 +1692,6 @@ namespace {
 			return Files.at(aSeed);
 		}
 
-		std::atomic<std::size_t> Reads{ 0U };
 		/// Runs once, inside a prepared read of a right side, before it returns:
 		/// a reviewer who acts after preparation read both sides.
 		std::function<void()> OnPreparedRead;
@@ -1799,27 +1798,64 @@ namespace {
 		return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - aStart).count();
 	}
 
-	/// Starts the prepared computation of aPrepared on the worker thread, and
-	/// once it is computing asks for aReviewer. Returns the milliseconds from
-	/// that request until the stopped preparation returned.
-	[[nodiscard]] auto stop_mid_compute(threaded_fixture& aTest, const std::uint8_t aReviewer, const std::size_t aReadsBefore,
-										const double aDelayMs) -> double
+	/// Runs the product matcher and can hold its next result before it returns.
+	/// The prepared computation stays in flight regardless of scheduling.
+	class pausable_line_matcher final : public application::diff_line_matcher_port
 	{
-		aTest.start_effect();
-		const auto waitStart = std::chrono::steady_clock::now();
-		while (aTest.Blobs.Reads.load() < aReadsBefore && milliseconds_since(waitStart) < 60'000.0) {
-			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+	public:
+		struct pause
+		{
+			std::binary_semaphore Ready{ 0 };
+			std::binary_semaphore Resume{ 0 };
+		};
+
+		[[nodiscard]] auto pause_next_result() -> std::shared_ptr<pause>
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			NextPause       = std::make_shared<pause>();
+			return NextPause;
 		}
-		std::this_thread::sleep_for(std::chrono::duration<double, std::milli>{ aDelayMs });
+
+		[[nodiscard]] auto match(const application::diff_line_match_input& aInput) -> std::optional<std::vector<core::diff_match>> override
+		{
+			const auto pendingPause = [this] {
+				const auto lock = std::scoped_lock{ Mutex };
+				return std::exchange(NextPause, nullptr);
+			}();
+			auto result = bpr::tests::product_line_matcher()->match(aInput);
+			if (pendingPause) {
+				expect(result.has_value(), "the product matcher computes the held result");
+				pendingPause->Ready.release();
+				expect(pendingPause->Resume.try_acquire_for(std::chrono::seconds{ 60 }),
+					   "the prepared computation returns while the matcher result is held");
+			}
+			return result;
+		}
+
+	private:
+		std::mutex             Mutex;
+		std::shared_ptr<pause> NextPause;
+	};
+
+	/// Starts preparation and asks for aReviewer once its match is held.
+	/// Returns the milliseconds from the request to the stopped worker's return.
+	[[nodiscard]] auto stop_mid_compute(threaded_fixture& aTest, pausable_line_matcher& aMatcher, const std::uint8_t aReviewer) -> double
+	{
+		const auto pause = aMatcher.pause_next_result();
+		aTest.start_effect();
+		expect(pause->Ready.try_acquire_for(std::chrono::seconds{ 60 }), "the prepared computation reaches the held matcher result");
 		const auto requested = std::chrono::steady_clock::now();
 		aTest.Host->request(comparison_key({ }, aReviewer), { });
 		aTest.join();
+		pause->Resume.release();
+		expect(aTest.Returned >= requested, "the prepared computation was still in flight when the reviewer requested a comparison");
 		return std::chrono::duration<double, std::milli>(aTest.Returned - requested).count();
 	}
 
 	auto test_bpr1366_a_preparation_stops_within_milliseconds_of_the_reviewer() -> void
 	{
-		threaded_fixture test{ large_limits() };
+		const auto       matcher = std::make_shared<pausable_line_matcher>();
+		threaded_fixture test{ large_limits(), matcher };
 		test.Blobs.add(31U, large_pair(large_pair_lines, 31U));
 		// Uninterrupted, the prepared comparison takes this long.
 		const auto computeStart = std::chrono::steady_clock::now();
@@ -1827,9 +1863,8 @@ namespace {
 		const auto computeMs    = milliseconds_since(computeStart);
 		test.Host->prepare({ prepared(31U) });
 		expect(test.Effects.pending() == 1U, "the preparation is posted");
-		// The reviewer acts a third of the way into the computation.
-		const auto latency = stop_mid_compute(test, 40U, 2U, computeMs / 3.0);
-		std::cout << "BPR-1366 host prompt stop: uninterrupted " << computeMs << " ms; a stop a third of the way in returned after "
+		const auto latency = stop_mid_compute(test, *matcher, 40U);
+		std::cout << "BPR-1366 host prompt stop: uninterrupted " << computeMs << " ms; a stop at the matcher returned after "
 				  << latency << " ms\n";
 #ifdef NDEBUG
 		expect(latency < 10.0,
@@ -1859,20 +1894,18 @@ namespace {
 
 	auto test_bpr1366_reviewer_diffs_are_never_stopped_by_preparation() -> void
 	{
-		threaded_fixture test{ large_limits() };
+		const auto       matcher = std::make_shared<pausable_line_matcher>();
+		threaded_fixture test{ large_limits(), matcher };
 		test.Blobs.add(31U, large_pair(large_pair_lines, 31U));
 		test.Blobs.add(41U, large_pair(large_pair_lines / 2U, 41U));
 		test.Blobs.add(42U, large_pair(large_pair_lines / 2U, 42U));
 		const auto prepared31 = direct_result(test.Blobs, 31U);
 		const auto reviewer41 = direct_result(test.Blobs, 41U);
 		const auto reviewer42 = direct_result(test.Blobs, 42U);
-		const auto start      = std::chrono::steady_clock::now();
-		static_cast<void>(direct_result(test.Blobs, 31U));
-		const auto computeMs = milliseconds_since(start);
 
 		// Preparation is stopped for the reviewer's first comparison.
 		test.Host->prepare({ prepared(31U), prepared(32U) });
-		static_cast<void>(stop_mid_compute(test, 41U, 2U, computeMs / 4.0));
+		static_cast<void>(stop_mid_compute(test, *matcher, 41U));
 		test.run_decisions();
 		expect(test.Host->preparing() == 2U && test.Host->prepared_entries() == 0U, "[[BPR-1485]] the stopped preparation is abandoned and queued again");
 		// While the reviewer's comparison computes, the window changes twice.
@@ -1888,7 +1921,7 @@ namespace {
 		// next comparison, which runs while the window changes once more.
 		expect(test.Host->preparing() == 1U && test.Effects.pending() == 1U,
 			   "[[BPR-1485]] the abandoned preparation starts again once the reviewer is idle");
-		static_cast<void>(stop_mid_compute(test, 42U, test.Blobs.Reads.load(), computeMs / 8.0));
+		static_cast<void>(stop_mid_compute(test, *matcher, 42U));
 		test.run_decisions();
 		expect(test.Host->preparing() == 1U && test.Host->prepared_entries() == 0U, "[[BPR-1485]] the restarted preparation is abandoned again");
 		test.start_effect();
