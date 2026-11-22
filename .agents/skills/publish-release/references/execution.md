@@ -53,10 +53,18 @@ Reduce avoidable work in this order:
    candidate rather than fixing one and rediscovering the next hours later.
    Prepare notes, source/legal comparisons and verification commands while
    eligible machine work or actual human review is pending.
-5. If comprehensive Windows remains the bottleneck, further reductions need
-   source/ownership audits plus native causal controls for newly parallel
-   correctness courses, or verified independent native capacity. Do not widen
-   the allowlist or overlap timing/global-resource courses merely to meet the
+5. The Windows Release graph already overlaps the GUI and application rows
+   that are serial only by default, by
+   [measurement](../../../../docs/verification/windows-release-gui-overlap.md);
+   the first complete Windows run with that schedule is its first whole-suite
+   timing, so record it. A row that fails there and passes alone is a failure
+   of that candidate like any other: keep its raw result, add the row to
+   `KEEP_SERIAL` in `tests/CMakeLists.txt` and qualify the successor.
+   Configuring with `-DBPR_WINDOWS_RELEASE_GUI_OVERLAP=OFF` restores the
+   exclusive schedule if overlap itself is in doubt. Further reductions on
+   other platforms or in Debug need their own measurement or audit, or
+   verified independent native capacity. Do not overlap explicitly serial
+   timing, native-desktop or global-resource courses merely to meet the
    target. No new host, credential transfer or capacity purchase follows from
    this target, and no independent Linux producer was established by this slice.
 
@@ -262,9 +270,12 @@ outputs under the existing policy; it does not fabricate missing native work.
   WSL instance share a physical host: serialize builds, normal suites, optimized
   performance courses and production there. Preserve the maintained suite's
   four-job scheduling, locks and exclusive timing/native/global-resource rows.
-  Windows may overlap only the maintained explicit isolated-correctness
-  allowlist; preserve its audited output/executable locks and default serial
-  classification. Follow the [suite policy](../../../../docs/development/build-and-test-reference.md#complete-suite-timing-and-focused-work),
+  Windows overlaps the audited isolated-correctness allowlist and, in Release
+  only, the measured default-serial rows; preserve the audited
+  output/executable locks, the `KEEP_SERIAL` rows and every explicitly serial
+  row. The complete-suite runner already builds the composition contract's
+  nested tree eight jobs wide when the producer sets no
+  `CMAKE_BUILD_PARALLEL_LEVEL`. Follow the [suite policy](../../../../docs/development/build-and-test-reference.md#complete-suite-timing-and-focused-work),
   not a new release-specific concurrency override.
 - On Mac, `tools/release.sh` already runs the normal gate. Do not run a duplicate
   full suite first. Preserve separate tests-enabled optimized and tests-disabled
