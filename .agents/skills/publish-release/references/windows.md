@@ -81,6 +81,17 @@ Azure authentication has not been established.
 
 ## Build, sign payloads, then package
 
+Two producer-context facts observed for 0.5.0 (2026-11-21):
+
+- Set `BPR_MSVC_REDISTRIBUTION_NOTICE` to the toolchain's `Redist.txt` (the
+  prepared `tools.microsoftRedistributionNotice` path) in the packaging
+  process; without it the runtime deployment refuses before signing.
+- In the interactive packaging task, run the cohort configure
+  (`cmake BUILD -DBPR_RELEASE_COHORT=... -DBPR_RELEASE_PRODUCER=...`) before
+  any `git` command in that process. When the task first ran `git rev-parse`
+  and `git status`, the cohort check failed with `[Errno 13] Permission
+  denied` on the source root every time; the same configure run first passed.
+
 Run the normal native test gate, then:
 
 ```powershell

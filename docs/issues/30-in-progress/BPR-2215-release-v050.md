@@ -854,3 +854,50 @@ findings, waived again for 0.5.0. The one other is `BIT-sqlite-2026-119586`
 (High), recorded above as not affecting BetterPullReview. The other ten 2026
 SQLite advisories from build 73's rehearsal are gone with 3.54.1. No finding
 awaits the owner. Windows and Ubuntu are scanned at the all-platform build.
+
+## Stable 0.5.0 (2026-11-21)
+
+[Stable 0.5.0](https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.5.0)
+is public and Latest (release `454071447`), copied unchanged by
+`--copy-stable` from the all-platform prerelease
+[`v0.5.0-build.76`](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.5.0-build.76):
+source `84208973a`, cohort `8cf1d6e7…`, 30 assets. Builds 75 (stopped for
+the Add-argument fix) and 73 were never published. The stable acceptance and
+publication authorization records cite the owner's sign-off ("This is me
+signing off.", 2026-11-21); the coordinator checked both records' 30 asset
+bindings against GitHub's published build 76 assets before the copy. Records:
+`/Users/jaeger/.codex/release-runs/v0.5.0-20261116/stable-r3`.
+
+**Comprehensive Release at build 76** (no evidence reused):
+
+| Platform | Result | Failed |
+|---|---|---|
+| macOS | 1076/1076 | none |
+| Windows | 1033/1035 | `application_recent_account_isolation` ([[BPR-2349]]) and `application_review_tour_publication_repairs` ([[BPR-2350]]), each 3 of 3 alone; intermittents under the owner's rule |
+| Ubuntu 26.04 (Lima guest) | 1044/1056 | nine large-review timing rows judged on WSL2, and the three donut-summary rows below |
+
+- **Owner waiver, Ubuntu donut-summary overflow** (2026-11-21):
+  `qt_agent_report_summary_scale_100`, `_125` and `_200` fail every run on
+  Ubuntu: "the summary fits the drawer, 274 of 264" at the larger font in the
+  narrowest drawer. A known Linux layout issue, waived for 0.5.0, to be fixed
+  in 0.5.1; the release body carries a Known limitation line for it.
+- Debug functional qualification: waived by the owner for 0.5.0 (above).
+
+**Packages and trust.** `verify_release_package.py` passes for the macOS
+release (in `release.sh`), the Windows MSI runtime (with the redist root and
+the reviewed `bcrypt.lib`) and the Ubuntu DEB and per-user runtimes. The Mac
+DMG and app are notarized; the MSI and its five first-party binaries are
+signed by Michael Marcin and timestamped; the six Ubuntu signatures verify
+against `ED85BAA8…88E4A8`.
+
+**Vulnerability scans** on each exact SPDX (Grype 0.120.1, database v6.1.10
+built 2026-11-21T06:20Z): macOS 24, Ubuntu 24 and Windows 22 matches, raw gate
+exit 2. All are carried 0.4.x waivers except `BIT-sqlite-2026-119586`,
+recorded above as not affecting BetterPullReview. No finding awaits the owner.
+
+**Published verification.** All 30 stable assets downloaded anonymously and
+match the producers' bytes and sizes; the DMG and app pass `spctl`,
+`stapler` and `codesign --deep --strict`; SignTool and Authenticode verify the
+downloaded MSI on the PC; the downloaded Ubuntu signatures verify. 0.5.0 is
+Latest, not a draft or prerelease; the tag peels to `84208973a`; 0.4.2 is no
+longer Latest.
