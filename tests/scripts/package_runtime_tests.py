@@ -210,22 +210,20 @@ $tables | ConvertTo-Json -Depth 10 -Compress
             self.assertTrue(item["url"].startswith("https://"))
             self.assertRegex(item.get("sha256", item.get("sha3_256")), r"^[0-9a-f]{64}$")
         self.assertNotIn("LibArchive", {item["name"] for item in runtime.components({"platform": "Windows"})})
-        for system, expected_count in (("Darwin", 31), ("Windows", 30), ("Linux", 34)):
+        for system, expected_count in (("Darwin", 29), ("Windows", 28), ("Linux", 32)):
             with self.subTest(system=system):
                 self.assertEqual(len(runtime.source_entries(runtime.components({"platform": system}))), expected_count)
 
-    def test_quill_backport_build_inputs_ship_with_sources_on_every_platform(self):
-        backport = "cmake/BprQuillProvider.cmake"
-        provenance = "third_party/quill/PROVENANCE.md"
-        expected = {
-            "Quill-13.0.0.tar.gz": ("sha256", "88b4a1542125577a4d51cf444c51e34d63618c422ba6a4fa9bd23894b49d696b"),
-            f"Quill-13.0.0-build/{backport}": ("sha256", runtime.digest(ROOT / backport)),
-            f"Quill-13.0.0-build/{provenance}": ("sha256", runtime.digest(ROOT / provenance)),
-        }
+    def test_quill_upstream_source_and_notices_ship_on_every_platform(self):
+        digest = "a08b93bafc7e712b28eb47e4a1ed9b60fc01ac7fad3ce269f1f100560a506a85"
+        expected = {"Quill-13.1.0.tar.gz": ("sha256", digest)}
         for system in ("Darwin", "Windows", "Linux"):
             with self.subTest(system=system):
-                entries = runtime.source_entries(runtime.components({"platform": system}))
-                self.assertEqual({name: digest for name, digest in entries.items() if name.startswith("Quill-")}, expected)
+                info = {"platform": system}
+                entries = runtime.source_entries(runtime.components(info))
+                self.assertEqual({name: identity for name, identity in entries.items() if name.startswith("Quill-")}, expected)
+                notices = {name for name in runtime.notice_files(info) if name.startswith("quill/")}
+                self.assertEqual(notices, {"quill/LICENSE", "quill/FMT-LICENSE"})
 
     def test_mimalloc_source_and_notice_match_provider(self):
         import hashlib
