@@ -34,7 +34,7 @@ additional acceptance for each changed release. The automation-off variant
 excludes `bpr` and must not promise the `pr-tour` workflow.
 
 Every distribution graph uses Release, `BUILD_TESTING=OFF`,
-`BPR_DISTRIBUTION_BUILD=ON`, pinned Qt 6.12.0 and the audited dependencies.
+`BPR_DISTRIBUTION_BUILD=ON`, pinned Qt 6.12.1 and the audited dependencies.
 Build from committed, clean source.
 
 - `app-release` is a development build, not a distribution build.
@@ -327,7 +327,7 @@ native MSI still needs production and qualification.
 
 ## Linux ICU runtime
 
-Linux Qt 6.12.0 needs ICU 73.2's data, uc and i18n companions. Packaging admits
+Linux Qt 6.12.1 needs ICU 73.2's data, uc and i18n companions. Packaging admits
 only that exact trio from the selected Qt provider, with the official Qt archive
 and raw file hashes pinned in `packaging/dependencies.json`.
 

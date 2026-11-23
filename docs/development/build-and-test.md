@@ -35,8 +35,8 @@ Install these before configuring:
   [Shared compiler cache](#shared-compiler-cache)
 
 **Qt.** You do not need to install Qt yourself. Configure acquires a pinned
-Qt 6.12.0 into the shared dependency cache. To use a Qt you already have, pass
-`-DBPR_QT_ROOT=<prefix>` (an official 6.12.0 prefix with QtSvg and the
+Qt 6.12.1 into the shared dependency cache. To use a Qt you already have, pass
+`-DBPR_QT_ROOT=<prefix>` (an official 6.12.1 prefix with QtSvg and the
 qtimageformats add-on, which also works offline),
 or pass `-DBPR_QT_PROVIDER=OFF` to require a caller-installed Qt 6.8 or newer
 including CoreTools (`rcc`). On Windows, Qt acquisition needs Git on `PATH`.
@@ -598,7 +598,7 @@ cmake --preset dev -DBPR_DEPENDENCY_OFFLINE=ON
 ```
 
 A missing CPM script, archive or changed source is then fatal before any
-download is attempted. For Qt offline, supply an official 6.12.0 prefix through
+download is attempted. For Qt offline, supply an official 6.12.1 prefix through
 `BPR_QT_ROOT`. Details: [Dependency boundary](build-and-test-reference.md#dependency-boundary).
 
 **A course prints `AGENT_WORKSPACE_RECOVERY_REFUSED:…:repair-required`.** The
