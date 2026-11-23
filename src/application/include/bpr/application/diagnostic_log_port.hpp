@@ -90,11 +90,13 @@ namespace bpr::application {
 													 /// [[BPR-2325]]. A finding card's kept state, cleared.
 													 finding_card,
 													 /// [[BPR-2324]]. A window's document tabs brought back.
-													 workbench_tabs };
+													 workbench_tabs,
+													 /// [[BPR-2365]]. One terminal Codex model catalog record.
+													 agent_catalog };
 	/// \brief The logged `op` name of each diagnostic operation, in order.
 	/// \details The logger writes and the export classifier admits exactly
 	/// these, so the two never disagree about the vocabulary ([[BPR-1828]]).
-	inline constexpr std::array<std::string_view, 26> diagnostic_operation_names{
+	inline constexpr std::array<std::string_view, 27> diagnostic_operation_names{
 		"application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment",
 		"github.review_submission", "github.discovery", "agent.run", "agent.setup_check", "agent.workspace", "github.review_mutation",
 		"github.sign_in", "credential.vault", "updater.release",
@@ -107,7 +109,8 @@ namespace bpr::application {
 		// [[BPR-2325]].
 		"agent.finding_card",
 		// [[BPR-2324]].
-		"workbench.tabs"
+		"workbench.tabs",
+		"agent.catalog"
 	};
 	/// \brief [[BPR-1828]]. A record's category: the operation name before its
 	/// first dot (`application`, `epoch`, `github`, `agent`, and since

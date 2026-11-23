@@ -3975,8 +3975,10 @@ function(bpr_verify_app_source_tree app_source_root)
 	# epoch authority. Review is recorded on BPR-2317.
 	# [[BPR-2343]]. Recheck accepted tour material after its read queue
 	# drains. This uses the existing retry budget and exact epoch grants.
+	# [[BPR-2365]]. Agent settings project early Codex catalogs; fixture
+	# composition gives their probes the existing fixture program admission.
 	set(bpr_expected_production_app_manifest_digest
-        "c445bcdc5b728d537edf3b8c8d57a9ffcc4dc5602629a0b3c300cab7a3342f1d"
+        "843b69a261497be5debf5b4ac25a893a591a22b3816bde0899bad51524bdd6be"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

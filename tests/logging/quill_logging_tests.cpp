@@ -789,6 +789,21 @@ try {
 				prose.Summary.Size = static_cast<std::uint16_t>(note.size());
 				expect(log.record(prose) == status::dropped, "an agent run line whose detail is not a diagnosis is dropped");
 			}
+			{
+				constexpr auto catalogText = std::string_view{ "protocol=codex_app_server outcome=protocol_failure failure=malformed_frame exit=none duration_ms=4900 models=0" };
+				auto           catalog     = application::diagnostic_event{ .Operation = application::diagnostic_operation::agent_catalog, .Outcome = application::diagnostic_outcome::failed };
+				std::ranges::copy(catalogText, catalog.Summary.Text.begin());
+				catalog.Summary.Size  = static_cast<std::uint16_t>(catalogText.size());
+				catalog.Summary.State = application::diagnostic_summary_state::sanitized;
+				expect(log.record(catalog) == status::available, "the exact Codex catalog diagnosis reaches the log");
+				catalog.Outcome = application::diagnostic_outcome::succeeded;
+				expect(log.record(catalog) == status::dropped, "a catalog diagnosis with the wrong event outcome is rejected");
+				catalog.Outcome       = application::diagnostic_outcome::failed;
+				constexpr auto suffix = std::string_view{ " model=PRIVATE_MODEL" };
+				std::ranges::copy(suffix, catalog.Summary.Text.begin() + catalog.Summary.Size);
+				catalog.Summary.Size += static_cast<std::uint16_t>(suffix.size());
+				expect(log.record(catalog) == status::dropped, "a catalog diagnosis carrying a model name is rejected");
+			}
 			for (const auto operation : { application::diagnostic_paged_operation::list_requested_reviewers, application::diagnostic_paged_operation::list_home_pull_requests, application::diagnostic_paged_operation::list_home_review_membership, application::diagnostic_paged_operation::list_review_requests }) {
 				auto observed           = event;
 				observed.PagedOperation = operation;

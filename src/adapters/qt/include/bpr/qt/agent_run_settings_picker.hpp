@@ -19,6 +19,12 @@ class QMessageBox;
 namespace bpr::qt {
 	class agent_launch_panel;
 
+	/// \brief What the Model menu knows about the agent's catalog.
+	enum class agent_model_listing : std::uint8_t { not_offered,
+													asking,
+													failed,
+													ready };
+
 	/// \brief [[BPR-1753]], owner look v002 ("I really have no clue
 	/// what my agent will be actually doing"). What one agent runs with, for
 	/// the agent picker's model and effort.
@@ -39,8 +45,8 @@ namespace bpr::qt {
 		std::vector<std::string>                     Efforts;
 		/// Why the settings cannot be chosen, when they cannot.
 		QString Note;
-		/// Owner look v006. The harness is being asked for its models.
-		bool Listing = false;
+		/// [[BPR-2365]]. Codex has no model names before the harness replies.
+		agent_model_listing Listing = agent_model_listing::not_offered;
 		/// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended 2026-11-11
 		/// (owner look e97c6a3d). Two toggles for this pull request under the
 		/// model and effort, each explained in its tooltip; none shown when
@@ -114,7 +120,7 @@ namespace bpr::qt {
 		std::function<bool(std::uint64_t)> Choose;
 		/// Model or effort changed in a picker's menu.
 		agent_run_settings_dispatch Dispatch;
-		/// The menu opened: ask the harness what it offers.
+		/// Ask the harness what it offers. The host bounds repeat requests.
 		std::function<void(std::uint64_t)> Catalog;
 		/// Agent settings…
 		std::function<void()> Setup;

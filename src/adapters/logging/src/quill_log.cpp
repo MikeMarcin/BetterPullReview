@@ -660,6 +660,14 @@ namespace bpr::adapters::logging {
 				State->drop();
 				return status_type::dropped;
 			}
+			if (aEvent.Operation == application::diagnostic_operation::agent_catalog
+				&& (aEvent.ReviewSubmission || aEvent.ReviewEnding || aEvent.GithubFailure.index() != 0U || aEvent.EpochFailure.index() != 0U
+					|| aEvent.Summary.State != application::diagnostic_summary_state::sanitized
+					|| application::agent_catalog_outcome(aEvent.Summary.text()) != std::optional{ aEvent.Outcome })) {
+				State->drop();
+				return status_type::dropped;
+			}
+
 			// [[BPR-1828]]. Agent setup, agent workspace and review mutation
 			// lines are exactly an operation diagnosis: enums, counts, a
 			// duration and an exit code, never a path, body or identity.

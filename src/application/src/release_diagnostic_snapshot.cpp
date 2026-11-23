@@ -367,6 +367,14 @@ namespace bpr::application {
 			return conflicting != std::string_view::npos && member(aDetail.substr(0U, conflicting), origins)
 				&& (aDetail.substr(conflicting + 1U) == "ascii_case_only" || aDetail.substr(conflicting + 1U) == "different");
 		}
+		auto catalog_detail_matches(const std::string_view aDetail, const std::string_view aOutcome) -> bool
+		{
+			const auto outcome = agent_catalog_outcome(aDetail);
+			return (outcome == diagnostic_outcome::succeeded && aOutcome == "succeeded")
+				|| (outcome == diagnostic_outcome::failed && aOutcome == "failed")
+				|| (outcome == diagnostic_outcome::cancelled && aOutcome == "cancelled");
+		}
+
 		auto safe_detail(std::string_view aDetail) -> bool
 		{
 			if (aDetail.starts_with("actor_conflict=")) {
@@ -493,8 +501,9 @@ namespace bpr::application {
 				numeric("http_status", aValues[12]);
 				text("summary", aValues[13]);
 				numeric("dropped", aValues[14]);
-				const bool safe   = (aValues[15].empty() || aValues[13] == "sanitized") && safe_detail(aValues[15]);
-				auto       detail = safe ? std::string{ aValues[15] } : std::string{ "[omitted:unclassified-content]" };
+				const bool safe = (aValues[15].empty() || aValues[13] == "sanitized")
+					&& (aValues[9] == "agent.catalog" ? catalog_detail_matches(aValues[15], aValues[10]) : safe_detail(aValues[15]));
+				auto detail = safe ? std::string{ aValues[15] } : std::string{ "[omitted:unclassified-content]" };
 				if (safe && !identifying) {
 					if (auto diagnosis = core::parse_operation_diagnosis(aValues[15]); diagnosis && diagnosis->Tour && diagnosis->Tour->Attempt != "none") {
 						const auto identity      = Namespace + ":tour:" + diagnosis->Tour->Attempt;

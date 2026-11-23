@@ -1290,11 +1290,10 @@ namespace bpr::qt {
 		EmptyIntro->setVisible(Turns.empty() && (State == agent_tab_state::idle || State == agent_tab_state::stopped) && !ReadyCard->isVisible());
 		ClearSession->setVisible(true);
 		ClearSession->setEnabled(!NativeHistoryView.Loading && State != agent_tab_state::working);
-		// Owner look v006: the agent shown is asked what it offers, so its
-		// models are there when its menu opens.
+		// Claude's effort list is fetched when the tab can show it.
 		if (isVisible() && CatalogDispatch && State != agent_tab_state::setting_up && State != agent_tab_state::not_set_up) {
-			if (const auto profile = Launch.selected_profile()) {
-				CatalogDispatch(profile->value());
+			if (const auto* const settings = RunSettingsSource->current(); settings != nullptr && settings->Listing == agent_model_listing::not_offered) {
+				CatalogDispatch(settings->Profile);
 			}
 		}
 		refresh_suggestions();

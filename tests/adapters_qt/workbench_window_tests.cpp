@@ -16618,38 +16618,18 @@ namespace {
 				expect(agent->run_settings_text() == QStringLiteral("Claude Code · Sonnet 5.5"), "the chip names the chosen model with its version");
 				agent->present_run_settings({ settings });
 			}
-			// Owner look v006: the menu ends with Agent settings…; a harness
-			// being asked says so in Model; opening the menu asks the harness.
+			// Owner look v006: the menu ends with Agent settings….
 			{
 				auto settingsOpened = 0;
-				auto catalogAsks    = std::vector<std::uint64_t>{ };
 				agent->set_setup_dispatch([&settingsOpened] { ++settingsOpened; });
-				agent->set_catalog_dispatch([&catalogAsks](const std::uint64_t aProfile) { catalogAsks.push_back(aProfile); });
-				auto listing    = settings;
-				listing.Listing = true;
-				agent->present_run_settings({ listing });
-				auto* const menu  = agent->run_settings_button()->menu();
-				const auto  items = menu->actions();
+				const auto items = agent->run_settings_button()->menu()->actions();
 				expect(!items.isEmpty() && items.back()->objectName() == QStringLiteral("agentRunSettingsOpenSettings") && items.back()->text() == QStringLiteral("Agent settings…"),
 					   "the agent menu ends with Agent settings…");
 				items.back()->trigger();
 				expect(settingsOpened == 1, "which opens Settings › Agents");
-				const auto* const models = [&items]() -> QMenu* {
-					for (auto* const item : items) {
-						if (item->menu() != nullptr && item->menu()->objectName() == QStringLiteral("agentRunSettingsModels")) {
-							return item->menu();
-						}
-					}
-					return nullptr;
-				}();
-				expect(models != nullptr && std::ranges::any_of(models->actions(), [](const QAction* aAction) { return aAction->text().startsWith(QStringLiteral("Asking Codex for its models")) && !aAction->isEnabled(); }),
-					   "while the harness is asked, Model says so");
-				emit menu->aboutToShow();
-				expect(!catalogAsks.empty() && catalogAsks.back() == settings.Profile, "opening the menu asks the agent's harness what it offers");
-				agent->set_catalog_dispatch({ });
 				agent->set_setup_dispatch({ });
-				agent->present_run_settings({ settings });
 			}
+
 			// Owner amendment 2026-10-23: every added agent is in the chip's
 			// menu, and choosing one switches to it.
 			{

@@ -103,6 +103,14 @@ namespace bpr::application {
 	/// \brief Reads exactly what `describe` writes, and nothing else.
 	[[nodiscard]] auto parse_agent_run_diagnosis(std::string_view aText) -> std::optional<agent_run_diagnosis>;
 	/// \brief The diagnostic outcome an ended run is recorded under.
+	/// \brief [[BPR-2365]]. Accepts only a fixed catalog diagnostic line and
+	/// returns its event outcome. No program, output or model names are admitted.
+	[[nodiscard]] auto agent_catalog_outcome(std::string_view aText) -> std::optional<diagnostic_outcome>;
+
+	/// \brief Records the terminal facts of one Codex model catalog run.
+	void record_agent_catalog(diagnostic_log_port* aLog, core::agent_protocol aProtocol, const agent_run_result& aResult,
+							  std::uint32_t aDurationMilliseconds, std::size_t aModelCount) noexcept;
+
 	[[nodiscard]] auto diagnostic_outcome_of(agent_run_outcome aOutcome) noexcept -> diagnostic_outcome;
 
 	/// \brief [[BPR-1827]]. Records every run it forwards as an
