@@ -59,8 +59,9 @@ namespace {
 		std::vector<application::epoch_force_push_observation> ForcePushes;
 		application::epoch_timeline_availability               Availability
 			= application::epoch_timeline_availability::unavailable;
-		std::size_t                                             AcceptCount      = 0U;
-		std::size_t                                             PrepareCount     = 0U;
+		std::size_t                                             AcceptCount  = 0U;
+		std::size_t                                             PrepareCount = 0U;
+		core::request_generation                                PullRequestGeneration;
 		bool                                                    ThrowPreparation = false;
 		std::optional<application::accepted_pull_request_shape> Shape;
 		core::git_commit_oid                                    Base;
@@ -75,11 +76,12 @@ namespace {
 		}
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
-			Base         = aHandoff.Base;
-			Basis        = aHandoff.BaseBasis;
-			Shape        = aHandoff.Shape;
-			ForcePushes  = std::move(aHandoff.ForcePushes);
-			Availability = aHandoff.TimelineAvailability;
+			Base                  = aHandoff.Base;
+			Basis                 = aHandoff.BaseBasis;
+			Shape                 = aHandoff.Shape;
+			ForcePushes           = std::move(aHandoff.ForcePushes);
+			Availability          = aHandoff.TimelineAvailability;
+			PullRequestGeneration = aHandoff.PullRequestGeneration;
 			++AcceptCount;
 		}
 		std::vector<application::pull_request_authority_invalidation> Invalidations;
@@ -1114,6 +1116,58 @@ namespace {
 		}
 	}
 
+	void test_initial_epoch_handoff_yields_to_the_window()
+	{
+		reads                                provider;
+		application::manual_executor         lane;
+		epoch_handoffs                       epochs;
+		auto                                 publications = 0U;
+		application::github_window_read_host host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 7 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 2 },
+			provider,
+			lane,
+			[&](const auto& aUpdate) { if (aUpdate.Presentation.PullRequest) { ++publications; } },
+			&epochs,
+		};
+		expect(host.adopt(session()), "initial epoch course adopts an account");
+		const auto open = [&] {
+			host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
+			const auto call = provider.Calls.back();
+			call.Complete(application::github_pull_request_success{ call.Request, snapshot(call.Request) });
+			lane.run_next();
+			expect(host.accepted_snapshot() && !host.state().PendingPullRequest && !host.is_quiescent() && lane.pending() == 1U,
+				   "the installed metadata is published while the first epoch still awaits its own turn");
+			return call.Request.Context.Generation;
+		};
+		const auto generation = open();
+		expect(publications == 1U && epochs.AcceptCount == 0U, "the first publication yields to input before epoch composition");
+		host.dispatch(core::refresh_pull_request_intent{ });
+		expect(host.state().PendingPullRequest.has_value(), "a refresh can start during the gap");
+		lane.run_next();
+		expect(epochs.AcceptCount == 1U && epochs.PullRequestGeneration == generation && !host.is_quiescent(),
+			   "a pending refresh keeps the already accepted generation and its authority");
+		auto refresh  = provider.Calls.back();
+		auto next     = snapshot(refresh.Request);
+		next.Snapshot = core::provider_snapshot_id{ 92U };
+		refresh.Complete(application::github_pull_request_success{ refresh.Request, next });
+		lane.run_next();
+		expect(epochs.AcceptCount == 2U && epochs.PullRequestGeneration == refresh.Request.Context.Generation && host.is_quiescent(),
+			   "an accepted refresh of an active epoch still composes in the completion turn");
+		static_cast<void>(open());
+		const auto invalidations = epochs.Invalidations.size();
+		host.dispatch(core::close_pull_request_intent{ });
+		lane.run_next();
+		expect(!host.accepted_snapshot() && epochs.AcceptCount == 2U
+				   && epochs.Invalidations.size() == invalidations + 1U && host.is_quiescent(),
+			   "a close during the gap retires the published scope and queued handoff");
+		static_cast<void>(open());
+		host.shutdown();
+		lane.drain();
+		expect(epochs.AcceptCount == 2U && host.is_quiescent(),
+			   "a queued handoff cannot reach the epoch after window teardown");
+	}
+
 	void test_timeline_evidence_reaches_epoch_handoff_without_blocking_live_read()
 	{
 		reads                                provider;
@@ -1914,6 +1968,7 @@ namespace {
 int main()
 {
 	test_runtime_preparation_does_not_accept_or_refuse_the_read();
+	test_initial_epoch_handoff_yields_to_the_window();
 	test_merge_observation_freshness();
 	test_durable_overview_lifecycle();
 	test_markdown_link_admission();

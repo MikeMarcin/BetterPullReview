@@ -1366,7 +1366,9 @@ DefectThreadNames.reset();
 				publish_review_conversations(aUpdate.Presentation);
 				// [[BPR-2191]]. The read ended with no review: nothing waits for a
 				// file it reported.
-				if (aUpdate.Presentation.ProvisionalFiles && aUpdate.Presentation.ProvisionalFiles->empty() && WorkbenchHost != nullptr) {
+				if (WorkbenchHost != nullptr
+					&& ((aUpdate.Presentation.ProvisionalFiles && aUpdate.Presentation.ProvisionalFiles->empty())
+						|| (aUpdate.Transition.PullRequest && !aUpdate.Transition.PullRequest->Summary))) {
 					WorkbenchHost->cancel_pending_open();
 				}
 				// [[BPR-1357]]. In the same turn as the transition, so the row or
@@ -1391,10 +1393,19 @@ DefectThreadNames.reset();
 			if (weak.expired() || Closing || !Profile->current_window(DraftWindow) || WorkbenchHost == nullptr) {
 				return;
 			}
-			const auto& read   = WindowRead->state().PendingPullRequest;
-			const auto  review = read.has_value() ? std::optional{ workbench_review(*read) }
-				: LastAcceptedHandoff             ? std::optional{ workbench_review(*LastAcceptedHandoff) }
-												  : std::nullopt;
+			const auto& read     = WindowRead->state().PendingPullRequest;
+			const auto& accepted = WindowRead->accepted_snapshot();
+			auto        review   = std::optional<application::workbench_review_key>{ };
+			if (read) {
+				review = workbench_review(*read);
+			} else if (accepted) {
+				review = application::workbench_review_key{
+					.Host       = accepted->Host,
+					.Account    = accepted->Account,
+					.Repository = { accepted->Repository.Owner, accepted->Repository.Name },
+					.Number     = accepted->PullRequest.Number,
+				};
+			}
 			if (review.has_value()) {
 				WorkbenchHost->open_when_listed(application::workbench_pending_open{ .Review = *review, .Path = aPath.toStdString() });
 			}

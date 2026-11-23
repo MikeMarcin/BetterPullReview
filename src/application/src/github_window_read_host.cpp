@@ -707,6 +707,7 @@ namespace bpr::application {
 
 		void install_snapshot(github_pull_request_snapshot aSnapshot)
 		{
+			PendingInitialEpoch.reset();
 			PreparedPreflight.reset();
 			if (AcceptedSnapshot && AcceptedSnapshot->Profile == aSnapshot.Profile && AcceptedSnapshot->Host == aSnapshot.Host && AcceptedSnapshot->Account == aSnapshot.Account && AcceptedSnapshot->Mode == aSnapshot.Mode && AcceptedSnapshot->Repository.Repository == aSnapshot.Repository.Repository && AcceptedSnapshot->PullRequest.PullRequest == aSnapshot.PullRequest.PullRequest && AcceptedSnapshot->PullRequest.HeadOid == aSnapshot.PullRequest.HeadOid && AcceptedSnapshot->PullRequest.BaseOid == aSnapshot.PullRequest.BaseOid && AcceptedSnapshot->PullRequest.BaseRef == aSnapshot.PullRequest.BaseRef) {
 				const auto& previous = *AcceptedSnapshot;
@@ -776,18 +777,56 @@ namespace bpr::application {
 
 		void invalidate_epoch_authority() noexcept
 		{
-			if (ActiveEpochSmartAuthority) {
-				ActiveEpochSmartAuthority->revoke();
+			auto pending   = std::exchange(PendingInitialEpoch, { });
+			auto smart     = std::exchange(ActiveEpochSmartAuthority, { });
+			auto authority = std::exchange(ActiveEpochAuthority, std::nullopt);
+			// The overview may already have adopted the pending review.
+			// Retire its scope even if Git never received the handoff.
+			if (!authority && pending) {
+				authority = invalidation_for(*pending);
 			}
-			if (Epochs && ActiveEpochAuthority) {
+			if (smart) {
+				smart->revoke();
+			}
+			if (Epochs && authority) {
 				try {
-					Epochs->invalidate(*ActiveEpochAuthority);
+					Epochs->invalidate(*authority);
 				} catch (...) {
 					EpochHandoffDeliveryFailed = true;
 				}
 			}
-			ActiveEpochSmartAuthority.reset();
-			ActiveEpochAuthority.reset();
+		}
+
+		void accept_epoch_handoff(accepted_pull_request_handoff aHandoff) noexcept
+		{
+			try {
+				const auto authority = invalidation_for(aHandoff);
+				if (ActiveEpochAuthority && *ActiveEpochAuthority != authority) {
+					invalidate_epoch_authority();
+				}
+				if (Closing || !AcceptedSnapshot || AcceptedSnapshot->Snapshot != aHandoff.Snapshot
+					|| State.IdentityGeneration != aHandoff.IdentityGeneration) {
+					return;
+				}
+				auto* lease               = dynamic_cast<bound_git_smart_authority*>(aHandoff.SmartGit.get());
+				ActiveEpochAuthority      = authority;
+				ActiveEpochSmartAuthority = lease ? lease->state() : nullptr;
+				// Install the authority before calling out. A synchronous close
+				// or replacement can then revoke the lease before it comes back.
+				Epochs->accept(std::move(aHandoff));
+			} catch (...) {
+				invalidate_epoch_authority();
+				EpochHandoffDeliveryFailed = true;
+			}
+		}
+
+		void complete_initial_epoch_handoff(const std::shared_ptr<accepted_pull_request_handoff>& aExpected) noexcept
+		{
+			if (!PendingInitialEpoch || PendingInitialEpoch != aExpected) {
+				return;
+			}
+			auto handoff = std::exchange(PendingInitialEpoch, { });
+			accept_epoch_handoff(std::move(*handoff));
 		}
 
 		void deliver_epoch_handoff(
@@ -813,18 +852,28 @@ namespace bpr::application {
 					EpochHandoffDeliveryFailed = true;
 					return;
 				}
-				const auto authority = invalidation_for(*handoff);
-				if (ActiveEpochAuthority && *ActiveEpochAuthority != authority) {
-					invalidate_epoch_authority();
+				if (ActiveEpochAuthority) {
+					accept_epoch_handoff(std::move(*handoff));
+					return;
 				}
-				auto smartState = std::shared_ptr<smart_authority_state>{ };
-				if (auto* lease = dynamic_cast<bound_git_smart_authority*>(
-						handoff->SmartGit.get())) {
-					smartState = lease->state();
+				// [[BPR-2317]]. Render the admitted overview and give input a
+				// turn before the first Git and workbench composition. A
+				// pending same-review refresh keeps this installed handoff;
+				// closing or installing another snapshot retires the job.
+				auto pending        = std::make_shared<accepted_pull_request_handoff>(std::move(*handoff));
+				PendingInitialEpoch = pending;
+				++Outstanding;
+				try {
+					DecisionLane.post([weak = weak_from_this(), pending] {
+						if (auto host = weak.lock()) {
+							--host->Outstanding;
+							host->complete_initial_epoch_handoff(pending);
+						}
+					});
+				} catch (...) {
+					--Outstanding;
+					complete_initial_epoch_handoff(pending);
 				}
-				Epochs->accept(std::move(*handoff));
-				ActiveEpochAuthority      = authority;
-				ActiveEpochSmartAuthority = std::move(smartState);
 			} catch (...) {
 				EpochHandoffDeliveryFailed = true;
 			}
@@ -2137,6 +2186,7 @@ namespace bpr::application {
 		github_rate_limit_state                             RateLimits;
 		std::optional<github_provider_error>                LastError;
 		std::optional<github_public_preview_refusal>        PublicPreviewRefusal;
+		std::shared_ptr<accepted_pull_request_handoff>      PendingInitialEpoch;
 		std::optional<pull_request_authority_invalidation>  ActiveEpochAuthority;
 		std::shared_ptr<smart_authority_state>              ActiveEpochSmartAuthority;
 		github_window_read_host::access_loss_observer       AccessLoss;
@@ -2272,6 +2322,15 @@ namespace bpr::application {
 				continue;
 			}
 			auto& target = *window->Implementation;
+			if (!target.Closing && target.Session && *target.Session == session && target.PendingInitialEpoch) {
+				// A sibling's adoption shares metadata only. Deliver the
+				// target's own first observation before replacing its snapshot,
+				// as would happen if its queued composition ran first.
+				auto candidate = target.Policy;
+				if (candidate.share_snapshot(policy, aSequence)) {
+					target.complete_initial_epoch_handoff(target.PendingInitialEpoch);
+				}
+			}
 			if (target.Closing || !target.Session || *target.Session != session
 				|| !target.Policy.share_snapshot(policy, aSequence)) {
 				continue;

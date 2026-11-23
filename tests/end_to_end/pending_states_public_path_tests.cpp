@@ -427,6 +427,43 @@ try {
 		delay->PageMilliseconds = 0U;
 	}
 
+	// [[BPR-2317]]. Once the accepted review is visible but its first
+	// epoch has not reached the workbench, a reported file still opens.
+	{
+		window->choose_modality(qt::review_modality::overview);
+		window->choose_home(true);
+		pause(100);
+		delay->PageMilliseconds = 350U;
+		double_click(row_of(*window, second));
+		auto* const overview = window->overview_page();
+		auto        clock    = QElapsedTimer{ };
+		clock.start();
+		while (clock.elapsed() < 60'000) {
+			const auto before = window->statistics().EpochUpdates;
+			QApplication::processEvents();
+			if (overview->projection() && overview->projection()->Number.value() == 18U) {
+				expect(window->statistics().EpochUpdates == before,
+					   "the accepted metadata reaches the window before the first epoch turn");
+				break;
+			}
+			QThread::msleep(1);
+		}
+		expect(overview->projection() && overview->projection()->Number.value() == 18U, "the new review's accepted metadata is visible");
+		window->choose_modality(qt::review_modality::review);
+		auto* const drawer = window->files_drawer();
+		const auto  index  = drawer->contents()->index(0, 0);
+		expect(index.isValid(), "the reported file remains selectable between admission and the first epoch");
+		const auto path         = index.data().toString();
+		const auto openedBefore = window->statistics().PendingOpensOpened;
+		drawer->contents_view()->setCurrentIndex(index);
+		auto* const comparison = window->comparison_surface();
+		expect(comparison->held_waiting() == path, "the accepted read owns the file chosen before epoch composition");
+		expect(shows_file_without_gap(*comparison, "the accepted review's file keeps its loading view until it arrives")
+				   && window->statistics().PendingOpensOpened == openedBefore + 1U,
+			   "the first epoch opens the file selected between its turns");
+		delay->PageMilliseconds = 0U;
+	}
+
 	static_cast<void>(QAccessible::installUpdateHandler(previous));
 	Announcements = nullptr;
 	owner->begin_shutdown();

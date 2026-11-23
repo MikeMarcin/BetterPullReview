@@ -2060,6 +2060,9 @@ namespace {
 		expect(epochs.Accepted.empty(),
 			   "provider completion cannot reach epoch ingestion off lane");
 		fixture.Lane.run_next();
+		expect(fixture.Host.accepted_snapshot() && epochs.Accepted.empty(),
+			   "the initial overview is accepted before the epoch turn");
+		fixture.Lane.run_next();
 		expect(epochs.Accepted.size() == 1U && epochs.Invalidated.empty(),
 			   "only the core-accepted snapshot reaches epoch ingestion");
 
