@@ -420,7 +420,8 @@ $tables | ConvertTo-Json -Depth 10 -Compress
         item = next(v for v in components if v["name"] == "ICU")
         self.assertEqual(item["version"], "73.2")
         self.assertEqual(item["sha256"], "818a80712ed3caacd9b652305e01afc7fa167e6f2e94996da44b90c2ab604ce1")
-        self.assertEqual(item["qtRuntime"]["qtVersion"], "6.12.0")
+        qt_version = next(v["version"] for v in components if v["name"] == "QtBase")
+        self.assertEqual(item["qtRuntime"]["qtVersion"], qt_version)
         self.assertEqual(set(item["qtRuntime"]["files"]), {"libicudata.so.73", "libicuuc.so.73", "libicui18n.so.73"})
         self.assertEqual({entry["path"] for entry in item["buildInputs"]},
                          {"packaging/linux_icu.py", "third_party/icu/rebuild/README.md", "LICENSE"})
@@ -455,7 +456,7 @@ $tables | ConvertTo-Json -Depth 10 -Compress
             item["qtRuntime"]["files"][name]["sha256"] = runtime.digest(producer)
             observed = qt / "lib" / name
             observed.symlink_to(producer.name)
-            info = {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.12.0"}
+            info = {"platform": "Linux", "qt_root": str(qt), "qt_version": item["qtRuntime"]["qtVersion"]}
             with patch.object(runtime, "components", return_value=[item]):
                 self.assertEqual(runtime.linux_qt_companion(info, name, observed)[0], producer.resolve())
                 outside = Path(directory) / name
@@ -466,7 +467,7 @@ $tables | ConvertTo-Json -Depth 10 -Compress
                     with self.subTest(name=bad), self.assertRaisesRegex(ValueError, "undeclared"):
                         runtime.linux_qt_companion(info, bad, observed)
                 with self.assertRaisesRegex(ValueError, "undeclared"):
-                    runtime.linux_qt_companion({**info, "qt_version": "6.12.1"}, name, observed)
+                    runtime.linux_qt_companion({**info, "qt_version": "6.12.0"}, name, observed)
                 with self.assertRaisesRegex(ValueError, "require Linux"):
                     runtime.linux_qt_companion({**info, "platform": "Windows"}, name, observed)
                 producer.write_bytes(producer.read_bytes() + b"corrupt")
@@ -490,7 +491,7 @@ $tables | ConvertTo-Json -Depth 10 -Compress
                 entry["sha256"] = runtime.digest(producer)
                 (qt / "lib" / name).symlink_to(producer.name)
                 (stage / name).write_bytes(producer.read_bytes() + b" relocated ORIGIN")
-            info = {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.12.0"}
+            info = {"platform": "Linux", "qt_root": str(qt), "qt_version": item["qtRuntime"]["qtVersion"]}
             def relocate(*args):
                 self.assertEqual(args[:3], ("patchelf", "--set-rpath", "$ORIGIN"))
                 path = args[-1]
@@ -956,8 +957,9 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             (stage / "ThirdParty").mkdir()
             versions = "GLIBC_2.43 GLIBCXX_3.4.35"
             xdiff_source = xdiff
+            info = {"platform": "Linux", "qt_root": str(qt), "qt_version": icu["qtRuntime"]["qtVersion"]}
             with patch.object(runtime, "prepare_linux_icu", return_value=receipt), patch.object(runtime, "linux_icu_producers", return_value=(producers, receipt)), patch.object(runtime, "components", return_value=[icu]), patch.object(runtime, "linux_baseline", return_value={"glibcFloor": "2.43"}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
-                runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.12.0"}, stage)
+                runtime.deploy(build, info, stage)
             closure = json.loads((stage / "runtime-closure.json").read_text())
             self.assertIn("libQt6Core.so.6", closure["files"])
             self.assertIn("libbpr_xdiff.so", closure["files"])
@@ -967,12 +969,12 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                 # An xdiff resolved from outside the package is untrusted...
                 xdiff_source = build / "elsewhere/libbpr_xdiff.so"
                 with self.assertRaisesRegex(ValueError, "untrusted ELF dependency"):
-                    runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.12.0"}, stage)
+                    runtime.deploy(build, info, stage)
                 xdiff_source = xdiff
                 # ...and a package without it is refused before inspection.
                 xdiff.unlink()
                 with self.assertRaisesRegex(ValueError, "private shared library missing: libbpr_xdiff.so"):
-                    runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.12.0"}, stage)
+                    runtime.deploy(build, info, stage)
                 xdiff.write_bytes(b"\x7fELF")
             self.assertEqual(closure["baseline"], {"glibcFloor": "2.43", "requiredGLIBCXX": ["3.4.35"]})
             for ceiling, versions in (("2.43", "GLIBC_2.44"), ("2.39", "GLIBC_2.43")):
@@ -981,7 +983,7 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                     for name in ("qt.conf", "runtime-closure.json", "ThirdParty/icu-runtime-provenance.json"):
                         (stage / name).unlink(missing_ok=True)
                     with self.assertRaisesRegex(ValueError, f"glibc {ceiling} ceiling"):
-                        runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.12.0"}, stage)
+                        runtime.deploy(build, info, stage)
 
     def test_linux_sonames_bind_versioned_qt_producer_records(self):
         with ContainedTemporaryDirectory() as directory:
