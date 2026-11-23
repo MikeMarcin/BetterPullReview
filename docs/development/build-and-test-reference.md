@@ -212,8 +212,9 @@ supplied through `BPR_QT_ROOT`, including offline builds. The official macOS
 6.12.1 frameworks require macOS 14.4 or later for both architectures; the
 `macos-release` preset records 14.4. This future-build requirement does not
 change the published v0.3.0 package's macOS 13 minimum. See
-[Qt platform support](https://doc.qt.io/qt-6.12/supported-platforms.html) and
-[upgrade evidence](../verification/RFC-BPR-0088.md).
+[Qt platform support](https://doc.qt.io/qt-6.12/supported-platforms.html),
+[Qt 6.12.0 verification](../verification/RFC-BPR-0088.md), and [[BPR-2360]]
+for the 6.12.1 upgrade.
 
 KSyntaxHighlighting 6.28.1 is acquired the same way, with
 extra-cmake-modules 6.28.0 as a pinned transitive build input. Caller-installed
