@@ -5007,6 +5007,14 @@ set_tests_properties(application_pending_states_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_COURSE_LOG_ROOT=${CMAKE_CURRENT_BINARY_DIR}/course-logs" TIMEOUT 400
     PASS_REGULAR_EXPRESSION "pending-states-public-path:pass")
 
+# [[BPR-2317]]. The first accepted overview can take a file gesture before
+# its epoch is installed. Use a fresh fixture with no prior Git catalogue.
+bpr_add_network_isolated_test(NAME application_initial_epoch_file_path WINDOWS_UNCONTAINED
+    COMMAND test_pending_states_public_path --initial-epoch-click)
+set_tests_properties(application_initial_epoch_file_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_COURSE_LOG_ROOT=${CMAKE_CURRENT_BINARY_DIR}/course-logs" TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "pending-states-public-path:pass")
+
 # [[BPR-1842]]. Opening a pull request becomes usable as its parts arrive: the
 # title row and the Overview's file table before the accepted review, on a
 # fixture network that holds every read as long as gh takes for one.

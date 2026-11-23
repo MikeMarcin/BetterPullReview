@@ -232,6 +232,55 @@ try {
 	wait_for([&] { return homeVeil->look() == core::pending_look::ready; }, "and the list is ready");
 	delay->DiscoveryMilliseconds = 0U;
 
+	const auto finish_course = [&] {
+		static_cast<void>(QAccessible::installUpdateHandler(previous));
+		Announcements = nullptr;
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "the course drains");
+		desktop.reset();
+		expect(e2e::remove_course_root(temporary), "the course removes its private root");
+		std::cout << "pending-states-public-path:pass\n";
+		return EXIT_SUCCESS;
+	};
+
+	// [[BPR-2317]]. Start with a fresh Git catalogue and exercise the
+	// actual file gesture between the accepted overview and its epoch.
+	if (QApplication::arguments().contains(QStringLiteral("--initial-epoch-click"))) {
+		window->choose_modality(qt::review_modality::overview);
+		window->choose_home(true);
+		pause(100);
+		delay->PageMilliseconds = 350U;
+		double_click(row_of(*window, second));
+		auto* const overview = window->overview_page();
+		auto        clock    = QElapsedTimer{ };
+		clock.start();
+		while (clock.elapsed() < 60'000) {
+			const auto before = window->statistics().EpochUpdates;
+			QApplication::processEvents();
+			if (overview->projection() && overview->projection()->Number.value() == 18U) {
+				expect(window->statistics().EpochUpdates == before,
+					   "the accepted metadata reaches the window before the first epoch turn");
+				break;
+			}
+			QThread::msleep(1);
+		}
+		expect(overview->projection() && overview->projection()->Number.value() == 18U, "the new review's accepted metadata is visible");
+		window->choose_modality(qt::review_modality::review);
+		auto* const drawer = window->files_drawer();
+		const auto  index  = drawer->contents()->index(0, 0);
+		expect(index.isValid(), "the reported file remains selectable between admission and the first epoch");
+		const auto path         = index.data().toString();
+		const auto openedBefore = window->statistics().PendingOpensOpened;
+		drawer->contents_view()->setCurrentIndex(index);
+		auto* const comparison = window->comparison_surface();
+		expect(comparison->held_waiting() == path, "the accepted read owns the file chosen before epoch composition");
+		expect(shows_file_without_gap(*comparison, "the accepted review's file keeps its loading view until it arrives")
+				   && window->statistics().PendingOpensOpened == openedBefore + 1U,
+			   "the first epoch opens the file selected between its turns");
+		delay->PageMilliseconds = 0U;
+		return finish_course();
+	}
+
 	// ---- the Overview opening a pull request, section by section --------------
 	const auto opens = [&](const QString& aIdentity, const QString& aName, const bool aAssert) {
 		window->choose_home(true);
@@ -427,51 +476,7 @@ try {
 		delay->PageMilliseconds = 0U;
 	}
 
-	// [[BPR-2317]]. Once the accepted review is visible but its first
-	// epoch has not reached the workbench, a reported file still opens.
-	{
-		window->choose_modality(qt::review_modality::overview);
-		window->choose_home(true);
-		pause(100);
-		delay->PageMilliseconds = 350U;
-		double_click(row_of(*window, second));
-		auto* const overview = window->overview_page();
-		auto        clock    = QElapsedTimer{ };
-		clock.start();
-		while (clock.elapsed() < 60'000) {
-			const auto before = window->statistics().EpochUpdates;
-			QApplication::processEvents();
-			if (overview->projection() && overview->projection()->Number.value() == 18U) {
-				expect(window->statistics().EpochUpdates == before,
-					   "the accepted metadata reaches the window before the first epoch turn");
-				break;
-			}
-			QThread::msleep(1);
-		}
-		expect(overview->projection() && overview->projection()->Number.value() == 18U, "the new review's accepted metadata is visible");
-		window->choose_modality(qt::review_modality::review);
-		auto* const drawer = window->files_drawer();
-		const auto  index  = drawer->contents()->index(0, 0);
-		expect(index.isValid(), "the reported file remains selectable between admission and the first epoch");
-		const auto path         = index.data().toString();
-		const auto openedBefore = window->statistics().PendingOpensOpened;
-		drawer->contents_view()->setCurrentIndex(index);
-		auto* const comparison = window->comparison_surface();
-		expect(comparison->held_waiting() == path, "the accepted read owns the file chosen before epoch composition");
-		expect(shows_file_without_gap(*comparison, "the accepted review's file keeps its loading view until it arrives")
-				   && window->statistics().PendingOpensOpened == openedBefore + 1U,
-			   "the first epoch opens the file selected between its turns");
-		delay->PageMilliseconds = 0U;
-	}
-
-	static_cast<void>(QAccessible::installUpdateHandler(previous));
-	Announcements = nullptr;
-	owner->begin_shutdown();
-	wait_for([&] { return owner->status().ShutdownComplete; }, "the course drains");
-	desktop.reset();
-	expect(e2e::remove_course_root(temporary), "the course removes its private root");
-	std::cout << "pending-states-public-path:pass\n";
-	return EXIT_SUCCESS;
+	return finish_course();
 } catch (const std::exception& aError) {
 	std::cerr << "pending-states-public-path:fail " << aError.what() << '\n';
 	return EXIT_FAILURE;
