@@ -482,7 +482,7 @@ namespace bpr::qt {
 	{
 		auto rows = QStringList{ };
 		for (int index = 0; index < AttentionList->count(); ++index) {
-			if (auto* const row = AttentionList->itemAt(index)->widget(); row != nullptr && !row->isHidden()) {
+			if (auto* const row = AttentionList->itemAt(index)->widget(); row != nullptr && row != SuggestUpdateFromTarget && !row->isHidden()) {
 				rows.push_back(row->property("statusText").toString());
 			}
 		}
@@ -582,6 +582,7 @@ namespace bpr::qt {
 		const auto& shown  = *Projection;
 		auto* const header = Sections[static_cast<std::size_t>(overview_status_section::attention)].Header;
 		ConflictsRow       = nullptr;
+		AttentionList->removeWidget(SuggestUpdateFromTarget);
 		while (AttentionList->count() != 0) {
 			auto* const item = AttentionList->takeAt(0);
 			delete item->widget();
@@ -675,6 +676,10 @@ namespace bpr::qt {
 			row->setProperty("statusText", detail.isEmpty() ? title : title + QLatin1Char{ '\n' } + detail);
 			row->setAccessibleName(detail.isEmpty() ? title : title + QStringLiteral(": ") + detail);
 			AttentionList->addWidget(row);
+			if (row == ConflictsRow) {
+				AttentionList->addWidget(SuggestUpdateFromTarget, 0, Qt::AlignLeft);
+				QWidget::setTabOrder(ConflictsRow, SuggestUpdateFromTarget);
+			}
 		}
 	}
 

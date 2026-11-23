@@ -43,11 +43,13 @@
 
 #if defined(BPR_BUILD_TESTING)
 	#include "bpr/core/review_tour_markdown.hpp"
+	#include "bpr/qt/agent_feature.hpp"
 	#include "bpr/qt/agent_footer.hpp"
 	#include "bpr/qt/agent_report_view.hpp"
 	#include "bpr/qt/agent_setup_view.hpp"
 	#include "bpr/qt/agent_tab_view.hpp"
 	#include "bpr/qt/finding_queue_view.hpp"
+	#include "bpr/qt/overview_status_drawer.hpp"
 	#include "bpr/qt/side_chat_panel.hpp"
 	#include "bpr/qt/workshop_candidate_line.hpp"
 	#include "bpr/qt/writing_hooks_panel.hpp"
@@ -280,6 +282,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "changed-render-evidence", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-open-file", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-open-pull-request" },
+		bpr::app::command_line_option{ .Name = "attended-update-conflict" },
 		bpr::app::command_line_option{ .Name = "attended-open-on-github" },
 		bpr::app::command_line_option{ .Name = "attended-open-settings" },
 		bpr::app::command_line_option{ .Name = "attended-preflight-look", .TakesValue = true },
@@ -5673,6 +5676,28 @@ namespace {
 	void schedule_attended_repository_look(bpr::app::github_application& aApplication);
 	#endif
 
+	/// [[BPR-2361]]. The launcher's ready line waits for the actual cold Status
+	/// action, after the accepted provider assessment has reached the drawer.
+	[[nodiscard]] auto attended_update_conflict_ready(bpr::qt::workbench_window& aWindow) -> bool
+	{
+		auto* const page = aWindow.overview_page();
+		if (!aWindow.showing_overview() || page == nullptr || !page->projection() || !page->projection()->SuggestUpdateFromTarget) {
+			return false;
+		}
+		auto* const action = page->findChild<QPushButton*>(QStringLiteral("overviewSuggestUpdateFromTarget"));
+		if (action == nullptr) {
+			return false;
+		}
+		auto* const conflict  = page->conflicts_row();
+		const auto  statusTab = bpr::qt::overview_drawer_tab::status;
+		if (page->status_drawer()->current_tab() != statusTab || !action->isVisible()) {
+			aWindow.open_overview_tab(statusTab);
+			return false;
+		}
+		return conflict && conflict->isVisible() && action->isEnabled() && action->visibleRegion().contains(action->rect())
+			&& action->palette().color(QPalette::Active, QPalette::ButtonText) == bpr::qt::agent_accent(page->palette());
+	}
+
 	void schedule_attended_reveal(
 		bpr::app::github_application& aApplication,
 		std::string                   aPath,
@@ -5724,6 +5749,19 @@ namespace {
 				return;
 			case step::reveal:
 				if (path.empty()) {
+					if (look == "update-conflict") {
+						if (!attended_update_conflict_ready(window)) {
+							return;
+						}
+						const auto root = qEnvironmentVariable("BPR_ATTENDED_UPDATE_RENDER_ROOT");
+						if (!root.isEmpty() && !window.grab().save(QDir{ root }.filePath(QStringLiteral("status-update.png")), "PNG")) {
+							finish(QStringLiteral("ATTENDED_UPDATE_RENDER_FAILED"));
+							return;
+						}
+						QTextStream{ stdout } << "ATTENDED_HEAD:" << QString::fromStdString(bpr::app::detail::github_application_fixture_access::accepted_head(aApplication)) << '\n';
+						finish(QStringLiteral("ATTENDED_PULL_REQUEST_OPENED:status-conflict:agent-accent:qt=%1").arg(QString::fromLatin1(qVersion())));
+						return;
+					}
 					if (!window.showing_home() && (!aOpenOnGithub || window.open_on_github_action()->isEnabled())) {
 						if (aOpenOnGithub) {
 							// [[BPR-1338]]. The window's own action, as the title
@@ -13052,7 +13090,26 @@ auto main(int argc, char** argv) -> int
 		const auto attendedOpenFile = launch.value("--attended-open-file");
 		// [[BPR-1287]]. The same, stopping at the pull request's own opening
 		// page, so a person can go to Review with no file chosen.
-		const auto attendedOpenPullRequest = launch.has("--attended-open-pull-request");
+		const auto attendedOpenPullRequest       = launch.has("--attended-open-pull-request");
+		const auto attendedUpdateConflict        = launch.has("--attended-update-conflict");
+		const auto attendedUpdateRenderRoot      = attendedUpdateConflict ? qEnvironmentVariable("BPR_ATTENDED_UPDATE_RENDER_ROOT") : QString{ };
+		fixtureOptions.InlineDrawerMergeConflict = attendedUpdateConflict;
+		if (!attendedUpdateRenderRoot.isEmpty()) {
+			fixtureOptions.HiddenAttendedWindow  = true;
+			fixtureOptions.AttendedWindowBrowser = false;
+			const auto platform                  = QGuiApplication::platformName();
+			if (!QDir::isAbsolutePath(attendedUpdateRenderRoot) || !QDir{ attendedUpdateRenderRoot }.exists()
+				|| (platform != QStringLiteral("offscreen") && (platform != QStringLiteral("cocoa") || qEnvironmentVariable("QT_MAC_DISABLE_FOREGROUND_APPLICATION_TRANSFORM") != QStringLiteral("1")))) {
+				QTextStream{ stdout } << "ATTENDED_UPDATE_RENDER_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			const auto scheme = qEnvironmentVariable("BPR_NATIVE_LOOK_SCHEME");
+			if (scheme == QStringLiteral("light")) {
+				QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
+			} else if (scheme == QStringLiteral("dark")) {
+				QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+			}
+		}
 		// [[BPR-1338]]. Once the pull request is open, press its title row's
 		// Open on GitHub once, so one native check needs no hand on the desktop.
 		const auto attendedOpenOnGithub = launch.has("--attended-open-on-github");
@@ -13278,6 +13335,7 @@ auto main(int argc, char** argv) -> int
 		if ((attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty()))
 			|| (attendedOpenPullRequest && (!attendedLaunch || attendedOpenFile.has_value()))
 			|| (attendedOpenOnGithub && !attendedOpenPullRequest)
+			|| (attendedUpdateConflict && (!attendedOpenPullRequest || attendedOpenOnGithub || fixtureName != "inline-drawer-v1"))
 			|| (attendedOpenSettings && (!attendedLaunch || attendedOpenFile.has_value() || attendedOpenPullRequest))
 			|| (attendedPreflightLook.has_value()
 				&& (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1"
@@ -13588,6 +13646,11 @@ auto main(int argc, char** argv) -> int
 				}
 			}
 			try {
+#if defined(BPR_BUILD_TESTING)
+				if (!attendedUpdateRenderRoot.isEmpty()) {
+					application->window().setAttribute(Qt::WA_DontShowOnScreen);
+				}
+#endif
 				application->show();
 
 				auto       verifyNativePlatformVault = selfTest;
@@ -13738,6 +13801,9 @@ auto main(int argc, char** argv) -> int
 #if defined(BPR_BUILD_TESTING)
 				if (heldOpenForInspection && (attendedOpenFile.has_value() || attendedOpenPullRequest)) {
 					auto look = std::optional<std::string>{ };
+					if (attendedUpdateConflict) {
+						look = "update-conflict";
+					}
 					if (attendedWorkshopAgent.has_value()) {
 						look = std::string{ "workshop" };
 					}

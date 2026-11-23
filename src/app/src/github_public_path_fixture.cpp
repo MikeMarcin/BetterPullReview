@@ -2235,10 +2235,13 @@ namespace bpr::app::detail {
 			bool                                             LargeReviewForeignPosts = false;
 			bool                                             ReviewTourCourse        = false;
 			std::shared_ptr<review_submission_fixture_state> PublishedTour;
-			bool                                             LargeReviewRepeatReads = false;
-			bool                                             CliEnabled             = false;
-			std::shared_ptr<std::atomic_bool>                CliStrictCapability;
-			bool                                             RefuseFirstSmartAcquire = false;
+
+			bool InlineDrawerMergeConflict = false;
+
+			bool                              LargeReviewRepeatReads = false;
+			bool                              CliEnabled             = false;
+			std::shared_ptr<std::atomic_bool> CliStrictCapability;
+			bool                              RefuseFirstSmartAcquire = false;
 			/// [[BPR-1560]]. Compare reads answered, and whether they fail; the
 			/// pull request each role last served, to answer the read again that
 			/// confirms it, and whether the race course moves it in between.
@@ -3429,6 +3432,22 @@ namespace bpr::app::detail {
 						case read_operation::get_branch_protection: body = State->PublishedTour->BranchProtection; break;
 						default:                                    break;
 						}
+					}
+					if (!body && aRequest.Wire.Operation == read_operation::get_merge_assessment && State->InlineDrawerMergeConflict) {
+						// The fixture's GitHub assessment is bound to the PR and
+						// exact commits the fixture serves on the normal read path.
+						const QJsonObject pull{
+							{ QStringLiteral("id"), QStringLiteral("PR_22") },
+							{ QStringLiteral("headRefOid"), QString::fromLatin1(QByteArrayView{ State->Descriptor.HeadOneOid }) },
+							{ QStringLiteral("baseRefOid"), QString::fromLatin1(QByteArrayView{ State->Descriptor.BaseOid }) },
+							{ QStringLiteral("baseRefName"), QStringLiteral("main") },
+							{ QStringLiteral("mergeStateStatus"), QStringLiteral("DIRTY") },
+							{ QStringLiteral("reviewDecision"), QJsonValue::Null },
+							{ QStringLiteral("autoMergeRequest"), QJsonValue::Null },
+						};
+						const QJsonObject repository{ { QStringLiteral("id"), QStringLiteral("R_inline-drawer") }, { QStringLiteral("pullRequest"), pull } };
+						const QJsonObject data{ { QStringLiteral("repository"), repository } };
+						body = QJsonDocument{ QJsonObject{ { QStringLiteral("data"), data } } }.toJson(QJsonDocument::Compact).toStdString();
 					}
 					if (!body) {
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unsupported_capability) };
@@ -6203,6 +6222,8 @@ namespace bpr::app::detail {
 					.Groups         = { core::reaction_group{ .Content = core::reaction_content::thumbs_up, .Count = 2U, .Reactors = { "octo-author", "fixture-other-reviewer" } } },
 				};
 			}
+
+			Recording->InlineDrawerMergeConflict = aFixture == github_public_path_fixture::inline_drawer_v1 && aOptions.InlineDrawerMergeConflict;
 
 			Recording->RecentAccount           = aOptions.RecentAccount;
 			Recording->DistinctAccount         = distinctAccount;

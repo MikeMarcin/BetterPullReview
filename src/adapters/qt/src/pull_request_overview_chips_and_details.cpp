@@ -1,3 +1,4 @@
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/generated_files_view.hpp"
@@ -230,6 +231,12 @@ namespace bpr::qt {
 			}
 			if (DescriptionEdit) {
 				DescriptionEdit->setIcon(conversation_icon(conversation_glyph::edit, palette()));
+			}
+			if (UpdateFromTarget) {
+				apply_agent_accent(*UpdateFromTarget, palette());
+			}
+			if (SuggestUpdateFromTarget) {
+				apply_agent_accent(*SuggestUpdateFromTarget, palette());
 			}
 		}
 	}

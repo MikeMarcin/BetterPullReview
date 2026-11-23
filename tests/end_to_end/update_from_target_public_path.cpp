@@ -1,9 +1,11 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_landing.hpp"
@@ -44,21 +46,23 @@ namespace {
 		expect(e2e::wait_until_plain(aPredicate, e2e::extended_agent_budget), aMessage);
 	}
 
-	enum class cold_press { single,
+	enum class cold_press { status,
+							single,
 							repeated,
 							closed,
 							stopped };
 
-	void exercise_cold_overview(const cold_press aPress)
+	void exercise_cold(const cold_press aPress)
 	{
 		QTemporaryDir directory;
 		const auto    root = e2e::private_data_root(directory);
 		expect(root.has_value(), "private cold fixture root");
-		auto options                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *root };
-		options.FixtureAgentSession = true;
-		auto application            = std::unique_ptr<app::github_application>{ };
-		auto finished               = false;
-		auto startup                = access::start(app::detail::github_public_path_fixture::inline_drawer_v1, std::move(options), [&](auto aResult) {
+		auto options                      = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *root };
+		options.FixtureAgentSession       = true;
+		options.InlineDrawerMergeConflict = aPress == cold_press::status;
+		auto application                  = std::unique_ptr<app::github_application>{ };
+		auto finished                     = false;
+		auto startup                      = access::start(app::detail::github_public_path_fixture::inline_drawer_v1, std::move(options), [&](auto aResult) {
 			finished = true;
 			if (aResult) {
 				application = std::move(*aResult);
@@ -86,18 +90,33 @@ namespace {
 		wait([&] { return window.github_open_action()->isEnabled(); }, "cold fixture account connects");
 		window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/inline-drawer#22"));
 		window.home_open_action()->trigger();
-		const auto* const page  = window.overview_page();
-		auto* const       setup = window.agent_setup();
-		auto* const       tab   = window.agent_tab();
-		auto* const       press = page->findChild<QPushButton*>(QStringLiteral("overviewUpdateFromTarget"));
-		expect(press != nullptr, "the product creates the Overview update action");
+		const auto* const page        = window.overview_page();
+		auto* const       setup       = window.agent_setup();
+		auto* const       tab         = window.agent_tab();
+		const auto        statusPress = aPress == cold_press::status;
+		auto* const       press       = page->findChild<QPushButton*>(statusPress ? QStringLiteral("overviewSuggestUpdateFromTarget") : QStringLiteral("overviewUpdateFromTarget"));
+		expect(press != nullptr, "the product creates the selected update action");
 		wait([&] {
 			const auto& shown = setup->projection();
 			return window.showing_overview() && press->isVisible() && press->isEnabled()
 				&& !shown.Checking && shown.State.AgentCheck.State == core::setup_check_state::passed
 				&& shown.State.WorkspaceCheck.State == core::setup_check_state::running;
 		},
-			 "authored Overview action is visible while only the workspace check is running");
+			 "the authored update action is visible while only the workspace check is running");
+		if (statusPress) {
+			wait([&] { return press->visibleRegion().contains(press->rect()); }, "the Status action fits in the visible drawer");
+			const auto&       projection = *page->projection();
+			const auto* const conflict   = page->conflicts_row();
+			expect(projection.MergeConflict && projection.MergeConflict->Base == "main"
+					   && page->status_drawer()->current_tab() == qt::overview_drawer_tab::status
+					   && !page->status_section_header(qt::overview_status_section::attention)->isChecked(),
+				   "the authored inline fixture opens Status with an accepted conflict on main and collapsed Merge details");
+			expect(conflict && conflict->isVisible() && conflict->parentWidget() == press->parentWidget()
+					   && conflict->geometry().bottom() < press->geometry().top() && conflict->nextInFocusChain() == press,
+				   "the Status action follows the conflict in the drawer and in keyboard order");
+			expect(qt::agent_run_control(*press) && press->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(page->palette()),
+				   "the Status action wears the Agent accent");
+		}
 		expect(access::agent_chat_evidence(*application).Turns == 0U, "the cold fixture has no turns");
 		press->click();
 		expect(page->status_drawer()->current_tab() == qt::overview_drawer_tab::agent, "the first press opens the Overview Agent tab");
@@ -133,7 +152,7 @@ namespace {
 				return tab->turn_count() > 0U && tab->turn_outcome(tab->turn_count() - 1U) == core::agent_turn_outcome::answered
 					&& access::agent_invocation_evidence(*application).Quiescent;
 			},
-				 "the first Overview press sends a turn that the fixture answers");
+				 "the first update press sends a turn that the fixture answers");
 			const auto chat = access::agent_chat_evidence(*application);
 			expect(chat.Turns == 1U && chat.LastTurn && tab->turn_count() == 1U, "the cold press sends exactly one turn");
 			const auto& prompt = chat.LastTurn->Message;
@@ -223,16 +242,19 @@ int main(int aArgc, char** aArgv)
 	QApplication qtApplication{ aArgc, aArgv };
 	std::cout << "qt-runtime:" << qVersion() << '\n';
 	try {
-		exercise_cold_overview(cold_press::single);
+		exercise_cold(cold_press::status);
+		std::cout << "cold-status:first-press-passed\n"
+				  << std::flush;
+		exercise_cold(cold_press::single);
 		std::cout << "cold-overview:first-press-passed\n"
 				  << std::flush;
-		exercise_cold_overview(cold_press::repeated);
+		exercise_cold(cold_press::repeated);
 		std::cout << "cold-overview:repeated-presses-passed\n"
 				  << std::flush;
-		exercise_cold_overview(cold_press::closed);
+		exercise_cold(cold_press::closed);
 		std::cout << "cold-overview:closed-review-passed\n"
 				  << std::flush;
-		exercise_cold_overview(cold_press::stopped);
+		exercise_cold(cold_press::stopped);
 		std::cout << "cold-overview:stopped-setup-passed\n"
 				  << std::flush;
 		exercise(false);

@@ -25,9 +25,11 @@ namespace bpr::app {
 		// The shipped desktop's status item: a course on the cocoa platform gets
 		// the menu bar's Dif exactly as the application does, and an offscreen
 		// course, which has no tray, gets none.
-		aOptions.StatusItem = native_menu_bar_status_item();
-		auto statusItem     = aOptions.StatusItem;
-		auto initialReset   = std::make_shared<std::optional<core::profile_data_reset_request>>(std::exchange(aOptions.DataReset, std::nullopt));
+		if (!aOptions.HiddenAttendedWindow) {
+			aOptions.StatusItem = native_menu_bar_status_item();
+		}
+		auto statusItem   = aOptions.StatusItem;
+		auto initialReset = std::make_shared<std::optional<core::profile_data_reset_request>>(std::exchange(aOptions.DataReset, std::nullopt));
 		return profile_desktop::start_with_factory(profile, [aFixture, options = std::move(aOptions), initialReset](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, std::optional<core::profile_data_reset_request> aReset, github_application_startup_completion aDone) {
             auto next = aProfile == options.Profile || options.DistinctProfileAccounts ? options : detail::github_public_path_fixture_options{};
             next.DataReset = aReset ? aReset : aProfile == options.Profile ? std::exchange(*initialReset, std::nullopt) : std::nullopt;

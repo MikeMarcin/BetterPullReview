@@ -1,4 +1,5 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/disclosure_button.hpp"
@@ -257,19 +258,21 @@ namespace bpr::qt {
 		Summary->setWordWrap(true);
 		Summary->setForegroundRole(QPalette::PlaceholderText);
 		headerLayout->addWidget(Summary);
-		const auto makeUpdateButton = [this](QWidget* aContainer, const QString& aObjectName) {
-			auto* const button = new QPushButton{ tr("Update from target with agent"), aContainer };
+		const auto makeUpdateButton = [this](QWidget* aContainer, const QString& aObjectName, const bool aRequireConflict) {
+			auto* const button = new quiet_push_button{ tr("Update from target with agent"), aContainer };
+			wear_agent_accent(*button, palette());
 			button->setObjectName(aObjectName);
 			button->setToolTip(tr("Ask the agent to merge the target branch and push the updated pull request branch"));
 			button->hide();
-			connect(button, &QPushButton::clicked, this, [this] {
-				if (Projection && Projection->UpdateFromTarget && UpdateFromTargetDispatch) {
+			connect(button, &QPushButton::clicked, this, [this, aRequireConflict] {
+				if (Projection && Projection->UpdateFromTarget && UpdateFromTargetDispatch
+					&& (!aRequireConflict || Projection->SuggestUpdateFromTarget)) {
 					UpdateFromTargetDispatch(*Projection->UpdateFromTarget);
 				}
 			});
 			return button;
 		};
-		UpdateFromTarget = makeUpdateButton(main, QStringLiteral("overviewUpdateFromTarget"));
+		UpdateFromTarget = makeUpdateButton(main, QStringLiteral("overviewUpdateFromTarget"), false);
 		headerLayout->addWidget(UpdateFromTarget, 0, Qt::AlignLeft);
 		// What GitHub said when it refused, under the summary.
 		ReadyStatus = new QLabel{ main };
@@ -841,8 +844,7 @@ namespace bpr::qt {
 		AttentionList->setContentsMargins(0, 0, 0, 0);
 		AttentionList->setSpacing(2);
 		attention.Body->addLayout(AttentionList);
-		SuggestUpdateFromTarget = makeUpdateButton(attention.Body->parentWidget(), QStringLiteral("overviewSuggestUpdateFromTarget"));
-		attention.Body->addWidget(SuggestUpdateFromTarget, 0, Qt::AlignLeft);
+		SuggestUpdateFromTarget      = makeUpdateButton(attention.Body->parentWidget(), QStringLiteral("overviewSuggestUpdateFromTarget"), true);
 		auto* const attentionDetails = Sections[static_cast<std::size_t>(overview_status_section::attention)].Details;
 		MergeState                   = makeText(attentionDetails, QStringLiteral("overviewMergeState"));
 		auto stateFont               = MergeState->font();

@@ -545,6 +545,8 @@ namespace bpr::app::detail {
 		std::optional<core::profile_data_reset_request> DataReset;
 		/// [[BPR-1250]]. The desktop's menu bar status item, set by `start_desktop`.
 		std::shared_ptr<QSystemTrayIcon> StatusItem;
+		/// Widget captures keep every part of the fixture desktop off screen.
+		bool HiddenAttendedWindow = false;
 		/// [[BPR-0777]]. Drives the composition's empty-desktop policy from a course,
 		/// so both the resident and the quit outcome are observable on one machine.
 		/// Unset selects the running platform's own policy.
@@ -563,6 +565,8 @@ namespace bpr::app::detail {
 		/// [[BPR-1560]]. GitHub's compare answers with a server error, so no
 		/// merge base is named for the pull request.
 		bool MergeBaseUnavailable = false;
+		/// [[BPR-2361]]. The authored inline-drawer fixture answers with a conflict.
+		bool InlineDrawerMergeConflict = false;
 		/// [[BPR-1560]]. GitHub records another base for the pull request
 		/// between the snapshot and the read that confirms it.
 		bool MergeBaseRace = false;

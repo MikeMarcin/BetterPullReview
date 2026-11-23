@@ -4181,6 +4181,7 @@ namespace {
 		page.resize(1'100, 900);
 		auto pressed = std::vector<core::provider_snapshot_id>{ };
 		page.set_update_from_target_dispatch([&](const auto aSnapshot) { pressed.push_back(aSnapshot); });
+		page.status_drawer()->adopt({ .Width = application::minimum_status_drawer_width });
 		auto projected                    = status_projection();
 		projected.UpdateFromTarget        = core::provider_snapshot_id{ 7U };
 		projected.SuggestUpdateFromTarget = true;
@@ -4191,6 +4192,8 @@ namespace {
 		auto* const overview   = page.findChild<QPushButton*>(QStringLiteral("overviewUpdateFromTarget"));
 		auto* const suggestion = page.findChild<QPushButton*>(QStringLiteral("overviewSuggestUpdateFromTarget"));
 		expect(overview && overview->isVisible() && suggestion && suggestion->isVisible(), "the conflict suggestion is visible without opening Merge details");
+		expect(suggestion->visibleRegion().contains(suggestion->rect()), "the update action fits at the narrowest Status width");
+		expect(page.attention_rows().size() == 4, "the adjacent button adds no extra attention item");
 		suggestion->setFocus(Qt::TabFocusReason);
 		press_key(*suggestion, Qt::Key_Space);
 		expect(pressed == std::vector{ *projected.UpdateFromTarget }, "the Status press sends the displayed snapshot");
@@ -4199,6 +4202,8 @@ namespace {
 		page.present(projected);
 		settle();
 		expect(overview->isVisible() && suggestion->isHidden(), "a clean author can still update from the Overview");
+		suggestion->click();
+		expect(pressed.size() == 1U, "even a programmatic Status press needs a current conflict offer");
 		overview->click();
 		expect(pressed.size() == 2U && pressed.back() == projected.UpdateFromTarget, "the Overview uses the same dispatch");
 		projected.UpdateFromTarget.reset();
