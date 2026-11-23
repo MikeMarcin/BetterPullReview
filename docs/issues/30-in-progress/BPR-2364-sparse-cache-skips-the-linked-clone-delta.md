@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2364"
 title: "A sparse review whose loading is not recorded as sparse is taken as complete: the agent's workspace skips the fetch of what the linked clone lacks and fails on the cache's missing files, and a whole-history fetch with no haves runs for a minute and times out"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
