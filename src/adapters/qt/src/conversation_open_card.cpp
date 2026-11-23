@@ -413,7 +413,7 @@ namespace bpr::qt {
 				Code             = new composer_code_layout{ text };
 				text->setDocumentLayout(Code);
 				setDocument(text);
-				setProperty(nested_scroll_latch::scrolls_itself_property, true);
+				setProperty(nested_scroll_latch::wheel_axis_without_range_property, static_cast<int>(Qt::Horizontal));
 				setLineWrapMode(QPlainTextEdit::WidgetWidth);
 				setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
 				setObjectName(QStringLiteral("threadReplyText"));

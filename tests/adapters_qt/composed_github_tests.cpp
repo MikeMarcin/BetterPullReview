@@ -3385,6 +3385,70 @@ namespace {
 		sendWheel(overEmpty, Qt::NoScrollPhase, 0, -120);
 		expect(bar->value() > beforeWheel, "a wheel notch over the empty Comments drawer also scrolls the code");
 		capture_layout_state(window, QStringLiteral("inline-empty-scroll"));
+
+		// [[BPR-2362]]. The cards can be at their own limit while the
+		// comparison still has room to scroll.
+		{
+			auto* const cards = window.conversation_panel()->cards();
+			expect(surface->reveal_conversation_line(core::diff_side::right, 158U), "reveal the changed head line for the draft");
+			auto draft = core::review_comment_draft{
+				.Id = core::review_draft_id{ 91U }, .Anchor = surface->selection()->PreferredLine, .Body = "question: Could we keep this value in the cache?"
+			};
+			window.review_editor()->present(draft);
+			expect(window.comment_on_selected_lines(), "open the line's draft in the Comments drawer");
+			QApplication::processEvents();
+			auto* const editor = cards->draft_editor();
+			expect(editor != nullptr && editor->isVisible(), "the composed drawer shows the draft editor");
+			auto* const cardsBar          = cards->verticalScrollBar();
+			auto* const fieldBar          = editor->verticalScrollBar();
+			const auto  position          = bar->value();
+			const auto  resetDrawerScroll = [&] {
+				bar->setValue(position);
+				cardsBar->setValue(cardsBar->minimum());
+				QApplication::processEvents();
+				expect(bar->value() > bar->minimum() && cardsBar->value() == cardsBar->minimum(), "the cards are at the top and the comparison has room above");
+			};
+			const auto over = [&window](QWidget& aTarget, const QPoint aPoint) {
+				const auto        global = aTarget.mapToGlobal(aPoint);
+				const auto* const hit    = window.childAt(window.mapFromGlobal(global));
+				expect(hit == &aTarget, QStringLiteral("input at %1,%2 targets %3, expected %4").arg(window.mapFromGlobal(global).x()).arg(window.mapFromGlobal(global).y()).arg(hit ? hit->objectName() : QStringLiteral("outside the window"), aTarget.objectName()).toStdString());
+				return global;
+			};
+			const auto overEditor = [&] { return over(*editor->viewport(), QPoint{ editor->viewport()->width() / 2, 12 }); };
+			resetDrawerScroll();
+			expect(fieldBar->value() == fieldBar->minimum(), "the draft editor is at its top");
+			capture_layout_state(window, QStringLiteral("inline-draft-open-scroll"));
+			checkGesture(overEditor(), -1, "the open draft editor");
+
+			draft.Body = QStringLiteral("A line in a draft long enough to scroll.\n").repeated(80).toStdString();
+			window.review_editor()->present(draft);
+			resetDrawerScroll();
+			expect(cards->draft_editor() == editor && fieldBar->maximum() > fieldBar->minimum(), "the same editor now has its own overflow");
+			fieldBar->setValue(fieldBar->minimum() + 1);
+			const auto global = overEditor();
+			sendWheel(global, Qt::ScrollBegin, 0, 0);
+			sendWheel(global, Qt::ScrollUpdate, 32, 32);
+			expect(fieldBar->value() == fieldBar->minimum() && qt::nested_scroll_latch::owner() == editor, "the long draft editor takes the first movement to its top");
+			sendWheel(global, Qt::ScrollMomentum, 24, 24);
+			sendWheel(global, Qt::ScrollEnd, 0, 0);
+			sendWheel(global, Qt::ScrollMomentum, 24, 24);
+			expect(bar->value() == position && cardsBar->value() == cardsBar->minimum(), "the long draft editor keeps its momentum at the top");
+			checkGesture(overEditor(), -1, "the long draft editor at its top after a fresh gesture");
+
+			auto escape = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+			QApplication::sendEvent(editor, &escape);
+			resetDrawerScroll();
+			const auto note = cards->note_rect(qt::conversation_cards_view::draft_identity());
+			expect(cards->draft_editor() == nullptr && !note.isEmpty(), "Esc leaves the written draft as a collapsed note");
+			checkGesture(over(*cards->viewport(), note.center()), -1, "the collapsed draft note");
+			resetDrawerScroll();
+			const auto blank = QPoint{ cards->viewport()->width() / 2, cards->viewport()->height() - 24 };
+			expect(!cards->note_rect(qt::conversation_cards_view::draft_identity()).contains(blank), "the gesture starts in blank space below the collapsed draft");
+			checkGesture(over(*cards->viewport(), blank), -1, "blank space in the Comments cards viewport");
+			std::cout << "inline-drawer:draft-scroll:pass\n";
+			window.review_editor()->present(qt::review_draft_editor_clear_reason::selection_cleared);
+			static_cast<void>(surface->clear_line_selection());
+		}
 		bar->setValue(bar->minimum());
 
 		pullRequest.ReviewCount       = 1U;

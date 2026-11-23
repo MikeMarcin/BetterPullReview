@@ -21,22 +21,22 @@ namespace bpr::qt {
 	/// first movement picks its scroller: the innermost one that can still
 	/// move that way and takes that movement, else the outermost, which
 	/// decides for itself (the comments drawer moves the code with it). A
-	/// scroller with no range on the gesture's axis, at its end that way, or
-	/// that declines the axis, such as a code block or suggestion that only
-	/// scrolls sideways, is passed over ([[BPR-2292]]). Every later event of the gesture, its momentum
-	/// included, goes to that scroller alone; at its end the rest is
-	/// dropped, not handed outwards. The next gesture chooses again. A
-	/// mouse wheel's unphased notches, events a widget sends itself, and a
-	/// scroller not nested in another are left to Qt.
+	/// scroller whose bar cannot move that way is passed over unless it
+	/// handles movement on that axis independently of its bar. A scroller
+	/// that declines the movement is passed over as well ([[BPR-2292]]).
+	/// Every later event of the gesture, including momentum, goes to
+	/// that scroller. The latch drops surplus movement at its end. A
+	/// new gesture chooses again. Qt still handles mouse wheel notches,
+	/// events a widget sends itself, and a scroller with no enclosing area.
 	class nested_scroll_latch final : public QObject
 	{
 	public:
-		/// \brief [[BPR-2354]]. A scroll area with this property true moves
-		/// part of itself in ways its bars do not show (the comment field's
-		/// code boxes scroll sideways on their own): it is offered a
-		/// gesture's first movement whatever its bars say, and owns the
-		/// gesture only if it takes that movement.
-		static constexpr auto scrolls_itself_property = "bprScrollsItself";
+		/// \brief An axis (Qt::Orientation stored as an int) on which a
+		/// scroll area can handle movement independently of its own bar. The
+		/// composer moves its code boxes horizontally ([[BPR-2354]]) and
+		/// the Comments cards forward vertical movement to the comparison
+		/// ([[BPR-2362]]). The area owns the gesture if it takes the movement.
+		static constexpr auto wheel_axis_without_range_property = "bprWheelAxisWithoutRange";
 
 		/// \brief Installs the latch on the application; again, does nothing.
 		static void install();

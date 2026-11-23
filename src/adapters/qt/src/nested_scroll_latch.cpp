@@ -39,10 +39,13 @@ namespace bpr::qt {
 			return std::abs(delta.x()) > std::abs(delta.y()) ? std::pair{ Qt::Horizontal, delta.x() } : std::pair{ Qt::Vertical, delta.y() };
 		}
 
-		/// \brief Whether `aArea` can move that way: a negative delta moves
-		/// its bar towards the maximum.
-		[[nodiscard]] auto can_move(const QAbstractScrollArea& aArea, const Qt::Orientation aAxis, const int aDelta) -> bool
+		/// \brief Whether to offer the first movement to this area. A negative
+		/// delta moves a scrollbar towards its maximum.
+		[[nodiscard]] auto can_start_gesture(const QAbstractScrollArea& aArea, const Qt::Orientation aAxis, const int aDelta) -> bool
 		{
+			if (aArea.property(nested_scroll_latch::wheel_axis_without_range_property).toInt() == static_cast<int>(aAxis)) {
+				return true;
+			}
 			const auto* const bar = aAxis == Qt::Vertical ? aArea.verticalScrollBar() : aArea.horizontalScrollBar();
 			if (bar == nullptr || bar->maximum() <= bar->minimum()) {
 				return false;
@@ -135,11 +138,8 @@ namespace bpr::qt {
 				// over, whatever range its hidden bar reports: under the
 				// macOS style an in-place reader's vertical bar keeps a range
 				// its page does not have, and the gesture went nowhere.
-				// [[BPR-2354]]. A scroller that moves part of itself, whose
-				// bars cannot say so (the comment field's code boxes scroll
-				// sideways, the field never does), is offered it as well.
 				for (auto index = std::size_t{ 0U }; index + 1U < areas.size() && Owner == nullptr; ++index) {
-					if ((can_move(*areas[index], axis, delta) || areas[index]->property(scrolls_itself_property).toBool()) && deliver(*areas[index], *wheel)) {
+					if (can_start_gesture(*areas[index], axis, delta) && deliver(*areas[index], *wheel)) {
 						Owner = areas[index];
 					}
 				}

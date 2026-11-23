@@ -2921,8 +2921,11 @@ The Comments tab is inline only (owner verdict on [[BPR-1290]]'s prototype,
 2026-10-06: "I like it"). It shows this file's threads as notes in a margin
 beside the code, each hanging from its line. A vertical trackpad gesture or
 wheel over the Comments tab scrolls the code, including over the empty
-drawer body ([[BPR-2359]]). Once the code reaches its end, the drawer takes
-the overflow so the foot of a tall open thread can still be read. A thread
+drawer body ([[BPR-2359]]) or a collapsed draft ([[BPR-2362]]). A long
+draft editor that takes the first movement keeps the gesture through
+momentum. A new gesture at its limit can scroll the code. Once the code
+reaches its end, the drawer takes the overflow so the foot of a tall open
+thread can still be read. A thread
 follows its line however far the line scrolls above the code, so every wheel
 notch or scroll bar move brings more of a thread taller than the drawer into
 view, as Discuss shows it ([[BPR-1542]]). A closed note shows its first

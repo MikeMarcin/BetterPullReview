@@ -1829,6 +1829,9 @@ namespace bpr::qt {
 	void conversation_cards_view::set_scroll_forward(std::function<bool(QWheelEvent&)> aForward)
 	{
 		ScrollForward = std::move(aForward);
+		// [[BPR-2362]]. At the cards' own edge, a new vertical gesture can
+		// still move the comparison. Give the cards that first movement.
+		setProperty(nested_scroll_latch::wheel_axis_without_range_property, ScrollForward ? static_cast<int>(Qt::Vertical) : 0);
 	}
 
 	void conversation_cards_view::set_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch)

@@ -26,8 +26,8 @@ still has room to scroll.
   takes the first movement. A new gesture at its limit can reach the
   comparison. Horizontal gestures can still operate nested code boxes.
 - AC3. Reproduce the failure with platform-style phased wheel events and
-  verify the fix with Qt 6.12.1. Obtain a fresh owner verdict on the frozen
-  correction.
+  verify the fix with Qt 6.12.1.
+- AC4. Obtain a fresh owner verdict on the frozen correction.
 
 ## Plan
 
