@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2365"
 title: "A Codex agent's model list is asked for only once the Agent tab is shown and past setup, so its Model menu stays empty until the first question; an empty or failed list is kept until a restart, and the run is not logged"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
