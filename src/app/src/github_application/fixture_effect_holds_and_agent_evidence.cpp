@@ -250,6 +250,17 @@ namespace bpr::app {
 		return true;
 	}
 
+	auto detail::github_application_fixture_access::hold_agent_workspace_effects(
+		github_application& aApplication) -> std::function<void()>
+	{
+	#if defined(BPR_AGENT_INTEGRATIONS)
+		return hold_fixture_effects(aApplication.Implementation->AgentEffects);
+	#else
+		static_cast<void>(aApplication);
+		return { };
+	#endif
+	}
+
 	auto detail::github_application_fixture_access::hold_agent_conversation_effects(
 		github_application& aApplication) -> std::function<void()>
 	{

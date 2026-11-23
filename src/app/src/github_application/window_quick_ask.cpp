@@ -62,6 +62,19 @@ namespace bpr::app {
 			request.Finding.Claim = aDraft.Comment.toStdString();
 			return request;
 		}
+
+		/// The GitHub read can publish Overview before the epoch host accepts its revision.
+		[[nodiscard]] auto target_update_epoch_is_current(const core::epoch_state& aEpoch, const application::accepted_pull_request_handoff& aHandoff) -> bool
+		{
+			return aEpoch.Authority && aEpoch.AcceptedRevision
+				&& aEpoch.Authority->Host == aHandoff.Host && aEpoch.Authority->Account == aHandoff.Account
+				&& aEpoch.Authority->Repository == aHandoff.Repository && aEpoch.Authority->PullRequest == aHandoff.PullRequest
+				&& aEpoch.AcceptedRevision->Origin == core::pull_request_revision_origin::live
+				&& aEpoch.AcceptedRevision->Head == aHandoff.Head && aEpoch.AcceptedRevision->Base == aHandoff.Base
+				&& aEpoch.AcceptedRevision->Source.Snapshot == aHandoff.Snapshot
+				&& aEpoch.AcceptedRevision->Source.IdentityGeneration == aHandoff.IdentityGeneration
+				&& aEpoch.AcceptedRevision->Source.PullRequestGeneration == aHandoff.PullRequestGeneration;
+		}
 	} // namespace
 
 	auto github_application::implementation::steer_shown() -> application::agent_queue_steer_done
@@ -86,44 +99,100 @@ namespace bpr::app {
 			&& state.AcceptedSnapshot == aSnapshot.Snapshot;
 	}
 
-	void github_application::implementation::update_pull_request_from_target(const core::provider_snapshot_id aOffered)
+	auto github_application::implementation::accepted_target_update(const core::provider_snapshot_id aOffered) const -> const application::github_pull_request_snapshot*
 	{
 		if (Closing || !Window || !WindowRead || !EpochHost) {
-			return;
+			return nullptr;
 		}
 		const auto& snapshot = WindowRead->accepted_snapshot();
-		const auto  admitted = [&] {
-			const auto& state = WindowRead->state();
-			return snapshot && snapshot->Snapshot == aOffered && has_update_from_target_authority(*snapshot)
-				&& LastAcceptedHandoff && LastAcceptedHandoff->Snapshot == aOffered
-				&& LastAcceptedHandoff->IdentityGeneration == state.IdentityGeneration
-				&& LastAcceptedHandoff->PullRequestGeneration == state.PullRequestGeneration
-				&& LastAcceptedHandoff->Mode == core::github_access_mode::authenticated
-				&& LastAcceptedHandoff->Origin == core::pull_request_revision_origin::live;
-		};
-		if (!admitted()) {
+		const auto& state    = WindowRead->state();
+		if (!snapshot || snapshot->Snapshot != aOffered || !has_update_from_target_authority(*snapshot)
+			|| !LastAcceptedHandoff || LastAcceptedHandoff->Snapshot != aOffered
+			|| LastAcceptedHandoff->IdentityGeneration != state.IdentityGeneration
+			|| LastAcceptedHandoff->PullRequestGeneration != state.PullRequestGeneration
+			|| LastAcceptedHandoff->Mode != core::github_access_mode::authenticated
+			|| LastAcceptedHandoff->Origin != core::pull_request_revision_origin::live) {
+			return nullptr;
+		}
+		return &*snapshot;
+	}
+
+	void github_application::implementation::update_pull_request_from_target(const core::provider_snapshot_id aOffered)
+	{
+		if (!accepted_target_update(aOffered)) {
 			return;
 		}
-		auto* const tab = Window->agent_tab();
+		if (PendingTargetUpdate && PendingTargetUpdate->Snapshot == aOffered) {
+			return;
+		}
+		PendingTargetUpdate = pending_target_update{ .Snapshot = aOffered };
 		Window->open_agent_question();
-		if (!admitted()) {
+		settle_target_update();
+	}
+
+	void github_application::implementation::schedule_target_update()
+	{
+		if (Closing || !Window || !PendingTargetUpdate || TargetUpdateScheduled) {
 			return;
 		}
+		// Let the setup and Agent projections settle before attempting a send.
+		TargetUpdateScheduled = true;
+		QTimer::singleShot(0, Window.get(), [this] {
+			TargetUpdateScheduled = false;
+			settle_target_update();
+		});
+	}
+
+	void github_application::implementation::settle_target_update()
+	{
+		if (!PendingTargetUpdate) {
+			return;
+		}
+		auto&       pending  = *PendingTargetUpdate;
+		const auto* snapshot = accepted_target_update(pending.Snapshot);
+		if (!snapshot) {
+			PendingTargetUpdate.reset();
+			return;
+		}
+		const auto& epoch        = EpochHost->state();
+		const auto& handoff      = *LastAcceptedHandoff;
+		const auto  epochCurrent = target_update_epoch_is_current(epoch, handoff);
+		const auto& pair         = epoch.AcceptedComparison;
+		if (pending.Epoch && (!epochCurrent || pending.Epoch != epoch.EpochGeneration || pending.Selection != epoch.RequestedSelection || (pending.Comparison && (!pair || pending.Comparison != epoch.AcceptedComparisonRevision)))) {
+			PendingTargetUpdate.reset();
+			return;
+		}
+		if (epochCurrent) {
+			pending.Epoch      = epoch.EpochGeneration;
+			pending.Selection  = epoch.RequestedSelection;
+			pending.Comparison = pair ? std::optional{ epoch.AcceptedComparisonRevision } : std::nullopt;
+		}
+
+		if (AgentSetup) {
+			const auto& setup = AgentSetup->projection();
+			if (setup.Detecting || setup.Checking || setup.State.WorkspaceCheck.State == core::setup_check_state::running) {
+				return;
+			}
+		}
+		if ((!epochCurrent || !pair) && !EpochHost->is_running_idle()) {
+			return;
+		}
+		// Consume the press before any projection or dispatch can reenter.
+		PendingTargetUpdate.reset();
+		auto* const tab = Window->agent_tab();
 		if (tab->setup_readiness() != qt::agent_setup_readiness::ready || !tab->ready_to_send()) {
 			Window->agent_panel()->refuse("The agent must be ready before it can update this pull request.");
 			return;
 		}
 		// The Agent tab can also point at an earlier revision. Updating a
 		// branch always starts from the head just accepted in this window.
-		const auto  chat    = ChatHost->projection();
-		const auto& epoch   = EpochHost->state();
-		const auto& handoff = *LastAcceptedHandoff;
-		if (!chat || !epoch.Authority || !epoch.AcceptedRevision
+		const auto chat = ChatHost->projection();
+		if (!epochCurrent || !pair || !chat
 			|| chat->Session.Binding.Host != handoff.Host || chat->Session.Binding.Repository != handoff.Repository
 			|| chat->Session.Binding.PullRequest != handoff.PullRequest || chat->Session.Binding.HeadOid != handoff.Head
-			|| chat->Session.Binding.BaseOid != epoch.AcceptedRevision->Base
-			|| epoch.Authority->Repository != handoff.Repository || epoch.Authority->PullRequest != handoff.PullRequest
-			|| epoch.AcceptedRevision->Head != handoff.Head) {
+			|| chat->Session.Binding.BaseOid != handoff.Base
+			|| chat->Session.Binding.LeftEpoch != pair->Left.Identity.Epoch
+			|| chat->Session.Binding.RightEpoch != pair->Right.Identity.Epoch) {
 			Window->agent_panel()->refuse("Open an Agent session for the current pull request revision, then try again.");
 			return;
 		}

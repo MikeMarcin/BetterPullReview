@@ -2369,6 +2369,8 @@ namespace bpr::app::detail {
 		/// change for the accepted pull request, as a changed account or
 		/// identity does, superseding what is in flight. False without one.
 		[[nodiscard]] static auto invalidate_current_authority(github_application& aApplication) -> bool;
+		/// \brief Holds the current profile's Agent effect queue, including setup's workspace probe.
+		[[nodiscard]] static auto hold_agent_workspace_effects(github_application& aApplication) -> std::function<void()>;
 		/// \brief [[BPR-1971]]. Hold the existing Workbench effect queue at
 		/// a settled agent-course boundary, including its legacy history load.
 		/// Other Workbench effects also wait; release before shutdown or thirty

@@ -109,6 +109,9 @@ namespace bpr::app {
 			SetupDestination->cancel();
 		}
 		Closing = true;
+#if defined(BPR_AGENT_INTEGRATIONS)
+		PendingTargetUpdate.reset();
+#endif
 		// RFC-BPR-0032 amendment r1. Nothing more is published or asked for,
 		// and a gh answer still on its way is dropped.
 		retire_account_setup();

@@ -203,6 +203,7 @@ namespace bpr::app {
 		AcceptedReadingPosition.reset();
 		AgentReview.reset();
 #if defined(BPR_AGENT_INTEGRATIONS)
+		PendingTargetUpdate.reset();
 		observe_setup_policy();
 		observe_clone_repository();
 		observe_conversation();

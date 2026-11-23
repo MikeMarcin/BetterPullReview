@@ -838,13 +838,27 @@ namespace bpr::app {
 		void refresh_returning_review();
 		/// [[BPR-2251]]. The change since the review, read at the press and
 		/// then asked; a read that fails is refused on the Agent tab.
-		void               read_returning_material();
-		void               send_what_changed();
-		void               refuse_what_changed(const std::string& aWhy);
-		void               read_addressed_lines(const std::string& aIdentity, bool aThen);
-		void               retry_addressed_lines();
-		void               ask_what_changed();
+		void read_returning_material();
+		void send_what_changed();
+		void refuse_what_changed(const std::string& aWhy);
+		void read_addressed_lines(const std::string& aIdentity, bool aThen);
+		void retry_addressed_lines();
+		void ask_what_changed();
+		/// [[BPR-2361]]. An authored update waiting for this window's Agent setup.
+		struct pending_target_update
+		{
+			core::provider_snapshot_id               Snapshot;
+			std::optional<core::epoch_generation>    Epoch;
+			core::comparison_selection               Selection;
+			std::optional<core::comparison_revision> Comparison;
+		};
+		std::optional<pending_target_update> PendingTargetUpdate;
+		bool                                 TargetUpdateScheduled = false;
+
 		void               update_pull_request_from_target(core::provider_snapshot_id aOffered);
+		void               schedule_target_update();
+		void               settle_target_update();
+		[[nodiscard]] auto accepted_target_update(core::provider_snapshot_id aOffered) const -> const application::github_pull_request_snapshot*;
 		[[nodiscard]] auto has_update_from_target_authority(const application::github_pull_request_snapshot& aSnapshot) const noexcept -> bool;
 		void               ask_was_addressed(const std::string& aIdentity);
 		/// RFC-BPR-0128 as amended (look ask-v005): a file's or the pull

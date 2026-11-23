@@ -1535,6 +1535,7 @@ namespace bpr::app {
 	/// workspace's.
 	void github_application::implementation::stop_agent_setup_check()
 	{
+		PendingTargetUpdate.reset();
 		if (!Closing && AgentSetup) {
 			AgentSetupWorkspaceStop.request_stop();
 			if (std::exchange(AgentSetupWorkspaceWaiting, false)) {
@@ -1784,6 +1785,7 @@ namespace bpr::app {
 			if (Closing || !AgentSetup) {
 				return;
 			}
+			PendingTargetUpdate.reset();
 			AgentSetupWorkspaceStop.request_stop();
 			++AgentSetupWorkspaceGeneration;
 			// [[BPR-1769]]. The old preferences are migration inputs, not
@@ -2518,6 +2520,7 @@ namespace bpr::app {
 			QTimer::singleShot(0, Window.get(), [this] { check_agent_setup(true); });
 		}
 	#endif
+		schedule_target_update();
 	}
 
 	auto github_application::implementation::grant_key(const std::uint32_t aAgent) const -> std::optional<application::agent_conversation_key>

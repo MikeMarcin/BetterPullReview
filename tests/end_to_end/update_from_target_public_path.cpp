@@ -1,9 +1,12 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_setup_settings.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
 #include "private_data_root.hpp"
@@ -16,8 +19,10 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTemporaryDir>
+#include <QtGlobal>
 
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -37,6 +42,108 @@ namespace {
 	void wait(const auto& aPredicate, const char* aMessage)
 	{
 		expect(e2e::wait_until_plain(aPredicate, e2e::extended_agent_budget), aMessage);
+	}
+
+	enum class cold_press { single,
+							repeated,
+							closed,
+							stopped };
+
+	void exercise_cold_overview(const cold_press aPress)
+	{
+		QTemporaryDir directory;
+		const auto    root = e2e::private_data_root(directory);
+		expect(root.has_value(), "private cold fixture root");
+		auto options                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *root };
+		options.FixtureAgentSession = true;
+		auto application            = std::unique_ptr<app::github_application>{ };
+		auto finished               = false;
+		auto startup                = access::start(app::detail::github_public_path_fixture::inline_drawer_v1, std::move(options), [&](auto aResult) {
+			finished = true;
+			if (aResult) {
+				application = std::move(*aResult);
+			}
+		});
+		wait([&] { return finished && startup->is_quiescent(); }, "cold fixture startup settles");
+		expect(application != nullptr, "cold fixture starts");
+		struct held_workspace
+		{
+			std::function<void()> Release;
+			void                  release()
+			{
+				if (Release) {
+					std::exchange(Release, { })();
+				}
+			}
+			~held_workspace() { release(); }
+		};
+		auto held = held_workspace{ access::hold_agent_workspace_effects(*application) };
+		expect(static_cast<bool>(held.Release), "the Agent effect lane can be held");
+		application->show();
+		auto& window = application->window();
+		window.resize(1280, 900);
+		window.github_connect_action()->trigger();
+		wait([&] { return window.github_open_action()->isEnabled(); }, "cold fixture account connects");
+		window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/inline-drawer#22"));
+		window.home_open_action()->trigger();
+		const auto* const page  = window.overview_page();
+		auto* const       setup = window.agent_setup();
+		auto* const       tab   = window.agent_tab();
+		auto* const       press = page->findChild<QPushButton*>(QStringLiteral("overviewUpdateFromTarget"));
+		expect(press != nullptr, "the product creates the Overview update action");
+		wait([&] {
+			const auto& shown = setup->projection();
+			return window.showing_overview() && press->isVisible() && press->isEnabled()
+				&& !shown.Checking && shown.State.AgentCheck.State == core::setup_check_state::passed
+				&& shown.State.WorkspaceCheck.State == core::setup_check_state::running;
+		},
+			 "authored Overview action is visible while only the workspace check is running");
+		expect(access::agent_chat_evidence(*application).Turns == 0U, "the cold fixture has no turns");
+		press->click();
+		expect(page->status_drawer()->current_tab() == qt::overview_drawer_tab::agent, "the first press opens the Overview Agent tab");
+		if (aPress == cold_press::repeated) {
+			press->click();
+			press->click();
+		} else if (aPress == cold_press::closed) {
+			wait([&] { return access::epoch_refresh_identity(*application).AcceptedComparison.has_value(); }, "the held check reaches the accepted comparison");
+			window.home_action()->trigger();
+			auto* const close = window.home_landing()->close_button();
+			wait([&] { return close->isVisible() && close->isEnabled(); }, "Home offers Close review");
+			close->click();
+			wait([&] { return !access::close_review(*application).ReadHoldsPullRequest; }, "the review closes while its workspace check is held");
+		} else if (aPress == cold_press::stopped) {
+			wait([&] { return access::epoch_refresh_identity(*application).AcceptedComparison.has_value(); }, "the held check reaches the accepted comparison");
+			window.open_settings(qt::settings_page::agents_and_context);
+			auto* const stop = window.agent_programs()->stop_check_button();
+			wait([&] { return stop->isVisible() && stop->isEnabled(); }, "the Agents settings offer Stop");
+			stop->click();
+		}
+		expect(access::agent_chat_evidence(*application).Turns == 0U, "holding the workspace check prevents a send");
+		held.release();
+		if (aPress == cold_press::closed || aPress == cold_press::stopped) {
+			wait([&] {
+				return access::agent_invocation_evidence(*application).Quiescent
+					&& (aPress == cold_press::closed || setup->projection().State.WorkspaceCheck.State != core::setup_check_state::running);
+			},
+				 "the abandoned workspace work retires");
+			QApplication::processEvents();
+			expect(access::agent_chat_evidence(*application).Turns == 0U, "an abandoned press sends no turn when setup settles");
+		} else {
+			wait([&] {
+				return tab->turn_count() > 0U && tab->turn_outcome(tab->turn_count() - 1U) == core::agent_turn_outcome::answered
+					&& access::agent_invocation_evidence(*application).Quiescent;
+			},
+				 "the first Overview press sends a turn that the fixture answers");
+			const auto chat = access::agent_chat_evidence(*application);
+			expect(chat.Turns == 1U && chat.LastTurn && tab->turn_count() == 1U, "the cold press sends exactly one turn");
+			const auto& prompt = chat.LastTurn->Message;
+			expect(prompt.contains(R"("pull_request":"https://github.com/bpr-fixtures/inline-drawer/pull/22")")
+					   && prompt.contains(R"("target_ref":"refs/heads/main")") && prompt.contains(R"("head_ref":"refs/heads/inline-drawer")")
+					   && prompt.contains(R"("expected_head":"89df5e592e5db97a526a05a445735733395e4832")"),
+				   "the deferred prompt names the reviewed fixture and its exact branches and head");
+		}
+		application->begin_shutdown();
+		wait([&] { return application->status().ShutdownComplete; }, "cold fixture shutdown completes");
 	}
 
 	void exercise(const bool aViewerAuthors)
@@ -114,7 +221,20 @@ namespace {
 int main(int aArgc, char** aArgv)
 {
 	QApplication qtApplication{ aArgc, aArgv };
+	std::cout << "qt-runtime:" << qVersion() << '\n';
 	try {
+		exercise_cold_overview(cold_press::single);
+		std::cout << "cold-overview:first-press-passed\n"
+				  << std::flush;
+		exercise_cold_overview(cold_press::repeated);
+		std::cout << "cold-overview:repeated-presses-passed\n"
+				  << std::flush;
+		exercise_cold_overview(cold_press::closed);
+		std::cout << "cold-overview:closed-review-passed\n"
+				  << std::flush;
+		exercise_cold_overview(cold_press::stopped);
+		std::cout << "cold-overview:stopped-setup-passed\n"
+				  << std::flush;
 		exercise(false);
 		exercise(true);
 		std::cout << "update-from-target:pass\n";

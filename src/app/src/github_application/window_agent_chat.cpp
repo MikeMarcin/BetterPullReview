@@ -192,6 +192,7 @@ namespace bpr::app {
 
 	void github_application::implementation::refresh_agent_authority()
 	{
+		schedule_target_update();
 		observe_private_review();
 		if (AgentHost == nullptr || EpochHost == nullptr || Window == nullptr) {
 			return;
