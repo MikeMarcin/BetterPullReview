@@ -910,6 +910,10 @@ namespace {
 	{
 		auto  run    = course{ };
 		auto& window = start(run, { .Fixture = app::detail::github_public_path_fixture::commit_filter_comment_v1, .Address = QStringLiteral("bpr-fixtures/commit-filter-comment#894"), .Files = 99U, .Rereads = true });
+		// The accepted Overview can take input before composition adopts its
+		// first epoch. The tab must get this review's trees from one opening.
+		const auto beforeHandoff = access::close_review(*run.Application);
+		expect(beforeHandoff.SnapshotHeld && !beforeHandoff.ReadingDestination, "Commits can be opened before the first epoch handoff");
 		read_commit_trees(window);
 		gesture(window, { comment_c3 }, QStringLiteral("commitFilterHide"));
 		wait_for([&] { return window.overview_page()->commit_chip()->summary()->text() == QStringLiteral("2 of 3 commits shown"); }, "Hide C3");

@@ -137,7 +137,7 @@ namespace bpr::qt {
 		void set_clock(std::function<std::optional<std::int64_t>()> aClock);
 		/// \brief Context-menu and Clear all filters gestures.
 		void set_gesture_dispatch(gesture_dispatch aDispatch);
-		/// \brief The tab first became visible: the host may read the trees.
+		/// \brief The tab became visible: the host may read the current review's trees.
 		void set_shown_dispatch(std::function<void()> aDispatch);
 		/// \brief Open on GitHub for one commit.
 		void set_open_dispatch(commit_dispatch aDispatch);
@@ -187,7 +187,6 @@ namespace bpr::qt {
 		std::vector<application::commit_filter_rematch_row>               ShownOffers;
 		std::vector<QToolButton*>                                         OfferButtons;
 		std::optional<application::commit_filter_projection>              Projection;
-		bool                                                              Announced = false;
 	};
 
 	/// \brief The filter chip: what the filter shows and Clear all filters,

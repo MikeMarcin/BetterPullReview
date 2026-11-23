@@ -665,8 +665,7 @@ namespace bpr::qt {
 	void commit_filter_tab::set_shown_dispatch(std::function<void()> aDispatch)
 	{
 		Shown = std::move(aDispatch);
-		if (Shown && isVisible() && !Announced) {
-			Announced = true;
+		if (Shown && isVisible()) {
 			Shown();
 		}
 	}
@@ -854,8 +853,7 @@ namespace bpr::qt {
 		if (Clock) {
 			Model->set_now(Clock());
 		}
-		if (Shown && !Announced) {
-			Announced = true;
+		if (Shown) {
 			Shown();
 		}
 	}
