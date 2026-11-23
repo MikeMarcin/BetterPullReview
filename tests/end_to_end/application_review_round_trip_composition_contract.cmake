@@ -3969,8 +3969,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# mutation or publication path changes.
 	# [[BPR-2351]] reseal over main 2b644c1eb (above) merged into this
 	# change. No review mutation or submission path changed by the merge.
+	# [[BPR-2317]] reseal over 3957930d4..46d997e34. The only pinned source
+	# change, c7d354bbc, carries visible Commits demand into the accepted
+	# review. The cache actor still admits tree reads under the accepted
+	# epoch authority. Review is recorded on BPR-2317.
 	set(bpr_expected_production_app_manifest_digest
-        "11f80b63f6261e84db48c7f39810e72a1a7d9b99f61e571af724e5ee931d9584"
+        "344c91cf47f086792d03e923c981a7da60c25faeef29374e7ee76861c393a74c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

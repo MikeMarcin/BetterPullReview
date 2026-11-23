@@ -99,6 +99,15 @@ course clicked a reported file in the intervening turn using the real
 515-file, 1,000-thread fixture, verified that the first epoch opened it,
 and closed the loaded review.
 
+Review of `3957930d4..46d997e34` for the application composition pin found
+one app source change, `c7d354bbc`. It carries Commits tab demand into the
+accepted review when the tab is visible before the deferred first epoch.
+The tree read still uses that review's accepted handoff and the epoch cache
+actor's authority check. The mutation branch and write grants are unchanged.
+The macOS Release commit-filter course reproduced the missing counts before
+the fix and passed after it. The regression verifies that the accepted
+Overview takes the tab gesture before the handoff.
+
 On the designated disk-backed WSL2 i9 station, exact optimized
 `7685825ec` passed 30 of 30 responsiveness runs (maximum 99.344 ms)
 and 30 of 30 launch runs (maximum 88.501 ms). All 60 runs kept the 100 ms
