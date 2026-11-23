@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2362"
 title: "Scroll the code with a draft in Comments"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-2359"]
 priority: "P2"
