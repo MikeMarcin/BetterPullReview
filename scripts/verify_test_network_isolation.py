@@ -320,8 +320,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_commit_filter_public_path": "owner-private-acl-denied",
     # [[BPR-1576]]. Panes waiting on a slow fixture network.
     "application_pending_states_public_path": "owner-private-acl-denied",
-    # [[BPR-2317]]. The first-epoch course uses its own registered command.
-    "application_initial_epoch_file_path": "unmeasured (registered on macOS)",
+    # [[BPR-2317]]. Native Windows Release at 05951379f, Interactive
+    # Limited session 1, 2026-11-22. The exact first-epoch command passed
+    # directly in 25.92 s. AppContainer stopped it at "private desktop root
+    # under the canonical storage policy" before any fixture network step.
+    "application_initial_epoch_file_path": "private-test-root-refused",
     # [[BPR-1854]]. Native Windows Release, source 5a86e28ed, 2026-11-04:
     # all six same-image direct courses pass. The zero-capability replays
     # below name only their first observed refusal, without a guessed ACL
