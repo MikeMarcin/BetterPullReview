@@ -96,6 +96,21 @@ BPR-1670 allowlist, as before.
   having been measured. One that needs the machine to itself must say
   `RUN_SERIAL TRUE`.
 
+## 0.5.2 release follow-up
+
+The Windows build 91 normal Release run overlapped
+`application_home_open_responsive_public_path` with other rows. The course
+left Home for the requested pull request in 49 ms and painted its Overview
+in 54 ms. It failed when it checked whether the provider worker had already
+entered the artificial hold. Build 85 had the same failure after a 28 ms
+gesture and 32 ms first paint.
+
+The course records that its first Overview frame still awaits the header,
+then waits separately for the fixture worker to enter the hold. Its two
+100 ms Release requirements still cover the first frame and the longest
+GUI turn before that frame. `KEEP_SERIAL` in `tests/CMakeLists.txt` keeps the
+course exclusive in the measured Windows Release schedule.
+
 ## Evidence
 
 The three JUnit reports and the run summary are kept outside source under
