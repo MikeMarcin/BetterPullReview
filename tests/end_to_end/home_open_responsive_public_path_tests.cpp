@@ -126,11 +126,11 @@ namespace {
 		QApplication::sendEvent(aRow.View->viewport(), &release);
 	}
 
-	/// Notes when a widget is first painted after it is armed.
+	/// Records the Overview's first paint and whether its header is pending.
 	class first_paint final : public QObject
 	{
 	public:
-		explicit first_paint(QWidget* aWidget)
+		explicit first_paint(qt::pull_request_overview_page* aWidget)
 			: Widget{ aWidget }
 		{
 			aWidget->installEventFilter(this);
@@ -138,29 +138,34 @@ namespace {
 
 		void arm()
 		{
-			Painted = false;
+			Painted        = false;
+			AwaitingHeader = false;
 			Clock.start();
 			At = -1;
 		}
 
 		[[nodiscard]] auto painted() const noexcept -> bool { return Painted; }
+		[[nodiscard]] auto awaiting_header() const noexcept -> bool { return AwaitingHeader; }
 		[[nodiscard]] auto at() const noexcept -> qint64 { return At; }
 
 	protected:
 		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override
 		{
 			if (aWatched == Widget && aEvent->type() == QEvent::Paint && Clock.isValid() && !Painted) {
-				Painted = true;
-				At      = Clock.elapsed();
+				Painted            = true;
+				At                 = Clock.elapsed();
+				const auto* header = Widget->pending_veils().Header;
+				AwaitingHeader     = header != nullptr && header->busy();
 			}
 			return false;
 		}
 
 	private:
-		QWidget*      Widget = nullptr;
-		QElapsedTimer Clock;
-		bool          Painted = false;
-		qint64        At      = -1;
+		qt::pull_request_overview_page* Widget = nullptr;
+		QElapsedTimer                   Clock;
+		bool                            Painted        = false;
+		bool                            AwaitingHeader = false;
+		qint64                          At             = -1;
 	};
 
 	[[nodiscard]] auto home_button(qt::workbench_window& aWindow) -> QToolButton*
@@ -344,11 +349,12 @@ try {
 	expect(!window->home_action_returns(), "with nothing open, Home is Home");
 
 	// ---- BPR-2216:page-at-once
-	delay->Milliseconds     = first_hold_ms;
-	delay->PageMilliseconds = page_hold_ms;
-	auto* const surface     = window->overview_page();
-	auto        paint       = first_paint{ surface };
-	LongestTurn             = 0;
+	const auto delayedBefore = delay->Delayed.load();
+	delay->Milliseconds      = first_hold_ms;
+	delay->PageMilliseconds  = page_hold_ms;
+	auto* const surface      = window->overview_page();
+	auto        paint        = first_paint{ surface };
+	LongestTurn              = 0;
 	QElapsedTimer clicked;
 	paint.arm();
 	clicked.start();
@@ -361,12 +367,12 @@ try {
 	const auto paintMs  = paint.painted() ? paint.at() : -1;
 	const auto turnsMax = std::max(LongestTurn, gestureMs);
 	std::cout << "home-open-responsive:gesture-ms=" << gestureMs << " first-paint-ms=" << paintMs << " longest-turn-ms=" << turnsMax
-			  << " left-home-in-turn=" << leftHome << '\n';
+			  << " left-home-in-turn=" << leftHome << " header-pending-at-paint=" << paint.awaiting_header() << '\n';
 	render(QStringLiteral("page-at-once"));
 	expect(statusAfter == core::github_status::loading_pull_request, "the read is under way");
 	expect(leftHome, "the window leaves Home for the pull request's page in the gesture's own turn");
-	expect(paint.painted(), "the pull request's page is painted while GitHub has not answered");
-	expect(delay->Delayed.load() > 0U, "GitHub's first answers are still held");
+	expect(paint.painted(), "the pull request's page is painted");
+	expect(paint.awaiting_header(), "the first Overview frame still awaits its header from GitHub");
 	expect(window->home_open().has_value() && window->home_open()->State.has_value(), "the read is the one Home opened");
 	{
 		// The title row names it before GitHub does: Home listed it.
@@ -374,6 +380,9 @@ try {
 		std::cerr << "identity=" << (identity != nullptr ? identity->text().toStdString() : std::string{ }) << " visible=" << (identity != nullptr && identity->isVisible()) << '\n';
 		expect(identity != nullptr && identity->isVisible() && identity->text().contains(QStringLiteral("#17")), "the title row names #17 while it loads");
 	}
+	// A provider worker can enter the hold after the window has painted.
+	// The gesture and paint measurements above already ended.
+	wait_for([&] { return delay->Delayed.load() > delayedBefore; }, "the opened pull request reaches the held transport");
 	// The read's first parts arrive, slowly; what is loading is said once.
 	delay->Milliseconds = 0U;
 	wait_for([&] { return window->overview_page()->pending_veils().Header != nullptr && !window->overview_page()->pending_veils().Header->busy(); }, "GitHub names the pull request");
