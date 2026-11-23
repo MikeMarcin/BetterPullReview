@@ -34,6 +34,33 @@ A native block is measured whole ("An individual native block is
 indivisible"), so one long block in the large-review fixture's diff holds the
 thread for its whole layout. Not looked at on macOS or Windows.
 
+## 0.5.2 follow-up
+
+The optimized build 85 binary from stable 0.5.1 (`bf6e5a70a`) reproduced both
+waived cases on the designated WSL2 station. The serial, disk-backed run
+measured the `paged_review_and_git_load` input gap at 106.481 ms in
+`application_large_review_responsiveness` and 112.671 ms in
+`application_large_review_launch`, against the 100 ms target. The GUI thread
+used 90.725 ms and 96.056 ms of CPU respectively, with zero measured runnable
+wait in either gap. At the 0.5.2 merge baseline (`2f1171262`), the application
+and test source trees are identical to build 85. The 0.5.1 decision applied
+only to that release.
+
+Build 79 probes of this same phase found no overlapping geometry callback
+above the 8 ms trace threshold. The worst interval spanned an accepted-read
+notification and the following native render. Samples included accepted
+snapshot projection and conversation relayout. Trials that coalesced
+Resolve availability updates, skipped closed-card relayout, or reduced
+timeline summary work each still exceeded the target. These observations
+leave exact build 85 attribution open. Keep the separately observed
+single-block layout problem in the acceptance criteria.
+
+Reproduce the gap on the 0.5.2 candidate and correlate notification and
+main-thread stacks within that same interval. Measure accepted Overview and
+conversation publication separately from the benchmark's required native
+render. Retain the 100 ms target and the provisional and accepted rendering
+contracts when testing reductions to the work on that path.
+
 ## Direction (not decided)
 
 Bound one block's measurement: for example, estimate a very long block's
