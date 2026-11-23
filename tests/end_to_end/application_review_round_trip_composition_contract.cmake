@@ -1285,6 +1285,17 @@ endfunction()
 #   4. Paste the printed values into the pins, and name the reviewed range in the
 #      commit.
 #
+# BPR-2317 reseal from 962ac0469 through 7685825ec. The final host-only
+# scheduling correction leaves the pinned app source identical to e2fc7a32e.
+# Reviewed 390866cd2, b0e454eb2, b29e44cc2 and e2fc7a32e.
+# Avoids repeated conversation, prompt, defect and draft work.
+# The provider completion prepares read-only observations and projections, and
+# the window takes them only after request admission and exact scope and
+# snapshot checks. A pending file can use the admitted review key before
+# the first epoch.
+# The mutation-branch digest, write grants and provider calls are unchanged.
+# See the BPR-2317 card for the integration review.
+#
 # BPR-1670 main integration reseal over matching d989efb5c..15bb7f8a4.
 # Pinned-scope commits: 6ad4c4f28 (BPR-1671) and 3ae1183f7 (BPR-1672),
 # release_update_desktop.cpp/.hpp only. Reviewed offered-access restoration,
@@ -2836,7 +2847,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# production compose_review_mutation branch is unchanged; the provider
 	# reaches change_auto_merge through the same erased, diagnosed port.
 	set(bpr_expected_full_application_digest
-        "df310055e7d9abd9759e953827b1b4063b3897d682c031b8917be07d15c097bd"
+        "7ee88b4e721125cb8e5b20ca90423e008f217dc33b08a6db0f2a3daf38c52657"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3959,7 +3970,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-2351]] reseal over main 2b644c1eb (above) merged into this
 	# change. No review mutation or submission path changed by the merge.
 	set(bpr_expected_production_app_manifest_digest
-        "1a8ba61aa25cea654fb8cb482b90329947b5509ad4a0f2f774e96c33ec4abb6a"
+        "11f80b63f6261e84db48c7f39810e72a1a7d9b99f61e571af724e5ee931d9584"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

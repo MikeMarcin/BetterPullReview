@@ -55,11 +55,57 @@ timeline summary work each still exceeded the target. These observations
 leave exact build 85 attribution open. Keep the separately observed
 single-block layout problem in the acceptance criteria.
 
-Reproduce the gap on the 0.5.2 candidate and correlate notification and
-main-thread stacks within that same interval. Measure accepted Overview and
-conversation publication separately from the benchmark's required native
-render. Retain the 100 ms target and the provisional and accepted rendering
-contracts when testing reductions to the work on that path.
+### Current load-phase cause and fix
+
+On the exact 0.5.2 baseline (`962ac0469`), the two waived Release courses
+reproduced at 128.282 ms and 102.022 ms. Separate instrumented runs correlated
+the worst input gaps with 69.16 ms and 90.29 ms accepted-read callbacks
+(59.69 ms and 76.98 ms on the GUI CPU), followed by Qt paint and the
+benchmark's required native capture. Stacks recorded snapshot copies,
+conversation model adoption and repeated card layout, prompt context and
+submission preflight preparation, and workbench composition. The render
+capture remained part of the measurement.
+
+The reviewed range `962ac0469..e2fc7a32e` removes duplicate work in
+`390866cd2`, prepares submission preflight before GUI admission in
+`b0e454eb2`, and prepares the accepted projection and bounded cached
+Overview record before posting the provider completion in `b29e44cc2`.
+The decision lane still admits the exact request, checks authority,
+installs the snapshot, stamps Markdown authority, and presents the review.
+Same-head merge-base recovery still derives the cache from the installed
+snapshot. The window only transfers prepared submission facts after an
+exact scope and snapshot match. Shared or subsequently changed snapshots
+retain the ordinary computation. The production mutation branch and
+write-grant paths are unaffected.
+
+Qt inserts an already constructed first conversation forest in one
+notification, retains existing indexes on refresh, and remeasures existing
+cards on a viewport resize. The existing native render, snapshot, source,
+and shutdown assertions and the 100 ms target are unchanged.
+
+`e2fc7a32e` posts the first Git and workbench handoff on the existing
+decision lane after metadata publication. The installed handoff survives a
+same-review refresh, while closing or accepting a replacement retires it.
+The user can select a reported file using the admitted review key during
+the intervening turn. Host tests cover handoff admission and retirement.
+
+The broader yield in `e2fc7a32e` repeatedly left the legacy pending-states
+course with a Git catalogue recovery error after cancellation. The
+pre-yield control passed. `7685825ec` keeps small and later reads in a single
+turn and schedules a separate Git turn only on a window's first admitted
+review when the accepted file and conversation rows exceed one GitHub
+page. The ordinary pending-states course passed again. The short public
+course clicked a reported file in the intervening turn using the real
+515-file, 1,000-thread fixture, verified that the first epoch opened it,
+and closed the loaded review.
+
+On the designated disk-backed WSL2 i9 station, exact optimized
+`7685825ec` passed 30 of 30 responsiveness runs (maximum 99.344 ms)
+and 30 of 30 launch runs (maximum 88.501 ms). All 60 runs kept the 100 ms
+target and passed the exact-source, provisional and accepted rendering,
+and shutdown checks. The ordinary first-tab comparison also passed.
+These results cover the release load-phase stall. The separate historical
+single-native-block case in AC2 still needs its dedicated test and fix.
 
 ## Direction (not decided)
 
