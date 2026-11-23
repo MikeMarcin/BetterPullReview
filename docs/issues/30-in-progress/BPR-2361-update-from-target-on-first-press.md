@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2361"
 title: "Start an authored pull request update on its first press"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-2357", "BPR-2360"]
 priority: "P2"
