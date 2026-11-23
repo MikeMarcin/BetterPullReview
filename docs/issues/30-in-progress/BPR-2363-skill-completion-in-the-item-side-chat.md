@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2363"
 title: "Complete skill names in the item side chat"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1916", "BPR-2322"]
 priority: "P2"
