@@ -107,7 +107,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// Thirty-seven since [[BPR-2326]]: where Home lists others' drafts.
 	/// Thirty-eight since [[BPR-2333]]: each window's item side chat width,
 	/// the default width for a migrated row.
-	inline constexpr std::int64_t workbench_settings_schema_version = 38;
+	inline constexpr std::int64_t workbench_settings_schema_version = 39;
 
 	/// \brief Owns the durable workbench layout database.
 	///

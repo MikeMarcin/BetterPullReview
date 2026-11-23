@@ -743,6 +743,37 @@ namespace {
 		expect(application::apply_draft_state(moved, review, std::nullopt) && moved.MergeConflict && moved.MergeConflict->Files == context.ConflictingPaths, "withdrawn, the conflict returns");
 	}
 
+	void test_update_from_target_requires_the_current_author()
+	{
+		auto review                       = snapshot();
+		review.Account                    = core::github_account_id{ 7U };
+		review.Snapshot                   = core::provider_snapshot_id{ 11U };
+		review.Viewer                     = { .Actor = application::github_actor_id{ "viewer" }, .Login = "same-login" };
+		review.PullRequest.Author         = application::github_actor_record{ .Actor = application::github_actor_id{ "different" }, .Login = "same-login" };
+		review.PullRequest.HeadRepository = core::repository_locator{ "fork-owner", "fork-repo" };
+		review.Merge.Availability         = application::github_observation_availability::available;
+		review.Merge.Assessment           = application::github_merge_assessment::conflicts;
+		const auto project                = [&] {
+			return application::project_pull_request_overview(review, { .UpdateFromTargetAvailable = true });
+		};
+		expect(!project().UpdateFromTarget && !project().SuggestUpdateFromTarget, "a matching login does not grant authorship");
+		review.PullRequest.Author->Actor = review.Viewer.Actor;
+		expect(project().UpdateFromTarget == review.Snapshot && project().SuggestUpdateFromTarget, "the exact author can update, with a fresh conflict suggestion");
+		review.Merge.Stale = true;
+		expect(project().UpdateFromTarget && !project().SuggestUpdateFromTarget, "a stale conflict is not a suggestion");
+		review.Merge.Stale      = false;
+		review.Merge.Assessment = application::github_merge_assessment::behind;
+		expect(project().UpdateFromTarget && !project().SuggestUpdateFromTarget, "a non-conflicting author keeps the action without priority in Status");
+		review.PullRequest.State = application::github_pull_request_state::closed;
+		expect(!project().UpdateFromTarget, "closed pull requests have no update action");
+		review.PullRequest.State = application::github_pull_request_state::open;
+		review.PullRequest.HeadRepository.reset();
+		expect(!project().UpdateFromTarget, "a deleted head repository has no update action");
+		review.PullRequest.HeadRepository = core::repository_locator{ "fork-owner", "fork-repo" };
+		review.Account                    = core::github_account_id{ };
+		expect(!project().UpdateFromTarget, "the action requires an authenticated account");
+	}
+
 	/// [[BPR-2329]]. Auto-merge's line and offer: shown when the repository
 	/// allows it, offered as the core decides when the connection can change
 	/// it, and moved in place by the viewer's own change.
@@ -952,6 +983,7 @@ auto main() -> int
 {
 	test_merge_evidence_boundaries();
 	test_merge_names_the_conflict_and_what_else_blocks();
+	test_update_from_target_requires_the_current_author();
 	test_auto_merge_is_shown_and_offered();
 	test_status_leads_with_my_role_and_what_needs_attention();
 	test_a_requested_reviewer_moves_people_as_a_projection_would();

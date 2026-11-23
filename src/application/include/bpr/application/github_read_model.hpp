@@ -225,6 +225,8 @@ namespace bpr::application {
 		// commits endpoint can return only a bounded slice. Synthetic and
 		// older snapshots may leave this absent.
 		std::optional<std::size_t> ReportedCommitCount;
+		/// The REST head repository, absent if deleted or unavailable.
+		std::optional<core::repository_locator> HeadRepository = std::nullopt;
 
 		auto operator<=>(const github_pull_request_record&) const = default;
 	};
@@ -1598,10 +1600,18 @@ namespace bpr::application {
 				error != github_read_validation_error::none) {
 				return error;
 			}
-			return aBudget.consume(
-				aRecord.HeadRef,
-				aLimits.MaximumRefBytes,
-				true);
+			if (const auto error = aBudget.consume(aRecord.HeadRef, aLimits.MaximumRefBytes, true);
+				error != github_read_validation_error::none || !aRecord.HeadRepository) {
+				return error;
+			}
+			const auto& head = *aRecord.HeadRepository;
+			if (!core::valid(head)) {
+				return github_read_validation_error::invalid_repository;
+			}
+			if (const auto error = aBudget.consume(head.Owner, core::maximum_repository_owner_length, true); error != github_read_validation_error::none) {
+				return error;
+			}
+			return aBudget.consume(head.Name, core::maximum_repository_name_length, true);
 		}
 
 		[[nodiscard]] inline auto validate_file(

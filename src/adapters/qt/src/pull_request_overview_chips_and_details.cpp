@@ -594,7 +594,10 @@ namespace bpr::qt {
 			delete item->widget();
 			delete item;
 		}
-		const auto& conflict = aProjection.MergeConflict;
+		const auto& conflict  = aProjection.MergeConflict;
+		const auto  canUpdate = aProjection.UpdateFromTarget.has_value() && static_cast<bool>(UpdateFromTargetDispatch);
+		UpdateFromTarget->setVisible(canUpdate);
+		SuggestUpdateFromTarget->setVisible(canUpdate && aProjection.SuggestUpdateFromTarget);
 		if (conflict) {
 			ConflictSentence->setText(QStringLiteral("GitHub cannot merge until the conflicts with %1 are resolved.").arg(with_break_opportunities(text(conflict->Base))));
 			ConflictSentence->setAccessibleName(QStringLiteral("GitHub cannot merge until the conflicts with %1 are resolved.").arg(text(conflict->Base)));
@@ -720,6 +723,11 @@ namespace bpr::qt {
 	auto pull_request_overview_page::auto_merge_status() const noexcept -> QLabel*
 	{
 		return AutoMergeStatus;
+	}
+
+	void pull_request_overview_page::set_update_from_target_dispatch(std::function<void(core::provider_snapshot_id)> aDispatch)
+	{
+		UpdateFromTargetDispatch = std::move(aDispatch);
 	}
 
 	void pull_request_overview_page::set_conflicts_page_dispatch(std::function<void()> aDispatch)

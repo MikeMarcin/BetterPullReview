@@ -820,15 +820,17 @@ namespace bpr::qt {
 		if (!samePullRequest) {
 			return false;
 		}
-		Projection->Draft              = aProjection.Draft;
-		Projection->DraftPending       = aProjection.DraftPending;
-		Projection->MergeState         = aProjection.MergeState;
-		Projection->MergeTone          = aProjection.MergeTone;
-		Projection->RequirementDetails = aProjection.RequirementDetails;
-		Projection->MergeConflict      = aProjection.MergeConflict;
-		Projection->MergeNotes         = aProjection.MergeNotes;
-		ShownDraft                     = aProjection.Draft;
-		ShownDraftPending              = aProjection.DraftPending;
+		Projection->Draft                   = aProjection.Draft;
+		Projection->DraftPending            = aProjection.DraftPending;
+		Projection->MergeState              = aProjection.MergeState;
+		Projection->MergeTone               = aProjection.MergeTone;
+		Projection->RequirementDetails      = aProjection.RequirementDetails;
+		Projection->MergeConflict           = aProjection.MergeConflict;
+		Projection->UpdateFromTarget        = aProjection.UpdateFromTarget;
+		Projection->SuggestUpdateFromTarget = aProjection.SuggestUpdateFromTarget;
+		Projection->MergeNotes              = aProjection.MergeNotes;
+		ShownDraft                          = aProjection.Draft;
+		ShownDraftPending                   = aProjection.DraftPending;
 		present_draft_controls();
 		present_merge(*Projection);
 		++DraftStateUpdates;

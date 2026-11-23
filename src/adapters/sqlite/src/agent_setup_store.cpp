@@ -434,7 +434,7 @@ namespace bpr::adapters::sqlite {
 				// SHA-256 is `text_digest`: a row for other text says nothing.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS prompt_provenance("
-									"hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 15),"
+									"hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 16),"
 									"text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
 									"version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)) STRICT")
 				// [[BPR-2016]]. An import's hooks before it, kept while the
@@ -442,7 +442,7 @@ namespace bpr::adapters::sqlite {
 				// crash between them is undone at the next start.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS configuration_import_journal("
-									"hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 15),"
+									"hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 16),"
 									"revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
 									"text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)) STRICT")
 				// [[BPR-2032]], RFC-BPR-0112. The profile's optional workflows,
@@ -632,24 +632,40 @@ namespace bpr::adapters::sqlite {
 			// retired, so every other hook is two lower, 0 to 15, checked in a
 			// new form. A table any earlier build made (any other check) is rebuilt
 			// with its rows for 0 and 1 dropped and the rest renumbered.
-			static_assert(core::writing_hook_count == 16U, "the hook tables' check names the last hook");
+			// [[BPR-2357]]. Widen 0 to 15 in place, preserving current IDs.
+			static_assert(core::writing_hook_count == 17U, "the hook tables' check names the last hook");
 			for (const auto& [table, definition, columns] : std::array{
 					 std::tuple{ std::string_view{ "prompt_provenance" },
-								 std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 15),text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
+								 std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 16),text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
 												   "version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)" },
 								 std::string_view{ "text_digest,version" } },
 					 std::tuple{ std::string_view{ "configuration_import_journal" },
-								 std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 15),revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
+								 std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 16),revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
 												   "text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)" },
 								 std::string_view{ "revision_after,text" } } }) {
 				auto query = std::string{ "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='" };
 				query += table;
-				query += "' AND sql NOT LIKE '%hook >= 0 AND hook <= 15)%'";
+				query += "' AND sql NOT LIKE '%hook >= 0 AND hook <= 16)%'";
 				const auto narrow = detail::scalar_integer(db, query);
 				if (!narrow) {
 					return { };
 				}
 				if (*narrow == 0) {
+					continue;
+				}
+				if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+					return { };
+				}
+				const auto current = detail::scalar_integer(db, query);
+				if (!current) {
+					static_cast<void>(detail::execute(db, "ROLLBACK"));
+					return { };
+				}
+				if (*current == 0) {
+					if (!detail::execute(db, "COMMIT")) {
+						static_cast<void>(detail::execute(db, "ROLLBACK"));
+						return { };
+					}
 					continue;
 				}
 				const auto statement = [table](std::string aBefore, const std::string_view aMiddle, const std::string_view aAfter) {
@@ -660,13 +676,20 @@ namespace bpr::adapters::sqlite {
 				};
 				auto rename = statement("ALTER TABLE ", " RENAME TO narrow_", { });
 				rename += table;
+				const auto previous = detail::scalar_integer(db, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='" + std::string{ table } + "' AND sql LIKE '%hook >= 0 AND hook <= 15)%'");
+				if (!previous) {
+					static_cast<void>(detail::execute(db, "ROLLBACK"));
+					return { };
+				}
 				auto copy = statement("INSERT INTO ", "(hook,", columns);
-				copy += ") SELECT hook - 2,";
+				copy += *previous != 0 ? ") SELECT hook," : ") SELECT hook - 2,";
 				copy += columns;
 				copy += " FROM narrow_";
 				copy += table;
-				copy += " WHERE hook >= 2";
-				if (!detail::execute(db, "BEGIN IMMEDIATE") || !detail::execute(db, rename) || !detail::execute(db, statement("CREATE TABLE ", "(", definition) + ") STRICT")
+				if (*previous == 0) {
+					copy += " WHERE hook >= 2";
+				}
+				if (!detail::execute(db, rename) || !detail::execute(db, statement("CREATE TABLE ", "(", definition) + ") STRICT")
 					|| !detail::execute(db, copy) || !detail::execute(db, statement("DROP TABLE narrow_", { }, { })) || !detail::execute(db, "COMMIT")) {
 					static_cast<void>(detail::execute(db, "ROLLBACK"));
 					return { };

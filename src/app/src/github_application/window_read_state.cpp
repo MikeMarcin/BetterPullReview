@@ -618,8 +618,11 @@ namespace bpr::app {
 		context.ProjectedDraft = projected_draft_state(*snapshot);
 		// [[BPR-2329]]. And the viewer's auto-merge change, and whether the
 		// connection can change it at all.
-		context.ProjectedAutoMerge  = projected_auto_merge(*snapshot);
-		context.AutoMergeControl    = auto_merge_control();
+		context.ProjectedAutoMerge = projected_auto_merge(*snapshot);
+		context.AutoMergeControl   = auto_merge_control();
+#if defined(BPR_AGENT_INTEGRATIONS)
+		context.UpdateFromTargetAvailable = has_update_from_target_authority(*snapshot);
+#endif
 		OverviewReviewRequests      = context.ProjectedReviewRequests;
 		PublishedOverview           = application::project_pull_request_overview(*snapshot, context);
 		OverviewResolutions         = std::move(context.ProjectedResolutions);

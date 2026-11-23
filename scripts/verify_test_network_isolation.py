@@ -151,6 +151,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_steer_unavailable_public_path": "unmeasured (registered on macOS)",
     "application_tour_feedback_queue_public_path": "private-data-root-refused",
     "application_agent_queue_windows_public_path": "private-data-root-refused",
+    "application_update_from_target_public_path": "unmeasured (registered on macOS)",
     "application_agent_queue_second_window_loading_public_path": "private-data-root-refused",
     "application_agent_queue_close_runs_on_public_path": "private-data-root-refused",
     "application_agent_queue_restart_public_path": "private-data-root-refused",

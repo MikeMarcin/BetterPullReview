@@ -13,22 +13,23 @@ namespace bpr::application {
 	auto writing_hook_version_of(core::writing_hook aHook) noexcept -> std::string_view
 	{
 		switch (aHook) {
-		case core::writing_hook::feedback:              return review_feedback_hook_version;
-		case core::writing_hook::enhance_stop:          return enhance_stop_hook_version;
-		case core::writing_hook::enhance_writing:       return enhance_writing_hook_version;
-		case core::writing_hook::suggested_comment:     return suggested_comment_hook_version;
-		case core::writing_hook::local_description:     return local_description_hook_version;
-		case core::writing_hook::local_discussion:      return local_discussion_hook_version;
-		case core::writing_hook::local_commit_message:  return local_commit_message_hook_version;
-		case core::writing_hook::review_latest_upload:  return review_latest_upload_hook_version;
-		case core::writing_hook::review_proposed_fix:   return review_proposed_fix_hook_version;
-		case core::writing_hook::review_explain_file:   return review_explain_file_hook_version;
-		case core::writing_hook::review_suggest_change: return review_suggest_change_hook_version;
-		case core::writing_hook::local_run_check:       return local_run_check_hook_version;
-		case core::writing_hook::writing_style:         return writing_style_hook_version;
-		case core::writing_hook::comment_labels:        return comment_labels_hook_version;
-		case core::writing_hook::comment:               return tour_stop_comment_hook_version;
-		case core::writing_hook::outline:               return writing_hook_version;
+		case core::writing_hook::feedback:                  return review_feedback_hook_version;
+		case core::writing_hook::enhance_stop:              return enhance_stop_hook_version;
+		case core::writing_hook::enhance_writing:           return enhance_writing_hook_version;
+		case core::writing_hook::suggested_comment:         return suggested_comment_hook_version;
+		case core::writing_hook::local_description:         return local_description_hook_version;
+		case core::writing_hook::local_discussion:          return local_discussion_hook_version;
+		case core::writing_hook::local_commit_message:      return local_commit_message_hook_version;
+		case core::writing_hook::review_latest_upload:      return review_latest_upload_hook_version;
+		case core::writing_hook::review_proposed_fix:       return review_proposed_fix_hook_version;
+		case core::writing_hook::review_explain_file:       return review_explain_file_hook_version;
+		case core::writing_hook::review_suggest_change:     return review_suggest_change_hook_version;
+		case core::writing_hook::local_run_check:           return local_run_check_hook_version;
+		case core::writing_hook::writing_style:             return writing_style_hook_version;
+		case core::writing_hook::review_update_from_target: return review_update_from_target_hook_version;
+		case core::writing_hook::comment_labels:            return comment_labels_hook_version;
+		case core::writing_hook::comment:                   return tour_stop_comment_hook_version;
+		case core::writing_hook::outline:                   return writing_hook_version;
 		}
 		return writing_hook_version;
 	}
@@ -55,6 +56,7 @@ namespace bpr::application {
 			"feature.writing-style",
 			// [[BPR-2270]]
 			"feature.comment-labels",
+			"review.update-from-target",
 		};
 	}
 	auto writing_hook_purpose(const core::writing_hook aHook) noexcept -> std::string_view

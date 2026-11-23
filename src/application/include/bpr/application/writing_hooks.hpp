@@ -109,7 +109,8 @@ namespace bpr::application {
 	/// \brief [[BPR-2270]]. Version of the Comment labels Feature's shipped
 	/// text, `resources/review-preparation/comment-labels.md`.
 	/// [[BPR-2276]] v2: only `issue` blocks on its own.
-	inline constexpr std::string_view comment_labels_hook_version = "comment-labels-v2";
+	inline constexpr std::string_view comment_labels_hook_version            = "comment-labels-v2";
+	inline constexpr std::string_view review_update_from_target_hook_version = "review-update-from-target-v1";
 	/// \brief [[BPR-2051]] The stable purpose ID of one prompt, as
 	/// RFC-BPR-0107's exchange names it: it never changes with the prompt's
 	/// text, version, position in this enumeration or display name.

@@ -465,22 +465,23 @@ namespace bpr::qt {
 			return text_of(aPurpose);
 		}
 		switch (*hook) {
-		case core::writing_hook::outline:               return QObject::tr("Tour outline");
-		case core::writing_hook::comment:               return QObject::tr("Tour-stop comment");
-		case core::writing_hook::feedback:              return QObject::tr("Review feedback");
-		case core::writing_hook::enhance_stop:          return QObject::tr("Enhance a stop");
-		case core::writing_hook::enhance_writing:       return QObject::tr("Enhance writing");
-		case core::writing_hook::suggested_comment:     return QObject::tr("Suggested comments");
-		case core::writing_hook::local_description:     return QObject::tr("Description writing");
-		case core::writing_hook::local_discussion:      return QObject::tr("Change discussion");
-		case core::writing_hook::local_commit_message:  return QObject::tr("Commit message");
-		case core::writing_hook::review_latest_upload:  return QObject::tr("What changed");
-		case core::writing_hook::review_proposed_fix:   return QObject::tr("Was this addressed");
-		case core::writing_hook::review_explain_file:   return QObject::tr("Explain this file");
-		case core::writing_hook::review_suggest_change: return QObject::tr("Suggest the change");
-		case core::writing_hook::local_run_check:       return QObject::tr("Plan and run a check");
-		case core::writing_hook::writing_style:         return QObject::tr("Writing style");
-		case core::writing_hook::comment_labels:        return QObject::tr("Comment labels");
+		case core::writing_hook::outline:                   return QObject::tr("Tour outline");
+		case core::writing_hook::comment:                   return QObject::tr("Tour-stop comment");
+		case core::writing_hook::feedback:                  return QObject::tr("Review feedback");
+		case core::writing_hook::enhance_stop:              return QObject::tr("Enhance a stop");
+		case core::writing_hook::enhance_writing:           return QObject::tr("Enhance writing");
+		case core::writing_hook::suggested_comment:         return QObject::tr("Suggested comments");
+		case core::writing_hook::local_description:         return QObject::tr("Description writing");
+		case core::writing_hook::local_discussion:          return QObject::tr("Change discussion");
+		case core::writing_hook::local_commit_message:      return QObject::tr("Commit message");
+		case core::writing_hook::review_latest_upload:      return QObject::tr("What changed");
+		case core::writing_hook::review_proposed_fix:       return QObject::tr("Was this addressed");
+		case core::writing_hook::review_explain_file:       return QObject::tr("Explain this file");
+		case core::writing_hook::review_suggest_change:     return QObject::tr("Suggest the change");
+		case core::writing_hook::local_run_check:           return QObject::tr("Plan and run a check");
+		case core::writing_hook::writing_style:             return QObject::tr("Writing style");
+		case core::writing_hook::review_update_from_target: return QObject::tr("Update from target");
+		case core::writing_hook::comment_labels:            return QObject::tr("Comment labels");
 		}
 		return text_of(aPurpose);
 	}

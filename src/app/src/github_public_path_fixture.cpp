@@ -2316,7 +2316,9 @@ namespace bpr::app::detail {
 			bool DescriptionServed = false;
 			// [[BPR-1853]]. With `ViewerAuthors`, the viewer opened the pull
 			// request.
-			bool ViewerAuthors = false;
+			bool                                            ViewerAuthors = false;
+			std::optional<core::repository_locator>         ForkHeadRepository;
+			std::optional<application::github_actor_record> PullRequestAuthor;
 			// [[BPR-1775]]. With `--comment-edit-probe`, the provider edits the
 			// replies it published (their bodies live in `ThreadOverlays`).
 			bool CommentsEditable = false;
@@ -3804,9 +3806,18 @@ namespace bpr::app::detail {
 					}
 					response->Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
 				}
-				if (State->ViewerAuthors && Role == fixture_transport_role::account && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {
+				if ((State->ViewerAuthors || State->ForkHeadRepository || State->PullRequestAuthor) && Role == fixture_transport_role::account && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {
 					auto object = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
-					object.insert(QStringLiteral("user"), QJsonObject{ { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") }, { QStringLiteral("login"), QStringLiteral("octo-reviewer") } });
+					if (const auto& author = State->PullRequestAuthor) {
+						object.insert(QStringLiteral("user"), QJsonObject{ { QStringLiteral("node_id"), QString::fromStdString(std::string{ author->Actor.value() }) }, { QStringLiteral("login"), QString::fromStdString(author->Login) } });
+					} else if (State->ViewerAuthors) {
+						object.insert(QStringLiteral("user"), QJsonObject{ { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") }, { QStringLiteral("login"), QStringLiteral("octo-reviewer") } });
+					}
+					if (const auto& fork = State->ForkHeadRepository) {
+						auto head = object.value(QStringLiteral("head")).toObject();
+						head.insert(QStringLiteral("repo"), QJsonObject{ { QStringLiteral("id"), 47 }, { QStringLiteral("full_name"), QString::fromStdString(fork->Owner + "/" + fork->Name) } });
+						object.insert(QStringLiteral("head"), head);
+					}
 					response->Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
 				}
 				if (State->DescriptionServed && Role == fixture_transport_role::account && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {
@@ -6177,13 +6188,15 @@ namespace bpr::app::detail {
 			Recording->RepeatReads = aOptions.RepeatReadSessions || aOptions.LoseFirstReviewMutationResult;
 			// [[BPR-1741]]. Two others gave the first thread's first post
 			// a thumbs up.
-			Recording->ReactionsServed   = aOptions.ServesReactions;
-			Recording->DescriptionServed = aOptions.EditsDescription;
-			Recording->ViewerAuthors     = aOptions.ViewerAuthors;
-			Recording->CommentsEditable  = aOptions.EditsComments;
-			Recording->ReviewersServed   = aOptions.RequestsReviewers;
-			Recording->DraftStateServed  = aOptions.ChangesDraftState;
-			Recording->PullRequestState  = aOptions.PullRequestState;
+			Recording->ReactionsServed    = aOptions.ServesReactions;
+			Recording->DescriptionServed  = aOptions.EditsDescription;
+			Recording->ViewerAuthors      = aOptions.ViewerAuthors;
+			Recording->ForkHeadRepository = aOptions.ForkHeadRepository;
+			Recording->PullRequestAuthor  = aOptions.PullRequestAuthor;
+			Recording->CommentsEditable   = aOptions.EditsComments;
+			Recording->ReviewersServed    = aOptions.RequestsReviewers;
+			Recording->DraftStateServed   = aOptions.ChangesDraftState;
+			Recording->PullRequestState   = aOptions.PullRequestState;
 			if (aOptions.ServesReactions) {
 				Recording->Reactions["PRRC_fixture_1"] = core::reaction_summary{
 					.ViewerCanReact = true,

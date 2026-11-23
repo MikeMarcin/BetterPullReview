@@ -838,13 +838,15 @@ namespace bpr::app {
 		void refresh_returning_review();
 		/// [[BPR-2251]]. The change since the review, read at the press and
 		/// then asked; a read that fails is refused on the Agent tab.
-		void read_returning_material();
-		void send_what_changed();
-		void refuse_what_changed(const std::string& aWhy);
-		void read_addressed_lines(const std::string& aIdentity, bool aThen);
-		void retry_addressed_lines();
-		void ask_what_changed();
-		void ask_was_addressed(const std::string& aIdentity);
+		void               read_returning_material();
+		void               send_what_changed();
+		void               refuse_what_changed(const std::string& aWhy);
+		void               read_addressed_lines(const std::string& aIdentity, bool aThen);
+		void               retry_addressed_lines();
+		void               ask_what_changed();
+		void               update_pull_request_from_target(core::provider_snapshot_id aOffered);
+		[[nodiscard]] auto has_update_from_target_authority(const application::github_pull_request_snapshot& aSnapshot) const noexcept -> bool;
+		void               ask_was_addressed(const std::string& aIdentity);
 		/// RFC-BPR-0128 as amended (look ask-v005): a file's or the pull
 		/// request's Was this addressed? is one ask carrying every thread.
 		void                     ask_were_addressed(const std::vector<std::string>& aIdentities);

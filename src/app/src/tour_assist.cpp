@@ -90,7 +90,8 @@ namespace bpr::app {
 		// [[BPR-2264]] The Writing style Feature.
 		case core::writing_hook::writing_style: return "writing-style";
 		// [[BPR-2270]] The Comment labels Feature.
-		case core::writing_hook::comment_labels: return "comment-labels";
+		case core::writing_hook::comment_labels:            return "comment-labels";
+		case core::writing_hook::review_update_from_target: return "review-update-from-target";
 		}
 		return "outline";
 	}

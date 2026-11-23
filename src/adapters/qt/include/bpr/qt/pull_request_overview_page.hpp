@@ -699,6 +699,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-2327]]. Resolve on GitHub pressed: open the pull
 		/// request's conflicts page.
 		void set_conflicts_page_dispatch(std::function<void()> aDispatch);
+		void set_update_from_target_dispatch(std::function<void(core::provider_snapshot_id)> aDispatch);
 		/// \brief [[BPR-1589]]. A Status section's header, its disclosure.
 		[[nodiscard]] auto status_section_header(overview_status_section aSection) const noexcept -> drawer_section_header*;
 		/// \brief [[BPR-1589]]. A Status section, header, body and details.
@@ -1074,16 +1075,19 @@ namespace bpr::qt {
 		bool                                                ReviewersOffered = false;
 		/// [[BPR-1852]]. The draft chip before the title and, for its author,
 		/// Ready for review at the title line's end; Convert to draft in People.
-		draft_state_chip*                             DraftChip      = nullptr;
-		QPushButton*                                  ReadyForReview = nullptr;
-		QLabel*                                       ReadyStatus    = nullptr;
-		QToolButton*                                  ConvertToDraft = nullptr;
-		QLabel*                                       ConvertStatus  = nullptr;
-		std::function<void(core::draft_state_change)> DraftStateDispatch;
-		std::optional<core::draft_state_change>       DraftStateOffer;
-		bool                                          ReadyBusy         = false;
-		bool                                          ConvertBusy       = false;
-		std::size_t                                   DraftStateUpdates = 0U;
+		draft_state_chip*                               DraftChip               = nullptr;
+		QPushButton*                                    ReadyForReview          = nullptr;
+		QPushButton*                                    UpdateFromTarget        = nullptr;
+		QPushButton*                                    SuggestUpdateFromTarget = nullptr;
+		std::function<void(core::provider_snapshot_id)> UpdateFromTargetDispatch;
+		QLabel*                                         ReadyStatus    = nullptr;
+		QToolButton*                                    ConvertToDraft = nullptr;
+		QLabel*                                         ConvertStatus  = nullptr;
+		std::function<void(core::draft_state_change)>   DraftStateDispatch;
+		std::optional<core::draft_state_change>         DraftStateOffer;
+		bool                                            ReadyBusy         = false;
+		bool                                            ConvertBusy       = false;
+		std::size_t                                     DraftStateUpdates = 0U;
 		/// What the chip and the banner show: the presented pull request's
 		/// draft state (the read's, or the viewer's change), whether it is open,
 		/// and whether GitHub has yet to answer that change.

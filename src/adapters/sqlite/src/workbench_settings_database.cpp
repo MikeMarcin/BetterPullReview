@@ -75,7 +75,7 @@ namespace bpr::adapters::sqlite::detail {
 		/// forty-nine.
 		/// [[BPR-2326]]: version thirty-seven's placement of others' drafts,
 		/// fifty.
-		constexpr std::size_t MaximumTableColumns = 50U;
+		constexpr std::size_t MaximumTableColumns = 51U;
 
 		/// \brief Writes the layout table's definition under one name.
 		///
@@ -244,7 +244,9 @@ namespace bpr::adapters::sqlite::detail {
 				  // author's draft that would need me, in
 				  // `core::home_draft_placement`'s order. Zero is Following, the
 				  // default, so a migrated row lists them there.
-				  "others_drafts INTEGER NOT NULL DEFAULT 0 CHECK(others_drafts BETWEEN 0 AND 1)) STRICT";
+				  "others_drafts INTEGER NOT NULL DEFAULT 0 CHECK(others_drafts BETWEEN 0 AND 1),"
+				  // [[BPR-2357]]. Schema version 39: the update-from-target prompt.
+				  "writing_update_from_target TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_update_from_target AS BLOB)) <= 8192)) STRICT";
 		}
 
 		static_assert(core::maximum_feedback_label_columns_text == 256U);
@@ -260,26 +262,27 @@ namespace bpr::adapters::sqlite::detail {
 		/// are retired too, always empty; outline and comment keep 17 and 18.
 		[[nodiscard]] constexpr auto writing_hook_column(const std::size_t aHook) noexcept -> int
 		{
-			return aHook < core::review_preparation_hook_count                                 ? static_cast<int>(17 + aHook)
-				: aHook == static_cast<std::size_t>(core::writing_hook::feedback)              ? 24
-				: aHook == static_cast<std::size_t>(core::writing_hook::suggested_comment)     ? 34
-				: aHook == static_cast<std::size_t>(core::writing_hook::local_description)     ? 35
-				: aHook == static_cast<std::size_t>(core::writing_hook::local_discussion)      ? 36
-				: aHook == static_cast<std::size_t>(core::writing_hook::local_commit_message)  ? 37
-				: aHook == static_cast<std::size_t>(core::writing_hook::review_latest_upload)  ? 38
-				: aHook == static_cast<std::size_t>(core::writing_hook::review_proposed_fix)   ? 39
-				: aHook == static_cast<std::size_t>(core::writing_hook::review_explain_file)   ? 40
-				: aHook == static_cast<std::size_t>(core::writing_hook::review_suggest_change) ? 41
-				: aHook == static_cast<std::size_t>(core::writing_hook::local_run_check)       ? 42
-				: aHook == static_cast<std::size_t>(core::writing_hook::writing_style)         ? 43
-				: aHook == static_cast<std::size_t>(core::writing_hook::comment_labels)        ? 44
-																							   : static_cast<int>(31 + aHook - static_cast<std::size_t>(core::writing_hook::enhance_stop));
+			return aHook < core::review_preparation_hook_count                                     ? static_cast<int>(17 + aHook)
+				: aHook == static_cast<std::size_t>(core::writing_hook::feedback)                  ? 24
+				: aHook == static_cast<std::size_t>(core::writing_hook::suggested_comment)         ? 34
+				: aHook == static_cast<std::size_t>(core::writing_hook::local_description)         ? 35
+				: aHook == static_cast<std::size_t>(core::writing_hook::local_discussion)          ? 36
+				: aHook == static_cast<std::size_t>(core::writing_hook::local_commit_message)      ? 37
+				: aHook == static_cast<std::size_t>(core::writing_hook::review_latest_upload)      ? 38
+				: aHook == static_cast<std::size_t>(core::writing_hook::review_proposed_fix)       ? 39
+				: aHook == static_cast<std::size_t>(core::writing_hook::review_explain_file)       ? 40
+				: aHook == static_cast<std::size_t>(core::writing_hook::review_suggest_change)     ? 41
+				: aHook == static_cast<std::size_t>(core::writing_hook::local_run_check)           ? 42
+				: aHook == static_cast<std::size_t>(core::writing_hook::writing_style)             ? 43
+				: aHook == static_cast<std::size_t>(core::writing_hook::comment_labels)            ? 44
+				: aHook == static_cast<std::size_t>(core::writing_hook::review_update_from_target) ? 49
+																								   : static_cast<int>(31 + aHook - static_cast<std::size_t>(core::writing_hook::enhance_stop));
 		}
 		/// \brief The retired column of the note's own Enhance prompt.
 		constexpr int retired_enhance_note_column = 33;
 		/// \brief [[BPR-2274]]. The retired columns of the tour's Problem and Solution prompts.
 		constexpr auto retired_brief_columns = std::array{ 15, 16 };
-		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 14U, "a new hook needs its own column");
+		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 15U, "a new hook needs its own column");
 		/// \brief Version twenty-seven folds the note's Enhance prompt into the
 		/// one Enhance writing prompt: a profile that changed only the note's
 		/// keeps that text for every surface, one that changed the comment's
@@ -476,6 +479,7 @@ namespace bpr::adapters::sqlite::detail {
 				: aVersion <= 34                       ? ",writing_label_convention"
 				: aVersion <= 35                       ? ",reading_threads"
 				: aVersion <= 36                       ? ",others_drafts"
+				: aVersion <= 38                       ? ",writing_update_from_target"
 													   : "";
 			if (!cut.empty()) {
 				sql.resize(sql.find(cut));
@@ -506,7 +510,7 @@ namespace bpr::adapters::sqlite::detail {
 				+ (aVersion >= 6 ? ",drawer_controls" : "") + (aVersion >= 7 ? ",one_pane" : "")
 				+ (aVersion >= 11 ? ",writing_revision,writing_problem,writing_solution,writing_outline,writing_stop" : "")
 				+ (aVersion >= 12 ? ",feedback_marks" : "") + (aVersion >= 13 ? ",label_helper,overview_counts,label_columns" : "")
-				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "") + (aVersion >= 20 ? ",center_ribbon_width" : "") + (aVersion >= 21 ? ",markdown_images" : "") + (aVersion >= 22 ? ",reading_width" : "") + (aVersion >= 24 ? ",finish_review" : "") + (aVersion >= 25 ? ",writing_enhance_stop,writing_enhance_draft,writing_enhance_note" : "") + (aVersion >= 26 ? ",writing_suggestion_format" : "") + (aVersion >= 28 ? ",writing_local_description,writing_local_discussion" : "") + (aVersion >= 29 ? ",writing_local_commit_message" : "") + (aVersion >= 30 ? ",writing_review_latest_upload,writing_review_proposed_fix" : "") + (aVersion >= 31 ? ",writing_review_explain_file" : "") + (aVersion >= 32 ? ",writing_review_suggest_change" : "") + (aVersion >= 33 ? ",writing_local_run_check" : "") + (aVersion >= 34 ? ",writing_style" : "") + (aVersion >= 35 ? ",writing_label_convention" : "") + (aVersion >= 36 ? ",reading_threads,reading_discuss,reading_reports" : "") + (aVersion >= 37 ? ",others_drafts" : "");
+				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "") + (aVersion >= 20 ? ",center_ribbon_width" : "") + (aVersion >= 21 ? ",markdown_images" : "") + (aVersion >= 22 ? ",reading_width" : "") + (aVersion >= 24 ? ",finish_review" : "") + (aVersion >= 25 ? ",writing_enhance_stop,writing_enhance_draft,writing_enhance_note" : "") + (aVersion >= 26 ? ",writing_suggestion_format" : "") + (aVersion >= 28 ? ",writing_local_description,writing_local_discussion" : "") + (aVersion >= 29 ? ",writing_local_commit_message" : "") + (aVersion >= 30 ? ",writing_review_latest_upload,writing_review_proposed_fix" : "") + (aVersion >= 31 ? ",writing_review_explain_file" : "") + (aVersion >= 32 ? ",writing_review_suggest_change" : "") + (aVersion >= 33 ? ",writing_local_run_check" : "") + (aVersion >= 34 ? ",writing_style" : "") + (aVersion >= 35 ? ",writing_label_convention" : "") + (aVersion >= 36 ? ",reading_threads,reading_discuss,reading_reports" : "") + (aVersion >= 37 ? ",others_drafts" : "") + (aVersion >= 39 ? ",writing_update_from_target" : "");
 			std::vector<std::string> statements;
 			if (aVersion >= 5) {
 				statements.emplace_back("ALTER TABLE workbench_preferences RENAME TO workbench_layout");
@@ -566,7 +570,7 @@ namespace bpr::adapters::sqlite::detail {
 		};
 		void limit_connection(::sqlite3* aDatabase)
 		{
-			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_LENGTH, 65536));
+			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_LENGTH, 65536 + static_cast<int>(core::maximum_writing_instruction_bytes)));
 			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_SQL_LENGTH, 16384));
 			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_COLUMN, static_cast<int>(MaximumTableColumns)));
 			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_VDBE_OP, 10000));
@@ -910,7 +914,8 @@ namespace bpr::adapters::sqlite::detail {
 			// [[BPR-2326]]: version thirty-seven adds one, so thirty-six is too.
 			// [[BPR-2333]]: version thirty-eight adds a per-window column, so
 			// thirty-seven is rebuilt too.
-			if (*current < 0 || *current > 37) {
+			// [[BPR-2357]]: version thirty-nine adds the update-from-target prompt.
+			if (*current < 0 || *current > 38) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -1263,8 +1268,8 @@ namespace bpr::adapters::sqlite::detail {
 			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review,"
 			"writing_enhance_stop, writing_enhance_draft, writing_enhance_note, writing_suggestion_format, writing_local_description, writing_local_discussion, writing_local_commit_message,"
 			"writing_review_latest_upload, writing_review_proposed_fix, writing_review_explain_file, writing_review_suggest_change, writing_local_run_check, writing_style, writing_label_convention,"
-			"reading_threads, reading_discuss, reading_reports, others_drafts) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39, ?40, ?41, ?42, ?43, ?44, ?45, ?46, ?47, ?48, ?49) "
+			"reading_threads, reading_discuss, reading_reports, others_drafts, writing_update_from_target) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39, ?40, ?41, ?42, ?43, ?44, ?45, ?46, ?47, ?48, ?49, ?50) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -1291,7 +1296,7 @@ namespace bpr::adapters::sqlite::detail {
 			"writing_review_explain_file = excluded.writing_review_explain_file, writing_review_suggest_change = excluded.writing_review_suggest_change,"
 			"writing_local_run_check = excluded.writing_local_run_check, writing_style = excluded.writing_style, writing_label_convention = excluded.writing_label_convention,"
 			"reading_threads = excluded.reading_threads, reading_discuss = excluded.reading_discuss, reading_reports = excluded.reading_reports,"
-			"others_drafts = excluded.others_drafts");
+			"others_drafts = excluded.others_drafts, writing_update_from_target = excluded.writing_update_from_target");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -1647,7 +1652,7 @@ namespace bpr::adapters::sqlite::detail {
 			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review,"
 			"writing_enhance_stop, writing_enhance_draft, writing_enhance_note, writing_suggestion_format, writing_local_description, writing_local_discussion, writing_local_commit_message,"
 			"writing_review_latest_upload, writing_review_proposed_fix, writing_review_explain_file, writing_review_suggest_change, writing_local_run_check, writing_style, writing_label_convention,"
-			"reading_threads, reading_discuss, reading_reports, others_drafts "
+			"reading_threads, reading_discuss, reading_reports, others_drafts, writing_update_from_target "
 			"FROM workbench_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());

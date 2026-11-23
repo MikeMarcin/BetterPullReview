@@ -532,6 +532,11 @@ namespace bpr::app {
 				static_cast<void>(WindowRead->open_pull_request_conflicts_page(Profile->WindowBrowser));
 			}
 		});
+#if defined(BPR_AGENT_INTEGRATIONS)
+		Window->overview_page()->set_update_from_target_dispatch([this](const core::provider_snapshot_id aSnapshot) {
+			update_pull_request_from_target(aSnapshot);
+		});
+#endif
 		Window->set_overview_drill_down_dispatch(
 			[this](const application::overview_drill_down& aDrillDown) {
 				if (!Closing && FeedbackRequest) {

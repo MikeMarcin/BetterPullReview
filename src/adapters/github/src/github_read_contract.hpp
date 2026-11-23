@@ -11,9 +11,21 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace bpr::adapters::github::detail {
+	/// The REST repository's full_name, when it identifies a usable GitHub repository.
+	[[nodiscard]] inline auto read_repository_locator(const std::string_view aFullName) -> std::optional<core::repository_locator>
+	{
+		const auto slash = aFullName.find('/');
+		if (slash == std::string_view::npos) {
+			return std::nullopt;
+		}
+		auto locator = core::repository_locator{ std::string{ aFullName.substr(0, slash) }, std::string{ aFullName.substr(slash + 1U) } };
+		return core::valid(locator) ? std::optional{ std::move(locator) } : std::nullopt;
+	}
+
 	enum class server_contract : std::uint8_t {
 		github_com,
 		ghes_3_18,

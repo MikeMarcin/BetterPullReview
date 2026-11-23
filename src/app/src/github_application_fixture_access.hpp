@@ -709,6 +709,9 @@ namespace bpr::app::detail {
 		/// author; nothing else changes. One node keeps one login, so the
 		/// case-insensitive comparison is the core's tests' to show.
 		bool ViewerAuthors = false;
+		/// Repository returned with the pull request's head in the fork course.
+		std::optional<core::repository_locator>         ForkHeadRepository;
+		std::optional<application::github_actor_record> PullRequestAuthor;
 		/// [[BPR-1775]]. The fixture's mutation provider edits the viewer's
 		/// published comments; off, no course offers Edit on a comment.
 		bool EditsComments = false;

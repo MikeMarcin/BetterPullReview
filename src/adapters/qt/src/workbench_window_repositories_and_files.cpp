@@ -1831,13 +1831,15 @@ namespace bpr::qt {
 			publish(aProjection);
 			return;
 		}
-		PresentedOverview->Draft              = aProjection.Draft;
-		PresentedOverview->DraftPending       = aProjection.DraftPending;
-		PresentedOverview->MergeState         = aProjection.MergeState;
-		PresentedOverview->MergeTone          = aProjection.MergeTone;
-		PresentedOverview->RequirementDetails = aProjection.RequirementDetails;
-		PresentedOverview->MergeConflict      = aProjection.MergeConflict;
-		PresentedOverview->MergeNotes         = aProjection.MergeNotes;
+		PresentedOverview->Draft                   = aProjection.Draft;
+		PresentedOverview->DraftPending            = aProjection.DraftPending;
+		PresentedOverview->MergeState              = aProjection.MergeState;
+		PresentedOverview->MergeTone               = aProjection.MergeTone;
+		PresentedOverview->RequirementDetails      = aProjection.RequirementDetails;
+		PresentedOverview->MergeConflict           = aProjection.MergeConflict;
+		PresentedOverview->UpdateFromTarget        = aProjection.UpdateFromTarget;
+		PresentedOverview->SuggestUpdateFromTarget = aProjection.SuggestUpdateFromTarget;
+		PresentedOverview->MergeNotes              = aProjection.MergeNotes;
 	}
 
 	void workbench_window::publish_auto_merge(const application::pull_request_overview_projection& aProjection)

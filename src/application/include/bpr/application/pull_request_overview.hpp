@@ -231,6 +231,9 @@ namespace bpr::application {
 		std::vector<std::string> MergeConditions;
 		/// [[BPR-2327]]. Present while GitHub assesses a conflict.
 		std::optional<overview_merge_conflict> MergeConflict;
+		/// The accepted snapshot the author's update action was offered for.
+		std::optional<core::provider_snapshot_id> UpdateFromTarget;
+		bool                                      SuggestUpdateFromTarget = false;
 		/// [[BPR-2327]]. The context's conflicting paths, kept so a conflict
 		/// that returns in place lists them again.
 		std::optional<std::vector<std::string>> ConflictingPaths;
@@ -271,6 +274,8 @@ namespace bpr::application {
 	/// \brief The ledger and history the overview is decided against.
 	struct overview_context
 	{
+		/// The window has its authenticated review and Agent action composed.
+		bool UpdateFromTargetAvailable = false;
 		/// Receipts for any of the pull request's files, keyed by the
 		/// identity `core::file_identity_of` gives their path.
 		std::vector<core::file_receipt>           Receipts;
@@ -308,6 +313,9 @@ namespace bpr::application {
 	};
 
 	/// \brief Decides the overview from the snapshot and the context.
+	/// Whether this accepted read names an open PR by its viewer and a head repository.
+	[[nodiscard]] auto can_update_from_target(const github_pull_request_snapshot& aSnapshot) noexcept -> bool;
+
 	[[nodiscard]] auto project_pull_request_overview(
 		const github_pull_request_snapshot& aSnapshot,
 		const overview_context&             aContext)

@@ -1,5 +1,7 @@
 #include "github_paged_read_record_parsing.hpp"
 
+#include "github_read_contract.hpp"
+
 #include <algorithm>
 #include <array>
 #include <charconv>
@@ -585,6 +587,7 @@ namespace bpr::adapters::github::detail {
 				.BaseRef             = base->Ref,
 				.HeadRef             = head->Ref,
 				.ReportedCommitCount = static_cast<std::size_t>(commits),
+				.HeadRepository      = head->FullName ? read_repository_locator(*head->FullName) : std::nullopt,
 			},
 			.ChangedFiles = static_cast<std::size_t>(changedFiles),
 			.Commits      = static_cast<std::size_t>(commits),

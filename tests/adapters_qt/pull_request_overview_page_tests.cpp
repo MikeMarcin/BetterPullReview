@@ -4175,6 +4175,39 @@ namespace {
 			   "without a conflict, Merge waits for the check and says nothing of conflicts");
 	}
 
+	void test_update_from_target_action_in_overview_and_status()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1'100, 900);
+		auto pressed = std::vector<core::provider_snapshot_id>{ };
+		page.set_update_from_target_dispatch([&](const auto aSnapshot) { pressed.push_back(aSnapshot); });
+		auto projected                    = status_projection();
+		projected.UpdateFromTarget        = core::provider_snapshot_id{ 7U };
+		projected.SuggestUpdateFromTarget = true;
+		projected.MergeConflict           = application::overview_merge_conflict{ .Base = "release", .CommandHint = "git merge origin/release" };
+		page.present(projected);
+		page.show();
+		settle();
+		auto* const overview   = page.findChild<QPushButton*>(QStringLiteral("overviewUpdateFromTarget"));
+		auto* const suggestion = page.findChild<QPushButton*>(QStringLiteral("overviewSuggestUpdateFromTarget"));
+		expect(overview && overview->isVisible() && suggestion && suggestion->isVisible(), "the conflict suggestion is visible without opening Merge details");
+		suggestion->setFocus(Qt::TabFocusReason);
+		press_key(*suggestion, Qt::Key_Space);
+		expect(pressed == std::vector{ *projected.UpdateFromTarget }, "the Status press sends the displayed snapshot");
+		projected.MergeConflict.reset();
+		projected.SuggestUpdateFromTarget = false;
+		page.present(projected);
+		settle();
+		expect(overview->isVisible() && suggestion->isHidden(), "a clean author can still update from the Overview");
+		overview->click();
+		expect(pressed.size() == 2U && pressed.back() == projected.UpdateFromTarget, "the Overview uses the same dispatch");
+		projected.UpdateFromTarget.reset();
+		page.present(projected);
+		settle();
+		overview->click();
+		expect(overview->isHidden() && suggestion->isHidden() && pressed.size() == 2U, "a reviewer projection refuses both update controls");
+	}
+
 	/// [[BPR-2329]]. Merge's auto-merge line, Enable with a menu of the
 	/// allowed methods, Disable, and a status line that holds the buttons
 	/// while GitHub answers. The page dispatches gestures and sends nothing.
@@ -4555,6 +4588,7 @@ auto main(int argc, char** argv) -> int
 	test_status_leads_with_my_role_and_what_needs_attention();
 	test_status_lines_are_their_own_actions();
 	test_merge_shows_the_conflict_and_how_to_resolve_it();
+	test_update_from_target_action_in_overview_and_status();
 	test_merge_offers_auto_merge();
 	test_conversation_count_is_cleared_with_the_pull_request();
 	test_a_requested_reviewer_moves_people_in_place();

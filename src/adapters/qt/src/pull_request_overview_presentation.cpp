@@ -568,6 +568,8 @@ namespace bpr::qt {
 		MergeState->hide();
 		MergeConditions->hide();
 		MergeConflictBox->hide();
+		UpdateFromTarget->hide();
+		SuggestUpdateFromTarget->hide();
 		AlsoRequired->hide();
 		MergeNotes->hide();
 		AutoMergeBox->hide();

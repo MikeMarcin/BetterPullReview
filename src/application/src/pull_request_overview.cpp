@@ -516,6 +516,8 @@ namespace bpr::application {
 			} else {
 				aProjection.MergeConflict.reset();
 			}
+			aProjection.SuggestUpdateFromTarget = aProjection.UpdateFromTarget.has_value() && aProjection.MergeConflict.has_value()
+				&& aMerge.Availability == github_observation_availability::available && !aMerge.Stale;
 			auto& notes = aProjection.MergeNotes;
 			notes.clear();
 			if (observed && aMerge.AutoMerge == true && !aMerge.AutoMergeSettings) {
@@ -920,7 +922,7 @@ namespace bpr::application {
 						   const github_pull_request_snapshot&              aSnapshot,
 						   const std::optional<core::projected_draft_state> aProjected) -> bool
 	{
-		const auto before        = std::tuple{ aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails, aProjection.MergeConflict, aProjection.MergeNotes };
+		const auto before        = std::tuple{ aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails, aProjection.MergeConflict, aProjection.SuggestUpdateFromTarget, aProjection.MergeNotes };
 		const auto shown         = read_merge(merge_for_draft(aSnapshot.Merge, aSnapshot.PullRequest.Draft, aProjection.Draft));
 		const auto now           = aProjected.value_or(core::projected_draft_state{ .Draft = aSnapshot.PullRequest.Draft });
 		aProjection.Draft        = now.Draft;
@@ -933,7 +935,7 @@ namespace bpr::application {
 		if (aProjection.RequirementDetails.starts_with(shown.Sentence)) {
 			aProjection.RequirementDetails.replace(0U, shown.Sentence.size(), reading.Sentence);
 		}
-		return before != std::tie(aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails, aProjection.MergeConflict, aProjection.MergeNotes);
+		return before != std::tie(aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails, aProjection.MergeConflict, aProjection.SuggestUpdateFromTarget, aProjection.MergeNotes);
 	}
 
 	auto apply_auto_merge_state(pull_request_overview_projection&               aProjection,
@@ -1004,6 +1006,16 @@ namespace bpr::application {
 		return done;
 	}
 
+	auto can_update_from_target(const github_pull_request_snapshot& aSnapshot) noexcept -> bool
+	{
+		const auto& request = aSnapshot.PullRequest;
+		return aSnapshot.Mode == core::github_access_mode::authenticated
+			&& aSnapshot.Account.value() != 0U && !aSnapshot.Viewer.Actor.value().empty()
+			&& request.Author && request.Author->Actor == aSnapshot.Viewer.Actor
+			&& request.State == github_pull_request_state::open && request.HeadRepository
+			&& !request.BaseRef.empty() && !request.HeadRef.empty();
+	}
+
 	auto project_pull_request_overview(
 		const github_pull_request_snapshot& aSnapshot,
 		const overview_context&             aContext)
@@ -1023,6 +1035,9 @@ namespace bpr::application {
 		projection.HeadRef        = request.HeadRef;
 		projection.State          = request.State;
 		projection.Draft          = request.Draft;
+		if (aContext.UpdateFromTargetAvailable && can_update_from_target(aSnapshot)) {
+			projection.UpdateFromTarget = aSnapshot.Snapshot;
+		}
 		// [[BPR-1852]]. The viewer's own change counts until a read agrees.
 		if (aContext.ProjectedDraft.has_value()) {
 			projection.Draft        = aContext.ProjectedDraft->Draft;

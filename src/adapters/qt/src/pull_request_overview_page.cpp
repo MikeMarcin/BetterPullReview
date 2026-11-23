@@ -257,6 +257,20 @@ namespace bpr::qt {
 		Summary->setWordWrap(true);
 		Summary->setForegroundRole(QPalette::PlaceholderText);
 		headerLayout->addWidget(Summary);
+		const auto makeUpdateButton = [this](QWidget* aContainer, const QString& aObjectName) {
+			auto* const button = new QPushButton{ tr("Update from target with agent"), aContainer };
+			button->setObjectName(aObjectName);
+			button->setToolTip(tr("Ask the agent to merge the target branch and push the updated pull request branch"));
+			button->hide();
+			connect(button, &QPushButton::clicked, this, [this] {
+				if (Projection && Projection->UpdateFromTarget && UpdateFromTargetDispatch) {
+					UpdateFromTargetDispatch(*Projection->UpdateFromTarget);
+				}
+			});
+			return button;
+		};
+		UpdateFromTarget = makeUpdateButton(main, QStringLiteral("overviewUpdateFromTarget"));
+		headerLayout->addWidget(UpdateFromTarget, 0, Qt::AlignLeft);
 		// What GitHub said when it refused, under the summary.
 		ReadyStatus = new QLabel{ main };
 		ReadyStatus->setObjectName(QStringLiteral("overviewReadyForReviewStatus"));
@@ -822,8 +836,13 @@ namespace bpr::qt {
 
 		// Needs attention, opening to Merge's conditions and the requirement
 		// details. With nothing to attend to, it is Merge, and says its state.
-		const auto attention         = makeSection(overview_status_section::attention, QStringLiteral("Needs attention"), QStringLiteral("overviewAttentionSection"));
-		AttentionList                = attention.Body;
+		const auto attention = makeSection(overview_status_section::attention, QStringLiteral("Needs attention"), QStringLiteral("overviewAttentionSection"));
+		AttentionList        = new QVBoxLayout{ };
+		AttentionList->setContentsMargins(0, 0, 0, 0);
+		AttentionList->setSpacing(2);
+		attention.Body->addLayout(AttentionList);
+		SuggestUpdateFromTarget = makeUpdateButton(attention.Body->parentWidget(), QStringLiteral("overviewSuggestUpdateFromTarget"));
+		attention.Body->addWidget(SuggestUpdateFromTarget, 0, Qt::AlignLeft);
 		auto* const attentionDetails = Sections[static_cast<std::size_t>(overview_status_section::attention)].Details;
 		MergeState                   = makeText(attentionDetails, QStringLiteral("overviewMergeState"));
 		auto stateFont               = MergeState->font();

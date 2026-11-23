@@ -4653,6 +4653,18 @@ set_tests_properties(application_explain_file_public_path PROPERTIES
 # RFC-BPR-0127 ([[BPR-2160]]). One keep action on the agent surfaces (AC10)
 # and the two private-context opt-ins (AC12), on nested-folders-v1 with the
 # suggestions fixture agent as the only Codex.
+bpr_add_executable(test_update_from_target_public_path update_from_target_public_path.cpp)
+target_link_libraries(test_update_from_target_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_update_from_target_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_update_from_target_public_path)
+bpr_enable_warnings(test_update_from_target_public_path)
+add_dependencies(test_update_from_target_public_path bpr_fixture_agent)
+bpr_add_network_isolated_test(NAME application_update_from_target_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_update_from_target_public_path)
+set_tests_properties(application_update_from_target_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "update-from-target:pass")
+
 bpr_add_executable(test_agent_keep_action_public_path agent_keep_action_public_path.cpp)
 target_link_libraries(test_agent_keep_action_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_agent_keep_action_public_path PRIVATE BPR_BUILD_TESTING=1)

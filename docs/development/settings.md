@@ -246,6 +246,15 @@ and reset but not placed on a surface. They include the review skill, the
 prompts in the sections below, and the Agent tab's **What changed**, **Was
 this addressed**, **Explain this file** and **Suggest the change**.
 
+**Update from target** controls what the agent does when you press **Update
+from target with agent** on a pull request you authored. Status also offers
+it when GitHub reports a merge conflict. The default asks the agent to fetch
+and merge the pull request's target, resolve conflicts and push to the PR's
+head branch, including a fork. Add project guidance to the built-in text or
+replace it in **System**. Each request includes the current pull request and
+branch details independently of the saved text. The action uses your
+selected agent's existing Git access and permissions.
+
 **Review skill** is how the agent reviews: the `bpr-pr-review` skill, sent
 with every review request. Edit it and **Save**; your copy is kept through
 updates. When a newer built-in version ships you can **Compare**, **Use

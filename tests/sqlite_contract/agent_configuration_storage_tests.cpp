@@ -399,6 +399,31 @@ try {
 		sqlite3_close(db);
 	}
 
+	// [[BPR-2357]]. A profile with the current (post-tour-brief) hook IDs
+	// already uses index 15 for Comment labels. Widen without renumbering it.
+	{
+		auto* db = static_cast<sqlite3*>(nullptr);
+		expect(sqlite3_open((recipient / "state/v1/agent-setup.sqlite3").string().c_str(), &db) == SQLITE_OK, "the current profile opens");
+		const auto earlier = "DROP TABLE prompt_provenance; CREATE TABLE prompt_provenance(hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 15),"
+							 "text_digest BLOB NOT NULL CHECK(length(text_digest)=32),version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)) STRICT;"
+							 "INSERT INTO prompt_provenance VALUES(15, zeroblob(32), 'comment-labels-v2');";
+		expect(sqlite3_exec(db, earlier, nullptr, nullptr, nullptr) == SQLITE_OK, "the previous bound and its last hook are seeded");
+		sqlite3_close(db);
+	}
+	const auto updated = adapters::sqlite::make_agent_configuration_store(recipient);
+	expect(updated->record_written_against(core::writing_hook::review_update_from_target, "Run smoke checks.", application::review_update_from_target_hook_version),
+		   "the new hook can record its version after migration");
+	{
+		auto* db = static_cast<sqlite3*>(nullptr);
+		expect(sqlite3_open((recipient / "state/v1/agent-setup.sqlite3").string().c_str(), &db) == SQLITE_OK, "the widened profile opens");
+		auto* statement = static_cast<sqlite3_stmt*>(nullptr);
+		expect(sqlite3_prepare_v2(db, "SELECT count(*) FROM prompt_provenance WHERE (hook = 15 AND version = 'comment-labels-v2') OR (hook = 16 AND version = 'review-update-from-target-v1')", -1, &statement, nullptr) == SQLITE_OK
+				   && sqlite3_step(statement) == SQLITE_ROW && sqlite3_column_int(statement, 0) == 2,
+			   "existing provenance retains its identity beside the update prompt");
+		sqlite3_finalize(statement);
+		sqlite3_close(db);
+	}
+
 	host.shutdown();
 	expect(host.is_quiescent(), "quiescent after shutdown");
 	review_settings_travel(sender, recipient, *sender_snapshot);
