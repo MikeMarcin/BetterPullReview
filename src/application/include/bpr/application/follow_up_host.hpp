@@ -3,6 +3,7 @@
 
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/agent_follow_up.hpp"
 #include "bpr/core/agent_run_policy.hpp"
 
@@ -13,6 +14,7 @@
 #include <optional>
 #include <stop_token>
 #include <string>
+#include <vector>
 
 /// \file
 /// \brief [[BPR-2286]]. Ask follow-up and Ask about this: the host of the
@@ -36,6 +38,8 @@ namespace bpr::application {
 		core::agent_instruction_delivery Delivery = core::agent_instruction_delivery::system_prompt;
 		/// The Writing style Feature: a person reads the answers.
 		std::string WritingStyle;
+		/// The bounded inline guidance named in this turn's question.
+		std::vector<core::supplement_skill> Skills;
 	};
 
 	/// \brief Runs one round; blocking, on the agent lane, stoppable. The

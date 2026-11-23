@@ -42,6 +42,7 @@
 #include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/skill_completer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
@@ -49,8 +50,12 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QDir>
+#include <QFile>
 #include <QFrame>
+#include <QKeyEvent>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -107,6 +112,67 @@ namespace {
 		}
 	}
 
+	void write_skill(const QDir& aHome, const QString& aName, const QByteArray& aGuidance)
+	{
+		const auto folder = QStringLiteral(".agents/skills/") + aName;
+		expect(aHome.mkpath(folder), "create a fixture skill folder");
+		auto       skill = QFile{ aHome.filePath(folder + QStringLiteral("/SKILL.md")) };
+		const auto text  = "---\nname: " + aName.toUtf8() + "\ndescription: Guidance for an item-chat fixture.\n---\n" + aGuidance + '\n';
+		expect(skill.open(QIODevice::WriteOnly) && skill.write(text) == text.size(), "write the fixture skill");
+	}
+
+	void composer_key(QPlainTextEdit& aComposer, const int aKey, const QString& aText = { }, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier)
+	{
+		auto press = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers, aText };
+		QApplication::sendEvent(&aComposer, &press);
+		QApplication::processEvents();
+	}
+
+	void ask_with_skill(qt::item_side_chat& aFollowUp)
+	{
+		auto& composer = *aFollowUp.composer();
+		expect(composer.hasFocus(), "Ask follow-up focuses the item chat's composer");
+		auto* completion = static_cast<qt::skill_completer*>(nullptr);
+		for (auto* const child : composer.children()) {
+			if (auto* const completer = dynamic_cast<qt::skill_completer*>(child); completer != nullptr) {
+				completion = completer;
+				break;
+			}
+		}
+		expect(completion != nullptr, "the item chat's composer has a skill picker");
+		const auto question    = QStringLiteral("I don't follow. Why is this blocking? ");
+		const auto prefix      = QStringLiteral("/fixture-item");
+		const auto type_prefix = [&] {
+			composer.setPlainText(question);
+			composer.moveCursor(QTextCursor::End);
+			for (const auto letter : prefix) {
+				composer_key(composer, letter.toUpper().unicode(), QString{ letter });
+			}
+		};
+		const auto rows = QStringList{
+			QStringLiteral("/fixture-item-decoy (Personal, ~/.agents/skills)"),
+			QStringLiteral("/fixture-item-style (Personal, ~/.agents/skills)"),
+		};
+		const auto selected = question + QStringLiteral("/fixture-item-style ");
+		type_prefix();
+		wait([&] { return completion->rows() == rows; }, "the slash prefix shows both discovered fixture skills and their source");
+		render(*completion->popup(), QStringLiteral("side-chat-skill-popup"));
+		composer_key(composer, Qt::Key_Down);
+		composer_key(composer, Qt::Key_Tab, QStringLiteral("\t"));
+		expect(composer.toPlainText() == selected && composer.hasFocus() && completion->popup()->isHidden(), "Tab inserts the highlighted skill and leaves the composer focused");
+
+		type_prefix();
+		composer_key(composer, Qt::Key_Down);
+		composer_key(composer, Qt::Key_Return, QStringLiteral("\r"));
+		expect(composer.toPlainText() == selected && !aFollowUp.running() && aFollowUp.questions().isEmpty(), "Return chooses the skill without sending");
+		composer_key(composer, Qt::Key_Return, QStringLiteral("\r"), Qt::ShiftModifier);
+		expect(composer.toPlainText() == selected + QLatin1Char('\n') && !aFollowUp.running(), "Shift+Return still makes a new line with the picker closed");
+		composer_key(composer, Qt::Key_Return, QStringLiteral("\r"));
+		wait([&] { return aFollowUp.answers().size() == 1 && !aFollowUp.running(); }, "the fixture agent answers the completed question");
+		expect(aFollowUp.questions().front() == selected.trimmed(), "the transcript shows the typed question and completed reference");
+		expect(aFollowUp.answers().front().endsWith(QStringLiteral(" Item-chat skill guidance received.")), "the request includes only the chosen skill's guidance in its inline fields");
+	}
+
 	/// Presses the side chat's apply action and waits for its proposal.
 	void propose(qt::item_side_chat& aFollowUp, const QString& aAction)
 	{
@@ -130,7 +196,11 @@ auto main(int argc, char** argv) -> int
 	}
 	std::unique_ptr<app::github_application> application;
 	try {
-		auto options                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+		auto       options   = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+		const auto skillHome = QDir{ data.filePath(QStringLiteral("fixture-skill-home")) };
+		write_skill(skillHome, QStringLiteral("fixture-item-decoy"), QByteArray{ "FIXTURE_UNUSED_ITEM_CHAT_GUIDANCE" });
+		write_skill(skillHome, QStringLiteral("fixture-item-style"), QByteArray{ "FIXTURE_SELECTED_ITEM_CHAT_GUIDANCE" });
+		options.PersonalSkillHome   = std::filesystem::path{ skillHome.absolutePath().toStdU16String() };
 		options.FixtureAgentSession = true;
 		options.EpochPhase          = app::detail::github_epoch_fixture_phase::reuse;
 		auto terminal               = false;
@@ -291,9 +361,10 @@ auto main(int argc, char** argv) -> int
 		expect(report->press(issue.Outline, qt::report_link::ask), "Ask follow-up is pressed on the report");
 		wait([&] { return followUp->subject_text() == QStringLiteral("Suggested comment at tonemap.frag:5") && followUp->isVisible(); }, "the side chat about the finding: " + followUp->subject_text().toStdString());
 		expect(!followUp->item_text().isEmpty(), "it quotes the finding");
-		ask(*followUp, QStringLiteral("I don't follow. Why is this blocking?"));
+		ask_with_skill(*followUp);
 		ask(*followUp, QStringLiteral("Can it be softer?"));
 		expect(followUp->answers().back().startsWith(QStringLiteral("Fixture follow-up: I read the item and 1 earlier rounds.")), "the second round carried the first: " + followUp->answers().back().toStdString());
+		expect(!followUp->answers().back().contains(QStringLiteral("Item-chat skill guidance received.")), "a later question does not carry the earlier question's skill guidance");
 		propose(*followUp, QStringLiteral("Update suggested comment"));
 		const auto updated = QStringLiteral("issue (blocking): clamp the height as well as the width. A minimised window reports a height of zero, and the swap chain asserts on it.");
 		expect(followUp->proposal_text() == updated, "the proposal is the rewritten comment: " + followUp->proposal_text().toStdString());

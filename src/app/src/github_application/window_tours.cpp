@@ -5,6 +5,7 @@
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/application/review_tour_source.hpp"
+#include "bpr/application/skill_guidance.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/tour_stop_acceptance.hpp"
 #include "bpr/qt/agent_footer.hpp"
@@ -1020,7 +1021,7 @@ namespace bpr::app {
 		};
 		auto style  = std::make_shared<local_writing_style>();
 		auto runner = [profiles = std::make_shared<const std::vector<core::agent_profile>>(aProfiles), process = LocalDraftEntryProcess.get(), root = ApplicationDataRoot, style](
-						  const application::local_draft_agent_run& aRun, const std::stop_token aStop) -> application::local_draft_agent_answer {
+						  const application::local_draft_agent_run& aRun, const std::stop_token aStop, const std::vector<core::supplement_skill>& aSkills = { }) -> application::local_draft_agent_answer {
 			const auto profile = std::ranges::find_if(*profiles, [&aRun](const core::agent_profile& aProfile) { return aProfile.Id.value() == aRun.Profile; });
 			if (profile == profiles->end()) {
 				return { .Failure = "That agent is no longer set up. Choose one with the agent picker." };
@@ -1028,7 +1029,11 @@ namespace bpr::app {
 			auto supplement    = core::agent_context_supplement{ };
 			supplement.Session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile->Id };
 			supplement.Message = aRun.Prompt;
-			auto options       = application::agent_launch_options{ .WritingOnly = true, .Path = aRun.Path, .SystemInstructions = aRun.Instructions, .Instructions = aRun.Delivery };
+			if (!aSkills.empty()) {
+				supplement.Skills = aSkills;
+				supplement.Message += application::inline_skill_directive();
+			}
+			auto options = application::agent_launch_options{ .WritingOnly = true, .Path = aRun.Path, .SystemInstructions = aRun.Instructions, .Instructions = aRun.Delivery };
 			{
 				const auto lock      = std::scoped_lock{ style->Lock };
 				options.WritingStyle = style->Text;
@@ -1186,7 +1191,7 @@ namespace bpr::app {
 				style->Text     = aAgent.WritingStyle;
 			}
 			auto answer = runner({ .Agent = aAgent.Agent, .AgentName = aAgent.AgentName, .Profile = aAgent.Profile, .Prompt = aMessage, .Instructions = aAgent.Instructions, .Path = core::agent_run_path::follow_up, .Delivery = aAgent.Delivery },
-								 aStop);
+								 aStop, aAgent.Skills);
 			if (!answer.Answered) {
 				return std::unexpected{ answer.Failure.empty() ? std::string{ "The agent did not answer." } : answer.Failure };
 			}

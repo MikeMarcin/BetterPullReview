@@ -334,7 +334,12 @@ namespace {
 			for (auto at = aRequest.find("Reviewer: "); at != std::string::npos; at = aRequest.find("Reviewer: ", at + 1U)) {
 				++rounds;
 			}
-			return "Fixture follow-up: I read the item and " + std::to_string(rounds) + " earlier rounds. A minimised window reports a height of zero, which this does not clamp.";
+			auto answer = "Fixture follow-up: I read the item and " + std::to_string(rounds) + " earlier rounds. A minimised window reports a height of zero, which this does not clamp.";
+			if (holds(aRequest, "skill.0.name\\tfixture-item-style") && holds(aRequest, "FIXTURE_SELECTED_ITEM_CHAT_GUIDANCE")
+				&& !holds(aRequest, "FIXTURE_UNUSED_ITEM_CHAT_GUIDANCE") && !holds(aRequest, "skill.1.name")) {
+				answer += " Item-chat skill guidance received.";
+			}
+			return answer;
 		}
 		if (holds(aRequest, "bpr-check-report")) {
 			return check_run_answer(aRequest, check_run_steps(aRequest));

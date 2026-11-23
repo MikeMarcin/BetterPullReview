@@ -2137,10 +2137,11 @@ the review.
 A prompt the person writes or edits can name a skill as `/skill-name`: a
 built-in prompt in Settings (the tour's Problem, Solution, outline and stop
 comment, used by Draft from PR context, Suggest an outline, Enhance and
-Generate comment), an Agent tab question, and a question in the Tour
-conversation's ask box, including one opened by Ask about this
-([[BPR-1914]]). Typing `/` offers completion of the skills found, each with
-where it came from.
+Generate comment), an Agent tab question, a question in the Tour
+conversation's ask box ([[BPR-1914]]), or a question in the side chat about a
+review finding, draft or thread ([[BPR-2363]]). Typing `/` offers completion of
+the skills found, each with where it came from. In the item side chat, only
+the current question can name skills for its tool-free run.
 
 **Sources.** The person's own skills, `NAME/SKILL.md` under
 `~/.claude/skills` (Claude Code), `~/.agents/skills` (the shared Agent Skills

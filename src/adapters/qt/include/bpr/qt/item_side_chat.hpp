@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_ITEM_SIDE_CHAT_HPP
 
 #include "bpr/core/agent_follow_up.hpp"
+#include "bpr/core/skill_references.hpp"
 
 #include <QElapsedTimer>
 #include <QPointer>
@@ -43,6 +44,7 @@ class QVBoxLayout;
 namespace bpr::qt {
 	class markdown_body_view;
 	class agent_run_status_line;
+	class skill_completer;
 
 	/// \brief What a press asks for.
 	struct item_side_chat_intents
@@ -72,6 +74,7 @@ namespace bpr::qt {
 		explicit item_side_chat(QWidget* aParent = nullptr);
 
 		void set_intents(item_side_chat_intents aIntents);
+		void present_skills(std::vector<core::skill_entry> aSkills);
 		/// \brief Shows `aState`: the item, its rounds, a run going, a
 		/// proposal, why the last step did nothing (`aFailure` when a run
 		/// failed). `aAgent` names the agent in the ending lines.
@@ -202,6 +205,7 @@ namespace bpr::qt {
 		QPointer<QWidget>                                 Page;
 		std::optional<std::uint32_t>                      PreferredWidth;
 		std::function<void(std::optional<std::uint32_t>)> WidthSink;
+		skill_completer*                                  SkillCompletion = nullptr;
 	};
 } // namespace bpr::qt
 
