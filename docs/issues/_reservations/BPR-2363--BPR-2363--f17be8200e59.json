@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2363"
+  ],
+  "reserve_for": "codex-side-chat-skill-completion",
+  "purpose": "",
+  "created": "2026-11-23T22:47:36.367599+00:00",
+  "base": "16fff703cd5ebe7bf09b64d9836584840b9991d4"
+}
