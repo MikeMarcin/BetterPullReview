@@ -1003,7 +1003,7 @@ namespace bpr::application {
 		auto* const caches = &Caches;
 		auto        actor  = context->Actor;
 		submit_effect(
-			[context, aRequest, caches](const std::stop_token aStop)
+			[context, aRequest, caches, diagnostics = epoch_diagnostics{ DiagnosticLog, aRequest.Context.Request.value(), aRequest.Context.ApplicationSession.value() }](const std::stop_token aStop)
 				-> worker_completion {
 				const auto snapshot = context->Catalog->snapshot(aStop);
 				if (!snapshot) {
@@ -1147,6 +1147,10 @@ namespace bpr::application {
 				};
 				const auto openedCache = open_actor_cache(
 					*context->Actor, *caches, expectedCache, aStop);
+				if (diagnostics.Log && !context->LoadingLogged) {
+					diagnostics.loading(cache_loading(*context, openedCache ? context->Actor->Cache.get() : nullptr, context->Revision.Head, aStop));
+					context->LoadingLogged = true;
+				}
 				if (!openedCache) {
 					if (openedCache.error() == git_cache_failure::cancelled) {
 						return [aRequest](implementation& aHost) {
@@ -1170,10 +1174,7 @@ namespace bpr::application {
 					&& candidates.LatestLive->Material.has_value()
 					&& candidates.LatestLive->Base == context->Revision.Base
 					&& candidates.LatestLive->Head == context->Revision.Head
-					&& object_loading_for(context->Handoff.Shape)
-						== pull_request_object_loading::selected_objects
-					&& context->Handoff.SmartGit
-					&& context->Handoff.SmartGit->supports_sparse_commit_trees();
+					&& sparse_review(*context);
 				const auto sparseCurrentPair = [&] {
 					if (!sparseCandidate) {
 						return false;
@@ -1285,7 +1286,8 @@ namespace bpr::application {
 				auto       importedEpochs = std::optional<std::vector<core::epoch_ordinal>>{ };
 				const auto importedBase   = [&](const core::comparison_anchor& aAnchor) {
 					if (aAnchor.Identity.Kind != core::comparison_anchor_kind::epoch_base
-						|| object_loading_for(context->Handoff.Shape) != pull_request_object_loading::selected_objects) {
+						|| (object_loading_for(context->Handoff.Shape) != pull_request_object_loading::selected_objects
+							&& !context->SelectedFallback.load(std::memory_order_acquire))) {
 						return false;
 					}
 					if (!importedEpochs) {

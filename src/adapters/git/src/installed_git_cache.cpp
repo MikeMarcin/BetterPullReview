@@ -4929,9 +4929,10 @@ namespace bpr::adapters::git {
 					};
 				}
 				return application::git_cache_commit_inspection{
-					.Commit    = aCommit,
-					.Tree      = core_tree(inspected->Tree),
-					.Residency = aSparse ? application::git_revision_residency::sparse_commit_trees : application::git_revision_residency::complete_closure,
+					.Commit         = aCommit,
+					.Tree           = core_tree(inspected->Tree),
+					.Residency      = aSparse ? application::git_revision_residency::sparse_commit_trees : application::git_revision_residency::complete_closure,
+					.HasFirstParent = inspected->HasFirstParent,
 				};
 			}
 

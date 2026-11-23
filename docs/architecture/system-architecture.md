@@ -2128,11 +2128,13 @@ and, after a timeout or size limit, starts no further background import.
 [[BPR-2291]]: a clone from the host is bounded by its progress, not its
 total time: it stops once its store and output have not grown for a minute,
 and runs at most thirty minutes while it keeps receiving. A complete closure
-is the repository's whole history, so a review loads one only for a
-repository GitHub reports within 32 MiB (or of unknown size); past that it
-loads selected objects whatever its pull request's counts, and a connection
-that cannot load selected objects refuses with `fetch_history_too_large`
-before asking the host. While a live fetch runs, the epoch host's
+can fetch the repository's whole history. [[BPR-2364]] guards both live
+and historical reads at transport admission. A complete read requires a
+reported size within 32 MiB, a transport that will use the linked clone,
+or verified haves that constrain the upstream fetch. The CLI's local
+pack exclusions alone do not constrain its upstream clone. Otherwise the host chooses selected objects or
+reports `fetch_history_too_large` before protocol negotiation. A configured
+clone path alone does not establish a usable clone. While a live fetch runs, the epoch host's
 `history_fetch()` says which commits it fetches, from which host and the
 bytes received so far; the window's waiting file says so with Cancel
 (`cancel_epoch_refresh_intent`). A tests-disabled macOS fixture

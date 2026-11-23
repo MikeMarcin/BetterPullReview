@@ -395,6 +395,8 @@ namespace bpr::application {
 	struct git_commit_inspection
 	{
 		git_tree_id Tree;
+		/// The first parent resolves to a commit in this object store.
+		bool HasFirstParent = false;
 
 		auto operator<=>(const git_commit_inspection&) const = default;
 	};

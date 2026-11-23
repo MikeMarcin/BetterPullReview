@@ -278,6 +278,17 @@ namespace {
 		expect(parse_operation_diagnosis(describe(failed)) == failed, "and reads back");
 		const auto borrowed = operation_diagnosis{ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Source = workspace_source::borrowed, .Sparse = true, .CloneGiven = true, .CloneHeldHead = true } };
 		expect(parse_operation_diagnosis(describe(borrowed)) == borrowed, "a borrowed workspace reads back");
+		auto withLoading               = borrowed;
+		withLoading.Workspace->Loading = review_loading_trace{ .SelectedObjects = true, .LoadedSparse = false, .SparseCapable = true, .CacheHasParent = true };
+		const auto text                = describe(withLoading);
+		expect(text.ends_with("loading=selected loaded_sparse=0 sparse_capable=1 cache_has_parent=1")
+				   && parse_operation_diagnosis(text) == withLoading,
+			   "loading inputs are bounded tokens and round-trip");
+		expect(!parse_operation_diagnosis(text.substr(0U, text.size() - 1U) + "2"), "a malformed loading field is refused");
+		withLoading.Workspace->Loading = review_loading_trace{ };
+		expect(describe(withLoading).ends_with("loading=complete loaded_sparse=unset sparse_capable=0 cache_has_parent=0")
+				   && parse_operation_diagnosis(describe(withLoading)) == withLoading,
+			   "an unset load record round-trips separately from false");
 		expect(describe({ .Action = operation_action::workspace_cleanup, .Workspace = workspace_trace{ } }).empty(), "a trace only on a materialization line");
 		expect(describe({ .Action = operation_action::workspace_materialize, .Workspace = workspace_trace{ .Source = static_cast<workspace_source>(90) } }).empty(), "an unknown source is no line");
 		expect(name(operation_failure::history_missing) == "history_missing", "history_missing has its stable name");

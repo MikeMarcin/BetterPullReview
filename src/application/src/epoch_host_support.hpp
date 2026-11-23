@@ -83,6 +83,7 @@ namespace bpr::application {
 					diagnostic_epoch_failure               aFailure = { },
 					std::optional<git_pack_stream_failure> aPack    = { },
 					git_smart_transport_step               aStep    = git_smart_transport_step::none) const noexcept;
+		void loading(const core::review_loading_trace& aTrace) const;
 		template <typename Failure>
 		void failed(diagnostic_epoch_stage aStage, const Failure aFailure) const noexcept
 		{
@@ -151,10 +152,21 @@ namespace bpr::application {
 		mutable std::string PendingDetail = { };
 	};
 
-	/// \brief [[BPR-2290]]. A historical acquisition's line detail: its mode,
+	/// \brief Verified, distinct complete haves from the exact live epoch.
+	[[nodiscard]] auto verified_epoch_haves(git_cache_session& aCache, core::repository_cache_scope_id aCacheId,
+											const core::review_epoch_summary& aLive, std::stop_token aStop) -> std::vector<git_protocol_v2_have>;
+
+	/// \brief [[BPR-2364]]. Before calling the host, require a repository size
+	/// bound, verified haves or an actual clone-backed complete transport.
+	/// May change the mode to selected objects if the lease supports it.
+	[[nodiscard]] auto acquire_review_transport(git_smart_authority_lease& aLease, git_smart_request_context& aContext,
+												const std::optional<accepted_pull_request_shape>& aShape, bool aHasHaves, bool aSparseCapable)
+		-> std::expected<git_smart_transport, std::variant<git_smart_transport_error, core::epoch_failure>>;
+
+	/// \brief [[BPR-2290]]. A Git acquisition's line detail: its mode,
 	/// where its objects came from, its haves and the pack's size.
-	[[nodiscard]] auto historical_acquisition_summary(const git_smart_request_context& aContext, const git_smart_transport_port& aTransport,
-													  std::size_t aHaves, const git_protocol_v2_client_result<git_protocol_v2_acquisition_result>& aResult)
+	[[nodiscard]] auto acquisition_summary(const git_smart_request_context& aContext, const git_smart_transport_port& aTransport,
+										   std::size_t aHaves, const git_protocol_v2_client_result<git_protocol_v2_acquisition_result>& aResult)
 		-> std::string;
 
 	/// \brief [[BPR-2290]]. A size or time wall: trying the next background

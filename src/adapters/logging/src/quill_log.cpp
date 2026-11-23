@@ -623,7 +623,7 @@ namespace bpr::adapters::logging {
 			const auto                                        transportSource = static_cast<std::size_t>(aEvent.TransportFailureSource);
 			static constexpr std::array<std::string_view, 4>  transportSources{ "none", "native_transport", "http_response", "network_reply" };
 			const auto                                        stage = static_cast<std::size_t>(aEvent.EpochStage);
-			static constexpr std::array<std::string_view, 12> stages{ "none", "catalog_open", "catalog_recovery", "catalog_prepare", "cache_open", "pack_sink", "smart_acquire", "protocol_acquire", "cache_inventory", "revision_prepare", "preparation_abort", "historical_acquire" };
+			static constexpr std::array<std::string_view, 13> stages{ "none", "catalog_open", "catalog_recovery", "catalog_prepare", "cache_open", "pack_sink", "smart_acquire", "protocol_acquire", "cache_inventory", "revision_prepare", "preparation_abort", "historical_acquire", "loading_decision" };
 			static constexpr std::array<std::string_view, 6>  domains{ "none", "catalog", "cache", "transport", "protocol", "epoch" };
 			static constexpr std::array<std::string_view, 17> gitSteps{ "none", "admission", "temporary_store", "process_runner", "identity_before", "cli_version", "git_version", "cli_qualification", "git_qualification", "clone", "object_check", "identity_after", "local_store", "local_pack", "pack_read", "git_capability_probe", "cli_capability_probe" };
 			const auto                                        gitStep = static_cast<std::size_t>(aEvent.GitStep);

@@ -38,7 +38,9 @@ namespace bpr::application {
 		preparation_abort,
 		/// [[BPR-2290]]. A force-pushed head's objects, fetched for the
 		/// review's history: its detail says where they came from.
-		historical_acquire
+		historical_acquire,
+		/// [[BPR-2364]]. Shape, lease capability and exact cached head evidence.
+		loading_decision
 	};
 	using diagnostic_epoch_failure  = std::variant<std::monostate, epoch_catalog_failure,
 												   git_cache_failure, git_smart_transport_failure, git_protocol_v2_failure, core::epoch_failure>;

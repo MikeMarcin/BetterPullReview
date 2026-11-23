@@ -1660,8 +1660,10 @@ namespace {
 				const auto linked          = linkedClone("linked-head", head);
 				auto       linkedContext   = context;
 				linkedContext.HistoryClone = linked;
-				launch_counter      launches{ root };
-				auto                linkedTransport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, linkedContext, [] { return true; });
+				launch_counter launches{ root };
+				auto           linkedTransport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, linkedContext, [] { return true; });
+				expect(linkedTransport && (*linkedTransport)->uses_history_clone() && !(*linkedTransport)->negotiates_history_haves(),
+					   "a validated linked clone bounds the CLI acquisition; local pack haves do not bound the upstream clone");
 				recording_pack_sink linkedSink{ core::git_hash_algorithm::sha1 };
 				const auto          linkedResult = application::acquire_git_protocol_v2_historical_pack(**linkedTransport, linkedContext, commitOf(head), std::span{ &have, 1U }, linkedSink, limits, { });
 				expect(linkedResult && linkedSink.Finished && (*linkedTransport)->last_fetch_source() == application::git_smart_fetch_source::linked_clone,
@@ -1673,7 +1675,9 @@ namespace {
 				auto shallow = std::ofstream{ linked / ".git" / "shallow" };
 				shallow << base.toStdString() << '\n';
 				shallow.close();
-				auto                shallowTransport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, linkedContext, [] { return true; });
+				auto shallowTransport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, linkedContext, [] { return true; });
+				expect(shallowTransport && !(*shallowTransport)->uses_history_clone(),
+					   "a shallow linked clone does not authorize a bounded complete acquisition");
 				recording_pack_sink shallowSink{ core::git_hash_algorithm::sha1 };
 				const auto          shallowResult = application::acquire_git_protocol_v2_historical_pack(**shallowTransport, linkedContext, commitOf(head), std::span{ &have, 1U }, shallowSink, limits, { });
 				expect(shallowResult && (*shallowTransport)->last_fetch_source() == application::git_smart_fetch_source::host,

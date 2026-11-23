@@ -97,7 +97,7 @@ namespace bpr::qt {
 		}
 	} // namespace
 
-	auto workspace_unavailable_words(const application::agent_workspace_unavailable_reason aReason) -> QString
+	auto workspace_unavailable_words(const application::agent_workspace_unavailable_reason aReason, const QString& aHead) -> QString
 	{
 		using reason = application::agent_workspace_unavailable_reason;
 		switch (aReason) {
@@ -114,18 +114,18 @@ namespace bpr::qt {
 		// [[BPR-1873]]. Only what the linked clone lacks is fetched; nothing
 		// is asked of the reviewer's clone.
 		case reason::download_failed:
-			return QObject::tr("Your clone doesn't have this head yet, and fetching the pull request's new objects for the agent failed. Check again, or show the log for the cause.");
+			return QObject::tr("The linked clone is missing head %1, and fetching the pull request's new objects for the agent failed. Check again, or show the log for the cause.").arg(aHead);
 		case reason::connection_failed:
-			return QObject::tr("Your clone doesn't have this head yet, and GitHub could not be reached to fetch the pull request's new objects. Check the connection, then check again.");
+			return QObject::tr("The linked clone is missing head %1, and GitHub could not be reached to fetch the pull request's new objects. Check the connection, then check again.").arg(aHead);
 		case reason::sign_in_refused:
-			return QObject::tr("Your clone doesn't have this head yet, and GitHub refused to send the pull request's new objects to the signed-in account. Check that gh is signed in with access to this repository, then check again.");
+			return QObject::tr("The linked clone is missing head %1, and GitHub refused to send the pull request's new objects to the signed-in account. Check that gh is signed in with access to this repository, then check again.").arg(aHead);
 		case reason::too_large:
-			return QObject::tr("Your clone doesn't have this head yet, and the pull request's new objects are larger than the agent may fetch. Once your clone has the head, check again.");
+			return QObject::tr("The linked clone is missing head %1, and the pull request's new objects are larger than the agent may fetch. Once your clone has the head, check again.").arg(aHead);
 		case reason::clone_needed:
 			return QObject::tr("This review holds only the files it shows, and the agent works in a clone of the repository. Link your clone, then check again.");
 		// [[BPR-2295]].
 		case reason::history_missing:
-			return QObject::tr("The agent's copy of this pull request could not be made: the review holds only the pull request's head, and the linked clone was not used. Link your clone, or check that it holds this head.");
+			return QObject::tr("The agent's copy could not be made because the review cache is missing objects for head %1. Refresh the review or link a clone that holds this head.").arg(aHead);
 		}
 		return { };
 	}
@@ -1285,7 +1285,7 @@ namespace bpr::qt {
 			append_check_details(aBody, tr("Show details"), QStringLiteral("agentSetupShowDetails"), Setup.CheckDetail, AgentDetailsOpen);
 		}
 		if (failed(Setup.State.WorkspaceCheck)) {
-			auto* const why = words(Facts.WorkspaceReason ? workspace_unavailable_words(*Facts.WorkspaceReason) : setup_failure_words(core::agent_setup_failure::workspace_unavailable, name, { }), parent);
+			auto* const why = words(Facts.WorkspaceReason ? workspace_unavailable_words(*Facts.WorkspaceReason, text_of(Facts.Head).left(12)) : setup_failure_words(core::agent_setup_failure::workspace_unavailable, name, { }), parent);
 			why->setObjectName(QStringLiteral("agentSetupWorkspaceFailure"));
 			aBody.addWidget(why);
 			append_check_details(aBody, tr("Show the log"), QStringLiteral("agentSetupShowWorkspaceLog"), Setup.WorkspaceDetail, WorkspaceLogOpen);

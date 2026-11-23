@@ -4854,21 +4854,29 @@ namespace bpr::adapters::git {
 				const auto exists = submit(
 					process_request{
 						.Arguments = std::move(arguments),
-						.Input     = memory_input{ commit + "\n" },
+						.Input     = memory_input{ commit + "\n" + commit + "^1\n" },
 					},
 					aStop);
 				if (!exists.has_value()) {
 					return std::unexpected{ exists.error() };
 				}
-				if (exists->StandardOutput == commit + " missing\n") {
+				if (exists->StandardOutput.starts_with(commit + " missing\n")) {
 					return std::unexpected{
 						git_process_failure::object_unavailable
 					};
 				}
-				if (exists->StandardOutput != commit + " commit\n") {
+				const auto commitLine = commit + " commit\n";
+				if (!exists->StandardOutput.starts_with(commitLine)) {
 					return std::unexpected{
 						git_process_failure::malformed_output
 					};
+				}
+
+				const auto parent    = std::string_view{ exists->StandardOutput }.substr(commitLine.size());
+				const auto hasParent = parent.ends_with(" commit\n")
+					&& parse_object<application::git_commit_id>(parent.substr(0U, parent.size() - 8U), aRequest.Commit.Algorithm).has_value();
+				if (!hasParent && parent != commit + "^1 missing\n") {
+					return std::unexpected{ git_process_failure::malformed_output };
 				}
 
 				arguments = common_git_arguments(aRequest.Repository, HooksRoot);
@@ -4919,7 +4927,8 @@ namespace bpr::adapters::git {
 					};
 				}
 				return application::git_commit_inspection{
-					.Tree = *parsed
+					.Tree           = *parsed,
+					.HasFirstParent = hasParent,
 				};
 			}
 
@@ -5639,25 +5648,24 @@ namespace bpr::adapters::git {
 					} else if (cacheHasBase) {
 						tips += baseText + "\n";
 					}
-					// [[BPR-2295]]. A sparse review's cache holds the head's
-					// commit and trees but none of its parents, so a walk of
-					// the head's history fails at its first parent. The walk
-					// reads commits only, less than the copy below reads. When
-					// it fails, the workspace's history ends at the head (and
-					// the base the cache holds) instead of the turn stopping on
-					// history it does not need; a cache that lacks the head's
-					// files as well still fails the copy, as history_missing.
-					auto walk = workspace_git_arguments(destination, HooksRoot);
-					append_arguments(walk, "rev-list", "--quiet", "--stdin");
-					const auto walked = submitWorkspace(
-						process_request{
-							.Arguments   = std::move(walk),
-							.Input       = memory_input{ tips },
-							.Timeout     = pack_process_timeout,
-							.Environment = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", quoted_object_alternate(aRequest.Repository / "objects") } },
-						},
-						aStop);
-					if (!walked && walked.error().Code == git_process_failure::nonzero_exit && !aStop.stop_requested()) {
+					// Check connectivity, including blobs, before asking pack-objects
+					// to copy anything. Git's quiet walk returns a bounded result.
+					const auto check = [&] {
+						auto walk = workspace_git_arguments(destination, HooksRoot);
+						append_arguments(walk, "rev-list", "--objects", "--quiet", "--missing=error", "--stdin");
+						return submitWorkspace(
+							process_request{
+								.Arguments   = std::move(walk),
+								.Input       = memory_input{ tips },
+								.Timeout     = pack_process_timeout,
+								.Environment = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", quoted_object_alternate(aRequest.Repository / "objects") } },
+							},
+							aStop);
+					};
+					auto connected = check();
+					if (!connected && connected.error().Code == git_process_failure::nonzero_exit && !aStop.stop_requested()) {
+						// [[BPR-2295]]. A partial history can still supply a complete
+						// snapshot at each tip. Verify again at the shallow boundary.
 						auto ends = cloneBoundary + headText + "\n";
 						if (cacheHasBase) {
 							ends += baseText + "\n";
@@ -5667,8 +5675,10 @@ namespace bpr::adapters::git {
 						}
 						shallow      = true;
 						trace.Source = core::workspace_source::cache_copy_shallow;
-					} else if (!walked) {
-						return fail(walked.error());
+						connected    = check();
+					}
+					if (!connected) {
+						return fail(connected.error());
 					}
 					const auto packed = submitWorkspace(
 						process_request{

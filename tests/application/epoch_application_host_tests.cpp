@@ -361,8 +361,9 @@ namespace {
 		std::vector<application::git_cache_changed_entry>           CatalogueEntries;
 		std::optional<application::git_cache_failure>               CatalogueFailure;
 		std::optional<std::vector<std::uint8_t>>                    CachedBlobOverride;
-		bool                                                        CachedBlobMissing = false;
-		bool                                                        SparseObjects     = false;
+		bool                                                        CachedBlobMissing   = false;
+		bool                                                        SparseHeadHasParent = false;
+		bool                                                        SparseObjects       = false;
 		/// RFC-BPR-0089. Commits neither inspection finds.
 		std::vector<core::git_commit_oid> MissingCommits;
 		/// RFC-BPR-0089. What a sparse review's chain acquisition was asked,
@@ -473,6 +474,7 @@ namespace {
 		std::optional<application::git_cache_error> WorkspaceMaterializationFailure;
 		/// [[BPR-1738]]. What the cache was handed for each workspace, the
 		/// workspace it answers, and what the transport's delta was asked.
+		std::vector<application::git_smart_acquisition_mode>              FetchModes;
 		std::vector<std::optional<application::git_workspace_delta_pack>> WorkspaceDeltas;
 		/// [[BPR-1873]]. The pull request's files each workspace was given.
 		std::vector<std::optional<std::vector<application::git_workspace_file>>> WorkspacePullRequestFiles;
@@ -1824,12 +1826,13 @@ namespace {
 				return std::unexpected{ application::git_cache_failure::object_mismatch };
 			}
 			return application::git_cache_commit_inspection{
-				.Commit    = aCommit,
-				.Tree      = State.SparseTreeMismatch ? oid<core::git_tree_oid>(90U)
+				.Commit         = aCommit,
+				.Tree           = State.SparseTreeMismatch ? oid<core::git_tree_oid>(90U)
 					: aCommit == oid<core::git_commit_oid>(10U)
 					? oid<core::git_tree_oid>(60U)
 					: oid<core::git_tree_oid>(70U),
-				.Residency = application::git_revision_residency::sparse_commit_trees,
+				.Residency      = application::git_revision_residency::sparse_commit_trees,
+				.HasFirstParent = State.SparseHeadHasParent,
 			};
 		}
 
@@ -2370,6 +2373,7 @@ namespace {
 			-> application::git_smart_transport_result<void> override
 		{
 			State.Calls.emplace_back("transport.fetch");
+			State.FetchModes.push_back(aRequest.Context.AcquisitionMode);
 			++State.TransportCalls;
 			if (aStop.stop_requested() || aRequest.Context != Context) {
 				return std::unexpected{ application::git_smart_transport_error{
@@ -2497,6 +2501,8 @@ namespace {
 			.Head                  = oid<core::git_commit_oid>(aHead),
 			.CurrentViewerReview   = std::move(aReview),
 		};
+		// Most host courses model a small repository with complete history.
+		handoff.Shape = application::accepted_pull_request_shape{ 1U, 1U, std::nullopt, 1'024U };
 		if (aSmart) {
 			handoff.SmartGit = std::make_unique<fake_smart_authority>(
 				aState, application::authority_binding(handoff), aSnapshot);
@@ -3373,8 +3379,10 @@ namespace {
 		fixture&                                                aValue,
 		std::optional<application::accepted_pull_request_shape> aShape = std::nullopt)
 	{
-		auto handoff  = make_handoff(aValue.State, 1U, 20U, true);
-		handoff.Shape = aShape;
+		auto handoff = make_handoff(aValue.State, 1U, 20U, true);
+		if (aShape) {
+			handoff.Shape = aShape;
+		}
 		aValue.Host->accept(std::move(handoff));
 		drive_through_preparation(aValue);
 		run_effect_completion(aValue);
@@ -3749,7 +3757,18 @@ namespace {
 					expect(std::ranges::any_of(log->Events, [](const auto& aEvent) { return aEvent.EpochPackFailure == application::git_pack_stream_failure::input_limit; }), "protocol acquisition retains exact pack failure");
 				}
 				expect(!log->Events.empty() && std::ranges::all_of(log->Events, [](const auto& aEvent) { return aEvent.WindowSession == 91U; }), "every preparation stage retains the accepted window session, including failures before request allocation");
-				expect(std::ranges::any_of(log->Events, [&](const auto& aEvent) { return aEvent.Operation == application::diagnostic_operation::epoch && aEvent.Outcome == application::diagnostic_outcome::failed && aEvent.EpochStage == expectedStage && aEvent.EpochFailure == expectedFailure && aEvent.Summary.text().empty(); }), "exact typed stage failure is recorded without raw details");
+				expect(std::ranges::any_of(log->Events, [&](const auto& aEvent) {
+						   if (aEvent.Operation != application::diagnostic_operation::epoch || aEvent.Outcome != application::diagnostic_outcome::failed
+							   || aEvent.EpochStage != expectedStage || aEvent.EpochFailure != expectedFailure) {
+							   return false;
+						   }
+						   const auto     detail   = aEvent.Summary.text();
+						   constexpr auto modeOnly = std::string_view{ "mode=complete_closure source=host linked_clone=0 haves=0 elapsed_ms=" };
+						   return expectedStage != stage::protocol_acquire ? detail.empty()
+																		   : detail.starts_with(modeOnly) && detail.size() > modeOnly.size()
+								   && detail.substr(modeOnly.size()).find_first_not_of("0123456789") == std::string_view::npos;
+					   }),
+					   "exact typed stage failure is recorded without raw details");
 			}
 		}
 		for (const auto sinkStatus : { status::available, status::unavailable, status::full, status::dropped, status::closed }) {
@@ -5928,7 +5947,7 @@ namespace {
 			   "revoked selection cannot issue another exact object read");
 
 		fixture small;
-		establish_ready_comparison(small, application::accepted_pull_request_shape{ 100U, 1U, 1U, std::nullopt });
+		establish_ready_comparison(small, application::accepted_pull_request_shape{ 100U, 1U, 1U, 1'024U });
 		small.State.CachedBlobMissing = true;
 		const auto missing            = read(small, blob_request_for(small.Host->state()));
 		expect(missing.Status == application::diff_blob_status::missing
@@ -6913,7 +6932,7 @@ namespace {
 			   "a small PR on a sparse-capable lease imports exact trees without unrelated repository history");
 
 		fixture complete;
-		establish_ready_comparison(complete, application::accepted_pull_request_shape{ 40U, 4U, 4U, std::nullopt });
+		establish_ready_comparison(complete, application::accepted_pull_request_shape{ 40U, 4U, 4U, 1'024U });
 		expect(complete.State.Retained
 				   && complete.State.Retained->Residency == application::git_revision_residency::complete_closure,
 			   "a lease without sparse support retains complete acquisition");
@@ -6971,6 +6990,65 @@ namespace {
 			expect(during && during->Base && during->Head && !during->Host.empty() && during->Bytes == std::optional<std::uint64_t>{ 1234U },
 				   "a live fetch says it fetches the base and head, from which host, and the bytes the transport received");
 			expect(!observed.Host->history_fetch(), "and nothing once it ends");
+		}
+	}
+
+	void unbounded_complete_history_falls_back_or_refuses_before_fetch()
+	{
+		using mode = application::git_smart_acquisition_mode;
+		for (const auto& bytes : { std::optional<std::uint64_t>{ }, std::optional{ application::maximum_complete_closure_repository_bytes + 1U } }) {
+			for (const auto capable : { false, true }) {
+				auto    log = std::make_shared<recording_epoch_log>();
+				fixture value{ { }, log };
+				establish_sparse_three_files(value);
+				value.State.FetchModes.clear();
+				value.State.OccurrencesSupported = true;
+				value.State.SupportsSparse       = capable;
+				value.Clock.set_next_utc(1'789'000'000'500LL);
+				auto handoff                   = make_handoff(value.State, 2U, 20U, true);
+				handoff.Shape->RepositoryBytes = bytes;
+				handoff.ForcePushes            = { force_push(101U, 21U) };
+				handoff.TimelineAvailability   = application::epoch_timeline_availability::available;
+				value.Host->accept(std::move(handoff));
+				drain(value);
+				expect(value.Host->state().AcceptedComparison && !value.State.Occurrences.Occurrences.empty(),
+					   "the previously retained sparse live review is reopened with an older head to consider");
+				expect(std::ranges::find(value.State.FetchModes, mode::complete_closure) == value.State.FetchModes.end(),
+					   "a historical read with no verified haves or clone never asks for an unbounded complete closure");
+				if (!capable) {
+					expect(std::ranges::any_of(log->Events, [](const auto& aEvent) {
+							   const auto reason = std::get_if<core::epoch_failure>(&aEvent.EpochFailure);
+							   return aEvent.EpochStage == application::diagnostic_epoch_stage::historical_acquire
+								   && reason && *reason == core::epoch_failure::fetch_history_too_large;
+						   }),
+						   "a lease without sparse support refuses before the historical request");
+				} else if (!bytes) {
+					expect(value.State.FetchModes == std::vector{ mode::sparse_commit_trees },
+						   "an unsized history with a complete shape falls back to a selected-object historical fetch");
+				}
+			}
+		}
+		for (const auto capable : { false, true }) {
+			for (const auto hasClonePath : { false, true }) {
+				fixture value;
+				value.State.SupportsSparse = capable;
+				value.State.SparseObjects  = capable;
+				auto handoff               = make_handoff(value.State, 1U, 20U, true);
+				handoff.Shape.reset();
+				if (hasClonePath) {
+					value.Host->set_history_clone(handoff.Repository, workspace_parent_directory() / "unusable-clone");
+				}
+				value.Host->accept(std::move(handoff));
+				drain(value);
+				expect(capable ? value.State.FetchModes == std::vector{ mode::sparse_commit_trees } : value.State.FetchModes.empty(),
+					   "a first read of an unsized repository fetches selected objects or refuses; a path alone is not a usable clone");
+				if (capable) {
+					const auto comparison = value.Host->state().AcceptedComparison;
+					expect(comparison && comparison->Left.Availability == core::anchor_availability::available
+							   && comparison->Right.Availability == core::anchor_availability::available,
+						   "the selected fallback is published with usable retained anchors despite the complete shape");
+				}
+			}
 		}
 	}
 
@@ -8559,13 +8637,14 @@ namespace {
 		auto materialized      = std::optional<std::expected<
 			application::owned_agent_workspace,
 			application::agent_workspace_error>>{ };
+		auto done              = std::atomic_bool{ false };
 		auto materializeCaller = std::jthread{ [&] {
 			materialized = value.Host->materialize_agent_workspace(
 				workspace_request_for(value.Host->state()),
 				{ });
+			done.store(true);
 		} };
-		value.Effects.wait_for_pending();
-		value.Effects.run_next();
+		value.Effects.run_until(done);
 		materializeCaller.join();
 		expect(
 			materialized.has_value() && !materialized->has_value()
@@ -8772,7 +8851,7 @@ namespace {
 				   "AC1: a sparse review whose lease no longer loads selected objects still borrows the clone that holds the head");
 			expect(std::ranges::any_of(log->Events,
 									   [](const application::diagnostic_event& aEvent) {
-										   return std::string_view{ aEvent.Summary.Text.data(), aEvent.Summary.Size }.ends_with("source=borrowed sparse=1 clone=1 clone_head=1 git=none git_error=none");
+										   return std::string_view{ aEvent.Summary.Text.data(), aEvent.Summary.Size }.find("source=borrowed sparse=1 clone=1 clone_head=1 git=none git_error=none") != std::string_view::npos;
 									   }),
 				   "AC3: the log says the clone lent the head on a sparse review");
 		}
@@ -8787,23 +8866,39 @@ namespace {
 			expect(value.State.WorkspacePullRequestFiles.size() == 1U && value.State.WorkspacePullRequestFiles.front().has_value(),
 				   "AC2: a sparse review is never copied out of its cache's history, whatever its lease says now");
 		}
-		// [[BPR-2295]]. A cache copy that fails on Git's traverse error is
-		// history_missing, and its log line says which source, the review's
-		// loading, the clone and Git's words.
-		{
+		// Reopening the same objects can record a complete load after either
+		// the lease stops supporting sparse reads or the shape stops selecting them.
+		for (const auto shapeSelectsObjects : { false, true }) {
 			auto    log = std::make_shared<recording_epoch_log>();
 			fixture value{ { }, log };
-			establish_ready_comparison(value);
-			value.State.SparseObjects = true;
-			const auto materialized   = run(value);
-			expect(!materialized.has_value() && materialized.error().Reason == application::agent_workspace_unavailable_reason::history_missing,
-				   "a copy that cannot walk the head's history is history_missing, not copy_failed");
-			expect(std::ranges::any_of(log->Events,
-									   [](const application::diagnostic_event& aEvent) {
-										   return std::string_view{ aEvent.Summary.Text.data(), aEvent.Summary.Size }.find("failure=history_missing") != std::string_view::npos
-											   && std::string_view{ aEvent.Summary.Text.data(), aEvent.Summary.Size }.ends_with("source=cache_copy sparse=0 clone=0 clone_head=0 git=pack_objects git_error=failed_to_traverse_parents");
-									   }),
-				   "AC3: its log line names the cache copy, the loading, the clone, the command and Git's words");
+			establish_sparse_three_files(value);
+			value.State.SupportsSparse = !shapeSelectsObjects;
+			// A cached parent alone still leaves a head with missing blobs.
+			value.State.SparseHeadHasParent = !shapeSelectsObjects;
+			auto handoff                    = make_handoff(value.State, 2U, 20U, true);
+			if (shapeSelectsObjects) {
+				handoff.Shape = application::accepted_pull_request_shape{ 3U, 1U, 1U, 1'024U };
+			}
+			value.Host->accept(std::move(handoff));
+			drain(value);
+			const auto inputs = shapeSelectsObjects
+				? "loading=selected loaded_sparse=0 sparse_capable=0 cache_has_parent=0"
+				: "loading=complete loaded_sparse=0 sparse_capable=1 cache_has_parent=1";
+			expect(std::ranges::any_of(log->Events, [&](const auto& aEvent) {
+					   return aEvent.EpochStage == application::diagnostic_epoch_stage::loading_decision && aEvent.Summary.text() == inputs;
+				   }),
+				   "the reopened review logs the recorded loading alongside its physical cache evidence");
+			value.State.WorkspaceResult = owned_workspace_for(value.Host->state());
+			const auto materialized     = run(value, clone);
+			expect(materialized && value.State.WorkspaceHeadFromClone == std::vector{ true, false }
+					   && value.State.DeltaRequests.size() == 1U && value.State.WorkspaceDeltas.back()
+					   && value.State.RefreshRequests.empty(),
+				   "a sparse cache with a complete load record still uses the linked clone plus delta");
+			expect(std::ranges::any_of(log->Events, [&](const auto& aEvent) {
+					   return aEvent.Summary.text().find("source=delta sparse=1 clone=1 clone_head=0") != std::string_view::npos
+						   && aEvent.Summary.text().ends_with(inputs);
+				   }),
+				   "the workspace logs the delta, missing clone head, and all loading inputs");
 		}
 	}
 
@@ -10875,6 +10970,7 @@ int main(int argc, char** argv)
 	live_shaped_open_latency(LiveSingleBlob, LiveBatch);
 	sparse_capability_applies_independently_of_pull_request_size();
 	history_fetch_is_bounded_and_observed();
+	unbounded_complete_history_falls_back_or_refuses_before_fetch();
 	selected_large_occurrence_imports_only_its_sparse_head();
 	selected_large_occurrence_switch_drops_late_import();
 	selected_large_occurrence_rebases_after_superseded_commit();

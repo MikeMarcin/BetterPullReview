@@ -392,6 +392,11 @@ namespace bpr::application {
 			/// already revoked then. A revoked or replaced lease later never
 			/// makes a sparse cache look complete.
 			std::optional<bool> LoadedSparse;
+			/// The repository actor records the first read's loading once.
+			bool LoadingLogged = false;
+			/// The exact live head was actually acquired as selected objects
+			/// despite a complete shape, or reopened with that durable residency.
+			std::atomic_bool SelectedFallback = false;
 			/// [[BPR-2290]]. A background import met a size or time wall: no
 			/// further background import is tried for this review, so the same
 			/// clone is never started again.
@@ -934,8 +939,10 @@ namespace bpr::application {
 		[[nodiscard]] static auto sparse_review(const authority_context& aContext) -> bool;
 
 		/// \brief [[BPR-2295]]. Whether the review's cache may lack the
-		/// head's history: how it was loaded, never the lease's state now.
-		[[nodiscard]] static auto sparse_cache(const authority_context& aContext) -> bool;
+		/// head's history, proved by the cache on the actor.
+		[[nodiscard]] static auto cache_loading(const authority_context& aContext, git_cache_session* aCache, core::git_commit_oid aHead, std::stop_token aStop) -> core::review_loading_trace;
+		[[nodiscard]] static auto sparse_cache(const authority_context& aContext, git_cache_session& aCache, core::git_commit_oid aHead,
+											   core::review_loading_trace& aLoading, std::stop_token aStop) -> bool;
 
 		[[nodiscard]] static auto delta_failure(const git_smart_transport_error& aError) -> agent_workspace_error;
 
@@ -1173,7 +1180,8 @@ namespace bpr::application {
 			const std::shared_ptr<authority_effect_actor>& aActor,
 			const git_cache_open_request&                  aExpected,
 			Work                                           aWork,
-			const std::stop_token                          aStop) -> std::optional<Result>
+			const std::stop_token                          aStop,
+			const std::optional<std::chrono::milliseconds> aWait = std::nullopt) -> std::optional<Result>
 		{
 			struct waiter_type final
 			{
@@ -1245,7 +1253,7 @@ namespace bpr::application {
 													} };
 			std::unique_lock lock{ waiter->Mutex };
 			static_cast<void>(waiter->Completed.wait_for(
-				lock, Limits.BlobWait, [&waiter] { return waiter->Done || waiter->Abandoned; }));
+				lock, aWait.value_or(Limits.BlobWait), [&waiter] { return waiter->Done || waiter->Abandoned; }));
 			return waiter->Done ? std::move(waiter->Value) : std::nullopt;
 		}
 

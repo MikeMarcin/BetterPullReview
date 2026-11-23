@@ -381,18 +381,19 @@ downloaded whole; with no linked clone the workspace holds only the pull
 request's files at the head, read through the review's lease and checked
 against their blobs, sparse-checked-out from the cache's commit and trees and
 shallow at the head, and the brief, the review skill and the turn say so.
-Whether a review is sparse is how its cache was loaded, recorded while its
-read lease was live; a reread that revokes and renews the lease never makes a
-sparse cache look complete, and a missing review context is refused as stale
-([[BPR-2295]]). Every entry point that makes a workspace names the linked
-clone, the returning questions' tool-free answer too. A copy out of the cache
-first walks the head's commits; when the walk fails, the copy's history ends
-at the head (and the base the cache holds), and a cache that lacks the head's
-files as well refuses as `history_missing`, which the turn names without
-offering a resend. The `workspace_materialize` line says the source taken,
-whether the review was sparse, whether a clone was given and held the head,
-and on a failure the Git command and its words as a fixed class, never an
-object name or a path. When the workspace was seeded from the linked clone,
+The workspace checks the exact head in the review's cache. A verified
+complete closure can supply the full-cache route, including for a root
+commit. A load recorded as sparse still takes the sparse route
+([[BPR-2295]], [[BPR-2364]]). Every entry point that makes a workspace names
+the linked clone, the returning questions' tool-free answer too. Before
+packing from cache, the Git adapter checks the connectivity of every copied
+object. If only the tip snapshots are complete, it ends history at the head
+and any base it copies. A missing blob refuses the copy before packing.
+The first read and `workspace_materialize` log the shape's loading mode, the
+load record, sparse capability and first-parent presence. The workspace log
+adds the source, whether the cache was treated as sparse, whether a clone
+was given and held the head, and the Git failure command and class. These
+fields carry no object names or paths. When the workspace was seeded from the linked clone,
 the line also names the seed's outcome, steps and counts, the step a failed
 seed stopped at, and the full checkout's own times after a fallback
 ([[BPR-2321]], [[BPR-2345]]).

@@ -696,6 +696,19 @@ namespace bpr::core {
 		auto operator<=>(const workspace_seed_trace&) const = default;
 	};
 
+	/// \brief [[BPR-2364]]. The inputs to the loading decision, without object identities.
+	struct review_loading_trace
+	{
+		bool                SelectedObjects = false;
+		std::optional<bool> LoadedSparse;
+		bool                SparseCapable  = false;
+		bool                CacheHasParent = false;
+
+		auto operator<=>(const review_loading_trace&) const = default;
+	};
+
+	[[nodiscard]] auto describe(const review_loading_trace& aTrace) -> std::string;
+
 	/// \brief [[BPR-2295]]. How one agent workspace was made, or why not.
 	struct workspace_trace
 	{
@@ -706,7 +719,8 @@ namespace bpr::core {
 		workspace_git_command Command       = workspace_git_command::none;
 		workspace_git_error   GitError      = workspace_git_error::none;
 		/// [[BPR-2321]]. Written only when a seed was tried.
-		workspace_seed_trace Seed;
+		workspace_seed_trace                Seed;
+		std::optional<review_loading_trace> Loading;
 
 		auto operator<=>(const workspace_trace&) const = default;
 	};

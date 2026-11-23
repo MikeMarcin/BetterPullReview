@@ -363,6 +363,16 @@ namespace bpr::core {
 		return named(workspace_seed_step_names, aStep);
 	}
 
+	auto describe(const review_loading_trace& aTrace) -> std::string
+	{
+		auto text = std::string{ aTrace.SelectedObjects ? "loading=selected" : "loading=complete" };
+		text += !aTrace.LoadedSparse ? " loaded_sparse=unset" : *aTrace.LoadedSparse ? " loaded_sparse=1"
+																					 : " loaded_sparse=0";
+		text += aTrace.SparseCapable ? " sparse_capable=1" : " sparse_capable=0";
+		text += aTrace.CacheHasParent ? " cache_has_parent=1" : " cache_has_parent=0";
+		return text;
+	}
+
 	auto classify_workspace_git_error(const std::string_view aStandardError) noexcept -> workspace_git_error
 	{
 		if (aStandardError.find_first_not_of(" \t\r\n") == std::string_view::npos) {
@@ -501,6 +511,10 @@ namespace bpr::core {
 			text += name(trace.Command);
 			text += " git_error=";
 			text += name(trace.GitError);
+			if (trace.Loading) {
+				text += ' ';
+				text += describe(*trace.Loading);
+			}
 			// [[BPR-2321]]. The seed's steps, only when one was tried.
 			if (const auto& seed = trace.Seed; seed.Outcome != workspace_seed_outcome::none) {
 				text += " seed=";
@@ -613,6 +627,23 @@ namespace bpr::core {
 				return std::nullopt;
 			}
 			result.Workspace = workspace_trace{ .Source = *source, .Sparse = *sparse, .CloneGiven = *clone, .CloneHeldHead = *cloneHead, .Command = *command, .GitError = *error };
+			if (aText.starts_with("loading=")) {
+				const auto loading       = word(aText, "loading");
+				const auto loadedSparse  = word(aText, "loaded_sparse");
+				const auto sparseCapable = flag(aText, "sparse_capable");
+				const auto hasParent     = flag(aText, "cache_has_parent");
+				if (!loading || (*loading != "complete" && *loading != "selected")
+					|| !loadedSparse || (*loadedSparse != "unset" && *loadedSparse != "0" && *loadedSparse != "1")
+					|| !sparseCapable || !hasParent) {
+					return std::nullopt;
+				}
+				result.Workspace->Loading = review_loading_trace{
+					.SelectedObjects = *loading == "selected",
+					.LoadedSparse    = *loadedSparse == "unset" ? std::nullopt : std::optional{ *loadedSparse == "1" },
+					.SparseCapable   = *sparseCapable,
+					.CacheHasParent  = *hasParent,
+				};
+			}
 			// [[BPR-2321]]. The seed's steps, when the line carries them.
 			if (!aText.empty()) {
 				const auto outcome = enumerated<workspace_seed_outcome>(aText, "seed", workspace_seed_names);
