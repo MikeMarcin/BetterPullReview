@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2360"
+  ],
+  "reserve_for": "codex-qt-6-12-1",
+  "purpose": "",
+  "created": "2026-11-23T19:41:17.487376+00:00",
+  "base": "577cd0d8a1c01dd2582e4f7607631ec49bd77182"
+}
