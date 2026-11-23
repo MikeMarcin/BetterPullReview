@@ -320,6 +320,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_commit_filter_public_path": "owner-private-acl-denied",
     # [[BPR-1576]]. Panes waiting on a slow fixture network.
     "application_pending_states_public_path": "owner-private-acl-denied",
+    # [[BPR-2317]]. The first-epoch course uses its own registered command.
+    "application_initial_epoch_file_path": "unmeasured (registered on macOS)",
     # [[BPR-1854]]. Native Windows Release, source 5a86e28ed, 2026-11-04:
     # all six same-image direct courses pass. The zero-capability replays
     # below name only their first observed refusal, without a guessed ACL
