@@ -99,7 +99,8 @@ namespace bpr::qt {
 
 	auto workspace_unavailable_words(const application::agent_workspace_unavailable_reason aReason, const QString& aHead) -> QString
 	{
-		using reason = application::agent_workspace_unavailable_reason;
+		using reason    = application::agent_workspace_unavailable_reason;
+		const auto head = aHead.isEmpty() ? QObject::tr("the pull request's head") : QObject::tr("head %1").arg(aHead);
 		switch (aReason) {
 		case reason::retained_unavailable:
 		case reason::retained_objects_missing:
@@ -114,18 +115,18 @@ namespace bpr::qt {
 		// [[BPR-1873]]. Only what the linked clone lacks is fetched; nothing
 		// is asked of the reviewer's clone.
 		case reason::download_failed:
-			return QObject::tr("The linked clone is missing head %1, and fetching the pull request's new objects for the agent failed. Check again, or show the log for the cause.").arg(aHead);
+			return QObject::tr("The linked clone is missing %1, and fetching the pull request's new objects for the agent failed. Check again, or show the log for the cause.").arg(head);
 		case reason::connection_failed:
-			return QObject::tr("The linked clone is missing head %1, and GitHub could not be reached to fetch the pull request's new objects. Check the connection, then check again.").arg(aHead);
+			return QObject::tr("The linked clone is missing %1, and GitHub could not be reached to fetch the pull request's new objects. Check the connection, then check again.").arg(head);
 		case reason::sign_in_refused:
-			return QObject::tr("The linked clone is missing head %1, and GitHub refused to send the pull request's new objects to the signed-in account. Check that gh is signed in with access to this repository, then check again.").arg(aHead);
+			return QObject::tr("The linked clone is missing %1, and GitHub refused to send the pull request's new objects to the signed-in account. Check that gh is signed in with access to this repository, then check again.").arg(head);
 		case reason::too_large:
-			return QObject::tr("The linked clone is missing head %1, and the pull request's new objects are larger than the agent may fetch. Once your clone has the head, check again.").arg(aHead);
+			return QObject::tr("The linked clone is missing %1, and the pull request's new objects are larger than the agent may fetch. Once your clone has the head, check again.").arg(head);
 		case reason::clone_needed:
 			return QObject::tr("This review holds only the files it shows, and the agent works in a clone of the repository. Link your clone, then check again.");
 		// [[BPR-2295]].
 		case reason::history_missing:
-			return QObject::tr("The agent's copy could not be made because the review cache is missing objects for head %1. Refresh the review or link a clone that holds this head.").arg(aHead);
+			return QObject::tr("The agent's copy could not be made because the review cache is missing objects for %1. Refresh the review or link a clone that holds this head.").arg(head);
 		}
 		return { };
 	}
