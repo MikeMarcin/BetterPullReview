@@ -1626,6 +1626,7 @@ if(WIN32 AND bpr_standard_correctness_inputs AND BPR_WINDOWS_RELEASE_GUI_OVERLAP
             application_review_submission_composition_scale_200
             # Builds a nested Release tree up to eight jobs wide.
             application_composition_contract
-            # A dedicated performance course.
+            # Courses that enforce first-paint or interaction timing.
+            application_home_open_responsive_public_path
             application_source_pr_search_performance)
 endif()
