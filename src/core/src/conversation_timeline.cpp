@@ -240,22 +240,23 @@ namespace bpr::core {
 	auto summarize_conversation_timeline(const std::span<const timeline_item> aItems, const timeline_filters& aFilters)
 		-> timeline_filter_summary
 	{
-		const auto whole   = arrange_conversation_timeline(aItems);
-		auto       summary = timeline_filter_summary{ .Comments = whole.Comments, .Unread = whole.Unread };
-		auto       byId    = std::unordered_map<std::string_view, const timeline_item*>{ };
+		auto summary      = timeline_filter_summary{ };
+		auto resolvedById = std::unordered_map<std::string_view, bool>{ };
+		resolvedById.reserve(aItems.size());
+		// The unfiltered timeline lists every comment once, in any bundle.
+		// Verdict-only reviews add no comment. Resolution uses the first item
+		// of each identity, as when matching the arranged rows back to items.
 		for (const auto& item : aItems) {
-			byId.try_emplace(item.Id, &item);
-		}
-		for (const auto& row : whole.Rows) {
-			if (row.Kind != timeline_row_kind::comment) {
+			const auto resolved = resolvedById.try_emplace(item.Id, item.Resolved).first;
+			if (item.Kind == timeline_item_kind::review && !item.HasBody) {
 				continue;
 			}
-			if (const auto found = byId.find(row.Id); found != byId.end() && found->second->Resolved) {
-				++summary.Resolved;
-			}
+			++summary.Comments;
+			summary.Unread += item.Unread ? 1U : 0U;
+			summary.Resolved += resolved->second ? 1U : 0U;
 		}
 		const auto filtering = aFilters.UnreadOnly || aFilters.UnresolvedOnly || aFilters.Listed.has_value();
-		summary.Shown        = filtering ? arrange_conversation_timeline(aItems, aFilters).Comments : whole.Comments;
+		summary.Shown        = filtering ? arrange_conversation_timeline(aItems, aFilters).Comments : summary.Comments;
 		if (summary.Shown > 0U || summary.Comments == 0U || !filtering) {
 			return summary;
 		}

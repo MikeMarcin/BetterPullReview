@@ -510,7 +510,7 @@ namespace bpr::qt {
 		// selection. Discuss borrows the same panel used beside the code.
 		const auto overview = Modality != nullptr
 			&& Modality->current() == review_modality::overview
-			&& (OverviewPage->presented() || HasCachedOverview || (SessionPanel != nullptr && SessionPanel->status() == core::github_status::loading_pull_request));
+			&& (OverviewPage->presented() || HasGithubPullRequest || HasCachedOverview || (SessionPanel != nullptr && SessionPanel->status() == core::github_status::loading_pull_request));
 		// [[BPR-1212]]. A composer is Discuss's: it shows there, beside the
 		// conversations, whatever surface opened it.
 		const auto discuss         = (Modality != nullptr && Modality->current() == review_modality::discuss) || CompositionPage != nullptr;

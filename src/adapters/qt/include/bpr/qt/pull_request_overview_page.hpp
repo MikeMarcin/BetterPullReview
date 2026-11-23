@@ -382,8 +382,16 @@ namespace bpr::qt {
 		void paint_drafts_chip(QPainter& aPainter, const QStyleOptionViewItem& aOption, const overview_comment_chip& aChip) const;
 		void paint_local_chip(QPainter& aPainter, const QStyleOptionViewItem& aOption, const overview_comment_chip& aChip) const;
 
+		struct row_band
+		{
+			QColor Base;
+			QColor Text;
+			QColor Colour;
+		};
 		const overview_colours&            Colours;
 		std::optional<overview_chip_focus> ChipFocus;
+		mutable row_band                   ActiveBand;
+		mutable row_band                   InactiveBand;
 	};
 
 	/// \brief One participant: avatar initial, login, role and standing.

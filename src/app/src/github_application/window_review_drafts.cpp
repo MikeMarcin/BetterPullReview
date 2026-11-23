@@ -236,7 +236,7 @@ namespace bpr::app {
 		}
 		// [[BPR-1374]]. Where each unsent reply stands against the
 		// threads the server holds now, as the core decides it.
-		auto replies = core::decide_reply_drafts(drafts, reply_threads());
+		auto replies = drafts.empty() ? std::vector<core::reply_draft_decision>{ } : core::decide_reply_drafts(drafts, reply_threads());
 		Window->present_saved_drafts(std::move(drafts), std::move(replies));
 		publish_review_comments(saved);
 		present_draft_roster();

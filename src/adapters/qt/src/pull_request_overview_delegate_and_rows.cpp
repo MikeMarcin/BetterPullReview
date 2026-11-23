@@ -215,8 +215,18 @@ namespace bpr::qt {
 		if ((aOption->state & QStyle::State_Selected) != 0 || !banded(aIndex, aOption->widget)) {
 			return;
 		}
-		const auto active   = overview_row_band(aOption->palette, QPalette::Active);
-		const auto inactive = overview_row_band(aOption->palette, QPalette::Inactive);
+		// Cells share the palette's ground and text colours. Reuse the band
+		// they produce until either role changes.
+		const auto band = [aOption](const QPalette::ColorGroup aGroup, row_band& aCached) {
+			const auto base = aOption->palette.color(aGroup, QPalette::Base);
+			const auto text = aOption->palette.color(aGroup, QPalette::Text);
+			if (!aCached.Colour.isValid() || aCached.Base != base || aCached.Text != text) {
+				aCached = { .Base = base, .Text = text, .Colour = overview_row_band(aOption->palette, aGroup) };
+			}
+			return aCached.Colour;
+		};
+		const auto active   = band(QPalette::Active, ActiveBand);
+		const auto inactive = band(QPalette::Inactive, InactiveBand);
 		aOption->palette.setColor(QPalette::Active, QPalette::Base, active);
 		aOption->palette.setColor(QPalette::Inactive, QPalette::Base, inactive);
 		aOption->backgroundBrush = (aOption->state & QStyle::State_Active) != 0 ? active : inactive;

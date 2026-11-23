@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -667,31 +668,41 @@ namespace bpr::qt {
 					anchor = value;
 				}
 
-				for (std::size_t row = 0; row < aDesired.size(); ++row) {
-					if (
-						row < aValues.size()
-						&& aValues[row]->Value.Id == aDesired[row]->Id) {
+				for (std::size_t row = 0; row < aDesired.size();) {
+					const auto* const retainedRow = row < aValues.size() ? aValues[row].get() : nullptr;
+					if (retainedRow != nullptr && retainedRow->Value.Id == aDesired[row]->Id) {
+						++row;
 						continue;
 					}
 
-					auto inserted    = std::make_unique<node>();
-					inserted->Value  = *aDesired[row];
-					inserted->Parent = aParentNode;
-					inserted->Row    = row;
-					if (const auto children = desiredChildren.find(inserted->Value.Id);
-						children != desiredChildren.end()) {
-						inserted->Children.reserve(children->second.size());
+					// A first read can introduce thousands of siblings. Announce
+					// each contiguous run once and keep existing indexes intact.
+					auto end = row + 1U;
+					while (end < aDesired.size() && (retainedRow == nullptr || retainedRow->Value.Id != aDesired[end]->Id)) {
+						++end;
 					}
-					beginInsertRows(
-						aParentIndex,
-						static_cast<int>(row),
-						static_cast<int>(row));
+					auto inserted = std::vector<std::unique_ptr<node>>{ };
+					inserted.reserve(end - row);
+					for (auto index = row; index < end; ++index) {
+						auto value    = std::make_unique<node>();
+						value->Value  = *aDesired[index];
+						value->Parent = aParentNode;
+						value->Row    = index;
+						if (const auto children = desiredChildren.find(value->Value.Id);
+							children != desiredChildren.end()) {
+							value->Children.reserve(children->second.size());
+						}
+						inserted.push_back(std::move(value));
+					}
+					beginInsertRows(aParentIndex, static_cast<int>(row), static_cast<int>(end - 1U));
 					aValues.insert(
 						aValues.begin() + static_cast<std::ptrdiff_t>(row),
-						std::move(inserted));
+						std::make_move_iterator(inserted.begin()),
+						std::make_move_iterator(inserted.end()));
 					update_rows(aValues, row);
 					endInsertRows();
-					++Statistics.RowsInserted;
+					Statistics.RowsInserted += end - row;
+					row = end;
 				}
 
 				for (std::size_t row = 0; row < aDesired.size(); ++row) {

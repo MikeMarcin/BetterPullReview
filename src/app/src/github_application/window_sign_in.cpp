@@ -74,7 +74,7 @@ namespace bpr::app {
 #endif
 			// [[BPR-1879]]. GitHub's `size` is in kibibytes.
 			if (Host != nullptr) {
-				if (const auto read = WindowRead->accepted_snapshot(); read && read->Repository.SizeKilobytes && *read->Repository.SizeKilobytes <= (std::numeric_limits<std::uint64_t>::max() / 1024U)) {
+				if (const auto& read = WindowRead->accepted_snapshot(); read && read->Repository.SizeKilobytes && *read->Repository.SizeKilobytes <= (std::numeric_limits<std::uint64_t>::max() / 1024U)) {
 					AgentReview->ApproximateBytes = *read->Repository.SizeKilobytes * 1024U;
 				}
 			}

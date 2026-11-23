@@ -860,7 +860,7 @@ namespace bpr::app {
 		/// facts from what the window holds, a press, Custom question….
 		/// `window_quick_ask.cpp`.
 		void               bind_quick_ask();
-		[[nodiscard]] auto quick_ask_facts(const qt::ask_menu_request& aRequest) const -> core::quick_ask_facts;
+		[[nodiscard]] auto quick_ask_facts(const qt::ask_menu_request& aRequest, bool aIncludeFileAndThreadFacts = true) const -> core::quick_ask_facts;
 		/// [[BPR-2181]] (AC13). A chat's decided offers, from what it shows
 		/// and the facts the window holds.
 		[[nodiscard]] auto chat_prompts(core::prompt_chat_view aView) const -> core::chat_prompts;

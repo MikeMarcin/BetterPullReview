@@ -196,6 +196,12 @@ namespace {
 		const auto verdictOnly = std::vector<timeline_item>{ review("r-ok", "jiayin", "2026-10-24T00:00:00Z", timeline_verdict::approved, false) };
 		const auto approvals   = summarize_conversation_timeline(verdictOnly, { .UnreadOnly = true });
 		expect(approvals.Comments == 0U && approvals.Empty == timeline_empty::none, "an approval alone is no comment, so no filter emptied the list");
+		auto repeated             = std::vector{ thread("t-repeat", "", "2026-10-21T00:00:00Z", "a.cpp", 1U), thread("t-repeat", "", "2026-10-20T00:00:00Z", "a.cpp", 1U) };
+		repeated.front().Resolved = true;
+		repeated.back().Unread    = true;
+		const auto overlap        = summarize_conversation_timeline(repeated);
+		expect(overlap.Comments == 2U && overlap.Shown == 2U && overlap.Unread == 1U && overlap.Resolved == 2U,
+			   "each repeated row contributes its own unread state and the first observation's resolution");
 		expect(summarize_conversation_timeline(items, { .UnreadOnly = true }) == summarize_conversation_timeline(items, { .UnreadOnly = true }), "equal inputs give equal summaries");
 	}
 

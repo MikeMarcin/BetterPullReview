@@ -384,11 +384,16 @@ namespace bpr::app {
 		const auto& snapshot          = *WindowRead->accepted_snapshot();
 		auto        observation       = core::conversation_read_observation{ };
 		observation.ReactionsObserved = snapshot.ReactionsAvailability == application::github_reaction_availability::available;
-		for (const auto& record : snapshot.Reactions) {
-			observation.Reactions.insert_or_assign(record.Subject, record.Reactions);
+		// Reconciliation only looks up subjects the viewer has changed.
+		if (observation.ReactionsObserved && !ConversationOverlay.Reactions.empty()) {
+			for (const auto& record : snapshot.Reactions) {
+				observation.Reactions.insert_or_assign(record.Subject, record.Reactions);
+			}
 		}
-		for (const auto& thread : snapshot.ReviewThreads) {
-			observation.Resolved.insert_or_assign(thread_identity(thread), thread.Resolved);
+		if (!ConversationOverlay.Resolutions.empty()) {
+			for (const auto& thread : snapshot.ReviewThreads) {
+				observation.Resolved.insert_or_assign(thread_identity(thread), thread.Resolved);
+			}
 		}
 		core::observe_conversation(ConversationOverlay, observation);
 	}

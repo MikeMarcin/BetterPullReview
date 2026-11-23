@@ -1074,6 +1074,8 @@ namespace {
 		}
 		view.adopt(projection, std::nullopt);
 		QApplication::processEvents();
+		const auto  layouts = view.layouts();
+		const auto* posts   = view.cards().front().Posts.data();
 		view.resize(320, 600);
 		QApplication::processEvents();
 		const auto measurements = view.measurements();
@@ -1087,6 +1089,8 @@ namespace {
 		view.resize(360, 600);
 		QApplication::processEvents();
 		expect(view.measurements() == measurements + 1000U, "a third width measures its notes afresh");
+		expect(view.layouts() == layouts && view.cards().front().Posts.data() == posts,
+			   "resizing only remeasures geometry and retains the projected cards");
 	}
 
 	/// \brief RFC-BPR-0127 ([[BPR-2158]]) AC02, AC14. On a line with a

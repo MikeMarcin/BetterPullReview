@@ -253,7 +253,6 @@ namespace bpr::qt {
 				|| aTransition.Status->Status == core::github_status::pull_request_cancelled) {
 				LoadingChoice.reset();
 			}
-			apply_modality_surface();
 		}
 		for (const auto& diagnostic : aTransition.Diagnostics) {
 			SessionPanel->apply_diagnostic(diagnostic.Code);

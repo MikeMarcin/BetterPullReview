@@ -1821,6 +1821,13 @@ namespace bpr::qt {
 		}
 		if (aUpdate.Transition.has_value()) {
 			apply_github_transition(*aUpdate.Transition);
+			if (const auto& status = aUpdate.Transition->Status; status.has_value()) {
+				// A combined acceptance chooses its modality with the accepted
+				// review. Keep the same tabs through the preceding status update.
+				if (status->Status != core::github_status::pull_request_ready || !aUpdate.PullRequest) {
+					apply_modality_surface();
+				}
+			}
 		}
 		// [[BPR-2180]]. The owner, 2026-11-14: "going to review the file list
 		// should be loaded becuase it's already loaded on overview". The files

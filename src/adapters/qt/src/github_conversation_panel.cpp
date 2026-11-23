@@ -1145,8 +1145,16 @@ namespace bpr::qt {
 		if (ProjectedResolutions == aResolved) {
 			return;
 		}
+		const auto effective = [](const auto& aStates, const application::github_conversation_projection& aThread) {
+			const auto found = aStates.find(aThread.Id);
+			return found == aStates.end() ? aThread.Resolved : found->second;
+		};
+		const auto changed   = Adopted && std::ranges::any_of(Retained, [&](const auto& aNode) {
+								 return aNode.Kind == application::github_conversation_kind::review_thread
+									 && effective(ProjectedResolutions, aNode) != effective(aResolved, aNode);
+							   });
 		ProjectedResolutions = std::move(aResolved);
-		if (Adopted) {
+		if (changed) {
 			refresh_projection();
 		}
 	}

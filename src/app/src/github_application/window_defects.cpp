@@ -54,7 +54,7 @@ namespace bpr::app {
 		auto threads = std::map<core::defect_id, std::string>{ };
 		// Retain the identity join per accepted immutable snapshot. Ordinary
 		// defect updates visit only the retained defect records.
-		if (!DefectThreadNames && WindowRead->accepted_snapshot()) {
+		if (!DurableDefects.empty() && !DefectThreadNames && WindowRead->accepted_snapshot()) {
 			DefectThreadNames.emplace();
 			for (const auto& thread : WindowRead->accepted_snapshot()->ReviewThreads) {
 				++ConversationThreadsVisited;

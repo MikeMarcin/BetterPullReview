@@ -1747,8 +1747,29 @@ namespace bpr::qt {
 		if (ResolutionsByThread == aByThread) {
 			return;
 		}
+		const auto resolved = [](const auto& aResolutions, const application::github_conversation_projection& aNode) {
+			const auto found = aResolutions.find(aNode.Id);
+			return found == aResolutions.end() ? aNode.Resolved : found->second.Resolved;
+		};
+		const auto changed  = std::ranges::any_of(Retained, [&](const auto& aNode) {
+			return resolved(ResolutionsByThread, aNode) != resolved(aByThread, aNode);
+		});
 		ResolutionsByThread = std::move(aByThread);
-		relayout();
+		if (changed || OpenCard != nullptr) {
+			relayout();
+			return;
+		}
+		// If resolution itself stayed the same, only the closed cards'
+		// menus need the new permission and pending state.
+		for (auto& card : Cards) {
+			if (card.Kind != QStringLiteral("Inline thread")) {
+				continue;
+			}
+			const auto found         = ResolutionsByThread.find(card.Id);
+			card.ResolutionPending   = found != ResolutionsByThread.end() && found->second.Pending;
+			card.ResolutionPermitted = found != ResolutionsByThread.end()
+				&& (found->second.Resolved ? found->second.CanUnresolve : found->second.CanResolve);
+		}
 	}
 
 	void conversation_cards_view::set_resolution_offered(const bool aOffered)
@@ -1768,7 +1789,11 @@ namespace bpr::qt {
 		}
 		ResolutionRefusal = aRefusal;
 		ResolutionOffered = aRefusal == core::thread_resolution_refusal::none;
-		relayout();
+		// The next menu reads this refusal directly. An open card also
+		// needs to update its controls.
+		if (OpenCard != nullptr) {
+			relayout();
+		}
 	}
 
 	auto conversation_cards_view::resolution_refusal() const noexcept -> core::thread_resolution_refusal
@@ -4968,7 +4993,16 @@ namespace bpr::qt {
 		if (OpenCard != nullptr) {
 			OpenCard->set_field_maximum(field_share());
 		}
-		relayout();
+		// A new viewport changes wrapping and placement, not the projected
+		// cards or their timeline order.
+		GeometryPending = true;
+		if (isVisible() || !window()->isVisible()) {
+			measure_cards();
+		}
+		if (LayoutObserver) {
+			LayoutObserver();
+		}
+		notify_marks();
 		// [[BPR-1740]]. A notice under the drawer takes its height from
 		// it: the open thread's focused control stays in view rather than
 		// going under the notice, as the Reply field went under a refusal.

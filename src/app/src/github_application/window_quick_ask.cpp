@@ -300,7 +300,7 @@ namespace bpr::app {
 		}
 	}
 
-	auto github_application::implementation::quick_ask_facts(const qt::ask_menu_request& aRequest) const -> core::quick_ask_facts
+	auto github_application::implementation::quick_ask_facts(const qt::ask_menu_request& aRequest, const bool aIncludeFileAndThreadFacts) const -> core::quick_ask_facts
 	{
 		auto  facts = core::quick_ask_facts{ };
 		auto* tab   = Window != nullptr ? Window->agent_tab() : nullptr;
@@ -322,14 +322,17 @@ namespace bpr::app {
 		if (!aRequest.Thread.isEmpty()) {
 			facts.Thread = aRequest.Thread.toStdString();
 		}
-		facts.Reviewed       = ReturningReview.Earlier.has_value();
-		facts.LatestUpload   = ReturningReview.Offer.State;
-		const auto& snapshot = WindowRead != nullptr ? WindowRead->accepted_snapshot() : std::nullopt;
-		if (!snapshot) {
+		facts.Reviewed     = ReturningReview.Earlier.has_value();
+		facts.LatestUpload = ReturningReview.Offer.State;
+		if (WindowRead == nullptr || !WindowRead->accepted_snapshot()) {
 			return facts;
 		}
+		const auto& snapshot = WindowRead->accepted_snapshot();
 		if (ReturningReview.Earlier) {
 			facts.CommitsSinceReview = commits_after(snapshot->Commits, ReturningReview.Earlier->Head).value_or(0U);
+		}
+		if (!aIncludeFileAndThreadFacts) {
+			return facts;
 		}
 		for (const auto& file : snapshot->Files) {
 			facts.Files.push_back(file.Path);
@@ -407,7 +410,10 @@ namespace bpr::app {
 			aView.Thread = AskedConversation->Identity;
 		}
 		const auto placed = placed_prompts();
-		return core::decide_chat_prompts(placed, core::chat_prompt_facts(quick_ask_facts(request), aView));
+		// An unanchored chat uses only the review facts. Collect individual
+		// file and thread facts for the menus and for chats that name one.
+		const auto facts = quick_ask_facts(request, aView.OpenFile.has_value() || aView.Thread.has_value());
+		return core::decide_chat_prompts(placed, core::chat_prompt_facts(facts, aView));
 	}
 
 	/// A press queues the quick ask on its session (owner, 2026-11-14).

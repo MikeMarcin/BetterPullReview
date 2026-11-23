@@ -1390,7 +1390,7 @@ namespace bpr::application {
 				// provider. A provider cannot promote a read into a mode it
 				// was not asked for, and a snapshot cannot arrive claiming
 				// one.
-				auto observed         = success->Snapshot;
+				auto observed         = std::move(success->Snapshot);
 				observed.Mode         = success->Request.Mode;
 				const auto validation = validate(observed, success->Request.Context);
 				if (observed.Viewer != expectedViewer
