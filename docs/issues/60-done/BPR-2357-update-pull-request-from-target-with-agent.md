@@ -53,5 +53,6 @@ network isolation manifest and documentation checks passed.
 
 The extra Cocoa offscreen Overview run reached the same existing
 conflict-row Return/focus failure on the baseline and candidate. The
-core-only build ran out of disk in its application dependencies. The
-review-preparation course passed in dev. Verification used fixtures throughout.
+initial core-only build ran out of disk in its application dependencies.
+After the verified dev outputs were cleared, the core-only build and
+review-preparation course passed. Verification used fixtures throughout.
