@@ -260,6 +260,8 @@ namespace bpr::qt {
 		headerLayout->addWidget(Summary);
 		const auto makeUpdateButton = [this](QWidget* aContainer, const QString& aObjectName, const bool aRequireConflict) {
 			auto* const button = new quiet_push_button{ tr("Update from target with agent"), aContainer };
+			// The chip paints its whole rect, including space Cocoa reserves for a native bezel.
+			button->setAttribute(Qt::WA_LayoutUsesWidgetRect);
 			wear_agent_accent(*button, palette());
 			button->setObjectName(aObjectName);
 			button->setToolTip(tr("Ask the agent to merge the target branch and push the updated pull request branch"));
