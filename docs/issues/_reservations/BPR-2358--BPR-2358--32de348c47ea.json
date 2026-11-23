@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2358"
+  ],
+  "reserve_for": "codex-composer-block-indent",
+  "purpose": "",
+  "created": "2026-11-23T16:45:09.980436+00:00",
+  "base": "31ddbea14ca3318608b57646661fef66a11b968a"
+}
