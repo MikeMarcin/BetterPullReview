@@ -459,6 +459,7 @@ namespace bpr::application {
 				if (fetch && !fetch->Context.ExpectedRepository && !fetch->Context.ExpectedPullRequest) {
 					invalidate_epoch_authority();
 					revoke_review_mutation_transport();
+					PreparedPreflight.reset();
 					AcceptedSnapshot.reset();
 				}
 			}
@@ -674,8 +675,15 @@ namespace bpr::application {
 			}
 		}
 
+		struct prepared_review_preflight
+		{
+			core::cached_review_key      Scope;
+			review_preflight_observation Observation;
+		};
+
 		void install_snapshot(github_pull_request_snapshot aSnapshot)
 		{
+			PreparedPreflight.reset();
 			if (AcceptedSnapshot && AcceptedSnapshot->Profile == aSnapshot.Profile && AcceptedSnapshot->Host == aSnapshot.Host && AcceptedSnapshot->Account == aSnapshot.Account && AcceptedSnapshot->Mode == aSnapshot.Mode && AcceptedSnapshot->Repository.Repository == aSnapshot.Repository.Repository && AcceptedSnapshot->PullRequest.PullRequest == aSnapshot.PullRequest.PullRequest && AcceptedSnapshot->PullRequest.HeadOid == aSnapshot.PullRequest.HeadOid && AcceptedSnapshot->PullRequest.BaseOid == aSnapshot.PullRequest.BaseOid && AcceptedSnapshot->PullRequest.BaseRef == aSnapshot.PullRequest.BaseRef) {
 				const auto& previous = *AcceptedSnapshot;
 				if (aSnapshot.ReviewRequestsAvailability != github_observation_availability::available && !aSnapshot.ReviewRequestActorsObserved && (previous.ReviewRequestsAvailability == github_observation_availability::available || previous.ReviewRequestActorsObserved || previous.ReviewRequestsStale)) {
@@ -905,11 +913,34 @@ namespace bpr::application {
 						success->Snapshot.FeedbackBodyDigests = { };
 					}
 				}
+				auto validation = std::optional<github_read_validation>{ };
+				auto preflight  = std::optional<prepared_review_preflight>{ };
+				if (auto* success = std::get_if<github_pull_request_success>(&aCompletion)) {
+					const auto& request  = success->Request;
+					auto&       snapshot = success->Snapshot;
+					snapshot.Mode        = request.Mode;
+					try {
+						validation = validate(snapshot, request.Context);
+						if (validation->valid() && request.Mode == core::github_access_mode::authenticated) {
+							// Preparation uses only this packet. Publication still
+							// waits for admission on the decision lane.
+							const auto scope = core::cached_review_key{
+								host_authority_fingerprint(request.ProfileAuthority).bytes(),
+								snapshot.Profile,
+								snapshot.Host,
+								snapshot.Account,
+								{ .Owner = snapshot.Repository.Owner, .Name = snapshot.Repository.Name },
+								snapshot.PullRequest.Number,
+							};
+							preflight.emplace(scope, observe_review_preflight(scope, snapshot));
+						}
+					} catch (...) { }
+				}
 				try {
-					lane->post([weak, token, terminal = std::move(aCompletion)]() mutable {
+					lane->post([weak, token, terminal = std::move(aCompletion), validation, prepared = std::move(preflight)]() mutable {
 						if (auto host = weak.lock()) {
 							--host->Outstanding;
-							host->handle_pull_request_now(token, std::move(terminal));
+							host->handle_pull_request_now(token, std::move(terminal), validation, std::move(prepared));
 						}
 					});
 				} catch (...) {
@@ -1099,6 +1130,7 @@ namespace bpr::application {
 					|| !Policy.accept_conversation_observation(Policy.window(), aObservation.Context, facts, kind)) {
 					return;
 				}
+				PreparedPreflight.reset();
 				AcceptedSnapshot = std::move(refreshed);
 				if (MarkdownRevision != std::numeric_limits<std::uint64_t>::max()) {
 					++MarkdownRevision;
@@ -1356,8 +1388,10 @@ namespace bpr::application {
 				return false;
 			}
 		}
-		void handle_pull_request_now(const std::uint64_t            aToken,
-									 github_pull_request_completion aCompletion)
+		void handle_pull_request_now(const std::uint64_t                          aToken,
+									 github_pull_request_completion               aCompletion,
+									 const std::optional<github_read_validation>& aValidation,
+									 std::optional<prepared_review_preflight>     aPreflight)
 		{
 			if (Closing || aToken != ProviderOperationToken) {
 				return;
@@ -1392,7 +1426,7 @@ namespace bpr::application {
 				// one.
 				auto observed         = std::move(success->Snapshot);
 				observed.Mode         = success->Request.Mode;
-				const auto validation = validate(observed, success->Request.Context);
+				const auto validation = aValidation ? *aValidation : validate(observed, success->Request.Context);
 				if (observed.Viewer != expectedViewer
 					|| observed.CapabilityEvidence
 						!= projected_capability_evidence(
@@ -1434,6 +1468,7 @@ namespace bpr::application {
 					Admission->succeeded(success->Request.ProfileAuthority, success->Request.Viewer,
 										 success->Request.CapabilityEvidence.ReadShape.ReviewThreads || success->Request.CapabilityEvidence.ReadShape.ViewedFileState);
 					install_snapshot(std::move(*StagedSnapshot));
+					PreparedPreflight = std::move(aPreflight);
 					retain_overview(success->Request.Context);
 					StagedSnapshot.reset();
 					publish_transition(
@@ -1695,6 +1730,7 @@ namespace bpr::application {
 			}
 			invalidate_epoch_authority();
 			revoke_review_mutation_transport();
+			PreparedPreflight.reset();
 			AcceptedSnapshot.reset();
 			StagedSnapshot.reset();
 			publish_transition(output);
@@ -1704,6 +1740,7 @@ namespace bpr::application {
 			cancel(aCause);
 			invalidate_epoch_authority();
 			revoke_review_mutation_transport();
+			PreparedPreflight.reset();
 			AcceptedSnapshot.reset();
 			StagedSnapshot.reset();
 			AccountTransport.reset();
@@ -2014,12 +2051,13 @@ namespace bpr::application {
 				return core::markdown_link_result::failed;
 			}
 		}
-		std::uint64_t                           MarkdownRevision  = 0;
-		bool                                    MarkdownExhausted = false;
-		std::unordered_set<std::string>         MarkdownBodies;
-		std::unique_ptr<markdown_image_window>  Images;
-		std::unique_ptr<identity_avatar_window> Avatars;
-		bool                                    SuppressPublication = false;
+		std::uint64_t                            MarkdownRevision  = 0;
+		bool                                     MarkdownExhausted = false;
+		std::optional<prepared_review_preflight> PreparedPreflight;
+		std::unordered_set<std::string>          MarkdownBodies;
+		std::unique_ptr<markdown_image_window>   Images;
+		std::unique_ptr<identity_avatar_window>  Avatars;
+		bool                                     SuppressPublication = false;
 		/// [[BPR-2315]]. What asked for the read a dispatch starts, while it runs.
 		std::optional<core::refresh_cause> ReadCause;
 		/// [[BPR-2180]]. Whether the window lists a first read's reported files.
@@ -2286,6 +2324,25 @@ namespace bpr::application {
 		handoff->SmartGit.reset();
 		handoff->ApplicationSession = aHolder;
 		return handoff;
+	}
+
+	auto github_window_read_host::take_review_preflight(const core::cached_review_key& aScope)
+		-> std::optional<review_preflight_observation>
+	{
+		auto& host = *Implementation;
+		if (host.Closing || !host.AcceptedSnapshot || !host.PreparedPreflight || host.PreparedPreflight->Scope != aScope) {
+			return std::nullopt;
+		}
+		const auto& snapshot = *host.AcceptedSnapshot;
+		const auto& prepared = host.PreparedPreflight->Observation;
+		if (host.State.AcceptedSnapshot != snapshot.Snapshot || prepared.Snapshot != snapshot.Snapshot
+			|| prepared.Account != snapshot.Account || prepared.Head != snapshot.PullRequest.HeadOid.value()
+			|| prepared.Submitter != snapshot.Viewer.Actor.value()) {
+			return std::nullopt;
+		}
+		auto observation = std::move(host.PreparedPreflight->Observation);
+		host.PreparedPreflight.reset();
+		return observation;
 	}
 
 	void github_window_read_host::observe_access_loss(access_loss_observer aObserver) { Implementation->AccessLoss = std::move(aObserver); }

@@ -213,8 +213,12 @@ namespace bpr::app {
 			return;
 		}
 		PreflightSnapshot = std::pair{ snapshot.Snapshot, handoff.Account };
-		ReviewSubmission->observe_preflight(application::observe_review_preflight(
-			core::cached_review_key{ handoff.HostAuthority.bytes(), handoff.Profile, handoff.Host, handoff.Account, handoff.Locator, handoff.Number }, snapshot));
+		const auto scope  = core::cached_review_key{ handoff.HostAuthority.bytes(), handoff.Profile, handoff.Host, handoff.Account, handoff.Locator, handoff.Number };
+		if (auto prepared = WindowRead->take_review_preflight(scope)) {
+			ReviewSubmission->observe_preflight(std::move(*prepared));
+		} else {
+			ReviewSubmission->observe_preflight(application::observe_review_preflight(scope, snapshot));
+		}
 	}
 
 	auto github_application::implementation::current(const core::bpr_window_context& aContext) const noexcept -> bool

@@ -961,6 +961,7 @@ namespace {
 		auto accepted               = snapshot(first.Request);
 		accepted.SearchAvailability = application::github_search_availability::result_limit;
 		first.Complete(application::github_pull_request_success{ first.Request, accepted, application::diagnostic_paged_operation::list_reviews });
+		expect(!host.take_review_preflight({ }), "provider-side preparation is unavailable before the decision lane admits the read");
 		lane.drain();
 		expect(log.Events.size() == 2U
 				   && log.Events[0].Outcome == application::diagnostic_outcome::started
@@ -975,6 +976,19 @@ namespace {
 				   && shown.Body == accepted.PullRequest.Body && shown.Number == accepted.PullRequest.Number
 				   && shown.RateLimits.Core->Remaining == accepted.RateLimits.Core->Remaining,
 			   "safe accepted fields match the exact authoritative snapshot");
+		const auto handoff = host.lend_epoch_handoff(core::application_session_id{ 3 });
+		expect(handoff.has_value(), "the accepted read exposes a matching scope");
+		const auto scope = core::cached_review_key{ handoff->HostAuthority.bytes(), handoff->Profile, handoff->Host, handoff->Account, handoff->Locator, handoff->Number };
+		auto       other = scope;
+		other.Number     = core::pull_request_number{ 2 };
+		expect(!host.take_review_preflight(other), "a mismatched scope cannot consume the prepared observation");
+		const auto direct   = application::observe_review_preflight(scope, accepted);
+		const auto prepared = host.take_review_preflight(scope);
+		expect(prepared && prepared->Snapshot == direct.Snapshot && prepared->Account == direct.Account
+				   && prepared->Head == direct.Head && prepared->Submitter == direct.Submitter
+				   && prepared->Admitted == direct.Admitted && prepared->References == direct.References,
+			   "the matching accepted scope gets the prepared observation");
+		expect(!host.take_review_preflight(scope), "an admitted observation is transferred once");
 		host.dispatch(core::open_pull_request_intent{ { "owner", "other" }, core::pull_request_number{ 2 } });
 		expect(!host.accepted_snapshot() && !updates.back().Presentation.PullRequest,
 			   "a replacement read clears raw snapshot and publishes no stale PR payload");
@@ -1057,6 +1071,16 @@ namespace {
 			expect(!update.Presentation.Session, "read updates do not overwrite profile-owned session and grant presentation");
 		}
 		expect(!host.projection_delivery_failed(), "mapping and delivery stay inside the successful host boundary");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
+		const auto next  = provider.Calls.back();
+		auto       fresh = snapshot(next.Request);
+		fresh.Snapshot   = core::provider_snapshot_id{ 92U };
+		next.Complete(application::github_pull_request_success{ next.Request, fresh });
+		expect(!host.take_review_preflight(scope), "even an exact scope cannot read unadmitted preflight preparation");
+		lane.drain();
+		const auto after = host.take_review_preflight(scope);
+		expect(after && after->Snapshot == fresh.Snapshot && after->Snapshot != accepted.Snapshot,
+			   "a new acceptance at the same scope yields its own snapshot's preflight");
 	}
 
 	void test_runtime_preparation_does_not_accept_or_refuse_the_read()

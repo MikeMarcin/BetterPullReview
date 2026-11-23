@@ -13,6 +13,7 @@
 #include "bpr/application/port.hpp"
 #include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_mutation_port.hpp"
+#include "bpr/application/review_preflight_observation.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_window_read.hpp"
 #include "bpr/core/pull_request_link_route.hpp"
@@ -211,6 +212,9 @@ namespace bpr::application {
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;
 		[[nodiscard]] auto window() const noexcept -> core::bpr_window_context;
 		[[nodiscard]] auto accepted_snapshot() const noexcept -> const std::optional<github_pull_request_snapshot>&;
+		/// \brief Take the preflight prepared for the currently accepted read
+		/// under this exact scope. A shared or changed snapshot has no result.
+		[[nodiscard]] auto take_review_preflight(const core::cached_review_key& aScope) -> std::optional<review_preflight_observation>;
 		/// \brief [[BPR-2181]]. The accepted pull request's epoch handoff,
 		/// rewritten for another holder's application session and carrying
 		/// no smart-Git lease.
