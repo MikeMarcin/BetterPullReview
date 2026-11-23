@@ -556,8 +556,13 @@ auto main(int argc, char** argv) -> int
 			}
 			find("tourRepin1")->click();
 			expect(repairedEditor.shown().Draft->Stops.front().Mapping == core::tour_mapping::author_selected && repairedEditor.shown().Draft->Stops.front().Body == ordinary.Body, "one re-pin preserves the explanation");
-			QApplication::processEvents();
-			find("tourRelocate2")->click();
+			QPushButton* relocate = nullptr;
+			wait([&] {
+				relocate = find("tourRelocate2");
+				return relocate && relocate->isEnabled();
+			},
+				 "off-hunk relocation is available after re-pinning");
+			relocate->click();
 			auto* sourceText = repairedEditor.findChild<QPlainTextEdit*>(QStringLiteral("tourRepairSourceText"));
 			expect(sourceText->isVisible() && sourceText->toPlainText().contains(QStringLiteral("secondary_line_3 = 0")), "nearest accepted context is previewed from exact Git material");
 			expect(!repairedEditor.shown().Draft->Stops[1].Mapped, "preview changes no source");
