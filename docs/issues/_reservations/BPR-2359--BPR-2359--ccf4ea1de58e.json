@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2359"
+  ],
+  "reserve_for": "codex-comment-drawer-scroll",
+  "purpose": "",
+  "created": "2026-11-23T18:10:45.138312+00:00",
+  "base": "ea9805ffa66125d2e52aaf8f15a75990009f3259"
+}
