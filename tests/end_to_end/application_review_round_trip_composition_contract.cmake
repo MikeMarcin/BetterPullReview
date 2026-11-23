@@ -3973,8 +3973,10 @@ function(bpr_verify_app_source_tree app_source_root)
 	# change, c7d354bbc, carries visible Commits demand into the accepted
 	# review. The cache actor still admits tree reads under the accepted
 	# epoch authority. Review is recorded on BPR-2317.
+	# [[BPR-2343]]. Recheck accepted tour material after its read queue
+	# drains. This uses the existing retry budget and exact epoch grants.
 	set(bpr_expected_production_app_manifest_digest
-        "344c91cf47f086792d03e923c981a7da60c25faeef29374e7ee76861c393a74c"
+        "c445bcdc5b728d537edf3b8c8d57a9ffcc4dc5602629a0b3c300cab7a3342f1d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

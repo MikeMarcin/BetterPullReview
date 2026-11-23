@@ -3193,6 +3193,10 @@ namespace bpr::app {
 		if (Closing || !TourHost || TourMaterialRequests.empty()) {
 			TourMaterialReading = false;
 			TourMaterialRequests.clear();
+			// [[BPR-2343]]. The new head can be published while a material
+			// read is active. Recheck here so a comparison that became stale
+			// during that publication can use its remaining ledger attempts.
+			check_tour_material();
 			return;
 		}
 		auto request = std::move(TourMaterialRequests.front());

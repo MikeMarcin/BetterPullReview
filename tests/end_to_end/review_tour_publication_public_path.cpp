@@ -243,9 +243,10 @@ auto main(int argc, char** argv) -> int
 			const auto spoken = [&](const int aRow) { return editor.outline()->item(aRow)->data(Qt::AccessibleTextRole).toString(); };
 			// The push is GitHub's: a refresh reads the pull request at its new head.
 			window.github_refresh_action()->trigger();
-			const auto observed = [&] { const auto& d = editor.shown().Draft; return d && d->ObservedHead ? std::string{ core::canonical_hex(*d->ObservedHead).view() } : std::string{ "none" }; };
+			const auto observed   = [&] { const auto& d = editor.shown().Draft; return d && d->ObservedHead ? std::string{ core::canonical_hex(*d->ObservedHead).view() } : std::string{ "none" }; };
+			const auto pushedHead = *core::parse_git_commit_oid("c8a86ccf72f2c7f7f325d053ad9a2a3241c0c933");
 			try {
-				wait([&] { return observed() == "c8a86ccf72f2c7f7f325d053ad9a2a3241c0c933"; }, "the tour observes the pushed head");
+				wait([&] { return observed() == core::canonical_hex(pushedHead).view(); }, "the tour observes the pushed head");
 			} catch (...) {
 				std::cerr << "tour-push-observed: " << observed() << " head=" << core::canonical_hex(editor.shown().Draft->Head).view() << " status=" << application->window().github_status_text() << '\n';
 				throw;
@@ -254,7 +255,13 @@ auto main(int argc, char** argv) -> int
 			// checks the accepted code against.
 			const auto show = [&](const std::size_t aIndex, const char* aPath) {
 				editor.go_to_stop(editor.shown().Draft->Stops[aIndex].Id);
-				wait([&] {auto* surface=window.comparison_surface();return surface->current_result() && surface->current_context() && surface->current_context()->Key.File==core::file_identity_of(aPath) && !surface->geometry_pending(); }, "the stop opens its file at the pushed head");
+				wait([&] {
+					const auto comparison = access::epoch_refresh_identity(*application);
+					return comparison.PublishedFile == core::file_identity_of(aPath)
+						&& comparison.PublishedComparison && comparison.PublishedComparison->Right.Commit == pushedHead
+						&& comparison.PublicationDisplayed && !window.comparison_surface()->geometry_pending();
+				},
+					 "the stop opens its file at the pushed head");
 			};
 			show(2U, "secondary.cpp");
 			show(0U, "review.cpp");
