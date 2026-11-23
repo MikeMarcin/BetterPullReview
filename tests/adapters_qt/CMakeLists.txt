@@ -1381,6 +1381,8 @@ target_include_directories(test_better_pull_review_qt_workbench_window_tests SYS
 # same way.
 target_include_directories(test_better_pull_review_qt_conversation_cards_view_tests SYSTEM PRIVATE
     "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
+target_include_directories(test_better_pull_review_qt_github_tests SYSTEM PRIVATE
+    "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
 
 foreach(bpr_ribbon_scale IN ITEMS 1.0 1.25 2.0)
     bpr_add_network_isolated_test(

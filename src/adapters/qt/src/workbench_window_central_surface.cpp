@@ -128,6 +128,33 @@
 
 namespace bpr::qt {
 	namespace {
+		class inline_comments_tab final : public QWidget
+		{
+		public:
+			inline_comments_tab(diff_workbench& aComparison, QWidget* const aParent)
+				: QWidget{ aParent }
+				, Comparison{ aComparison }
+			{
+			}
+
+		protected:
+			void wheelEvent(QWheelEvent* const aEvent) override
+			{
+				if (!Comparison.isVisible()) {
+					QWidget::wheelEvent(aEvent);
+					return;
+				}
+				// [[BPR-2359]]. The cards handle their own scroll. On the empty
+				// page there is no cards viewport to forward it to the code.
+				// Take every phase so the gesture stays with the drawer.
+				static_cast<void>(Comparison.scroll_by_wheel(*aEvent));
+				aEvent->accept();
+			}
+
+		private:
+			diff_workbench& Comparison;
+		};
+
 		/// \brief [[BPR-0775]]. Home's bar: its label, the field and the shortcut
 		/// inside one bordered field with one 8-point radius.
 		///
@@ -1132,7 +1159,7 @@ namespace bpr::qt {
 		// with its scope and filters, and Next new comment; its host keeps the
 		// panel's place while Discuss borrows it for the centre (the drawers
 		// are hidden then, so the tab needs no notice of its own).
-		auto* const commentsContents = new QWidget{ Drawers[1].Panel };
+		auto* const commentsContents = new inline_comments_tab{ *ComparisonSurface, Drawers[1].Panel };
 		commentsContents->setObjectName(QStringLiteral("workbenchCommentsTab"));
 		auto* const commentsLayout = new QVBoxLayout{ commentsContents };
 		commentsLayout->setContentsMargins(0, 0, 0, 0);

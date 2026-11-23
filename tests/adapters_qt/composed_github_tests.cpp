@@ -84,12 +84,16 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/nested_scroll_latch.hpp"
 
 #include <QHelpEvent>
 #include <QKeyEvent>
 #include <QLibraryInfo>
 #include <QMouseEvent>
 #include <QWheelEvent>
+
+#include <qpa/qplatformwindow.h>
+#include <qpa/qwindowsysteminterface.h>
 
 #include <algorithm>
 #include <array>
@@ -3267,9 +3271,13 @@ namespace {
 		window.show();
 		QApplication::processEvents();
 		publish_session_ready(window);
-		using kind       = application::github_conversation_kind;
-		auto pullRequest = pull_request_projection();
-		auto threads     = std::vector<application::github_conversation_projection>{ };
+		using kind                    = application::github_conversation_kind;
+		auto pullRequest              = pull_request_projection();
+		pullRequest.ReviewCount       = 0U;
+		pullRequest.ReviewThreadCount = 0U;
+		pullRequest.IssueCommentCount = 0U;
+		pullRequest.Conversations.clear();
+		auto threads = std::vector<application::github_conversation_projection>{ };
 		// (line, resolved, posts as author and body). One reply answers a reply.
 		struct seeded_thread
 		{
@@ -3314,7 +3322,6 @@ namespace {
 				previous = post;
 			}
 		}
-		pullRequest.Conversations = threads;
 		// An accepted body context, so a post's link reaches the admission.
 		pullRequest.MarkdownContext = core::markdown_context{ .Snapshot = core::provider_snapshot_id{ 5U }, .Revision = 1U };
 		window.publish(application::github_presentation_update{
@@ -3322,7 +3329,7 @@ namespace {
 				.Commands = enabled_commands(),
 				.Status   = core::github_status_delta{ .Status = core::github_status::pull_request_ready },
 			},
-			.PullRequest = std::move(pullRequest),
+			.PullRequest = pullRequest,
 		});
 		auto* const surface = window.comparison_surface();
 		const auto  context = core::diff_request_context{
@@ -3337,6 +3344,53 @@ namespace {
 			.Result  = std::make_shared<const core::computed_file_diff>(*result.Result),
 		}));
 		window.set_conversation_endpoint_placement(true, true);
+		for (auto settle = 0; settle < 20 && surface->geometry_pending(); ++settle) {
+			QApplication::processEvents();
+		}
+		QApplication::processEvents();
+
+		// [[BPR-2359]]. Hit-test and deliver wheel phases through the window,
+		// as the platform does. The empty page has no cards viewport.
+		qt::nested_scroll_latch::install();
+		const auto sendWheel = [&window](const QPoint aGlobal, const Qt::ScrollPhase aPhase, const int aPixels, const int aAngle) {
+			auto* const handle   = window.windowHandle();
+			auto* const platform = handle->handle();
+			expect(platform != nullptr, "the visible workbench has a platform window to deliver wheel input");
+			// QPA positions include Qt's scale, independent of the native window's device pixel ratio.
+			const auto local = QPointF{ handle->mapFromGlobal(aGlobal) } * (handle->devicePixelRatio() / platform->devicePixelRatio());
+			QWindowSystemInterface::handleWheelEvent(handle, local, platform->mapToGlobalF(local), QPoint{ 0, aPixels }, QPoint{ 0, aAngle }, Qt::NoModifier, aPhase);
+			QWindowSystemInterface::flushWindowSystemEvents();
+			QApplication::processEvents();
+		};
+		auto* const bar          = surface->shared_scrollbar();
+		const auto  checkGesture = [&sendWheel, bar](const QPoint aGlobal, const int aDirection, const std::string& aWhere) {
+			const auto moved = [bar, aDirection](const int aPrevious) { return aDirection * (bar->value() - aPrevious) > 0; };
+			const auto start = bar->value();
+			sendWheel(aGlobal, Qt::ScrollBegin, 0, 0);
+			sendWheel(aGlobal, Qt::ScrollUpdate, -24 * aDirection, -24 * aDirection);
+			expect(moved(start), "a trackpad gesture over " + aWhere + " scrolls the code");
+			const auto beforeMomentum = bar->value();
+			sendWheel(aGlobal, Qt::ScrollMomentum, -16 * aDirection, -16 * aDirection);
+			expect(moved(beforeMomentum), "trackpad momentum over " + aWhere + " continues scrolling the code");
+			sendWheel(aGlobal, Qt::ScrollEnd, 0, 0);
+		};
+		auto* const emptyPage = window.findChild<QWidget*>(QStringLiteral("githubConversationEmptyState"));
+		expect(emptyPage != nullptr && emptyPage->isVisible() && bar->maximum() > bar->minimum(), "the Comments drawer has an empty page beside scrollable code");
+		const auto overEmpty = emptyPage->mapToGlobal(emptyPage->rect().center());
+		expect(window.childAt(window.mapFromGlobal(overEmpty)) == emptyPage, "the gesture starts on the empty drawer body");
+		bar->setValue(bar->maximum() / 2);
+		checkGesture(overEmpty, 1, "the empty Comments drawer (down)");
+		checkGesture(overEmpty, -1, "the empty Comments drawer (up)");
+		const auto beforeWheel = bar->value();
+		sendWheel(overEmpty, Qt::NoScrollPhase, 0, -120);
+		expect(bar->value() > beforeWheel, "a wheel notch over the empty Comments drawer also scrolls the code");
+		capture_layout_state(window, QStringLiteral("inline-empty-scroll"));
+		bar->setValue(bar->minimum());
+
+		pullRequest.ReviewCount       = 1U;
+		pullRequest.ReviewThreadCount = seeded.size();
+		pullRequest.Conversations     = threads;
+		window.publish(application::github_presentation_update{ .PullRequest = std::move(pullRequest) });
 		// Every post by someone else is new until it is read.
 		auto readState = std::vector<qt::thread_read_state>{ };
 		for (const auto& node : threads) {
@@ -3378,6 +3432,11 @@ namespace {
 				   && !panel->view()->isVisible() && cards->isVisible(),
 			   "the drawer holds only the notes: no thread map, path line, post list or body pane");
 		expect(cards->cards().size() == 7U && cards->post_count() == 19U, "the long file's seven threads are seven notes with all nineteen posts");
+		const auto firstNote = cards->note_rect("review-thread:t12");
+		expect(!firstNote.isEmpty() && cards->viewport()->rect().contains(firstNote.center()), "the populated gesture starts on a visible note");
+		checkGesture(cards->viewport()->mapToGlobal(firstNote.center()), 1, "a note in the populated Comments drawer");
+		bar->setValue(bar->minimum());
+		QApplication::processEvents();
 
 		// Each note hangs from its line, in line order, never overlapping.
 		const auto* const first = card(12U);
@@ -3481,7 +3540,6 @@ namespace {
 		capture_layout_state(window, QStringLiteral("inline-open"));
 
 		// The drawer moves with the code: scroll the code, the open card follows.
-		auto* const bar = surface->shared_scrollbar();
 		timer.restart();
 		bar->setValue(bar->value() + bar->pageStep() / 4);
 		QApplication::processEvents();
