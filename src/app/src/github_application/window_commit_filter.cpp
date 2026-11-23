@@ -5,6 +5,8 @@
 #include "bpr/core/generated_files.hpp"
 #include "bpr/core/off_hunk_fact.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
+#include "bpr/qt/commit_filter_view.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 
 #include <QByteArrayView>
 
@@ -79,7 +81,8 @@ namespace bpr::app {
 		const auto review = std::tuple{ aHandoff.Host, aHandoff.Account, aHandoff.Repository, aHandoff.PullRequest };
 		if (CommitFilterReview != std::optional{ review }) {
 			CommitFilter.clear();
-			CommitFilterWanted   = false;
+			// The accepted Overview can show Commits before the first epoch turn.
+			CommitFilterWanted   = Window != nullptr && Window->overview_page()->status_drawer()->commits()->isVisible();
 			CommitFilterReview   = review;
 			SettledFilterRequest = std::nullopt;
 			// RFC-BPR-0089 M2. The review's marks, when the ledger has them.

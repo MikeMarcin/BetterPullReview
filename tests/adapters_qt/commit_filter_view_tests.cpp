@@ -131,11 +131,11 @@ namespace {
 		expect(shown == 0, "the tab asks for nothing until it shows");
 		tab.show();
 		settle();
-		expect(shown == 1, "showing the tab asks for the trees once");
+		expect(shown == 1, "showing the tab reports that its trees are wanted");
 		tab.hide();
 		tab.show();
 		settle();
-		expect(shown == 1, "and only once");
+		expect(shown == 2, "showing it again reports demand for the currently open review");
 		expect(tab.status()->text() == QStringLiteral("3 commits.") && !tab.clear_button()->isVisible() && tab.list()->isVisible(),
 			   "with no filter the tab counts the commits and offers no Clear");
 
