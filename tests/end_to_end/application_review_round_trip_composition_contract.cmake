@@ -3975,8 +3975,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# epoch authority. Review is recorded on BPR-2317.
 	# [[BPR-2343]]. Recheck accepted tour material after its read queue
 	# drains. This uses the existing retry budget and exact epoch grants.
+	# [[BPR-2357]] and [[BPR-2361]]: authored PR updates dispatch through
+	# the Agent tab after checking the authenticated snapshot, accepted epoch
+	# and chat binding. The pending click is cleared on setup cancellation,
+	# account change and shutdown. The attended capture is tests-only.
 	set(bpr_expected_production_app_manifest_digest
-        "c445bcdc5b728d537edf3b8c8d57a9ffcc4dc5602629a0b3c300cab7a3342f1d"
+        "481485a82cb3847bd9d05830b03840c243d154a48dd9bc73495ce94b774dff0b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
