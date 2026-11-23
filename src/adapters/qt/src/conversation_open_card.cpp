@@ -96,10 +96,11 @@ namespace bpr::qt {
 		constexpr int text_right   = 10;
 		constexpr int post_padding = 8;
 		/// [[BPR-1741]]. Between a post's body and its reactions.
-		constexpr int reaction_gap  = 6;
-		constexpr int header_height = 34;
-		constexpr int reply_minimum = 54;
-		constexpr int reply_maximum = 220;
+		constexpr int reaction_gap       = 6;
+		constexpr int header_height      = 34;
+		constexpr int reply_minimum      = 54;
+		constexpr int reply_maximum      = 220;
+		constexpr int composer_tab_width = 4;
 		/// The most `SignalInk` may turn from the writing blue's hue, in
 		/// degrees, and still be the writing blue.
 		constexpr int signal_ink_hue_shift = 30;
@@ -607,6 +608,7 @@ namespace bpr::qt {
 			void set_code_font(const QFont& aFont)
 			{
 				CodeFont = aFont;
+				setTabStopDistance(QFontMetricsF{ CodeFont }.horizontalAdvance(QLatin1Char{ ' ' }) * composer_tab_width);
 				if (Fences == nullptr) {
 					Fences = new fenced_code_highlighter{ document(), CodeFont, quiet() };
 				} else {
@@ -628,6 +630,66 @@ namespace bpr::qt {
 			}
 
 		private:
+			[[nodiscard]] auto selected_code_lines(const QTextCursor& aSelection) const -> std::optional<std::pair<QTextBlock, QTextBlock>>
+			{
+				if (isReadOnly() || !aSelection.hasSelection()) {
+					return std::nullopt;
+				}
+				const auto first = document()->findBlock(aSelection.selectionStart());
+				// The last selected character may be the preceding line's newline.
+				const auto last = document()->findBlock(aSelection.selectionEnd() - 1);
+				using role      = fenced_code_highlighter::line_role;
+				if (fenced_code_highlighter::role_of(first) != role::code || fenced_code_highlighter::role_of(last) != role::code
+					|| Code->run_of(first.blockNumber()) != Code->run_of(last.blockNumber())) {
+					return std::nullopt;
+				}
+				return std::pair{ first, last };
+			}
+
+			[[nodiscard]] static auto leading_indent_to_remove(const QString& aLine) -> int
+			{
+				auto count = 0;
+				while (count < composer_tab_width && count < aLine.size() && aLine[count] == QLatin1Char{ ' ' }) {
+					++count;
+				}
+				// A tab before the first stop completes one indentation step.
+				if (count < composer_tab_width && count < aLine.size() && aLine[count] == QLatin1Char{ '\t' }) {
+					++count;
+				}
+				return count;
+			}
+
+			void shift_code_lines(const QTextBlock& aFirst, const QTextBlock& aLast, const bool aOutdent)
+			{
+				auto       selection = textCursor();
+				const auto forward   = selection.position() > selection.anchor();
+				auto       start     = QTextCursor{ document() };
+				auto       end       = start;
+				start.setPosition(selection.selectionStart());
+				start.setKeepPositionOnInsert(true);
+				end.setPosition(selection.selectionEnd());
+
+				const auto indent = QString(composer_tab_width, QLatin1Char{ ' ' });
+				auto       edit   = QTextCursor{ document() };
+				edit.beginEditBlock();
+				const auto pastLast = aLast.next();
+				for (auto block = aFirst; block != pastLast; block = block.next()) {
+					const auto position = block.position();
+					edit.setPosition(position);
+					if (!aOutdent) {
+						edit.insertText(indent);
+					} else if (const auto remove = leading_indent_to_remove(block.text()); remove > 0) {
+						edit.setPosition(position + remove, QTextCursor::KeepAnchor);
+						edit.removeSelectedText();
+					}
+				}
+				edit.endEditBlock();
+
+				selection.setPosition(forward ? start.position() : end.position());
+				selection.setPosition(forward ? end.position() : start.position(), QTextCursor::KeepAnchor);
+				setTextCursor(selection);
+			}
+
 			[[nodiscard]] auto quiet() const -> QColor
 			{
 				return palette().color(QPalette::Active, QPalette::PlaceholderText);
@@ -1007,6 +1069,25 @@ namespace bpr::qt {
 			std::function<void(QMenu&)> ExtendMenu;
 
 		protected:
+			// [[BPR-2358]]. Claim Tab before the focus chain can handle it.
+			auto event(QEvent* aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::ShortcutOverride || aEvent->type() == QEvent::KeyPress) {
+					const auto* const key = static_cast<QKeyEvent*>(aEvent);
+					if ((key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab)
+						&& (key->modifiers() & ~Qt::ShiftModifier) == Qt::NoModifier) {
+						if (const auto lines = selected_code_lines(textCursor())) {
+							if (aEvent->type() == QEvent::KeyPress) {
+								shift_code_lines(lines->first, lines->second, key->key() == Qt::Key_Backtab || key->modifiers().testFlag(Qt::ShiftModifier));
+							}
+							aEvent->accept();
+							return true;
+						}
+					}
+				}
+				return QPlainTextEdit::event(aEvent);
+			}
+
 			void resizeEvent(QResizeEvent* aEvent) override
 			{
 				QPlainTextEdit::resizeEvent(aEvent);
@@ -4143,8 +4224,7 @@ namespace bpr::qt {
 		const auto inCode    = aDraft.has_value() && aDraft->InCode;
 		const auto suggested = aDraft.has_value() && (aDraft->Change.has_value() || inCode);
 		const auto fenced    = aDraft.has_value() && aDraft->Change.has_value() && !inCode;
-		ReplyBox->setTabStopDistance(QFontMetricsF{ Style.CodeFont }.horizontalAdvance(QLatin1Char{ ' ' }) * 4.0);
-		const auto lines = aDraft.has_value() && !aDraft->Lines.isEmpty() ? aDraft->Lines : ReplyBox->accessibleName().section(QLatin1Char{ ' ' }, 2, -1);
+		const auto lines     = aDraft.has_value() && !aDraft->Lines.isEmpty() ? aDraft->Lines : ReplyBox->accessibleName().section(QLatin1Char{ ' ' }, 2, -1);
 		if (aDraft.has_value() && !aDraft->Lines.isEmpty()) {
 			ReplyBox->setAccessibleName(QStringLiteral("%1 on %2").arg(suggested ? QStringLiteral("Suggested change") : QStringLiteral("Comment"), aDraft->Lines.toLower()));
 			ReplyBox->setPlaceholderText(inCode       ? QStringLiteral("Say why, if you like. The change is written in the code.")

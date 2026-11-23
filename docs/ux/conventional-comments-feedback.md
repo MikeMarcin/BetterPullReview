@@ -332,6 +332,10 @@ Consumers: the inline composition page and reply drafts
   Every label and Plain can be reached by keyboard (RFC-BPR-0048). The chip
   does not change size at narrow widths. Focus returns to the body, with the
   caret after the prefix, when the menu closes.
+- **Indenting code** ([[BPR-2358]]). Select text inside a fenced code block,
+  including a suggestion, and press Tab to indent the selected lines by four
+  spaces. Shift+Tab removes up to four columns of leading indentation per line.
+  Each press that changes the draft is one undo or redo step.
 - **Comment ▾ lists no labels** (owner, BPR-1083 `comment-menu-v001`,
   Accept, 2026-10-05). The review bar's Comment ▾ offers the plain comment
   alone; labels are chosen in the editor's chip. The workbench

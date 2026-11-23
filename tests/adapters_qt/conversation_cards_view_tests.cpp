@@ -4332,6 +4332,82 @@ namespace {
 		expect(document->toPlainText() == QString::fromStdString(body), "and undo takes the typed block back whole");
 	}
 
+	/// \brief [[BPR-2358]]. Shift selected lines with Tab and Shift+Tab in
+	/// the composer and use the same undo history as other draft edits.
+	void test_selected_composer_code_shifts_by_one_tab()
+	{
+		qt::conversation_cards_view view;
+		view.resize(440, 760);
+		view.show();
+		const auto frame    = [](const QString& aCode) { return QStringLiteral("Review note\n```suggestion\n") + aCode + QStringLiteral("\n```\nFollow-up"); };
+		const auto original = frame(QStringLiteral("call();\n  nested();\n \t\tdeep();\nfinish();"));
+		open_composer(view, original.toStdString());
+		view.present_draft(qt::draft_composer_presentation{ .Body = original, .Publishable = true, .Lines = QStringLiteral("Line 1") });
+		settle_card();
+		auto* const field = view.draft_editor();
+		expect(field != nullptr && field->toPlainText() == original, "the composer opens the exact draft");
+		auto* const doc    = field->document();
+		const auto  select = [field, doc](const int aFirstLine, const int aFirstColumn, const int aLastLine, const int aLastColumn, const bool aReversed = false) {
+			const auto first  = doc->findBlockByNumber(aFirstLine).position() + aFirstColumn;
+			const auto last   = doc->findBlockByNumber(aLastLine).position() + aLastColumn;
+			auto       cursor = field->textCursor();
+			cursor.setPosition(aReversed ? last : first);
+			cursor.setPosition(aReversed ? first : last, QTextCursor::KeepAnchor);
+			field->setTextCursor(cursor);
+			field->setFocus();
+		};
+		const auto edit = [field](const QKeySequence::StandardKey aCommand) {
+			const auto key = QKeySequence(aCommand)[0];
+			press_in(field, key.key(), key.keyboardModifiers());
+		};
+
+		select(2, 1, 5, 0, true);
+		press_in(field, Qt::Key_Tab, Qt::NoModifier);
+		const auto indented = frame(QStringLiteral("    call();\n      nested();\n     \t\tdeep();\nfinish();"));
+		expect(field->toPlainText() == indented && field->hasFocus(), "Tab shifts selected code by four spaces and keeps focus");
+		const auto selected = field->textCursor();
+		expect(selected.position() == doc->findBlockByNumber(2).position() + 5 && selected.anchor() == doc->findBlockByNumber(5).position(),
+			   "a reversed selection keeps both ends on the same text and leaves the next line outside the selection");
+		press_in(field, Qt::Key_Tab, Qt::NoModifier);
+		const auto twice = frame(QStringLiteral("        call();\n          nested();\n         \t\tdeep();\nfinish();"));
+		expect(field->toPlainText() == twice, "the same selection shifts again");
+		edit(QKeySequence::Undo);
+		expect(field->toPlainText() == indented, "one Undo reverses the second Tab on every selected line");
+		edit(QKeySequence::Undo);
+		expect(field->toPlainText() == original, "another Undo reverses the first Tab");
+		edit(QKeySequence::Redo);
+		expect(field->toPlainText() == indented, "Redo reapplies the first Tab");
+		edit(QKeySequence::Redo);
+		expect(field->toPlainText() == twice, "Redo reapplies the second Tab");
+
+		field->setPlainText(original);
+		select(2, 0, 5, 0);
+		press_in(field, Qt::Key_Backtab, Qt::ShiftModifier);
+		const auto outdented = frame(QStringLiteral("call();\nnested();\n\tdeep();\nfinish();"));
+		expect(field->toPlainText() == outdented && field->hasFocus(), "Shift+Tab clips short indents and removes four columns of mixed indentation");
+		press_in(field, Qt::Key_Tab, Qt::ShiftModifier);
+		const auto left = frame(QStringLiteral("call();\nnested();\ndeep();\nfinish();"));
+		expect(field->toPlainText() == left, "another Shift+Tab removes the remaining tab and stops each line at column zero");
+		press_in(field, Qt::Key_Backtab, Qt::ShiftModifier);
+		expect(field->toPlainText() == left && field->hasFocus() && field->textCursor().hasSelection(), "outdenting at the margin keeps the active selection");
+		edit(QKeySequence::Undo);
+		expect(field->toPlainText() == outdented, "an outdent at the margin adds no undo step");
+		edit(QKeySequence::Undo);
+		expect(field->toPlainText() == original, "undo restores short indents and original tabs");
+		edit(QKeySequence::Redo);
+		expect(field->toPlainText() == outdented, "redo reapplies the outdent");
+
+		select(2, 0, 2, 0);
+		press_in(field, Qt::Key_Tab, Qt::NoModifier);
+		expect(!field->hasFocus() && field->toPlainText() == outdented, "Tab with a caret alone traverses focus");
+		select(0, 0, 0, 6);
+		press_in(field, Qt::Key_Backtab, Qt::ShiftModifier);
+		expect(!field->hasFocus() && field->toPlainText() == outdented, "Shift+Tab with prose selected traverses focus");
+		select(1, 2, 2, 2);
+		press_in(field, Qt::Key_Tab, Qt::NoModifier);
+		expect(!field->hasFocus() && field->toPlainText() == outdented, "a selection touching fence text traverses focus");
+	}
+
 	/// \brief [[BPR-2355]] (owner, 2026-11-21: "can we do syntax
 	/// highlighting? Also if we could make the language into a picker"). The
 	/// composer's code box is coloured by the reader's syntax service once
@@ -4801,6 +4877,7 @@ auto main(int argc, char** argv) -> int
 	test_a_long_draft_grows_then_scrolls({ });
 	test_a_fenced_block_styles_only_its_own_lines({ });
 	test_a_code_block_is_its_own_box({ });
+	test_selected_composer_code_shifts_by_one_tab();
 	test_a_code_box_is_coloured_and_names_its_language();
 	test_a_reply_code_box_borrows_its_files_names();
 	std::cout << "conversation-cards-view-tests:pass\n";
