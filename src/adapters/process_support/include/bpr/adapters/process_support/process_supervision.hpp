@@ -151,7 +151,11 @@ namespace bpr::adapters::process_support {
 
 		~serialized_process_lane()
 		{
-			ShutdownRequested.store(true, std::memory_order_release);
+			{
+				// Publish shutdown under the same lock as the worker's wait predicate.
+				std::lock_guard lock{ Mutex };
+				ShutdownRequested.store(true, std::memory_order_release);
+			}
 			WorkAvailable.notify_all();
 			SlotAvailable.notify_all();
 			if (Worker.joinable()) {
