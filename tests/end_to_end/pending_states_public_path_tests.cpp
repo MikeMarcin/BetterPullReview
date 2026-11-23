@@ -24,6 +24,7 @@
 #include <QAbstractItemView>
 #include <QAccessible>
 #include <QAccessibleEvent>
+#include <QAction>
 #include <QApplication>
 #include <QDir>
 #include <QElapsedTimer>
@@ -143,6 +144,69 @@ namespace {
 		return false;
 	}
 
+	// [[BPR-2317]]. Use the actual large-review recording in a fresh window:
+	// its accepted overview can take input before the first epoch starts.
+	void exercise_first_epoch_file(const std::filesystem::path& aRoot)
+	{
+		using access                                     = app::detail::github_application_fixture_access;
+		auto delay                                       = std::make_shared<app::detail::github_read_delay_fixture>();
+		delay->PageMilliseconds                          = 350U;
+		auto                                     options = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = aRoot, .ReadDelay = delay };
+		auto                                     started = false;
+		std::unique_ptr<app::github_application> owner;
+		auto                                     startup = access::start(app::detail::github_public_path_fixture::large_review_v1, std::move(options), [&](auto aResult) {
+			started = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return started && startup && startup->is_quiescent(); }, "large review fixture starts");
+		expect(owner != nullptr, "the large review admits a window");
+		auto& window = owner->window();
+		owner->show();
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_open_action()->isEnabled(); }, "the large review account connects");
+		window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/large-review#17"));
+		window.home_open_action()->trigger();
+		auto* const overview = window.overview_page();
+		auto        clock    = QElapsedTimer{ };
+		clock.start();
+		while (clock.elapsed() < 60'000) {
+			const auto before = window.statistics().EpochUpdates;
+			QApplication::processEvents();
+			if (overview->projection()) {
+				expect(window.statistics().EpochUpdates == before,
+					   "the accepted metadata reaches the window before the first epoch turn");
+				break;
+			}
+			QThread::msleep(1);
+		}
+		expect(overview->projection() && overview->projection()->Number.value() == 17U, "the large review's accepted metadata is visible");
+		window.choose_modality(qt::review_modality::review);
+		auto* const drawer = window.files_drawer();
+		const auto  index  = drawer->contents()->index(0, 0);
+		expect(index.isValid(), "the reported file remains selectable between admission and the first epoch");
+		const auto path         = index.data().toString();
+		const auto openedBefore = window.statistics().PendingOpensOpened;
+		drawer->contents_view()->setCurrentIndex(index);
+		auto* const comparison = window.comparison_surface();
+		expect(comparison->held_waiting() == path, "the accepted review owns a file chosen before epoch composition");
+		expect(shows_file_without_gap(*comparison, "the accepted review's file keeps its loading view until it arrives")
+				   && window.statistics().PendingOpensOpened == openedBefore + 1U,
+			   "the first epoch opens the file selected between its turns");
+		window.home_action()->trigger();
+		expect(window.home_landing()->close_button()->isVisible(), "the large review exposes Close");
+		window.home_landing()->close_button()->click();
+		wait_for([&] {
+			const auto closed = access::close_review(*owner);
+			return !closed.SnapshotHeld && !closed.ReadHoldsPullRequest && !closed.TabDestination
+				&& access::diff_work_evidence(*owner).EpochOutstandingJobs == 0U;
+		},
+				 "closing the large review retires its work and reading scope");
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "the large review fixture drains");
+	}
+
 	std::vector<QString>* Announcements = nullptr;
 
 	void capture(QAccessibleEvent* const aEvent)
@@ -165,9 +229,16 @@ try {
 	expect(!root.empty(), "private desktop root under the canonical storage policy");
 	// [[BPR-2195]]. A failure keeps the host's diagnostic log, which names the
 	// stage that failed, after the root is removed.
-	const auto keepLogs            = e2e::course_logs_on_failure{ temporary, "pending-states" };
-	auto       delay               = std::make_shared<app::detail::github_read_delay_fixture>();
-	auto       options             = app::detail::github_public_path_fixture_options{ };
+	const auto keepLogs = e2e::course_logs_on_failure{ temporary, "pending-states" };
+	if (QApplication::arguments().contains(QStringLiteral("--initial-epoch-click"))) {
+		exercise_first_epoch_file(root);
+		expect(e2e::remove_course_root(temporary), "the large review course removes its private root");
+		std::cout << "pending-states-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
+
+	auto delay                     = std::make_shared<app::detail::github_read_delay_fixture>();
+	auto options                   = app::detail::github_public_path_fixture_options{ };
 	options.ApplicationDataRoot    = root;
 	options.RegisteredDeviceCourse = true;
 	options.IndependentWindowReads = true;
@@ -231,55 +302,6 @@ try {
 	wait_for([&] { return row_of(*window, first).View != nullptr && row_of(*window, second).View != nullptr; }, "the pull requests are listed");
 	wait_for([&] { return homeVeil->look() == core::pending_look::ready; }, "and the list is ready");
 	delay->DiscoveryMilliseconds = 0U;
-
-	const auto finish_course = [&] {
-		static_cast<void>(QAccessible::installUpdateHandler(previous));
-		Announcements = nullptr;
-		owner->begin_shutdown();
-		wait_for([&] { return owner->status().ShutdownComplete; }, "the course drains");
-		desktop.reset();
-		expect(e2e::remove_course_root(temporary), "the course removes its private root");
-		std::cout << "pending-states-public-path:pass\n";
-		return EXIT_SUCCESS;
-	};
-
-	// [[BPR-2317]]. Start with a fresh Git catalogue and exercise the
-	// actual file gesture between the accepted overview and its epoch.
-	if (QApplication::arguments().contains(QStringLiteral("--initial-epoch-click"))) {
-		window->choose_modality(qt::review_modality::overview);
-		window->choose_home(true);
-		pause(100);
-		delay->PageMilliseconds = 350U;
-		double_click(row_of(*window, second));
-		auto* const overview = window->overview_page();
-		auto        clock    = QElapsedTimer{ };
-		clock.start();
-		while (clock.elapsed() < 60'000) {
-			const auto before = window->statistics().EpochUpdates;
-			QApplication::processEvents();
-			if (overview->projection() && overview->projection()->Number.value() == 18U) {
-				expect(window->statistics().EpochUpdates == before,
-					   "the accepted metadata reaches the window before the first epoch turn");
-				break;
-			}
-			QThread::msleep(1);
-		}
-		expect(overview->projection() && overview->projection()->Number.value() == 18U, "the new review's accepted metadata is visible");
-		window->choose_modality(qt::review_modality::review);
-		auto* const drawer = window->files_drawer();
-		const auto  index  = drawer->contents()->index(0, 0);
-		expect(index.isValid(), "the reported file remains selectable between admission and the first epoch");
-		const auto path         = index.data().toString();
-		const auto openedBefore = window->statistics().PendingOpensOpened;
-		drawer->contents_view()->setCurrentIndex(index);
-		auto* const comparison = window->comparison_surface();
-		expect(comparison->held_waiting() == path, "the accepted read owns the file chosen before epoch composition");
-		expect(shows_file_without_gap(*comparison, "the accepted review's file keeps its loading view until it arrives")
-				   && window->statistics().PendingOpensOpened == openedBefore + 1U,
-			   "the first epoch opens the file selected between its turns");
-		delay->PageMilliseconds = 0U;
-		return finish_course();
-	}
 
 	// ---- the Overview opening a pull request, section by section --------------
 	const auto opens = [&](const QString& aIdentity, const QString& aName, const bool aAssert) {
@@ -476,7 +498,14 @@ try {
 		delay->PageMilliseconds = 0U;
 	}
 
-	return finish_course();
+	static_cast<void>(QAccessible::installUpdateHandler(previous));
+	Announcements = nullptr;
+	owner->begin_shutdown();
+	wait_for([&] { return owner->status().ShutdownComplete; }, "the course drains");
+	desktop.reset();
+	expect(e2e::remove_course_root(temporary), "the course removes its private root");
+	std::cout << "pending-states-public-path:pass\n";
+	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {
 	std::cerr << "pending-states-public-path:fail " << aError.what() << '\n';
 	return EXIT_FAILURE;

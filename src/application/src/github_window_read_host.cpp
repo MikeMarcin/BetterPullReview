@@ -46,6 +46,11 @@ namespace bpr::application {
 	}
 
 	namespace {
+		// Review file and comment lists are read in pages of 100. When the
+		// first projection needs more than one page's worth of rows, give
+		// input a turn before starting its independent Git composition.
+		constexpr std::size_t review_page_records = 100U;
+
 		void append_u64(std::vector<std::uint8_t>& aBytes,
 						const std::uint64_t        aValue)
 		{
@@ -830,7 +835,7 @@ namespace bpr::application {
 		}
 
 		void deliver_epoch_handoff(
-			const github_pull_request_snapshot& aSnapshot) noexcept
+			const github_pull_request_snapshot& aSnapshot, const bool aLargeProjection) noexcept
 		{
 			if (Epochs == nullptr) {
 				return;
@@ -852,7 +857,10 @@ namespace bpr::application {
 					EpochHandoffDeliveryFailed = true;
 					return;
 				}
-				if (ActiveEpochAuthority) {
+				// Preserve the existing order for small first reads and for
+				// every later epoch, when a catalogue may already be active.
+				const auto first = !std::exchange(InitialEpochAdmitted, true);
+				if (!first || !aLargeProjection) {
 					accept_epoch_handoff(std::move(*handoff));
 					return;
 				}
@@ -1556,13 +1564,15 @@ namespace bpr::application {
 					PreparedPreflight = std::move(aPrepared.Preflight);
 					retain_overview(success->Request.Context, std::move(aPrepared.CachedOverview));
 					StagedSnapshot.reset();
+					const auto largeProjection = aPrepared.Projection
+						&& AcceptedSnapshot->Files.size() + aPrepared.Projection->PullRequest.Conversations.size() > review_page_records;
 					publish_transition(
 						output,
 						nullptr,
 						&*AcceptedSnapshot, false, std::nullopt, std::move(aPrepared.Projection));
 					if (AcceptedSnapshot && !Closing && State.AcceptedSnapshot == expected.Snapshot
 						&& State.PullRequestGeneration == expected.Context.Generation) {
-						deliver_epoch_handoff(*AcceptedSnapshot);
+						deliver_epoch_handoff(*AcceptedSnapshot, largeProjection);
 					}
 				} else {
 					record_pull_request(diagnostic_outcome::failed,
@@ -2186,6 +2196,7 @@ namespace bpr::application {
 		github_rate_limit_state                             RateLimits;
 		std::optional<github_provider_error>                LastError;
 		std::optional<github_public_preview_refusal>        PublicPreviewRefusal;
+		bool                                                InitialEpochAdmitted = false;
 		std::shared_ptr<accepted_pull_request_handoff>      PendingInitialEpoch;
 		std::optional<pull_request_authority_invalidation>  ActiveEpochAuthority;
 		std::shared_ptr<smart_authority_state>              ActiveEpochSmartAuthority;
