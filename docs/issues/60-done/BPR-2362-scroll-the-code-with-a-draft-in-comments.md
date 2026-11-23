@@ -54,4 +54,6 @@ Hidden Cocoa also reached the draft-scroll pass marker. That run later
 hit the previously documented hidden-Cocoa reply-focus assertion
 ([[BPR-2359]]).
 
-The fresh physical trackpad verdict is pending on the integrated freeze.
+The owner accepted physical trackpad scrolling on the integrated freeze.
+The owner also observed that collapsing an empty draft makes it disappear.
+That observation concerns draft behavior outside the scrolling criterion.
