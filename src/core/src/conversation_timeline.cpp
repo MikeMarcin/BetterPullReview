@@ -44,7 +44,8 @@ namespace bpr::core {
 				reviews.try_emplace(aItems[index].Id, index);
 			}
 		}
-		auto units  = std::vector<unit>{ };
+		auto units = std::vector<unit>{ };
+		units.reserve(aItems.size());
 		auto bundle = std::unordered_map<std::size_t, std::size_t>{ };
 		for (std::size_t index = 0U; index < aItems.size(); ++index) {
 			const auto& item = aItems[index];

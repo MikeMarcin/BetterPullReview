@@ -219,6 +219,7 @@ namespace {
 	struct signal_audit
 	{
 		std::size_t InsertedRows = 0;
+		std::size_t InsertEvents = 0;
 		std::size_t RemovedRows  = 0;
 		std::size_t MovedRows    = 0;
 		std::size_t MoveEvents   = 0;
@@ -228,6 +229,7 @@ namespace {
 		void clear_operations() noexcept
 		{
 			InsertedRows = 0;
+			InsertEvents = 0;
 			RemovedRows  = 0;
 			MovedRows    = 0;
 			MoveEvents   = 0;
@@ -242,6 +244,7 @@ namespace {
 			&QAbstractItemModel::rowsInserted,
 			[&aAudit](const QModelIndex&, const int aFirst, const int aLast) {
 				aAudit.InsertedRows += static_cast<std::size_t>(aLast - aFirst + 1);
+				++aAudit.InsertEvents;
 			});
 		QObject::connect(
 			&aModel,
@@ -1082,6 +1085,8 @@ namespace {
 			signal_audit                  audit;
 			observe(model, audit);
 			model.apply(rows);
+			expect(audit.InsertEvents == 1U && model.statistics().RowsInserted == rows.size(),
+				   "long-ancestry", cycle, "the first root insertion publishes its complete forest");
 			validate_model(model, expected_for(rows), "long-ancestry", cycle);
 			const QPersistentModelIndex thread{ model.index(0, 0) };
 			audit.clear_operations();

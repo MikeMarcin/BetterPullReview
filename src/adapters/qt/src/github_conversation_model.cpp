@@ -14,7 +14,6 @@
 #include <iterator>
 #include <optional>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 
 namespace bpr::qt {
@@ -422,8 +421,8 @@ namespace bpr::qt {
 		const std::vector<application::github_conversation_projection>&
 			aConversations)
 	{
-		const auto&                                          roles = changed_roles();
-		std::unordered_map<std::string, const conversation*> desiredByIdentity;
+		const auto&                                               roles = changed_roles();
+		std::unordered_map<std::string_view, const conversation*> desiredByIdentity;
 		desiredByIdentity.reserve(aConversations.size());
 		for (const auto& value : aConversations) {
 			if (!value.Id.empty()) {
@@ -439,13 +438,13 @@ namespace bpr::qt {
 		};
 		struct parent_link
 		{
-			std::optional<std::string> ParentId;
-			ancestry                   State = ancestry::unknown;
+			std::optional<std::string_view> ParentId;
+			ancestry                        State = ancestry::unknown;
 		};
-		std::unordered_map<std::string, parent_link> desiredParent;
+		std::unordered_map<std::string_view, parent_link> desiredParent;
 		desiredParent.reserve(desiredByIdentity.size());
 		for (const auto& [identity, value] : desiredByIdentity) {
-			std::optional<std::string> parentIdentity;
+			std::optional<std::string_view> parentIdentity;
 			if (
 				value->Kind == application::github_conversation_kind::review_comment
 				&& value->ParentId.has_value() && *value->ParentId != identity) {
@@ -499,18 +498,15 @@ namespace bpr::qt {
 			}
 		}
 
-		std::vector<const conversation*> desiredRoots;
-		std::unordered_map<std::string, std::vector<const conversation*>>
-			desiredChildren;
+		std::vector<const conversation*>                                       desiredRoots;
+		std::unordered_map<std::string_view, std::vector<const conversation*>> desiredChildren;
 		desiredRoots.reserve(desiredByIdentity.size());
 		desiredChildren.reserve(desiredByIdentity.size());
-		std::unordered_set<std::string> ordered;
-		ordered.reserve(desiredByIdentity.size());
 		for (const auto& value : aConversations) {
 			const auto selected = desiredByIdentity.find(value.Id);
 			if (
 				selected == desiredByIdentity.end()
-				|| selected->second != &value || !ordered.insert(value.Id).second) {
+				|| selected->second != &value) {
 				continue;
 			}
 			const auto& parentIdentity = desiredParent.at(value.Id).ParentId;
@@ -521,16 +517,48 @@ namespace bpr::qt {
 			}
 		}
 
+		if (Roots.empty()) {
+			if (desiredRoots.empty()) {
+				return;
+			}
+			// Qt discovers the children of a newly inserted row through the
+			// model. Prepare the complete forest before emitting that one
+			// insertion, so a large first read need not announce every reply.
+			const auto build = [&desiredChildren](const auto&                             aBuild,
+												  const std::vector<const conversation*>& aDesired,
+												  node*                                   aParent) -> std::vector<std::unique_ptr<node>> {
+				auto rows = std::vector<std::unique_ptr<node>>{ };
+				rows.reserve(aDesired.size());
+				for (const auto* row : aDesired) {
+					auto value    = std::make_unique<node>();
+					value->Value  = *row;
+					value->Parent = aParent;
+					value->Row    = rows.size();
+					if (const auto children = desiredChildren.find(row->Id); children != desiredChildren.end()) {
+						value->Children = aBuild(aBuild, children->second, value.get());
+					}
+					rows.push_back(std::move(value));
+				}
+				return rows;
+			};
+			auto forest = build(build, desiredRoots, nullptr);
+			beginInsertRows({ }, 0, static_cast<int>(forest.size()) - 1);
+			Roots = std::move(forest);
+			endInsertRows();
+			Statistics.RowsInserted += desiredByIdentity.size();
+			return;
+		}
+
 		std::function<void(
 			std::vector<std::unique_ptr<node>>&,
 			const QModelIndex&,
-			const std::optional<std::string>&)>
+			const std::optional<std::string_view>&)>
 			removeObsolete;
 		removeObsolete =
 			[this, &desiredParent, &removeObsolete](
-				std::vector<std::unique_ptr<node>>& aValues,
-				const QModelIndex&                  aParentIndex,
-				const std::optional<std::string>&   aActualParent) {
+				std::vector<std::unique_ptr<node>>&    aValues,
+				const QModelIndex&                     aParentIndex,
+				const std::optional<std::string_view>& aActualParent) {
 				for (std::size_t offset = aValues.size(); offset != 0U; --offset) {
 					const auto  row     = offset - 1U;
 					auto* const value   = aValues[row].get();
@@ -552,7 +580,7 @@ namespace bpr::qt {
 					removeObsolete(
 						value->Children,
 						index_for_node(value),
-						std::optional<std::string>{ value->Value.Id });
+						std::optional<std::string_view>{ value->Value.Id });
 				}
 			};
 		removeObsolete(Roots, { }, std::nullopt);

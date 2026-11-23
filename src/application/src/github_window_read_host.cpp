@@ -380,10 +380,29 @@ namespace bpr::application {
 			}
 			return std::move(result.Projection);
 		}
+		struct prepared_review_projection
+		{
+			github_pull_request_projection  PullRequest;
+			std::unordered_set<std::string> MarkdownBodies;
+		};
+
+		[[nodiscard]] static auto prepare_review_projection(const github_pull_request_snapshot& aSnapshot)
+			-> prepared_review_projection
+		{
+			auto prepared = prepared_review_projection{ .PullRequest = project_github_pull_request(aSnapshot) };
+			prepared.MarkdownBodies.reserve(prepared.PullRequest.Conversations.size());
+			for (const auto& body : prepared.PullRequest.Conversations) {
+				if (!body.Deleted) {
+					prepared.MarkdownBodies.insert(body.Id);
+				}
+			}
+			return prepared;
+		}
 		void publish_transition(const core::github_transition_output& aOutput,
 								const github_session_read_model* aSession = nullptr, const github_pull_request_snapshot* aSnapshot = nullptr,
 								const bool                                       aPreserveWindowNavigation = false,
-								std::optional<github_cached_overview_projection> aCached                   = std::nullopt)
+								std::optional<github_cached_overview_projection> aCached                   = std::nullopt,
+								std::optional<prepared_review_projection>        aPrepared                 = std::nullopt)
 		{
 			if (!Publish || Closing || SuppressPublication) {
 				return;
@@ -396,7 +415,7 @@ namespace bpr::application {
 					presentation.Session = project_github_session(*aSession);
 				}
 				if (aSnapshot != nullptr) {
-					presentation.PullRequest = project_accepted_snapshot(*aSnapshot);
+					presentation.PullRequest = project_accepted_snapshot(*aSnapshot, std::move(aPrepared));
 				}
 				// [[BPR-2180]]. What the first read has shown, part by part; and
 				// the files it reported withdrawn once that read is gone with no
@@ -423,20 +442,17 @@ namespace bpr::application {
 		}
 		/// \brief The projection of an accepted snapshot, stamped with this
 		/// window's publication, whose bodies become the ones links may open.
-		[[nodiscard]] auto project_accepted_snapshot(const github_pull_request_snapshot& aSnapshot) -> github_pull_request_projection
+		[[nodiscard]] auto project_accepted_snapshot(
+			const github_pull_request_snapshot&       aSnapshot,
+			std::optional<prepared_review_projection> aPrepared = std::nullopt) -> github_pull_request_projection
 		{
-			auto projection            = project_github_pull_request(aSnapshot);
-			projection.MarkdownContext = markdown_identity();
+			auto prepared                        = aPrepared ? std::move(*aPrepared) : prepare_review_projection(aSnapshot);
+			prepared.PullRequest.MarkdownContext = markdown_identity();
 			if (AcceptedProfileAuthority) {
-				projection.Hostname = std::string{ AcceptedProfileAuthority->Hostname.value() };
+				prepared.PullRequest.Hostname = std::string{ AcceptedProfileAuthority->Hostname.value() };
 			}
-			MarkdownBodies.clear();
-			for (const auto& body : projection.Conversations) {
-				if (!body.Deleted) {
-					MarkdownBodies.insert(body.Id);
-				}
-			}
-			return projection;
+			MarkdownBodies = std::move(prepared.MarkdownBodies);
+			return std::move(prepared.PullRequest);
 		}
 		void publish_and_execute(const core::github_transition_output& aOutput)
 		{
@@ -681,6 +697,14 @@ namespace bpr::application {
 			review_preflight_observation Observation;
 		};
 
+		struct prepared_read
+		{
+			std::optional<github_read_validation>       Validation;
+			std::optional<prepared_review_projection>   Projection;
+			std::optional<prepared_review_preflight>    Preflight;
+			std::optional<core::cached_review_overview> CachedOverview;
+		};
+
 		void install_snapshot(github_pull_request_snapshot aSnapshot)
 		{
 			PreparedPreflight.reset();
@@ -894,7 +918,7 @@ namespace bpr::application {
 			auto*      lane  = &DecisionLane;
 			++Outstanding;
 			auto once     = std::make_shared<std::atomic_bool>(false);
-			auto callback = [weak, lane, token, once, digests = BodyDigests](github_pull_request_completion aCompletion) mutable {
+			auto callback = [weak, lane, token, once, digests = BodyDigests, cache = Overviews != nullptr && CacheEffects != nullptr](github_pull_request_completion aCompletion) mutable {
 				if (once->exchange(true)) {
 					return;
 				}
@@ -913,34 +937,43 @@ namespace bpr::application {
 						success->Snapshot.FeedbackBodyDigests = { };
 					}
 				}
-				auto validation = std::optional<github_read_validation>{ };
-				auto preflight  = std::optional<prepared_review_preflight>{ };
+				auto prepared = prepared_read{ };
 				if (auto* success = std::get_if<github_pull_request_success>(&aCompletion)) {
 					const auto& request  = success->Request;
 					auto&       snapshot = success->Snapshot;
 					snapshot.Mode        = request.Mode;
 					try {
-						validation = validate(snapshot, request.Context);
-						if (validation->valid() && request.Mode == core::github_access_mode::authenticated) {
-							// Preparation uses only this packet. Publication still
-							// waits for admission on the decision lane.
-							const auto scope = core::cached_review_key{
-								host_authority_fingerprint(request.ProfileAuthority).bytes(),
-								snapshot.Profile,
-								snapshot.Host,
-								snapshot.Account,
-								{ .Owner = snapshot.Repository.Owner, .Name = snapshot.Repository.Name },
-								snapshot.PullRequest.Number,
-							};
-							preflight.emplace(scope, observe_review_preflight(scope, snapshot));
+						prepared.Validation = validate(snapshot, request.Context);
+						if (prepared.Validation->valid()) {
+							// This projection excludes the optional merge base,
+							// branch policy, merge and review request facts that
+							// install_snapshot can carry from an earlier read.
+							// Window markdown authority is bound after admission.
+							prepared.Projection = prepare_review_projection(snapshot);
+							if (request.Mode == core::github_access_mode::authenticated) {
+								const auto authority = host_authority_fingerprint(request.ProfileAuthority).bytes();
+								const auto scope     = core::cached_review_key{
+									authority,
+									snapshot.Profile,
+									snapshot.Host,
+									snapshot.Account,
+									{ .Owner = snapshot.Repository.Owner, .Name = snapshot.Repository.Name },
+									snapshot.PullRequest.Number,
+								};
+								prepared.Preflight.emplace(scope, observe_review_preflight(scope, snapshot));
+								if (cache) {
+									const auto& context     = request.Context;
+									prepared.CachedOverview = prepare_cached_overview({ authority, context.Profile, context.Host, context.Account, context.Repository, context.Number }, snapshot);
+								}
+							}
 						}
 					} catch (...) { }
 				}
 				try {
-					lane->post([weak, token, terminal = std::move(aCompletion), validation, prepared = std::move(preflight)]() mutable {
+					lane->post([weak, token, terminal = std::move(aCompletion), preparedRead = std::move(prepared)]() mutable {
 						if (auto host = weak.lock()) {
 							--host->Outstanding;
-							host->handle_pull_request_now(token, std::move(terminal), validation, std::move(prepared));
+							host->handle_pull_request_now(token, std::move(terminal), std::move(preparedRead));
 						}
 					});
 				} catch (...) {
@@ -1221,7 +1254,7 @@ namespace bpr::application {
 			return { host_authority_fingerprint(*AcceptedProfileAuthority).bytes(),
 					 aRequest.Profile, aRequest.Host, aRequest.Account, aRequest.Repository, aRequest.Number };
 		}
-		auto retain_file_catalogue(const github_pull_request_snapshot& aSnapshot) const
+		static auto retain_file_catalogue(const github_pull_request_snapshot& aSnapshot)
 			-> std::optional<std::vector<core::cached_review_file>>
 		{
 			if (aSnapshot.Files.size() > core::maximum_cached_files) {
@@ -1297,33 +1330,39 @@ namespace bpr::application {
 			}
 			return core::valid_cached_discussion(messages, aReviews) ? std::optional{ std::move(messages) } : std::nullopt;
 		}
-		void retain_overview(const core::pull_request_request_context& aRequest)
+		static auto prepare_cached_overview(core::cached_review_key aKey, const github_pull_request_snapshot& snapshot)
+			-> std::optional<core::cached_review_overview>
+		{
+			// [[BPR-1560]]. The source reader uses GitHub's merge base; when
+			// the read supplied none, there is no new comparison to retain.
+			if (snapshot.MergeBaseAvailability != github_merge_base_availability::available
+				|| snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size()) > 1000000) {
+				return std::nullopt;
+			}
+			auto retained = core::cached_review_overview{
+				.Key = std::move(aKey), .Repository = snapshot.Repository.Repository, .PullRequest = snapshot.PullRequest.PullRequest, .BaseOid = std::string{ comparison_base_text(snapshot) }, .HeadOid = std::string{ snapshot.PullRequest.HeadOid.value() }, .Title = snapshot.PullRequest.Title, .Body = snapshot.PullRequest.Body, .AuthorLogin = snapshot.PullRequest.Author ? snapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(snapshot.Files.size()), .Commits = static_cast<std::uint32_t>(snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size())), .State = static_cast<std::uint8_t>(snapshot.PullRequest.State), .Draft = snapshot.PullRequest.Draft, .FileCatalogue = retain_file_catalogue(snapshot), .ReviewThreads = retain_threads(snapshot), .GeneralComments = retain_discussion(snapshot, false), .ReviewSummaries = retain_discussion(snapshot, true)
+			};
+			return core::valid(retained) ? std::optional{ std::move(retained) } : std::nullopt;
+		}
+		void retain_overview(const core::pull_request_request_context& aRequest, std::optional<core::cached_review_overview> aPrepared)
 		{
 			if (!Overviews || !CacheEffects || CacheWritePending || !AcceptedSnapshot
 				|| !AcceptedProfileAuthority || aRequest.Mode != core::github_access_mode::authenticated) {
 				return;
 			}
-			const auto& snapshot = *AcceptedSnapshot;
-			if (snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size()) > 1000000) {
-				return;
+			// Same-head installation can recover a previously known merge
+			// base. Build the cache record from that installed snapshot then.
+			if (!aPrepared) {
+				aPrepared = prepare_cached_overview(overview_key(aRequest), *AcceptedSnapshot);
 			}
-			// [[BPR-1560]]. The cached overview's source reader reads its base
-			// as the comparison's base; without a merge base GitHub named there
-			// is none, so nothing new is cached for this read.
-			if (snapshot.MergeBaseAvailability != github_merge_base_availability::available) {
-				return;
-			}
-			auto retained = core::cached_review_overview{
-				.Key = overview_key(aRequest), .Repository = snapshot.Repository.Repository, .PullRequest = snapshot.PullRequest.PullRequest, .BaseOid = std::string{ comparison_base_text(snapshot) }, .HeadOid = std::string{ snapshot.PullRequest.HeadOid.value() }, .Title = snapshot.PullRequest.Title, .Body = snapshot.PullRequest.Body, .AuthorLogin = snapshot.PullRequest.Author ? snapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(snapshot.Files.size()), .Commits = static_cast<std::uint32_t>(snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size())), .State = static_cast<std::uint8_t>(snapshot.PullRequest.State), .Draft = snapshot.PullRequest.Draft, .FileCatalogue = retain_file_catalogue(snapshot), .ReviewThreads = retain_threads(snapshot), .GeneralComments = retain_discussion(snapshot, false), .ReviewSummaries = retain_discussion(snapshot, true)
-			};
-			if (!core::valid(retained)) {
+			if (!aPrepared) {
 				return;
 			}
 			CacheWritePending = true;
 			++Outstanding;
 			auto self = shared_from_this();
 			try {
-				CacheEffects->post([self, overview = std::move(retained)] {
+				CacheEffects->post([self, overview = std::move(*aPrepared)] {
 					try {
 						static_cast<void>(self->Overviews->save(overview, { }));
 					} catch (...) { }
@@ -1388,10 +1427,7 @@ namespace bpr::application {
 				return false;
 			}
 		}
-		void handle_pull_request_now(const std::uint64_t                          aToken,
-									 github_pull_request_completion               aCompletion,
-									 const std::optional<github_read_validation>& aValidation,
-									 std::optional<prepared_review_preflight>     aPreflight)
+		void handle_pull_request_now(const std::uint64_t aToken, github_pull_request_completion aCompletion, prepared_read aPrepared)
 		{
 			if (Closing || aToken != ProviderOperationToken) {
 				return;
@@ -1426,7 +1462,7 @@ namespace bpr::application {
 				// one.
 				auto observed         = std::move(success->Snapshot);
 				observed.Mode         = success->Request.Mode;
-				const auto validation = aValidation ? *aValidation : validate(observed, success->Request.Context);
+				const auto validation = aPrepared.Validation ? *aPrepared.Validation : validate(observed, success->Request.Context);
 				if (observed.Viewer != expectedViewer
 					|| observed.CapabilityEvidence
 						!= projected_capability_evidence(
@@ -1468,13 +1504,13 @@ namespace bpr::application {
 					Admission->succeeded(success->Request.ProfileAuthority, success->Request.Viewer,
 										 success->Request.CapabilityEvidence.ReadShape.ReviewThreads || success->Request.CapabilityEvidence.ReadShape.ViewedFileState);
 					install_snapshot(std::move(*StagedSnapshot));
-					PreparedPreflight = std::move(aPreflight);
-					retain_overview(success->Request.Context);
+					PreparedPreflight = std::move(aPrepared.Preflight);
+					retain_overview(success->Request.Context, std::move(aPrepared.CachedOverview));
 					StagedSnapshot.reset();
 					publish_transition(
 						output,
 						nullptr,
-						&*AcceptedSnapshot);
+						&*AcceptedSnapshot, false, std::nullopt, std::move(aPrepared.Projection));
 					if (AcceptedSnapshot && !Closing && State.AcceptedSnapshot == expected.Snapshot
 						&& State.PullRequestGeneration == expected.Context.Generation) {
 						deliver_epoch_handoff(*AcceptedSnapshot);
@@ -2220,6 +2256,9 @@ namespace bpr::application {
 		if (source.Closing || !source.Session || !source.AcceptedSnapshot
 			|| aWindows.size() > core::maximum_bpr_windows_per_profile
 			|| !source.Policy.share_snapshot(source.Policy, aSequence)) {
+			return;
+		}
+		if (std::ranges::none_of(aWindows, [this](const auto& aWindow) { return aWindow && aWindow.get() != this; })) {
 			return;
 		}
 		// Publication can close/navigate/reauthenticate any window, or admit a

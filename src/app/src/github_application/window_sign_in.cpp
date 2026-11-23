@@ -88,16 +88,15 @@ namespace bpr::app {
 			refresh_prompt_repository();
 #endif
 			const auto authority = workbench_authority(aHandoff);
-			const auto snapshot  = Host != nullptr
-				? WindowRead->accepted_snapshot()
-				: std::optional<application::github_pull_request_snapshot>{ };
 			compose_review_ledger(aHandoff);
+			static const auto empty    = std::optional<application::github_pull_request_snapshot>{ };
+			const auto&       snapshot = WindowRead ? WindowRead->accepted_snapshot() : empty;
 			WorkbenchReview.adopt(
 				aHandoff,
 				snapshot);
 			// RFC-BPR-0089. Before the workbench observes the files below.
 			adopt_commit_filter(aHandoff, snapshot);
-			if (snapshot.has_value() && QueueHost != nullptr
+			if (snapshot && snapshot->Snapshot == aHandoff.Snapshot && QueueHost != nullptr
 				&& QueueRefresh != nullptr) {
 				auto observation = queue_observation_for(aHandoff, *snapshot);
 				auto session     = application::queue_session_id{
