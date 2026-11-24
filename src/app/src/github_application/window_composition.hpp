@@ -1012,6 +1012,7 @@ namespace bpr::app {
 		[[nodiscard]] auto chat_queue_runs(const std::string& aSession) const -> bool;
 		[[nodiscard]] auto chat_queue_agent(const std::string& aSession) const -> core::queue_agent;
 		[[nodiscard]] auto release_chat_queued(const std::string& aSession, const core::queued_entry& aEntry) -> application::queued_admission;
+		[[nodiscard]] auto chat_queue_began(const std::string& aSession) -> application::queued_admission;
 		[[nodiscard]] auto steer_chat_queued(const std::string& aSession, const core::queued_entry& aEntry) -> std::optional<std::string>;
 		[[nodiscard]] auto chat_queue_bound(const std::string& aSession) const -> core::queued_claim;
 		[[nodiscard]] auto running_tour_thread() const -> std::optional<core::tour_thread>;

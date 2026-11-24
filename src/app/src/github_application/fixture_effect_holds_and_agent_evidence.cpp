@@ -999,6 +999,7 @@ namespace bpr::app {
 		if (profile.AgentQueue) {
 			if (const auto* const queue = profile.AgentQueue->queue(aSession); queue != nullptr) {
 				evidence.Queued = static_cast<std::size_t>(std::ranges::count(queue->Entries, core::queued_state::queued, &core::queued_entry::State));
+				evidence.Listed = static_cast<std::size_t>(std::ranges::count_if(queue->Entries, [](const core::queued_entry& aEntry) { return core::listed(aEntry); }));
 				evidence.Paused = queue->Paused;
 			}
 			evidence.Sending = profile.AgentQueue->sending(aSession).has_value();

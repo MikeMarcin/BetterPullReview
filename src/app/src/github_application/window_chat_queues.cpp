@@ -345,7 +345,7 @@ namespace bpr::app {
 				ChatQueueSending.clear();
 				return { .Kind = application::queued_admission_kind::refused };
 			}
-			return { .Kind = application::queued_admission_kind::started, .Run = ++ChatQueueRun };
+			return chat_queue_began(aSession);
 		}
 		request_tour_ask(*thread, std::nullopt, QString::fromStdString(aEntry.Input.Text), false);
 		if (!TourAskPending) {
@@ -354,7 +354,20 @@ namespace bpr::app {
 			ChatQueueSending.clear();
 			return { .Kind = application::queued_admission_kind::answered };
 		}
-		return { .Kind = application::queued_admission_kind::started, .Run = ++ChatQueueRun };
+		return chat_queue_began(aSession);
+	}
+
+	/// [[BPR-2368]]. A part's released message is the chat's running turn
+	/// now (the tour's ask, or the draft's question, shows it): it leaves the
+	/// pending list (`core::begin_turn`) and still holds the session until
+	/// its run's end settles it.
+	auto github_application::implementation::chat_queue_began(const std::string& aSession) -> application::queued_admission
+	{
+		const auto run = ++ChatQueueRun;
+		if (ChatQueueRuntime) {
+			AgentRunner.began(*ChatQueueRuntime, aSession, run);
+		}
+		return { .Kind = application::queued_admission_kind::started, .Run = run };
 	}
 
 	/// A queued message offered to its part's running turn goes to the tour

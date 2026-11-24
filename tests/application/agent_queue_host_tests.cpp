@@ -9,6 +9,7 @@
 /// write keeps what was queued; Steer sends or puts the message next.
 
 #include "bpr/application/agent_queue_host.hpp"
+#include "bpr/application/agent_session_runner.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -389,6 +390,88 @@ namespace {
 		host.began(session, agents.LastRun);
 		expect(host.queue(session)->Entries.empty() && !host.sending(session), "a beginning after it settled changes nothing");
 	}
+	/// [[BPR-2368]]. The tour feedback, tour part and local draft
+	/// discussion queues run on window runtimes offered to the profile's
+	/// session runner, whose start shows the message as the running turn at
+	/// once: each reports its turn begun inside its own start, and the
+	/// message leaves the pending list (as [[BPR-2368]]'s Agent tab release)
+	/// while it still holds the session until its run retires.
+	void test_a_window_runtime_turn_begun_inside_its_start_leaves_the_pending_list()
+	{
+		const auto pullRequest = core::queued_session{ .Host = "github.com", .Owner = "o", .Repository = "r", .Number = 9U };
+		const auto stop        = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 2U } };
+		for (const auto& session : { core::session_key(core::with_kind(pullRequest, core::queued_session_kind::tour_feedback)), core::session_key(core::tour_part_session(pullRequest, core::tour_thread{ })),
+									 core::session_key(core::tour_part_session(pullRequest, stop)), core::session_key(core::local_draft_session("draft-1", core::tour_thread{ })) }) {
+			expect(!session.empty(), "the session is named");
+			auto       store   = memory_store{ };
+			auto       agents  = application::agent_session_runner{ };
+			auto       host    = application::agent_queue_host{ { .Store = &store, .Runner = &agents } };
+			auto       shown   = window{ };
+			auto       busy    = false;
+			auto       lastRun = std::uint64_t{ 0U };
+			auto       started = std::vector<std::string>{ };
+			auto       begins  = true;
+			auto       token   = std::uint64_t{ 0U };
+			const auto at      = session;
+			agents.bind(host);
+			static_cast<void>(host.subscribe(shown.subscriber()));
+			token             = agents.offer(application::agent_session_runtime{
+				.Runs  = [at](const std::string& aSession) { return aSession == at; },
+				.State = [&busy](const std::string&) { return busy ? core::queue_agent::busy : core::queue_agent::idle; },
+				.Start =
+					[&](const std::string& aSession, const core::queued_entry& aEntry) {
+						started.push_back(aEntry.Input.Text);
+						busy           = true;
+						const auto run = ++lastRun;
+						// The chat shows it as its running turn before the start returns.
+						if (begins) {
+							agents.began(token, aSession, run);
+						}
+						return application::queued_admission{ .Kind = application::queued_admission_kind::started, .Run = run };
+					},
+			});
+			const auto listed = [&] { return std::ranges::count_if(shown.Shown[session].Entries, [](const core::queued_entry& aEntry) { return core::listed(aEntry); }); };
+			static_cast<void>(host.enqueue(session, typed("first")));
+			static_cast<void>(host.enqueue(session, typed("second")));
+			const auto& front = host.queue(session)->Entries.front();
+			expect(started == std::vector<std::string>{ "first" } && host.sending(session) && front.State == core::queued_state::sent && front.Claim && front.Claim->Run == lastRun,
+				   "its turn began inside its start: Sent, bound to its run, still holding the session");
+			expect(listed() == 1 && shown.Shown[session].Entries.back().Input.Text == "second", "the pending list shows only what waits: " + session);
+			expect(store.Kept[session].Entries.front().State == core::queued_state::sent && store.Kept[session].Entries.front().Claim->Run == lastRun, "the begun turn is stored");
+			agents.began(token + 1U, session, lastRun);
+			agents.began(token, session, lastRun + 1U);
+			expect(listed() == 1 && host.queue(session)->Entries.size() == 2U, "another runtime's or run's beginning changes nothing");
+			// Its retirement settles it; the next goes and begins.
+			busy = false;
+			agents.retired(token, session, lastRun, core::queued_finish::went);
+			expect(started.size() == 2U && host.queue(session)->Entries.size() == 1U && listed() == 0 && host.sending(session), "the run's end settles it, and the next begins its turn");
+			// A begun turn that fails goes as before: what remains pauses.
+			static_cast<void>(host.enqueue(session, typed("third")));
+			busy = false;
+			agents.retired(token, session, lastRun, core::queued_finish::failed);
+			expect(host.queue(session)->Paused == core::queue_pause::failed && host.queue(session)->Entries.size() == 1U && listed() == 1 && !host.sending(session),
+				   "a begun turn that failed leaves, and what remains pauses, listed");
+			// A run refused at once goes back first, listed, as before.
+			begins = false;
+			static_cast<void>(host.resume(session));
+			expect(host.queue(session)->Entries.front().State == core::queued_state::sending && listed() == 1, "one that has not begun stays Sending, listed");
+			busy = false;
+			agents.retired(token, session, lastRun, core::queued_finish::refused);
+			expect(host.queue(session)->Entries.front().State == core::queued_state::queued && host.queue(session)->Paused == core::queue_pause::failed && listed() == 1,
+				   "a refused release goes back first, listed");
+			// A crash while a begun turn ran: restored, it is uncertain, listed with Discard, never resent.
+			begins = true;
+			static_cast<void>(host.resume(session));
+			expect(host.queue(session)->Entries.front().State == core::queued_state::sent && listed() == 0, "begun again");
+			auto again    = application::agent_session_runner{ };
+			auto restored = application::agent_queue_host{ { .Store = &store, .Runner = &again } };
+			restored.load();
+			expect(restored.queue(session) != nullptr && restored.queue(session)->Entries.front().State == core::queued_state::delivery_unknown && core::listed(restored.queue(session)->Entries.front())
+					   && restored.queue(session)->Paused != core::queue_pause::none,
+				   "after a crash a begun turn is Delivery unknown, listed, and the queue opens paused");
+		}
+	}
+
 	/// [[BPR-2245]] (owner, 2026-11-17: "stop all is showing up in the status
 	/// bar after that even though no agent stuff is running"). A release the
 	/// agent refused returns its message and pauses the queue; nothing starts
@@ -444,6 +527,7 @@ auto main() -> int
 {
 	test_admissions_settle_every_release();
 	test_a_begun_turn_leaves_the_pending_list();
+	test_a_window_runtime_turn_begun_inside_its_start_leaves_the_pending_list();
 	test_a_paused_queue_leaves_nothing_waiting_to_go();
 	test_another_session_is_shown_its_own_empty_queue();
 	test_a_refused_write_on_the_effect_lane_hands_the_message_back();
