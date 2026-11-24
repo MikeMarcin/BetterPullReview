@@ -11,6 +11,7 @@
 #include "github_application/window_composition.hpp"
 
 #include "bpr/application/review_brief.hpp"
+#include "bpr/application/skill_guidance.hpp"
 #include "bpr/core/agent_follow_up.hpp"
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
@@ -70,7 +71,146 @@ namespace bpr::app {
 			}
 			return std::pair{ *session, static_cast<std::size_t>(*ordinal) };
 		}
+		/// Why no round was sent: the agent chosen cannot read the code.
+		[[nodiscard]] auto follow_up_agent_words() -> QString
+		{
+			return QStringLiteral("The side chat reads the pull request's code, so it needs an agent with a read-only mode. Choose Claude or Codex with the agent picker in the window's footer. Nothing was sent.");
+		}
 	} // namespace
+
+	/// [[BPR-2370]] (owner: "Why does the report side chat not have access to
+	/// the code? How am I supposed to ask serious follow-ups if it cant read
+	/// the workspace?"). The item side chat's own session, composed as the
+	/// tour session is: its rounds are fresh, read-only runs in the pull
+	/// request's workspace, and nothing of them reaches the Agent tab or the
+	/// tour.
+	void github_application::implementation::compose_follow_up_session(const std::vector<core::agent_profile>& aProfiles, const std::vector<core::agent_host_policy>& aPolicies)
+	{
+		FollowUpEffects = std::make_unique<worker_executor>();
+		FollowUpProcess = std::make_unique<adapters::agent::agent_process_launcher>();
+	#if defined(BPR_BUILD_TESTING)
+		FollowUpProcessProbe = std::make_unique<composition_agent_process_launcher_probe>(*FollowUpProcess);
+		// [[BPR-2177]]. A tests-on build's rounds keep to the fixture agent.
+		if (Fixture) {
+			FollowUpProcessProbe->set_admission(fixture_agent_admission());
+		}
+		auto& launcher = static_cast<application::agent_process_port&>(*FollowUpProcessProbe);
+	#else
+		auto& launcher = static_cast<application::agent_process_port&>(*FollowUpProcess);
+	#endif
+		FollowUpClaudeProcess    = std::make_unique<application::wrapped_claude_process>(launcher, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
+		FollowUpLocatedProcess   = std::make_unique<application::located_agent_process>(*FollowUpClaudeProcess, AgentProgramSource, &adapters::agent::inspect_claude_process_wrapper, locate_agent_program());
+		FollowUpEntryProcess     = std::make_unique<application::agent_entry_process>(launcher, *FollowUpLocatedProcess, AgentEntries, &adapters::agent::inspect_claude_process_wrapper, locate_claude(),
+																					  locate_agent_program());
+		FollowUpDiagnosedProcess = std::make_unique<application::diagnosed_agent_process>(*FollowUpEntryProcess, DiagnosticLog);
+		FollowUpProjection       = std::make_unique<tour_session_projection>(
+			[](const application::agent_invocation_projection_identity&) { },
+			[](const application::agent_invocation_projection_identity&, const application::prepared_workspace&) { },
+			[this](const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult) { follow_up_round_finished(aIdentity, aResult); },
+			[this](const std::string_view aReason) {
+				answer_follow_up_round(std::unexpected{ aReason == "agent_invocation_already_running" ? std::string{ "The side chat is still answering another item. Ask again when it ends; nothing was sent." }
+																									  : "The side chat could not start (" + std::string{ aReason } + "). Nothing was sent." });
+			});
+		FollowUpSession = std::make_unique<application::agent_invocation_host>(
+			aProfiles, aPolicies, AgentWorkspaceNeighbourhood, *this, *EpochHost, *FollowUpDiagnosedProcess,
+			[](const std::string& aName) -> std::optional<std::string> {
+				if (!qEnvironmentVariableIsSet(aName.c_str())) {
+					return std::nullopt;
+				}
+				return qEnvironmentVariable(aName.c_str()).toStdString();
+			},
+			*FollowUpEffects, DecisionLane, *FollowUpProjection, nullptr, NativeAgentSessions.get(), DiagnosticLog.get());
+		// A round asked while the last one retired starts once it has.
+		FollowUpSession->set_retired_observer([this] {
+			if (!Closing) {
+				start_follow_up_round();
+			}
+		});
+	}
+
+	void github_application::implementation::answer_follow_up_round(std::expected<std::string, std::string> aAnswer)
+	{
+		if (!FollowUpRound) {
+			return;
+		}
+		auto round = std::move(*FollowUpRound);
+		FollowUpRound.reset();
+		round.Stop.reset();
+		if (round.Answer) {
+			round.Answer(std::move(aAnswer));
+		}
+	}
+
+	/// [[BPR-2370]]. A round goes as a tour part's chat turn does: the
+	/// follow-up's message is the prompt, its instructions the system prompt,
+	/// and the run reads the pull request's workspace with read-only tools.
+	/// It is fresh: the message carries the item and the earlier rounds.
+	void github_application::implementation::launch_follow_up_round(const application::follow_up_agent& aAgent, const std::string& aMessage, std::stop_token aStop, application::follow_up_answer aAnswer)
+	{
+		if (Closing || FollowUpSession == nullptr || FollowUpRound) {
+			aAnswer(std::unexpected{ FollowUpRound ? std::string{ "The side chat is still answering another item. Ask again when it ends; nothing was sent." }
+												   : std::string{ "The side chat cannot ask an agent now. Nothing was sent." } });
+			return;
+		}
+		if (aStop.stop_requested()) {
+			aAnswer(std::unexpected{ std::string{ "Stopped." } });
+			return;
+		}
+		// The skills the question named ride inline, and the prompt ends by
+		// saying what they are, as on the tool-free runner before; the round
+		// keeps the Writing style it was asked with.
+		auto launched = tour_launch{ .ReadOnly = true, .Path = core::agent_run_path::follow_up, .SystemInstructions = aAgent.Instructions, .FollowUp = true, .WritingStyle = aAgent.WritingStyle };
+		auto prompt   = aMessage;
+		if (!aAgent.Skills.empty()) {
+			launched.Skills.Inline = aAgent.Skills;
+			prompt += application::inline_skill_directive();
+		}
+		FollowUpRound = follow_up_round{ .Answer = std::move(aAnswer), .Stop = nullptr, .Start = [this, profile = core::agent_profile_id{ aAgent.Profile }, message = std::move(prompt), launch = std::move(launched)] {
+											return dispatch_agent_invocation(profile, { }, { }, false, message, std::nullopt, core::agent_entry_point::ask_about_selection, { }, true, launch);
+										} };
+		// Stop ends the run, or the round still waiting for the session; its
+		// ending answers the round as stopped.
+		FollowUpRound->Stop = std::make_unique<std::stop_callback<std::function<void()>>>(std::move(aStop), std::function<void()>{ [this] {
+																							  if (FollowUpRound && FollowUpRound->Start) {
+																								  answer_follow_up_round(std::unexpected{ std::string{ "Stopped." } });
+																							  } else if (FollowUpSession) {
+																								  FollowUpSession->cancel();
+																							  }
+																						  } });
+		// The session's last round may still be retiring (its workspace
+		// removed, its helpers settled): this one starts when it has.
+		if (FollowUpRound && FollowUpSession->is_quiescent()) {
+			start_follow_up_round();
+		}
+	}
+
+	void github_application::implementation::start_follow_up_round()
+	{
+		if (!FollowUpRound || !FollowUpRound->Start) {
+			return;
+		}
+		auto start = std::exchange(FollowUpRound->Start, nullptr);
+		if (Closing || !start()) {
+			answer_follow_up_round(std::unexpected{ std::string{ "The side chat could not start: the pull request's review is not ready. Nothing was sent." } });
+		}
+	}
+
+	void github_application::implementation::follow_up_round_finished(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult)
+	{
+		if (aResult.Outcome == application::agent_run_outcome::success && !aResult.AssistantItems.empty()) {
+			// The answer is the run's last message; what it said while it
+			// read is its working, as a tour part's chat keeps it.
+			answer_follow_up_round(aResult.AssistantItems.back());
+			return;
+		}
+		if (aResult.Outcome == application::agent_run_outcome::cancelled) {
+			answer_follow_up_round(std::unexpected{ std::string{ "Stopped." } });
+			return;
+		}
+		const auto name = Closing || Window == nullptr ? QStringLiteral("The agent") : agent_display_name(aIdentity.Session.Profile);
+		const auto why  = aResult.RefusalReason.empty() ? qt::agent_tab_view::run_failure_words(aResult.Outcome, name) : QString::fromStdString(aResult.RefusalReason);
+		answer_follow_up_round(std::unexpected{ why.toStdString() });
+	}
 
 	void github_application::implementation::bind_follow_up()
 	{
@@ -204,11 +344,13 @@ namespace bpr::app {
 		Window->item_side_chat()->present(*aProjection.Open, profile ? agent_display_name(*profile) : QString{ }, QString::fromStdString(aProjection.RunFailure));
 	}
 
+	/// [[BPR-2370]]. An agent the side chat can ask reads the workspace with
+	/// read-only tools, as a tour part's chat's must.
 	auto github_application::implementation::follow_up_agent() -> std::optional<application::follow_up_agent>
 	{
 		const auto  profile = writing_agent();
 		const auto& prefs   = Profile->WorkbenchPreferences->accepted();
-		if (!profile || !prefs || !writes_tool_free(*profile)) {
+		if (!profile || !prefs || !reads_read_only(*profile)) {
 			return std::nullopt;
 		}
 		auto agent = application::follow_up_agent{
@@ -233,7 +375,7 @@ namespace bpr::app {
 		}
 		auto agent = follow_up_agent();
 		if (!agent || !FollowUp->available()) {
-			Window->item_side_chat()->show_status(QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker in the window's footer. Nothing was sent."));
+			Window->item_side_chat()->show_status(follow_up_agent_words());
 			return;
 		}
 		const auto question = aQuestion.toStdString();
@@ -274,7 +416,7 @@ namespace bpr::app {
 		}
 		auto agent = follow_up_agent();
 		if (!agent || !FollowUp->available()) {
-			Window->item_side_chat()->show_status(QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker in the window's footer. Nothing was sent."));
+			Window->item_side_chat()->show_status(follow_up_agent_words());
 			return;
 		}
 		auto base = follow_up_target(*FollowUp->projection().Open, aApply);

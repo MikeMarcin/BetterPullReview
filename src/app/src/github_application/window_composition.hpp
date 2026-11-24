@@ -1157,6 +1157,13 @@ namespace bpr::app {
 		void request_writing(core::writing_hook aHook, qt::prose_capture aCapture);
 #if defined(BPR_AGENT_INTEGRATIONS)
 		void compose_tour_session(const std::vector<core::agent_profile>& aProfiles, const std::vector<core::agent_host_policy>& aPolicies);
+		/// \brief [[BPR-2370]]. The item side chat's session (see
+		/// `FollowUpSession`).
+		void compose_follow_up_session(const std::vector<core::agent_profile>& aProfiles, const std::vector<core::agent_host_policy>& aPolicies);
+		/// \brief [[BPR-2370]]. Starts one side chat round in the pull
+		/// request's workspace; `aAnswer` hears how it ended, once.
+		void launch_follow_up_round(const application::follow_up_agent& aAgent, const std::string& aMessage, std::stop_token aStop, application::follow_up_answer aAnswer);
+		void follow_up_round_finished(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult);
 		/// \brief RFC-BPR-0110. A local draft's conversations: tool-free runs
 		/// whose only input is the request the draft's host composed.
 		void               compose_local_draft_agent(const std::vector<core::agent_profile>& aProfiles);
@@ -2924,6 +2931,37 @@ namespace bpr::app {
 		std::unique_ptr<application::agent_entry_process>        LocalDraftEntryProcess;
 		std::unique_ptr<tour_session_projection>                 TourProjection;
 		std::unique_ptr<application::agent_invocation_host>      TourSession;
+		/// [[BPR-2370]] (owner: "How am I supposed to ask serious follow-ups
+		/// if it cant read the workspace?"). The item side chat's session: its
+		/// own effect lane, launcher and projection, the same Claude wrapper,
+		/// program and added-agent ports, and a host whose rounds read the
+		/// pull request's workspace with read-only tools, as a tour part's
+		/// chat does. Declared so the host goes before what it runs through.
+		std::unique_ptr<worker_executor>                         FollowUpEffects;
+		std::unique_ptr<adapters::agent::agent_process_launcher> FollowUpProcess;
+	#if defined(BPR_BUILD_TESTING)
+		std::unique_ptr<composition_agent_process_launcher_probe> FollowUpProcessProbe;
+	#endif
+		std::unique_ptr<application::wrapped_claude_process>  FollowUpClaudeProcess;
+		std::unique_ptr<application::located_agent_process>   FollowUpLocatedProcess;
+		std::unique_ptr<application::agent_entry_process>     FollowUpEntryProcess;
+		std::unique_ptr<application::diagnosed_agent_process> FollowUpDiagnosedProcess;
+		std::unique_ptr<tour_session_projection>              FollowUpProjection;
+		std::unique_ptr<application::agent_invocation_host>   FollowUpSession;
+		/// The round in flight: whom its answer goes to, the stop that
+		/// cancels it, and, while it waits for the session's last round to
+		/// retire, how it starts. One at a time, as the session runs one.
+		struct follow_up_round
+		{
+			application::follow_up_answer                              Answer;
+			std::unique_ptr<std::stop_callback<std::function<void()>>> Stop;
+			std::function<bool()>                                      Start;
+		};
+		std::optional<follow_up_round> FollowUpRound;
+		/// \brief Answers the round in flight, if any, once.
+		void answer_follow_up_round(std::expected<std::string, std::string> aAnswer);
+		/// \brief Starts the round waiting, if any.
+		void start_follow_up_round();
 		/// [[BPR-2040]]. An editor-context observation, destroyed before its
 		/// host. It observes retirement; it never changes run or effect policy.
 		std::unique_ptr<QTimer>                   TourIdleObservation;

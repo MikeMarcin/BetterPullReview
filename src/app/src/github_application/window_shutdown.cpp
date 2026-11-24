@@ -75,6 +75,9 @@ namespace bpr::app {
 		if (TourSession) {
 			TourSession->set_retired_observer({ });
 		}
+		if (FollowUpSession) {
+			FollowUpSession->set_retired_observer({ });
+		}
 		if (AgentQueue && AgentQueueSubscriber) {
 			AgentQueue->unsubscribe(*std::exchange(AgentQueueSubscriber, std::nullopt));
 		}
@@ -130,7 +133,10 @@ namespace bpr::app {
 		if (TourSession) {
 			TourSession->shutdown();
 		}
-		if ((!AgentHost || AgentHost->is_quiescent()) && (!TourSession || TourSession->is_quiescent())) {
+		if (FollowUpSession) {
+			FollowUpSession->shutdown();
+		}
+		if ((!AgentHost || AgentHost->is_quiescent()) && (!TourSession || TourSession->is_quiescent()) && (!FollowUpSession || FollowUpSession->is_quiescent())) {
 			begin_other_shutdown();
 		}
 #else
@@ -202,6 +208,11 @@ namespace bpr::app {
 		if (FollowUp) {
 			FollowUp->shutdown();
 		}
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// [[BPR-2370]]. A round its session ended without an answer is
+		// answered now, so the follow-up host is quiescent.
+		answer_follow_up_round(std::unexpected{ std::string{ "Stopped." } });
+#endif
 		if (DescriptionDraft) {
 			DescriptionDraft->shutdown();
 		}
@@ -293,6 +304,11 @@ namespace bpr::app {
 		}
 		if (TourSession && !TourSession->is_quiescent()) {
 			TourSession->retry_cleanup();
+			schedule_shutdown_poll();
+			return;
+		}
+		if (FollowUpSession && !FollowUpSession->is_quiescent()) {
+			FollowUpSession->retry_cleanup();
 			schedule_shutdown_poll();
 			return;
 		}

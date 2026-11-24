@@ -212,6 +212,9 @@ namespace bpr::app {
 			if (TourSession) {
 				TourSession->clear();
 			}
+			if (FollowUpSession) {
+				FollowUpSession->clear();
+			}
 			clear_side_chat();
 			Window->clear_dif_context();
 			return;
@@ -230,6 +233,9 @@ namespace bpr::app {
 			AgentHost->clear();
 			if (TourSession) {
 				TourSession->clear();
+			}
+			if (FollowUpSession) {
+				FollowUpSession->clear();
 			}
 			clear_side_chat();
 			Window->clear_dif_context();
@@ -251,6 +257,9 @@ namespace bpr::app {
 		if (TourSession) {
 			TourSession->observe(state.ApplicationSession, authority, observedBinding);
 			present_tour_continuation();
+		}
+		if (FollowUpSession) {
+			FollowUpSession->observe(state.ApplicationSession, authority, observedBinding);
 		}
 		// [[BPR-1749]]. Setup's rows carry this review's host policy, the
 		// same the agent host decides by (here `authority.Host` is
@@ -864,7 +873,10 @@ namespace bpr::app {
 		// the Agent tab's: a drafting run in the review's workspace with
 		// read-only tools, or a small rewrite tool-free.
 		if (aWritingOnly) {
-			if (TourSession == nullptr) {
+			// [[BPR-2370]]. An item side chat's round runs as a tour part's
+			// chat turn does, on the side chat's own session.
+			auto* const session = aTour.FollowUp ? FollowUpSession.get() : TourSession.get();
+			if (session == nullptr) {
 				return false;
 			}
 			invocation.WritingOnly         = !aTour.ReadOnly;
@@ -877,6 +889,11 @@ namespace bpr::app {
 			invocation.SystemInstructions  = aTour.SystemInstructions;
 			// [[BPR-1916]]. The skills the prompt names ride in the supplement.
 			invocation.Context.Skills = aTour.Skills.Inline;
+			// [[BPR-2370]]. A side chat round keeps the Writing style it was
+			// asked with.
+			if (aTour.WritingStyle) {
+				invocation.WritingStyle = *aTour.WritingStyle;
+			}
 			if (!aTour.NativeScope.empty() && AgentSetup) {
 				const auto preferences = AgentSetup->projection().Preferences;
 				if (const auto* entry = core::entry_of_profile(preferences.Agents, aProfile); entry) {
@@ -887,7 +904,7 @@ namespace bpr::app {
 					invocation.SelectedConversation = TourHistory.Scope == aTour.NativeScope ? TourHistory.Selected : std::string{ };
 				}
 			}
-			TourSession->dispatch(std::move(invocation));
+			session->dispatch(std::move(invocation));
 			return true;
 		}
 		// RFC-BPR-0116, RFC-BPR-0101 as amended 2026-11-12. A returning

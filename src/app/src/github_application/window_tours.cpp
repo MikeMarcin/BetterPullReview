@@ -1174,8 +1174,9 @@ namespace bpr::app {
 			}
 			return answer.Text;
 		});
-		// [[BPR-2286]]. Each follow-up round runs on the same agent runner, one
-		// fresh, tool-free run, on a lane of its own.
+		// [[BPR-2286]]. Each follow-up round is one fresh run. [[BPR-2370]]:
+		// it reads the pull request's workspace with read-only tools, on the
+		// side chat's own session (`launch_follow_up_round`).
 		if (!FollowUpLane) {
 			FollowUpLane = std::make_unique<worker_executor>();
 		}
@@ -1185,17 +1186,8 @@ namespace bpr::app {
 			// lengths and outcomes only.
 			FollowUp->set_log(Profile->DiagnosticLog);
 		}
-		FollowUp->set_runner([runner, style](const application::follow_up_agent& aAgent, const std::string& aMessage, const std::stop_token aStop) -> std::expected<std::string, std::string> {
-			{
-				const auto lock = std::scoped_lock{ style->Lock };
-				style->Text     = aAgent.WritingStyle;
-			}
-			auto answer = runner({ .Agent = aAgent.Agent, .AgentName = aAgent.AgentName, .Profile = aAgent.Profile, .Prompt = aMessage, .Instructions = aAgent.Instructions, .Path = core::agent_run_path::follow_up, .Delivery = aAgent.Delivery },
-								 aStop, aAgent.Skills);
-			if (!answer.Answered) {
-				return std::unexpected{ answer.Failure.empty() ? std::string{ "The agent did not answer." } : answer.Failure };
-			}
-			return answer.Text;
+		FollowUp->set_launcher([this](const application::follow_up_agent& aAgent, const std::string& aMessage, std::stop_token aStop, application::follow_up_answer aAnswer) {
+			launch_follow_up_round(aAgent, aMessage, std::move(aStop), std::move(aAnswer));
 		});
 		DraftDesktop->set_agent(std::move(runner), &TourAgentEffects, [this, style]() -> std::optional<local_draft_desktop::agent_choice> {
 			const auto  profile = writing_agent();

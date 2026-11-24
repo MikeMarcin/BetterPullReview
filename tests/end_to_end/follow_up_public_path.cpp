@@ -22,6 +22,11 @@
 ///   shows it beside the finding, opening the chat again shows the same
 ///   chat beside the report, and Draft comment drafts the updated text.
 ///
+/// - [[BPR-2370]] (owner: "Why does the report side chat not have access to
+///   the code?"): each round runs in the pull request's workspace, as a tour
+///   part's chat does: the fixture agent's answer, from the report's chat and
+///   the draft's, says it found the pull request's file in its working folder.
+///
 /// - [[BPR-2322]]: with Verbose on, every question, proposal and Use is an
 ///   `agent.side_chat` line in the diagnostic log, and an anonymized export
 ///   of that log holds none of the words asked, answered, proposed or quoted.
@@ -268,6 +273,8 @@ auto main(int argc, char** argv) -> int
 			expect(followUp->parentWidget() == surface->parentWidget() && followUp->mapTo(&window, QPoint{ 0, 0 }).x() >= surface->mapTo(&window, QPoint{ surface->width(), 0 }).x(), "the chat stands beside the code");
 			ask(*followUp, QStringLiteral("Is this clear enough for the author?"));
 			expect(followUp->answers().back().startsWith(QStringLiteral("Fixture follow-up: I read the item and 0 earlier rounds.")), "the fixture agent answered the round: " + followUp->answers().back().toStdString());
+			// [[BPR-2370]]. The round ran in the pull request's workspace.
+			expect(followUp->answers().back().contains(QStringLiteral("I read src/engine/renderer.cpp in the pull request's workspace.")), "the draft's round ran in the workspace: " + followUp->answers().back().toStdString());
 			propose(*followUp, QStringLiteral("Update draft"));
 			const auto proposed = followUp->proposal_text();
 			expect(proposed == QStringLiteral("question: does a zero height still reach the swap chain here? A minimised window reports one."), "the proposal is the agent's draft: " + proposed.toStdString());
@@ -365,6 +372,12 @@ auto main(int argc, char** argv) -> int
 		ask(*followUp, QStringLiteral("Can it be softer?"));
 		expect(followUp->answers().back().startsWith(QStringLiteral("Fixture follow-up: I read the item and 1 earlier rounds.")), "the second round carried the first: " + followUp->answers().back().toStdString());
 		expect(!followUp->answers().back().contains(QStringLiteral("Item-chat skill guidance received.")), "a later question does not carry the earlier question's skill guidance");
+		// [[BPR-2370]]. The report's side chat reads the code: both its
+		// rounds, the one with a skill too, ran in the pull request's
+		// workspace.
+		for (const auto& answered : followUp->answers()) {
+			expect(answered.contains(QStringLiteral("I read src/engine/renderer.cpp in the pull request's workspace.")), "the report's round ran in the workspace: " + answered.toStdString());
+		}
 		propose(*followUp, QStringLiteral("Update suggested comment"));
 		const auto updated = QStringLiteral("issue (blocking): clamp the height as well as the width. A minimised window reports a height of zero, and the swap chain asserts on it.");
 		expect(followUp->proposal_text() == updated, "the proposal is the rewritten comment: " + followUp->proposal_text().toStdString());

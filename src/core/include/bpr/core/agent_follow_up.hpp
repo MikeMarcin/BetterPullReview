@@ -55,10 +55,14 @@ namespace bpr::core {
 	[[nodiscard]] auto stable_name(follow_up_apply aApply) noexcept -> std::string_view;
 
 	/// \brief What every round's run is told to be, as its system prompt.
+	/// [[BPR-2370]]: each round runs in the pull request's workspace with
+	/// read-only tools, as a tour part's chat does, and is told so.
 	inline constexpr std::string_view follow_up_instructions
 		= "You help a code reviewer think through one item of a pull request review: a comment an agent suggested, a draft the reviewer is writing, or a review conversation. "
-		  "Each message gives you the item and the conversation so far. Answer plainly and briefly. You have no tools, and nothing you write is posted: the reviewer decides. "
-		  "When you are asked to rewrite a comment or write a reply, answer with only that text, exactly as it would be posted.";
+		  "Each message gives you the item and the conversation so far. Your working directory is a private copy of the pull request's repository at the revision under review: "
+		  "read and search it, and use read-only git (log, show, blame, diff), to check what you say against the code. You cannot edit, write or reach the network, "
+		  "and nothing you write is posted: the reviewer decides. Answer plainly and briefly. "
+		  "When you are asked to rewrite a comment or write a reply, your last message must be only that text, exactly as it would be posted.";
 	/// \brief The first line of every follow-up message, by which it is known.
 	inline constexpr std::string_view follow_up_marker = "Follow-up about one review item (bpr.follow-up.v1)";
 	/// \brief The most bytes an item's text, a thread post or a question may

@@ -1057,8 +1057,9 @@ namespace bpr::app {
 				   : 0U)
 				+ (implementation->TourProcessProbe != nullptr ? implementation->TourProcessProbe->invocations() : 0U)
 				+ (stack != nullptr ? stack->invocations() : 0U),
-			.HostComposed  = implementation->AgentHost != nullptr,
-			.Quiescent     = implementation->agent_turn_quiescent() && (runtime == nullptr || runtime->is_quiescent()) && (implementation->TourSession == nullptr || implementation->TourSession->is_quiescent()),
+			.HostComposed = implementation->AgentHost != nullptr,
+			.Quiescent    = implementation->agent_turn_quiescent() && (runtime == nullptr || runtime->is_quiescent()) && (implementation->TourSession == nullptr || implementation->TourSession->is_quiescent())
+				&& (implementation->FollowUpSession == nullptr || implementation->FollowUpSession->is_quiescent()),
 			.Statistics    = summed,
 			.WorkspaceRoot = std::filesystem::path{ implementation->LastAgentWorkspacePath }.parent_path(),
 		};

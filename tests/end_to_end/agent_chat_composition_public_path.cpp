@@ -1536,7 +1536,9 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-2051]] (821307015) added the seventh call site: Enhance on a
 		// comment, a reply or a note runs the same writing-only path as the
 		// tour writing hook, through this one launch.
-		&& occurrences(source, "dispatch_agent_invocation(") == 8U
+		// [[BPR-2370]] added the item side chat's round: read-only in the
+		// workspace, as a tour part's chat turn, through this one launch.
+		&& occurrences(source, "dispatch_agent_invocation(") == 9U
 		&& source.find("ChatHost->deliver(") != std::string::npos;
 
 	const auto positive = afterSend.ChatHostComposed

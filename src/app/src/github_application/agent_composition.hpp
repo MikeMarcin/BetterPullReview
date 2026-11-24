@@ -191,6 +191,13 @@ namespace bpr::app {
 		/// [[BPR-2141]]. A tool-free run whose context (the diff) is in its
 		/// prompt up front: the prompt travels in the tour prompt's carrier.
 		bool UpFront = false;
+		/// \brief [[BPR-2370]]. A round of an item's side chat: it launches
+		/// as a tour part's chat does (read-only, in the pull request's
+		/// workspace) on the side chat's own session, never the tour's.
+		bool FollowUp = false;
+		/// \brief [[BPR-2370]]. The Writing style the round was asked with,
+		/// in place of the one the window would read now.
+		std::optional<std::string> WritingStyle;
 	};
 
 	/// \brief [[BPR-1900]]. The tour session's projection: its own, so a tour

@@ -20,12 +20,15 @@
 /// \brief [[BPR-2286]]. Ask follow-up and Ask about this: the host of the
 /// follow-ups a window holds, one a review item, each a `core::follow_up_state`.
 ///
-/// \details Each round is one fresh, tool-free run of the agent the window's
-/// picker names, on the agent lane; its answer comes back on the decision lane
-/// and the core settles it. Stop ends a run; an answer for a run that is not
-/// the one going is dropped by the core. The host applies nothing: Use returns
-/// the core's decision and the window puts the text in place, and only the
-/// reviewer publishes.
+/// \details Each round is one fresh run of the agent the window's picker
+/// names; its answer comes back on the decision lane and the core settles it.
+/// A round runs either through a blocking runner on the agent lane, or
+/// ([[BPR-2370]], owner: "How am I supposed to ask serious follow-ups if it
+/// cant read the workspace?") through a launcher that answers later, which the
+/// window gives the pull request's workspace with read-only tools. Stop ends a
+/// run; an answer for a run that is not the one going is dropped by the core.
+/// The host applies nothing: Use returns the core's decision and the window
+/// puts the text in place, and only the reviewer publishes.
 namespace bpr::application {
 	/// \brief The agent a round runs with, as the window's picker names it.
 	struct follow_up_agent
@@ -45,6 +48,14 @@ namespace bpr::application {
 	/// \brief Runs one round; blocking, on the agent lane, stoppable. The
 	/// agent's answer, or why there is none in the person's words.
 	using follow_up_runner = std::function<std::expected<std::string, std::string>(const follow_up_agent&, const std::string& aMessage, std::stop_token)>;
+	/// \brief The agent's answer to one round, or why there is none in the
+	/// person's words.
+	using follow_up_answer = std::function<void(std::expected<std::string, std::string>)>;
+	/// \brief [[BPR-2370]]. Starts one round and returns; called on the
+	/// decision lane. `aAnswer` is called exactly once, on any thread, even
+	/// when the round is refused before it starts; a stop requested through
+	/// the token ends the run, and the answer then counts as stopped.
+	using follow_up_launcher = std::function<void(const follow_up_agent&, const std::string& aMessage, std::stop_token, follow_up_answer aAnswer)>;
 
 	/// \brief What the window shows: the follow-up open, if any.
 	struct follow_up_projection
@@ -66,6 +77,9 @@ namespace bpr::application {
 		auto operator=(const follow_up_host&) -> follow_up_host& = delete;
 
 		void set_runner(follow_up_runner aRunner);
+		/// \brief [[BPR-2370]]. Rounds start through `aLauncher` instead of
+		/// the runner; set, it is the one used.
+		void set_launcher(follow_up_launcher aLauncher);
 		/// \brief [[BPR-2322]]. Where each question, proposal and Use is
 		/// logged (`agent.side_chat`, Standard detail): the item's kind, the
 		/// round, the apply action, the outcome or refusal, the duration and
