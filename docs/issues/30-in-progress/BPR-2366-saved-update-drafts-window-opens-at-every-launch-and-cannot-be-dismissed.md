@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2366"
 title: "The Saved update drafts window opens at every launch forever: the update recovery store is append-only, Close removes nothing, no reset clears it, and the only way to stop it is to delete a file by hand"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
