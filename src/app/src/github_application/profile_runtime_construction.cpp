@@ -296,14 +296,22 @@ namespace bpr::app {
 				const auto folder   = std::filesystem::path{ BPR_FIXTURE_AGENT_DIRECTORY };
 				AttendedAgentSearch = false;
 				if (!ClaudeAgentExecutable) {
+		#if defined(_WIN32)
+					ClaudeAgentExecutable = folder / "claude.exe";
+		#else
 					ClaudeAgentExecutable = folder / "claude";
+		#endif
 				}
 				// Look ask-v002 (2026-11-14) opened on Codex, which nothing
 				// answered: Codex is the fixture agent too. Only Claude is
 				// searched for, so one agent is found and the setup takes it
 				// as it takes a person's only agent.
 				if (!CodexAgentExecutable) {
+		#if defined(_WIN32)
+					CodexAgentExecutable = folder / "codex.exe";
+		#else
 					CodexAgentExecutable = folder / "codex";
+		#endif
 				}
 				if (!ClaudeSearch) {
 					ClaudeSearch = detail::claude_search_environment{ .PathVariable = folder.string() };

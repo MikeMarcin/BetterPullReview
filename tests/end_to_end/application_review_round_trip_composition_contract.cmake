@@ -3977,8 +3977,9 @@ function(bpr_verify_app_source_tree app_source_root)
 	# drains. This uses the existing retry budget and exact epoch grants.
 	# [[BPR-2365]]. Agent settings project early Codex catalogs; fixture
 	# composition gives their probes the existing fixture program admission.
+	# Named fixture images use their Windows suffix inside the test guard.
 	set(bpr_expected_production_app_manifest_digest
-        "843b69a261497be5debf5b4ac25a893a591a22b3816bde0899bad51524bdd6be"
+        "91e15adea619113927f4949073ff440727d7ed3073fb3452da98e4c6c7447ac9"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
