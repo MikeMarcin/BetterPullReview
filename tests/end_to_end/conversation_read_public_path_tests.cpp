@@ -301,6 +301,8 @@ int main(int aArgc, char** aArgv)
 	}
 	stop();
 	start();
+	// Overview can paint before the accepted handoff binds the reply journal.
+	wait_for([&] { return access::epoch_refresh_identity(*application).AcceptedComparison.has_value(); }, "the restarted review accepts its comparison and reply authority");
 	auto& replyWindow = application->window();
 	replyWindow.choose_modality(qt::review_modality::review);
 	if (!replyWindow.conversations_drawer_toggle_action()->isChecked()) {
