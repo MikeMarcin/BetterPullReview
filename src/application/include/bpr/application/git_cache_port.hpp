@@ -597,6 +597,9 @@ namespace bpr::application {
 
 		git_revision_residency Residency = git_revision_residency::complete_closure;
 
+		/// The first parent resolves to a commit in this cache.
+		bool HasFirstParent = false;
+
 		auto operator<=>(const git_cache_commit_inspection&) const = default;
 	};
 

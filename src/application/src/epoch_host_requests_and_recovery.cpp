@@ -1286,10 +1286,7 @@ namespace bpr::application {
 		update.Catalog = epoch_catalog_projection{
 			.Catalog               = aCatalog,
 			.OccurrenceHistory     = aHistory,
-			.AllowOccurrenceImport = Active
-				&& object_loading_for(Active->Handoff.Shape) == pull_request_object_loading::selected_objects
-				&& Active->Handoff.SmartGit
-				&& Active->Handoff.SmartGit->supports_sparse_commit_trees(),
+			.AllowOccurrenceImport = Active && sparse_review(*Active),
 		};
 		// The accepted selection precedes its durable live append. Never expose
 		// comparisons derived under the prior base while that append is pending.

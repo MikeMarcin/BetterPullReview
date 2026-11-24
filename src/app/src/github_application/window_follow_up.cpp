@@ -19,6 +19,7 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/item_side_chat.hpp"
 
+#include <array>
 #include <string_view>
 
 namespace bpr::app {
@@ -235,7 +236,13 @@ namespace bpr::app {
 			Window->item_side_chat()->show_status(QStringLiteral("Choose an agent that speaks Claude Code's stream JSON with the agent picker in the window's footer. Nothing was sent."));
 			return;
 		}
-		static_cast<void>(FollowUp->ask(std::move(*agent), aQuestion.toStdString()));
+		const auto question = aQuestion.toStdString();
+		const auto texts    = std::array{ std::string_view{ question } };
+		auto       skills   = prepare_skill_run(SkillLibrary, texts);
+		agent->Skills       = std::move(skills.Inline);
+		if (FollowUp->ask(std::move(*agent), question) == core::follow_up_refusal::none && skills.Note) {
+			Window->item_side_chat()->show_status(QString::fromStdString(*skills.Note));
+		}
 	}
 
 	/// The text an apply would replace, as it is now: the finding's suggested

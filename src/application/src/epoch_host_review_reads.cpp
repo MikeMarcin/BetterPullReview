@@ -343,8 +343,7 @@ namespace bpr::application {
 																	 const std::stop_token aStop)
 		-> std::expected<std::shared_ptr<git_chain_tree_store>, commit_filter_touches_status>
 	{
-		const auto sparse = aContext && object_loading_for(aContext->Handoff.Shape) == pull_request_object_loading::selected_objects
-			&& aContext->Handoff.SmartGit && !aContext->Handoff.SmartGit->revoked() && aContext->Handoff.SmartGit->supports_sparse_commit_trees();
+		const auto sparse = aContext && sparse_review(*aContext);
 		if (!sparse || aRequest.Head != aContext->Revision.Head) {
 			return std::unexpected{ commit_filter_touches_status::objects_unavailable };
 		}
@@ -390,16 +389,46 @@ namespace bpr::application {
 	/// that can acquire them: its cache holds commits and trees, no blobs.
 	auto epoch_application_host::implementation::sparse_review(const authority_context& aContext) -> bool
 	{
-		return object_loading_for(aContext.Handoff.Shape) == pull_request_object_loading::selected_objects && aContext.Handoff.SmartGit
-			&& !aContext.Handoff.SmartGit->revoked() && aContext.Handoff.SmartGit->supports_sparse_commit_trees();
+		return (object_loading_for(aContext.Handoff.Shape) == pull_request_object_loading::selected_objects
+				|| aContext.SelectedFallback.load(std::memory_order_acquire))
+			&& aContext.Handoff.SmartGit && !aContext.Handoff.SmartGit->revoked() && aContext.Handoff.SmartGit->supports_sparse_commit_trees();
 	}
 
-	/// \details [[BPR-2295]]. A review loaded with selected objects whose
-	/// lease is revoked or gone (a reread renews it) may still have a sparse
-	/// cache: unless its loading was recorded complete, it is taken as sparse.
-	auto epoch_application_host::implementation::sparse_cache(const authority_context& aContext) -> bool
+	/// \brief [[BPR-2364]]. The shape and lease predict the fetch mode; only
+	/// the cache can report whether its exact head has a first parent.
+	auto epoch_application_host::implementation::cache_loading(const authority_context& aContext, git_cache_session* aCache,
+															   const core::git_commit_oid aHead, const std::stop_token aStop) -> core::review_loading_trace
 	{
-		return object_loading_for(aContext.Handoff.Shape) == pull_request_object_loading::selected_objects && aContext.LoadedSparse.value_or(true);
+		auto loading = core::review_loading_trace{
+			.SelectedObjects = object_loading_for(aContext.Handoff.Shape) == pull_request_object_loading::selected_objects,
+			.LoadedSparse    = aContext.LoadedSparse,
+			.SparseCapable   = aContext.Handoff.SmartGit && !aContext.Handoff.SmartGit->revoked() && aContext.Handoff.SmartGit->supports_sparse_commit_trees(),
+		};
+		if (aCache) {
+			const auto inspected   = aHead.algorithm() == core::git_hash_algorithm::sha1
+				? aCache->inspect_sparse_commit_object(aHead, aStop)
+				: aCache->inspect_commit_object(aHead, aStop);
+			loading.CacheHasParent = inspected && application::valid(*inspected) && inspected->Commit == aHead && inspected->HasFirstParent;
+		}
+		return loading;
+	}
+
+	/// \brief A load record can select the sparse path. Only a verified
+	/// closure authorizes the complete-cache path. A parent alone can still
+	/// leave missing blobs or deeper parents; a complete root has no parent.
+	auto epoch_application_host::implementation::sparse_cache(const authority_context& aContext, git_cache_session& aCache,
+															  const core::git_commit_oid aHead, core::review_loading_trace& aLoading, const std::stop_token aStop) -> bool
+	{
+		aLoading = cache_loading(aContext, &aCache, aHead, aStop);
+		if (aLoading.LoadedSparse.value_or(false)) {
+			return true;
+		}
+		const auto inspected = aCache.inspect_commit_object(aHead, aStop);
+		if (!inspected || !application::valid(*inspected) || inspected->Commit != aHead || inspected->Residency != git_revision_residency::complete_closure) {
+			return true;
+		}
+		aLoading.CacheHasParent = inspected->HasFirstParent;
+		return false;
 	}
 
 	/// \brief [[BPR-1873]]. Says, in a reviewer's terms, why what the
@@ -480,6 +509,11 @@ namespace bpr::application {
 			.AcquisitionMode    = git_smart_acquisition_mode::sparse_commit_trees,
 		};
 		const auto request = git_smart_workspace_delta_request{ .Context = context, .Head = aHead, .Clone = aClone };
+		if (!aContext.Handoff.SmartGit || aContext.Handoff.SmartGit->revoked()) {
+			return std::unexpected{ agent_workspace_error{ agent_workspace_failure::unavailable,
+														   "BetterPullReview could not fetch the missing objects because the review's connection is unavailable. Reopen the review and resend.\n",
+														   agent_workspace_unavailable_reason::download_failed } };
+		}
 		if (!application::valid(request)) {
 			return std::unexpected{ delta_failure(git_smart_transport_error{ git_smart_transport_failure::invalid_request }) };
 		}
@@ -873,9 +907,7 @@ namespace bpr::application {
 			std::scoped_lock lock{ aActor.BlobAuthorityMutex };
 			return aActor.ChainTrees;
 		}();
-		const auto sparse = aContext && object_loading_for(aContext->Handoff.Shape) == pull_request_object_loading::selected_objects
-			&& aContext->Handoff.SmartGit && !aContext->Handoff.SmartGit->revoked() && aContext->Handoff.SmartGit->supports_sparse_commit_trees()
-			&& aRequest.Head == aContext->Revision.Head;
+		const auto sparse = aContext && sparse_review(*aContext) && aRequest.Head == aContext->Revision.Head;
 		const auto lookup = [&](const std::string& aPath) -> std::expected<std::optional<core::git_blob_oid>, generated_attributes_status> {
 			auto found = aActor.Cache->find_blob_at_path(
 				git_cache_tree_entry_request{

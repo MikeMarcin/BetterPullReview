@@ -532,6 +532,7 @@ namespace bpr::adapters::github::detail {
 				, Git{ aGit }
 				, Session{ aSession }
 				, Context{ aContext }
+				, LinkedClone{ linked_clone() }
 				, ConfigurationCurrent{ std::move(aCurrent) }
 				, GitObservation{ observe_git(aGit) }
 				, Insights{ std::move(aInsights) }
@@ -539,6 +540,9 @@ namespace bpr::adapters::github::detail {
 
 			void revoke() noexcept override { Revocation.request_stop(); }
 			auto revoked() const noexcept -> bool override { return Revocation.stop_requested(); }
+			auto uses_history_clone() const noexcept -> bool override { return LinkedClone.has_value(); }
+			// Haves exclude objects from the local pack after the host clone.
+			auto negotiates_history_haves() const noexcept -> bool override { return false; }
 
 			auto discover(const git_smart_discovery_request& aRequest, std::stop_token aStop)
 				-> git_smart_transport_result<git_smart_discovery_response> override
@@ -1118,7 +1122,7 @@ namespace bpr::adapters::github::detail {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
 				process->set_insights_channel(Insights);
-				const auto linked = linked_clone();
+				const auto& linked = LinkedClone;
 				if (auto qualified = qualify(*process, root, aStop, aStep, false, linked.has_value()); !qualified) {
 					return std::unexpected{ qualified.error() };
 				}
@@ -2072,17 +2076,18 @@ namespace bpr::adapters::github::detail {
 				return { };
 			}
 
-			validated_github_host_profile            Profile;
-			validated_gh_cli_configuration           Configuration;
-			std::filesystem::path                    Git;
-			core::github_session_request_context     Session;
-			git_smart_request_context                Context;
-			std::function<bool()>                    ConfigurationCurrent;
-			std::optional<executable_observation>    GitObservation;
-			std::stop_source                         Revocation;
-			std::mutex                               Mutex;
-			std::shared_ptr<github_insights_channel> Insights;
-			std::atomic<git_smart_fetch_source>      LastSource{ git_smart_fetch_source::host };
+			validated_github_host_profile                                                Profile;
+			validated_gh_cli_configuration                                               Configuration;
+			std::filesystem::path                                                        Git;
+			core::github_session_request_context                                         Session;
+			git_smart_request_context                                                    Context;
+			const std::optional<std::pair<std::filesystem::path, std::filesystem::path>> LinkedClone;
+			std::function<bool()>                                                        ConfigurationCurrent;
+			std::optional<executable_observation>                                        GitObservation;
+			std::stop_source                                                             Revocation;
+			std::mutex                                                                   Mutex;
+			std::shared_ptr<github_insights_channel>                                     Insights;
+			std::atomic<git_smart_fetch_source>                                          LastSource{ git_smart_fetch_source::host };
 		};
 	}
 

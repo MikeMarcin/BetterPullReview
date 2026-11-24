@@ -919,8 +919,13 @@ namespace {
 				if (input.empty() || input.back() != '\n') {
 					return 4;
 				}
-				std::cout << input.substr(0U, input.size() - 1U)
-						  << " commit\n";
+				auto names = std::string_view{ input };
+				while (!names.empty()) {
+					const auto end  = names.find('\n');
+					const auto name = names.substr(0U, end);
+					std::cout << name << (name.ends_with("^1") ? " missing\n" : " commit\n");
+					names.remove_prefix(end + 1U);
+				}
 			}
 			return 0;
 		}
@@ -4065,6 +4070,14 @@ namespace {
 			},
 			{ });
 		require(imported.has_value(), "the sparse cache holds the head's commit and trees");
+		const auto inspect = [&](const std::filesystem::path& aRepository, const std::string& aOid) {
+			return adapter->inspect_commit({ .Repository = aRepository, .Commit = object<application::git_commit_id>(aOid, application::git_hash_algorithm::sha1) }, { });
+		};
+		const auto sparseHead = inspect(cache, head);
+		const auto fullHead   = inspect(source, head);
+		const auto fullRoot   = inspect(source, parent);
+		require(sparseHead && !sparseHead->HasFirstParent && fullHead && fullHead->HasFirstParent && fullRoot && !fullRoot->HasFirstParent,
+				"the cache reports an actual first parent when resident; a complete root has none");
 
 		// The linked clone holds the parent and lacks the head.
 		const auto clone = root.Path / "clone";
@@ -4134,9 +4147,9 @@ namespace {
 		const auto copied        = adapter->materialize_agent_workspace(copyRequest, { });
 		require(!copied.has_value() && copied.error().Detail.find("traverse parents") == std::string::npos,
 				"a copy out of a sparse cache never stops on the head's missing parent");
-		require(copyRequest.Source.Trace->Source == core::workspace_source::cache_copy_shallow && copyRequest.Source.Trace->Command != core::workspace_git_command::none
-					&& copyRequest.Source.Trace->Command != core::workspace_git_command::rev_list && !copyRequest.Source.Trace->CloneHeldHead,
-				"the trace names the cache copy that ended its history at the head and the Git command that then failed");
+		require(copyRequest.Source.Trace->Source == core::workspace_source::cache_copy_shallow && copyRequest.Source.Trace->Command == core::workspace_git_command::rev_list
+					&& copyRequest.Source.Trace->GitError == core::workspace_git_error::missing_object && !copyRequest.Source.Trace->CloneHeldHead,
+				"the shallow connectivity check refuses the missing blobs before pack-objects runs");
 		require(std::filesystem::is_empty(workspaceParent.Path), "the refused copy leaves no workspace behind");
 
 		// [[BPR-2295]]. A cache that holds the head's files but not its

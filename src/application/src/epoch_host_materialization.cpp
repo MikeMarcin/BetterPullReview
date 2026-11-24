@@ -212,8 +212,7 @@ namespace bpr::application {
 		} else if (aRead.RetainedOverLimit || cached.error() == git_cache_failure::quota_exceeded) {
 			aRead.Observation.Status = diff_blob_status::materialization_limit;
 		} else if (cached.error() == git_cache_failure::object_mismatch
-				   && (object_loading_for(aSelected->Handoff.Shape) != pull_request_object_loading::selected_objects
-					   || !aSelected->Handoff.SmartGit || !aSelected->Handoff.SmartGit->supports_sparse_commit_trees())) {
+				   && !sparse_review(*aSelected)) {
 			aRead.Observation.Status = diff_blob_status::missing;
 		}
 	}
@@ -723,10 +722,20 @@ namespace bpr::application {
 		if (!context || blob_authority_for(*context) != authorization) {
 			return std::unexpected{ agent_workspace_error{ agent_workspace_failure::stale, "The review changed while the agent's copy was being made.\n" } };
 		}
-		// [[BPR-2295]]. Decided by how the cache was loaded, not by whether
-		// the read lease is live now: a reread revokes and renews it.
-		const auto sparse = sparse_cache(*context);
+		const auto loading = run_on_actor<core::workspace_trace>(
+			actor, expected,
+			[actor, context, head = aRequest.Session.Binding.HeadOid](const std::stop_token aWorkStop) {
+				auto       inputs = core::review_loading_trace{ };
+				const auto sparse = sparse_cache(*context, *actor->Cache, head, inputs, aWorkStop);
+				return core::workspace_trace{ .Sparse = sparse, .Loading = inputs };
+			},
+			aStop, Limits.WorkspaceWait);
+		if (!loading || aStop.stop_requested()) {
+			return std::unexpected{ aStop.stop_requested() ? agent_workspace_failure::cancelled : agent_workspace_failure::unavailable };
+		}
+		const auto sparse = loading->Sparse;
 		trace.Sparse      = sparse;
+		trace.Loading     = loading->Loading;
 		if (sparse && !aRequest.HistoryClone) {
 			// [[BPR-1873]]. No clone: the agent sees only the pull
 			// request's files, and the brief and the turn say so.
@@ -903,9 +912,10 @@ namespace bpr::application {
 								// ancestors, and no clone lent them.
 								auto       reason  = agent_workspace_unavailable_reason::copy_failed;
 								const auto written = *source->Trace;
-								if (written.Source == core::workspace_source::cache_copy_shallow
-									|| (written.Source == core::workspace_source::cache_copy
-										&& (written.GitError == core::workspace_git_error::could_not_read || written.GitError == core::workspace_git_error::failed_to_traverse_parents))) {
+								if ((written.Source == core::workspace_source::cache_copy_shallow || written.Source == core::workspace_source::cache_copy)
+									&& (written.GitError == core::workspace_git_error::could_not_read
+										|| written.GitError == core::workspace_git_error::failed_to_traverse_parents
+										|| written.GitError == core::workspace_git_error::missing_object)) {
 									reason = agent_workspace_unavailable_reason::history_missing;
 								}
 								if (aRequest.HeadFromClone && materialized.error() == git_cache_failure::object_mismatch) {

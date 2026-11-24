@@ -1769,9 +1769,8 @@ namespace bpr::app {
 					static_cast<void>(Window->go_to_file_line(aPath, aFirst, aBefore, aLast));
 				}
 			});
-		// Owner look v006. The agent shown is asked what its harness
-		// offers; Reset agents clears every agent setting and the setup
-		// starts again, leaving notes, drafts and conversations.
+		// The menu can request a catalog retry. Reset agents clears the
+		// settings and restarts setup, leaving notes, drafts and conversations.
 		tab->set_catalog_dispatch([this](const std::uint64_t aProfile) {
 			if (Closing || !AgentSetup) {
 				return;
@@ -2254,7 +2253,6 @@ namespace bpr::app {
 			// it offers, once asked; the known levels until then.
 			const auto  catalogAt = setup.Catalogs.find(entry.Id);
 			const auto* catalog   = catalogAt == setup.Catalogs.end() ? nullptr : &catalogAt->second;
-			settings.Listing      = std::ranges::contains(setup.Cataloguing, entry.Id);
 			switch (core::entry_settings_program(entry.Protocol).value_or(core::agent_program::claude)) {
 			case core::agent_program::claude:
 				settings.Models  = claude_models();
@@ -2263,8 +2261,12 @@ namespace bpr::app {
 			case core::agent_program::codex: {
 				settings.Efforts = core::known_agent_efforts(core::agent_program::codex);
 				if (catalog == nullptr) {
+					settings.Listing = setup.CatalogFailures.contains(entry.Id) && !std::ranges::contains(setup.Cataloguing, entry.Id)
+						? qt::agent_model_listing::failed
+						: qt::agent_model_listing::asking;
 					break;
 				}
+				settings.Listing = qt::agent_model_listing::ready;
 				for (const auto& model : catalog->Models) {
 					settings.Models.emplace_back(model.Model, QString::fromStdString(model.DisplayName));
 				}

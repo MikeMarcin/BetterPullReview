@@ -1,5 +1,7 @@
 #include "github_application/window_composition.hpp"
 
+#include "bpr/qt/item_side_chat.hpp"
+
 #include "bpr/adapters/git/installed_git_publication.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
@@ -71,6 +73,7 @@ namespace bpr::app {
 		if (auto* const tab = Window->agent_tab(); tab != nullptr) {
 			tab->present_skills(SkillLibrary.Catalog);
 		}
+		Window->item_side_chat()->present_skills(SkillLibrary.Catalog);
 		// [[BPR-1914]] v003. The tour's side chats' composer completes them.
 		if (auto* const chat = Window->tour_editor() != nullptr ? Window->tour_editor()->side_chat() : nullptr; chat != nullptr) {
 			chat->present_skills(SkillLibrary.Catalog);

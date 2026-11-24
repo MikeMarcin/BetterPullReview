@@ -38,7 +38,9 @@ namespace bpr::application {
 		preparation_abort,
 		/// [[BPR-2290]]. A force-pushed head's objects, fetched for the
 		/// review's history: its detail says where they came from.
-		historical_acquire
+		historical_acquire,
+		/// [[BPR-2364]]. Shape, lease capability and exact cached head evidence.
+		loading_decision
 	};
 	using diagnostic_epoch_failure  = std::variant<std::monostate, epoch_catalog_failure,
 												   git_cache_failure, git_smart_transport_failure, git_protocol_v2_failure, core::epoch_failure>;
@@ -90,11 +92,13 @@ namespace bpr::application {
 													 /// [[BPR-2325]]. A finding card's kept state, cleared.
 													 finding_card,
 													 /// [[BPR-2324]]. A window's document tabs brought back.
-													 workbench_tabs };
+													 workbench_tabs,
+													 /// [[BPR-2365]]. One terminal Codex model catalog record.
+													 agent_catalog };
 	/// \brief The logged `op` name of each diagnostic operation, in order.
 	/// \details The logger writes and the export classifier admits exactly
 	/// these, so the two never disagree about the vocabulary ([[BPR-1828]]).
-	inline constexpr std::array<std::string_view, 26> diagnostic_operation_names{
+	inline constexpr std::array<std::string_view, 27> diagnostic_operation_names{
 		"application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment",
 		"github.review_submission", "github.discovery", "agent.run", "agent.setup_check", "agent.workspace", "github.review_mutation",
 		"github.sign_in", "credential.vault", "updater.release",
@@ -107,7 +111,8 @@ namespace bpr::application {
 		// [[BPR-2325]].
 		"agent.finding_card",
 		// [[BPR-2324]].
-		"workbench.tabs"
+		"workbench.tabs",
+		"agent.catalog"
 	};
 	/// \brief [[BPR-1828]]. A record's category: the operation name before its
 	/// first dot (`application`, `epoch`, `github`, `agent`, and since

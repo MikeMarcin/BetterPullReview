@@ -1142,8 +1142,7 @@ namespace bpr::application {
 			}
 		}
 		if (!context || (left.empty() && right.empty())
-			|| object_loading_for(context->Handoff.Shape) != pull_request_object_loading::selected_objects
-			|| !context->Handoff.SmartGit || !context->Handoff.SmartGit->supports_sparse_commit_trees()) {
+			|| !sparse_review(*context)) {
 			return;
 		}
 		const auto comparison = aTemplate.Diff.Comparison;
@@ -1286,9 +1285,7 @@ namespace bpr::application {
 			return;
 		}
 		if (aRead.Cached->error() != git_cache_failure::object_mismatch
-			|| object_loading_for(aSelected->Handoff.Shape) != pull_request_object_loading::selected_objects
-			|| blob_authority_for(*aSelected) != aAuthorization || !aSelected->Handoff.SmartGit
-			|| !aSelected->Handoff.SmartGit->supports_sparse_commit_trees()
+			|| !sparse_review(*aSelected) || blob_authority_for(*aSelected) != aAuthorization
 			|| blob_authorization_generation(aActor, aAuthorization) != aAdmittedGeneration) {
 			return;
 		}

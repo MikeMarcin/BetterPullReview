@@ -41,12 +41,16 @@ namespace {
 			-> application::agent_run_result override
 		{
 			expect(application::names_agent_folder(aRequest), "every request the setup host runs names a working folder or is WritingOnly");
-			Requests.push_back(aRequest);
-			Timeouts.push_back(aTimeout);
-			auto result = application::agent_run_result{ };
-			if (!Answers.empty()) {
-				result = Answers.front();
-				Answers.erase(Answers.begin());
+			const auto catalog = aRequest.Purpose == application::agent_launch_purpose::model_catalog;
+			(catalog ? CatalogRequests : Requests).push_back(aRequest);
+			if (!catalog) {
+				Timeouts.push_back(aTimeout);
+			}
+			auto& answers = catalog ? CatalogAnswers : Answers;
+			auto  result  = application::agent_run_result{ };
+			if (!answers.empty()) {
+				result = answers.front();
+				answers.erase(answers.begin());
 			}
 			result.Session = aRequest.Session;
 			return result;
@@ -56,6 +60,8 @@ namespace {
 		std::vector<application::agent_launch_request> Requests;
 		std::vector<int>                               Timeouts;
 		std::vector<application::agent_run_result>     Answers;
+		std::vector<application::agent_launch_request> CatalogRequests;
+		std::vector<application::agent_run_result>     CatalogAnswers;
 		int                                            Cancels = 0;
 	};
 
@@ -927,40 +933,56 @@ namespace {
 			   "an agent added in setup is in the list and is the chosen card; the found Codex, not added, is still offered");
 	}
 
-	/// Owner look v006 ("Codex is totally missing its model settings. And
-	/// its effort is missing max"; "reset agents which clears all settings").
-	void test_harness_catalogs_and_reset()
+	[[nodiscard]] auto catalog_reply() -> application::agent_run_result
 	{
-		auto f = fixture{ };
+		auto listed         = said(application::agent_run_outcome::success, { });
+		listed.ModelCatalog = R"({"data":[{"model":"gpt-6.1-sol","displayName":"GPT-6.1-Sol","isDefault":true,"supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"max"}]}]})";
+		return listed;
+	}
+
+	void test_catalog_at_load_and_add()
+	{
+		auto f                      = fixture{ false };
+		f.Codex                     = core::agent_search_candidate{ .Path = "/opt/bin/codex" };
+		auto preset                 = core::preset_agent_entry(setup_agent::codex, core::codex_protocol_choice::app_server, { });
+		preset.Id                   = 1U;
+		f.Store.Stored->Agents      = { preset };
+		f.Store.Stored->AgentsMoved = true;
+		f.Process.CatalogAnswers    = { catalog_reply(), catalog_reply() };
 		f.Host->load();
+		f.Effects.drain();
+		f.Decision.drain();
+		expect(f.state().PolicyPending && !f.state().Detected && f.state().Cataloguing == std::vector<std::uint32_t>{ preset.Id } && f.Process.CatalogRequests.empty(),
+			   "loaded settings schedule a worker without showing the tab or observing a review");
 		f.settle();
-		f.Host->add_agent({ .Name = "Work Codex", .Protocol = core::agent_protocol::codex_app_server, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } }, true);
+		expect(f.Process.CatalogRequests.size() == 1U && f.Process.CatalogRequests.back().Executable == "/opt/bin/codex"
+				   && f.Process.CatalogRequests.back().WritingOnly && f.Process.CatalogRequests.back().Arguments == std::vector<std::string>{ "app-server" },
+			   "the preset locates its own program and runs a review-free catalog probe");
+
+		f.Host->add_agent({ .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } });
 		f.Host->add_agent({ .Name = "Claude Code", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/homebrew/bin/claude" });
-		f.settle();
 		const auto agents = f.state().Preferences.Agents;
-		expect(agents.size() == 2U, "two agents are added");
-		auto listed         = application::agent_run_result{ .Outcome = application::agent_run_outcome::success };
-		listed.ModelCatalog = "{\"data\":[{\"model\":\"gpt-6.1-sol\",\"displayName\":\"GPT-6.1-Sol\",\"hidden\":false,\"isDefault\":true,\"defaultReasoningEffort\":\"low\","
-							  "\"supportedReasoningEfforts\":[{\"reasoningEffort\":\"low\",\"description\":\"\"},{\"reasoningEffort\":\"max\",\"description\":\"\"}]}]}";
-		f.Process.Answers   = { listed, said(application::agent_run_outcome::success, "  --effort <level>   Effort level\n                     (low, medium, high, xhigh, max)") };
-		const auto before   = f.Process.Requests.size();
-		f.Host->load_catalog(agents[0].Id);
-		expect(f.state().Cataloguing == std::vector<std::uint32_t>{ agents[0].Id }, "while the harness is asked, the projection says so");
-		f.settle();
-		expect(f.Process.Requests.size() == before + 1U && f.Process.Requests.back().Executable == "/opt/work/bin/wrapper"
-				   && f.Process.Requests.back().Arguments == std::vector<std::string>{ "--codex", "app-server" } && f.Process.Requests.back().Purpose == application::agent_launch_purpose::model_catalog,
-			   "a Codex-protocol agent is asked through its own program and fixed arguments");
-		const auto codex = f.state().Catalogs.at(agents[0].Id);
-		expect(codex.Models.size() == 1U && codex.Models.front().DisplayName == "GPT-6.1-Sol" && codex.Efforts == std::vector<std::string>{ "low", "max" } && f.state().Cataloguing.empty(),
-			   "its models and their efforts are the harness's own");
+		expect(agents.size() == 3U && f.state().Cataloguing == std::vector<std::uint32_t>{ agents[1].Id }, "adding Codex queues a probe while Claude remains on demand");
 		f.Host->load_catalog(agents[1].Id);
 		f.settle();
-		expect(f.Process.Requests.back().Arguments == std::vector<std::string>{ "--help" } && f.state().Catalogs.at(agents[1].Id).Efforts == std::vector<std::string>{ "low", "medium", "high", "xhigh", "max" },
-			   "Claude Code's effort levels are read from its own --help");
-		const auto asked = f.Process.Requests.size();
-		f.Host->load_catalog(agents[0].Id);
+		expect(f.Process.CatalogRequests.size() == 2U && f.Process.CatalogRequests.back().Executable == "/opt/work/bin/wrapper"
+				   && f.Process.CatalogRequests.back().Arguments == std::vector<std::string>{ "--codex", "app-server" },
+			   "a custom agent is asked once through its program and arguments");
+		const auto codex = f.state().Catalogs.at(agents[1].Id);
+		expect(codex.Models.size() == 1U && codex.Models.front().DisplayName == "GPT-6.1-Sol" && codex.Efforts == std::vector<std::string>{ "low", "max" } && f.state().Cataloguing.empty(),
+			   "its models and their efforts are the harness's own");
+		expect(f.Log->Events.size() == 2U && f.Log->Events.back().Operation == application::diagnostic_operation::agent_catalog
+				   && f.Log->Events.back().Outcome == application::diagnostic_outcome::succeeded
+				   && f.Log->Events.back().Summary.text().starts_with("protocol=codex_jsonl_exec outcome=success failure=none exit=0 duration_ms=")
+				   && f.Log->Events.back().Summary.text().ends_with(" models=1"),
+			   "each probe logs a single terminal record with the entry's protocol and model count");
+		f.Host->load_catalog(agents[1].Id);
+		f.Process.Answers = { said(application::agent_run_outcome::success, "  --effort <level>   Effort level\n                     (low, medium, high, xhigh, max)") };
+		f.Host->load_catalog(agents[2].Id);
 		f.settle();
-		expect(f.Process.Requests.size() == asked, "an agent already asked is not asked again in this window");
+		expect(f.Process.CatalogRequests.size() == 2U, "a successful catalog is reused");
+		expect(f.Process.Requests.back().Arguments == std::vector<std::string>{ "--help" } && f.state().Catalogs.at(agents[2].Id).Efforts == std::vector<std::string>{ "low", "medium", "high", "xhigh", "max" },
+			   "Claude Code's effort levels are read from its own --help");
 
 		expect(f.Host->set_run_limit(30U), "a run limit is set");
 		f.Host->reset();
@@ -969,6 +991,71 @@ namespace {
 				   && f.state().Catalogs.empty() && f.Store.Stored->Agents.empty() && f.state().Step == core::setup_step::agent,
 			   "Reset agents clears every agent and setting, keeps the list from moving back in, and setup starts at Agent");
 	}
+
+	void test_catalog_failures_retry_on_request()
+	{
+		auto f                   = fixture{ };
+		auto empty               = said(application::agent_run_outcome::success, { });
+		empty.ModelCatalog       = R"({"data":[]})";
+		f.Process.CatalogAnswers = { said(application::agent_run_outcome::timeout, "PRIVATE", std::nullopt),
+									 said(application::agent_run_outcome::nonzero_exit, "PRIVATE", 7), empty, catalog_reply() };
+		f.Host->add_agent({ .Name = "Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/bin/codex" });
+		const auto id = f.state().Preferences.Agents.front().Id;
+		f.settle();
+		const auto checkFailure = [&f, id](const std::string_view aDetail) {
+			const auto  state      = f.state();
+			const auto& diagnostic = f.Log->Events.back();
+			expect(!state.Catalogs.contains(id) && state.Cataloguing.empty() && state.CatalogFailures.contains(id), "only the failed attempt is shown");
+			expect(diagnostic.Operation == application::diagnostic_operation::agent_catalog && diagnostic.Outcome == application::diagnostic_outcome::failed
+					   && diagnostic.Summary.text().starts_with(aDetail) && diagnostic.Summary.text().ends_with(" models=0")
+					   && !diagnostic.Summary.text().contains("PRIVATE"),
+				   "the failure diagnosis carries outcome, exit, duration and count without output");
+		};
+		checkFailure("protocol=codex_jsonl_exec outcome=timeout failure=timeout exit=none duration_ms=");
+		f.Now += 59'999;
+		f.Host->load_catalog(id);
+		f.settle();
+		expect(f.Process.CatalogRequests.size() == 1U, "reopening within a minute does not start a run");
+		++f.Now;
+		f.Host->load_catalog(id);
+		f.Host->load_catalog(id);
+		f.settle();
+		expect(f.Process.CatalogRequests.size() == 2U, "the minute boundary allows one new request");
+		checkFailure("protocol=codex_jsonl_exec outcome=nonzero_exit failure=nonzero_exit exit=7 duration_ms=");
+		f.Now += 60'000;
+		f.Host->load_catalog(id);
+		f.settle();
+		checkFailure("protocol=codex_jsonl_exec outcome=success failure=empty exit=0 duration_ms=");
+		f.Now += 60'000;
+		f.Host->load_catalog(id);
+		f.settle();
+		expect(f.Process.CatalogRequests.size() == 4U && f.Log->Events.size() == 4U && f.state().Catalogs.contains(id) && f.state().CatalogFailures.empty(),
+			   "a later list clears the failed state without restarting");
+	}
+
+	void test_catalog_command_changes()
+	{
+		auto f                   = fixture{ };
+		f.Process.CatalogAnswers = { catalog_reply(), catalog_reply(), catalog_reply() };
+		f.Host->add_agent({ .Name = "Codex", .Protocol = core::agent_protocol::codex_app_server, .Program = "/opt/bin/codex" });
+		f.settle();
+		auto entry = f.state().Preferences.Agents.front();
+		expect(f.state().Catalogs.contains(entry.Id), "the original command has listed its models");
+		entry.Program = "/opt/one/codex";
+		f.Host->update_agent(entry);
+		expect(!f.state().Catalogs.contains(entry.Id), "editing the program invalidates its successful list immediately");
+		f.Checks.drain();
+		entry.Arguments = { "--new" };
+		f.Host->update_agent(entry);
+		expect(f.Checks.pending() == 0U && f.Process.CatalogRequests.size() == 2U, "an edit waits for the previous command to settle before launching");
+		f.Decision.drain();
+		expect(!f.state().Catalogs.contains(entry.Id), "the previous command's late answer is not published");
+		f.settle();
+		expect(f.Process.CatalogRequests.size() == 3U && f.Process.CatalogRequests.back().Executable == "/opt/one/codex"
+				   && f.Process.CatalogRequests.back().Arguments == std::vector<std::string>{ "--new", "app-server" } && f.state().Catalogs.contains(entry.Id),
+			   "the latest arguments are probed after the superseded answer settles");
+	}
+
 	/// [[BPR-1859]]. Settings' Check agent runs the setup's own check:
 	/// before the Agent tab looked for agents it looks first; Stop ends it
 	/// while it waits; a saved agent no longer found says so; it is safe to
@@ -1209,7 +1296,9 @@ auto main() -> int
 {
 	test_policy_pending_until_observed();
 	test_unreadable_settings();
-	test_harness_catalogs_and_reset();
+	test_catalog_at_load_and_add();
+	test_catalog_failures_retry_on_request();
+	test_catalog_command_changes();
 	test_detection_starts_nothing();
 	test_saved_programs_win();
 	test_status_check();

@@ -93,9 +93,9 @@ namespace bpr::qt {
 		setMenu(new QMenu{ this });
 		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 		connect(menu(), &QMenu::aboutToShow, this, [this] {
-			// Owner look v006: the harness is asked what it offers when the
-			// reviewer opens its menu, once per window.
-			if (const auto* const settings = Source->current(); settings != nullptr && Source->Catalog) {
+			// Claude's effort list is still fetched on demand.
+			if (const auto* const settings = Source->current();
+				settings != nullptr && settings->Listing == agent_model_listing::not_offered && Source->Catalog) {
 				Source->Catalog(settings->Profile);
 			}
 			present();
@@ -239,8 +239,22 @@ namespace bpr::qt {
 				connect(action, &QAction::triggered, this, [apply, aValue] { apply(aValue, std::nullopt); });
 			};
 			add({ }, ranAs.isEmpty() ? tr("Default (the agent's own setting)") : tr("Default (the agent's own; last ran %1)").arg(ranAs));
-			if (settings->Models.empty() && settings->Listing) {
+			if (settings->Listing == agent_model_listing::asking) {
 				models->addAction(tr("Asking %1 for its models…").arg(settings->Agent))->setEnabled(false);
+			} else if (settings->Listing == agent_model_listing::failed) {
+				models->addAction(tr("%1 did not list its models.").arg(settings->Agent))->setEnabled(false);
+				const auto retry = [this, profile] {
+					if (Source->Catalog) {
+						Source->Catalog(profile);
+					}
+				};
+				models->setToolTipsVisible(true);
+				auto* const again = models->addAction(tr("Ask again"));
+				again->setToolTip(tr("Model requests can be retried one minute after a failure."));
+				connect(again, &QAction::triggered, this, retry);
+				// Keep this opening's failure and Other… available while the
+				// host starts any eligible retry.
+				connect(models, &QMenu::aboutToShow, this, [this, retry] { QTimer::singleShot(0, this, retry); });
 			}
 			for (const auto& [value, label] : settings->Models) {
 				add(value, label);

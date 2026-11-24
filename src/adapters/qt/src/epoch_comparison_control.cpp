@@ -173,10 +173,9 @@ namespace bpr::qt {
 				return QStringLiteral(
 					"A temporary folder for the pull request's commits could not be made or written. Check that your temporary folder exists and has space, then refresh.");
 			case core::epoch_reason_code::fetch_history_too_large:
-				// [[BPR-2291]]. Nothing was fetched: the whole history of a
-				// repository this large is never cloned to show one change.
+				// [[BPR-2364]]. The complete history has no known size within the limit.
 				return QStringLiteral(
-					"This pull request is past GitHub's file or commit limits, so it needs the repository's whole history, and the repository is too large to download that way. Sign in with GitHub CLI, which loads only the files you open, then refresh.");
+					"BetterPullReview couldn't limit the history download for this pull request. Link a clone of the repository or sign in with GitHub CLI to load selected files, then refresh.");
 			}
 			return QStringLiteral("Review history is unavailable.");
 		}

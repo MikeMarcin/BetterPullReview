@@ -283,7 +283,7 @@ namespace bpr::application {
 		}
 		auto classified_values(const json_values& aValues) -> bool
 		{
-			constexpr std::array<std::string_view, 12>  stages{ "none", "catalog_open", "catalog_recovery", "catalog_prepare", "cache_open", "pack_sink", "smart_acquire", "protocol_acquire", "cache_inventory", "revision_prepare", "preparation_abort", "historical_acquire" };
+			constexpr std::array<std::string_view, 13>  stages{ "none", "catalog_open", "catalog_recovery", "catalog_prepare", "cache_open", "pack_sink", "smart_acquire", "protocol_acquire", "cache_inventory", "revision_prepare", "preparation_abort", "historical_acquire", "loading_decision" };
 			constexpr std::array<std::string_view, 9>   domains{ "none", "catalog", "cache", "transport", "protocol", "epoch", "github", "validation", "review_submission" };
 			constexpr std::array<std::string_view, 17>  gitSteps{ "none", "admission", "temporary_store", "process_runner", "identity_before", "cli_version", "git_version", "cli_qualification", "git_qualification", "clone", "object_check", "identity_after", "local_store", "local_pack", "pack_read", "git_capability_probe", "cli_capability_probe" };
 			constexpr std::array<std::string_view, 4>   transportSources{ "none", "native_transport", "http_response", "network_reply" };
@@ -367,6 +367,14 @@ namespace bpr::application {
 			return conflicting != std::string_view::npos && member(aDetail.substr(0U, conflicting), origins)
 				&& (aDetail.substr(conflicting + 1U) == "ascii_case_only" || aDetail.substr(conflicting + 1U) == "different");
 		}
+		auto catalog_detail_matches(const std::string_view aDetail, const std::string_view aOutcome) -> bool
+		{
+			const auto outcome = agent_catalog_outcome(aDetail);
+			return (outcome == diagnostic_outcome::succeeded && aOutcome == "succeeded")
+				|| (outcome == diagnostic_outcome::failed && aOutcome == "failed")
+				|| (outcome == diagnostic_outcome::cancelled && aOutcome == "cancelled");
+		}
+
 		auto safe_detail(std::string_view aDetail) -> bool
 		{
 			if (aDetail.starts_with("actor_conflict=")) {
@@ -493,8 +501,9 @@ namespace bpr::application {
 				numeric("http_status", aValues[12]);
 				text("summary", aValues[13]);
 				numeric("dropped", aValues[14]);
-				const bool safe   = (aValues[15].empty() || aValues[13] == "sanitized") && safe_detail(aValues[15]);
-				auto       detail = safe ? std::string{ aValues[15] } : std::string{ "[omitted:unclassified-content]" };
+				const bool safe = (aValues[15].empty() || aValues[13] == "sanitized")
+					&& (aValues[9] == "agent.catalog" ? catalog_detail_matches(aValues[15], aValues[10]) : safe_detail(aValues[15]));
+				auto detail = safe ? std::string{ aValues[15] } : std::string{ "[omitted:unclassified-content]" };
 				if (safe && !identifying) {
 					if (auto diagnosis = core::parse_operation_diagnosis(aValues[15]); diagnosis && diagnosis->Tour && diagnosis->Tour->Attempt != "none") {
 						const auto identity      = Namespace + ":tour:" + diagnosis->Tour->Attempt;

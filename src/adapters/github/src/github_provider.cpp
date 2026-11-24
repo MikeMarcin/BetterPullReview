@@ -1032,6 +1032,9 @@ namespace bpr::adapters::github::detail {
 				{ }
 				void revoke() noexcept override { Inner->revoke(); }
 				auto revoked() const noexcept -> bool override { return Inner->revoked() || Owner->Mismatch.load(); }
+				auto uses_history_clone() const noexcept -> bool override { return Inner->uses_history_clone(); }
+				auto negotiates_history_haves() const noexcept -> bool override { return Inner->negotiates_history_haves(); }
+				auto last_fetch_source() const noexcept -> application::git_smart_fetch_source override { return Inner->last_fetch_source(); }
 				// [[BPR-1370]]. A text blob is read first through GraphQL,
 				// whose answer names the account that read it. A blob that
 				// way cannot carry (binary, truncated, larger than a batch

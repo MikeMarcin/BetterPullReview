@@ -31,7 +31,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1738]]. What a reviewer is told when the agent's
 		/// workspace could not be made: what happened, then what to do. Git's
 		/// own words stay in the log.
-		[[nodiscard]] auto workspace_stop_reason(const application::agent_workspace_unavailable_reason aReason) -> QString
+		[[nodiscard]] auto workspace_stop_reason(const application::agent_workspace_unavailable_reason aReason, const QString& aHead) -> QString
 		{
 			using reason = application::agent_workspace_unavailable_reason;
 			switch (aReason) {
@@ -51,19 +51,19 @@ namespace bpr::qt {
 			// fetches only what the clone lacks; no step is asked of the
 			// reviewer's clone.
 			case reason::download_failed:
-				return QStringLiteral("Your clone doesn't have this head yet, and fetching the pull request's new objects for the agent failed. Resend, or show the log for the cause.");
+				return QStringLiteral("The linked clone is missing head %1, and fetching the pull request's new objects for the agent failed. Resend, or show the log for the cause.").arg(aHead);
 			case reason::connection_failed:
-				return QStringLiteral("Your clone doesn't have this head yet, and GitHub could not be reached to fetch the pull request's new objects. Check the connection, then resend.");
+				return QStringLiteral("The linked clone is missing head %1, and GitHub could not be reached to fetch the pull request's new objects. Check the connection, then resend.").arg(aHead);
 			case reason::sign_in_refused:
-				return QStringLiteral("Your clone doesn't have this head yet, and GitHub refused to send the pull request's new objects to the signed-in account. Check that gh is signed in with access to this repository, then resend.");
+				return QStringLiteral("The linked clone is missing head %1, and GitHub refused to send the pull request's new objects to the signed-in account. Check that gh is signed in with access to this repository, then resend.").arg(aHead);
 			case reason::too_large:
-				return QStringLiteral("Your clone doesn't have this head yet, and the pull request's new objects are larger than the agent's private copy may fetch. Once your clone has the head, resend.");
+				return QStringLiteral("The linked clone is missing head %1, and the pull request's new objects are larger than the agent's private copy may fetch. Once your clone has the head, resend.").arg(aHead);
 			case reason::clone_needed:
 				return QStringLiteral("This review holds only the files it shows, and the agent works in a clone of the repository. Link your clone in Settings › Repositories, then resend.");
 			// [[BPR-2295]]. Deterministic: a resend stops the same way, so
 			// none is suggested; the clone setting is what changes it.
 			case reason::history_missing:
-				return QStringLiteral("The agent's copy of this pull request could not be made: the review holds only the pull request's head, and the linked clone was not used. Link your clone in Settings › Repositories, or check that it holds this head.");
+				return QStringLiteral("The agent's copy could not be made because the review cache is missing objects for head %1. Refresh the review or link a clone that holds this head in Settings › Repositories.").arg(aHead);
 			}
 			return { };
 		}
@@ -645,7 +645,8 @@ namespace bpr::qt {
 		if (!aResult.RefusalReason.empty()) {
 			StopReason = QString::fromStdString(aResult.RefusalReason);
 		} else if (aResult.Outcome == application::agent_run_outcome::workspace_unavailable) {
-			StopReason = workspace_stop_reason(aResult.WorkspaceReason.value_or(application::agent_workspace_unavailable_reason::copy_failed));
+			const auto head = core::canonical_hex(aIdentity.Session.Binding.HeadOid);
+			StopReason      = workspace_stop_reason(aResult.WorkspaceReason.value_or(application::agent_workspace_unavailable_reason::copy_failed), QString::fromUtf8(head.view().substr(0U, 12U)));
 		}
 		// Owner decision 2026-10-23: a run the time limit ended says so.
 		if (aResult.Outcome == application::agent_run_outcome::timeout) {

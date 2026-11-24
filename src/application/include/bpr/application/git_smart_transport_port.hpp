@@ -504,6 +504,14 @@ namespace bpr::application {
 			return git_smart_fetch_source::host;
 		}
 
+		/// \brief Whether a complete acquisition requires its retained clone
+		/// source. A transport that reports true must fail if it cannot use
+		/// that clone, even if the clone goes away during the acquisition.
+		[[nodiscard]] virtual auto uses_history_clone() const noexcept -> bool { return false; }
+
+		/// \brief Whether verified haves constrain the upstream fetch itself.
+		[[nodiscard]] virtual auto negotiates_history_haves() const noexcept -> bool { return true; }
+
 		[[nodiscard]] virtual auto discover(
 			const git_smart_discovery_request& aRequest,
 			std::stop_token                    aStop)

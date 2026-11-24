@@ -101,6 +101,9 @@ namespace bpr::application {
 		/// still loading, not an agent refused. A host starts pending; a
 		/// projection built by hand is not.
 		bool PolicyPending = false;
+		/// [[BPR-2365]]. Failed Codex attempts by entry ID and completion time
+		/// in monotonic milliseconds, used to bound menu-driven retries.
+		std::map<std::uint32_t, std::int64_t> CatalogFailures;
 		/// Raised by every published change.
 		std::uint64_t Generation = 0U;
 
@@ -150,9 +153,12 @@ namespace bpr::application {
 		/// run count and duration; never its program, output or detail.
 		/// Optional.
 		std::shared_ptr<diagnostic_log_port> Log;
-		/// [[BPR-2215]]. A monotonic clock in milliseconds, for when a
-		/// workspace check started. Optional: the steady clock.
+		/// A monotonic clock in milliseconds for workspace-check starts and
+		/// catalog retry intervals. Optional: the steady clock.
 		std::function<std::int64_t()> SteadyMilliseconds;
+		/// Optional process admission for review-free catalog probes. Applies
+		/// the host's configured executable boundary on the check lane.
+		std::function<std::optional<std::string>(const std::string&)> AdmitCatalogProgram;
 	};
 
 	/// \brief [[BPR-1749]], RFC-BPR-0092 M2. The host half of agent
@@ -242,11 +248,9 @@ namespace bpr::application {
 		void set_suggestions_hidden(bool aHidden);
 		/// \brief RFC-BPR-0126 Q4/Q5: Queue (false, the default) or Steer.
 		void set_follow_up_steer(bool aSteer);
-		/// \brief Owner look v006 ("Codex is totally missing its model
-		/// settings"). Asks an added agent's harness what it offers, once per
-		/// window: a Codex protocol's `model/list` through its own program and
-		/// fixed arguments, or Claude Code's `--help` for its effort levels.
-		/// Nothing is asked of a plain-text harness or an agent already asked.
+		/// \brief Asks for an added agent's catalog. A successful Codex
+		/// probe is cached; a failed or empty one can be retried after a
+		/// minute. Claude Code's effort list is fetched once on demand.
 		void load_catalog(std::uint32_t aEntry);
 		/// \brief Owner look v006 ("reset agents which clears all settings and
 		/// goes back to the wizard fresh"). Every added agent, its settings and

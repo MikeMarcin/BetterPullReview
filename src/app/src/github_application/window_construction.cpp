@@ -1484,6 +1484,9 @@ namespace bpr::app {
 			dependencies.Publish  = [this](const application::agent_setup_projection& aProjection) { present_agent_setup(aProjection); };
 			dependencies.Log      = DiagnosticLog; // [[BPR-1828]]
 	#if defined(BPR_BUILD_TESTING)
+			if (Fixture) {
+				dependencies.AdmitCatalogProgram = fixture_agent_admission();
+			}
 			// [[BPR-2177]], look ask-v003 (owner, 2026-11-14: "The footer does
 			// not say fixture agent"): the setup, Check and Settings name it.
 			if (FixtureAgentSession) {

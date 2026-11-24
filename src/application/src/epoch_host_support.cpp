@@ -188,12 +188,70 @@ namespace bpr::application {
 		}
 	}
 
-	auto historical_acquisition_summary(const git_smart_request_context& aContext, const git_smart_transport_port& aTransport, const std::size_t aHaves,
-										const git_protocol_v2_client_result<git_protocol_v2_acquisition_result>& aResult) -> std::string
+	void epoch_diagnostics::loading(const core::review_loading_trace& aTrace) const
+	{
+		PendingDetail = core::describe(aTrace);
+		record(diagnostic_epoch_stage::loading_decision, diagnostic_outcome::succeeded);
+		PendingDetail.clear();
+	}
+
+	auto verified_epoch_haves(git_cache_session& aCache, const core::repository_cache_scope_id aCacheId,
+							  const core::review_epoch_summary& aLive, const std::stop_token aStop) -> std::vector<git_protocol_v2_have>
+	{
+		auto haves = std::vector<git_protocol_v2_have>{ };
+		for (const auto& [commit, availability] : { std::pair{ aLive.Base, aLive.BaseAvailability }, std::pair{ aLive.Head, aLive.HeadAvailability } }) {
+			if (availability != core::anchor_availability::available
+				|| std::ranges::any_of(haves, [&](const auto& aHave) { return aHave.Commit == commit; })) {
+				continue;
+			}
+			const auto inspected = aCache.inspect_commit_object(commit, aStop);
+			if (inspected && application::valid(*inspected) && inspected->Commit == commit
+				&& inspected->Residency == git_revision_residency::complete_closure) {
+				haves.push_back({ .Cache = aCacheId, .Commit = commit, .CatalogVisible = true, .ObjectVerified = true });
+			}
+		}
+		return haves;
+	}
+
+	auto acquire_review_transport(git_smart_authority_lease& aLease, git_smart_request_context& aContext,
+								  const std::optional<accepted_pull_request_shape>& aShape, const bool aHasHaves, const bool aSparseCapable)
+		-> std::expected<git_smart_transport, std::variant<git_smart_transport_error, core::epoch_failure>>
+	{
+		const auto acquire = [&]() -> std::expected<git_smart_transport, std::variant<git_smart_transport_error, core::epoch_failure>> {
+			auto transport = aLease.acquire(aContext);
+			if (!transport) {
+				return std::unexpected{ transport.error() };
+			}
+			if (!*transport) {
+				return std::unexpected{ core::epoch_failure::repair_required };
+			}
+			return std::move(*transport);
+		};
+		const auto knownBounded = aShape && aShape->RepositoryBytes && !complete_closure_too_large(aShape);
+		if (aContext.AcquisitionMode != git_smart_acquisition_mode::complete_closure || knownBounded) {
+			return acquire();
+		}
+		if (aContext.HistoryClone || aHasHaves) {
+			auto transport = acquire();
+			if (!transport || (*transport)->uses_history_clone() || (aHasHaves && (*transport)->negotiates_history_haves())) {
+				return transport;
+			}
+			(*transport)->revoke();
+		}
+		if (!aSparseCapable) {
+			return std::unexpected{ core::epoch_failure::fetch_history_too_large };
+		}
+		aContext.AcquisitionMode = git_smart_acquisition_mode::sparse_commit_trees;
+		aContext.HistoryClone.reset();
+		return acquire();
+	}
+
+	auto acquisition_summary(const git_smart_request_context& aContext, const git_smart_transport_port& aTransport, const std::size_t aHaves,
+							 const git_protocol_v2_client_result<git_protocol_v2_acquisition_result>& aResult) -> std::string
 	{
 		auto text = std::string{ aContext.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees ? "mode=sparse_commit_trees" : "mode=complete_closure" };
 		text += aTransport.last_fetch_source() == git_smart_fetch_source::linked_clone ? " source=linked_clone" : " source=host";
-		text += aContext.HistoryClone ? " linked_clone=1" : " linked_clone=0";
+		text += aTransport.uses_history_clone() ? " linked_clone=1" : " linked_clone=0";
 		text += " haves=" + std::to_string(aHaves);
 		if (aResult) {
 			text += " pack_bytes=" + std::to_string(aResult->Fetch.PackBytes) + " wire_bytes=" + std::to_string(aResult->Fetch.WireBytes);

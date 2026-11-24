@@ -506,7 +506,17 @@ namespace bpr::application {
 						: std::nullopt;
 				};
 
+				const auto expectedCache = git_cache_open_request{
+					.ApplicationSession = aRequest.Context.ApplicationSession,
+					.Authority          = context->Authority,
+					.ObjectFormat       = context->Handoff.ObjectFormat,
+				};
 				if (effect.Effect == core::epoch_preparation_effect::none) {
+					const auto loading = cache_loading(*context, nullptr, aRequest.Context.Revision.Head, aStop);
+					if (!loading.SelectedObjects && loading.SparseCapable && snapshot->LatestLive) {
+						const auto residency = context->Catalog->retained_residency(snapshot->LatestLive->Id.Ordinal, aStop);
+						context->SelectedFallback.store(residency && *residency == git_revision_residency::sparse_commit_trees, std::memory_order_release);
+					}
 					const auto operation = mint_identity<core::epoch_operation_id>(*entropy);
 					const auto review    = canonicalReview(std::nullopt);
 					const auto observed  = observedTime();
@@ -681,11 +691,6 @@ namespace bpr::application {
 						: failed(core::epoch_failure::repair_required);
 				};
 
-				const auto expectedCache = git_cache_open_request{
-					.ApplicationSession = aRequest.Context.ApplicationSession,
-					.Authority          = context->Authority,
-					.ObjectFormat       = context->Handoff.ObjectFormat,
-				};
 				const auto cache = diagnostics.perform(
 					diagnostic_epoch_stage::cache_open,
 					[&] { return open_actor_cache(
@@ -695,17 +700,13 @@ namespace bpr::application {
 						? cancelPrepared()
 						: failPrepared(cache_failure(cache.error()));
 				}
-				if (!context->Handoff.SmartGit
-					|| context->Handoff.SmartGit->revoked()) {
-					return failPrepared(core::epoch_failure::unavailable);
+				const auto loading = cache_loading(*context, diagnostics.Log ? context->Actor->Cache.get() : nullptr, aRequest.Context.Revision.Head, aStop);
+				if (!context->LoadingLogged) {
+					diagnostics.loading(loading);
+					context->LoadingLogged = true;
 				}
-				// [[BPR-2291]]. A complete closure is the repository's whole
-				// history. A connection that cannot load selected objects is never
-				// asked for that of a repository past the whole-history size: it
-				// would count and send gigabytes, or stall, to show one change.
-				if (!(object_loading_for(context->Handoff.Shape) == pull_request_object_loading::selected_objects && context->Handoff.SmartGit->supports_sparse_commit_trees())
-					&& complete_closure_too_large(context->Handoff.Shape)) {
-					return failPrepared(core::epoch_failure::fetch_history_too_large);
+				if (!context->Handoff.SmartGit || context->Handoff.SmartGit->revoked()) {
+					return failPrepared(core::epoch_failure::unavailable);
 				}
 				bool                                 receivingWitnessed      = false;
 				bool                                 invalidReceivingWitness = false;
@@ -763,69 +764,34 @@ namespace bpr::application {
 					return failPrepared(
 						core::epoch_failure::repair_required);
 				}
-				const auto smartContext = git_smart_request_context{
+				const auto haves        = snapshot->LatestLive && !(loading.SelectedObjects && loading.SparseCapable)
+					? verified_epoch_haves(*context->Actor->Cache, context->Authority.Cache, *snapshot->LatestLive, aStop)
+					: std::vector<git_protocol_v2_have>{ };
+				auto       smartContext = git_smart_request_context{
 					.ApplicationSession = aRequest.Context.ApplicationSession,
 					.Authority          = context->Authority,
 					.Revision           = aRequest.Context.Revision,
 					.Repository         = context->Handoff.Locator,
 					.BaseRef            = context->Handoff.BaseRef,
-					.AcquisitionMode    = object_loading_for(context->Handoff.Shape)
-								== pull_request_object_loading::selected_objects
-							&& context->Handoff.SmartGit->supports_sparse_commit_trees()
+					.AcquisitionMode    = loading.SelectedObjects && loading.SparseCapable
 						? git_smart_acquisition_mode::sparse_commit_trees
 						: git_smart_acquisition_mode::complete_closure,
 					.HistoryClone       = clones->lookup(context->Handoff.Repository),
 				};
 				auto transport = diagnostics.perform(
 					diagnostic_epoch_stage::smart_acquire,
-					[&] { return context->Handoff.SmartGit->acquire(smartContext); });
+					[&] { return acquire_review_transport(*context->Handoff.SmartGit, smartContext, context->Handoff.Shape, !haves.empty(), loading.SparseCapable); });
 				if (!transport) {
 					(*sink)->abort();
-					return aStop.stop_requested()
-							|| transport.error().Failure
-								== git_smart_transport_failure::cancelled
-						? cancelPrepared()
-						: failPrepared(smart_transport_failure(transport.error()));
-				}
-				if (!*transport) {
-					(*sink)->abort();
-					return failPrepared(
-						core::epoch_failure::repair_required);
-				}
-				std::vector<git_protocol_v2_have> haves;
-				if (snapshot->LatestLive) {
-					const auto appendHave = [&](
-												const core::git_commit_oid aOid,
-												const core::anchor_availability
-													aAvailability) {
-						if (aAvailability != core::anchor_availability::available
-							|| std::ranges::any_of(
-								haves,
-								[&](const auto& aHave) {
-									return aHave.Commit == aOid;
-								})) {
-							return;
-						}
-						const auto inspected = context->Actor->Cache->inspect_commit_object(
-							aOid, aStop);
-						if (
-							!inspected || !application::valid(*inspected)
-							|| inspected->Commit != aOid) {
-							return;
-						}
-						haves.push_back(git_protocol_v2_have{
-							.Cache          = context->Authority.Cache,
-							.Commit         = aOid,
-							.CatalogVisible = true,
-							.ObjectVerified = true,
-						});
-					};
-					appendHave(
-						snapshot->LatestLive->Base,
-						snapshot->LatestLive->BaseAvailability);
-					appendHave(
-						snapshot->LatestLive->Head,
-						snapshot->LatestLive->HeadAvailability);
+					if (aStop.stop_requested()) {
+						return cancelPrepared();
+					}
+					if (const auto* error = std::get_if<git_smart_transport_error>(&transport.error())) {
+						return error->Failure == git_smart_transport_failure::cancelled
+							? cancelPrepared()
+							: failPrepared(smart_transport_failure(*error));
+					}
+					return failPrepared(std::get<core::epoch_failure>(transport.error()));
 				}
 				// [[BPR-2291]]. A file waiting on this fetch says what it fetches,
 				// from where, and how much has come, until it ends.
@@ -854,7 +820,8 @@ namespace bpr::application {
 								  .MaximumProgressBytes = maximum_git_protocol_v2_progress_bytes,
 								  .MaximumPackets       = maximum_git_protocol_v2_fetch_packets,
 							  },
-							  aStop, received); });
+							  aStop, received); },
+					[&](const auto& aResult) { return acquisition_summary(smartContext, **transport, haves.size(), aResult); });
 				fetches->write(std::nullopt);
 				if (!acquisition) {
 					(*transport)->revoke();
@@ -1030,6 +997,7 @@ namespace bpr::application {
 						safe ? core::epoch_failure::unavailable
 							 : core::epoch_failure::repair_required);
 				}
+				context->SelectedFallback.store(!loading.SelectedObjects && git->Residency == git_revision_residency::sparse_commit_trees, std::memory_order_release);
 				const auto event = core::epoch_revision_prepared_event{
 					.Context     = aRequest.Context,
 					.Operation   = prepared.Operation,
@@ -1114,10 +1082,9 @@ namespace bpr::application {
 		// Large CLI reviews keep older comparison objects out of the initial
 		// load. Unproven historical anchors remain unavailable; a separate
 		// selected-epoch acquisition must prove them before comparison.
-		const bool sparse = object_loading_for(aContext->Handoff.Shape)
-				== pull_request_object_loading::selected_objects
-			&& aContext->Handoff.SmartGit
-			&& aContext->Handoff.SmartGit->supports_sparse_commit_trees();
+		const auto sparse = aSelection ? sparse_review(*aContext)
+									   : object_loading_for(aContext->Handoff.Shape) == pull_request_object_loading::selected_objects
+				&& aContext->Handoff.SmartGit && aContext->Handoff.SmartGit->supports_sparse_commit_trees();
 		if (sparse && !aSelection) {
 			return;
 		}
@@ -1292,7 +1259,13 @@ namespace bpr::application {
 				if (!sink || !*sink || !receivingWitnessed) {
 					return fail();
 				}
-				const auto smartContext = git_smart_request_context{
+				// [[BPR-2290]]. The live base and head the cache holds with their
+				// history are haves: a complete historical pack is only what the
+				// old head adds to them, never the repository's history.
+				const auto haves        = !sparse
+					? verified_epoch_haves(*context->Actor->Cache, context->Authority.Cache, *snapshot->LatestLive, aStop)
+					: std::vector<git_protocol_v2_have>{ };
+				auto       smartContext = git_smart_request_context{
 					.ApplicationSession = context->Handoff.ApplicationSession,
 					.Authority          = context->Authority,
 					.Revision           = context->Revision,
@@ -1302,35 +1275,18 @@ namespace bpr::application {
 												 : git_smart_acquisition_mode::complete_closure,
 					.HistoryClone       = sparse ? std::nullopt : clones->lookup(context->Handoff.Repository),
 				};
-				auto transport = context->Handoff.SmartGit->acquire(smartContext);
-				if (!transport || !*transport) {
+				auto transport = acquire_review_transport(*context->Handoff.SmartGit, smartContext, context->Handoff.Shape, !haves.empty(),
+														  context->Handoff.SmartGit->supports_sparse_commit_trees());
+				if (!transport) {
 					(*sink)->abort();
-					return fail();
-				}
-				// [[BPR-2290]]. The live base and head the cache holds with their
-				// history are haves: a complete historical pack is only what the
-				// old head adds to them, never the repository's history.
-				std::vector<git_protocol_v2_have> haves;
-				if (!sparse) {
-					for (const auto& [commit, availability] : { std::pair{ snapshot->LatestLive->Base, snapshot->LatestLive->BaseAvailability },
-																std::pair{ snapshot->LatestLive->Head, snapshot->LatestLive->HeadAvailability } }) {
-						if (availability != core::anchor_availability::available
-							|| std::ranges::any_of(haves, [&](const auto& aHave) { return aHave.Commit == commit; })) {
-							continue;
-						}
-						const auto inspected = context->Actor->Cache->inspect_commit_object(commit, aStop);
-						if (inspected && application::valid(*inspected) && inspected->Commit == commit
-							&& inspected->Residency == git_revision_residency::complete_closure) {
-							haves.push_back(git_protocol_v2_have{
-								.Cache          = context->Authority.Cache,
-								.Commit         = commit,
-								.CatalogVisible = true,
-								.ObjectVerified = true,
-							});
-						}
+					const auto* failure = std::get_if<core::epoch_failure>(&transport.error());
+					if (failure) {
+						diagnostics.failed(diagnostic_epoch_stage::historical_acquire, *failure);
 					}
+					return fail(failure && *failure == core::epoch_failure::fetch_history_too_large);
 				}
-				const auto acquisition = diagnostics.perform(
+				const auto selectedObjects = smartContext.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees;
+				const auto acquisition     = diagnostics.perform(
 					diagnostic_epoch_stage::historical_acquire,
 					[&] { return acquire_git_protocol_v2_historical_pack(
 							  **transport, smartContext, event->Evidence.Head, haves, **sink,
@@ -1341,7 +1297,7 @@ namespace bpr::application {
 								  .MaximumPackets       = maximum_git_protocol_v2_fetch_packets,
 							  },
 							  aStop); },
-					[&](const auto& aResult) { return historical_acquisition_summary(smartContext, **transport, haves.size(), aResult); });
+					[&](const auto& aResult) { return acquisition_summary(smartContext, **transport, haves.size(), aResult); });
 				if (!acquisition) {
 					(*transport)->revoke();
 					const auto* transportFailure = std::get_if<git_smart_transport_error>(&acquisition.error());
@@ -1352,8 +1308,8 @@ namespace bpr::application {
 					return fail();
 				}
 				auto spoolFact      = durable_fact(acquisition->Fetch.Pack);
-				spoolFact.Residency = sparse ? git_revision_residency::sparse_commit_trees
-											 : git_revision_residency::complete_closure;
+				spoolFact.Residency = selectedObjects ? git_revision_residency::sparse_commit_trees
+													  : git_revision_residency::complete_closure;
 				const auto spooled  = context->Catalog->record_spool({
 																		 .Catalog                   = snapshot->Binding.Catalog,
 																		 .Operation                 = *operation,
@@ -1390,8 +1346,8 @@ namespace bpr::application {
 				const auto persistInstallation   = [&](const git_prepared_revision& aInstallation) {
 					if (installationWitnessed || !application::valid(aInstallation)
 						|| aInstallation.Head != event->Evidence.Head
-						|| (sparse && !exact_prepared_revision(aInstallation, sparseRequest, git_revision_residency::sparse_commit_trees))
-						|| aInstallation.Residency != (sparse ? git_revision_residency::sparse_commit_trees : git_revision_residency::complete_closure)) {
+						|| (selectedObjects && !exact_prepared_revision(aInstallation, sparseRequest, git_revision_residency::sparse_commit_trees))
+						|| aInstallation.Residency != (selectedObjects ? git_revision_residency::sparse_commit_trees : git_revision_residency::complete_closure)) {
 						return false;
 					}
 					const auto next = context->Catalog->record_install({
@@ -1409,7 +1365,7 @@ namespace bpr::application {
 					installationWitnessed = true;
 					return true;
 				};
-				auto installed = sparse
+				auto installed = selectedObjects
 					? context->Actor->Cache->prepare_sparse_revision(sparseRequest, aStop, persistInstallation)
 					: context->Actor->Cache->prepare_historical_revision({
 																			 .Receipt       = acquisition->Fetch.Pack,
@@ -1420,7 +1376,7 @@ namespace bpr::application {
 																		 },
 																		 aStop, persistInstallation);
 				if (!installed || !installationWitnessed
-					|| (sparse && !exact_prepared_revision(*installed, sparseRequest, git_revision_residency::sparse_commit_trees))
+					|| (selectedObjects && !exact_prepared_revision(*installed, sparseRequest, git_revision_residency::sparse_commit_trees))
 					|| prepared.Record->Context.Revision.Base != installed->Base) {
 					return fail();
 				}

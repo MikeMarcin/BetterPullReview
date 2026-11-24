@@ -367,6 +367,9 @@ namespace {
 														// [[BPR-1827]]'s agent run line exports under `agent` too.
 														row{ "agent.run", "agent", "protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=0" },
 														row{ "agent.run", "agent", "protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=0 prompt=PRIVATE_PROMPT" },
+														row{ "agent.catalog", "agent", "protocol=codex_jsonl_exec outcome=nonzero_exit failure=nonzero_exit exit=7 duration_ms=4900 models=0" },
+														row{ "agent.catalog", "agent", "protocol=codex_app_server outcome=protocol_failure failure=malformed_frame exit=none duration_ms=3 models=0" },
+														row{ "agent.catalog", "agent", "protocol=codex_jsonl_exec outcome=nonzero_exit failure=nonzero_exit exit=7 duration_ms=4900 models=0 model=PRIVATE_MODEL" },
 														// [[BPR-1829]]. Sign-in, credential vault and updater lines.
 														row{ "github.sign_in", "github", "action=device_sign_in failure=authorization_expired process=none exit=none duration_ms=900000 count=12 written=0 read_back=0" },
 														row{ "github.sign_in", "github", "action=token_renewal failure=refresh_rejected process=none exit=none duration_ms=410 count=0 written=0 read_back=0" },

@@ -74,6 +74,25 @@ namespace bpr::application {
 			std::ranges::copy(aResult.RelaxedCounts, counts.begin());
 			return counts;
 		}
+		[[nodiscard]] auto take_field(std::string_view& aText, const std::string_view aKey) -> std::string_view
+		{
+			if (!aText.starts_with(aKey)) {
+				return { };
+			}
+			aText.remove_prefix(aKey.size());
+			const auto space = aText.find(' ');
+			const auto value = aText.substr(0, space);
+			aText.remove_prefix(space == std::string_view::npos ? aText.size() : space);
+			return value;
+		}
+
+		template <typename Value>
+		[[nodiscard]] auto canonical_number(std::string_view aText) -> std::optional<Value>
+		{
+			const auto number = read_number<Value>(aText);
+			return number && std::to_string(*number) == aText ? number : std::nullopt;
+		}
+
 	} // namespace
 
 	auto describe(const agent_run_diagnosis& aDiagnosis) -> std::string
@@ -287,6 +306,78 @@ namespace bpr::application {
 			return std::nullopt;
 		}
 		return result;
+	}
+
+	auto agent_catalog_outcome(const std::string_view aText) -> std::optional<diagnostic_outcome>
+	{
+		if (aText.size() > 256U) {
+			return std::nullopt;
+		}
+		auto       rest     = aText;
+		const auto protocol = take_field(rest, "protocol=");
+		const auto outcome  = take_field(rest, " outcome=");
+		const auto failure  = take_field(rest, " failure=");
+		const auto exit     = take_field(rest, " exit=");
+		const auto duration = canonical_number<std::uint32_t>(take_field(rest, " duration_ms="));
+		const auto models   = canonical_number<std::uint32_t>(take_field(rest, " models="));
+		if ((protocol != core::stable_name(core::agent_protocol::codex_app_server) && protocol != core::stable_name(core::agent_protocol::codex_jsonl_exec))
+			|| (exit != "none" && !canonical_number<int>(exit)) || !duration || !models || *models > maximum_catalog_models || !rest.empty()) {
+			return std::nullopt;
+		}
+		if (outcome == name(agent_run_outcome::success)) {
+			if (*models > 0U && failure == "none") {
+				return diagnostic_outcome::succeeded;
+			}
+			return *models == 0U && failure == "empty" ? std::optional{ diagnostic_outcome::failed } : std::nullopt;
+		}
+		if (*models != 0U) {
+			return std::nullopt;
+		}
+		for (std::size_t index = 1U; index < agent_run_outcome_count; ++index) {
+			const auto classified = static_cast<agent_run_outcome>(index);
+			if (outcome != name(classified)) {
+				continue;
+			}
+			if (failure == outcome) {
+				return diagnostic_outcome_of(classified);
+			}
+			if (classified == agent_run_outcome::protocol_failure) {
+				for (std::size_t kind = 0U; kind < agent_protocol_failure_count; ++kind) {
+					if (failure == name(static_cast<agent_protocol_failure>(kind))) {
+						return diagnostic_outcome::failed;
+					}
+				}
+			}
+			break;
+		}
+		return std::nullopt;
+	}
+
+	void record_agent_catalog(diagnostic_log_port* const aLog, const core::agent_protocol aProtocol, const agent_run_result& aResult,
+							  const std::uint32_t aDurationMilliseconds, const std::size_t aModelCount) noexcept
+	{
+		if (aLog == nullptr) {
+			return;
+		}
+		try {
+			const auto outcome    = name(aResult.Outcome);
+			const auto failure    = aResult.Outcome == agent_run_outcome::success                   ? (aModelCount == 0U ? "empty" : "none")
+				: aResult.Outcome == agent_run_outcome::protocol_failure && aResult.ProtocolFailure ? name(*aResult.ProtocolFailure)
+																									: outcome;
+			const auto text       = std::string{ "protocol=" }.append(core::stable_name(aProtocol)).append(" outcome=").append(outcome).append(" failure=").append(failure).append(" exit=").append(aResult.ExitCode ? std::to_string(*aResult.ExitCode) : "none").append(" duration_ms=").append(std::to_string(aDurationMilliseconds)).append(" models=").append(std::to_string(aModelCount));
+			const auto classified = agent_catalog_outcome(text);
+			auto       event      = diagnostic_event{ .Operation = diagnostic_operation::agent_catalog };
+			if (!classified || text.size() > event.Summary.Text.size()) {
+				return;
+			}
+			event.Outcome = *classified;
+			std::ranges::copy(text, event.Summary.Text.begin());
+			event.Summary.Size  = static_cast<std::uint16_t>(text.size());
+			event.Summary.State = diagnostic_summary_state::sanitized;
+			static_cast<void>(aLog->record(event));
+		} catch (...) {
+			// Diagnostics cannot affect the model choice.
+		}
 	}
 
 	auto diagnostic_outcome_of(const agent_run_outcome aOutcome) noexcept -> diagnostic_outcome

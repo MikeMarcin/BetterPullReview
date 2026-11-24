@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2364"
+  ],
+  "reserve_for": "codex-sparse-cache-delta",
+  "purpose": "",
+  "created": "2026-11-23T23:08:47.775390+00:00",
+  "base": "f358a0e17cece7a20664b36e607b84602cff40c3"
+}

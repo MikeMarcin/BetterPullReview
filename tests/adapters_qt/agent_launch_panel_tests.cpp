@@ -550,9 +550,8 @@ namespace {
 				 std::pair{ application::agent_workspace_unavailable_reason::sign_in_refused, QStringLiteral("Check that gh is signed in") },
 				 std::pair{ application::agent_workspace_unavailable_reason::too_large, QStringLiteral("the pull request's new objects are larger") },
 				 std::pair{ application::agent_workspace_unavailable_reason::clone_needed, QStringLiteral("Link your clone") },
-				 // [[BPR-2295]]. Says the review holds only the head and the clone
-				 // was not used, and suggests no resend.
-				 std::pair{ application::agent_workspace_unavailable_reason::history_missing, QStringLiteral("the review holds only the pull request's head, and the linked clone was not used") },
+				 // [[BPR-2364]]. Identifies the cache failure without guessing about a linked clone.
+				 std::pair{ application::agent_workspace_unavailable_reason::history_missing, QStringLiteral("the review cache is missing objects for head") },
 			 }) {
 			const auto reasoned = identity(40U + static_cast<std::uint64_t>(reason));
 			panel.admit(reasoned);
@@ -569,6 +568,10 @@ namespace {
 				panel.status_text() == "Finished: workspace_unavailable" && panel.output_text() == diagnostic
 					&& panel.stop_reason_text().contains(phrase),
 				"a workspace stop says why in plain words and keeps Git's text in the log [[BPR-1738]]");
+			if (reason == application::agent_workspace_unavailable_reason::download_failed || reason == application::agent_workspace_unavailable_reason::history_missing) {
+				const auto head = core::canonical_hex(reasoned.Session.Binding.HeadOid);
+				expect(panel.stop_reason_text().contains(QString::fromUtf8(head.view().substr(0U, 12U))), "the stop names the requested head");
+			}
 			expect(panel.stopped_for_good() == (reason == application::agent_workspace_unavailable_reason::history_missing)
 					   && (reason != application::agent_workspace_unavailable_reason::history_missing || !panel.stop_reason_text().contains(QStringLiteral("esend"))),
 				   "[[BPR-2295]] only a stop a resend repeats is final, and it offers no resend");

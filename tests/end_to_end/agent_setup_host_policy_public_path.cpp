@@ -9,6 +9,7 @@
 // another pull request drops the previous review's policy at once, so its
 // verdicts are never shown while the next one loads.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
@@ -132,11 +133,26 @@ namespace {
 			auto dataRoot = e2e::private_data_root(Data);
 			expect(dataRoot.has_value(), "a private data root");
 			// Claude Code and Codex, found on PATH, and a wrapper of the
-			// reviewer's own. None is ever started: a run leaves a mark.
+			// reviewer's own. Only Codex's model-list probe is expected to run.
 			std::filesystem::create_directories(agents());
 			for (const auto* const name : { "claude", "codex", "claude-wrapper" }) {
-				const auto program = agents() / name;
-				std::ofstream{ program } << "#!/bin/sh\necho \"$0 $*\" >> '" << marked().string() << "'\nexit 1\n";
+				const auto    program = agents() / name;
+				std::ofstream script{ program };
+				script << "#!/bin/sh\n";
+				if (std::string_view{ name } == "codex") {
+					script << R"(if [ "$#" -eq 1 ] && [ "$1" = app-server ]; then
+    IFS= read -r initialize
+    case "$initialize" in *'"initialize"'*) ;; *) exit 2 ;; esac
+    printf '%s\n' '{"id":0,"result":{}}'
+    IFS= read -r initialized
+    IFS= read -r list
+    case "$list" in *'"model/list"'*) ;; *) exit 3 ;; esac
+    printf '%s\n' '{"id":1,"result":{"data":[{"model":"fixture-model","displayName":"Fixture Model"}],"nextCursor":null}}'
+    exit 0
+fi
+)";
+				}
+				script << "echo \"$0 $*\" >> '" << marked().string() << "'\nexit 1\n";
 				std::filesystem::permissions(program, std::filesystem::perms::owner_all);
 			}
 			auto options               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
@@ -211,11 +227,28 @@ namespace {
 			test.start(app::detail::github_public_path_fixture::ghes_3_18);
 			auto& window = test.Application->window();
 			test.add_custom_agent();
+			// The composed Settings path has loaded the catalog before any
+			// pull request is opened or question can be asked.
+			wait([&] {
+				const auto& setup    = window.agent_setup()->projection();
+				const auto  launcher = std::ranges::find(setup.Preferences.Agents, "Codex launcher", &core::agent_entry::Name);
+				if (launcher == setup.Preferences.Agents.end()) {
+					return false;
+				}
+				const auto catalog = setup.Catalogs.find(launcher->Id);
+				return catalog != setup.Catalogs.end() && catalog->second.Models.size() == 1U && catalog->second.Models.front().DisplayName == "Fixture Model";
+			},
+				 "the custom launcher lists models before opening the Agent tab");
 			test.Gate.hold();
 			test.open(QStringLiteral("octo-org/review-repository#17"));
 			wait([&] { return test.Gate.entered(); }, "the pull request read reaches its files page and is held");
 			window.open_agent_question();
 			expect_loading(window, "while the Enterprise read is held");
+			const auto& offered = window.agent_tab()->run_settings_source()->shown();
+			const auto  picker  = std::ranges::find(offered, QStringLiteral("Codex launcher"), &qt::agent_run_settings::Agent);
+			expect(picker != offered.end() && picker->Listing == qt::agent_model_listing::ready
+					   && picker->Models == std::vector{ std::pair{ std::string{ "fixture-model" }, QStringLiteral("Fixture Model") } },
+				   "the real picker has the launcher's models while the review still loads");
 
 			test.Gate.release();
 			wait([&] { return window.session_panel()->status() == core::github_status::pull_request_ready && !window.agent_setup()->projection().PolicyPending; },

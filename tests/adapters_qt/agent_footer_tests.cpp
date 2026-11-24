@@ -497,6 +497,52 @@ auto main(int argc, char** argv) -> int
 	emit picker->menu()->aboutToShow();
 	expect(find("agentRunSettingsBuilds")->isChecked() && find("agentRunSettingsBuilds")->toolTip().contains(QStringLiteral("Codex's sandbox holds")), "Codex allowed to build: checked, and its tooltip says Codex's sandbox holds it");
 
+	// [[BPR-2365]]. A saved Codex entry is asking even before dispatch.
+	{
+		auto catalogAsks     = std::vector<std::uint64_t>{ };
+		source->Catalog      = [&catalogAsks](const std::uint64_t aProfile) { catalogAsks.push_back(aProfile); };
+		const auto modelMenu = [picker] {
+			for (auto* const action : picker->menu()->actions()) {
+				if (auto* const submenu = action->menu(); submenu != nullptr && submenu->objectName() == QStringLiteral("agentRunSettingsModels")) {
+					return submenu;
+				}
+			}
+			return static_cast<QMenu*>(nullptr);
+		};
+		const auto modelAction = [&modelMenu](const QString& aText) -> QAction* {
+			auto* const models = modelMenu();
+			expect(models != nullptr, "Codex has a Model menu");
+			for (auto* const action : models->actions()) {
+				if (action->text() == aText) {
+					return action;
+				}
+			}
+			return nullptr;
+		};
+		codex.Models.clear();
+		codex.Listing = qt::agent_model_listing::asking;
+		source->present({ claude, codex });
+		const auto* const asking = modelAction(QStringLiteral("Asking Codex for its models…"));
+		expect(asking != nullptr && !asking->isEnabled() && catalogAsks.empty(), "before dispatch, the Model menu already says it is asking");
+		codex.Listing = qt::agent_model_listing::failed;
+		source->present({ claude, codex });
+		const auto* const failed = modelAction(QStringLiteral("Codex did not list its models."));
+		auto* const       again  = modelAction(QStringLiteral("Ask again"));
+		expect(failed != nullptr && !failed->isEnabled() && again != nullptr && again->isEnabled() && modelAction(QStringLiteral("Other…")) != nullptr,
+			   "the failed list says so and offers retry and a custom model");
+		emit modelMenu() -> aboutToShow();
+		settle();
+		expect(catalogAsks == std::vector<std::uint64_t>{ codex.Profile }, "opening the failed Model menu asks the host to retry");
+		again->trigger();
+		expect(catalogAsks == std::vector<std::uint64_t>{ codex.Profile, codex.Profile }, "Ask again dispatches for the same agent");
+		codex.Listing = qt::agent_model_listing::ready;
+		codex.Models.emplace_back("fixture-model", QStringLiteral("Fixture Model"));
+		source->present({ claude, codex });
+		expect(modelAction(QStringLiteral("Fixture Model")) != nullptr && modelAction(QStringLiteral("Ask again")) == nullptr,
+			   "a successful response fills the menu and replaces the failure");
+		source->Catalog = { };
+	}
+
 	// RFC-BPR-0126 AC09 ([[BPR-2151]], owner Q10/AC09): one Stop all beside
 	// the picker, shown while any turn runs or any message is queued; it
 	// stops every run and asks the window to pause every queue.

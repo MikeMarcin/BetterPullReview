@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2365"
+  ],
+  "reserve_for": "codex-model-catalog-startup",
+  "purpose": "",
+  "created": "2026-11-23T23:09:48.675306+00:00",
+  "base": "2d312fdc20b4c428a25a1c543395d7a1c4004b02"
+}

@@ -11,6 +11,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
+#include "bpr/qt/skill_completer.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
@@ -337,6 +338,8 @@ namespace bpr::qt {
 																  }
 															  } });
 		Composer->installEventFilter(Field);
+		// Install after the send filter so Return chooses a skill while the list is open.
+		SkillCompletion = new skill_completer{ Composer };
 		fieldColumn->addWidget(Composer);
 		auto* const sendRow = composer::add_send_row(*Field, *fieldColumn);
 		sendRow->addStretch(1);
@@ -438,6 +441,8 @@ namespace bpr::qt {
 	}
 
 	void item_side_chat::set_intents(item_side_chat_intents aIntents) { Intents = std::move(aIntents); }
+
+	void item_side_chat::present_skills(std::vector<core::skill_entry> aSkills) { SkillCompletion->present(std::move(aSkills)); }
 
 	void item_side_chat::set_column_open(const bool aOpen)
 	{

@@ -1,4 +1,5 @@
 #include "bpr/application/agent_setup_host.hpp"
+#include "bpr/application/agent_run_diagnosis.hpp"
 #include "bpr/application/operation_diagnostics.hpp"
 
 #include <algorithm>
@@ -105,6 +106,26 @@ namespace bpr::application {
 		/// [[BPR-2305]]. A model answers in about this long; more is a check
 		/// that did not answer.
 		constexpr auto codex_probe_timeout_milliseconds = 120'000;
+
+		constexpr auto catalog_retry_interval_milliseconds = 60'000;
+
+		[[nodiscard]] auto same_catalog_program(const core::agent_entry& aFirst, const core::agent_entry& aSecond) -> bool
+		{
+			return aFirst.Protocol == aSecond.Protocol && aFirst.Program == aSecond.Program && aFirst.Arguments == aSecond.Arguments;
+		}
+
+		[[nodiscard]] auto codex_catalog(const agent_run_result& aResult) -> agent_harness_catalog
+		{
+			auto catalog = agent_harness_catalog{ .Models = decode_agent_model_catalog(aResult) };
+			for (const auto& model : catalog.Models) {
+				for (const auto& effort : model.Efforts) {
+					if (!std::ranges::contains(catalog.Efforts, effort) && catalog.Efforts.size() < maximum_catalog_efforts) {
+						catalog.Efforts.push_back(effort);
+					}
+				}
+			}
+			return catalog;
+		}
 
 		/// The first line a check printed, bounded: a launcher's version.
 		[[nodiscard]] auto first_line_of(const agent_run_result& aResult) -> std::string
@@ -291,6 +312,12 @@ namespace bpr::application {
 			});
 		}
 
+		[[nodiscard]] auto steady_milliseconds() const -> std::int64_t
+		{
+			return Dependencies.SteadyMilliseconds ? Dependencies.SteadyMilliseconds()
+												   : std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		}
+
 		void publish()
 		{
 			derive();
@@ -299,8 +326,7 @@ namespace bpr::application {
 			if (Projection.State.WorkspaceCheck.State != core::setup_check_state::running) {
 				Projection.WorkspaceCheckStartedMs.reset();
 			} else if (!Projection.WorkspaceCheckStartedMs) {
-				Projection.WorkspaceCheckStartedMs = Dependencies.SteadyMilliseconds ? Dependencies.SteadyMilliseconds()
-																					 : std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+				Projection.WorkspaceCheckStartedMs = steady_milliseconds();
 			}
 			++Projection.Generation;
 			if (Dependencies.Publish) {
@@ -657,6 +683,100 @@ namespace bpr::application {
 				});
 		}
 
+		/// Invalidate a previous command without freeing its slot until its
+		/// worker settles. An edit can supersede several commands in a row.
+		void forget_catalog(const std::uint32_t aEntry)
+		{
+			Projection.Catalogs.erase(aEntry);
+			Projection.CatalogFailures.erase(aEntry);
+			if (const auto running = CatalogStops.find(aEntry); running != CatalogStops.end()) {
+				running->second.request_stop();
+			}
+		}
+
+		void settle_catalog(const std::uint32_t aEntry, const std::stop_token& aStop, const bool aCodex, agent_harness_catalog aCatalog)
+		{
+			CatalogStops.erase(aEntry);
+			std::erase(Projection.Cataloguing, aEntry);
+			if (aStop.stop_requested()) {
+				static_cast<void>(start_catalog(aEntry, true));
+			} else if (aCodex && aCatalog.Models.empty()) {
+				Projection.CatalogFailures[aEntry] = steady_milliseconds();
+			} else {
+				Projection.Catalogs[aEntry] = std::move(aCatalog);
+				Projection.CatalogFailures.erase(aEntry);
+			}
+			publish();
+		}
+
+		[[nodiscard]] auto start_catalog(const std::uint32_t aEntry, const bool aCodexOnly) -> bool
+		{
+			const auto& agents = Projection.Preferences.Agents;
+			const auto  entry  = std::ranges::find(agents, aEntry, &core::agent_entry::Id);
+			if (entry == agents.end() || Projection.Catalogs.contains(aEntry) || CatalogStops.contains(aEntry)
+				|| Closing || Dependencies.Process == nullptr || Dependencies.Checks == nullptr || Dependencies.Decision == nullptr) {
+				return false;
+			}
+			const auto program = core::entry_settings_program(entry->Protocol);
+			const auto profile = std::ranges::find(Dependencies.Profiles, entry->Protocol, &core::agent_profile::Protocol);
+			if (!program || profile == Dependencies.Profiles.end() || (aCodexOnly && *program != core::agent_program::codex)) {
+				return false;
+			}
+			const auto failure = Projection.CatalogFailures.find(aEntry);
+			if (failure != Projection.CatalogFailures.end() && steady_milliseconds() - failure->second < catalog_retry_interval_milliseconds) {
+				return false;
+			}
+
+			const auto codex = *program == core::agent_program::codex;
+			auto       path  = entry->Program;
+			if (!codex && path.empty()) {
+				const auto row = std::ranges::find(Found, core::setup_agent_of(entry->Protocol), &core::agent_detection::Agent);
+				if (row == Found.end() || row->Path.empty()) {
+					return false;
+				}
+				path = row->Path;
+			}
+			const auto stop = CatalogStops.try_emplace(aEntry).first->second.get_token();
+			Projection.Cataloguing.push_back(aEntry);
+			off_lane(
+				Dependencies.Checks,
+				[this, settingsProfile = *profile, executable = std::move(path), arguments = entry->Arguments, codex, stop]() mutable {
+					auto catalog = agent_harness_catalog{ };
+					try {
+						if (codex && executable.empty() && Dependencies.Locate) {
+							if (auto found = Dependencies.Locate(core::agent_program::codex)) {
+								executable = std::move(found->Path);
+							}
+						}
+						if (codex && !executable.empty() && Dependencies.AdmitCatalogProgram) {
+							executable = Dependencies.AdmitCatalogProgram(executable).value_or(std::string{ });
+						}
+						if (executable.empty() || stop.stop_requested()) {
+							return catalog;
+						}
+						const auto launch = codex ? build_agent_model_catalog_launch(settingsProfile, std::move(executable), std::move(arguments), Dependencies.Parent)
+												  : build_agent_help_launch(settingsProfile, std::move(executable), std::move(arguments), Dependencies.Parent);
+						const auto watch  = operation_stopwatch{ };
+						auto       ran    = agent_run_result{ .Outcome = agent_run_outcome::failed_to_start };
+						try {
+							ran = Dependencies.Process->run(launch, agent_status_timeout_milliseconds, { }, stop);
+						} catch (...) { }
+						const auto elapsed = watch.milliseconds();
+						if (codex) {
+							catalog = codex_catalog(ran);
+							record_agent_catalog(Dependencies.Log.get(), settingsProfile.Protocol, ran, elapsed, catalog.Models.size());
+						} else {
+							catalog.Efforts = decode_agent_help_efforts(ran);
+						}
+					} catch (...) { }
+					return catalog;
+				},
+				[this, aEntry, stop, codex](agent_harness_catalog aCatalog) {
+					settle_catalog(aEntry, stop, codex, std::move(aCatalog));
+				});
+			return true;
+		}
+
 		agent_setup_dependencies               Dependencies;
 		agent_setup_projection                 Projection;
 		std::optional<core::agent_host_policy> Policy;
@@ -677,10 +797,11 @@ namespace bpr::application {
 		std::vector<std::uint32_t> CheckQueue;
 		bool                       CheckingOverride = false;
 		/// [[BPR-1828]]. The running check's kind and when it started.
-		core::operation_action CheckAction = core::operation_action::agent_status_check;
-		operation_stopwatch    CheckWatch;
-		std::atomic_bool       Closing{ false };
-		std::atomic_size_t     Outstanding{ 0U };
+		core::operation_action                    CheckAction = core::operation_action::agent_status_check;
+		operation_stopwatch                       CheckWatch;
+		std::map<std::uint32_t, std::stop_source> CatalogStops;
+		std::atomic_bool                          Closing{ false };
+		std::atomic_size_t                        Outstanding{ 0U };
 	};
 
 	auto agent_check_facts_of(const agent_setup_projection& aProjection, const bool aReviewOpen) -> core::agent_check_facts
@@ -718,6 +839,12 @@ namespace bpr::application {
 			host.Dependencies.Effects, [store = host.Dependencies.Store] { return store->load(); },
 			[self = Implementation](std::optional<agent_setup_preferences> aLoaded) {
 				if (aLoaded && valid(*aLoaded)) {
+					for (const auto& previous : self->Projection.Preferences.Agents) {
+						const auto current = std::ranges::find(aLoaded->Agents, previous.Id, &core::agent_entry::Id);
+						if (current == aLoaded->Agents.end() || current->Identity != previous.Identity || !same_catalog_program(*current, previous)) {
+							self->forget_catalog(previous.Id);
+						}
+					}
 					self->Projection.Preferences = std::move(*aLoaded);
 				} else {
 					// [[BPR-2254]]. Not a fresh profile: the defaults stand in
@@ -728,6 +855,9 @@ namespace bpr::application {
 				const auto searched = self->Projection.Detecting || self->Projection.Detected;
 				if (!self->settings_unreadable()) {
 					self->move_into_list();
+					for (const auto& entry : self->Projection.Preferences.Agents) {
+						static_cast<void>(self->start_catalog(entry.Id, true));
+					}
 				}
 				self->apply_programs();
 				if (searched) {
@@ -799,6 +929,7 @@ namespace bpr::application {
 			if (auto added = core::add_agent_entry(preferences.Agents, std::move(preset))) {
 				preferences.Agents = std::move(*added);
 				entry              = &preferences.Agents.back();
+				static_cast<void>(host.start_catalog(entry->Id, true));
 			}
 		}
 		preferences.PreferredAgent = entry != nullptr ? entry->Id : 0U;
@@ -853,9 +984,11 @@ namespace bpr::application {
 			return;
 		}
 		host.Projection.Preferences.Agents = std::move(*added);
+		const auto id                      = host.Projection.Preferences.Agents.back().Id;
 		if (aPrefer) {
-			host.prefer_entry(host.Projection.Preferences.Agents.back().Id);
+			host.prefer_entry(id);
 		}
+		static_cast<void>(host.start_catalog(id, true));
 		host.save();
 		host.publish();
 		if (aPrefer) {
@@ -884,7 +1017,9 @@ namespace bpr::application {
 				? original->Identity
 				: mint_agent_identity();
 		}
-		auto updated = core::update_agent_entry(host.Projection.Preferences.Agents, std::move(aEntry));
+		const auto id             = aEntry.Id;
+		const auto changedProgram = original != host.Projection.Preferences.Agents.end() && !same_catalog_program(*original, aEntry);
+		auto       updated        = core::update_agent_entry(host.Projection.Preferences.Agents, std::move(aEntry));
 		if (!updated) {
 			if (aAnswered) {
 				aAnswered(updated.error());
@@ -892,6 +1027,10 @@ namespace bpr::application {
 			return;
 		}
 		host.Projection.Preferences.Agents = std::move(*updated);
+		if (changedProgram) {
+			host.forget_catalog(id);
+			static_cast<void>(host.start_catalog(id, true));
+		}
 		if (preferred) {
 			host.CheckStop.request_stop();
 			if (host.Projection.Checking && host.Dependencies.Process != nullptr) {
@@ -922,6 +1061,7 @@ namespace bpr::application {
 		const auto* const current          = host.preferred_entry();
 		const auto        preferred        = current != nullptr && current->Id == aId;
 		host.Projection.Preferences.Agents = std::move(*removed);
+		host.forget_catalog(aId);
 		if (host.Projection.Preferences.PreferredAgent == aId) {
 			host.Projection.Preferences.PreferredAgent = 0U;
 		}
@@ -1041,57 +1181,10 @@ namespace bpr::application {
 
 	void agent_setup_host::load_catalog(const std::uint32_t aEntry)
 	{
-		auto&       host   = *Implementation;
-		const auto& agents = host.Projection.Preferences.Agents;
-		const auto  found  = std::ranges::find(agents, aEntry, &core::agent_entry::Id);
-		if (found == agents.end() || host.Projection.Catalogs.contains(aEntry) || std::ranges::contains(host.Projection.Cataloguing, aEntry) || host.Dependencies.Process == nullptr) {
-			return;
+		auto& host = *Implementation;
+		if (host.start_catalog(aEntry, false)) {
+			host.publish();
 		}
-		const auto& entry   = *found;
-		const auto  program = core::entry_settings_program(entry.Protocol);
-		const auto  profile = std::ranges::find(host.Dependencies.Profiles, entry.Protocol, &core::agent_profile::Protocol);
-		if (!program || profile == host.Dependencies.Profiles.end()) {
-			return;
-		}
-		// A preset runs the program setup found; an added agent its own.
-		auto path = entry.Program;
-		if (path.empty()) {
-			const auto agent = core::setup_agent_of(entry.Protocol);
-			const auto row   = std::ranges::find(host.Found, agent, &core::agent_detection::Agent);
-			path             = row == host.Found.end() ? std::string{ } : row->Path;
-		}
-		if (path.empty()) {
-			return;
-		}
-		const auto launch = *program == core::agent_program::codex ? build_agent_model_catalog_launch(*profile, path, entry.Arguments, host.Dependencies.Parent)
-																   : build_agent_help_launch(*profile, path, entry.Arguments, host.Dependencies.Parent);
-		host.Projection.Cataloguing.push_back(aEntry);
-		host.publish();
-		host.off_lane(
-			host.Dependencies.Checks,
-			[process = host.Dependencies.Process, launch, codex = *program == core::agent_program::codex] {
-				const auto ran     = process->run(launch, agent_status_timeout_milliseconds);
-				auto       catalog = agent_harness_catalog{ };
-				if (codex) {
-					catalog.Models = decode_agent_model_catalog(ran);
-					// The efforts any of its models take, in the order listed.
-					for (const auto& model : catalog.Models) {
-						for (const auto& effort : model.Efforts) {
-							if (std::ranges::find(catalog.Efforts, effort) == catalog.Efforts.end() && catalog.Efforts.size() < maximum_catalog_efforts) {
-								catalog.Efforts.push_back(effort);
-							}
-						}
-					}
-				} else {
-					catalog.Efforts = decode_agent_help_efforts(ran);
-				}
-				return catalog;
-			},
-			[self = Implementation, aEntry](agent_harness_catalog aCatalog) {
-				std::erase(self->Projection.Cataloguing, aEntry);
-				self->Projection.Catalogs[aEntry] = std::move(aCatalog);
-				self->publish();
-			});
 	}
 
 	void agent_setup_host::reset()
@@ -1104,8 +1197,11 @@ namespace bpr::application {
 			stop();
 		}
 		// The list stays moved: the old settings are not read into it again.
-		auto fresh                  = agent_setup_preferences{ };
-		fresh.AgentsMoved           = true;
+		auto fresh        = agent_setup_preferences{ };
+		fresh.AgentsMoved = true;
+		for (const auto& entry : host.Projection.Preferences.Agents) {
+			host.forget_catalog(entry.Id);
+		}
 		host.Projection.Preferences = std::move(fresh);
 		++host.DetectGeneration;
 		host.Found.clear();
@@ -1113,7 +1209,6 @@ namespace bpr::application {
 		host.Projection.Detecting = false;
 		host.Projection.Detected  = false;
 		host.Projection.WorkspaceDetail.clear();
-		host.Projection.Catalogs.clear();
 		host.Picked.reset();
 		host.reset_checks();
 		host.apply_programs();

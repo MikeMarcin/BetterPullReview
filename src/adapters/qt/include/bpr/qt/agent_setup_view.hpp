@@ -188,7 +188,8 @@ namespace bpr::qt {
 
 	/// \brief [[BPR-1753]]. The words for a workspace that could not be
 	/// made: what happened, then what to do ([[BPR-1738]]).
-	[[nodiscard]] auto workspace_unavailable_words(application::agent_workspace_unavailable_reason aReason) -> QString;
+	/// Include the head when the review supplies it.
+	[[nodiscard]] auto workspace_unavailable_words(application::agent_workspace_unavailable_reason aReason, const QString& aHead = { }) -> QString;
 
 	/// \brief [[BPR-1753]]. The words for a setup check that failed,
 	/// for the setup and for a later Ask that failed for the same reason.
