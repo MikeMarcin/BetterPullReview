@@ -1999,6 +1999,47 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	/// The owner, 2026-11-24: a commit after my comments or change request,
+	/// not addressing them, left the row in Needs me with no way out. Seen
+	/// takes it to Following at once and asks GitHub for nothing; the next
+	/// push brings it back.
+	void test_seen_moves_a_commented_or_change_request_row_back_to_following()
+	{
+		for (const auto state : { application::github_review_state::commented, application::github_review_state::changes_requested }) {
+			auto fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Requested = true } } } };
+			fixture.Discovery.adopt(discovery_session());
+			auto reviewed                  = metadata_row(17U, true);
+			reviewed.Reviews.front().State = state;
+			fixture.Provider.answer(fixture.Provider.rows({ reviewed }));
+			fixture.settle();
+			fixture.Discovery.refresh();
+			auto moved                  = metadata_row(17U, true, true);
+			moved.Reviews.front().State = state;
+			fixture.Provider.answer(fixture.Provider.rows({ moved }));
+			fixture.settle();
+			const auto said = std::string{ state == application::github_review_state::commented ? "commented" : "changes requested" };
+			expect(fixture.item(17)->Bucket == core::attention_bucket::changed_since_my_review && core::home_section_for(*fixture.item(17)) == core::home_queue_section::needs_you
+					   && core::review_followup_for(*fixture.item(17)) == core::review_followup::seen,
+				   said + ": commits after my review need me and offer Seen");
+			const auto head = std::string(40U, 'b');
+			fixture.Queue.apply(application::queue_seen_intent{ .Ref = ref(17), .Head = head });
+			fixture.settle();
+			expect(core::home_section_for(*fixture.item(17)) == core::home_queue_section::following && fixture.item(17)->Facts.SeenHead == head
+					   && !fixture.item(17)->Facts.MyReview.NewCommits && core::review_followup_for(*fixture.item(17)) == core::review_followup::none,
+				   said + ": Seen moves it to Following at once");
+			expect(fixture.Provider.Answered == fixture.Provider.Requests.size(), said + ": Seen reads and writes nothing on GitHub");
+
+			fixture.Discovery.refresh();
+			auto pushed    = moved;
+			pushed.HeadOid = application::commit_oid{ head.substr(0U, 39U) + "d" };
+			fixture.Provider.answer(fixture.Provider.rows({ pushed }));
+			fixture.settle();
+			expect(fixture.item(17)->Bucket == core::attention_bucket::changed_since_my_review, said + ": the next push needs me again");
+			fixture.Discovery.shutdown();
+			fixture.Queue.shutdown();
+		}
+	}
+
 	void test_my_review_codec_refuses_malformed_version_three()
 	{
 		auto facts         = core::queue_item_facts{ .Title = "Mine", .Author = "octocat" };
@@ -3564,6 +3605,7 @@ auto main() -> int
 	test_my_review_verdict_from_retained_reads();
 	test_too_large_row_does_not_fail_the_refresh();
 	test_seen_moves_an_approved_row_back_to_following();
+	test_seen_moves_a_commented_or_change_request_row_back_to_following();
 	test_seen_answers_after_the_store();
 	test_my_review_codec_refuses_malformed_version_three();
 	test_retained_review_survives_request_withdrawal();
