@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2366"
 title: "The Saved update drafts window opens at every launch forever: the update recovery store is append-only, Close removes nothing, no reset clears it, and the only way to stop it is to delete a file by hand"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"defect","found_by":"owner, 2026-11-23, build 92 on macOS: after an in-app update at 08:08 saved one inline draft, the Saved update drafts window opened at every launch for the rest of the day, and nothing in it or in Settings made it stop","related_cards":["BPR-1602"],"related_rfcs":["RFC-BPR-0014"],"reservation":"docs/issues/_reservations/BPR-2366--BPR-2366--fba97f9e01e9.json","acceptance":["AC1","AC2","AC3","AC4","Owner step"]}
-acceptance: []
+metadata: {"kind":"defect","found_by":"owner, 2026-11-23, build 92 on macOS: after an in-app update at 08:08 saved one inline draft, the Saved update drafts window opened at every launch for the rest of the day, and nothing in it or in Settings made it stop","related_cards":["BPR-1602"],"related_rfcs":["RFC-BPR-0014"],"reservation":"docs/issues/_reservations/BPR-2366--BPR-2366--fba97f9e01e9.json","acceptance":["AC1","AC2","AC3","AC4"]}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"1aee1358b6df69260aa0e82c1af18b3be0d19a1b","evidence":{"kind":"command","detail":"release_update_recovery discards exact versions, checks byte-for-byte surviving row fields, and rolls back a batch containing an unknown row. application_release_update_public_path exercises cancellation, one confirmed discard, confirmed Discard all, and the next empty launch."}},{"criterion":"AC2","outcome":"pass","revision":"1aee1358b6df69260aa0e82c1af18b3be0d19a1b","evidence":{"kind":"command","detail":"release_update_recovery inserts with the v1 writer query and confirms old schema readability after persisting shown flags. application_release_update_public_path copies selected text, closes without discarding and restarts without a forced dialog. Help and Storage & privacy Troubleshooting reopen the current count."}},{"criterion":"AC3","outcome":"pass","revision":"1aee1358b6df69260aa0e82c1af18b3be0d19a1b","evidence":{"kind":"command","detail":"application_release_update_public_path exercises the updater save worker against a synthetic draft committed to the real private review ledger. Exact active text is omitted and raw editor and indeterminate text are kept. Startup removes an exact redundant copy but retains different body, legacy identity and uncertain copies. The original review binding and draft remain equal after recovery discard."}},{"criterion":"AC4","outcome":"pass","revision":"1aee1358b6df69260aa0e82c1af18b3be0d19a1b","evidence":{"kind":"command","detail":"macOS arm64, Qt 6.12.1 and pinned clang-format 22. The release update, SQLite recovery and private-store, reset, Qt Troubleshooting, architecture and composition source courses passed. verify_documentation.py returned DOCUMENTATION_OK, with 82 documentation tests passing. The tests-disabled app linked and its offscreen self-test returned PUBLIC_PATH_OK."}}]
 ---
 
 # BPR-2366: The Saved update drafts window opens at every launch forever
@@ -138,3 +138,17 @@ again. The window does not open.
 - Whether a whole-profile reset should clear this store. It stays out of
   [[BPR-1602]]'s resets.
 - Restoring a saved draft back into the review as a draft.
+
+## Implementation and verification
+
+The recovery store retains its original schema for updater rollback.
+Presentation is tracked by exact recovery row in a separate private store.
+Discard acts on recovery copies and preserves the original review ledger.
+The upgrade omits an active inline copy when its private ledger incarnation,
+draft identity, bound head and body match. Legacy inline records without
+that identity and records of uncertain publication remain available.
+
+The synthetic macOS arm64 course exercises the update worker and starts the
+composed desktop on a disposable profile. The behavior and layout were
+reviewed with the frontend-design skill and an offscreen Qt 6.12.1 render.
+The owner's original 2026-11-23 draft remains an unexercised owner observation.
