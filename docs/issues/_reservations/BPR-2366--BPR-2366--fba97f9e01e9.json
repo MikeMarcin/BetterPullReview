@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2366"
+  ],
+  "reserve_for": "codex-saved-update-drafts",
+  "purpose": "",
+  "created": "2026-11-24T07:50:53.441535+00:00",
+  "base": "b5b91fd1ab57f4d16b3813852d6c5a341e223a74"
+}
