@@ -204,7 +204,8 @@ namespace bpr::application {
 		if (Turns == nullptr || Running || !Turns->is_quiescent() || (!Turns->authorized() && !Turns->accepting())) {
 			return false;
 		}
-		Run = Awaiting.value_or(LastRun + 1U);
+		const auto released = Awaiting.has_value();
+		Run                 = Awaiting.value_or(LastRun + 1U);
 		if (!Awaiting) {
 			++LastRun;
 		}
@@ -219,6 +220,11 @@ namespace bpr::application {
 		TurnNative  = !aRequest.NativeAgentIdentity.empty();
 		Turn        = agent_conversation_turn{ .Asked = aRequest.NativeQuestion.empty() ? aRequest.Context.ChatMessage : aRequest.NativeQuestion };
 		TurnStarted = std::chrono::steady_clock::now();
+		// A queued message's turn began: the queue no longer lists it as
+		// pending, since this turn shows it. Its retirement settles it.
+		if (released && Began) {
+			Began(Run);
+		}
 		if (!Turns->authorized()) {
 			// The window said ready before the runtime's review was accepted:
 			// the turn waits for that rather than being refused.
@@ -295,6 +301,8 @@ namespace bpr::application {
 	}
 
 	void review_agent_runtime::on_retired(std::function<void()> aDone) { Done = std::move(aDone); }
+
+	void review_agent_runtime::on_began(std::function<void(std::uint64_t)> aBegan) { Began = std::move(aBegan); }
 
 	auto review_agent_runtime::running() const -> bool { return Running; }
 
@@ -557,6 +565,7 @@ namespace bpr::application {
 		}
 		made.bind(std::move(turns));
 		made.on_retired([this, aSession] { retired(aSession); });
+		made.on_began([this, aSession](const std::uint64_t aRun) { began(aSession, aRun); });
 		if (Dependencies.Conversations != nullptr && Dependencies.ConversationEffects != nullptr) {
 			made.on_unshown([store = Dependencies.Conversations, effects = Dependencies.ConversationEffects](const agent_conversation_key& aConversation, const agent_conversation_turn& aTurn) {
 				effects->post([store, aConversation, aTurn] { keep_unshown_turn(*store, aConversation, aTurn); });
@@ -697,6 +706,13 @@ namespace bpr::application {
 				}
 			});
 		});
+	}
+
+	void review_agent_runtimes::began(const std::string& aSession, const std::uint64_t aRun)
+	{
+		if (Dependencies.Runner != nullptr && Offered && Dependencies.Runner->running(aSession) == Offered) {
+			Dependencies.Runner->began(*Offered, aSession, aRun);
+		}
 	}
 
 	void review_agent_runtimes::retired(const std::string& aSession)

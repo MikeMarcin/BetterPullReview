@@ -362,6 +362,33 @@ namespace {
 		expect(!host.sending("s") && host.queue("s")->Paused == core::queue_pause::failed && host.queue("s")->Entries.size() == 1U,
 			   "its refusal settles it: back first, paused, never sending");
 	}
+
+	/// A released message whose turn began is shown off the pending list
+	/// (`core::listed`), its claim kept until its run retires; only its own
+	/// run's beginning counts, and one that began after it settled is nothing.
+	void test_a_begun_turn_leaves_the_pending_list()
+	{
+		auto       agents  = runner{ };
+		auto       host    = application::agent_queue_host{ { .Runner = &agents } };
+		auto       shown   = window{ };
+		const auto session = std::string{ "agent-tab:github.com/o/r#3" };
+		static_cast<void>(host.subscribe(shown.subscriber()));
+		const auto listed = [&] { return std::ranges::count_if(shown.Shown[session].Entries, [](const core::queued_entry& aEntry) { return core::listed(aEntry); }); };
+		agents.Awaits     = true;
+		static_cast<void>(host.enqueue(session, typed("review")));
+		static_cast<void>(host.enqueue(session, typed("next")));
+		expect(host.sending(session) && listed() == 2 && host.queue(session)->Entries.front().State == core::queued_state::sending, "released and awaiting its turn: listed as Sending");
+		host.began(session, agents.LastRun + 1U);
+		expect(listed() == 2, "another run's beginning is not this message's");
+		host.began(session, agents.LastRun);
+		expect(listed() == 1 && host.queue(session)->Entries.front().State == core::queued_state::sent && host.sending(session) && agents.Ran.size() == 1U,
+			   "its turn began: off the list, still holding the session");
+		agents.retire(host, session);
+		expect(agents.Ran.size() == 2U && host.queue(session)->Entries.size() == 1U && listed() == 1, "its retirement settles it and the next goes");
+		agents.retire(host, session);
+		host.began(session, agents.LastRun);
+		expect(host.queue(session)->Entries.empty() && !host.sending(session), "a beginning after it settled changes nothing");
+	}
 	/// [[BPR-2245]] (owner, 2026-11-17: "stop all is showing up in the status
 	/// bar after that even though no agent stuff is running"). A release the
 	/// agent refused returns its message and pauses the queue; nothing starts
@@ -416,6 +443,7 @@ namespace {
 auto main() -> int
 {
 	test_admissions_settle_every_release();
+	test_a_begun_turn_leaves_the_pending_list();
 	test_a_paused_queue_leaves_nothing_waiting_to_go();
 	test_another_session_is_shown_its_own_empty_queue();
 	test_a_refused_write_on_the_effect_lane_hands_the_message_back();

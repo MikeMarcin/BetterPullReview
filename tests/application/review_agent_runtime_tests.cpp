@@ -16,6 +16,7 @@
 #include <deque>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
@@ -629,6 +630,101 @@ namespace {
 		expect(!app.Queue.sending(session) && app.Queue.queue(session)->Entries.size() == 1U && app.Queue.queue(session)->Entries.front().State == core::queued_state::queued,
 			   "a release whose window closed before its turn went is queued again");
 	}
+	/// The owner, 2026-11-24: Review this pull request pressed before the
+	/// agent was set up waited in the queue, and once Check set it up its
+	/// turn ran while the queue still said Sending "during the entire time
+	/// the prompt is running until it finishes". Once the release's turn
+	/// begins it leaves the pending list (the transcript shows it as the
+	/// running turn), the session stays held until its run retires, and its
+	/// retirement settles it. The same for a release that reads its material
+	/// first and one whose turn waits for the review's acceptance.
+	void test_a_released_turn_leaves_the_pending_list_once_it_begins()
+	{
+		auto       app       = profile{ };
+		const auto session   = std::string{ "agent-tab:github.com/o/r#15" };
+		auto*      runtime   = app.Runtimes->open(session);
+		auto&      machinery = app.Machinery[session];
+		auto       window    = shown_turns{ };
+		auto       setUp     = false;
+		auto       awaited   = std::optional<std::uint64_t>{ };
+		auto       pending   = std::vector<std::vector<core::queued_entry>>{ };
+		static_cast<void>(app.Queue.subscribe({
+			.Changed =
+				[&](const std::string& aSession, const core::agent_queue& aQueue) {
+					if (aSession != session) {
+						return;
+					}
+					auto listed = std::vector<core::queued_entry>{ };
+					std::ranges::copy_if(aQueue.Entries, std::back_inserter(listed), [](const core::queued_entry& aEntry) { return core::listed(aEntry); });
+					pending.push_back(std::move(listed));
+				},
+			.Waiting = { },
+		}));
+		const auto presenter  = runtime->attach({
+			.Projection = &window,
+			.Release =
+				[&](const core::queued_entry& aEntry, const std::uint64_t aRun) {
+					if (aEntry.Input.QuickAsk == "explain-file") {
+						awaited = aRun;
+						return application::queued_admission_kind::awaiting;
+					}
+					auto request                = review_snapshot().Request;
+					request.Context.ChatMessage = aEntry.Input.Label;
+					static_cast<void>(runtime->dispatch(std::move(request)));
+					return application::queued_admission_kind::refused;
+				},
+			.Ready = [&] { return setUp; },
+		});
+		const auto pendingNow = [&] { return pending.empty() ? std::size_t{ 0 } : pending.back().size(); };
+
+		// Pressed before setup: it waits, listed.
+		static_cast<void>(app.Queue.enqueue(session, core::queued_input{ .QuickAsk = "agent-tab.review-pull-request", .Scope = "pull-request", .Label = "Review this pull request" }));
+		expect(machinery.Requests.empty() && !app.Queue.sending(session) && pendingNow() == 1U, "before setup the review waits in the queue");
+
+		// Check sets the agent up: the review's turn begins and leaves the list.
+		setUp = true;
+		app.Queue.agent_changed(session);
+		expect(machinery.Requests.size() == 1U && machinery.Requests.back().Context.ChatMessage == "Review this pull request", "once set up, the review's turn runs");
+		const auto& entries = app.Queue.queue(session)->Entries;
+		expect(entries.size() == 1U && entries.front().State == core::queued_state::sent && entries.front().Claim && entries.front().Claim->Run == runtime->last_run(),
+			   "its turn began: Sent, bound to its run");
+		expect(pendingNow() == 0U, "the pending list no longer shows it while its turn runs");
+		expect(app.Queue.sending(session).has_value() && runtime->state(nullptr) == core::queue_agent::busy, "the session stays held until its run retires");
+		static_cast<void>(app.Queue.enqueue(session, typed("follow-up")));
+		expect(machinery.Requests.size() == 1U && pendingNow() == 1U, "a follow-up waits, listed, behind the running turn");
+		machinery.answer("reviewed");
+		app.Lane.drain();
+		expect(machinery.Requests.size() == 2U && machinery.Requests.back().Context.ChatMessage == "follow-up" && pendingNow() == 0U,
+			   "its retirement settles it and the follow-up's turn begins, off the list too");
+		machinery.answer("followed up");
+		app.Lane.drain();
+		expect(app.Queue.queue(session)->Entries.empty() && !app.Queue.sending(session) && app.Queue.queue(session)->Paused == core::queue_pause::none, "both settled");
+
+		// A release that reads its material first stays listed as Sending
+		// until its turn is sent on the later pass.
+		static_cast<void>(app.Queue.enqueue(session, core::queued_input{ .QuickAsk = "explain-file", .Scope = "file", .File = "a.cpp", .Label = "Explain a.cpp" }));
+		expect(awaited.has_value() && pendingNow() == 1U && app.Queue.queue(session)->Entries.front().State == core::queued_state::sending, "an awaiting release is listed as Sending");
+		auto later                = review_snapshot().Request;
+		later.Context.ChatMessage = "Explain a.cpp";
+		expect(runtime->dispatch(later) && runtime->last_run() == *awaited && pendingNow() == 0U, "its turn sent on the later pass takes it off the list");
+		machinery.answer("explained");
+		app.Lane.drain();
+		expect(app.Queue.queue(session)->Entries.empty() && !app.Queue.sending(session), "its retirement settles it");
+
+		// A begun turn stopped settles as stopped and pauses what remains,
+		// as before.
+		static_cast<void>(app.Queue.enqueue(session, typed("stopped")));
+		expect(runtime->running() && pendingNow() == 0U, "it began");
+		static_cast<void>(app.Queue.enqueue(session, typed("after")));
+		machinery.answer("stopped", application::agent_run_outcome::cancelled);
+		app.Lane.drain();
+		expect(app.Queue.queue(session)->Entries.size() == 1U && app.Queue.queue(session)->Entries.front().Input.Text == "after" && app.Queue.queue(session)->Paused == core::queue_pause::stopped
+				   && !app.Queue.sending(session) && pendingNow() == 1U,
+			   "stopped, it leaves and what remains waits, paused and listed");
+		runtime->detach(presenter);
+		app.Lane.drain();
+	}
+
 	/// RFC-BPR-0126 AC15 ([[BPR-2181]]). Stop all is the host's, across the
 	/// profile: a turn no window shows and one a window shows both stop,
 	/// every queue pauses as stopped, and nothing starts next.
@@ -696,6 +792,7 @@ namespace {
 
 auto main() -> int
 {
+	test_a_released_turn_leaves_the_pending_list_once_it_begins();
 	test_a_pull_request_switch_mid_turn_settles_per_session();
 	test_stop_all_is_the_hosts();
 	test_release_admission_keyed_by_run();

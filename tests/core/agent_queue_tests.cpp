@@ -324,10 +324,85 @@ namespace {
 		restore(crashed);
 		expect(crashed.Entries.front().State == queued_state::delivery_unknown && crashed.Entries.front().Claim->Receipt == "rs", "a sent correction restores as uncertain, identifiable");
 	}
+
+	/// A released message whose turn began (the owner, 2026-11-24: "presumably
+	/// once it's answering the question it has sent it right?") is Sent and
+	/// leaves the pending list, while its claim keeps it until its run's end
+	/// settles it, and nothing after it is released early.
+	void test_begun_release_leaves_the_pending_list()
+	{
+		auto queue = agent_queue{ };
+		static_cast<void>(enqueue(queue, ask("Review this pull request"), 0U));
+		static_cast<void>(enqueue(queue, { .Label = "next", .Text = "next" }, queue.Revision));
+		const auto first  = queue.Entries[0].Id;
+		const auto second = queue.Entries[1].Id;
+		expect(listed(queue.Entries[0]) && begin_turn(queue, first, 5U) == queue_refusal::not_editable, "a waiting message is listed and has no turn to begin");
+		static_cast<void>(claim(queue, first, { .Conversation = 9U }, queue.Revision));
+		expect(listed(queue.Entries[0]), "claimed and not yet begun, it is listed as Sending");
+		expect(begin_turn(queue, first, 0U) == queue_refusal::not_editable, "no run, no turn");
+		auto seen = queue.Revision;
+		expect(begin_turn(queue, first, 5U) == queue_refusal::none && queue.Entries[0].State == queued_state::sent && queue.Entries[0].Claim->Run == 5U && queue.Revision == seen + 1U,
+			   "its turn began inside its start, before its run was named: Sent, bound to that run");
+		expect(!listed(queue.Entries[0]) && listed(queue.Entries[1]), "the begun release is not listed; what waits is");
+		seen = queue.Revision;
+		expect(begin_turn(queue, first, 5U) == queue_refusal::none && queue.Revision == seen, "the same run again changes nothing");
+		expect(begin_turn(queue, first, 6U) == queue_refusal::not_editable, "another run's turn is not this message's");
+		expect(bind_run(queue, first, 5U) == queue_refusal::not_editable && queue.Entries[0].Claim->Run == 5U, "a later receipt changes nothing");
+		expect(holds_messages(queue) && next_release(queue, queue_agent::idle) == std::nullopt, "while its run has not ended, the session is held and nothing else goes");
+		expect(withdraw(queue, first, queue.Revision) == queue_refusal::not_editable && hold(queue, first, queue.Revision) == queue_refusal::not_editable,
+			   "it is no longer the reviewer's to change");
+		expect(finish(queue, first, queued_finish::went) == queue_refusal::none && queue.Entries.size() == 1U && queue.Entries[0].Id == second && queue.Paused == queue_pause::none,
+			   "its run's end settles it and it leaves the queue");
+		expect(next_release(queue, queue_agent::idle) == second, "then the next goes");
+
+		// A release bound to its run before the turn began (it read its
+		// material first) begins under that run only.
+		static_cast<void>(claim(queue, second, { }, queue.Revision));
+		static_cast<void>(bind_run(queue, second, 7U));
+		expect(begin_turn(queue, second, 8U) == queue_refusal::not_editable && begin_turn(queue, second, 7U) == queue_refusal::none && !listed(queue.Entries[0]),
+			   "an awaiting release begins under its own run");
+		expect(finish(queue, second, queued_finish::stopped) == queue_refusal::none && queue.Entries.empty() && queue.Paused == queue_pause::stopped,
+			   "a begun turn stopped leaves and pauses what remains");
+
+		// A begun turn that never took its message goes back first, listed.
+		auto back = agent_queue{ };
+		static_cast<void>(enqueue(back, ask("first"), 0U));
+		static_cast<void>(enqueue(back, ask("second"), back.Revision));
+		const auto returned = back.Entries[0].Id;
+		static_cast<void>(claim(back, returned, { }, back.Revision));
+		static_cast<void>(begin_turn(back, returned, 2U));
+		expect(finish(back, returned, queued_finish::not_taken) == queue_refusal::none && back.Entries[0].Id == returned && back.Entries[0].State == queued_state::queued
+				   && listed(back.Entries[0]) && back.Paused == queue_pause::none,
+			   "not taken, it is queued again, first and listed");
+		static_cast<void>(claim(back, returned, { }, back.Revision));
+		static_cast<void>(begin_turn(back, returned, 3U));
+		expect(finish(back, returned, queued_finish::unknown) == queue_refusal::none && back.Entries[0].State == queued_state::delivery_unknown && listed(back.Entries[0]),
+			   "uncertain, it is listed again with Discard");
+
+		// A crash while its turn ran: restored as uncertain, listed.
+		auto crashed = agent_queue{ };
+		static_cast<void>(enqueue(crashed, ask("ran"), 0U));
+		const auto ran = crashed.Entries[0].Id;
+		static_cast<void>(claim(crashed, ran, { }, crashed.Revision));
+		static_cast<void>(begin_turn(crashed, ran, 1U));
+		restore(crashed);
+		expect(crashed.Entries[0].State == queued_state::delivery_unknown && crashed.Entries[0].Claim->Run == 1U && listed(crashed.Entries[0]) && crashed.Paused == queue_pause::restarted,
+			   "a crash while its turn ran restores it as uncertain, identifiable and listed");
+
+		// A steered correction keeps Sent to agent in the list.
+		auto steered = agent_queue{ };
+		static_cast<void>(enqueue(steered, { .Label = "s", .Text = "s" }, 0U));
+		const auto correction = steered.Entries[0].Id;
+		static_cast<void>(claim(steered, correction, { .Route = queued_route::steer, .Run = 4U }, steered.Revision));
+		expect(begin_turn(steered, correction, 4U) == queue_refusal::not_editable, "a correction begins no turn");
+		static_cast<void>(acknowledge(steered, correction, "rs"));
+		expect(steered.Entries[0].State == queued_state::sent && listed(steered.Entries[0]), "a sent correction stays listed as Sent to agent");
+	}
 } // namespace
 
 auto main() -> int
 {
+	test_begun_release_leaves_the_pending_list();
 	test_claims_and_settled_corrections();
 	test_finish_maps_to_pause();
 	test_follow_up_decision();

@@ -197,6 +197,11 @@ namespace bpr::application {
 		/// and ended as `aFinish`: the core decides what it does to the
 		/// message and whether what remains pauses (RFC-BPR-0126 AC02).
 		void retired(const std::string& aSession, core::queued_finish aFinish);
+		/// \brief The run `aRun` of the turn the host started for `aSession`
+		/// began: the agent has its message, which the Agent tab now shows
+		/// as the running turn, so it leaves the pending list
+		/// (`core::begin_turn`). Its run's retirement still settles it.
+		void began(const std::string& aSession, std::uint64_t aRun);
 		/// \brief The run of the turn the host started for `aSession` retired
 		/// without the agent taking its message (a window close stopped it):
 		/// the message goes back first, the queue is not paused (Q10), and
