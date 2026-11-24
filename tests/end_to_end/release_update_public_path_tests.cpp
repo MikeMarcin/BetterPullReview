@@ -1,5 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../core/private_review_fixture.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/adapters/sqlite/release_update_recovery_store.hpp"
 #include "bpr/adapters/sqlite/release_update_store.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
@@ -11,6 +13,7 @@
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/app/release_update_desktop.hpp"
 #include "bpr/app/worker_executor.hpp"
+#include "bpr/application/review_composition_application_host.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/release_update_panel.hpp"
 #include "bpr/qt/release_update_recovery_dialog.hpp"
@@ -21,12 +24,17 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QComboBox>
+#include <QDialogButtonBox>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFont>
 #include <QLabel>
+#include <QListWidget>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTemporaryDir>
@@ -184,11 +192,172 @@ namespace {
 		expect(desktop->exit_code() == 0, "all update shutdown flushes succeed");
 		desktop.reset();
 		const auto recovered = adapters::sqlite::make_release_update_recovery_store(*options.ApplicationDataRoot)->load();
-		expect(recovered && recovered->size() == 2U && (*recovered)[0].Body != (*recovered)[1].Body, "both windows retain distinct text durably");
+		expect(recovered && recovered->size() == 2U && (*recovered)[0].Draft.Body != (*recovered)[1].Draft.Body, "both windows retain distinct text durably");
 		qt::release_update_recovery_dialog recovery{ *recovered };
 		const auto*                        text = recovery.findChild<QPlainTextEdit*>(QStringLiteral("updateRecoveryText"));
 		expect(text && text->isReadOnly() && text->toPlainText().startsWith(QStringLiteral("Retain update text")), "recovery presents inert copyable text");
 	}
+	auto visible_recovery() -> QDialog*
+	{
+		for (auto* widget : QApplication::topLevelWidgets()) {
+			if (widget->isVisible() && widget->objectName() == QStringLiteral("releaseUpdateRecoveryDialog")) {
+				return qobject_cast<QDialog*>(widget);
+			}
+		}
+		return nullptr;
+	}
+
+	void click_discard(QDialog& aRecovery, const QString& aButton, bool aConfirm)
+	{
+		auto* button = aRecovery.findChild<QPushButton*>(aButton);
+		expect(button && button->isEnabled(), "discard action available");
+		button->click();
+		auto* question = aRecovery.findChild<QMessageBox*>(QStringLiteral("confirmDiscardUpdateDrafts"));
+		expect(question && question->isVisible() && question->defaultButton() == question->button(QMessageBox::Cancel), "discard asks once, with Cancel as default");
+		for (auto* choice : question->buttons()) {
+			if (choice == question->button(QMessageBox::Cancel) ? !aConfirm : aConfirm && question->buttonRole(choice) == QMessageBox::DestructiveRole) {
+				choice->click();
+				QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+				return;
+			}
+		}
+		expect(false, "requested confirmation choice exists");
+	}
+
+	void desktop_recovery_lifecycle()
+	{
+		using fixture_access = app::detail::github_application_fixture_access;
+		using fixture        = app::detail::github_public_path_fixture;
+		QTemporaryDir                                   temporary;
+		app::detail::github_public_path_fixture_options options;
+		options.ApplicationDataRoot                 = root(temporary);
+		const auto                            store = adapters::sqlite::make_release_update_recovery_store(*options.ApplicationDataRoot);
+		app::github_application*              owner = nullptr;
+		std::unique_ptr<app::profile_desktop> desktop;
+		const auto                            start = [&] {
+			owner   = nullptr;
+			desktop = fixture_access::start_desktop(fixture::github_com, options, [&](auto aResult) { if (aResult) { owner = *aResult; } });
+			until([&] { return owner && !owner->windows().empty(); }, "composed profile starts for recovery");
+		};
+		const auto quit = [&] {
+			desktop->quit(0);
+			until([&] { return desktop->is_quiescent(); }, "profile desktop drains on Quit");
+			expect(desktop->exit_code() == 0, "profile desktop quits cleanly");
+			desktop.reset();
+			QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		};
+		const auto workbench = [&]() -> qt::workbench_window& { return *owner->window(owner->windows().front()); };
+		const auto menu      = [&] { return workbench().findChild<QAction*>(QStringLiteral("savedUpdateDraftsAction")); };
+		start();
+		expect(menu() && !menu()->isVisible() && !visible_recovery(), "empty store offers no menu entry and opens no dialog");
+		quit();
+
+		const std::string kept = "question: Can this stay within the original review?";
+		const auto        seed = [&] {
+			const auto                                           index   = private_review_fixture::index();
+			auto                                                 binding = private_review_fixture::binding();
+			const auto&                                          scope   = binding.Scope;
+			const adapters::sqlite::private_review_configuration configuration{
+				{ *options.ApplicationDataRoot, "github.com", "3", "octo-org/review-repository", 5 },
+				scope.Profile,
+				scope.Host,
+				scope.Account,
+				scope.Repository,
+				scope.PullRequest
+			};
+			const auto ledger = adapters::sqlite::make_private_review_store(configuration);
+			expect(ledger.has_value(), "synthetic private review ledger opens");
+			const auto frontier = (*ledger)->frontier();
+			expect(frontier.has_value(), "ledger assigns its own incarnation");
+			binding.Scope      = frontier->Scope;
+			binding.Comparison = index.diff().Alignment.Digest;
+			application::review_composition_application_host drafts{ **ledger };
+			const auto                                       committed = drafts.allocate_draft({ binding, { *binding.Comparison, core::diff_side::right, 1U } }, index, kept);
+			expect(committed && committed->records().size() == 1U, "the original inline text is committed to the real private review ledger");
+			return std::pair{ configuration, committed->records().front() };
+		};
+		const auto [configuration, original] = seed();
+
+		const auto read_original = [&] {
+			const auto ledger = adapters::sqlite::make_private_review_store(configuration);
+			expect(ledger.has_value(), "original review ledger still opens after shutdown");
+			const auto records = (*ledger)->list_drafts();
+			expect(records.has_value(), "read original review data");
+			const auto record = std::ranges::find_if(*records, [&](const auto& aDraft) { return aDraft.Draft.Draft.Body == kept; });
+			expect(record != records->end() && record->Draft.Draft.State == core::review_draft_state::drafting, "original comment is still exactly editable in the review ledger");
+			return *record;
+		};
+		const application::release_update_saved_draft exact{
+			adapters::sqlite::release_update_ledger_draft_identity(original.Binding.Scope, original.Draft.Draft.Id, original.Binding.Revision.HeadOid),
+			"Fixture review comment already saved in its pull request", original.Draft.Draft.Body, false
+		};
+		expect(!exact.Identity.empty(), "exact fixture ledger key can be saved");
+
+		auto mismatch           = exact;
+		mismatch.Body           = "Earlier wording of the same comment";
+		auto uncertain          = exact;
+		uncertain.Indeterminate = true;
+		auto legacy             = exact;
+		legacy.Identity         = "inline:1:1";
+		const application::release_update_saved_draft raw{
+			"window:1:editor", "Unsubmitted editor text", "Raw editor text remains in update recovery.", false
+		};
+		expect(app::save_update_recovery(*options.ApplicationDataRoot, { raw, exact, uncertain }), "the update save effect verifies a mixed snapshot");
+		const auto saved = store->load();
+		expect(saved && saved->size() == 2U && (*saved)[0].Draft == raw && (*saved)[1].Draft == uncertain,
+			   "the update saves raw and indeterminate text while omitting the exact durable draft");
+		expect(store->save({ exact, mismatch, legacy }), "seed exact, mismatched and unverifiable legacy copies");
+		start();
+		auto* recovery = visible_recovery();
+		expect(recovery && menu()->text() == QStringLiteral("Saved update drafts (4)"), "launch removes only the verified duplicate and shows the four remaining copies");
+		auto* list = recovery->findChild<QListWidget*>(QStringLiteral("updateRecoveryDrafts"));
+		expect(list && list->count() == 4, "reviewer sees all four retained rows");
+		expect(list->item(1)->text().contains(QStringLiteral("publication may have completed")), "uncertain publication stays visible with its warning");
+		auto* copy = recovery->findChild<QPushButton*>(QStringLiteral("copyUpdateDraft"));
+		expect(copy && copy->isEnabled(), "Copy is available for the selected row");
+		list->setCurrentRow(2);
+		copy->click();
+		expect(QApplication::clipboard()->text() == QString::fromStdString(mismatch.Body), "Copy sends only the selected draft text");
+		QApplication::clipboard()->clear();
+		const auto renderRoot = qEnvironmentVariable("BPR_UPDATE_RECOVERY_RENDER_ROOT");
+		if (!renderRoot.isEmpty()) {
+			expect(QDir{ }.mkpath(renderRoot) && recovery->grab().save(QDir{ renderRoot }.filePath(QStringLiteral("saved-update-drafts.png"))), "rendered the composed recovery dialog");
+		}
+		click_discard(*recovery, QStringLiteral("discardUpdateDraft"), false);
+		expect(list->count() == 4, "Cancel keeps the selected row");
+		recovery->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Close)->click();
+		expect(!visible_recovery(), "Close dismisses the window");
+		quit();
+		const auto shown = store->load();
+		expect(shown && shown->size() == 4U && std::ranges::all_of(*shown, &application::release_update_recovery_row::Shown),
+			   "Close kept the rows and showing them was recorded durably");
+		start();
+		expect(!visible_recovery() && menu()->isVisible() && menu()->text() == QStringLiteral("Saved update drafts (4)"),
+			   "shown copies stay available from Help without opening at launch");
+		menu()->trigger();
+		recovery = visible_recovery();
+		expect(recovery, "Help opens the recovery window");
+		click_discard(*recovery, QStringLiteral("discardUpdateDraft"), true);
+		until([&] { return menu()->text() == QStringLiteral("Saved update drafts (3)"); }, "single confirmed discard refreshes the menu count");
+		recovery->close();
+		workbench().open_settings(qt::settings_page::storage_and_privacy);
+		auto* settingsButton = workbench().settings()->findChild<QPushButton*>(QStringLiteral("settingsSavedUpdateDrafts"));
+		expect(settingsButton && settingsButton->isVisible() && settingsButton->text() == menu()->text(), "Settings Troubleshooting offers the same current count");
+		settingsButton->click();
+		recovery = visible_recovery();
+		expect(recovery, "Settings opens the recovery window");
+		click_discard(*recovery, QStringLiteral("discardAllUpdateDrafts"), false);
+		expect(menu()->text() == QStringLiteral("Saved update drafts (3)"), "Cancel leaves all rows in place");
+		click_discard(*recovery, QStringLiteral("discardAllUpdateDrafts"), true);
+		until([&] { return !menu()->isVisible() && !settingsButton->isVisible(); }, "confirmed Discard all removes both entry points");
+		quit();
+		start();
+		expect(!visible_recovery() && !menu()->isVisible(), "discarded rows never open another launch");
+		quit();
+		const auto retained = read_original();
+		expect(retained.Binding == original.Binding && retained.Draft == original.Draft, "recovery discard left the original review data unchanged");
+	}
+
 	void gestures_restart_and_staging()
 	{
 		QTemporaryDir                        temporary;
@@ -402,7 +571,7 @@ namespace {
 		auto recovery = adapters::sqlite::make_release_update_recovery_store(state);
 		expect(!seed || recovery->save(drafts), "seed real private recovery store");
 		const auto retained = recovery->load();
-		expect(retained && *retained == drafts, "native draft text and indeterminate marker retained exactly");
+		expect(retained && std::ranges::equal(*retained, drafts, { }, &application::release_update_recovery_row::Draft), "native draft text and indeterminate marker retained exactly");
 		auto store = adapters::sqlite::make_review_mutation_recovery_store({ state, "github.com", "21", "fixture/update-qualification", 1 });
 		expect(store.has_value(), "real publication recovery store opens");
 		application::review_mutation_recovery_record record;
@@ -540,6 +709,7 @@ try {
 	}
 #endif
 	root_wiring();
+	desktop_recovery_lifecycle();
 	gestures_restart_and_staging();
 	public_release_access_persists();
 	unavailable_installations();

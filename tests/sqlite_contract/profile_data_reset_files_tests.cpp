@@ -121,7 +121,7 @@ namespace {
 	{
 		return {
 			"state/v1/remembered-connections.sqlite3", "state/v1/profile-registry.sqlite3",
-			"state/v1/release-update.sqlite3", "state/v1/update-draft-recovery.sqlite3", "state/v1/a-store-added-later.sqlite3",
+			"state/v1/release-update.sqlite3", "state/v1/update-draft-recovery.sqlite3", "state/v1/update-draft-recovery-shown.sqlite3", "state/v1/a-store-added-later.sqlite3",
 			"logs/session-0123456789abcdef0123456789abcdef-00000001.jsonl", "logs/not-a-log-name",
 			"agent-workspace-ownership-v1/claim", "config-global", "home/.gitconfig", "profiles/other/state/v1/review-ledger.sqlite3",
 			"updates/pending", "an-unknown-top-level-file"

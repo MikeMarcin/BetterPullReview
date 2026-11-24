@@ -1341,6 +1341,27 @@ namespace bpr::adapters::sqlite::detail {
 		return adopt(review_ledger_database{ *opened }, std::move(aStop));
 	}
 
+	auto review_ledger_database::open_read_only(state_directory& aDirectory)
+		-> std::expected<review_ledger_database, failure>
+	{
+		if (!sqlite_runtime_ready()) {
+			return std::unexpected(failure::unavailable);
+		}
+		auto opened = open_private_store_database(aDirectory, "review-ledger.sqlite3", SQLITE_OPEN_READONLY | SQLITE_OPEN_NOFOLLOW | SQLITE_OPEN_FULLMUTEX);
+		if (!opened) {
+			return std::unexpected(private_store_database_failure(opened.error()));
+		}
+		auto owned = review_ledger_database{ *opened };
+		if (const auto configured = configure_connection(*opened, true); !configured) {
+			return std::unexpected(configured.error());
+		}
+		(void)::sqlite3_limit(*opened, SQLITE_LIMIT_LENGTH, static_cast<int>(2U << 20U));
+		if (const auto validated = validate(*opened); !validated) {
+			return std::unexpected(validated.error());
+		}
+		return owned;
+	}
+
 	auto review_ledger_database::adopt(
 		review_ledger_database aOwned, std::stop_token aStop)
 		-> std::expected<review_ledger_database, failure>

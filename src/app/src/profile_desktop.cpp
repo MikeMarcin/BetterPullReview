@@ -1,5 +1,6 @@
 #include "bpr/app/profile_desktop.hpp"
 #include "about_desktop.hpp"
+#include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/adapters/sqlite/release_update_recovery_store.hpp"
 #include "bpr/app/worker_executor.hpp"
@@ -38,6 +39,47 @@
 #include <utility>
 
 namespace bpr::app {
+	namespace {
+		using recovery_row = application::release_update_recovery_row;
+		using recovery_id  = application::release_update_recovery_id;
+
+		auto load_update_recovery(const std::filesystem::path& aRoot) -> application::release_update_saved_drafts
+		{
+			auto store = adapters::sqlite::make_release_update_recovery_store(aRoot);
+			auto rows  = store->load();
+			if (!rows || rows->empty()) {
+				return rows;
+			}
+			std::vector<application::release_update_saved_draft> copies;
+			copies.reserve(rows->size());
+			for (auto& row : *rows) {
+				copies.push_back(std::move(row.Draft));
+			}
+			const auto matches = adapters::sqlite::restorable_release_update_drafts(aRoot, copies);
+			for (std::size_t index = 0; index < copies.size(); ++index) {
+				(*rows)[index].Draft = std::move(copies[index]);
+			}
+			std::vector<recovery_id> ids;
+			for (const auto index : matches) {
+				ids.push_back((*rows)[index].Id);
+			}
+			if (!ids.empty() && store->discard(ids)) {
+				std::erase_if(*rows, [&](const auto& aRow) { return std::ranges::find(ids, aRow.Id) != ids.end(); });
+			}
+			return rows;
+		}
+
+	}
+
+	auto save_update_recovery(const std::filesystem::path& aRoot, std::vector<application::release_update_saved_draft> aDrafts) -> bool
+	{
+		const auto matches = adapters::sqlite::restorable_release_update_drafts(aRoot, aDrafts);
+		// The adapter yields matching indices in order. Erase from the back to keep the other indices valid.
+		for (auto match = matches.rbegin(); match != matches.rend(); ++match) {
+			aDrafts.erase(aDrafts.begin() + static_cast<std::ptrdiff_t>(*match));
+		}
+		return adapters::sqlite::make_release_update_recovery_store(aRoot)->save(aDrafts);
+	}
 
 	class profile_desktop::implementation final : public QObject,
 												  public application::profile_management_projection_port,
@@ -61,6 +103,7 @@ namespace bpr::app {
 			std::unique_ptr<github_application_startup>            Startup;
 			std::unique_ptr<github_application>                    Runtime;
 			std::unique_ptr<qt::release_update_recovery_dialog>    Recovery;
+			std::vector<recovery_row>                              RecoveryRows;
 			bool                                                   RecoveryReady     = false;
 			bool                                                   RecoveryPresented = false;
 			std::map<core::bpr_window_id, window_entry>            Windows;
@@ -227,11 +270,11 @@ namespace bpr::app {
 					static_cast<void>(profile);
 					snapshots.emplace_back(entry.Runtime->desktop_update_recovery_root(), entry.Runtime->desktop_update_drafts());
 				}
-				Effects.post([self = shared_from_this(), pendingSnapshots = std::move(snapshots)] {
+				Effects.post([self = shared_from_this(), pendingSnapshots = std::move(snapshots)]() mutable {
 					bool saved = true;
 					try {
-						for (const auto& [root, drafts] : pendingSnapshots) {
-							if (!adapters::sqlite::make_release_update_recovery_store(root)->save(drafts)) {
+						for (auto& [root, drafts] : pendingSnapshots) {
+							if (!save_update_recovery(root, std::move(drafts))) {
 								saved = false;
 								break;
 							}
@@ -667,6 +710,9 @@ namespace bpr::app {
 				if (entry.Runtime) {
 					entry.Runtime->desktop_update_freeze(!aEnabled);
 				}
+				if (entry.Recovery) {
+					entry.Recovery->setEnabled(aEnabled);
+				}
 				for (auto& [id, selected] : entry.Windows) {
 					static_cast<void>(id);
 					if (selected.Presented) {
@@ -973,6 +1019,89 @@ namespace bpr::app {
 				detail::note_startup_failure(aSource, aCause);
 			}
 		}
+		void open_saved_update_drafts(core::bpr_window_context aContext)
+		{
+			auto found = Runtimes.find(aContext.Profile);
+			if (Quitting || UpdatePreparing || found == Runtimes.end() || found->second.Closing || found->second.RecoveryRows.empty()) {
+				return;
+			}
+			auto& entry = found->second;
+			if (!entry.Recovery) {
+				auto discard = [weak = weak_from_this(), profile = aContext.Profile, serial = entry.StartupSerial](auto aIds) {
+					if (const auto self = weak.lock()) {
+						self->discard_saved_update_drafts(profile, serial, std::move(aIds));
+					}
+				};
+				entry.Recovery = std::make_unique<qt::release_update_recovery_dialog>(entry.RecoveryRows, std::move(discard));
+			}
+			if (const auto* opener = window(aContext)) {
+				entry.Recovery->setPalette(opener->palette());
+			}
+			entry.Recovery->show();
+			entry.Recovery->raise();
+			entry.Recovery->activateWindow();
+			if (!entry.RecoveryPresented) {
+				entry.RecoveryPresented = true;
+				std::vector<recovery_id> unseen;
+				for (const auto& row : entry.RecoveryRows) {
+					if (!row.Shown) {
+						unseen.push_back(row.Id);
+					}
+				}
+				if (!unseen.empty()) {
+					update_recovery_rows(aContext.Profile, entry, std::move(unseen), false);
+				}
+			}
+		}
+
+		void discard_saved_update_drafts(core::bpr_profile_id aProfile, std::uint64_t aSerial, std::vector<recovery_id> aIds)
+		{
+			const auto found = Runtimes.find(aProfile);
+			if (found == Runtimes.end() || found->second.StartupSerial != aSerial || !found->second.Recovery) {
+				return;
+			}
+			if (Quitting || UpdatePreparing || found->second.Closing) {
+				found->second.Recovery->discard_failed();
+				return;
+			}
+			update_recovery_rows(aProfile, found->second, std::move(aIds), true);
+		}
+
+		void update_recovery_rows(core::bpr_profile_id aProfile, runtime_entry& aEntry, std::vector<recovery_id> aIds, bool aDiscard)
+		{
+			const auto root   = aEntry.Runtime->desktop_update_recovery_root();
+			const auto serial = aEntry.StartupSerial;
+			Effects.post([self = shared_from_this(), aProfile, serial, root, lease = aEntry.Runtime->desktop_update_recovery_lease(), ids = std::move(aIds), aDiscard]() mutable {
+				static_cast<void>(lease);
+				bool saved = false;
+				try {
+					const auto store = adapters::sqlite::make_release_update_recovery_store(root);
+					saved            = aDiscard ? store->discard(ids) : store->mark_shown(ids);
+				} catch (...) {
+					saved = false;
+				}
+				self->Decisions.post([self, aProfile, serial, completedIds = std::move(ids), aDiscard, saved] {
+					const auto found = self->Runtimes.find(aProfile);
+					if (found == self->Runtimes.end() || found->second.StartupSerial != serial || !found->second.Recovery || !aDiscard) {
+						return;
+					}
+					auto& entry = found->second;
+					if (!saved) {
+						entry.Recovery->discard_failed();
+						return;
+					}
+					std::erase_if(entry.RecoveryRows, [&](const auto& aRow) { return std::ranges::find(completedIds, aRow.Id) != completedIds.end(); });
+					entry.Recovery->remove_rows(completedIds);
+					for (const auto& [id, selected] : entry.Windows) {
+						static_cast<void>(id);
+						if (selected.Presented) {
+							selected.Presented->present_saved_update_draft_count(entry.RecoveryRows.size());
+						}
+					}
+				});
+			});
+		}
+
 		void wire(github_application& aRuntime, core::bpr_window_context aContext)
 		{
 			auto* presented = aRuntime.window(aContext);
@@ -1004,6 +1133,12 @@ namespace bpr::app {
 				[weak, aContext] {if (const auto self=weak.lock();self && self->current(aContext)){ self->quit(0);
 } });
 			presented->adopt_profile_management(Projection, aContext.Profile, window_counts());
+			presented->set_saved_update_drafts_dispatch([weak, aContext] {
+				if (const auto self = weak.lock(); self && self->current(aContext)) {
+					self->open_saved_update_drafts(aContext);
+				}
+			});
+			presented->present_saved_update_draft_count(owner->second.RecoveryRows.size());
 			// [[BPR-1602]]. A confirmed Troubleshooting reset closes this
 			// profile's windows here and reopens it with the reset.
 			presented->set_profile_data_reset_dispatch([weak, aContext](core::profile_data_reset_request aRequest) {
@@ -1125,9 +1260,8 @@ namespace bpr::app {
 					const auto review = *std::exchange(fresh->second.Review, std::nullopt);
 					entry.Runtime->open_window_review(aContext, review);
 				}
-				if (entry.Recovery && !entry.RecoveryPresented) {
-					entry.RecoveryPresented = true;
-					entry.Recovery->show();
+				if (!entry.RecoveryPresented && std::ranges::any_of(entry.RecoveryRows, [](const auto& aRow) { return !aRow.Shown; })) {
+					open_saved_update_drafts(aContext);
 				}
 				complete_activation(entry, application::profile_activation_outcome::queued);
 				if (aContext.Profile == Initial && Completion) {
@@ -1229,11 +1363,12 @@ namespace bpr::app {
 			}
 			entry.Runtime   = std::move(*aResult);
 			const auto root = entry.Runtime->desktop_update_recovery_root();
-			Effects.post([self = shared_from_this(), aProfile, aSerial, root] {
+			Effects.post([self = shared_from_this(), aProfile, aSerial, root, lease = entry.Runtime->desktop_update_recovery_lease()] {
+				static_cast<void>(lease);
 				application::release_update_saved_drafts drafts = std::unexpected(application::release_update_recovery_failure::unavailable);
 				auto                                     cause  = std::exception_ptr{ };
 				try {
-					drafts = adapters::sqlite::make_release_update_recovery_store(root)->load();
+					drafts = load_update_recovery(root);
 				} catch (...) {
 					cause = std::current_exception();
 				}
@@ -1258,10 +1393,8 @@ namespace bpr::app {
 				}
 				return;
 			}
-			if (!aDrafts->empty()) {
-				entry.Recovery = std::make_unique<qt::release_update_recovery_dialog>(std::move(*aDrafts));
-			}
-			const auto weak = weak_from_this();
+			entry.RecoveryRows = std::move(*aDrafts);
+			const auto weak    = weak_from_this();
 			entry.Runtime->set_window_admission([weak](core::bpr_window_context aContext) {const auto self=weak.lock();return self && self->current(aContext); });
 			// [[BPR-1342]]. Open Review in New Window is the profile's New Window
 			// carrying one admitted destination: the same intent, the same

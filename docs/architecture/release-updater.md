@@ -230,21 +230,32 @@ state from the helper's empty environment.
 
 Every participating desktop freezes new window/profile work and its editors,
 captures all profiles' draft text, then requests the existing orderly shutdown.
-Inline drafts, raw conflicting editor text and whole-review text are saved as
-inert recovery records; publishing text is marked indeterminate. Existing
-publication reconciliation remains authoritative and updating never retries a
-write. Save failure refuses quit and re-enables the windows. Each process records
-a durable acknowledgment only after profile workers, layouts, preferences,
-restoration and updater state have drained without a persistence failure.
-Disappearance without that acknowledgment cannot authorize replacement.
+Unconfirmed inline drafts, raw editor text and whole-review text are saved as
+inert recovery records. An exact active draft already readable in the private
+review ledger needs no recovery copy. The proof uses the private ledger
+incarnation, scoped draft identity, bound head and exact body. Publishing
+text is marked indeterminate and kept. Existing publication reconciliation
+remains authoritative and updating never retries a write. Save failure
+refuses quit and re-enables the windows. Each process records a durable
+acknowledgment only after profile workers, layouts, preferences, restoration
+and updater state have drained without a persistence failure. Disappearance
+without that acknowledgment cannot authorize replacement.
 
-Recovery text is append-only in the profile's private
-`state/v1/update-draft-recovery.sqlite3`, bounded to 4,096 records and 16 MiB total,
-with 64 KiB per body. Existing versions are retained, not overwritten. Startup
-opens a read-only, copyable recovery window; it grants no publication authority
-and warns that indeterminate writes must be checked on GitHub. Overflow, corrupt
-or foreign schemas and failed writes refuse the barrier. No existing store is
-migrated irreversibly, and user state is never moved with the application bundle.
+The profile’s private `state/v1/update-draft-recovery.sqlite3` is bounded to
+4,096 records and 16 MiB total, with 64 KiB per body. An update leaves existing
+versions intact. On startup an exact ledger match can remove a redundant
+recovery copy. Legacy copies without a durable identity and copies marked
+indeterminate stay available until the reviewer discards them. A separate
+`update-draft-recovery-shown.sqlite3` records presentation without altering
+the v1 draft database schema, so the previous executable can read it on
+rollback. Unseen rows open the recovery dialog once. **Help** and
+**Settings › Storage & privacy › Troubleshooting** show the retained count
+and reopen the dialog. Copy and confirmed discard affect selected recovery
+text. Discard all removes the listed recovery rows in one transaction.
+Troubleshooting resets leave both files in place.
+
+Overflow, corrupt or foreign recovery schemas and failed draft saves refuse
+the update barrier. User state stays outside the application bundle.
 
 The helper waits at most 30 seconds for every captured acknowledgment and the
 exclusive running lock. Timeout aborts the prepared transaction and preserves the

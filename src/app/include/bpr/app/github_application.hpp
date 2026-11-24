@@ -8,6 +8,7 @@
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/profile_activation.hpp"
+#include "bpr/application/profile_runtime_lease.hpp"
 #include "bpr/application/profile_startup_admission.hpp"
 #include "bpr/application/tour_owner_channel.hpp"
 #include "bpr/core/device_authorization_model.hpp"
@@ -754,6 +755,7 @@ namespace bpr::app {
 		friend class profile_desktop;
 		[[nodiscard]] auto desktop_registry_root() const -> std::filesystem::path;
 		[[nodiscard]] auto desktop_update_recovery_root() const -> std::filesystem::path;
+		[[nodiscard]] auto desktop_update_recovery_lease() const -> std::shared_ptr<application::profile_runtime_lease>;
 		[[nodiscard]] auto desktop_update_drafts() const -> std::vector<application::release_update_saved_draft>;
 		[[nodiscard]] auto desktop_update_ready() const noexcept -> bool;
 		void               desktop_update_freeze(bool aFreeze);

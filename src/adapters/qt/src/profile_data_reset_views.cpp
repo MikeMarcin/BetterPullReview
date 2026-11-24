@@ -4,6 +4,7 @@
 
 #include "bpr/qt/destructive_question.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QEvent>
@@ -426,6 +427,22 @@ namespace bpr::qt {
 	void profile_reset_panel::set_dispatch(dispatch aDispatch)
 	{
 		Dispatch = std::move(aDispatch);
+	}
+
+	void profile_reset_panel::set_saved_update_drafts_action(QAction& aAction)
+	{
+		auto* const button = new QPushButton{ this };
+		button->setObjectName(QStringLiteral("settingsSavedUpdateDrafts"));
+		button->setAutoDefault(false);
+		static_cast<QVBoxLayout*>(layout())->insertWidget(0, button, 0, Qt::AlignLeft);
+		const auto render = [&aAction, button] {
+			button->setEnabled(aAction.isEnabled());
+			button->setVisible(aAction.isVisible());
+			button->setText(aAction.text());
+		};
+		connect(&aAction, &QAction::changed, button, render);
+		connect(button, &QPushButton::clicked, &aAction, &QAction::trigger);
+		render();
 	}
 
 	void profile_reset_panel::set_profile_label(const QString& aProfile)

@@ -1952,6 +1952,8 @@ namespace bpr::qt {
 		void               set_storage_location(const QString& aPath);
 		void               set_profile_label(const QString& aLabel);
 		/// \brief [[BPR-1602]]. Where a confirmed Troubleshooting reset goes.
+		void set_saved_update_drafts_dispatch(std::function<void()> aOpen);
+		void present_saved_update_draft_count(std::size_t aCount);
 		void set_profile_data_reset_dispatch(profile_reset_panel::dispatch aDispatch);
 		/// \brief [[BPR-1602]]. Says on the status bar what a reset did, once
 		/// the profile has reopened.
@@ -3777,6 +3779,7 @@ namespace bpr::qt {
 		QPushButton*                                       QueueDefaultsReset    = nullptr;
 		QLabel*                                            NotificationStatus    = nullptr;
 		QLineEdit*                                         StorageLocation       = nullptr;
+		QAction*                                           SavedUpdateDrafts     = nullptr;
 		profile_reset_panel*                               ProfileReset          = nullptr;
 		std::function<bool(const core::pull_request_ref&)> NotificationPreviewDispatch;
 		QCheckBox*                                         ActivityNotifications = nullptr;
