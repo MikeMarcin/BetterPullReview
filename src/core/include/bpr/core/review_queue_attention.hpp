@@ -514,10 +514,11 @@ namespace bpr::core {
 		-> attention_bucket;
 
 	/// \brief [[BPR-2049]]. Whether the reviewer said Seen on exactly the
-	/// current head while their approval still stands.
+	/// current head while their review still stands.
 	///
-	/// \details A later push is news again: the head no longer matches. A
-	/// verdict other than approved is never seen away.
+	/// \details A later push is news again: the head no longer matches.
+	/// Approved, changes requested and comment-only reviews can be seen past
+	/// (`seen_followup_verdict`); no review, or a dismissed one, never.
 	[[nodiscard]] auto head_seen(const queue_item_facts& aFacts) noexcept -> bool;
 
 	/// \brief [[BPR-2049]]. The activity a pull request shows once the
@@ -536,6 +537,13 @@ namespace bpr::core {
 	/// nothing. When GitHub dismissed it (a stale-review dismissal),
 	/// `approve_again` submits a new approval. Never on a pull request of
 	/// mine, and there is deliberately no way to withdraw an approval here.
+	///
+	/// The owner, 2026-11-24: "if I have made comments on a PR and a new
+	/// commit comes in that hasn't addressed my comments the PR still goes
+	/// into Needs Me and there doesn't appear to be anyway for me to get it
+	/// out of there". Seen is offered for a standing change request or
+	/// comment-only review too: the new commits still bring the row back (they
+	/// may be the answer), and Seen says they were not, until the next push.
 	enum class review_followup : std::uint8_t {
 		none,
 		seen,
@@ -544,17 +552,27 @@ namespace bpr::core {
 
 	[[nodiscard]] auto review_followup_for(const queue_item& aItem) noexcept -> review_followup;
 
-	/// \brief [[BPR-2217]]. Where my approval stands against the commits of
+	/// \brief Whether Seen can stand in for a verdict: a standing approval,
+	/// change request or comment-only review.
+	[[nodiscard]] constexpr auto seen_followup_verdict(const my_review_verdict aVerdict) noexcept -> bool
+	{
+		return aVerdict == my_review_verdict::approved || aVerdict == my_review_verdict::changes_requested || aVerdict == my_review_verdict::commented;
+	}
+
+	/// \brief [[BPR-2217]]. Where my review stands against the commits of
 	/// the pull request, as the review of it says.
 	enum class review_standing : std::uint8_t {
-		/// Nothing to say: not approved by me, or nothing moved since.
+		/// Nothing to say: no standing review by me, or nothing moved since.
 		none,
 		/// My approval still stands on GitHub and commits followed it.
 		new_commits_since_approval,
 		/// GitHub dismissed my approval when commits were pushed.
 		approval_dismissed,
-		/// I said Seen on every commit since my approval.
+		/// I said Seen on every commit since my review.
 		up_to_date,
+		/// My change request or comment-only review stands and commits
+		/// followed it.
+		new_commits_since_review,
 	};
 
 	/// \brief [[BPR-2217]]. What the review of a pull request says and
@@ -577,8 +595,11 @@ namespace bpr::core {
 		/// Seen's name and what it does; empty when it is not offered.
 		std::string_view Seen;
 		std::string_view SeenTip;
-		/// The one line the review says about my approval; empty for none.
+		/// The one line the review says about my review; empty for none.
 		std::string_view Note;
+		/// What Seen leaves standing, for the sentence said once it is
+		/// recorded ("your approval stands"); empty when Seen is not offered.
+		std::string_view Stands;
 
 		auto operator<=>(const review_followup_words&) const = default;
 	};
