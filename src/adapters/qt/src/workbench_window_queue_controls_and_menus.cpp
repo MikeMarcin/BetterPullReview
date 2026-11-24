@@ -1831,6 +1831,10 @@ namespace bpr::qt {
 		auto* diagnostics = diagnosticMenu->addAction(QStringLiteral("Diagnostics…"));
 		diagnostics->setObjectName(QStringLiteral("openDiagnosticsAction"));
 		connect(diagnostics, &QAction::triggered, this, [this] { open_settings(settings_page::storage_and_privacy); });
+		SavedUpdateDrafts = diagnosticMenu->addAction(QString{ });
+		SavedUpdateDrafts->setObjectName(QStringLiteral("savedUpdateDraftsAction"));
+		SavedUpdateDrafts->setMenuRole(QAction::NoRole);
+		SavedUpdateDrafts->setVisible(false);
 		diagnosticMenu->addSeparator();
 		const auto addExport = [this, diagnosticMenu](const QString& aLabel, const QString& aName, core::diagnostic_export_policy aPolicy) {
 			auto* action = diagnosticMenu->addAction(aLabel);

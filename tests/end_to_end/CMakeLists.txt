@@ -4100,7 +4100,7 @@ bpr_add_network_isolated_test(NAME application_profile_recovery_public_path WIND
 set_tests_properties(application_profile_recovery_public_path PROPERTIES
     RUN_SERIAL TRUE TIMEOUT 300 PASS_REGULAR_EXPRESSION "PROFILE_RECOVERY_COURSE_OK")
 bpr_add_executable(test_release_update_recovery release_update_recovery_tests.cpp)
-target_link_libraries(test_release_update_recovery PRIVATE BetterPullReview::AdapterSQLite Qt6::Core)
+target_link_libraries(test_release_update_recovery PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3 Qt6::Core)
 bpr_enable_hardening(test_release_update_recovery)
 bpr_enable_warnings(test_release_update_recovery)
 # [[BPR-1031]]. Uncontained on Windows: its first step narrows a QTemporaryDir

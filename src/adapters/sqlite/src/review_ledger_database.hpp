@@ -95,6 +95,10 @@ namespace bpr::adapters::sqlite::detail {
 			std::stop_token  aStop)
 			-> std::expected<review_ledger_database, failure>;
 
+		/// \brief Opens the current schema for proof reads without creating or migrating a ledger.
+		[[nodiscard]] static auto open_read_only(state_directory& aDirectory)
+			-> std::expected<review_ledger_database, failure>;
+
 		[[nodiscard]] auto handle() const noexcept -> ::sqlite3*;
 
 		/// \brief Returns the scope row id, inserting the scope if it is new.

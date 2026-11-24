@@ -1,10 +1,13 @@
 #include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/adapters/sqlite/testing.hpp"
+#include "bpr/core/hex.hpp"
 #include "private_review_codec.hpp"
 #include "private_review_database.hpp"
 #include "review_ledger_database.hpp"
+#include "storage_internal.hpp"
 #include <algorithm>
 #include <atomic>
+#include <charconv>
 #include <set>
 #include <sqlite3.h>
 #include <utility>
@@ -1106,6 +1109,52 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			return record;
 		}
+		constexpr std::string_view update_draft_prefix = "ledger1:";
+
+		[[nodiscard]] auto restorable_draft(sqlite3* aDatabase, const release_update_saved_draft& aCopy) -> bool
+		{
+			auto key = std::string_view{ aCopy.Identity };
+			if (aCopy.Indeterminate || !key.starts_with(update_draft_prefix)) {
+				return false;
+			}
+			key.remove_prefix(update_draft_prefix.size());
+			const auto scopeEnd = key.find(':');
+			if (scopeEnd == std::string_view::npos) {
+				return false;
+			}
+			const auto scopeBytes = key.substr(0, scopeEnd);
+			key.remove_prefix(scopeEnd + 1U);
+			const auto idEnd = key.find(':');
+			if (idEnd == std::string_view::npos) {
+				return false;
+			}
+			std::uint64_t id            = 0;
+			const auto [end, errorCode] = std::from_chars(key.data(), key.data() + idEnd, id);
+			if (errorCode != std::errc{ } || end != key.data() + idEnd || id == 0 || id > maximum_private_identity) {
+				return false;
+			}
+			const auto head  = key.substr(idEnd + 1U);
+			const auto match = guarded([&] {
+				query lookup{ aDatabase, "SELECT scope_id,identity_binding,incarnation FROM private_scope_state CROSS JOIN private_store_identity WHERE identity_binding=unhex(?1) AND singleton=1 LIMIT 2" };
+				lookup.bind(1, scopeBytes);
+				if (!lookup.row()) {
+					return false;
+				}
+				const auto scope    = lookup.record<private_review_scope>(1);
+				const auto scopeRow = lookup.integer(0);
+				if (scope.Incarnation != lookup.digest<private_ledger_incarnation>(2) || scopeRow > maximum_private_identity
+					|| !valid_private_scope(scope) || lookup.row()) {
+					return false;
+				}
+				private_database db{ aDatabase, static_cast<std::int64_t>(scopeRow), scope };
+				const auto       record = read_draft(db, id);
+				const auto&      draft  = record.Draft.Draft;
+				return draft.Id.value() == id && draft.State == review_draft_state::drafting
+					&& canonical_hex(record.Binding.Revision.HeadOid).view() == head && draft.Body == aCopy.Body;
+			});
+			return match.value_or(false);
+		}
+
 		[[nodiscard]] auto active_draft(const core::revisioned_review_draft& aDraft) -> bool
 		{
 			return (aDraft.Draft.State == core::review_draft_state::drafting || aDraft.Draft.State == core::review_draft_state::publishing) && !core::unused_review_draft(aDraft);
@@ -1787,4 +1836,39 @@ namespace bpr::adapters::sqlite {
 			return std::make_unique<sqlite_private_review_store>(std::move(*directory), std::move(*ledger), *scope, identity);
 		});
 	}
+	auto release_update_ledger_draft_identity(const core::private_review_scope& aScope, core::review_draft_id aDraft, const core::git_commit_oid& aHead) -> std::string
+	{
+		const auto scope = detail::encode_private(aScope);
+		if (!scope || !core::valid_private_scope(aScope) || !aHead.valid() || aDraft.value() == 0 || aDraft.value() > core::maximum_private_identity) {
+			return { };
+		}
+		return std::string{ detail::update_draft_prefix } + core::lower_hex(*scope) + ":" + std::to_string(aDraft.value()) + ":" + std::string{ core::canonical_hex(aHead).view() };
+	}
+
+	auto restorable_release_update_drafts(const std::filesystem::path& aRoot, std::span<const application::release_update_saved_draft> aDrafts) -> std::vector<std::size_t>
+	{
+		if (std::ranges::none_of(aDrafts, [](const auto& aDraft) { return !aDraft.Indeterminate && aDraft.Identity.starts_with(detail::update_draft_prefix); })) {
+			return { };
+		}
+		auto directory = detail::open_state_directory(aRoot);
+		if (!directory) {
+			return { };
+		}
+		auto ledger = detail::review_ledger_database::open_read_only(*directory);
+		if (!ledger) {
+			return { };
+		}
+		return detail::guarded([&] {
+				   detail::transaction      snapshot{ ledger->handle(), false };
+				   std::vector<std::size_t> result;
+				   for (std::size_t index = 0; index < aDrafts.size(); ++index) {
+					   if (detail::restorable_draft(ledger->handle(), aDrafts[index])) {
+						   result.push_back(index);
+					   }
+				   }
+				   return result;
+			   })
+			.value_or(std::vector<std::size_t>{ });
+	}
+
 }

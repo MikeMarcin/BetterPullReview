@@ -345,7 +345,7 @@ namespace bpr::core {
 
 	auto head_seen(const queue_item_facts& aFacts) noexcept -> bool
 	{
-		return !aFacts.SeenHead.empty() && aFacts.SeenHead == aFacts.Waiting.Head && aFacts.MyReview.Verdict == my_review_verdict::approved;
+		return !aFacts.SeenHead.empty() && aFacts.SeenHead == aFacts.Waiting.Head && seen_followup_verdict(aFacts.MyReview.Verdict);
 	}
 
 	auto seen_activity(queue_activity_observation aActivity, const queue_item_facts& aFacts) noexcept -> queue_activity_observation
@@ -362,25 +362,44 @@ namespace bpr::core {
 			return review_followup::none;
 		}
 		switch (aItem.Facts.MyReview.Verdict) {
-		case my_review_verdict::approved:          return aItem.Facts.Waiting.Head.empty() ? review_followup::none : review_followup::seen;
+		case my_review_verdict::approved:
+		case my_review_verdict::changes_requested:
+		case my_review_verdict::commented:         return aItem.Facts.Waiting.Head.empty() ? review_followup::none : review_followup::seen;
 		case my_review_verdict::dismissed:         return review_followup::approve_again;
-		case my_review_verdict::none:
-		case my_review_verdict::commented:
-		case my_review_verdict::changes_requested: break;
+		case my_review_verdict::none:              break;
 		}
 		return review_followup::none;
 	}
 
 	auto review_followup_words_for(const queue_item& aItem) noexcept -> review_followup_words
 	{
-		auto words     = review_followup_words{ };
-		words.Followup = review_followup_for(aItem);
+		auto       words   = review_followup_words{ };
+		const auto verdict = aItem.Facts.MyReview.Verdict;
+		words.Followup     = review_followup_for(aItem);
 		switch (words.Followup) {
 		case review_followup::seen:
+			words.Seen = "Seen";
+			switch (verdict) {
+			case my_review_verdict::changes_requested:
+				words.Standing = review_standing::new_commits_since_review;
+				words.SeenTip  = "Marks the new commits seen until the next push. Nothing is submitted to GitHub; your change request stands.";
+				words.Note     = "New commits since you requested changes. Your change request still stands on GitHub.";
+				words.Stands   = "your change request stands";
+				return words;
+			case my_review_verdict::commented:
+				words.Standing = review_standing::new_commits_since_review;
+				words.SeenTip  = "Marks the new commits seen until the next push. Nothing is submitted to GitHub; your comments stand.";
+				words.Note     = "New commits since your review. Your comments stand as they are.";
+				words.Stands   = "your comments stand";
+				return words;
+			case my_review_verdict::approved:
+			case my_review_verdict::dismissed:
+			case my_review_verdict::none:      break;
+			}
 			words.Standing = review_standing::new_commits_since_approval;
-			words.Seen     = "Seen";
 			words.SeenTip  = "Marks the new commits seen. Nothing is submitted to GitHub; your approval stands.";
 			words.Note     = "New commits since you approved. Your approval still stands on GitHub.";
+			words.Stands   = "your approval stands";
 			return words;
 		case review_followup::approve_again:
 			words.Standing   = review_standing::approval_dismissed;
@@ -392,7 +411,9 @@ namespace bpr::core {
 		}
 		if (!aItem.Membership.authored() && head_seen(aItem.Facts)) {
 			words.Standing = review_standing::up_to_date;
-			words.Note     = "Up to date: you have seen every commit since you approved.";
+			words.Note     = verdict == my_review_verdict::approved ? "Up to date: you have seen every commit since you approved."
+				: verdict == my_review_verdict::changes_requested   ? "Up to date: you have seen every commit since you requested changes."
+																	: "Up to date: you have seen every commit since your review.";
 		}
 		return words;
 	}

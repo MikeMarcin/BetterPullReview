@@ -807,16 +807,26 @@ namespace bpr::qt {
 		});
 	}
 
+	namespace {
+		/// What the status bar says once Seen is recorded, with what Seen
+		/// left standing in the core's words.
+		[[nodiscard]] auto seen_said(const core::queue_item& aItem) -> QString
+		{
+			const auto stands = core::review_followup_words_for(aItem).Stands;
+			return QStringLiteral("Marked the new commits on %1#%2 seen; %3. Nothing changed on GitHub.")
+				.arg(QString::fromStdString(aItem.Ref.Repository))
+				.arg(aItem.Ref.Number)
+				.arg(QString::fromUtf8(stands.data(), static_cast<qsizetype>(stands.size())));
+		}
+	} // namespace
+
 	void workbench_window::mark_new_commits_seen(const core::queue_item& aItem)
 	{
 		if (!HomeSeenDispatch || core::review_followup_for(aItem) != core::review_followup::seen) {
 			return;
 		}
 		HomeSeenDispatch(application::queue_seen_intent{ .Ref = aItem.Ref, .Head = aItem.Facts.Waiting.Head }, { });
-		statusBar()->showMessage(QStringLiteral("Marked the new commits on %1#%2 seen; your approval stands. Nothing changed on GitHub.")
-									 .arg(QString::fromStdString(aItem.Ref.Repository))
-									 .arg(aItem.Ref.Number),
-								 8000);
+		statusBar()->showMessage(seen_said(aItem), 8000);
 	}
 
 	void workbench_window::see_new_commits_from_review(const core::queue_item& aItem)
@@ -827,9 +837,7 @@ namespace bpr::qt {
 		// [[BPR-2249]]. The owner, 2026-11-17: "Seen in the compose review
 		// menu should close the PR same way approve does". Nothing is said
 		// or closed until the queue has kept it.
-		const auto said = QStringLiteral("Marked the new commits on %1#%2 seen; your approval stands. Nothing changed on GitHub.")
-							  .arg(QString::fromStdString(aItem.Ref.Repository))
-							  .arg(aItem.Ref.Number);
+		const auto said = seen_said(aItem);
 		HomeSeenDispatch(application::queue_seen_intent{ .Ref = aItem.Ref, .Head = aItem.Facts.Waiting.Head },
 						 [window = QPointer<workbench_window>{ this }, identity = IdentityText, said](const core::review_finish_transition aTransition) {
 							 if (window != nullptr) {
@@ -1840,8 +1848,9 @@ namespace bpr::qt {
 		if (SeenPullRequest != nullptr) {
 			const auto seen = item && core::review_followup_for(*item) == core::review_followup::seen && static_cast<bool>(HomeSeenDispatch);
 			SeenPullRequest->setEnabled(seen);
-			const auto seenTip = seen ? QStringLiteral("My approval still stands: marks the new commits seen. Nothing changes on GitHub.")
-									  : QStringLiteral("Offered when commits follow my standing approval.");
+			const auto words   = item ? core::review_followup_words_for(*item) : core::review_followup_words{ };
+			const auto seenTip = seen ? QString::fromUtf8(words.SeenTip.data(), static_cast<qsizetype>(words.SeenTip.size()))
+									  : QStringLiteral("Offered when commits follow my standing review.");
 			SeenPullRequest->setToolTip(seenTip);
 			SeenPullRequest->setStatusTip(seenTip);
 		}

@@ -302,4 +302,10 @@ namespace bpr::application {
 		}
 		return result;
 	}
+	auto shared_draft_application_host::durable_scope(core::review_draft_id aDraft) const -> std::optional<core::private_review_scope>
+	{
+		const auto& durable = Implementation->Durable;
+		return std::ranges::find(durable, aDraft) != durable.end() ? Implementation->DurableScope : std::nullopt;
+	}
+
 }

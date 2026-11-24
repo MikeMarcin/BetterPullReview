@@ -122,7 +122,7 @@ namespace bpr::adapters::sqlite {
 			if (std::ranges::find(roots, aPath) != roots.end()) {
 				return true;
 			}
-			constexpr std::array shared{ "profile-registry.sqlite3", "release-update.sqlite3", "update-draft-recovery.sqlite3" };
+			constexpr std::array shared{ "profile-registry.sqlite3", "release-update.sqlite3", "update-draft-recovery.sqlite3", "update-draft-recovery-shown.sqlite3" };
 			return std::ranges::any_of(shared, [aPath](std::string_view aName) {
 				const auto base = std::string{ "state/v1/" } + std::string{ aName };
 				if (!aPath.starts_with(base)) {

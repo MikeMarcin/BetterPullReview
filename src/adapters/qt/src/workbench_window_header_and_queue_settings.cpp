@@ -18,6 +18,7 @@
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/refresh_note.hpp"
+#include "bpr/qt/release_update_recovery_dialog.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
@@ -1181,6 +1182,18 @@ namespace bpr::qt {
 		ProfileReset->set_profile_label(ProfileLabel);
 		storageColumn->addWidget(ProfileReset);
 		SettingsWindow->adopt_panel(settings_page::storage_and_privacy, storage);
+	}
+
+	void workbench_window::set_saved_update_drafts_dispatch(std::function<void()> aOpen)
+	{
+		connect(SavedUpdateDrafts, &QAction::triggered, this, std::move(aOpen));
+		ProfileReset->set_saved_update_drafts_action(*SavedUpdateDrafts);
+	}
+
+	void workbench_window::present_saved_update_draft_count(std::size_t aCount)
+	{
+		SavedUpdateDrafts->setText(release_update_recovery_dialog::action_label(aCount));
+		SavedUpdateDrafts->setVisible(aCount != 0U);
 	}
 
 	void workbench_window::set_profile_data_reset_dispatch(profile_reset_panel::dispatch aDispatch)

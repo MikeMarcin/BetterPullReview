@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -489,7 +490,11 @@ namespace {
 
 		auto changes                   = item;
 		changes.Facts.MyReview.Verdict = core::my_review_verdict::changes_requested;
-		expect(core::review_followup_for(changes) == core::review_followup::none, "a change request is not seen away");
+		expect(core::review_followup_for(changes) == core::review_followup::seen, "a standing change request offers Seen");
+
+		auto never                   = item;
+		never.Facts.MyReview.Verdict = core::my_review_verdict::none;
+		expect(core::review_followup_for(never) == core::review_followup::none, "no review read: nothing to see past");
 
 		auto mine                       = item;
 		mine.Membership.OwnsPullRequest = true;
@@ -506,6 +511,57 @@ namespace {
 		facts.Waiting.Head     = facts.SeenHead;
 		facts.MyReview.Verdict = core::my_review_verdict::dismissed;
 		expect(!core::head_seen(facts), "a dismissed approval is never seen away");
+	}
+
+	/// The owner, 2026-11-24: commented on a pull request, then a commit
+	/// came in that did not address it, and the row sat in Needs me with no
+	/// way out. A push still brings it back (it may be the answer); Seen on
+	/// the head takes it out until the next push, for a comment-only review
+	/// and a change request alike. An author's unread reply keeps it in
+	/// Needs me after Seen, for the reply rather than the commits.
+	void test_seen_after_comments_or_change_request()
+	{
+		const auto reviewed = core::queue_membership{ .Requested = true, .Reviewed = true };
+		const auto activity = core::queue_activity_observation{ .ReviewedByMe = true, .HeadMovedSinceMyReview = true };
+		for (const auto verdict : { core::my_review_verdict::commented, core::my_review_verdict::changes_requested }) {
+			auto item               = core::queue_item{ .Membership = reviewed, .Bucket = core::bucket_for(reviewed, activity) };
+			item.Facts.Waiting.Head = std::string(40, 'b');
+			item.Facts.MyReview     = { .Verdict = verdict, .NewCommits = true };
+			const auto said         = std::string{ core::name(verdict) };
+			expect(item.Bucket == core::attention_bucket::changed_since_my_review && core::home_section_for(item) == core::home_queue_section::needs_you,
+				   said + ": a commit after my review, my threads unanswered, needs me");
+			expect(core::review_followup_for(item) == core::review_followup::seen, said + ": the row offers Seen");
+
+			const auto words = core::review_followup_words_for(item);
+			expect(words.Standing == core::review_standing::new_commits_since_review && words.Seen == "Seen" && words.Approve == "Approve" && words.ApproveTip.empty(),
+				   said + ": Seen beside an ordinary Approve");
+			expect(words.SeenTip.find("Nothing is submitted to GitHub") != std::string_view::npos && words.SeenTip.find("approval") == std::string_view::npos
+					   && words.Note.find("approv") == std::string_view::npos && !words.Stands.empty() && words.Stands.find("approval") == std::string_view::npos,
+				   said + ": nothing calls it an approval");
+
+			auto seen           = item;
+			seen.Facts.SeenHead = seen.Facts.Waiting.Head;
+			expect(core::head_seen(seen.Facts), said + ": Seen on the current head is seen");
+			seen.Bucket = core::bucket_for(reviewed, core::seen_activity(activity, seen.Facts));
+			expect(seen.Bucket == core::attention_bucket::quiet && core::home_section_for(seen) == core::home_queue_section::following, said + ": Seen moves it to Following");
+			const auto upToDate = core::review_followup_words_for(seen);
+			expect(upToDate.Standing == core::review_standing::up_to_date && upToDate.Seen.empty() && upToDate.Note.starts_with("Up to date")
+					   && upToDate.Note.find("approved") == std::string_view::npos,
+				   said + ": the review then reads up to date");
+
+			auto replied           = activity;
+			replied.UnseenComments = 1U;
+			auto repliedItem       = seen;
+			repliedItem.Bucket     = core::bucket_for(reviewed, core::seen_activity(replied, seen.Facts));
+			expect(core::bucket_for(reviewed, replied) == core::attention_bucket::changed_since_my_review
+					   && repliedItem.Bucket == core::attention_bucket::new_comments_or_author_replies && core::home_section_for(repliedItem) == core::home_queue_section::needs_you,
+				   said + ": a commit after the author replied needs me, and Seen leaves the reply to read");
+
+			auto pushed         = seen.Facts;
+			pushed.Waiting.Head = std::string(40, 'c');
+			expect(!core::head_seen(pushed) && core::bucket_for(reviewed, core::seen_activity(activity, pushed)) == core::attention_bucket::changed_since_my_review,
+				   said + ": the next push needs me again");
+		}
 	}
 
 	/// [[BPR-2217]]. The review of the pull request says where my approval
@@ -543,6 +599,7 @@ namespace {
 		expect(core::review_followup_words_for(mine) == core::review_followup_words{ }, "nothing on a pull request of mine");
 		expect(core::review_followup_words_for(core::queue_item{ }) == core::review_followup_words{ }, "nothing without an approval");
 		expect(core::review_followup_words_for(item) == core::review_followup_words_for(item), "equal items, equal words");
+		expect(stands.Stands == "your approval stands", "Seen leaves the approval standing");
 	}
 
 	void test_my_standing_review_verdict()
@@ -672,6 +729,7 @@ auto main() -> int
 	test_the_reason_travels_with_the_item();
 	test_my_standing_review_verdict();
 	test_seen_and_approve_again();
+	test_seen_after_comments_or_change_request();
 	test_review_followup_words();
 
 	std::cout << "review-queue-attention-tests:pass\n";

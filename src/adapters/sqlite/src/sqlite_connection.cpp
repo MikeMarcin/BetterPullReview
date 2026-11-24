@@ -304,7 +304,7 @@ namespace bpr::adapters::sqlite::detail {
 	}
 
 	namespace {
-		[[nodiscard]] auto apply_connection_policy(::sqlite3* aDatabase)
+		[[nodiscard]] auto apply_connection_policy(::sqlite3* aDatabase, bool aReadOnly)
 			-> std::expected<void, failure>
 		{
 			constexpr std::int64_t catalogPageSize         = 4'096;
@@ -392,7 +392,7 @@ namespace bpr::adapters::sqlite::detail {
 					return result;
 				}
 			}
-			auto journal = scalar_text(aDatabase, "PRAGMA journal_mode = WAL");
+			auto journal = scalar_text(aDatabase, aReadOnly ? "PRAGMA journal_mode" : "PRAGMA journal_mode = WAL");
 			if (!journal) {
 				return std::unexpected(journal.error());
 			}
@@ -430,13 +430,13 @@ namespace bpr::adapters::sqlite::detail {
 		}
 	} // namespace
 
-	[[nodiscard]] auto configure_connection(::sqlite3* aDatabase)
+	[[nodiscard]] auto configure_connection(::sqlite3* aDatabase, bool aReadOnly)
 		-> std::expected<void, failure>
 	{
 		// [[BPR-1831]]. Every store's connection passes here once it is open:
 		// its open's outcome, duration and schema version.
 		const auto started = std::chrono::steady_clock::now();
-		auto       result  = apply_connection_policy(aDatabase);
+		auto       result  = apply_connection_policy(aDatabase, aReadOnly);
 		if (storage_diagnostics_active()) {
 			const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
 			note_storage_open(aDatabase, result ? std::nullopt : std::optional{ result.error() }, static_cast<std::uint32_t>(std::clamp<long long>(elapsed, 0, 0xFFFFFFFFLL)));

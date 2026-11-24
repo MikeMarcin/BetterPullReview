@@ -12,6 +12,7 @@
 #include <functional>
 #include <optional>
 
+class QAction;
 class QCheckBox;
 class QLabel;
 class QPushButton;
@@ -92,6 +93,7 @@ namespace bpr::qt {
 		using dispatch = std::function<void(core::profile_data_reset_request)>;
 		explicit profile_reset_panel(QWidget* aParent = nullptr);
 		void set_dispatch(dispatch aDispatch);
+		void set_saved_update_drafts_action(QAction& aAction);
 		void set_profile_label(const QString& aProfile);
 		/// \brief Says why a reset did not start, or clears with empty text.
 		void               present_status(const QString& aStatus);

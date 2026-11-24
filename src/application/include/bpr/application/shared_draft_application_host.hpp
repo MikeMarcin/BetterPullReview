@@ -70,6 +70,8 @@ namespace bpr::application {
 		[[nodiscard]] auto authority() const noexcept -> const shared_draft_authority&;
 		/// \brief Captures retained private drafts for an orderly update; grants no publication authority.
 		[[nodiscard]] auto recovery_snapshot() const -> std::vector<core::revisioned_review_draft>;
+		/// Scope of an acknowledged store row. Its current body must still be verified in storage.
+		[[nodiscard]] auto durable_scope(core::review_draft_id aDraft) const -> std::optional<core::private_review_scope>;
 
 	private:
 		struct implementation;

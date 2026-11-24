@@ -12,6 +12,12 @@ Installing an update closes every window. If a GitHub publish was in progress
 with an unknown result, check GitHub before publishing again: updating never
 retries it.
 
+Text recovered during an update appears in **Saved update drafts**. Use
+**Copy** to take the selected text, or **Discard…** to remove a recovery
+copy. **Close** keeps the copies. Open them again from **Help › Saved update
+drafts** or **Settings › Storage & privacy › Troubleshooting**. Draft comments
+already saved in the review are available there when you return to it.
+
 ## If an installation is interrupted
 
 The old version is kept as a backup until the new one starts cleanly, so it

@@ -142,7 +142,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// commits, a pinned page size, and a page-count ceiling. Every database this
 	/// project opens goes through it, so a second store cannot quietly adopt
 	/// weaker settings than the one that was reviewed.
-	[[nodiscard]] auto configure_connection(::sqlite3* aDatabase)
+	[[nodiscard]] auto configure_connection(::sqlite3* aDatabase, bool aReadOnly = false)
 		-> std::expected<void, failure>;
 } // namespace bpr::adapters::sqlite::detail
 

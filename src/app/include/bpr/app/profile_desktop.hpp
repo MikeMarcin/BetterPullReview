@@ -37,6 +37,8 @@ namespace bpr::app {
 	/// where the platform offers no tray. This function is the one place that
 	/// mapping exists.
 	[[nodiscard]] auto native_menu_bar_status_item() -> std::shared_ptr<QSystemTrayIcon>;
+	/// \brief Saves a profile's update snapshot on the worker lane, after checking the private ledger.
+	[[nodiscard]] auto save_update_recovery(const std::filesystem::path& aRoot, std::vector<application::release_update_saved_draft> aDrafts) -> bool;
 	/// Owns profile runtimes and exact window lifetimes independently of any one window.
 	class profile_desktop final
 	{

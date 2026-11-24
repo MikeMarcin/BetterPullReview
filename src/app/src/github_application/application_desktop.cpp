@@ -1,4 +1,5 @@
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
+#include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/profile_data_reset.hpp"
@@ -72,11 +73,15 @@ namespace bpr::app {
 
 	auto github_application::desktop_update_recovery_root() const -> std::filesystem::path { return Profile->ApplicationDataRoot; }
 
+	auto github_application::desktop_update_recovery_lease() const -> std::shared_ptr<application::profile_runtime_lease> { return Profile->RuntimeLease; }
+
 	auto github_application::desktop_update_ready() const noexcept -> bool
 	{
-		return (!Profile->ReviewRestoration || Profile->ReviewRestoration->durable())
-			&& (!Profile->AppearancePreferences || Profile->AppearancePreferences->durable())
-			&& (!Profile->WorkbenchPreferences || (!Profile->WorkbenchPreferences->is_busy() && Profile->WorkbenchPreferences->is_quiescent() && !Profile->WorkbenchPreferences->delivery_failed()));
+		return std::ranges::all_of(Sessions, [](const auto& aEntry) {
+				   const auto& review = aEntry.second->PrivateReview;
+				   return !review || review->is_quiescent();
+			   })
+			&& (!Profile->ReviewRestoration || Profile->ReviewRestoration->durable()) && (!Profile->AppearancePreferences || Profile->AppearancePreferences->durable()) && (!Profile->WorkbenchPreferences || (!Profile->WorkbenchPreferences->is_busy() && Profile->WorkbenchPreferences->is_quiescent() && !Profile->WorkbenchPreferences->delivery_failed()));
 	}
 
 	void github_application::desktop_update_freeze(bool aFreeze)
@@ -105,8 +110,14 @@ namespace bpr::app {
 					+ " · head " + std::string{ core::canonical_hex(authority.Target.ExpectedHead).view() }
 					+ " · " + (draft.Anchor.Side == core::diff_side::right ? "right" : "left")
 					+ (draft.StartLine ? " lines " + std::to_string(*draft.StartLine) + "-" + std::to_string(draft.Anchor.Line) : " line " + std::to_string(draft.Anchor.Line));
-				result.push_back({ "inline:" + std::to_string(owner.Scope.value()) + ":" + std::to_string(draft.Id.value()), scope, draft.Body,
-								   draft.State == core::review_draft_state::publishing });
+				auto identity = std::string{ };
+				if (const auto stored = owner.Host->durable_scope(draft.Id)) {
+					identity = adapters::sqlite::release_update_ledger_draft_identity(*stored, draft.Id, authority.Target.ExpectedHead);
+				}
+				if (identity.empty()) {
+					identity = "inline:" + std::to_string(owner.Scope.value()) + ":" + std::to_string(draft.Id.value());
+				}
+				result.push_back({ std::move(identity), scope, draft.Body, draft.State == core::review_draft_state::publishing });
 			}
 		}
 		for (const auto& [context, session] : Sessions) {
@@ -115,8 +126,15 @@ namespace bpr::app {
 			}
 			const auto identity = "window:" + std::to_string(context.Window.value());
 			if (const auto* editor = session->Window->review_editor(); editor && editor->body_editor() && !editor->body_editor()->toPlainText().isEmpty()) {
-				result.push_back({ identity + ":editor", "Unsubmitted inline editor text (including any conflicting edit)", editor->body_editor()->toPlainText().toStdString(),
-								   session->PublishingDraft.has_value() });
+				auto        body  = editor->body_editor()->toPlainText().toStdString();
+				const auto& shown = editor->shown_draft();
+				// The snapshot already owns this exact text, even if the ledger cannot prove it.
+				const auto duplicate = !editor->rejected_candidate() && shown && shown->Body == body && session->SharedDrafts
+					&& std::ranges::any_of(session->SharedDrafts->recovery_snapshot(), [&](const auto& aSaved) { return aSaved.Draft == *shown; });
+				if (!duplicate) {
+					result.push_back({ identity + ":editor", "Unsubmitted inline editor text (including any conflicting edit)", std::move(body),
+									   session->PublishingDraft.has_value() });
+				}
 			}
 			if (const auto* editor = session->Window->review_submission_editor_view(); editor && editor->shown_draft() && editor->body_editor()) {
 				const auto& draft = *editor->shown_draft();
