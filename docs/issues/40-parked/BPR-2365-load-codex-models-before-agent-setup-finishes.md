@@ -133,6 +133,9 @@ because the run had not been started.
 
 ## Owner step
 
+The owner deferred this check to a live release build on 2026-11-23.
+The temporary verification build was retired. The owner result is pending.
+
 On the Mac, with the launcher's Codex agent: open a pull request whose
 workspace is still preparing and open the Model menu. The models are there,
 or "Asking…" is, within a few seconds, before any question.
