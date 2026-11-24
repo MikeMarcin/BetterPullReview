@@ -635,6 +635,7 @@ namespace {
 			.BaseRef               = *baseRef,
 			.Base                  = *commit,
 			.Head                  = *commit,
+			.Shape                 = application::accepted_pull_request_shape{ .RepositoryBytes = 1024U },
 		};
 		handoff.SmartGit = std::make_unique<fixture_authority>(
 			application::authority_binding(handoff), std::move(aDuringFetch));

@@ -3800,6 +3800,16 @@ namespace bpr::app::detail {
 						State->SnapshotReads.push_back(aRequest.Correlation.Parent);
 					}
 				}
+				// The strict recording predates GitHub's size field. The fixture
+				// owns the complete packs, so it can report their combined KiB.
+				if (aRequest.Wire.Operation == read_operation::get_repository && response->Status == 200 && State->Git) {
+					auto repository = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					if (!repository.isEmpty() && !repository.contains(QStringLiteral("size"))) {
+						const auto bytes = State->Git->PackOne.size() + State->Git->PackTwo.size();
+						repository.insert(QStringLiteral("size"), static_cast<qint64>((bytes + 1023) / 1024));
+						response->Body = QJsonDocument{ repository }.toJson(QJsonDocument::Compact).toStdString();
+					}
+				}
 				append_rate_limit_headers(*response, aRequest.Wire.Operation);
 				if (State->ReactionsServed && Role == fixture_transport_role::account && response->Status == 200
 					&& (aRequest.Wire.Operation == read_operation::get_repository || aRequest.Wire.Operation == read_operation::get_pull_request)) {

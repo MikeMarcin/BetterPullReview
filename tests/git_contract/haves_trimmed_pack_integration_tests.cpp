@@ -620,6 +620,7 @@ namespace {
 				.BaseRef               = *baseRef,
 				.Base                  = commit_oid(History.Base),
 				.Head                  = commit_oid(aHead),
+				.Shape                 = application::accepted_pull_request_shape{ .RepositoryBytes = 1024U },
 			};
 			if (!aForcePushes.empty()) {
 				handoff.ForcePushes          = std::move(aForcePushes);

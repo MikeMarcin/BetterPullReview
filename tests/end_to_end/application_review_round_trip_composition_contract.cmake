@@ -3977,13 +3977,14 @@ function(bpr_verify_app_source_tree app_source_root)
 	# drains. This uses the existing retry budget and exact epoch grants.
 	# [[BPR-2365]]. Agent settings project early Codex catalogs; fixture
 	# composition gives their probes the existing fixture program admission.
+	# Named fixture images use their Windows suffix inside the test guard.
 	# [[BPR-2366]]. The desktop opens unshown update recovery rows and
 	# projects their count to Help and Settings. The effects lane verifies
 	# exact private-ledger copies and persists confirmed recovery discards.
 	# Update capture still retains raw and indeterminate text. The mutation
 	# branch and source inventory digests were checked separately.
 	set(bpr_expected_production_app_manifest_digest
-        "b1fd012cd18bcf245b33cfb8fefe192435a14c65e7c5661a98046d5978f06778"
+        "dd8b33e506ec945ab24934621db91c3a5110f86b3d5ea3eec0124f6c4d12971c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

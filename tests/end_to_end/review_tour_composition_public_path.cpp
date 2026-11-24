@@ -1372,10 +1372,15 @@ auto main(int argc, char** argv) -> int
 			// [[BPR-2004]] added the diagnosis fields that follow them.
 			// The application is gone, so this reports here rather than
 			// through the handler below, which reads its window.
-			if (const auto log = bpr::tests::read_diagnostic_logs(*dataRoot);
-				log.find("stderr_bytes=0 plugins=cc-plugin-sec-default@builtin longest_silence_ms=") == std::string::npos
-				|| log.find("stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,cc-plugin-agents-md@builtin,cc-plugin-plugin-authoring@builtin memory=on longest_silence_ms=") == std::string::npos
-				|| log.find("stderr_bytes=0 thinking=on longest_silence_ms=") == std::string::npos
+			const auto log = bpr::tests::read_diagnostic_logs(*dataRoot);
+			// Fast fixture runs can record no whole millisecond of silence.
+			const auto hasFields = [&log](const std::string& aFields) {
+				return log.find(aFields + ' ') != std::string::npos
+					|| log.find(aFields + '"') != std::string::npos;
+			};
+			if (!hasFields("stderr_bytes=0 plugins=cc-plugin-sec-default@builtin")
+				|| !hasFields("stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,cc-plugin-agents-md@builtin,cc-plugin-plugin-authoring@builtin memory=on")
+				|| !hasFields("stderr_bytes=0 thinking=on")
 				|| log.find("/fixture/") != std::string::npos || log.find("THOUGHT_") != std::string::npos) {
 				std::cerr << "review-tour-composition:fail the run's diagnostics name the plugins, memory=on and thinking=on its Claude reported, without a path or thinking content\n";
 				return EXIT_FAILURE;

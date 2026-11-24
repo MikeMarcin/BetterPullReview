@@ -301,10 +301,11 @@ namespace {
 					.Actor = application::github_actor_id{ "U_fixture_author" },
 					.Login = "octo-author",
 				},
-				.BaseOid = application::commit_oid{ std::string{ base_oid } },
-				.HeadOid = application::commit_oid{ std::string{ head_oid } },
-				.BaseRef = "main",
-				.HeadRef = "fixture/deterministic-snapshots",
+				.BaseOid        = application::commit_oid{ std::string{ base_oid } },
+				.HeadOid        = application::commit_oid{ std::string{ head_oid } },
+				.BaseRef        = "main",
+				.HeadRef        = "fixture/deterministic-snapshots",
+				.HeadRepository = core::repository_locator{ .Owner = "octo-org", .Name = "review-repository" },
 			},
 			.Files = {
 				{
