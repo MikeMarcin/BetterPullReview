@@ -755,6 +755,11 @@ namespace bpr::app {
 		Window->agent_tab()->present_queue(waiting, state);
 		auto rows = std::vector<qt::agent_tab_view::queue_row>{ };
 		for (const auto& entry : aQueue.Entries) {
+			// A released message whose turn began shows as that turn, not as
+			// pending.
+			if (!core::listed(entry)) {
+				continue;
+			}
 			rows.push_back({
 				.Id = entry.Id,
 				// A typed message reads as its text, edited or not.

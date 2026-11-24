@@ -273,6 +273,20 @@ namespace bpr::core {
 	/// \brief [[BPR-2152]] (AC06). The runtime acknowledged the correction
 	/// `aId` as written, under the input identity `aReceipt`: it is Sent.
 	[[nodiscard]] auto acknowledge(agent_queue& aQueue, std::uint64_t aId, std::string aReceipt) -> queue_refusal;
+	/// \brief The run `aRun` admitted for the released entry `aId` began its
+	/// turn: the agent has the message, and the Agent tab shows it as that
+	/// running turn. It is Sent, bound to `aRun`, and keeps its claim until
+	/// the run's end settles it (`finish`); it is no longer listed as
+	/// pending (`listed`). The owner, 2026-11-24: "presumably once it's
+	/// answering the question it has sent it right?". Again for the same run
+	/// changes nothing; refused for any entry that is not a sending release
+	/// or one bound to another run.
+	[[nodiscard]] auto begin_turn(agent_queue& aQueue, std::uint64_t aId, std::uint64_t aRun) -> queue_refusal;
+	/// \brief Whether the pending list shows `aEntry`: every entry but a
+	/// release whose turn began, which the transcript shows as its running
+	/// turn instead. A steered correction stays listed (Sent to agent) until
+	/// its run settles it.
+	[[nodiscard]] auto listed(const queued_entry& aEntry) noexcept -> bool;
 
 	/// \brief [[BPR-2152]] (AC06). How one correction of a run ended, by the
 	/// input identity it was written under.
@@ -334,12 +348,13 @@ namespace bpr::core {
 	/// \brief The pause a finish puts on what remains: none when the message
 	/// went or was not taken; otherwise its own reason.
 	[[nodiscard]] auto pause_for(queued_finish aFinish) noexcept -> queue_pause;
-	/// \brief The run started for the sending entry `aId` finished: a message
+	/// \brief The run started for the sending entry `aId` (or the release
+	/// whose turn began, `begin_turn`) finished: a message
 	/// not taken goes back first, unpaused (`return_unsent`); a refused one
 	/// goes back first and pauses the queue as failed; any other leaves
 	/// the queue, and a failure, usage limit or Stop pauses what remains. A
 	/// pause already in force (the reviewer's, a lost access) keeps its reason.
-	/// Nothing changes for an entry that is not sending.
+	/// Nothing changes for any other entry.
 	[[nodiscard]] auto finish(agent_queue& aQueue, std::uint64_t aId, queued_finish aFinish) -> queue_refusal;
 	/// \brief RFC-BPR-0126 AC04. Discard on a message whose delivery is not
 	/// known (a crash while it was sending): it leaves the queue, and the

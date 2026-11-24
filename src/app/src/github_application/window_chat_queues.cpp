@@ -176,6 +176,9 @@ namespace bpr::app {
 			ChatQueueSeen[key] = queue->Revision;
 			auto rows          = std::vector<qt::agent_pending_row>{ };
 			for (const auto& entry : queue->Entries) {
+				if (!core::listed(entry)) {
+					continue;
+				}
 				rows.push_back({
 					.Id        = entry.Id,
 					.Label     = QString::fromStdString(entry.Input.Text.substr(0U, entry.Input.Text.find('\n'))),

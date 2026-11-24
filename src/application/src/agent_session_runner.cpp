@@ -28,6 +28,17 @@ namespace bpr::application {
 		}
 	}
 
+	void agent_session_runner::began(const std::uint64_t aRuntime, const std::string& aSession, const std::uint64_t aRun)
+	{
+		const auto found = Running.find(aSession);
+		if (found == Running.end() || found->second.Runtime != aRuntime || (found->second.Run != 0U && found->second.Run != aRun)) {
+			return;
+		}
+		if (Host != nullptr) {
+			Host->began(aSession, aRun);
+		}
+	}
+
 	void agent_session_runner::returned(const std::uint64_t aRuntime, const std::string& aSession)
 	{
 		const auto found = Running.find(aSession);

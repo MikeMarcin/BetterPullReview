@@ -35,7 +35,8 @@
 ///   report's tab returns to the report (AC06).
 /// - `setup-review STUB`: [[BPR-2245]]. Review this pull request pressed
 ///   while the agent's setup waits on Check is queued; Check passes, the
-///   review runs once and its turn ends answered, not stopped and not drawn
+///   review runs once, off the pending list while its turn runs, and its
+///   turn ends answered, not stopped and not drawn
 ///   as an error, and once it retires the footer's Stop all is hidden and
 ///   nothing is queued; restarted, the pull request opens with nothing
 ///   queued and no Stop all.
@@ -298,9 +299,26 @@ auto main(int argc, char** argv) -> int
 					+ " footer=" + (tab->turn_count() > 0U ? tab->turn_footer(0U).toStdString() : std::string{ }) + " queue=" + tab->queue_note()->text().toStdString() + " launches=" + std::to_string(launchesAt())
 					+ " stopAll=" + std::to_string(footer != nullptr && !footer->stop_all_button()->isHidden() ? 1 : 0) + " state=" + std::to_string(static_cast<int>(tab->state()));
 			};
-			if (!e2e::wait_until_plain(idle, e2e::extended_agent_budget)) {
+			// The owner, 2026-11-24: the queued review "stays in the queue as
+			// 'sending' even during the entire time the prompt is running".
+			// Each look while its turn shows running: no pending row.
+			auto       runningLooks = 0;
+			auto       stillPending = std::string{ };
+			const auto pendingRows  = [tab] { return tab->queue_list() != nullptr ? tab->queue_list()->findChildren<QWidget*>(QStringLiteral("agentQueueRow")).size() : qsizetype{ 0 }; };
+			const auto watched      = [&] {
+				if (tab->state() == qt::agent_tab_state::working && tab->turn_count() >= 1U) {
+					++runningLooks;
+					if (pendingRows() != 0 && stillPending.empty()) {
+						stillPending = said();
+					}
+				}
+				return idle();
+			};
+			if (!e2e::wait_until_plain(watched, e2e::extended_agent_budget)) {
 				throw std::runtime_error{ "once set up, the queued review runs: " + said() };
 			}
+			expect(runningLooks > 0, "the review's turn was seen running");
+			expect(stillPending.empty(), "while the review's turn runs it is not also pending in the queue: " + stillPending);
 			// Settled: nothing more starts, and the footer has caught up.
 			{
 				auto settle = QElapsedTimer{ };

@@ -171,8 +171,11 @@ namespace bpr::application {
 		void cancel();
 		/// \brief The run of the runtime's turn retired (its machinery is
 		/// quiescent again): the runtime is free, and `aDone` is told.
-		void               retired();
-		void               on_retired(std::function<void()> aDone);
+		void retired();
+		void on_retired(std::function<void()> aDone);
+		/// \brief A release's turn began (the run it was admitted as was
+		/// dispatched): `aBegan` is told that run.
+		void               on_began(std::function<void(std::uint64_t aRun)> aBegan);
 		[[nodiscard]] auto running() const -> bool;
 		/// \brief How the last turn's run ended: `failed` when it retired with
 		/// no finish (its machinery refused it before it started).
@@ -254,6 +257,7 @@ namespace bpr::application {
 		bool                                                                               TurnNative = false;
 		std::vector<agent_conversation_turn>                                               Unshown;
 		std::function<void()>                                                              Done;
+		std::function<void(std::uint64_t)>                                                 Began;
 		std::function<void(const agent_conversation_key&, const agent_conversation_turn&)> Keep;
 		/// [[BPR-2153]]. The run admitted for the running turn, which Steer
 		/// names.
@@ -336,6 +340,7 @@ namespace bpr::application {
 		[[nodiscard]] auto holds_work(const std::string& aSession) const -> bool;
 		void               settle(const std::string& aSession);
 		void               retired(const std::string& aSession);
+		void               began(const std::string& aSession, std::uint64_t aRun);
 
 		review_agent_runtime_dependencies                            Dependencies;
 		std::map<std::string, std::unique_ptr<review_agent_runtime>> Runtimes;

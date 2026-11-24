@@ -418,6 +418,34 @@ namespace bpr::core {
 		return queue_refusal::none;
 	}
 
+	auto begin_turn(agent_queue& aQueue, const std::uint64_t aId, const std::uint64_t aRun) -> queue_refusal
+	{
+		const auto found = find(aQueue, aId);
+		if (found == aQueue.Entries.end()) {
+			return queue_refusal::unknown_entry;
+		}
+		if (!found->Claim || found->Claim->Route != queued_route::release || aRun == 0U) {
+			return queue_refusal::not_editable;
+		}
+		if (found->State == queued_state::sent && found->Claim->Run == aRun) {
+			return queue_refusal::none;
+		}
+		// A run not yet named takes this one; another run's turn is not this
+		// message's.
+		if (found->State != queued_state::sending || (found->Claim->Run != 0U && found->Claim->Run != aRun)) {
+			return queue_refusal::not_editable;
+		}
+		found->State      = queued_state::sent;
+		found->Claim->Run = aRun;
+		++aQueue.Revision;
+		return queue_refusal::none;
+	}
+
+	auto listed(const queued_entry& aEntry) noexcept -> bool
+	{
+		return aEntry.State != queued_state::sent || !aEntry.Claim || aEntry.Claim->Route != queued_route::release;
+	}
+
 	void settle_steers(agent_queue& aQueue, const std::uint64_t aRun, const std::vector<steered_settlement>& aEndings)
 	{
 		auto taken   = std::vector<std::uint64_t>{ };
@@ -520,6 +548,11 @@ namespace bpr::core {
 		const auto found = find(aQueue, aId);
 		if (found == aQueue.Entries.end()) {
 			return queue_refusal::unknown_entry;
+		}
+		// A release whose turn began is settled as one still sending: its
+		// run's end decides, as before it began.
+		if (found->State == queued_state::sent && found->Claim && found->Claim->Route == queued_route::release) {
+			found->State = queued_state::sending;
 		}
 		if (found->State != queued_state::sending) {
 			return queue_refusal::not_editable;

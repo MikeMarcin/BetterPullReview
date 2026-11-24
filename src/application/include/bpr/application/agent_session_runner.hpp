@@ -44,6 +44,11 @@ namespace bpr::application {
 		/// admitted as settles it (AC03): another run's retirement, a turn the
 		/// window sent directly, is not this message's.
 		void retired(std::uint64_t aRuntime, const std::string& aSession, std::uint64_t aRun, core::queued_finish aFinish);
+		/// \brief The run `aRun` of the turn `aRuntime` started for
+		/// `aSession` began: the host takes its message out of the pending
+		/// list. Only the run the release was admitted as (or, inside its
+		/// start, the run not yet named) counts.
+		void began(std::uint64_t aRuntime, const std::string& aSession, std::uint64_t aRun);
 		/// \brief As `retired`, for a run that never took its message.
 		void               returned(std::uint64_t aRuntime, const std::string& aSession);
 		[[nodiscard]] auto running(const std::string& aSession) const -> std::optional<std::uint64_t>;

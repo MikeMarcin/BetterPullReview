@@ -214,7 +214,8 @@ namespace bpr::application {
 			return;
 		}
 		// A copy: starting the turn may change the queue it came from.
-		const auto released = *entry;
+		const auto released = *entry; // NOLINT(performance-unnecessary-copy-initialization): the start may change the queue.
+		const auto before   = queue.Revision;
 		// A runner that answers `agent_changed` synchronously must not start
 		// a second turn inside this one.
 		Draining             = true;
@@ -223,9 +224,13 @@ namespace bpr::application {
 		// AC03: a started or awaiting release is settled by its own run's
 		// retirement (`retired`), which may already have come.
 		if (admission.Kind == queued_admission_kind::started || admission.Kind == queued_admission_kind::awaiting) {
-			if (const auto now = Sending.find(aSession); now != Sending.end() && now->second == aId && core::bind_run(Queues[aSession], aId, admission.Run) == core::queue_refusal::none) {
-				// The receipt: the claim names its run.
-				commit(aSession);
+			if (const auto now = Sending.find(aSession); now != Sending.end() && now->second == aId) {
+				// The receipt: the claim names its run (a turn that began
+				// inside the start named it already, `began`).
+				static_cast<void>(core::bind_run(Queues[aSession], aId, admission.Run));
+				if (Queues[aSession].Revision != before) {
+					commit(aSession);
+				}
 			}
 			return;
 		}
@@ -362,7 +367,7 @@ namespace bpr::application {
 			why = std::optional<std::string>{ "This message can't steer the running turn, so it goes next." };
 			if (Dependencies.Runner != nullptr) {
 				// A copy: the offer may answer at once and change the queue.
-				const auto offered = *entry;
+				const auto offered = *entry; // NOLINT(performance-unnecessary-copy-initialization): the offer may change the queue.
 				why                = Dependencies.Runner->steer(aSession, offered);
 			}
 		}
@@ -429,6 +434,23 @@ namespace bpr::application {
 	}
 
 	void agent_queue_host::returned(const std::string& aSession) { retired(aSession, core::queued_finish::not_taken); }
+
+	void agent_queue_host::began(const std::string& aSession, const std::uint64_t aRun)
+	{
+		const auto found = Sending.find(aSession);
+		if (found == Sending.end()) {
+			return;
+		}
+		auto&      queue  = Queues[aSession];
+		const auto before = queue.Revision;
+		if (core::begin_turn(queue, found->second, aRun) != core::queue_refusal::none || queue.Revision == before) {
+			return;
+		}
+		// Begun inside its own start: the start commits it once it returns.
+		if (!Draining) {
+			commit(aSession);
+		}
+	}
 
 	auto agent_queue_host::discard(const std::string& aSession, const std::uint64_t aId, const std::optional<std::uint64_t> aSeen) -> core::queue_refusal
 	{

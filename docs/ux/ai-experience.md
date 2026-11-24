@@ -181,9 +181,11 @@ queue, and closing a window neither pauses nor hands it over.
   while the editor is open), Remove, drag or Option-Up and Option-Down to
   reorder, Steer, Pause queue and Resume queue. States are words:
   Queued, Sending, **Sent to agent**, Paused, **Delivery unknown** (with
-  Discard; it is never resent by itself). A steered message shows in the
-  conversation at once, as the author's, after the step it followed, and
-  stays on that turn.
+  Discard; it is never resent by itself). A released message leaves the
+  list once its turn begins: the conversation shows it as the running turn,
+  and it still holds the session until that run ends. A steered message
+  shows in the conversation at once, as the author's, after the step it
+  followed, and stays on that turn.
 - **Pausing.** Stop, a failure, a usage limit, a restart and unknown
   delivery pause the queue; a restored queue opens paused. A changed target,
   configuration or authority pauses rather than retargeting.
