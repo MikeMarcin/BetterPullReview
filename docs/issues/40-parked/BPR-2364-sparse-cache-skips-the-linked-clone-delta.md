@@ -194,6 +194,9 @@ That asks the server for the repository's entire history. It timed out after
 
 ## Owner step
 
+The owner deferred this check to a live release build on 2026-11-23.
+The temporary verification build was retired. The owner result is pending.
+
 On the large repository: open a pull request pushed after the linked clone's
 last fetch and ask a question. The workspace is made without a fetch by
 hand, and the log shows `sparse=1` and a delta.
