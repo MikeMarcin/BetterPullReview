@@ -2021,7 +2021,14 @@ namespace bpr::app {
 			return { .Kind = application::queued_admission_kind::answered };
 		}
 		// AC03: the turn's own retirement settles it, as this run.
-		return { .Kind = application::queued_admission_kind::started, .Run = ++TourQueueRun };
+		const auto run = ++TourQueueRun;
+		// [[BPR-2368]]. The tour chat shows the feedback as its running turn
+		// now: it leaves the pending list (`core::begin_turn`), and still
+		// holds the session until that run retires.
+		if (AgentRuntime) {
+			AgentRunner.began(*AgentRuntime, tour_queue_key(), run);
+		}
+		return { .Kind = application::queued_admission_kind::started, .Run = run };
 	}
 
 	/// Releases the feedback once this window's draft has really ended. A
@@ -2095,7 +2102,8 @@ namespace bpr::app {
 			return;
 		}
 		// Another window's draft it waits for keeps it.
-		const auto inFlight = std::ranges::any_of(queue->Entries, [](const core::queued_entry& aEntry) { return aEntry.State == core::queued_state::sending; });
+		// One whose turn began is in flight too, though no longer listed.
+		const auto inFlight = std::ranges::any_of(queue->Entries, [](const core::queued_entry& aEntry) { return aEntry.State == core::queued_state::sending || !core::listed(aEntry); });
 		if (inFlight || AgentRunner.state(key) != core::queue_agent::not_set_up) {
 			return;
 		}

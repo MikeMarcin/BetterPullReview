@@ -158,7 +158,9 @@ write; receipts (`core::acknowledge`, `core::settle_steers` from the run's
 `SteeredInputs`) are stored before the queue advances; a possible write
 without an outcome, or a crash, leaves the entry Delivery unknown, paused and
 never resent. A release whose run's turn began (the runtime reports it,
-`agent_queue_host::began`) is Sent by `core::begin_turn`, keeps its claim
+`agent_queue_host::began`: the review runtime at dispatch, the window's
+tour-feedback, tour-part and local-draft runtimes inside their start, once
+the chat shows the turn) is Sent by `core::begin_turn`, keeps its claim
 until the run retires, and is no longer `core::listed` as pending: the
 transcript shows it as the running turn. Steering capability is decided in core from the protocol, the
 kept connection and the runtime's own reported version

@@ -1762,6 +1762,8 @@ namespace bpr::app::detail {
 		bool              Quiescent = true;
 		/// Programs the session's runtime stack started.
 		std::size_t Launches = 0U;
+		/// [[BPR-2368]]. Entries the pending list shows (`core::listed`).
+		std::size_t Listed = 0U;
 	};
 
 	/// \brief Raw accepted authorities used to falsify the emitted agent context.

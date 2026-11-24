@@ -234,6 +234,38 @@ namespace {
 		return text;
 	}
 
+	/// [[BPR-2368]]. Looks at a part's chat while a released message's turn
+	/// runs: that message is the running turn, so its pending list must not
+	/// also show it. `aRunning` names the running question, or is empty.
+	struct running_watch
+	{
+		int         Looks = 0;
+		std::string StillPending;
+
+		void look(const qt::tour_side_chat& aChat, const QString& aRunning)
+		{
+			if (aRunning.isEmpty()) {
+				return;
+			}
+			++Looks;
+			const auto rows = rows_of(aChat);
+			if (rows.contains(aRunning.section(QLatin1Char('\n'), 0, 0)) && StillPending.empty()) {
+				StillPending = aRunning.toStdString() + " while pending: " + rows.join(QLatin1Char('|')).toStdString();
+			}
+		}
+	};
+
+	/// The question of the running ask turn of `aThread`, if one runs.
+	[[nodiscard]] auto running_question(const qt::tour_agent_panel& aPanel, const core::tour_thread& aThread) -> QString
+	{
+		for (const auto& run : aPanel.session().Runs) {
+			if (run.Request == core::tour_agent_request::ask && run.Thread == aThread && run.State == core::tour_agent_run_state::running) {
+				return QString::fromStdString(run.Question);
+			}
+		}
+		return { };
+	}
+
 	/// Drafts the tour on the fixture agent and accepts it whole.
 	void draft_tour(qt::workbench_window& aWindow)
 	{
@@ -348,9 +380,20 @@ auto main(int argc, char** argv) -> int
 			editor->open_side_chat(stop);
 			QApplication::processEvents();
 			wait([&] { return rows_of(*chat).size() == 2; }, "back in the stop's chat, its pending list");
-			if (!e2e::wait_until_plain([&] { return asked_in(*panel, stop).size() == 3U && !running(*panel) && rows_of(*chat).isEmpty(); }, e2e::extended_agent_budget)) {
+			auto followUps = running_watch{ };
+			if (!e2e::wait_until_plain(
+					[&] {
+						// [[BPR-2368]]. A follow-up whose turn runs is not also pending.
+						if (asked_in(*panel, stop).size() >= 2U) {
+							followUps.look(*chat, running_question(*panel, stop));
+						}
+						return asked_in(*panel, stop).size() == 3U && !running(*panel) && rows_of(*chat).isEmpty();
+					},
+					e2e::extended_agent_budget)) {
 				throw std::runtime_error{ "each follow-up goes as its own turn: " + joined(asked_in(*panel, stop)) + " rows " + rows_of(*chat).join(QLatin1Char('|')).toStdString() };
 			}
+			expect(followUps.Looks > 0, "a follow-up's turn was seen running");
+			expect(followUps.StillPending.empty(), "while a follow-up's turn runs it is not also pending in the stop's queue: " + followUps.StillPending);
 			const auto asked = asked_in(*panel, stop);
 			expect(asked[1] == "Second, edited: is resize covered?" && asked[2] == "Third: anything else?", "in order, as edited, once each: " + joined(asked));
 			for (const auto& run : panel->session().Runs) {
@@ -408,7 +451,15 @@ auto main(int argc, char** argv) -> int
 			const auto before = asked_in(*panel, whole).size();
 			expect(rows_of(*chat).contains(QStringLiteral("Queued for the tour")) && !running(*panel), "paused, the follow-up waits: " + joined(asked_in(*panel, whole)));
 			expect(press_in(*chat, QStringLiteral("agentQueuePauseResume")), "Resume queue is offered");
-			wait([&] { return rows_of(*chat).isEmpty() && !running(*panel) && asked_in(*panel, whole).size() > before; }, "resumed, what waited goes: " + joined(asked_in(*panel, whole)));
+			auto resumed = running_watch{ };
+			wait([&] {
+				// [[BPR-2368]]. The follow-up whose turn runs is not also pending.
+				resumed.look(*chat, running_question(*panel, whole));
+				return rows_of(*chat).isEmpty() && !running(*panel) && asked_in(*panel, whole).size() > before;
+			},
+				 "resumed, what waited goes: " + joined(asked_in(*panel, whole)));
+			expect(resumed.Looks > 0, "the follow-up's turn was seen running");
+			expect(resumed.StillPending.empty(), "while the follow-up's turn runs it is not also pending in the whole tour's queue: " + resumed.StillPending);
 			const auto asked = asked_in(*panel, whole);
 			expect(std::ranges::count(asked, std::string{ "Queued for the tour" }) == 1, "the queued follow-up went once: " + joined(asked));
 			std::cout << "tour-chat-queue-whole:steered:pass\n";
@@ -453,10 +504,20 @@ auto main(int argc, char** argv) -> int
 				}
 				return texts;
 			};
-			if (!e2e::wait_until_plain([&] { return said().size() == 2U && !window->local_draft()->projection().Asking && rows_of(*chat).isEmpty(); }, e2e::extended_agent_budget)) {
+			auto followUp = running_watch{ };
+			if (!e2e::wait_until_plain(
+					[&] {
+						// [[BPR-2368]]. The follow-up whose question runs is not also pending.
+						const auto& projection = window->local_draft()->projection();
+						followUp.look(*chat, projection.Asking && projection.AskingText == "Next: and the tests?" ? QString::fromStdString(projection.AskingText) : QString{ });
+						return said().size() == 2U && !projection.Asking && rows_of(*chat).isEmpty();
+					},
+					e2e::extended_agent_budget)) {
 				throw std::runtime_error{ "the follow-up goes as the draft's next question: " + joined(said()) + " rows " + rows_of(*chat).join(QLatin1Char('|')).toStdString() + " asking "
 										  + std::to_string(window->local_draft()->projection().Asking) + " failure " + window->local_draft()->projection().AskFailure };
 			}
+			expect(followUp.Looks > 0, "the follow-up's question was seen running");
+			expect(followUp.StillPending.empty(), "while the follow-up's question runs it is not also pending in the discussion's queue: " + followUp.StillPending);
 			expect(said()[1] == "Next: and the tests?", "after the first, once: " + joined(said()));
 			// Steer (Cmd+Return, Ctrl+Return off macOS) while a question
 			// runs: the message goes into that turn, on the kept connection

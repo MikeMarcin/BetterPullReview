@@ -46,6 +46,7 @@
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
+#include "bpr/core/agent_queue.hpp"
 #include "bpr/core/prompt_pack.hpp"
 #include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -628,11 +629,32 @@ auto main(int argc, char** argv) -> int
 			expect(drafting() && panel->session().Runs.size() == runsWhileDrafting, "nothing is sent while the draft runs");
 			expect(chat->waiting_feedback() != nullptr && panel->session().Waiting && panel->session().Waiting->find("Fewer stops") != std::string::npos && panel->session().Waiting->find("header") != std::string::npos,
 				   "the feedback waits as one message, the second joined to the first");
-			wait([&] {
+			// [[BPR-2368]]. While the feedback's turn runs, the tour's queue
+			// still holds it but no longer lists it as pending.
+			const auto tourKey = [&] {
+				const auto session = core::parse_session_key(access::agent_session_key(*application));
+				return session ? core::session_key(core::with_kind(*session, core::queued_session_kind::tour_feedback)) : std::string{ };
+			}();
+			expect(!tourKey.empty(), "the tour's queue is named");
+			auto       feedbackLooks = 0;
+			auto       heldLooks     = 0;
+			auto       stillListed   = std::string{ };
+			const auto feedbackRuns  = [&] {
 				const auto& runs = panel->session().Runs;
+				if (runs.size() > runsWhileDrafting && runs.back().Request == core::tour_agent_request::ask && runs.back().State == core::tour_agent_run_state::running) {
+					++feedbackLooks;
+					const auto now = access::agent_session(*application, tourKey);
+					heldLooks += now.Sending ? 1 : 0;
+					if (now.Listed != 0U && stillListed.empty()) {
+						stillListed = "listed=" + std::to_string(now.Listed) + " sending=" + std::to_string(now.Sending ? 1 : 0);
+					}
+				}
 				return runs.size() > runsWhileDrafting && runs.back().Request != core::tour_agent_request::draft_tour && runs.back().State != core::tour_agent_run_state::running && access::agent_invocation_evidence(*application).Quiescent;
-			},
-				 "after the draft, the feedback is the tour chat's next turn: " + panel->transcript_text().toStdString());
+			};
+			wait(feedbackRuns, "after the draft, the feedback is the tour chat's next turn: " + panel->transcript_text().toStdString());
+			expect(feedbackLooks > 0 && heldLooks > 0, "the feedback's turn was seen running, its message still held by the queue");
+			expect(stillListed.empty(), "while the feedback's turn runs it is not also pending in the tour's queue: " + stillListed);
+			wait([&] { return access::agent_session(*application, tourKey).Listed == 0U && !access::agent_session(*application, tourKey).Sending; }, "its run's retirement settles it");
 			const auto& runs  = panel->session().Runs;
 			const auto  draft = std::ranges::find(runs, core::tour_agent_request::draft_tour, &core::tour_agent_run::Request);
 			expect(draft != runs.end() && draft->State == core::tour_agent_run_state::answered, "the draft answered first");
