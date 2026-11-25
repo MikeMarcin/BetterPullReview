@@ -56,7 +56,9 @@ namespace {
 	using bpr::tests::expect;
 	using access = app::detail::github_application_fixture_access;
 
-	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const int aTimeoutMs = 60000)
+	/// Waits for `aCondition`; a timeout fails with `aMessage` and, when given,
+	/// what `aSaid` reports the window showing then.
+	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const int aTimeoutMs = 60000, const std::function<std::string()>& aSaid = { })
 	{
 		QElapsedTimer elapsed;
 		elapsed.start();
@@ -64,7 +66,9 @@ namespace {
 			QApplication::processEvents();
 			QThread::msleep(1);
 		}
-		expect(aCondition(), aMessage);
+		if (!aCondition()) {
+			expect(false, aSaid ? std::string{ aMessage } + ": " + aSaid() : std::string{ aMessage });
+		}
 	}
 
 	struct found_row
@@ -233,11 +237,19 @@ try {
 		}
 		wait_for([&] { return approve != nullptr && approve->isVisible(); }, "the review's draft is read and its Approve shows", 20'000);
 		const auto settled = [&](const QString& aApprove) { return approve->text() == aApprove && editor->followup_label()->isVisible(); };
+		// A review whose Approve stays disabled says why: the editor's status,
+		// the button's own tooltip and the window's status line name what it
+		// waits for or what refused the pull request's read.
+		const auto approveSays = [&] {
+			return "status \"" + editor->status_label()->text().toStdString() + "\", Approve's tooltip \"" + approve->toolTip().toStdString() + "\", pull request "
+				+ (window->session_panel()->status() == core::github_status::pull_request_ready ? std::string{ "ready" } : std::string{ "not ready" }) + ", window status \""
+				+ window->statusBar()->currentMessage().toStdString() + "\"";
+		};
 		if (approveAgain) {
 			wait_for([&] { return settled(QStringLiteral("Approve again")); }, "a dismissed approval's review reads Approve again", 20'000);
 			expect(editor->followup_label()->text().contains(QStringLiteral("dismissed")), "the review says GitHub dismissed my approval: " + editor->followup_label()->text().toStdString());
 			expect(!editor->seen_button()->isVisible(), "a dismissed approval cannot be seen away");
-			wait_for([&] { return approve->isEnabled(); }, "Approve again can be submitted once the review's comments are read", 20'000);
+			wait_for([&] { return approve->isEnabled(); }, "Approve again can be submitted once the review's comments are read", 20'000, approveSays);
 			expect(approve->toolTip().contains(QStringLiteral("new approval")) && approve->accessibleName() == QStringLiteral("Approve again"),
 				   "Approve again says it submits a new approval: " + approve->toolTip().toStdString());
 			if (renderAt >= 0) {
@@ -250,7 +262,7 @@ try {
 			expect(seen->geometry().top() == approve->geometry().top() && seen->geometry().left() > approve->geometry().right()
 					   && seen->geometry().left() - approve->geometry().right() < 24,
 				   "Seen sits beside Approve");
-			wait_for([&] { return approve->isEnabled(); }, "the review's comments are read", 20'000);
+			wait_for([&] { return approve->isEnabled(); }, "the review's comments are read", 20'000, approveSays);
 			expect(editor->followup_label()->text().contains(QStringLiteral("still stands")), "the review says my approval stands: " + editor->followup_label()->text().toStdString());
 			if (renderAt >= 0) {
 				window->grab().save(arguments.value(renderAt + 1) + QStringLiteral("/review-seen.png"));

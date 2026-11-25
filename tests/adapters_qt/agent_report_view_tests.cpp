@@ -924,6 +924,17 @@ try {
 		std::cout << "AGENT_REPORT_VIEW_RENDERED\n";
 		return EXIT_SUCCESS;
 	}
+	// With no report shown the line under the title says nothing, not an
+	// empty link a screen reader would still announce.
+	QApplication::processEvents();
+	expect(view.findChild<QLabel*>(QStringLiteral("agentReportByline"))->text().isEmpty(), "with no report the byline is empty, with no link in it");
+	{
+		auto bare = bpr::qt::agent_report_view{ };
+		bare.present({ .Turn = 1U, .Title = QStringLiteral("Notes"), .Markdown = QStringLiteral("# Notes\n"), .Question = { }, .Byline = { .Ending = QStringLiteral("Claude answered in 3s"), .When = { }, .Head = { } } });
+		QApplication::processEvents();
+		const auto said = bare.findChild<QLabel*>(QStringLiteral("agentReportByline"))->text();
+		expect(said == QStringLiteral("Claude answered in 3s"), "a report with no question says its byline with no link: " + said.toStdString());
+	}
 	auto followed = QStringList{ };
 	view.set_link_dispatch([&followed](const QString& aLink) { followed << aLink; });
 	const auto markdown = QStringLiteral("# Was this addressed?\n\nOne thread. ![diagram](%1) <img src=\"%1\"> [file](%1)\n\n## Partly\n\n### The clamp\n\n`src/engine/renderer.cpp:12`\n\n"

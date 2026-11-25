@@ -1024,8 +1024,12 @@ namespace bpr::qt {
 			}
 		}
 		const auto byline = said.join(QStringLiteral(" · "));
-		const auto text   = QStringLiteral("<a href=\"conversation\" style=\"text-decoration:none;color:%1\">%2</a>%3")
-								.arg(aLink.name(), Document.Question.toHtmlEscaped(), byline.isEmpty() ? QString{ } : QStringLiteral(" &nbsp;·&nbsp; ") + byline.toHtmlEscaped());
+		// No question, no link: an empty anchor is still a link to a screen
+		// reader, and with no report shown the line says nothing at all.
+		const auto text = Document.Question.isEmpty()
+			? byline.toHtmlEscaped()
+			: QStringLiteral("<a href=\"conversation\" style=\"text-decoration:none;color:%1\">%2</a>%3")
+				  .arg(aLink.name(), Document.Question.toHtmlEscaped(), byline.isEmpty() ? QString{ } : QStringLiteral(" &nbsp;·&nbsp; ") + byline.toHtmlEscaped());
 		if (Byline->text() != text) {
 			Byline->setText(text);
 		}
