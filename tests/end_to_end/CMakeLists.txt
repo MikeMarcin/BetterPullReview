@@ -5664,8 +5664,11 @@ endif()
 # control off (owner, attended review 2026-11-25: "This made the drawer have a
 # horizontal scroll which should have been disallowed by our tests."): the
 # desktop composition on returning-review-v1 with the Fixture agent, each state
-# of Comments, the Agent tab and the Tour tab's chat column at 280, 300, 340
-# and 420 pixels, at 100% and 200%. Looks of those surfaces are drawn by this
+# of Comments, the Agent tab, the Tour tab and its chat column at 280, 300, 340
+# and 420 pixels, at 100% and 200%. A state is what the window shows between
+# two gestures: the course stops at the draft running, its proposal waiting
+# before Apply all, a text being edited, a question asked before its answer.
+# Looks of those surfaces are drawn by this
 # course (BPR_COMPOSED_DRAWER_RENDER_ROOT), natively with BPR_NATIVE_LOOK=1.
 # On macOS the course also runs under cocoa: only the macOS style lays a push
 # button out by a bezel and draws a plain tool button as one, so only there

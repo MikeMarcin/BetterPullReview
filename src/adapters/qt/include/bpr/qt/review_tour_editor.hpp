@@ -466,6 +466,9 @@ namespace bpr::qt {
 		/// [[BPR-1930]]. A stop's waiting parts (a new explanation, its
 		/// removal, a merge or a split it leads), shown on its card while open.
 		std::multimap<std::uint64_t, QPointer<QWidget>> StopTextProposals;
+		/// A part on the open stop's card asked for another height, and the
+		/// card's refit is posted.
+		bool CardRefitPending = false;
 		/// [[BPR-1930]]. The proposed order, above the route; each stop's mark
 		/// on the route: its kind and its pill's words.
 		QWidget*                                                    ProposedOrder = nullptr;

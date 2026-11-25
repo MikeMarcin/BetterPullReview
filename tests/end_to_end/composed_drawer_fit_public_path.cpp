@@ -58,8 +58,9 @@
 /// - no button is narrower than its words, and no label that does not wrap or
 ///   shorten its words is narrower than them;
 /// - no two buttons lie over one another;
-/// - no button's face is cut by a part that holds it: a row laid out shorter
-///   than its buttons clips them where no scrolling brings them back.
+/// - no button's face and no text field is cut by a part that holds it: a
+///   row laid out shorter than its buttons, or a card still as tall as the
+///   words a field replaced, clips them where no scrolling brings them back.
 ///
 /// A code block is code: it keeps its lines and pans inside its own frame
 /// until its Wrap is pressed. The block itself is held to the rules above;
@@ -361,6 +362,15 @@ namespace {
 				found.push_back(QStringLiteral("%1 is %2 wide, its words need %3").arg(describe(*label)).arg(label->width()).arg(label->minimumSizeHint().width()));
 			}
 		}
+		// A field of text is whole inside what holds it, too.
+		for (const auto* const field : aSurface.findChildren<QPlainTextEdit*>()) {
+			if (!field->isVisibleTo(&aSurface) || field->visibleRegion().isEmpty()) {
+				continue;
+			}
+			if (const auto* const part = cut_by(*field, aSurface); part != nullptr) {
+				found.push_back(QStringLiteral("%1 (%2x%3) is cut by %4, which is %5x%6").arg(describe(*field)).arg(field->width()).arg(field->height()).arg(describe(*part)).arg(part->width()).arg(part->height()));
+			}
+		}
 		for (std::size_t first = 0U; first < buttons.size(); ++first) {
 			for (std::size_t second = first + 1U; second < buttons.size(); ++second) {
 				const auto* const one = buttons[first];
@@ -436,6 +446,16 @@ namespace {
 		row->show();
 		settle();
 		expect(cut_off(surface).join(QStringLiteral("; ")).contains(QStringLiteral("is cut by")), "negative control: a chip taller than the row that holds it is caught");
+		chip->setGeometry(0, 0, 60, 20);
+		settle();
+		expect(cut_off(surface).isEmpty(), "and a chip its row holds whole is not: " + cut_off(surface).join(QStringLiteral("; ")).toStdString());
+		auto* const frame = new QWidget{ &surface };
+		frame->setGeometry(10, 90, 280, 40);
+		auto* const field = new QPlainTextEdit{ frame };
+		field->setGeometry(0, 0, 280, 70);
+		frame->show();
+		settle();
+		expect(cut_off(surface).join(QStringLiteral("; ")).contains(QStringLiteral("QPlainTextEdit")), "negative control: a text field taller than the frame that holds it is caught");
 	}
 
 	/// The course: one window of the composed application and what it found.

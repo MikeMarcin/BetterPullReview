@@ -2392,6 +2392,18 @@ namespace bpr::qt {
 			&& static_cast<QResizeEvent*>(aEvent)->size().width() != static_cast<QResizeEvent*>(aEvent)->oldSize().width()) {
 			QTimer::singleShot(0, this, [this] { place_stop_card_now(); });
 		}
+		// A part waiting on the open stop's card changed what it shows: its
+		// pencil opened its Markdown source, a taller field than its words.
+		// The card takes the height that asks for, or the field is cut at its
+		// foot by a card still as tall as the words were.
+		if (aEvent->type() == QEvent::LayoutRequest && !CardRefitPending && StopFields != nullptr && aWatched->parent() == StopFields
+			&& std::ranges::any_of(StopTextProposals, [aWatched](const auto& aEntry) { return aEntry.second == aWatched; })) {
+			CardRefitPending = true;
+			QTimer::singleShot(0, this, [this] {
+				CardRefitPending = false;
+				place_stop_card_now();
+			});
+		}
 		if (aEvent->type() == QEvent::InputMethod) {
 			// Preedit text is not committed text: another presentation must wait for it, not flush it.
 			if (static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty()) {
@@ -2870,6 +2882,7 @@ namespace bpr::qt {
 				return false;
 			}
 			aBox->hide();
+			aBox->installEventFilter(this);
 			StopTextProposals.emplace(aItem.StopId.value(), aBox);
 			return true;
 		}
@@ -2906,6 +2919,7 @@ namespace bpr::qt {
 				}
 			}
 			aBox->hide();
+			aBox->installEventFilter(this);
 			StopTextProposals.emplace(lead.value(), aBox);
 			StructureProposed = true;
 			return true;
