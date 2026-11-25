@@ -268,6 +268,79 @@ namespace {
 		}
 		expect(markdown_inline_code_members("a.b\nc.d", { }).empty(), "text over lines is left as it came");
 	}
+
+	/// Owner, 2026-11-24: "Why does the sha always get weird syntax
+	/// highlights here". A mention that is not code is never classified; code
+	/// is coloured whole or not at all.
+	void inline_code_reads_as_code()
+	{
+		for (const auto* plain : { "betterpullreview-agent-9dbd6144...",
+								   "betterpullreview-agent-9dbd6144",
+								   "9dbd6144",
+								   "9cbc5b604",
+								   "ae9afba09c1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a",
+								   "commit 9cbc5b604 on main",
+								   "src/engine/renderer.cpp",
+								   "src/engine/renderer.cpp:12-13",
+								   "src\\engine\\renderer.cpp",
+								   "render/",
+								   "README.md",
+								   "renderer.cpp",
+								   "https://github.com/MikeMarcin/BPR-Test/pull/4",
+								   "www.example.com",
+								   "1.2.3",
+								   "6.12.1-rc1",
+								   "v6.12",
+								   "clang-format",
+								   "kebab-case-name",
+								   "--preset dev",
+								   "-j 8",
+								   "",
+								   "  " }) {
+			expect(!markdown_inline_code_reads_as_code(plain), std::string{ "not code, so plain: " } + plain);
+		}
+		for (const auto* code : { "Target.resize",
+								  "node->next",
+								  "diagnostic::invalid_calibration",
+								  "validate(scale, bias, gamma)",
+								  "std::vector<int>",
+								  "int64_t",
+								  "uExposure",
+								  "deadbeef",
+								  "1234567",
+								  "0x1F",
+								  "0xDEADBEEF12",
+								  "1.5e3",
+								  "1e-5f",
+								  "n-1",
+								  "x - 1",
+								  "a...b",
+								  "this->Width",
+								  "Review this pull request" }) {
+			expect(markdown_inline_code_reads_as_code(code), std::string{ "code, so asked for: " } + code);
+		}
+
+		using role          = appearance_role;
+		const auto owner    = std::string_view{ "betterpullreview-agent-9dbd6144..." };
+		const auto numbered = token_span_list{ { .Line = 0U, .Column = 16U, .Length = 1U, .Role = role::syntax_operator },
+											   { .Line = 0U, .Column = 22U, .Length = 1U, .Role = role::syntax_operator },
+											   { .Line = 0U, .Column = 23U, .Length = 11U, .Role = role::syntax_number } };
+		expect(markdown_inline_code_spans(owner, numbered).empty(), "the owner's workspace name: the grammar's number inside it is not drawn");
+		const auto prose = token_span_list{ { .Line = 0U, .Column = 7U, .Length = 4U, .Role = role::syntax_keyword } };
+		expect(markdown_inline_code_spans("Review this pull request", prose).empty(), "prose with one keyword in it stays plain");
+		const auto declaration = token_span_list{ { .Line = 0U, .Column = 0U, .Length = 5U, .Role = role::syntax_keyword }, { .Line = 0U, .Column = 6U, .Length = 3U, .Role = role::syntax_keyword } };
+		expect(markdown_inline_code_spans("const int", declaration) == declaration, "words that are all coloured are code");
+		const auto dot = token_span_list{ { .Line = 0U, .Column = 6U, .Length = 1U, .Role = role::syntax_operator } };
+		expect(markdown_inline_code_spans("Target.resize", dot) == markdown_inline_code_members("Target.resize", dot) && markdown_inline_code_spans("Target.resize", dot).size() == 3U,
+			   "code keeps its colours and its member access");
+		const auto number = token_span_list{ { .Line = 0U, .Column = 0U, .Length = 7U, .Role = role::syntax_number } };
+		expect(markdown_inline_code_spans("1234567", number) == number, "a number is coloured whole");
+		expect(markdown_inline_code_spans("src/engine/renderer.cpp", dot).empty(), "a path is never coloured, whatever arrives");
+		// The body's fenced code keeps its language beside such a mention.
+		const auto fenced = scan_markdown_fenced_code("The workspace is `betterpullreview-agent-9dbd6144...`.\n\n```cpp\nint x = 0x1F;\n```\n");
+		expect(fenced.size() == 1U && markdown_code_language_of(fenced[0].Info).Kind == markdown_code_kind::language && markdown_code_language_of(fenced[0].Info).Selector == "code.cpp",
+			   "a fenced block with a language is still coloured");
+	}
 } // namespace
 
 int main()
@@ -278,6 +351,7 @@ int main()
 	suggestions();
 	inline_code_language();
 	inline_code_members();
+	inline_code_reads_as_code();
 	std::cout << "markdown-code-tests:pass\n";
 	return EXIT_SUCCESS;
 }

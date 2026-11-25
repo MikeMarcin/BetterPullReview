@@ -232,9 +232,23 @@ Shortcodes are replaced even in a body that holds a reserved mark.
 ## Fenced code (amendment 2)
 
 [[BPR-1562]], [[BPR-1563]] and [[BPR-1564]] draw fenced code blocks the way
-GitHub does. Indented code blocks and inline code spans are not coloured,
-because GitHub does not colour them either. Source, copy and publication keep
-the original bytes, and colours never change a line's text or geometry.
+GitHub does. Indented code blocks are not coloured, because GitHub does not
+colour them either. Source, copy and publication keep the original bytes, and
+colours never change a line's text or geometry.
+
+**Inline code.** A plain body leaves inline code uncoloured, as GitHub does.
+A reader given a language colours it in that language: the Agent tab and a
+report's page take the language most of the pull request's files are in; the
+tour's side chats, stop reader and proposed text take a stop's file's or the
+tour's commonest language ([[BPR-1753]] owner look v004, [[BPR-2266]],
+[[BPR-2277]]). It is coloured whole or not at all (owner,
+2026-11-24: "Why does the sha always get weird syntax highlights here"; "code
+should be highlighted when possible"). `core::markdown_inline_code_reads_as_code`
+keeps a mention that is not code out of the classifier: a URL, a path, a file's
+name, a version, a commit or other run of hex digits, a hyphenated name such as
+`betterpullreview-agent-9dbd6144` and a command-line flag stay plain monospace.
+`core::markdown_inline_code_spans` drops the colours of prose the grammar
+coloured in part, such as `this` in `Review this pull request`.
 
 **Agent answers.** [[BPR-1944]] adds a language header, Wrap toggle and
 Copy button to fenced code in the Agent tab, tour side chats and the Tour

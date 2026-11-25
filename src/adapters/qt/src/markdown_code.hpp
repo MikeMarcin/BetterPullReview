@@ -145,12 +145,13 @@ namespace bpr::qt::detail {
 		/// `clear` and `place`.
 		void               set_anchor(std::string aAnchor) { Anchor = std::move(aAnchor); }
 		[[nodiscard]] auto anchor() const noexcept -> const std::string& { return Anchor; }
-		/// \brief The inline code texts of the body, once each, and their spans.
+		/// \brief The inline code texts of the body that read as code
+		/// (`core::markdown_inline_code_reads_as_code`), once each, and their spans.
 		struct inline_code
 		{
 			std::shared_ptr<const std::string> Text;
-			/// The classifier's spans with its member access named
-			/// (`core::markdown_inline_code_members`).
+			/// The classifier's spans with its member access named, or none
+			/// for prose it coloured in part (`core::markdown_inline_code_spans`).
 			application::shared_token_spans Spans;
 			/// The spans as they arrived, so an answer is taken once.
 			application::shared_token_spans Arrived;

@@ -788,6 +788,183 @@ namespace bpr::core {
 		return result;
 	}
 
+	namespace {
+		[[nodiscard]] constexpr auto ascii_digit(const char aCharacter) noexcept -> bool
+		{
+			return aCharacter >= '0' && aCharacter <= '9';
+		}
+
+		[[nodiscard]] constexpr auto ascii_letter(const char aCharacter) noexcept -> bool
+		{
+			return (aCharacter >= 'a' && aCharacter <= 'z') || (aCharacter >= 'A' && aCharacter <= 'Z');
+		}
+
+		[[nodiscard]] constexpr auto hex_digit(const char aCharacter) noexcept -> bool
+		{
+			return ascii_digit(aCharacter) || (aCharacter >= 'a' && aCharacter <= 'f') || (aCharacter >= 'A' && aCharacter <= 'F');
+		}
+
+		[[nodiscard]] constexpr auto word_blank(const char aCharacter) noexcept -> bool
+		{
+			return aCharacter == ' ' || aCharacter == '\t' || aCharacter == '\n' || aCharacter == '\r';
+		}
+
+		/// The end of the identifier characters from `aAt`.
+		[[nodiscard]] auto word_end(const std::string_view aText, std::size_t aAt) noexcept -> std::size_t
+		{
+			while (aAt < aText.size() && identifier_part(aText[aAt])) {
+				++aAt;
+			}
+			return aAt;
+		}
+
+		/// `1.2.3`, `6.12.1-rc1`, `v6.12`, `V2.0.0`.
+		[[nodiscard]] auto names_a_version(const std::string_view aText) noexcept -> bool
+		{
+			auto       at     = std::size_t{ 0U };
+			const auto marked = !aText.empty() && (aText.front() == 'v' || aText.front() == 'V');
+			if (marked) {
+				++at;
+			}
+			auto parts = std::size_t{ 0U };
+			while (at < aText.size() && ascii_digit(aText[at])) {
+				while (at < aText.size() && ascii_digit(aText[at])) {
+					++at;
+				}
+				++parts;
+				if (at + 1U < aText.size() && aText[at] == '.' && ascii_digit(aText[at + 1U])) {
+					++at;
+					continue;
+				}
+				break;
+			}
+			if (parts < (marked ? 2U : 3U)) {
+				return false;
+			}
+			// A pre-release or build suffix: `-rc1`, `+build.5`.
+			if (at < aText.size() && (aText[at] == '-' || aText[at] == '+')) {
+				return at + 1U < aText.size() && std::ranges::all_of(aText.substr(at + 1U), [](const char aCharacter) { return identifier_part(aCharacter) || aCharacter == '.' || aCharacter == '-'; });
+			}
+			return at == aText.size();
+		}
+
+		/// A commit or other hash: 7 or more hex digits holding a digit and a
+		/// letter, as a whole word (`0x1F` is a number: its `x` is not hex).
+		[[nodiscard]] auto holds_a_hash(const std::string_view aText) noexcept -> bool
+		{
+			constexpr auto shortest = std::size_t{ 7U };
+			for (auto at = std::size_t{ 0U }; at < aText.size();) {
+				if (!identifier_part(aText[at])) {
+					++at;
+					continue;
+				}
+				const auto end  = word_end(aText, at);
+				const auto word = aText.substr(at, end - at);
+				if (word.size() >= shortest && std::ranges::all_of(word, hex_digit) && std::ranges::any_of(word, ascii_digit) && std::ranges::any_of(word, ascii_letter)) {
+					return true;
+				}
+				at = end;
+			}
+			return false;
+		}
+
+		/// `clang-format`, `agent-9dbd6144`: a `-` joining a name to a part
+		/// that starts with a letter, or to a digit-led word. `n-1` and
+		/// `1e-5f` are arithmetic and a number.
+		[[nodiscard]] auto holds_a_hyphenated_name(const std::string_view aText) noexcept -> bool
+		{
+			for (auto at = std::size_t{ 1U }; at + 1U < aText.size(); ++at) {
+				if (aText[at] != '-' || !identifier_part(aText[at - 1U]) || !identifier_part(aText[at + 1U])) {
+					continue;
+				}
+				// A number's exponent: `1e-5f`.
+				auto start = at;
+				while (start > 0U && identifier_part(aText[start - 1U])) {
+					--start;
+				}
+				if (ascii_digit(aText[start])) {
+					continue;
+				}
+				const auto next = aText.substr(at + 1U, word_end(aText, at + 1U) - (at + 1U));
+				if (!ascii_digit(next.front()) || std::ranges::any_of(next, ascii_letter)) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/// `--preset dev`, `-j 8`: a command line's flag.
+		[[nodiscard]] auto names_a_flag(const std::string_view aText) noexcept -> bool
+		{
+			const auto dashes = aText.starts_with("--") ? 2U : (aText.starts_with('-') ? 1U : 0U);
+			return dashes > 0U && aText.size() > dashes && ascii_letter(aText[dashes]);
+		}
+
+		/// The words of prose: two or more, each letters with an inner
+		/// apostrophe and one closing punctuation mark at most.
+		[[nodiscard]] auto prose_words(const std::string_view aText) -> std::vector<std::pair<std::size_t, std::size_t>>
+		{
+			auto words = std::vector<std::pair<std::size_t, std::size_t>>{ };
+			for (auto at = std::size_t{ 0U }; at < aText.size();) {
+				if (word_blank(aText[at])) {
+					++at;
+					continue;
+				}
+				auto end = at;
+				while (end < aText.size() && !word_blank(aText[end])) {
+					++end;
+				}
+				auto word = aText.substr(at, end - at);
+				if (word.size() > 1U && std::string_view{ ",.;:!?" }.find(word.back()) != std::string_view::npos) {
+					word.remove_suffix(1U);
+				}
+				if (word.empty() || !ascii_letter(word.front()) || !ascii_letter(word.back()) || !std::ranges::all_of(word, [](const char aCharacter) { return ascii_letter(aCharacter) || aCharacter == '\''; })) {
+					return { };
+				}
+				words.emplace_back(at, at + word.size());
+				at = end;
+			}
+			if (words.size() < 2U) {
+				return { };
+			}
+			return words;
+		}
+	} // namespace
+
+	auto markdown_inline_code_reads_as_code(const std::string_view aText) -> bool
+	{
+		if (aText.empty() || std::ranges::all_of(aText, word_blank)) {
+			return false;
+		}
+		const auto spaced = std::ranges::any_of(aText, word_blank);
+		if (aText.find("://") != std::string_view::npos || aText.starts_with("www.")) {
+			return false;
+		}
+		if (!spaced && (aText.find_first_of("/\\") != std::string_view::npos || names_a_file(aText) || names_a_version(aText))) {
+			return false;
+		}
+		return !holds_a_hash(aText) && !holds_a_hyphenated_name(aText) && !names_a_flag(aText);
+	}
+
+	auto markdown_inline_code_spans(const std::string_view aText, const token_span_list& aSpans) -> token_span_list
+	{
+		if (!markdown_inline_code_reads_as_code(aText)) {
+			return { };
+		}
+		if (const auto words = prose_words(aText); !words.empty()) {
+			const auto coloured = [&aSpans](const std::pair<std::size_t, std::size_t>& aWord) {
+				return std::ranges::any_of(aSpans, [&aWord](const token_span& aSpan) {
+					return aSpan.Line == 0U && aSpan.Role != appearance_role::syntax_normal && aSpan.Column < aWord.second && aWord.first < std::size_t{ aSpan.Column } + aSpan.Length;
+				});
+			};
+			const auto some = std::ranges::count_if(words, coloured);
+			if (some > 0 && static_cast<std::size_t>(some) < words.size()) {
+				return { };
+			}
+		}
+		return markdown_inline_code_members(aText, aSpans);
+	}
+
 	auto markdown_diff_marks(const std::string_view aLine) -> std::vector<markdown_diff_mark>
 	{
 		const auto whole = [&aLine](const markdown_diff_mark_kind aKind) {
