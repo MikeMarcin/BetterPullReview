@@ -114,10 +114,14 @@ bpr_add_network_isolated_test(
     WINDOWS_UNCONTAINED
     COMMAND test_better_pull_review_git_process_contract_tests
 )
+# RFC-BPR-0096's continue-at-latest amendment adds the partial-history move
+# and the ownership record's compaction, with a crash at each step: the whole
+# contract took 143 s on macOS arm64 Debug, and timed out at 180 s beside other
+# builds. Twice that bounds a hang.
 set_tests_properties(
     git_process_contract
     PROPERTIES
-        TIMEOUT 180
+        TIMEOUT 300
 )
 # [[BPR-2215]]. [[BPR-2294]]'s 20,003-file linked-clone course writes that
 # fixture and checks it out three times; NTFS takes longer than 180 s for it
