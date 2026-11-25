@@ -2178,6 +2178,30 @@ namespace {
 		expect(escaped && *escaped == canonical_normalized_read(), "thread/comment path equality compares decoded strings rather than JSON spelling");
 	}
 
+	/// \brief [[BPR-2364]]. A recorded repository may carry GitHub's `size`,
+	/// the bound on a whole-history fetch, and only as a plain count.
+	auto test_recorded_repository_size() -> void
+	{
+		const auto recording = load_recording("github-com", server_contract::github_com);
+		const auto sized     = [&](const std::string_view aSize) {
+			auto response = recording.Responses[1].Response;
+			replace_once(response.Body, "\"private\": false", "\"private\": false, \"size\": " + std::string{ aSize });
+			return response;
+		};
+		expect(validate_strict_fixture_response(read_operation::get_repository, recording.Responses[1].Response).has_value(),
+			   "a recorded repository without a size stays valid");
+		auto responses        = recording.Responses;
+		responses[1].Response = sized("5");
+		const auto normalized = normalize_github_read(normalization_context(server_contract::github_com), responses);
+		expect(normalized && normalized->PullRequest.Repository.SizeKilobytes == std::optional<std::uint64_t>{ 5U },
+			   "a recorded repository's size reaches the normalized read in kibibytes");
+		for (const auto size : { R"("5")", "-1", "5.5", "null" }) {
+			const auto refused = validate_strict_fixture_response(read_operation::get_repository, sized(size));
+			expect(!refused && refused.error().Code == contract_failure_code::unexpected_response_fields,
+				   "a recorded repository size that is not a plain count is refused");
+		}
+	}
+
 }
 
 namespace {
@@ -2267,6 +2291,7 @@ namespace {
 
 auto main() -> int
 {
+	test_recorded_repository_size();
 	test_glaze_strict_response_identity_and_syntax();
 	test_glaze_anonymous_comment_normalization();
 	test_glaze_normalization_keeps_raw_numbers_exact();

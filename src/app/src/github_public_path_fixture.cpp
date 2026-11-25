@@ -38,6 +38,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -54,6 +55,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <thread>
 #include <tuple>
 #include <utility>
@@ -1167,6 +1169,32 @@ namespace bpr::app::detail {
 			return limited;
 		}
 
+		/// \brief [[BPR-2364]]. Serves the repository's size, as GitHub does.
+		///
+		/// \details GitHub's repository response always carries `size`, in
+		/// kibibytes, and the review takes it as the bound on fetching a whole
+		/// history. The fixture's Git transport serves only complete packs,
+		/// so without a size the review refuses to fetch an unbounded history.
+		/// The size is the served packs' bytes, so it stays true to what the
+		/// fixture serves; the embedded pair, which names no file, is 1 KiB.
+		void overlay_repository_size(std::string& aBody, const fixture_pack_source& aPacks)
+		{
+			auto bytes = std::uintmax_t{ 0U };
+			for (const auto& file : { aPacks.File, aPacks.SecondFile }) {
+				if (file) {
+					auto       error = std::error_code{ };
+					const auto size  = std::filesystem::file_size(std::filesystem::path{ BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT } / *file, error);
+					if (error) {
+						throw std::runtime_error{ "GitHub public-path fixture pack is unreadable" };
+					}
+					bytes += size;
+				}
+			}
+			auto repository = QJsonDocument::fromJson(QByteArray::fromStdString(aBody)).object();
+			repository.insert(QStringLiteral("size"), static_cast<qint64>(std::max<std::uintmax_t>(1U, (bytes + 1023U) / 1024U)));
+			aBody = QJsonDocument{ repository }.toJson(QJsonDocument::Compact).toStdString();
+		}
+
 		/// \brief Keeps the two-file reading graph's metadata local to its descriptor.
 		void overlay_window_reading(std::string& aBody, read_operation aOperation, const fixture_descriptor& aDescriptor)
 		{
@@ -1501,6 +1529,11 @@ namespace bpr::app::detail {
 		{
 			if (aDescriptor.Paged) {
 				auto exchanges = large_review_fixture::load(std::filesystem::path{ BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT } / aDescriptor.ContractDirectory, aHead);
+				for (auto& exchange : exchanges) {
+					if (exchange.Request.Operation == read_operation::get_repository) {
+						overlay_repository_size(exchange.Response.Body, aDescriptor.Packs);
+					}
+				}
 				order_snapshot_reads(exchanges);
 				return exchanges;
 			}
@@ -1570,6 +1603,9 @@ namespace bpr::app::detail {
 							"2222222222222222222222222222222222222222",
 							observedHead);
 				overlay_window_reading(responseBody, *operation, aDescriptor);
+				if (*operation == read_operation::get_repository) {
+					overlay_repository_size(responseBody, aDescriptor.Packs);
+				}
 				if (aDescriptor.OrdinaryUpdate && *operation == read_operation::get_pull_request) {
 					auto pull = QJsonDocument::fromJson(QByteArray::fromStdString(responseBody)).object();
 					pull.insert(QStringLiteral("commits"), aHead == aDescriptor.HeadTwoOid ? 4 : 1);

@@ -1197,22 +1197,19 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto validate_repository_fixture(const fixture_json_value& aDocument)
 			-> bool
 		{
-			if (
-				!json_is_object(aDocument)
-				|| !has_exact_keys(
-					json_object(aDocument),
-					{
-						"default_branch",
-						"full_name",
-						"id",
-						"name",
-						"node_id",
-						"owner",
-						"private",
-					})) {
+			if (!json_is_object(aDocument)) {
 				return false;
 			}
 			const auto object = json_object(aDocument);
+			// [[BPR-2364]]. GitHub's `size`, in kibibytes, which every
+			// repository response carries and the read takes as the bound
+			// on a whole-history fetch. A recording may serve it.
+			const auto keys = object.contains("size")
+				? has_exact_keys(object, { "default_branch", "full_name", "id", "name", "node_id", "owner", "private", "size" }) && exact_integer(json_member(object, "size"))
+				: has_exact_keys(object, { "default_branch", "full_name", "id", "name", "node_id", "owner", "private" });
+			if (!keys) {
+				return false;
+			}
 			return exact_integer(json_member(object, "id"), true)
 				&& nonempty_string(json_member(object, "name"))
 				&& nonempty_string(json_member(object, "full_name"))
