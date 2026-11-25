@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2395"
 title: "Find a newer stable build from a release candidate"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-1799"]
 ---
