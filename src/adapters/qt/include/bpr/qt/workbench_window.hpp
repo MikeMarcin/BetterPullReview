@@ -1285,7 +1285,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto review_changed_files() const -> std::vector<std::string>;
 		/// \brief Owner look v004 ("After save as note it should turn into Go
 		/// to note"): opens one Local comment's card in Comments (RFC-BPR-0127).
-		void               go_to_private_note(std::uint64_t aId);
+		void go_to_private_note(std::uint64_t aId);
+		/// \brief Go to comment: one Local comment's card, arrived at as every
+		/// Go to draft arrives at its draft (`open_roster_draft`). Its file's
+		/// own tab in front, of a report too; the right tray on Comments with
+		/// the drawer open; the card open, whole in the drawer and holding
+		/// the keyboard, not left a closed note beside its line. A Local
+		/// comment on the pull request opens where it is, on Overview's
+		/// Comments tab.
+		/// \returns False when the pull request holds no such Local comment
+		/// now, or its file cannot be opened; nothing is opened then.
+		auto               open_local_comment(std::uint64_t aId) -> bool;
 		[[nodiscard]] auto open_agent_action() const noexcept -> QAction* { return OpenAgentAction; }
 		[[nodiscard]] auto ask_agent_action() const noexcept -> QAction* { return AskAgentAction; }
 		void               open_review_tour(bool aKeepStep = false);
@@ -3338,6 +3348,16 @@ namespace bpr::qt {
 		/// RFC-BPR-0127 ([[BPR-2159]]). Make Draft once the pending Local
 		/// comment is open in its file.
 		bool PendingLocalMakeDraft = false;
+		/// Go to comment (`open_local_comment`): the pending Local comment
+		/// arrives in Comments, whole in the drawer and holding the keyboard;
+		/// and it was asked for with a report in front, so it waits for its
+		/// file's tab as a draft gone to does.
+		bool PendingLocalArrives    = false;
+		bool PendingLocalFromReport = false;
+		/// Whether a file's tab is in front with its own reading restored: a
+		/// tab made active is given back the line it remembered, and what is
+		/// chosen before that is given up to it.
+		[[nodiscard]] auto file_tab_settled() const -> bool;
 		/// Owner look v004. A line a link asked for, selected once its file's
 		/// comparison is shown and measured; tried again until then, ten seconds at most.
 		struct pending_line_go

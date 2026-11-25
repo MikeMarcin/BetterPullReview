@@ -793,6 +793,33 @@ namespace bpr::app {
 		[[nodiscard]] auto finding_draft_outdated(const qt::report_draft& aFinding) const -> bool;
 		/// The findings whose changed draft was kept at an update.
 		std::vector<core::report_finding_key> OutdatedFindingDrafts;
+		/// A draft a finding's Draft comment made, as the store holds it now,
+		/// and what the core decides for it against its finding's comment.
+		struct finding_draft_decision
+		{
+			core::revisioned_review_draft Draft;
+			core::finding_draft_revision  Decided;
+		};
+		/// What becomes of draft `aDraft` when its finding's comment is
+		/// `aRevised`: read as it is now (the field's words when it is the
+		/// line's draft being written) and decided by the core. `aPrevious`
+		/// is the comment it was drafted from, at the update itself; without
+		/// it the draft is only found current or edited. None when the store
+		/// holds no such draft.
+		[[nodiscard]] auto decide_finding_draft(std::uint64_t aDraft, const std::optional<std::string>& aPrevious, const std::string& aRevised) const -> std::optional<finding_draft_decision>;
+		/// One revisioned edit of that draft's body: a draft changed since
+		/// it was read is refused, not overwritten (`aWritten` false).
+		void write_finding_draft(const core::revisioned_review_draft& aDraft, std::string aBody, std::function<void(bool)> aWritten);
+		/// A follow-up from an Agent tab finding card that no open report
+		/// holds updated the card's suggested comment from `aPrevious` to
+		/// `aRevised`: the draft that card made follows as a report
+		/// finding's does. Unchanged, it takes the update; changed by the
+		/// reviewer, it is kept and the card offers Update draft.
+		/// \returns What the core decided for it.
+		auto revise_card_draft(std::uint64_t aSession, std::size_t aOrdinal, const std::string& aPrevious, const std::string& aRevised) -> core::finding_draft_revision_kind;
+		/// Update draft on a finding card: its draft takes the card's
+		/// updated comment `aRevised`.
+		void update_card_draft(std::uint64_t aSession, std::size_t aOrdinal, const std::string& aRevised);
 		/// Owner report 2026-11-10, after BPR-2052. The cards a stored
 		/// answer's findings block makes, each as the reviewer left it.
 		[[nodiscard]] auto restored_finding_cards(const std::string& aAnswer) const -> std::vector<qt::agent_restored_finding_card>;

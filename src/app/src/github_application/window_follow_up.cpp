@@ -245,6 +245,13 @@ namespace bpr::app {
 				open_follow_up(std::move(subject));
 			});
 		}
+		// Update draft on a finding card whose changed draft was kept when a
+		// follow-up updated its suggested comment.
+		Window->agent_tab()->set_draft_update_dispatch([this](const std::uint64_t aSession, const std::size_t aOrdinal) {
+			if (const auto found = FollowUpRevisions.find(card_key(aSession, aOrdinal)); found != FollowUpRevisions.end()) {
+				update_card_draft(aSession, aOrdinal, found->second);
+			}
+		});
 		Window->item_side_chat()->set_intents({
 			.Ask     = [this](const QString& aQuestion) { ask_follow_up(aQuestion); },
 			.Propose = [this](const core::follow_up_apply aApply) { propose_follow_up(aApply); },
@@ -447,19 +454,28 @@ namespace bpr::app {
 		switch (decided.Apply) {
 		case core::follow_up_apply::update_suggestion: {
 			FollowUpRevisions[decided.Key] = decided.Text;
-			if (const auto card = card_of(decided.Key)) {
+			const auto card                = card_of(decided.Key);
+			if (card) {
 				static_cast<void>(Window->agent_tab()->revise_finding(card->first, card->second, text));
 			}
 			// [[BPR-2376]]. The report finding's draft follows the update
 			// while the reviewer has not changed it.
 			auto draft = core::finding_draft_revision_kind::none;
+			auto held  = false;
 			if (auto* const report = Window->report_view(); report != nullptr) {
 				for (const auto& finding : report->findings()) {
 					if (const auto request = report->finding_request(finding.Outline); request && report_key(report->document().Turn, *request) == decided.Key) {
+						held  = true;
 						draft = revise_finding_draft(*request, *current);
 					}
 				}
 				report->refresh_keeps();
+			}
+			// A finding card that no open report holds: the draft its Draft
+			// made follows the update the same way, and one the reviewer
+			// changed is kept, its card offering Update draft.
+			if (card && !held) {
+				draft = revise_card_draft(card->first, card->second, *current, decided.Text);
 			}
 			Window->item_side_chat()->show_status(draft == core::finding_draft_revision_kind::replace ? QStringLiteral("Suggested comment and its draft updated. Nothing is posted.")
 													  : draft == core::finding_draft_revision_kind::edited

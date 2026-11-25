@@ -749,6 +749,18 @@ namespace bpr::qt {
 		}
 	}
 
+	void agent_report_view::fit_page()
+	{
+		const auto width   = std::max(1, Column->width());
+		const auto crossed = [this](const int aWidth) { return std::ranges::count_if(PageFit.Breaks, [aWidth](const int aBreak) { return aBreak <= aWidth; }); };
+		if (!Dress.Sections.empty() && PageFit.Width != width && crossed(PageFit.Width) != crossed(width)) {
+			// Draws the page for the new width, and lays it out.
+			render_dressed();
+			return;
+		}
+		fit_body();
+	}
+
 	auto agent_report_view::code_height(const int aSlot, const int aWidth) const -> int
 	{
 		if (aSlot < 0 || static_cast<std::size_t>(aSlot) >= CodeViews.size()) {
@@ -879,7 +891,9 @@ namespace bpr::qt {
 				ActionLinks.emplace(token, std::pair{ aOutline, aLink });
 				return token;
 			};
-			Dressed->setHtml(report_page_html(Dress, native_colours(), actions, &collected, Look));
+			// Its rows arranged for the width it is laid out at.
+			PageFit.Width = std::max(1, Column->width());
+			Dressed->setHtml(report_page_html(Dress, native_colours(), actions, &collected, Look, &PageFit));
 			mark_report_inline_code(*Dressed->document());
 			Dressed->document()->documentLayout()->registerHandler(report_code_object, CodeObjects);
 			// Look report-templates-v003: each code block is the Agent tab's
@@ -1610,7 +1624,7 @@ namespace bpr::qt {
 	{
 		QWidget::resizeEvent(aEvent);
 		place_menu_button();
-		fit_body();
+		fit_page();
 	}
 
 	void agent_report_view::place_menu_button()
@@ -1788,7 +1802,7 @@ namespace bpr::qt {
 				if (Column->layout() != nullptr) {
 					Column->layout()->activate();
 				}
-				fit_body();
+				fit_page();
 			}
 		}
 		// The page's links, by their text. A press of the pointer on a link

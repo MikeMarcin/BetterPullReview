@@ -351,6 +351,13 @@ takes the update while it is still what the earlier comment drafted
 (`core::decide_finding_draft_revision`), in one revisioned edit. A draft the reviewer changed is
 kept, and the finding says it differs and offers Update draft.
 
+A follow-up from an Agent tab finding card that no open report holds does the same for the draft
+that card made. The card says which draft it made (`agent_tab_view::finding_card_draft`), the same
+core decision is taken on it, and an unchanged draft takes the update in one revisioned edit. A
+draft the reviewer changed is kept: the card offers Update draft in its row and says under it
+"Drafted. The draft differs from the updated suggested comment. Nothing is published.", in place
+of its state beside the buttons. A card that stops saying Drafted stops offering it.
+
 The report does not write an updated comment out again under its finding (owner, attended review
 `374cb080088e516421011d3a88d707e0`: "This updated comment section at the bottom is more confusing
 than helpful. It's just restating the thing that's drawn above it."). The finding is drawn from the
@@ -378,6 +385,24 @@ keyboard. From a report the line is chosen only once the file's tab has its own 
 since a tab made active is given the line it remembered. A draft the pull request no longer lists
 falls back to its lines. Closed, a draft is a card on a wash of the writing blue inside a dashed
 frame in that blue, with "Draft" in that ink; a Local comment wears the same card in the quiet ink.
+
+Go to comment, on a report finding kept as a Local comment, arrives the same way
+(`workbench_window::open_local_comment`): the file's own tab in front of the report, the right tray
+on Comments, and the Local comment's card open, whole in the drawer and holding the keyboard. It
+went to the finding's lines only, and left the tray where it was and the comment a closed note. A
+Local comment on the pull request opens where it is, on Overview's Comments tab. One the pull
+request no longer holds falls back to the finding's lines.
+
+A keep action's row is arranged for the width the report is drawn at (`report_page_fit`). Rich text
+lays a table row out on one line at any width and takes the room it lacks from the cells that wrap,
+so beside its side chat a report stood a row's sentence a letter to a line ("at renderer.cpp:11.
+Nothing is published"). The page measures a row's chips and its sentence in the row's own font and
+chooses one of three arrangements. Everything on one line where it fits. The sentence beside its
+chips where it has room for two lines of whole words. Otherwise the sentence under its chips at the
+row's whole width, and the chips on as many lines as they need, in their order. The word that says
+a state ("Drafted", "Kept", "Dismissed") keeps its line as a chip does. The page reports the widths
+at which some row's arrangement changes, and the view draws the page again only when its column
+crosses one; between them a new width only lays the same page out.
 
 A draft gone to shows its first column. The comment field never has a sideways range:
 `composer_code_layout::documentSize` reports a document no wider than the field, because Qt's plain

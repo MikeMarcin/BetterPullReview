@@ -1157,6 +1157,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto reply_label_controls() const -> feedback_label_controls*;
 		/// \brief The open thread's card, while one is open.
 		[[nodiscard]] auto open_card() const -> QWidget*;
+		/// \brief Brings the open card whole into view beside the code, as a
+		/// draft being written is brought: at once, and again once the code
+		/// has moved to its line and the drawer has settled, until it rests
+		/// whole, the reader scrolls, or the settling time is over. For a card
+		/// gone to from elsewhere (Go to comment), whose line the code is
+		/// still moving to when it opens.
+		void reveal_open_card();
 		/// \brief RFC-BPR-0128. The open thread's identity; empty for none.
 		[[nodiscard]] auto open_identity() const noexcept -> const std::string& { return Open; }
 		/// \brief The out-of-view chips shown now, top first then bottom.
@@ -1321,7 +1328,11 @@ namespace bpr::qt {
 		/// \brief Brings the draft being written whole into view, at once and
 		/// again once the drawer and the code have settled, until it rests
 		/// whole, the reader scrolls, or the settling time is over.
-		void arm_draft_reveal();
+		/// `aAnyCard`: of the open card whatever it is (`reveal_open_card`).
+		void arm_draft_reveal(bool aAnyCard = false);
+		/// The reveal under way is `reveal_open_card`'s: of the open card,
+		/// whether or not it is the draft being written.
+		bool RevealAnyCard = false;
 		/// \brief One step of the draft's reveal. Once the drawer has settled
 		/// (`aSettled`) with the card whole in view, the reveal ends.
 		void step_draft_reveal(bool aSettled);

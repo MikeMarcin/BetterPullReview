@@ -4076,6 +4076,21 @@ function(bpr_verify_app_source_tree app_source_root)
 	# presentation only; no grant, provider, transport, mutation or
 	# publication path changes. Full application and mutation-branch
 	# digests are unchanged.
+	# Report follow-ups reseal. A report finding's Go to comment
+	# (window_quick_ask.cpp) names the Local comment its keep made to
+	# workbench_window::open_local_comment, as Go to draft names its draft: one
+	# more read of a record the composition already holds, and navigation in
+	# the window. A follow-up's update of a finding card's comment
+	# (window_follow_up.cpp) moves the draft that card made as it already moved
+	# a report finding's: window_agent_setup.cpp's two reads of the shared
+	# draft store and its one revisioned edit are now two members
+	# (decide_finding_draft, write_finding_draft, declared in
+	# window_composition.hpp) that the report's path and the card's both call.
+	# The edit is the same private draft command through change_review_drafts,
+	# refused when the draft changed; no grant, provider, transport, mutation
+	# or publication path changes; the full application and mutation-branch
+	# digests are unchanged. The pin's value is main's: it is resealed for
+	# this lane at the merge.
 	set(bpr_expected_production_app_manifest_digest
         "12a4468cec1961e4e442a9f02f3af18f8e4bffcab1a797e4d80c61a8c49aaaee"
 	)

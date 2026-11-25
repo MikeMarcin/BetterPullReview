@@ -7,6 +7,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 
 #include <QFontDatabase>
+#include <QFontMetricsF>
 #include <QGuiApplication>
 #include <QObject>
 #include <QRegularExpression>
@@ -30,6 +31,9 @@ namespace bpr::qt {
 		const report_page_actions* Actions = nullptr;
 		/// The page being written's look.
 		report_look Look = report_look::cards;
+		/// The width the page being written is arranged for; none arranges
+		/// every row on one line.
+		report_page_fit* Fit = nullptr;
 
 		[[nodiscard]] auto code_marker(report_code_slot aSlot) -> QString
 		{
@@ -143,11 +147,157 @@ namespace bpr::qt {
 				.arg(aPalette.Strong, aPalette.Wash, aLink.toHtmlEscaped(), aInk, aWords.toHtmlEscaped());
 		}
 
-		/// [[BPR-2268]]. Words beside a chip: top-aligned, their first line
-		/// level with the chip's (its border and padding, 5 px, above it).
-		[[nodiscard]] auto beside(const QString& aText, const QString& aColour, const bool aStrong = false) -> QString
+		/// One part of a row that no layout narrows: a chip, or the word that
+		/// says a state.
+		struct row_part
 		{
-			return QStringLiteral("<td valign=\"top\" style=\"padding:5px 12px 4px 0;color:%1;%2\">%3</td>").arg(aColour, aStrong ? QStringLiteral("font-weight:600;") : QString{ }, aText.toHtmlEscaped());
+			QString Cells;
+			/// The width its cells take.
+			int Width = 0;
+		};
+
+		/// The width `aWords` take on one line in the rows' 13 px hand.
+		[[nodiscard]] auto words_width(const QString& aWords, const bool aStrong) -> int
+		{
+			auto font = QGuiApplication::font();
+			font.setPixelSize(13);
+			font.setWeight(aStrong ? QFont::DemiBold : QFont::Normal);
+			return static_cast<int>(std::ceil(QFontMetricsF{ font }.horizontalAdvance(aWords)));
+		}
+
+		/// What the page's width loses before a row inside a bordered box
+		/// with a rule at its left (a finding's card, the opening's band:
+		/// border, rule and padding), and beside a rule alone. Each with a
+		/// few pixels in hand.
+		constexpr auto boxed_inset = 1 + 3 + 14 + 14 + 1 + 4;
+		constexpr auto ruled_inset = 3 + 16 + 4;
+		/// The gap between a row's parts, and before its sentence.
+		constexpr auto row_gap = 12;
+		/// A chip's border and padding either side of its words, and two
+		/// pixels for a font the layout measures a little wider.
+		constexpr auto chip_frame = 2 * (1 + 10) + 2;
+
+		[[nodiscard]] auto chip_part(const QString& aLink, const QString& aWords, const QString& aInk, const palette& aPalette) -> row_part
+		{
+			return { .Cells = chip(aLink, aWords, aInk, aPalette), .Width = words_width(aWords, true) + chip_frame };
+		}
+
+		/// The word that says a state, before its row's chips: top-aligned,
+		/// level with a chip's words (its border and padding, 5 px, above
+		/// them; [[BPR-2268]]). It keeps its line as a chip does: a cell that
+		/// may wrap gives up its width with the sentence's, and "Drafted"
+		/// stood a letter to a line.
+		[[nodiscard]] auto word_part(const QString& aWord, const QString& aColour) -> row_part
+		{
+			return { .Cells = QStringLiteral("<td valign=\"top\" style=\"padding:5px 0 4px 0;color:%1;font-weight:600;white-space:nowrap\">%2</td>").arg(aColour, aWord.toHtmlEscaped()), .Width = words_width(aWord, true) + 2 };
+		}
+
+		/// One line of a row: a table of its cells, `aAbove` pixels under what
+		/// is above it.
+		[[nodiscard]] auto row_line(const QString& aCells, const int aAbove) -> QString
+		{
+			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:%1px;border-collapse:collapse;font-family:%2;font-size:13px\"><tr>%3</tr></table>").arg(aAbove).arg(sans(), aCells);
+		}
+
+		/// Words that stand under a row, at the row's whole width: `aHtml` in
+		/// `aColour`. A line of one cell, as a line of chips is: a
+		/// paragraph's margin is not kept after a table, and its words
+		/// touched the chips above them.
+		[[nodiscard]] auto under_row(const QString& aHtml, const QString& aColour, const int aAbove = 6) -> QString { return row_line(QStringLiteral("<td style=\"color:%1\">%2</td>").arg(aColour, aHtml), aAbove); }
+
+		/// \brief A row of the page: its parts, the sentence that says what
+		/// they do, and the parts that follow the sentence. `aInset` is what
+		/// the page's width loses before the row (a finding's box, the band).
+		/// \details Rich text lays a table row out on one line at any width
+		/// and takes the room it lacks from the cells that wrap, down to a
+		/// letter a line (the owner's report narrowed by its side chat: "at
+		/// renderer.cpp:11. Nothing is published", a letter to a line). So
+		/// the page arranges each row for the width it is drawn at
+		/// (`report_page_fit`):
+		/// - On one line where everything fits, as the row is written.
+		/// - The sentence beside its parts where it has room for two lines of
+		///   whole words.
+		/// - Else the sentence under its parts, at the row's whole width, and
+		///   the parts on as many lines as they need, in their order.
+		/// A page given no width arranges every row the first way.
+		[[nodiscard]] auto row_html(const std::vector<row_part>& aLead, const QString& aSentence, const QString& aColour, const std::vector<row_part>& aTrail, const int aInset) -> QString
+		{
+			const auto gap   = QStringLiteral("<td width=\"%1\"></td>").arg(row_gap);
+			auto       parts = aLead;
+			parts.insert(parts.end(), aTrail.begin(), aTrail.end());
+			// The sentence on one line, and the least it is set beside its
+			// parts in: the narrowest column that holds it in two lines of
+			// whole words. Beside a chip a third line makes a thin column
+			// taller than the chip it explains.
+			auto whole = 0;
+			auto least = 0;
+			if (!aSentence.isEmpty()) {
+				const auto words = aSentence.split(QLatin1Char{ ' ' }, Qt::SkipEmptyParts);
+				// A few pixels for a font the layout measures a little wider.
+				const auto cell = 6;
+				whole           = words_width(aSentence, false) + cell;
+				least           = whole;
+				for (auto second = qsizetype{ 1 }; second < words.size(); ++second) {
+					least = std::min(least, std::max(words_width(words.mid(0, second).join(QLatin1Char{ ' ' }), false), words_width(words.mid(second).join(QLatin1Char{ ' ' }), false)) + cell);
+				}
+			}
+			// The parts on one line, with a gap after each that something
+			// follows.
+			auto fixed = 0;
+			for (const auto& part : parts) {
+				fixed += part.Width + row_gap;
+			}
+			fixed -= aSentence.isEmpty() && !parts.empty() ? row_gap : 0;
+			const auto bounded = Fit != nullptr && Fit->Width > 0;
+			const auto room    = bounded ? Fit->Width - aInset : 0;
+			if (Fit != nullptr) {
+				// Where this row's arrangement changes: the sentence's two
+				// widths, and every run of parts a line may hold.
+				Fit->Breaks.push_back(aInset + fixed + whole);
+				Fit->Breaks.push_back(aInset + fixed + least);
+				for (auto from = std::size_t{ 0U }; from < parts.size(); ++from) {
+					auto run = -row_gap;
+					for (auto to = from; to < parts.size(); ++to) {
+						run += row_gap + parts[to].Width;
+						Fit->Breaks.push_back(aInset + run);
+					}
+				}
+			}
+			if (!bounded || room >= fixed + least) {
+				auto cells = QStringList{ };
+				for (const auto& part : aLead) {
+					cells << part.Cells;
+				}
+				if (!aSentence.isEmpty()) {
+					// [[BPR-2268]]. Top-aligned, its first line level with the
+					// chips' words however many lines it takes.
+					cells << QStringLiteral("<td valign=\"top\" style=\"padding:5px 0 4px 0;color:%1\">%2</td>").arg(aColour, aSentence.toHtmlEscaped());
+				}
+				for (const auto& part : aTrail) {
+					cells << part.Cells;
+				}
+				return row_line(cells.join(gap), 12);
+			}
+			// The parts, on as many lines as the width needs; a part wider
+			// than the row has a line of its own.
+			auto html  = QString{ };
+			auto cells = QStringList{ };
+			auto held  = 0;
+			for (const auto& part : parts) {
+				if (!cells.isEmpty() && held + row_gap + part.Width > room) {
+					html += row_line(std::exchange(cells, QStringList{ }).join(gap), html.isEmpty() ? 12 : 6);
+					held = 0;
+				}
+				held += (cells.isEmpty() ? 0 : row_gap) + part.Width;
+				cells << part.Cells;
+			}
+			if (!cells.isEmpty()) {
+				html += row_line(cells.join(gap), html.isEmpty() ? 12 : 6);
+			}
+			if (!aSentence.isEmpty()) {
+				html += under_row(aSentence.toHtmlEscaped(), aColour, html.isEmpty() ? 12 : 6);
+			}
+			return html;
 		}
 
 		/// A fenced block as the page's own HTML code box.
@@ -254,10 +404,11 @@ namespace bpr::qt {
 
 		/// One keep action's row: the chip and what it does, or what became
 		/// of it. `aOutline` 0 is the summary's.
+		/// `aInset`: what the page's width loses before the row.
 		/// `aDrawn`: the lines of the Suggested change the finding draws
 		/// above the row, when it draws one.
-		[[nodiscard]] auto keep_row(const std::uint32_t aOutline, const core::report_keep aKeep, const QString& aWhere, const bool aGoes, const palette& aPalette, const std::vector<std::string>* const aDrawn = nullptr)
-			-> QString
+		[[nodiscard]] auto keep_row(const std::uint32_t aOutline, const core::report_keep aKeep, const QString& aWhere, const bool aGoes, const palette& aPalette, const int aInset,
+									const std::vector<std::string>* const aDrawn = nullptr) -> QString
 		{
 			if (Actions == nullptr || !Actions->Link || aKeep == core::report_keep::none) {
 				return { };
@@ -265,53 +416,66 @@ namespace bpr::qt {
 			const auto found  = Actions->States.find(aOutline);
 			const auto state  = found == Actions->States.end() ? report_keep_state{ } : found->second;
 			const auto draft  = aKeep == core::report_keep::draft_comment;
-			const auto spacer = QStringLiteral("<td width=\"12\"></td>");
 			const auto unsent = QObject::tr("Nothing is published");
-			auto       cells  = QString{ };
+			// The row: what keeps its line, and the sentence beside or under
+			// it (`row_html`).
+			auto parts    = std::vector<row_part>{ };
+			auto sentence = QString{ };
+			auto colour   = aPalette.Faint;
 			// [[BPR-2286]]. Ask follow-up, beside a finding's keep action.
-			const auto ask = Actions->FollowUp && aOutline != 0U ? chip(Actions->Link(aOutline, report_link::ask), QObject::tr("Ask follow-up"), aPalette.Ink, aPalette) + spacer : QString{ };
-			// [[BPR-2331]]. Dismiss, beside a finding's keep action, as its
-			// Agent tab card had it.
-			const auto dismiss  = Actions->Dismiss && aOutline != 0U ? chip(Actions->Link(aOutline, report_link::dismiss), QObject::tr("Dismiss"), aPalette.Ink, aPalette) + spacer : QString{ };
+			const auto ask = [&] {
+				if (Actions->FollowUp && aOutline != 0U) {
+					parts.push_back(chip_part(Actions->Link(aOutline, report_link::ask), QObject::tr("Ask follow-up"), aPalette.Ink, aPalette));
+				}
+			};
 			const auto outdated = draft && state.Phase == report_keep_phase::kept && std::ranges::find(Actions->Outdated, aOutline) != Actions->Outdated.end();
 			switch (state.Phase) {
-			case report_keep_phase::working: cells = beside(draft ? QObject::tr("Drafting\u2026") : QObject::tr("Keeping\u2026"), aPalette.Faint, false); break;
+			case report_keep_phase::working: sentence = draft ? QObject::tr("Drafting…") : QObject::tr("Keeping…"); break;
 			case report_keep_phase::kept:
 				// [[BPR-2376]]. A draft the reviewer changed before a
 				// follow-up updated the comment is kept and offers the update.
 				// Its row is its three controls, and what it is and why are
-				// said under them, whole at any width: beside them, in a
-				// report narrowed by its side chat, "Drafted" and the
-				// sentence had a letter's width each.
+				// said under them.
 				if (!outdated) {
-					cells = beside(draft ? QObject::tr("Drafted") : QObject::tr("Kept"), aPalette.Roles.Tones.Done.name(), true);
+					parts.push_back(word_part(draft ? QObject::tr("Drafted") : QObject::tr("Kept"), aPalette.Roles.Tones.Done.name()));
 				}
 				if (aGoes) {
-					cells += chip(Actions->Link(aOutline, report_link::go), draft ? QObject::tr("Go to draft") : QObject::tr("Go to comment"), aPalette.Link, aPalette) + spacer;
+					parts.push_back(chip_part(Actions->Link(aOutline, report_link::go), draft ? QObject::tr("Go to draft") : QObject::tr("Go to comment"), aPalette.Link, aPalette));
 				}
 				if (outdated) {
-					cells += chip(Actions->Link(aOutline, report_link::update_draft), QObject::tr("Update draft"), aPalette.Ink, aPalette) + spacer + ask;
+					parts.push_back(chip_part(Actions->Link(aOutline, report_link::update_draft), QObject::tr("Update draft"), aPalette.Ink, aPalette));
+					ask();
 					break;
 				}
-				cells += ask;
+				ask();
 				// [[BPR-2331]]. What the draft says of its lines, when it says
 				// something ([[BPR-2298]]), as its card said it.
-				cells += beside(!state.Why.isEmpty() ? state.Why
-									: aOutline == 0U ? QObject::tr("A local comment on the pull request. %1").arg(unsent)
-													 : unsent,
-								aPalette.Faint, false);
+				sentence = !state.Why.isEmpty() ? state.Why
+					: aOutline == 0U            ? QObject::tr("A local comment on the pull request. %1").arg(unsent)
+												: unsent;
 				break;
 			case report_keep_phase::dismissed:
-				cells = beside(QObject::tr("Dismissed"), aPalette.Dim, true) + chip(Actions->Link(aOutline, report_link::undo_dismiss), QObject::tr("Undo"), aPalette.Ink, aPalette) + spacer;
-				cells += beside(QObject::tr("Nothing was made"), aPalette.Faint, false);
+				parts.push_back(word_part(QObject::tr("Dismissed"), aPalette.Dim));
+				parts.push_back(chip_part(Actions->Link(aOutline, report_link::undo_dismiss), QObject::tr("Undo"), aPalette.Ink, aPalette));
+				sentence = QObject::tr("Nothing was made");
 				break;
 			case report_keep_phase::refused:
 			case report_keep_phase::offered:
-				cells = chip(Actions->Link(aOutline, report_link::keep), aOutline == 0U ? QObject::tr("Keep summary") : draft ? QObject::tr("Draft comment")
-																															  : QObject::tr("Keep local"),
-							 aPalette.Ink, aPalette)
-					+ spacer + dismiss + ask;
-				cells += state.Phase == report_keep_phase::refused ? beside(state.Why, aPalette.Roles.Tones.Open.name(), false) : beside(QStringLiteral("%1. %2").arg(aWhere, unsent), aPalette.Faint, false);
+				parts.push_back(chip_part(Actions->Link(aOutline, report_link::keep), aOutline == 0U ? QObject::tr("Keep summary") : draft ? QObject::tr("Draft comment")
+																																		   : QObject::tr("Keep local"),
+										  aPalette.Ink, aPalette));
+				// [[BPR-2331]]. Dismiss, beside a finding's keep action, as
+				// its Agent tab card had it.
+				if (Actions->Dismiss && aOutline != 0U) {
+					parts.push_back(chip_part(Actions->Link(aOutline, report_link::dismiss), QObject::tr("Dismiss"), aPalette.Ink, aPalette));
+				}
+				ask();
+				if (state.Phase == report_keep_phase::refused) {
+					sentence = state.Why;
+					colour   = aPalette.Roles.Tones.Open.name();
+				} else {
+					sentence = QStringLiteral("%1. %2").arg(aWhere, unsent);
+				}
 				break;
 			}
 			// [[BPR-2331]]. The comment Draft comment drafts, as the agent
@@ -333,36 +497,36 @@ namespace bpr::qt {
 										   : QObject::tr("Keep local keeps the comment as the follow-up updated it.");
 				if (!said.isEmpty()) {
 					const auto lead = outdated ? QStringLiteral("<span style=\"font-weight:600;color:%1\">%2</span> ").arg(aPalette.Roles.Tones.Done.name(), QObject::tr("Drafted.").toHtmlEscaped()) : QString{ };
-					under           = QStringLiteral("<p style=\"margin-top:6px;font-family:%1;font-size:13px;color:%2\">%3%4</p>").arg(sans(), outdated ? aPalette.Roles.Tones.Open.name() : aPalette.Faint, lead, said.toHtmlEscaped());
+					under           = under_row(lead + said.toHtmlEscaped(), outdated ? aPalette.Roles.Tones.Open.name() : aPalette.Faint);
 				}
 			} else if (const auto suggested = Actions->Suggested.find(aOutline); suggested != Actions->Suggested.end()) {
 				under = comment_html(suggested->second, aDrawn, aPalette);
 			}
-			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells) + under;
+			return row_html(parts, sentence, colour, { }, aInset) + under;
 		}
 
 		/// [[BPR-2232]]. Draft all from the report: the chip while it has a
 		/// finding to draft, and what it is doing or last did.
-		[[nodiscard]] auto draft_all_row(const palette& aPalette) -> QString
+		[[nodiscard]] auto draft_all_row(const palette& aPalette, const int aInset) -> QString
 		{
 			if (Actions == nullptr || !Actions->Link || (Actions->DraftAll == 0U && !Actions->DraftAllBusy && Actions->DraftAllSaid.isEmpty() && !Actions->DraftAllUndo)) {
 				return { };
 			}
-			auto cells = QString{ };
+			auto lead  = std::vector<row_part>{ };
+			auto trail = std::vector<row_part>{ };
 			if (Actions->DraftAll > 0U && !Actions->DraftAllBusy) {
-				cells += chip(Actions->Link(0U, report_link::draft_all), QObject::tr("Draft all (%1)").arg(Actions->DraftAll), aPalette.Ink, aPalette) + QStringLiteral("<td width=\"12\"></td>");
+				lead.push_back(chip_part(Actions->Link(0U, report_link::draft_all), QObject::tr("Draft all (%1)").arg(Actions->DraftAll), aPalette.Ink, aPalette));
 			}
-			cells += Actions->DraftAllSaid.isEmpty() ? beside(QObject::tr("Each finding not yet drafted, at its lines. Nothing is published"), aPalette.Faint)
-													 : beside(Actions->DraftAllSaid, Actions->DraftAllBusy ? aPalette.Faint : aPalette.Dim);
-			// [[BPR-2331]]. Its Undo, beside what it did, as the Agent tab's.
+			// [[BPR-2331]]. Its Undo, after what it did, as the Agent tab's.
 			if (Actions->DraftAllUndo && !Actions->DraftAllBusy) {
-				cells += chip(Actions->Link(0U, report_link::undo_draft_all), QObject::tr("Undo"), aPalette.Ink, aPalette);
+				trail.push_back(chip_part(Actions->Link(0U, report_link::undo_draft_all), QObject::tr("Undo"), aPalette.Ink, aPalette));
 			}
-			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells);
+			return Actions->DraftAllSaid.isEmpty() ? row_html(lead, QObject::tr("Each finding not yet drafted, at its lines. Nothing is published"), aPalette.Faint, trail, aInset)
+												   : row_html(lead, Actions->DraftAllSaid, Actions->DraftAllBusy ? aPalette.Faint : aPalette.Dim, trail, aInset);
 		}
 
 		/// The keep action of `aItem`, when it is a finding.
-		[[nodiscard]] auto finding_row(const dressed_item& aItem, const palette& aPalette) -> QString
+		[[nodiscard]] auto finding_row(const dressed_item& aItem, const palette& aPalette, const int aInset) -> QString
 		{
 			if (Actions == nullptr) {
 				return { };
@@ -379,7 +543,7 @@ namespace bpr::qt {
 			// What `blocks_html` drew as the item's Suggested change: a
 			// suggestion under a place.
 			const auto drawn = aItem.Place.empty() ? aItem.Body.end() : std::ranges::find(aItem.Body, dressed_block_kind::suggestion, &dressed_block::Kind);
-			return keep_row(aOutline, found->Keep, where, !found->Path.empty(), aPalette, drawn != aItem.Body.end() ? &drawn->Lines : nullptr);
+			return keep_row(aOutline, found->Keep, where, !found->Path.empty(), aPalette, aInset, drawn != aItem.Body.end() ? &drawn->Lines : nullptr);
 		}
 
 		/// Emphasis, `**strong**` and `*emphasis*` or `_emphasis_`, outside
@@ -552,7 +716,7 @@ namespace bpr::qt {
 		{
 			if (aItem.Label.empty() && aItem.Place.empty()) {
 				return QStringLiteral("<p style=\"margin:16px 0 6px 0;font-size:14px;font-weight:600\">%1%2</p>%3")
-					.arg(anchor(aItem.Outline), inline_html(aItem.Heading, aPalette), blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem, aPalette));
+					.arg(anchor(aItem.Outline), inline_html(aItem.Heading, aPalette), blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem, aPalette, 0));
 			}
 			const auto tone = aItem.Tone == report_tone::neutral ? aPalette.Strong : report_tone_colour(aItem.Tone, aPalette.Roles).name();
 			const auto word = aItem.Tone == report_tone::neutral ? aPalette.Dim : tone;
@@ -571,7 +735,7 @@ namespace bpr::qt {
 						   inline_html(aItem.Heading, aPalette),
 						   (aItem.OtherPlaces.empty() ? QString{ }
 													  : QStringLiteral("<p style=\"margin:0 0 6px 0;font-family:%1;font-size:13px;color:%2\">%3 %4</p>").arg(sans(), aPalette.Dim, QObject::tr("Also"), inline_html(aItem.OtherPlaces, aPalette)))
-							   + blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem, aPalette));
+							   + blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem, aPalette, Look == report_look::cards ? boxed_inset : ruled_inset));
 		}
 
 		[[nodiscard]] auto tally_html(const dressed_report& aReport, const palette& aPalette) -> QString
@@ -654,14 +818,25 @@ namespace bpr::qt {
 		return runs.size();
 	}
 
-	auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const report_page_actions& aActions, std::vector<report_code_slot>* aSlots, const report_look aLook) -> QString
+	auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const report_page_actions& aActions, std::vector<report_code_slot>* aSlots, const report_look aLook, report_page_fit* const aFit)
+		-> QString
 	{
-		Collected          = aSlots;
-		Actions            = &aActions;
-		Look               = aLook;
+		Collected = aSlots;
+		Actions   = &aActions;
+		Look      = aLook;
+		Fit       = aFit;
+		if (Fit != nullptr) {
+			Fit->Breaks.clear();
+		}
 		const auto reset   = qScopeGuard([] {
+			if (Fit != nullptr) {
+				std::ranges::sort(Fit->Breaks);
+				const auto repeated = std::ranges::unique(Fit->Breaks);
+				Fit->Breaks.erase(repeated.begin(), repeated.end());
+			}
 			Collected = nullptr;
 			Actions   = nullptr;
+			Fit       = nullptr;
 		});
 		const auto colours = palette_of(aColours);
 		auto       html    = QStringLiteral("<html><body style=\"font-family:%1;font-size:14px;color:%2\">").arg(sans(), colours.Ink);
@@ -685,9 +860,9 @@ namespace bpr::qt {
 				paragraphs << QStringLiteral("<p style=\"margin:0;font-size:15px\">%1</p>").arg(inline_html(part.toStdString(), colours));
 			}
 			opening += paragraphs.join(QString{ });
-			opening += aActions.Summary ? keep_row(0U, core::report_keep::keep_local, QObject::tr("as a local comment on the pull request"), false, colours) : QString{ };
+			opening += aActions.Summary ? keep_row(0U, core::report_keep::keep_local, QObject::tr("as a local comment on the pull request"), false, colours, banded ? boxed_inset : ruled_inset) : QString{ };
 		}
-		opening += draft_all_row(colours);
+		opening += draft_all_row(colours, banded ? boxed_inset : ruled_inset);
 		if (!opening.isEmpty()) {
 			// The opening: on a raised band with the verdict's rule (band,
 			// cards), or beside a rule alone (plain).

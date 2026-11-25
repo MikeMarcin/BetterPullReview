@@ -4534,6 +4534,25 @@ namespace bpr::qt {
 		dismiss->setFlat(true);
 		connect(dismiss, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::dismiss); });
 		actions->addWidget(dismiss);
+		// A drafted card whose draft the reviewer changed before a follow-up
+		// updated its suggested comment: Update draft, as a report's finding
+		// offers it. What it is and why stand under the row, at the card's
+		// whole width (`show_card_state`).
+		auto* const update = new quiet_push_button{ tr("Update draft"), card };
+		update->setObjectName(QStringLiteral("agentFindingUpdateDraft"));
+		update->setToolTip(tr("Replace the draft with the updated suggested comment. Nothing is posted."));
+		update->setAccessibleDescription(update->toolTip());
+		// A chip that paints its whole rect is laid out by it: by a bezel it
+		// does not have, it is drawn over the button beside it.
+		update->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+		update->hide();
+		connect(update, &QPushButton::clicked, this, [this, index] {
+			const auto found = std::ranges::find(CardEntries, index, &card_entry::Id);
+			if (found != CardEntries.end() && DraftUpdateDispatch) {
+				DraftUpdateDispatch(found->Session, found->Ordinal);
+			}
+		});
+		actions->addWidget(update);
 		// [[BPR-2286]]. Ask follow-up: a conversation about this finding, in
 		// its own window; it sends nothing by itself.
 		auto* const followUp = new quiet_push_button{ tr("Ask follow-up"), card };
@@ -4575,6 +4594,12 @@ namespace bpr::qt {
 		actions->addWidget(goToNote);
 		actions->addStretch(1);
 		col->addLayout(actions);
+		auto* const differs = new QLabel{ tr("Drafted. The draft differs from the updated suggested comment. Nothing is published."), card };
+		differs->setObjectName(QStringLiteral("agentFindingDraftDiffers"));
+		differs->setForegroundRole(QPalette::PlaceholderText);
+		differs->setWordWrap(true);
+		differs->hide();
+		col->addWidget(differs);
 		// Choosing a card selects its finding and shows its lines.
 		card->installEventFilter(this);
 		card->setProperty("agentFindingCard", QVariant::fromValue<qulonglong>(index));
@@ -4622,6 +4647,33 @@ namespace bpr::qt {
 		}
 	}
 
+	auto agent_tab_view::finding_card_draft(const std::uint64_t aSession, const std::size_t aOrdinal) const -> std::uint64_t
+	{
+		const auto drafted = [aSession, aOrdinal](const card_entry& aEntry) { return aEntry.Session == aSession && aEntry.Ordinal == aOrdinal && aEntry.State == agent_finding_card_state::drafted && aEntry.Note != 0U; };
+		if (const auto found = std::ranges::find_if(CardEntries, drafted); found != CardEntries.end()) {
+			return found->Note;
+		}
+		return 0U;
+	}
+
+	void agent_tab_view::present_finding_draft_outdated(const std::uint64_t aSession, const std::size_t aOrdinal, const bool aOutdated)
+	{
+		for (auto& entry : CardEntries) {
+			if (entry.Session == aSession && entry.Ordinal == aOrdinal && entry.Outdated != aOutdated) {
+				entry.Outdated = aOutdated;
+				show_card_state(entry);
+			}
+		}
+	}
+
+	void agent_tab_view::set_draft_update_dispatch(std::function<void(std::uint64_t, std::size_t)> aDispatch)
+	{
+		DraftUpdateDispatch = std::move(aDispatch);
+		for (auto& entry : CardEntries) {
+			show_card_state(entry);
+		}
+	}
+
 	auto agent_tab_view::revise_finding(const std::uint64_t aSession, const std::size_t aOrdinal, const QString& aComment) -> bool
 	{
 		auto revised = false;
@@ -4656,12 +4708,25 @@ namespace bpr::qt {
 		if (auto* const goToNote = card->findChild<QPushButton*>(QStringLiteral("agentFindingGoToComment")); goToNote != nullptr) {
 			goToNote->setVisible(aEntry.State == agent_finding_card_state::noted && aEntry.Note != 0U && NoteNavigate);
 		}
+		// A draft that differs from the comment a follow-up updated: Update
+		// draft in the row, and what is so under it, in place of the state
+		// beside the buttons.
+		aEntry.Outdated     = aEntry.Outdated && aEntry.State == agent_finding_card_state::drafted;
+		const auto outdated = aEntry.Outdated && DraftUpdateDispatch;
+		if (auto* const update = card->findChild<QPushButton*>(QStringLiteral("agentFindingUpdateDraft")); update != nullptr) {
+			update->setVisible(outdated);
+		}
+		if (auto* const differs = card->findChild<QLabel*>(QStringLiteral("agentFindingDraftDiffers")); differs != nullptr) {
+			differs->setVisible(outdated);
+		}
 		// [[BPR-2298]]. A draft whose lines need saying (a range widened to
 		// its suggestion's lines, or one to check) says so.
 		switch (aEntry.State) {
-		case agent_finding_card_state::open:      state->clear(); break;
-		case agent_finding_card_state::working:   state->setText(tr("Working…")); break;
-		case agent_finding_card_state::drafted:   state->setText(aEntry.Why.isEmpty() ? tr("Drafted. It is a private draft until you publish it.") : aEntry.Why); break;
+		case agent_finding_card_state::open:    state->clear(); break;
+		case agent_finding_card_state::working: state->setText(tr("Working…")); break;
+		case agent_finding_card_state::drafted: state->setText(outdated ? QString{ } : aEntry.Why.isEmpty() ? tr("Drafted. It is a private draft until you publish it.")
+																											: aEntry.Why);
+			break;
 		case agent_finding_card_state::noted:     state->setText(tr("Kept local.")); break;
 		case agent_finding_card_state::dismissed: state->setText(tr("Dismissed.")); break;
 		case agent_finding_card_state::refused:   state->setText(aEntry.Why.isEmpty() ? tr("That could not be done.") : aEntry.Why); break;

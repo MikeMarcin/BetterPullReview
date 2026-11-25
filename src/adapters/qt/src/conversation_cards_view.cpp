@@ -5505,8 +5505,17 @@ namespace bpr::qt {
 		return { .Top = edge_reach + 8, .Bottom = height - (edge_reach + 8), .Rest = height / 3 };
 	}
 
-	void conversation_cards_view::arm_draft_reveal()
+	void conversation_cards_view::reveal_open_card()
 	{
+		if (OpenCard == nullptr || !aligned()) {
+			return;
+		}
+		arm_draft_reveal(true);
+	}
+
+	void conversation_cards_view::arm_draft_reveal(const bool aAnyCard)
+	{
+		RevealAnyCard = aAnyCard;
 		if (DraftReveal == nullptr) {
 			DraftReveal = new QTimer{ this };
 			DraftReveal->setSingleShot(true);
@@ -5530,7 +5539,7 @@ namespace bpr::qt {
 		// Bounded: the code's move to the line arrives within it; after it,
 		// or once the card has settled whole, only the reader moves the notes.
 		constexpr auto settling = 1'500;
-		if (!RevealDraft || !writing_draft() || OpenCard == nullptr || DraftRevealSteps >= 8 || DraftRevealClock.elapsed() > settling) {
+		if (!RevealDraft || !(writing_draft() || RevealAnyCard) || OpenCard == nullptr || DraftRevealSteps >= 8 || DraftRevealClock.elapsed() > settling) {
 			RevealDraft = false;
 			return;
 		}

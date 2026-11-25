@@ -43,9 +43,18 @@ The functional core decides whether an explicit AI action is legal, what local c
   comment the agent suggested for that place); **Keep local** where it
   names only a file or nothing. Once made it reads Drafted, or Kept, with
   **Go to draft** or **Go to comment**, and a report opened again still
-  says so. **Keep summary**, under the summary, keeps the verdict, the
+  says so. Each goes to what the keep made, in one click: the file's tab
+  comes in front of the report, the right tray turns to Comments, and the
+  draft or the Local comment is open there, whole in the drawer and holding
+  the keyboard. **Keep summary**, under the summary, keeps the verdict, the
   summary and a line a finding as a Local comment on the pull request.
   Nothing is published until the reviewer publishes.
+- A keep action's row fits the report at any width, beside its side chat
+  too. Wide, its buttons and the sentence that says what they do are one
+  line. Narrower, the sentence wraps beside the buttons in two lines at
+  most; narrower still it stands under them at the row's whole width, and
+  the buttons take a second line or a third. A button never wraps its
+  words, and a sentence breaks only between words.
 - The report's links answer the pointer as buttons do (owner, 2026-11-25:
   "I cant actually click go to draft properly until I deselect it and then
   click it again"): a press on a link starts no selection, and one click

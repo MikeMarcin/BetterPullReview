@@ -54,6 +54,11 @@
 ///   `agent.side_chat` line in the diagnostic log, and an anonymized export
 ///   of that log holds none of the words asked, answered, proposed or quoted.
 ///
+/// - The report beside its side chat is narrow, and a keep row's sentence
+///   stood a letter to a line beside its chips. Beside the chat every row is
+///   inside the page and its sentence breaks only between words: a finding
+///   offered, one drafted, and one whose draft differs from its update.
+///
 ///     follow_up_public_path
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/diagnostic_files.hpp"
@@ -74,6 +79,7 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
+#include "report_page_rows.hpp"
 
 #include <QAbstractButton>
 #include <QAction>
@@ -448,6 +454,9 @@ auto main(int argc, char** argv) -> int
 		expect(window.report_shown() && report->isVisible() && followUp->mapTo(&window, QPoint{ 0, 0 }).x() >= report->mapTo(&window, QPoint{ report->width(), 0 }).x() && onlyTheWindow(),
 			   "the chat stands beside the report, in the window");
 		render(window, QStringLiteral("side-chat-report"));
+		// Beside its side chat the report is narrow: its rows stay inside the
+		// page and their sentences break between words, not a letter a line.
+		expect(e2e::report_rows_wrong(*report).empty(), "beside its side chat the report's rows are whole, " + std::to_string(report->column()->width()) + " px wide: " + e2e::report_rows_wrong(*report));
 		expect(report->press(issue.Outline, qt::report_link::keep), "Draft comment is pressed");
 		wait([&] {
 			const auto phase = report->keep_state(issue.Outline).Phase;
@@ -588,6 +597,9 @@ auto main(int argc, char** argv) -> int
 			expect(report->dressed_view()->toPlainText().contains(QStringLiteral("The draft differs from the updated suggested comment")), "and says why");
 			render(*report, QStringLiteral("follow-up-draft-differs"));
 			render(*report->dressed_view(), QStringLiteral("follow-up-draft-differs-page"));
+			render(window, QStringLiteral("side-chat-report-draft-differs"));
+			expect(followUp->isVisible() && e2e::report_rows_wrong(*report).empty(),
+				   "beside its side chat the rows of a drafted finding and of one whose draft differs are whole, " + std::to_string(report->column()->width()) + " px wide: " + e2e::report_rows_wrong(*report));
 			expect(report->press(fix.Outline, qt::report_link::update_draft), "Update draft is pressed");
 			wait([&] { return fixDraftText().contains(thirdLine) && !fixDraftText().contains(QStringLiteral("Also worth a test.")); }, "Update draft replaces the draft: " + fixDraftText().toStdString());
 			wait([&] { return !report->dressed_view()->toPlainText().contains(QStringLiteral("Update draft")); }, "and is no longer offered");
