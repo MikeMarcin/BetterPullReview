@@ -2035,6 +2035,10 @@ namespace bpr::app {
 		void observe_setup_policy();
 
 		void dispatch_agent_intent(qt::agent_intent aIntent);
+		/// \brief Owner, 2026-11-24. One choice on the Agent tab's pinned
+		/// conversation card; true when it was taken and the message may be
+		/// resent.
+		[[nodiscard]] auto choose_pinned_conversation(core::agent_continuation aChoice) -> bool;
 
 		[[nodiscard]] auto dispatch_agent_invocation(
 			const core::agent_profile_id                          aProfile,
@@ -3140,9 +3144,15 @@ namespace bpr::app {
 		/// turn started to answer it, spent by that turn's outcome and by no
 		/// other. Absent is the ordinary state, and it is what makes a
 		/// promoted finding a proposal nobody workshopped.
-		std::optional<pending_comment_workshop>             PendingWorkshopOperation;
-		std::optional<core::agent_session>                  LatestAgentSession;
-		std::optional<core::agent_session>                  NativeFreshAtCurrentRevision;
+		std::optional<pending_comment_workshop> PendingWorkshopOperation;
+		std::optional<core::agent_session>      LatestAgentSession;
+		std::optional<core::agent_session>      NativeFreshAtCurrentRevision;
+		/// The session the last refused Agent tab run would continue under,
+		/// when its native conversation is pinned to another revision.
+		std::optional<core::agent_session> PinnedAgentSession;
+		/// The Agent tab's running turn asked the store for a new
+		/// conversation at the current revision.
+		bool                                                NativeFreshSent          = false;
 		std::size_t                                         FindingRefusalsPresented = 0U;
 		std::size_t                                         SideChatIntents          = 0U;
 		std::size_t                                         SideChatPresentations    = 0U;

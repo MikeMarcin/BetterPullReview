@@ -735,15 +735,24 @@ namespace {
 		bool                                                     FailStore  = false;
 		bool                                                     FailSelect = false;
 		bool                                                     FailAppend = false;
-		auto                                                     select(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, bool = false)
+		std::size_t                                              Created    = 0U;
+		auto                                                     select(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, const bool aStartAtCurrentRevision = false)
 			-> std::expected<application::native_agent_session, application::native_agent_storage_failure> override
 		{
 			if (FailSelect) {
 				return std::unexpected(application::native_agent_storage_failure::unavailable);
 			}
+			// As the store does: a start at the current revision replaces a
+			// selected conversation pinned elsewhere with a new one.
+			if (aStartAtCurrentRevision && Records.contains(aScope) && Records.at(aScope).Binding != aBinding) {
+				if (Records.at(aScope).Pending) {
+					return std::unexpected(application::native_agent_storage_failure::conflict);
+				}
+				Records.erase(aScope);
+			}
 			if (!Records.contains(aScope)) {
 				auto value          = application::native_agent_session{ };
-				value.Id            = "native-" + std::to_string(Records.size());
+				value.Id            = "native-" + std::to_string(Created++);
 				value.Scope         = aScope;
 				value.Configuration = aConfiguration;
 				value.Binding       = aBinding;
@@ -2064,6 +2073,96 @@ namespace {
 		return input;
 	}
 
+	/// Owner, 2026-11-24: "There doesn't appear to be an option anywhere to
+	/// continue like it suggests". A native conversation pinned to an earlier
+	/// revision refuses the turn with the core's offer, words naming exactly
+	/// what it offers, and the session a continuation runs under; each way
+	/// back then runs.
+	void test_a_pinned_conversation_offers_its_ways_back()
+	{
+		const auto hostId  = core::git_host_id{ 1U };
+		auto       earlier = binding(hostId);
+		earlier.HeadOid    = commit(9U);
+		const auto scope   = application::native_scope_key(authority(hostId), "incarnation", "agent-tab");
+		const auto seed    = [&](native_store_spy& aStore, const bool aUsed) {
+			auto saved = aStore.select(scope, std::to_string(static_cast<unsigned>(core::agent_protocol::claude_stream_json)) + ":incarnation", earlier);
+			expect(saved.has_value(), "seed a conversation at the earlier head");
+			if (aUsed) {
+				saved->Turn   = 3U;
+				saved->Handle = "native-earlier-handle";
+			}
+			expect(aStore.store(*saved), "seed is kept");
+			return saved->Id;
+		};
+		const auto refused = [](harness& aTest) -> const application::agent_run_result& {
+			expect(aTest.Projection.Finished.size() == 1U && aTest.Processes.Starts == 0U && aTest.Workspaces.Starts == 0U,
+				   "the pinned conversation refuses the turn before any workspace or process");
+			return aTest.Projection.Finished.back();
+		};
+		const auto earlierHead = std::string{ core::canonical_hex(earlier.HeadOid).view().substr(0U, 7U) };
+		const auto currentHead = std::string{ core::canonical_hex(binding(hostId).HeadOid).view().substr(0U, 7U) };
+		{
+			auto       test            = harness{ };
+			const auto selected        = seed(test.NativeSessions, true);
+			auto       input           = agent_tab_turn();
+			input.SelectedConversation = selected;
+			test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+			test.settle();
+			test.Host.dispatch(input);
+			test.settle();
+			const auto& result = refused(test);
+			expect(result.PinnedConversation && result.PinnedConversation->Pinned && result.PinnedConversation->ContinueOffered && result.PinnedConversation->NewSessionOffered
+					   && result.PinnedConversation->PinnedHead == earlier.HeadOid && result.PinnedConversation->ObservedHead == binding(hostId).HeadOid,
+				   "a used conversation offers both ways back");
+			expect(result.RefusalReason.find("Continue at " + earlierHead) != std::string::npos && result.RefusalReason.find("start a new session at " + currentHead) != std::string::npos,
+				   "and its reason names both, as the buttons say them");
+			expect(result.PinnedSession && result.PinnedSession->Binding == earlier && result.PinnedSession->Profile == core::claude_stream_json_profile_id && core::valid_agent_session(*result.PinnedSession),
+				   "the session a continuation runs under is the conversation's own, at its own revision");
+
+			// Continue at the earlier head: the turn is composed from it.
+			auto continued                 = agent_tab_turn();
+			continued.SelectedConversation = selected;
+			continued.ContinuedSession     = *result.PinnedSession;
+			continued.Context.Binding      = earlier;
+			test.Host.dispatch(continued);
+			test.settle();
+			expect(test.Projection.Finished.size() == 2U && test.Projection.Finished.back().Outcome == application::agent_run_outcome::success && test.Processes.Starts == 1U
+					   && !test.Projection.Finished.back().PinnedConversation,
+				   "Continue runs the turn on the pinned conversation");
+			expect(test.Processes.LastRequest && test.Processes.LastRequest->NativeHandle == "native-earlier-handle" && test.NativeSessions.Records.at(scope).Id == selected
+					   && test.NativeSessions.Records.at(scope).Binding == earlier,
+				   "it resumes the conversation's own session and keeps it at its revision");
+
+			// Start a new session at the current head instead.
+			auto fresh                         = agent_tab_turn();
+			fresh.SelectedConversation         = selected;
+			fresh.NativeStartAtCurrentRevision = true;
+			test.Host.dispatch(fresh);
+			test.settle();
+			expect(test.Projection.Finished.size() == 3U && test.Projection.Finished.back().Outcome == application::agent_run_outcome::success && test.Processes.Starts == 2U,
+				   "Start a new session runs the turn though History last showed the pinned conversation");
+			expect(test.NativeSessions.Records.at(scope).Id != selected && test.NativeSessions.Records.at(scope).Binding == binding(hostId)
+					   && test.Projection.Finished.back().Conversation == test.NativeSessions.Records.at(scope).Id,
+				   "in a new conversation at the current revision, which the result names");
+		}
+		{
+			auto       test            = harness{ };
+			const auto selected        = seed(test.NativeSessions, false);
+			auto       input           = agent_tab_turn();
+			input.SelectedConversation = selected;
+			test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+			test.settle();
+			test.Host.dispatch(input);
+			test.settle();
+			const auto& result = refused(test);
+			expect(result.PinnedConversation && result.PinnedConversation->Pinned && !result.PinnedConversation->ContinueOffered && result.PinnedConversation->NewSessionOffered,
+				   "a conversation never used offers only a new session");
+			expect(result.RefusalReason.find("Continue") == std::string::npos && result.RefusalReason.find("continue") == std::string::npos
+					   && result.RefusalReason.find("Start a new session at " + currentHead) != std::string::npos,
+				   "and its reason does not suggest continuing it");
+		}
+	}
+
 	[[nodiscard]] auto kept_turn(application::agent_run_result aReturned, const bool aQuit) -> application::agent_conversation_turn
 	{
 		auto       test         = harness{ };
@@ -2823,6 +2922,7 @@ auto main(const int aCount, char** aArguments) -> int
 	native_storage_failures_remain_private();
 	native_project_size_does_not_gate_first_or_continued_turns();
 	test_tour_history_keeps_the_terminal_answer_item();
+	test_a_pinned_conversation_offers_its_ways_back();
 #if defined(_WIN32)
 	test_a_windows_launch_carries_no_grant();
 #else

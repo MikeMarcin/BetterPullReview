@@ -101,4 +101,22 @@ namespace bpr::core {
 			.ContinueAgainst = continue_against_binding(aSession),
 		};
 	}
+
+	auto offer_pinned_conversation(const pinned_conversation_facts& aFacts) noexcept
+		-> pinned_conversation_offer
+	{
+		const auto status = observe_agent_session(agent_session{ .Id = { }, .Profile = { }, .Binding = aFacts.Pinned }, aFacts.Observed);
+		auto       offer  = pinned_conversation_offer{
+			.Staleness    = status.Staleness,
+			.PinnedHead   = aFacts.Pinned.HeadOid,
+			.ObservedHead = aFacts.Observed.HeadOid,
+		};
+		if (status.Current) {
+			return offer;
+		}
+		offer.Pinned            = true;
+		offer.NewSessionOffered = true;
+		offer.ContinueOffered   = aFacts.Remembers && status.Staleness != agent_session_staleness::different_review;
+		return offer;
+	}
 } // namespace bpr::core

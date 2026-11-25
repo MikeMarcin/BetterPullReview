@@ -12,6 +12,7 @@
 #include "bpr/core/agent_grant.hpp"
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/agent_run_policy.hpp"
+#include "bpr/core/agent_session.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/agent_steering.hpp"
 #include "bpr/core/agent_turn.hpp"
@@ -1342,6 +1343,12 @@ namespace bpr::application {
 		std::optional<agent_workspace_unavailable_reason> WorkspaceReason;
 		/// Fixed host-authored pre-dispatch explanation safe to show in chat.
 		std::string RefusalReason;
+		/// The core's offer when a native conversation pinned to another
+		/// revision refused the turn (`core::offer_pinned_conversation`), and
+		/// the session it would continue under: the conversation's own
+		/// binding. `RefusalReason` names exactly the actions offered.
+		std::optional<core::pinned_conversation_offer> PinnedConversation;
+		std::optional<core::agent_session>             PinnedSession;
 		/// The turn's decoded findings, before any verdict. Absent when the
 		/// turn returned none. Unlike `Events` this survives a stale
 		/// finalization, because a payload the reviewer can no longer act on

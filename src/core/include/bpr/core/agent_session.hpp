@@ -192,6 +192,57 @@ namespace bpr::core {
 		const agent_session&          aSession,
 		const agent_revision_binding& aObserved) noexcept
 		-> agent_continuation_offer;
+
+	/// \brief What one saved conversation holds when a turn would resume it.
+	///
+	/// \details The native session store keeps a conversation pinned to the
+	/// revision it started at, apart from the chat session a turn is sent
+	/// under, so the two can disagree: a conversation restored without a
+	/// runtime handle, a transcript replay, or one chosen in History.
+	struct pinned_conversation_facts
+	{
+		/// The revision the saved conversation is pinned to.
+		agent_revision_binding Pinned;
+		/// The revision the turn was asked about.
+		agent_revision_binding Observed;
+		/// The conversation holds something a turn would continue: an
+		/// earlier turn, the agent's own session, a retained workspace or a
+		/// transcript it replays. One that holds none of them was started
+		/// and never used.
+		bool Remembers = false;
+
+		auto operator<=>(const pinned_conversation_facts&) const = default;
+	};
+
+	/// \brief The ways back one pinned conversation offers.
+	///
+	/// \details `Pinned` false means the conversation answers about what the
+	/// turn asked, and nothing is offered. Otherwise the turn is refused and
+	/// the reviewer chooses: `ContinueOffered` continues the conversation at
+	/// `PinnedHead`, its own revision, and `NewSessionOffered` starts a new
+	/// conversation at `ObservedHead`. Neither retargets the conversation.
+	struct pinned_conversation_offer
+	{
+		agent_session_staleness Staleness         = agent_session_staleness::current;
+		bool                    Pinned            = false;
+		bool                    ContinueOffered   = false;
+		bool                    NewSessionOffered = false;
+		git_commit_oid          PinnedHead;
+		git_commit_oid          ObservedHead;
+
+		auto operator<=>(const pinned_conversation_offer&) const = default;
+	};
+
+	/// \brief Owner, 2026-11-24: a refusal that names a way back offers it.
+	///
+	/// \details Decided from `observe_agent_session`. A conversation at the
+	/// observed revision is not pinned. A pinned one always offers a new
+	/// session. It offers to continue at its own revision only when it is
+	/// about this pull request and remembers something: continuing a
+	/// conversation that was never used would continue nothing, and one about
+	/// another review cannot answer about this one.
+	[[nodiscard]] auto offer_pinned_conversation(const pinned_conversation_facts& aFacts) noexcept
+		-> pinned_conversation_offer;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_SESSION_HPP

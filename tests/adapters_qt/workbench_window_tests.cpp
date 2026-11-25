@@ -15331,6 +15331,116 @@ namespace {
 		window.hide();
 	}
 
+	/// Owner, 2026-11-24: "There doesn't appear to be an option anywhere to
+	/// continue like it suggests". A run refused because its native
+	/// conversation is pinned shows, on the stopped card, exactly the actions
+	/// the core offered, in the words the refusal uses; each goes to the host
+	/// and, when the host takes it, resends the kept message.
+	void test_a_pinned_conversation_card_offers_what_it_names()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		tests::install_prompt_source(*agent, tests::shipped_placed_prompts());
+		window.open_agent_action()->trigger();
+		process_events();
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::entry_profile_id(core::agent_protocol::codex_jsonl_exec, 1U);
+		profile.Protocol    = core::agent_protocol::codex_jsonl_exec;
+		profile.DisplayName = "Fixture agent";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		process_events();
+		auto* const chat    = window.side_chat();
+		const auto  earlier = *core::parse_git_commit_oid("3333333333333333333333333333333333333333");
+		const auto  binding = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
+		const auto  session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile.Id, .Binding = binding };
+		auto        sends   = std::vector<qt::send_chat_message_intent>{ };
+		chat->set_dispatch([&sends](qt::side_chat_intent aIntent) {
+			if (const auto* const send = std::get_if<qt::send_chat_message_intent>(&aIntent)) {
+				sends.push_back(*send);
+			}
+		});
+		chat->present(qt::side_chat_projection{
+			.Session        = session,
+			.Continuations  = core::offer_agent_continuations(session, binding),
+			.Chat           = { .Scope = { .Kind = core::agent_chat_scope_kind::pull_request } },
+			.PrivateContext = { .Session = session.Id },
+		});
+		process_events();
+		auto chosen = std::vector<core::agent_continuation>{ };
+		auto take   = true;
+		agent->set_pinned_conversation_dispatch([&](const core::agent_continuation aChoice) {
+			chosen.push_back(aChoice);
+			return take;
+		});
+		auto       generation = std::uint64_t{ 0U };
+		const auto refuse     = [&](const bool aRemembers) {
+			chat->composer()->setPlainText(QStringLiteral("Review this pull request"));
+			agent->ask_button()->click();
+			process_events();
+			auto identity                 = application::agent_invocation_projection_identity{ };
+			identity.ApplicationSession   = core::application_session_id{ 1U };
+			identity.Session.Id           = core::agent_session_id{ 9U };
+			identity.InvocationGeneration = ++generation;
+			window.agent_panel()->admit(identity);
+			process_events();
+			const auto offer          = core::offer_pinned_conversation({ .Pinned = [&] { auto pinned = binding; pinned.HeadOid = earlier; return pinned; }(), .Observed = binding, .Remembers = aRemembers });
+			auto       result         = application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::private_storage_failure };
+			result.RefusalReason      = aRemembers ? "This conversation is pinned to an earlier revision, 3333333. Continue at 3333333 to keep asking about that revision, or start a new session at 2222222. No question was sent."
+												   : "This conversation started at 3333333 and was never used; the pull request is now at 2222222. Start a new session at 2222222. No question was sent.";
+			result.StandardError      = result.RefusalReason;
+			result.PinnedConversation = offer;
+			window.agent_panel()->finish(identity, result);
+			process_events();
+		};
+
+		refuse(true);
+		auto* const first  = agent->banner_first_button();
+		auto* const second = agent->banner_second_button();
+		expect(agent->state() == qt::agent_tab_state::stopped && agent->banner()->isVisible(), "the refused turn stops with its card");
+		expect(first->isVisible() && first->text() == QStringLiteral("Continue at 3333333") && second->isVisible() && second->text() == QStringLiteral("Start a new session"),
+			   "the card offers Continue at the pinned head and Start a new session, not Resend: " + first->text().toStdString() + " / " + second->text().toStdString());
+		expect(agent->banner_text().contains(QStringLiteral("Continue at 3333333")) && agent->banner_text().contains(QStringLiteral("start a new session at 2222222"))
+				   && agent->banner_text().contains(QStringLiteral("Your message is kept and is sent when you choose.")),
+			   "its words name exactly those two: " + agent->banner_text().toStdString());
+		expect(std::ranges::none_of(agent->findChildren<QPushButton*>(), [](const QPushButton* aButton) { return aButton->isVisible() && aButton->text() == QStringLiteral("Resend"); }),
+			   "neither the card nor the refused turn offers a Resend that would be refused the same way");
+		if (const auto root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT"); !root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-pinned-conversation.png"), "PNG"), "render saved");
+		}
+		const auto sentBefore = sends.size();
+		first->click();
+		process_events();
+		expect(chosen == std::vector{ core::agent_continuation::continue_against_old_revision } && sends.size() == sentBefore + 1U
+				   && sends.back().Text == "Review this pull request",
+			   "Continue goes to the host and resends the kept message");
+
+		refuse(true);
+		take                     = false;
+		const auto refusedBefore = sends.size();
+		agent->banner_second_button()->click();
+		process_events();
+		expect(chosen.size() == 2U && chosen.back() == core::agent_continuation::start_new_session && sends.size() == refusedBefore,
+			   "a choice the host does not take sends nothing");
+		take = true;
+		agent->banner_second_button()->click();
+		process_events();
+		expect(chosen.size() == 3U && chosen.back() == core::agent_continuation::start_new_session && sends.size() == refusedBefore + 1U && sends.back().Text == "Review this pull request",
+			   "Start a new session goes to the host and resends the kept message");
+
+		refuse(false);
+		expect(agent->banner_first_button()->isVisible() && agent->banner_first_button()->text() == QStringLiteral("Start a new session") && !agent->banner_second_button()->isVisible()
+				   && !agent->banner_text().contains(QStringLiteral("ontinue")),
+			   "a conversation never used offers only Start a new session, and its words do not suggest continuing: " + agent->banner_text().toStdString());
+	}
+
 	void test_a_refused_send_says_why_beside_the_composer()
 	{
 		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
@@ -26257,6 +26367,7 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-1817]]. The composer's refusals, on their own.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--agent-send-refusal"))) {
 		runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
+		runCase("test_a_pinned_conversation_card_offers_what_it_names", &test_a_pinned_conversation_card_offers_what_it_names);
 		runCase("test_the_agent_chat_sends_on_return_and_says_its_cost", &test_the_agent_chat_sends_on_return_and_says_its_cost);
 		runCase("test_the_agent_accent_is_on_exactly_the_run_controls", &test_the_agent_accent_is_on_exactly_the_run_controls);
 		runCase("test_a_removed_agent_is_unavailable_in_the_composer", &test_a_removed_agent_is_unavailable_in_the_composer);
@@ -26395,6 +26506,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_the_agent_is_a_drawer_tab", &test_the_agent_is_a_drawer_tab);
 	runCase("test_a_reply_drafts_all_its_suggested_comments", &test_a_reply_drafts_all_its_suggested_comments);
 	runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
+	runCase("test_a_pinned_conversation_card_offers_what_it_names", &test_a_pinned_conversation_card_offers_what_it_names);
 	runCase("test_pending_rows_open_their_comments_like_threads", &test_pending_rows_open_their_comments_like_threads);
 	runCase("test_tour_retarget_key_reaches_only_the_outline", &test_tour_retarget_key_reaches_only_the_outline);
 	runCase("test_compose_review_marks_a_kept_draft", &test_compose_review_marks_a_kept_draft);

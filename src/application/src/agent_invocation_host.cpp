@@ -65,6 +65,30 @@ namespace bpr::application {
 			return messages;
 		}
 
+		/// Owner, 2026-11-24: "There doesn't appear to be an option anywhere
+		/// to continue like it suggests". The refusal names the actions the
+		/// core offered, in the words the Agent tab's buttons use, and no other.
+		[[nodiscard]] auto pinned_conversation_words(const core::pinned_conversation_offer& aOffer) -> std::string
+		{
+			const auto pinned   = std::string{ core::canonical_hex(aOffer.PinnedHead).view().substr(0U, 7U) };
+			const auto current  = std::string{ core::canonical_hex(aOffer.ObservedHead).view().substr(0U, 7U) };
+			const auto sameHead = aOffer.PinnedHead == aOffer.ObservedHead;
+			const auto newHere  = sameHead ? std::string{ "start a new session for the comparison on screen" } : "start a new session at " + current;
+			if (aOffer.Staleness == core::agent_session_staleness::different_review) {
+				return "This conversation belongs to another pull request. Start a new session. No question was sent.";
+			}
+			if (aOffer.ContinueOffered) {
+				return (sameHead ? "This conversation is pinned to another comparison of " + pinned + ". Continue at " + pinned + " to keep asking about that comparison, or "
+								 : "This conversation is pinned to an earlier revision, " + pinned + ". Continue at " + pinned + " to keep asking about that revision, or ")
+					+ newHere + ". No question was sent.";
+			}
+			auto said    = sameHead ? std::string{ "This conversation started on another comparison and was never used. " }
+									: "This conversation started at " + pinned + " and was never used; the pull request is now at " + current + ". ";
+			auto next    = newHere;
+			next.front() = 'S';
+			return said + next + ". No question was sent.";
+		}
+
 		// Read only this selected catalog generation, never an in-memory cache of other chats.
 		auto prose_replay(const native_agent_history_projection& aHistory, const bool aTour) -> core::transcript_replay
 		{
@@ -880,7 +904,12 @@ namespace bpr::application {
 						refuseNative("Native session storage is unavailable, full, or changed in another window. No question was sent.", core::operation_failure::storage_failed);
 						return;
 					}
-					if ((!aRequest.SelectedConversation.empty() && selected->Id != aRequest.SelectedConversation) || selected->Replay != aRequest.TranscriptReplay) {
+					// A new session the reviewer chose at the current revision is
+					// the conversation the store just started, not the one History
+					// last showed.
+					const auto startedFresh = aRequest.NativeStartAtCurrentRevision && selected->Id != aRequest.SelectedConversation && selected->Binding == aInvocation->Identity.Session.Binding
+						&& selected->Turn == 2U && selected->Handle.empty() && !selected->Workspace && !selected->Replay && !selected->Pending;
+					if (!startedFresh && ((!aRequest.SelectedConversation.empty() && selected->Id != aRequest.SelectedConversation) || selected->Replay != aRequest.TranscriptReplay)) {
 						refuseNative("The selected continuation changed. Open History and choose it again; no question was sent.", core::operation_failure::changed_candidate);
 						return;
 					}
@@ -892,10 +921,25 @@ namespace bpr::application {
 						refuseNative("The previous question may have been sent before interruption. It was not resent. Start a new session or inspect the native history before continuing.", core::operation_failure::outcome_unknown);
 						return;
 					}
-					auto bound    = aInvocation->Identity.Session;
-					bound.Binding = selected->Binding;
-					if (!core::may_treat_as_current(bound, aInvocation->Identity.Session.Binding)) {
-						refuseNative("This native session is pinned to an earlier revision. Explicitly continue that revision or start a new session.", core::operation_failure::stale);
+					const auto pinned = core::offer_pinned_conversation({
+						.Pinned    = selected->Binding,
+						.Observed  = aInvocation->Identity.Session.Binding,
+						.Remembers = selected->Turn > 2U || !selected->Handle.empty() || selected->Workspace.has_value() || (selected->Replay && !selected->ReplaySource.empty()),
+					});
+					if (pinned.Pinned) {
+						const auto reason = pinned_conversation_words(pinned);
+						record_operation(Log, { .Action = core::operation_action::native_continuation, .Failure = core::operation_failure::stale });
+						finish_run({ .Session            = aInvocation->Identity.Session.Id,
+									 .Outcome            = agent_run_outcome::private_storage_failure,
+									 .StandardError      = reason,
+									 .RefusalReason      = reason,
+									 .PinnedConversation = pinned,
+									 .PinnedSession      = core::agent_session{
+										 .Id      = selected->Workspace && selected->Workspace->Session.value() != 0U ? selected->Workspace->Session : aInvocation->Identity.Session.Id,
+										 .Profile = aInvocation->Identity.Session.Profile,
+										 .Binding = selected->Binding,
+									 } },
+								   aInvocation);
 						return;
 					}
 					selected->WorkspaceKey = workspaceKey;

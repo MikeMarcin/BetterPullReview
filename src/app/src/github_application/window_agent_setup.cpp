@@ -1933,6 +1933,7 @@ namespace bpr::app {
 		tab->set_native_history_dispatch([this](std::optional<std::string> aChoice) { observe_agent_native_history(std::move(aChoice)); });
 		// [[BPR-2377]]. History › Rename or delete sessions….
 		tab->set_session_edit_dispatch([this](const std::string& aId, std::optional<std::string> aName) { edit_agent_session(aId, std::move(aName)); });
+		tab->set_pinned_conversation_dispatch([this](const core::agent_continuation aChoice) { return choose_pinned_conversation(aChoice); });
 		tab->set_clear_session_dispatch([this] {
 			if (!Closing && AgentConversation) {
 				observe_agent_native_history(std::string{ });

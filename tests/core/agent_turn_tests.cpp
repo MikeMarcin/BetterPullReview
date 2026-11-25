@@ -79,6 +79,11 @@ namespace {
 									agent_turn_outcome::closed_with_app }) {
 			expect(recovery(outcome) == agent_turn_recovery::resend, "any other ending resends");
 		}
+		// Owner, 2026-11-24. A turn refused for its pinned revision offers no
+		// Resend of its own, which would be refused the same way; its card's
+		// revision choice resends it. It still copies and deletes.
+		const auto pinned = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::history_unavailable, .HasText = true, .Latest = true, .RevisionChoice = true });
+		expect(pinned.Error && pinned.Copy && pinned.Delete && pinned.Recovery == agent_turn_recovery::none, "a turn waiting on a revision choice offers no recovery of its own");
 	}
 
 	void test_fixed_since()

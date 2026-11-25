@@ -829,6 +829,16 @@ namespace bpr::app {
 					}
 					finish_writing(aIdentity, aResult);
 					note_agent_scratch(aIdentity.Session.Profile, aResult);
+					// Owner, 2026-11-24. A turn refused because its native
+					// conversation is pinned keeps the session a continuation
+					// would run under, for the card's choice.
+					PinnedAgentSession = aResult.PinnedConversation ? aResult.PinnedSession : std::nullopt;
+					// The new conversation a fresh start made is the one the
+					// next turn resumes; History reads it again when opened.
+					if (std::exchange(NativeFreshSent, false) && !aResult.Conversation.empty() && !AgentNativeHistory.Scope.empty()) {
+						AgentNativeHistory.Selected = aResult.Conversation;
+						AgentNativeHistory.Replay   = false;
+					}
 					settle_comment_workshop(
 						aIdentity.Session.Id, aResult.Outcome);
 					Window->finish_dif_invocation(aIdentity, aResult.Outcome);

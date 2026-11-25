@@ -313,16 +313,62 @@ namespace bpr::app {
 		}
 		const auto start = std::get<qt::start_agent_intent>(aIntent);
 		// A start gesture is not a chat turn, so it asks nothing: the
-		// supplement's message stays empty on this path.
+		// supplement's message stays empty on this path. A conversation the
+		// reviewer chose to continue at its own revision is continued by the
+		// start gesture too, so its resend asks the revision chosen.
+		auto continued = std::optional<core::agent_session>{ };
+		if (ChatHost != nullptr) {
+			if (const auto shown = ChatHost->projection(); shown && !shown->Continuations.Status.Current && !shown->Continuations.Required && shown->Session.Profile == start.Profile) {
+				continued = shown->Session;
+			}
+		}
 		static_cast<void>(dispatch_agent_invocation(
 			start.Profile,
 			start.IncludedNotes,
 			start.IncludedDraft,
 			start.ExistingCheckoutChosen,
 			std::string_view{ },
-			std::nullopt,
+			continued,
 			core::agent_entry_point::ask_about_selection,
 			std::nullopt));
+	}
+
+	auto github_application::implementation::choose_pinned_conversation(const core::agent_continuation aChoice) -> bool
+	{
+		if (Closing || ChatHost == nullptr || Window == nullptr || !PinnedAgentSession || !ChatHost->observed()) {
+			return false;
+		}
+		const auto& offer = Window->agent_panel()->pinned_conversation();
+		if (!offer || !offer->Pinned) {
+			return false;
+		}
+		const auto pinned = *PinnedAgentSession;
+		if (aChoice == core::agent_continuation::continue_against_old_revision) {
+			if (!offer->ContinueOffered) {
+				return false;
+			}
+			// The chat now holds the conversation's own session, and the
+			// reviewer's choice is the core's continuation of it: the turn is
+			// composed from that revision, never retargeted.
+			ChatHost->admitted(pinned, true);
+			const auto chosen = ChatHost->choose(application::agent_chat_continuation_choice{
+				.Session = pinned.Id, .Choice = aChoice, .OfferedBinding = pinned.Binding });
+			return chosen.Refusal == application::agent_chat_refusal::none;
+		}
+		if (!offer->NewSessionOffered) {
+			return false;
+		}
+		// A new conversation at the revision under review: the store starts
+		// it when the resent turn asks.
+		if (ChatHost->session() && ChatHost->session()->Binding != *ChatHost->observed()) {
+			ChatHost->reset_conversation();
+		}
+		NativeFreshAtCurrentRevision = core::agent_session{
+			.Id      = ChatHost->session() ? ChatHost->session()->Id : pinned.Id,
+			.Profile = pinned.Profile,
+			.Binding = *ChatHost->observed(),
+		};
+		return true;
 	}
 
 	void github_application::implementation::compose_question_subject(application::agent_context_observation& aObservation, const core::agent_question& aQuestion)
@@ -924,6 +970,7 @@ namespace bpr::app {
 				invocation.SelectedConversation         = AgentNativeHistory.Selected;
 				invocation.NativeStartAtCurrentRevision = NativeFreshAtCurrentRevision && NativeFreshAtCurrentRevision->Profile == aProfile
 					&& NativeFreshAtCurrentRevision->Binding == invocation.Context.Binding;
+				NativeFreshSent = invocation.NativeStartAtCurrentRevision;
 			}
 		}
 		invocation.Path = core::agent_run_path::agent_tab;

@@ -219,6 +219,48 @@ namespace {
 			"reporting a moved head and inviting a refresh that could not "
 			"mean anything");
 	}
+	/// \brief Owner, 2026-11-24: a refusal that names a way back offers it.
+	/// A pinned conversation offers a new session always, and continuing at
+	/// its own revision only when it is about this review and holds something.
+	void test_a_pinned_conversation_offers_what_it_names()
+	{
+		auto moved            = binding();
+		moved.HeadOid         = commit(9U);
+		auto reselected       = binding();
+		reselected.LeftEpoch  = core::epoch_ordinal{ 2 };
+		auto elsewhere        = binding();
+		elsewhere.PullRequest = core::pull_request_id{ 31U };
+
+		struct row
+		{
+			core::agent_revision_binding  Observed;
+			bool                          Remembers;
+			core::agent_session_staleness Staleness;
+			bool                          Pinned;
+			bool                          Continue;
+		};
+		const auto rows = std::array{
+			row{ binding(), true, core::agent_session_staleness::current, false, false },
+			row{ binding(), false, core::agent_session_staleness::current, false, false },
+			row{ moved, true, core::agent_session_staleness::head_moved, true, true },
+			row{ moved, false, core::agent_session_staleness::head_moved, true, false },
+			row{ reselected, true, core::agent_session_staleness::epoch_pair_changed, true, true },
+			row{ elsewhere, true, core::agent_session_staleness::different_review, true, false },
+		};
+		for (const auto& expected : rows) {
+			const auto facts = core::pinned_conversation_facts{ .Pinned = binding(), .Observed = expected.Observed, .Remembers = expected.Remembers };
+			const auto offer = core::offer_pinned_conversation(facts);
+			expect(offer == core::offer_pinned_conversation(facts), "equal facts give an equal offer");
+			expect(offer.Staleness == expected.Staleness && offer.Staleness == core::observe_agent_session(session(), expected.Observed).Staleness,
+				   "the offer carries observe_agent_session's verdict");
+			expect(offer.Pinned == expected.Pinned, "only a conversation at another binding is pinned");
+			expect(offer.NewSessionOffered == expected.Pinned, "a pinned conversation always offers a new session, and a current one offers nothing");
+			expect(offer.ContinueOffered == expected.Continue,
+				   "continuing is offered only for a used conversation about this review");
+			expect(offer.PinnedHead == binding().HeadOid && offer.ObservedHead == expected.Observed.HeadOid,
+				   "the offer names the conversation's head and the observed one, so a button can say which");
+		}
+	}
 } // namespace
 
 auto main() -> int
@@ -228,6 +270,7 @@ auto main() -> int
 	test_the_epoch_pair_is_part_of_the_identity();
 	test_a_stale_session_offers_exactly_two_continuations();
 	test_another_review_is_not_staleness();
+	test_a_pinned_conversation_offers_what_it_names();
 	std::cout << "agent-session-tests:pass\n";
 	return EXIT_SUCCESS;
 }

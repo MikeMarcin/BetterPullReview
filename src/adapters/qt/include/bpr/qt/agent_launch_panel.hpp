@@ -202,6 +202,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto last_session_cost() const noexcept -> std::optional<core::agent_cost> { return LastSessionCost; }
 		/// [[BPR-1753]]. How the last request ended, while nothing runs.
 		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
+		/// \brief The core's offer when the last run was refused because its
+		/// native conversation is pinned to another revision; none otherwise.
+		/// Cleared when the next run is admitted or the host refuses one.
+		[[nodiscard]] auto pinned_conversation() const noexcept -> const std::optional<core::pinned_conversation_offer>& { return LastPinned; }
 		/// \brief [[BPR-2295]]. Whether the last run stopped for a reason a
 		/// resend repeats: its workspace could not be made from what the
 		/// review and the linked clone hold.
@@ -270,6 +274,7 @@ namespace bpr::qt {
 		bool                                                           Disclosed              = false;
 		std::optional<application::agent_draft_choice>                 OfferedDraft;
 		QString                                                        StopReason;
+		std::optional<core::pinned_conversation_offer>                 LastPinned;
 		std::optional<application::agent_run_outcome>                  LastOutcome;
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceReason;
 		bool                                                           PullRequestFilesOnly = false;

@@ -14,6 +14,7 @@
 #include "bpr/core/agent_draft_all.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_question.hpp"
+#include "bpr/core/agent_session.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/prompt_macro.hpp"
 #include "bpr/core/quick_ask.hpp"
@@ -406,6 +407,16 @@ namespace bpr::qt {
 		void               present_native_history(const application::native_agent_history_projection&);
 		void               set_native_history_dispatch(std::function<void(std::optional<std::string>)> aDispatch) { NativeHistoryDispatch = std::move(aDispatch); }
 		[[nodiscard]] auto clear_session_button() const noexcept -> QToolButton* { return ClearSession; }
+		/// \brief Owner, 2026-11-24. Where the stopped card's pinned
+		/// conversation choices go: continue the conversation at its own
+		/// revision, or start a new session at the current one. The host
+		/// answers whether it took the choice; when it did, the tab resends
+		/// the kept message.
+		void set_pinned_conversation_dispatch(std::function<bool(core::agent_continuation)> aDispatch) { PinnedDispatch = std::move(aDispatch); }
+		/// \brief The stopped card's buttons, for courses and tests.
+		[[nodiscard]] auto banner_first_button() const noexcept -> QPushButton* { return BannerFirst; }
+		[[nodiscard]] auto banner_second_button() const noexcept -> QPushButton* { return BannerSecond; }
+		[[nodiscard]] auto banner_text() const -> QString;
 		/// \brief [[BPR-1753]], owner decision (a) 2026-10-23
 		/// ("Suggested prompts described that way sound great"). Where the
 		/// suggestions read the open file and the selected lines, and a call
@@ -1072,6 +1083,8 @@ namespace bpr::qt {
 		/// [[BPR-1847]]. Each ended turn's actions, as the core decides them.
 		void present_turn_actions();
 		void recover(const turn& aTurn);
+		/// Sends a turn's message again, as it was asked.
+		void resend(const turn& aTurn);
 		/// [[BPR-1876]]. Removes a turn whose message never reached the agent
 		/// from the thread, and keeps the thread without it.
 		void delete_turn(std::size_t aTurn);
@@ -1097,9 +1110,12 @@ namespace bpr::qt {
 		void                                                fit_answer(markdown_body_view& aAnswer) const;
 		std::function<void(std::vector<agent_thread_turn>)> ThreadObserver;
 		std::function<void()>                               ClearDispatch;
-		std::function<bool(std::size_t)>                    ClearConfirm;
-		QToolButton*                                        ClearSession = nullptr;
-		std::function<agent_suggestion_context()>           SuggestionContext;
+		std::function<bool(core::agent_continuation)>       PinnedDispatch;
+		/// Takes one pinned conversation choice and resends the kept message.
+		void                                      choose_pinned(core::agent_continuation aChoice);
+		std::function<bool(std::size_t)>          ClearConfirm;
+		QToolButton*                              ClearSession = nullptr;
+		std::function<agent_suggestion_context()> SuggestionContext;
 		/// [[BPR-1934]]. The suggestion component the tour chats share.
 		agent_suggestion_list* Suggestions     = nullptr;
 		quiet_tool_button*     SuggestionsMenu = nullptr;

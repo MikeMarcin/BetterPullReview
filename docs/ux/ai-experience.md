@@ -297,6 +297,18 @@ runs with nothing frozen and its findings arrive unanchored, which is the
 behaviour the owner accepted (BPR-0521) and which remains the documented
 fallback; a fresh session at the new head anchors as usual.
 
+The saved native conversation an Agent tab turn resumes is pinned the same
+way, and it can be pinned while the chat is not: a transcript replay, a
+conversation whose turn ended before the agent named its session, or one
+started and never used. Such a turn is refused before anything runs. The
+core's `offer_pinned_conversation` decides what the refusal offers: Start a
+new session always, and Continue at the conversation's own head only when it
+remembers something and is about this pull request. The stopped card shows
+those buttons ("Continue at 1a2b3c4", "Start a new session") in place of
+Resend, the refusal's words name exactly them, and each sends the kept
+message: Continue on the conversation's own revision, a new session at the
+head under review (owner report, 2026-11-24).
+
 ### What surface the workshop actually uses
 
 Plain text, on two `QPlainTextEdit` surfaces shown at once: the reviewer's

@@ -3406,6 +3406,7 @@ namespace bpr::qt {
 				.Latest           = latest,
 				.Working          = working,
 				.CausePassedSince = kept.CauseRechecked && check == std::optional{ core::setup_check_state::passed },
+				.RevisionChoice   = latest && Launch.pinned_conversation() && Launch.pinned_conversation()->Pinned && PinnedDispatch,
 			});
 			if (auto* const card = static_cast<rounded*>(kept.Reply.data()); card != nullptr) {
 				// A fixed error is no longer drawn as one that holds now.
@@ -3483,32 +3484,37 @@ namespace bpr::qt {
 		switch (aTurn.RecoveryKind) {
 		case core::agent_turn_recovery::none: return;
 		case core::agent_turn_recovery::resend:
-			if (aTurn.Review) {
-				Launch.start_action()->trigger();
-			} else if (Chat.send_action()->isEnabled()) {
-				// The question as it was asked, not a suggestion looked up by
-				// its words: a typed question is offered by no list. What the
-				// reviewer is typing is put back after it.
-				auto* const composer = Chat.composer();
-				const auto  draft    = composer->toPlainText();
-				const auto  kept     = !draft.trimmed().isEmpty();
-				composer->setPlainText(aTurn.Question);
-				KeepingDraft = kept;
-				ask();
-				KeepingDraft = false;
-				if (kept) {
-					composer->setPlainText(draft);
-					auto cursor = composer->textCursor();
-					cursor.movePosition(QTextCursor::End);
-					composer->setTextCursor(cursor);
-				}
-			}
+			resend(aTurn);
 			return;
 		case core::agent_turn_recovery::agent_settings:
 			if (Setup) {
 				Setup();
 			}
 			return;
+		}
+	}
+
+	void agent_tab_view::resend(const turn& aTurn)
+	{
+		if (aTurn.Review) {
+			Launch.start_action()->trigger();
+		} else if (Chat.send_action()->isEnabled()) {
+			// The question as it was asked, not a suggestion looked up by
+			// its words: a typed question is offered by no list. What the
+			// reviewer is typing is put back after it.
+			auto* const composer = Chat.composer();
+			const auto  draft    = composer->toPlainText();
+			const auto  kept     = !draft.trimmed().isEmpty();
+			composer->setPlainText(aTurn.Question);
+			KeepingDraft = kept;
+			ask();
+			KeepingDraft = false;
+			if (kept) {
+				composer->setPlainText(draft);
+				auto cursor = composer->textCursor();
+				cursor.movePosition(QTextCursor::End);
+				composer->setTextCursor(cursor);
+			}
 		}
 	}
 
@@ -3720,6 +3726,8 @@ namespace bpr::qt {
 		callout->Look       = State == agent_tab_state::stopped ? rounded::look::danger : rounded::look::callout;
 		BannerFirst->disconnect();
 		BannerSecond->disconnect();
+		BannerFirst->setToolTip({ });
+		BannerSecond->setToolTip({ });
 		BannerFirst->show();
 		BannerSecond->show();
 		BannerDismiss->setVisible(State == agent_tab_state::stopped);
@@ -3800,6 +3808,30 @@ namespace bpr::qt {
 			// starts the agent and makes its workspace, which is the check. A
 			// Check again that re-ran only the setup check left this banner
 			// up, and the owner read it as the check failing.
+			// Owner, 2026-11-24: "There doesn't appear to be an option
+			// anywhere to continue like it suggests". A conversation pinned
+			// to another revision offers, here, exactly the ways back the
+			// core decided and its reason names; each resends the message.
+			if (const auto& pinned = Launch.pinned_conversation(); pinned && pinned->Pinned && PinnedDispatch) {
+				const auto shortHead = QString::fromUtf8(core::canonical_hex(pinned->PinnedHead).view().substr(0U, 7U));
+				BannerText->setText(tr("%1 Your message is kept and is sent when you choose.").arg(Launch.stop_reason_text()));
+				auto* const next = pinned->ContinueOffered ? BannerSecond : BannerFirst;
+				if (pinned->ContinueOffered) {
+					BannerFirst->setText(tr("Continue at %1").arg(shortHead));
+					BannerFirst->setToolTip(tr("Keep this conversation and ask about %1, the revision it read").arg(shortHead));
+					// [[BPR-2000]]. Each choice starts a run.
+					wear_agent_accent(*BannerFirst, palette());
+					connect(BannerFirst, &QPushButton::clicked, this, [this] { choose_pinned(core::agent_continuation::continue_against_old_revision); });
+				}
+				next->setText(tr("Start a new session"));
+				next->setToolTip(tr("Start an empty conversation at the current head and send your message there"));
+				wear_agent_accent(*next, palette());
+				connect(next, &QPushButton::clicked, this, [this] { choose_pinned(core::agent_continuation::start_new_session); });
+				if (!pinned->ContinueOffered) {
+					BannerSecond->hide();
+				}
+				break;
+			}
 			BannerFirst->setText(tr("Resend"));
 			// [[BPR-2000]]. Resend starts a run.
 			wear_agent_accent(*BannerFirst, palette());
@@ -3819,6 +3851,27 @@ namespace bpr::qt {
 		}
 		Banner->show();
 		Banner->update();
+	}
+
+	auto agent_tab_view::banner_text() const -> QString { return BannerText != nullptr ? BannerText->text() : QString{ }; }
+
+	void agent_tab_view::choose_pinned(const core::agent_continuation aChoice)
+	{
+		if (!panels_alive() || State != agent_tab_state::stopped || Turns.empty() || !PinnedDispatch) {
+			return;
+		}
+		const auto& pinned = Launch.pinned_conversation();
+		if (!pinned || !pinned->Pinned
+			|| (aChoice == core::agent_continuation::continue_against_old_revision ? !pinned->ContinueOffered : !pinned->NewSessionOffered)) {
+			return;
+		}
+		if (!PinnedDispatch(aChoice)) {
+			return;
+		}
+		// The kept message, as a turn's Resend sends it.
+		if (Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered) {
+			resend(Turns.back());
+		}
 	}
 
 	auto agent_tab_view::finding_cards() const -> std::vector<QWidget*>

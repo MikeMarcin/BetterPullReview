@@ -463,6 +463,7 @@ namespace bpr::qt {
 		Running = false;
 		Output->clear();
 		StopReason.clear();
+		LastPinned.reset();
 		Status->setText(
 			QStringLiteral("Not started: %1")
 				.arg(QString::fromUtf8(aReason.data(), static_cast<qsizetype>(aReason.size()))));
@@ -483,6 +484,7 @@ namespace bpr::qt {
 		TerminalCarry.clear();
 		Steered.clear();
 		StopReason.clear();
+		LastPinned.reset();
 		KeptText.clear();
 		LastFailure.reset();
 		LastUnfinished.clear();
@@ -642,6 +644,7 @@ namespace bpr::qt {
 		LastSessionCost = aResult.SessionCost;
 		RunningTurnCost.reset();
 		StopReason.clear();
+		LastPinned = aResult.PinnedConversation;
 		if (!aResult.RefusalReason.empty()) {
 			StopReason = QString::fromStdString(aResult.RefusalReason);
 		} else if (aResult.Outcome == application::agent_run_outcome::workspace_unavailable) {
