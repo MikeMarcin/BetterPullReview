@@ -24,6 +24,7 @@
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_run_status.hpp"
+#include "bpr/qt/agent_session_list.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -339,8 +340,21 @@ namespace bpr::qt {
 		/// \brief Owner look v003. The session's title in the header (the
 		/// pull request's), a reply's Copy and its time, and the answers' code
 		/// coloured as comments' code is (the shared Markdown code host).
+		/// [[BPR-NNNN]]. A session the reviewer named shows its name instead;
+		/// `aTitle` is its default.
 		void               set_session_title(const QString& aTitle);
 		[[nodiscard]] auto session_title() const noexcept -> QLabel* { return SessionTitle; }
+		/// \brief [[BPR-NNNN]]. Renames (`aName` set) or deletes a session of
+		/// the selected agent on this pull request.
+		using session_edit_dispatch = std::function<void(const std::string& aId, std::optional<std::string> aName)>;
+		void set_session_edit_dispatch(session_edit_dispatch aDispatch);
+		/// \brief [[BPR-NNNN]]. History › Manage sessions…, opened (made on
+		/// first use) and returned.
+		auto open_session_list() -> agent_session_list*;
+		/// \brief [[BPR-NNNN]]. The session list, once opened; else null.
+		[[nodiscard]] auto session_list() const noexcept -> agent_session_list* { return SessionList.data(); }
+		/// \brief [[BPR-NNNN]]. What the last rename or deletion did.
+		void               present_session_edit(const QString& aStatus);
 		[[nodiscard]] auto turn_copy_button(std::size_t aTurn) const -> QToolButton*;
 		[[nodiscard]] auto turn_time(std::size_t aTurn) const -> QLabel*;
 		void               set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
@@ -754,9 +768,14 @@ namespace bpr::qt {
 
 	private:
 		std::function<void(std::optional<std::string>)> NativeHistoryDispatch;
-		application::native_agent_history_projection    NativeHistoryView;
-		QMenu*                                          NativeHistoryMenu = nullptr;
-		QLabel*                                         ContinuationMode  = nullptr;
+		/// [[BPR-NNNN]]
+		session_edit_dispatch                        SessionEditDispatch;
+		QPointer<agent_session_list>                 SessionList;
+		QString                                      DefaultSessionTitle;
+		void                                         show_session_title();
+		application::native_agent_history_projection NativeHistoryView;
+		QMenu*                                       NativeHistoryMenu = nullptr;
+		QLabel*                                      ContinuationMode  = nullptr;
 		/// Paints each glyph again in the current palette's ink.
 		void repaint_glyphs();
 		void rebuild_findings();

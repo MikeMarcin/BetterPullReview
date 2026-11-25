@@ -541,6 +541,10 @@ namespace bpr::qt {
 		NativeHistoryMenu = historyMenu->addMenu(tr("Sessions"));
 		NativeHistoryMenu->setObjectName(QStringLiteral("nativeAgentSessions"));
 		connect(historyMenu, &QMenu::aboutToShow, this, [this] { if (NativeHistoryDispatch) { NativeHistoryDispatch(std::nullopt); } });
+		// [[BPR-NNNN]]. Name and delete sessions (owner, 2026-11-24).
+		auto* const manage = historyMenu->addAction(tr("Rename or delete sessions…"));
+		manage->setObjectName(QStringLiteral("agentManageSessions"));
+		connect(manage, &QAction::triggered, this, [this] { static_cast<void>(open_session_list()); });
 		historyMenu->addAction(Chat.new_session_action());
 		historyMenu->addAction(Chat.continue_old_revision_action());
 		historyMenu->addSeparator();
@@ -1290,6 +1294,9 @@ namespace bpr::qt {
 		EmptyIntro->setVisible(Turns.empty() && (State == agent_tab_state::idle || State == agent_tab_state::stopped) && !ReadyCard->isVisible());
 		ClearSession->setVisible(true);
 		ClearSession->setEnabled(!NativeHistoryView.Loading && State != agent_tab_state::working);
+		if (SessionList) {
+			SessionList->set_running(State == agent_tab_state::working);
+		}
 		// Claude's effort list is fetched when the tab can show it.
 		if (isVisible() && CatalogDispatch && State != agent_tab_state::setting_up && State != agent_tab_state::not_set_up) {
 			if (const auto* const settings = RunSettingsSource->current(); settings != nullptr && settings->Listing == agent_model_listing::not_offered) {
@@ -2470,6 +2477,11 @@ namespace bpr::qt {
 		if (aView.Loading) {
 			return;
 		}
+		show_session_title();
+		if (SessionList) {
+			SessionList->present(aView);
+			SessionList->set_running(State == agent_tab_state::working);
+		}
 		NativeHistoryMenu->clear();
 		ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool memory is absent; PR files and Git are shared.") : aView.NativeSupported ? tr("Native continuation")
 																																														 : tr("Native continuation unavailable. Choose Transcript replay or New session in History."));
@@ -3548,8 +3560,51 @@ namespace bpr::qt {
 
 	void agent_tab_view::set_session_title(const QString& aTitle)
 	{
-		SessionTitle->setText(aTitle.isEmpty() ? tr("Agent") : aTitle);
-		SessionTitle->setToolTip(aTitle);
+		DefaultSessionTitle = aTitle;
+		show_session_title();
+	}
+
+	void agent_tab_view::show_session_title()
+	{
+		// [[BPR-NNNN]]. The open session's own name, when it has one.
+		const auto entry = std::ranges::find(NativeHistoryView.Entries, NativeHistoryView.Selected, &application::native_agent_history_entry::Id);
+		const auto named = entry != NativeHistoryView.Entries.end() && !entry->Name.empty() && !NativeHistoryView.Selected.empty();
+		const auto title = named ? QString::fromStdString(entry->Name) : DefaultSessionTitle;
+		SessionTitle->setText(title.isEmpty() ? tr("Agent") : title);
+		SessionTitle->setToolTip(named ? tr("%1, in %2").arg(title, DefaultSessionTitle) : title);
+	}
+
+	void agent_tab_view::set_session_edit_dispatch(session_edit_dispatch aDispatch)
+	{
+		SessionEditDispatch = std::move(aDispatch);
+		if (SessionList) {
+			SessionList->set_dispatch(SessionEditDispatch);
+		}
+	}
+
+	auto agent_tab_view::open_session_list() -> agent_session_list*
+	{
+		if (!SessionList) {
+			SessionList = new agent_session_list{ this };
+			SessionList->set_dispatch(SessionEditDispatch);
+		}
+		SessionList->present(NativeHistoryView);
+		SessionList->set_running(State == agent_tab_state::working);
+		SessionList->present_status({ });
+		SessionList->show();
+		SessionList->raise();
+		// The list reads the store again, as History does when it opens.
+		if (NativeHistoryDispatch) {
+			NativeHistoryDispatch(std::nullopt);
+		}
+		return SessionList.data();
+	}
+
+	void agent_tab_view::present_session_edit(const QString& aStatus)
+	{
+		if (SessionList) {
+			SessionList->present_status(aStatus);
+		}
 	}
 
 	void agent_tab_view::dress_answer(markdown_body_view& aAnswer) const

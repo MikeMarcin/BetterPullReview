@@ -320,9 +320,12 @@ what an agent receives and may do.
 ## Storage & privacy
 
 > [!WARNING]
-> **Reset review data** and **Reset everything** delete private notes and
-> unsent comments; a copy goes to Downloads unless you untick it. Uninstalling
-> the app keeps your data and stored sign-ins, so sign out first.
+> **Clear local data** clears every checked kind of data at once, after one
+> confirmation. Review data, Agent sessions and workspaces, Saved repositories
+> and servers, Insights statistics and Settings (which includes agent
+> sessions) delete data that exists only here; a copy of removed store files
+> goes to Downloads unless you untick it. Uninstalling the app keeps your data
+> and stored sign-ins, so sign out first.
 
 See [Storage, diagnostics and removal](storage-and-diagnostics.md) for what
-each reset and purge removes.
+each checkbox and purge removes.

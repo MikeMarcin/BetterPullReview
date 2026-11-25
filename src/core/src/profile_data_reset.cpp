@@ -14,6 +14,8 @@ namespace bpr::core {
 			std::pair{ std::string_view{ "appearance-settings" }, area::settings },
 			std::pair{ std::string_view{ "workbench-settings" }, area::settings },
 			std::pair{ std::string_view{ "diagnostic-preferences" }, area::settings },
+			// [[BPR-NNNN]]. Agent setup and BetterPullReview's agent
+			// conversations share this store; Settings implies Agent sessions.
 			std::pair{ std::string_view{ "agent-setup" }, area::settings },
 			std::pair{ std::string_view{ "window-restoration" }, area::settings },
 			std::pair{ std::string_view{ "view-filters" }, area::settings },
@@ -52,6 +54,9 @@ namespace bpr::core {
 			std::pair{ std::string_view{ "review-data" }, profile_data_reset::review_data },
 			std::pair{ std::string_view{ "connections" }, profile_data_reset::connections },
 			std::pair{ std::string_view{ "everything" }, profile_data_reset::everything },
+			std::pair{ std::string_view{ "agent-sessions" }, profile_data_reset::agent_sessions },
+			std::pair{ std::string_view{ "saved-sources" }, profile_data_reset::saved_sources },
+			std::pair{ std::string_view{ "statistics" }, profile_data_reset::statistics },
 		};
 
 		template <typename Table>
@@ -65,12 +70,39 @@ namespace bpr::core {
 			return area::kept;
 		}
 
-		[[nodiscard]] constexpr auto known(const profile_data_reset aReset) noexcept -> bool
+		/// The categories whose areas are stores or folders of the profile.
+		constexpr auto file_categories = profile_data_reset_selection{ profile_data_reset::caches }
+											 .with(profile_data_reset::settings)
+											 .with(profile_data_reset::review_data)
+											 .with(profile_data_reset::saved_sources)
+											 .with(profile_data_reset::statistics)
+											 .with(profile_data_reset::connections);
+		/// The categories whose data exists only on this computer.
+		constexpr auto destructive_categories = profile_data_reset_selection{ profile_data_reset::review_data }
+													.with(profile_data_reset::agent_sessions)
+													.with(profile_data_reset::saved_sources)
+													.with(profile_data_reset::statistics);
+		/// The categories whose removed stores a copy can hold.
+		constexpr auto copied_categories = file_categories.without(profile_data_reset::connections);
+
+		/// The categories both hold.
+		[[nodiscard]] constexpr auto common(const profile_data_reset_selection aLeft, const profile_data_reset_selection aRight) noexcept -> profile_data_reset_selection
 		{
-			return aReset == profile_data_reset::caches || aReset == profile_data_reset::settings
-				|| aReset == profile_data_reset::review_data || aReset == profile_data_reset::everything
-				|| aReset == profile_data_reset::connections;
+			return aLeft.without(aLeft.without(aRight));
 		}
+	}
+
+	auto profile_data_reset_selection::single() const noexcept -> std::optional<profile_data_reset>
+	{
+		if (*this == all()) {
+			return profile_data_reset::everything;
+		}
+		for (const auto each : profile_data_reset_categories) {
+			if (*this == profile_data_reset_selection{ each }) {
+				return each;
+			}
+		}
+		return std::nullopt;
 	}
 
 	auto profile_data_store_area(const std::string_view aStore) noexcept -> profile_data_area
@@ -83,18 +115,19 @@ namespace bpr::core {
 		return lookup(folders, aFolder);
 	}
 
-	auto profile_data_reset_removes(const profile_data_reset aReset, const profile_data_area aArea) noexcept -> bool
+	auto profile_data_reset_removes(const profile_data_reset_selection aReset, const profile_data_area aArea) noexcept -> bool
 	{
 		switch (aArea) {
 		case area::caches:
-			return aReset == profile_data_reset::caches || aReset == profile_data_reset::everything;
+			return aReset.contains(profile_data_reset::caches);
 		case area::settings:
-			return aReset == profile_data_reset::settings || aReset == profile_data_reset::everything;
+			return aReset.contains(profile_data_reset::settings);
 		case area::review_data:
-			return aReset == profile_data_reset::review_data || aReset == profile_data_reset::everything;
+			return aReset.contains(profile_data_reset::review_data);
 		case area::saved_sources:
+			return aReset.contains(profile_data_reset::saved_sources);
 		case area::statistics:
-			return aReset == profile_data_reset::everything;
+			return aReset.contains(profile_data_reset::statistics);
 		case area::connections:
 			return profile_data_reset_signs_out(aReset);
 		case area::kept:
@@ -103,28 +136,74 @@ namespace bpr::core {
 		return false;
 	}
 
-	auto profile_data_reset_destructive(const profile_data_reset aReset) noexcept -> bool
+	auto profile_data_reset_destructive(const profile_data_reset_selection aReset) noexcept -> bool
 	{
-		return aReset == profile_data_reset::review_data || aReset == profile_data_reset::everything;
+		const auto closed = aReset.with(profile_data_reset_implied(aReset));
+		return !common(closed, destructive_categories).empty();
 	}
 
-	auto profile_data_reset_restores_queue_display(const profile_data_reset aReset) noexcept -> bool
+	auto profile_data_reset_restores_queue_display(const profile_data_reset_selection aReset) noexcept -> bool
 	{
-		return aReset == profile_data_reset::settings;
+		return aReset.contains(profile_data_reset::settings) && !aReset.contains(profile_data_reset::saved_sources);
 	}
 
-	auto profile_data_reset_signs_out(const profile_data_reset aReset) noexcept -> bool
+	auto profile_data_reset_signs_out(const profile_data_reset_selection aReset) noexcept -> bool
 	{
-		return aReset == profile_data_reset::everything || aReset == profile_data_reset::connections;
+		return aReset.contains(profile_data_reset::connections);
+	}
+
+	auto profile_data_reset_removes_files(const profile_data_reset_selection aReset) noexcept -> bool
+	{
+		return !common(aReset, file_categories).empty();
+	}
+
+	auto profile_data_reset_copyable(const profile_data_reset_selection aReset) noexcept -> bool
+	{
+		return profile_data_reset_destructive(aReset) && !common(aReset, copied_categories).empty();
+	}
+
+	auto profile_data_reset_implied(const profile_data_reset_selection aChosen) noexcept -> profile_data_reset_selection
+	{
+		auto implied = profile_data_reset_selection{ };
+		if (aChosen.contains(profile_data_reset::settings) && !aChosen.contains(profile_data_reset::agent_sessions)) {
+			implied = implied.with(profile_data_reset::agent_sessions);
+		}
+		return implied;
+	}
+
+	auto plan_profile_data_reset(const profile_data_reset_selection aChosen) -> profile_data_reset_plan
+	{
+		auto plan      = profile_data_reset_plan{ };
+		plan.Implied   = profile_data_reset_implied(aChosen);
+		plan.Selection = aChosen.with(plan.Implied);
+		if (plan.Selection.contains(profile_data_reset::agent_sessions)) {
+			plan.Steps.push_back(profile_data_reset_step::agent_sessions);
+		}
+		if (profile_data_reset_removes_files(plan.Selection)) {
+			plan.Steps.push_back(profile_data_reset_step::files);
+		}
+		if (profile_data_reset_restores_queue_display(plan.Selection)) {
+			plan.Steps.push_back(profile_data_reset_step::queue_display);
+		}
+		if (profile_data_reset_signs_out(plan.Selection)) {
+			plan.Steps.push_back(profile_data_reset_step::forget_connections);
+		}
+		return plan;
+	}
+
+	auto profile_data_reset_held_back(const std::uint32_t aWorkspacesLeft) noexcept -> profile_data_reset_selection
+	{
+		return aWorkspacesLeft != 0U ? profile_data_reset_selection{ profile_data_reset::settings } : profile_data_reset_selection{ };
 	}
 
 	auto admit_profile_data_reset(const profile_data_reset_request& aRequest) noexcept -> release_maintenance_reason
 	{
-		if (!known(aRequest.Reset)) {
+		const auto selection = aRequest.Reset.with(profile_data_reset_implied(aRequest.Reset));
+		if (selection.empty()) {
 			return release_maintenance_reason::invalid_selection;
 		}
-		const auto destructive = profile_data_reset_destructive(aRequest.Reset);
-		if ((destructive && !aRequest.Acknowledged) || (!destructive && aRequest.Copy)) {
+		const auto destructive = profile_data_reset_destructive(selection);
+		if ((destructive && !aRequest.Acknowledged) || (aRequest.Copy && !profile_data_reset_copyable(selection))) {
 			return release_maintenance_reason::invalid_selection;
 		}
 		return release_maintenance_reason::none;
@@ -148,5 +227,24 @@ namespace bpr::core {
 			}
 		}
 		return std::nullopt;
+	}
+
+	auto profile_data_reset_selection_from_names(const std::string_view aNames) noexcept -> std::optional<profile_data_reset_selection>
+	{
+		auto selection = profile_data_reset_selection{ };
+		auto rest      = aNames;
+		while (true) {
+			const auto comma = rest.find(',');
+			const auto name  = rest.substr(0U, comma);
+			const auto named = profile_data_reset_from_name(name);
+			if (!named) {
+				return std::nullopt;
+			}
+			selection = selection.with(*named);
+			if (comma == std::string_view::npos) {
+				return selection;
+			}
+			rest.remove_prefix(comma + 1U);
+		}
 	}
 }

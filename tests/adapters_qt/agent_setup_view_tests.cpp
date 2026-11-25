@@ -1421,7 +1421,7 @@ namespace {
 		QApplication::processEvents();
 		expect(programs.unreadable_notice()->isVisibleTo(&programs) && !programs.agent_list()->isVisibleTo(&programs), "unreadable settings show the failure in the list's place, never an empty list");
 		expect(programs.unreadable_text()->text().contains(QDir::toNativeSeparators(file)) && programs.unreadable_text()->text().contains(QStringLiteral("Nothing in the file was changed"))
-				   && programs.unreadable_text()->text().contains(QStringLiteral("Troubleshooting")),
+				   && programs.unreadable_text()->text().contains(QStringLiteral("Clear local data")),
 			   "the notice names the file, says nothing was changed and where to recover");
 		expect(!programs.add_button()->isEnabled() && !programs.run_limit_toggle()->isEnabled() && !programs.scratch_limit()->isEnabled() && !programs.check_button()->isEnabled()
 				   && !programs.findChild<QPushButton*>(QStringLiteral("settingsResetAgents"))->isEnabled(),

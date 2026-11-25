@@ -11,6 +11,7 @@
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/destructive_question.hpp"
 
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/dif_runtime.hpp"
@@ -1071,7 +1072,8 @@ auto main(int argc, char** argv) -> int
 		}
 		window.tray_tabs()->setCurrentIndex(2);
 		if (!wait_until([&] { return window.files_drawer()->contents_view()->model()->rowCount() > 0 && panel->profile_selector()->count() >= 2; })) {
-			return fail(*application, "native-open");
+			return fail(*application, "native-open",
+						"files=" + std::to_string(window.files_drawer()->contents_view()->model()->rowCount()) + " agents=" + std::to_string(panel->profile_selector()->count()));
 		}
 		auto* const files = window.files_drawer()->contents_view();
 		files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
@@ -1848,6 +1850,94 @@ auto main(int argc, char** argv) -> int
 				|| !verify_native_fixture_identity(window.agent_tab()->turn_answer(window.agent_tab()->turn_count() - 1U).toStdString(), QStringLiteral("agent:%1").arg(entryId), true, dataRoot.parent_path())) {
 				return fail(*application, "native-history-exact-memory-resume");
 			}
+		}
+		// [[BPR-NNNN]]. History › Rename or delete sessions… through the real
+		// window, on the fixture agent's sessions: a name becomes the session's
+		// title in the list, the menu and the tab's header; an empty name
+		// restores the default; deleting asks first, removes BetterPullReview's
+		// record and transcript, keeps a workspace other sessions use, and
+		// leaves the agent's own session files (the fixture's backend memory)
+		// alone.
+		if (course == "native-session") {
+			auto* const tab   = window.agent_tab();
+			const auto  title = tab->session_title()->text();
+			for (auto* action : tab->history_button()->menu()->actions()) {
+				if (action->objectName() == QStringLiteral("agentManageSessions")) {
+					action->trigger();
+				}
+			}
+			auto* const list = tab->session_list();
+			if (list == nullptr || !wait_until([&] { return list->isVisible() && list->list()->count() >= 2; })) {
+				return fail(*application, "session-list-open");
+			}
+			const auto row = [&](const bool aOpen) -> QListWidgetItem* {
+				for (auto index = 0; index < list->list()->count(); ++index) {
+					if (list->list()->item(index)->font().bold() == aOpen) {
+						return list->list()->item(index);
+					}
+				}
+				return nullptr;
+			};
+			const auto openId = row(true) != nullptr ? row(true)->data(Qt::UserRole).toString() : QString{ };
+			if (openId.isEmpty() || row(false) == nullptr) {
+				return fail(*application, "session-list-rows");
+			}
+			row(true)->setText(QStringLiteral("Course parser review"));
+			auto* const sessions = tab->findChild<QMenu*>(QStringLiteral("nativeAgentSessions"));
+			if (!wait_until([&] {
+					auto inMenu = false;
+					for (auto* item : sessions->actions()) {
+						inMenu = inMenu || (item->data().toString() == openId && item->text().contains(QStringLiteral("Course parser review")));
+					}
+					return tab->session_title()->text() == QStringLiteral("Course parser review") && inMenu && row(true) != nullptr && row(true)->text() == QStringLiteral("Course parser review");
+				})) {
+				return fail(*application, "session-rename-shown", tab->session_title()->text().toStdString() + " status=" + list->status_label()->text().toStdString());
+			}
+			if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "session-renamed.png").u16string()))) {
+				return fail(*application, "session-rename-raster");
+			}
+			row(true)->setText(QString{ });
+			if (!wait_until([&] { return tab->session_title()->text() == title && row(true) != nullptr && row(true)->text() != QStringLiteral("Course parser review"); })) {
+				return fail(*application, "session-rename-restored", tab->session_title()->text().toStdString());
+			}
+			const auto workspaceState = [&] {
+				const auto root = app::detail::github_application_fixture_access::agent_invocation_evidence(*application).WorkspaceRoot;
+				for (const auto& item : std::filesystem::recursive_directory_iterator(root)) {
+					if (item.path().filename() == ".bpr-native-fixture-state") {
+						return true;
+					}
+				}
+				return false;
+			};
+			const auto agentOwnFiles = dataRoot.parent_path() / "native-backend-memory";
+			if (!workspaceState() || !std::filesystem::exists(agentOwnFiles)) {
+				return fail(*application, "session-delete-preconditions");
+			}
+			const auto rowsBefore = list->list()->count();
+			const auto otherId    = row(false)->data(Qt::UserRole).toString();
+			list->list()->setCurrentItem(row(false));
+			list->ask_delete();
+			auto* const question = list->question();
+			if (question == nullptr || !question->isVisible()) {
+				return fail(*application, "session-delete-asks");
+			}
+			question->findChild<QPushButton*>(QStringLiteral("deleteAgentSessionConfirm"))->click();
+			const auto gone = [&](const QString& aId) {
+				for (auto index = 0; index < list->list()->count(); ++index) {
+					if (list->list()->item(index)->data(Qt::UserRole).toString() == aId) {
+						return false;
+					}
+				}
+				return true;
+			};
+			if (!wait_until([&] { return list->list()->count() == rowsBefore - 1 && gone(otherId) && list->status_label()->text().startsWith(QStringLiteral("Deleted")) && !list->status_label()->text().contains(QStringLiteral("with its agent workspace")); })) {
+				return fail(*application, "session-delete-shared", list->status_label()->text().toStdString());
+			}
+			if (!workspaceState() || !std::filesystem::exists(agentOwnFiles) || tab->turn_count() < 2U) {
+				return fail(*application, "session-delete-kept-shared-workspace-and-agent-files");
+			}
+			std::cout << "AGENT_SESSION_MANAGEMENT:renamed:restored:deleted-shared:workspace-kept:agent-files-kept\n";
+			list->close();
 		}
 		const auto renderPath = dataRoot.parent_path() / (course == "native-session-reopen" ? "native-reopen.png" : "native-agent-tab.png");
 		if (!window.grab().save(QString::fromStdU16String(renderPath.u16string()))) {

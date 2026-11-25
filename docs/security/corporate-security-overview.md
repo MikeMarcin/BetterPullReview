@@ -122,7 +122,7 @@ Review Cycles were removed in 0.5.0 ([[BPR-2308]]). A profile used with an
 earlier version may still hold their captures in the unencrypted
 `review-cycles.sqlite3` and a `publication-git-v1/` object store. Nothing
 reads them; they are readable by any program running as the same user, as
-before, until profile purge or **Reset review data** removes them.
+before, until profile purge or **Clear local data > Review data** removes them.
 
 ## Further reading
 

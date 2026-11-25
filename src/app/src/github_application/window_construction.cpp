@@ -986,6 +986,9 @@ namespace bpr::app {
 				AgentEffects,
 				DecisionLane,
 				*AgentProjections, PrivateReview.get(), NativeAgentSessions.get(), DiagnosticLog.get());
+			// [[BPR-NNNN]]. A deleted session's own workspace is removed the
+			// way the expiry sweep removes one.
+			AgentHost->set_retained_workspace_files(RetainedWorkspaceFiles.get());
 			// [[BPR-2007]], RFC-BPR-0104. Scratch folders sit beside the
 			// profile's data. Claude cannot match a rule to a quoted path, so a
 			// root whose path has a space (macOS's "Application Support") moves

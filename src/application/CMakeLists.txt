@@ -118,6 +118,7 @@ add_library(
     src/private_publication_application_host.cpp
         src/agent_workspace.cpp
         src/agent_workspace_expiry.cpp
+        src/agent_session_management.cpp
         src/notification_delivery.cpp
         src/review_queue_notification.cpp
         src/workbench_snapshot_observation.cpp

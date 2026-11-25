@@ -266,9 +266,9 @@ namespace bpr::qt {
 			UnreadableText->setTextInteractionFlags(Qt::TextSelectableByMouse);
 			notice->addWidget(UnreadableText);
 			auto* const actions = new QHBoxLayout{ };
-			Troubleshooting     = new quiet_push_button{ tr("Open Troubleshooting…"), Unreadable };
+			Troubleshooting     = new quiet_push_button{ tr("Open Clear local data…"), Unreadable };
 			Troubleshooting->setObjectName(QStringLiteral("settingsAgentsTroubleshooting"));
-			Troubleshooting->setToolTip(tr("Open Settings › Storage & privacy, where Reset settings starts the agent settings over."));
+			Troubleshooting->setToolTip(tr("Open Settings › Storage & privacy › Clear local data with Settings checked, which starts the agent settings over."));
 			connect(Troubleshooting, &QPushButton::clicked, this, [this] {
 				if (Dispatch.OpenTroubleshooting) {
 					Dispatch.OpenTroubleshooting();
@@ -781,7 +781,7 @@ namespace bpr::qt {
 		if (unreadable) {
 			UnreadableText->setText(tr("BetterPullReview couldn't open %1, so your agents can't be shown and nothing you change here can be saved. "
 									   "Nothing in the file was changed. Quit BetterPullReview and open it again to try once more. "
-									   "If the file still can't be read, Reset settings in Storage & privacy › Troubleshooting starts the agent settings over.")
+									   "If the file still can't be read, clearing Settings in Storage & privacy › Clear local data starts the agent settings over.")
 										.arg(QDir::toNativeSeparators(UnreadableFile)));
 			Unreadable->setAccessibleName(tr("Your saved agents couldn't be read"));
 			Unreadable->setAccessibleDescription(UnreadableText->text());

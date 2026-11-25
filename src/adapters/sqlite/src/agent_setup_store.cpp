@@ -7,6 +7,7 @@
 #include <sqlite3.h>
 
 #include "bpr/core/agent_finding_card_memory.hpp"
+#include "bpr/core/agent_session_management.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/review_composition.hpp"
@@ -361,6 +362,9 @@ namespace bpr::adapters::sqlite {
 				// last figure for the session it resumes.
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_costs(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), total INTEGER NOT NULL CHECK(total >= 0), known INTEGER NOT NULL CHECK(known IN (0,1)), reported INTEGER CHECK(reported >= 0)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_selection(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
+				// [[BPR-NNNN]]. The name the reviewer gave a conversation; one
+				// with no row shows its first question.
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_session_names(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 120)) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_entry_relaxed_checks("
 									"id INTEGER PRIMARY KEY CHECK(id BETWEEN 1 AND 64)) STRICT")
@@ -1926,7 +1930,7 @@ namespace bpr::adapters::sqlite {
 				} else if (selectionStatus != SQLITE_DONE) {
 					return std::unexpected(failure::unavailable);
 				}
-				auto rows = detail::prepare(db, "SELECT id,base,head,left_epoch,right_epoch,pending,(SELECT count(*) FROM native_agent_turns WHERE conversation=id),(SELECT asked FROM native_agent_turns WHERE conversation=id ORDER BY ordinal LIMIT 1) FROM native_agent_sessions WHERE scope=?1 AND configuration=?2 ORDER BY rowid DESC LIMIT 500");
+				auto rows = detail::prepare(db, "SELECT id,base,head,left_epoch,right_epoch,pending,(SELECT count(*) FROM native_agent_turns WHERE conversation=id),(SELECT asked FROM native_agent_turns WHERE conversation=id ORDER BY ordinal LIMIT 1),(SELECT name FROM native_agent_session_names WHERE conversation=id) FROM native_agent_sessions WHERE scope=?1 AND configuration=?2 ORDER BY rowid DESC LIMIT 500");
 				if (!rows) {
 					return std::unexpected(failure::unavailable);
 				}
@@ -1947,7 +1951,8 @@ namespace bpr::adapters::sqlite {
 					entry.Binding.RightEpoch = core::epoch_ordinal{ sqlite3_column_int64(rows->Value, 4) };
 					entry.Pending            = sqlite3_column_int(rows->Value, 5) != 0;
 					entry.Turns              = static_cast<std::size_t>(sqlite3_column_int64(rows->Value, 6));
-					entry.Title              = column_text(rows->Value, 7).value_or("New session");
+					entry.Name               = column_text(rows->Value, 8).value_or("");
+					entry.Title              = core::agent_session_title(entry.Name, column_text(rows->Value, 7).value_or(""));
 					auto mode                = detail::prepare(db, "SELECT source FROM native_agent_replays WHERE conversation=?1");
 					if (!mode) {
 						return std::unexpected(failure::unavailable);
@@ -1976,7 +1981,7 @@ namespace bpr::adapters::sqlite {
 				if (tour != std::string::npos) {
 					const auto draftEnd = aScope.find(':', tour + 6U);
 					const auto prefix   = aScope.substr(0, draftEnd + 1U);
-					auto       chats    = detail::prepare(db, "SELECT id,scope,(SELECT asked FROM native_agent_turns WHERE conversation=id ORDER BY ordinal LIMIT 1) FROM native_agent_sessions WHERE substr(scope,1,length(?1))=?1 AND configuration=?2 AND scope!=?3 ORDER BY rowid DESC LIMIT 500");
+					auto       chats    = detail::prepare(db, "SELECT id,scope,(SELECT asked FROM native_agent_turns WHERE conversation=id ORDER BY ordinal LIMIT 1),(SELECT name FROM native_agent_session_names WHERE conversation=id) FROM native_agent_sessions WHERE substr(scope,1,length(?1))=?1 AND configuration=?2 AND scope!=?3 ORDER BY rowid DESC LIMIT 500");
 					if (!chats) {
 						return std::unexpected(failure::unavailable);
 					}
@@ -1987,7 +1992,8 @@ namespace bpr::adapters::sqlite {
 						auto entry  = application::native_agent_history_entry{ };
 						entry.Id    = column_text(chats->Value, 0).value_or("");
 						entry.Scope = column_text(chats->Value, 1).value_or("").substr(tour + 1U);
-						entry.Title = column_text(chats->Value, 2).value_or("New session");
+						entry.Name  = column_text(chats->Value, 3).value_or("");
+						entry.Title = core::agent_session_title(entry.Name, column_text(chats->Value, 2).value_or(""));
 						view.OtherChats.push_back(std::move(entry));
 					}
 					if (status != SQLITE_DONE) {
@@ -2407,6 +2413,175 @@ namespace bpr::adapters::sqlite {
 				}
 				bind_text(use->Value, 1, aWorkspace.Workspace.Path);
 				return sqlite3_step(use->Value) == SQLITE_DONE && detail::execute(db, "COMMIT").has_value();
+			}
+			auto rename(const std::string& aScope, const std::string& aId, const std::string& aName) -> bool override
+			{
+				if (aId.empty() || aName.size() > 120U) {
+					return false;
+				}
+				auto connection = open(Root);
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
+					return false;
+				}
+				auto* const db    = connection->Database.get();
+				auto        found = detail::prepare(db, "SELECT 1 FROM native_agent_sessions WHERE id=?1 AND scope=?2");
+				if (!found) {
+					return false;
+				}
+				bind_text(found->Value, 1, aId);
+				bind_text(found->Value, 2, aScope);
+				if (sqlite3_step(found->Value) != SQLITE_ROW) {
+					return false;
+				}
+				auto row = detail::prepare(db, aName.empty() ? "DELETE FROM native_agent_session_names WHERE conversation=?1" : "INSERT INTO native_agent_session_names(conversation,name) VALUES(?1,?2) ON CONFLICT(conversation) DO UPDATE SET name=excluded.name");
+				if (!row) {
+					return false;
+				}
+				bind_text(row->Value, 1, aId);
+				if (!aName.empty()) {
+					bind_text(row->Value, 2, aName);
+				}
+				return sqlite3_step(row->Value) == SQLITE_DONE && detail::execute(db, "COMMIT").has_value();
+			}
+			auto removal(const std::string& aScope, const std::string& aId) -> std::expected<application::native_agent_session_removal, application::native_agent_storage_failure> override
+			{
+				using failure   = application::native_agent_storage_failure;
+				auto connection = open(Root);
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN")) {
+					return std::unexpected(failure::unavailable);
+				}
+				auto* const db     = connection->Database.get();
+				auto        result = application::native_agent_session_removal{ };
+				auto        row    = detail::prepare(db, "SELECT id,configuration,base,head,left_epoch,right_epoch,handle,turn,pending,workspace,parent,marker,application,session,directory,guard,guard_identity,shallow,revision FROM native_agent_sessions WHERE id=?1 AND scope=?2");
+				if (!row) {
+					return std::unexpected(failure::unavailable);
+				}
+				bind_text(row->Value, 1, aId);
+				bind_text(row->Value, 2, aScope);
+				const auto status = sqlite3_step(row->Value);
+				if (status == SQLITE_DONE) {
+					static_cast<void>(detail::execute(db, "COMMIT"));
+					return result;
+				}
+				if (status != SQLITE_ROW) {
+					return std::unexpected(failure::unavailable);
+				}
+				result.Found = true;
+				if (column_text(row->Value, 9).value_or("").empty()) {
+					static_cast<void>(detail::execute(db, "COMMIT"));
+					return result;
+				}
+				auto workspace = read_native_workspace(db, row->Value);
+				if (!workspace) {
+					return std::unexpected(failure::unavailable);
+				}
+				result.Workspace = std::move(*workspace);
+				if (!result.Workspace) {
+					static_cast<void>(detail::execute(db, "COMMIT"));
+					return result;
+				}
+				const auto bind = [&](sqlite3_stmt* aStatement) {
+					bind_text(aStatement, 1, result.Workspace->Workspace.Path);
+					bind_text(aStatement, 2, result.Workspace->OwnershipMarker);
+					sqlite3_bind_blob(aStatement, 3, result.Workspace->DirectoryIdentity.Opaque.data(), 32, SQLITE_TRANSIENT);
+					if (sqlite3_bind_parameter_count(aStatement) >= 4) {
+						bind_text(aStatement, 4, aId);
+					}
+				};
+				auto others = detail::prepare(db, "SELECT (SELECT count(*) FROM native_agent_sessions WHERE workspace=?1 AND marker=?2 AND directory=?3 AND id<>?4)"
+												  "+(SELECT count(*) FROM native_agent_kept_workspaces WHERE workspace=?1 AND marker=?2 AND directory=?3)");
+				auto keys   = detail::prepare(db, "SELECT DISTINCT w.scope FROM native_agent_workspaces AS w JOIN native_agent_sessions AS s ON s.id=w.conversation WHERE s.workspace=?1 AND s.marker=?2 AND s.directory=?3 ORDER BY w.scope");
+				if (!others || !keys) {
+					return std::unexpected(failure::unavailable);
+				}
+				bind(others->Value);
+				if (sqlite3_step(others->Value) != SQLITE_ROW) {
+					return std::unexpected(failure::unavailable);
+				}
+				result.OtherHolders = static_cast<std::size_t>(sqlite3_column_int64(others->Value, 0));
+				bind(keys->Value);
+				for (auto keyStatus = sqlite3_step(keys->Value); keyStatus != SQLITE_DONE; keyStatus = sqlite3_step(keys->Value)) {
+					if (keyStatus != SQLITE_ROW) {
+						return std::unexpected(failure::unavailable);
+					}
+					result.Keys.push_back(column_text(keys->Value, 0).value_or(""));
+				}
+				static_cast<void>(detail::execute(db, "COMMIT"));
+				return result;
+			}
+			auto erase(const std::string& aScope, const std::string& aId) -> bool override
+			{
+				if (aId.empty()) {
+					return false;
+				}
+				auto connection = open(Root);
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
+					return false;
+				}
+				auto* const db    = connection->Database.get();
+				auto        found = detail::prepare(db, "SELECT 1 FROM native_agent_sessions WHERE id=?1 AND scope=?2");
+				if (!found) {
+					return false;
+				}
+				bind_text(found->Value, 1, aId);
+				bind_text(found->Value, 2, aScope);
+				if (sqlite3_step(found->Value) != SQLITE_ROW) {
+					return false;
+				}
+				// A workspace key that led here leads to another conversation
+				// holding the same workspace, so the pull request keeps it.
+				static constexpr auto repoint = "UPDATE native_agent_workspaces SET conversation=(SELECT o.id FROM native_agent_sessions AS o JOIN native_agent_sessions AS d ON d.id=?1 "
+												"WHERE o.id<>?1 AND o.workspace<>'' AND o.workspace=d.workspace AND o.marker=d.marker AND o.directory=d.directory ORDER BY o.rowid DESC LIMIT 1) "
+												"WHERE conversation=?1 AND EXISTS(SELECT 1 FROM native_agent_sessions AS o JOIN native_agent_sessions AS d ON d.id=?1 "
+												"WHERE o.id<>?1 AND o.workspace<>'' AND o.workspace=d.workspace AND o.marker=d.marker AND o.directory=d.directory)";
+				// Its last use goes once nothing else records that workspace.
+				static constexpr auto unused = "DELETE FROM native_agent_workspace_use WHERE workspace=(SELECT workspace FROM native_agent_sessions WHERE id=?1) "
+											   "AND NOT EXISTS(SELECT 1 FROM native_agent_sessions AS o JOIN native_agent_sessions AS d ON d.id=?1 WHERE o.id<>?1 AND o.workspace=d.workspace) "
+											   "AND NOT EXISTS(SELECT 1 FROM native_agent_kept_workspaces AS k JOIN native_agent_sessions AS d ON d.id=?1 WHERE k.workspace=d.workspace)";
+				for (const auto* const statement : {
+						 repoint,
+						 "DELETE FROM native_agent_workspaces WHERE conversation=?1",
+						 "DELETE FROM native_agent_selection WHERE conversation=?1",
+						 "DELETE FROM native_agent_turn_steers WHERE conversation=?1",
+						 "DELETE FROM native_agent_turns WHERE conversation=?1",
+						 "DELETE FROM native_agent_replays WHERE conversation=?1",
+						 "DELETE FROM native_agent_costs WHERE conversation=?1",
+						 "DELETE FROM native_agent_sparse_objects WHERE conversation=?1",
+						 "DELETE FROM native_agent_session_names WHERE conversation=?1",
+						 unused,
+						 "DELETE FROM native_agent_sessions WHERE id=?1",
+					 }) {
+					auto row = detail::prepare(db, statement);
+					if (!row) {
+						return false;
+					}
+					bind_text(row->Value, 1, aId);
+					if (sqlite3_step(row->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				return detail::execute(db, "COMMIT").has_value();
+			}
+			auto erase_all() -> bool override
+			{
+				auto connection = open(Root);
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
+					return false;
+				}
+				auto* const db = connection->Database.get();
+				for (const auto* const statement : {
+						 "DELETE FROM native_agent_workspaces", "DELETE FROM native_agent_selection", "DELETE FROM native_agent_turn_steers", "DELETE FROM native_agent_turns",
+						 "DELETE FROM native_agent_replays", "DELETE FROM native_agent_costs", "DELETE FROM native_agent_sparse_objects", "DELETE FROM native_agent_session_names",
+						 "DELETE FROM native_agent_workspace_use", "DELETE FROM native_agent_kept_workspaces", "DELETE FROM native_agent_sessions",
+						 // The conversations kept before native sessions, and what
+						 // they recorded beside their turns.
+						 "DELETE FROM agent_conversation_outcomes", "DELETE FROM agent_conversation_turns", "DELETE FROM agent_conversation_choice",
+						 "DELETE FROM agent_conversations", "DELETE FROM agent_finding_cards", "DELETE FROM prompt_turn_names" }) {
+					if (!detail::execute(db, statement)) {
+						return false;
+					}
+				}
+				return detail::execute(db, "COMMIT").has_value();
 			}
 
 		private:

@@ -13552,7 +13552,7 @@ auto main(int argc, char** argv) -> int
 		// recovery dialog, runs once before the profile's stores open.
 		auto dataReset = std::optional<bpr::core::profile_data_reset_request>{ };
 		if (const auto scope = launch.value("--reset-profile-data-scope")) {
-			if (const auto named = bpr::core::profile_data_reset_from_name(*scope)) {
+			if (const auto named = bpr::core::profile_data_reset_selection_from_names(*scope)) {
 				dataReset = bpr::core::profile_data_reset_request{ *named, true, launch.has("--reset-profile-data-copy") };
 			}
 		}

@@ -1,6 +1,7 @@
 #include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/application/agent_conversation_host.hpp"
 #include "bpr/application/agent_scratch_folder.hpp"
+#include "bpr/application/agent_session_management.hpp"
 #include "bpr/application/operation_diagnostics.hpp"
 #include "bpr/application/tour_agent_conversation.hpp"
 
@@ -1912,9 +1913,71 @@ namespace bpr::application {
 			} catch (...) { }
 		}
 
+		/// [[BPR-NNNN]]. Renames (\p aName set) or deletes one session of this
+		/// pull request's \p aScope on an effect worker, then shows the
+		/// history again. Decision lane only; answered there once.
+		void edit_native(const core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::string aId, std::optional<std::string> aName,
+						 agent_invocation_host::session_edit_answer aAnswer)
+		{
+			const auto self   = shared_from_this();
+			const auto answer = [&aAnswer](const agent_session_edit_result aResult) {
+				if (aAnswer) {
+					aAnswer({ .Result = aResult });
+				}
+			};
+			if (Closing || !NativeSessions || aAgentIdentity.empty() || aId.empty() || !Authority || !Binding) {
+				answer(agent_session_edit_result::unavailable);
+				return;
+			}
+			auto turnActive = false;
+			{
+				std::scoped_lock lock{ StateMutex };
+				turnActive = ActiveInvocation != nullptr || AdmissionPending;
+			}
+			if (!aName && turnActive) {
+				answer(agent_session_edit_result::running);
+				return;
+			}
+			const auto scope = native_scope_key(*Authority, aAgentIdentity, aScope);
+			const auto key   = agent_workspace_key(*Authority, *Binding);
+			++Probes;
+			try {
+				Effects.post([self, scope, key, id = std::move(aId), name = std::move(aName), turnActive, aProfile, agent = std::move(aAgentIdentity), thread = std::move(aScope), done = std::move(aAnswer)]() mutable {
+					auto receipt = agent_session_edit_receipt{ };
+					try {
+						receipt = name ? rename_agent_session(*self->NativeSessions, scope, id, *name)
+									   : delete_agent_session(*self->NativeSessions, self->RetainedFiles, scope, id, { key }, turnActive, { });
+					} catch (...) {
+						receipt = { };
+					}
+					try {
+						self->DecisionLane.post([self, receipt, aProfile, edited = std::move(agent), edits = std::move(thread), told = std::move(done)]() mutable {
+							--self->Probes;
+							if (receipt.Result == agent_session_edit_result::done && !self->Closing) {
+								self->NativeRestoreKey.clear();
+								self->restore_native(aProfile, std::move(edited), std::move(edits), std::nullopt);
+							}
+							if (told) {
+								told(receipt);
+							}
+						});
+					} catch (...) {
+						--self->Probes;
+					}
+				});
+			} catch (...) {
+				--Probes;
+				answer(agent_session_edit_result::unavailable);
+			}
+		}
+
 		std::function<void()> DeferredNativeHistory;
 		std::function<void()> DeferredNativeChoice;
 		std::atomic_bool      HasDeferredNativeHistory = false;
+
+		/// [[BPR-NNNN]]. Removes a deleted session's own retained workspace;
+		/// none refuses such a deletion.
+		retained_workspace_files_port* RetainedFiles = nullptr;
 
 		native_agent_session_store_port* NativeSessions;
 		diagnostic_log_port*             Log;
@@ -2007,6 +2070,22 @@ namespace bpr::application {
 	void agent_invocation_host::native_history_changed()
 	{
 		Implementation->NativeRestoreKey.clear();
+	}
+
+	void agent_invocation_host::rename_native_session(const core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::string aId, std::string aName,
+													  session_edit_answer aAnswer)
+	{
+		Implementation->edit_native(aProfile, std::move(aAgentIdentity), std::move(aScope), std::move(aId), std::move(aName), std::move(aAnswer));
+	}
+
+	void agent_invocation_host::delete_native_session(const core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::string aId, session_edit_answer aAnswer)
+	{
+		Implementation->edit_native(aProfile, std::move(aAgentIdentity), std::move(aScope), std::move(aId), std::nullopt, std::move(aAnswer));
+	}
+
+	void agent_invocation_host::set_retained_workspace_files(retained_workspace_files_port* const aFiles)
+	{
+		Implementation->RetainedFiles = aFiles;
 	}
 
 	void agent_invocation_host::clear()

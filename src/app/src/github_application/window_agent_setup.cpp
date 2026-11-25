@@ -978,6 +978,61 @@ namespace bpr::app {
 		AgentWorkspaceSweepAfterHistory = AgentWorkspaceSweepAfterHistory || aChoice.has_value();
 		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice));
 	}
+	/// [[BPR-NNNN]]. Renames (`aName` set) or deletes one of the selected
+	/// agent's Agent-tab sessions on this pull request, and says what happened.
+	void github_application::implementation::edit_agent_session(const std::string& aId, std::optional<std::string> aName)
+	{
+		if (Closing || !Window || !AgentSetup || !AgentHost || !Window->agent_panel()->selected_profile()) {
+			return;
+		}
+		const auto  profile     = *Window->agent_panel()->selected_profile();
+		const auto  preferences = AgentSetup->projection().Preferences;
+		const auto* entry       = core::entry_of_profile(preferences.Agents, profile);
+		if (!entry) {
+			return;
+		}
+		const auto renaming = aName.has_value();
+		auto       answer   = [this, renaming](const application::agent_session_edit_receipt& aReceipt) {
+			if (Closing || !Window) {
+				return;
+			}
+			using result = application::agent_session_edit_result;
+			auto words   = QString{ };
+			switch (aReceipt.Result) {
+			case result::done:
+				words = renaming                ? QStringLiteral("Renamed.")
+					: aReceipt.WorkspaceRemoved ? QStringLiteral("Deleted, with its agent workspace.")
+					: aReceipt.WorkspaceShared  ? QStringLiteral("Deleted. Its workspace stays: another session of this pull request uses it.")
+												: QStringLiteral("Deleted.");
+				break;
+			case result::not_found:
+				words = QStringLiteral("That session is no longer here.");
+				break;
+			case result::running:
+				words = QStringLiteral("A turn is running on this session or its workspace. Stop it, wait for it to finish, then try again.");
+				break;
+			case result::name_too_long:
+				words = QStringLiteral("A name can be at most 120 bytes long.");
+				break;
+			case result::name_not_text:
+				words = QStringLiteral("That name has characters a session name can’t hold.");
+				break;
+			case result::workspace_refused:
+				words = QStringLiteral("Its agent workspace could not be removed safely, so the session was kept.");
+				break;
+			case result::unavailable:
+				words = QStringLiteral("The sessions could not be read or saved. Nothing changed.");
+				break;
+			}
+			Window->agent_tab()->present_session_edit(words);
+		};
+		if (renaming) {
+			AgentHost->rename_native_session(profile, entry->Identity, "agent-tab", aId, std::move(*aName), std::move(answer));
+		} else {
+			AgentHost->delete_native_session(profile, entry->Identity, "agent-tab", aId, std::move(answer));
+		}
+	}
+
 	void github_application::implementation::present_agent_native_history(const application::native_agent_history_projection& aView)
 	{
 		if (Closing || !Window) {
@@ -1914,6 +1969,8 @@ namespace bpr::app {
 			}
 		});
 		tab->set_native_history_dispatch([this](std::optional<std::string> aChoice) { observe_agent_native_history(std::move(aChoice)); });
+		// [[BPR-NNNN]]. History › Rename or delete sessions….
+		tab->set_session_edit_dispatch([this](const std::string& aId, std::optional<std::string> aName) { edit_agent_session(aId, std::move(aName)); });
 		tab->set_clear_session_dispatch([this] {
 			if (!Closing && AgentConversation) {
 				observe_agent_native_history(std::string{ });
@@ -2203,6 +2260,11 @@ namespace bpr::app {
 				[this] {
 					if (!Closing && Window != nullptr) {
 						Window->open_settings(qt::settings_page::storage_and_privacy);
+						// [[BPR-NNNN]]. Clear local data opens with Settings,
+						// the agent setup's category, checked.
+						if (auto* const clear = Window->profile_reset_panel_widget(); clear != nullptr) {
+							clear->set_checked(core::profile_data_reset::settings);
+						}
 					}
 				},
 		});
@@ -2765,6 +2827,14 @@ namespace bpr::app {
 		usage.Bytes = summary->Bytes;
 		usage.InUse = summary->InUse;
 		Window->agent_programs()->present_workspace_usage(usage, Profile->RetainedWorkspacesSaid);
+		// [[BPR-NNNN]]. The same measure beside Clear local data's Agent
+		// sessions and workspaces.
+		if (auto* const clear = Window->profile_reset_panel_widget(); clear != nullptr) {
+			const auto size = QLocale{ }.formattedDataSize(static_cast<qint64>(summary->Bytes), 1, QLocale::DataSizeSIFormat);
+			clear->present_size(core::profile_data_reset::agent_sessions,
+								summary->Count == 0U ? QStringLiteral("no workspaces") : summary->Count == 1U ? QStringLiteral("1 workspace, %1").arg(size)
+																											  : QStringLiteral("%1 workspaces, %2").arg(summary->Count).arg(size));
+		}
 	}
 
 	void github_application::implementation::present_scratch_usage(const QString& aSaid)

@@ -295,7 +295,9 @@ namespace bpr::adapters::sqlite {
 		}
 		/// \brief What one inventory covers. Its value is the journal's scope
 		/// field: 0 and 1 are the original clear and purge, so their journals
-		/// read as before; 11-14 are [[BPR-1602]]'s resets.
+		/// read as before; 11-15 are [[BPR-1602]]'s single resets, and
+		/// [[BPR-NNNN]]'s other selections of the Clear list are 256 plus the
+		/// selection's bits.
 		enum class scope : std::uint64_t {
 			clear            = 0U,
 			purge            = 1U,
@@ -305,45 +307,49 @@ namespace bpr::adapters::sqlite {
 			reset_everything = 14U,
 			/// [[BPR-1858]]
 			reset_connections = 15U,
+			/// [[BPR-NNNN]]
+			reset_selection = 256U,
 		};
-		auto scope_of(core::profile_data_reset aReset) -> scope
+		/// The legacy journal values of the five single resets.
+		constexpr std::array legacy_scopes{
+			std::pair{ scope::reset_caches, core::profile_data_reset::caches },
+			std::pair{ scope::reset_settings, core::profile_data_reset::settings },
+			std::pair{ scope::reset_review, core::profile_data_reset::review_data },
+			std::pair{ scope::reset_everything, core::profile_data_reset::everything },
+			std::pair{ scope::reset_connections, core::profile_data_reset::connections },
+		};
+		auto scope_of(const core::profile_data_reset_selection aReset) -> scope
 		{
-			switch (aReset) {
-			case core::profile_data_reset::caches:
-				return scope::reset_caches;
-			case core::profile_data_reset::settings:
-				return scope::reset_settings;
-			case core::profile_data_reset::review_data:
-				return scope::reset_review;
-			case core::profile_data_reset::everything:
-				return scope::reset_everything;
-			case core::profile_data_reset::connections:
-				return scope::reset_connections;
+			if (aReset.empty()) {
+				fail(reason::invalid_selection);
 			}
-			fail(reason::invalid_selection);
+			for (const auto& [value, reset] : legacy_scopes) {
+				if (core::profile_data_reset_selection{ reset } == aReset) {
+					return value;
+				}
+			}
+			return static_cast<scope>(static_cast<std::uint64_t>(scope::reset_selection) + aReset.bits());
 		}
-		auto reset_of(scope aScope) -> std::optional<core::profile_data_reset>
+		auto reset_of(scope aScope) -> std::optional<core::profile_data_reset_selection>
 		{
-			switch (aScope) {
-			case scope::reset_caches:
-				return core::profile_data_reset::caches;
-			case scope::reset_settings:
-				return core::profile_data_reset::settings;
-			case scope::reset_review:
-				return core::profile_data_reset::review_data;
-			case scope::reset_everything:
-				return core::profile_data_reset::everything;
-			case scope::reset_connections:
-				return core::profile_data_reset::connections;
-			case scope::clear:
-			case scope::purge:
-				break;
+			for (const auto& [value, reset] : legacy_scopes) {
+				if (value == aScope) {
+					return reset;
+				}
+			}
+			const auto raw  = static_cast<std::uint64_t>(aScope);
+			const auto base = static_cast<std::uint64_t>(scope::reset_selection);
+			if (raw > base && raw - base <= 0xFFFFU) {
+				const auto selection = core::profile_data_reset_selection::from_bits(static_cast<std::uint16_t>(raw - base));
+				if (selection.bits() == raw - base) {
+					return selection;
+				}
 			}
 			return std::nullopt;
 		}
 		auto known_scope(std::uint64_t aValue) -> bool
 		{
-			return aValue == 0U || aValue == 1U || (aValue >= 11U && aValue <= 15U);
+			return aValue == 0U || aValue == 1U || reset_of(static_cast<scope>(aValue)).has_value();
 		}
 		/// \brief [[BPR-1858]]. Whether the scope deletes this profile's stored
 		/// sign-ins through the credential cleanup: the purge, and the resets
@@ -356,7 +362,7 @@ namespace bpr::adapters::sqlite {
 		/// \brief A `state/v1` entry the reset selects by name: a known store
 		/// or one of its sidecars whose area the reset removes, or the epoch
 		/// catalog's lock with the caches. Core owns which area a store is in.
-		auto reset_store(std::string_view aName, core::profile_data_reset aReset) -> bool
+		auto reset_store(std::string_view aName, core::profile_data_reset_selection aReset) -> bool
 		{
 			if (aName == "epoch-catalog.lock") {
 				return core::profile_data_reset_removes(aReset, core::profile_data_area::caches);
@@ -368,7 +374,7 @@ namespace bpr::adapters::sqlite {
 		/// \brief Whether a reset's scan passes over `aPath` untouched: anything
 		/// outside the folders and stores it removes. Nothing passed over is
 		/// recorded, opened or deleted.
-		auto reset_skips(std::string_view aPath, core::profile_data_reset aReset) -> bool
+		auto reset_skips(std::string_view aPath, core::profile_data_reset_selection aReset) -> bool
 		{
 			const auto path = parts(aPath);
 			if (path.size() == 1U) {
@@ -384,7 +390,7 @@ namespace bpr::adapters::sqlite {
 		/// owner-private file and folder in them goes, partial spools and
 		/// unindexed objects included: a reset is how a damaged cache is
 		/// cleared. The publication store keeps the purge's exact layout.
-		auto reset_member(std::string_view aPath, bool aDirectory, core::profile_data_reset aReset) -> bool
+		auto reset_member(std::string_view aPath, bool aDirectory, core::profile_data_reset_selection aReset) -> bool
 		{
 			if (aPath == "state" || aPath == "state/v1") {
 				return aDirectory;
@@ -1882,7 +1888,7 @@ namespace bpr::adapters::sqlite {
 			return std::unexpected(reason::io_failure);
 		}
 	}
-	auto release_maintenance_files::reset(const core::profile_data_reset aReset, const std::optional<std::filesystem::path>& aCopy, std::stop_token aStop)
+	auto release_maintenance_files::reset(const core::profile_data_reset_selection aReset, const std::optional<std::filesystem::path>& aCopy, std::stop_token aStop)
 		-> std::expected<std::uint32_t, reason>
 	{
 		try {

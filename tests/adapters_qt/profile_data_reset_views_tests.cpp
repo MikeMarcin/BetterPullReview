@@ -1,7 +1,7 @@
 /// \file
-/// \brief [[BPR-1602]]. Settings › Storage & privacy › Troubleshooting as the
-/// owner chose it (design A, with shorter rows): four rows, each asking its
-/// confirmation; the confirmation's Removes and Keeps lists; the
+/// \brief [[BPR-1602]], [[BPR-NNNN]]. Settings › Storage & privacy › Clear
+/// local data: a checkbox per category, what a checked one implies, one
+/// Clear… and one confirmation for the selection; its Removes and Keeps lists; the
 /// acknowledgement that gates a destructive reset; Cancel as the default; the
 /// request that reaches the dispatch; Settings search; the recovery dialog's
 /// three answers; and the status notice. Saves Light and Dark renders when
@@ -68,9 +68,17 @@ namespace {
 		return found;
 	}
 
-	auto open_question(qt::profile_reset_panel& aPanel, const reset aReset) -> qt::profile_reset_confirmation*
+	/// Checks exactly `aReset` in the list and presses Clear….
+	auto open_question(qt::profile_reset_panel& aPanel, const core::profile_data_reset_selection aReset) -> qt::profile_reset_confirmation*
 	{
-		aPanel.button(aReset)->click();
+		aPanel.set_checked({ });
+		for (const auto each : core::profile_data_reset_categories) {
+			if (aReset.contains(each) && aPanel.check_box(each)->isEnabled()) {
+				aPanel.check_box(each)->click();
+			}
+		}
+		expect(aPanel.clear_button()->isEnabled(), "something checked enables Clear");
+		aPanel.clear_button()->click();
 		settle();
 		qt::profile_reset_confirmation* question = nullptr;
 		for (auto* candidate : confirmations(*aPanel.window())) {
@@ -78,7 +86,7 @@ namespace {
 				question = candidate;
 			}
 		}
-		expect(question != nullptr && question->isVisible() && question->reset() == aReset, "the row's button asks its confirmation");
+		expect(question != nullptr && question->isVisible(), "Clear… asks one confirmation for the checked categories");
 		return question;
 	}
 
@@ -87,23 +95,48 @@ namespace {
 		qt::workbench_window window;
 		window.set_profile_label(QStringLiteral("Default"));
 		auto* const panel = window.profile_reset_panel_widget();
-		expect(panel != nullptr && panel->title() == QStringLiteral("Troubleshooting"), "Storage & privacy has a Troubleshooting group");
+		expect(panel != nullptr && panel->title() == QStringLiteral("Clear local data"), "Storage & privacy has one Clear local data group");
 		auto* const page = window.settings()->page_widget(qt::settings_page::storage_and_privacy);
 		expect(page != nullptr && page->isAncestorOf(panel), "the group is on the Storage & privacy page");
-		for (const auto& [each, text] : { std::pair{ reset::caches, "Clear caches…" }, std::pair{ reset::settings, "Reset settings…" },
-										  std::pair{ reset::review_data, "Reset review data…" }, std::pair{ reset::connections, "Reset connections…" },
-										  std::pair{ reset::everything, "Reset everything…" } }) {
-			auto* const button = panel->button(each);
-			expect(button != nullptr && button->text() == QString::fromUtf8(text), "each row's button names its reset");
-			expect(!button->accessibleDescription().isEmpty() && button->accessibleDescription().size() < 60, "each row says one short line");
+		// [[BPR-NNNN]]. A checkbox per category with one line saying exactly
+		// what it clears; nothing checked; Clear waits for a check.
+		for (const auto& [each, text] : { std::pair{ reset::caches, "Caches" }, std::pair{ reset::settings, "Settings" }, std::pair{ reset::agent_sessions, "Agent sessions and workspaces" },
+										  std::pair{ reset::review_data, "Review data" }, std::pair{ reset::saved_sources, "Saved repositories and servers" },
+										  std::pair{ reset::statistics, "Insights statistics" }, std::pair{ reset::connections, "Connections" } }) {
+			auto* const box = panel->check_box(each);
+			expect(box != nullptr && box->text() == QString::fromUtf8(text) && !box->isChecked() && box->isEnabled(), "each category is an unchecked box with its name");
+			auto* const line = panel->findChild<QLabel*>(box->objectName() + QStringLiteral("Line"));
+			expect(line != nullptr && !line->text().isEmpty() && box->accessibleDescription() == line->text(), "each category says what it clears");
 		}
-		// Settings search finds each reset by its name on this page.
+		expect(panel->findChild<QLabel*>(QStringLiteral("profileResetSettingsLine"))->text().contains(QStringLiteral("agent setup")), "Settings says it clears agent setup");
+		const auto agentLine = panel->findChild<QLabel*>(QStringLiteral("profileResetAgentSessionsLine"))->text();
+		expect(agentLine.contains(QStringLiteral("agent conversations")) && agentLine.contains(QStringLiteral("workspaces")) && agentLine.contains(QStringLiteral("Claude Code’s and Codex’s own session files stay")),
+			   "Agent sessions says it clears conversations and workspaces, and leaves the agents' own files");
+		expect(!panel->clear_button()->isEnabled() && panel->checked().empty(), "nothing is checked and Clear waits");
+		// A measured size is shown beside its category.
+		panel->present_size(reset::agent_sessions, QStringLiteral("3 workspaces, 17.2 GB"));
+		expect(panel->size_label(reset::agent_sessions)->text() == QStringLiteral("3 workspaces, 17.2 GB") && panel->size_label(reset::agent_sessions)->isVisibleTo(panel)
+				   && panel->check_box(reset::agent_sessions)->accessibleName().contains(QStringLiteral("17.2 GB")),
+			   "the agent workspaces' size is shown beside them");
+		// Settings brings Agent sessions with it, checked and locked, and gives
+		// the box back as it was when unchecked.
+		panel->check_box(reset::settings)->click();
+		expect(panel->check_box(reset::agent_sessions)->isChecked() && !panel->check_box(reset::agent_sessions)->isEnabled()
+				   && panel->findChild<QLabel*>(QStringLiteral("profileResetAgentSessionsLine"))->text().startsWith(QStringLiteral("Included with Settings")),
+			   "Settings includes agent sessions, and says why");
+		panel->check_box(reset::settings)->click();
+		expect(!panel->check_box(reset::agent_sessions)->isChecked() && panel->check_box(reset::agent_sessions)->isEnabled(), "unchecking Settings frees it again");
+		panel->select_all_button()->click();
+		expect(panel->checked() == core::profile_data_reset_selection::all() && panel->select_all_button()->text() == QStringLiteral("Uncheck all"), "Check all checks every category");
+		panel->select_all_button()->click();
+		expect(panel->checked().empty() && !panel->clear_button()->isEnabled(), "Uncheck all clears the list");
+		// Settings search finds a category by its name on this page.
 		window.settings()->present(qt::settings_page::storage_and_privacy);
 		settle();
-		window.settings()->search_field()->setText(QStringLiteral("Reset review"));
+		window.settings()->search_field()->setText(QStringLiteral("Agent sessions"));
 		settle();
 		auto* const results = window.settings()->search_results();
-		expect(results->count() > 0 && results->item(0)->text().contains(QStringLiteral("Reset review data")), "search finds Reset review data");
+		expect(results->count() > 0 && results->item(0)->text().contains(QStringLiteral("Agent sessions")), "search finds Agent sessions and workspaces");
 		window.settings()->search_field()->clear();
 		settle();
 	}
@@ -117,11 +150,11 @@ namespace {
 		auto        requests = std::vector<core::profile_data_reset_request>{ };
 		window.set_profile_data_reset_dispatch([&requests](const core::profile_data_reset_request& aRequest) { requests.push_back(aRequest); });
 
-		// Clear caches: one confirmation, no acknowledgement and no copy.
+		// Caches alone: one confirmation, no acknowledgement and no copy.
 		auto* caches = open_question(*panel, reset::caches);
-		expect(caches->wording().Title == QStringLiteral("Clear caches for “Default”?"), "the title names the profile");
-		expect(caches->copy_box() == nullptr && caches->acknowledge_box() == nullptr, "Clear caches asks no acknowledgement and offers no copy");
-		expect(caches->confirm_button()->isEnabled(), "Clear caches can be confirmed at once");
+		expect(caches->wording().Title == QStringLiteral("Clear caches for “Default”?"), "the title names the category and the profile");
+		expect(caches->copy_box() == nullptr && caches->acknowledge_box() == nullptr, "caches asks no acknowledgement and offers no copy");
+		expect(caches->confirm_button()->isEnabled(), "caches can be confirmed at once");
 		expect(caches->cancel_button()->isDefault() && QApplication::focusWidget() == caches->cancel_button(), "Cancel is the default and has focus");
 		QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
 		QApplication::sendEvent(caches, &escape);
@@ -131,67 +164,79 @@ namespace {
 		caches = open_question(*panel, reset::caches);
 		caches->confirm_button()->click();
 		settle();
-		expect(requests.size() == 1U && requests.back() == core::profile_data_reset_request{ reset::caches }, "confirming Clear caches dispatches it");
+		expect(requests.size() == 1U && requests.back() == core::profile_data_reset_request{ reset::caches }, "confirming caches dispatches it");
 
-		// Reset settings keeps saved repositories and observer rules.
-		auto* settings = open_question(*panel, reset::settings);
-		expect(settings->wording().Keeps.contains(QStringLiteral("Saved repositories and servers")) && settings->wording().Keeps.contains(QStringLiteral("Observer rules")),
-			   "Reset settings says it keeps saved repositories and observer rules");
-		expect(settings->acknowledge_box() == nullptr, "Reset settings needs no acknowledgement");
+		// Settings lists the agent setup and, with it, the agent conversations.
+		auto*      settings        = open_question(*panel, reset::settings);
+		const auto settingsRemoves = settings->wording().Removes.join(QLatin1Char{ '\n' });
+		expect(settingsRemoves.contains(QStringLiteral("Settings: agents you added")) && settingsRemoves.contains(QStringLiteral("Agent sessions and workspaces: agent conversations")),
+			   "Settings says it removes agent setup and, through it, agent conversations and workspaces");
+		expect(settings->wording().Lead.contains(QStringLiteral("Settings includes Agent sessions and workspaces")), "the lead says why agent sessions are included");
+		expect(settings->wording().Keeps.contains(QStringLiteral("Saved repositories and servers")) && settings->wording().Keeps.contains(QStringLiteral("Claude Code’s and Codex’s own session files")),
+			   "Settings keeps saved repositories and the agents' own session files");
+		expect(settings->acknowledge_box() != nullptr && settings->acknowledge_box()->text().contains(QStringLiteral("agent conversations")), "it asks to acknowledge the agent conversations");
 		settings->cancel_button()->click();
 		settle();
 
-		// Reset review data waits for the acknowledgement; the copy is on.
-		auto* review = open_question(*panel, reset::review_data);
+		// Two categories at once: one confirmation, one request.
+		const auto two    = core::profile_data_reset_selection{ reset::caches }.with(reset::review_data);
+		auto*      review = open_question(*panel, two);
+		expect(review->wording().Title == QStringLiteral("Clear the checked data for “Default”?"), "several categories are asked about together");
+		expect(review->wording().Removes.contains(QStringLiteral("Caches: repository data downloaded from GitHub")) && review->wording().Removes.contains(QStringLiteral("Review data: private notes and their threads")),
+			   "the ledger names each checked category's contents");
+		expect(review->wording().Keeps.contains(QStringLiteral("Settings")) && review->wording().Keeps.contains(QStringLiteral("Agent sessions and workspaces")), "and keeps the unchecked ones");
 		expect(review->copy_box() != nullptr && review->copy_box()->isChecked(), "a copy is offered and on by default");
 		expect(review->acknowledge_box() != nullptr && !review->acknowledge_box()->isChecked(), "the acknowledgement starts unticked");
-		expect(!review->confirm_button()->isEnabled(), "Reset review data waits for the acknowledgement");
+		expect(!review->confirm_button()->isEnabled(), "a destructive selection waits for the acknowledgement");
 		review->confirm_button()->click();
 		settle();
-		expect(requests.size() == 1U, "a disabled reset dispatches nothing");
+		expect(requests.size() == 1U, "a disabled clear dispatches nothing");
 		review->acknowledge_box()->setChecked(true);
-		expect(review->confirm_button()->isEnabled(), "the acknowledgement enables the reset");
+		expect(review->confirm_button()->isEnabled(), "the acknowledgement enables the clear");
 		review->copy_box()->setChecked(false);
 		review->confirm_button()->click();
 		settle();
-		expect(requests.size() == 2U && requests.back() == core::profile_data_reset_request{ reset::review_data, true, false }, "the request carries the acknowledgement and the copy choice");
+		expect(requests.size() == 2U && requests.back() == core::profile_data_reset_request{ two, true, false }, "the request carries both categories, the acknowledgement and the copy choice");
 
-		// Reset everything names the saved repositories and rules it clears.
-		auto* everything = open_question(*panel, reset::everything);
-		expect(everything->wording().Removes.join(QLatin1Char{ ' ' }).contains(QStringLiteral("saved repositories and servers, observer rules")), "Reset everything says it clears saved repositories, servers and observer rules");
-		// [[BPR-1858]]. It signs out of the app and GitHub CLI but never signs gh out.
-		expect(everything->wording().Removes.contains(QStringLiteral("Connections: sign-ins made in this app and their saved tokens, this profile’s GitHub CLI connection")),
-			   "Reset everything says it removes sign-ins made in the app and the GitHub CLI connection");
-		expect(everything->wording().Lead.contains(QStringLiteral("it signs out")) && everything->wording().Lead.contains(QStringLiteral("doesn’t sign you out of GitHub CLI itself")),
+		// Agent sessions alone: acknowledged, no copy of store files.
+		auto* agents = open_question(*panel, reset::agent_sessions);
+		expect(agents->copy_box() == nullptr && agents->acknowledge_box() != nullptr, "agent sessions offers no copy and asks the acknowledgement");
+		expect(agents->wording().Removes.contains(QStringLiteral("Retained agent workspaces, except one another app holds")), "it says it removes the retained workspaces");
+		agents->acknowledge_box()->setChecked(true);
+		agents->confirm_button()->click();
+		settle();
+		expect(requests.size() == 3U && requests.back() == core::profile_data_reset_request{ reset::agent_sessions, true, false }, "agent sessions dispatches");
+
+		// Everything names every category and signs out.
+		auto* everything = panel->ask(reset::everything);
+		settle();
+		expect(panel->checked() == core::profile_data_reset_selection::all(), "an entry point naming everything checks every box");
+		expect(everything->wording().Title == QStringLiteral("Reset everything for “Default”?"), "every category is Reset everything");
+		expect(everything->wording().Removes.contains(QStringLiteral("Connections: sign-ins made in this app, and their saved tokens"))
+				   && everything->wording().Removes.contains(QStringLiteral("Saved repositories and servers: observer rules")),
+			   "Reset everything says it removes sign-ins and the saved repositories' rules");
+		expect(everything->wording().Lead.contains(QStringLiteral("signs you out")) && everything->wording().Lead.contains(QStringLiteral("doesn’t sign you out of GitHub CLI itself")),
 			   "Reset everything says it signs out, and that gh itself stays signed in");
 		expect(everything->wording().Keeps.contains(QStringLiteral("GitHub CLI’s own sign-in, which other tools use")), "Reset everything keeps gh's own sign-in");
-		expect(!everything->wording().Keeps.join(QLatin1Char{ ' ' }).contains(QStringLiteral("made in this app")), "Reset everything no longer keeps sign-ins made in the app");
 		everything->acknowledge_box()->setChecked(true);
 		everything->confirm_button()->click();
 		settle();
-		expect(requests.size() == 3U && requests.back() == core::profile_data_reset_request{ reset::everything, true, true }, "Reset everything dispatches with its copy");
+		expect(requests.size() == 4U && requests.back() == core::profile_data_reset_request{ reset::everything, true, true }, "Reset everything dispatches with its copy");
 
-		// [[BPR-1858]]. Reset connections signs out and keeps everything else; it
-		// loses nothing that exists only here, so it asks no acknowledgement.
+		// Connections signs out and loses nothing that exists only here.
 		auto* connections = open_question(*panel, reset::connections);
-		expect(connections->wording().Title == QStringLiteral("Reset connections for “Default”?"), "Reset connections names the profile");
-		expect(connections->wording().Removes.contains(QStringLiteral("Sign-ins made in this app, and their saved tokens"))
-				   && connections->wording().Removes.contains(QStringLiteral("This profile’s GitHub CLI connection")),
-			   "Reset connections says it removes the app's sign-ins and the GitHub CLI connection");
-		expect(connections->wording().Lead.contains(QStringLiteral("doesn’t sign you out of GitHub CLI itself")), "Reset connections says gh itself stays signed in");
-		expect(connections->wording().Keeps.contains(QStringLiteral("GitHub CLI’s own sign-in, which other tools use")) && connections->wording().Keeps.contains(QStringLiteral("Notes, drafts and read marks")),
-			   "Reset connections keeps gh's sign-in and review data");
-		expect(connections->copy_box() == nullptr && connections->acknowledge_box() == nullptr && connections->confirm_button()->isEnabled(), "Reset connections asks no acknowledgement and offers no copy");
-		expect(connections->cancel_button()->isDefault(), "Cancel is the default for Reset connections too");
+		expect(connections->wording().Title == QStringLiteral("Clear connections for “Default”?"), "Connections names the profile");
+		expect(connections->wording().Lead.contains(QStringLiteral("doesn’t sign you out of GitHub CLI itself")), "Connections says gh itself stays signed in");
+		expect(connections->copy_box() == nullptr && connections->acknowledge_box() == nullptr && connections->confirm_button()->isEnabled(), "Connections asks no acknowledgement and offers no copy");
 		connections->confirm_button()->click();
 		settle();
-		expect(requests.size() == 4U && requests.back() == core::profile_data_reset_request{ reset::connections }, "confirming Reset connections dispatches it");
+		expect(requests.size() == 5U && requests.back() == core::profile_data_reset_request{ reset::connections }, "confirming Connections dispatches it");
 
-		// A refusal is said on the group; a completed reset on the status bar.
+		// A refusal is said on the group; a completed clear on the status bar.
 		window.refuse_profile_data_reset(QStringLiteral("BetterPullReview is busy with this profile."));
 		expect(panel->status_label()->isVisibleTo(panel) && panel->status_label()->text().contains(QStringLiteral("busy")), "a refusal is said on the group");
 		window.present_profile_data_reset({ reset::caches, core::release_maintenance_reason::none, 12U }, { });
-		expect(window.statusBar()->currentMessage().startsWith(QStringLiteral("Caches cleared.")), "the reopened window says what was reset");
+		expect(window.statusBar()->currentMessage().startsWith(QStringLiteral("Caches cleared.")), "the reopened window says what was cleared");
 		expect(!panel->status_label()->isVisibleTo(panel), "and clears the group's refusal");
 	}
 
@@ -200,18 +245,32 @@ namespace {
 		using reason = core::release_maintenance_reason;
 		expect(qt::profile_data_reset_notice({ reset::everything, reason::none, 40U, true }, QStringLiteral("BetterPullReview reset 2026-10-18 14.02.33")).contains(QStringLiteral("BetterPullReview reset 2026-10-18 14.02.33")),
 			   "the notice names the copy folder");
-		expect(qt::profile_data_reset_notice({ reset::settings, reason::none, 4U, false, false }, { }).contains(QStringLiteral("Reset everything clears them")), "a queue display that could not be restored is said");
+		expect(qt::profile_data_reset_notice({ reset::settings, reason::none, 4U, false, false }, { }).contains(QStringLiteral("could not be saved")), "a queue display that could not be restored is said");
 		expect(qt::profile_data_reset_notice({ reset::review_data, reason::incomplete_inventory }, { }).contains(QStringLiteral("Nothing was removed")), "a refusal says nothing was removed");
-		for (const auto& [each, lead] : { std::pair{ reset::everything, "This profile was reset" }, std::pair{ reset::connections, "Connections reset" } }) {
+		for (const auto& [each, lead] : { std::pair{ reset::everything, "This profile was reset" }, std::pair{ reset::connections, "Cleared: Connections" } }) {
 			auto signedOut      = core::profile_data_reset_outcome{ each, reason::none, 40U };
 			signedOut.SignedOut = true;
 			expect(qt::profile_data_reset_notice(signedOut, { }) == QString::fromUtf8(lead) + QStringLiteral(" and signed out. GitHub CLI itself is still signed in; choose Sign in or Use GitHub CLI to connect again."),
-				   "a reset that signed out says so, and that gh itself is still signed in");
+				   "a clear that signed out says so, and that gh itself is still signed in");
 			auto retained                = core::profile_data_reset_outcome{ each, reason::none, 40U };
 			retained.ConnectionsRetained = true;
 			expect(qt::profile_data_reset_notice(retained, { }).contains(QStringLiteral("could not be forgotten. Sign out in Accounts & hosts")), "connections that could not be forgotten are said");
 			expect(qt::profile_data_reset_notice({ each, reason::none, 40U }, { }) == QString::fromUtf8(lead) + QStringLiteral("."), "with nothing signed in the notice promises nothing about sign-in");
 		}
+		// [[BPR-NNNN]]. Several categories, and one that did not clear.
+		auto several = core::profile_data_reset_outcome{ core::profile_data_reset_selection{ reset::caches }.with(reset::review_data), reason::none, 9U };
+		expect(qt::profile_data_reset_notice(several, { }) == QStringLiteral("Cleared: Caches, Review data."), "a clear of several names each");
+		auto partial              = core::profile_data_reset_outcome{ core::profile_data_reset_selection{ reset::settings }.with(reset::agent_sessions).with(reset::caches), reason::none, 3U };
+		partial.Failed            = core::profile_data_reset_selection{ reset::agent_sessions }.with(reset::settings);
+		partial.WorkspacesRemoved = 2U;
+		partial.WorkspacesLeft    = 1U;
+		const auto said           = qt::profile_data_reset_notice(partial, { });
+		expect(said.startsWith(QStringLiteral("Caches cleared.")) && said.contains(QStringLiteral("Not cleared: Settings, Agent sessions and workspaces."))
+				   && said.contains(QStringLiteral("1 agent workspace(s) are in use")),
+			   "a partial clear says which categories did not clear, and why");
+		auto agents              = core::profile_data_reset_outcome{ reset::agent_sessions, reason::none, 0U };
+		agents.WorkspacesRemoved = 2U;
+		expect(qt::profile_data_reset_notice(agents, { }) == QStringLiteral("Cleared: Agent sessions and workspaces. 2 agent workspaces were removed."), "agent sessions says how many workspaces went");
 	}
 
 	void test_recovery_dialog()
@@ -274,7 +333,15 @@ namespace {
 			}
 			settle();
 			save_render(*window.settings(), QStringLiteral("page-storage-") + name);
-			for (const auto& [each, slug] : { std::pair{ reset::caches, "caches" }, std::pair{ reset::settings, "settings" }, std::pair{ reset::review_data, "review" }, std::pair{ reset::everything, "everything" } }) {
+			// [[BPR-NNNN]]. Settings checked brings Agent sessions with it.
+			window.profile_reset_panel_widget()->present_size(reset::agent_sessions, QStringLiteral("3 workspaces, 17.2 GB"));
+			window.profile_reset_panel_widget()->set_checked(core::profile_data_reset_selection{ reset::caches }.with(reset::settings));
+			settle();
+			save_render(*window.settings(), QStringLiteral("page-storage-checked-") + name);
+			window.profile_reset_panel_widget()->set_checked({ });
+			for (const auto& [each, slug] : { std::pair{ core::profile_data_reset_selection{ reset::caches }, "caches" }, std::pair{ core::profile_data_reset_selection{ reset::settings }, "settings" },
+											  std::pair{ core::profile_data_reset_selection{ reset::caches }.with(reset::review_data), "several" },
+											  std::pair{ core::profile_data_reset_selection{ reset::agent_sessions }, "agent-sessions" }, std::pair{ core::profile_data_reset_selection{ reset::everything }, "everything" } }) {
 				auto* const question = new qt::profile_reset_confirmation{ nullptr, each, QStringLiteral("Default") };
 				question->setPalette(palette);
 				question->show();

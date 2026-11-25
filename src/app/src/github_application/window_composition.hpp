@@ -2840,7 +2840,8 @@ namespace bpr::app {
 		[[nodiscard]] auto profile_settings_facts() const -> core::profile_facts;
 		void               apply_profile_changes(const core::profile_settings_changes& aChanges);
 		/// [[BPR-1753]]. Each pull request's conversation: store, then host.
-		decltype(github_profile_runtime::NativeAgentSessions)&      NativeAgentSessions = Profile->NativeAgentSessions;
+		decltype(github_profile_runtime::NativeAgentSessions)&      NativeAgentSessions    = Profile->NativeAgentSessions;
+		decltype(github_profile_runtime::RetainedWorkspaceFiles)&   RetainedWorkspaceFiles = Profile->RetainedWorkspaceFiles;
 		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;
 		std::unique_ptr<application::agent_conversation_host>       AgentConversation;
 		/// Owner report 2026-11-10, after BPR-2052. What was done with each
@@ -3023,6 +3024,7 @@ namespace bpr::app {
 		application::native_agent_history_projection AgentNativeHistory;
 		void                                         present_agent_native_history(const application::native_agent_history_projection&);
 		void                                         observe_agent_native_history(std::optional<std::string> aChoice = std::nullopt);
+		void                                         edit_agent_session(const std::string& aId, std::optional<std::string> aName);
 		void                                         observe_tour_native_history(const core::tour_thread&, std::optional<std::string> aChoice = std::nullopt);
 		void                                         present_tour_native_history(const application::native_agent_history_projection&);
 		[[nodiscard]] auto                           tour_native_scope(const core::tour_thread&) const -> std::string;

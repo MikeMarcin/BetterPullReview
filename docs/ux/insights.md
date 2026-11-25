@@ -68,9 +68,10 @@ opens the existing frozen-preview flow, whose Insights section contains only
 last-measured byte totals. Export does not start a storage scan. The identifying
 export adds no Insights section. This window introduces no deletion action.
 
-`insights.sqlite3` is profile state: profile purge and Reset everything remove
-it and its sidecars. Clear local diagnostics, cache deletion or pruning, and
-the three narrower Troubleshooting resets keep it. The first launch creates
+`insights.sqlite3` is profile state: profile purge and Clear local data with
+**Insights statistics** checked remove it and its sidecars. Clear local
+diagnostics, cache deletion or pruning, and
+the other Clear local data checkboxes keep it. The first launch creates
 its metadata; lifetime review counts and retained measurement history stay in
 the same private store.
 
