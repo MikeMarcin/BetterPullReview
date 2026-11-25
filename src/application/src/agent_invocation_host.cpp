@@ -1916,6 +1916,9 @@ namespace bpr::application {
 		/// [[BPR-NNNN]]. Renames (\p aName set) or deletes one session of this
 		/// pull request's \p aScope on an effect worker, then shows the
 		/// history again. Decision lane only; answered there once.
+		/// The id that asks `edit_native` to delete every listed session.
+		static constexpr auto every_session = std::string_view{ "*" };
+
 		void edit_native(const core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::string aId, std::optional<std::string> aName,
 						 agent_invocation_host::session_edit_answer aAnswer)
 		{
@@ -1940,13 +1943,30 @@ namespace bpr::application {
 			}
 			const auto scope = native_scope_key(*Authority, aAgentIdentity, aScope);
 			const auto key   = agent_workspace_key(*Authority, *Binding);
+			// Delete all lists the sessions History lists: this agent's
+			// configuration in the scope.
+			auto configuration = std::string{ };
+			if (const auto profile = std::ranges::find(Profiles, aProfile, &core::agent_profile::Id); profile != Profiles.end()) {
+				configuration = std::to_string(static_cast<unsigned>(profile->Protocol)) + ":" + aAgentIdentity + (aScope.starts_with("tour:") ? ":read-only" : "");
+			}
 			++Probes;
 			try {
-				Effects.post([self, scope, key, id = std::move(aId), name = std::move(aName), turnActive, aProfile, agent = std::move(aAgentIdentity), thread = std::move(aScope), done = std::move(aAnswer)]() mutable {
+				Effects.post([self, scope, key, configuration, id = std::move(aId), name = std::move(aName), turnActive, aProfile, agent = std::move(aAgentIdentity), thread = std::move(aScope), done = std::move(aAnswer)]() mutable {
 					auto receipt = agent_session_edit_receipt{ };
 					try {
-						receipt = name ? rename_agent_session(*self->NativeSessions, scope, id, *name)
-									   : delete_agent_session(*self->NativeSessions, self->RetainedFiles, scope, id, { key }, turnActive, { });
+						if (name) {
+							receipt = rename_agent_session(*self->NativeSessions, scope, id, *name);
+						} else if (id == every_session) {
+							auto ids = std::vector<std::string>{ };
+							if (const auto listed = self->NativeSessions->history(scope, configuration); listed) {
+								for (const auto& each : listed->Entries) {
+									ids.push_back(each.Id);
+								}
+							}
+							receipt = delete_agent_sessions(*self->NativeSessions, self->RetainedFiles, scope, ids, { key }, turnActive, { });
+						} else {
+							receipt = delete_agent_session(*self->NativeSessions, self->RetainedFiles, scope, id, { key }, turnActive, { });
+						}
 					} catch (...) {
 						receipt = { };
 					}
@@ -2081,6 +2101,11 @@ namespace bpr::application {
 	void agent_invocation_host::delete_native_session(const core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::string aId, session_edit_answer aAnswer)
 	{
 		Implementation->edit_native(aProfile, std::move(aAgentIdentity), std::move(aScope), std::move(aId), std::nullopt, std::move(aAnswer));
+	}
+
+	void agent_invocation_host::delete_all_native_sessions(const core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, session_edit_answer aAnswer)
+	{
+		Implementation->edit_native(aProfile, std::move(aAgentIdentity), std::move(aScope), std::string{ implementation::every_session }, std::nullopt, std::move(aAnswer));
 	}
 
 	void agent_invocation_host::set_retained_workspace_files(retained_workspace_files_port* const aFiles)

@@ -541,10 +541,15 @@ namespace bpr::qt {
 		NativeHistoryMenu = historyMenu->addMenu(tr("Sessions"));
 		NativeHistoryMenu->setObjectName(QStringLiteral("nativeAgentSessions"));
 		connect(historyMenu, &QMenu::aboutToShow, this, [this] { if (NativeHistoryDispatch) { NativeHistoryDispatch(std::nullopt); } });
-		// [[BPR-NNNN]]. Name and delete sessions (owner, 2026-11-24).
-		auto* const manage = historyMenu->addAction(tr("Rename or delete sessions…"));
-		manage->setObjectName(QStringLiteral("agentManageSessions"));
-		connect(manage, &QAction::triggered, this, [this] { static_cast<void>(open_session_list()); });
+		// [[BPR-NNNN]], owner 2026-11-24 (agent panel review): the Sessions
+		// rows carry a pencil, a trash can and an i; Delete all sits below.
+		SessionMenu = new agent_session_menu{ *this, this };
+		SessionMenu->set_dispatch({
+			.Open      = [this](const std::string& aId) { if (NativeHistoryDispatch) { NativeHistoryDispatch(aId); } },
+			.Rename    = [this](const std::string& aId, std::string aName) { if (SessionEditDispatch) { SessionEditDispatch(aId, std::move(aName)); } },
+			.Delete    = [this](const std::string& aId) { if (SessionEditDispatch) { SessionEditDispatch(aId, std::nullopt); } },
+			.DeleteAll = [this] { if (SessionEditDispatch) { SessionEditDispatch({ }, std::nullopt); } },
+		});
 		historyMenu->addAction(Chat.new_session_action());
 		historyMenu->addAction(Chat.continue_old_revision_action());
 		historyMenu->addSeparator();
@@ -1294,9 +1299,7 @@ namespace bpr::qt {
 		EmptyIntro->setVisible(Turns.empty() && (State == agent_tab_state::idle || State == agent_tab_state::stopped) && !ReadyCard->isVisible());
 		ClearSession->setVisible(true);
 		ClearSession->setEnabled(!NativeHistoryView.Loading && State != agent_tab_state::working);
-		if (SessionList) {
-			SessionList->set_running(State == agent_tab_state::working);
-		}
+		SessionMenu->set_running(State == agent_tab_state::working);
 		// Claude's effort list is fetched when the tab can show it.
 		if (isVisible() && CatalogDispatch && State != agent_tab_state::setting_up && State != agent_tab_state::not_set_up) {
 			if (const auto* const settings = RunSettingsSource->current(); settings != nullptr && settings->Listing == agent_model_listing::not_offered) {
@@ -2172,6 +2175,10 @@ namespace bpr::qt {
 
 	void agent_tab_view::reset_agents()
 	{
+		if (ResetRoute) {
+			ResetRoute();
+			return;
+		}
 		if (!panels_alive() || State == agent_tab_state::working || !ResetDispatch) {
 			return;
 		}
@@ -2478,10 +2485,8 @@ namespace bpr::qt {
 			return;
 		}
 		show_session_title();
-		if (SessionList) {
-			SessionList->present(aView);
-			SessionList->set_running(State == agent_tab_state::working);
-		}
+		SessionMenu->present(aView);
+		SessionMenu->set_running(State == agent_tab_state::working);
 		NativeHistoryMenu->clear();
 		ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool memory is absent; PR files and Git are shared.") : aView.NativeSupported ? tr("Native continuation")
 																																														 : tr("Native continuation unavailable. Choose Transcript replay or New session in History."));
@@ -2507,16 +2512,10 @@ namespace bpr::qt {
 				NativeHistoryDispatch("replay:" + id);
 			} });
 		NativeHistoryMenu->addSeparator();
-		for (const auto& entry : aView.Entries) {
-			auto  title = QString::fromStdString(entry.Title).simplified().left(72);
-			auto* item  = NativeHistoryMenu->addAction(tr("%1: %2 (%3 turns)").arg(entry.Replay ? tr("Transcript replay") : tr("Native"), title).arg(entry.Turns));
-			item->setData(QString::fromStdString(entry.Id));
-			item->setProperty("turns", QVariant::fromValue<qulonglong>(entry.Turns));
-			item->setCheckable(true);
-			item->setChecked(entry.Id == aView.Selected);
-			item->setEnabled(State != agent_tab_state::working);
-			connect(item, &QAction::triggered, this, [this, id = entry.Id] { if (NativeHistoryDispatch) { NativeHistoryDispatch(id); } });
-		}
+		// [[BPR-NNNN]]. One row per session (open, rename, delete, i), then
+		// Delete all sessions…. The rows are the tab's, kept across clears.
+		NativeHistoryMenu->addAction(SessionMenu);
+		NativeHistoryMenu->addAction(SessionMenu->delete_all_action());
 		NativeHistoryMenu->setEnabled(true);
 	}
 
@@ -3577,34 +3576,11 @@ namespace bpr::qt {
 	void agent_tab_view::set_session_edit_dispatch(session_edit_dispatch aDispatch)
 	{
 		SessionEditDispatch = std::move(aDispatch);
-		if (SessionList) {
-			SessionList->set_dispatch(SessionEditDispatch);
-		}
-	}
-
-	auto agent_tab_view::open_session_list() -> agent_session_list*
-	{
-		if (!SessionList) {
-			SessionList = new agent_session_list{ this };
-			SessionList->set_dispatch(SessionEditDispatch);
-		}
-		SessionList->present(NativeHistoryView);
-		SessionList->set_running(State == agent_tab_state::working);
-		SessionList->present_status({ });
-		SessionList->show();
-		SessionList->raise();
-		// The list reads the store again, as History does when it opens.
-		if (NativeHistoryDispatch) {
-			NativeHistoryDispatch(std::nullopt);
-		}
-		return SessionList.data();
 	}
 
 	void agent_tab_view::present_session_edit(const QString& aStatus)
 	{
-		if (SessionList) {
-			SessionList->present_status(aStatus);
-		}
+		SessionMenu->present_status(aStatus);
 	}
 
 	void agent_tab_view::dress_answer(markdown_body_view& aAnswer) const

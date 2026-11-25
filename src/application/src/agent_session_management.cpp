@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace bpr::application {
@@ -82,6 +83,30 @@ namespace bpr::application {
 		}
 		if (!aStore.erase(aScope, aId)) {
 			receipt.Result = agent_session_edit_result::unavailable;
+		}
+		return receipt;
+	}
+
+	auto delete_agent_sessions(native_agent_session_store_port& aStore, retained_workspace_files_port* const aFiles, const std::string& aScope, const std::vector<std::string>& aIds,
+							   const std::vector<std::string>& aLeaseKeys, const bool aTurnActive, const std::stop_token aStop) -> agent_session_edit_receipt
+	{
+		auto receipt = agent_session_edit_receipt{ .Result = agent_session_edit_result::done };
+		auto refusal = std::optional<agent_session_edit_result>{ };
+		for (const auto& id : aIds) {
+			if (aStop.stop_requested()) {
+				break;
+			}
+			const auto one = delete_agent_session(aStore, aFiles, aScope, id, aLeaseKeys, aTurnActive, aStop);
+			if (one.Result == agent_session_edit_result::done) {
+				++receipt.Deleted;
+				receipt.WorkspaceRemoved = receipt.WorkspaceRemoved || one.WorkspaceRemoved;
+			} else if (one.Result != agent_session_edit_result::not_found) {
+				++receipt.Kept;
+				refusal = refusal.value_or(one.Result);
+			}
+		}
+		if (receipt.Deleted == 0U && refusal) {
+			receipt.Result = *refusal;
 		}
 		return receipt;
 	}

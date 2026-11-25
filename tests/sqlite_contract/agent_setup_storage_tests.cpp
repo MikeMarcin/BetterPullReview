@@ -287,16 +287,20 @@ namespace {
 		// Build 63: native turns without `seconds`, and no prompt pack links.
 		{
 			tests::sqlite_contract::scratch_root root{ "agent-setup-build-63" };
-			const auto                           file   = root.path() / "state/v1/agent-setup.sqlite3";
-			const auto                           seeded = seed_profile(root.path(), true);
-			run_directly(file, std::string{ build_63_native_turns } + "DROP TABLE prompt_macro_packs;", "build 63's schema is put back");
-			expect(count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE name='native_agent_turns' AND sql LIKE '%seconds%'") == 0 && count_directly(file, "SELECT count(*) FROM native_agent_turns") == 2,
+			const auto                           file = root.path() / "state/v1/agent-setup.sqlite3";
+			// [[BPR-NNNN]]. The turns now live in the conversations store.
+			const auto turnsFile = root.path() / "state/v1/agent-sessions.sqlite3";
+			const auto seeded    = seed_profile(root.path(), true);
+			run_directly(file, "DROP TABLE prompt_macro_packs;", "build 63's agent setup is put back");
+			run_directly(turnsFile, std::string{ build_63_native_turns }, "build 63's turns are put back");
+			expect(count_directly(turnsFile, "SELECT count(*) FROM sqlite_schema WHERE name='native_agent_turns' AND sql LIKE '%seconds%'") == 0 && count_directly(turnsFile, "SELECT count(*) FROM native_agent_turns") == 2,
 				   "the turns have no seconds column and keep their rows");
 			expect_profile(root.path(), seeded, "a store build 63 wrote opens");
-			expect(count_directly(file, "SELECT count(*) FROM native_agent_turns WHERE seconds IS NULL") == 2 && count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE name='prompt_macro_packs'") == 1
-					   && count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE name LIKE 'rebuilt_%'") == 0,
+			expect(count_directly(turnsFile, "SELECT count(*) FROM native_agent_turns WHERE seconds IS NULL") == 2 && count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE name='prompt_macro_packs'") == 1
+					   && count_directly(turnsFile, "SELECT count(*) FROM sqlite_schema WHERE name LIKE 'rebuilt_%'") == 0,
 				   "the turns gain seconds as null, prompt_macro_packs is made, and nothing is left over");
-			expect(count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE sql LIKE '%REFERENCES native_agent_turns%' OR sql LIKE '%REFERENCES agent_queue_entries%' OR sql LIKE '%REFERENCES \"native_agent_turns\"%' OR sql LIKE '%REFERENCES \"agent_queue_entries\"%'") == 0,
+			expect(count_directly(turnsFile, "SELECT count(*) FROM sqlite_schema WHERE sql LIKE '%REFERENCES native_agent_turns%'") == 0
+					   && count_directly(file, "SELECT count(*) FROM sqlite_schema WHERE sql LIKE '%REFERENCES agent_queue_entries%' OR sql LIKE '%REFERENCES \"agent_queue_entries\"%'") == 0,
 				   "no table references a rebuilt table, so foreign keys stay on through the rebuild");
 			expect_profile(root.path(), seeded, "and opens again as it is");
 #if defined(BPR_TEST_AGENT_SETUP_HOST)
@@ -309,7 +313,9 @@ namespace {
 			tests::sqlite_contract::scratch_root root{ "agent-setup-part-migrated" };
 			const auto                           file   = root.path() / "state/v1/agent-setup.sqlite3";
 			const auto                           seeded = seed_profile(root.path(), true);
-			run_directly(file, std::string{ build_63_native_turns } + "DROP TABLE prompt_surface_lists; DROP TABLE prompt_repository_prompts; DROP TABLE prompt_macro_revision; DROP TABLE prompt_macro_packs;",
+			// [[BPR-NNNN]]. Its turns are in the conversations store now.
+			run_directly(root.path() / "state/v1/agent-sessions.sqlite3", std::string{ build_63_native_turns }, "its turns are put back");
+			run_directly(file, "DROP TABLE prompt_surface_lists; DROP TABLE prompt_repository_prompts; DROP TABLE prompt_macro_revision; DROP TABLE prompt_macro_packs;",
 						 "a part-migrated store is put back");
 			expect_profile(root.path(), seeded, "a part-migrated store opens");
 			for (const auto* const table : { "prompt_surface_lists", "prompt_repository_prompts", "prompt_macro_revision", "prompt_macro_packs" }) {
@@ -344,8 +350,10 @@ namespace {
 int main()
 try {
 	tests::sqlite_contract::scratch_root scratch{ "agent-setup" };
-	const auto                           path  = scratch.path() / "state/v1/agent-setup.sqlite3";
-	auto                                 store = adapters::sqlite::make_agent_setup_store(scratch.path());
+	const auto                           path = scratch.path() / "state/v1/agent-setup.sqlite3";
+	// [[BPR-NNNN]]. The conversations keep their own store.
+	const auto sessionsPath = scratch.path() / "state/v1/agent-sessions.sqlite3";
+	auto       store        = adapters::sqlite::make_agent_setup_store(scratch.path());
 	expect(!std::filesystem::exists(path), "construction writes nothing");
 	const auto first = store->load();
 	expect(first && *first == application::agent_setup_preferences{ }, "a profile with nothing stored reads defaults");
@@ -463,7 +471,7 @@ try {
 	expect(talks->load(failed) == std::optional{ ended }, "each turn reads back with how it ended");
 	{
 		sqlite3* database = nullptr;
-		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+		expect(sqlite3_open_v2(sessionsPath.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
 		expect(sqlite3_exec(database, "UPDATE agent_conversation_outcomes SET outcome=11", nullptr, nullptr, nullptr) != SQLITE_OK, "an undeclared outcome is refused by the schema");
 		expect(sqlite3_exec(database, "DELETE FROM agent_conversation_outcomes WHERE number=9", nullptr, nullptr, nullptr) == SQLITE_OK, "a thread stored before outcomes were kept");
 		sqlite3_close_v2(database);
@@ -477,7 +485,7 @@ try {
 		expect(talks->store(failed, ended), "a thread stored again");
 		talks.reset();
 		sqlite3* database = nullptr;
-		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+		expect(sqlite3_open_v2(sessionsPath.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
 		const auto old = "BEGIN;"
 						 "CREATE TABLE old_outcomes(host TEXT NOT NULL,owner TEXT NOT NULL,name TEXT NOT NULL,number INTEGER NOT NULL,agent INTEGER NOT NULL,"
 						 "position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 49),outcome INTEGER NOT NULL CHECK(outcome BETWEEN 0 AND 9),"
@@ -515,7 +523,7 @@ try {
 		expect(cards->store(undone) && cards->load() == std::optional{ std::vector{ drafted, noted } }, "an open card has no row");
 		expect(cards->store(drafted) && cards->load() == std::optional{ std::vector{ noted, drafted } }, "storing a card again makes it the most recently changed");
 		sqlite3* database = nullptr;
-		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+		expect(sqlite3_open_v2(sessionsPath.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
 		expect(sqlite3_exec(database, "UPDATE agent_finding_cards SET state=5", nullptr, nullptr, nullptr) != SQLITE_OK, "an undeclared disposition is refused by the schema");
 		expect(sqlite3_exec(database, "UPDATE agent_finding_cards SET state=0", nullptr, nullptr, nullptr) != SQLITE_OK, "an open card is never a row");
 		sqlite3_close_v2(database);

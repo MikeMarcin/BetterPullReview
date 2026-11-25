@@ -2878,17 +2878,17 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "profile-data-reset-views-tests:pass"
 )
 
-# [[BPR-NNNN]]. History › Rename or delete sessions… in the Agent tab.
-bpr_add_executable(test_better_pull_review_qt_agent_session_list_tests agent_session_list_tests.cpp)
-target_link_libraries(test_better_pull_review_qt_agent_session_list_tests PRIVATE BetterPullReview::AdapterQt)
-bpr_enable_hardening(test_better_pull_review_qt_agent_session_list_tests)
-bpr_enable_warnings(test_better_pull_review_qt_agent_session_list_tests)
-bpr_add_network_isolated_test(NAME qt_agent_session_list COMMAND test_better_pull_review_qt_agent_session_list_tests)
+# [[BPR-NNNN]]. The session rows of the Agent tab and tour chat History menus.
+bpr_add_executable(test_better_pull_review_qt_agent_session_menu_tests agent_session_menu_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_agent_session_menu_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_agent_session_menu_tests)
+bpr_enable_warnings(test_better_pull_review_qt_agent_session_menu_tests)
+bpr_add_network_isolated_test(NAME qt_agent_session_menu COMMAND test_better_pull_review_qt_agent_session_menu_tests)
 set_tests_properties(
-    qt_agent_session_list
+    qt_agent_session_menu
     PROPERTIES
         ENVIRONMENT "${bpr_qt_github_common_environment}"
-        PASS_REGULAR_EXPRESSION "agent-session-list-tests:pass"
+        PASS_REGULAR_EXPRESSION "agent-session-menu-tests:pass"
 )
 
 # RFC-BPR-0087: push semantics and production secondary/choice surfaces.

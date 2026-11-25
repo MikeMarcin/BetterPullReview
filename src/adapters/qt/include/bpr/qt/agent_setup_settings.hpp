@@ -163,7 +163,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto workspace_usage_label() const noexcept -> QLabel* { return WorkspaceUsage; }
 		[[nodiscard]] auto workspace_remove_button() const noexcept -> QPushButton* { return WorkspaceRemove; }
 		/// \brief The question Remove… asks while it is open, or null.
-		[[nodiscard]] auto workspace_question() const noexcept -> QDialog* { return WorkspaceQuestion; }
 
 		/// \brief [[BPR-1859]]. Check agent: offered, running with Stop, or
 		/// disabled with its reason; its rows, a failure's words and remedy,
@@ -253,7 +252,6 @@ namespace bpr::qt {
 		QSpinBox*                      WorkspaceKeepDays = nullptr;
 		QLabel*                        WorkspaceUsage    = nullptr;
 		QPushButton*                   WorkspaceRemove   = nullptr;
-		QPointer<QDialog>              WorkspaceQuestion;
 		std::optional<workspace_usage> ShownWorkspaces;
 		void                           send_workspace_policy();
 		void                           send_run_limit();

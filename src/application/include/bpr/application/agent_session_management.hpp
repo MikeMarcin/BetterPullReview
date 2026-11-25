@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_SESSION_MANAGEMENT_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_SESSION_MANAGEMENT_HPP
 
+#include "bpr/application/agent_session_edit.hpp"
 #include "bpr/application/agent_workspace_expiry.hpp"
 #include "bpr/application/native_agent_session.hpp"
 
@@ -19,34 +20,6 @@
 /// native session files (Claude Code's or Codex's transcripts under their
 /// home folders) are never read, moved or deleted.
 namespace bpr::application {
-	/// \brief How a rename or deletion ended.
-	enum class agent_session_edit_result : std::uint8_t {
-		done,
-		/// No such session in the scope; nothing changed.
-		not_found,
-		/// A turn is running on it or on its workspace; nothing changed.
-		running,
-		/// The name is longer than the bound; nothing changed.
-		name_too_long,
-		/// The name is not text; nothing changed.
-		name_not_text,
-		/// Its workspace's ownership could not be verified or its removal
-		/// failed; the session and its workspace are left as they were.
-		workspace_refused,
-		/// The catalog could not be read or written; nothing changed.
-		unavailable,
-	};
-
-	/// \brief What one rename or deletion did.
-	struct agent_session_edit_receipt
-	{
-		agent_session_edit_result Result = agent_session_edit_result::unavailable;
-		/// The deleted session's retained workspace was removed.
-		bool WorkspaceRemoved = false;
-		/// The deleted session's workspace stays: another session uses it.
-		bool WorkspaceShared                                             = false;
-		auto operator==(const agent_session_edit_receipt&) const -> bool = default;
-	};
 
 	/// \brief Names the session \p aId in \p aScope with what was typed, tidied
 	/// by core; empty restores its default title.
@@ -62,6 +35,13 @@ namespace bpr::application {
 	/// first; if that fails nothing is forgotten. Then forgets the session.
 	[[nodiscard]] auto delete_agent_session(native_agent_session_store_port& aStore, retained_workspace_files_port* aFiles, const std::string& aScope, const std::string& aId,
 											const std::vector<std::string>& aLeaseKeys, bool aTurnActive, std::stop_token aStop) -> agent_session_edit_receipt;
+
+	/// \brief [[BPR-NNNN]]. Delete all sessions…: deletes each of \p aIds in
+	/// \p aScope as `delete_agent_session` does, newest first. One that is
+	/// running or whose workspace could not be removed safely is kept and
+	/// counted; the rest go. `done` when any went or none was left to go.
+	[[nodiscard]] auto delete_agent_sessions(native_agent_session_store_port& aStore, retained_workspace_files_port* aFiles, const std::string& aScope, const std::vector<std::string>& aIds,
+											 const std::vector<std::string>& aLeaseKeys, bool aTurnActive, std::stop_token aStop) -> agent_session_edit_receipt;
 
 	/// \brief What clearing every session did.
 	struct agent_sessions_clear_report

@@ -13,6 +13,7 @@
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
+#include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
@@ -834,6 +835,26 @@ auto main(int argc, char** argv) -> int
 		expect(chat->session_button()->menu()->actions().contains(chat->new_session_action()) && chat->new_session_action()->text() == QStringLiteral("New session"), "New session is an item of the Session menu");
 		expect(chat->session_button()->geometry().top() > chat->composer_box()->geometry().bottom(), "the session line is under the composer");
 		render(*chat, prefix, "side-chat-foot");
+		// [[BPR-NNNN]]. The Session menu holds the same session rows as the
+		// Agent tab's, and their edits reach the chat's dispatch for the thread.
+		{
+			auto edits = std::vector<std::pair<std::string, std::optional<std::string>>>{ };
+			chat->set_session_edit_dispatch([&edits](const core::tour_thread&, const std::string& aId, std::optional<std::string> aName) { edits.emplace_back(aId, std::move(aName)); });
+			const auto sessionActions = chat->session_button()->menu()->actions();
+			expect(sessionActions.contains(&chat->session_rows()) && sessionActions.contains(chat->session_rows().delete_all_action()), "the Session menu holds the session rows and Delete all sessions…");
+			expect(chat->session_rows().ids() == std::vector<std::string>{ "newest", "older" } && chat->session_rows().selected() == "older", "the rows are the thread's sessions");
+			chat->session_rows().rename("older", QStringLiteral("Stop one notes"));
+			expect(edits.size() == 1U && edits.back().first == "older" && edits.back().second == std::string{ "Stop one notes" }, "a rename reaches the chat's dispatch");
+			chat->session_rows().delete_all_action()->trigger();
+			settle();
+			auto* const question = chat->session_rows().question();
+			expect(question != nullptr && question->isVisible(), "Delete all asks first");
+			question->findChild<QPushButton*>(QStringLiteral("deleteAllAgentSessionsConfirm"))->click();
+			settle();
+			expect(edits.size() == 2U && edits.back().first.empty() && !edits.back().second, "Delete all reaches the chat's dispatch as every session");
+			chat->present_session_edit(QStringLiteral("Renamed."));
+			expect(chat->session_rows().status() == QStringLiteral("Renamed."), "the outcome is said under the rows");
+		}
 		view.Selected = { };
 		chat->present_native_history(view);
 		expect(chat->session_button()->text() == QStringLiteral("Session 3"), "a chat with no session selected starts the next one");

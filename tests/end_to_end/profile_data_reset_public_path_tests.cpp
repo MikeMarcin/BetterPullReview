@@ -231,15 +231,22 @@ namespace {
 				question->acknowledge_box()->setChecked(true);
 			}
 			question->confirm_button()->click();
-			until([&] {
-				auto* const now      = runtime();
-				auto* const reopened = window();
-				// An allocator may reuse the destroyed runtime's address. Its
-				// retired QObject and public window authority identify lifetimes.
-				return retiredWindow.isNull() && now != nullptr && !now->windows().empty() && now->windows().front() != beforeContext
-					&& reopened != nullptr && reopened->statusBar()->currentMessage().startsWith(aNotice);
-			},
-				  "the profile reopens on a new runtime and says what was reset", 60000);
+			auto said = QString{ };
+			try {
+				until([&] {
+					auto* const now      = runtime();
+					auto* const reopened = window();
+					said                 = reopened != nullptr ? reopened->statusBar()->currentMessage() : QString{ };
+					// An allocator may reuse the destroyed runtime's address. Its
+					// retired QObject and public window authority identify lifetimes.
+					return retiredWindow.isNull() && now != nullptr && !now->windows().empty() && now->windows().front() != beforeContext
+						&& reopened != nullptr && said.startsWith(aNotice);
+				},
+					  "the profile reopens on a new runtime and says what was reset", 60000);
+			} catch (...) {
+				std::cerr << "PROFILE_RESET_NOTICE:expected=" << aNotice.toStdString() << ":said=" << said.toStdString() << '\n';
+				throw;
+			}
 			std::cout << "PROFILE_RESET_LIFETIME:retired-window;fresh-context;runtime-address-reused="
 					  << (reinterpret_cast<std::uintptr_t>(runtime()) == beforeAddress) << '\n';
 		}
@@ -346,7 +353,7 @@ try {
 #if !defined(_WIN32)
 		const auto held = hold_removed_stores(root, settings);
 #endif
-		run.reset_from_settings(reset::settings, QStringLiteral("Cleared: Settings, Agent sessions and workspaces."));
+		run.reset_from_settings(reset::settings, QStringLiteral("Cleared: Settings, Agent setup."));
 		for (const auto& [store, before] : settings) {
 #if !defined(_WIN32)
 			expect(!before || held.at(store).unlinked(), "Reset settings unlinks the retained original store");
@@ -418,7 +425,7 @@ try {
 		}
 		const auto agentIdentity = identity(agentStore);
 		const auto other         = identities(root, [] { auto all = review_stores(); all.merge(cache_stores()); all.merge(kept_stores()); return all; }());
-		run.reset_from_settings(reset::agent_sessions, QStringLiteral("Cleared: Agent sessions and workspaces."));
+		run.reset_from_settings(reset::agent_sessions, QStringLiteral("Cleared: Agent sessions, Agent workspaces."));
 		const auto history = adapters::sqlite::make_native_agent_session_store(root)->history(scope, "claude");
 		expect(history && history->Entries.empty() && history->Turns.empty(), "the agent session and its transcript are gone");
 		expect(agentIdentity && identity(agentStore) == agentIdentity, "the agent setup store stays the same file");

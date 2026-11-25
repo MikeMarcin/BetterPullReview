@@ -1727,6 +1727,12 @@ namespace bpr::app {
 				choose_tour_continuation(aThread);
 			}
 		});
+		// [[BPR-NNNN]]. History › Rename or delete sessions… in the tour chat.
+		Window->tour_editor()->side_chat()->set_session_edit_dispatch([this](const core::tour_thread&, const std::string& aId, std::optional<std::string> aName) {
+			if (!local_tour_shown()) {
+				edit_tour_session(aId, std::move(aName));
+			}
+		});
 		Window->tour_editor()->side_chat()->set_history_dispatch([this](const core::tour_thread& aThread, std::optional<std::string> aChoice) {
 			if (!local_tour_shown()) {
 				observe_tour_native_history(aThread, std::move(aChoice));

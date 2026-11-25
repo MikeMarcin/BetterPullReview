@@ -51,10 +51,22 @@ namespace bpr::qt {
 				return QStringLiteral("SavedSources");
 			case reset::statistics:
 				return QStringLiteral("Statistics");
+			case reset::agent_setup:
+				return QStringLiteral("AgentSetup");
+			case reset::agent_workspaces:
+				return QStringLiteral("AgentWorkspaces");
 			case reset::everything:
 				break;
 			}
 			return QStringLiteral("Everything");
+		}
+
+		/// Why `aImplied` is checked and locked: the checked category that
+		/// takes it.
+		[[nodiscard]] auto implied_by(const reset aImplied) -> QString
+		{
+			return aImplied == reset::agent_workspaces ? QStringLiteral("Included with Agent sessions: a session’s workspace goes with it.")
+													   : QStringLiteral("Included with Settings, which removes the agent setup.");
 		}
 
 		[[nodiscard]] auto quoted(const QString& aProfile) -> QString
@@ -145,13 +157,22 @@ namespace bpr::qt {
 					   QStringLiteral("Pull request summaries on Home"), QStringLiteral("Context snapshots kept for agents") } };
 		case reset::settings:
 			return { QStringLiteral("Settings"),
-					 QStringLiteral("Every choice in Settings, agent setup and prompts, notifications, filters and window layout. Includes Agent sessions and workspaces, which share the agent setup."),
+					 QStringLiteral("Every choice in Settings, agent setup and prompts, notifications, filters and window layout. Agent sessions are kept."),
 					 { QStringLiteral("Every choice in Settings"), QStringLiteral("Agents you added, their models and checks, and your prompts"),
 					   QStringLiteral("Home’s queue filters and sort"), QStringLiteral("Notification choices"), QStringLiteral("Window layout and which windows reopen") } };
+		case reset::agent_setup:
+			return { QStringLiteral("Agent setup"),
+					 QStringLiteral("Every agent you added with its model, effort and check, the clone folders and linked clones, and your edited review skill (a copy goes to Downloads). Setup starts again; prompts and agent sessions stay."),
+					 { QStringLiteral("Agents you added, their models, efforts and checks"), QStringLiteral("Clone folders and linked clones"),
+					   QStringLiteral("Your edited review skill, after a copy to Downloads") } };
 		case reset::agent_sessions:
-			return { QStringLiteral("Agent sessions and workspaces"),
-					 QStringLiteral("BetterPullReview’s agent conversations with their transcripts, names and costs, and the agent workspaces they keep. Claude Code’s and Codex’s own session files stay."),
-					 { QStringLiteral("Agent conversations: transcripts, names, costs and finding cards"), QStringLiteral("Retained agent workspaces, except one another app holds") } };
+			return { QStringLiteral("Agent sessions"),
+					 QStringLiteral("BetterPullReview’s agent sessions with their transcripts, names and costs, and the workspaces they keep. Claude Code’s and Codex’s own session files stay."),
+					 { QStringLiteral("Agent sessions: transcripts, names, costs and finding cards") } };
+		case reset::agent_workspaces:
+			return { QStringLiteral("Agent workspaces"),
+					 QStringLiteral("Retained agent workspaces not in use, with any changes an agent made there and did not publish. Sessions stay and make a fresh one when they next ask."),
+					 { QStringLiteral("Retained agent workspaces, except one another app holds") } };
 		case reset::review_data:
 			return { QStringLiteral("Review data"),
 					 QStringLiteral("Read and seen marks, private notes, unsent comments and reviews, tours and Review Cycles."),
@@ -204,8 +225,10 @@ namespace bpr::qt {
 			: single                                    ? QStringLiteral("Clear %1 for %2?").arg(profile_data_reset_category_words_for(*single).Name.toLower(), name)
 														: QStringLiteral("Clear the checked data for %1?").arg(name);
 		auto lead         = QStringLiteral("This profile’s windows close, the data below is removed, and Home reopens.");
-		if (!plan.Implied.empty()) {
-			lead += QStringLiteral(" Settings includes Agent sessions and workspaces: they share the agent setup.");
+		for (const auto each : core::profile_data_reset_categories) {
+			if (plan.Implied.contains(each)) {
+				lead += QStringLiteral(" ") + implied_by(each);
+			}
 		}
 		if (core::profile_data_reset_signs_out(plan.Selection)) {
 			lead += QStringLiteral(" It signs you out of GitHub here; it doesn’t sign you out of GitHub CLI itself.");
@@ -228,7 +251,10 @@ namespace bpr::qt {
 			parts << QStringLiteral("my private notes and unsent comments");
 		}
 		if (plan.Selection.contains(reset::agent_sessions)) {
-			parts << QStringLiteral("my agent conversations");
+			parts << QStringLiteral("my agent sessions");
+		}
+		if (plan.Selection.contains(reset::agent_workspaces)) {
+			parts << QStringLiteral("unpublished changes in agent workspaces");
 		}
 		if (plan.Selection.contains(reset::saved_sources)) {
 			parts << QStringLiteral("my saved repositories");
@@ -272,7 +298,7 @@ namespace bpr::qt {
 		} else if (!notice.isEmpty() && !notice.endsWith(QLatin1Char{ '.' })) {
 			notice += QStringLiteral(".");
 		}
-		if (cleared.contains(reset::agent_sessions) && aOutcome.WorkspacesRemoved != 0U) {
+		if (cleared.contains(reset::agent_workspaces) && aOutcome.WorkspacesRemoved != 0U) {
 			notice += aOutcome.WorkspacesRemoved == 1U ? QStringLiteral(" 1 agent workspace was removed.") : QStringLiteral(" %1 agent workspaces were removed.").arg(aOutcome.WorkspacesRemoved);
 		}
 		if (cleared.contains(reset::settings) && !aOutcome.QueueDisplayRestored) {
@@ -286,10 +312,13 @@ namespace bpr::qt {
 				}
 			}
 			notice += QStringLiteral(" Not cleared: %1.").arg(names.join(QStringLiteral(", ")));
-			if (aOutcome.Failed.contains(reset::agent_sessions)) {
+			if (aOutcome.Failed.contains(reset::agent_workspaces)) {
 				notice += aOutcome.WorkspacesLeft == 0U
-					? QStringLiteral(" The agent conversations could not be read.")
-					: QStringLiteral(" %1 agent workspace(s) are in use by another app or could not be verified, so the conversations and Settings that record them were kept.").arg(aOutcome.WorkspacesLeft);
+					? QStringLiteral(" The agent sessions could not be read.")
+					: QStringLiteral(" %1 agent workspace(s) are in use by another app or could not be verified, so they and the sessions that record them were kept.").arg(aOutcome.WorkspacesLeft);
+			}
+			if (aOutcome.Failed.contains(reset::agent_setup)) {
+				notice += QStringLiteral(" The agent setup could not be reset; if the review skill copy could not be saved to Downloads, nothing of it was changed.");
 			}
 		}
 		if (aOutcome.Copied && !aCopyFolder.isEmpty()) {
@@ -570,7 +599,7 @@ namespace bpr::qt {
 			box->setEnabled(!held);
 			box->setChecked(held || Own[index]);
 			const auto words = profile_data_reset_category_words_for(each);
-			Lines[index]->setText(held ? QStringLiteral("Included with Settings, which holds the agent setup these live in. %1").arg(words.Line) : words.Line);
+			Lines[index]->setText(held ? implied_by(each) + QStringLiteral(" ") + words.Line : words.Line);
 		}
 		const auto any = !checked().empty();
 		Clear->setEnabled(any);

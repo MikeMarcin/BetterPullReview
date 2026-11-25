@@ -45,6 +45,10 @@ namespace bpr::adapters::sqlite {
 		/// store at another's file fails at the identity check.
 		constexpr std::int64_t agent_setup_application_id = 0x42505259;
 		constexpr auto         agent_setup_file           = std::string_view{ "agent-setup.sqlite3" };
+		/// [[BPR-NNNN]]. BetterPullReview's agent conversations, apart from
+		/// the agent setup, so Clear local data can clear either alone.
+		constexpr std::int64_t agent_sessions_application_id = 0x42505253;
+		constexpr auto         agent_sessions_file           = std::string_view{ "agent-sessions.sqlite3" };
 		/// No chosen agent.
 		constexpr std::int64_t no_agent = -1;
 
@@ -342,30 +346,6 @@ namespace bpr::adapters::sqlite {
 				// off, by entry id; an entry with no row keeps them on.
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS agent_entry_identity(id INTEGER PRIMARY KEY, identity TEXT NOT NULL CHECK(length(identity)=32)) STRICT")
 				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS native_agent_sessions("
-									"id TEXT PRIMARY KEY, scope TEXT NOT NULL, configuration TEXT NOT NULL, base TEXT NOT NULL, head TEXT NOT NULL,"
-									"left_epoch INTEGER NOT NULL, right_epoch INTEGER NOT NULL, handle TEXT NOT NULL, turn INTEGER NOT NULL, pending INTEGER NOT NULL,"
-									"workspace TEXT NOT NULL, parent TEXT NOT NULL, marker TEXT NOT NULL, application INTEGER NOT NULL, session INTEGER NOT NULL,"
-									"directory BLOB NOT NULL, guard TEXT NOT NULL, guard_identity BLOB NOT NULL, shallow INTEGER NOT NULL, revision INTEGER NOT NULL) STRICT")
-				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_workspaces(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
-				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_sparse_objects(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), missing TEXT NOT NULL CHECK(length(CAST(missing AS BLOB)) <= 67108864)) STRICT")
-				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS native_agent_turns(" } + std::string{ native_agent_turns_columns } + ") STRICT")
-				// [[BPR-2153]]. What the reviewer steered into each turn, in the
-				// order sent: their words, where in the answer it went in, the
-				// agent's step it followed, and whether the agent took it.
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS native_agent_turn_steers(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, position INTEGER NOT NULL CHECK(position >= 0),"
-									" text TEXT NOT NULL, at INTEGER NOT NULL CHECK(at >= 0), steps INTEGER NOT NULL CHECK(steps >= 0), disposition INTEGER NOT NULL CHECK(disposition BETWEEN 0 AND 4), PRIMARY KEY(conversation,ordinal,position)) STRICT")
-				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_replays(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), source TEXT NOT NULL) STRICT")
-				// [[BPR-1999]]. What a native conversation has cost: the sum of
-				// its turns' costs, whether any reported one, and the runtime's
-				// last figure for the session it resumes.
-				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_costs(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), total INTEGER NOT NULL CHECK(total >= 0), known INTEGER NOT NULL CHECK(known IN (0,1)), reported INTEGER CHECK(reported >= 0)) STRICT")
-				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_selection(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
-				// [[BPR-NNNN]]. The name the reviewer gave a conversation; one
-				// with no row shows its first question.
-				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_session_names(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 120)) STRICT")
-				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_entry_relaxed_checks("
 									"id INTEGER PRIMARY KEY CHECK(id BETWEEN 1 AND 64)) STRICT")
 				// [[BPR-2307]]. Each custom Codex agent that relies on its
@@ -474,21 +454,6 @@ namespace bpr::adapters::sqlite {
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
 									"keep_days INTEGER NOT NULL CHECK(keep_days BETWEEN 0 AND 3650),"
 									"cap_gb INTEGER NOT NULL CHECK(cap_gb BETWEEN 1 AND 100000)) STRICT")
-				// [[BPR-2293]]. When each retained workspace was last used by a
-				// turn, by its path, in seconds since the epoch.
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS native_agent_workspace_use("
-									"workspace TEXT PRIMARY KEY CHECK(length(CAST(workspace AS BLOB)) BETWEEN 1 AND 4096),"
-									"used INTEGER NOT NULL CHECK(used >= 0)) STRICT")
-				// [[BPR-2345]]. A pull request's retained workspace Agent setup's
-				// check made before any conversation held it, by its pull request
-				// key, with the columns a conversation keeps its workspace in.
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS native_agent_kept_workspaces("
-									"scope TEXT PRIMARY KEY CHECK(length(CAST(scope AS BLOB)) BETWEEN 1 AND 4096), base TEXT NOT NULL, head TEXT NOT NULL,"
-									"workspace TEXT NOT NULL CHECK(length(CAST(workspace AS BLOB)) BETWEEN 1 AND 4096), parent TEXT NOT NULL, marker TEXT NOT NULL,"
-									"application INTEGER NOT NULL, session INTEGER NOT NULL, directory BLOB NOT NULL, guard TEXT NOT NULL, guard_identity BLOB NOT NULL,"
-									"shallow INTEGER NOT NULL, missing TEXT CHECK(missing IS NULL OR length(CAST(missing AS BLOB)) <= 67108864)) STRICT")
 				// Owner look v004: whether the Agent tab's suggestions are hidden.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_suggestions("
@@ -504,63 +469,6 @@ namespace bpr::adapters::sqlite {
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
 									"moved INTEGER NOT NULL CHECK(moved BETWEEN 0 AND 1),"
 									"preferred INTEGER NOT NULL CHECK(preferred BETWEEN 0 AND 64)) STRICT")
-				// [[BPR-1753]], owner decision (b). Each pull request's
-				// conversation: when it was last written, and its turns in order.
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS agent_conversations("
-									"host TEXT NOT NULL CHECK(length(CAST(host AS BLOB)) BETWEEN 1 AND 1024),"
-									"owner TEXT NOT NULL CHECK(length(CAST(owner AS BLOB)) BETWEEN 1 AND 1024),"
-									"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024),"
-									"number INTEGER NOT NULL CHECK(number >= 1),"
-									"agent INTEGER NOT NULL CHECK(agent BETWEEN 0 AND 64),"
-									"written INTEGER NOT NULL CHECK(written >= 0),"
-									"PRIMARY KEY(host, owner, name, number, agent)) STRICT")
-				// Owner decision 2026-10-23: the agent a pull request was last
-				// asked with, so it opens on that agent's own conversation.
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS agent_conversation_choice("
-									"host TEXT NOT NULL,"
-									"owner TEXT NOT NULL,"
-									"name TEXT NOT NULL,"
-									"number INTEGER NOT NULL,"
-									"agent INTEGER NOT NULL CHECK(agent BETWEEN 0 AND 64),"
-									"PRIMARY KEY(host, owner, name, number)) STRICT")
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS agent_conversation_turns("
-									"host TEXT NOT NULL,"
-									"owner TEXT NOT NULL,"
-									"name TEXT NOT NULL,"
-									"number INTEGER NOT NULL,"
-									"agent INTEGER NOT NULL,"
-									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 49),"
-									"asked TEXT NOT NULL CHECK(length(CAST(asked AS BLOB)) <= 65536),"
-									"answered TEXT NOT NULL CHECK(length(CAST(answered AS BLOB)) <= 65536),"
-									"ending TEXT NOT NULL CHECK(length(CAST(ending AS BLOB)) <= 65536),"
-									"PRIMARY KEY(host, owner, name, number, agent, position)) STRICT")
-				// [[BPR-1847]]. How each turn ended, beside it: a turn stored
-				// before this table has no row and reads back from its ending.
-				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS agent_conversation_outcomes(" } + std::string{ agent_conversation_outcomes_columns } + ") STRICT")
-				// Owner report 2026-11-10, after BPR-2052. What was done with each
-				// finding card of a stored answer, by the SHA-256 of the answer's
-				// findings block and the card's place in it; an open card has no
-				// row. `changed` orders them for the bound.
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS agent_finding_cards("
-									"findings BLOB NOT NULL CHECK(length(findings)=32),"
-									"ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 0 AND 4294967295),"
-									"state INTEGER NOT NULL CHECK(state BETWEEN 1 AND 4),"
-									"why TEXT NOT NULL CHECK(length(CAST(why AS BLOB)) <= 1024),"
-									"note INTEGER NOT NULL CHECK(note >= 0),"
-									"changed INTEGER NOT NULL CHECK(changed >= 0),"
-									"PRIMARY KEY(findings, ordinal)) STRICT")
-				// RFC-BPR-0125 (AC07). The name a suggested prompt's turn was
-				// sent under, by the question it asked; `changed` orders them
-				// for the bound.
-				|| !detail::execute(db,
-									"CREATE TABLE IF NOT EXISTS prompt_turn_names("
-									"asked TEXT PRIMARY KEY CHECK(length(CAST(asked AS BLOB)) BETWEEN 1 AND 16384),"
-									"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024),"
-									"changed INTEGER NOT NULL CHECK(changed >= 0)) STRICT")
 				// RFC-BPR-0125 milestone 3 ([[BPR-2146]]) and RFC-BPR-0128
 				// ([[BPR-2163]]). Suggested prompts, as differences from the
 				// shipped set: a built-in's change (`kind` 0) or one of the
@@ -590,8 +498,6 @@ namespace bpr::adapters::sqlite {
 									"paused TEXT NOT NULL CHECK(length(CAST(paused AS BLOB)) <= 64)) STRICT")
 				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS agent_queue_entries(" } + std::string{ agent_queue_entries_columns } + ") STRICT")
 				|| !complete_queue_entries(db)
-				|| !complete_native_turns(db)
-				|| !complete_conversation_outcomes(db)
 				// [[BPR-2179]]. Each surface the reviewer changed: its list
 				// and what it took off, identities one a line. `layer` is
 				// empty for every repository, else the repository's, whose
@@ -718,6 +624,332 @@ namespace bpr::adapters::sqlite {
 					static_cast<void>(detail::execute(db, "ROLLBACK"));
 					return { };
 				}
+			}
+			return result;
+		}
+
+		/// [[BPR-NNNN]] (owner, 2026-11-24: "split sessions from settings").
+		/// The tables of BetterPullReview's agent conversations, which live
+		/// in `agent-sessions.sqlite3`, apart from the agent setup, parents
+		/// first. Builds before kept them in `agent-setup.sqlite3`.
+		constexpr std::array moved_session_tables{
+			std::string_view{ "native_agent_sessions" },
+			std::string_view{ "native_agent_workspaces" },
+			std::string_view{ "native_agent_sparse_objects" },
+			std::string_view{ "native_agent_turns" },
+			std::string_view{ "native_agent_turn_steers" },
+			std::string_view{ "native_agent_replays" },
+			std::string_view{ "native_agent_costs" },
+			std::string_view{ "native_agent_selection" },
+			std::string_view{ "native_agent_session_names" },
+			std::string_view{ "native_agent_workspace_use" },
+			std::string_view{ "native_agent_kept_workspaces" },
+			std::string_view{ "agent_conversations" },
+			std::string_view{ "agent_conversation_choice" },
+			std::string_view{ "agent_conversation_turns" },
+			std::string_view{ "agent_conversation_outcomes" },
+			std::string_view{ "agent_finding_cards" },
+			std::string_view{ "prompt_turn_names" },
+		};
+
+		/// The column names of `aTable` in `aDatabase`, in order; none when it
+		/// has no such table.
+		[[nodiscard]] auto table_columns(sqlite3* const aDatabase, const std::string_view aTable) -> std::optional<std::vector<std::string>>
+		{
+			// The PRAGMA, not its table-valued form: stores prepare without
+			// virtual tables.
+			auto query = std::string{ "PRAGMA table_info(" };
+			query += aTable;
+			query += ")";
+			auto row = detail::prepare(aDatabase, query);
+			if (!row) {
+				return std::nullopt;
+			}
+			auto names = std::vector<std::string>{ };
+			for (auto status = sqlite3_step(row->Value); status != SQLITE_DONE; status = sqlite3_step(row->Value)) {
+				if (status != SQLITE_ROW) {
+					return std::nullopt;
+				}
+				const auto* const name = sqlite3_column_text(row->Value, 1);
+				names.emplace_back(reinterpret_cast<const char*>(name), static_cast<std::size_t>(sqlite3_column_bytes(row->Value, 1)));
+			}
+			return names;
+		}
+
+		/// Copies every row of `aTable` in `aFrom` into the same table in
+		/// `aTo`, by the columns both have. A column the old table lacks takes
+		/// its default or null.
+		[[nodiscard]] auto copy_table(sqlite3* const aFrom, sqlite3* const aTo, const std::string_view aTable) -> bool
+		{
+			const auto from = table_columns(aFrom, aTable);
+			const auto to   = table_columns(aTo, aTable);
+			if (!from || !to) {
+				return false;
+			}
+			if (from->empty()) {
+				return true;
+			}
+			auto common = std::vector<std::string>{ };
+			for (const auto& name : *to) {
+				if (std::ranges::find(*from, name) != from->end()) {
+					common.push_back(name);
+				}
+			}
+			if (common.empty()) {
+				return false;
+			}
+			auto columns = std::string{ };
+			auto values  = std::string{ };
+			for (std::size_t index = 0U; index < common.size(); ++index) {
+				columns += index == 0U ? "" : ",";
+				columns += common[index];
+				values += index == 0U ? "?" : ",?";
+			}
+			auto select = std::string{ "SELECT " };
+			select += columns;
+			select += " FROM ";
+			select += aTable;
+			auto insert = std::string{ "INSERT INTO " };
+			insert += aTable;
+			insert += "(";
+			insert += columns;
+			insert += ") VALUES(";
+			insert += values;
+			insert += ")";
+			auto read  = detail::prepare(aFrom, select);
+			auto write = detail::prepare(aTo, insert);
+			if (!read || !write) {
+				return false;
+			}
+			for (auto status = sqlite3_step(read->Value); status != SQLITE_DONE; status = sqlite3_step(read->Value)) {
+				if (status != SQLITE_ROW) {
+					return false;
+				}
+				sqlite3_reset(write->Value);
+				for (std::size_t index = 0U; index < common.size(); ++index) {
+					const auto column = static_cast<int>(index);
+					if (sqlite3_bind_value(write->Value, column + 1, sqlite3_column_value(read->Value, column)) != SQLITE_OK) {
+						return false;
+					}
+				}
+				if (sqlite3_step(write->Value) != SQLITE_DONE) {
+					return false;
+				}
+			}
+			return true;
+		}
+
+		/// [[BPR-NNNN]]. Moves the conversation tables an earlier build kept in
+		/// `agent-setup.sqlite3` into `aSessions`, safe to stop at any point.
+		/// \details Stage 0: in one transaction of `aSessions`, its tables are
+		/// emptied (an attempt that stopped wrote nothing durable, but this
+		/// keeps a retry exact), every row is copied, and stage 1 is recorded.
+		/// Stage 1: in one transaction of the old file, its copies are dropped,
+		/// children first; then stage 2. A stop before either commit leaves
+		/// that stage to run again at the next open; the old file is never
+		/// changed before the copy is durable. A profile with no old file goes
+		/// straight to stage 2.
+		[[nodiscard]] auto move_session_tables(detail::state_directory& aDirectory, sqlite3* const aSessions) -> bool
+		{
+			if (!detail::execute(aSessions, "CREATE TABLE IF NOT EXISTS session_store_migration(singleton INTEGER PRIMARY KEY CHECK(singleton=1), stage INTEGER NOT NULL CHECK(stage BETWEEN 1 AND 2)) STRICT")) {
+				return false;
+			}
+			const auto stage = [aSessions]() -> std::optional<std::int64_t> {
+				const auto value = detail::scalar_integer(aSessions, "SELECT coalesce((SELECT stage FROM session_store_migration WHERE singleton=1),0)");
+				return value ? std::optional{ *value } : std::nullopt;
+			};
+			const auto record = [aSessions](const int aStage) {
+				return detail::execute(aSessions, "INSERT INTO session_store_migration(singleton,stage) VALUES(1," + std::to_string(aStage) + ") ON CONFLICT(singleton) DO UPDATE SET stage=excluded.stage").has_value();
+			};
+			const auto now = stage();
+			if (!now) {
+				return false;
+			}
+			if (*now == 2) {
+				return true;
+			}
+			auto present = std::error_code{ };
+			if (!std::filesystem::exists(aDirectory.path() / std::filesystem::path{ agent_setup_file }, present) || present) {
+				return !present && record(2);
+			}
+			auto handle = detail::open_private_store_database(aDirectory, agent_setup_file, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_EXRESCODE | SQLITE_OPEN_NOFOLLOW);
+			if (!handle) {
+				return false;
+			}
+			const auto  old  = std::unique_ptr<sqlite3, decltype(&sqlite3_close_v2)>{ *handle, sqlite3_close_v2 };
+			auto* const from = old.get();
+			if (!detail::configure_connection(from)) {
+				return false;
+			}
+			const auto identity = detail::scalar_integer(from, "PRAGMA application_id");
+			if (!identity || (*identity != 0 && *identity != agent_setup_application_id)) {
+				return false;
+			}
+			if (!detail::execute(aSessions, "BEGIN IMMEDIATE")) {
+				return false;
+			}
+			const auto inside = stage();
+			if (!inside) {
+				static_cast<void>(detail::execute(aSessions, "ROLLBACK"));
+				return false;
+			}
+			if (*inside == 0) {
+				auto copied = detail::execute(from, "BEGIN").has_value();
+				for (auto table = moved_session_tables.rbegin(); copied && table != moved_session_tables.rend(); ++table) {
+					copied = detail::execute(aSessions, "DELETE FROM " + std::string{ *table }).has_value();
+				}
+				for (const auto table : moved_session_tables) {
+					copied = copied && copy_table(from, aSessions, table);
+				}
+				static_cast<void>(detail::execute(from, "COMMIT"));
+				if (!copied || !record(1) || !detail::execute(aSessions, "COMMIT")) {
+					static_cast<void>(detail::execute(aSessions, "ROLLBACK"));
+					return false;
+				}
+			} else if (!detail::execute(aSessions, "COMMIT")) {
+				return false;
+			}
+			if (*inside == 2) {
+				return true;
+			}
+			// The copy is durable: the old file's tables go, all at once.
+			auto dropped = detail::execute(from, "BEGIN IMMEDIATE").has_value();
+			for (auto table = moved_session_tables.rbegin(); dropped && table != moved_session_tables.rend(); ++table) {
+				dropped = detail::execute(from, "DROP TABLE IF EXISTS " + std::string{ *table }).has_value();
+			}
+			if (!dropped || !detail::execute(from, "COMMIT")) {
+				static_cast<void>(detail::execute(from, "ROLLBACK"));
+				return false;
+			}
+			return record(2);
+		}
+
+		/// [[BPR-NNNN]]. Opens `agent-sessions.sqlite3`, making its tables and
+		/// moving an earlier build's out of the agent setup first.
+		[[nodiscard]] auto open_sessions(const std::filesystem::path& aRoot) -> std::unique_ptr<connection>
+		{
+			if (!detail::sqlite_runtime_ready()) {
+				return { };
+			}
+			auto directory = detail::open_state_directory(aRoot);
+			if (!directory) {
+				return { };
+			}
+			auto handle = detail::open_private_store_database(*directory, agent_sessions_file,
+															  SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_EXRESCODE | SQLITE_OPEN_NOFOLLOW);
+			if (!handle) {
+				return { };
+			}
+			auto        result = std::make_unique<connection>(connection{ std::move(*directory), { *handle, sqlite3_close_v2 } });
+			auto* const db     = result->Database.get();
+			if (!detail::configure_connection(db)) {
+				return { };
+			}
+			const auto identity = detail::scalar_integer(db, "PRAGMA application_id");
+			if (!identity || (*identity != 0 && *identity != agent_sessions_application_id)) {
+				return { };
+			}
+			if (!detail::execute(db, "PRAGMA application_id=" + std::to_string(agent_sessions_application_id))
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS native_agent_sessions("
+									"id TEXT PRIMARY KEY, scope TEXT NOT NULL, configuration TEXT NOT NULL, base TEXT NOT NULL, head TEXT NOT NULL,"
+									"left_epoch INTEGER NOT NULL, right_epoch INTEGER NOT NULL, handle TEXT NOT NULL, turn INTEGER NOT NULL, pending INTEGER NOT NULL,"
+									"workspace TEXT NOT NULL, parent TEXT NOT NULL, marker TEXT NOT NULL, application INTEGER NOT NULL, session INTEGER NOT NULL,"
+									"directory BLOB NOT NULL, guard TEXT NOT NULL, guard_identity BLOB NOT NULL, shallow INTEGER NOT NULL, revision INTEGER NOT NULL) STRICT")
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_workspaces(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_sparse_objects(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), missing TEXT NOT NULL CHECK(length(CAST(missing AS BLOB)) <= 67108864)) STRICT")
+				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS native_agent_turns(" } + std::string{ native_agent_turns_columns } + ") STRICT")
+				// [[BPR-2153]]. What the reviewer steered into each turn, in the
+				// order sent: their words, where in the answer it went in, the
+				// agent's step it followed, and whether the agent took it.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS native_agent_turn_steers(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, position INTEGER NOT NULL CHECK(position >= 0),"
+									" text TEXT NOT NULL, at INTEGER NOT NULL CHECK(at >= 0), steps INTEGER NOT NULL CHECK(steps >= 0), disposition INTEGER NOT NULL CHECK(disposition BETWEEN 0 AND 4), PRIMARY KEY(conversation,ordinal,position)) STRICT")
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_replays(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), source TEXT NOT NULL) STRICT")
+				// [[BPR-1999]]. What a native conversation has cost: the sum of
+				// its turns' costs, whether any reported one, and the runtime's
+				// last figure for the session it resumes.
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_costs(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), total INTEGER NOT NULL CHECK(total >= 0), known INTEGER NOT NULL CHECK(known IN (0,1)), reported INTEGER CHECK(reported >= 0)) STRICT")
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_selection(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
+				// [[BPR-NNNN]]. The name the reviewer gave a conversation; one
+				// with no row shows its first question.
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_session_names(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 120)) STRICT")
+				// [[BPR-2293]]. When each retained workspace was last used by a
+				// turn, by its path, in seconds since the epoch.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS native_agent_workspace_use("
+									"workspace TEXT PRIMARY KEY CHECK(length(CAST(workspace AS BLOB)) BETWEEN 1 AND 4096),"
+									"used INTEGER NOT NULL CHECK(used >= 0)) STRICT")
+				// [[BPR-2345]]. A pull request's retained workspace Agent setup's
+				// check made before any conversation held it, by its pull request
+				// key, with the columns a conversation keeps its workspace in.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS native_agent_kept_workspaces("
+									"scope TEXT PRIMARY KEY CHECK(length(CAST(scope AS BLOB)) BETWEEN 1 AND 4096), base TEXT NOT NULL, head TEXT NOT NULL,"
+									"workspace TEXT NOT NULL CHECK(length(CAST(workspace AS BLOB)) BETWEEN 1 AND 4096), parent TEXT NOT NULL, marker TEXT NOT NULL,"
+									"application INTEGER NOT NULL, session INTEGER NOT NULL, directory BLOB NOT NULL, guard TEXT NOT NULL, guard_identity BLOB NOT NULL,"
+									"shallow INTEGER NOT NULL, missing TEXT CHECK(missing IS NULL OR length(CAST(missing AS BLOB)) <= 67108864)) STRICT")
+				// [[BPR-1753]], owner decision (b). Each pull request's
+				// conversation: when it was last written, and its turns in order.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_conversations("
+									"host TEXT NOT NULL CHECK(length(CAST(host AS BLOB)) BETWEEN 1 AND 1024),"
+									"owner TEXT NOT NULL CHECK(length(CAST(owner AS BLOB)) BETWEEN 1 AND 1024),"
+									"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024),"
+									"number INTEGER NOT NULL CHECK(number >= 1),"
+									"agent INTEGER NOT NULL CHECK(agent BETWEEN 0 AND 64),"
+									"written INTEGER NOT NULL CHECK(written >= 0),"
+									"PRIMARY KEY(host, owner, name, number, agent)) STRICT")
+				// Owner decision 2026-10-23: the agent a pull request was last
+				// asked with, so it opens on that agent's own conversation.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_conversation_choice("
+									"host TEXT NOT NULL,"
+									"owner TEXT NOT NULL,"
+									"name TEXT NOT NULL,"
+									"number INTEGER NOT NULL,"
+									"agent INTEGER NOT NULL CHECK(agent BETWEEN 0 AND 64),"
+									"PRIMARY KEY(host, owner, name, number)) STRICT")
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_conversation_turns("
+									"host TEXT NOT NULL,"
+									"owner TEXT NOT NULL,"
+									"name TEXT NOT NULL,"
+									"number INTEGER NOT NULL,"
+									"agent INTEGER NOT NULL,"
+									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 49),"
+									"asked TEXT NOT NULL CHECK(length(CAST(asked AS BLOB)) <= 65536),"
+									"answered TEXT NOT NULL CHECK(length(CAST(answered AS BLOB)) <= 65536),"
+									"ending TEXT NOT NULL CHECK(length(CAST(ending AS BLOB)) <= 65536),"
+									"PRIMARY KEY(host, owner, name, number, agent, position)) STRICT")
+				// [[BPR-1847]]. How each turn ended, beside it: a turn stored
+				// before this table has no row and reads back from its ending.
+				|| !detail::execute(db, std::string{ "CREATE TABLE IF NOT EXISTS agent_conversation_outcomes(" } + std::string{ agent_conversation_outcomes_columns } + ") STRICT")
+				// Owner report 2026-11-10, after BPR-2052. What was done with each
+				// finding card of a stored answer, by the SHA-256 of the answer's
+				// findings block and the card's place in it; an open card has no
+				// row. `changed` orders them for the bound.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_finding_cards("
+									"findings BLOB NOT NULL CHECK(length(findings)=32),"
+									"ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 0 AND 4294967295),"
+									"state INTEGER NOT NULL CHECK(state BETWEEN 1 AND 4),"
+									"why TEXT NOT NULL CHECK(length(CAST(why AS BLOB)) <= 1024),"
+									"note INTEGER NOT NULL CHECK(note >= 0),"
+									"changed INTEGER NOT NULL CHECK(changed >= 0),"
+									"PRIMARY KEY(findings, ordinal)) STRICT")
+				// RFC-BPR-0125 (AC07). The name a suggested prompt's turn was
+				// sent under, by the question it asked; `changed` orders them
+				// for the bound.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS prompt_turn_names("
+									"asked TEXT PRIMARY KEY CHECK(length(CAST(asked AS BLOB)) BETWEEN 1 AND 16384),"
+									"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024),"
+									"changed INTEGER NOT NULL CHECK(changed >= 0)) STRICT")
+				|| !complete_native_turns(db)
+				|| !complete_conversation_outcomes(db)
+				|| !move_session_tables(result->Directory, db)) {
+				return { };
 			}
 			return result;
 		}
@@ -1582,7 +1814,7 @@ namespace bpr::adapters::sqlite {
 				if (aKey.empty() || aKey.size() > 4096U) {
 					return std::unexpected(failure::unavailable);
 				}
-				auto connection = open(Root);
+				auto connection = open_sessions(Root);
 				if (!connection) {
 					return std::unexpected(failure::unavailable);
 				}
@@ -1645,7 +1877,7 @@ namespace bpr::adapters::sqlite {
 				if (aScope.empty() || aScope.size() > 4096U || aConfiguration.size() > 16384U) {
 					return std::unexpected(failure::unavailable);
 				}
-				auto connection = open(Root);
+				auto connection = open_sessions(Root);
 				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
 					return std::unexpected(failure::unavailable);
 				}
@@ -1912,7 +2144,7 @@ namespace bpr::adapters::sqlite {
 				-> std::expected<application::native_agent_history_projection, application::native_agent_storage_failure> override
 			{
 				using failure   = application::native_agent_storage_failure;
-				auto connection = open(Root);
+				auto connection = open_sessions(Root);
 				if (!connection || !detail::execute(connection->Database.get(), "BEGIN")) {
 					return std::unexpected(failure::unavailable);
 				}
@@ -1965,12 +2197,13 @@ namespace bpr::adapters::sqlite {
 					} else if (modeStatus != SQLITE_DONE) {
 						return std::unexpected(failure::unavailable);
 					}
+					if (const auto cost = read_native_cost(db, entry.Id); cost && cost->Known) {
+						entry.Cost = cost->Total;
+					}
 					if (entry.Id == view.Selected) {
 						view.Replay       = entry.Replay;
 						view.ReplaySource = entry.ReplaySource;
-						if (const auto cost = read_native_cost(db, entry.Id); cost && cost->Known) {
-							view.SessionCost = cost->Total;
-						}
+						view.SessionCost  = entry.Cost;
 					}
 					view.Entries.push_back(std::move(entry));
 				}
@@ -2045,7 +2278,7 @@ namespace bpr::adapters::sqlite {
 				if (!application::valid(std::vector{ aTurn })) {
 					return false;
 				}
-				auto connection = open(Root);
+				auto connection = open_sessions(Root);
 				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
 					return false;
 				}
@@ -2098,7 +2331,7 @@ namespace bpr::adapters::sqlite {
 					|| aSession.Turn > static_cast<std::uint64_t>(std::numeric_limits<sqlite3_int64>::max()) || aSession.Revision == 0U) {
 					return false;
 				}
-				auto connection = open(Root);
+				auto connection = open_sessions(Root);
 				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
 					return false;
 				}
@@ -2212,7 +2445,7 @@ namespace bpr::adapters::sqlite {
 			auto retained_workspaces() -> std::expected<std::vector<application::retained_workspace_record>, application::native_agent_storage_failure> override
 			{
 				using failure   = application::native_agent_storage_failure;
-				auto connection = open(Root);
+				auto connection = open_sessions(Root);
 				if (!connection || !detail::execute(connection->Database.get(), "BEGIN")) {
 					return std::unexpected(failure::unavailable);
 				}
@@ -2326,7 +2559,7 @@ namespace bpr::adapters::sqlite {
 					|| (aWorkspace.SparseMissingObjects && aWorkspace.SparseMissingObjects->size() > 64U * 1024U * 1024U)) {
 					return false;
 				}
-				auto connection = open(Root);
+				auto connection = open_sessions(Root);
 				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
 					return false;
 				}
@@ -2381,7 +2614,7 @@ namespace bpr::adapters::sqlite {
 				if (aWorkspace.Workspace.Path.empty() || aWorkspace.Workspace.Path.size() > 4096U) {
 					return false;
 				}
-				auto connection = open(Root);
+				auto connection = open_sessions(Root);
 				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
 					return false;
 				}
@@ -2419,7 +2652,7 @@ namespace bpr::adapters::sqlite {
 				if (aId.empty() || aName.size() > 120U) {
 					return false;
 				}
-				auto connection = open(Root);
+				auto connection = open_sessions(Root);
 				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
 					return false;
 				}
@@ -2446,7 +2679,7 @@ namespace bpr::adapters::sqlite {
 			auto removal(const std::string& aScope, const std::string& aId) -> std::expected<application::native_agent_session_removal, application::native_agent_storage_failure> override
 			{
 				using failure   = application::native_agent_storage_failure;
-				auto connection = open(Root);
+				auto connection = open_sessions(Root);
 				if (!connection || !detail::execute(connection->Database.get(), "BEGIN")) {
 					return std::unexpected(failure::unavailable);
 				}
@@ -2514,7 +2747,7 @@ namespace bpr::adapters::sqlite {
 				if (aId.empty()) {
 					return false;
 				}
-				auto connection = open(Root);
+				auto connection = open_sessions(Root);
 				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
 					return false;
 				}
@@ -2564,7 +2797,7 @@ namespace bpr::adapters::sqlite {
 			}
 			auto erase_all() -> bool override
 			{
-				auto connection = open(Root);
+				auto connection = open_sessions(Root);
 				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
 					return false;
 				}
@@ -2618,7 +2851,7 @@ namespace bpr::adapters::sqlite {
 					return std::nullopt;
 				}
 				try {
-					auto store = open(Root);
+					auto store = open_sessions(Root);
 					if (!store) {
 						return std::nullopt;
 					}
@@ -2660,7 +2893,7 @@ namespace bpr::adapters::sqlite {
 					return false;
 				}
 				try {
-					auto store = open(Root);
+					auto store = open_sessions(Root);
 					if (!store) {
 						return false;
 					}
@@ -2739,7 +2972,7 @@ namespace bpr::adapters::sqlite {
 					return std::nullopt;
 				}
 				try {
-					auto store = open(Root);
+					auto store = open_sessions(Root);
 					if (!store) {
 						return std::nullopt;
 					}
@@ -2763,7 +2996,7 @@ namespace bpr::adapters::sqlite {
 					return false;
 				}
 				try {
-					auto store = open(Root);
+					auto store = open_sessions(Root);
 					if (!store) {
 						return false;
 					}
@@ -2781,10 +3014,13 @@ namespace bpr::adapters::sqlite {
 			[[nodiscard]] auto forget_agents() -> bool override
 			{
 				try {
-					auto store = open(Root);
+					// [[BPR-NNNN]]. The choices live with the conversations; the
+					// scratch choices with the agent setup.
+					auto sessions = open_sessions(Root);
+					auto store    = open(Root);
 					// [[BPR-2007]]. A reset's new agent may reuse an old id: it
 					// does not inherit the old one's scratch choices either.
-					return store && detail::execute(store->Database.get(), "DELETE FROM agent_conversation_choice")
+					return sessions && store && detail::execute(sessions->Database.get(), "DELETE FROM agent_conversation_choice")
 						&& detail::execute(store->Database.get(), "DELETE FROM agent_scratch_choice") && detail::execute(store->Database.get(), "DELETE FROM agent_scratch_folder");
 				} catch (...) {
 					return false;
@@ -2925,7 +3161,7 @@ namespace bpr::adapters::sqlite {
 			[[nodiscard]] auto load() -> std::optional<std::vector<core::agent_finding_card_record>> override
 			{
 				try {
-					auto store = open(Root);
+					auto store = open_sessions(Root);
 					if (!store) {
 						return std::nullopt;
 					}
@@ -2964,7 +3200,7 @@ namespace bpr::adapters::sqlite {
 					return false;
 				}
 				try {
-					auto store = open(Root);
+					auto store = open_sessions(Root);
 					if (!store) {
 						return false;
 					}
@@ -3021,7 +3257,7 @@ namespace bpr::adapters::sqlite {
 			[[nodiscard]] auto load() -> std::optional<std::vector<core::prompt_turn_name>> override
 			{
 				try {
-					auto store = open(Root);
+					auto store = open_sessions(Root);
 					if (!store) {
 						return std::nullopt;
 					}
@@ -3058,7 +3294,7 @@ namespace bpr::adapters::sqlite {
 					return false;
 				}
 				try {
-					auto store = open(Root);
+					auto store = open_sessions(Root);
 					if (!store) {
 						return false;
 					}
@@ -4445,6 +4681,17 @@ namespace bpr::adapters::sqlite {
 	}
 
 	auto agent_setup_store_file(const std::filesystem::path& aRoot) -> std::filesystem::path { return aRoot / "state" / "v1" / std::filesystem::path{ agent_setup_file }; }
+
+	auto agent_sessions_store_file(const std::filesystem::path& aRoot) -> std::filesystem::path { return aRoot / "state" / "v1" / std::filesystem::path{ agent_sessions_file }; }
+
+	auto prepare_agent_sessions_store(const std::filesystem::path& aRoot) -> bool
+	{
+		try {
+			return open_sessions(aRoot) != nullptr;
+		} catch (...) {
+			return false;
+		}
+	}
 
 	auto make_agent_setup_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_setup_store_port>
 	{

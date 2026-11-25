@@ -11,6 +11,7 @@
 #include "bpr/qt/agent_pending_list.hpp"
 #include "bpr/qt/agent_reference_links.hpp"
 #include "bpr/qt/agent_run_status.hpp"
+#include "bpr/qt/agent_session_menu.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
@@ -303,7 +304,16 @@ namespace bpr::qt {
 		[[nodiscard]] auto current_index() const noexcept -> int { return Current; }
 		void               select(int aIndex);
 		void               set_history_dispatch(std::function<void(const core::tour_thread&, std::optional<std::string>)> aDispatch) { HistoryDispatch = std::move(aDispatch); }
-		void               present_native_history(const application::native_agent_history_projection&);
+		/// \brief [[BPR-NNNN]]. Renames (`aName` set) or deletes a session of
+		/// the current thread on this pull request.
+		using session_edit_dispatch = std::function<void(const core::tour_thread&, const std::string& aId, std::optional<std::string> aName)>;
+		void set_session_edit_dispatch(session_edit_dispatch aDispatch) { SessionEditDispatch = std::move(aDispatch); }
+		/// \brief [[BPR-NNNN]]. The Session menu's rows (pencil, trash, i)
+		/// (made on first use): the shared `agent_session_menu`.
+		auto session_rows() -> agent_session_menu&;
+		/// \brief [[BPR-NNNN]]. What the last rename or deletion did.
+		void present_session_edit(const QString& aStatus);
+		void present_native_history(const application::native_agent_history_projection&);
 		/// \brief Projects the core's revision choice without submitting a question.
 		void present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, core::git_commit_oid aObservedHead, bool aContinued);
 		void set_continuation_dispatch(std::function<void(const core::tour_thread&)> aDispatch) { ContinuationDispatch = std::move(aDispatch); }
@@ -405,6 +415,8 @@ namespace bpr::qt {
 
 	private:
 		std::function<void(const core::tour_thread&, std::optional<std::string>)> HistoryDispatch;
+		session_edit_dispatch                                                     SessionEditDispatch;
+		agent_session_menu*                                                       SessionRows = nullptr;
 		std::function<void(const core::tour_thread&)>                             ContinuationDispatch;
 		QToolButton*                                                              ContinueOld            = nullptr;
 		QLabel*                                                                   RevisionStatus         = nullptr;

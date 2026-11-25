@@ -3,8 +3,9 @@
 
 #include "bpr/application/agent_finding_delivery.hpp"
 #include "bpr/application/agent_launch.hpp"
-#include "bpr/application/agent_session_management.hpp"
+#include "bpr/application/agent_session_edit.hpp"
 #include "bpr/application/agent_workspace.hpp"
+#include "bpr/application/agent_workspace_expiry.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/native_agent_session.hpp"
 #include "bpr/application/port.hpp"
@@ -279,6 +280,11 @@ namespace bpr::application {
 		/// own native session files are never touched. On success the history
 		/// is shown again.
 		void delete_native_session(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::string aId, session_edit_answer aAnswer);
+		/// \brief [[BPR-NNNN]]. Delete all sessions…: every session History
+		/// lists for this agent in \p aScope, each as `delete_native_session`
+		/// would; one running or whose workspace could not be removed safely
+		/// is kept and counted in the receipt.
+		void delete_all_native_sessions(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, session_edit_answer aAnswer);
 		/// \brief [[BPR-NNNN]]. What removes a deleted session's own retained
 		/// workspace. Set once at composition; without one such a deletion is
 		/// refused and the session kept.

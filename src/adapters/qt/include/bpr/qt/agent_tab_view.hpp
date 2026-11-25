@@ -24,7 +24,7 @@
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/agent_run_status.hpp"
-#include "bpr/qt/agent_session_list.hpp"
+#include "bpr/qt/agent_session_menu.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -345,14 +345,13 @@ namespace bpr::qt {
 		void               set_session_title(const QString& aTitle);
 		[[nodiscard]] auto session_title() const noexcept -> QLabel* { return SessionTitle; }
 		/// \brief [[BPR-NNNN]]. Renames (`aName` set) or deletes a session of
-		/// the selected agent on this pull request.
+		/// the selected agent on this pull request; an empty `aId` without a
+		/// name deletes them all.
 		using session_edit_dispatch = std::function<void(const std::string& aId, std::optional<std::string> aName)>;
 		void set_session_edit_dispatch(session_edit_dispatch aDispatch);
-		/// \brief [[BPR-NNNN]]. History › Manage sessions…, opened (made on
-		/// first use) and returned.
-		auto open_session_list() -> agent_session_list*;
-		/// \brief [[BPR-NNNN]]. The session list, once opened; else null.
-		[[nodiscard]] auto session_list() const noexcept -> agent_session_list* { return SessionList.data(); }
+		/// \brief [[BPR-NNNN]]. History › Sessions' rows (pencil, trash, i) and
+		/// Delete all sessions…: the shared `agent_session_menu`.
+		[[nodiscard]] auto session_menu() const noexcept -> agent_session_menu* { return SessionMenu; }
 		/// \brief [[BPR-NNNN]]. What the last rename or deletion did.
 		void               present_session_edit(const QString& aStatus);
 		[[nodiscard]] auto turn_copy_button(std::size_t aTurn) const -> QToolButton*;
@@ -708,6 +707,10 @@ namespace bpr::qt {
 		/// asks first (a warning dialog when none is given), then `aReset`
 		/// clears the agents' settings and the setup starts again at Agent.
 		void set_reset_dispatch(std::function<void()> aReset, std::function<bool()> aConfirm = { });
+		/// \brief [[BPR-NNNN]], owner 2026-11-24. When set, Reset agents… goes
+		/// here instead (Clear local data with Agent setup checked, which asks
+		/// and resets), and neither asks nor opens the setup itself.
+		void set_reset_route(std::function<void()> aRoute) { ResetRoute = std::move(aRoute); }
 		void reset_agents();
 		/// \brief [[BPR-1998]]. Which files references may name, and where a
 		/// link to one goes; references are links only when both are set. A
@@ -770,7 +773,7 @@ namespace bpr::qt {
 		std::function<void(std::optional<std::string>)> NativeHistoryDispatch;
 		/// [[BPR-NNNN]]
 		session_edit_dispatch                        SessionEditDispatch;
-		QPointer<agent_session_list>                 SessionList;
+		agent_session_menu*                          SessionMenu = nullptr;
 		QString                                      DefaultSessionTitle;
 		void                                         show_session_title();
 		application::native_agent_history_projection NativeHistoryView;
@@ -868,6 +871,7 @@ namespace bpr::qt {
 		std::function<void(std::uint64_t)> CatalogDispatch;
 		std::function<void()>              ResetDispatch;
 		std::function<bool()>              ResetConfirm;
+		std::function<void()>              ResetRoute;
 		agent_reference_files_source       LineResolve;
 		agent_reference_navigation         LineNavigate;
 		agent_reference_chooser            ReferenceChooser;

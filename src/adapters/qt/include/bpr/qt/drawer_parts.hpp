@@ -145,6 +145,12 @@ namespace bpr::qt {
 		wrap,
 		/// [[BPR-1944]]. A tick: done, as Copy says it copied.
 		check,
+		/// [[BPR-NNNN]]. A pencil: rename.
+		rename,
+		/// [[BPR-NNNN]]. A can with a lid: delete.
+		trash,
+		/// [[BPR-NNNN]]. A lowercase i in a ring: more about this.
+		info,
 	};
 	[[nodiscard]] auto drawer_icon(drawer_glyph aGlyph, const QPalette& aPalette) -> QIcon;
 

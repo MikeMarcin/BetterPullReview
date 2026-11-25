@@ -14,9 +14,9 @@ namespace bpr::core {
 			std::pair{ std::string_view{ "appearance-settings" }, area::settings },
 			std::pair{ std::string_view{ "workbench-settings" }, area::settings },
 			std::pair{ std::string_view{ "diagnostic-preferences" }, area::settings },
-			// [[BPR-NNNN]]. Agent setup and BetterPullReview's agent
-			// conversations share this store; Settings implies Agent sessions.
+			// [[BPR-NNNN]]. The agent setup; the conversations are apart.
 			std::pair{ std::string_view{ "agent-setup" }, area::settings },
+			std::pair{ std::string_view{ "agent-sessions" }, area::agent_sessions },
 			std::pair{ std::string_view{ "window-restoration" }, area::settings },
 			std::pair{ std::string_view{ "view-filters" }, area::settings },
 			std::pair{ std::string_view{ "discuss" }, area::settings },
@@ -57,6 +57,8 @@ namespace bpr::core {
 			std::pair{ std::string_view{ "agent-sessions" }, profile_data_reset::agent_sessions },
 			std::pair{ std::string_view{ "saved-sources" }, profile_data_reset::saved_sources },
 			std::pair{ std::string_view{ "statistics" }, profile_data_reset::statistics },
+			std::pair{ std::string_view{ "agent-setup" }, profile_data_reset::agent_setup },
+			std::pair{ std::string_view{ "agent-workspaces" }, profile_data_reset::agent_workspaces },
 		};
 
 		template <typename Table>
@@ -76,10 +78,12 @@ namespace bpr::core {
 											 .with(profile_data_reset::review_data)
 											 .with(profile_data_reset::saved_sources)
 											 .with(profile_data_reset::statistics)
-											 .with(profile_data_reset::connections);
+											 .with(profile_data_reset::connections)
+											 .with(profile_data_reset::agent_sessions);
 		/// The categories whose data exists only on this computer.
 		constexpr auto destructive_categories = profile_data_reset_selection{ profile_data_reset::review_data }
 													.with(profile_data_reset::agent_sessions)
+													.with(profile_data_reset::agent_workspaces)
 													.with(profile_data_reset::saved_sources)
 													.with(profile_data_reset::statistics);
 		/// The categories whose removed stores a copy can hold.
@@ -130,6 +134,8 @@ namespace bpr::core {
 			return aReset.contains(profile_data_reset::statistics);
 		case area::connections:
 			return profile_data_reset_signs_out(aReset);
+		case area::agent_sessions:
+			return aReset.contains(profile_data_reset::agent_sessions);
 		case area::kept:
 			return false;
 		}
@@ -165,8 +171,11 @@ namespace bpr::core {
 	auto profile_data_reset_implied(const profile_data_reset_selection aChosen) noexcept -> profile_data_reset_selection
 	{
 		auto implied = profile_data_reset_selection{ };
-		if (aChosen.contains(profile_data_reset::settings) && !aChosen.contains(profile_data_reset::agent_sessions)) {
-			implied = implied.with(profile_data_reset::agent_sessions);
+		if (aChosen.contains(profile_data_reset::agent_sessions) && !aChosen.contains(profile_data_reset::agent_workspaces)) {
+			implied = implied.with(profile_data_reset::agent_workspaces);
+		}
+		if (aChosen.contains(profile_data_reset::settings) && !aChosen.contains(profile_data_reset::agent_setup)) {
+			implied = implied.with(profile_data_reset::agent_setup);
 		}
 		return implied;
 	}
@@ -176,8 +185,16 @@ namespace bpr::core {
 		auto plan      = profile_data_reset_plan{ };
 		plan.Implied   = profile_data_reset_implied(aChosen);
 		plan.Selection = aChosen.with(plan.Implied);
-		if (plan.Selection.contains(profile_data_reset::agent_sessions)) {
-			plan.Steps.push_back(profile_data_reset_step::agent_sessions);
+		// Before anything that removes or reads either store.
+		if (plan.Selection.contains(profile_data_reset::settings) || plan.Selection.contains(profile_data_reset::agent_setup)
+			|| plan.Selection.contains(profile_data_reset::agent_sessions) || plan.Selection.contains(profile_data_reset::agent_workspaces)) {
+			plan.Steps.push_back(profile_data_reset_step::move_sessions);
+		}
+		if (plan.Selection.contains(profile_data_reset::agent_workspaces)) {
+			plan.Steps.push_back(profile_data_reset_step::agent_workspaces);
+		}
+		if (plan.Selection.contains(profile_data_reset::agent_setup)) {
+			plan.Steps.push_back(profile_data_reset_step::agent_setup);
 		}
 		if (profile_data_reset_removes_files(plan.Selection)) {
 			plan.Steps.push_back(profile_data_reset_step::files);
@@ -193,7 +210,7 @@ namespace bpr::core {
 
 	auto profile_data_reset_held_back(const std::uint32_t aWorkspacesLeft) noexcept -> profile_data_reset_selection
 	{
-		return aWorkspacesLeft != 0U ? profile_data_reset_selection{ profile_data_reset::settings } : profile_data_reset_selection{ };
+		return aWorkspacesLeft != 0U ? profile_data_reset_selection{ profile_data_reset::agent_sessions }.with(profile_data_reset::agent_workspaces) : profile_data_reset_selection{ };
 	}
 
 	auto admit_profile_data_reset(const profile_data_reset_request& aRequest) noexcept -> release_maintenance_reason

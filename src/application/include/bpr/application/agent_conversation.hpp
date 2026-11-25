@@ -75,6 +75,8 @@ namespace bpr::application {
 		bool        Pending = false;
 		bool        Replay  = false;
 		std::string ReplaySource;
+		/// [[BPR-NNNN]] What it has cost, once known, for its row's i.
+		std::optional<core::agent_cost> Cost = std::nullopt;
 	};
 	struct native_agent_history_projection
 	{

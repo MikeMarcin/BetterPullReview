@@ -1765,13 +1765,11 @@ auto main(int argc, char** argv) -> int
 							&& std::filesystem::is_directory(std::filesystem::symlink_status(root / "workspace", error))
 							&& std::filesystem::is_directory(std::filesystem::symlink_status(root / "workspace" / ".git", error))
 							&& std::filesystem::is_regular_file(std::filesystem::symlink_status(root / "workspace" / ".git" / "bpr-owned-workspace", error));
-						auto* const histories = window.agent_tab()->findChild<QMenu*>(QStringLiteral("nativeAgentSessions"));
-						const auto actions = histories != nullptr ? histories->actions() : QList<QAction*>{ };
-						const auto entries = std::ranges::count_if(actions, [](const QAction* aAction) { return aAction->isCheckable(); });
-						const auto selectedOneTurn = std::ranges::any_of(actions, [](const QAction* aAction) {
-							return aAction->isCheckable() && aAction->isChecked() && !aAction->data().toString().isEmpty()
-								&& aAction->text().startsWith(QStringLiteral("Native: ")) && aAction->property("turns").toULongLong() == 1U;
-						});
+						// [[BPR-NNNN]]. The History menu's session rows.
+						auto* const rows           = window.agent_tab()->session_menu();
+						const auto  entries        = rows->ids().size();
+						const auto  open           = rows->selected();
+						const auto  selectedOneTurn = !open.empty() && !rows->replay(open) && rows->turns(open) == 1U;
 						aTerms.note("process", invocation.Statistics.ProcessStarts);
 						aTerms.note("workspaces", invocation.Statistics.WorkspaceStarts);
 						aTerms.note("cleanups", invocation.Statistics.WorkspaceCleanups);

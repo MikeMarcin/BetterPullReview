@@ -1121,7 +1121,7 @@ auto main(int argc, char** argv) -> int
 				}
 				QMetaObject::invokeMethod(tab->history_button()->menu(), "aboutToShow");
 				auto origin = QString{ };
-				if (!wait_until([&] {for(auto* item:histories->actions()){if(item->isChecked()){origin=item->data().toString();}}return !origin.isEmpty() && tab->ask_button()->isEnabled(); })) {
+				if (!wait_until([&] {origin=QString::fromStdString(tab->session_menu()->selected());return !origin.isEmpty() && tab->ask_button()->isEnabled(); })) {
 					return fail(*application, "replay-native-origin");
 				}
 				const auto before    = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
@@ -1282,9 +1282,9 @@ auto main(int argc, char** argv) -> int
 				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->ask_button()->isEnabled(); })) {
 					return fail(*application, "unsupported-replay-choice", mode->text().toStdString() + " status=" + panel->status_text().toStdString());
 				}
-				const auto unusedEntries = histories->actions().size();
+				const auto unusedEntries = tab->session_menu()->ids().size();
 				tab->clear_session_button()->click();
-				if (!wait_until([&] { return tab->ask_button()->isEnabled(); }) || histories->actions().size() != unusedEntries || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts) {
+				if (!wait_until([&] { return tab->ask_button()->isEnabled(); }) || tab->session_menu()->ids().size() != unusedEntries || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts) {
 					return fail(*application, "unsupported-new-empty-reuse-no-inference");
 				}
 				if (!send(QStringLiteral("verify-nonresuming")) || !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("nonresuming-replay-ok"))) {
@@ -1497,28 +1497,23 @@ auto main(int argc, char** argv) -> int
 					}
 					QMetaObject::invokeMethod(chat->history_button()->menu(), "aboutToShow");
 					auto priorId = QString{ };
-					if (!wait_until([&] { for (auto* item:chat->history_button()->menu()->actions()) { if (item->isChecked() && item->property("turns").toULongLong()>=expectedSaved) { priorId=item->data().toString(); } } return !priorId.isEmpty() && !chat->history_button()->property("loading").toBool(); })) {
+					if (!wait_until([&] { const auto open=chat->session_rows().selected(); if (!open.empty() && chat->session_rows().turns(open)>=expectedSaved) { priorId=QString::fromStdString(open); } return !priorId.isEmpty() && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-current-generation");
 					}
 					chat->new_session_action()->trigger();
 					if (!wait_until([&] { return chat->turn_count() == 0U && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-new-empty", chat->chat_text().toStdString());
 					}
-					const auto retained = chat->history_button()->menu()->actions().size();
+					const auto retained = chat->session_rows().ids().size();
 					chat->new_session_action()->trigger();
-					if (!wait_until([&] { return !chat->history_button()->property("loading").toBool(); }) || chat->history_button()->menu()->actions().size() != retained) {
+					if (!wait_until([&] { return !chat->history_button()->property("loading").toBool(); }) || chat->session_rows().ids().size() != retained) {
 						return fail(*application, "tour-native-empty-reuse");
 					}
 
 					if (priorId.isEmpty()) {
 						return fail(*application, "tour-native-history-entry");
 					}
-					for (auto* item : chat->history_button()->menu()->actions()) {
-						if (item->data().toString() == priorId) {
-							item->trigger();
-							break;
-						}
-					}
+					chat->session_rows().open(priorId.toStdString());
 					if (!wait_until([&] { return chat->turn_count() >= prior + 2U && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-history-reopen", chat->chat_text().toStdString());
 					}
@@ -1541,12 +1536,7 @@ auto main(int argc, char** argv) -> int
 						if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "transcript-replay-tour.png").u16string()))) {
 							return fail(*application, "tour-replay-raster");
 						}
-						for (auto* item : chat->history_button()->menu()->actions()) {
-							if (item->data().toString() == priorId) {
-								item->trigger();
-								break;
-							}
-						}
+						chat->session_rows().open(priorId.toStdString());
 						if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Native")) && !chat->history_button()->property("loading").toBool(); })) {
 							return fail(*application, "tour-native-provenance-after-replay");
 						}
@@ -1635,7 +1625,7 @@ auto main(int argc, char** argv) -> int
 				}
 				const auto beforeChoice = app::detail::github_application_fixture_access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
 				const auto oldProcess   = chat->reply(chat->turn_count() - 1U)->original_body();
-				const auto oldId        = [&] { for (auto* item : chat->history_button()->menu()->actions()) { if (item->isChecked()) { return item->data().toString(); } } return QString{ }; }();
+				const auto oldId        = QString::fromStdString(chat->session_rows().selected());
 				chat->composer()->setPlainText(QStringLiteral("verify-stale-native"));
 				if (chat->send_button()->isEnabled()) {
 					return fail(*application, "tour-stale-send-needs-choice");
@@ -1669,12 +1659,7 @@ auto main(int argc, char** argv) -> int
 				if (freshAnswer.substr(freshAnswer.find("process=")) == continuedAnswer.substr(continuedAnswer.find("process="))) {
 					return fail(*application, "tour-current-native-distinct-process");
 				}
-				for (auto* item : chat->history_button()->menu()->actions()) {
-					if (item->data().toString() == oldId) {
-						item->trigger();
-						break;
-					}
-				}
+				chat->session_rows().open(oldId.toStdString());
 				if (!wait_until([&] { const auto* action = chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision")); return action && action->isVisible() && !chat->history_button()->property("loading").toBool(); }) || chat->send_button()->isEnabled()) {
 					return fail(*application, "tour-history-rechecks-old-choice");
 				}
@@ -1800,19 +1785,19 @@ auto main(int argc, char** argv) -> int
 
 			auto* histories       = window.agent_tab()->findChild<QMenu*>(QStringLiteral("nativeAgentSessions"));
 			auto  selectedHistory = QString{ };
-			if (!wait_until([&] { for (auto* item:histories->actions()) { if (item->isChecked() && item->property("turns").toULongLong()>=2U) { selectedHistory=item->data().toString(); } } return !selectedHistory.isEmpty() && window.agent_tab()->ask_button()->isEnabled(); })) {
+			if (!wait_until([&] { const auto open=window.agent_tab()->session_menu()->selected(); if (!open.empty() && window.agent_tab()->session_menu()->turns(open)>=2U) { selectedHistory=QString::fromStdString(open); } return !selectedHistory.isEmpty() && window.agent_tab()->ask_button()->isEnabled(); })) {
 				return fail(*application, "native-current-generation");
 			}
 			window.agent_tab()->clear_session_button()->click();
 			if (!wait_until([&] { return window.agent_tab()->turn_count() == 0U && window.agent_tab()->ask_button()->isEnabled(); })) {
 				return fail(*application, "native-new-session-empty");
 			}
-			if (!histories || histories->actions().size() < 2) {
+			if (!histories || window.agent_tab()->session_menu()->ids().size() < 2U) {
 				return fail(*application, "native-history-menu");
 			}
-			const auto retained = histories->actions().size();
+			const auto retained = window.agent_tab()->session_menu()->ids().size();
 			window.agent_tab()->clear_session_button()->click();
-			if (!wait_until([&] { return window.agent_tab()->ask_button()->isEnabled(); }) || histories->actions().size() != retained) {
+			if (!wait_until([&] { return window.agent_tab()->ask_button()->isEnabled(); }) || window.agent_tab()->session_menu()->ids().size() != retained) {
 				return fail(*application, "native-empty-generation-reused");
 			}
 			window.side_chat()->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
@@ -1830,12 +1815,7 @@ auto main(int argc, char** argv) -> int
 			if (!wait_until([&] { return !window.agent_tab()->ask_button()->property("conversationLoading").toBool() && window.agent_tab()->ask_button()->isEnabled(); })) {
 				return fail(*application, "native-new-generation-history-ready");
 			}
-			for (auto* item : histories->actions()) {
-				if (item->data().toString() == selectedHistory) {
-					item->trigger();
-					break;
-				}
-			}
+			window.agent_tab()->session_menu()->open(selectedHistory.toStdString());
 			if (!wait_until([&] { return window.agent_tab()->turn_count() >= 2U && window.agent_tab()->ask_button()->isEnabled(); })) {
 				return fail(*application, "native-history-reopened");
 			}
@@ -1851,53 +1831,34 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "native-history-exact-memory-resume");
 			}
 		}
-		// [[BPR-NNNN]]. History › Rename or delete sessions… through the real
-		// window, on the fixture agent's sessions: a name becomes the session's
-		// title in the list, the menu and the tab's header; an empty name
-		// restores the default; deleting asks first, removes BetterPullReview's
-		// record and transcript, keeps a workspace other sessions use, and
-		// leaves the agent's own session files (the fixture's backend memory)
-		// alone.
+		// [[BPR-NNNN]]. History › Sessions' rows through the real window, on
+		// the fixture agent's sessions: a name becomes the session's title in
+		// the rows and the tab's header; an empty name restores the default;
+		// the trash can asks first, removes BetterPullReview's record and
+		// transcript, keeps a workspace other sessions use, and leaves the
+		// agent's own session files (the fixture's backend memory) alone.
 		if (course == "native-session") {
 			auto* const tab   = window.agent_tab();
+			auto* const rows  = tab->session_menu();
 			const auto  title = tab->session_title()->text();
-			for (auto* action : tab->history_button()->menu()->actions()) {
-				if (action->objectName() == QStringLiteral("agentManageSessions")) {
-					action->trigger();
-				}
+			QMetaObject::invokeMethod(tab->history_button()->menu(), "aboutToShow");
+			if (!wait_until([&] { return rows->ids().size() >= 2U && !rows->selected().empty(); })) {
+				return fail(*application, "session-rows");
 			}
-			auto* const list = tab->session_list();
-			if (list == nullptr || !wait_until([&] { return list->isVisible() && list->list()->count() >= 2; })) {
-				return fail(*application, "session-list-open");
+			const auto openId  = rows->selected();
+			auto       otherId = std::string{ };
+			for (const auto& id : rows->ids()) {
+				otherId = id != openId ? id : otherId;
 			}
-			const auto row = [&](const bool aOpen) -> QListWidgetItem* {
-				for (auto index = 0; index < list->list()->count(); ++index) {
-					if (list->list()->item(index)->font().bold() == aOpen) {
-						return list->list()->item(index);
-					}
-				}
-				return nullptr;
-			};
-			const auto openId = row(true) != nullptr ? row(true)->data(Qt::UserRole).toString() : QString{ };
-			if (openId.isEmpty() || row(false) == nullptr) {
-				return fail(*application, "session-list-rows");
-			}
-			row(true)->setText(QStringLiteral("Course parser review"));
-			auto* const sessions = tab->findChild<QMenu*>(QStringLiteral("nativeAgentSessions"));
-			if (!wait_until([&] {
-					auto inMenu = false;
-					for (auto* item : sessions->actions()) {
-						inMenu = inMenu || (item->data().toString() == openId && item->text().contains(QStringLiteral("Course parser review")));
-					}
-					return tab->session_title()->text() == QStringLiteral("Course parser review") && inMenu && row(true) != nullptr && row(true)->text() == QStringLiteral("Course parser review");
-				})) {
-				return fail(*application, "session-rename-shown", tab->session_title()->text().toStdString() + " status=" + list->status_label()->text().toStdString());
+			rows->rename(openId, QStringLiteral("Course parser review"));
+			if (!wait_until([&] { return tab->session_title()->text() == QStringLiteral("Course parser review") && rows->status() == QStringLiteral("Renamed."); })) {
+				return fail(*application, "session-rename-shown", tab->session_title()->text().toStdString() + " status=" + rows->status().toStdString());
 			}
 			if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "session-renamed.png").u16string()))) {
 				return fail(*application, "session-rename-raster");
 			}
-			row(true)->setText(QString{ });
-			if (!wait_until([&] { return tab->session_title()->text() == title && row(true) != nullptr && row(true)->text() != QStringLiteral("Course parser review"); })) {
+			rows->rename(openId, QString{ });
+			if (!wait_until([&] { return tab->session_title()->text() == title; })) {
 				return fail(*application, "session-rename-restored", tab->session_title()->text().toStdString());
 			}
 			const auto workspaceState = [&] {
@@ -1910,34 +1871,23 @@ auto main(int argc, char** argv) -> int
 				return false;
 			};
 			const auto agentOwnFiles = dataRoot.parent_path() / "native-backend-memory";
-			if (!workspaceState() || !std::filesystem::exists(agentOwnFiles)) {
+			if (!workspaceState() || !std::filesystem::exists(agentOwnFiles) || otherId.empty()) {
 				return fail(*application, "session-delete-preconditions");
 			}
-			const auto rowsBefore = list->list()->count();
-			const auto otherId    = row(false)->data(Qt::UserRole).toString();
-			list->list()->setCurrentItem(row(false));
-			list->ask_delete();
-			auto* const question = list->question();
+			const auto rowsBefore = rows->ids().size();
+			rows->ask_delete(otherId);
+			auto* const question = rows->question();
 			if (question == nullptr || !question->isVisible()) {
 				return fail(*application, "session-delete-asks");
 			}
 			question->findChild<QPushButton*>(QStringLiteral("deleteAgentSessionConfirm"))->click();
-			const auto gone = [&](const QString& aId) {
-				for (auto index = 0; index < list->list()->count(); ++index) {
-					if (list->list()->item(index)->data(Qt::UserRole).toString() == aId) {
-						return false;
-					}
-				}
-				return true;
-			};
-			if (!wait_until([&] { return list->list()->count() == rowsBefore - 1 && gone(otherId) && list->status_label()->text().startsWith(QStringLiteral("Deleted")) && !list->status_label()->text().contains(QStringLiteral("with its agent workspace")); })) {
-				return fail(*application, "session-delete-shared", list->status_label()->text().toStdString());
+			if (!wait_until([&] { return rows->ids().size() == rowsBefore - 1U && rows->turns(otherId) == 0U && rows->status().startsWith(QStringLiteral("Deleted")) && !rows->status().contains(QStringLiteral("with its agent workspace")); })) {
+				return fail(*application, "session-delete-shared", rows->status().toStdString());
 			}
 			if (!workspaceState() || !std::filesystem::exists(agentOwnFiles) || tab->turn_count() < 2U) {
 				return fail(*application, "session-delete-kept-shared-workspace-and-agent-files");
 			}
 			std::cout << "AGENT_SESSION_MANAGEMENT:renamed:restored:deleted-shared:workspace-kept:agent-files-kept\n";
-			list->close();
 		}
 		const auto renderPath = dataRoot.parent_path() / (course == "native-session-reopen" ? "native-reopen.png" : "native-agent-tab.png");
 		if (!window.grab().save(QString::fromStdU16String(renderPath.u16string()))) {
@@ -2089,11 +2039,9 @@ auto main(int argc, char** argv) -> int
 		if (!wait_until([&] { return programs->workspace_remove_button()->isEnabled(); }, extended_agent_budget)) {
 			return fail(*application, "wrapper-setup-kept-workspace", programs->workspace_usage_label()->text().toStdString());
 		}
-		programs->workspace_remove_button()->click();
-		if (!wait_until([&] { return programs->workspace_question() != nullptr && programs->workspace_question()->isVisible(); })) {
-			return fail(*application, "wrapper-setup-remove-question");
-		}
-		programs->workspace_question()->accept();
+		// [[BPR-NNNN]]. Remove… now leads to Clear local data, which reopens
+		// the profile; this course removes them in place instead.
+		app::detail::github_application_fixture_access::remove_idle_agent_workspaces(*application);
 		if (!wait_until([&] { return programs->workspace_usage_label()->text().startsWith(QStringLiteral("Retained agent workspaces: none.")); }, extended_agent_budget)) {
 			return fail(*application, "wrapper-setup-kept-workspace-removed", programs->workspace_usage_label()->text().toStdString());
 		}

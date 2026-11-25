@@ -981,6 +981,9 @@ namespace bpr::app {
 		// [[BPR-2181]]. The tour session's retirement event releases the
 		// feedback queued for its draft.
 		TourSession->set_retired_observer([this] { tour_runtime_retired(); });
+		// [[BPR-NNNN]]. Tour chats are read-only and share the pull request's
+		// workspace; a deleted one removes it only when nothing else uses it.
+		TourSession->set_retained_workspace_files(RetainedWorkspaceFiles.get());
 		TourProjection->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_tour_native_history(aView); };
 		TourProjection->NativeSession = [this](const core::agent_session& aSession) {
 			if (Closing || !Window) {
@@ -1653,6 +1656,29 @@ namespace bpr::app {
 		TourHistoryKey = key;
 		TourSession->restore_native(*writing_agent(), tour_native_agent(), tour_native_scope(aThread), std::move(aChoice));
 	}
+	/// [[BPR-NNNN]]. Renames (`aName` set) or deletes one of the current tour
+	/// thread's sessions, through the same host calls as the Agent tab's.
+	void github_application::implementation::edit_tour_session(const std::string& aId, std::optional<std::string> aName)
+	{
+		const auto thread = Window != nullptr ? Window->tour_editor()->side_chat()->current() : std::nullopt;
+		if (Closing || !Window || !TourSession || !thread || !writing_agent() || tour_native_agent().empty() || tour_native_scope(*thread).empty()) {
+			return;
+		}
+		const auto renaming = aName.has_value();
+		auto       answer   = [this, renaming](const application::agent_session_edit_receipt& aReceipt) {
+			if (!Closing && Window) {
+				Window->tour_editor()->side_chat()->present_session_edit(qt::agent_session_edit_words(aReceipt, renaming));
+			}
+		};
+		if (renaming) {
+			TourSession->rename_native_session(*writing_agent(), tour_native_agent(), tour_native_scope(*thread), aId, std::move(*aName), std::move(answer));
+		} else if (aId.empty()) {
+			TourSession->delete_all_native_sessions(*writing_agent(), tour_native_agent(), tour_native_scope(*thread), std::move(answer));
+		} else {
+			TourSession->delete_native_session(*writing_agent(), tour_native_agent(), tour_native_scope(*thread), aId, std::move(answer));
+		}
+	}
+
 	void github_application::implementation::present_tour_native_history(const application::native_agent_history_projection& aView)
 	{
 		if (Closing || !Window) {

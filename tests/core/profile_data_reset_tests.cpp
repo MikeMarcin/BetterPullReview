@@ -20,7 +20,7 @@ namespace {
 		}
 	}
 
-	constexpr std::array resets{ reset::caches, reset::settings, reset::review_data, reset::connections, reset::everything, reset::agent_sessions, reset::saved_sources, reset::statistics };
+	constexpr std::array resets{ reset::caches, reset::settings, reset::review_data, reset::connections, reset::everything, reset::agent_sessions, reset::saved_sources, reset::statistics, reset::agent_setup, reset::agent_workspaces };
 
 	void test_store_areas()
 	{
@@ -80,7 +80,7 @@ namespace {
 		for (const auto each : resets) {
 			expect(!profile_data_reset_removes(each, area::kept), "no reset removes what is kept");
 		}
-		expect(!profile_data_reset_removes(static_cast<reset>(0), area::caches) && !profile_data_reset_removes(static_cast<reset>(9), area::caches),
+		expect(!profile_data_reset_removes(static_cast<reset>(0), area::caches) && !profile_data_reset_removes(static_cast<reset>(11), area::caches),
 			   "an unknown reset removes nothing");
 		expect(profile_data_reset_restores_queue_display(reset::settings), "Reset settings restores the queue display choices");
 		for (const auto each : { reset::caches, reset::review_data, reset::connections, reset::everything }) {
@@ -91,7 +91,7 @@ namespace {
 	void test_admission()
 	{
 		expect(admit_profile_data_reset({ reset::caches }) == reason::none, "Clear caches needs no acknowledgement");
-		expect(admit_profile_data_reset({ reset::settings }) == reason::invalid_selection, "[[BPR-NNNN]] Reset settings now asks the acknowledgement: it clears agent conversations");
+		expect(admit_profile_data_reset({ reset::settings }) == reason::none, "Reset settings needs no acknowledgement: agent conversations are apart [[BPR-NNNN]]");
 		expect(admit_profile_data_reset({ reset::review_data }) == reason::invalid_selection, "Reset review data needs the acknowledgement");
 		expect(admit_profile_data_reset({ reset::everything, false, true }) == reason::invalid_selection, "a copy does not stand in for the acknowledgement");
 		expect(admit_profile_data_reset({ reset::review_data, true }) == reason::none, "acknowledged review data reset is admitted");
@@ -101,8 +101,8 @@ namespace {
 		expect(admit_profile_data_reset({ reset::connections }) == reason::none, "Reset connections needs no acknowledgement");
 		expect(admit_profile_data_reset({ reset::connections, true, true }) == reason::invalid_selection, "Reset connections offers no copy");
 		expect(profile_data_reset_destructive(reset::review_data) && profile_data_reset_destructive(reset::everything)
-				   && !profile_data_reset_destructive(reset::caches) && profile_data_reset_destructive(reset::settings) && !profile_data_reset_destructive(reset::connections),
-			   "review data, everything and (through agent sessions) settings are destructive");
+				   && !profile_data_reset_destructive(reset::caches) && !profile_data_reset_destructive(reset::settings) && !profile_data_reset_destructive(reset::connections),
+			   "review data and everything are destructive; settings, caches and connections are not");
 	}
 
 	void test_names()
@@ -128,7 +128,7 @@ namespace {
 		}
 		expect(selection::all().single() == reset::everything && !selection{ }.single() && !selection{ reset::caches }.with(reset::review_data).single(),
 			   "only a single category or all of them is named alone");
-		expect(selection{ static_cast<reset>(0) }.empty() && selection{ static_cast<reset>(9) }.empty() && selection::from_bits(0xFFFFU) == selection::all(),
+		expect(selection{ static_cast<reset>(0) }.empty() && selection{ static_cast<reset>(11) }.empty() && selection::from_bits(0xFFFFU) == selection::all(),
 			   "unknown categories select nothing");
 
 		const auto cachesAndReview = selection{ reset::caches }.with(reset::review_data);
@@ -139,26 +139,39 @@ namespace {
 			   "saved repositories is its own category");
 		expect(profile_data_reset_removes(reset::statistics, area::statistics) && !profile_data_reset_removes(reset::statistics, area::review_data),
 			   "Insights statistics is its own category");
-		expect(!profile_data_reset_removes_files(reset::agent_sessions) && profile_data_reset_destructive(reset::agent_sessions) && !profile_data_reset_copyable(reset::agent_sessions),
-			   "agent sessions removes no profile file, asks the acknowledgement and offers no file copy");
+		expect(profile_data_reset_removes_files(reset::agent_sessions) && profile_data_reset_removes(reset::agent_sessions, area::agent_sessions)
+				   && profile_data_reset_destructive(reset::agent_sessions) && profile_data_reset_copyable(reset::agent_sessions),
+			   "agent sessions removes its own store, asks the acknowledgement and may copy it");
+		expect(profile_data_store_area("agent-sessions") == area::agent_sessions && profile_data_store_area("agent-setup") == area::settings,
+			   "the conversations have their own store, apart from the agent setup");
+		expect(!profile_data_reset_removes_files(reset::agent_setup) && !profile_data_reset_removes_files(reset::agent_workspaces) && !profile_data_reset_destructive(reset::agent_setup)
+				   && profile_data_reset_destructive(reset::agent_workspaces),
+			   "agent setup and agent workspaces remove no profile file; workspaces ask the acknowledgement");
 		expect(!profile_data_reset_restores_queue_display(selection{ reset::settings }.with(reset::saved_sources)), "Settings with Saved repositories removes the queue store instead");
 
-		// Settings implies agent sessions: they share the agent setup store.
+		// [[BPR-NNNN]], owner 2026-11-24 ("split sessions from settings").
 		const auto settings = plan_profile_data_reset(reset::settings);
-		expect(settings.Implied == selection{ reset::agent_sessions } && settings.Selection.contains(reset::agent_sessions),
-			   "Settings brings Agent sessions and workspaces with it");
-		expect(settings.Steps == std::vector{ step::agent_sessions, step::files, step::queue_display }, "the workspaces go before the store that names them");
-		expect(plan_profile_data_reset(reset::agent_sessions).Steps == std::vector{ step::agent_sessions }, "agent sessions alone touches no profile file");
+		expect(!settings.Selection.contains(reset::agent_sessions) && !settings.Selection.contains(reset::agent_workspaces), "Settings no longer takes agent sessions");
+		expect(settings.Implied == selection{ reset::agent_setup }, "Settings takes Agent setup, whose store it removes");
+		expect(settings.Steps == std::vector{ step::move_sessions, step::agent_setup, step::files, step::queue_display }, "the conversations move out before the agent setup store goes");
+		const auto sessions = plan_profile_data_reset(reset::agent_sessions);
+		expect(sessions.Implied == selection{ reset::agent_workspaces } && sessions.Steps == std::vector{ step::move_sessions, step::agent_workspaces, step::files },
+			   "agent sessions takes their workspaces first, then removes its store");
+		expect(plan_profile_data_reset(reset::agent_workspaces).Steps == std::vector{ step::move_sessions, step::agent_workspaces } && plan_profile_data_reset(reset::agent_workspaces).Implied.empty(),
+			   "agent workspaces alone keeps the conversations");
+		expect(plan_profile_data_reset(reset::agent_setup).Steps == std::vector{ step::move_sessions, step::agent_setup }, "agent setup alone edits the store it keeps");
 		expect(plan_profile_data_reset(reset::connections).Steps == std::vector{ step::files, step::forget_connections }, "Connections removes the bindings, then forgets");
-		expect(plan_profile_data_reset(reset::everything).Steps == std::vector{ step::agent_sessions, step::files, step::forget_connections }, "everything runs every step but the queue display");
+		expect(plan_profile_data_reset(reset::everything).Steps == std::vector{ step::move_sessions, step::agent_workspaces, step::agent_setup, step::files, step::forget_connections },
+			   "everything runs every step but the queue display");
 		expect(plan_profile_data_reset(reset::caches).Implied.empty(), "caches implies nothing");
-		expect(profile_data_reset_held_back(1U) == selection{ reset::settings } && profile_data_reset_held_back(0U).empty(),
-			   "a workspace left on disk holds Settings back, so it keeps its record; an unreadable catalog does not");
+		expect(profile_data_reset_held_back(1U) == selection{ reset::agent_sessions }.with(reset::agent_workspaces) && profile_data_reset_held_back(0U).empty(),
+			   "a workspace left on disk keeps the conversations that record it; an unreadable catalog does not");
 
 		expect(admit_profile_data_reset({ selection{ } }) == reason::invalid_selection, "nothing checked is refused");
 		expect(admit_profile_data_reset({ cachesAndReview }) == reason::invalid_selection && admit_profile_data_reset({ cachesAndReview, true, true }) == reason::none,
 			   "a destructive category in a selection asks the acknowledgement and may copy");
-		expect(admit_profile_data_reset({ reset::agent_sessions, true, true }) == reason::invalid_selection, "no copy for agent sessions alone");
+		expect(admit_profile_data_reset({ reset::agent_workspaces, true, true }) == reason::invalid_selection, "no copy for agent workspaces alone");
+		expect(admit_profile_data_reset({ reset::agent_setup }) == reason::none, "agent setup needs no acknowledgement");
 		expect(admit_profile_data_reset({ selection{ reset::caches }.with(reset::connections) }) == reason::none, "caches and connections need no acknowledgement");
 
 		expect(profile_data_reset_selection_from_names("caches,agent-sessions") == selection{ reset::caches }.with(reset::agent_sessions), "the command line takes a list");

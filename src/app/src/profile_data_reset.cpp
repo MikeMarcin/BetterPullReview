@@ -7,10 +7,14 @@
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
+#include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/app/diagnostic_export_directory.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
-#include "bpr/application/agent_session_management.hpp"
+#include "bpr/application/agent_setup_preferences.hpp"
+#include "bpr/application/agent_workspace_expiry.hpp"
+#include "bpr/application/clone_link_host.hpp"
 #include "bpr/application/release_profile_cleanup.hpp"
+#include "bpr/application/review_skill_host.hpp"
 
 #include <QDateTime>
 #include <QString>
@@ -18,9 +22,15 @@
 #include <algorithm>
 #include <memory>
 #include <optional>
+#include <string>
 #include <system_error>
 
 namespace bpr::app {
+#if defined(BPR_AGENT_INTEGRATIONS)
+	// Defined with the agent composition (github_application/agent_composition.cpp).
+	[[nodiscard]] auto save_review_skill_copy(const std::string& aText) -> std::optional<std::string>;
+#endif
+
 	auto profile_data_reset_copy_name() -> std::string
 	{
 		return QStringLiteral("BetterPullReview reset %1").arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH.mm.ss"))).toStdString();
@@ -55,32 +65,102 @@ namespace bpr::app {
 			}
 		}
 
-		/// [[BPR-NNNN]]. Agent sessions and workspaces: every retained
-		/// workspace the agent setup store names is removed through its exact
-		/// ownership record, then every conversation is forgotten. A profile
-		/// with no agent setup store has none. The agents' own native session
-		/// files are not BetterPullReview's and are never read or deleted.
-		void clear_agent_sessions(const std::filesystem::path& aRoot, core::profile_data_reset_outcome& aOutcome, const std::stop_token aStop)
+		/// [[BPR-NNNN]]. The retained workspaces' files, through their exact
+		/// ownership records; none where agents are not built in.
+		[[nodiscard]] auto retained_files(const std::filesystem::path& aRoot) -> std::unique_ptr<application::retained_workspace_files_port>
+		{
+#if defined(BPR_AGENT_INTEGRATIONS) && (defined(Q_OS_UNIX) || defined(Q_OS_WIN))
+			return adapters::git::make_installed_retained_workspace_files(aRoot / "agent-workspace-ownership-v1", adapters::git::make_installed_workspace_owners());
+#else
+			static_cast<void>(aRoot);
+			return { };
+#endif
+		}
+
+		[[nodiscard]] auto store_present(const std::filesystem::path& aFile) -> bool
 		{
 			auto present = std::error_code{ };
-			if (!std::filesystem::exists(aRoot / "state" / "v1" / "agent-setup.sqlite3", present) || present) {
+			return std::filesystem::exists(aFile, present) && !present;
+		}
+
+		/// [[BPR-NNNN]]. Agent workspaces: every retained workspace the
+		/// conversations name and no other process holds is removed through
+		/// its exact ownership record; the conversations stay (their next turn
+		/// makes a fresh one). The agents' own native session files are not
+		/// BetterPullReview's and are never read or deleted.
+		void remove_agent_workspaces(const std::filesystem::path& aRoot, core::profile_data_reset_outcome& aOutcome, const std::stop_token aStop)
+		{
+			if (!store_present(adapters::sqlite::agent_sessions_store_file(aRoot))) {
 				return;
 			}
-			auto report = application::agent_sessions_clear_report{ };
+			auto summary = application::retained_workspace_summary{ .Unavailable = true };
 			try {
 				const auto store = adapters::sqlite::make_native_agent_session_store(aRoot);
-				auto       files = std::unique_ptr<application::retained_workspace_files_port>{ };
-#if defined(BPR_AGENT_INTEGRATIONS) && (defined(Q_OS_UNIX) || defined(Q_OS_WIN))
-				files = adapters::git::make_installed_retained_workspace_files(aRoot / "agent-workspace-ownership-v1", adapters::git::make_installed_workspace_owners());
-#endif
-				report = application::clear_agent_sessions(*store, files.get(), aStop);
+				const auto files = retained_files(aRoot);
+				if (files) {
+					summary = application::sweep_retained_workspaces(*store, *files, application::retained_workspace_sweep::remove_all, core::agent_workspace_expiry_policy{ }, 0, aStop);
+				} else if (const auto listed = store->retained_workspaces(); listed) {
+					summary = { .Count = listed->size(), .Failed = listed->size() };
+				}
 			} catch (...) {
-				report = { };
+				summary = { .Unavailable = true };
 			}
-			aOutcome.WorkspacesRemoved = static_cast<std::uint32_t>(report.Workspaces.Removed);
-			aOutcome.WorkspacesLeft    = report.Workspaces.Unavailable ? 0U : static_cast<std::uint32_t>(report.Workspaces.Count);
-			if (!report.Cleared) {
-				aOutcome.Failed = aOutcome.Failed.with(core::profile_data_reset::agent_sessions);
+			aOutcome.WorkspacesRemoved = static_cast<std::uint32_t>(summary.Removed);
+			aOutcome.WorkspacesLeft    = summary.Unavailable ? 0U : static_cast<std::uint32_t>(summary.Count);
+			if (summary.Unavailable || summary.Count != 0U) {
+				aOutcome.Failed = aOutcome.Failed.with(core::profile_data_reset::agent_workspaces);
+			}
+		}
+
+		/// [[BPR-NNNN]]. Agent setup, the former Reset agents: an edited review
+		/// skill is saved to Downloads first, and which agent each pull
+		/// request was last asked with is forgotten (a new agent may reuse an
+		/// old one's id). Unless Settings removes the agent setup store
+		/// (`aStoreGoes`), every agent and its settings, the clone folders and
+		/// linked clones, the edited review skill and the old Claude wrapper
+		/// and model go back to their defaults in it.
+		void reset_agent_setup(const std::filesystem::path& aRoot, const bool aStoreGoes, core::profile_data_reset_outcome& aOutcome, const std::stop_token aStop)
+		{
+			auto done = true;
+			try {
+				// With Settings the whole store goes; its copy is Save a copy's.
+				if (!aStoreGoes && store_present(adapters::sqlite::agent_setup_store_file(aRoot))) {
+					const auto skills = adapters::sqlite::make_review_skill_store(aRoot);
+					const auto skill  = skills->load_review_skill();
+					if (skill && *skill) {
+#if defined(BPR_AGENT_INTEGRATIONS)
+						done = save_review_skill_copy((**skill).Text).has_value();
+#endif
+					}
+					if (done) {
+						auto fresh        = application::agent_setup_preferences{ };
+						fresh.AgentsMoved = true;
+						done              = adapters::sqlite::make_agent_setup_store(aRoot)->store(fresh);
+						const auto links  = adapters::sqlite::make_clone_link_store(aRoot);
+						if (const auto listed = links->load_links(); listed) {
+							for (const auto& link : *listed) {
+								done = links->forget_link(link.Host, link.Repository, link.Owner, link.Name) && done;
+							}
+						}
+						done = links->store_clone_folders({ }) && done;
+						done = (!skill || !*skill || skills->forget_review_skill()) && done;
+						if (auto workbench = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = aRoot }, aStop); workbench) {
+							if (auto preferences = (*workbench)->load_preferences(aStop); preferences && (!preferences->ClaudeWrapper.empty() || !preferences->ClaudeModel.empty())) {
+								preferences->ClaudeWrapper.clear();
+								preferences->ClaudeModel.clear();
+								done = (*workbench)->store_preferences(*preferences, aStop).has_value() && done;
+							}
+						}
+					}
+				}
+				if (store_present(adapters::sqlite::agent_sessions_store_file(aRoot))) {
+					done = adapters::sqlite::make_agent_conversation_store(aRoot)->forget_agents() && done;
+				}
+			} catch (...) {
+				done = false;
+			}
+			if (!done) {
+				aOutcome.Failed = aOutcome.Failed.with(core::profile_data_reset::agent_setup);
 			}
 		}
 
@@ -114,13 +194,22 @@ namespace bpr::app {
 				return report;
 			}
 		}
-		// [[BPR-NNNN]]. First, while the store that names the workspaces is
-		// still there.
-		if (runs(plan, step::agent_sessions)) {
-			clear_agent_sessions(aRoot, report.Outcome, aStop);
+		// [[BPR-NNNN]]. An earlier build's conversations move out of the agent
+		// setup store first, so neither store's removal takes the other's.
+		if (runs(plan, step::move_sessions) && store_present(adapters::sqlite::agent_setup_store_file(aRoot)) && !adapters::sqlite::prepare_agent_sessions_store(aRoot)) {
+			report.Outcome.Reason = core::release_maintenance_reason::io_failure;
+			return report;
 		}
-		const auto agentRan = runs(plan, step::agent_sessions) && !report.Outcome.Failed.contains(core::profile_data_reset::agent_sessions);
-		// A workspace left on disk keeps the store that records it.
+		// Then the workspaces, while the conversations that name them are there.
+		if (runs(plan, step::agent_workspaces)) {
+			remove_agent_workspaces(aRoot, report.Outcome, aStop);
+		}
+		if (runs(plan, step::agent_setup)) {
+			reset_agent_setup(aRoot, plan.Selection.contains(core::profile_data_reset::settings), report.Outcome, aStop);
+		}
+		const auto agentRan = !report.Outcome.Failed.contains(core::profile_data_reset::agent_workspaces)
+			&& (runs(plan, step::agent_workspaces) || (runs(plan, step::agent_setup) && !report.Outcome.Failed.contains(core::profile_data_reset::agent_setup)));
+		// A workspace left on disk keeps the conversations that record it.
 		const auto heldBack   = core::profile_data_reset_held_back(report.Outcome.WorkspacesLeft);
 		const auto files      = plan.Selection.without(heldBack);
 		report.Outcome.Failed = report.Outcome.Failed.with(plan.Selection.without(files));
@@ -156,7 +245,7 @@ namespace bpr::app {
 				// cleared already, the clear was partial; otherwise it did
 				// nothing, and an unfinished one stops the profile's start.
 				if (agentRan && reason != core::release_maintenance_reason::recovery_required) {
-					report.Outcome.Failed = report.Outcome.Failed.with(files.without(core::profile_data_reset::agent_sessions));
+					report.Outcome.Failed = report.Outcome.Failed.with(files.without(core::profile_data_reset::agent_setup).without(core::profile_data_reset::agent_workspaces));
 					return report;
 				}
 				report.Outcome.Reason = reason;

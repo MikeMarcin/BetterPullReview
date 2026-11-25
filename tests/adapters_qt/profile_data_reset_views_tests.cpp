@@ -100,7 +100,8 @@ namespace {
 		expect(page != nullptr && page->isAncestorOf(panel), "the group is on the Storage & privacy page");
 		// [[BPR-NNNN]]. A checkbox per category with one line saying exactly
 		// what it clears; nothing checked; Clear waits for a check.
-		for (const auto& [each, text] : { std::pair{ reset::caches, "Caches" }, std::pair{ reset::settings, "Settings" }, std::pair{ reset::agent_sessions, "Agent sessions and workspaces" },
+		for (const auto& [each, text] : { std::pair{ reset::caches, "Caches" }, std::pair{ reset::settings, "Settings" }, std::pair{ reset::agent_setup, "Agent setup" },
+										  std::pair{ reset::agent_sessions, "Agent sessions" }, std::pair{ reset::agent_workspaces, "Agent workspaces" },
 										  std::pair{ reset::review_data, "Review data" }, std::pair{ reset::saved_sources, "Saved repositories and servers" },
 										  std::pair{ reset::statistics, "Insights statistics" }, std::pair{ reset::connections, "Connections" } }) {
 			auto* const box = panel->check_box(each);
@@ -108,24 +109,30 @@ namespace {
 			auto* const line = panel->findChild<QLabel*>(box->objectName() + QStringLiteral("Line"));
 			expect(line != nullptr && !line->text().isEmpty() && box->accessibleDescription() == line->text(), "each category says what it clears");
 		}
-		expect(panel->findChild<QLabel*>(QStringLiteral("profileResetSettingsLine"))->text().contains(QStringLiteral("agent setup")), "Settings says it clears agent setup");
+		expect(panel->findChild<QLabel*>(QStringLiteral("profileResetSettingsLine"))->text().contains(QStringLiteral("Agent sessions are kept")), "Settings says it keeps agent conversations");
 		const auto agentLine = panel->findChild<QLabel*>(QStringLiteral("profileResetAgentSessionsLine"))->text();
-		expect(agentLine.contains(QStringLiteral("agent conversations")) && agentLine.contains(QStringLiteral("workspaces")) && agentLine.contains(QStringLiteral("Claude Code’s and Codex’s own session files stay")),
-			   "Agent sessions says it clears conversations and workspaces, and leaves the agents' own files");
+		expect(agentLine.contains(QStringLiteral("agent sessions with their transcripts")) && agentLine.contains(QStringLiteral("Claude Code’s and Codex’s own session files stay")),
+			   "Agent sessions says it clears conversations, and leaves the agents' own files");
+		expect(panel->findChild<QLabel*>(QStringLiteral("profileResetAgentSetupLine"))->text().contains(QStringLiteral("review skill")), "Agent setup says what Reset agents did");
 		expect(!panel->clear_button()->isEnabled() && panel->checked().empty(), "nothing is checked and Clear waits");
 		// A measured size is shown beside its category.
-		panel->present_size(reset::agent_sessions, QStringLiteral("3 workspaces, 17.2 GB"));
-		expect(panel->size_label(reset::agent_sessions)->text() == QStringLiteral("3 workspaces, 17.2 GB") && panel->size_label(reset::agent_sessions)->isVisibleTo(panel)
-				   && panel->check_box(reset::agent_sessions)->accessibleName().contains(QStringLiteral("17.2 GB")),
+		panel->present_size(reset::agent_workspaces, QStringLiteral("3 workspaces, 17.2 GB"));
+		expect(panel->size_label(reset::agent_workspaces)->text() == QStringLiteral("3 workspaces, 17.2 GB") && panel->size_label(reset::agent_workspaces)->isVisibleTo(panel)
+				   && panel->check_box(reset::agent_workspaces)->accessibleName().contains(QStringLiteral("17.2 GB")),
 			   "the agent workspaces' size is shown beside them");
-		// Settings brings Agent sessions with it, checked and locked, and gives
-		// the box back as it was when unchecked.
+		// [[BPR-NNNN]], owner: Settings and Agent sessions are independent.
 		panel->check_box(reset::settings)->click();
-		expect(panel->check_box(reset::agent_sessions)->isChecked() && !panel->check_box(reset::agent_sessions)->isEnabled()
-				   && panel->findChild<QLabel*>(QStringLiteral("profileResetAgentSessionsLine"))->text().startsWith(QStringLiteral("Included with Settings")),
-			   "Settings includes agent sessions, and says why");
+		expect(!panel->check_box(reset::agent_sessions)->isChecked() && panel->check_box(reset::agent_sessions)->isEnabled(), "Settings leaves Agent sessions alone");
+		expect(panel->check_box(reset::agent_setup)->isChecked() && !panel->check_box(reset::agent_setup)->isEnabled()
+				   && panel->findChild<QLabel*>(QStringLiteral("profileResetAgentSetupLine"))->text().startsWith(QStringLiteral("Included with Settings")),
+			   "Settings includes Agent setup, whose store it removes, and says why");
 		panel->check_box(reset::settings)->click();
-		expect(!panel->check_box(reset::agent_sessions)->isChecked() && panel->check_box(reset::agent_sessions)->isEnabled(), "unchecking Settings frees it again");
+		expect(!panel->check_box(reset::agent_setup)->isChecked() && panel->check_box(reset::agent_setup)->isEnabled(), "unchecking Settings frees it again");
+		panel->check_box(reset::agent_sessions)->click();
+		expect(panel->check_box(reset::agent_workspaces)->isChecked() && !panel->check_box(reset::agent_workspaces)->isEnabled()
+				   && panel->findChild<QLabel*>(QStringLiteral("profileResetAgentWorkspacesLine"))->text().startsWith(QStringLiteral("Included with Agent sessions")),
+			   "Agent sessions takes their workspaces, and says why");
+		panel->check_box(reset::agent_sessions)->click();
 		panel->select_all_button()->click();
 		expect(panel->checked() == core::profile_data_reset_selection::all() && panel->select_all_button()->text() == QStringLiteral("Uncheck all"), "Check all checks every category");
 		panel->select_all_button()->click();
@@ -136,7 +143,7 @@ namespace {
 		window.settings()->search_field()->setText(QStringLiteral("Agent sessions"));
 		settle();
 		auto* const results = window.settings()->search_results();
-		expect(results->count() > 0 && results->item(0)->text().contains(QStringLiteral("Agent sessions")), "search finds Agent sessions and workspaces");
+		expect(results->count() > 0 && results->item(0)->text().contains(QStringLiteral("Agent sessions")), "search finds Agent sessions");
 		window.settings()->search_field()->clear();
 		settle();
 	}
@@ -166,15 +173,15 @@ namespace {
 		settle();
 		expect(requests.size() == 1U && requests.back() == core::profile_data_reset_request{ reset::caches }, "confirming caches dispatches it");
 
-		// Settings lists the agent setup and, with it, the agent conversations.
+		// Settings lists the agent setup and keeps the conversations.
 		auto*      settings        = open_question(*panel, reset::settings);
 		const auto settingsRemoves = settings->wording().Removes.join(QLatin1Char{ '\n' });
-		expect(settingsRemoves.contains(QStringLiteral("Settings: agents you added")) && settingsRemoves.contains(QStringLiteral("Agent sessions and workspaces: agent conversations")),
-			   "Settings says it removes agent setup and, through it, agent conversations and workspaces");
-		expect(settings->wording().Lead.contains(QStringLiteral("Settings includes Agent sessions and workspaces")), "the lead says why agent sessions are included");
-		expect(settings->wording().Keeps.contains(QStringLiteral("Saved repositories and servers")) && settings->wording().Keeps.contains(QStringLiteral("Claude Code’s and Codex’s own session files")),
-			   "Settings keeps saved repositories and the agents' own session files");
-		expect(settings->acknowledge_box() != nullptr && settings->acknowledge_box()->text().contains(QStringLiteral("agent conversations")), "it asks to acknowledge the agent conversations");
+		expect(settingsRemoves.contains(QStringLiteral("Settings: agents you added")) && !settingsRemoves.contains(QStringLiteral("Agent sessions:")),
+			   "Settings says it removes the agent setup, and no conversation");
+		expect(settings->wording().Lead.contains(QStringLiteral("Included with Settings, which removes the agent setup")), "the lead says why Agent setup is included");
+		expect(settings->wording().Keeps.contains(QStringLiteral("Agent sessions")) && settings->wording().Keeps.contains(QStringLiteral("Claude Code’s and Codex’s own session files")),
+			   "Settings keeps agent sessions and the agents' own session files");
+		expect(settings->acknowledge_box() == nullptr, "Settings asks no acknowledgement");
 		settings->cancel_button()->click();
 		settle();
 
@@ -184,7 +191,7 @@ namespace {
 		expect(review->wording().Title == QStringLiteral("Clear the checked data for “Default”?"), "several categories are asked about together");
 		expect(review->wording().Removes.contains(QStringLiteral("Caches: repository data downloaded from GitHub")) && review->wording().Removes.contains(QStringLiteral("Review data: private notes and their threads")),
 			   "the ledger names each checked category's contents");
-		expect(review->wording().Keeps.contains(QStringLiteral("Settings")) && review->wording().Keeps.contains(QStringLiteral("Agent sessions and workspaces")), "and keeps the unchecked ones");
+		expect(review->wording().Keeps.contains(QStringLiteral("Settings")) && review->wording().Keeps.contains(QStringLiteral("Agent sessions")), "and keeps the unchecked ones");
 		expect(review->copy_box() != nullptr && review->copy_box()->isChecked(), "a copy is offered and on by default");
 		expect(review->acknowledge_box() != nullptr && !review->acknowledge_box()->isChecked(), "the acknowledgement starts unticked");
 		expect(!review->confirm_button()->isEnabled(), "a destructive selection waits for the acknowledgement");
@@ -198,11 +205,13 @@ namespace {
 		settle();
 		expect(requests.size() == 2U && requests.back() == core::profile_data_reset_request{ two, true, false }, "the request carries both categories, the acknowledgement and the copy choice");
 
-		// Agent sessions alone: acknowledged, no copy of store files.
+		// Agent sessions: acknowledged; their workspaces go with them.
 		auto* agents = open_question(*panel, reset::agent_sessions);
-		expect(agents->copy_box() == nullptr && agents->acknowledge_box() != nullptr, "agent sessions offers no copy and asks the acknowledgement");
-		expect(agents->wording().Removes.contains(QStringLiteral("Retained agent workspaces, except one another app holds")), "it says it removes the retained workspaces");
+		expect(agents->copy_box() != nullptr && agents->acknowledge_box() != nullptr && agents->acknowledge_box()->text().contains(QStringLiteral("my agent sessions")),
+			   "agent sessions may copy its store and asks the acknowledgement");
+		expect(agents->wording().Removes.join(QLatin1Char{ '\n' }).contains(QStringLiteral("Agent workspaces: retained agent workspaces")), "it says it removes the retained workspaces");
 		agents->acknowledge_box()->setChecked(true);
+		agents->copy_box()->setChecked(false);
 		agents->confirm_button()->click();
 		settle();
 		expect(requests.size() == 3U && requests.back() == core::profile_data_reset_request{ reset::agent_sessions, true, false }, "agent sessions dispatches");
@@ -260,17 +269,20 @@ namespace {
 		// [[BPR-NNNN]]. Several categories, and one that did not clear.
 		auto several = core::profile_data_reset_outcome{ core::profile_data_reset_selection{ reset::caches }.with(reset::review_data), reason::none, 9U };
 		expect(qt::profile_data_reset_notice(several, { }) == QStringLiteral("Cleared: Caches, Review data."), "a clear of several names each");
-		auto partial              = core::profile_data_reset_outcome{ core::profile_data_reset_selection{ reset::settings }.with(reset::agent_sessions).with(reset::caches), reason::none, 3U };
-		partial.Failed            = core::profile_data_reset_selection{ reset::agent_sessions }.with(reset::settings);
+		auto partial              = core::profile_data_reset_outcome{ core::profile_data_reset_selection{ reset::agent_sessions }.with(reset::agent_workspaces).with(reset::caches), reason::none, 3U };
+		partial.Failed            = core::profile_data_reset_selection{ reset::agent_sessions }.with(reset::agent_workspaces);
 		partial.WorkspacesRemoved = 2U;
 		partial.WorkspacesLeft    = 1U;
 		const auto said           = qt::profile_data_reset_notice(partial, { });
-		expect(said.startsWith(QStringLiteral("Caches cleared.")) && said.contains(QStringLiteral("Not cleared: Settings, Agent sessions and workspaces."))
+		expect(said.startsWith(QStringLiteral("Caches cleared.")) && said.contains(QStringLiteral("Not cleared: Agent sessions, Agent workspaces."))
 				   && said.contains(QStringLiteral("1 agent workspace(s) are in use")),
 			   "a partial clear says which categories did not clear, and why");
-		auto agents              = core::profile_data_reset_outcome{ reset::agent_sessions, reason::none, 0U };
+		auto agents              = core::profile_data_reset_outcome{ core::profile_data_reset_selection{ reset::agent_sessions }.with(reset::agent_workspaces), reason::none, 0U };
 		agents.WorkspacesRemoved = 2U;
-		expect(qt::profile_data_reset_notice(agents, { }) == QStringLiteral("Cleared: Agent sessions and workspaces. 2 agent workspaces were removed."), "agent sessions says how many workspaces went");
+		expect(qt::profile_data_reset_notice(agents, { }) == QStringLiteral("Cleared: Agent sessions, Agent workspaces. 2 agent workspaces were removed."), "agent sessions says how many workspaces went");
+		auto setup   = core::profile_data_reset_outcome{ reset::agent_setup, reason::none, 0U };
+		setup.Failed = reset::agent_setup;
+		expect(qt::profile_data_reset_notice(setup, { }).contains(QStringLiteral("Not cleared: Agent setup.")), "an agent setup that could not reset is said");
 	}
 
 	void test_recovery_dialog()
@@ -334,7 +346,7 @@ namespace {
 			settle();
 			save_render(*window.settings(), QStringLiteral("page-storage-") + name);
 			// [[BPR-NNNN]]. Settings checked brings Agent sessions with it.
-			window.profile_reset_panel_widget()->present_size(reset::agent_sessions, QStringLiteral("3 workspaces, 17.2 GB"));
+			window.profile_reset_panel_widget()->present_size(reset::agent_workspaces, QStringLiteral("3 workspaces, 17.2 GB"));
 			window.profile_reset_panel_widget()->set_checked(core::profile_data_reset_selection{ reset::caches }.with(reset::settings));
 			settle();
 			save_render(*window.settings(), QStringLiteral("page-storage-checked-") + name);

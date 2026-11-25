@@ -3025,10 +3025,15 @@ namespace bpr::app {
 		void                                         present_agent_native_history(const application::native_agent_history_projection&);
 		void                                         observe_agent_native_history(std::optional<std::string> aChoice = std::nullopt);
 		void                                         edit_agent_session(const std::string& aId, std::optional<std::string> aName);
-		void                                         observe_tour_native_history(const core::tour_thread&, std::optional<std::string> aChoice = std::nullopt);
-		void                                         present_tour_native_history(const application::native_agent_history_projection&);
-		[[nodiscard]] auto                           tour_native_scope(const core::tour_thread&) const -> std::string;
-		[[nodiscard]] auto                           tour_native_agent() const -> std::string;
+		void                                         edit_tour_session(const std::string& aId, std::optional<std::string> aName);
+		void                                         open_clear_local_data(core::profile_data_reset aCategory);
+		/// \brief [[BPR-NNNN]]. The live sweep Settings' Remove… ran before it
+		/// led to Clear local data; a course seam only.
+		void               remove_idle_agent_workspaces();
+		void               observe_tour_native_history(const core::tour_thread&, std::optional<std::string> aChoice = std::nullopt);
+		void               present_tour_native_history(const application::native_agent_history_projection&);
+		[[nodiscard]] auto tour_native_scope(const core::tour_thread&) const -> std::string;
+		[[nodiscard]] auto tour_native_agent() const -> std::string;
 
 		/// [[BPR-1914]] v003. When the run in flight started, for "Worked for Ns".
 		std::chrono::steady_clock::time_point TourRunStarted;
