@@ -8,10 +8,12 @@
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
+#include "bpr/core/profile_data_reset.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/destructive_question.hpp"
+#include "bpr/qt/profile_data_reset_views.hpp"
 
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/dif_runtime.hpp"
@@ -33,6 +35,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCryptographicHash>
+#include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -44,7 +47,6 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
-#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -52,7 +54,6 @@
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QThread>
-#include <QTimer>
 #include <QToolButton>
 #include <QTreeView>
 
@@ -2446,32 +2447,103 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "wrapper-setup-render");
 			}
 		}
-		// Exercise the real reset action and its confirmation, then read the
-		// durable settings: no legacy fallback may survive the canonical reset.
+		// [[BPR-2377]]. Reset agents… is Clear local data's Agent setup: the
+		// real History action opens Settings › Storage & privacy with only
+		// Agent setup checked, Clear… asks once, and the confirmed selection
+		// runs while the profile reopens. The desktop does that close and
+		// reopen; this course, started without it, takes the request where
+		// the desktop would and reopens the profile with it. Then the durable
+		// settings: no legacy fallback may survive the canonical reset.
 		auto* const reset = window.findChild<QAction*>(QStringLiteral("agentResetAgentsAction"));
 		if (reset == nullptr) {
 			return fail(*application, "wrapper-setup-reset-action");
 		}
-		QTimer::singleShot(0, &window, [] {
-			for (auto* const widget : QApplication::topLevelWidgets()) {
-				if (auto* const question = qobject_cast<QMessageBox*>(widget); question != nullptr && question->standardButtons().testFlag(QMessageBox::Reset)) {
-					question->button(QMessageBox::Reset)->click();
-				}
-			}
-		});
+		auto requested = std::optional<core::profile_data_reset_request>{ };
+		window.set_profile_data_reset_dispatch([&requested](const core::profile_data_reset_request aRequest) { requested = aRequest; });
 		reset->trigger();
+		auto* const clear      = window.profile_reset_panel_widget();
+		const auto  agentSetup = core::profile_data_reset_selection{ core::profile_data_reset::agent_setup };
+		if (!wait_until([&] {
+				return clear != nullptr && window.settings() != nullptr && clear->isVisibleTo(window.settings())
+					&& clear->checked() == core::plan_profile_data_reset(agentSetup).Selection && clear->clear_button()->isEnabled();
+			})) {
+			return fail(*application, "wrapper-setup-reset-opens-clear", clear != nullptr ? std::to_string(clear->checked().bits()) : "no panel");
+		}
+		clear->clear_button()->click();
+		QApplication::processEvents();
+		auto* const question = dynamic_cast<qt::profile_reset_confirmation*>(clear->window()->findChild<QDialog*>(QStringLiteral("profileResetConfirmation")));
+		if (question == nullptr || !question->isVisible() || question->reset() != agentSetup) {
+			return fail(*application, "wrapper-setup-reset-confirmation");
+		}
+		if (question->copy_box() != nullptr) {
+			question->copy_box()->setChecked(false);
+		}
+		if (question->acknowledge_box() != nullptr) {
+			question->acknowledge_box()->setChecked(true);
+		}
+		question->confirm_button()->click();
+		if (!wait_until([&] { return requested.has_value(); }) || requested->Reset != agentSetup) {
+			return fail(*application, "wrapper-setup-reset-request");
+		}
+		const auto noPublication = app::detail::github_application_fixture_access::review_mutation_evidence(*application).Submissions == 0U;
+		if (!shutdown(*application) || !noPublication) {
+			return EXIT_FAILURE;
+		}
+		application.reset();
+		auto reopenOptions                    = app::detail::github_public_path_fixture_options{ };
+		reopenOptions.ApplicationDataRoot     = dataRoot;
+		reopenOptions.DataReset               = *requested;
+		reopenOptions.ExternalAgentExecutable = externalExecutable;
+		reopenOptions.GitExecutable           = diagnosticGit;
+		auto       reopened                   = std::unique_ptr<app::github_application>{ };
+		auto       reopenSettled              = false;
+		const auto onReopened                 = [&](auto aResult) {
+			reopenSettled = true;
+			if (aResult) {
+				reopened = std::move(*aResult);
+			}
+		};
+		auto restart = app::detail::github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, std::move(reopenOptions), onReopened);
+		if (!wait_until([&] { return reopenSettled && restart && restart->is_quiescent(); }, extended_agent_budget) || !reopened) {
+			report("wrapper-setup-reset-reopen");
+			return EXIT_FAILURE;
+		}
+		const auto cleared = app::detail::github_application_fixture_access::take_profile_data_reset_report(*reopened);
+		if (!cleared || cleared->Outcome.Reason != core::release_maintenance_reason::none || !cleared->Outcome.Failed.empty() || cleared->Outcome.Reset != agentSetup) {
+			return fail(*reopened, "wrapper-setup-reset-report");
+		}
+		reopened->show();
+		// The reopened profile starts at Home: the course opens the same pull
+		// request and the setup again, as the reviewer would.
+		auto& freshWindow = reopened->window();
+		freshWindow.github_connect_action()->trigger();
+		if (!wait_until([&] { return freshWindow.github_open_action()->isEnabled(); })) {
+			return fail(*reopened, "wrapper-setup-reset-connect", freshWindow.github_status_text());
+		}
+		freshWindow.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
+		freshWindow.home_open_action()->trigger();
+		if (!wait_until([&] { return freshWindow.files_drawer()->contents_view()->model()->rowCount() != 0; })) {
+			return fail(*reopened, "wrapper-setup-reset-open");
+		}
+		freshWindow.choose_modality(qt::review_modality::review);
+		if (!freshWindow.ai_tools_action()->isChecked()) {
+			freshWindow.ai_tools_action()->trigger();
+		}
+		freshWindow.tray_tabs()->setCurrentIndex(2);
+		freshWindow.open_agent_setup();
+		auto* const freshSetup = freshWindow.agent_setup();
 		if (!wait_until([&] {
 				auto       legacy = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = dataRoot });
 				const auto kept   = legacy ? (*legacy)->load_preferences({ }) : application::workbench_settings_result<application::workbench_profile_preferences>{ std::unexpected{ application::workbench_settings_error{ } } };
 				const auto fresh  = adapters::sqlite::make_agent_setup_store(dataRoot)->load();
 				return kept && kept->ClaudeWrapper.empty() && kept->ClaudeModel.empty()
 					&& kept->Behaviour.MarkRead == application::review_mark_read_behaviour::when_fully_seen
-					&& fresh && fresh->Agents.empty() && fresh->AgentsMoved && setup->step_text().contains(QStringLiteral("No agent found"));
+					&& fresh && fresh->Agents.empty() && fresh->AgentsMoved && freshSetup->step_text().contains(QStringLiteral("No agent found"));
 			})) {
-			return fail(*application, "wrapper-setup-durable-reset");
+			return fail(*reopened, "wrapper-setup-durable-reset", freshSetup->step_text().toStdString());
 		}
-		const auto noPublication = app::detail::github_application_fixture_access::review_mutation_evidence(*application).Submissions == 0U;
-		if (!shutdown(*application) || !noPublication) {
+		const auto reopenedNoPublication = app::detail::github_application_fixture_access::review_mutation_evidence(*reopened).Submissions == 0U;
+		if (!shutdown(*reopened) || !reopenedNoPublication) {
 			return EXIT_FAILURE;
 		}
 		std::cout << "agent-invocation-setup-wrapper:pass\n";

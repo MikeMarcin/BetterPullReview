@@ -47,6 +47,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/core/agent_queue.hpp"
+#include "bpr/core/profile_data_reset.hpp"
 #include "bpr/core/prompt_pack.hpp"
 #include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -58,6 +59,7 @@
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/prompts_page.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -73,6 +75,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialog>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
@@ -101,6 +104,7 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -802,17 +806,36 @@ auto main(int argc, char** argv) -> int
 				throw std::runtime_error{ "and shows them again as they were: " + chips().join(QLatin1Char('|')).toStdString() + " not " + ordered.join(QLatin1Char('|')).toStdString() + " toggle checked " + std::to_string(tab->suggestions_toggle()->isChecked()) };
 			}
 			// Remove every agent and set up again changes no prompt.
+			// [[BPR-2377]]. Reset agents… opens Clear local data with Agent
+			// setup checked; its one Clear… confirmation sends the request,
+			// which runs as the profile reopens. The desktop does that
+			// reopen; this course, started without it, takes the request
+			// where the desktop would and runs it at the restart below.
+			auto requested = std::optional<core::profile_data_reset_request>{ };
+			window.set_profile_data_reset_dispatch([&requested](const core::profile_data_reset_request aRequest) { requested = aRequest; });
 			tab->reset_agents();
 			QApplication::processEvents();
-			agent_ready(window);
-			openLineAsk(window);
-			if (!e2e::wait_until_plain([&] { return chips() == ordered; }, e2e::extended_agent_budget)) {
-				throw std::runtime_error{ "Reset agents and setting up again changes no prompt: " + chips().join(QLatin1Char('|')).toStdString() + " not " + ordered.join(QLatin1Char('|')).toStdString() };
+			auto* const clear      = window.profile_reset_panel_widget();
+			const auto  agentSetup = core::profile_data_reset_selection{ core::profile_data_reset::agent_setup };
+			wait([&] { return clear != nullptr && clear->isVisibleTo(window.settings()) && clear->checked() == core::plan_profile_data_reset(agentSetup).Selection; }, "Reset agents… opens Clear local data with Agent setup checked");
+			clear->clear_button()->click();
+			QApplication::processEvents();
+			auto* const question = dynamic_cast<qt::profile_reset_confirmation*>(clear->window()->findChild<QDialog*>(QStringLiteral("profileResetConfirmation")));
+			expect(question != nullptr && question->isVisible() && question->reset() == agentSetup, "Clear… asks one confirmation for Agent setup");
+			if (question->copy_box() != nullptr) {
+				question->copy_box()->setChecked(false);
 			}
+			if (question->acknowledge_box() != nullptr) {
+				question->acknowledge_box()->setChecked(true);
+			}
+			question->confirm_button()->click();
+			wait([&] { return requested.has_value(); }, "the confirmed clear is requested");
+			expect(requested->Reset == agentSetup, "the request clears exactly Agent setup");
 			shutdown(*application);
 			application.reset();
-			// Both survive a restart.
+			// Both survive the reset and a restart.
 			auto again                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+			again.DataReset             = *requested;
 			again.EpochPhase            = app::detail::github_epoch_fixture_phase::reuse;
 			again.ClaudeAgentExecutable = stub;
 			again.ClaudeSearch          = search;
@@ -820,6 +843,10 @@ auto main(int argc, char** argv) -> int
 			auto restart                = access::start(app::detail::github_public_path_fixture::returning_review_v1, std::move(again), [&](auto aResult) { restarted = true; if (aResult) { application = std::move(*aResult); } });
 			wait([&] { return restarted && restart && restart->is_quiescent(); }, "the restart");
 			expect(application != nullptr, "the restart succeeds");
+			const auto cleared = access::take_profile_data_reset_report(*application);
+			expect(cleared && cleared->Outcome.Reason == core::release_maintenance_reason::none && cleared->Outcome.Failed.empty() && cleared->Outcome.Reset == agentSetup, "Agent setup clears as the profile reopens");
+			const auto agents = adapters::sqlite::make_agent_setup_store(*dataRoot)->load();
+			expect(agents && agents->Agents.empty(), "the clear removed every agent");
 			application->show();
 			auto& reopened = application->window();
 			reopened.resize(1440, 960);
@@ -841,7 +868,7 @@ auto main(int argc, char** argv) -> int
 				return texts;
 			};
 			if (!e2e::wait_until_plain([&] { return chips2() == ordered; }, e2e::extended_agent_budget)) {
-				throw std::runtime_error{ "the chip turned off and the new order survive a restart: " + chips2().join(QLatin1Char('|')).toStdString() + " not " + ordered.join(QLatin1Char('|')).toStdString() };
+				throw std::runtime_error{ "the chip turned off and the new order survive Reset agents and a restart: " + chips2().join(QLatin1Char('|')).toStdString() + " not " + ordered.join(QLatin1Char('|')).toStdString() };
 			}
 			// Restore built-ins… returns the shipped text, order and On, after
 			// its question, and keeps the reviewer's own prompt.
