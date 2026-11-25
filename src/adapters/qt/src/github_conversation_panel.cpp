@@ -843,8 +843,11 @@ namespace bpr::qt {
 		FilterUnresolved->setIcon(icons ? conversation_icon(conversation_glyph::hide_resolved, palette()) : QIcon{ });
 		FilterUnread->setText(QStringLiteral("Only new"));
 		FilterUnresolved->setText(QStringLiteral("Hide resolved"));
-		FilterUnread->setToolTip(QStringLiteral("Only threads with new replies"));
-		FilterUnresolved->setToolTip(QStringLiteral("Hide resolved threads"));
+		// Each tooltip ends saying whether the filter is on, as it changes.
+		auto* const unread     = static_cast<discuss_tool*>(FilterUnread);
+		auto* const unresolved = static_cast<discuss_tool*>(FilterUnresolved);
+		unread->set_toggle_tip(QStringLiteral("Only threads with new replies"));
+		unresolved->set_toggle_tip(QStringLiteral("Hide resolved threads"));
 		FilterUnread->setAccessibleName(icons ? QStringLiteral("Only new") : QStringLiteral("Unread only"));
 		FilterUnresolved->setAccessibleName(icons ? QStringLiteral("Hide resolved") : QStringLiteral("Unresolved only"));
 		FilterUnread->setAccessibleDescription(QStringLiteral("Show only threads with a post newer than what you have read"));
@@ -852,7 +855,7 @@ namespace bpr::qt {
 		if (Conversation) {
 			// The pull request's conversation lists comments, so its words
 			// name comments; the names are the chips' own words.
-			FilterUnread->setToolTip(QStringLiteral("Only comments with new replies"));
+			unread->set_toggle_tip(QStringLiteral("Only comments with new replies"));
 			FilterUnread->setAccessibleName(QStringLiteral("Only new"));
 			FilterUnread->setAccessibleDescription(QStringLiteral("Show only comments with a post newer than what you have read"));
 			FilterUnresolved->setAccessibleName(QStringLiteral("Hide resolved"));

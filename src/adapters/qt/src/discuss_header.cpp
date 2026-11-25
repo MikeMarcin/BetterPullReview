@@ -1,5 +1,6 @@
 #include "discuss_header.hpp"
 
+#include "button_surface.hpp"
 #include "conversation_open_card.hpp"
 
 #include <QFocusEvent>
@@ -25,6 +26,8 @@ namespace bpr::qt {
 		constexpr int   inner_gap       = 5;
 		constexpr int   bare_side       = 22;
 		constexpr int   part_gap        = 14;
+		/// The corner of a drawer icon's chosen face: a quiet button's.
+		constexpr qreal drawer_icon_radius = 3.0;
 
 		[[nodiscard]] auto blend(const QColor& aFrom, const QColor& aTo, const qreal aAmount) -> QColor
 		{
@@ -119,6 +122,25 @@ namespace bpr::qt {
 		}
 	}
 
+	void discuss_tool::set_toggle_tip(const QString& aTip)
+	{
+		ToggleTip = aTip;
+		tell_toggle_state();
+	}
+
+	void discuss_tool::checkStateSet()
+	{
+		QToolButton::checkStateSet();
+		tell_toggle_state();
+	}
+
+	void discuss_tool::tell_toggle_state()
+	{
+		if (!ToggleTip.isEmpty()) {
+			setToolTip(ToggleTip + (isChecked() ? QStringLiteral(": on") : QStringLiteral(": off")));
+		}
+	}
+
 	auto discuss_tool::sizeHint() const -> QSize
 	{
 		if (Shape == discuss_tool_shape::native) {
@@ -165,10 +187,33 @@ namespace bpr::qt {
 		return Shape == discuss_tool_shape::native ? QToolButton::minimumSizeHint() : sizeHint();
 	}
 
-	void discuss_tool::paintEvent(QPaintEvent* const aEvent)
+	void discuss_tool::paint_drawer_icon()
+	{
+		// The platform's tool button face is not used: outside a toolbar the
+		// macOS style draws a square bezel under every tool button, checked or
+		// not, so an off filter read as on. Off is the bare icon of the arrows
+		// beside it; on takes a chosen chip's soft accent fill inside the
+		// accent edge of the toolbar's chosen toggles.
+		auto       painter = QPainter{ this };
+		const auto colours = button_colours_on(palette(), QPalette::Window);
+		if (isChecked()) {
+			const auto signal = colours_of(*this, NewInk);
+			painter.save();
+			painter.setRenderHint(QPainter::Antialiasing, true);
+			// The whole accent for the edge, as the toolbar's chosen toggles.
+			painter.setPen(QPen{ signal.Signal, 1.0 });
+			painter.setBrush(signal_soft(signal));
+			painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), drawer_icon_radius, drawer_icon_radius);
+			painter.restore();
+		}
+		paint_button_surface(painter, *this, colours, false, ringed());
+		paint_button_glyph(painter, *this, iconSize(), isEnabled() ? colours.Ink : colours.DisabledInk);
+	}
+
+	void discuss_tool::paintEvent(QPaintEvent* /*aEvent*/)
 	{
 		if (Shape == discuss_tool_shape::native) {
-			QToolButton::paintEvent(aEvent);
+			paint_drawer_icon();
 			return;
 		}
 		auto painter = QPainter{ this };
