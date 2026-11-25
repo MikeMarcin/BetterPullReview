@@ -1,7 +1,9 @@
 #include "bpr/qt/tour_side_chat.hpp"
 
 #include "composer_parts.hpp"
+#include "pull_request_overview_support.hpp"
 #include "side_chat_parts.hpp"
+#include "wrapping_row.hpp"
 
 #include "bpr/qt/agent_steered_words.hpp"
 
@@ -233,23 +235,26 @@ namespace bpr::qt {
 		// sidechat is so decoupled from the tour when it's really about the
 		// tour". The chat is the Tour tab's second column, beside the part it
 		// is about, which is marked in the tour; the part's own glyph chooses
-		// the chat, so there are no tabs. The title row: the agent's glyph,
-		// the part, Show, Copy chat and close.
+		// the chat, so there are no tabs. RFC-BPR-0130, header A: one row,
+		// the part and its place, Show in code, History and close. The part
+		// and its place each keep one line and end in an ellipsis where the
+		// column is narrow (owner, attended review 2026-11-24: "Those buttons
+		// are unreadable and thats not even the narrowest width").
 		auto* const top = new QHBoxLayout{ };
 		top->setSpacing(4);
-		Glyph = new QLabel{ this };
-		Glyph->setObjectName(QStringLiteral("tourSideChatGlyph"));
-		top->addWidget(Glyph, 0, Qt::AlignTop);
 		auto* const aboutText = new QVBoxLayout{ };
 		aboutText->setSpacing(1);
-		Subject = new QLabel{ this };
+		Subject = new eliding_heading{ this };
 		Subject->setObjectName(QStringLiteral("tourSideChatSubject"));
 		Subject->setTextFormat(Qt::PlainText);
-		Subject->setWordWrap(true);
+		Subject->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		auto heavy = Subject->font();
 		heavy.setWeight(QFont::DemiBold);
 		Subject->setFont(heavy);
-		Quote = quiet(small(words({ }, this)));
+		Quote = new eliding_heading{ this };
+		Quote->setTextFormat(Qt::PlainText);
+		Quote->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		quiet(small(Quote));
 		Quote->setObjectName(QStringLiteral("tourSideChatQuote"));
 		aboutText->addWidget(Subject);
 		aboutText->addWidget(Quote);
@@ -258,21 +263,59 @@ namespace bpr::qt {
 		ShowPart->setObjectName(QStringLiteral("tourSideChatShow"));
 		ShowPart->setFlat(true);
 		ShowPart->setFocusPolicy(Qt::TabFocus);
+		ShowPart->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 		top->addWidget(ShowPart, 0, Qt::AlignTop);
-		auto* const copyChat = new quiet_tool_button{ this };
-		copyChat->set_tinted(true);
-		CopyChat = copyChat;
-		CopyChat->setObjectName(QStringLiteral("tourSideChatCopy"));
-		CopyChat->setAutoRaise(true);
-		CopyChat->setToolTip(tr("Copy this chat as text"));
+		// The one History menu, the Agent tab's too (owner, the same review:
+		// "It looks like tour built a different session selector from agent
+		// too for no reason."): New session first, the sessions, Delete all,
+		// the other parts' chats, Copy conversation, the revision read.
+		HistoryTool = make_drawer_tool(this, drawer_icon(drawer_glyph::history, palette()), tr("History: this chat's sessions, and New session"), QStringLiteral("tourChatHistory"));
+		HistoryTool->setAccessibleName(tr("History"));
+		HistoryMenu = new chat_history_menu{ core::chat_history_kind::tour_side_chat, *this, *HistoryTool, QStringLiteral("tourChat") };
+		HistoryMenu->carry_over_action()->setObjectName(QStringLiteral("tourTranscriptReplay"));
+		const auto choose = [this](std::optional<std::string> aChoice) {
+			if (auto thread = current(); thread && HistoryDispatch) {
+				HistoryDispatch(*thread, std::move(aChoice));
+			}
+		};
+		HistoryMenu->set_dispatch({
+			.AboutToShow      = [choose] { choose(std::nullopt); },
+			.NewSession       = [choose] { choose(std::string{ }); },
+			.Open             = [choose](const std::string& aId) { choose(aId); },
+			.CarryOver        = [choose](const std::string& aId) { choose("replay:" + aId); },
+			.ViewOther        = [choose](const std::string& aId) { choose("view:" + aId); },
+			.Edit             = [this](const std::string& aId, std::optional<std::string> aName) {
+                if (auto thread = current(); thread && SessionEditDispatch) {
+                    SessionEditDispatch(*thread, aId, std::move(aName));
+                } },
+			.CopyConversation = [this] { copy_chat(); },
+			.ShowEveryRun     = { },
+			.ResetAgents      = { },
+		});
+		// What History offers is core's, from what this chat is doing when asked.
+		HistoryMenu->set_state_source([this] {
+			const auto thread = current();
+			return chat_history_menu::chat_state{
+				.AgentReady   = Ready,
+				.Closed       = !(thread && (!Draft || core::active_tour_thread(*Draft, *thread))),
+				.Running      = Running,
+				.Busy         = !HostIdle,
+				.ShownTurns   = thread ? core::thread_runs(Session, *thread).size() : 0U,
+				.EveryRun     = false,
+				.ResetAgents  = false,
+				.CarryOverTip = CarryOverTip,
+			};
+		});
+		// A chat that keeps no sessions (a local draft's discussion) has no
+		// History; its header copies the conversation instead.
+		CopyChat = make_drawer_tool(this, drawer_icon(drawer_glyph::copy, palette()), tr("Copy this chat as text"), QStringLiteral("tourSideChatCopy"));
+		CopyChat->setFocusPolicy(Qt::TabFocus);
 		CopyChat->setAccessibleName(tr("Copy chat"));
-		auto* const closePane = new quiet_tool_button{ this };
-		closePane->set_tinted(true);
-		ClosePane = closePane;
-		ClosePane->setObjectName(QStringLiteral("tourSideChatClose"));
-		ClosePane->setAutoRaise(true);
-		ClosePane->setToolTip(tr("Close the chat. Every part's chat is kept; its glyph in the tour opens it again."));
+		CopyChat->hide();
+		ClosePane = make_drawer_tool(this, drawer_icon(drawer_glyph::close, palette()), tr("Close the chat. Every part's chat is kept; its glyph in the tour opens it again."), QStringLiteral("tourSideChatClose"));
+		ClosePane->setFocusPolicy(Qt::TabFocus);
 		ClosePane->setAccessibleName(tr("Close the chat"));
+		top->addWidget(HistoryTool, 0, Qt::AlignTop);
 		top->addWidget(CopyChat, 0, Qt::AlignTop);
 		top->addWidget(ClosePane, 0, Qt::AlignTop);
 		column->addLayout(top);
@@ -299,8 +342,8 @@ namespace bpr::qt {
 		// window UX got made ugly, especially at the bottom." Under the
 		// transcript: a notice only when something is not as usual (a replay,
 		// native continuation unavailable, a moved head), then the composer
-		// with its passage as a chip inside the field, then one line: the
-		// Session menu on the left and what the session cost on the right. The
+		// with its passage as a chip inside the field, then what the session
+		// cost. The sessions are the header's History (RFC-BPR-0130). The
 		// update is offered only by the link under an answer that changed
 		// nothing.
 		Notice                = new QWidget{ this };
@@ -406,22 +449,11 @@ namespace bpr::qt {
 		sendRow->addWidget(Send);
 		column->addWidget(Field);
 
-		// The session line: the Session menu, and what the session cost.
-		auto* const sessionRow = new QHBoxLayout{ };
+		// Under the composer: Plan a check… for a local draft's whole-change
+		// conversation, and what the session cost. A row that wraps, so
+		// neither is cut in the narrowest column.
+		auto* const sessionRow = new detail::wrapping_row{ nullptr, 6, 4 };
 		sessionRow->setContentsMargins(0, 0, 0, 0);
-		Sessions = new quiet_tool_button{ this };
-		Sessions->setText(tr("Session"));
-		Sessions->setObjectName(QStringLiteral("tourChatSession"));
-		Sessions->setToolTip(tr("This chat's sessions: earlier ones to go back to, and New session"));
-		Sessions->setAccessibleName(tr("Session"));
-		SessionMenu = new QMenu{ Sessions };
-		SessionMenu->setObjectName(QStringLiteral("tourChatSessionMenu"));
-		Sessions->setMenu(SessionMenu);
-		Sessions->setPopupMode(QToolButton::InstantPopup);
-		NewSession = new QAction{ tr("New session"), this };
-		NewSession->setObjectName(QStringLiteral("tourChatNewSession"));
-		NewSession->setToolTip(tr("Keep this conversation in history and start fresh. Accepted tour work stays. Context sent earlier remains in the old conversation even after its selection is removed."));
-		SessionMenu->addAction(NewSession);
 		// [[BPR-1999]]. What this chat's session has cost, when the agent
 		// reported any.
 		SessionCostLine = small(new QLabel{ this });
@@ -429,8 +461,8 @@ namespace bpr::qt {
 		SessionCostLine->setTextFormat(Qt::PlainText);
 		SessionCostLine->setForegroundRole(QPalette::PlaceholderText);
 		SessionCostLine->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+		SessionCostLine->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 		SessionCostLine->setToolTip(tr("What the agent reported this session has cost. It restarts at New session."));
-		sessionRow->addWidget(Sessions, 0, Qt::AlignVCenter);
 		// RFC-BPR-0120. A local draft's whole-change conversation plans a
 		// check: the composer's words, or none for the agent to choose.
 		PlanCheck = new quiet_push_button{ tr("Plan a check…"), this };
@@ -438,18 +470,11 @@ namespace bpr::qt {
 		PlanCheck->setFlat(true);
 		PlanCheck->setFocusPolicy(Qt::TabFocus);
 		PlanCheck->hide();
-		sessionRow->addWidget(PlanCheck, 0, Qt::AlignVCenter);
-		sessionRow->addStretch(1);
-		sessionRow->addWidget(SessionCostLine, 0, Qt::AlignVCenter);
+		sessionRow->addWidget(PlanCheck);
+		sessionRow->addWidget(SessionCostLine);
 		column->addLayout(sessionRow);
-		connect(SessionMenu, &QMenu::aboutToShow, this, [this] { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,std::nullopt); } });
-		connect(NewSession, &QAction::triggered, this, [this] { if (!Running && !HistoryLoading) { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,std::string{}); } } });
 
-		connect(CopyChat, &QToolButton::clicked, this, [this] {
-			if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
-				clipboard->setText(chat_text());
-			}
-		});
+		connect(CopyChat, &QToolButton::clicked, this, [this] { copy_chat(); });
 		connect(ClosePane, &QToolButton::clicked, this, [this] { set_column_open(false); });
 		connect(ShowPart, &QPushButton::clicked, this, [this] {
 			if (const auto thread = current(); thread && RevealDispatch) {
@@ -649,24 +674,12 @@ namespace bpr::qt {
 			return;
 		}
 		HistoryLoading = aView.Loading;
-		Sessions->setProperty("loading", aView.Loading);
-		NewSession->setEnabled(HostIdle && !Running && !HistoryLoading);
+		HistoryTool->setProperty("loading", aView.Loading);
 		if (!aView.Loading) {
-			SessionMenu->clear();
-			// [[BPR-1995]]. The session's ordinal: the stored sessions are
-			// newest first, and a chat with none selected starts the next.
-			const auto selected = std::ranges::find(aView.Entries, aView.Selected, &application::native_agent_history_entry::Id);
-			SessionOrdinal      = aView.Selected.empty() || selected == aView.Entries.end() ? aView.Entries.size() + 1U : aView.Entries.size() - static_cast<std::size_t>(selected - aView.Entries.begin());
-			Sessions->setText(tr("Session %1").arg(SessionOrdinal));
-			Sessions->setAccessibleName(Sessions->text());
-			SessionMenu->addAction(NewSession);
-			SessionMenu->addSeparator();
-			session_rows().present(aView);
-			session_rows().set_running(Running);
 			// A notice only when this is not a native continuation.
 			ContinuationMode->setVisible(aView.Replay || !aView.NativeSupported);
 			ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool memory is absent; PR files and Git are shared.") : aView.NativeSupported ? tr("Native continuation")
-																																															 : tr("Native continuation unavailable. Choose Transcript replay or New session."));
+																																															 : tr("Native continuation unavailable. Choose Transcript replay or New session in History."));
 			ContinuationMode->setToolTip(tr("Replay keeps at most the newest 12 answered turns within 48 KiB. Older or unanswered turns are omitted. The source history stays. Tour tool and network restrictions still apply."));
 			// [[BPR-2059]]. The replay's counts are a diagnostic, kept on the
 			// label, and said in its tooltip only when something was left out.
@@ -675,52 +688,38 @@ namespace bpr::qt {
 			if (aView.Replay && (aView.ReplayTurnsOmitted > 0U || aView.ReplayTextCutBytes > 0U)) {
 				ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" This replay leaves out %1 older turns and %2 bytes of cut text.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));
 			}
-			auto* replay = SessionMenu->addAction(tr("Use Transcript replay with selected agent"));
-			replay->setObjectName(QStringLiteral("tourTranscriptReplay"));
-			replay->setEnabled(!Running);
-			replay->setToolTip(ContinuationMode->toolTip());
+			CarryOverTip = ContinuationMode->toolTip();
 			if (!aView.ReplaySource.empty()) {
 				ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" Source history: %1").arg(QString::fromStdString(aView.ReplaySource)));
 			}
-			connect(replay, &QAction::triggered, this, [this, id = aView.Selected] {if (auto thread=current();thread && HistoryDispatch) {HistoryDispatch(*thread,"replay:"+id);} });
-			SessionMenu->addSeparator();
-			// [[BPR-2377]]. The same session rows as the Agent tab's: open,
-			// rename, delete and i; then Delete all sessions….
-			SessionMenu->addAction(&session_rows());
-			SessionMenu->addAction(session_rows().delete_all_action());
-			if (!aView.OtherChats.empty()) {
-				auto* retained = SessionMenu->addMenu(tr("Other tour chats and detached history"));
-				for (const auto& entry : aView.OtherChats) {
-					auto* item = retained->addAction(([&] { const auto stop=entry.Scope.rfind(':'); const auto kind=stop==std::string::npos ? std::string::npos : entry.Scope.rfind(':',stop-1U); const auto part=kind==std::string::npos ? std::string{} : entry.Scope.substr(kind+1U,stop-kind-1U); return part=="1" ? tr("Problem") : part=="2" ? tr("Solution") : part=="3" ? tr("Stop ID %1").arg(QString::fromStdString(entry.Scope.substr(stop+1U))) : tr("Whole tour"); }()) + QStringLiteral(": ") + QString::fromStdString(entry.Title).simplified().left(60));
-					connect(item, &QAction::triggered, this, [this, id = entry.Id] { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,"view:"+id); } });
-				}
-			}
 		}
+		// [[BPR-2377]], RFC-BPR-0130. The sessions, in the one History menu.
+		HistoryMenu->present(aView);
 		refresh_actions();
 	}
 
-	auto tour_side_chat::session_rows() -> agent_session_menu&
+	void tour_side_chat::copy_chat() const
 	{
-		if (SessionRows == nullptr) {
-			SessionRows     = new agent_session_menu{ *this, this };
-			const auto edit = [this](const std::string& aId, std::optional<std::string> aName) {
-				if (auto thread = current(); thread && SessionEditDispatch) {
-					SessionEditDispatch(*thread, aId, std::move(aName));
-				}
-			};
-			SessionRows->set_dispatch({
-				.Open      = [this](const std::string& aId) { if (auto thread = current(); thread && HistoryDispatch) { HistoryDispatch(*thread, aId); } },
-				.Rename    = [edit](const std::string& aId, std::string aName) { edit(aId, std::move(aName)); },
-				.Delete    = [edit](const std::string& aId) { edit(aId, std::nullopt); },
-				.DeleteAll = [edit] { edit({ }, std::nullopt); },
-			});
+		if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
+			clipboard->setText(chat_text());
 		}
-		return *SessionRows;
 	}
+
+	void tour_side_chat::set_sessions_offered(const bool aOffered)
+	{
+		if (SessionsOffered != aOffered) {
+			SessionsOffered = aOffered;
+			refresh_header();
+		}
+	}
+
+	auto tour_side_chat::new_session_action() const noexcept -> QAction* { return HistoryMenu->new_session_action(); }
+
+	auto tour_side_chat::session_rows() -> agent_session_menu& { return *HistoryMenu->rows(); }
 
 	void tour_side_chat::present_session_edit(const QString& aStatus)
 	{
-		session_rows().present_status(aStatus);
+		HistoryMenu->present_status(aStatus);
 	}
 
 	void tour_side_chat::present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, const core::git_commit_oid aObservedHead, const bool aContinued)
@@ -730,7 +729,7 @@ namespace bpr::qt {
 		ContinueOld->setVisible(RevisionChoiceRequired);
 		RevisionStatus->setVisible(stale);
 		if (stale) {
-			RevisionStatus->setText((aContinued ? tr("Continuing saved revision %1. Current head: %2.") : tr("Head changed. This chat reads %1; current head: %2. Choose New session or Continue old revision."))
+			RevisionStatus->setText((aContinued ? tr("Continuing saved revision %1. Current head: %2.") : tr("Head changed. This chat reads %1; current head: %2. Choose New session in History or Continue old revision."))
 										.arg(QString::fromStdString(std::string{ core::canonical_hex(aOffer->ContinueAgainst.HeadOid).view() }).left(12), QString::fromStdString(std::string{ core::canonical_hex(aObservedHead).view() }).left(12)));
 		}
 		refresh_actions();
@@ -979,11 +978,7 @@ namespace bpr::qt {
 		} else {
 			wear_agent_accent(*Send, aGround);
 		}
-		// [[BPR-1925]]. The agent's glyph leads the title, in its accent.
-		auto accented = palette();
-		accented.setColor(QPalette::Active, QPalette::ButtonText, agent_accent(aGround));
-		const auto side = Glyph->fontMetrics().height();
-		Glyph->setPixmap(side_chat_icon(accented).pixmap(QSize{ side, side }, devicePixelRatioF()));
+		HistoryTool->setIcon(drawer_icon(drawer_glyph::history, palette()));
 		CopyChat->setIcon(drawer_icon(drawer_glyph::copy, palette()));
 		ClosePane->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		ClearPassage->setIcon(drawer_icon(drawer_glyph::close, palette()));
@@ -1095,17 +1090,27 @@ namespace bpr::qt {
 	void tour_side_chat::refresh_header()
 	{
 		const auto thread = current();
-		Subject->clear();
-		Quote->clear();
+		auto       place  = QString{ };
+		const auto about  = [this, &place](const QString& aSubject) {
+			static_cast<eliding_heading*>(Subject)->present(aSubject, QString{ });
+			static_cast<eliding_heading*>(Quote)->present(place, QString{ });
+			Quote->setVisible(!place.isEmpty());
+			fit_header();
+		};
+		// Core's choice of the header's one conversation tool.
+		const auto tool = core::chat_header_tool_for(SessionsOffered);
+		HistoryTool->setVisible(tool == core::chat_header_tool::history);
+		CopyChat->setVisible(tool == core::chat_header_tool::copy_conversation);
 		ShowPart->setVisible(thread.has_value() && thread->Kind != core::tour_thread_kind::tour);
 		if (!thread) {
+			about(QString{ });
 			return;
 		}
-		auto quote = QString{ };
 		switch (thread->Kind) {
 		case core::tour_thread_kind::tour:
-			Subject->setText(tr("The whole tour"));
-			break;
+			ShowWords = tr("Show");
+			about(tr("The whole tour"));
+			return;
 		case core::tour_thread_kind::stop: {
 			const core::tour_stop* stop = nullptr;
 			if (Draft) {
@@ -1114,30 +1119,48 @@ namespace bpr::qt {
 				}
 			}
 			if (stop != nullptr) {
-				Subject->setText(tr("%1, %2").arg(name_of(*thread), QString::fromStdString(stop->Title)));
 				if (const auto& source = stop->Mapped ? stop->Mapped : stop->Original; source) {
-					Quote->setText(source->First.Line == source->Last.Line ? tr("%1, line %2").arg(QString::fromStdString(source->Path)).arg(source->First.Line + 1U)
-																		   : tr("%1, lines %2 to %3").arg(QString::fromStdString(source->Path)).arg(source->First.Line + 1U).arg(source->Last.Line + 1U));
+					place = source->First.Line == source->Last.Line ? tr("%1, line %2").arg(QString::fromStdString(source->Path)).arg(source->First.Line + 1U)
+																	: tr("%1, lines %2 to %3").arg(QString::fromStdString(source->Path)).arg(source->First.Line + 1U).arg(source->Last.Line + 1U);
 				} else if (stop->Destination) {
 					// A stop the agent proposed, not yet confirmed in the code.
-					Quote->setText(tr("%1, lines %2 to %3").arg(QString::fromStdString(stop->Destination->Path)).arg(stop->Destination->FirstLine + 1U).arg(stop->Destination->LastLine + 1U));
+					place = tr("%1, lines %2 to %3").arg(QString::fromStdString(stop->Destination->Path)).arg(stop->Destination->FirstLine + 1U).arg(stop->Destination->LastLine + 1U);
 				}
-			} else {
-				Subject->setText(tr("A stop"));
 			}
-			ShowPart->setText(tr("Show in code"));
+			ShowWords = tr("Show in code");
 			ShowPart->setToolTip(tr("Open the stop in the Tour tab and show its lines in the code"));
+			about(stop != nullptr ? tr("%1, %2").arg(name_of(*thread), QString::fromStdString(stop->Title)) : tr("A stop"));
 			return;
 		}
 		}
-		ShowPart->setText(tr("Show"));
-		quote = quote.simplified();
-		if (!quote.isEmpty()) {
-			if (quote.size() > 140) {
-				quote = quote.left(138).trimmed() + ellipsis;
-			}
-			Quote->setText(open_quote + quote + close_quote);
+	}
+
+	void tour_side_chat::fit_header()
+	{
+		// Show in code is said whole while the part beside it keeps room for
+		// its number and a few words; in a narrower column it is Show, with
+		// the whole of it in its tooltip. Nothing in the row is ever cut.
+		ShowPart->setText(ShowWords);
+		if (ShowPart->isHidden() || ShowWords == tr("Show")) {
+			return;
 		}
+		auto tools = ShowPart->sizeHint().width();
+		for (const auto* const tool : { static_cast<const QWidget*>(HistoryTool), static_cast<const QWidget*>(CopyChat), static_cast<const QWidget*>(ClosePane) }) {
+			if (!tool->isHidden()) {
+				tools += tool->sizeHint().width() + 4;
+			}
+		}
+		const auto margins = layout()->contentsMargins();
+		const auto room    = width() - margins.left() - margins.right() - tools - 4;
+		if (room < Subject->fontMetrics().horizontalAdvance(QStringLiteral("Stop 00, a few words…"))) {
+			ShowPart->setText(tr("Show"));
+		}
+	}
+
+	void tour_side_chat::resizeEvent(QResizeEvent* const aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		fit_header();
 	}
 
 	void tour_side_chat::show_passage()
@@ -1177,12 +1200,10 @@ namespace bpr::qt {
 
 	void tour_side_chat::refresh_actions()
 	{
-		if (SessionRows != nullptr) {
-			SessionRows->set_running(Running);
-		}
 		const auto thread = current();
 		const auto blank  = Composer->toPlainText().trimmed().isEmpty();
 		const auto active = thread && (!Draft || core::active_tour_thread(*Draft, *thread));
+		HistoryMenu->refresh();
 		if (thread && QueueShown != core::tour_part_name(*thread)) {
 			show_queue();
 		}
@@ -1219,7 +1240,6 @@ namespace bpr::qt {
 				resend->setEnabled(HostIdle && !HistoryLoading && Ready && !Running);
 			}
 		}
-		NewSession->setEnabled(active && HostIdle && !Running && !HistoryLoading);
 		const auto checks = Checks.Plan && thread && thread->Kind == core::tour_thread_kind::tour;
 		PlanCheck->setVisible(checks);
 		PlanCheck->setEnabled(checks && CheckAvailable && !Running && HostIdle);
@@ -2037,10 +2057,10 @@ namespace bpr::qt {
 						state->setText(tr("%1 of %2 parts decided in the tour.").arg(decided).arg(decided + pending.size()));
 						state->show();
 					}
-					// Three equal buttons in one row; each says what it does in
-					// its tooltip, not in words under the card.
-					auto* const buttons = new QHBoxLayout{ };
-					buttons->setSpacing(6);
+					// Three buttons in a row that wraps where the column is
+					// narrow; each says what it does in its tooltip, not in
+					// words under the card.
+					auto* const buttons = new detail::wrapping_row{ nullptr, 6, 6 };
 					// RFC-BPR-0106 as amended on 2026-11-13: it accepts no stop,
 					// so it does not say Accept.
 					auto* const acceptAll = make_tour_action(tr("Apply all"), card);
@@ -2055,8 +2075,8 @@ namespace bpr::qt {
 					discard->setToolTip(tr("Discards every part of this revision still waiting. The tour is unchanged."));
 					for (auto* const button : { static_cast<QPushButton*>(acceptAll), static_cast<QPushButton*>(review), static_cast<QPushButton*>(discard) }) {
 						button->setFocusPolicy(Qt::TabFocus);
-						button->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-						buttons->addWidget(button, 1);
+						button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+						buttons->addWidget(button);
 					}
 					lines->addLayout(buttons);
 					RevisionAcceptAll = acceptAll;
@@ -2169,8 +2189,7 @@ namespace bpr::qt {
 					editor->setVisible(editing);
 					lines->addWidget(editor);
 					connect(editor, &QPlainTextEdit::textChanged, this, [this, index, editor] { Edited[index] = editor->toPlainText(); });
-					auto* const buttons = new QHBoxLayout{ };
-					buttons->setSpacing(6);
+					auto* const buttons = new detail::wrapping_row{ nullptr, 6, 6 };
 					// The same words and look as the part's button in the tour:
 					// Accept only on a stop's own text, which accepts the stop.
 					auto* const accept = make_tour_action(tour_proposal_apply_words(item.Part), card);
@@ -2205,7 +2224,6 @@ namespace bpr::qt {
 						});
 						buttons->addWidget(more);
 					}
-					buttons->addStretch(1);
 					lines->addLayout(buttons);
 					Accepts[index] = accept;
 					// [[BPR-2000]]. Accept applies; it starts no run.

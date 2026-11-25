@@ -1227,10 +1227,10 @@ auto main(int argc, char** argv) -> int
 			}
 			const auto sharing = selectedId();
 			// And one that was started and never used, for the second agent.
-			if (!wait_until([&] { return tab->clear_session_button()->isEnabled(); })) {
+			if (!wait_until([&] { return tab->new_session_action()->isEnabled(); })) {
 				return failLogged("pinned-second-agent");
 			}
-			tab->clear_session_button()->click();
+			tab->new_session_action()->trigger();
 			if (!wait_until([&] { return historyIn() && tab->ask_button()->isEnabled() && tab->turn_count() == 0U; }) || !choose(first) || !open(seeded)) {
 				return failLogged("pinned-unused-conversation");
 			}
@@ -1459,7 +1459,7 @@ auto main(int argc, char** argv) -> int
 			}
 			auto* tab       = window.agent_tab();
 			auto* mode      = tab->findChild<QLabel*>(QStringLiteral("agentContinuationMode"));
-			auto* histories = tab->findChild<QMenu*>(QStringLiteral("nativeAgentSessions"));
+			auto* histories = tab->history_button()->menu();
 			if (!wait_until([&] { return !tab->ask_button()->property("conversationLoading").toBool() && histories && mode; })) {
 				return fail(*application, "replay-history-ready");
 			}
@@ -1634,15 +1634,19 @@ auto main(int argc, char** argv) -> int
 				if (!mode->text().contains(QStringLiteral("unavailable"))) {
 					return fail(*application, "unsupported-visible-capability");
 				}
-				if (!wait_until([&] { return tab->clear_session_button()->isEnabled() && !tab->ask_button()->property("conversationLoading").toBool(); })) {
+				if (!wait_until([&] { return tab->new_session_action()->isEnabled() && !tab->ask_button()->property("conversationLoading").toBool(); })) {
 					return fail(*application, "unsupported-new-ready");
 				}
-				tab->clear_session_button()->click();
+				tab->new_session_action()->trigger();
 				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->ask_button()->isEnabled(); })) {
 					return fail(*application, "unsupported-replay-choice", mode->text().toStdString() + " status=" + panel->status_text().toStdString());
 				}
 				const auto unusedEntries = tab->session_menu()->ids().size();
-				tab->clear_session_button()->click();
+				// Nothing was asked in it: New session is greyed, and says why.
+				if (!wait_until([&] { return !tab->new_session_action()->isEnabled() && !tab->history_menu()->new_session_reason().isEmpty(); })) {
+					return fail(*application, "unsupported-new-empty-greyed", tab->history_menu()->new_session_reason().toStdString());
+				}
+				tab->new_session_action()->trigger();
 				if (!wait_until([&] { return tab->ask_button()->isEnabled(); }) || tab->session_menu()->ids().size() != unusedEntries || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts) {
 					return fail(*application, "unsupported-new-empty-reuse-no-inference");
 				}
@@ -1864,6 +1868,12 @@ auto main(int argc, char** argv) -> int
 						return fail(*application, "tour-native-new-empty", chat->chat_text().toStdString());
 					}
 					const auto retained = chat->session_rows().ids().size();
+					// Owner, attended review 2026-11-24: "New session either needs
+					// to always work or get greyed out if it won't." On the session
+					// nothing was asked in it is greyed, with why, and asks nothing.
+					if (!wait_until([&] { return !chat->new_session_action()->isEnabled() && chat->history_menu()->new_session_reason() == QStringLiteral("This session is new: nothing has been asked in it."); })) {
+						return fail(*application, "tour-native-new-empty-greyed", chat->history_menu()->new_session_reason().toStdString());
+					}
 					chat->new_session_action()->trigger();
 					if (!wait_until([&] { return !chat->history_button()->property("loading").toBool(); }) || chat->session_rows().ids().size() != retained) {
 						return fail(*application, "tour-native-empty-reuse");
@@ -2142,12 +2152,15 @@ auto main(int argc, char** argv) -> int
 			// Visible New session waits for admission and retains the completed native generation.
 			QMetaObject::invokeMethod(window.agent_tab()->history_button()->menu(), "aboutToShow");
 
-			auto* histories       = window.agent_tab()->findChild<QMenu*>(QStringLiteral("nativeAgentSessions"));
+			auto* histories       = window.agent_tab()->history_button()->menu();
 			auto  selectedHistory = QString{ };
 			if (!wait_until([&] { const auto open=window.agent_tab()->session_menu()->selected(); if (!open.empty() && window.agent_tab()->session_menu()->turns(open)>=2U) { selectedHistory=QString::fromStdString(open); } return !selectedHistory.isEmpty() && window.agent_tab()->ask_button()->isEnabled(); })) {
 				return fail(*application, "native-current-generation");
 			}
-			window.agent_tab()->clear_session_button()->click();
+			if (!window.agent_tab()->new_session_action()->isEnabled() || histories->actions().front() != window.agent_tab()->new_session_action()) {
+				return fail(*application, "native-new-session-offered-first-in-history");
+			}
+			window.agent_tab()->new_session_action()->trigger();
 			if (!wait_until([&] { return window.agent_tab()->turn_count() == 0U && window.agent_tab()->ask_button()->isEnabled(); })) {
 				return fail(*application, "native-new-session-empty");
 			}
@@ -2155,7 +2168,12 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "native-history-menu");
 			}
 			const auto retained = window.agent_tab()->session_menu()->ids().size();
-			window.agent_tab()->clear_session_button()->click();
+			// On the session nothing was asked in, New session is greyed and
+			// says why; pressed anyway, it asks the host nothing.
+			if (!wait_until([&] { return !window.agent_tab()->new_session_action()->isEnabled() && window.agent_tab()->history_menu()->new_session_reason() == QStringLiteral("This session is new: nothing has been asked in it."); })) {
+				return fail(*application, "native-new-session-greyed-when-new", window.agent_tab()->history_menu()->new_session_reason().toStdString());
+			}
+			window.agent_tab()->new_session_action()->trigger();
 			if (!wait_until([&] { return window.agent_tab()->ask_button()->isEnabled(); }) || window.agent_tab()->session_menu()->ids().size() != retained) {
 				return fail(*application, "native-empty-generation-reused");
 			}
@@ -2247,6 +2265,54 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "session-delete-kept-shared-workspace-and-agent-files");
 			}
 			std::cout << "AGENT_SESSION_MANAGEMENT:renamed:restored:deleted-shared:workspace-kept:agent-files-kept\n";
+			// Owner, attended review 2026-11-24: "New session either needs to
+			// always work or get greyed out if it won't. Right now you click
+			// it and it does nothing which feels broken. You can tell it does
+			// nothing because if you rename the session it keeps its name."
+			// A named session with turns: New session opens an empty, unnamed
+			// one and keeps the named one in History; on that new session it
+			// is greyed, says why, and asks nothing.
+			auto* const fresh = tab->new_session_action();
+			rows->rename(openId, QStringLiteral("Named before New session"));
+			if (!wait_until([&] { return tab->session_title()->text() == QStringLiteral("Named before New session") && fresh->isEnabled() && tab->history_menu()->new_session_reason().isEmpty(); })) {
+				return fail(*application, "new-session-offered-on-a-named-session", tab->history_menu()->new_session_reason().toStdString());
+			}
+			const auto namedRows = rows->ids().size();
+			fresh->trigger();
+			if (!wait_until([&] { return tab->turn_count() == 0U && tab->session_title()->text() == title && !rows->selected().empty() && rows->selected() != openId && rows->ids().size() == namedRows + 1U && rows->turns(openId) >= 2U; })) {
+				return fail(*application, "new-session-opens-an-empty-unnamed-session", tab->session_title()->text().toStdString() + " rows=" + std::to_string(rows->ids().size()));
+			}
+			if (!wait_until([&] { return !fresh->isEnabled() && tab->history_menu()->new_session_reason() == QStringLiteral("This session is new: nothing has been asked in it."); })) {
+				return fail(*application, "new-session-greyed-on-the-new-session", tab->history_menu()->new_session_reason().toStdString());
+			}
+			const auto newId = rows->selected();
+			fresh->trigger();
+			QApplication::processEvents();
+			if (rows->selected() != newId || rows->ids().size() != namedRows + 1U) {
+				return fail(*application, "new-session-greyed-asks-nothing");
+			}
+			if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "new-session-empty.png").u16string()))) {
+				return fail(*application, "new-session-raster");
+			}
+			// The named session is still in History: it opens with its turns
+			// and its name. The course leaves the tab as it found it.
+			rows->open(openId);
+			if (!wait_until([&] { return rows->selected() == openId && tab->turn_count() >= 2U && tab->session_title()->text() == QStringLiteral("Named before New session") && fresh->isEnabled(); })) {
+				return fail(*application, "new-session-kept-the-named-session", tab->session_title()->text().toStdString());
+			}
+			rows->rename(openId, QString{ });
+			if (!wait_until([&] { return tab->session_title()->text() == title; })) {
+				return fail(*application, "new-session-course-name-restored", tab->session_title()->text().toStdString());
+			}
+			rows->ask_delete(newId);
+			if (rows->question() == nullptr || !rows->question()->isVisible()) {
+				return fail(*application, "new-session-course-delete-asks");
+			}
+			rows->question()->findChild<QPushButton*>(QStringLiteral("deleteAgentSessionConfirm"))->click();
+			if (!wait_until([&] { return rows->ids().size() == namedRows && rows->selected() == openId && tab->turn_count() >= 2U; })) {
+				return fail(*application, "new-session-course-restored", rows->status().toStdString());
+			}
+			std::cout << "AGENT_NEW_SESSION:named-session-kept:empty-unnamed-opened:greyed-when-new:asks-nothing\n";
 		}
 		const auto renderPath = dataRoot.parent_path() / (course == "native-session-reopen" ? "native-reopen.png" : "native-agent-tab.png");
 		if (!window.grab().save(QString::fromStdU16String(renderPath.u16string()))) {

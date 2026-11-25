@@ -4023,8 +4023,17 @@ function(bpr_verify_app_source_tree app_source_root)
 	# (window_construction.cpp). Local agent turns only; no grant,
 	# provider, transport, mutation or publication path changes; the full
 	# application and mutation-branch digests are unchanged.
+	# RFC-BPR-0130 header A reseal (owner, attended review 2026-11-24: "It
+	# looks like tour built a different session selector from agent too for
+	# no reason."): the tour's side chat is told whether it keeps sessions,
+	# which decides its header's History or Copy tool. A local draft's
+	# discussion keeps none (local_draft_desktop.cpp); a pull request's tour
+	# keeps them (window_tours.cpp, restore_tour_panel). Presentation only,
+	# two calls to one Qt setter; no grant, provider, transport, mutation or
+	# publication path changes; the full application and mutation-branch
+	# digests are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "9a40f5b8d0311b9f1183ef4d4656d13e668deb974e3ae944dfafbdbae80a0568"
+        "61a20728423ccfa02c389ca3a9b4177dd78802a312013372b46910eb996c17c1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -13,7 +13,9 @@
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_session_menu.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
+#include "bpr/qt/chat_history_menu.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QElapsedTimer>
 #include <QFont>
@@ -308,21 +310,29 @@ namespace bpr::qt {
 		/// the current thread on this pull request.
 		using session_edit_dispatch = std::function<void(const core::tour_thread&, const std::string& aId, std::optional<std::string> aName)>;
 		void set_session_edit_dispatch(session_edit_dispatch aDispatch) { SessionEditDispatch = std::move(aDispatch); }
-		/// \brief [[BPR-2377]]. The Session menu's rows (pencil, trash, i)
-		/// (made on first use): the shared `agent_session_menu`.
+		/// \brief [[BPR-2377]]. History's session rows (pencil, trash, i):
+		/// the shared `agent_session_menu`.
 		auto session_rows() -> agent_session_menu&;
+		/// \brief RFC-BPR-0130. The header's History menu, the Agent tab's
+		/// own: New session first, the sessions, Delete all sessions…, the
+		/// other parts' chats, Copy conversation, the revision read.
+		[[nodiscard]] auto history_menu() const noexcept -> chat_history_menu* { return HistoryMenu; }
+		/// \brief Whether this chat keeps sessions (a pull request's tour) or
+		/// not (a local draft's discussion): the header then shows Copy
+		/// conversation in History's place, as core decides.
+		void set_sessions_offered(bool aOffered);
 		/// \brief [[BPR-2377]]. What the last rename or deletion did.
 		void present_session_edit(const QString& aStatus);
 		void present_native_history(const application::native_agent_history_projection&);
 		/// \brief Projects the core's revision choice without submitting a question.
 		void present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, core::git_commit_oid aObservedHead, bool aContinued);
 		void set_continuation_dispatch(std::function<void(const core::tour_thread&)> aDispatch) { ContinuationDispatch = std::move(aDispatch); }
-		/// \brief [[BPR-1995]]. New session, an item of the Session menu.
-		[[nodiscard]] auto new_session_action() const noexcept -> QAction* { return NewSession; }
-		/// \brief [[BPR-1995]]. The Session menu at the left of the session
-		/// line: the session's ordinal; History and New session are its items.
-		[[nodiscard]] auto history_button() const noexcept -> QToolButton* { return Sessions; }
-		[[nodiscard]] auto session_button() const noexcept -> QToolButton* { return Sessions; }
+		/// \brief New session, History's first item: enabled exactly when
+		/// core offers it, and greyed with its reason otherwise.
+		[[nodiscard]] auto new_session_action() const noexcept -> QAction*;
+		/// \brief History, in the header row; its `loading` property is true
+		/// while the sessions are read.
+		[[nodiscard]] auto history_button() const noexcept -> QToolButton* { return HistoryTool; }
 		/// \brief [[BPR-1995]]. The notice above the composer: shown only for a
 		/// transcript replay, native continuation unavailable or a moved head.
 		[[nodiscard]] auto notice() const noexcept -> QWidget* { return Notice; }
@@ -412,18 +422,20 @@ namespace bpr::qt {
 		/// [[BPR-1925]]. The seam with the tour: a line of the agent's accent
 		/// down the column's left edge, and the faintest wash beside it.
 		void paintEvent(QPaintEvent* aEvent) override;
+		void resizeEvent(QResizeEvent* aEvent) override;
 
 	private:
 		std::function<void(const core::tour_thread&, std::optional<std::string>)> HistoryDispatch;
 		session_edit_dispatch                                                     SessionEditDispatch;
-		agent_session_menu*                                                       SessionRows = nullptr;
+		chat_history_menu*                                                        HistoryMenu     = nullptr;
+		quiet_tool_button*                                                        HistoryTool     = nullptr;
+		bool                                                                      SessionsOffered = true;
+		QString                                                                   CarryOverTip;
+		QString                                                                   ShowWords;
 		std::function<void(const core::tour_thread&)>                             ContinuationDispatch;
 		QToolButton*                                                              ContinueOld            = nullptr;
 		QLabel*                                                                   RevisionStatus         = nullptr;
 		bool                                                                      RevisionChoiceRequired = false;
-		QMenu*                                                                    SessionMenu            = nullptr;
-		QToolButton*                                                              Sessions               = nullptr;
-		QAction*                                                                  NewSession             = nullptr;
 		bool                                                                      HistoryLoading         = false;
 		void                                                                      rebuild();
 		void                                                                      changed();
@@ -434,6 +446,8 @@ namespace bpr::qt {
 		/// code is anchored to; empty for the whole tour's chat.
 		[[nodiscard]] auto code_context() const -> std::string;
 		void               refresh_header();
+		void               fit_header();
+		void               copy_chat() const;
 		void               refresh_actions();
 		void               show_passage();
 		void               send(const QString& aQuestion, bool aUpdate, std::optional<core::tour_passage> aUpdatePassage = std::nullopt);
@@ -501,7 +515,6 @@ namespace bpr::qt {
 		std::optional<markdown_code_theme>                                          CodeTheme;
 		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
 		int                                                                         Current            = -1;
-		QLabel*                                                                     Glyph              = nullptr;
 		QToolButton*                                                                CopyChat           = nullptr;
 		QToolButton*                                                                ClosePane          = nullptr;
 		QLabel*                                                                     Subject            = nullptr;
@@ -518,7 +531,6 @@ namespace bpr::qt {
 		QPushButton*                                                                RevisionReview     = nullptr;
 		QPushButton*                                                                RevisionDiscard    = nullptr;
 		std::function<void(core::tour_agent_run_id)>                                ReviewDispatch;
-		std::size_t                                                                 SessionOrdinal = 0U;
 		/// The update turn's words for the open chat's part.
 		[[nodiscard]] auto update_question() const -> QString;
 		[[nodiscard]] auto part_words() const -> QString;
