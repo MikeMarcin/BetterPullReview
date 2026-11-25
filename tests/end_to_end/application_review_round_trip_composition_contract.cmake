@@ -4060,8 +4060,18 @@ function(bpr_verify_app_source_tree app_source_root)
 	# card does (window_agent_chat.cpp, window_agent_setup.cpp). Presentation
 	# only; no grant, provider, transport, mutation or publication path
 	# changes; the full application and mutation-branch digests are unchanged.
+	# The value below also takes in ca0aac0e9 (RFC-BPR-0096 continue-at-latest,
+	# the editable reconcile prompt), which reached main without a reseal:
+	# main's tree at e847156c3 computes f68e6f6c… against its pin of 90de0e4d….
+	# Read here: the Agent tab's reconcile turn takes its prompt from the
+	# profile's accepted writing hooks (window_agent_chat.cpp,
+	# effective_reconcile_prompt) where it took the built-in text, and
+	# tour_assist.cpp names the new hook "reconcile-move". One read of
+	# settings the composition already holds; no grant, provider, transport,
+	# mutation or publication path changes. That change's own review belongs
+	# to its card.
 	set(bpr_expected_production_app_manifest_digest
-        "8004c90f5d2aa51e41ad0ee89d8ebe103cd26de52cbb6a82da811b3c11bb6a6a"
+        "970567aff70b107ea8f5af9ac8c8dbcfb51570995192597e183e9a4f60acf20c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
