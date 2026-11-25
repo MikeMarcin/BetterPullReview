@@ -5,6 +5,7 @@
 #include "../support/review_tour_fixture.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/skill_completer.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
@@ -535,24 +536,75 @@ auto main(int argc, char** argv) -> int
 	// A presentation of the same proposal keeps what the author typed.
 	editor.present_tour_session(session, proposal);
 	expect(panel->proposal_editor(0)->toPlainText() == QStringLiteral("Edited by the author."), "an edit in a pending part survives");
-	// [[BPR-2138]], RFC-BPR-0101 AC12. Ask more, as quiet as Discard, on a
-	// part Draft Tour's fresh first draft proposed: it names that run.
+	// Owner, 2026-11-25, of Ask more on a part Draft Tour proposed: it "just
+	// opens the whole tour chat, so that shouldn't even be on the draft
+	// stops". A proposed part offers no Ask more, with or without a host
+	// that would take it; the tour's own chat toggle opens that chat.
 	{
 		auto askedMore = std::vector<core::tour_agent_run_id>{ };
 		editor.set_tour_ask_more_dispatch([&askedMore](const core::tour_agent_run_id aRun) { askedMore.push_back(aRun); });
 		editor.present_tour_session(session, std::nullopt);
 		editor.present_tour_session(session, proposal);
-		auto* const more = panel->accept_button(1)->parentWidget()->findChild<QPushButton*>(QStringLiteral("tourProposalAskMore"));
-		expect(more != nullptr && more->text() == QStringLiteral("Ask more") && !more->isFlat() && more->property("bprTourAction").toBool() && more->toolTip().contains(QStringLiteral("tour's chat")),
-			   "Ask more is offered on Draft Tour's proposal, in the one Tour action style (owner, 2026-11-13)");
-		more->click();
-		expect(askedMore.size() == 1U && askedMore[0] == *run, "Ask more names the fresh run it continues from");
+		expect(editor.findChildren<QAbstractButton*>(QStringLiteral("tourProposalAskMore")).isEmpty(), "no Ask more on a part Draft Tour proposed");
+		for (const auto* const button : editor.findChildren<QAbstractButton*>()) {
+			expect(button->parentWidget() == nullptr || button->parentWidget()->objectName() != QStringLiteral("tourProposalItem") || button->text() != QStringLiteral("Ask more"), "no proposed part says Ask more");
+		}
+		expect(askedMore.empty() && panel->chat_button() != nullptr, "and the tour's own chat toggle is the way to its chat");
 		panel->proposal_editor(0)->setPlainText(QStringLiteral("Edited by the author."));
+	}
+	// The same day: "edit and discard have pretty standard pencil and trash
+	// can glyphs in the app". A proposed part's choices are a pencil, a trash
+	// and its one worded action, on one row at the drawer's narrowest.
+	{
+		editor.show_stops();
+		for (int settle = 0; settle < 5; ++settle) {
+			QApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+			QApplication::processEvents();
+		}
+		const auto size = editor.size();
+		for (const auto width : { 280, 340, 480 }) {
+			editor.resize(width, size.height());
+			for (int settle = 0; settle < 5; ++settle) {
+				QApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+				QApplication::processEvents();
+			}
+			const auto        at     = " at " + std::to_string(width);
+			const auto* const pencil = panel->edit_button(1);
+			const auto* const trash  = panel->discard_button(1);
+			const auto* const accept = panel->accept_button(1);
+			expect(pencil != nullptr && trash != nullptr && accept != nullptr && pencil->isVisibleTo(&editor) && trash->isVisibleTo(&editor) && accept->isVisibleTo(&editor), "a proposed stop shows its pencil, its trash and its action" + at);
+			expect(dynamic_cast<const qt::quiet_tool_button*>(pencil) != nullptr && dynamic_cast<const qt::quiet_tool_button*>(trash) != nullptr && pencil->toolButtonStyle() == Qt::ToolButtonIconOnly
+					   && trash->toolButtonStyle() == Qt::ToolButtonIconOnly && !pencil->icon().isNull() && !trash->icon().isNull(),
+				   "the pencil and the trash are the profile's quiet icon tools, never the platform's bezel" + at);
+			expect(pencil->accessibleName() == QStringLiteral("Edit text") && pencil->toolTip().startsWith(QStringLiteral("Edit text\n")) && pencil->isCheckable() && !pencil->isChecked(),
+				   "the pencil is named Edit text, to a screen reader and in its tooltip" + at);
+			expect(trash->accessibleName() == QStringLiteral("Discard") && trash->toolTip().startsWith(QStringLiteral("Discard\n")) && !trash->accessibleDescription().isEmpty(), "the trash is named Discard" + at);
+			expect(pencil->focusPolicy() == Qt::TabFocus && trash->focusPolicy() == Qt::TabFocus, "both are reached with Tab and take no keyboard on a press" + at);
+			auto worded = QStringList{ };
+			for (const auto* const button : accept->parentWidget()->findChildren<QAbstractButton*>()) {
+				if (button->isVisibleTo(&editor) && !button->text().isEmpty()) {
+					worded << button->text();
+				}
+			}
+			expect(worded == QStringList{ QStringLiteral("Add to tour") }, "Add to tour is the part's one worded button" + at + ": " + worded.join(QStringLiteral(", ")).toStdString());
+			const auto* const box   = accept->parentWidget();
+			const auto        place = [box](const QWidget& aPart) { return QRect{ aPart.mapTo(box, QPoint{ 0, 0 }), aPart.size() }; };
+			expect(place(*pencil).left() >= 0 && place(*pencil).right() < place(*trash).left() && place(*trash).right() < place(*accept).left() && place(*accept).right() < box->width(),
+				   "pencil, trash, action, left to right, inside the part" + at);
+			expect(place(*pencil).center().y() > place(*accept).top() && place(*pencil).center().y() < place(*accept).bottom() && place(*trash).center().y() > place(*accept).top()
+					   && place(*trash).center().y() < place(*accept).bottom(),
+				   "all three on one row" + at);
+			expect(accept->width() >= accept->minimumSizeHint().width() && pencil->width() >= pencil->minimumSizeHint().width() && trash->width() >= trash->minimumSizeHint().width(), "none narrower than it needs" + at);
+			// The action keeps the part's right end, where a stop's own Accept is.
+			expect(box->width() - place(*accept).right() <= 16, "the action keeps the part's right end" + at + " (" + std::to_string(box->width() - place(*accept).right()) + ")");
+		}
+		editor.resize(size);
 	}
 	render(editor, prefix, "proposal");
 	panel->accept_button(0)->click();
 	expect(decided.size() == 1U && std::get<0>(decided[0]) == 0U && std::get<1>(decided[0]) == core::tour_proposal_decision::accepted && std::get<2>(decided[0]) == QStringLiteral("Edited by the author."), "Accept sends the author's edit");
-	auto* const discard = panel->accept_button(2)->parentWidget()->findChild<QPushButton*>(QStringLiteral("tourProposalDiscard"));
+	auto* const discard = panel->discard_button(2);
+	expect(discard != nullptr && discard == panel->accept_button(2)->parentWidget()->findChild<QToolButton*>(QStringLiteral("tourProposalDiscard")), "each part has its own trash");
 	discard->click();
 	expect(decided.size() == 2U && std::get<0>(decided[1]) == 2U && std::get<1>(decided[1]) == core::tour_proposal_decision::discarded, "Discard sends the part's index");
 	// Owner look v001, rejected: "the first click on accept highlights a box in
@@ -561,7 +613,7 @@ auto main(int argc, char** argv) -> int
 	// accepts; it moves no focus, and focusing a field shrinks nothing.
 	// [[BPR-1925]] v003. The proposed stop waits on the route: the Stops step.
 	editor.show_stops();
-	auto* const field = panel->proposal_editor(1);
+	auto* field = panel->proposal_editor(1);
 	editor.activateWindow();
 	for (int settle = 0; settle < 5; ++settle) {
 		QApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
@@ -570,7 +622,13 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-1915]]. The source shows on Edit text; rendered until then.
 	expect(panel->proposal_reader(1) != nullptr && panel->proposal_reader(1)->isVisibleTo(&editor) && !field->isVisibleTo(&editor), "a proposed text shows rendered first");
 	panel->edit_button(1)->click();
-	expect(!panel->proposal_reader(1)->isVisibleTo(&editor) && field->isVisibleTo(&editor) && panel->edit_button(1)->text() == QStringLiteral("Show formatted"), "Edit text shows its Markdown source");
+	expect(!panel->proposal_reader(1)->isVisibleTo(&editor) && field->isVisibleTo(&editor) && panel->edit_button(1)->isChecked() && panel->edit_button(1)->accessibleName() == QStringLiteral("Show formatted")
+			   && panel->edit_button(1)->toolTip().startsWith(QStringLiteral("Show formatted\n")),
+		   "the pencil shows the Markdown source, stays down, and says Show formatted");
+	// A presentation of the same proposal keeps the source open and the pencil down.
+	editor.present_tour_session(session, proposal);
+	field = panel->proposal_editor(1);
+	expect(field != nullptr && field->isVisibleTo(&editor) && panel->edit_button(1)->isChecked() && panel->edit_button(1)->accessibleName() == QStringLiteral("Show formatted"), "the open source survives a presentation of the same proposal");
 	for (int settle = 0; settle < 5; ++settle) {
 		QApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
 		QApplication::processEvents();

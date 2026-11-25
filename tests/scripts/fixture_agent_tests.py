@@ -10,9 +10,12 @@ and fails or hits a usage limit when asked to. No network, no cost.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
+import time
 from pathlib import Path
 
 
@@ -83,6 +86,61 @@ def check_steerable(claude: Path) -> None:
         watchdog.cancel()
         if process.poll() is None:
             process.kill()
+
+
+def check_tour_revision(claude: Path) -> None:
+    """The whole tour's chat proposes what its question names: "Drop stop N"
+    that removal, "Rewrite stop N" a new explanation for that stop, and both
+    when one turn asks both. Any other turn changes nothing."""
+    def revision(question: str) -> dict:
+        request = 'bpr.tour-revise.v2\n{"this_turn":{"question":"' + question + '"}}'
+        message = json.dumps({"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": request}]}}) + "\n"
+        done = run(claude, ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"], message)
+        expect(done.returncode == 0, f"the tour's chat answers {question!r}: {done.stderr}")
+        return json.loads(claude_answer(done.stdout))
+
+    dropped = revision("Drop stop 2")
+    expect(dropped["remove_stops"] == [2] and dropped["stop_texts"] == [] and "taking stop 2 out of the tour" in dropped["reply"], f"Drop stop 2 proposes that removal: {dropped}")
+    rewritten = revision("Rewrite stop 1")
+    expect(rewritten["remove_stops"] == [] and [text["stop"] for text in rewritten["stop_texts"]] == [1] and rewritten["stop_texts"][0]["explanation"].startswith("Fixture rewrite:")
+           and "a new explanation for stop 1" in rewritten["reply"], f"Rewrite stop 1 proposes a new explanation for it: {rewritten}")
+    both = revision("Rewrite stop 1 and Drop stop 2")
+    expect(both["remove_stops"] == [2] and [text["stop"] for text in both["stop_texts"]] == [1], f"one turn may ask both: {both}")
+    plain = revision("Is the tour in a good order?")
+    expect(plain["remove_stops"] == [] and plain["stop_texts"] == [] and "Nothing in the tour changes" in plain["reply"], f"any other turn changes nothing: {plain}")
+
+
+def check_held_turn(claude: Path) -> None:
+    """A course holds a turn open with a file: while `hold-turns` stands
+    beside the agent's own executable its turn waits, and it answers once the
+    file is gone. Only that copy of the agent is held."""
+    with tempfile.TemporaryDirectory() as root:
+        own = Path(root) / claude.name
+        shutil.copy2(claude, own)
+        hold = Path(root) / "hold-turns"
+        hold.write_text("")
+        env = dict(os.environ)
+        env.update({"BPR_FIXTURE_AGENT_STEERABLE": "0", "BPR_FIXTURE_AGENT_PAUSE_MS": "1"})
+        message = json.dumps({"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": "What does this change do?"}]}}) + "\n"
+        process = subprocess.Popen([str(own), "-p"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+        watchdog = threading.Timer(60, process.kill)
+        watchdog.start()
+        try:
+            process.stdin.write(message)
+            process.stdin.close()
+            time.sleep(1.0)
+            expect(process.poll() is None, "a turn waits while hold-turns stands beside the agent")
+            hold.unlink()
+            output = process.stdout.read()
+            expect(process.wait(timeout=30) == 0 and "Fixture answer" in claude_answer(output), "and answers once the file is gone")
+        finally:
+            watchdog.cancel()
+            if process.poll() is None:
+                process.kill()
+        # The built agent, with no such file beside it, is not held.
+        started = time.monotonic()
+        free = subprocess.run([str(claude), "-p"], input=message, capture_output=True, text=True, timeout=30, env=env, check=False)
+        expect(free.returncode == 0 and time.monotonic() - started < 20.0, "an agent with no hold-turns beside it answers at once")
 
 
 def main() -> int:
@@ -167,6 +225,8 @@ def main() -> int:
     limited = run(codex, ["exec"], "FIXTURE_USAGE_LIMIT")
     expect(limited.returncode != 0 and "usage limit" in limited.stdout, "codex's usage limit says so")
     check_steerable(claude)
+    check_tour_revision(claude)
+    check_held_turn(claude)
     print("fixture-agent-answers:pass")
     return 0
 

@@ -38,6 +38,14 @@ namespace bpr::qt::detail {
 		}
 	}
 
+	void wrapping_row::set_last_trails(const bool aTrails)
+	{
+		if (LastTrails != aTrails) {
+			LastTrails = aTrails;
+			invalidate();
+		}
+	}
+
 	void wrapping_row::addItem(QLayoutItem* const aItem) { Items.push_back(aItem); }
 
 	auto wrapping_row::count() const -> int { return static_cast<int>(Items.size()); }
@@ -120,6 +128,10 @@ namespace bpr::qt::detail {
 				entry.Box = QRect{ x, 0, itemWidth, height_at(*entry.Item, itemWidth) };
 				x += itemWidth + HorizontalSpacing;
 			}
+			// Nothing took the space left over: it stands before the last.
+			if (LastTrails && spare > 0) {
+				items.back().Box.moveLeft(items.back().Box.x() + spare);
+			}
 		} else {
 			// Wrapped: an item that expands takes a row of its own, and none
 			// is wider than the row unless its own minimum is.
@@ -137,6 +149,10 @@ namespace bpr::qt::detail {
 				entry.Row = row;
 				x += itemWidth + HorizontalSpacing;
 				ownsNext = own;
+			}
+			// The last ends its row, whether it shares it or has it alone.
+			if (auto& last = items.back().Box; LastTrails && last.width() < width) {
+				last.moveLeft(area.x() + width - last.width());
 			}
 		}
 
