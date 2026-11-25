@@ -196,8 +196,8 @@ namespace bpr::qt {
 		explicit tour_side_chat(QWidget* aParent = nullptr);
 		/// [[BPR-2014]]. Told after Accept on one stop's own proposed text, never Apply all.
 		void set_own_accept_dispatch(std::function<void(core::tour_stop_id, const std::string&)> aDispatch) { OwnAcceptDispatch = std::move(aDispatch); }
-		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12, without its button. What
-		/// the open chat's next question starts from besides its own
+		/// \brief RFC-BPR-0101 AC12, without its button. What the open
+		/// chat's next question starts from besides its own
 		/// conversation, said in one quiet line on the question field until
 		/// that question is asked. Ask more asked for this by a press, on
 		/// each stop Draft Tour proposed and on an Enhance's suggestion in the

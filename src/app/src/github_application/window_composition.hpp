@@ -1228,8 +1228,8 @@ namespace bpr::app {
 		void               finish_tour_draft(const std::optional<core::tour_agent_run_id> aRun, const application::agent_run_result& aResult, const QString& aWords);
 		void               decide_tour_proposal(const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText);
 		void               relocate_tour_proposal(const std::size_t aIndex);
-		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12, without its button. The
-		/// fresh run whose answer `aThread`'s next question starts from: core
+		/// \brief RFC-BPR-0101 AC12, without its button. The fresh run
+		/// whose answer `aThread`'s next question starts from: core
 		/// decides (`fresh_answer_to_carry`) over the turns of the
 		/// conversation that question goes on with and the fresh runs beside
 		/// it. Draft Tour's answer is kept only for the draft this window

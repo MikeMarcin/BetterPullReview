@@ -353,21 +353,21 @@ namespace {
 		const auto first = begin_tour_run(fresh, tour_agent_request::draft_tour, tour_agent_tools::none, "Draft Tour");
 		expect(!carried(whole), "a draft still running has no answer to carry");
 		static_cast<void>(finish_tour_run(fresh, *first, tour_agent_run_state::answered, "Proposed 2 stops."));
-		expect(carried(whole) == std::optional{ *first }, "the whole tour's next question starts from the draft's answer");
+		expect(carried(whole) == first, "the whole tour's next question starts from the draft's answer");
 		expect(!carried(part), "a stop's chat does not: the draft is the whole tour's");
 		// A question that never reached the agent, or ended without an answer,
 		// may not have taken it.
 		const auto refused = begin_tour_ask(fresh, whole, std::nullopt, "Fewer stops?");
 		expect(!carried(whole), "while the question that carries it runs, nothing more waits");
 		static_cast<void>(finish_tour_run(fresh, *refused, tour_agent_run_state::failed, "The tour agent was still finishing its last run."));
-		expect(carried(whole) == std::optional{ *first }, "a question that failed leaves the draft's answer waiting");
+		expect(carried(whole) == first, "a question that failed leaves the draft's answer waiting");
 		const auto stopped = begin_tour_ask(fresh, whole, std::nullopt, "Fewer stops?");
 		static_cast<void>(finish_tour_run(fresh, *stopped, tour_agent_run_state::cancelled, "Stopped."));
-		expect(carried(whole) == std::optional{ *first }, "so does one that was stopped");
+		expect(carried(whole) == first, "so does one that was stopped");
 		// Another part's question does not take it.
 		const auto elsewhere = begin_tour_ask(fresh, part, std::nullopt, "Why clear here?");
 		static_cast<void>(answer_tour_ask(fresh, *elsewhere, "Because.", { }));
-		expect(carried(whole) == std::optional{ *first } && !carried(part), "a stop's own question neither takes the draft's answer nor is given it");
+		expect(carried(whole) == first && !carried(part), "a stop's own question neither takes the draft's answer nor is given it");
 		const auto taken = begin_tour_ask(fresh, whole, std::nullopt, "Fewer stops?");
 		static_cast<void>(answer_tour_ask(fresh, *taken, "Merged two.", { }));
 		expect(!carried(whole), "once a question of the whole tour's chat is answered, the draft's answer is carried");
@@ -378,7 +378,7 @@ namespace {
 		expect(!carried(whole), "a draft that failed has no answer, and the one before it was carried");
 		const auto again = begin_tour_run(fresh, tour_agent_request::draft_tour, tour_agent_tools::none, "Draft Tour");
 		static_cast<void>(finish_tour_run(fresh, *again, tour_agent_run_state::answered, "Proposed 3 stops."));
-		expect(carried(whole) == std::optional{ *again }, "a new draft's answer waits for the next question");
+		expect(carried(whole) == again, "a new draft's answer waits for the next question");
 		// An Enhance is a turn of its part's thread that no conversation holds.
 		const auto enhance      = begin_tour_ask(fresh, part, std::nullopt, "Enhance the writing of this stop's explanation.", true);
 		fresh.Runs.back().Fresh = true;
@@ -396,26 +396,26 @@ namespace {
 			return made;
 		};
 		waits = suggests(*enhance);
-		expect(carried(part) == std::optional{ *enhance }, "the stop's next question starts from the Enhance's suggestion while it waits");
+		expect(carried(part) == enhance, "the stop's next question starts from the Enhance's suggestion while it waits");
 		auto decided = *waits;
 		expect(decide_tour_proposal(decided, 0U, tour_proposal_decision::discarded, ""), "the suggestion is discarded");
 		expect(!fresh_answer_to_carry(fresh, part, decided), "a discarded suggestion is not carried");
 		decided = *waits;
 		expect(decide_tour_proposal(decided, 0U, tour_proposal_decision::accepted, "Tightened words."), "the suggestion is accepted");
 		expect(!fresh_answer_to_carry(fresh, part, decided), "nor an accepted one: its words are the tour's now");
-		expect(carried(whole) == std::optional{ *again }, "and the whole tour's still from its draft");
+		expect(carried(whole) == again, "and the whole tour's still from its draft");
 		expect(!carried(tour_thread{ .Kind = tour_thread_kind::stop, .Stop = tour_stop_id{ 8 } }), "another stop's chat carries neither");
 		const auto newer        = begin_tour_ask(fresh, part, std::nullopt, "Enhance the writing of this stop's explanation.", true);
 		fresh.Runs.back().Fresh = true;
 		static_cast<void>(answer_tour_ask(fresh, *newer, "Tightened again.", { }));
 		expect(!carried(part), "the newer Enhance is the one asked of, and the proposal that waits is the older one's");
 		waits = suggests(*newer);
-		expect(carried(part) == std::optional{ *newer }, "of two Enhances, the newer is the one carried");
+		expect(carried(part) == newer, "of two Enhances, the newer is the one carried");
 		const auto follow = begin_tour_ask(fresh, part, std::nullopt, "Why is that better?");
 		static_cast<void>(answer_tour_ask(fresh, *follow, "It names the call.", { }));
 		expect(!carried(part), "and an answered question of the stop's chat has taken it");
 		// The same runs give the same answer: nothing but the session decides.
-		expect(fresh_answer_to_carry(fresh, whole, waits) == fresh_answer_to_carry(tour_agent_session{ fresh }, whole, std::optional{ *waits }), "equal sessions and proposals carry the same answer");
+		expect(fresh_answer_to_carry(fresh, whole, waits) == fresh_answer_to_carry(tour_agent_session{ fresh }, whole, waits), "equal sessions and proposals carry the same answer");
 	}
 	template <typename T>
 	auto identity(const unsigned char aSeed) -> T

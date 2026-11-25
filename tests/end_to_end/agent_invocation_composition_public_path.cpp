@@ -1474,7 +1474,18 @@ auto main(int argc, char** argv) -> int
 				return failLogged("pinned-edits-block-again", status());
 			}
 			before = starts();
-			if (!click(tab->banner_second_button()) || !latestIs(core::agent_turn_outcome::answered) || starts() != before + 1U
+			// New session is History's New session and then the kept message:
+			// an empty session at the current head, shown at once with
+			// History's tick, and the refused question as its first turn, not
+			// one more turn under the transcript it was refused in.
+			const auto refusedIn    = tab->session_menu()->selected();
+			const auto refusedTurns = tab->turn_count();
+			tab->banner_second_button()->click();
+			const auto movedOn = wait_until([&] { return evidence().Quiescent && tab->turn_count() == 1U && tab->state() != qt::agent_tab_state::working && tab->session_menu()->selected() != refusedIn; }, extended_agent_budget);
+			if (!movedOn || refusedTurns < 2U || tab->turn_question(0U) != QStringLiteral("verify-move-note with edits") || tab->session_menu()->selected().empty() || tab->banner()->isVisible()) {
+				return failLogged("pinned-new-session-shown-with-the-kept-message", status() + " turns=" + std::to_string(tab->turn_count()) + " were=" + std::to_string(refusedTurns));
+			}
+			if (!latestIs(core::agent_turn_outcome::answered) || starts() != before + 1U
 				|| !latestAnswer().contains(QStringLiteral("move-note=none checkout=") + currentHead) || panel->pinned_conversation().has_value()
 				|| !send(QStringLiteral("remember-tool-observation")) || !latestIs(core::agent_turn_outcome::answered) || panel->pinned_conversation().has_value()
 				|| window.side_chat()->head_oid_text().left(7) != currentHead) {
