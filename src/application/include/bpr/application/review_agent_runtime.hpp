@@ -221,6 +221,7 @@ namespace bpr::application {
 		void private_changed(const agent_invocation_projection_identity& aIdentity, const private_review_delta& aDelta) override;
 		void private_refused(const agent_invocation_projection_identity& aIdentity, const private_run_error& aError) override;
 		void restore_native_session(const core::agent_session& aSession) override;
+		void pin_native_conversation(core::agent_profile_id aProfile, const core::agent_revision_binding& aBinding) override;
 		void present_native_history(const native_agent_history_projection& aView) override;
 		void present_session_catalog(const agent_session_catalog_projection& aProjection) override;
 

@@ -3150,8 +3150,8 @@ namespace bpr::app {
 		/// The session the last refused Agent tab run would continue under,
 		/// when its native conversation is pinned to another revision.
 		std::optional<core::agent_session> PinnedAgentSession;
-		/// The Agent tab's running turn asked the store for a new
-		/// conversation at the current revision.
+		/// The running turn is the Agent tab's, whose native conversation
+		/// the window's History selection follows.
 		bool                                                NativeFreshSent          = false;
 		std::size_t                                         FindingRefusalsPresented = 0U;
 		std::size_t                                         SideChatIntents          = 0U;

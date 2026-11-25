@@ -114,9 +114,14 @@ namespace bpr::core {
 		if (status.Current) {
 			return offer;
 		}
+		const auto thisReview = status.Staleness != agent_session_staleness::different_review;
+		if (!aFacts.Remembers && thisReview) {
+			offer.StartFresh = true;
+			return offer;
+		}
 		offer.Pinned            = true;
 		offer.NewSessionOffered = true;
-		offer.ContinueOffered   = aFacts.Remembers && status.Staleness != agent_session_staleness::different_review;
+		offer.ContinueOffered   = thisReview;
 		return offer;
 	}
 } // namespace bpr::core

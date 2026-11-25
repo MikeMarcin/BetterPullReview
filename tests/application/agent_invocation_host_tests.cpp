@@ -701,8 +701,14 @@ namespace {
 			SessionCatalogs.push_back(aProjection);
 		}
 
-		std::vector<core::agent_profile> Offered;
-		std::vector<std::string>         Refusals;
+		void pin_native_conversation(const core::agent_profile_id aProfile, const core::agent_revision_binding& aBinding) override
+		{
+			Pins.emplace_back(aProfile, aBinding);
+		}
+
+		std::vector<std::pair<core::agent_profile_id, core::agent_revision_binding>> Pins;
+		std::vector<core::agent_profile>                                             Offered;
+		std::vector<std::string>                                                     Refusals;
 		std::vector<application::agent_invocation_projection_identity>
 													   AdmittedIdentities;
 		std::optional<application::prepared_workspace> Started;
@@ -2154,12 +2160,34 @@ namespace {
 			test.settle();
 			test.Host.dispatch(input);
 			test.settle();
-			const auto& result = refused(test);
-			expect(result.PinnedConversation && result.PinnedConversation->Pinned && !result.PinnedConversation->ContinueOffered && result.PinnedConversation->NewSessionOffered,
-				   "a conversation never used offers only a new session");
-			expect(result.RefusalReason.find("Continue") == std::string::npos && result.RefusalReason.find("continue") == std::string::npos
-					   && result.RefusalReason.find("Start a new session at " + currentHead) != std::string::npos,
-				   "and its reason does not suggest continuing it");
+			// Owner, 2026-11-24: a conversation never used moves to the head
+			// under review without asking.
+			expect(test.Projection.Finished.size() == 1U && test.Projection.Finished.back().Outcome == application::agent_run_outcome::success
+					   && !test.Projection.Finished.back().PinnedConversation && test.Processes.Starts == 1U,
+				   "a conversation never used is not refused: the turn runs");
+			expect(test.NativeSessions.Records.at(scope).Id != selected && test.NativeSessions.Records.at(scope).Binding == binding(hostId)
+					   && test.Projection.Finished.back().Conversation == test.NativeSessions.Records.at(scope).Id,
+				   "in a new conversation at the head under review, which the result names");
+		}
+		{
+			// Owner, 2026-11-24: with the head moved, the choice comes before
+			// a question. A used conversation with no runtime session to
+			// restore tells the chat its pinned revision when history loads;
+			// one never used does not.
+			for (const auto used : { true, false }) {
+				auto       test     = harness{ };
+				const auto selected = seed(test.NativeSessions, used);
+				static_cast<void>(selected);
+				const auto input = agent_tab_turn();
+				test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+				test.settle();
+				test.Host.restore_native(core::claude_stream_json_profile_id, "incarnation", "agent-tab");
+				test.settle();
+				expect(used ? test.Projection.Pins.size() == 1U && test.Projection.Pins.front().first == core::claude_stream_json_profile_id && test.Projection.Pins.front().second == earlier
+							: test.Projection.Pins.empty(),
+					   used ? "a used conversation pinned elsewhere is said to the chat when history loads" : "a conversation never used is not said as pinned");
+				expect(test.Processes.Starts == 0U, "loading history runs nothing");
+			}
 		}
 	}
 

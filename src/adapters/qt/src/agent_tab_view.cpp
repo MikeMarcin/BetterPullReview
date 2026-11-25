@@ -3835,7 +3835,16 @@ namespace bpr::qt {
 			BannerFirst->setText(tr("Resend"));
 			// [[BPR-2000]]. Resend starts a run.
 			wear_agent_accent(*BannerFirst, palette());
-			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
+			// Owner, 2026-11-24. Resend sends the kept message again, as the
+			// stopped turn's own Resend does; with no such turn it starts
+			// the run the launch gesture would.
+			connect(BannerFirst, &QPushButton::clicked, this, [this] {
+				if (!Turns.empty() && Turns.back().Done && Turns.back().RecoveryKind == core::agent_turn_recovery::resend) {
+					recover(Turns.back());
+				} else {
+					Launch.start_action()->trigger();
+				}
+			});
 			// [[BPR-2295]]. A stop that would stop the same way again is not
 			// offered a Resend as its fix; the reason says what would change it.
 			if (Launch.stopped_for_good()) {

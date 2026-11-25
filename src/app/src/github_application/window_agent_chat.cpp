@@ -970,7 +970,9 @@ namespace bpr::app {
 				invocation.SelectedConversation         = AgentNativeHistory.Selected;
 				invocation.NativeStartAtCurrentRevision = NativeFreshAtCurrentRevision && NativeFreshAtCurrentRevision->Profile == aProfile
 					&& NativeFreshAtCurrentRevision->Binding == invocation.Context.Binding;
-				NativeFreshSent = invocation.NativeStartAtCurrentRevision;
+				// Any Agent tab turn may start a new conversation: a chosen new
+				// session, or one never used that moves to the head.
+				NativeFreshSent = true;
 			}
 		}
 		invocation.Path = core::agent_run_path::agent_tab;

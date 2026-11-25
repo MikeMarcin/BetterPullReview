@@ -1122,11 +1122,8 @@ auto main(int argc, char** argv) -> int
 				tab->ask_button()->click();
 				return wait_until([&] { return evidence().Quiescent && (evidence().Statistics.ProcessStarts > starts || panel->pinned_conversation().has_value()) && tab->state() != qt::agent_tab_state::working; }, extended_agent_budget);
 			};
-			// Asking again shows the conversation each agent has selected, as a
-			// reopened window would: the chat is at the head under review.
-			const auto reread = [&] {
-				return choose(second) && choose(first) && wait_until([&] { return tab->state() != qt::agent_tab_state::head_moved && tab->ask_button()->isEnabled(); });
-			};
+			// Reading each agent's history again, as a reopened window would.
+			const auto reread = [&] { return choose(second) && choose(first); };
 			if (!choose(first)) {
 				return fail(*application, "pinned-agent-choice");
 			}
@@ -1134,7 +1131,8 @@ auto main(int argc, char** argv) -> int
 			if (earlierHead.size() != 7 || !send(QStringLiteral("native source question")) || !latestIs(core::agent_turn_outcome::answered)) {
 				return fail(*application, "pinned-seed", panel->status_text().toStdString());
 			}
-			// A conversation that remembers: a transcript replay of that one.
+			// A conversation that remembers but has no runtime session: a
+			// transcript replay of that one.
 			auto* replay = tab->findChild<QAction*>(QStringLiteral("agentTranscriptReplay"));
 			if (replay == nullptr) {
 				return fail(*application, "pinned-replay-offer");
@@ -1152,67 +1150,53 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "pinned-unused-conversation");
 			}
 			if (!app::detail::github_application_fixture_access::reaccept_fixture_revision(*application, true)
-				|| !wait_until([&] { return evidence().Quiescent && window.side_chat()->head_oid_text().left(7) != earlierHead; }) || !reread()) {
-				return fail(*application, "pinned-head-moved", window.side_chat()->head_oid_text().toStdString());
+				|| !wait_until([&] { return evidence().Quiescent; })) {
+				return fail(*application, "pinned-head-moved");
 			}
-			const auto currentHead     = window.side_chat()->head_oid_text().left(7);
-			const auto refusedWithBoth = [&] {
-				const auto& offer = panel->pinned_conversation();
-				return tab->state() == qt::agent_tab_state::stopped && offer && offer->ContinueOffered && offer->NewSessionOffered
-					&& tab->banner_first_button()->isVisible() && tab->banner_first_button()->text() == QStringLiteral("Continue at %1").arg(earlierHead)
-					&& tab->banner_second_button()->isVisible() && tab->banner_second_button()->text() == QStringLiteral("Start a new session")
-					&& panel->stop_reason_text().contains(QStringLiteral("Continue at %1").arg(earlierHead))
-					&& panel->stop_reason_text().contains(QStringLiteral("start a new session at %1").arg(currentHead))
-					&& tab->banner_text().contains(panel->stop_reason_text());
+			// The choice comes before a question: the replay is pinned to the
+			// earlier head, and the tab says so as soon as its history loads.
+			const auto offeredUpFront = [&] {
+				return wait_until([&] {
+					return reread() && tab->state() == qt::agent_tab_state::head_moved && window.side_chat()->head_oid_text().left(7) == earlierHead
+						&& tab->banner_first_button()->isVisible() && tab->banner_first_button()->text() == QStringLiteral("Start a new session")
+						&& tab->banner_second_button()->isVisible();
+				});
 			};
-			const auto beforeRefusal = evidence().Statistics.ProcessStarts;
-			if (!send(QStringLiteral("verify-replay")) || evidence().Statistics.ProcessStarts != beforeRefusal || !refusedWithBoth()) {
-				return fail(*application, "pinned-refusal-offers-both", panel->stop_reason_text().toStdString() + " | first=" + tab->banner_first_button()->text().toStdString() + " second=" + tab->banner_second_button()->text().toStdString());
+			const auto beforeChoice = evidence().Statistics.ProcessStarts;
+			if (!offeredUpFront() || evidence().Statistics.ProcessStarts != beforeChoice) {
+				return fail(*application, "pinned-offered-up-front", "state=" + std::to_string(static_cast<int>(tab->state())) + " head=" + window.side_chat()->head_oid_text().toStdString());
 			}
-			if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "native-pinned-refusal.png").u16string()))) {
-				return fail(*application, "pinned-refusal-render");
+			if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "native-pinned-up-front.png").u16string()))) {
+				return fail(*application, "pinned-up-front-render");
 			}
-			// Continue at the earlier head: the kept message is sent there.
-			const auto turnsBefore = tab->turn_count();
-			tab->banner_first_button()->click();
-			if (!wait_until([&] { return evidence().Quiescent && evidence().Statistics.ProcessStarts == beforeRefusal + 1U && tab->state() != qt::agent_tab_state::working && tab->turn_count() > turnsBefore; }, extended_agent_budget)
-				|| !latestIs(core::agent_turn_outcome::answered) || !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("transcript-replay-ok"))
-				|| tab->turn_question(tab->turn_count() - 1U) != QStringLiteral("verify-replay")
+			// Continue at the earlier head: the question is answered there.
+			tab->banner_second_button()->click();
+			if (!wait_until([&] { return tab->state() != qt::agent_tab_state::head_moved && tab->ask_button()->isEnabled(); })
+				|| !send(QStringLiteral("verify-replay")) || !latestIs(core::agent_turn_outcome::answered)
+				|| !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("transcript-replay-ok")) || panel->pinned_conversation().has_value()
 				|| window.side_chat()->head_oid_text().left(7) != earlierHead) {
 				return fail(*application, "pinned-continue", panel->status_text().toStdString() + " " + panel->stop_reason_text().toStdString());
 			}
-			// Asked again later, the same conversation refuses again, and Start
-			// a new session sends the message at the current head instead.
-			if (!reread() || !send(QStringLiteral("verify-replay")) || !refusedWithBoth()) {
-				return fail(*application, "pinned-refusal-again", panel->stop_reason_text().toStdString());
+			// Read again, the choice is offered again; Start a new session asks
+			// at the current head instead, and the next question follows there.
+			if (!offeredUpFront()) {
+				return fail(*application, "pinned-offered-again");
 			}
-			const auto beforeNew = evidence().Statistics.ProcessStarts;
-			tab->banner_second_button()->click();
-			if (!wait_until([&] { return evidence().Quiescent && evidence().Statistics.ProcessStarts == beforeNew + 1U && tab->state() != qt::agent_tab_state::working; }, extended_agent_budget)
-				|| !latestIs(core::agent_turn_outcome::answered) || panel->pinned_conversation().has_value()
+			tab->banner_first_button()->click();
+			if (!wait_until([&] { return tab->state() != qt::agent_tab_state::head_moved && tab->ask_button()->isEnabled(); })) {
+				return fail(*application, "pinned-new-session-chosen");
+			}
+			const auto currentHead = window.side_chat()->head_oid_text().left(7);
+			if (currentHead == earlierHead || !send(QStringLiteral("native source question")) || !latestIs(core::agent_turn_outcome::answered) || panel->pinned_conversation().has_value()
+				|| !send(QStringLiteral("remember-tool-observation")) || !latestIs(core::agent_turn_outcome::answered) || panel->pinned_conversation().has_value()
 				|| window.side_chat()->head_oid_text().left(7) != currentHead) {
 				return fail(*application, "pinned-new-session", panel->status_text().toStdString() + " " + panel->stop_reason_text().toStdString());
 			}
-			// The next question goes on in that new conversation.
-			if (!send(QStringLiteral("remember-tool-observation")) || !latestIs(core::agent_turn_outcome::answered) || panel->pinned_conversation().has_value()) {
-				return fail(*application, "pinned-new-session-follows", panel->status_text().toStdString() + " " + panel->stop_reason_text().toStdString());
-			}
-			// The second agent's conversation was never used: only a new
-			// session is offered, and the words do not suggest continuing.
-			if (!choose(second) || !send(QStringLiteral("Review this pull request"))) {
-				return fail(*application, "pinned-unused-send", panel->status_text().toStdString());
-			}
-			const auto& unused = panel->pinned_conversation();
-			if (!unused || unused->ContinueOffered || !unused->NewSessionOffered || tab->state() != qt::agent_tab_state::stopped
-				|| tab->banner_first_button()->text() != QStringLiteral("Start a new session") || !tab->banner_first_button()->isVisible() || tab->banner_second_button()->isVisible()
-				|| panel->stop_reason_text().contains(QStringLiteral("ontinue")) || !panel->stop_reason_text().contains(QStringLiteral("Start a new session at %1").arg(currentHead))) {
-				return fail(*application, "pinned-unused-offers-new-only", panel->stop_reason_text().toStdString() + " | first=" + tab->banner_first_button()->text().toStdString());
-			}
-			const auto beforeUnused = evidence().Statistics.ProcessStarts;
-			tab->banner_first_button()->click();
-			if (!wait_until([&] { return evidence().Quiescent && evidence().Statistics.ProcessStarts == beforeUnused + 1U && tab->state() != qt::agent_tab_state::working; }, extended_agent_budget)
-				|| !latestIs(core::agent_turn_outcome::answered)) {
-				return fail(*application, "pinned-unused-new-session", panel->status_text().toStdString() + " " + panel->stop_reason_text().toStdString());
+			// The second agent's conversation was never used: it moves to the
+			// head under review without asking, and the question is answered.
+			if (!choose(second) || tab->state() == qt::agent_tab_state::head_moved || !send(QStringLiteral("Review this pull request"))
+				|| !latestIs(core::agent_turn_outcome::answered) || panel->pinned_conversation().has_value()) {
+				return fail(*application, "pinned-unused-moves-silently", panel->status_text().toStdString() + " " + panel->stop_reason_text().toStdString());
 			}
 			if (!shutdown(*application)) {
 				return EXIT_FAILURE;

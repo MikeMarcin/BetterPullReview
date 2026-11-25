@@ -341,6 +341,13 @@ namespace bpr::app {
 		}
 	}
 
+	void composition_agent_invocation_projection::pin_native_conversation(const core::agent_profile_id aProfile, const core::agent_revision_binding& aBinding)
+	{
+		if (NativePinned) {
+			NativePinned(aProfile, aBinding);
+		}
+	}
+
 	void composition_agent_invocation_projection::present_session_catalog(
 		const application::agent_session_catalog_projection& aProjection)
 

@@ -82,11 +82,9 @@ namespace bpr::application {
 								 : "This conversation is pinned to an earlier revision, " + pinned + ". Continue at " + pinned + " to keep asking about that revision, or ")
 					+ newHere + ". No question was sent.";
 			}
-			auto said    = sameHead ? std::string{ "This conversation started on another comparison and was never used. " }
-									: "This conversation started at " + pinned + " and was never used; the pull request is now at " + current + ". ";
 			auto next    = newHere;
 			next.front() = 'S';
-			return said + next + ". No question was sent.";
+			return "This conversation is pinned to " + pinned + ". " + next + ". No question was sent.";
 		}
 
 		// Read only this selected catalog generation, never an in-memory cache of other chats.
@@ -897,9 +895,9 @@ namespace bpr::application {
 						return;
 					}
 					// Application/window and invocation IDs are deliberately absent.
-					const auto scope    = native_scope_key(aRequest.Authority, aRequest.NativeAgentIdentity, aRequest.NativeScope);
-					auto       selected = NativeSessions->select(scope, std::to_string(static_cast<unsigned>(aProfile.Protocol)) + ":" + aRequest.NativeAgentIdentity + (aRequest.ReadOnlyTools ? ":read-only" : ""),
-																 aInvocation->Identity.Session.Binding, aRequest.NativeStartAtCurrentRevision);
+					const auto scope         = native_scope_key(aRequest.Authority, aRequest.NativeAgentIdentity, aRequest.NativeScope);
+					const auto configuration = std::to_string(static_cast<unsigned>(aProfile.Protocol)) + ":" + aRequest.NativeAgentIdentity + (aRequest.ReadOnlyTools ? ":read-only" : "");
+					auto       selected      = NativeSessions->select(scope, configuration, aInvocation->Identity.Session.Binding, aRequest.NativeStartAtCurrentRevision);
 					if (!selected) {
 						refuseNative("Native session storage is unavailable, full, or changed in another window. No question was sent.", core::operation_failure::storage_failed);
 						return;
@@ -924,8 +922,19 @@ namespace bpr::application {
 					const auto pinned = core::offer_pinned_conversation({
 						.Pinned    = selected->Binding,
 						.Observed  = aInvocation->Identity.Session.Binding,
-						.Remembers = selected->Turn > 2U || !selected->Handle.empty() || selected->Workspace.has_value() || (selected->Replay && !selected->ReplaySource.empty()),
+						.Remembers = selected->Turn > 2U || !selected->Handle.empty() || selected->Workspace.has_value() || selected->Replay,
 					});
+					// Owner, 2026-11-24: a conversation never used moves to the
+					// head under review without asking. Nothing was asked at its
+					// revision, so nothing is retargeted: the store starts a new
+					// conversation at the observed binding in its place.
+					if (pinned.StartFresh) {
+						selected = NativeSessions->select(scope, configuration, aInvocation->Identity.Session.Binding, true);
+						if (!selected || selected->Binding != aInvocation->Identity.Session.Binding) {
+							refuseNative("Native session storage is unavailable, full, or changed in another window. No question was sent.", core::operation_failure::storage_failed);
+							return;
+						}
+					}
 					if (pinned.Pinned) {
 						const auto reason = pinned_conversation_words(pinned);
 						record_operation(Log, { .Action = core::operation_action::native_continuation, .Failure = core::operation_failure::stale });
@@ -1907,6 +1916,22 @@ namespace bpr::application {
 							}
 							if (*outcome && (**outcome).Pending) {
 								self->project_refuse("The previous question may have been sent before interruption. It was not resent. Choose New session or explicitly create Transcript replay.");
+							}
+							if (aScope == "agent-tab" && *outcome && ((**outcome).Replay || !(**outcome).Workspace || (**outcome).Handle.empty())) {
+								// Owner, 2026-11-24: when the head has moved, the
+								// choice is offered before a question is sent, for
+								// a conversation with no runtime session too.
+								const auto& kept   = **outcome;
+								const auto  pinned = core::offer_pinned_conversation({
+									.Pinned    = kept.Binding,
+									.Observed  = *self->Binding,
+									.Remembers = kept.Turn > 2U || !kept.Handle.empty() || kept.Workspace.has_value() || kept.Replay,
+								});
+								if (pinned.Pinned && pinned.ContinueOffered && !kept.Pending) {
+									try {
+										self->Projection.pin_native_conversation(aProfile, kept.Binding);
+									} catch (...) { }
+								}
 							}
 							if (!*outcome || (**outcome).Replay || !(**outcome).Workspace || (**outcome).Handle.empty()) {
 								return;

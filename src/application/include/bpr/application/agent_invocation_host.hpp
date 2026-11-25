@@ -214,6 +214,16 @@ namespace bpr::application {
 		virtual void private_refused(const agent_invocation_projection_identity&, const private_run_error&) { }
 		/// \brief Restores a durable native binding without an invocation or opaque handle.
 		virtual void restore_native_session(const core::agent_session&) { }
+		/// \brief Owner, 2026-11-24. The selected native conversation of
+		/// `aProfile` is pinned to `aBinding`, another revision than the one
+		/// under review, and has no runtime session to restore (a replay, or a
+		/// turn that ended before the agent named its session). The chat is
+		/// told, so it offers the revision choice before a question is sent.
+		virtual void pin_native_conversation(core::agent_profile_id aProfile, const core::agent_revision_binding& aBinding)
+		{
+			static_cast<void>(aProfile);
+			static_cast<void>(aBinding);
+		}
 		virtual void present_native_history(const native_agent_history_projection&) { }
 		virtual void present_session_catalog(
 			const agent_session_catalog_projection& aProjection) = 0;

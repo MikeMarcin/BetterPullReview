@@ -833,9 +833,11 @@ namespace bpr::app {
 					// conversation is pinned keeps the session a continuation
 					// would run under, for the card's choice.
 					PinnedAgentSession = aResult.PinnedConversation ? aResult.PinnedSession : std::nullopt;
-					// The new conversation a fresh start made is the one the
-					// next turn resumes; History reads it again when opened.
-					if (std::exchange(NativeFreshSent, false) && !aResult.Conversation.empty() && !AgentNativeHistory.Scope.empty()) {
+					// A new conversation the run started (a chosen new session,
+					// or one never used moved to the head) is the one the next
+					// turn resumes; History reads it again when opened.
+					if (std::exchange(NativeFreshSent, false) && !aResult.Conversation.empty() && aResult.Conversation != AgentNativeHistory.Selected
+						&& !AgentNativeHistory.Scope.empty()) {
 						AgentNativeHistory.Selected = aResult.Conversation;
 						AgentNativeHistory.Replay   = false;
 					}
@@ -1023,6 +1025,17 @@ namespace bpr::app {
 			}
 			AgentProjections->NativeSession = [this](const core::agent_session& aSession) { if (!Closing && ChatHost) { LatestAgentSession=aSession; ChatHost->admitted(aSession,true); } };
 			AgentProjections->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_agent_native_history(aView); };
+			// Owner, 2026-11-24. The chat keeps its own session and takes the
+			// pinned conversation's revision, so the tab offers Start a new
+			// session or Continue at that revision before anything is sent.
+			AgentProjections->NativePinned = [this](const core::agent_profile_id aAgent, const core::agent_revision_binding& aBinding) {
+				if (!Closing && ChatHost && ChatHost->session()) {
+					auto pinned    = *ChatHost->session();
+					pinned.Profile = aAgent;
+					pinned.Binding = aBinding;
+					ChatHost->admitted(pinned, true);
+				}
+			};
 			compose_tour_session(agentProfiles, agentPolicies);
 			compose_follow_up_session(agentProfiles, agentPolicies);
 			compose_local_draft_agent(agentProfiles);

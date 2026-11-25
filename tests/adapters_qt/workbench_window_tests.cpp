@@ -15391,12 +15391,15 @@ namespace {
 			identity.InvocationGeneration = ++generation;
 			window.agent_panel()->admit(identity);
 			process_events();
-			const auto offer          = core::offer_pinned_conversation({ .Pinned = [&] { auto pinned = binding; pinned.HeadOid = earlier; return pinned; }(), .Observed = binding, .Remembers = aRemembers });
-			auto       result         = application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::private_storage_failure };
-			result.RefusalReason      = aRemembers ? "This conversation is pinned to an earlier revision, 3333333. Continue at 3333333 to keep asking about that revision, or start a new session at 2222222. No question was sent."
-												   : "This conversation started at 3333333 and was never used; the pull request is now at 2222222. Start a new session at 2222222. No question was sent.";
-			result.StandardError      = result.RefusalReason;
-			result.PinnedConversation = offer;
+			auto result = application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::private_storage_failure };
+			if (aRemembers) {
+				result.RefusalReason      = "This conversation is pinned to an earlier revision, 3333333. Continue at 3333333 to keep asking about that revision, or start a new session at 2222222. No question was sent.";
+				result.StandardError      = result.RefusalReason;
+				result.PinnedConversation = core::offer_pinned_conversation({ .Pinned = [&] { auto pinned = binding; pinned.HeadOid = earlier; return pinned; }(), .Observed = binding, .Remembers = true });
+			} else {
+				result.Outcome       = application::agent_run_outcome::nonzero_exit;
+				result.StandardError = "fixture-agent: exit status 2";
+			}
 			window.agent_panel()->finish(identity, result);
 			process_events();
 		};
@@ -15435,10 +15438,16 @@ namespace {
 		expect(chosen.size() == 3U && chosen.back() == core::agent_continuation::start_new_session && sends.size() == refusedBefore + 1U && sends.back().Text == "Review this pull request",
 			   "Start a new session goes to the host and resends the kept message");
 
+		// Owner, 2026-11-24: any other stopped run's Resend sends the kept
+		// message again, as the turn's own Resend does.
 		refuse(false);
-		expect(agent->banner_first_button()->isVisible() && agent->banner_first_button()->text() == QStringLiteral("Start a new session") && !agent->banner_second_button()->isVisible()
-				   && !agent->banner_text().contains(QStringLiteral("ontinue")),
-			   "a conversation never used offers only Start a new session, and its words do not suggest continuing: " + agent->banner_text().toStdString());
+		expect(agent->state() == qt::agent_tab_state::stopped && agent->banner_first_button()->isVisible() && agent->banner_first_button()->text() == QStringLiteral("Resend"),
+			   "an ordinary failure's card offers Resend");
+		const auto beforeResend = sends.size();
+		agent->banner_first_button()->click();
+		process_events();
+		expect(sends.size() == beforeResend + 1U && sends.back().Text == "Review this pull request" && chosen.size() == 3U,
+			   "the card's Resend sends the kept message, not a start gesture");
 	}
 
 	void test_a_refused_send_says_why_beside_the_composer()

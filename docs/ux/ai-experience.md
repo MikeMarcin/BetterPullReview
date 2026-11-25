@@ -298,16 +298,18 @@ behaviour the owner accepted (BPR-0521) and which remains the documented
 fallback; a fresh session at the new head anchors as usual.
 
 The saved native conversation an Agent tab turn resumes is pinned the same
-way, and it can be pinned while the chat is not: a transcript replay, a
-conversation whose turn ended before the agent named its session, or one
-started and never used. Such a turn is refused before anything runs. The
-core's `offer_pinned_conversation` decides what the refusal offers: Start a
-new session always, and Continue at the conversation's own head only when it
-remembers something and is about this pull request. The stopped card shows
-those buttons ("Continue at 1a2b3c4", "Start a new session") in place of
-Resend, the refusal's words name exactly them, and each sends the kept
-message: Continue on the conversation's own revision, a new session at the
-head under review (owner report, 2026-11-24).
+way. When the head has moved, the tab offers the choice before a question is
+sent, also for a conversation with no runtime session to restore (a
+transcript replay, or one whose turn ended before the agent named its
+session). The core's `offer_pinned_conversation` decides: a conversation of
+this pull request that was never used moves to the head under review without
+asking (a new conversation takes its place); any other pinned conversation
+offers Start a new session and Continue at its own head. A turn that still
+reaches a pinned conversation is refused before anything runs, and the
+stopped card shows those buttons ("Continue at 1a2b3c4", "Start a new
+session") in place of Resend; the refusal's words name exactly them, and
+each sends the kept message. Elsewhere the stopped card's Resend sends the
+kept message again (owner, 2026-11-24).
 
 ### What surface the workshop actually uses
 

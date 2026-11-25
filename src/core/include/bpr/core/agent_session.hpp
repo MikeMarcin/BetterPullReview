@@ -216,15 +216,18 @@ namespace bpr::core {
 
 	/// \brief The ways back one pinned conversation offers.
 	///
-	/// \details `Pinned` false means the conversation answers about what the
-	/// turn asked, and nothing is offered. Otherwise the turn is refused and
-	/// the reviewer chooses: `ContinueOffered` continues the conversation at
+	/// \details `Pinned` false means the turn goes ahead: the conversation
+	/// answers about what it asked, or, with `StartFresh`, it was never used
+	/// and a new conversation at the observed revision takes its place without
+	/// asking (owner, 2026-11-24). Otherwise the turn is refused and the
+	/// reviewer chooses: `ContinueOffered` continues the conversation at
 	/// `PinnedHead`, its own revision, and `NewSessionOffered` starts a new
 	/// conversation at `ObservedHead`. Neither retargets the conversation.
 	struct pinned_conversation_offer
 	{
 		agent_session_staleness Staleness         = agent_session_staleness::current;
 		bool                    Pinned            = false;
+		bool                    StartFresh        = false;
 		bool                    ContinueOffered   = false;
 		bool                    NewSessionOffered = false;
 		git_commit_oid          PinnedHead;
@@ -236,11 +239,12 @@ namespace bpr::core {
 	/// \brief Owner, 2026-11-24: a refusal that names a way back offers it.
 	///
 	/// \details Decided from `observe_agent_session`. A conversation at the
-	/// observed revision is not pinned. A pinned one always offers a new
-	/// session. It offers to continue at its own revision only when it is
-	/// about this pull request and remembers something: continuing a
-	/// conversation that was never used would continue nothing, and one about
-	/// another review cannot answer about this one.
+	/// observed revision is not pinned. One of this pull request that was
+	/// never used holds nothing a turn could be about, so it starts fresh at
+	/// the observed revision without asking. Any other pinned conversation
+	/// refuses and always offers a new session; it offers to continue at its
+	/// own revision only when it is about this pull request (one about another
+	/// review cannot answer about this one).
 	[[nodiscard]] auto offer_pinned_conversation(const pinned_conversation_facts& aFacts) noexcept
 		-> pinned_conversation_offer;
 } // namespace bpr::core

@@ -491,6 +491,11 @@ namespace bpr::application {
 		present([&](agent_invocation_projection_port& aPort) { aPort.restore_native_session(aSession); });
 	}
 
+	void review_agent_runtime::pin_native_conversation(const core::agent_profile_id aProfile, const core::agent_revision_binding& aBinding)
+	{
+		present([&](agent_invocation_projection_port& aPort) { aPort.pin_native_conversation(aProfile, aBinding); });
+	}
+
 	void review_agent_runtime::present_native_history(const native_agent_history_projection& aView)
 	{
 		present([&](agent_invocation_projection_port& aPort) { aPort.present_native_history(aView); });

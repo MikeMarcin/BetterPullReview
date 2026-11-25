@@ -285,6 +285,9 @@ namespace bpr::app {
 			const application::agent_run_result&)>;
 
 		session_sink NativeSession;
+		/// Owner, 2026-11-24. A selected native conversation pinned to another
+		/// revision, with no runtime session to restore.
+		std::function<void(core::agent_profile_id, const core::agent_revision_binding&)> NativePinned;
 
 		composition_agent_invocation_projection(
 			application::agent_invocation_projection_port& aPanel,
@@ -322,6 +325,7 @@ namespace bpr::app {
 			const application::agent_finding_delivery&               aDelivery) override;
 
 		void restore_native_session(const core::agent_session& aSession) override;
+		void pin_native_conversation(core::agent_profile_id aProfile, const core::agent_revision_binding& aBinding) override;
 		void present_session_catalog(
 			const application::agent_session_catalog_projection& aProjection)
 			override;

@@ -221,7 +221,8 @@ namespace {
 	}
 	/// \brief Owner, 2026-11-24: a refusal that names a way back offers it.
 	/// A pinned conversation offers a new session always, and continuing at
-	/// its own revision only when it is about this review and holds something.
+	/// its own revision when it is about this review. One of this review that
+	/// was never used starts fresh at the observed revision without asking.
 	void test_a_pinned_conversation_offers_what_it_names()
 	{
 		auto moved            = binding();
@@ -238,14 +239,17 @@ namespace {
 			core::agent_session_staleness Staleness;
 			bool                          Pinned;
 			bool                          Continue;
+			bool                          Fresh;
 		};
 		const auto rows = std::array{
-			row{ binding(), true, core::agent_session_staleness::current, false, false },
-			row{ binding(), false, core::agent_session_staleness::current, false, false },
-			row{ moved, true, core::agent_session_staleness::head_moved, true, true },
-			row{ moved, false, core::agent_session_staleness::head_moved, true, false },
-			row{ reselected, true, core::agent_session_staleness::epoch_pair_changed, true, true },
-			row{ elsewhere, true, core::agent_session_staleness::different_review, true, false },
+			row{ binding(), true, core::agent_session_staleness::current, false, false, false },
+			row{ binding(), false, core::agent_session_staleness::current, false, false, false },
+			row{ moved, true, core::agent_session_staleness::head_moved, true, true, false },
+			row{ moved, false, core::agent_session_staleness::head_moved, false, false, true },
+			row{ reselected, true, core::agent_session_staleness::epoch_pair_changed, true, true, false },
+			row{ reselected, false, core::agent_session_staleness::epoch_pair_changed, false, false, true },
+			row{ elsewhere, true, core::agent_session_staleness::different_review, true, false, false },
+			row{ elsewhere, false, core::agent_session_staleness::different_review, true, false, false },
 		};
 		for (const auto& expected : rows) {
 			const auto facts = core::pinned_conversation_facts{ .Pinned = binding(), .Observed = expected.Observed, .Remembers = expected.Remembers };
@@ -255,6 +259,8 @@ namespace {
 				   "the offer carries observe_agent_session's verdict");
 			expect(offer.Pinned == expected.Pinned, "only a conversation at another binding is pinned");
 			expect(offer.NewSessionOffered == expected.Pinned, "a pinned conversation always offers a new session, and a current one offers nothing");
+			expect(offer.StartFresh == expected.Fresh && !(offer.StartFresh && offer.Pinned),
+				   "a conversation of this review never used starts fresh without asking, and only it");
 			expect(offer.ContinueOffered == expected.Continue,
 				   "continuing is offered only for a used conversation about this review");
 			expect(offer.PinnedHead == binding().HeadOid && offer.ObservedHead == expected.Observed.HeadOid,
