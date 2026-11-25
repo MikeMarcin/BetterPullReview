@@ -5,6 +5,7 @@
 #include "bpr/core/agent_report_keep.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/qt/ask_menu.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "markdown_document.hpp"
 
@@ -41,10 +42,110 @@
 #include <cmath>
 #include <map>
 #include <optional>
+#include <ranges>
 #include <string_view>
 
 namespace bpr::qt {
 	namespace {
+		/// The page's reader. After its text it draws what its view lays
+		/// over the text: the ring round the link the keyboard is on.
+		class report_page_reader final : public QTextEdit
+		{
+		public:
+			report_page_reader(QWidget* const aParent, std::function<void(QPainter&)> aOver)
+				: QTextEdit{ aParent }
+				, Over{ std::move(aOver) }
+			{
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				QTextEdit::paintEvent(aEvent);
+				auto painter = QPainter{ viewport() };
+				Over(painter);
+			}
+
+		private:
+			std::function<void(QPainter&)> Over;
+		};
+
+		/// A link of the page: where its words stand in the page's text, and
+		/// where it goes.
+		struct page_link
+		{
+			int     First = 0;
+			int     Last  = 0;
+			QString Href;
+		};
+
+		/// The page's links in reading order. A link written in several runs
+		/// (code inside its words) is one link.
+		[[nodiscard]] auto page_links(const QTextDocument& aDocument) -> std::vector<page_link>
+		{
+			auto links = std::vector<page_link>{ };
+			for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
+				for (auto run = block.begin(); !run.atEnd(); ++run) {
+					const auto part = run.fragment();
+					const auto href = part.charFormat().anchorHref();
+					if (href.isEmpty()) {
+						continue;
+					}
+					if (!links.empty() && links.back().Last == part.position() && links.back().Href == href) {
+						links.back().Last = part.position() + part.length();
+						continue;
+					}
+					links.push_back({ .First = part.position(), .Last = part.position() + part.length(), .Href = href });
+				}
+			}
+			return links;
+		}
+
+		/// Where the focus ring of the link at `aFirst` to `aLast` is drawn
+		/// on the page's viewport: round the whole chip of a button-shaped
+		/// link (`Chip`), else round its words, one box a line.
+		struct link_ring
+		{
+			std::vector<QRectF> Boxes;
+			bool                Chip = false;
+		};
+
+		[[nodiscard]] auto ring_of(const QTextEdit& aPage, const int aFirst, const int aLast) -> link_ring
+		{
+			auto* const document = aPage.document();
+			auto        cursor   = QTextCursor{ document };
+			cursor.setPosition(aFirst);
+			// A chip is a one-cell table that holds its link and nothing else.
+			if (auto* const table = cursor.currentTable(); table != nullptr && table->rows() == 1 && table->columns() == 1) {
+				const auto cell = table->cellAt(0, 0);
+				if (cell.firstCursorPosition().position() == aFirst && cell.lastCursorPosition().position() == aLast) {
+					// The chip's box is its words with the cell's own padding
+					// and border round them. (Qt reports a table's box at its
+					// first cell's words, not at the table's corner, and a
+					// collapsed border's pixel too wide.)
+					const auto scrolled = QPointF{ static_cast<qreal>(-aPage.horizontalScrollBar()->value()), static_cast<qreal>(-aPage.verticalScrollBar()->value()) };
+					const auto words    = document->documentLayout()->blockBoundingRect(cursor.block()).translated(scrolled);
+					const auto edge     = cell.format().toTableCellFormat();
+					return { .Boxes = { words.adjusted(-edge.leftPadding() - edge.leftBorder(), -edge.topPadding() - edge.topBorder(), edge.rightPadding() + edge.rightBorder(), edge.bottomPadding() + edge.bottomBorder()) }, .Chip = true };
+				}
+			}
+			auto              ring   = link_ring{ };
+			const auto        block  = document->findBlock(aFirst);
+			const auto* const layout = block.layout();
+			for (auto index = 0; layout != nullptr && index < layout->lineCount(); ++index) {
+				const auto line  = layout->lineAt(index);
+				const auto first = std::max(aFirst - block.position(), line.textStart());
+				const auto last  = std::min(aLast - block.position(), line.textStart() + line.textLength());
+				if (first >= last) {
+					continue;
+				}
+				cursor.setPosition(block.position() + first);
+				const auto caret = QRectF{ aPage.cursorRect(cursor) };
+				ring.Boxes.emplace_back(caret.left(), caret.top(), line.cursorToX(last) - line.cursorToX(first), caret.height());
+			}
+			return ring;
+		}
+
 		/// Look report-templates-v003. The object a code box's place is in the
 		/// page, and its slot.
 		constexpr int report_code_object  = QTextFormat::UserObject + 86;
@@ -373,7 +474,7 @@ namespace bpr::qt {
 		// The page is a read-only reader over the Markdown readers' own
 		// document, which denies every resource load unconditionally, and a
 		// link is taken as its text (`anchorAt`), never as an address.
-		Dressed = new QTextEdit{ Column };
+		Dressed = new report_page_reader{ Column, [this](QPainter& aPainter) { paint_keyboard_link(aPainter); } };
 		Dressed->setDocument(new detail::markdown_document{ Dressed });
 		Dressed->setReadOnly(true);
 		Dressed->setProperty("bprReader", true);
@@ -392,6 +493,14 @@ namespace bpr::qt {
 		Dressed->setVisible(false);
 		Dressed->viewport()->installEventFilter(this);
 		Dressed->installEventFilter(this);
+		CaretWidth = Dressed->cursorWidth();
+		// The caret moved off the keyboard's link (an arrow key, Select All):
+		// the keyboard is where the caret is again.
+		connect(Dressed, &QTextEdit::cursorPositionChanged, this, [this] {
+			if (const auto caret = Dressed->textCursor(); KeyboardLink && (caret.hasSelection() || caret.position() != KeyboardLink->first)) {
+				set_keyboard_link(std::nullopt);
+			}
+		});
 		CodeObjects = new report_code_objects{ this, [this](const int aSlot, const int aWidth) { return code_height(aSlot, aWidth); } };
 		column->addWidget(Dressed);
 		column->addStretch(1);
@@ -459,6 +568,9 @@ namespace bpr::qt {
 
 	void agent_report_view::present(const agent_report_document& aDocument)
 	{
+		// Another report's page: the keyboard's link was the last one's.
+		set_keyboard_link(std::nullopt);
+		PressedLink.clear();
 		Document = aDocument;
 		Title->setText(aDocument.Title);
 		// The line under the title is written with the page's colours
@@ -726,6 +838,17 @@ namespace bpr::qt {
 			const auto top = Scroll->verticalScrollBar()->value();
 			Dressed->document()->setDefaultFont(font());
 			auto collected = std::vector<report_code_slot>{ };
+			// The keyboard's link is kept through the render where the page
+			// still has it, by its name and its place among that name's.
+			auto held = std::optional<std::pair<QString, int>>{ };
+			if (KeyboardLink) {
+				const auto links = page_links(*Dressed->document());
+				const auto at    = std::ranges::find(links, KeyboardLink->first, &page_link::First);
+				if (at != links.end()) {
+					const auto name = link_name(at->Href);
+					held            = std::pair{ name, static_cast<int>(std::count_if(links.begin(), at, [this, &name](const page_link& aLink) { return link_name(aLink.Href) == name; })) };
+				}
+			}
 			// The keep actions' links, minted afresh for this render: a
 			// random token no answer can know, mapped to its action.
 			ActionLinks.clear();
@@ -831,6 +954,10 @@ namespace bpr::qt {
 				CodePlaces[index] = found.position() - 1;
 			}
 			colour_inline_code();
+			set_keyboard_link(std::nullopt);
+			if (held) {
+				static_cast<void>(keyboard_to(held->first, held->second));
+			}
 			Scroll->verticalScrollBar()->setValue(top);
 		}
 		for (auto* const view : CodeViews) {
@@ -1321,8 +1448,12 @@ namespace bpr::qt {
 		// [[BPR-2258]]. The report stays in front while the host makes the
 		// draft; focus that was on the page comes back to it.
 		const auto focused = isAncestorOf(QApplication::focusWidget());
+		// Made with Return, the keyboard goes on to what the action leaves
+		// in its place. Made with the pointer, nothing takes it: the owner
+		// clicked Draft comment and found Go to draft's words selected.
+		const auto handed = KeyboardPress;
 		render_dressed();
-		DraftDispatch(*request, [this, turn, aOutline, focused, made = *request, alive = QPointer<agent_report_view>{ this }](const bool aDrafted, const QString& aWhy) {
+		DraftDispatch(*request, [this, turn, aOutline, focused, handed, made = *request, alive = QPointer<agent_report_view>{ this }](const bool aDrafted, const QString& aWhy) {
 			if (alive.isNull()) {
 				return;
 			}
@@ -1339,8 +1470,8 @@ namespace bpr::qt {
 			render_dressed();
 			if (focused) {
 				Dressed->setFocus(Qt::OtherFocusReason);
-				if (aDrafted) {
-					focus_link(aOutline, report_link::go);
+				if (handed) {
+					focus_link(aOutline, aDrafted ? report_link::go : report_link::keep);
 				}
 			}
 			announce(kept_words(made, aDrafted, aWhy));
@@ -1359,25 +1490,105 @@ namespace bpr::qt {
 		QAccessible::updateAccessibility(&event);
 	}
 
-	/// [[BPR-2258]]. The page's link for `aLink` at `aOutline`, made the
-	/// keyboard's current link, as Tab to it would.
+	/// [[BPR-2258]]. The page's link for `aLink` at `aOutline` takes the
+	/// keyboard, as Tab to it would.
 	void agent_report_view::focus_link(const std::uint32_t aOutline, const report_link aLink)
 	{
 		const auto minted = std::ranges::find_if(ActionLinks, [aOutline, aLink](const auto& aEntry) { return aEntry.second == std::pair{ aOutline, aLink }; });
-		if (minted == ActionLinks.end()) {
+		if (minted != ActionLinks.end()) {
+			static_cast<void>(keyboard_to(link_name(minted->first), 0));
+		}
+	}
+
+	auto agent_report_view::link_name(const QString& aHref) const -> QString
+	{
+		const auto minted = ActionLinks.find(aHref);
+		return minted == ActionLinks.end() ? QStringLiteral("to:") + aHref : QStringLiteral("action:%1:%2").arg(minted->second.first).arg(static_cast<int>(minted->second.second));
+	}
+
+	auto agent_report_view::keyboard_to(const QString& aName, const int aNth) -> bool
+	{
+		auto seen = 0;
+		for (const auto& link : page_links(*Dressed->document())) {
+			if (link_name(link.Href) == aName && seen++ == aNth) {
+				set_keyboard_link(std::pair{ link.First, link.Last });
+				return true;
+			}
+		}
+		return false;
+	}
+
+	void agent_report_view::set_keyboard_link(const std::optional<std::pair<int, int>> aLink)
+	{
+		KeyboardLink = aLink;
+		if (Dressed == nullptr) {
 			return;
 		}
-		for (auto block = Dressed->document()->begin(); block.isValid(); block = block.next()) {
-			for (auto fragment = block.begin(); !fragment.atEnd(); ++fragment) {
-				const auto part = fragment.fragment();
-				if (!part.isValid() || part.charFormat().anchorHref() != minted->first) {
-					continue;
-				}
-				auto cursor = QTextCursor{ Dressed->document() };
-				cursor.setPosition(part.position());
-				cursor.setPosition(part.position() + part.length(), QTextCursor::KeepAnchor);
-				Dressed->setTextCursor(cursor);
-				return;
+		if (aLink) {
+			// The caret waits at the link, unseen: the ring says where the
+			// keyboard is, and an arrow key goes on from here.
+			auto caret = Dressed->textCursor();
+			caret.setPosition(aLink->first);
+			Dressed->setTextCursor(caret);
+		}
+		Dressed->setCursorWidth(aLink ? 0 : CaretWidth);
+		Dressed->viewport()->update();
+	}
+
+	/// The keyboard goes to the next link of the page, or the one before;
+	/// false past the last, where the focus moves on.
+	auto agent_report_view::step_keyboard_link(const bool aForward) -> bool
+	{
+		const auto caret  = Dressed->textCursor();
+		const auto from   = KeyboardLink ? (aForward ? KeyboardLink->second : KeyboardLink->first) : aForward ? caret.selectionEnd()
+																											  : caret.selectionStart();
+		const auto links  = page_links(*Dressed->document());
+		const auto after  = std::ranges::find_if(links, [from](const page_link& aLink) { return aLink.First >= from; });
+		const auto before = std::ranges::find_if(links | std::views::reverse, [from](const page_link& aLink) { return aLink.Last <= from; });
+		if (aForward ? after == links.end() : before == std::ranges::rend(links)) {
+			return false;
+		}
+		const auto& found = aForward ? *after : *before;
+		set_keyboard_link(std::pair{ found.First, found.Last });
+		// The page is as tall as its text; it is its pane that scrolls.
+		if (const auto ring = ring_of(*Dressed, found.First, found.Last); !ring.Boxes.empty()) {
+			const auto at = Dressed->viewport()->mapTo(Scroll->widget(), ring.Boxes.front().center().toPoint());
+			Scroll->ensureVisible(at.x(), at.y(), 0, 2 * jump_margin());
+		}
+		announce(keyboard_link());
+		return true;
+	}
+
+	auto agent_report_view::keyboard_link() const -> QString
+	{
+		if (!KeyboardLink) {
+			return { };
+		}
+		auto words = QTextCursor{ Dressed->document() };
+		words.setPosition(KeyboardLink->first);
+		words.setPosition(KeyboardLink->second, QTextCursor::KeepAnchor);
+		// A chip's words are kept on one line with no-break spaces.
+		return words.selectedText().replace(QChar::Nbsp, QLatin1Char{ ' ' });
+	}
+
+	/// The window's focus ring round the keyboard's link, while the page
+	/// holds the keyboard: inside the edge of a chip, so the chip keeps its
+	/// footprint, and close round the words of a link in the text.
+	void agent_report_view::paint_keyboard_link(QPainter& aPainter) const
+	{
+		if (!KeyboardLink || !Dressed->hasFocus()) {
+			return;
+		}
+		const auto     ring  = ring_of(*Dressed, KeyboardLink->first, KeyboardLink->second);
+		constexpr auto inset = focus_ring_width / 2.0;
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		aPainter.setBrush(Qt::NoBrush);
+		aPainter.setPen(QPen{ focus_ring_colour(Dressed->palette(), QPalette::Base), focus_ring_width, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin });
+		for (const auto& box : ring.Boxes) {
+			if (ring.Chip) {
+				aPainter.drawRect(box.adjusted(inset, inset, -inset, -inset));
+			} else {
+				aPainter.drawRoundedRect(box.adjusted(-3.0, -1.0, 3.0, 1.0), 3.0, 3.0);
 			}
 		}
 	}
@@ -1592,20 +1803,45 @@ namespace bpr::qt {
 				fit_body();
 			}
 		}
-		// The page's links, by their text: a click on one, or Return on the
-		// one the keyboard reached.
+		// The page's links, by their text. A press of the pointer on a link
+		// is the link's, as a press on a button is the button's: it starts
+		// no selection and no drag, and the release on that link follows it,
+		// whatever the page has selected. The owner, 2026-11-25: "I cant
+		// actually click go to draft properly until I deselect it and then
+		// click it again." The page read a release as a click only with
+		// nothing selected, and its own handoff after Draft comment had
+		// selected Go to draft's words.
 		if (Dressed != nullptr && aObject == Dressed->viewport()) {
-			if (aEvent->type() == QEvent::MouseMove) {
+			const auto type = aEvent->type();
+			if (type == QEvent::MouseMove) {
 				const auto* const mouse = static_cast<QMouseEvent*>(aEvent);
 				Dressed->viewport()->setCursor(Dressed->anchorAt(mouse->position().toPoint()).isEmpty() ? Qt::IBeamCursor : Qt::PointingHandCursor);
-			}
-			if (aEvent->type() == QEvent::MouseButtonRelease) {
-				const auto* const mouse = static_cast<QMouseEvent*>(aEvent);
-				if (const auto link = Dressed->anchorAt(mouse->position().toPoint()); mouse->button() == Qt::LeftButton && !link.isEmpty() && !Dressed->textCursor().hasSelection()) {
-					follow(link);
+				if (!PressedLink.isEmpty() && (mouse->buttons() & Qt::LeftButton) != 0) {
 					return true;
 				}
 			}
+			if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick) {
+				if (const auto* const mouse = static_cast<QMouseEvent*>(aEvent); mouse->button() == Qt::LeftButton) {
+					// The pointer has the page now; the keyboard is on no link.
+					set_keyboard_link(std::nullopt);
+					PressedLink = Dressed->anchorAt(mouse->position().toPoint());
+					if (!PressedLink.isEmpty()) {
+						return true;
+					}
+				}
+			}
+			if (type == QEvent::MouseButtonRelease && !PressedLink.isEmpty()) {
+				if (const auto* const mouse = static_cast<QMouseEvent*>(aEvent); mouse->button() == Qt::LeftButton) {
+					if (const auto pressed = std::exchange(PressedLink, QString{ }); Dressed->anchorAt(mouse->position().toPoint()) == pressed) {
+						follow(pressed);
+					}
+					return true;
+				}
+			}
+		}
+		if (Dressed != nullptr && aObject == Dressed && (aEvent->type() == QEvent::FocusIn || aEvent->type() == QEvent::FocusOut)) {
+			// The ring shows only while the page holds the keyboard.
+			Dressed->viewport()->update();
 		}
 		if (Dressed != nullptr && aObject == Dressed && aEvent->type() == QEvent::KeyPress) {
 			const auto* const key = static_cast<QKeyEvent*>(aEvent);
@@ -1613,38 +1849,20 @@ namespace bpr::qt {
 			// links, as a browser's did; past the last one the focus moves on.
 			if ((key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab) && (key->modifiers() & ~Qt::ShiftModifier) == Qt::NoModifier) {
 				const auto forward = key->key() == Qt::Key_Tab && (key->modifiers() & Qt::ShiftModifier) == 0;
-				const auto from    = forward ? Dressed->textCursor().selectionEnd() : Dressed->textCursor().selectionStart();
-				auto       found   = std::optional<std::pair<int, int>>{ };
-				for (auto block = Dressed->document()->begin(); block.isValid(); block = block.next()) {
-					for (auto it = block.begin(); !it.atEnd(); ++it) {
-						const auto fragment = it.fragment();
-						if (fragment.charFormat().anchorHref().isEmpty()) {
-							continue;
-						}
-						if (forward && fragment.position() >= from && (!found || fragment.position() < found->first)) {
-							found = std::pair{ fragment.position(), fragment.position() + fragment.length() };
-						}
-						if (!forward && fragment.position() + fragment.length() <= from && (!found || fragment.position() > found->first)) {
-							found = std::pair{ fragment.position(), fragment.position() + fragment.length() };
-						}
-					}
-				}
-				if (found) {
-					auto cursor = Dressed->textCursor();
-					cursor.setPosition(found->first);
-					cursor.setPosition(found->second, QTextCursor::KeepAnchor);
-					Dressed->setTextCursor(cursor);
-					Dressed->ensureCursorVisible();
+				if (step_keyboard_link(forward)) {
 					return true;
 				}
 			}
-			auto at = Dressed->textCursor();
-			if (at.hasSelection()) {
-				at.setPosition(at.selectionStart() + 1);
-			}
-			if (const auto link = at.charFormat().anchorHref(); (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !link.isEmpty()) {
-				follow(link);
-				return true;
+			if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
+				// The link the keyboard is on, else the one the caret is in.
+				auto at = Dressed->textCursor();
+				at.setPosition(std::min((KeyboardLink ? KeyboardLink->first : at.selectionStart()) + 1, Dressed->document()->characterCount() - 1));
+				if (const auto link = at.charFormat().anchorHref(); !link.isEmpty()) {
+					const auto outer = std::exchange(KeyboardPress, true);
+					follow(link);
+					KeyboardPress = outer;
+					return true;
+				}
 			}
 		}
 		if (aObject == Popover && aEvent->type() == QEvent::Hide) {

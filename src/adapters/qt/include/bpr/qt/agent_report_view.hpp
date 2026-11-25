@@ -22,6 +22,7 @@
 class QFrame;
 class QLabel;
 class QListWidget;
+class QPainter;
 class QScrollArea;
 class QTextEdit;
 class QToolButton;
@@ -250,6 +251,18 @@ namespace bpr::qt {
 		[[nodiscard]] auto dressed_view() const noexcept -> QTextEdit* { return Dressed; }
 		/// \brief Follows a link of the page as a press does.
 		void follow(const QString& aLink);
+		/// \brief The words of the link the keyboard is on; empty when it is
+		/// on none.
+		/// \details Tab and Shift+Tab move it, Return follows it, and a keep
+		/// action made with Return hands it to what the action left in its
+		/// place (Go to draft, Go to comment). While the page holds the
+		/// keyboard it wears the window's focus ring, round the whole chip
+		/// of a button-shaped link. It is never a text selection: the owner,
+		/// 2026-11-25, of a selected Go to draft, "I cant actually click go
+		/// to draft properly until I deselect it and then click it again".
+		/// A press of the pointer on the page ends it, and a keep action
+		/// made with the pointer starts none.
+		[[nodiscard]] auto keyboard_link() const -> QString;
 		/// \brief Look report-templates-v003. The page's code boxes, the
 		/// Agent tab's own, in the order the page shows them.
 		[[nodiscard]] auto code_views() const -> const std::vector<markdown_body_view*>& { return CodeViews; }
@@ -300,6 +313,15 @@ namespace bpr::qt {
 		[[nodiscard]] auto keep_request(std::uint32_t aOutline) const -> std::optional<report_draft>;
 		void               announce(const QString& aText);
 		void               focus_link(std::uint32_t aOutline, report_link aLink);
+		/// A link's name through a render: an action's by what it does (its
+		/// token is minted afresh each time), any other by where it goes.
+		[[nodiscard]] auto link_name(const QString& aHref) const -> QString;
+		/// The `aNth` link named `aName` takes the keyboard; false when the
+		/// page has none.
+		auto               keyboard_to(const QString& aName, int aNth) -> bool;
+		auto               step_keyboard_link(bool aForward) -> bool;
+		void               set_keyboard_link(std::optional<std::pair<int, int>> aLink);
+		void               paint_keyboard_link(QPainter& aPainter) const;
 		[[nodiscard]] auto keep_key(std::uint32_t aOutline) const -> core::report_finding_key;
 		[[nodiscard]] auto card_keys() const -> std::vector<core::report_card_key>;
 		[[nodiscard]] auto draft_all_plan() const -> std::pair<core::draft_all_plan, std::vector<std::uint32_t>>;
@@ -343,7 +365,16 @@ namespace bpr::qt {
 		report_draft_all_dispatch                                 DraftAllDispatch;
 		std::function<bool(const report_draft&)>                  Placeable;
 		/// This render's keep links, by token.
-		std::map<QString, std::pair<std::uint32_t, report_link>>   ActionLinks;
+		std::map<QString, std::pair<std::uint32_t, report_link>> ActionLinks;
+		/// The link the keyboard is on: where its words start and end in the
+		/// page's text.
+		std::optional<std::pair<int, int>> KeyboardLink;
+		/// The link the pointer's button went down on, until it comes up.
+		QString PressedLink;
+		/// A link is being followed for Return, not for the pointer.
+		bool KeyboardPress = false;
+		/// The caret's own width, given back when the keyboard leaves a link.
+		int                                                        CaretWidth = 1;
 		report_draft_dispatch                                      DraftDispatch;
 		std::function<void(const report_draft&)>                   GoDispatch;
 		std::function<void(const report_draft&)>                   FollowUpDispatch;

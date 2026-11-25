@@ -3,6 +3,8 @@
 // drawn with no image, the page's document denies a load even when asked
 // directly for a file that exists, and a link is followed as its text.
 #include "../support/test_expectation.hpp"
+#include "../support/window_system_keys.hpp"
+#include "../support/window_system_mouse.hpp"
 #include "bpr/qt/agent_report_view.hpp"
 
 #include "bpr/core/agent_report.hpp"
@@ -10,6 +12,7 @@
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/report_page.hpp"
 
@@ -419,6 +422,221 @@ namespace {
 		QApplication::sendEvent(aPage.viewport(), &release);
 		QApplication::processEvents();
 	}
+
+	/// The middle of the link whose words are `aWords` (the `aNth` such
+	/// link), on the page's viewport; none when the page has no such link.
+	/// `aLeft`: where its words start instead.
+	[[nodiscard]] auto link_point(QTextEdit& aPage, const QString& aWords, const int aNth = 0, const bool aLeft = false) -> std::optional<QPoint>
+	{
+		auto seen = 0;
+		for (auto block = aPage.document()->begin(); block.isValid(); block = block.next()) {
+			for (auto fragment = block.begin(); !fragment.atEnd(); ++fragment) {
+				const auto part = fragment.fragment();
+				// A chip's words are kept on one line with no-break spaces.
+				if (part.charFormat().anchorHref().isEmpty() || part.text().replace(QChar::Nbsp, QLatin1Char{ ' ' }) != aWords || seen++ != aNth) {
+					continue;
+				}
+				auto cursor = QTextCursor{ aPage.document() };
+				cursor.setPosition(part.position());
+				const auto first = aPage.cursorRect(cursor);
+				cursor.setPosition(part.position() + part.length());
+				return QPoint{ aLeft ? first.left() : (first.left() + aPage.cursorRect(cursor).left()) / 2, first.center().y() };
+			}
+		}
+		return std::nullopt;
+	}
+
+	/// The first pixel from `aFrom` along `aStep` that is not the colour at
+	/// `aFrom`: the edge of the face `aFrom` stands on. In device pixels.
+	[[nodiscard]] auto face_edge(const QImage& aImage, const QPoint aFrom, const QPoint aStep) -> QPoint
+	{
+		auto at = aFrom;
+		while (aImage.rect().contains(at + aStep) && aImage.pixel(at) == aImage.pixel(aFrom)) {
+			at += aStep;
+		}
+		return at;
+	}
+
+	/// How far a pixel is from a colour, over its three channels.
+	[[nodiscard]] auto colour_gap(const QColor& aOne, const QColor& aOther) -> int
+	{
+		return std::abs(aOne.red() - aOther.red()) + std::abs(aOne.green() - aOther.green()) + std::abs(aOne.blue() - aOther.blue());
+	}
+
+	/// The owner, 2026-11-25, of a report finding: "When I click draft
+	/// comment it sends me to go to draft with this button text selected and
+	/// then I cant actually click go to draft properly until I deselect it
+	/// and then click it again." Clicks and keys go in as the window system
+	/// reports them, so the page takes focus as it does under a hand.
+	/// A link takes one click whatever the page has selected; the keyboard's
+	/// link is a focus ring, never a selection; and only a keep action made
+	/// with Return hands the keyboard on.
+	/// With BPR_REPORT_LINK_RENDER_ROOT set, the page is saved there at the
+	/// states this checks.
+	void check_a_link_takes_one_click()
+	{
+		auto view = bpr::qt::agent_report_view{ };
+		view.resize(900, 700);
+		view.show();
+		// Only an active window's focus widget has focus, and the native look
+		// keeps its windows off screen, where none is made active.
+		QT_WARNING_PUSH
+		QT_WARNING_DISABLE_DEPRECATED
+		QApplication::setActiveWindow(&view);
+		QT_WARNING_POP
+		QApplication::processEvents();
+		auto drafts = 0;
+		auto gone   = 0;
+		auto asked  = 0;
+		auto places = QStringList{ };
+		view.set_draft_dispatch([&drafts](const bpr::qt::report_draft&, const bpr::qt::report_draft_done& aDone) {
+			++drafts;
+			aDone(true, { });
+		});
+		view.set_go_dispatch([&gone](const bpr::qt::report_draft&) { ++gone; });
+		view.set_follow_up_dispatch([&asked](const bpr::qt::report_draft&) { ++asked; });
+		view.set_link_dispatch([&places](const QString& aLink) { places << aLink; });
+		view.present({ .Turn     = 1U,
+					   .Title    = QStringLiteral("Review of #5"),
+					   .Markdown = QStringLiteral("# Review of #5\n\nTwo fixes.\n\n## Must fix\n\n### issue: A zero height reaches the swap chain\n\n`src/a.cpp:12`\n\nClamp it.\n\n"
+												  "### issue: The width is read twice\n\n`src/b.cpp:3`\n\nRead it once.\n"),
+					   .Question = QStringLiteral("Review this pull request"),
+					   .Byline   = { } });
+		QApplication::processEvents();
+		auto* const page = view.dressed_view();
+		expect(view.findings().size() == 2U, "the report has two findings");
+		const auto first  = view.findings()[0].Outline;
+		const auto second = view.findings()[1].Outline;
+		const auto press  = [page](const QString& aWords) {
+			const auto at = link_point(*page, aWords);
+			expect(at.has_value(), "the page offers " + aWords.toStdString());
+			bpr::tests::window_system_clicks(*page->viewport(), QPointF{ *at }, 1);
+		};
+		const auto render = [&view](const QString& aName) {
+			const auto root = qEnvironmentVariable("BPR_REPORT_LINK_RENDER_ROOT");
+			if (!root.isEmpty()) {
+				QApplication::processEvents();
+				expect(view.grab().save(root + QLatin1Char{ '/' } + aName + QStringLiteral(".png")), "the render is saved");
+			}
+		};
+		const auto selected = [page] { return page->textCursor().selectedText().toStdString(); };
+
+		// The pointer. One click on Draft comment drafts; Go to draft stands
+		// in its place, not selected and not the keyboard's; one click goes.
+		press(QStringLiteral("Draft comment"));
+		expect(drafts == 1 && view.keep_state(first).Phase == bpr::qt::report_keep_phase::kept, "one click on Draft comment drafts the finding");
+		expect(page->hasFocus(), "the click leaves the keyboard with the page");
+		expect(!page->textCursor().hasSelection(), "after Draft comment nothing on the page is selected; \"" + selected() + "\" is");
+		expect(view.keyboard_link().isEmpty(), "a keep action made with the pointer hands the keyboard to no link; it is on " + view.keyboard_link().toStdString());
+		const auto ringless = page->viewport()->grab().toImage();
+		render(QStringLiteral("1-pointer-after-draft-comment"));
+		press(QStringLiteral("Go to draft"));
+		expect(gone == 1, "one click on Go to draft goes to the draft: went " + std::to_string(gone) + " times");
+		expect(!page->textCursor().hasSelection() && view.keyboard_link().isEmpty(), "the click selects nothing");
+
+		// The owner's screen, as the page used to make it: Go to draft's own
+		// words selected. The owner: "It's worse than that actually, clicking
+		// on it does nothing, you had to click away first before you were
+		// allowed to click." The first click on it goes, with no click
+		// anywhere else before it.
+		for (auto block = page->document()->begin(); block.isValid(); block = block.next()) {
+			for (auto run = block.begin(); !run.atEnd(); ++run) {
+				if (const auto part = run.fragment(); !part.charFormat().anchorHref().isEmpty() && part.text().replace(QChar::Nbsp, QLatin1Char{ ' ' }) == QStringLiteral("Go to draft")) {
+					auto words = QTextCursor{ page->document() };
+					words.setPosition(part.position());
+					words.setPosition(part.position() + part.length(), QTextCursor::KeepAnchor);
+					page->setTextCursor(words);
+				}
+			}
+		}
+		expect(page->textCursor().selectedText().replace(QChar::Nbsp, QLatin1Char{ ' ' }) == QStringLiteral("Go to draft"), "Go to draft's words are selected");
+		press(QStringLiteral("Go to draft"));
+		expect(gone == 2, "with its own words selected, the first click on Go to draft goes: went " + std::to_string(gone) + " times");
+		press(QStringLiteral("Go to draft"));
+		expect(gone == 3, "and so does the next: went " + std::to_string(gone) + " times");
+		// Whatever the page has selected, a link takes one click, and the
+		// click leaves the selection as it was.
+		page->selectAll();
+		const auto whole = selected();
+		expect(!whole.empty(), "the whole page is selected");
+		press(QStringLiteral("Go to draft"));
+		expect(gone == 4, "with the page selected, one click on Go to draft still goes: went " + std::to_string(gone) + " times");
+		press(QStringLiteral("Ask follow-up"));
+		expect(asked == 1, "and one click on Ask follow-up asks");
+		press(QStringLiteral("src/a.cpp:12"));
+		expect(places.size() == 1, "and one click on a place follows it");
+		expect(selected() == whole, "a click on a link changes no selection");
+
+		// A press that leaves its link follows nothing and selects nothing.
+		auto caret = page->textCursor();
+		caret.movePosition(QTextCursor::Start);
+		page->setTextCursor(caret);
+		const auto chip = *link_point(*page, QStringLiteral("Go to draft"));
+		bpr::tests::window_system_mouse(*page->viewport(), QPointF{ chip }, QEvent::MouseButtonPress, Qt::LeftButton, 2000);
+		bpr::tests::window_system_mouse(*page->viewport(), QPointF{ chip } + QPointF{ 0.0, -60.0 }, QEvent::MouseMove, Qt::LeftButton);
+		bpr::tests::window_system_mouse(*page->viewport(), QPointF{ chip } + QPointF{ 0.0, -60.0 }, QEvent::MouseButtonRelease, Qt::NoButton);
+		expect(gone == 4, "a press dragged off Go to draft does not go");
+		expect(!page->textCursor().hasSelection(), "and it drags no selection out of the chip; \"" + selected() + "\" is selected");
+
+		// The keyboard. Tab reaches the second finding's Draft comment: it
+		// wears the window's focus ring and nothing is selected.
+		for (auto presses = 0; presses < 24 && (view.keyboard_link() != QStringLiteral("Draft comment")); ++presses) {
+			bpr::tests::window_system_key(*page, Qt::Key_Tab);
+			expect(!page->textCursor().hasSelection(), "Tab selects no text; \"" + selected() + "\" is selected");
+		}
+		expect(view.keyboard_link() == QStringLiteral("Draft comment") && page->hasFocus(), "Tab reaches the second finding's Draft comment; the keyboard is on \"" + view.keyboard_link().toStdString() + "\"");
+		expect(view.last_announcement() == QStringLiteral("Draft comment"), "a screen reader hears the link Tab reached: " + view.last_announcement().toStdString());
+		render(QStringLiteral("2-keyboard-on-draft-comment"));
+		// Return on it drafts, and the keyboard goes on to Go to draft, in
+		// its ring: the chip's edge is the ring's colour, which it was not
+		// after the pointer's Draft comment.
+		bpr::tests::window_system_key(*page, Qt::Key_Return);
+		expect(drafts == 2 && view.keep_state(second).Phase == bpr::qt::report_keep_phase::kept, "Return on Draft comment drafts the second finding");
+		expect(view.keyboard_link() == QStringLiteral("Go to draft") && page->hasFocus(), "made with Return, the keyboard goes on to Go to draft; it is on \"" + view.keyboard_link().toStdString() + "\"");
+		expect(!page->textCursor().hasSelection(), "and Go to draft is not selected; \"" + selected() + "\" is");
+		const auto ringed = page->viewport()->grab().toImage();
+		render(QStringLiteral("3-keyboard-after-draft-comment"));
+		// A render (a keep's state read back) keeps the keyboard where it is.
+		view.refresh_keeps();
+		QApplication::processEvents();
+		expect(view.keyboard_link() == QStringLiteral("Go to draft") && !page->textCursor().hasSelection(), "a render keeps the keyboard on its link");
+		// The ring is the page's while it holds the keyboard only.
+		page->clearFocus();
+		QApplication::processEvents();
+		const auto plain = page->viewport()->grab().toImage();
+		page->setFocus(Qt::OtherFocusReason);
+		QApplication::processEvents();
+		// The ring is the chip's own edge. The chip's face (its wash, in
+		// the room before its words) ends at its border on every side; with
+		// the keyboard on the chip that border is the ring's colour, and the
+		// pixel beyond it is as it was: the chip keeps its footprint. The
+		// first finding's Go to draft, which the keyboard is not on, and
+		// either chip without the keyboard wear none.
+		const auto ring  = bpr::qt::focus_ring_colour(page->palette(), QPalette::Base);
+		const auto scale = plain.devicePixelRatio();
+		const auto face  = [page, scale](const int aNth) { return (QPointF{ *link_point(*page, QStringLiteral("Go to draft"), aNth, true) } * scale).toPoint() - QPoint{ qRound(3.0 * scale), 0 }; };
+		for (const auto& step : { QPoint{ -1, 0 }, QPoint{ 1, 0 }, QPoint{ 0, -1 }, QPoint{ 0, 1 } }) {
+			// Rightwards the face is crossed by the words: start past them.
+			const auto from = step == QPoint{ 1, 0 } ? face(1) + QPoint{ 2 * ((QPointF{ *link_point(*page, QStringLiteral("Go to draft"), 1) } * scale).toPoint().x() - face(1).x()), 0 } : face(1);
+			const auto edge = face_edge(plain, from, step);
+			const auto said = " (step " + std::to_string(step.x()) + "," + std::to_string(step.y()) + ", edge " + std::to_string(edge.x()) + "," + std::to_string(edge.y()) + ", plain " + plain.pixelColor(edge).name().toStdString()
+				+ ", ringed " + ringed.pixelColor(edge).name().toStdString() + ", ring " + ring.name().toStdString() + ")";
+			std::cout << "report-link-ring:" << said << "\n";
+			expect(plain.pixel(from) == plain.pixel(face(1)) && colour_gap(plain.pixelColor(edge), ring) > 60, "without the keyboard the chip's border is its own" + said);
+			expect(colour_gap(ringed.pixelColor(edge), ring) <= 12, "the keyboard's Go to draft wears the window's focus ring on its border" + said);
+			expect(ringed.pixel(edge + step) == plain.pixel(edge + step), "and the ring stays inside the chip's edge" + said);
+			const auto other = face_edge(ringed, face(0), step == QPoint{ 1, 0 } ? QPoint{ -1, 0 } : step);
+			expect(colour_gap(ringed.pixelColor(other), ring) > 60 && colour_gap(ringless.pixelColor(other), ring) > 60, "a chip the keyboard is not on, and Go to draft after the pointer's Draft comment, wear none" + said);
+		}
+		// Return follows the keyboard's link, and one click on it follows it
+		// too, ring or no ring; the pointer's press ends the ring.
+		bpr::tests::window_system_key(*page, Qt::Key_Return);
+		expect(gone == 5, "Return on Go to draft goes: went " + std::to_string(gone) + " times");
+		bpr::tests::window_system_clicks(*page->viewport(), QPointF{ *link_point(*page, QStringLiteral("Go to draft"), 1) }, 1);
+		expect(gone == 6, "one click on the keyboard's Go to draft goes: went " + std::to_string(gone) + " times");
+		expect(view.keyboard_link().isEmpty() && !page->textCursor().hasSelection(), "a press of the pointer takes the keyboard off its link and selects nothing");
+		render(QStringLiteral("4-pointer-after-keyboard"));
+	}
 }
 
 int main(int aArgc, char** aArgv)
@@ -632,11 +850,9 @@ try {
 	for (auto press = 0; press < 12 && reached.isEmpty(); ++press) {
 		QKeyEvent tab{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
 		QApplication::sendEvent(reviewed, &tab);
-		auto at = reviewed->textCursor();
-		at.setPosition(at.selectionStart() + 1);
-		reached = reviewed->textCursor().hasSelection() ? at.charFormat().anchorHref() : QString{ };
+		reached = view.keyboard_link();
 	}
-	expect(!reached.isEmpty(), "Tab reaches a link on the page");
+	expect(!reached.isEmpty() && !reviewed->textCursor().hasSelection(), "Tab reaches a link on the page, and selects no text");
 	QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 	QApplication::sendEvent(reviewed, &enter);
 	expect(!followed.isEmpty() || drafts.size() > 1U, "Return on the link Tab reached follows it");
@@ -807,6 +1023,7 @@ try {
 	}
 	check_inline_code();
 	check_keep_chip();
+	check_a_link_takes_one_click();
 	check_reading_width();
 	check_question_link();
 	std::cout << "AGENT_REPORT_VIEW_OK\n";
