@@ -4070,8 +4070,14 @@ function(bpr_verify_app_source_tree app_source_root)
 	# settings the composition already holds; no grant, provider, transport,
 	# mutation or publication path changes. That change's own review belongs
 	# to its card.
+	# Coordinator reseal at the merge onto 738ea82e7: BPR-2395 (4bb93bfd6,
+	# 738ea82e7) changed release_update_desktop.{hpp,cpp} (stable builds
+	# offered from release candidates) without a reseal. Update-offer
+	# presentation only; no grant, provider, transport, mutation or
+	# publication path changes. Full application and mutation-branch
+	# digests are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "970567aff70b107ea8f5af9ac8c8dbcfb51570995192597e183e9a4f60acf20c"
+        "12a4468cec1961e4e442a9f02f3af18f8e4bffcab1a797e4d80c61a8c49aaaee"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
