@@ -602,8 +602,10 @@ namespace bpr::qt {
 		connect(NextNewCommentAction, &QAction::triggered, this, [this] { step_to_next_new_comment(); });
 		// Owner look v002 ([[BPR-2158]]): "I want a real next comment prev
 		// comment control in that top bar in the comment drawer controls.
-		// Instead of this \"next new comment\"". Every comment in turn, read
-		// or not, then into the next file's.
+		// Instead of this \"next new comment\"". Every comment of the file
+		// in turn, read or not, stopping at its ends (the owner, 2026-11-24:
+		// "They should just go through comments in the current file and stop
+		// when it reaches either end").
 		PreviousCommentAction = new QAction{ QStringLiteral("Previous comment"), this };
 		PreviousCommentAction->setObjectName(QStringLiteral("previousCommentAction"));
 		PreviousCommentAction->setShortcuts(shortcut_keys(shortcut_command::previous_comment));

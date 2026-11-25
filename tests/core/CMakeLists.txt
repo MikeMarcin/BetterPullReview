@@ -1565,6 +1565,14 @@ bpr_enable_warnings(test_note_placement)
 bpr_add_network_isolated_test(NAME core_note_placement COMMAND test_note_placement)
 set_tests_properties(core_note_placement PROPERTIES PASS_REGULAR_EXPRESSION "NOTE_PLACEMENT_OK")
 
+# Previous and Next comment step through the file shown and stop at its ends.
+bpr_add_executable(test_comment_steps comment_steps_tests.cpp)
+target_link_libraries(test_comment_steps PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_comment_steps)
+bpr_enable_warnings(test_comment_steps)
+bpr_add_network_isolated_test(NAME core_comment_steps COMMAND test_comment_steps)
+set_tests_properties(core_comment_steps PROPERTIES PASS_REGULAR_EXPRESSION "COMMENT_STEPS_OK")
+
 bpr_add_executable(test_remembered_connection_policy remembered_connection_tests.cpp)
 target_link_libraries(test_remembered_connection_policy PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_remembered_connection_policy)

@@ -2676,6 +2676,14 @@ this pill and the title-row badge are absent without a selected file or when
 that file has no unread threads, even if another file does ([[BPR-1511]]). The
 count follows the accepted unread policy regardless of the drawer's filters.
 Next new comment continues through unread threads across the pull request.
+**Previous comment** and **Next comment** (Option-[ and Option-] on macOS) on
+the Comments tools row step through the comments Comments lists on the file
+shown, after its filters, in line order, my drafts and Local comments included.
+They stop at the file's first and last comment: there that step is
+unavailable, with no wrap and no move to another file (owner, 2026-11-24:
+"They should just go through comments in the current file and stop when it
+reaches either end"). With none of the file's comments open, Next opens its
+first and Previous its last; with none listed, neither is offered.
 RFC-BPR-0127 ([[BPR-2158]]). There is no Notes tab: the tray's tabs are
 Comments, Tour and Agent, and Overview's drawer has no Notes either. My **Local
 comments** (once private notes) are cards in Comments at their lines, after the

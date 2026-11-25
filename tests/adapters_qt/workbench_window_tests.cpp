@@ -11879,11 +11879,15 @@ namespace {
 	// opens it in the drawer, named for its lines and bracketed across them.
 	// Only a focused code pane takes the keys.
 	/// \brief [[BPR-2262]]. Previous and Next comment from my draft being
-	/// written in the drawer, and onto my drafts, within a file and across
-	/// files, both ways. The owner, 2026-11-18: "Probably the same issue but
-	/// next comment seems to also break the draft comment", and "I expect next
-	/// comment and prev comment to visit drafts". The host answers a chosen
-	/// line and a chosen file a turn later, as the composition does.
+	/// written in the drawer, and onto my drafts, both ways within a file.
+	/// The owner, 2026-11-18: "Probably the same issue but next comment seems
+	/// to also break the draft comment", and "I expect next comment and prev
+	/// comment to visit drafts". The owner, 2026-11-24: "They should just go
+	/// through comments in the current file and stop when it reaches either
+	/// end": at either end the step is unavailable and does nothing, the
+	/// drawer's filters decide the stops, and another file has its own. The
+	/// host answers a chosen line and a chosen file a turn later, as the
+	/// composition does.
 	void test_next_comment_visits_drafts_and_keeps_their_words()
 	{
 		auto  state    = core::workbench_interaction_state{ };
@@ -11961,9 +11965,14 @@ namespace {
 				.Path        = aPath,
 			};
 		};
+		// A resolved thread after line 27's draft: Hide resolved takes it
+		// out of the steps.
+		auto resolved            = thread("review-thread:r", "src/first.cpp", 29U);
+		resolved.Resolved        = true;
 		const auto conversations = std::vector<application::github_conversation_projection>{
 			thread("review-thread:a", "src/first.cpp", 5U), post("review-comment:a-1", "review-thread:a", "src/first.cpp"),
 			thread("review-thread:b", "src/first.cpp", 22U), post("review-comment:b-1", "review-thread:b", "src/first.cpp"),
+			resolved, post("review-comment:r-1", "review-thread:r", "src/first.cpp"),
 			thread("review-thread:c", "src/second.cpp", 20U), post("review-comment:c-1", "review-thread:c", "src/second.cpp")
 		};
 		// The pull request's conversations, as its presentation gives them
@@ -12087,18 +12096,68 @@ namespace {
 		step(true, [&] { return writing(27U, "third draft words"); }, "Next visits my saved draft at line 27 and opens it in the drawer");
 		expect(keepsWords(10U, "first draft words"), "the first draft still keeps its words");
 
-		// Across files, both ways.
-		step(true, [&] { return showing(second) && writing(8U, "second draft words"); }, "Next past the file's last comment opens the next file at my draft there");
-		step(true, at(second, "review-thread:c"), "Next goes on to the next file's thread");
-		expect(keepsWords(8U, "second draft words"), "the second file's draft keeps my name and its words");
-		step(false, [&] { return showing(second) && writing(8U, "second draft words"); }, "Previous visits the draft again");
-		step(false, [&] { return showing(first) && writing(27U, "third draft words"); }, "Previous from the file's first comment opens the previous file at my last draft there");
-		expect(keepsWords(10U, "first draft words"), "back in the first file, my draft at line 10 keeps its words");
-		step(true, [&] { return showing(second) && writing(8U, "second draft words"); }, "Next crosses into the next file again");
-		step(true, at(second, "review-thread:c"), "and on to its thread");
-		step(true, at(first, "review-thread:a"), "Next past the last comment wraps round to the first file's first thread");
+		// The owner, 2026-11-24: "They should just go through comments in the
+		// current file and stop when it reaches either end." Next reaches
+		// the resolved thread, the file's last; there Next is unavailable,
+		// and its key does nothing: no wrap and no other file.
+		auto* const previousAction = window.previous_comment_action();
+		auto* const nextAction     = window.next_comment_action();
+		step(true, at(first, "review-thread:r"), "Next reaches the file's last comment, the resolved thread");
+		// A disabled action ignores its key and its trigger; the step itself
+		// is tried too, the action forced on, and must do nothing.
+		const auto stays = [&](QAction* const aAction, const std::function<bool()>& aWhere, const std::string& aWhat) {
+			aAction->trigger();
+			aAction->setEnabled(true);
+			aAction->trigger();
+			aAction->setEnabled(false);
+			for (auto turn = 0; turn < 10; ++turn) {
+				settle();
+			}
+			expect(aWhere(), aWhat + " (open " + cards->open_thread_id() + ")");
+		};
+		expect(!nextAction->isEnabled() && previousAction->isEnabled(), "at the file's last comment Next is unavailable and Previous is not");
+		stays(nextAction, at(first, "review-thread:r"), "Next at the file's last comment stays there in the file");
+		expect(nextAction->toolTip().startsWith(QStringLiteral("Next comment in this file")) && previousAction->toolTip().startsWith(QStringLiteral("Previous comment in this file")),
+			   "the tooltips say the steps stay in this file (" + nextAction->toolTip().toStdString() + ")");
+		// Hide resolved: the resolved thread is no stop, so the draft at
+		// line 27 is the file's last.
+		step(false, [&] { return writing(27U, "third draft words"); }, "Previous goes back to my draft at line 27");
+		expect(nextAction->isEnabled(), "with every comment listed, Next goes on from line 27");
+		window.conversation_panel()->filter_unresolved_button()->setChecked(true);
+		settle();
+		expect(cards->filters().UnresolvedOnly && std::ranges::find(cards->cards(), std::string{ "review-thread:r" }, &qt::thread_card::Id) == cards->cards().end(),
+			   "Hide resolved takes the resolved thread off the list");
+		expect(!nextAction->isEnabled() && previousAction->isEnabled(), "Hide resolved: my draft at line 27 is the file's last, and Next is unavailable");
+		stays(nextAction, [&] { return showing(first) && writing(27U, "third draft words"); }, "Next past the filtered file's last comment stays at it");
+		window.conversation_panel()->filter_unresolved_button()->setChecked(false);
+		settle();
+		expect(nextAction->isEnabled(), "showing resolved threads again, Next goes on to it");
+		// Back to the file's first comment: Previous is unavailable there.
+		step(false, at(first, "review-thread:b"), "Previous goes back to the thread at line 22");
+		step(false, [&] { return writing(10U, "first draft words"); }, "Previous visits my draft at line 10");
+		step(false, at(first, "review-thread:a"), "Previous reaches the file's first comment");
+		expect(!previousAction->isEnabled() && nextAction->isEnabled(), "at the file's first comment Previous is unavailable and Next is not");
+		stays(previousAction, at(first, "review-thread:a"), "Previous at the file's first comment stays there in the file");
 		expect(keepsWords(10U, "first draft words") && keepsWords(27U, "third draft words"), "both drafts of the first file keep their words");
-		step(false, at(second, "review-thread:c"), "Previous past the first comment wraps round to the last file's last thread");
+
+		// Another file shown: the steps are its comments, entered at its
+		// ends, and stop there too.
+		answerOf(second);
+		wait_for([&] {
+			settle();
+			return showing(second) && std::ranges::none_of(cards->cards(), [](const qt::thread_card& aCard) { return aCard.Id == "review-thread:a"; });
+		},
+				 3000);
+		expect(showing(second), "the second file is shown");
+		cards->close_thread();
+		settle();
+		expect(previousAction->isEnabled() && nextAction->isEnabled(), "with none of its comments open, both steps enter the file");
+		step(true, [&] { return showing(second) && writing(8U, "second draft words"); }, "Next opens the file's first comment, my draft at line 8");
+		expect(!previousAction->isEnabled(), "at the second file's first comment Previous is unavailable: no step back into the first file");
+		stays(previousAction, [&] { return showing(second) && writing(8U, "second draft words"); }, "Previous at the second file's first comment stays in it");
+		step(true, at(second, "review-thread:c"), "Next goes on to the file's thread");
+		expect(!nextAction->isEnabled() && previousAction->isEnabled(), "the thread is the second file's last comment");
+		stays(nextAction, at(second, "review-thread:c"), "Next at the last file's last comment does not wrap round to the first file");
 		expect(keepsWords(8U, "second draft words"), "the second file's draft keeps its words");
 		window.hide();
 	}
@@ -17665,8 +17724,30 @@ namespace {
 			expect(first == "review-thread:a" && second == "review-thread:b" && cards->open_thread_id() == "review-thread:a"
 					   && !window.next_comment_action()->shortcuts().isEmpty() && !window.previous_comment_action()->shortcuts().isEmpty(),
 				   "Next comment opens the first, then the next; Previous goes back; both have keys (" + first + ", " + second + ")");
+			// The owner, 2026-11-24: "They should just go through comments
+			// in the current file and stop when it reaches either end."
+			auto* const previousAction = window.previous_comment_action();
+			auto* const nextAction     = window.next_comment_action();
+			expect(!previousAction->isEnabled() && nextAction->isEnabled(), "at the file's first comment Previous is unavailable");
+			nextAction->trigger();
+			process_events();
+			expect(cards->open_thread_id() == "review-thread:b" && !nextAction->isEnabled() && previousAction->isEnabled(), "at the file's last comment Next is unavailable");
 			cards->close_thread();
 			process_events();
+			expect(previousAction->isEnabled() && nextAction->isEnabled(), "with none open, Next enters at the first and Previous at the last");
+			// Only new with nothing new: the filters leave the file no
+			// comments, and neither step is offered.
+			window.present_read_state({ });
+			onlyNew->setChecked(true);
+			process_events();
+			expect(cards->cards().empty() && !previousAction->isEnabled() && !nextAction->isEnabled(), "the filters leave no comments: both steps are unavailable");
+			onlyNew->setChecked(false);
+			window.present_read_state({
+				qt::thread_read_state{ .Thread = "review-thread:a", .UnreadPosts = { "review-comment:a-1" } },
+				qt::thread_read_state{ .Thread = "review-thread:b", .UnreadPosts = { "review-comment:b-1" } },
+			});
+			process_events();
+			expect(cards->cards().size() == 2U && previousAction->isEnabled() && nextAction->isEnabled(), "the comments listed again, both steps are offered");
 		}
 		const auto save = [&window](const QString& aSuffix) {
 			const auto rendered = window.grab();

@@ -200,20 +200,54 @@ namespace bpr::qt {
 		go_to_conversation(next);
 	}
 
+	auto workbench_window::file_comment_steps() const -> core::comment_steps
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return { };
+		}
+		const auto* const cards = ConversationPanel->cards();
+		// The owner, 2026-11-24: "They should just go through comments in the
+		// current file and stop when it reaches either end." Beside one file
+		// every card Comments lists is that file's (its drafts and Local
+		// comments carry no path); over the whole pull request only those on
+		// the file shown are. The cards are what the filters left; the open
+		// one and my draft are always among them.
+		const auto oneFile = cards->scope() == cards_scope::this_file && !cards->timeline();
+		const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+		const auto file    = context.has_value() ? path_of(context->Key.File) : QString{ };
+		auto       stops   = std::vector<core::comment_step_stop>{ };
+		for (const auto& card : cards->cards()) {
+			if (!oneFile && (file.isEmpty() || card.Path != file)) {
+				continue;
+			}
+			auto stop = core::comment_step_stop{ };
+			stop.Id   = card.Id;
+			if (card.Placed) {
+				stop.Shown = card.TargetY;
+			}
+			stop.Line  = card.Line.value_or(0U);
+			stop.Order = card.ProjectionOrder;
+			stops.push_back(std::move(stop));
+		}
+		return core::decide_comment_steps(std::move(stops), cards->open_thread_id());
+	}
+
 	void workbench_window::update_comment_steps()
 	{
 		if (PreviousCommentAction == nullptr || NextCommentAction == nullptr || ConversationPanel == nullptr) {
 			return;
 		}
-		const auto any = !ConversationPanel->cards()->cards().empty() || !ConversationPanel->cards()->comments_in_file_order().empty();
-		PreviousCommentAction->setEnabled(any);
-		NextCommentAction->setEnabled(any);
+		// At the file's first comment Previous is unavailable, at its last
+		// Next; with none listed, both.
+		const auto steps = file_comment_steps();
+		PreviousCommentAction->setEnabled(steps.Previous.has_value());
+		NextCommentAction->setEnabled(steps.Next.has_value());
 		const auto keyed = [](QAction* const aAction, const QString& aWords) {
 			const auto key = aAction->shortcut().toString(QKeySequence::NativeText);
 			aAction->setToolTip(key.isEmpty() ? aWords : QStringLiteral("%1 (%2)").arg(aWords, key));
 		};
-		keyed(PreviousCommentAction, any ? QStringLiteral("Previous comment") : QStringLiteral("Previous comment: no comments"));
-		keyed(NextCommentAction, any ? QStringLiteral("Next comment") : QStringLiteral("Next comment: no comments"));
+		keyed(PreviousCommentAction, QStringLiteral("Previous comment in this file"));
+		keyed(NextCommentAction, QStringLiteral("Next comment in this file"));
 	}
 
 	void workbench_window::step_comment(const bool aForward)
@@ -222,14 +256,19 @@ namespace bpr::qt {
 			return;
 		}
 		auto* const cards = ConversationPanel->cards();
-		// The comments of the file shown, as Comments orders them: published
-		// threads, my Local comments and drafts at their lines, then the rest.
-		// [[BPR-2262]]. My draft being written is one of them, so a step from
-		// it goes on from its line, not back to the file's first comment.
+		// [[BPR-2262]]. My draft being written is one of the file's comments,
+		// so a step from it goes on from its line. Past either end of the
+		// file there is no step: no wrap and no other file.
+		const auto steps  = file_comment_steps();
+		const auto target = aForward ? steps.Next : steps.Previous;
+		if (!target.has_value()) {
+			return;
+		}
 		const auto& shown = cards->cards();
-		// [[BPR-2262]]. Another line's saved draft is the window's to bring
-		// into the drawer once its line is chosen, as Comments in another
-		// file does; any other comment opens in place.
+		const auto  found = std::ranges::find(shown, *target, &thread_card::Id);
+		if (found == shown.end()) {
+			return;
+		}
 		const auto savedDraft = [](const thread_card& aCard) -> std::optional<core::review_draft_id> {
 			const auto prefix = std::string{ conversation_cards_view::draft_identity() } + ":";
 			if (!aCard.Draft || aCard.UnsentReply.has_value() || aCard.MovedSuggestion || aCard.Local || !aCard.Id.starts_with(prefix)) {
@@ -240,68 +279,30 @@ namespace bpr::qt {
 			const auto parsed = std::from_chars(digits.data(), digits.data() + digits.size(), value);
 			return parsed.ec == std::errc{ } && parsed.ptr == digits.data() + digits.size() ? std::optional{ core::review_draft_id{ value } } : std::nullopt;
 		};
-		const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
-		auto       file    = context.has_value() ? path_of(context->Key.File) : QString{ };
-		for (const auto& card : shown) {
-			if (!file.isEmpty()) {
-				break;
-			}
-			file = card.Path;
-		}
-		const auto open = [this, cards, &savedDraft, &file](const thread_card& aCard) {
-			if (!aCard.Draft && !aCard.Local) {
-				go_to_conversation(aCard.Id);
-				return;
-			}
-			if (const auto draft = savedDraft(aCard); draft.has_value() && aCard.Side.has_value() && aCard.Line.value_or(0U) > 0U && !file.isEmpty()) {
-				reveal_pending_comment(file, *aCard.Side, *aCard.Line - 1U, draft);
-				return;
-			}
-			if (cards->open_thread_id() != aCard.Id) {
-				cards->open_thread(aCard.Id);
-			}
-			if (aCard.Side.has_value() && aCard.Line.has_value() && *aCard.Line > 0U && ComparisonSurface != nullptr) {
-				static_cast<void>(ComparisonSurface->reveal_conversation_line(*aCard.Side, *aCard.Line - 1U));
-			}
-		};
-		// From the comment open; with none open, the first or the last.
-		const auto& current = cards->open_thread_id();
-		const auto  at      = std::ranges::find(shown, current, &thread_card::Id);
-		if (!current.empty() && at != shown.end()) {
-			const auto index = static_cast<std::ptrdiff_t>(std::distance(shown.begin(), at)) + (aForward ? 1 : -1);
-			if (index >= 0 && index < static_cast<std::ptrdiff_t>(shown.size())) {
-				open(shown[static_cast<std::size_t>(index)]);
-				return;
-			}
-		} else if (!shown.empty()) {
-			open(aForward ? shown.front() : shown.back());
+		// What the step needs of the card, read before anything it does
+		// rebuilds the cards.
+		const auto published = !found->Draft && !found->Local;
+		const auto draft     = savedDraft(*found);
+		const auto side      = found->Side;
+		const auto line      = found->Line.value_or(0U);
+		const auto context   = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+		const auto file      = context.has_value() ? path_of(context->Key.File) : found->Path;
+		// [[BPR-2262]]. A published thread opens as Comments opens it;
+		// another line's saved draft is the window's to bring into the
+		// drawer once its line is chosen; any other comment opens in place.
+		if (published) {
+			go_to_conversation(*target);
 			return;
 		}
-		// Past this file's comments: the next file's first, or the previous
-		// file's last, wrapping at the pull request's ends. [[BPR-2262]]: my
-		// drafts are stops too, and a stop in another file opens that file.
-		const auto        stops   = cards->comments_in_file_order();
-		const auto        later   = std::ranges::find_if(stops, [&file](const comment_stop& aStop) { return aStop.Path > file; });
-		const auto        earlier = std::ranges::find_if(stops.rbegin(), stops.rend(), [&file](const comment_stop& aStop) { return aStop.Path < file; });
-		const auto* const stop    = aForward ? (later != stops.end() ? &*later : stops.empty() ? nullptr
-																							   : &stops.front())
-											 : (earlier != stops.rend() ? &*earlier : stops.empty() ? nullptr
-																									: &stops.back());
-		if (stop == nullptr || (stop->Path == file && shown.empty())) {
-			statusBar()->showMessage(tr("No other comments in this pull request."), 4000);
+		if (draft.has_value() && side.has_value() && line > 0U && !file.isEmpty()) {
+			reveal_pending_comment(file, *side, line - 1U, draft);
 			return;
 		}
-		if (stop->Path == file) {
-			// Wrapped round to this file again: its first or last comment.
-			open(aForward ? shown.front() : shown.back());
-			return;
+		if (cards->open_thread_id() != *target) {
+			cards->open_thread(*target);
 		}
-		if (stop->Draft.has_value()) {
-			reveal_pending_comment(stop->Path, stop->Side, stop->Line, stop->Draft);
-			return;
-		}
-		if (!open_conversation_in_review(stop->Thread, std::string{ })) {
-			go_to_conversation(stop->Thread);
+		if (side.has_value() && line > 0U && ComparisonSurface != nullptr) {
+			static_cast<void>(ComparisonSurface->reveal_conversation_line(*side, line - 1U));
 		}
 	}
 
