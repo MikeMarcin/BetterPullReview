@@ -196,6 +196,7 @@ add_library(
         src/discuss_preferences.cpp
         src/local_comment.cpp
         src/note_placement.cpp
+        src/comment_steps.cpp
         src/review_submission.cpp
         src/review_submission_refusal.cpp
         src/review_submission_unknown.cpp

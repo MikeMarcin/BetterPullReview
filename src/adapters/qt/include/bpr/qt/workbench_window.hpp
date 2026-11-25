@@ -22,6 +22,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/author_mode.hpp"
+#include "bpr/core/comment_steps.hpp"
 #include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/core/discuss_preferences.hpp"
@@ -2643,10 +2644,14 @@ namespace bpr::qt {
 		void update_new_comment_group();
 		void step_to_next_new_comment();
 		/// Owner look v002. The comment before or after the one open (or the
-		/// first or last in view), in Comments' order, then the next file's.
+		/// first or last in view), in Comments' order, within the file shown
+		/// (the owner, 2026-11-24: "stop when it reaches either end").
 		void step_comment(bool aForward);
 		/// Their enablement and tooltips follow the comments.
 		void update_comment_steps();
+		/// The core's steps through the comments Comments lists on the file
+		/// shown, after its filters.
+		[[nodiscard]] auto file_comment_steps() const -> core::comment_steps;
 		/// \brief [[BPR-1601, BPR-1810]]. Goes to one conversation where the
 		/// reader is, as Next new comment does: a comment on the pull request
 		/// in its conversation, a thread on another file at its line, and

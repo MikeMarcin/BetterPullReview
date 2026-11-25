@@ -2119,65 +2119,6 @@ namespace bpr::qt {
 		return *UnreadThreads;
 	}
 
-	auto conversation_cards_view::threads_in_file_order() const -> std::vector<std::pair<std::string, QString>>
-	{
-		auto threads = std::vector<const application::github_conversation_projection*>{ };
-		for (const auto& node : Retained) {
-			if (node.Kind == application::github_conversation_kind::review_thread && !node.ParentId.has_value() && !node.Deleted && !node.Path.empty()) {
-				threads.push_back(&node);
-			}
-		}
-		std::ranges::stable_sort(threads, [](const auto* aLeft, const auto* aRight) {
-			return std::pair{ aLeft->Path, aLeft->Line.value_or(0U) } < std::pair{ aRight->Path, aRight->Line.value_or(0U) };
-		});
-		auto ids = std::vector<std::pair<std::string, QString>>{ };
-		ids.reserve(threads.size());
-		for (const auto* thread : threads) {
-			ids.emplace_back(thread->Id, QString::fromStdString(thread->Path));
-		}
-		return ids;
-	}
-
-	auto conversation_cards_view::comments_in_file_order() const -> std::vector<comment_stop>
-	{
-		auto stops = std::vector<comment_stop>{ };
-		for (const auto& node : Retained) {
-			if (node.Kind == application::github_conversation_kind::review_thread && !node.ParentId.has_value() && !node.Deleted && !node.Path.empty()) {
-				auto stop   = comment_stop{ };
-				stop.Thread = node.Id;
-				stop.Path   = QString::fromStdString(node.Path);
-				stop.Side   = node.DiffSide == application::github_conversation_diff_side::left ? core::diff_side::left : core::diff_side::right;
-				stop.Line   = node.Line.value_or(1U) > 0U ? node.Line.value_or(1U) - 1U : 0U;
-				stops.push_back(std::move(stop));
-			}
-		}
-		// My drafts on a line of a file, as the drawer shows them: the
-		// editor's (being written, or with words) and every other saved one
-		// with words. A reply is its thread's; a published draft is a thread.
-		const auto add = [&stops](const core::review_comment_draft& aDraft, const bool aWriting) {
-			if (aDraft.shared() || aDraft.ReplyToThread.has_value() || (aDraft.Body.empty() && !aWriting) || !aDraft.Place.has_value() || aDraft.Place->Path.empty()
-				|| std::ranges::any_of(stops, [&aDraft](const comment_stop& aStop) { return aStop.Draft == std::optional{ aDraft.Id }; })) {
-				return;
-			}
-			auto stop  = comment_stop{ };
-			stop.Draft = aDraft.Id;
-			stop.Path  = QString::fromStdString(aDraft.Place->Path);
-			stop.Side  = aDraft.Anchor.Side;
-			stop.Line  = aDraft.Anchor.Line;
-			stops.push_back(std::move(stop));
-		};
-		if (Draft.has_value()) {
-			add(*Draft, writing_draft());
-		}
-		for (const auto& saved : SavedDrafts) {
-			add(saved, false);
-		}
-		std::ranges::stable_sort(stops, [](const comment_stop& aLeft, const comment_stop& aRight) {
-			return std::pair{ aLeft.Path, aLeft.Line } < std::pair{ aRight.Path, aRight.Line };
-		});
-		return stops;
-	}
-
 	auto conversation_cards_view::unread_conversations_in_navigation_order() const -> const std::vector<std::string>&
 	{
 		if (UnreadConversations.has_value()) {
