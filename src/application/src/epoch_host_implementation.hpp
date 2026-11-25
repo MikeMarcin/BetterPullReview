@@ -959,6 +959,8 @@ namespace bpr::application {
 		[[nodiscard]] auto keep_managed_clone(const managed_clone_request& aRequest, const git_smart_clone_progress& aProgress, const std::stop_token aStop)
 			-> std::expected<void, managed_clone_error>;
 
+		[[nodiscard]] auto move_pull_request_files(const std::shared_ptr<authority_effect_actor>& aActor, const agent_workspace_move_request& aMove, std::stop_token aStop)
+			-> std::expected<std::optional<std::vector<git_workspace_file>>, agent_workspace_error>;
 		[[nodiscard]] auto read_pull_request_files(const std::shared_ptr<authority_effect_actor>& aActor, const authority_context& aContext,
 												   const git_cache_open_request& aExpected, const core::agent_revision_binding& aBinding,
 												   const std::stop_token aStop) -> std::expected<std::vector<git_workspace_file>, agent_workspace_error>;

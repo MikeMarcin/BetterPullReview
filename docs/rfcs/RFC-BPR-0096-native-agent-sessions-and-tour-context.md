@@ -180,7 +180,8 @@ turn on it runs.
   **Ask <agent> to reconcile**, **Continue at <old>** and **Start a new
   session**. Ask <agent> to reconcile keeps the work on the saved branch,
   moves the workspace to the new head, and sends a built-in prompt (with the
-  other built-in prompts, RFC-BPR-0125) telling the agent what happened (both
+  other built-in prompts, RFC-BPR-0125, and editable in Settings › Prompts as
+  they are) telling the agent what happened (both
   heads, the saved branch and pre-move ref, the files that conflicted) and to
   bring its work onto the new head and report what it did. The pre-move ref
   and the saved branch stay, so every option can be undone.

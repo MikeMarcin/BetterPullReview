@@ -5147,10 +5147,229 @@ namespace {
 			const auto owned   = materialize();
 			const auto missing = move(owned, std::string(40U, 'e'));
 			require(!missing && missing.error().Code == application::git_process_failure::object_unavailable && at(owned) == old && stopped(owned, old), "a head the cache lacks is refused");
-			auto sparse              = owned;
-			sparse.Workspace.Shallow = true;
-			const auto refused       = move(sparse, head);
-			require(!refused && refused.error().Code == application::git_process_failure::object_unavailable, "a sparse workspace is not moved in this slice");
+		}
+		// A workspace of only the pull request's files (a sparse review with
+		// no clone) moves with the new head's files: those are checked out,
+		// the rest of the head stays absent, and its holes are the new head's.
+		{
+			const auto prFile = [&](const std::string& aPath, const std::string& aText) {
+				auto made = application::git_workspace_file{ };
+				made.Path = aPath;
+				made.Mode = 0100644U;
+				made.Blob = core::git_blob_oid{ core::git_hash_algorithm::sha1,
+												object<application::git_blob_id>(run_fixture_git(cache, { "hash-object", "--stdin" }, aText), application::git_hash_algorithm::sha1).Digest };
+				made.Bytes.assign(aText.begin(), aText.end());
+				return made;
+			};
+			const auto oldFiles          = application::git_workspace_files{ prFile("README.md", "one\n") };
+			const auto headFiles         = application::git_workspace_files{ prFile("README.md", "two\n"), prFile("b.txt", "b\n") };
+			const auto materializeSparse = [&] {
+				const auto parent                                = root.Path / "neighbourhood";
+				auto       made                                  = application::git_agent_workspace_request{ };
+				made.Repository                                  = cache;
+				made.Materialization.ApplicationSession          = core::application_session_id{ 1U };
+				made.Materialization.Authority                   = authority;
+				made.Materialization.Session.Id                  = core::agent_session_id{ session++ };
+				made.Materialization.Session.Profile             = core::external_terminal_profile_id;
+				made.Materialization.Session.Binding.Host        = authority.Host;
+				made.Materialization.Session.Binding.Repository  = authority.Repository;
+				made.Materialization.Session.Binding.PullRequest = authority.PullRequest;
+				made.Materialization.Session.Binding.BaseOid     = oid(base);
+				made.Materialization.Session.Binding.HeadOid     = oid(old);
+				made.Materialization.Session.Binding.LeftEpoch   = core::epoch_ordinal{ 1U };
+				made.Materialization.Session.Binding.RightEpoch  = core::epoch_ordinal{ 1U };
+				made.Materialization.ParentDirectory             = parent;
+				made.Materialization.RetainForSession            = true;
+				made.Source.PullRequestFiles                     = oldFiles;
+				auto owned                                       = adapter->materialize_agent_workspace(made, { });
+				require(owned && owned->Workspace.Shallow && owned->SparseMissingObjects && !std::filesystem::exists(std::filesystem::path{ owned->Workspace.Path } / "a.txt"),
+						"a pull-request-files workspace is made at the old head");
+				return *owned;
+			};
+			const auto moveSparse = [&](const application::owned_agent_workspace& aWorkspace, const core::conversation_reconcile aReconcile = core::conversation_reconcile::none) {
+				auto request                  = application::git_agent_workspace_move_request{ };
+				request.Move.Workspace        = aWorkspace;
+				request.Repository            = cache;
+				request.Move.Head             = oid(head);
+				request.Move.Base             = oid(base);
+				request.Move.Reconcile        = aReconcile;
+				request.Move.PullRequestFiles = headFiles;
+				auto result                   = adapter->move_agent_workspace(request, { });
+				if (!result) {
+					std::cerr << "workspace-move-sparse:failure=" << static_cast<unsigned>(result.error().Code) << ":detail=" << result.error().Detail << '\n';
+				}
+				return result;
+			};
+			const auto patterns = [&](const application::owned_agent_workspace& aWorkspace) { return read_text(git(aWorkspace) / "info" / "sparse-checkout"); };
+			const auto absentAt = [](const application::owned_agent_workspace& aWorkspace, const std::string& aName) {
+				return !std::filesystem::exists(std::filesystem::path{ aWorkspace.Workspace.Path } / aName);
+			};
+			{
+				const auto owned = materializeSparse();
+				const auto moved = moveSparse(owned);
+				require(moved && moved->Moved && at(owned) == head && file(owned, "README.md") == "two\n" && file(owned, "b.txt") == "b\n" && absentAt(owned, "a.txt") && status(owned).empty(),
+						"a pull-request-files workspace moves, holding the new head's files only");
+				require(moved->Workspace.Workspace.Shallow && !moved->Workspace.RequiredBase && moved->Workspace.SparseMissingObjects && !moved->Workspace.SparseMissingObjects->empty()
+							&& patterns(owned) == "/README.md\n/b.txt\n",
+						"its holes and patterns are the new head's");
+				require(moved->History.Linear && !moved->History.Listed && marker(owned) == moved->Workspace.OwnershipMarker && noRefs(owned)
+							&& !std::filesystem::exists(git(owned) / "bpr-sparse-checkout.pre-move"),
+						"the note gives the commands, and nothing of the move is left");
+				require(adapter->inspect_agent_workspace(moved->Workspace, cache, { }) == moved->Workspace, "the moved workspace resumes");
+				const auto behind = adapter->inspect_agent_workspace(owned, cache, { });
+				require(behind && behind->Workspace.PinnedHead == std::optional{ oid(head) } && behind->SparseMissingObjects == moved->Workspace.SparseMissingObjects,
+						"a conversation one move behind resumes with the new head's holes");
+				// Without the new head's files, a cache whose blobs the workspace
+				// lacks cannot complete the snapshot.
+				auto plain                                    = application::git_agent_workspace_move_request{ };
+				plain.Move.Workspace                          = moved->Workspace;
+				plain.Repository                              = cache;
+				plain.Move.Head                               = oid(rewritten);
+				plain.Move.Base                               = oid(base);
+				plain.Move.PullRequestFiles                   = headFiles;
+				plain.Move.Workspace.Workspace.BorrowsHistory = true;
+				require(!adapter->move_agent_workspace(plain, { }), "files for a borrowing workspace are refused");
+			}
+			// Edits and a new file outside the pull request's files are carried
+			// by a rebase, uncommitted again.
+			{
+				const auto owned = materializeSparse();
+				edit(owned, "notes.txt", "agent notes\n");
+				const auto refused = moveSparse(owned);
+				require(refused && !refused->Moved && refused->Observed == core::conversation_workspace_state::local_edits && at(owned) == old, "edits stop a sparse move too");
+				const auto moved = moveSparse(owned, core::conversation_reconcile::rebase);
+				require(moved && moved->Moved && at(owned) == head && file(owned, "notes.txt") == "agent notes\n" && file(owned, "b.txt") == "b\n" && status(owned) == "?? notes.txt"
+							&& patterns(owned) == "/README.md\n/b.txt\n/notes.txt\n",
+						"a rebase carries the new file onto the new head, untracked again and in view");
+				require(adapter->inspect_agent_workspace(moved->Workspace, cache, { }).has_value(), "the rebased sparse workspace resumes");
+			}
+			// A crash at each step: back to the old head with its patterns, or on
+			// to the new one.
+			for (const auto& [checkpoint, forward] : std::vector<std::pair<std::string, bool>>{
+					 { "move-after-patterns", false }, { "move-after-checkout", false }, { "move-after-journal", true }, { "move-after-marker", true } }) {
+				const auto owned  = materializeSparse();
+				const auto before = patterns(owned);
+				edit(owned, "notes.txt", "agent notes\n");
+				workspace_crash_at = checkpoint;
+				auto crashed       = false;
+				try {
+					static_cast<void>(moveSparse(owned, core::conversation_reconcile::rebase));
+				} catch (const simulated_workspace_crash&) {
+					crashed = true;
+				}
+				require(crashed, "the sparse move reaches " + checkpoint);
+				adapter.reset();
+				adapter              = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+				const auto expected  = forward ? head : old;
+				const auto recovered = adapter->inspect_agent_workspace(owned, cache, { });
+				require(recovered && recovered->Workspace.PinnedHead == std::optional{ oid(expected) } && at(owned) == expected && noRefs(owned) && marker(owned) == recovered->OwnershipMarker,
+						checkpoint + ": the sparse move is recovered to the " + (forward ? "new" : "old") + " head");
+				require(patterns(owned) == (forward ? std::string{ "/README.md\n/b.txt\n/notes.txt\n" } : before) && file(owned, "notes.txt") == "agent notes\n"
+							&& file(owned, "README.md") == (forward ? "two\n" : "one\n") && !std::filesystem::exists(git(owned) / "bpr-sparse-checkout.pre-move"),
+						checkpoint + ": the patterns match the head and the work is kept");
+			}
+		}
+		// A partial history whose snapshots the cache holds whole moves without
+		// files: the history ends at the new head and it has no holes.
+		{
+			auto owned                 = materialize();
+			owned.Workspace.Shallow    = true;
+			owned.SparseMissingObjects = std::string{ };
+			owned.RequiredBase.reset();
+			write_text(git(owned) / "shallow", old + "\n");
+			require(adapter->inspect_agent_workspace(owned, cache, { }).has_value(), "a partial-history workspace resumes");
+			const auto moved = move(owned, head);
+			require(moved && moved->Moved && at(owned) == head && file(owned, "b.txt") == "b\n" && file(owned, "a.txt") == "a\n" && moved->Workspace.SparseMissingObjects == std::optional{ std::string{ } }
+						&& !moved->Workspace.RequiredBase && read_text(git(owned) / "shallow").find(head + "\n") != std::string::npos,
+					"a partial-history workspace moves with the whole snapshot");
+			require(adapter->inspect_agent_workspace(moved->Workspace, cache, { }).has_value(), "it resumes after the move");
+		}
+		// The ownership record: a move past half its bound compacts it first, so
+		// a workspace moves as often as the head does. The record's lines are
+		// filled with moves back and forth to just under the old bound, where a
+		// move used to be refused.
+		{
+			const auto owned = materialize();
+			const auto first = move(owned, head);
+			require(first && first->Moved, "the workspace moves once");
+			const auto journal = std::filesystem::path{ owned.LifetimeGuard->Path };
+			const auto fill    = [&] {
+				auto       text = read_text(journal);
+				const auto last = text.substr(text.rfind('\n', text.size() - 2U) + 1U);
+				auto       back = last;
+				const auto swap = [&](std::string& aLine, const std::string& aFrom, const std::string& aTo) {
+					aLine.replace(aLine.find("\"Head\":\"" + aFrom + "\""), 8U + aFrom.size() + 1U, "\"Head\":\"" + aTo + "\"");
+					aLine.replace(aLine.find("\"PreviousHead\":\"" + aTo + "\""), 16U + aTo.size() + 1U, "\"PreviousHead\":\"" + aFrom + "\"");
+				};
+				swap(back, head, old);
+				while (text.size() + 2U * last.size() < 63U * 1024U) {
+					text += back + last;
+				}
+				write_text(journal, text);
+				std::filesystem::permissions(journal, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace);
+				return text.size();
+			};
+			const auto filled = fill();
+			require(filled > 60U * 1024U && adapter->inspect_agent_workspace(first->Workspace, cache, { }).has_value(), "the filled record reads as moved many times");
+			adapter.reset();
+			adapter         = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+			const auto next = move(first->Workspace, rewritten);
+			require(next && next->Moved && at(owned) == rewritten, "a record at the old bound is compacted, and the workspace moves");
+			const auto compacted = read_text(journal);
+			require(compacted.size() < 16U * 1024U && compacted.find('%') == std::string::npos && std::ranges::count(compacted, '\n') == 7
+						&& compacted.find("\"PreviousHead\":\"" + head + "\"") != std::string::npos,
+					"the record holds its retained lines at the last head, that move, and this one");
+			require(adapter->inspect_agent_workspace(next->Workspace, cache, { }) == next->Workspace, "the compacted record resumes");
+			adapter.reset();
+			const auto recovered = git_adapter::recover_installed_agent_workspaces(registry, root.Path / "neighbourhood");
+			require(recovered && recovered->Recovered == 0U, "startup reads the compacted record");
+			adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+			for (auto count = 0; count < 3; ++count) {
+				const auto previous = adapter->inspect_agent_workspace(next->Workspace, cache, { });
+				require(previous.has_value(), "it resumes before each later move");
+			}
+			// A crash at each step of the compaction: inspect reads the record
+			// as it stands, and the next move or startup finishes or undoes the
+			// compaction, then moves.
+			for (const auto& checkpoint : { std::string{ "compact-after-copy" }, std::string{ "compact-after-mark" }, std::string{ "compact-after-body" }, std::string{ "compact-after-lead" } }) {
+				const auto crashedOwned = materialize();
+				const auto once         = move(crashedOwned, head);
+				require(once && once->Moved, checkpoint + ": the workspace moves once");
+				const auto crashedJournal = std::filesystem::path{ crashedOwned.LifetimeGuard->Path };
+				auto       text           = read_text(crashedJournal);
+				const auto last           = text.substr(text.rfind('\n', text.size() - 2U) + 1U);
+				auto       back           = last;
+				back.replace(back.find("\"Head\":\"" + head + "\""), 8U + head.size() + 1U, "\"Head\":\"" + old + "\"");
+				back.replace(back.find("\"PreviousHead\":\"" + old + "\""), 16U + old.size() + 1U, "\"PreviousHead\":\"" + head + "\"");
+				while (text.size() + 2U * last.size() < 40U * 1024U) {
+					text += back + last;
+				}
+				write_text(crashedJournal, text);
+				std::filesystem::permissions(crashedJournal, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace);
+				adapter.reset();
+				adapter            = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+				workspace_crash_at = checkpoint;
+				auto crashed       = false;
+				try {
+					static_cast<void>(move(once->Workspace, rewritten));
+				} catch (const simulated_workspace_crash&) {
+					crashed = true;
+				}
+				require(crashed && read_text(crashedJournal).find('%') != std::string::npos, "the compaction reaches " + checkpoint);
+				adapter.reset();
+				adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+				require(adapter->inspect_agent_workspace(once->Workspace, cache, { }) == once->Workspace && at(crashedOwned) == head,
+						checkpoint + ": the record reads at the head it had, and Git is unchanged");
+				if (checkpoint == "compact-after-copy" || checkpoint == "compact-after-lead") {
+					adapter.reset();
+					const auto started = git_adapter::recover_installed_agent_workspaces(registry, root.Path / "neighbourhood");
+					require(started && started->Recovered == 0U && read_text(crashedJournal).find('%') == std::string::npos, checkpoint + ": startup finishes or undoes the compaction");
+					adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+				}
+				const auto again = move(once->Workspace, rewritten);
+				require(again && again->Moved && at(crashedOwned) == rewritten && read_text(crashedJournal).find('%') == std::string::npos && read_text(crashedJournal).size() < 16U * 1024U,
+						checkpoint + ": the next move finishes the compaction and moves");
+			}
 		}
 	#if defined(Q_OS_UNIX)
 		// A turn running holds the record's lock shared: busy, and nothing changes.

@@ -418,7 +418,7 @@ namespace bpr::adapters::sqlite {
 				// SHA-256 is `text_digest`: a row for other text says nothing.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS prompt_provenance("
-									"hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 16),"
+									"hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 17),"
 									"text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
 									"version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)) STRICT")
 				// [[BPR-2016]]. An import's hooks before it, kept while the
@@ -426,7 +426,7 @@ namespace bpr::adapters::sqlite {
 				// crash between them is undone at the next start.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS configuration_import_journal("
-									"hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 16),"
+									"hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 17),"
 									"revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
 									"text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)) STRICT")
 				// [[BPR-2032]], RFC-BPR-0112. The profile's optional workflows,
@@ -543,19 +543,20 @@ namespace bpr::adapters::sqlite {
 			// new form. A table any earlier build made (any other check) is rebuilt
 			// with its rows for 0 and 1 dropped and the rest renumbered.
 			// [[BPR-2357]]. Widen 0 to 15 in place, preserving current IDs.
-			static_assert(core::writing_hook_count == 17U, "the hook tables' check names the last hook");
+			// RFC-BPR-0096, continue-at-latest amendment. Widen 0 to 16 in place too.
+			static_assert(core::writing_hook_count == 18U, "the hook tables' check names the last hook");
 			for (const auto& [table, definition, columns] : std::array{
 					 std::tuple{ std::string_view{ "prompt_provenance" },
-								 std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 16),text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
+								 std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 17),text_digest BLOB NOT NULL CHECK(length(text_digest)=32),"
 												   "version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)" },
 								 std::string_view{ "text_digest,version" } },
 					 std::tuple{ std::string_view{ "configuration_import_journal" },
-								 std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 16),revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
+								 std::string_view{ "hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 17),revision_after INTEGER NOT NULL CHECK(revision_after >= 1),"
 												   "text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) <= 8192)" },
 								 std::string_view{ "revision_after,text" } } }) {
 				auto query = std::string{ "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='" };
 				query += table;
-				query += "' AND sql NOT LIKE '%hook >= 0 AND hook <= 16)%'";
+				query += "' AND sql NOT LIKE '%hook >= 0 AND hook <= 17)%'";
 				const auto narrow = detail::scalar_integer(db, query);
 				if (!narrow) {
 					return { };
@@ -586,7 +587,7 @@ namespace bpr::adapters::sqlite {
 				};
 				auto rename = statement("ALTER TABLE ", " RENAME TO narrow_", { });
 				rename += table;
-				const auto previous = detail::scalar_integer(db, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='" + std::string{ table } + "' AND sql LIKE '%hook >= 0 AND hook <= 15)%'");
+				const auto previous = detail::scalar_integer(db, "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='" + std::string{ table } + "' AND (sql LIKE '%hook >= 0 AND hook <= 15)%' OR sql LIKE '%hook >= 0 AND hook <= 16)%')");
 				if (!previous) {
 					static_cast<void>(detail::execute(db, "ROLLBACK"));
 					return { };
@@ -2757,6 +2758,23 @@ namespace bpr::adapters::sqlite {
 				bind_text(back->Value, 2, std::string{ core::canonical_hex(aSession.Binding.HeadOid).view() });
 				if (sqlite3_step(told->Value) != SQLITE_DONE || sqlite3_step(others->Value) != SQLITE_DONE || sqlite3_step(back->Value) != SQLITE_DONE) {
 					return false;
+				}
+				// A partial-history checkout's holes are the new head's, for every
+				// conversation on it.
+				if (workspace.SparseMissingObjects) {
+					if (workspace.SparseMissingObjects->size() > 64U * 1024U * 1024U) {
+						return false;
+					}
+					auto holes = detail::prepare(db, "INSERT INTO native_agent_sparse_objects(conversation,missing) SELECT id,?2 FROM native_agent_sessions WHERE workspace=?1 "
+													 "ON CONFLICT(conversation) DO UPDATE SET missing=excluded.missing");
+					if (!holes) {
+						return false;
+					}
+					bind_text(holes->Value, 1, workspace.Workspace.Path);
+					bind_text(holes->Value, 2, *workspace.SparseMissingObjects);
+					if (sqlite3_step(holes->Value) != SQLITE_DONE) {
+						return false;
+					}
 				}
 				// The shared-workspace map: the keys that led to this checkout go,
 				// and the new one leads here unless another tree is already there.

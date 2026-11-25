@@ -107,6 +107,12 @@ namespace bpr::qt {
 			{ core::writing_hook::review_update_from_target, "Update from target", "Pull request Overview and Status",
 			  "How the agent updates your pull request from its target branch. Add your own instructions to the built-in text or replace it.",
 			  "Sent when you press Update from target with agent. The pull request, target branch and push destination are supplied with each request." },
+			// RFC-BPR-0096, owner continue-at-latest amendment: "a system prompt
+			// to just fix it".
+			{ core::writing_hook::reconcile_move, "Reconcile after an update", "Agent tab, when the pull request was updated under your work",
+			  "What the agent is told when you ask it to bring the work it kept on a branch onto the pull request's new head.",
+			  "Sent after the note about the update when you choose to have the agent reconcile. Both heads, the saved branch and any conflicting files are supplied with "
+			  "each request; nothing is pushed." },
 		} };
 
 		[[nodiscard]] auto facts_of(const core::writing_hook aHook) -> const prompt_facts& { return facts[static_cast<std::size_t>(aHook)]; }
@@ -264,7 +270,8 @@ namespace bpr::qt {
 		}
 		// RFC-BPR-0116. The returning questions, and RFC-BPR-0117's Explain
 		// this file, before the review skill.
-		for (const auto hook : { core::writing_hook::review_latest_upload, core::writing_hook::review_proposed_fix, core::writing_hook::review_explain_file, core::writing_hook::review_suggest_change, core::writing_hook::review_update_from_target }) {
+		for (const auto hook : { core::writing_hook::review_latest_upload, core::writing_hook::review_proposed_fix, core::writing_hook::review_explain_file, core::writing_hook::review_suggest_change, core::writing_hook::review_update_from_target,
+								 core::writing_hook::reconcile_move }) {
 			auto* const item = new QListWidgetItem{ tr(facts_of(hook).Name), Hook };
 			item->setData(hook_role, static_cast<int>(hook));
 			item->setData(usage_role, tr(facts_of(hook).Where));
@@ -427,7 +434,7 @@ namespace bpr::qt {
 		connect(TestButton, &QPushButton::clicked, this, [this] {
 			if (Test && selected_hook() != core::writing_hook::feedback && selected_hook() != core::writing_hook::suggested_comment && selected_hook() != core::writing_hook::local_description
 				&& selected_hook() != core::writing_hook::local_discussion && selected_hook() != core::writing_hook::local_commit_message && selected_hook() != core::writing_hook::local_run_check
-				&& selected_hook() != core::writing_hook::writing_style && selected_hook() != core::writing_hook::comment_labels && selected_hook() != core::writing_hook::review_update_from_target && !returning_hook(selected_hook())) {
+				&& selected_hook() != core::writing_hook::writing_style && selected_hook() != core::writing_hook::comment_labels && selected_hook() != core::writing_hook::review_update_from_target && selected_hook() != core::writing_hook::reconcile_move && !returning_hook(selected_hook())) {
 				Test(selected_hook());
 			}
 		});
@@ -713,10 +720,12 @@ namespace bpr::qt {
 		const bool returning = returning_hook(hook);
 		// [[BPR-2264]] The Writing style rides on every request: any of them tries it.
 		// [[BPR-2270]] So does Comment labels, on any request that writes a comment.
-		const bool style  = hook == core::writing_hook::writing_style || hook == core::writing_hook::comment_labels;
-		const bool update = hook == core::writing_hook::review_update_from_target;
-		TestButton->setEnabled(!feedback && !suggested && !local && !returning && !style && !update);
+		const bool style     = hook == core::writing_hook::writing_style || hook == core::writing_hook::comment_labels;
+		const bool update    = hook == core::writing_hook::review_update_from_target;
+		const bool reconcile = hook == core::writing_hook::reconcile_move;
+		TestButton->setEnabled(!feedback && !suggested && !local && !returning && !style && !update && !reconcile);
 		TestButton->setToolTip(feedback                                                ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.")
+								   : reconcile                                         ? tr("Sent only when the agent reconciles your work after the pull request was updated.")
 								   : update                                            ? tr("This action sends a branch update request from your pull request.")
 								   : suggested                                         ? tr("Test uses a tour field. Ask the agent a question in the Agent tab to try this format.")
 								   : hook == core::writing_hook::review_explain_file   ? tr("Test uses a tour field. Press Explain this file over a file in Review to try this prompt.")

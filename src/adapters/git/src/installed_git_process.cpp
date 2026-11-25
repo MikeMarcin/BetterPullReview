@@ -165,6 +165,10 @@ namespace bpr::adapters::git {
 			/// Variables added to the fixed environment for this one command.
 			/// Publication and workspace copying set only their closed lists.
 			std::vector<std::pair<std::string, std::string>> Environment;
+			/// An accepted exit may also write to standard error: Git's
+			/// "invalid object" notes for a partial-history workspace's absent
+			/// blobs, which its exit status already judged.
+			bool AllowStandardError = false;
 		};
 
 		[[nodiscard]] auto path_text(
@@ -2866,7 +2870,7 @@ namespace bpr::adapters::git {
 				}
 				// An accepted exit that wrote to standard error is malformed output,
 				// not an explanation, so it carries no retained text.
-				if (standardErrorBytes != 0U) {
+				if (standardErrorBytes != 0U && !aRequest.AllowStandardError) {
 					return failed(git_process_failure::malformed_output);
 				}
 				return {
@@ -3365,6 +3369,16 @@ namespace bpr::adapters::git {
 		// [[BPR-2125]]. Deliberately not JSON. Durable before any migration
 		// body write; removed only after the complete replacement is durable.
 		constexpr char workspace_migration_marker = '!';
+		// RFC-BPR-0096, owner continue-at-latest amendment. Frames the copy a
+		// compaction leaves after the old lines (`journal_compact`), and stands
+		// first while the lines are rewritten. Never part of a record line.
+		constexpr char workspace_compaction_marker = '%';
+		// The old lines, the copy and its two marks: a record compacted at its
+		// bound still fits while the compaction runs.
+		constexpr std::size_t maximum_compacting_journal_bytes = 2U * maximum_workspace_journal_bytes + 2U;
+		// A move compacts the record once its next line would pass half the
+		// bound, so the lines a cleanup appends always fit after it.
+		constexpr std::size_t workspace_journal_compaction_bytes = maximum_workspace_journal_bytes / 2U;
 
 	#if defined(Q_OS_WIN)
 		// [[BPR-0622]]. The Windows journal primitives. Privacy is the exact
@@ -3805,6 +3819,86 @@ namespace bpr::adapters::git {
 			return true;
 	#endif
 		}
+		/// Writes \p aBytes at \p aOffset, whole.
+		[[nodiscard]] auto journal_write_at(const journal_native aHandle, const std::uint64_t aOffset, const std::string_view aBytes) -> bool
+		{
+			std::size_t written = 0U;
+			while (written < aBytes.size()) {
+				const auto offset = aOffset + written;
+	#if defined(Q_OS_WIN)
+				auto overlapped       = OVERLAPPED{ };
+				overlapped.Offset     = static_cast<DWORD>(offset & 0xFFFF'FFFFU);
+				overlapped.OffsetHigh = static_cast<DWORD>(offset >> 32U);
+				auto count            = DWORD{ 0U };
+				if (WriteFile(aHandle, aBytes.data() + written, static_cast<DWORD>(aBytes.size() - written), &count, &overlapped) == FALSE || count == 0U) {
+					return false;
+				}
+	#else
+				const auto count = ::pwrite(aHandle, aBytes.data() + written, aBytes.size() - written, static_cast<off_t>(offset));
+				if (count < 0 && errno == EINTR) {
+					continue;
+				}
+				if (count <= 0) {
+					return false;
+				}
+	#endif
+				written += static_cast<std::size_t>(count);
+			}
+			return true;
+		}
+		[[nodiscard]] auto journal_flush(const journal_native aHandle) -> bool
+		{
+	#if defined(Q_OS_WIN)
+			return FlushFileBuffers(aHandle) != FALSE;
+	#else
+			return ::fsync(aHandle) == 0;
+	#endif
+		}
+		/// Steps 3 to 5 of `journal_compact`, which a recovery repeats.
+		[[nodiscard]] auto journal_finish_compaction(const journal_native aHandle, const std::string_view aBytes) -> bool
+		{
+			if (!journal_write_at(aHandle, 1U, aBytes.substr(1U)) || !journal_flush(aHandle)) {
+				return false;
+			}
+			workspace_checkpoint("compact-after-body");
+			if (!journal_write_at(aHandle, 0U, aBytes.substr(0U, 1U)) || !journal_flush(aHandle)) {
+				return false;
+			}
+			workspace_checkpoint("compact-after-lead");
+			return journal_truncate(aHandle, aBytes.size());
+		}
+		/// \brief RFC-BPR-0096, owner continue-at-latest amendment. A record's
+		/// lines rewritten shorter, in place, so a crash at any write leaves a
+		/// file `resolve_journal_compaction` reads as the old lines or the new.
+		///
+		/// \details The record's file keeps its identity (a conversation stores
+		/// it, and a turn locks it), so the lines cannot be replaced by a
+		/// rename. Each step is durable before the next:
+		/// 1. The copy, `%<compacted>%`, after the old lines. A record line is
+		///    JSON of numbers and hexadecimal text and never holds `%`.
+		/// 2. `%` over the first byte: from here the copy decides.
+		/// 3. The compacted lines after that first byte.
+		/// 4. `{`, their own first byte: the compacted lines lead the file.
+		/// 5. The rest is cut off.
+		[[nodiscard]] auto journal_compact(const journal_native aHandle, const std::uint64_t aSize, const std::string_view aBytes) -> bool
+		{
+			if (aBytes.empty() || aBytes.front() != '{' || aBytes.size() >= aSize || aBytes.find(workspace_compaction_marker) != std::string_view::npos
+				|| aSize + aBytes.size() + 2U > maximum_compacting_journal_bytes) {
+				return false;
+			}
+			auto copy = std::string{ workspace_compaction_marker };
+			copy += aBytes;
+			copy += workspace_compaction_marker;
+			if (!journal_write_at(aHandle, aSize, copy) || !journal_flush(aHandle)) {
+				return false;
+			}
+			workspace_checkpoint("compact-after-copy");
+			if (!journal_write_at(aHandle, 0U, std::string_view{ &workspace_compaction_marker, 1U }) || !journal_flush(aHandle)) {
+				return false;
+			}
+			workspace_checkpoint("compact-after-mark");
+			return journal_finish_compaction(aHandle, aBytes);
+		}
 		/// Opens an existing journal for the owner or recovery without following
 		/// a link. Windows shares read and write with the launcher and supervisor
 		/// guard opens, and delete so a completed journal can be removed.
@@ -4199,13 +4293,17 @@ namespace bpr::adapters::git {
 				next.Head         = aHead;
 				return next;
 			}
-			/// The record has room for that line under its fixed bound.
-			[[nodiscard]] auto move_fits(const std::string& aHead) const -> bool
+			/// The record has room for that line within \p aBound.
+			[[nodiscard]] auto move_fits(const std::string& aHead, const std::size_t aBound = maximum_workspace_journal_bytes) const -> bool
 			{
 				std::string bytes;
 				const auto  status = journal_stat(Descriptor);
-				return !glz::write_json(moved_record(aHead), bytes) && status && status->Size + bytes.size() + 1U <= maximum_workspace_journal_bytes;
+				return !glz::write_json(moved_record(aHead), bytes) && status && status->Size + bytes.size() + 1U <= aBound;
 			}
+			/// Rewrites the record as its compacted lines (`journal_compact`),
+			/// under the exclusive lock a move holds. A failure part way leaves
+			/// the owner unusable; the next exclusive load finishes or undoes it.
+			[[nodiscard]] auto compact() -> bool;
 			[[nodiscard]] auto append_move(const std::string& aHead) -> bool
 			{
 				if (Record.Phase != 7U || !append(moved_record(aHead))) {
@@ -4380,6 +4478,112 @@ namespace bpr::adapters::git {
 			}
 			return lines;
 		}
+		/// \brief RFC-BPR-0096, owner continue-at-latest amendment. The lines
+		/// of a moved record that say only where it is now: the lines up to its
+		/// first retained one, at the head it moved from last, then its last
+		/// line. None when it has not moved or would not be shorter.
+		[[nodiscard]] auto compact_workspace_lines(const std::vector<workspace_record>& aLines, const std::string_view aToken) -> std::optional<std::string>
+		{
+			const auto retained = std::ranges::find(aLines, 7U, &workspace_record::Phase);
+			if (aLines.empty() || retained == aLines.end() || aLines.back().Phase != 7U || !aLines.back().PreviousHead
+				|| static_cast<std::size_t>(std::distance(aLines.begin(), retained)) + 2U >= aLines.size()) {
+				return std::nullopt;
+			}
+			auto bytes = std::string{ };
+			for (auto line = aLines.begin(); line != std::next(retained); ++line) {
+				auto earlier         = *line;
+				earlier.Head         = *aLines.back().PreviousHead;
+				earlier.PreviousHead = std::nullopt;
+				std::string text;
+				if (glz::write_json(earlier, text)) {
+					return std::nullopt;
+				}
+				bytes += text;
+				bytes += '\n';
+			}
+			std::string last;
+			if (glz::write_json(aLines.back(), last)) {
+				return std::nullopt;
+			}
+			bytes += last;
+			bytes += '\n';
+			// The compacted lines read back as a record whose last line is the
+			// same.
+			auto       end   = std::size_t{ 0U };
+			const auto again = parse_workspace_lines(bytes, aToken, end);
+			if (!again || end != bytes.size() || again->back() != aLines.back()) {
+				return std::nullopt;
+			}
+			return bytes;
+		}
+		auto workspace_ownership::compact() -> bool
+		{
+			const auto status = journal_stat(Descriptor);
+			if (!boundary_valid() || !status || status->Size == 0U || status->Size > maximum_workspace_journal_bytes) {
+				return false;
+			}
+			std::string bytes(static_cast<std::size_t>(status->Size), '\0');
+			auto        end = std::size_t{ 0U };
+			if (!journal_read(Descriptor, bytes)) {
+				return false;
+			}
+			const auto lines     = parse_workspace_lines(bytes, Record.Token, end);
+			const auto compacted = lines && end == bytes.size() && lines->back() == Record ? compact_workspace_lines(*lines, Record.Token) : std::nullopt;
+			if (!compacted || compacted->size() >= bytes.size()) {
+				return false;
+			}
+			if (!journal_compact(Descriptor, status->Size, *compacted)) {
+				Poisoned = true;
+				return false;
+			}
+			return true;
+		}
+		enum class journal_compaction_repair : std::uint8_t {
+			none,
+			/// Back to the old lines, or on to the compacted ones once they lead:
+			/// the rest is cut off.
+			truncate,
+			/// The copy decides: steps 3 to 5 again.
+			finish,
+		};
+		struct journal_compaction
+		{
+			std::string               Bytes;
+			journal_compaction_repair Repair = journal_compaction_repair::none;
+		};
+		/// \brief The lines a record holds, whatever step of `journal_compact`
+		/// a crash stopped, and what makes the file hold only them. None when
+		/// the copy that must decide is not whole.
+		[[nodiscard]] auto resolve_journal_compaction(const std::string_view aBytes, const std::string_view aToken) -> std::optional<journal_compaction>
+		{
+			const auto first = aBytes.find(workspace_compaction_marker);
+			if (first == std::string_view::npos) {
+				return journal_compaction{ .Bytes = std::string{ aBytes } };
+			}
+			// A whole copy: `%<lines>%` at the end, its lines a record.
+			auto copy = std::optional<std::string_view>{ };
+			if (aBytes.size() >= 3U && aBytes.back() == workspace_compaction_marker) {
+				const auto open = aBytes.rfind(workspace_compaction_marker, aBytes.size() - 2U);
+				if (open != std::string_view::npos && open > 0U) {
+					const auto lines = aBytes.substr(open + 1U, aBytes.size() - open - 2U);
+					auto       end   = std::size_t{ 0U };
+					if (!lines.empty() && lines.front() == '{' && lines.size() <= open && parse_workspace_lines(lines, aToken, end) && end == lines.size()) {
+						copy = lines;
+					}
+				}
+			}
+			if (aBytes.front() == workspace_compaction_marker) {
+				if (!copy) {
+					return std::nullopt;
+				}
+				return journal_compaction{ .Bytes = std::string{ *copy }, .Repair = journal_compaction_repair::finish };
+			}
+			if (copy && aBytes.starts_with(*copy)) {
+				return journal_compaction{ .Bytes = std::string{ *copy }, .Repair = journal_compaction_repair::truncate };
+			}
+			// The copy was being written: the old lines stand.
+			return journal_compaction{ .Bytes = std::string{ aBytes.substr(0U, first) }, .Repair = journal_compaction_repair::truncate };
+		}
 		/// The live identities a record's `Registry`, `Neighbourhood` and `File`
 		/// must name, and the mount each is on now.
 		struct workspace_record_boundary
@@ -4474,7 +4678,8 @@ namespace bpr::adapters::git {
 			if (!status || !status->Private) {
 				return std::unexpected{ workspace_record_problem{ .Check = workspace_refusal_check::record_not_private } };
 			}
-			if (status->Size == 0U || status->Size > maximum_workspace_journal_bytes) {
+			// A compaction a crash interrupted holds its copy too.
+			if (status->Size == 0U || status->Size > maximum_compacting_journal_bytes) {
 				return std::unexpected{ workspace_record_problem{ } };
 			}
 			std::string bytes(static_cast<std::size_t>(status->Size), '\0');
@@ -4484,6 +4689,21 @@ namespace bpr::adapters::git {
 			if (bytes.front() == workspace_migration_marker) {
 				return std::unexpected{ workspace_record_problem{ .Check = workspace_refusal_check::record_cleanup_failed } };
 			}
+			// RFC-BPR-0096, owner continue-at-latest amendment: the old lines or
+			// the compacted ones, and with \p aUpgrade the file is made so.
+			const auto compaction = resolve_journal_compaction(bytes, aToken);
+			if (!compaction || (compaction->Repair == journal_compaction_repair::none && bytes.size() > maximum_workspace_journal_bytes)) {
+				return std::unexpected{ workspace_record_problem{ } };
+			}
+			if (compaction->Repair != journal_compaction_repair::none && aUpgrade) {
+				const auto repaired = compaction->Repair == journal_compaction_repair::finish ? journal_finish_compaction(aFd, compaction->Bytes)
+																							  : journal_truncate(aFd, compaction->Bytes.size());
+				if (!repaired) {
+					return std::unexpected{ workspace_record_problem{ .Check = workspace_refusal_check::record_cleanup_failed } };
+				}
+				workspace_checkpoint("compact-recovered");
+			}
+			bytes            = compaction->Bytes;
 			auto       end   = std::size_t{ 0U };
 			auto       lines = parse_workspace_lines(bytes, aToken, end);
 			const auto live  = workspace_record_boundary{
@@ -4528,7 +4748,7 @@ namespace bpr::adapters::git {
 					return std::unexpected{ workspace_record_problem{ .Check = workspace_refusal_check::record_cleanup_failed } };
 				}
 				workspace_checkpoint("journal-upgraded");
-			} else if (end != bytes.size() && !journal_truncate(aFd, end)) {
+			} else if (end != bytes.size() && (compaction->Repair != journal_compaction_repair::none || !journal_truncate(aFd, end))) {
 				return std::unexpected{ workspace_record_problem{ } };
 			}
 			return std::move(lines->back());
@@ -6133,6 +6353,87 @@ namespace bpr::adapters::git {
 			[[nodiscard]] static auto         pre_move_ref(const std::string_view aOld) -> std::string { return "refs/bpr/pre-move/" + std::string{ aOld }; }
 			static constexpr std::string_view wip_identity = "BetterPullReview";
 			static constexpr std::string_view wip_subject  = "BetterPullReview: work in progress before moving to the latest head";
+			/// A pull-request-files workspace's sparse patterns before a move
+			/// rewrote them, kept while the move is unfinished.
+			static constexpr std::string_view sparse_backup_name = "bpr-sparse-checkout.pre-move";
+
+			/// \brief The objects \p aHead lacks in a partial-history
+			/// workspace, as `SparseMissingObjects` keeps them: Git's own
+			/// `?<object>` lines.
+			[[nodiscard]] auto sparse_missing_manifest(const std::filesystem::path& aWorkspace, const std::string& aHead, const std::stop_token aStop) -> git_process_result<std::string>
+			{
+				const auto listed = workspace_git(aWorkspace, { "rev-list", "--objects", "--no-object-names", "--missing=print", aHead }, aStop);
+				if (!listed) {
+					return std::unexpected(listed.error());
+				}
+				const auto missing = workspace_missing_objects(listed->StandardOutput, aHead.size());
+				if (!missing) {
+					return std::unexpected(git_process_failure::object_unavailable);
+				}
+				auto manifest = std::string{ };
+				for (const auto& object : *missing) {
+					manifest += "?" + object + "\n";
+				}
+				return manifest;
+			}
+
+			/// Puts back the sparse patterns a move rewrote, when it kept them.
+			[[nodiscard]] static auto restore_sparse_patterns(const std::filesystem::path& aWorkspace) -> bool
+			{
+				const auto dot    = aWorkspace / ".git";
+				const auto backup = dot / sparse_backup_name;
+				if (absent(backup)) {
+					return true;
+				}
+				std::error_code error;
+				std::filesystem::rename(backup, dot / "info" / "sparse-checkout", error);
+				return !error && sync_workspace_directory(dot / "info") && sync_workspace_directory(dot);
+			}
+			[[nodiscard]] static auto drop_sparse_backup(const std::filesystem::path& aWorkspace) -> bool
+			{
+				const auto      backup = aWorkspace / ".git" / sparse_backup_name;
+				std::error_code error;
+				static_cast<void>(std::filesystem::remove(backup, error));
+				return !error && absent(backup);
+			}
+			/// Adds \p aHeads to the workspace's `.git/shallow` list.
+			[[nodiscard]] static auto add_shallow_heads(const std::filesystem::path& aWorkspace, const std::vector<std::string>& aHeads) -> bool
+			{
+				const auto shallow = aWorkspace / ".git" / "shallow";
+				auto       text    = std::string{ };
+				if (!absent(shallow)) {
+					std::error_code error;
+					if (!std::filesystem::is_regular_file(shallow, error) || error || std::filesystem::file_size(shallow, error) > 1024U * 1024U || error) {
+						return false;
+					}
+					std::ifstream input{ shallow, std::ios::binary };
+					text = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+					if (input.bad() || (!text.empty() && text.back() != '\n')) {
+						return false;
+					}
+				}
+				auto added = false;
+				for (const auto& head : aHeads) {
+					if (text.find(head + "\n") == std::string::npos) {
+						text += head + "\n";
+						added = true;
+					}
+				}
+				return !added || write_private_file(shallow, text);
+			}
+			/// One pull request file's sparse pattern: anchored, with every
+			/// pattern character escaped.
+			static void append_sparse_pattern(std::string& aPatterns, const std::string_view aPath)
+			{
+				aPatterns += '/';
+				for (const auto character : aPath) {
+					if (character == '\\' || character == '*' || character == '?' || character == '[' || character == ']' || character == '!' || character == '#' || character == ' ') {
+						aPatterns += '\\';
+					}
+					aPatterns += character;
+				}
+				aPatterns += '\n';
+			}
 
 			/// \brief The command-scope configuration one Git command in a
 			/// retained workspace runs with: the fixed overrides, and every
@@ -6169,8 +6470,8 @@ namespace bpr::adapters::git {
 			/// arguments; each command says what it needs (no signing, no
 			/// autostash) as its own flags too.
 			[[nodiscard]] auto workspace_git(const std::filesystem::path& aWorkspace, std::initializer_list<std::string_view> aArguments, const std::stop_token aStop,
-											 const bool aAllowExitOne = false, std::string aInput = { }, std::optional<std::pair<std::string, std::string>> aAlternate = std::nullopt)
-				-> process_result
+											 const bool aAllowExitOne = false, std::string aInput = { }, std::optional<std::pair<std::string, std::string>> aAlternate = std::nullopt,
+											 const bool aAllowStandardError = false) -> process_result
 			{
 				auto arguments = workspace_git_arguments(aWorkspace, HooksRoot);
 
@@ -6188,7 +6489,7 @@ namespace bpr::adapters::git {
 					arguments.emplace_back(argument);
 				}
 				return submit(
-					process_request{ .Arguments = std::move(arguments), .Input = memory_input{ std::move(aInput) }, .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U, .AllowExitOne = aAllowExitOne, .Environment = std::move(*environment) },
+					process_request{ .Arguments = std::move(arguments), .Input = memory_input{ std::move(aInput) }, .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U, .AllowExitOne = aAllowExitOne, .Environment = std::move(*environment), .AllowStandardError = aAllowStandardError },
 					aStop);
 			}
 
@@ -6245,13 +6546,22 @@ namespace bpr::adapters::git {
 			/// back from `refs/bpr/pre-move/<old>` with its edits uncommitted
 			/// again, and the in-progress refs go. \p aCrashed also removes the
 			/// index lock the killed Git left.
+			///
+			/// A partial-history workspace (\p aPartial) lacks blobs Git's
+			/// checkout and reset would verify, so it is put back with
+			/// single-tree reads, which do not, and HEAD set directly.
 			[[nodiscard]] auto undo_workspace_move(const std::filesystem::path& aWorkspace, const std::string& aOld, const std::pair<std::string, std::string>& aRefs,
-												   const bool aCrashed, const std::stop_token aStop) -> bool
+												   const bool aCrashed, const bool aPartial, const std::stop_token aStop) -> bool
 			{
 				const auto git = aWorkspace / ".git";
 				if (aCrashed) {
 					std::error_code error;
 					static_cast<void>(std::filesystem::remove(git / "index.lock", error));
+				}
+				// The old head's sparse patterns come back before any checkout
+				// of it.
+				if (!aPartial && !restore_sparse_patterns(aWorkspace)) {
+					return false;
 				}
 				if (!absent(git / "rebase-merge") || !absent(git / "rebase-apply")) {
 					if (!workspace_git(aWorkspace, { "rebase", "--abort" }, aStop) && !workspace_git(aWorkspace, { "rebase", "--quit" }, aStop)) {
@@ -6259,14 +6569,54 @@ namespace bpr::adapters::git {
 					}
 				}
 				const auto& [target, restore] = aRefs;
-				if (!target.empty()) {
-					const auto back = restore.empty() ? aOld : pre_move_ref(aOld);
-					if (!workspace_git(aWorkspace, { "checkout", "--quiet", "--force", "--detach", back }, aStop)) {
+				if (aPartial) {
+					// While the work is put back, its own paths join the old
+					// patterns, so files outside them are written too; the old
+					// patterns are exact again once it is.
+					const auto backup = git / sparse_backup_name;
+					if (!absent(backup) && !target.empty() && !restore.empty()) {
+						std::error_code error;
+						if (!private_regular_file(backup) || std::filesystem::file_size(backup, error) > 16U * 1024U * 1024U || error) {
+							return false;
+						}
+						std::ifstream input{ backup, std::ios::binary };
+						auto          patterns = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+						const auto    changed  = workspace_git(aWorkspace, { "diff-tree", "-r", "--name-only", "-z", "--no-renames", aOld, pre_move_ref(aOld) }, aStop);
+						if (input.bad() || !changed) {
+							return false;
+						}
+						for (const auto name : split_fields(changed->StandardOutput, '\0')) {
+							if (!name.empty()) {
+								append_sparse_pattern(patterns, name);
+							}
+						}
+						if (!write_private_file(git / "info" / "sparse-checkout", patterns)) {
+							return false;
+						}
+					} else if (!restore_sparse_patterns(aWorkspace)) {
 						return false;
 					}
-				}
-				if (!restore.empty() && !workspace_git(aWorkspace, { "reset", "--quiet", "--mixed", restore }, aStop)) {
-					return false;
+					if (!target.empty()) {
+						const auto back = restore.empty() ? aOld : pre_move_ref(aOld);
+						if (!workspace_git(aWorkspace, { "read-tree", "--reset", "-u", back }, aStop, false, { }, std::nullopt, true)
+							|| !workspace_git(aWorkspace, { "update-ref", "--no-deref", "HEAD", back }, aStop)) {
+							return false;
+						}
+					}
+					if ((!restore.empty() && !workspace_git(aWorkspace, { "reset", "--quiet", "--mixed", restore }, aStop, false, { }, std::nullopt, true))
+						|| !restore_sparse_patterns(aWorkspace)) {
+						return false;
+					}
+				} else {
+					if (!target.empty()) {
+						const auto back = restore.empty() ? aOld : pre_move_ref(aOld);
+						if (!workspace_git(aWorkspace, { "checkout", "--quiet", "--force", "--detach", back }, aStop)) {
+							return false;
+						}
+					}
+					if (!restore.empty() && !workspace_git(aWorkspace, { "reset", "--quiet", "--mixed", restore }, aStop)) {
+						return false;
+					}
 				}
 				return (restore.empty() || workspace_git(aWorkspace, { "update-ref", "-d", move_restore_ref }, aStop))
 					&& (target.empty() || workspace_git(aWorkspace, { "update-ref", "-d", move_target_ref }, aStop));
@@ -6280,14 +6630,14 @@ namespace bpr::adapters::git {
 			/// refs go (forward); otherwise the workspace goes back to the
 			/// journal's head (back). The caller holds the registry's boundary.
 			[[nodiscard]] auto recover_workspace_move(const std::filesystem::path& aWorkspace, const workspace_record& aRecord, const std::pair<std::string, std::string>& aRefs,
-													  const std::stop_token aStop) -> bool
+													  const bool aPartial, const std::stop_token aStop) -> bool
 			{
 				if (!aRefs.first.empty() && aRefs.first == aRecord.Head) {
-					return write_workspace_marker(aWorkspace, workspace_marker(aRecord, aRecord.Head))
+					return write_workspace_marker(aWorkspace, workspace_marker(aRecord, aRecord.Head)) && drop_sparse_backup(aWorkspace)
 						&& (aRefs.second.empty() || workspace_git(aWorkspace, { "update-ref", "-d", move_restore_ref }, aStop))
 						&& workspace_git(aWorkspace, { "update-ref", "-d", move_target_ref }, aStop);
 				}
-				return undo_workspace_move(aWorkspace, aRecord.Head, aRefs, true, aStop) && write_workspace_marker(aWorkspace, workspace_marker(aRecord, aRecord.Head));
+				return undo_workspace_move(aWorkspace, aRecord.Head, aRefs, true, aPartial, aStop) && write_workspace_marker(aWorkspace, workspace_marker(aRecord, aRecord.Head));
 			}
 
 			/// \p aRegistryHeld: the caller already holds the registry's
@@ -6336,7 +6686,7 @@ namespace bpr::adapters::git {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
 				const auto head = record->Head;
-				if (!aWorkspace.Workspace.Shallow) {
+				{
 					const auto refs = move_refs(path);
 					if (!refs) {
 						return std::unexpected(git_process_failure::invalid_repository);
@@ -6346,7 +6696,7 @@ namespace bpr::adapters::git {
 						if (!aRegistryHeld) {
 							registryBoundary.emplace(*WorkspaceRegistry, aStop);
 						}
-						if ((registryBoundary && !registryBoundary->valid()) || !recover_workspace_move(path, *record, *refs, aStop)) {
+						if ((registryBoundary && !registryBoundary->valid()) || !recover_workspace_move(path, *record, *refs, aWorkspace.Workspace.Shallow, aStop)) {
 							return std::unexpected(git_process_failure::invalid_repository);
 						}
 					}
@@ -6428,8 +6778,18 @@ namespace bpr::adapters::git {
 				}
 				const auto hashBytes = head.size();
 				const auto missing   = workspace_missing_objects(checked->StandardOutput, hashBytes);
-				const auto permitted = aWorkspace.SparseMissingObjects
-					? workspace_missing_objects(*aWorkspace.SparseMissingObjects, hashBytes)
+				// One move behind: the holes the stored conversation keeps are
+				// the old head's; the moved head's are listed again, as the move
+				// listed them.
+				if (behind && aWorkspace.SparseMissingObjects) {
+					auto manifest = sparse_missing_manifest(path, head, aStop);
+					if (!manifest) {
+						return std::unexpected(manifest.error());
+					}
+					reattached.SparseMissingObjects = std::move(*manifest);
+				}
+				const auto permitted = reattached.SparseMissingObjects
+					? workspace_missing_objects(*reattached.SparseMissingObjects, hashBytes)
 					: std::nullopt;
 				if (!missing || !permitted || !std::includes(permitted->begin(), permitted->end(), missing->begin(), missing->end())) {
 					return std::unexpected(git_process_failure::object_unavailable);
@@ -6506,6 +6866,81 @@ namespace bpr::adapters::git {
 				return history;
 			}
 
+			/// \brief Step 3 of a move for a partial-history workspace: the new
+			/// head's commit and what the workspace keeps of it, from the
+			/// review's cache, its history ending there.
+			///
+			/// \details With \p aFiles (a workspace of only the pull request's
+			/// files) the cache lends the head's commit and trees, the host the
+			/// files' bytes, each checked against its blob, and \p aPatterns
+			/// becomes the head's sparse patterns. Without them the cache lends
+			/// the head's whole snapshot. Answers the head's holes.
+			[[nodiscard]] auto bring_partial_head(const std::filesystem::path& aWorkspace, const std::filesystem::path& aRepository, const std::string& aHead, const std::string& aBase,
+												  const std::string& aOld, const std::optional<application::git_workspace_files>& aFiles, std::string& aPatterns, const std::stop_token aStop)
+				-> git_process_result<std::string>
+			{
+				auto held = common_git_arguments(aRepository, HooksRoot);
+				append_arguments(held, "cat-file", "--batch-check=%(objecttype)");
+				const auto answered = submit(process_request{ .Arguments = std::move(held), .Input = memory_input{ aHead + "\n" + aBase + "\n" }, .StandardOutputLimit = 1024U }, aStop);
+				if (!answered || !answered->StandardOutput.starts_with("commit\n")) {
+					return std::unexpected(git_process_failure::object_unavailable);
+				}
+				const auto alternate = std::pair{ std::string{ "GIT_ALTERNATE_OBJECT_DIRECTORIES" }, quoted_object_alternate(aRepository / "objects") };
+				const auto pack      = path_text(aWorkspace / ".git" / "objects" / "pack" / "pack");
+				if (aFiles) {
+					auto rootTree = common_git_arguments(aRepository, HooksRoot);
+					append_arguments(rootTree, "rev-parse", "--verify", aHead + "^{tree}");
+					const auto root      = submit(process_request{ .Arguments = std::move(rootTree), .StandardOutputLimit = 128U }, aStop);
+					auto       listTrees = common_git_arguments(aRepository, HooksRoot);
+					append_arguments(listTrees, "ls-tree", "-r", "-d", "--format=%(objectname)", aHead);
+					const auto trees = submit(process_request{ .Arguments = std::move(listTrees), .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U }, aStop);
+					if (!root || !trees) {
+						return std::unexpected(!root ? root.error() : trees.error());
+					}
+					if (const auto packed = workspace_git(aWorkspace, { "pack-objects", "--delta-base-offset", "--non-empty", "--", pack }, aStop, false, aHead + "\n" + root->StandardOutput + trees->StandardOutput, alternate);
+						!packed) {
+						return std::unexpected(packed.error());
+					}
+					auto total = std::size_t{ 0U };
+					aPatterns.clear();
+					for (const auto& file : *aFiles) {
+						total += file.Bytes.size();
+						if (total > application::maximum_pull_request_workspace_bytes || file.Path.empty() || file.Path.find('\n') != std::string::npos
+							|| (file.Mode != 0100644U && file.Mode != 0100755U && file.Mode != 0120000U)) {
+							return std::unexpected(git_process_failure::invalid_request);
+						}
+						const auto stored = workspace_git(aWorkspace, { "hash-object", "-w", "--stdin" }, aStop, false, std::string{ file.Bytes.begin(), file.Bytes.end() });
+						if (!stored || stored->StandardOutput != std::string{ core::canonical_hex(file.Blob).view() } + "\n") {
+							return std::unexpected(stored ? git_process_error{ git_process_failure::object_unavailable, "A pull request file does not match its blob.\n" } : stored.error());
+						}
+						append_sparse_pattern(aPatterns, file.Path);
+					}
+					if (!add_shallow_heads(aWorkspace, { aHead })) {
+						return std::unexpected(git_process_failure::invalid_repository);
+					}
+				} else {
+					// The history ends at the head, and the snapshot is copied less
+					// what the old head already holds.
+					if (!add_shallow_heads(aWorkspace, { aHead })) {
+						return std::unexpected(git_process_failure::invalid_repository);
+					}
+					if (const auto packed = workspace_git(aWorkspace, { "pack-objects", "--revs", "--delta-base-offset", "--non-empty", "--", pack }, aStop, false, aHead + "\n^" + aOld + "\n", alternate);
+						!packed) {
+						return std::unexpected(git_process_failure::object_unavailable);
+					}
+				}
+				const auto checked = workspace_git(aWorkspace, { "cat-file", "--batch-check=%(objecttype)" }, aStop, false, aHead + "^{commit}\n" + aHead + "^{tree}\n");
+				if (!checked || checked->StandardOutput != "commit\ntree\n") {
+					return std::unexpected(git_process_failure::object_unavailable);
+				}
+				auto holes = sparse_missing_manifest(aWorkspace, aHead, aStop);
+				// A whole snapshot has none.
+				if (holes && !aFiles && !holes->empty()) {
+					return std::unexpected(git_process_failure::object_unavailable);
+				}
+				return holes;
+			}
+
 			[[nodiscard]] auto move_agent_workspace(const application::git_agent_workspace_move_request& aRequest, const std::stop_token aStop)
 				-> git_process_result<application::git_agent_workspace_move_result> override
 			{
@@ -6519,10 +6954,13 @@ namespace bpr::adapters::git {
 					|| aRequest.Move.Head == *stored.Workspace.PinnedHead || (saving && !saved_branch_name(aRequest.Move.SavedBranch))) {
 					return std::unexpected(git_process_failure::invalid_request);
 				}
-				// The first slice moves complete workspaces; a sparse one holds
-				// only the pull request's files, and follows.
-				if (stored.Workspace.Shallow) {
-					return std::unexpected(git_process_failure::object_unavailable);
+				// A partial-history workspace's history ends at its head. One that
+				// holds only the pull request's files is given the new head's
+				// files (`PullRequestFiles`), as materialization is.
+				const auto  partial = stored.Workspace.Shallow;
+				const auto& files   = aRequest.Move.PullRequestFiles;
+				if (files && (!partial || stored.Workspace.BorrowsHistory || files->size() > application::maximum_pull_request_workspace_files)) {
+					return std::unexpected(git_process_failure::invalid_request);
 				}
 				auto registryBoundary = process_boundary_lock{ *WorkspaceRegistry, aStop };
 				if (!registryBoundary.valid()) {
@@ -6608,23 +7046,40 @@ namespace bpr::adapters::git {
 				if (owner->Record.Head != old) {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
+				// A partial history's moved head keeps its own holes, and the
+				// workspace needs no base.
+				auto       holes = std::optional<std::string>{ };
 				const auto moved = [&] {
 					auto workspace                 = *inspected;
 					workspace.Workspace.PinnedHead = aRequest.Move.Head;
 					workspace.OwnershipMarker      = workspace_marker(owner->Record, head);
-					workspace.RequiredBase         = aRequest.Move.Base;
+					if (partial) {
+						workspace.RequiredBase.reset();
+						if (holes) {
+							workspace.SparseMissingObjects = holes;
+						}
+					} else {
+						workspace.RequiredBase = aRequest.Move.Base;
+					}
 					return workspace;
+				};
+				// A partial history holds neither head's ancestry: the note gives
+				// the commands that show what changed.
+				const auto history = [&](const std::string& aFrom) {
+					return partial ? core::conversation_move_history{ .Linear = true, .Listed = false } : workspace_move_history(path, aFrom, head, aStop);
 				};
 				// A crash after the journal line and before the conversation was
 				// stored already moved it here.
 				if (old == head) {
 					result.Moved     = true;
 					result.Workspace = moved();
-					result.History   = workspace_move_history(path, known, head, aStop);
+					result.History   = history(known);
 					return result;
 				}
-				if (!owner->move_fits(head)) {
-					return std::unexpected(git_process_error{ git_process_failure::invalid_repository, "the workspace's ownership record has no room for another move" });
+				// A record past half its bound is compacted first, so moves
+				// never run out of room.
+				if (!owner->move_fits(head, workspace_journal_compaction_bytes) && !owner->compact() && (!owner->boundary_valid() || !owner->move_fits(head))) {
+					return std::unexpected(git_process_error{ git_process_failure::invalid_repository, "the workspace's ownership record could not be compacted" });
 				}
 
 				// 2. Observe edits and agent commits. With either and no
@@ -6647,6 +7102,11 @@ namespace bpr::adapters::git {
 				const auto work   = result.Observed != state::clean;
 				const auto rebase = work && aRequest.Move.Reconcile == reconcile::rebase;
 				const auto save   = work && saving;
+				// A partial-history workspace carries edits onto the new head by a
+				// three-way read; commits are kept on a branch instead.
+				if (partial && rebase && commits) {
+					return std::unexpected(git_process_error{ git_process_failure::invalid_request, "a partial-history workspace's commits are kept on a branch, not rebased" });
+				}
 				if (save) {
 					const auto existing = workspace_git(path, { "rev-parse", "--verify", "--quiet", "refs/heads/" + aRequest.Move.SavedBranch }, aStop, true);
 					if (!existing || existing->ExitCode != 1) {
@@ -6659,7 +7119,14 @@ namespace bpr::adapters::git {
 				if (!valid_repository(aRequest.Repository, algorithm)) {
 					return std::unexpected(git_process_failure::object_unavailable);
 				}
-				{
+				auto patterns = std::string{ };
+				if (partial) {
+					auto copied = bring_partial_head(path, aRequest.Repository, head, base, old, files, patterns, aStop);
+					if (!copied) {
+						return std::unexpected(copied.error());
+					}
+					holes = std::move(*copied);
+				} else {
 					auto held = common_git_arguments(aRequest.Repository, HooksRoot);
 					append_arguments(held, "cat-file", "--batch-check=%(objecttype)");
 					const auto answered = submit(process_request{ .Arguments = std::move(held), .Input = memory_input{ head + "\n" + base + "\n" }, .StandardOutputLimit = 1024U }, aStop);
@@ -6687,7 +7154,7 @@ namespace bpr::adapters::git {
 				// Back as it was, before the journal line; true when it was.
 				const auto rollBack = [&] {
 					const auto refs = move_refs(path);
-					return refs && undo_workspace_move(path, old, *refs, false, aStop)
+					return refs && undo_workspace_move(path, old, *refs, false, partial, aStop)
 						&& (attached.empty() || workspace_git(path, { "symbolic-ref", "HEAD", attached }, aStop));
 				};
 				const auto failed = [&](git_process_error aError) -> git_process_result<application::git_agent_workspace_move_result> {
@@ -6701,11 +7168,22 @@ namespace bpr::adapters::git {
 						return failed(git_process_failure::invalid_repository);
 					}
 					if (edits) {
-						if (const auto added = workspace_git(path, { "add", "--all", "--", "." }, aStop); !added) {
+						if (const auto added = workspace_git(path, { "add", "--all", "--sparse", "--", "." }, aStop); !added) {
 							return failed(added.error());
 						}
-						if (const auto committed = workspace_git(path, { "commit", "--quiet", "--no-verify", "--no-gpg-sign", "--author=BetterPullReview <agent-workspace@betterpullreview.invalid>", "--message", wip_subject }, aStop);
-							!committed) {
+						if (partial) {
+							// Git's commit would verify the blobs a partial history
+							// lacks: the tree is written without that check.
+							const auto tree = workspace_git(path, { "write-tree", "--missing-ok" }, aStop);
+							const auto wip  = tree ? workspace_git(path, { "commit-tree", tree->StandardOutput.substr(0U, tree->StandardOutput.find('\n')), "-p", current, "-m", wip_subject }, aStop) : tree;
+							if (!wip) {
+								return failed(wip.error());
+							}
+							if (!workspace_git(path, { "update-ref", "--no-deref", "HEAD", wip->StandardOutput.substr(0U, wip->StandardOutput.find('\n')) }, aStop)) {
+								return failed(git_process_failure::invalid_repository);
+							}
+						} else if (const auto committed = workspace_git(path, { "commit", "--quiet", "--no-verify", "--no-gpg-sign", "--author=BetterPullReview <agent-workspace@betterpullreview.invalid>", "--message", wip_subject }, aStop);
+								   !committed) {
 							return failed(committed.error());
 						}
 						workspace_checkpoint("move-after-wip");
@@ -6721,7 +7199,71 @@ namespace bpr::adapters::git {
 					return failed(git_process_failure::invalid_repository);
 				}
 				workspace_checkpoint("move-after-target");
-				if (rebase) {
+				// The new head's patterns, the old ones kept until the move ends.
+				// Edits carried onto the new head stay in view with it.
+				if (files && rebase) {
+					const auto changed = workspace_git(path, { "diff-tree", "-r", "--name-only", "-z", "--no-renames", old, "HEAD" }, aStop);
+					if (!changed) {
+						return failed(changed.error());
+					}
+					for (const auto name : split_fields(changed->StandardOutput, '\0')) {
+						if (!name.empty()) {
+							append_sparse_pattern(patterns, name);
+						}
+					}
+				}
+				if (files) {
+					const auto      info = path / ".git" / "info";
+					std::error_code copyError;
+					if (!private_regular_file(info / "sparse-checkout")
+						|| !std::filesystem::copy_file(info / "sparse-checkout", path / ".git" / sparse_backup_name, std::filesystem::copy_options::overwrite_existing, copyError)
+						|| copyError || !sync_workspace_directory(path / ".git") || !write_private_file(info / "sparse-checkout", patterns)) {
+						return failed(git_process_failure::invalid_repository);
+					}
+					workspace_checkpoint("move-after-patterns");
+				}
+				if (partial) {
+					// Two- and three-way reads in place of checkout and rebase;
+					// Git notes the absent blobs on standard error and its exit
+					// status decides. A read merges only from an index whose
+					// stat data is current, as checkout makes it first.
+					if (const auto refreshed = workspace_git(path, { "update-index", "-q", "--refresh" }, aStop, true, { }, std::nullopt, true); !refreshed) {
+						return failed(refreshed.error());
+					}
+					if (rebase) {
+						const auto merged = workspace_git(path, { "read-tree", "-m", "-u", old, "HEAD", head }, aStop, false, { }, std::nullopt, true);
+						if (!merged) {
+							return failed(merged.error());
+						}
+						const auto unmerged  = workspace_git(path, { "ls-files", "--unmerged", "-z" }, aStop);
+						auto       conflicts = std::vector<std::string>{ };
+						for (const auto entry : unmerged ? split_fields(unmerged->StandardOutput, '\0') : std::vector<std::string_view>{ }) {
+							const auto tab = entry.find('\t');
+							if (tab != std::string_view::npos && std::ranges::find(conflicts, entry.substr(tab + 1U)) == conflicts.end()) {
+								conflicts.emplace_back(entry.substr(tab + 1U));
+							}
+						}
+						if (!unmerged) {
+							return failed(unmerged.error());
+						}
+						if (!conflicts.empty()) {
+							if (!rollBack()) {
+								return std::unexpected(git_process_error{ git_process_failure::invalid_repository, "the rebase conflicted and could not be undone" });
+							}
+							result.History.Conflicts = std::move(conflicts);
+							return result;
+						}
+						// The merged edits stay in the tree, uncommitted.
+						if (!workspace_git(path, { "reset", "--quiet", "--mixed", head }, aStop, false, { }, std::nullopt, true)) {
+							return failed(git_process_failure::invalid_repository);
+						}
+					} else if (const auto read = workspace_git(path, { "read-tree", "-m", "-u", "HEAD", head }, aStop, false, { }, std::nullopt, true); !read) {
+						return failed(read.error());
+					}
+					if (!workspace_git(path, { "update-ref", "--no-deref", "HEAD", head }, aStop)) {
+						return failed(git_process_failure::invalid_repository);
+					}
+				} else if (rebase) {
 					const auto rebased = workspace_git(path, { "-c", "rebase.updateRefs=false", "rebase", "--quiet", "--no-autosquash", "--no-autostash", "--no-gpg-sign", "--onto", head, old }, aStop);
 					if (!rebased) {
 						const auto unmerged  = workspace_git(path, { "diff", "--name-only", "-z", "--diff-filter=U" }, aStop);
@@ -6762,7 +7304,8 @@ namespace bpr::adapters::git {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
 				workspace_checkpoint("move-after-marker");
-				if ((work && !workspace_git(path, { "update-ref", "-d", move_restore_ref }, aStop)) || !workspace_git(path, { "update-ref", "-d", move_target_ref }, aStop)) {
+				if (!drop_sparse_backup(path) || (work && !workspace_git(path, { "update-ref", "-d", move_restore_ref }, aStop))
+					|| !workspace_git(path, { "update-ref", "-d", move_target_ref }, aStop)) {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
 
@@ -6772,7 +7315,7 @@ namespace bpr::adapters::git {
 				if (found != WorkspaceOwners->Owners.end()) {
 					found->second.first = result.Workspace;
 				}
-				result.History         = workspace_move_history(path, known, head, aStop);
+				result.History         = history(known);
 				result.History.Rebased = rebase;
 				if (save) {
 					result.History.SavedBranch = aRequest.Move.SavedBranch;

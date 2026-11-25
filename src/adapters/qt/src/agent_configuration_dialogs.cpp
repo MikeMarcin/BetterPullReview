@@ -481,6 +481,7 @@ namespace bpr::qt {
 		case core::writing_hook::local_run_check:           return QObject::tr("Plan and run a check");
 		case core::writing_hook::writing_style:             return QObject::tr("Writing style");
 		case core::writing_hook::review_update_from_target: return QObject::tr("Update from target");
+		case core::writing_hook::reconcile_move:            return QObject::tr("Reconcile after an update");
 		case core::writing_hook::comment_labels:            return QObject::tr("Comment labels");
 		}
 		return text_of(aPurpose);

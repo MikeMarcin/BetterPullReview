@@ -156,9 +156,13 @@ namespace bpr::application {
 	/// \brief RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24:
 	/// "a few non-agentic options and then a system prompt to just fix it".
 	/// Ask <agent> to reconcile's built-in prompt, sent after the move note,
-	/// `resources/review-preparation/reconcile-move.md`.
+	/// `resources/review-preparation/reconcile-move.md`. Editable in Settings ›
+	/// Prompts as `core::writing_hook::reconcile_move` (RFC-BPR-0125).
 	inline constexpr std::string_view reconcile_move_version = "reconcile-move-v1";
 	[[nodiscard]] auto                default_reconcile_prompt() -> std::string_view;
+	/// \brief The profile's override of Ask <agent> to reconcile's prompt, or
+	/// the shipped one.
+	[[nodiscard]] auto effective_reconcile_prompt(const core::writing_hook_settings& aSettings) -> std::string_view;
 	/// \brief [[BPR-2264]]. The Writing style Feature (`/bpr:writing-style`)
 	/// as a request carries it: a fixed line that keeps every format the
 	/// request's own instructions give in charge, then the profile's

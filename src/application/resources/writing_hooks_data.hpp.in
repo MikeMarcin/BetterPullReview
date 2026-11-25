@@ -7,7 +7,7 @@ inline constexpr std::string_view WritingContract = R"BPR(@WRITING_CONTRACT@)BPR
 inline constexpr std::string_view ReportTemplates = R"BPR(@WRITING_REPORT_TEMPLATES@)BPR";
 // RFC-BPR-0096, owner continue-at-latest amendment: Ask the agent to reconcile.
 inline constexpr std::string_view ReconcileMove = R"BPR(@WRITING_RECONCILE_MOVE@)BPR";
-inline constexpr std::array<std::string_view, 17> WritingDefaults = {
+inline constexpr std::array<std::string_view, 18> WritingDefaults = {
 R"BPR(@WRITING_OUTLINE@)BPR", R"BPR(@WRITING_COMMENT@)BPR",
 R"BPR(@WRITING_FEEDBACK@)BPR", R"BPR(@WRITING_ENHANCE_STOP@)BPR",
 R"BPR(@WRITING_ENHANCE_WRITING@)BPR",
@@ -22,5 +22,6 @@ R"BPR(@WRITING_REVIEW_SUGGEST_CHANGE@)BPR",
 R"BPR(@WRITING_LOCAL_RUN_CHECK@)BPR",
 R"BPR(@WRITING_STYLE@)BPR",
 R"BPR(@WRITING_COMMENT_LABELS@)BPR",
-R"BPR(@WRITING_REVIEW_UPDATE_FROM_TARGET@)BPR"};
+R"BPR(@WRITING_REVIEW_UPDATE_FROM_TARGET@)BPR",
+R"BPR(@WRITING_RECONCILE_MOVE@)BPR"};
 }

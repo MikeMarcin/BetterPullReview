@@ -423,6 +423,30 @@ try {
 		sqlite3_finalize(statement);
 		sqlite3_close(db);
 	}
+	// RFC-BPR-0096, continue-at-latest amendment. A profile whose tables end
+	// at the update prompt (16) widens to the reconcile prompt (17) in place.
+	{
+		auto* db = static_cast<sqlite3*>(nullptr);
+		expect(sqlite3_open((recipient / "state/v1/agent-setup.sqlite3").string().c_str(), &db) == SQLITE_OK, "the profile opens again");
+		const auto earlier = "DROP TABLE prompt_provenance; CREATE TABLE prompt_provenance(hook INTEGER PRIMARY KEY CHECK(hook >= 0 AND hook <= 16),"
+							 "text_digest BLOB NOT NULL CHECK(length(text_digest)=32),version TEXT NOT NULL CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64)) STRICT;"
+							 "INSERT INTO prompt_provenance VALUES(16, zeroblob(32), 'review-update-from-target-v1');";
+		expect(sqlite3_exec(db, earlier, nullptr, nullptr, nullptr) == SQLITE_OK, "the update prompt's bound and its row are seeded");
+		sqlite3_close(db);
+	}
+	const auto reconciled = adapters::sqlite::make_agent_configuration_store(recipient);
+	expect(reconciled->record_written_against(core::writing_hook::reconcile_move, "Keep the saved branch.", application::reconcile_move_version),
+		   "the reconcile prompt can record its version after migration");
+	{
+		auto* db = static_cast<sqlite3*>(nullptr);
+		expect(sqlite3_open((recipient / "state/v1/agent-setup.sqlite3").string().c_str(), &db) == SQLITE_OK, "the widened profile opens");
+		auto* statement = static_cast<sqlite3_stmt*>(nullptr);
+		expect(sqlite3_prepare_v2(db, "SELECT count(*) FROM prompt_provenance WHERE (hook = 16 AND version = 'review-update-from-target-v1') OR (hook = 17 AND version = 'reconcile-move-v1')", -1, &statement, nullptr) == SQLITE_OK
+				   && sqlite3_step(statement) == SQLITE_ROW && sqlite3_column_int(statement, 0) == 2,
+			   "existing provenance retains its identity beside the reconcile prompt");
+		sqlite3_finalize(statement);
+		sqlite3_close(db);
+	}
 
 	host.shutdown();
 	expect(host.is_quiescent(), "quiescent after shutdown");

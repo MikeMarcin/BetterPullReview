@@ -478,9 +478,11 @@ namespace {
 		std::vector<std::optional<application::git_workspace_delta_pack>> WorkspaceDeltas;
 		/// [[BPR-1873]]. The pull request's files each workspace was given.
 		std::vector<std::optional<std::vector<application::git_workspace_file>>> WorkspacePullRequestFiles;
-		std::optional<application::owned_agent_workspace>                        WorkspaceResult;
-		std::vector<application::git_smart_workspace_delta_request>              DeltaRequests;
-		std::optional<application::git_smart_transport_failure>                  DeltaFailure;
+		/// RFC-BPR-0096: each move the cache was asked for.
+		std::vector<application::agent_workspace_move_request>      WorkspaceMoves;
+		std::optional<application::owned_agent_workspace>           WorkspaceResult;
+		std::vector<application::git_smart_workspace_delta_request> DeltaRequests;
+		std::optional<application::git_smart_transport_failure>     DeltaFailure;
 		/// [[BPR-1884]]. What the kept clone's maintenance fetch was asked, and
 		/// how it ends; a fetch that succeeds leaves the clone holding the head.
 		std::vector<application::git_smart_managed_clone_refresh_request> RefreshRequests;
@@ -1895,6 +1897,15 @@ namespace {
 				return std::unexpected(std::move(failure));
 			}
 			return aWorkspace;
+		}
+
+		[[nodiscard]] auto move_agent_workspace(const application::agent_workspace_move_request& aRequest, const std::stop_token)
+			-> application::git_cache_result<application::agent_workspace_move_result> override
+		{
+			State.WorkspaceMoves.push_back(aRequest);
+			auto moved                           = application::agent_workspace_move_result{ .Moved = true, .Workspace = aRequest.Workspace };
+			moved.Workspace.Workspace.PinnedHead = aRequest.Head;
+			return moved;
 		}
 
 		[[nodiscard]] auto cleanup_agent_workspace(
@@ -8689,6 +8700,67 @@ namespace {
 		}
 	}
 
+	/// RFC-BPR-0096, owner continue-at-latest amendment. A workspace of only
+	/// the pull request's files moves with the new head's files, read through
+	/// the review's lease as materialization reads them; a complete workspace,
+	/// and one that borrows a clone, moves with none.
+	void a_sparse_workspace_moves_with_the_pull_request_files()
+	{
+		const auto move = [](fixture& aValue, const application::owned_agent_workspace& aWorkspace) {
+			auto request      = application::agent_workspace_move_request{ };
+			request.Workspace = aWorkspace;
+			request.Head      = workspace_request_for(aValue.Host->state()).Session.Binding.HeadOid;
+			request.Base      = workspace_request_for(aValue.Host->state()).Session.Binding.BaseOid;
+			auto moved        = std::optional<std::expected<application::agent_workspace_move_result, application::agent_workspace_error>>{ };
+			auto done         = std::atomic_bool{ false };
+			{
+				auto caller = std::jthread{ [&] {
+					moved = aValue.Host->move_agent_workspace(request, { });
+					done.store(true);
+				} };
+				while (!done.load()) {
+					if (aValue.Effects.pending() != 0U) {
+						aValue.Effects.run_next();
+					} else {
+						std::this_thread::yield();
+					}
+				}
+			}
+			return *moved;
+		};
+		const auto side = [](const char* aPath, const std::string_view aText) {
+			return application::git_cache_changed_side{ .Path = aPath, .Object = sha1_blob(aText), .Mode = 0100644U };
+		};
+		{
+			fixture value;
+			establish_sparse_three_files(value);
+			value.State.CatalogueEntries = { { .Left = side("a", "left a\n"), .Right = side("a", "right a\n"), .Change = 'M' },
+											 { .Left = side("c", "left c\n"), .Right = std::nullopt, .Change = 'D' } };
+			auto sparse                  = owned_workspace_for(value.Host->state());
+			sparse.Workspace.Shallow     = true;
+			const auto moved             = move(value, sparse);
+			expect(moved && moved->Moved && value.State.WorkspaceMoves.size() == 1U && value.State.WorkspaceMoves.front().PullRequestFiles
+					   && value.State.WorkspaceMoves.front().PullRequestFiles->size() == 1U && value.State.WorkspaceMoves.front().PullRequestFiles->front().Path == "a"
+					   && std::string(value.State.WorkspaceMoves.front().PullRequestFiles->front().Bytes.begin(), value.State.WorkspaceMoves.front().PullRequestFiles->front().Bytes.end())
+						   == "right a\n",
+				   "a pull-request-files workspace moves with the new head's files and their bytes");
+			auto borrowing                     = sparse;
+			borrowing.Workspace.BorrowsHistory = true;
+			auto complete                      = owned_workspace_for(value.Host->state());
+			expect(move(value, borrowing) && move(value, complete) && value.State.WorkspaceMoves.size() == 3U && !value.State.WorkspaceMoves[1].PullRequestFiles
+					   && !value.State.WorkspaceMoves[2].PullRequestFiles,
+				   "a workspace that borrows a clone, and a complete one, move with no files");
+		}
+		{
+			fixture value;
+			establish_ready_comparison(value);
+			auto partial              = owned_workspace_for(value.Host->state());
+			partial.Workspace.Shallow = true;
+			expect(move(value, partial) && value.State.WorkspaceMoves.size() == 1U && !value.State.WorkspaceMoves.front().PullRequestFiles,
+				   "a partial history on a complete review moves from the cache's whole snapshots");
+		}
+	}
+
 	/// [[BPR-1873]]. A sparse review's cache holds the head's commit and
 	/// trees, and no blob or parent, so its agent workspace borrows the linked
 	/// clone. A clone that lacks the head gets only what it lacks, fetched
@@ -11024,6 +11096,7 @@ int main(int argc, char** argv)
 	invalidated_authority_cannot_materialize_retained_cache();
 	agent_workspace_failures_preserve_the_cache_diagnostic();
 	sparse_agent_workspace_borrows_the_clone_and_fetches_only_what_it_lacks();
+	a_sparse_workspace_moves_with_the_pull_request_files();
 	kept_clone_is_brought_up_to_the_pull_request_before_it_lends();
 	invalidated_inflight_blob_cannot_publish_bytes();
 	cancellation_before_ponr_aborts_without_publication();

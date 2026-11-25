@@ -367,6 +367,22 @@ namespace {
 		keptHolder.Binding                         = moved.Binding;
 		keptHolder.Workspace->Workspace.PinnedHead = moved.Binding.HeadOid;
 		expect(!store->move_conversation(keptHolder), "a checkout the kept workspace records is not moved");
+
+		// A partial-history checkout moves with the new head's holes, which
+		// every conversation on it reads back.
+		const auto partial                     = session(*store, "Partial", "/synthetic-partial-workspace", "partial-authority:base:head");
+		const auto partialToo                  = session(*store, "Partial too", "/synthetic-partial-workspace", "partial-too-authority:base:head");
+		auto       sparse                      = *store->choose(scope, "claude", binding(), partial);
+		sparse.Binding                         = moved.Binding;
+		sparse.Workspace->Workspace.PinnedHead = moved.Binding.HeadOid;
+		sparse.Workspace->SparseMissingObjects = "?" + std::string(40U, '4') + "\n";
+		sparse.WorkspaceKey                    = "partial-authority:base:head3";
+		expect(store->move_conversation(sparse), "a partial-history checkout moves");
+		for (const auto& id : { partial, partialToo }) {
+			const auto holes = store->removal(scope, id);
+			expect(holes && holes->Workspace && holes->Workspace->SparseMissingObjects == sparse.Workspace->SparseMissingObjects,
+				   "each conversation on it keeps the new head's holes");
+		}
 	}
 } // namespace
 

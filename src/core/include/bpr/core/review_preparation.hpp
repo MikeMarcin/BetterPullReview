@@ -58,6 +58,9 @@ namespace bpr::core {
 	/// `/bpr:comment-labels`: how the agent labels a comment it writes for the
 	/// reviewer to post. A blank override (`writing_blank`, not empty) means no
 	/// labels.
+	///
+	/// RFC-BPR-0096, owner continue-at-latest amendment: `reconcile_move`,
+	/// what Ask <agent> to reconcile sends after a move's note.
 	enum class writing_hook : std::uint8_t { outline,
 											 comment,
 											 feedback,
@@ -74,8 +77,9 @@ namespace bpr::core {
 											 local_run_check,
 											 writing_style,
 											 comment_labels,
-											 review_update_from_target };
-	inline constexpr std::size_t writing_hook_count = 17;
+											 review_update_from_target,
+											 reconcile_move };
+	inline constexpr std::size_t writing_hook_count = 18;
 	/// \brief [[BPR-2051]] Whether the hook is one of the Enhance prompts.
 	[[nodiscard]] constexpr auto enhance_hook(const writing_hook aHook) noexcept -> bool { return aHook >= writing_hook::enhance_stop && aHook <= writing_hook::enhance_writing; }
 	/// \brief The review-preparation hooks, `outline` and `comment`. [[BPR-2274]]
