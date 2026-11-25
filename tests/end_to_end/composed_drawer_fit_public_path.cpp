@@ -462,7 +462,9 @@ namespace {
 			for (const auto* const child : aSurface.findChildren<QWidget*>()) {
 				const auto* const label = qobject_cast<const QLabel*>(child);
 				const auto        words = label != nullptr && (!label->text().isEmpty() || !label->pixmap().isNull());
-				if ((qobject_cast<const QAbstractButton*>(child) == nullptr && !words) || !child->isVisibleTo(&aSurface) || area->isAncestorOf(child)) {
+				// A tooltip a part raised is a window of its own, placed on the
+				// screen and not in the drawer.
+				if ((qobject_cast<const QAbstractButton*>(child) == nullptr && !words) || child->window() != aSurface.window() || !child->isVisibleTo(&aSurface) || area->isAncestorOf(child)) {
 					continue;
 				}
 				if (const auto over = drawn_in(*child, aSurface) & view; !over.isEmpty()) {

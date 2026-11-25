@@ -72,9 +72,10 @@ namespace bpr::qt {
 		const auto        under  = bar->value() - bar->minimum() > margin;
 		if (under != !isHidden()) {
 			setVisible(under);
-		}
-		if (under) {
-			raise();
+			// Over the viewport, once as it shows: not at every pixel scrolled.
+			if (under) {
+				raise();
+			}
 		}
 	}
 
