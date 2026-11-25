@@ -34,13 +34,20 @@ auto main(int aArgc, char** aArgv) -> int
 		expect(!adapters::update::detail::release_update_volume_is_image(invalid, "/dev/disk1s1"), "malformed mounted-image observation refuses eligibility");
 	}
 	expect(!adapters::update::detail::release_update_volume_is_image(std::string(65537U, 'x'), "/dev/disk1s1"), "mount inventory is bounded");
-	expect(aArgc == 6, "staging fixture arguments");
+	expect(aArgc == 6 || aArgc == 7, "staging fixture arguments");
 	const std::filesystem::path  root{ aArgv[1] }, installed{ aArgv[2] }, zip{ aArgv[3] };
 	const std::string            scenario{ aArgv[4] }, version{ aArgv[5] };
 	application::manual_executor cleanup;
-	auto                         adapter   = adapters::update::make_release_update_staging(root, installed, cleanup);
-	auto                         candidate = core::release_update_candidate{ core::release_update_release_id{ 10U }, core::release_update_asset_id{ 20U }, *core::parse_release_update_version(version), "v" + version, "BetterPullReview-" + version + "-macos-universal.zip", std::filesystem::file_size(zip), { } };
-	QFile                        input{ QString::fromStdString(zip.string()) };
+	auto                         adapter      = adapters::update::make_release_update_staging(root, installed, cleanup);
+	auto                         assetVersion = version;
+	if (aArgc == 7) {
+		assetVersion += "-build." + std::string{ aArgv[6] };
+	}
+	auto  candidate = core::release_update_asset_candidate(
+						  core::release_update_release_id{ 10U }, "v" + version,
+						  { core::release_update_asset_id{ 20U }, "BetterPullReview-" + assetVersion + "-macos-universal.zip", std::filesystem::file_size(zip), { }, true })
+						  .Candidate.value();
+	QFile input{ QString::fromStdString(zip.string()) };
 	expect(input.open(QIODevice::ReadOnly), "fixture archive opens");
 	QCryptographicHash digest{ QCryptographicHash::Sha256 };
 	expect(digest.addData(&input), "fixture digest");
@@ -82,7 +89,7 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 	auto                                result = adapter->verify(archive, stop.get_token());
 	const std::map<std::string, reason> refusals{
-		{ "numbered", reason::wrong_signer }, { "numbered-zero", reason::invalid_bundle }, { "numbered-mismatch", reason::invalid_bundle }, { "numbered-missing-seal", reason::invalid_bundle }, { "expanded-size", reason::size_limit }, { "entry-limit", reason::size_limit }, { "digest", reason::digest_mismatch }, { "changed-archive", reason::changed_candidate }, { "cancel", reason::cancelled }, { "traversal", reason::unsafe_archive }, { "absolute", reason::unsafe_archive }, { "symlink-escape", reason::unsafe_archive }, { "symlink-write", reason::unsafe_archive }, { "duplicate", reason::unsafe_archive }, { "device", reason::unsafe_archive }, { "wrong-top", reason::invalid_bundle }, { "wrong-id", reason::invalid_bundle }, { "wrong-version", reason::invalid_bundle }, { "future-os", reason::invalid_bundle }, { "wrong-architecture", reason::wrong_architecture }, { "unsigned", reason::wrong_signer }
+		{ "numbered", reason::wrong_signer }, { "numbered-target", reason::wrong_signer }, { "numbered-other-target", reason::invalid_bundle }, { "missing-target-build", reason::invalid_bundle }, { "numbered-zero", reason::invalid_bundle }, { "numbered-mismatch", reason::invalid_bundle }, { "numbered-missing-seal", reason::invalid_bundle }, { "expanded-size", reason::size_limit }, { "entry-limit", reason::size_limit }, { "digest", reason::digest_mismatch }, { "changed-archive", reason::changed_candidate }, { "cancel", reason::cancelled }, { "traversal", reason::unsafe_archive }, { "absolute", reason::unsafe_archive }, { "symlink-escape", reason::unsafe_archive }, { "symlink-write", reason::unsafe_archive }, { "duplicate", reason::unsafe_archive }, { "device", reason::unsafe_archive }, { "wrong-top", reason::invalid_bundle }, { "wrong-id", reason::invalid_bundle }, { "wrong-version", reason::invalid_bundle }, { "future-os", reason::invalid_bundle }, { "wrong-architecture", reason::wrong_architecture }, { "unsigned", reason::wrong_signer }
 	};
 	const auto failure = scenario == "signed" ? reason::none : refusals.at(scenario);
 	std::cout << "staging:" << scenario << ":reason=" << static_cast<int>(result.Failure) << ":expected=" << static_cast<int>(failure) << '\n';

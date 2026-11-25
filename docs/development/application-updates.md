@@ -8,6 +8,11 @@ Administrators can turn self-update off by setting the boolean
 `BPRManagedUpdates` preference in the `com.gamecoretech.betterpullreview`
 domain to `true`.
 
+The macOS updater can offer a higher build of the same version from a stable
+release. Copies from the 0.5.3 release-candidate series shipped with the older
+version check. To move from one of those copies to stable 0.5.3, quit
+BetterPullReview and replace it with the app from the stable macOS DMG.
+
 Installing an update closes every window. If a GitHub publish was in progress
 with an unknown result, check GitHub before publishing again: updating never
 retries it.

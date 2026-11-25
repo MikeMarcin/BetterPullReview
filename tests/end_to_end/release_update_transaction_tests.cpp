@@ -33,12 +33,14 @@ namespace {
 	}
 	struct effects final : adapters::update::detail::install_effects
 	{
-		unsigned Launches     = 0;
-		bool     Refuse       = false;
-		bool     LaunchResult = true;
-		auto     validate(const fs::path& aBundle, const fs::path&, const core::release_update_candidate&) -> bool override
+		unsigned                                      Launches     = 0;
+		bool                                          Refuse       = false;
+		bool                                          LaunchResult = true;
+		std::optional<core::release_update_candidate> ExpectedCandidate;
+		auto                                          validate(const fs::path& aBundle, const fs::path&, const core::release_update_candidate& aCandidate) -> bool override
 		{
-			return !Refuse && read(aBundle / "Contents/MacOS/BetterPullReview") == "new-executable";
+			return !Refuse && (!ExpectedCandidate || aCandidate == *ExpectedCandidate)
+				&& read(aBundle / "Contents/MacOS/BetterPullReview") == "new-executable";
 		}
 		auto launch(const fs::path& aExecutable, std::string_view) -> bool override
 		{
@@ -95,6 +97,27 @@ namespace {
 		expect(fs::exists(update.transaction_path() / "result.json"), "bounded durable result retained");
 		expect(read(course.Root / "private-state/draft") == "retained draft and unresolved publication", "successful swap retains private state");
 	}
+	void numbered_candidate_restarts_from_journal()
+	{
+		fixture course;
+		course.Candidate.AssetName   = "BetterPullReview-1.2.3-build.99-macos-universal.zip";
+		course.Candidate.BuildNumber = 99U;
+		course.Candidate.Sha256.emplace().fill(0x99U);
+		course.Effects.ExpectedCandidate = course.Candidate;
+		std::string id;
+		{
+			transaction update{ course.Installed, course.Effects };
+			expect(update.prepare(course.Staged, course.Candidate) == reason::none, "numbered candidate prepared");
+			id = update.identity();
+		}
+		transaction helper{ course.Installed, course.Effects };
+		expect(helper.resume(id) && helper.replace() == reason::none && course.Effects.Launches == 1U,
+			   "fresh helper validates the full numbered candidate reconstructed from disk");
+		auto replacement = lease::join(course.Installed, id, "1.2.3");
+		expect(replacement && (*replacement)->healthy_start("1.2.3") && helper.finish() == reason::none,
+			   "numbered candidate obeys the healthy receipt and cleanup protocol");
+	}
+
 	void interrupted_boundaries()
 	{
 		for (const auto stop : { boundary::prepared, boundary::before_old_rename, boundary::after_old_rename,
@@ -368,6 +391,7 @@ try {
 		return command == "ack" && request && (*owner)->acknowledge_shutdown(*request, true) ? 0 : 1;
 	}
 	cooperative_and_receipt();
+	numbered_candidate_restarts_from_journal();
 	interrupted_boundaries();
 	retained_startup_root();
 	refusal_and_failed_launch();

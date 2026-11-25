@@ -24,7 +24,8 @@ namespace bpr::application {
 										core::release_update_preferences aPreferences, release_update_clock_port& aClock,
 										decision_executor& aDecision, effect_executor& aEffects,
 										std::shared_ptr<release_update_verification_port> aVerifier, release_update_projection_port& aProjection,
-										std::shared_ptr<release_update_install_port> aInstaller = { });
+										std::shared_ptr<release_update_install_port> aInstaller            = { },
+										std::uint32_t                                aInstalledBuildNumber = 0U);
 		~release_update_application_host();
 		release_update_application_host(const release_update_application_host&)                    = delete;
 		auto operator=(const release_update_application_host&) -> release_update_application_host& = delete;

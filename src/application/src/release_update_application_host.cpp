@@ -76,7 +76,8 @@ namespace bpr::application {
 			const auto reason   = State.Reason == core::release_update_reason::none && State.Phase == core::release_update_phase::idle ? commands.front().DisabledReason : State.Reason;
 			return { State.Installed, State.Phase, reason, State.Candidate, State.Preferences,
 					 commands, State.Bytes, State.OfferVisible, Notes,
-					 State.Capability == core::release_update_capability::eligible && !State.Stopped, State.InstallationOutcome };
+					 State.Capability == core::release_update_capability::eligible && !State.Stopped, State.InstallationOutcome,
+					 State.InstalledBuildNumber };
 		}
 
 		void cancel_all()
@@ -325,9 +326,10 @@ namespace bpr::application {
 																	 core::release_update_preferences aPreferences, release_update_clock_port& aClock,
 																	 decision_executor& aDecision, effect_executor& aEffects,
 																	 std::shared_ptr<release_update_verification_port> aVerifier, release_update_projection_port& aProjection,
-																	 std::shared_ptr<release_update_install_port> aInstaller)
+																	 std::shared_ptr<release_update_install_port> aInstaller,
+																	 const std::uint32_t                          aInstalledBuildNumber)
 		: Impl{ std::make_shared<implementation>(core::make_release_update_state(aSession, aInstalled,
-																				 aCapability, std::move(aPreferences), aClock.now()),
+																				 aCapability, std::move(aPreferences), aClock.now(), aInstalledBuildNumber),
 												 aClock, aDecision, aEffects,
 												 std::move(aVerifier), aProjection, std::move(aInstaller)) }
 	{ }

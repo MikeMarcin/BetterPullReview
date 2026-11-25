@@ -80,15 +80,18 @@ namespace {
 	};
 	struct access final : application::release_update_access_port
 	{
-		std::atomic<unsigned> Checks = 0U, Downloads = 0U;
-		std::atomic<bool>     Revoked = false;
-		reason                Failure = reason::none;
-		auto                  binding() const noexcept -> core::release_update_access_id override { return core::release_update_access_id{ Revoked ? 0U : 7U }; }
-		auto                  kind() const noexcept -> core::release_update_access_kind override { return core::release_update_access_kind::native_github_com; }
-		auto                  latest(std::stop_token) -> application::release_update_check_result override
+		std::atomic<unsigned>        Checks = 0U, Downloads = 0U;
+		std::atomic<bool>            Revoked = false;
+		reason                       Failure = reason::none;
+		core::release_update_release Release{
+			core::release_update_source::better_pull_review_github_com, core::release_update_release_id{ 10U }, "v2.3.4", false, false, { { core::release_update_asset_id{ 20U }, "BetterPullReview-2.3.4-macos-universal.zip", 100U, { }, true } }
+		};
+		auto binding() const noexcept -> core::release_update_access_id override { return core::release_update_access_id{ Revoked ? 0U : 7U }; }
+		auto kind() const noexcept -> core::release_update_access_kind override { return core::release_update_access_kind::native_github_com; }
+		auto latest(std::stop_token) -> application::release_update_check_result override
 		{
 			++Checks;
-			return { Failure, { core::release_update_source::better_pull_review_github_com, core::release_update_release_id{ 10U }, "v2.3.4", false, false, { { core::release_update_asset_id{ 20U }, "BetterPullReview-2.3.4-macos-universal.zip", 100U, { }, true } } }, 0U, std::string{ fixture_notes } };
+			return { Failure, Release, 0U, std::string{ fixture_notes } };
 		}
 		auto download(const core::release_update_candidate&     aCandidate, std::stop_token,
 					  const std::function<void(std::uint64_t)>& aProgress) -> application::release_update_download_result override
@@ -477,6 +480,53 @@ namespace {
 		desktop->shutdown();
 		until([&] { return desktop->quiescent(); }, "install public course drains");
 	}
+	void numbered_build_gestures()
+	{
+		QTemporaryDir temporary;
+		auto          store     = adapters::sqlite::make_release_update_store(root(temporary));
+		auto          wire      = std::make_shared<access>();
+		auto          validator = std::make_shared<verifier>();
+		auto          install   = std::make_shared<installer>();
+		wire->Release.Id        = core::release_update_release_id{ 457466155U };
+		wire->Release.Tag       = "0.5.3";
+		wire->Release.Assets    = {
+			{ core::release_update_asset_id{ 789316871U }, "BetterPullReview-0.5.3-macos-universal.zip", 100U, { }, true },
+			{ core::release_update_asset_id{ 789314694U }, "BetterPullReview-0.5.3-build.99-macos-universal.zip", 100U, { }, true },
+		};
+		application::release_update_settings settings;
+		settings.Preferences.AutomaticChecks = false;
+		expect(store->save(settings), "stable cohort fixture starts with manual checks");
+		auto desktop = app::release_update_desktop::start({ "0.5.3", core::release_update_capability::eligible, std::make_shared<clock>(), store, validator, { }, { }, install, 95U });
+		desktop->set_accounts({ { std::string(64U, 'a'), "Fixture account", [wire](auto, auto, auto aDone) { aDone(wire); } } });
+		QMenuBar bar;
+		desktop->attach(bar);
+		auto* menu = bar.findChild<QAction*>(QStringLiteral("checkForUpdatesAction"));
+		expect(menu, "stable cohort fixture has the normal update gesture");
+		until([&] { return desktop->projection().Commands.front().enabled(); }, "release authority ready");
+		menu->trigger();
+		until([&] { return desktop->projection().Phase == phase::available || (wire->Checks > 0U && desktop->quiescent()); }, "stable check completes");
+		const auto candidate = desktop->projection().Candidate;
+		expect(candidate && candidate->BuildNumber == 99U && candidate->Asset.value() == 789314694U, "build 95 offers the exact stable build 99 ZIP");
+		auto* offer = desktop->panel();
+		expect(offer, "updater presents the stable cohort offer");
+		const auto* status = offer->findChild<QLabel*>(QStringLiteral("releaseUpdateStatus"));
+		const auto* detail = offer->findChild<QLabel*>(QStringLiteral("releaseUpdateDetail"));
+		expect(status && status->text().contains(QStringLiteral("0.5.3 (build 99)")), "offer displays the target cohort");
+		expect(detail && detail->text().contains(QStringLiteral("0.5.3 (build 95)")), "offer displays the installed cohort");
+		const auto screenshot = qEnvironmentVariable("BPR_UPDATE_COHORT_SCREENSHOT_PATH");
+		if (!screenshot.isEmpty()) {
+			expect(offer->window()->grab().save(screenshot), "composed stable cohort offer capture");
+		}
+		offer->action(command::download)->trigger();
+		until([&] { return desktop->projection().Phase == phase::ready; }, "newer cohort goes through download and verification");
+		expect(wire->Downloads == 1U && validator->Calls == 1U && offer->action(command::install)->isEnabled(), "only the verified offer admits Install");
+		offer->action(command::install)->trigger();
+		until([&] { return desktop->projection().Phase == phase::handed_off; }, "newer cohort reaches installer after refresh");
+		expect(wire->Checks == 2U && install->Calls == 1U && desktop->projection().Candidate == candidate, "handoff retains the exact cohort from discovery");
+		desktop->shutdown();
+		until([&] { return desktop->quiescent(); }, "stable cohort fixture drains");
+	}
+
 	/// [[BPR-1672]]. A self-updating build offers the public releases first,
 	/// and its update settings must save with that access selected. The
 	/// readable "public:github.com" binding was refused by the store, so
@@ -698,6 +748,10 @@ try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QApplication::setApplicationVersion(QStringLiteral("2.3.3"));
+	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--numbered-build") {
+		numbered_build_gestures();
+		return 0;
+	}
 #if defined(__APPLE__)
 	if (aArgc == 5 && std::string_view{ aArgv[1] } == "--native-state") {
 		native_state(aArgv);
@@ -711,6 +765,7 @@ try {
 	root_wiring();
 	desktop_recovery_lifecycle();
 	gestures_restart_and_staging();
+	numbered_build_gestures();
 	public_release_access_persists();
 	unavailable_installations();
 	std::cout << "release-update-public-path:pass\n";

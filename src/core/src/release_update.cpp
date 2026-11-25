@@ -54,6 +54,43 @@ namespace bpr::core {
 			return value;
 		}
 
+		[[nodiscard]] auto package_version(const std::string_view aTag) -> std::string_view
+		{
+			return aTag.starts_with('v') ? aTag.substr(1U) : aTag;
+		}
+
+		[[nodiscard]] auto package_build_number(const std::string_view aVersion, std::string_view aName)
+			-> std::optional<std::uint32_t>
+		{
+			constexpr std::string_view prefix = "BetterPullReview-";
+			constexpr std::string_view suffix = "-macos-universal.zip";
+			constexpr std::string_view build  = "-build.";
+			if (aName.size() < prefix.size() + suffix.size() || !aName.starts_with(prefix) || !aName.ends_with(suffix)) {
+				return std::nullopt;
+			}
+			aName.remove_prefix(prefix.size());
+			aName.remove_suffix(suffix.size());
+			if (aName == aVersion) {
+				return 0U;
+			}
+			if (aVersion.contains('+') || !aName.starts_with(aVersion)) {
+				return std::nullopt;
+			}
+			aName.remove_prefix(aVersion.size());
+			if (!aName.starts_with(build)) {
+				return std::nullopt;
+			}
+			aName.remove_prefix(build.size());
+			if (aName.size() > 4U) {
+				return std::nullopt;
+			}
+			const auto number = parse_component(aName, true);
+			if (!number || *number == 0U || *number > release_update_maximum_build_number) {
+				return std::nullopt;
+			}
+			return static_cast<std::uint32_t>(*number);
+		}
+
 		[[nodiscard]] auto digest_bytes(const std::string_view aText)
 			-> std::optional<std::array<std::uint8_t, 32>>
 		{
@@ -284,7 +321,7 @@ namespace bpr::core {
 				aOutput.Diagnostic = release_update_reason::stale_completion;
 				return;
 			}
-			auto selected = select_release_update(*aState.Installed, aEvent.Release);
+			auto selected = select_release_update(*aState.Installed, aEvent.Release, aState.InstalledBuildNumber);
 			if (refreshing) {
 				if (!selected.Candidate || selected.Candidate != aState.Candidate) {
 					fail(aState, aOutput, release_update_reason::changed_candidate);
@@ -411,7 +448,32 @@ namespace bpr::core {
 		return release_update_version{ *major, *minor, *patch };
 	}
 
-	auto select_release_update(const release_update_version& aInstalled, const release_update_release& aRelease) -> release_update_selection
+	auto release_update_asset_candidate(const release_update_release_id aRelease, const std::string_view aTag,
+										const release_update_asset& aAsset) -> release_update_selection
+	{
+		const auto version = parse_release_update_version(aTag);
+		if (!version) {
+			return { { }, release_update_reason::invalid_version };
+		}
+		const auto build = package_build_number(package_version(aTag), aAsset.Name);
+		if (!build) {
+			return { { }, release_update_reason::no_compatible_asset };
+		}
+		if (aRelease.value() == 0U || aAsset.Id.value() == 0U || !aAsset.Uploaded) {
+			return { { }, release_update_reason::malformed_release };
+		}
+		if (aAsset.Size == 0U || aAsset.Size > release_update_maximum_archive_bytes) {
+			return { { }, release_update_reason::size_limit };
+		}
+		const auto digest = aAsset.Digest ? digest_bytes(*aAsset.Digest) : std::nullopt;
+		if (aAsset.Digest && !digest) {
+			return { { }, release_update_reason::invalid_digest };
+		}
+		return { release_update_candidate{ aRelease, aAsset.Id, *version, std::string{ aTag }, aAsset.Name, aAsset.Size, digest, *build }, release_update_reason::none };
+	}
+
+	auto select_release_update(const release_update_version& aInstalled, const release_update_release& aRelease,
+							   const std::uint32_t aInstalledBuildNumber) -> release_update_selection
 	{
 		if (aRelease.Source != release_update_source::better_pull_review_github_com || aRelease.Id.value() == 0U || aRelease.Assets.size() > release_update_maximum_assets) {
 			return { { }, release_update_reason::malformed_release };
@@ -423,31 +485,37 @@ namespace bpr::core {
 		if (!version) {
 			return { { }, release_update_reason::invalid_version };
 		}
-		if (*version <= aInstalled) {
+		const bool sameVersion         = *version == aInstalled;
+		const bool knownInstalledBuild = aInstalledBuildNumber > 0U && aInstalledBuildNumber <= release_update_maximum_build_number;
+		if (*version < aInstalled || (sameVersion && (!knownInstalledBuild || *version == release_update_version{ }))) {
 			return { { }, release_update_reason::current };
 		}
-		const auto packageVersion = std::string_view{ aRelease.Tag }.substr(aRelease.Tag.starts_with('v') ? 1U : 0U);
-		const auto assetName      = std::string{ "BetterPullReview-" } + std::string{ packageVersion } + "-macos-universal.zip";
-		const auto count          = std::ranges::count_if(aRelease.Assets, [&](const auto& aAsset) { return aAsset.Name == assetName; });
-		if (count != 1) {
-			return { { }, count == 0 ? release_update_reason::no_compatible_asset : release_update_reason::ambiguous_asset };
+		const auto packageVersion = package_version(aRelease.Tag);
+		const auto matches        = [packageVersion, sameVersion](const release_update_asset& aAsset) {
+			const auto build = package_build_number(packageVersion, aAsset.Name);
+			return build && (*build != 0U) == sameVersion;
+		};
+		const auto count = std::ranges::count_if(aRelease.Assets, matches);
+		if (count == 0) {
+			return { { }, sameVersion ? release_update_reason::current : release_update_reason::no_compatible_asset };
 		}
-		const auto& asset = *std::ranges::find_if(aRelease.Assets, [&](const auto& aAsset) { return aAsset.Name == assetName; });
-		if (asset.Id.value() == 0U || !asset.Uploaded || std::ranges::count(aRelease.Assets, asset.Id, &release_update_asset::Id) != 1) {
+		if (count > 1) {
+			return { { }, release_update_reason::ambiguous_asset };
+		}
+		const auto& asset = *std::ranges::find_if(aRelease.Assets, matches);
+		if (std::ranges::count(aRelease.Assets, asset.Id, &release_update_asset::Id) != 1) {
 			return { { }, release_update_reason::malformed_release };
 		}
-		if (asset.Size == 0U || asset.Size > release_update_maximum_archive_bytes) {
-			return { { }, release_update_reason::size_limit };
+		auto selected = release_update_asset_candidate(aRelease.Id, aRelease.Tag, asset);
+		if (sameVersion && selected.Candidate && selected.Candidate->BuildNumber <= aInstalledBuildNumber) {
+			return { { }, release_update_reason::current };
 		}
-		const auto digest = asset.Digest ? digest_bytes(*asset.Digest) : std::nullopt;
-		if (asset.Digest && !digest) {
-			return { { }, release_update_reason::invalid_digest };
-		}
-		return { release_update_candidate{ aRelease.Id, asset.Id, *version, aRelease.Tag, asset.Name, asset.Size, digest }, release_update_reason::none };
+		return selected;
 	}
 
 	auto make_release_update_state(const application_session_id aSession, const std::string_view aInstalled,
-								   const release_update_capability aCapability, release_update_preferences aPreferences, const release_update_time aTime) -> release_update_state
+								   const release_update_capability aCapability, release_update_preferences aPreferences,
+								   const release_update_time aTime, const std::uint32_t aInstalledBuildNumber) -> release_update_state
 	{
 		const auto now = std::max(std::int64_t{ 0 }, aTime.WallSeconds);
 		if (aPreferences.LastAttempt && *aPreferences.LastAttempt <= 0) {
@@ -460,12 +528,13 @@ namespace bpr::core {
 			aPreferences.LastSuccess.reset();
 		}
 		release_update_state state;
-		state.Session          = aSession;
-		state.Installed        = parse_release_update_version(aInstalled);
-		state.Capability       = aCapability;
-		state.Preferences      = std::move(aPreferences);
-		state.MonotonicSeconds = aTime.MonotonicSeconds;
-		state.ScheduleAnchor   = aTime.MonotonicSeconds;
+		state.Session              = aSession;
+		state.Installed            = parse_release_update_version(aInstalled);
+		state.InstalledBuildNumber = aInstalledBuildNumber;
+		state.Capability           = aCapability;
+		state.Preferences          = std::move(aPreferences);
+		state.MonotonicSeconds     = aTime.MonotonicSeconds;
+		state.ScheduleAnchor       = aTime.MonotonicSeconds;
 		if (state.Preferences.LastAttempt) {
 			const auto age      = static_cast<std::uint64_t>(now - *state.Preferences.LastAttempt);
 			state.ScheduleDelay = release_update_day_seconds - std::min(age, release_update_day_seconds);

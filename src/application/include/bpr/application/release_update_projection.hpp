@@ -20,6 +20,7 @@ namespace bpr::application {
 		std::string                                            Notes;
 		bool                                                   AutomaticAvailable = false;
 		std::optional<bool>                                    InstallationOutcome;
+		std::uint32_t                                          InstalledBuildNumber = 0U;
 	};
 
 	/// \brief Settings and release offer share the application's semantic dispatch.

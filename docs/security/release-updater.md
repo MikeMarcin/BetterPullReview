@@ -37,7 +37,9 @@ and fixture-tested, not inferred from successful access to a live release.
 
 ## Package and process boundary
 
-Only a strictly newer stable version with one exact universal ZIP is selected.
+The updater selects one exact universal ZIP from a stable release. Its marketing
+version must be higher, or its numbered ZIP must name a higher build of the same
+marketing version and match the signed bundle.
 Remote release notes are bounded text, shown in the shared Markdown reader with
 its sanitized HTML subset and no link or image dispatch bound; they cannot
 supply executable code, helper arguments, update-source configuration, active

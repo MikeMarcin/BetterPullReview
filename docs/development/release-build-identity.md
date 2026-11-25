@@ -33,11 +33,12 @@ The existing `v0.4.0` is occupied by immutable source
 `144de719a8d972162f92ec04f98ba11293ae0a8f`. That preview remains unchanged while corrected 0.4.0 RCs use their own tags.
 The withdrawn 0.4.1 proposal was not a human approval or a native requirement.
 
-The stable updater continues to order marketing versions, preserving its
-persisted skipped-version contract. It checks a numbered staged bundle's
-positive build identity where available; an older stable client can still
-validate the base version and exact compatibility ZIP. No claim that SemVer
-metadata changes precedence is introduced.
+The stable updater orders marketing versions first and keeps the persisted
+skipped-version contract. [[BPR-2395]] lets a numbered macOS installation update
+to a higher build under the same stable marketing version. The updater selects
+the canonical numbered ZIP for that case and verifies the selected build against
+the signed bundle. A marketing-version upgrade still uses the exact
+compatibility ZIP. SemVer build metadata does not affect precedence.
 
 ## Allocation and source binding
 
@@ -266,9 +267,8 @@ incomplete source RC, creates an annotated tag at the producer commit and a
 draft prerelease outside Latest, uploads without replacement, and verifies the
 complete set before its final stable/Latest edit. Uncertain or occupied outcomes
 require inspection rather than automatic retry. Verify anonymous downloads and
-native trust afterward. Base-version precedence remains unchanged: installed
-0.3.4 can update to 0.4.0, while an existing 0.4.0 preview requires manual
-installation of another 0.4.0 cohort.
+native trust afterward. A preview with the original marketing-version comparison
+still requires a manual installation to switch to another cohort of that version.
 
 GitHub's tag lookup does not return draft releases. The publisher discovers a
 new draft through the complete release list, then checks its numeric release

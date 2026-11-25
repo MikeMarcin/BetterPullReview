@@ -9,6 +9,7 @@
 #include "bpr/qt/release_update_panel.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "bpr_build_identity.hpp"
 #include "github_release_update.hpp"
 #include "system_browser_opener.hpp"
 
@@ -79,7 +80,8 @@ namespace bpr::app {
 				Components.Clock = std::make_shared<update_clock>();
 			}
 			Service = std::make_unique<application::release_update_service>(Components.Installed, Components.Capability,
-																			*Components.Clock, Decisions, Effects, Components.Settings, Components.Verifier, *this, Components.Installer);
+																			*Components.Clock, Decisions, Effects, Components.Settings, Components.Verifier, *this,
+																			Components.Installer, Components.InstalledBuildNumber);
 			Service->set_diagnostic_log(Log);
 			Service->start();
 			Timer.setInterval(1000);
@@ -122,7 +124,8 @@ namespace bpr::app {
 					self->Public = release_update_public_account();
 					self->Accounts.insert(self->Accounts.begin(), *self->Public);
 					self->start({ version, capability, std::make_shared<update_clock>(), store, staging, staging,
-								  [boundary](std::string aAddress) { if (!boundary) { system_browser_opener opener; static_cast<void>(opener.open(aAddress)); } }, installer });
+								  [boundary](std::string aAddress) { if (!boundary) { system_browser_opener opener; static_cast<void>(opener.open(aAddress)); } },
+								  installer, BPR_RELEASE_BUILD_NUMBER });
 				});
 			});
 		}

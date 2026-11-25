@@ -15,7 +15,8 @@ namespace bpr::application {
 							   std::shared_ptr<release_update_settings_port>     aSettings,
 							   std::shared_ptr<release_update_verification_port> aVerifier,
 							   release_update_projection_port&                   aProjection,
-							   std::shared_ptr<release_update_install_port>      aInstaller = { });
+							   std::shared_ptr<release_update_install_port>      aInstaller            = { },
+							   std::uint32_t                                     aInstalledBuildNumber = 0U);
 		~release_update_service();
 		void               start();
 		void               select_access(std::string aBinding, std::shared_ptr<release_update_access_port> aAccess);

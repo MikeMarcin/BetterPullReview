@@ -27,13 +27,14 @@ namespace bpr::qt {
 		using reason  = core::release_update_reason;
 		using command = core::release_update_command;
 		using phase   = core::release_update_phase;
-		auto version(const core::release_update_version& aVersion) -> QString
+		auto version(const core::release_update_version& aVersion, const std::uint32_t aBuildNumber = 0U) -> QString
 		{
-			return QStringLiteral("%1.%2.%3").arg(aVersion.Major).arg(aVersion.Minor).arg(aVersion.Patch);
+			const auto marketing = QStringLiteral("%1.%2.%3").arg(aVersion.Major).arg(aVersion.Minor).arg(aVersion.Patch);
+			return aBuildNumber == 0U ? marketing : QStringLiteral("%1 (build %2)").arg(marketing).arg(aBuildNumber);
 		}
 		auto offered(const application::release_update_projection& aProjection) -> QString
 		{
-			return aProjection.Candidate ? version(aProjection.Candidate->Version) : QString{ };
+			return aProjection.Candidate ? version(aProjection.Candidate->Version, aProjection.Candidate->BuildNumber) : QString{ };
 		}
 		auto enabled(const application::release_update_projection& aProjection, command aCommand) -> bool
 		{
@@ -148,7 +149,8 @@ namespace bpr::qt {
 		}
 		auto installed(const application::release_update_projection& aProjection) -> QString
 		{
-			return aProjection.Installed ? QStringLiteral("You have %1.").arg(version(*aProjection.Installed)) : QString{ };
+			const auto build = aProjection.Candidate && aProjection.Candidate->BuildNumber != 0U ? aProjection.InstalledBuildNumber : 0U;
+			return aProjection.Installed ? QStringLiteral("You have %1.").arg(version(*aProjection.Installed, build)) : QString{ };
 		}
 		auto size(std::uint64_t aBytes) -> QString
 		{

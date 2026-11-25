@@ -38,6 +38,7 @@ namespace bpr::app {
 		std::shared_ptr<application::release_update_archive_store>     Archives;
 		std::function<void(std::string)>                               Browser;
 		std::shared_ptr<application::release_update_install_port>      Installer{ };
+		std::uint32_t                                                  InstalledBuildNumber = 0U;
 	};
 	/// \brief One desktop-wide service shared by menus, windows and Settings.
 	class release_update_desktop final

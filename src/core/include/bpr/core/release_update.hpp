@@ -18,8 +18,9 @@ namespace bpr::core {
 	inline constexpr std::size_t   release_update_maximum_assets        = 128U;
 	inline constexpr std::size_t   release_update_maximum_tag_bytes     = 128U;
 	inline constexpr std::uint64_t release_update_maximum_archive_bytes = 512U * 1024U * 1024U;
+	inline constexpr std::uint32_t release_update_maximum_build_number  = 9999U;
 
-	/// \brief Stable-channel precedence; build metadata never changes ordering.
+	/// \brief Marketing-version precedence; SemVer build metadata never changes ordering.
 	struct release_update_version
 	{
 		std::uint64_t Major                                            = 0U;
@@ -150,6 +151,7 @@ namespace bpr::core {
 		std::string                                 AssetName;
 		std::uint64_t                               Size = 0U;
 		std::optional<std::array<std::uint8_t, 32>> Sha256;
+		std::uint32_t                               BuildNumber                                        = 0U;
 		auto                                        operator<=>(const release_update_candidate&) const = default;
 	};
 
@@ -159,9 +161,13 @@ namespace bpr::core {
 		std::optional<release_update_candidate> Candidate;
 		release_update_reason                   Reason = release_update_reason::none;
 	};
-	/// \brief Applies stable-channel and exact universal-ZIP selection policy.
+	/// \brief Validates one exact universal ZIP for a stable tag and binds its numbered identity if present.
+	[[nodiscard]] auto release_update_asset_candidate(release_update_release_id aRelease,
+													  std::string_view aTag, const release_update_asset& aAsset) -> release_update_selection;
+	/// \brief Selects a newer marketing version or a newer cohort of the same stable version.
 	[[nodiscard]] auto select_release_update(const release_update_version& aInstalled,
-											 const release_update_release& aRelease) -> release_update_selection;
+											 const release_update_release& aRelease,
+											 std::uint32_t                 aInstalledBuildNumber = 0U) -> release_update_selection;
 
 	/// \brief Explicit host clock facts. Monotonic time is never persisted.
 	struct release_update_time
@@ -288,7 +294,8 @@ namespace bpr::core {
 		release_update_generation               Generation{ 1U };
 		release_update_access_id                Access;
 		std::optional<release_update_version>   Installed;
-		release_update_capability               Capability = release_update_capability::untrusted_installation;
+		std::uint32_t                           InstalledBuildNumber = 0U;
+		release_update_capability               Capability           = release_update_capability::untrusted_installation;
 		release_update_preferences              Preferences;
 		release_update_phase                    Phase  = release_update_phase::idle;
 		release_update_reason                   Reason = release_update_reason::none;
@@ -321,7 +328,8 @@ namespace bpr::core {
 	/// \brief Normalizes persisted wall-clock facts and starts the monotonic schedule.
 	[[nodiscard]] auto make_release_update_state(application_session_id aSession,
 												 std::string_view aInstalled, release_update_capability aCapability,
-												 release_update_preferences aPreferences, release_update_time aTime) -> release_update_state;
+												 release_update_preferences aPreferences, release_update_time aTime,
+												 std::uint32_t aInstalledBuildNumber = 0U) -> release_update_state;
 	/// \brief Projects every updater command, including the uncomposed installer refusal.
 	[[nodiscard]] auto release_update_commands(const release_update_state& aState)
 		-> std::array<release_update_command_projection, 6>;

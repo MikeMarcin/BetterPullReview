@@ -7,6 +7,7 @@ namespace bpr::application {
 														  std::enable_shared_from_this<implementation>
 	{
 		std::string                                       Installed;
+		std::uint32_t                                     InstalledBuildNumber;
 		core::release_update_capability                   Capability;
 		release_update_clock_port&                        Clock;
 		decision_executor&                                Decision;
@@ -28,8 +29,9 @@ namespace bpr::application {
 					   release_update_clock_port& aClock, decision_executor& aDecision, effect_executor& aEffects,
 					   std::shared_ptr<release_update_settings_port>     aStore,
 					   std::shared_ptr<release_update_verification_port> aVerifier, release_update_projection_port& aSink,
-					   std::shared_ptr<release_update_install_port> aInstaller)
+					   std::shared_ptr<release_update_install_port> aInstaller, const std::uint32_t aInstalledBuildNumber)
 			: Installed{ std::move(aInstalled) }
+			, InstalledBuildNumber{ aInstalledBuildNumber }
 			, Capability{ aCapability }
 			, Clock{ aClock }
 			, Decision{ aDecision }
@@ -85,7 +87,7 @@ namespace bpr::application {
 						}
 						self->Host = std::make_unique<release_update_application_host>(core::application_session_id{ 1U },
 																					   self->Installed, self->Capability, self->Settings.Preferences, self->Clock, self->Decision,
-																					   self->Effects, self->Verifier, *self, self->Installer);
+																					   self->Effects, self->Verifier, *self, self->Installer, self->InstalledBuildNumber);
 						self->Host->set_diagnostic_log(self->Log);
 						self->Settings.Preferences = self->Host->projection().Preferences;
 						self->notify(self->Host->projection());
@@ -128,9 +130,9 @@ namespace bpr::application {
 												   release_update_clock_port& aClock, decision_executor& aDecision, effect_executor& aEffects,
 												   std::shared_ptr<release_update_settings_port> aSettings, std::shared_ptr<release_update_verification_port> aVerifier,
 												   release_update_projection_port&              aProjection,
-												   std::shared_ptr<release_update_install_port> aInstaller)
+												   std::shared_ptr<release_update_install_port> aInstaller, const std::uint32_t aInstalledBuildNumber)
 		: Impl{ std::make_shared<implementation>(std::move(aInstalled), aCapability, aClock, aDecision, aEffects,
-												 std::move(aSettings), std::move(aVerifier), aProjection, std::move(aInstaller)) }
+												 std::move(aSettings), std::move(aVerifier), aProjection, std::move(aInstaller), aInstalledBuildNumber) }
 	{ }
 	release_update_service::~release_update_service()
 	{

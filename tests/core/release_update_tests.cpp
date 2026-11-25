@@ -108,6 +108,46 @@ namespace {
 		expect(select_release_update(installed, candidate).Reason == reason::malformed_release, "incomplete upload refuses");
 	}
 
+	void test_numbered_stable_selection()
+	{
+		const release_update_version installed{ 0U, 5U, 3U };
+		auto                         stable = release("0.5.3");
+		stable.Assets.push_back({ release_update_asset_id{ 21U }, "BetterPullReview-0.5.3-build.99-macos-universal.zip", 100U, { }, true });
+		const auto selected = select_release_update(installed, stable, 95U);
+		expect(selected.Candidate && selected.Candidate->BuildNumber == 99U && selected.Candidate->Asset == stable.Assets.back().Id,
+			   "stable build 99 is offered to build 95 of the same version");
+		expect(select_release_update(installed, stable, 99U).Reason == reason::current, "same cohort never reinstalls");
+		expect(select_release_update(installed, stable, 100U).Reason == reason::current, "older cohort never downgrades");
+		expect(select_release_update(installed, stable).Reason == reason::current, "unknown installed cohort cannot order equal versions");
+		expect(select_release_update({ 0U, 5U, 4U }, stable, 95U).Reason == reason::current, "cohort cannot supersede a newer marketing version");
+		const auto marketing_upgrade = select_release_update({ 0U, 5U, 2U }, stable, 100U);
+		expect(marketing_upgrade.Candidate && marketing_upgrade.Candidate->BuildNumber == 0U
+				   && marketing_upgrade.Candidate->Asset == stable.Assets.front().Id,
+			   "ordinary marketing upgrade still uses the exact compatibility ZIP");
+
+		stable.Prerelease = true;
+		expect(select_release_update(installed, stable, 95U).Reason == reason::unstable_release, "numbered prerelease cannot be offered");
+		stable.Prerelease = false;
+		stable.Draft      = true;
+		expect(select_release_update(installed, stable, 95U).Reason == reason::unstable_release, "numbered draft cannot be offered");
+		stable.Draft = false;
+		stable.Tag   = "v0.5.3-build.99";
+		expect(select_release_update(installed, stable, 95U).Reason == reason::invalid_version, "RC tags cannot masquerade as stable");
+		stable.Tag = "v0.5.3+build.99";
+		expect(select_release_update(installed, stable, 95U).Reason == reason::current, "SemVer build metadata keeps legacy precedence");
+		stable.Tag                  = "v0.5.3";
+		stable.Assets.back().Digest = "sha256:invalid";
+		expect(select_release_update(installed, stable, 95U).Reason == reason::invalid_digest, "numbered ZIP digest must parse");
+		stable.Assets.back().Digest.reset();
+		stable.Assets.push_back({ release_update_asset_id{ 22U }, "BetterPullReview-0.5.3-build.98-macos-universal.zip", 100U, { }, true });
+		expect(select_release_update(installed, stable, 95U).Reason == reason::ambiguous_asset, "multiple numbered ZIPs cannot choose a stable cohort");
+		stable.Assets.pop_back();
+		for (const auto* invalid : { "0", "099", "10000", "99x" }) {
+			stable.Assets.back().Name = "BetterPullReview-0.5.3-build." + std::string{ invalid } + "-macos-universal.zip";
+			expect(select_release_update(installed, stable, 95U).Reason == reason::current, "malformed cohort name cannot offer an update");
+		}
+	}
+
 	void test_scheduling_preferences_and_failures()
 	{
 		auto current = state();
@@ -275,6 +315,7 @@ auto main() -> int
 	}
 	test_version_grammar_and_precedence();
 	test_release_and_asset_selection();
+	test_numbered_stable_selection();
 	test_scheduling_preferences_and_failures();
 	test_capability_gates_and_identity();
 	test_exact_download_verification_course();

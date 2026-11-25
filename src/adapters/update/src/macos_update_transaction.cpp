@@ -206,7 +206,14 @@ namespace bpr::adapters::update {
 			if (!release || !asset || !size || !version || *version == core::release_update_version{ }) {
 				return { };
 			}
-			const auto selected = core::select_release_update({ }, { core::release_update_source::better_pull_review_github_com, core::release_update_release_id{ *release }, tag, false, false, { { core::release_update_asset_id{ *asset }, aRecord.value("name").toString().toStdString(), *size, aRecord.contains("digest") ? std::optional{ aRecord.value("digest").toString().toStdString() } : std::nullopt, true } } });
+			const core::release_update_asset archive{
+				core::release_update_asset_id{ *asset },
+				aRecord.value("name").toString().toStdString(),
+				*size,
+				aRecord.contains("digest") ? std::optional{ aRecord.value("digest").toString().toStdString() } : std::nullopt,
+				true
+			};
+			const auto selected = core::release_update_asset_candidate(core::release_update_release_id{ *release }, tag, archive);
 			return selected.Candidate;
 		}
 		auto file_digest(const fs::path& aPath) -> std::string

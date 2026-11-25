@@ -26,6 +26,15 @@ the actual RC tag. Build-tag stable promotion is refused until a separately
 accepted compatible stable policy exists. See the
 [release build identity design](../development/release-build-identity.md).
 
+## Stable updates from numbered installations
+
+[[BPR-2395]] extends the stable lookup to permit a higher numbered build under
+the same marketing version. Use the exact canonical numbered macOS ZIP for
+that case and bind its build number to the signed bundle. The stable endpoint,
+prerelease exclusion, marketing-version ordering, and skipped-version storage
+still apply. A client with the previous version check requires a manual install
+to switch to a different build of the same marketing version.
+
 ## Owner amendment 2026-11-16 — AC-03 without a private release target
 
 On the 2026-11-15 hygiene audit's question (authorize a named private-release
@@ -184,8 +193,9 @@ Use GitHub's [latest release endpoint](https://docs.github.com/en/rest/releases/
 for the stable channel. Reject drafts and prereleases even when returned by a
 fixture or malformed service. Parse `vMAJOR.MINOR.PATCH` or `MAJOR.MINOR.PATCH`
 with optional SemVer build metadata, compare numeric components, and reject
-unknown or prerelease formats in this first channel. Equal versions, including
-differing build metadata, do not reinstall; older releases never downgrade.
+unknown or prerelease formats in this channel. Older versions never downgrade.
+An equal marketing version requires a higher numbered cohort as specified in
+[Stable updates from numbered installations](#stable-updates-from-numbered-installations).
 Do not infer ordering from publication dates, lexicographic strings or tag inequality.
 
 The private distribution source requires explicit selection of a GitHub.com

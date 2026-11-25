@@ -87,8 +87,13 @@ The core accepts `[v]MAJOR.MINOR.PATCH[+BUILD]`, with decimal unsigned 64-bit
 components, no leading zeroes except `0`, and nonempty dot-separated ASCII
 alphanumeric/hyphen build identifiers. The entire tag is at most 128 bytes.
 Prerelease suffixes, unknown formats, whitespace and numeric overflow refuse.
-Comparison uses only the three numeric components. Equal build variants and
-older releases never reinstall.
+Marketing-version comparison uses the three numeric components. An older
+marketing version is ineligible. For an equal marketing version, a numbered
+installation can update to a strictly higher build number on a stable release.
+The installed number comes from the application's compiled release identity.
+Equal or older build numbers and unnumbered installations keep the current
+installation when the marketing version matches. SemVer build metadata still
+has no precedence.
 
 For a strictly newer stable release, require exactly one uploaded
 `BetterPullReview-<tag without leading v>-macos-universal.zip`. Build metadata,
@@ -97,6 +102,14 @@ single-architecture package, duplicate name/ID or DMG fallback is eligible.
 Bind release ID, exact tag, parsed version, asset ID/name, declared size and
 optional parsed `sha256:` digest into one candidate. A malformed provided digest
 refuses; an absent digest does not weaken the later native trust requirement.
+
+For an equal plain marketing-version tag, require one exact numbered
+`BetterPullReview-<version>-build.<number>-macos-universal.zip` to identify
+the target cohort. Build numbers are canonical decimal integers from 1 to 9999.
+The base ZIP remains available to clients that use the compatibility name.
+The same-version candidate records the selected build number and exact numbered
+asset. The install refresh must select that same candidate. The helper
+reconstructs the build number from the journaled asset name.
 
 | Bound | Initial limit |
 |---|---|
@@ -129,7 +142,9 @@ transaction, retains its lock through asynchronous disposal, and never changes
 the running application.
 
 Validation compares the declared SHA-256 when present, the exact tag version,
-bundle identifier, both Mach-O slices and their deployment commands. It validates
+the selected build number against the signed bundle's `CFBundleVersion` and
+`BPRReleaseBuild` when a numbered ZIP was selected, the bundle identifier,
+both Mach-O slices and their deployment commands. It validates
 all architectures and nested code against the installed production designated
 requirement and pinned team, then asks system execution trust to assess the bundle.
 The installed trust source is checked as well. No quarantine bypass, signing
