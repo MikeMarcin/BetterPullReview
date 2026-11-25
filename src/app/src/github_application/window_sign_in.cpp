@@ -220,6 +220,9 @@ namespace bpr::app {
 		if (TourSession != nullptr) {
 			TourSession->clear();
 		}
+		if (FollowUpSession != nullptr) {
+			FollowUpSession->clear();
+		}
 #endif
 		if (Window != nullptr) {
 			Window->clear_dif_context();

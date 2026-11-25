@@ -217,7 +217,9 @@ Structured findings include severity, confidence, category, path, line range, cl
 Finding actions:
 
 - Open evidence
-- Ask follow-up
+- Ask follow-up: a side chat beside the report ([[BPR-2322]]) whose rounds read
+  the pull request's workspace with read-only tools, as a tour part's chat
+  does ([[BPR-2370]])
 - Draft comment, or Keep local where no line takes a draft (RFC-BPR-0127:
   one of the two, `core::decide_keep`'s choice)
 - Convert to local draft defect

@@ -3983,8 +3983,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# exact private-ledger copies and persists confirmed recovery discards.
 	# Update capture still retains raw and indeterminate text. The mutation
 	# branch and source inventory digests were checked separately.
+	# [[BPR-2370]] reseal: the item side chat's rounds run on a session of
+	# their own (compose_follow_up_session in window_follow_up.cpp), read-only
+	# in the pull request's workspace as a tour part's chat turn does, through
+	# the one dispatch_agent_invocation launch. Agent launch only; no grant,
+	# provider, transport, mutation or publication path changes.
 	set(bpr_expected_production_app_manifest_digest
-        "dd8b33e506ec945ab24934621db91c3a5110f86b3d5ea3eec0124f6c4d12971c"
+        "9477db5cd30ed107293726567dfd387385b7f065796d480e6a552a0df33532bf"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

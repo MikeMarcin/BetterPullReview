@@ -20,6 +20,10 @@
 // question makes that turn run a helper for about twenty seconds and report a
 // scripted cost mid-turn ([[BPR-2252]]).
 //
+// [[BPR-2370]]. A side chat round's answer says whether its working folder
+// holds the pull request's `src/engine/renderer.cpp`, the one file it looks for
+// (it reads no file's contents).
+//
 // RFC-BPR-0120 ([[BPR-2189]]). A local draft's check: a request that asks
 // for a `bpr-check-plan` block is answered with a plan (the author's words
 // choose it: "fail" plans a failing test, "touch" a command that changes a
@@ -334,7 +338,12 @@ namespace {
 			for (auto at = aRequest.find("Reviewer: "); at != std::string::npos; at = aRequest.find("Reviewer: ", at + 1U)) {
 				++rounds;
 			}
-			auto answer = "Fixture follow-up: I read the item and " + std::to_string(rounds) + " earlier rounds. A minimised window reports a height of zero, which this does not clamp.";
+			// [[BPR-2370]]. Whether its working folder is the pull request's
+			// workspace: the file the fixture's findings are about is there.
+			auto       error  = std::error_code{ };
+			const auto read   = std::filesystem::is_regular_file(std::filesystem::current_path(error) / "src" / "engine" / "renderer.cpp", error);
+			auto       answer = "Fixture follow-up: I read the item and " + std::to_string(rounds) + " earlier rounds. A minimised window reports a height of zero, which this does not clamp."
+				+ std::string{ read ? " I read src/engine/renderer.cpp in the pull request's workspace." : " I had no workspace to read." };
 			if (holds(aRequest, "skill.0.name\\tfixture-item-style") && holds(aRequest, "FIXTURE_SELECTED_ITEM_CHAT_GUIDANCE")
 				&& !holds(aRequest, "FIXTURE_UNUSED_ITEM_CHAT_GUIDANCE") && !holds(aRequest, "skill.1.name")) {
 				answer += " Item-chat skill guidance received.";

@@ -19,6 +19,7 @@ namespace bpr::application {
 		decision_executor&                               Decisions;
 		std::function<void(const follow_up_projection&)> Publish;
 		follow_up_runner                                 Runner;
+		follow_up_launcher                               Launcher;
 		std::shared_ptr<diagnostic_log_port>             Log;
 		/// Every follow-up the window asked, by its item's key.
 		std::map<std::string, core::follow_up_state> Held;
@@ -61,6 +62,43 @@ namespace bpr::application {
 			record_operation(Log.get(), { .Action = aAction, .Failure = aStarted ? core::operation_failure::none : failure, .DurationMilliseconds = aMilliseconds, .SideChat = aStarted ? core::side_chat_trace{ .Item = aTrace.Item, .Round = aTrace.Round, .Apply = aTrace.Apply, .QuestionChars = aTrace.QuestionChars, .BeforeChars = aTrace.BeforeChars } : aTrace }, aStarted);
 		}
 
+		/// Settles the answer to the run `aId` of the follow-up `aKey`, on the
+		/// decision lane.
+		void settle(const std::string& aKey, const std::uint64_t aId, std::expected<std::string, std::string> aReply, const bool aStopped, core::side_chat_trace aTrace,
+					const core::operation_action aAction, const operation_stopwatch& aWatch)
+		{
+			--Outstanding;
+			if (Stopped) {
+				return;
+			}
+			const auto found = Held.find(aKey);
+			if (found == Held.end()) {
+				return;
+			}
+			auto       text     = aStopped || !aReply ? std::optional<std::string>{ } : std::optional{ std::move(*aReply) };
+			const auto answered = text ? core::character_count(*text) : 0U;
+			const auto refusal  = core::settle_follow_up(found->second, aId, std::move(text));
+			if (refusal == core::follow_up_refusal::stale) {
+				return;
+			}
+			aTrace.Refusal     = refusal;
+			aTrace.AnswerChars = answered;
+			if (const auto& proposal = found->second.Proposal; aAction == core::operation_action::side_chat_propose && proposal && proposal->Id == aId) {
+				aTrace.AfterChars = core::character_count(proposal->Text);
+			}
+			log(aAction, aTrace, aWatch.milliseconds(), false, aStopped ? core::operation_failure::cancelled : !aReply ? core::operation_failure::operation_failed
+																													   : core::operation_failure::none);
+			Stops.erase(aKey);
+			if (aStopped) {
+				Failures[aKey] = "Stopped.";
+			} else if (!aReply) {
+				Failures[aKey] = aReply.error().empty() ? std::string{ "The agent did not answer." } : aReply.error();
+			}
+			if (aKey == Open) {
+				publish();
+			}
+		}
+
 		/// Runs `aRequest` for the follow-up `aKey`; its answer settles there.
 		/// `aTrace` is the line its ending is logged on.
 		void run(const std::string& aKey, follow_up_agent aAgent, core::follow_up_request aRequest, core::side_chat_trace aTrace)
@@ -71,40 +109,24 @@ namespace bpr::application {
 			Stops[aKey] = stop;
 			Failures.erase(aKey);
 			++Outstanding;
+			// [[BPR-2370]]. A launcher starts the round here and answers
+			// later, from wherever its run ends.
+			if (Launcher) {
+				const auto token = stop.get_token();
+				Launcher(aAgent, aRequest.Message, token,
+						 [host = shared_from_this(), key = aKey, id = aRequest.Id, token, trace = aTrace, action, watch = operation_stopwatch{ }](std::expected<std::string, std::string> aReply) mutable {
+							 const auto stopped = token.stop_requested();
+							 host->Decisions.post([host, settled = std::move(key), id, reply = std::move(aReply), stopped, trace, action, watch]() mutable {
+								 host->settle(settled, id, std::move(reply), stopped, trace, action, watch);
+							 });
+						 });
+				return;
+			}
 			AgentLane.post([host = shared_from_this(), runner = Runner, agent = std::move(aAgent), request = std::move(aRequest), key = aKey, token = stop.get_token(), trace = aTrace, action, watch = operation_stopwatch{ }]() mutable {
 				auto       reply   = runner(agent, request.Message, token);
 				const auto stopped = token.stop_requested();
 				host->Decisions.post([host, settled = std::move(key), id = request.Id, answer = std::move(reply), stopped, trace, action, watch]() mutable {
-					--host->Outstanding;
-					if (host->Stopped) {
-						return;
-					}
-					const auto found = host->Held.find(settled);
-					if (found == host->Held.end()) {
-						return;
-					}
-					auto       text     = stopped || !answer ? std::optional<std::string>{ } : std::optional{ std::move(*answer) };
-					const auto answered = text ? core::character_count(*text) : 0U;
-					const auto refusal  = core::settle_follow_up(found->second, id, std::move(text));
-					if (refusal == core::follow_up_refusal::stale) {
-						return;
-					}
-					trace.Refusal     = refusal;
-					trace.AnswerChars = answered;
-					if (const auto& proposal = found->second.Proposal; action == core::operation_action::side_chat_propose && proposal && proposal->Id == id) {
-						trace.AfterChars = core::character_count(proposal->Text);
-					}
-					host->log(action, trace, watch.milliseconds(), false, stopped ? core::operation_failure::cancelled : !answer ? core::operation_failure::operation_failed
-																																 : core::operation_failure::none);
-					host->Stops.erase(settled);
-					if (stopped) {
-						host->Failures[settled] = "Stopped.";
-					} else if (!answer) {
-						host->Failures[settled] = answer.error().empty() ? std::string{ "The agent did not answer." } : answer.error();
-					}
-					if (settled == host->Open) {
-						host->publish();
-					}
+					host->settle(settled, id, std::move(answer), stopped, trace, action, watch);
 				});
 			});
 		}
@@ -118,9 +140,11 @@ namespace bpr::application {
 
 	void follow_up_host::set_runner(follow_up_runner aRunner) { Implementation->Runner = std::move(aRunner); }
 
+	void follow_up_host::set_launcher(follow_up_launcher aLauncher) { Implementation->Launcher = std::move(aLauncher); }
+
 	void follow_up_host::set_log(std::shared_ptr<diagnostic_log_port> aLog) { Implementation->Log = std::move(aLog); }
 
-	auto follow_up_host::available() const noexcept -> bool { return static_cast<bool>(Implementation->Runner); }
+	auto follow_up_host::available() const noexcept -> bool { return static_cast<bool>(Implementation->Runner) || static_cast<bool>(Implementation->Launcher); }
 
 	auto follow_up_host::open(core::follow_up_subject aSubject) -> bool
 	{
@@ -155,7 +179,7 @@ namespace bpr::application {
 	{
 		auto&       self  = *Implementation;
 		auto* const state = self.open_state();
-		if (self.Stopped || state == nullptr || !self.Runner) {
+		if (self.Stopped || state == nullptr || !available()) {
 			return core::follow_up_refusal::failed;
 		}
 		auto trace = core::side_chat_trace{ .Item = state->Subject.Kind, .Round = static_cast<std::uint32_t>(state->Rounds.size() + 1U), .QuestionChars = core::character_count(aQuestion) };
@@ -174,7 +198,7 @@ namespace bpr::application {
 	{
 		auto&       self  = *Implementation;
 		auto* const state = self.open_state();
-		if (self.Stopped || state == nullptr || !self.Runner) {
+		if (self.Stopped || state == nullptr || !available()) {
 			return core::follow_up_refusal::failed;
 		}
 		auto trace = core::side_chat_trace{ .Item = state->Subject.Kind, .Round = static_cast<std::uint32_t>(state->Rounds.size()), .Apply = aApply, .BeforeChars = core::character_count(aBase) };

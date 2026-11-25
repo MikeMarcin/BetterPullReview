@@ -297,9 +297,18 @@ to send and how bubbles fit the column, with the public `composer_field` and `pa
 follow-up on a report's finding or a finding card and by Ask about this on the draft composer or a
 thread. It replaced [[BPR-2286]]'s follow-up window. Its conversation is not a tour session: each
 item's chat is a `core::follow_up_state` held by `application::follow_up_host`, every round a
-fresh tool-free run carrying the item and the earlier rounds, and its one apply action (Update
+fresh run carrying the item and the earlier rounds, and its one apply action (Update
 suggested comment, Update draft or Draft reply) proposes text in the chat that changes nothing
-until Use. Close keeps every item's chat. Since [[BPR-2333]] (owner, attended review
+until Use. Since [[BPR-2370]] (owner: "Why does the report side chat not have access to the code?
+How am I supposed to ask serious follow-ups if it cant read the workspace?") a round is no longer
+tool-free: it launches as a tour part's chat turn does, with read-only tools in the pull request's
+workspace at the revision under review (the same workspace port, history clone and read-only
+policy, MCP off), on the side chat's own `agent_invocation_host`, so a round never waits on or
+reaches the tour's or the Agent tab's session. It stays fresh (path `follow-up`, no native
+session): the message still carries the conversation. Its answer is the run's last message, and
+the agent it needs is one with a read-only mode (Claude or Codex), as a tour part's chat needs.
+One round runs at a time across the window's item chats; a second item's question meanwhile is
+answered with why and sends nothing. Close keeps every item's chat. Since [[BPR-2333]] (owner, attended review
 `bbbd62f881b93ad3315947522fe41e0d`: "By default its taking up too much space and I need to be able
 to resize it") the column opens at 320 pixels beside a wide page and at three tenths of a narrower
 one, never under 260; a drag on the seam at its left edge resizes it up to six tenths of the page,

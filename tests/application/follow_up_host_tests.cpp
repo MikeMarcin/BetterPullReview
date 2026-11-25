@@ -4,6 +4,10 @@
 /// by item; Stop, a failure and shutdown; nothing applied by the host.
 /// [[BPR-2322]]: each question, proposal and Use is one `agent.side_chat`
 /// line with lengths and outcomes, and none of the words.
+/// [[BPR-2370]]: a launcher that answers later (the window's read-only run in
+/// the pull request's workspace) starts each round on the decision lane, in
+/// place of the runner; its answer, a refusal and a stop settle as the
+/// runner's do.
 #include "bpr/application/follow_up_host.hpp"
 #include "bpr/core/operation_diagnosis.hpp"
 
@@ -194,6 +198,67 @@ auto main() -> int
 	expect(published.size() == before && host.is_quiescent(), "after shutdown nothing is published and the host is quiescent");
 	auto bad = suggestion("");
 	expect(!host.open(bad), "after shutdown, and for an invalid item, nothing opens");
+
+	// [[BPR-2370]]. A launcher: each round starts at once, answers later.
+	{
+		held_lane lane;
+		held_lane decided;
+		auto      shown    = std::vector<application::follow_up_projection>{ };
+		auto      launched = application::follow_up_host{ static_cast<application::effect_executor&>(lane), static_cast<application::decision_executor&>(decided),
+														  [&shown](const application::follow_up_projection& aProjection) { shown.push_back(aProjection); } };
+		auto      pending  = std::vector<application::follow_up_answer>{ };
+		auto      tokens   = std::vector<std::stop_token>{ };
+		auto      messages = std::vector<std::string>{ };
+		auto      refuse   = false;
+		// The round's Writing style and the skills its question named reach
+		// the launcher with it.
+		auto skilled         = agent;
+		skilled.WritingStyle = "Write plainly.";
+		skilled.Skills       = { core::supplement_skill{ .Name = "fixture-item-style", .Source = "fixture", .Origin = "fixture", .Text = "Be brief." } };
+		launched.set_launcher([&](const application::follow_up_agent& aAgent, const std::string& aMessage, const std::stop_token aStop, application::follow_up_answer aAnswer) {
+			expect(aAgent.Instructions == "Answer the reviewer." && aAgent.WritingStyle == "Write plainly." && aAgent.Skills == skilled.Skills, "the launcher is given the round's agent, its style and skills");
+			messages.push_back(aMessage);
+			if (refuse) {
+				aAnswer(std::unexpected{ std::string{ "The side chat is still answering another item." } });
+				return;
+			}
+			tokens.push_back(aStop);
+			pending.push_back(std::move(aAnswer));
+		});
+		expect(launched.available(), "a launcher makes the side chat available");
+		expect(launched.open(suggestion("finding:9")), "an item opens");
+		expect(launched.ask(skilled, "Does it read the code?") == core::follow_up_refusal::none && lane.Tasks.empty() && pending.size() == 1U, "the round starts at once, not on the agent lane");
+		expect(messages.back().starts_with(core::follow_up_marker) && !launched.is_quiescent() && shown.back().Open->Phase == core::follow_up_phase::asking, "the core's message goes, and the round is outstanding");
+		pending.back()(std::string{ "Yes: renderer.cpp clamps only the width." });
+		expect(!launched.is_quiescent(), "the answer settles on the decision lane");
+		decided.drain();
+		expect(launched.is_quiescent() && shown.back().Open->Rounds.size() == 1U && shown.back().Open->Rounds[0].Answer == "Yes: renderer.cpp clamps only the width.", "the answer is a round");
+
+		// Stop: the token says so, and the late answer counts as stopped.
+		static_cast<void>(launched.ask(skilled, "And the height?"));
+		expect(pending.size() == 2U && !tokens.back().stop_requested(), "the second round starts");
+		launched.stop();
+		expect(tokens.back().stop_requested(), "Stop reaches the launched run");
+		pending.back()(std::string{ "late" });
+		decided.drain();
+		expect(shown.back().RunFailure == "Stopped." && shown.back().Open->Rounds.size() == 1U && launched.is_quiescent(), "a stopped round adds nothing and says Stopped");
+
+		// Refused before it starts: answered at once, said in words.
+		refuse = true;
+		static_cast<void>(launched.ask(skilled, "Again?"));
+		decided.drain();
+		expect(shown.back().RunFailure == "The side chat is still answering another item." && shown.back().Open->Phase == core::follow_up_phase::idle && launched.is_quiescent(), "a refused round says why and ends");
+
+		// Shutdown: an answer after it is dropped.
+		refuse = false;
+		static_cast<void>(launched.ask(skilled, "Last?"));
+		const auto count = shown.size();
+		launched.shutdown();
+		expect(tokens.back().stop_requested(), "shutdown stops the launched run");
+		pending.back()(std::string{ "after" });
+		decided.drain();
+		expect(shown.size() == count && launched.is_quiescent(), "after shutdown nothing is published, and the host is quiescent");
+	}
 	std::cout << "follow-up-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }
