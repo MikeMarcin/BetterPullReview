@@ -380,6 +380,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_home_open_responsive_public_path": "private-desktop-root-refused",
     "application_prompt_facts_public_path": "private-data-root-refused",
     "application_review_report_public_path": "unmeasured (registered on macOS)",
+    # The report's Go to draft brings the whole composer into the drawer's
+    # view; registered only off Windows, like the report course.
+    "application_report_draft_reveal_public_path": "unmeasured (registered on macOS)",
     # Measured at b9a0915ec: "private desktop root under the canonical storage
     # policy". The commit-asks course, like the report course, is registered
     # only off Windows.

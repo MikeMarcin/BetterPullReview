@@ -23,6 +23,7 @@
 
 #include <QAbstractScrollArea>
 #include <QColor>
+#include <QElapsedTimer>
 #include <QFont>
 #include <QPoint>
 #include <QPointer>
@@ -571,6 +572,54 @@ namespace bpr::qt {
 
 		auto operator==(const thread_reply_presentation&) const -> bool = default;
 	};
+
+	/// \brief The band of the drawer a card counts as seen in, in viewport
+	/// pixels, and where an opened card rests when it has to be moved.
+	struct card_view_band
+	{
+		/// The first row clear of the edge chips at the drawer's top.
+		int Top = 0;
+		/// The row after the last one clear of the chips at its foot.
+		int Bottom = 0;
+		/// Where a moved card's top rests: a third of the way down, so the
+		/// code above its line stays in sight.
+		int Rest = 0;
+	};
+
+	/// \brief How far the drawer's content moves up (negative: down) so a
+	/// card just opened for writing is whole in view.
+	///
+	/// \details A card already whole in the band stays where it is. One that
+	/// is cut at either edge rests with its top at `Rest`, or higher when
+	/// its foot would otherwise fall past the band, and never above the
+	/// band's top: a card taller than the band shows its head and editor.
+	/// \param aTop The card's top, in viewport pixels.
+	/// \param aHeight The card's height.
+	/// \param aBand The drawer's band.
+	[[nodiscard]] constexpr auto whole_card_move(const int aTop, const int aHeight, const card_view_band& aBand) noexcept -> int
+	{
+		if (aTop >= aBand.Top && aTop + aHeight <= aBand.Bottom) {
+			return 0;
+		}
+		const auto rest = aBand.Bottom - aHeight < aBand.Rest ? aBand.Bottom - aHeight : aBand.Rest;
+		return aTop - (rest < aBand.Top ? aBand.Top : rest);
+	}
+
+	/// \brief How far the drawer's content moves up so a card that grew while
+	/// it was written keeps its foot in view.
+	///
+	/// \details The least move that brings the foot back to the band's foot,
+	/// never taking the card's top past the band's top. A card that did not
+	/// cross the foot does not move.
+	[[nodiscard]] constexpr auto grown_card_move(const int aTop, const int aHeight, const card_view_band& aBand) noexcept -> int
+	{
+		const auto over = aTop + aHeight - aBand.Bottom;
+		const auto room = aTop - aBand.Top;
+		if (over <= 0 || room <= 0) {
+			return 0;
+		}
+		return over < room ? over : room;
+	}
 
 	/// \brief [[BPR-1212]]. The new comment written in the drawer, as the
 	/// draft editor holds it.
@@ -1258,6 +1307,23 @@ namespace bpr::qt {
 		/// notes' own overflow in Discuss, the code (which the drawer follows)
 		/// in Review, as a wheel over the notes would.
 		void reveal_reading(const QRect& aViewportRect);
+		/// \brief Moves the notes by `aMove` pixels: in Review the code moves
+		/// and the notes follow it, and what the code cannot take is the
+		/// notes' own overflow; elsewhere the notes' scroll.
+		void move_notes(int aMove);
+		/// \brief The band a card counts as seen in.
+		[[nodiscard]] auto view_band() const -> card_view_band;
+		/// \brief Brings the draft being written whole into view, at once and
+		/// again once the drawer and the code have settled, until it rests
+		/// whole, the reader scrolls, or the settling time is over.
+		void arm_draft_reveal();
+		/// \brief One step of the draft's reveal. Once the drawer has settled
+		/// (`aSettled`) with the card whole in view, the reveal ends.
+		void step_draft_reveal(bool aSettled);
+		/// \brief Keeps the foot of the draft being written in view as it
+		/// grows while the reader types in it, when it was whole in view
+		/// before it grew.
+		void keep_grown_draft(const QRect& aBefore);
 		/// \brief Brings a control of the open thread into view, or a text's
 		/// caret rather than all of it.
 		void               reveal_focus(QWidget& aWidget);
@@ -1394,7 +1460,17 @@ namespace bpr::qt {
 		QTimer*                     PickedReveal      = nullptr;
 		int                         PickedRevealSteps = 0;
 		int                         PickedRevealLast  = 0;
-		std::string                 Hovered;
+		/// The draft being written is brought whole into view as the drawer
+		/// settles; a reader's own scroll ends it.
+		bool          RevealDraft      = false;
+		QTimer*       DraftReveal      = nullptr;
+		int           DraftRevealSteps = 0;
+		QElapsedTimer DraftRevealClock;
+		/// The notes are being moved by the view itself, not the reader.
+		bool MovingNotes = false;
+		/// When a key was last typed in the draft's editor.
+		QElapsedTimer DraftTyped;
+		std::string   Hovered;
 		/// The thread whose reply editor is shown in its open card.
 		std::string                                                     Replying;
 		std::vector<thread_read_state>                                  ReadState;

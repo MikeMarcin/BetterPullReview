@@ -1385,6 +1385,117 @@ namespace {
 		expect(view.open_card()->findChild<QWidget*>(QStringLiteral("conversationPullRequestHeader")) == nullptr, "a Local comment on a line never says Pull request");
 	}
 
+	void type(QWidget& aTarget, QChar aCharacter);
+
+	/// \brief Runs the event loop for `aMilliseconds`, timers included.
+	void settle_for(const int aMilliseconds)
+	{
+		QElapsedTimer clock;
+		clock.start();
+		while (clock.elapsed() < aMilliseconds) {
+			QApplication::processEvents();
+			QThread::msleep(5);
+		}
+	}
+
+	/// \brief The owner: "Draft comment on a report barely puts the draft on
+	/// screen in the comments drawer". A finding's draft on a line near the
+	/// drawer's foot opened with only its head in view: the editor was
+	/// brought in at once, empty, before the finding's words arrived. The
+	/// whole composer, its editor and its controls, now rests in view,
+	/// still hanging at its line, with the keyboard in its editor; a reader
+	/// who scrolls away is left there, and a draft that grows while written
+	/// keeps its foot in view.
+	auto test_a_drafted_finding_opens_whole_in_view() -> void
+	{
+		// The decision, on its own.
+		const auto band = qt::card_view_band{ .Top = 38, .Bottom = 662, .Rest = 233 };
+		expect(qt::whole_card_move(100, 200, band) == 0, "a card whole in view stays where it is");
+		expect(qt::whole_card_move(600, 200, band) == 600 - 233, "a card cut at the foot rests a third of the way down");
+		expect(qt::whole_card_move(600, 500, band) == 600 - 162, "a tall card rests as high as keeps its foot in view");
+		expect(qt::whole_card_move(600, 900, band) == 600 - 38, "a card taller than the drawer shows its head");
+		expect(qt::whole_card_move(10, 100, band) == 10 - 233, "a card cut at the top comes down to rest");
+		expect(qt::grown_card_move(400, 300, band) == 38 && qt::grown_card_move(400, 200, band) == 0 && qt::grown_card_move(100, 700, band) == 62,
+			   "a grown card moves the least that keeps its foot in view, never its top out");
+
+		qt::conversation_cards_view view;
+		view.resize(380, 700);
+		view.show();
+		view.activateWindow();
+		QApplication::processEvents();
+		auto offset = 0;
+		view.set_line_locator([&offset](core::diff_side, const std::uint32_t aLine) -> std::optional<int> { return (static_cast<int>(aLine) * 20) - offset; });
+		// The code takes the wheel and the drawer follows its lines at once,
+		// as the comparison's scroll places the notes again.
+		view.set_scroll_forward([&offset, &view](QWheelEvent& aEvent) {
+			offset -= aEvent.angleDelta().y();
+			view.refresh_geometry();
+			return true;
+		});
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		auto root = thread("review-thread:T1", "src/a.cpp", 31U);
+		auto post = reply("c-1", "review-thread:T1", "tbutler", "suggestion: This comment says senders write no masks on lod > 0.");
+		post.Line = 31U;
+		view.adopt({ root, post });
+		const auto comparison = core::file_comparison_digest{ };
+		view.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 31U } }, comparison);
+		QApplication::processEvents();
+		// The composer opens empty on its line, 640 px down a 700 px drawer,
+		// and the finding's words arrive after it, as a promotion writes them.
+		view.begin_draft();
+		const auto words = QStringLiteral("question: Can a streaming-enabled legacy-grid sender reach a cloud-edit RCC? The guard above only checks the mode flag, so a sender that streams and still uses the legacy grid takes the cloud path and writes into a buffer it never sized.");
+		view.present_draft(qt::draft_composer_presentation{ .Body = words, .Publishable = true, .Editable = true, .Lines = QStringLiteral("Line 32") });
+		settle_for(600);
+		auto* const card   = view.open_card();
+		auto* const editor = view.draft_editor();
+		expect(card != nullptr && editor != nullptr && view.writing_draft() && editor->toPlainText() == words, "the finding's draft is open in its composer");
+		const auto bandOf = [&view] { return qt::card_view_band{ .Top = 38, .Bottom = view.viewport()->height() - 38, .Rest = view.viewport()->height() / 3 }; };
+		const auto whole  = [&] { return card->geometry().top() >= bandOf().Top && card->geometry().bottom() + 1 <= bandOf().Bottom; };
+		const auto said   = [&] { return "top " + std::to_string(card->geometry().top()) + ", foot " + std::to_string(card->geometry().bottom() + 1) + " of " + std::to_string(view.viewport()->height()) + ", code moved " + std::to_string(offset); };
+		expect(whole(), "the whole composer, editor and controls, is in view: " + said());
+		expect(card->geometry().top() <= view.viewport()->height() / 2, "with the code above its line in sight: " + said());
+		const auto lineY = (32 * 20) - offset;
+		expect(view.overflow() == 0 && lineY >= card->geometry().top() - 20 && lineY <= card->geometry().top() + 40, "the code moved, so the composer still hangs at its line: line at " + std::to_string(lineY) + ", " + said());
+		expect(QApplication::focusWidget() == editor, "the keyboard is in its editor");
+
+		// A reader who scrolls the notes away is left there.
+		auto away = QWheelEvent{ QPointF{ view.viewport()->rect().center() }, view.viewport()->mapToGlobal(QPointF{ view.viewport()->rect().center() }), QPoint{ }, QPoint{ 0, -500 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+		QApplication::sendEvent(view.viewport(), &away);
+		const auto left = offset;
+		settle_for(400);
+		expect(offset == left && !whole(), "scrolled away from, the composer is not pulled back: " + said());
+
+		// Brought back with its foot just in view, it keeps its foot in view
+		// as it grows while written.
+		auto back = QWheelEvent{ QPointF{ view.viewport()->rect().center() }, view.viewport()->mapToGlobal(QPointF{ view.viewport()->rect().center() }), QPoint{ }, QPoint{ 0, 500 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+		QApplication::sendEvent(view.viewport(), &back);
+		settle_for(50);
+		const auto toFoot = bandOf().Bottom - 4 - (card->geometry().bottom() + 1);
+		auto       down   = QWheelEvent{ QPointF{ view.viewport()->rect().center() }, view.viewport()->mapToGlobal(QPointF{ view.viewport()->rect().center() }), QPoint{ }, QPoint{ 0, toFoot }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+		QApplication::sendEvent(view.viewport(), &down);
+		settle_for(50);
+		expect(whole() && card->geometry().bottom() + 1 > bandOf().Bottom - 12, "the composer stands whole just above the drawer's foot: " + said());
+		editor->setFocus(Qt::OtherFocusReason);
+		editor->moveCursor(QTextCursor::End);
+		const auto rows = editor->height();
+		for (auto line = 0; line < 4; ++line) {
+			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r") };
+			QApplication::sendEvent(editor, &press);
+			type(*editor, QLatin1Char{ 'a' });
+		}
+		settle_for(200);
+		expect(editor->height() > rows, "typing grows the editor");
+		expect(whole(), "written longer, its foot stays in view: " + said());
+		// Words presented to it, not typed, do not move the drawer.
+		const auto typedAt = card->geometry().top();
+		settle_for(1'100);
+		view.present_draft(qt::draft_composer_presentation{ .Body = words + QStringLiteral("\n\nA\nB\nC\nD"), .Publishable = true, .Editable = true, .Lines = QStringLiteral("Line 32") });
+		settle_for(200);
+		expect(card->geometry().top() == typedAt, "words shown in it, not typed, leave the drawer where it was: " + said());
+		expect(QApplication::focusWidget() == editor, "and the keyboard stays in its editor");
+		view.hide();
+	}
+
 	/// \brief The owner: "I have a draft comment sometimes not rendering
 	/// when I click away from it." My draft was written in the drawer, then
 	/// another thread was opened: the view still took the draft for its
@@ -4846,6 +4957,7 @@ auto main(int argc, char** argv) -> int
 	test_composer_notice_keeps_rows_apart();
 	test_placement_notice_is_a_warning_mark();
 	test_look_v002_rework();
+	test_a_drafted_finding_opens_whole_in_view();
 	test_a_draft_clicked_away_from_paints_its_words();
 	test_a_draft_left_by_the_conversation_keeps_its_words();
 	test_opening_the_card_below_an_open_thread_shows_it_whole();

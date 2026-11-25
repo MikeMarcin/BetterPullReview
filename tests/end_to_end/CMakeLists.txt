@@ -5426,6 +5426,21 @@ if(APPLE OR UNIX)
     set_tests_properties(application_review_report_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "review-report:pass")
 endif()
+# The owner: "Draft comment on a report barely puts the draft on screen in
+# the comments drawer". Go to draft from the report shows the whole composer.
+bpr_add_executable(test_report_draft_reveal_public_path report_draft_reveal_public_path.cpp)
+target_link_libraries(test_report_draft_reveal_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_report_draft_reveal_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_report_draft_reveal_public_path)
+bpr_enable_warnings(test_report_draft_reveal_public_path)
+add_dependencies(test_report_draft_reveal_public_path bpr_fixture_agent)
+if(APPLE OR UNIX)
+    bpr_add_network_isolated_test(NAME application_report_draft_reveal_public_path
+        WINDOWS_UNCONTAINED
+        COMMAND test_report_draft_reveal_public_path)
+    set_tests_properties(application_report_draft_reveal_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "report-draft-reveal:pass")
+endif()
 # [[BPR-2248]]. The Commits tab's agent prompts on commit-selection-v1 (a merge
 # of main among four commits), answered by the fixture agent.
 bpr_add_executable(test_commit_asks_public_path commit_asks_public_path.cpp)
