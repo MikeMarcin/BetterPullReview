@@ -748,6 +748,11 @@ namespace bpr::qt {
 				for (const auto& finding : Findings) {
 					if (const auto request = keep_request(finding.Outline); request && RevisionSource(*request)) {
 						actions.Revised[finding.Outline] = request->Comment;
+						// [[BPR-2376]]. Its draft, changed by the reviewer,
+						// differs from the update: Update draft.
+						if (DraftOutdated && request->Keep == core::report_keep::draft_comment && actions.States[finding.Outline].Phase == report_keep_phase::kept && DraftOutdated(*request)) {
+							actions.Outdated.push_back(finding.Outline);
+						}
 					}
 				}
 			}
@@ -1155,6 +1160,15 @@ namespace bpr::qt {
 		}
 	}
 
+	void agent_report_view::set_draft_update(std::function<bool(const report_draft&)> aOutdated, std::function<void(const report_draft&)> aUpdate)
+	{
+		DraftOutdated = std::move(aOutdated);
+		DraftUpdate   = std::move(aUpdate);
+		if (Scroll != nullptr && Dressed != nullptr) {
+			render_dressed();
+		}
+	}
+
 	void agent_report_view::set_dismiss_dispatch(report_dismiss_dispatch aDispatch)
 	{
 		DismissDispatch = std::move(aDispatch);
@@ -1238,6 +1252,14 @@ namespace bpr::qt {
 			DismissDispatch(*request, dismissing);
 			render_dressed();
 			announce(dismissing ? tr("Dismissed. Undo takes it back.") : tr("No longer dismissed."));
+			return true;
+		}
+		// [[BPR-2376]]. Update draft, where the page offers it.
+		if (aLink == report_link::update_draft) {
+			if (state.Phase != report_keep_phase::kept || request->Keep != core::report_keep::draft_comment || !DraftOutdated || !DraftUpdate || !DraftOutdated(*request)) {
+				return false;
+			}
+			DraftUpdate(*request);
 			return true;
 		}
 		if (aLink == report_link::go) {

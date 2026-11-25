@@ -442,6 +442,9 @@ namespace bpr::app {
 					static_cast<void>(Window->open_file_in_review(aDraft.Path));
 				}
 			});
+			// [[BPR-2376]]. A drafted finding whose changed draft was kept at
+			// a follow-up's update offers Update draft.
+			report->set_draft_update([this](const qt::report_draft& aFinding) { return finding_draft_outdated(aFinding); }, [this](const qt::report_draft& aFinding) { update_finding_draft(aFinding); });
 			// docs/design/report-card-v4: the question under the title and
 			// Show in conversation: the Agent tab at the turn, the report's tab
 			// staying open and active.

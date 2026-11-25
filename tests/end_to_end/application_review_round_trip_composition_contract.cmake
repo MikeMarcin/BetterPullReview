@@ -3988,8 +3988,15 @@ function(bpr_verify_app_source_tree app_source_root)
 	# in the pull request's workspace as a tour part's chat turn does, through
 	# the one dispatch_agent_invocation launch. Agent launch only; no grant,
 	# provider, transport, mutation or publication path changes.
+	# [[BPR-2376]] reseal: an accepted Update suggested comment replaces the
+	# report finding's own draft while it is unchanged since drafting, in one
+	# revisioned private-draft edit through change_review_drafts
+	# (window_agent_setup.cpp, window_follow_up.cpp, window_quick_ask.cpp,
+	# window_composition.hpp); an edited draft is kept and Update draft
+	# offered. Local private drafts only; no grant, provider, transport,
+	# mutation or publication path changes.
 	set(bpr_expected_production_app_manifest_digest
-        "9477db5cd30ed107293726567dfd387385b7f065796d480e6a552a0df33532bf"
+        "cb272cec9ea58f49e96e1450e906ea7a9ad4361ed8fb34197b74171104f7037c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

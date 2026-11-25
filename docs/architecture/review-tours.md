@@ -325,6 +325,16 @@ tab's composer row (`composer_parts.hpp`: the field's insets, a thin rule under 
 the default button with the send arrow, ending the row under it), which the Agent tab builds from
 the same parts.
 
+Since [[BPR-2376]] (owner, 2026-11-24: an accepted update's new code suggestion was not in the
+finding's Suggested change or its draft) a finding's updated suggested comment is the one source of
+what the finding suggests. The report draws the finding's Suggested change from the lines of the
+comment's first fenced `suggestion` block (`core::comment_suggestion_lines`, through
+`core::revise_report`). A comment with none shows no Suggested change. A plain code block is a fix
+written as code, as GitHub posts it, not lines to apply. A draft that Draft comment already made
+takes the update while it is still what the earlier comment drafted
+(`core::decide_finding_draft_revision`), in one revisioned edit. A draft the reviewer changed is
+kept, and the finding says it differs and offers Update draft.
+
 Since [[BPR-1934]] (owner, 2026-11-07: "Tour side chat should get suggestions
 like the agent tab has") an empty chat offers suggested prompts under its
 invitation, in the Agent tab's own component (`agent_suggestion_list`,

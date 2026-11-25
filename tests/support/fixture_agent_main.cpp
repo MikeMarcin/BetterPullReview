@@ -326,6 +326,17 @@ namespace {
 		// so a course sees the conversation travel with each round.
 		if (holds(aRequest, "bpr.follow-up.v1")) {
 			if (holds(aRequest, "bpr.follow-up.update-suggestion")) {
+				// [[BPR-2376]]. A comment that carries a suggestion is
+				// rewritten with another, so a course sees the finding's
+				// suggested change and its draft follow the comment; a second
+				// update gives a third.
+				if (holds(aRequest, "Target.resize(clamped);")) {
+					return "issue (blocking): clamp both sides where the extent is made.\n\n```suggestion\nTarget.resize(extent{ std::max(aSize.Width, 1), std::max(aSize.Height, 1) });\n```";
+				}
+				if (holds(aRequest, "```suggestion")) {
+					return "issue (blocking): clamp both sides in one place, so the next caller cannot forget the height.\n\n"
+						   "```suggestion\nconst auto clamped = extent{ std::max(aSize.Width, 1), std::max(aSize.Height, 1) };\nTarget.resize(clamped);\n```";
+				}
 				return "issue (blocking): clamp the height as well as the width. A minimised window reports a height of zero, and the swap chain asserts on it.";
 			}
 			if (holds(aRequest, "bpr.follow-up.update-draft")) {

@@ -272,6 +272,31 @@ namespace {
 		expect(revised.contains(QStringLiteral("Suggested comment, updated:")) && revised.contains(QStringLiteral("clamp &lt;both&gt;.")), "the updated comment shows, escaped");
 	}
 
+	/// [[BPR-2376]]. The finding's Suggested change is its updated comment's;
+	/// a draft the reviewer changed says it differs and offers Update draft.
+	void test_an_updated_comment_moves_the_suggested_change()
+	{
+		const auto report  = core::dress_report("# Review\n\n**Verdict:** Needs changes\n\nOne thing.\n\n## Must fix\n\n### issue (blocking): A zero height\n\n`src/r.cpp:12-13`\n\nThe height is not clamped.\n\n"
+												"```cpp\nconst auto width = clamp(w);\nresize(width, h);\n```\n\n```suggestion\nconst auto width = clamp(w);\nresize(width, keep_h);\n```\n");
+		auto       actions = qt::report_page_actions{ .Findings = core::report_findings(report) };
+		expect(!actions.Findings.empty(), "the report has a finding");
+		const auto outline = actions.Findings.front().Outline;
+		actions.Link       = [](const std::uint32_t aOutline, const qt::report_link aLink) { return QStringLiteral("action-%1-%2").arg(aOutline).arg(static_cast<int>(aLink)); };
+		expect(qt::report_page_html(report, { }, actions).contains(QStringLiteral("resize(width, keep_h);")), "the Suggested change as written");
+		actions.Revised[outline] = QStringLiteral("issue (blocking): clamp both.\n\n```suggestion\nresize(clamp(w), clamp_h);\n```");
+		const auto moved         = qt::report_page_html(report, { }, actions);
+		expect(moved.contains(QStringLiteral("resize(clamp(w), clamp_h);")) && !moved.contains(QStringLiteral("resize(width, keep_h);")), "the Suggested change is the updated comment's, and the old lines are gone");
+		actions.Revised[outline] = QStringLiteral("issue (blocking): clamp both, somewhere.");
+		expect(!qt::report_page_html(report, { }, actions).contains(QStringLiteral("resize(width, keep_h);")), "an updated comment with no suggestion shows no Suggested change");
+
+		const auto update       = QStringLiteral("action-%1-%2").arg(outline).arg(static_cast<int>(qt::report_link::update_draft));
+		actions.States[outline] = qt::report_keep_state{ .Phase = qt::report_keep_phase::kept };
+		expect(!qt::report_page_html(report, { }, actions).contains(update), "a drafted finding offers no Update draft by itself");
+		actions.Outdated   = { outline };
+		const auto offered = qt::report_page_html(report, { }, actions);
+		expect(offered.contains(update) && offered.contains(QStringLiteral("Update draft")) && offered.contains(QStringLiteral("The draft differs from the updated suggested comment")), "a changed draft says so and offers Update draft");
+	}
+
 	void test_a_threads_ask_menu_offers_ask_about_this()
 	{
 		auto       followed = std::vector<QString>{ };
@@ -389,6 +414,7 @@ auto main(int argc, char** argv) -> int
 	test_a_draft_and_a_thread_offer_their_apply_action();
 	test_the_tour_chat_shares_the_parts();
 	test_a_report_finding_offers_ask_follow_up();
+	test_an_updated_comment_moves_the_suggested_change();
 	test_a_threads_ask_menu_offers_ask_about_this();
 	test_the_column_opens_narrow_and_resizes_and_remembers();
 	std::cout << "item-side-chat-tests:pass\n";

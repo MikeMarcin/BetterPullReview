@@ -781,6 +781,18 @@ namespace bpr::app {
 		/// [[BPR-2231]]. What a report's keep action made, kept as the turn's
 		/// one state for the finding; the report says it.
 		void settle_report_finding(const core::report_finding_key& aKey, qt::agent_finding_card_state aState, const QString& aWhy, std::uint64_t aNote);
+		/// [[BPR-2376]]. A report finding's suggested comment was updated
+		/// from `aPrevious` to `aFinding.Comment`: the draft it made, still
+		/// what `aPrevious` drafted, takes the update; one the reviewer changed
+		/// is kept and the finding offers Update draft. \returns What the core
+		/// decided for it.
+		auto revise_finding_draft(const qt::report_draft& aFinding, const std::string& aPrevious) -> core::finding_draft_revision_kind;
+		/// [[BPR-2376]]. Update draft: the finding's draft takes its updated
+		/// comment, and whether it still differs (the offer).
+		void               update_finding_draft(const qt::report_draft& aFinding);
+		[[nodiscard]] auto finding_draft_outdated(const qt::report_draft& aFinding) const -> bool;
+		/// The findings whose changed draft was kept at an update.
+		std::vector<core::report_finding_key> OutdatedFindingDrafts;
 		/// Owner report 2026-11-10, after BPR-2052. The cards a stored
 		/// answer's findings block makes, each as the reviewer left it.
 		[[nodiscard]] auto restored_finding_cards(const std::string& aAnswer) const -> std::vector<qt::agent_restored_finding_card>;

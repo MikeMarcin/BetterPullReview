@@ -466,6 +466,94 @@ namespace bpr::core {
 	/// verdict, its summary and one line a finding with its place. Kept
 	/// local (no line takes it); empty when the report has no summary.
 	[[nodiscard]] auto report_summary_comment(const dressed_report& aReport) -> std::string;
+
+	/// \brief [[BPR-2376]] (owner: an accepted side-chat update changed a
+	/// finding's suggested comment, and the comment's new code suggestion,
+	/// but the finding's Suggested change and its draft kept the old
+	/// replacement lines). The replacement lines a comment suggests: those of
+	/// its first fenced block whose info string is `suggestion`, which is
+	/// what GitHub shows and applies as a Suggested change. None when it has
+	/// none.
+	/// \details A plain fenced block (```` ```cpp ````) is not a suggested
+	/// change: GitHub posts it as code, not as lines to apply, and the report
+	/// already shows such a fix as written in the comment ([[BPR-2352]]). A
+	/// comment whose change is only in a plain block suggests no lines.
+	[[nodiscard]] auto comment_suggestion_lines(std::string_view aComment) -> std::optional<std::vector<std::string>>;
+
+	/// \brief [[BPR-2376]]. A finding's suggested comment as a follow-up
+	/// updated it, by the finding's row in the report's menu.
+	struct report_revision
+	{
+		std::uint32_t Outline = 0U;
+		std::string   Comment;
+
+		auto operator<=>(const report_revision&) const = default;
+	};
+
+	/// \brief [[BPR-2376]]. The report as it shows once findings' suggested
+	/// comments were updated: a revised finding's Suggested change takes the
+	/// lines its comment now suggests (`comment_suggestion_lines`), the lines
+	/// it replaces kept; a finding whose comment no longer suggests lines
+	/// shows no Suggested change; one whose comment now suggests lines it did
+	/// not shows them after its other blocks, replacing the lines its quoted
+	/// code holds. Everything else is as `aReport` has it, so the findings
+	/// read from `aReport` (`report_findings`) still name the same items.
+	[[nodiscard]] auto revise_report(dressed_report aReport, const std::vector<report_revision>& aRevisions) -> dressed_report;
+
+	/// \brief [[BPR-2376]]. The body a finding's draft is made with from its
+	/// suggested comment: the label read into the label control, the words
+	/// as written (`read_agent_comment_suggestion`).
+	[[nodiscard]] auto finding_draft_body(std::string_view aComment) -> std::string;
+
+	/// \brief [[BPR-2376]]. What becomes of a finding's draft when its
+	/// suggested comment is updated.
+	enum class finding_draft_revision_kind : std::uint8_t {
+		/// No draft to change: none was made, or it is no longer being
+		/// written (published, being published, discarded).
+		none,
+		/// The draft is still what the earlier comment drafted: it takes the
+		/// updated comment.
+		replace,
+		/// The draft already says what the updated comment drafts.
+		current,
+		/// The reviewer changed the draft since it was made: it is left as it
+		/// is, and the finding offers Update draft.
+		edited,
+	};
+	inline constexpr std::size_t finding_draft_revision_kind_count = 4U;
+	static_assert(static_cast<std::size_t>(finding_draft_revision_kind::edited) + 1U == finding_draft_revision_kind_count, "finding_draft_revision_kind_count must cover every kind");
+	[[nodiscard]] auto stable_name(finding_draft_revision_kind aKind) noexcept -> std::string_view;
+
+	/// \brief What is known of a finding's draft when its comment changes.
+	struct finding_draft_revision_facts
+	{
+		/// A draft the finding made is still being written.
+		bool Drafting = false;
+		/// Its body now.
+		std::string_view Draft;
+		/// The comment it was drafted from, when known: the suggested comment
+		/// before this update. Without it the draft is never replaced, only
+		/// found current or edited.
+		std::optional<std::string_view> Previous;
+		/// The updated suggested comment.
+		std::string_view Revised;
+	};
+
+	/// \brief What the draft does, and the body it takes when it is
+	/// replaced or updated (`finding_draft_body` of the revised comment).
+	struct finding_draft_revision
+	{
+		finding_draft_revision_kind Kind = finding_draft_revision_kind::none;
+		std::string                 Body;
+
+		auto operator==(const finding_draft_revision&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-2376]]. A draft whose body is, apart from surrounding
+	/// whitespace, what the previous comment drafted is replaced; one already
+	/// at the revised body is current; anything else the reviewer wrote is
+	/// edited and kept. Never replaces a draft that is not being written.
+	[[nodiscard]] auto decide_finding_draft_revision(const finding_draft_revision_facts& aFacts) -> finding_draft_revision;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_REPORT_HPP
