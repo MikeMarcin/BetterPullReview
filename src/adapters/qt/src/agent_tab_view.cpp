@@ -93,6 +93,12 @@ namespace bpr::qt {
 		/// A reply card's side margins; its answer is this much narrower.
 		constexpr auto reply_left_margin  = 12;
 		constexpr auto reply_right_margin = 10;
+		/// Over a report's attachment row where it follows the answer, and
+		/// over its summary where that stands first: the donut and its
+		/// legend read on from the answer, so they stand nearer to it than
+		/// the bordered row does.
+		constexpr auto report_row_gap     = 9;
+		constexpr auto report_summary_gap = 5;
 		/// [[BPR-1924]]. The least room kept between the scope menu and the
 		/// agent picker when they share the tool row.
 		constexpr auto run_settings_gap = 12;
@@ -1654,20 +1660,18 @@ namespace bpr::qt {
 			auto* const card = new QWidget{ reply };
 			card->setObjectName(QStringLiteral("agentTurnReportCard"));
 			auto* const cardColumn = new QVBoxLayout{ card };
-			cardColumn->setContentsMargins(0, 9, 0, 0);
-			auto* const row = new report_attachment_row{ card };
-			row->setObjectName(QStringLiteral("agentTurnReportOpen"));
+			cardColumn->setContentsMargins(0, report_row_gap, 0, 0);
+			// The summary keeps its own room over the row: the style's
+			// spacing differs by platform and by which control stands first.
+			cardColumn->setSpacing(0);
 			const auto serial = aTurn.Serial;
-			connect(row, &QPushButton::clicked, this, [this, serial] {
-				const auto found = std::ranges::find(Turns, serial, &turn::Serial);
-				if (found != Turns.end()) {
-					open_report(static_cast<std::size_t>(std::distance(Turns.begin(), found)));
-				}
-			});
-			cardColumn->addWidget(row);
-			// [[BPR-2331]]. Under the attachment, the report's tally as a
-			// donut ([[BPR-2344]]); a slice or a legend row opens the report at
-			// the first it counts.
+			// [[BPR-2331]]. The report's tally as a donut ([[BPR-2344]]); a
+			// slice or a legend row opens the report at the first it counts.
+			// Owner, 2026-11-25: "I'm thinking that I want to move the report
+			// findings donut & counts above the attachment." It reads on from
+			// the summary, and the attachment closes the reply. Made before
+			// the row: Tab reaches the counts first, as they are read (the
+			// view puts its rows where its legend is in the focus order).
 			auto* const tally = new report_tally_view{ card };
 			tally->set_tones(tones());
 			tally->set_open([this, serial](const std::uint32_t aFirst) {
@@ -1676,7 +1680,16 @@ namespace bpr::qt {
 				}
 			});
 			cardColumn->addWidget(tally);
-			aTurn.Tally = tally;
+			aTurn.Tally     = tally;
+			auto* const row = new report_attachment_row{ card };
+			row->setObjectName(QStringLiteral("agentTurnReportOpen"));
+			connect(row, &QPushButton::clicked, this, [this, serial] {
+				const auto found = std::ranges::find(Turns, serial, &turn::Serial);
+				if (found != Turns.end()) {
+					open_report(static_cast<std::size_t>(std::distance(Turns.begin(), found)));
+				}
+			});
+			cardColumn->addWidget(row);
 			card->hide();
 			replyColumn->addWidget(card);
 			aTurn.ReportCard  = card;
@@ -3126,6 +3139,9 @@ namespace bpr::qt {
 		if (turn.Tally != nullptr) {
 			turn.Tally->set_counts(tally);
 		}
+		if (turn.ReportCard != nullptr && turn.ReportCard->layout() != nullptr) {
+			turn.ReportCard->layout()->setContentsMargins(0, tally.empty() ? report_row_gap : report_summary_gap, 0, 0);
+		}
 		refresh_draft_all(aTurn);
 	}
 
@@ -3151,11 +3167,15 @@ namespace bpr::qt {
 		}
 		QEvent request{ QEvent::LayoutRequest };
 		QCoreApplication::sendEvent(scroll, &request);
-		// Followed to the end, the conversation can stand past the
-		// attachment; it comes back to show it, with a little of what is
-		// above it.
-		auto* const bar = scroll->verticalScrollBar();
-		const auto  top = std::max(0, card->mapTo(scroll->widget(), QPoint{ }).y() - 12);
+		// Followed to the end, the conversation can stand past the report's
+		// summary and attachment; it comes back to show them, with a little
+		// of what is above. The attachment opens the report, so where the
+		// conversation is too short for both it is the one kept whole.
+		auto* const bar  = scroll->verticalScrollBar();
+		auto* const open = Turns[*at].ReportOpen.data();
+		const auto  both = std::max(0, card->mapTo(scroll->widget(), QPoint{ }).y() - 12);
+		const auto  end  = open != nullptr ? open->mapTo(scroll->widget(), QPoint{ 0, open->height() }).y() : 0;
+		const auto  top  = std::max(both, end + 12 - scroll->viewport()->height());
 		if (bar->value() > top) {
 			bar->setValue(top);
 		}
@@ -3420,6 +3440,11 @@ namespace bpr::qt {
 		settle_reply_footer(current);
 		if (succeeded && FindingsPresented != FindingsAtTurn) {
 			claim_findings(Turns.size() - 1U);
+		} else {
+			// A report that came whole while the turn ran, with no finding
+			// card: nothing shows the answer again at the end, so its
+			// summary is counted here, now that the turn has ended.
+			place_report_findings(Turns.size() - 1U);
 		}
 		// [[BPR-2331]]. Once the end's own growth is laid out.
 		QTimer::singleShot(0, this, [this, serial = current.Serial] { keep_report_in_view(serial); });

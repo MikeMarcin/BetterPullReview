@@ -110,8 +110,10 @@ namespace bpr::qt {
 	/// \brief [[BPR-2331]] (owner, 2026-11-20: "We can put a brief summary in
 	/// the agents tab below the report."), redrawn for [[BPR-2344]] (owner,
 	/// 2026-11-21: "let's do a pie chart instead of a vertical line for
-	/// report findings in the agents tab."). Under the attachment, a donut of
-	/// the report's counts and beside it their legend.
+	/// report findings in the agents tab."). A donut of the report's counts
+	/// and beside it their legend, over the report's attachment (owner,
+	/// 2026-11-25: "I'm thinking that I want to move the report findings
+	/// donut & counts above the attachment.").
 	/// \details The slices and the legend rows are in the report's order and
 	/// its tones. The legend's rows are measured from the current font; the
 	/// donut keeps its size where it has the room, and is smaller only where
@@ -122,6 +124,8 @@ namespace bpr::qt {
 	public:
 		/// Between the donut and its legend.
 		static constexpr int legend_gap = 12;
+		/// Under the summary, before the attachment row it stands over.
+		static constexpr int attachment_gap = 10;
 
 		explicit report_tally_view(QWidget* aParent = nullptr);
 		/// The rows go first: a row that loses focus tells the view, and the
@@ -179,7 +183,9 @@ namespace bpr::qt {
 		/// The width the summary needs with a ring of `aDiameter`.
 		[[nodiscard]] auto width_for(int aDiameter) const -> int;
 		/// The ring at its full size where the width holds it.
-		void                                      fit_ring();
+		void fit_ring();
+		/// The rows in the focus order where the summary stands.
+		void                                      order_rows();
 		std::vector<report_tally_row*>            Rows;
 		report_tally_pie*                         Pie    = nullptr;
 		QWidget*                                  Legend = nullptr;

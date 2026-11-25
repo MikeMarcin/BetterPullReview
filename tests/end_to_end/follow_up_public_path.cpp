@@ -384,7 +384,7 @@ auto main(int argc, char** argv) -> int
 		const auto shown = tab->turn_cards(before);
 		expect(shown.size() == 2U && std::ranges::all_of(shown, [](const QWidget* aCard) { return aCard->isHidden(); }), "the review's two findings are its report's, and no card shows in the Agent tab");
 		auto* const summary = tab->turn_report_tally(before);
-		expect(summary != nullptr && summary->isVisible() && !summary->rows().empty(), "the Agent tab shows the report's summary under its attachment");
+		expect(summary != nullptr && summary->isVisible() && !summary->rows().empty(), "the Agent tab shows the report's summary over its attachment");
 		auto* const openRow = tab->turn_report_card(before)->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"));
 		expect(openRow != nullptr, "the card has its Open report row");
 		openRow->click();

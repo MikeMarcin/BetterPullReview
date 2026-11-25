@@ -631,7 +631,7 @@ namespace bpr::qt {
 		/// menu row `aHeading` when it is not 0 ([[BPR-2331]]: a summary row).
 		void               open_report(std::size_t aTurn, std::uint32_t aHeading = 0U);
 		[[nodiscard]] auto turn_report_card(std::size_t aTurn) const -> QWidget*;
-		/// \brief [[BPR-2331]]. The report's summary under its attachment.
+		/// \brief [[BPR-2331]]. The report's summary, over its attachment.
 		[[nodiscard]] auto turn_report_tally(std::size_t aTurn) const -> report_tally_view*;
 		/// \brief [[BPR-2331]]. Whether turn `aTurn`'s report holds the finding
 		/// card `aCard` (an index into `finding_cards()`), so it is not shown.
@@ -1043,7 +1043,7 @@ namespace bpr::qt {
 			QPointer<QLabel>      ReportTitle;
 			QPointer<QLabel>      ReportMeta;
 			QPointer<QPushButton> ReportOpen;
-			/// [[BPR-2331]]. The report's summary under its attachment, and
+			/// [[BPR-2331]]. The report's summary over its attachment, and
 			/// whether the attachment shows.
 			QPointer<report_tally_view> Tally;
 			bool                        ReportShown = false;

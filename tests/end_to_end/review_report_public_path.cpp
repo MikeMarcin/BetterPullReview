@@ -14,6 +14,7 @@
 ///
 ///     review_report_public_path
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/agent_report.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_report_view.hpp"
@@ -33,18 +34,22 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QDir>
 #include <QElapsedTimer>
+#include <QGuiApplication>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QStyle>
 #include <QTemporaryDir>
 #include <QTextEdit>
 #include <QToolButton>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -81,6 +86,43 @@ namespace {
 		}
 		QApplication::processEvents();
 		static_cast<void>(aWidget.grab().save(root + QLatin1Char('/') + aName + QStringLiteral(".png")));
+	}
+
+	/// With `BPR_REVIEW_REPORT_LOOK` set to a folder, the review's turn in
+	/// the Agent tab is saved there as the application draws it, at each
+	/// drawer width from the narrowest: the reply, the drawer and the window.
+	///
+	/// \details This is the application's own window, composed as it ships,
+	/// in the theme its appearance setting follows, answered by the fixture
+	/// agent. The renders go to a directory named for the platform and style
+	/// that drew them; only `cocoa-macos`, made with the native look
+	/// (`native_look_startup.cpp`), is what the owner's window paints.
+	/// `QT_SCALE_FACTOR` is the scale in each file's name; the screen's own
+	/// ratio multiplies it.
+	void render_report_turn_look(qt::workbench_window& aWindow, const std::size_t aTurn, const QString& aRoot)
+	{
+		auto* const tab    = aWindow.agent_tab();
+		const auto  folder = QStringLiteral("%1/%2-%3").arg(aRoot, QGuiApplication::platformName(), QApplication::style()->name().toLower());
+		expect(QDir{ }.mkpath(folder), "the look's directory exists");
+		const auto scale  = QString::number(qRound(qEnvironmentVariable("QT_SCALE_FACTOR", QStringLiteral("1")).toDouble() * 100.0));
+		const auto scheme = aWindow.palette().color(QPalette::Window).lightness() < 128 ? QStringLiteral("dark") : QStringLiteral("light");
+		wait([&] { return tab->turn_report_tally(aTurn) != nullptr && tab->turn_report_tally(aTurn)->isVisible(); }, "the review shows its summary");
+		for (const auto width : { 280U, 320U, 360U, 420U, 640U }) {
+			// The drawer's width, as the host restores a stored one.
+			auto layout   = application::workbench_projection{ };
+			layout.Layout = application::workbench_layout_delta{ .FilesWidth = 260U, .ConversationsWidth = width };
+			aWindow.publish(layout);
+			static_cast<void>(e2e::wait_until_plain([] { return false; }, std::chrono::milliseconds{ 250 }));
+			tab->reveal_turn(aTurn);
+			QApplication::processEvents();
+			const auto stem = QStringLiteral("%1/%2-%3-%4-").arg(folder, scheme, scale).arg(width);
+			expect(tab->turn_reply(aTurn)->grab().save(stem + QStringLiteral("reply.png")), "the reply's render is saved");
+			expect(aWindow.conversations_drawer()->grab().save(stem + QStringLiteral("drawer.png")), "the drawer's render is saved");
+			if (width == 360U) {
+				expect(aWindow.grab().save(stem + QStringLiteral("window.png")), "the window's render is saved");
+			}
+		}
+		std::cout << "review-report-look: " << folder.toStdString() << ", " << scheme.toStdString() << ", device pixel ratio " << qApp->devicePixelRatio() << '\n';
 	}
 } // namespace
 
@@ -157,6 +199,14 @@ auto main(int argc, char** argv) -> int
 		const auto* const verdict = tab->turn_verdict(before);
 		expect(verdict != nullptr && verdict->isVisibleTo(tab) && verdict->text().contains(QStringLiteral("Needs changes")), "the verdict stands over the summary");
 		render(window, QStringLiteral("review-report-card"));
+		// A look's renders alone, for the owner: the rest of the course is
+		// not run.
+		if (const auto look = qEnvironmentVariable("BPR_REVIEW_REPORT_LOOK"); !look.isEmpty()) {
+			render_report_turn_look(window, before, look);
+			application->begin_shutdown();
+			wait([&] { return application->status().ShutdownComplete; }, "shutdown after the look");
+			return EXIT_SUCCESS;
+		}
 
 		// [[BPR-2258]]. Another file is on screen, so the issue's own file is
 		// not and Draft comment has to open it.
@@ -282,10 +332,18 @@ auto main(int argc, char** argv) -> int
 		};
 		expect(issue.Card == std::optional<std::size_t>{ 0U } && findings[1].Card == std::optional<std::size_t>{ 1U } && tab->turn_cards(before).size() == 2U, "the issue and the tonemap question are the answer's two finding cards");
 		// [[BPR-2331]]. The report holds both cards: the Agent tab shows its
-		// summary under the attachment and neither card. The cards still
+		// summary over the attachment and neither card. The cards still
 		// carry each finding's one state.
 		expect(std::ranges::all_of(tab->turn_cards(before), [](const QWidget* aCard) { return aCard->isHidden(); }) && tab->turn_report_tally(before) != nullptr && !tab->turn_report_tally(before)->isHidden() && !tab->turn_report_tally(before)->counts().empty(),
 			   "the Agent tab shows the report's summary, not its finding cards");
+		{
+			// Owner, 2026-11-25: "I'm thinking that I want to move the report
+			// findings donut & counts above the attachment."
+			const auto* const counts = tab->turn_report_tally(before);
+			const auto        end    = counts->mapTo(card, QPoint{ 0, counts->height() }).y();
+			const auto        top    = row->mapTo(card, QPoint{ }).y();
+			expect(row->isVisibleTo(tab) && end <= top, "the summary stands over the attachment: it ends at " + std::to_string(end) + ", the attachment starts at " + std::to_string(top));
+		}
 		wait([&] { return cardState(0U).startsWith(QStringLiteral("Drafted")); }, "the issue's card reads Drafted: " + cardState(0U).toStdString());
 		// And the other way round: the tonemap card's own Draft (the path
 		// the host's Draft all takes), and the report reads Drafted at that
