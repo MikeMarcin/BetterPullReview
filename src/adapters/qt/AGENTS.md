@@ -150,6 +150,16 @@ themes, rendering mechanics, and event translation.
   first turn that is whole. What a chat says of its session (carried over,
   cannot be picked up) is a quiet notice on the question field, never a line
   between the header and the transcript.
+- A card the next question waits on, or that reports the turn at the thread's
+  end, stands on the question field (`agent_tab_view::dock_banner`), not at
+  the head of a thread that keeps itself at its end: the card that asks which
+  revision to go on with, and the report of a run that stopped. Content of any
+  length on such a card (the stopped run's log) is bounded and scrolls inside
+  it, so the field and the card's choices stay in view. While a card asks for
+  a choice, everything that would send is held to it the same way: a typed
+  question is refused in place and a suggested prompt is greyed with what to
+  choose first as its tooltip (`agent_suggestion_list::set_usable`), never
+  left enabled to be refused after the press.
 - A `QPlainTextEdit` that wraps at its width can still be given a few pixels
   of sideways range (Qt measures a block it lays out again as its widest
   line and some room more), which shows a horizontal scroll bar under words

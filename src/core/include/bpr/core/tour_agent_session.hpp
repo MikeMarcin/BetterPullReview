@@ -679,6 +679,28 @@ namespace bpr::core {
 	[[nodiscard]] auto keep_thread_part(tour_proposal aProposal, const tour_thread& aThread) -> tour_proposal;
 	/// \brief [[BPR-1914]] v002. The ask turns of `aThread`, oldest first.
 	[[nodiscard]] auto thread_runs(const tour_agent_session& aSession, const tour_thread& aThread) -> std::vector<const tour_agent_run*>;
+	/// \brief The fresh run whose answer the next question of `aThread`'s chat
+	/// starts from, if one waits to be carried.
+	/// \details A fresh run is outside its chat's conversation: Draft Tour's
+	/// first draft, for the chat about the tour as a whole, and an Enhance,
+	/// for the chat of the part it rewrote. The agent the chat goes on with
+	/// never saw that answer, so the chat's next turn carries it as context.
+	/// Ask more asked for that by a button, on each proposed stop and on an
+	/// Enhance's suggestion; the owner, 2026-11-25, of the first: it "just
+	/// opens the whole tour chat, so that shouldn't even be on the draft
+	/// stops". The button is gone and what it did is the rule.
+	///
+	/// The newest answered fresh run of the thread is carried until a turn of
+	/// the chat's conversation after it was answered or runs: that turn took
+	/// it. A turn that failed or was stopped may not have, so the answer still
+	/// waits; a fresh run still running has no answer yet, and nothing older
+	/// is carried in its place. An Enhance is carried only while a part of
+	/// `aWaiting` it proposed still waits: accepted, its words are the
+	/// tour's, which every question is given; discarded, they are not wanted.
+	///
+	/// `aSession` holds the turns of the conversation the chat's next
+	/// question goes on with, and the fresh runs beside it.
+	[[nodiscard]] auto fresh_answer_to_carry(const tour_agent_session& aSession, const tour_thread& aThread, const std::optional<tour_proposal>& aWaiting) noexcept -> std::optional<tour_agent_run_id>;
 	/// \brief [[BPR-1925]]. The parts that have a chat, each once, in the
 	/// order of their first turn: what the Tour tab's badge counts.
 	[[nodiscard]] auto chat_threads(const tour_agent_session& aSession) -> std::vector<tour_thread>;

@@ -15380,11 +15380,21 @@ namespace {
 			chosen.push_back(aChoice);
 			return take;
 		});
-		auto       generation = std::uint64_t{ 0U };
-		const auto refuse     = [&](const bool aRemembers) {
+		auto generation = std::uint64_t{ 0U };
+		// The reviewer asks again. A card that still waits on its choice
+		// holds a typed question back, so it is dismissed first, as its close
+		// button does.
+		const auto askAgain = [&] {
+			if (auto* const dismiss = agent->stopped_dismiss_button(); dismiss != nullptr && dismiss->isVisible()) {
+				dismiss->click();
+				process_events();
+			}
 			chat->composer()->setPlainText(QStringLiteral("Review this pull request"));
 			agent->ask_button()->click();
 			process_events();
+		};
+		const auto refuse = [&](const bool aRemembers, const std::string& aErrors = "fixture-agent: exit status 2") {
+			askAgain();
 			auto identity                 = application::agent_invocation_projection_identity{ };
 			identity.ApplicationSession   = core::application_session_id{ 1U };
 			identity.Session.Id           = core::agent_session_id{ 9U };
@@ -15398,7 +15408,7 @@ namespace {
 				result.PinnedConversation = core::offer_pinned_conversation({ .Pinned = [&] { auto pinned = binding; pinned.HeadOid = earlier; return pinned; }(), .Observed = binding, .Remembers = true });
 			} else {
 				result.Outcome       = application::agent_run_outcome::nonzero_exit;
-				result.StandardError = "fixture-agent: exit status 2";
+				result.StandardError = aErrors;
 			}
 			window.agent_panel()->finish(identity, result);
 			process_events();
@@ -15423,6 +15433,29 @@ namespace {
 			   "the card, on the question field, says which head the session read and that the message is kept: " + agent->banner_text().toStdString());
 		expect(std::ranges::none_of(agent->findChildren<QPushButton*>(), [](const QPushButton* aButton) { return aButton->isVisible() && aButton->text() == QStringLiteral("Resend"); }),
 			   "neither the card nor the refused turn offers a Resend that would be refused the same way");
+		// While the card waits on the choice nothing else is sent. A
+		// suggested prompt is a question sent by a press: each is greyed and
+		// says what to choose first, where it said what it would send. A
+		// question typed meanwhile stays in the field, which says why.
+		{
+			const auto prompts = agent->suggestion_buttons();
+			expect(!prompts.empty() && std::ranges::all_of(prompts, [](const QPushButton* aPrompt) {
+				return aPrompt->isVisible() && !aPrompt->isEnabled() && aPrompt->toolTip() == QStringLiteral("Choose Continue at 3333333 or New session first.") && aPrompt->accessibleDescription() == aPrompt->toolTip();
+			}),
+				   "the suggested prompts wait on the card's choice and say so: " + (prompts.empty() ? std::string{ "none shown" } : prompts.front()->toolTip().toStdString()));
+			const auto typedBefore = sends.size();
+			const auto turnsBefore = agent->turn_count();
+			agent->send_prompt(prompts.front()->property("agentPromptKey").toString());
+			process_events();
+			expect(sends.size() == typedBefore, "a prompt asked for by its name is not sent either");
+			chat->composer()->setPlainText(QStringLiteral("And is the shader still read?"));
+			agent->ask_button()->click();
+			process_events();
+			expect(sends.size() == typedBefore && agent->turn_count() == turnsBefore && agent->send_refusal_text() == QStringLiteral("Not sent. The pull request has moved on. Choose Continue or New session, then send.")
+					   && chat->composer()->toPlainText() == QStringLiteral("And is the shader still read?"),
+				   "a question typed while the card waits is not sent and stays in the field: " + agent->send_refusal_text().toStdString());
+			chat->composer()->clear();
+		}
 		if (const auto root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT"); !root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-pinned-conversation.png"), "PNG"), "render saved");
 		}
@@ -15440,24 +15473,93 @@ namespace {
 		process_events();
 		expect(chosen.size() == 2U && chosen.back() == core::agent_continuation::start_new_session && sends.size() == refusedBefore,
 			   "a choice the host does not take sends nothing");
+		// New session is History's New session: the host opens an empty
+		// session at the head under review and the tab shows it. The kept
+		// message is not sent under the transcript it was refused in; it is
+		// sent in the new session once the host says that is open.
 		take = true;
 		agent->banner_second_button()->click();
 		process_events();
-		expect(chosen.size() == 3U && chosen.back() == core::agent_continuation::start_new_session && sends.size() == refusedBefore + 1U && sends.back().Text == "Review this pull request",
-			   "New session goes to the host and resends the kept message");
+		expect(chosen.size() == 3U && chosen.back() == core::agent_continuation::start_new_session && sends.size() == refusedBefore && agent->keeps_message_for_new_session(),
+			   "New session goes to the host and sends nothing under the old transcript");
+		expect(!agent->banner()->isVisible() && std::ranges::all_of(agent->suggestion_buttons(), [](const QPushButton* aPrompt) { return aPrompt->isEnabled(); }), "the card that asked goes at the press, and the prompts with it are free again");
+		// The host could not open it: the session that asked is still shown,
+		// and its card comes back with the message kept.
+		agent->abandon_kept_message();
+		process_events();
+		expect(agent->banner()->isVisible() && agent->banner_docked() && agent->banner_second_button()->isVisible() && agent->banner_second_button()->text() == QStringLiteral("New session") && !agent->keeps_message_for_new_session()
+				   && sends.size() == refusedBefore,
+			   "a new session that could not be opened leaves the card and the message as they were");
+		agent->banner_second_button()->click();
+		process_events();
+		expect(chosen.size() == 4U && agent->keeps_message_for_new_session() && !agent->banner()->isVisible(), "and New session can be chosen again");
+		// The host shows the new session, which is empty, and says so.
+		agent->present_thread({ });
+		process_events();
+		expect(agent->turn_count() == 0U && sends.size() == refusedBefore && !agent->banner()->isVisible(), "the new session shows with no transcript and no card, before anything is sent");
+		agent->send_kept_message();
+		process_events();
+		expect(sends.size() == refusedBefore + 1U && sends.back().Text == "Review this pull request" && !agent->keeps_message_for_new_session(), "the kept message is sent in the new session");
+		agent->send_kept_message();
+		process_events();
+		expect(sends.size() == refusedBefore + 1U, "once");
 
 		// Owner, 2026-11-24: any other stopped run's Resend sends the kept
 		// message again, as the turn's own Resend does.
 		refuse(false);
 		expect(agent->state() == qt::agent_tab_state::stopped && agent->banner_first_button()->isVisible() && agent->banner_first_button()->text() == QStringLiteral("Resend"),
 			   "an ordinary failure's card offers Resend");
-		expect(!agent->banner_docked() && agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->isAncestorOf(agent->banner())
-				   && agent->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text().endsWith(QStringLiteral("stopped before answering")),
-			   "a report of what happened heads the thread again, with its own title");
+		// Owner, 2026-11-25, of the card that asks which revision: "it being
+		// at the top of the transcript is weird since we auto scroll to the
+		// bottom." The report of a run that stopped stands on the question
+		// field as well, under the stopped turn, which says why.
+		expect(agent->banner_docked() && !agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->isAncestorOf(agent->banner())
+				   && agent->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text().endsWith(QStringLiteral("stopped before answering")) && agent->banner_text() == QStringLiteral("Your message is kept."),
+			   "a run that stopped reports on the question field, with its own title, and leaves the reason to its turn: " + agent->banner_text().toStdString());
+		expect(std::ranges::all_of(agent->suggestion_buttons(), [](const QPushButton* aPrompt) { return aPrompt->isEnabled(); }), "a run that stopped for a reason of its own leaves the prompts to press");
+		{
+			// Show the log: what the run wrote, on the card under its two
+			// choices, which stay where they were.
+			auto* const log = agent->stopped_log();
+			expect(log != nullptr && !log->isVisible() && agent->banner_second_button()->text() == QStringLiteral("Show the log"), "the log is folded until it is asked for");
+			const auto resendAt = agent->banner_first_button()->mapTo(agent, QPoint{ 0, 0 });
+			agent->banner_second_button()->click();
+			process_events();
+			expect(log->isVisibleTo(agent) && log->toPlainText().contains(QStringLiteral("fixture-agent: exit status 2")) && agent->banner_second_button()->text() == QStringLiteral("Hide the log") && log->isReadOnly(),
+				   "Show the log shows what the agent wrote: " + log->toPlainText().toStdString());
+			expect(agent->banner_first_button()->isVisible() && agent->banner_first_button()->mapTo(agent, QPoint{ 0, 0 }).x() == resendAt.x() && agent->banner()->isAncestorOf(log)
+					   && log->mapTo(agent->banner(), QPoint{ 0, 0 }).y() > agent->banner_first_button()->mapTo(agent->banner(), QPoint{ 0, 0 }).y(),
+				   "Resend stays to press, over the log");
+			const auto line = log->fontMetrics().lineSpacing();
+			expect(log->height() <= qt::agent_tab_view::stopped_log_lines * line + 2 && log->verticalScrollBar()->maximum() == 0 && log->horizontalScrollBar()->maximum() == log->horizontalScrollBar()->minimum(),
+				   "a short log is as tall as its lines, and pans nowhere: " + std::to_string(log->height()));
+			agent->banner_second_button()->click();
+			process_events();
+			expect(!log->isVisible() && agent->banner_second_button()->text() == QStringLiteral("Show the log"), "Hide the log folds it");
+			// A long one, with a line no space breaks: bounded, scrolled
+			// inside the card, and wrapped where it must be.
+			auto errors = std::string{ };
+			for (auto index = 1; index <= 30; ++index) {
+				errors += "error line " + std::to_string(index) + " /a/path/with/no/space/in/it/that/is/longer/than/the/drawer/is/wide/at/its/narrowest/width/file-" + std::to_string(index) + ".cpp\n";
+			}
+			refuse(false, errors);
+			agent->banner_second_button()->click();
+			process_events();
+			expect(log->isVisibleTo(agent) && log->toPlainText().contains(QStringLiteral("error line 30")), "the long log shows");
+			expect(log->height() == qt::agent_tab_view::stopped_log_lines * line + 2 && log->verticalScrollBar()->maximum() > 0, "a long log is nine lines tall and scrolls inside the card: " + std::to_string(log->height()));
+			expect(log->horizontalScrollBar()->maximum() == log->horizontalScrollBar()->minimum() && !log->horizontalScrollBar()->isVisible() && agent->banner()->width() <= agent->width(),
+				   "a line with no space in it wraps: the card does not pan");
+			expect(agent->banner_first_button()->isVisible() && agent->banner_second_button()->isVisible() && window.side_chat()->composer()->isVisibleTo(&window), "Resend, Hide the log and the question field stay in view beside it");
+			if (const auto root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT"); !root.isEmpty()) {
+				expect(agent->grab().save(root + QStringLiteral("/agent-stopped-long-log.png"), "PNG"), "render saved");
+			}
+			agent->banner_second_button()->click();
+			process_events();
+		}
 		const auto beforeResend = sends.size();
 		agent->banner_first_button()->click();
 		process_events();
-		expect(sends.size() == beforeResend + 1U && sends.back().Text == "Review this pull request" && chosen.size() == 3U,
+		expect(sends.size() == beforeResend + 1U && sends.back().Text == "Review this pull request" && chosen.size() == 4U,
 			   "the card's Resend sends the kept message, not a start gesture");
 		const auto reconcileRow = agent->banner_reconcile_buttons();
 		expect(std::ranges::none_of(reconcileRow, [](const QPushButton* aButton) { return aButton->isVisible(); }), "an ordinary failure offers no reconcile");
@@ -15471,9 +15573,7 @@ namespace {
 			return true;
 		});
 		const auto stopMove = [&](const bool aConflicted) {
-			chat->composer()->setPlainText(QStringLiteral("Review this pull request"));
-			agent->ask_button()->click();
-			process_events();
+			askAgain();
 			auto identity                 = application::agent_invocation_projection_identity{ };
 			identity.ApplicationSession   = core::application_session_id{ 1U };
 			identity.Session.Id           = core::agent_session_id{ 9U };
@@ -15498,6 +15598,8 @@ namespace {
 		expect(agent->banner_first_button()->isVisible() && agent->banner_first_button()->text() == QStringLiteral("Continue at 3333333") && agent->banner_second_button()->isVisible()
 				   && agent->banner_second_button()->text() == QStringLiteral("New session") && agent->banner_docked(),
 			   "and Continue at the old head and New session after them, on the question field");
+		expect(std::ranges::all_of(agent->suggestion_buttons(), [](const QPushButton* aPrompt) { return !aPrompt->isEnabled() && aPrompt->toolTip() == QStringLiteral("Choose how to go on, on the card over the question field, first."); }),
+			   "with the ways to carry the work offered, the prompts say to choose on the card");
 		expect(std::ranges::all_of(reconcileRow, [](const QPushButton* aButton) { return qt::agent_run_control(*aButton); }), "each reconcile starts a run and wears the Agent accent");
 		if (const auto root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT"); !root.isEmpty()) {
 			// The card stands on the question field: in view as it is.

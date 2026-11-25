@@ -1773,6 +1773,9 @@ namespace bpr::app {
 			if (!local_tour_shown()) {
 				observe_tour_native_history(aThread, std::move(aChoice));
 			}
+			// A part's chat opens by this call: what its next question
+			// starts from is said as it does.
+			present_tour_carried_answer();
 		});
 		Window->tour_editor()->set_tour_ask_dispatch([this](const qt::tour_ask& aAsk) {
 			// [[BPR-2235]]. A prompt sent as offered keeps its name, as an
@@ -1857,12 +1860,6 @@ namespace bpr::app {
 					relocate_tour_proposal(aIndex);
 				}
 			});
-		Window->tour_editor()->set_tour_ask_more_dispatch([this](const core::tour_agent_run_id aRun) {
-			// A local draft's turns replay or resume their conversation; none is fresh.
-			if (!local_tour_shown()) {
-				ask_more_from(aRun);
-			}
-		});
 #endif
 		WorkbenchHost = std::make_unique<
 			application::workbench_application_host>(

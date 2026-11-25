@@ -3,6 +3,7 @@
 
 #include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
+#include "bpr/core/agent_turn.hpp"
 #include "bpr/core/prompt_macro.hpp"
 #include "bpr/core/quick_ask.hpp"
 #include "bpr/core/review_tour.hpp"
@@ -46,6 +47,15 @@ class QVBoxLayout;
 
 namespace bpr::qt {
 	class skill_completer;
+	/// \brief The fresh run whose answer a chat's next question starts from,
+	/// as the host tells the chat (`core::fresh_answer_to_carry` decides):
+	/// Draft Tour's first draft, for the chat about the tour as a whole, or an
+	/// Enhance whose suggestion still waits, for its part's chat.
+	enum class tour_carried_answer : std::uint8_t {
+		none,
+		draft,
+		enhance,
+	};
 	/// \brief [[BPR-1914]] v003. One question for the tour agent from a side
 	/// chat: the chat's part, the passage quoted with it, the words, and
 	/// whether it asks for the part rewritten from the chat ("Update this
@@ -186,10 +196,17 @@ namespace bpr::qt {
 		explicit tour_side_chat(QWidget* aParent = nullptr);
 		/// [[BPR-2014]]. Told after Accept on one stop's own proposed text, never Apply all.
 		void set_own_accept_dispatch(std::function<void(core::tour_stop_id, const std::string&)> aDispatch) { OwnAcceptDispatch = std::move(aDispatch); }
-		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12. Ask more on a fresh
-		/// Enhance's suggestion: this thread's next turn starts from it.
-		void set_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aDispatch) { AskMoreDispatch = std::move(aDispatch); }
-		void set_dispatch(ask_dispatch aAsk, std::function<void()> aStop, decide_dispatch aDecide);
+		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12, without its button. What
+		/// the open chat's next question starts from besides its own
+		/// conversation, said in one quiet line on the question field until
+		/// that question is asked. Ask more asked for this by a press, on
+		/// each stop Draft Tour proposed and on an Enhance's suggestion in the
+		/// chat it was already in; the owner, 2026-11-25, of the first: it
+		/// "just opens the whole tour chat". The host carries the answer
+		/// without being asked, and says so here.
+		void               present_carried_answer(tour_carried_answer aCarried);
+		[[nodiscard]] auto carried_answer_line() const noexcept -> QLabel* { return CarriedAnswer; }
+		void               set_dispatch(ask_dispatch aAsk, std::function<void()> aStop, decide_dispatch aDecide);
 		/// \brief RFC-BPR-0120. A local draft's checks: Plan a check… in the
 		/// whole-change conversation (the composer's words, or none), and its
 		/// plan and report cards' controls by turn. Unset, there is no check.
@@ -443,9 +460,17 @@ namespace bpr::qt {
 		QToolButton*                                                              ContinueOld            = nullptr;
 		QLabel*                                                                   RevisionStatus         = nullptr;
 		bool                                                                      RevisionChoiceRequired = false;
-		bool                                                                      HistoryLoading         = false;
-		void                                                                      rebuild();
-		void                                                                      changed();
+		/// The open session reads a revision other than the one under review,
+		/// whether or not Continue old revision was chosen: History's New
+		/// session opens one at the head under review, so core offers it even
+		/// in a chat nothing was asked in.
+		bool RevisionStale = false;
+		/// What the next question starts from, and the line that says so.
+		tour_carried_answer Carried        = tour_carried_answer::none;
+		QLabel*             CarriedAnswer  = nullptr;
+		bool                HistoryLoading = false;
+		void                rebuild();
+		void                changed();
 		/// [[BPR-1914]] v004. The file inline code in a chat is coloured as:
 		/// a stop's own file, or the language most of the tour's stops are in.
 		[[nodiscard]] auto inline_selector() const -> std::string;
@@ -462,6 +487,9 @@ namespace bpr::qt {
 		/// composer to edit or finish, as the core decides for the Agent tab.
 		void               choose_prompt(const QString& aPrompt, bool aEditFirst);
 		[[nodiscard]] auto prompts_usable() const -> bool;
+		/// Why no suggested prompt can be pressed now, as core decides: the
+		/// revision choice first, which the greyed prompts then say.
+		[[nodiscard]] auto prompt_block() const -> core::agent_suggestion_block;
 		/// [[BPR-1934]], RFC-BPR-0125. What the open chat offers now, as its
 		/// source decided it.
 		[[nodiscard]] auto prompt_offers() const -> core::chat_prompts;
@@ -485,7 +513,6 @@ namespace bpr::qt {
 		std::function<void()>                                                       StopDispatch;
 		decide_dispatch                                                             DecideDispatch;
 		std::function<void(core::tour_stop_id, const std::string&)>                 OwnAcceptDispatch;
-		std::function<void(core::tour_agent_run_id)>                                AskMoreDispatch;
 		std::function<void(const core::tour_thread&)>                               RevealDispatch;
 		std::function<void(bool)>                                                   VisibilityDispatch;
 		std::function<void()>                                                       ChangeObserver;

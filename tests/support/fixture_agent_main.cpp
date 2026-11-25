@@ -31,7 +31,8 @@
 // (Enhance, or Update this stop from this chat) a new explanation for that
 // stop, and in the whole tour's chat "Drop stop N" that removal and "Rewrite
 // stop N" a new explanation for that stop (one turn may ask both). Any other
-// tour turn changes nothing.
+// tour turn changes nothing. A turn whose request starts from a fresh run's
+// answer (Draft Tour's, or an Enhance's) says in its reply that it did.
 //
 // [[BPR-2370]]. A side chat round's answer says whether its working folder
 // holds the pull request's `src/engine/renderer.cpp`, the one file it looks for
@@ -312,7 +313,10 @@ namespace {
 	{
 		auto question = tour_question(aRequest);
 		std::erase_if(question, [](const char aChar) { return aChar == '\\' || aChar == '"'; });
-		return "Fixture agent: read your message (" + question + "). Nothing in the tour changes; nothing was spent.";
+		// The application puts a fresh run's answer before the chat's next
+		// question; a course reads here that this turn was given it.
+		const auto started = holds(aRequest, "Earlier, in a separate run, the agent answered this") ? " I started from the earlier answer." : "";
+		return "Fixture agent: read your message (" + question + "). Nothing in the tour changes; nothing was spent." + started;
 	}
 
 	/// The number `aText` starts with, or 0.

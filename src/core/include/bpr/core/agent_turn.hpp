@@ -211,6 +211,44 @@ namespace bpr::core {
 	/// they show beside it.
 	[[nodiscard]] auto decide_agent_suggestions(const agent_suggestion_facts& aFacts) noexcept -> agent_suggestions_verdict;
 
+	/// \brief What a chat knows when it shows its suggested prompts.
+	struct agent_suggestion_use_facts
+	{
+		/// A typed question could be sent now: a review is open, an agent is
+		/// set up and no turn runs.
+		bool Sendable = false;
+		/// The chat asks which revision to go on with: the card of a session
+		/// that read another head, before a question or after a refused one,
+		/// or a tour chat's notice of the same.
+		bool RevisionChoice = false;
+
+		auto operator<=>(const agent_suggestion_use_facts&) const = default;
+	};
+
+	/// \brief Why no suggested prompt can be pressed now.
+	enum class agent_suggestion_block : std::uint8_t {
+		/// One can.
+		none,
+		/// The revision choice comes first, and the prompts say so.
+		revision_choice,
+		/// No question can be sent now, for a reason the chat already shows.
+		unavailable,
+	};
+
+	[[nodiscard]] auto stable_name(agent_suggestion_block aBlock) noexcept -> std::string_view;
+
+	/// \brief Whether the suggested prompts can be pressed, or why not.
+	///
+	/// \details A suggested prompt is a question sent by a press, so it is
+	/// held to what a typed question is. While the chat asks which revision to
+	/// go on with nothing is sent: a typed question is refused and stays in
+	/// the field, and a prompt is greyed with that reason. Before this a
+	/// refused question left its card waiting on the choice beside prompts
+	/// that could still be pressed, each of which was refused the same way.
+	/// The revision choice is named first: it is the one block the reviewer
+	/// clears from the chat itself.
+	[[nodiscard]] auto decide_agent_suggestion_use(const agent_suggestion_use_facts& aFacts) noexcept -> agent_suggestion_block;
+
 	/// \brief [[BPR-1872]]. What the Agent tab knows when a suggested prompt
 	/// is pressed.
 	struct agent_suggestion_press_facts

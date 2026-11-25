@@ -141,6 +141,24 @@ namespace bpr::core {
 		}
 		return agent_suggestions_verdict::shown;
 	}
+	auto stable_name(const agent_suggestion_block aBlock) noexcept -> std::string_view
+	{
+		switch (aBlock) {
+		case agent_suggestion_block::none:            return "none";
+		case agent_suggestion_block::revision_choice: return "revision_choice";
+		case agent_suggestion_block::unavailable:     return "unavailable";
+		}
+		return { };
+	}
+
+	auto decide_agent_suggestion_use(const agent_suggestion_use_facts& aFacts) noexcept -> agent_suggestion_block
+	{
+		if (aFacts.RevisionChoice) {
+			return agent_suggestion_block::revision_choice;
+		}
+		return aFacts.Sendable ? agent_suggestion_block::none : agent_suggestion_block::unavailable;
+	}
+
 	auto stable_name(const agent_suggestion_press aPress) noexcept -> std::string_view
 	{
 		switch (aPress) {

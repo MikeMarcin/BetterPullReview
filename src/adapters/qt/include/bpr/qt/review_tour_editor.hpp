@@ -170,11 +170,6 @@ namespace bpr::qt {
 		/// Stop (a drafting run, from the control that started it), and one
 		/// proposed part's Accept, with the author's edit, or Discard.
 		void set_tour_session_dispatch(std::function<void()> aDraft, std::function<void()> aStop, std::function<void(std::size_t, core::tour_proposal_decision, const QString&)> aDecide, std::function<void(std::size_t)> aRelocate = { });
-		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12. Ask more on a fresh answer
-		/// in the tour's chat (a part's Enhance suggestion), by its run. A
-		/// part Draft Tour proposed has none (owner, 2026-11-25: it "just
-		/// opens the whole tour chat"); the tour's own chat toggle opens it.
-		void set_tour_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aAskMore);
 		/// \brief [[BPR-1900]]. The tour session and its proposal, as last
 		/// decided.
 		void present_tour_session(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal);

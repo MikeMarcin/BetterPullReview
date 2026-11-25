@@ -538,18 +538,16 @@ auto main(int argc, char** argv) -> int
 	expect(panel->proposal_editor(0)->toPlainText() == QStringLiteral("Edited by the author."), "an edit in a pending part survives");
 	// Owner, 2026-11-25, of Ask more on a part Draft Tour proposed: it "just
 	// opens the whole tour chat, so that shouldn't even be on the draft
-	// stops". A proposed part offers no Ask more, with or without a host
-	// that would take it; the tour's own chat toggle opens that chat.
+	// stops". A proposed part offers no Ask more; the tour's own chat toggle
+	// opens that chat, whose next question starts from the draft's answer.
 	{
-		auto askedMore = std::vector<core::tour_agent_run_id>{ };
-		editor.set_tour_ask_more_dispatch([&askedMore](const core::tour_agent_run_id aRun) { askedMore.push_back(aRun); });
 		editor.present_tour_session(session, std::nullopt);
 		editor.present_tour_session(session, proposal);
 		expect(editor.findChildren<QAbstractButton*>(QStringLiteral("tourProposalAskMore")).isEmpty(), "no Ask more on a part Draft Tour proposed");
 		for (const auto* const button : editor.findChildren<QAbstractButton*>()) {
 			expect(button->parentWidget() == nullptr || button->parentWidget()->objectName() != QStringLiteral("tourProposalItem") || button->text() != QStringLiteral("Ask more"), "no proposed part says Ask more");
 		}
-		expect(askedMore.empty() && panel->chat_button() != nullptr, "and the tour's own chat toggle is the way to its chat");
+		expect(panel->chat_button() != nullptr, "and the tour's own chat toggle is the way to its chat");
 		panel->proposal_editor(0)->setPlainText(QStringLiteral("Edited by the author."));
 	}
 	// The same day: "edit and discard have pretty standard pencil and trash

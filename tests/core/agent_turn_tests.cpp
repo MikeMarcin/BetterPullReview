@@ -214,6 +214,26 @@ namespace {
 		expect(core::stable_name(agent_suggestion_press::send_keeping_draft) == "send_keeping_draft" && core::stable_name(agent_suggestion_press::edit_after_draft) == "edit_after_draft",
 			   "the press's stable names");
 	}
+
+	// A suggested prompt is a question sent by a press: while the chat asks
+	// which revision to go on with it waits, as a typed question does.
+	void test_suggestion_use()
+	{
+		using core::agent_suggestion_block;
+		const auto decide = [](const bool aSendable, const bool aRevisionChoice) {
+			return core::decide_agent_suggestion_use(core::agent_suggestion_use_facts{ .Sendable = aSendable, .RevisionChoice = aRevisionChoice });
+		};
+		expect(decide(true, false) == agent_suggestion_block::none, "a question can be sent: a prompt can be pressed");
+		expect(decide(false, false) == agent_suggestion_block::unavailable, "no question can be sent: no prompt can be pressed");
+		// After a refused question the chat could still send (the host would
+		// refuse it again): the card's choice comes first all the same.
+		expect(decide(true, true) == agent_suggestion_block::revision_choice, "the revision choice waits: the prompts wait on it, though a question could leave");
+		expect(decide(false, true) == agent_suggestion_block::revision_choice, "and it is the reason said, before any other");
+		expect(decide({ }, { }) == agent_suggestion_block::unavailable, "with nothing known no prompt is offered");
+		expect(core::stable_name(agent_suggestion_block::none) == "none" && core::stable_name(agent_suggestion_block::revision_choice) == "revision_choice"
+				   && core::stable_name(agent_suggestion_block::unavailable) == "unavailable",
+			   "the block's stable names");
+	}
 } // namespace
 
 auto main() -> int
@@ -226,6 +246,7 @@ auto main() -> int
 	test_reloaded_turns_after_quit();
 	test_suggestions();
 	test_suggestion_press();
+	test_suggestion_use();
 	std::cout << "agent-turn-tests:pass\n";
 	return EXIT_SUCCESS;
 }

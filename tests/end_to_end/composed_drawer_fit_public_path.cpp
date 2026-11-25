@@ -21,21 +21,36 @@
 ///
 /// - Comments, with the pull request's threads;
 /// - the Agent tab ready, answered, with a review's report, with a turn
-///   running over a pending list, and, after the pull request's head moves,
-///   with the card of a transcript replay that read the earlier head and the
-///   card of a question refused because its session's workspace was not
-///   moved;
+///   running over a pending list, with the report of a run that stopped
+///   before answering and with that run's log shown, and, after the pull
+///   request's head moves, with the card of a transcript replay that read the
+///   earlier head, the card of a question refused because its session's
+///   workspace was not moved, and the new session that card's New session
+///   opens, with the refused question running in it and then answered;
 /// - the Tour tab with nothing drafted, while Draft Tour runs, with the
 ///   draft's proposal waiting (each proposed stop with its choices, before
 ///   any is applied), with a proposed text being edited, with Reset tour
 ///   asked and done, and with one proposed stop added while the other waits;
 /// - the Tour tab's route, a stop being written and its removal asked, and
 ///   its chat column: about a stop with nothing asked yet, answered, a turn
-///   running over a pending list, a suggested rewrite of the stop and that
-///   suggestion being edited; about the whole tour answered and with a
-///   proposed revision; that revision's parts waiting on the stops they
-///   change (a new explanation, read and edited, and a removal); and about a
-///   stop whose session read the earlier head.
+///   running over a pending list, a suggested rewrite of the stop, that
+///   suggestion being edited, and the stop's Enhance done outside the chat;
+///   about the whole tour as its own chat toggle opens it after Draft Tour,
+///   answered, and with a proposed revision; that revision's parts waiting on
+///   the stops they change (a new explanation, read and edited, and a
+///   removal); and about a stop whose session read the earlier head.
+///
+/// It also holds the drawer to what its cards promise. A suggested prompt
+/// waits, greyed, with what to choose first as its tooltip, while the card
+/// asks which revision to go on with, before a question and after a refused
+/// one, and a question typed meanwhile stays in the field. That card's New
+/// session opens an empty session at the head under review and sends the
+/// refused question there; the session it left keeps its transcript in
+/// History. A run that stopped reports on the question field with Resend and
+/// its log. The first question of the whole tour's chat after Draft Tour, and
+/// of a stop's chat after its Enhance, starts from that answer, and the chat
+/// says so until it is asked (the Fixture agent's reply says it was given the
+/// answer). A suggestion in a tour chat offers a pencil, a trash and Accept.
 ///
 /// A state is what the window shows between two gestures, not only where a
 /// flow ends. The owner, 2026-11-25, of the proposal Draft Tour leaves before
@@ -111,7 +126,10 @@
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_pending_list.hpp"
+#include "bpr/qt/agent_session_menu.hpp"
+#include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/chat_history_menu.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -1184,6 +1202,35 @@ auto main(int argc, char** argv) -> int
 		expect(tab->state() == qt::agent_tab_state::working, "the slow turn still ran while the drawer was dragged");
 		window->side_chat()->composer()->clear();
 		wait([&] { return quiet() && !tab->queue_list()->isVisible(); }, "the queued follow-ups go and are answered");
+		// A run that stops for a reason of its own: the agent's process ends
+		// before it answers. Its report stands on the question field, under
+		// the stopped turn, with Resend and Show the log; then the log shown.
+		{
+			const auto answered = tab->turn_count();
+			ask(QStringLiteral("FIXTURE_CRASH What happens when the agent stops early?"));
+			wait([&] { return quiet() && tab->state() == qt::agent_tab_state::stopped && tab->banner()->isVisibleTo(run.drawer()) && tab->banner_first_button()->isVisibleTo(run.drawer()); }, "the agent stops before answering and the tab says so");
+			auto* const log = tab->findChild<QWidget*>(QStringLiteral("agentStateLog"));
+			expect(tab->banner_first_button()->text() == QStringLiteral("Resend") && tab->banner_second_button()->text() == QStringLiteral("Show the log") && log != nullptr && !log->isVisibleTo(run.drawer()),
+				   "the stopped card offers Resend and Show the log: " + tab->banner_text().toStdString());
+			expect(tab->banner_docked(), "the stopped card stands on the question field, in view wherever the thread is scrolled");
+			expect(std::ranges::all_of(tab->suggestion_buttons(), [](const QPushButton* aPrompt) { return aPrompt->isEnabled(); }), "a run that stopped for a reason of its own leaves the suggested prompts to press");
+			run.Shown = tab->banner();
+			run.sweep_drawer("agent-stopped");
+			tab->banner_second_button()->click();
+			wait([&] { return log->isVisibleTo(run.drawer()) && tab->banner_second_button()->text() == QStringLiteral("Hide the log"); }, "Show the log shows what the agent wrote");
+			run.Shown = tab->banner();
+			run.sweep_drawer("agent-stopped-log");
+			run.Shown = nullptr;
+			expect(tab->banner_first_button()->isVisibleTo(run.drawer()) && tab->banner_first_button()->isEnabled(), "Resend stays to press beside the log");
+			tab->banner_second_button()->click();
+			wait([&] { return !log->isVisibleTo(run.drawer()); }, "Hide the log folds it again");
+			// The stopped turn deleted: its report goes with it.
+			auto* const remove = tab->turn_delete_button(tab->turn_count() - 1U);
+			expect(remove != nullptr && remove->isVisibleTo(run.drawer()), "the stopped turn offers Delete");
+			remove->click();
+			wait([&] { return tab->turn_count() == answered && !tab->banner()->isVisibleTo(run.drawer()); }, "the stopped turn is deleted and its report goes");
+			leave_no_keyboard_behind();
+		}
 
 		// ---- The Tour tab and its chat column --------------------------------
 		draft_tour(run);
@@ -1240,6 +1287,20 @@ auto main(int argc, char** argv) -> int
 		agentIsFree();
 		expect(chat->can_update() && chat->request_update(), "Update this stop from this chat is asked");
 		wait([&] { return asked(stop) == 5 && !tour_running(*panel) && chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAccept")) != nullptr; }, "the update proposes the stop's new explanation");
+		// The suggestion's choices as a proposed part's are in the tour: a
+		// pencil and a trash, named in their tooltips, and Accept in words at
+		// the row's right end. No Ask more: it opened the chat the card is in.
+		{
+			const auto* const accept = shown_button(*chat, QStringLiteral("tourSideChatAccept"));
+			const auto* const pencil = dynamic_cast<const qt::quiet_tool_button*>(shown_button(*chat, QStringLiteral("tourSideChatEdit")));
+			const auto* const trash  = dynamic_cast<const qt::quiet_tool_button*>(shown_button(*chat, QStringLiteral("tourSideChatDiscard")));
+			expect(accept != nullptr && accept->text() == QStringLiteral("Accept"), "the suggestion's Accept is in words");
+			expect(pencil != nullptr && pencil->text().isEmpty() && !pencil->icon().isNull() && pencil->accessibleName() == QStringLiteral("Edit text") && pencil->toolTip().startsWith(QStringLiteral("Edit text\n")), "Edit text is the pencil, named in its tooltip");
+			expect(trash != nullptr && trash->text().isEmpty() && !trash->icon().isNull() && trash->accessibleName() == QStringLiteral("Discard") && trash->toolTip().startsWith(QStringLiteral("Discard\n")), "Discard is the trash, named in its tooltip");
+			expect(shown_button(*chat, QStringLiteral("tourSideChatAskMore")) == nullptr, "the suggestion has no Ask more");
+			const auto at = [&](const QAbstractButton* const aButton) { return QRect{ aButton->mapTo(chat, QPoint{ 0, 0 }), aButton->size() }; };
+			expect(at(pencil).right() < at(trash).left() && at(trash).right() < at(accept).left() && at(pencil).center().y() > at(accept).top() && at(pencil).center().y() < at(accept).bottom(), "the pencil, the trash and Accept stand on one row, Accept at its right");
+		}
 		run.sweep_chat("tour-stop-chat-suggestion");
 		// Edit text on the suggestion: its source in a field on the card.
 		expect(shown_button(*chat, QStringLiteral("tourSideChatEdit")) != nullptr, "the suggestion offers Edit text");
@@ -1257,11 +1318,40 @@ auto main(int argc, char** argv) -> int
 			return shown_button(*chat, QStringLiteral("tourSideChatEdit")) != nullptr && std::ranges::none_of(texts, [&](const QPlainTextEdit* aText) { return aText->isVisibleTo(chat); });
 		},
 			 "and shows as it will read again");
-		// The whole tour's chat: an answer, then a proposed revision.
-		editor->open_side_chat(whole);
-		wait([&] { return chat->current() == std::optional{ whole }; }, "the whole tour's chat opens");
+		const auto replied = [&](const core::tour_thread& aThread) {
+			const auto& runs  = panel->session().Runs;
+			const auto  found = std::ranges::find_if(runs.rbegin(), runs.rend(), [&](const core::tour_agent_run& aRun) { return aRun.Request == core::tour_agent_request::ask && aRun.Thread == aThread; });
+			return found != runs.rend() ? found->Reply : std::string{ };
+		};
+		const auto carried = [&] {
+			const auto* const line = chat->findChild<QLabel*>(QStringLiteral("tourCarriedAnswer"));
+			return line != nullptr && line->isVisibleTo(chat) ? line->text() : QString{ };
+		};
+		// Enhance on the stop: a fresh run, outside the chat's conversation.
+		// Its suggestion waits on the stop, and the chat's next question
+		// starts from it without a button to ask for that.
+		agentIsFree();
+		expect(shown_button(*run.drawer(), QStringLiteral("tourProposalAccept")) == nullptr, "nothing waits on the stop's card before its Enhance");
+		expect(chat->enhance(stop, std::nullopt), "Enhance is asked of the stop");
+		wait([&] { return shown_button(*run.drawer(), QStringLiteral("tourProposalAccept")) != nullptr; }, "the Enhance's suggestion waits on the stop's card");
+		agentIsFree();
+		expect(carried() == QStringLiteral("Your next question starts from the Enhance suggestion."), "the chat says its next question starts from the Enhance's suggestion: " + carried().toStdString());
+		run.sweep_chat("tour-stop-chat-enhanced");
+		sends(QStringLiteral("Why is that wording better?"));
+		wait([&] { return asked(stop) == 6 && !tour_running(*panel); }, "the question after the Enhance is answered");
+		expect(replied(stop).find("I started from the earlier answer") != std::string::npos, "the question after the Enhance carried the Enhance's answer: " + replied(stop));
+		expect(carried().isEmpty(), "and once it is carried the chat says no more of it: " + carried().toStdString());
+		// The whole tour's chat, opened by the tour's own chat toggle: nothing
+		// asked yet, and its first question starts from Draft Tour's answer.
+		expect(panel->chat_button() != nullptr && panel->chat_button()->isVisibleTo(run.drawer()), "the tour shows its own chat toggle");
+		panel->chat_button()->click();
+		wait([&] { return chat->isVisibleTo(run.drawer()) && chat->current() == std::optional{ whole }; }, "the tour's chat toggle opens the whole tour's chat");
+		expect(carried() == QStringLiteral("Your next question starts from the draft's answer."), "the whole tour's chat says its next question starts from the draft's answer: " + carried().toStdString());
+		run.sweep_chat("tour-whole-chat-new");
 		sends(QStringLiteral("Is the tour in a good order?"));
 		wait([&] { return asked(whole) == 1 && !tour_running(*panel); }, "the whole tour's question is answered");
+		expect(replied(whole).find("I started from the earlier answer") != std::string::npos, "the whole tour's first question carried Draft Tour's answer: " + replied(whole));
+		expect(carried().isEmpty(), "and once it is carried the chat says no more of it: " + carried().toStdString());
 		run.sweep_chat("tour-whole-chat-answered");
 		sends(QStringLiteral("Rewrite stop 1 and Drop stop 2"));
 		wait([&] { return asked(whole) == 2 && !tour_running(*panel); }, "the whole tour's revision is proposed");
@@ -1357,6 +1447,14 @@ auto main(int argc, char** argv) -> int
 		expect(tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead, "the card offers to continue at the head it read: " + tab->banner_first_button()->text().toStdString());
 		expect(mode()->isVisibleTo(tab) && mode()->text() == QStringLiteral("Carried over from a saved transcript. Fixture agent has the questions and answers, not what the earlier agent read."),
 			   "the carried-over session says so on the question field, naming the agent: " + mode()->text().toStdString());
+		// While the card asks which revision to go on with, no suggested
+		// prompt can be pressed, and each says what to choose first.
+		const auto promptsWait = [&](const QString& aWhy) {
+			const auto prompts = tab->suggestion_buttons();
+			return !prompts.empty() && std::ranges::all_of(prompts, [&](const QPushButton* aPrompt) { return aPrompt->isVisibleTo(run.drawer()) && !aPrompt->isEnabled() && aPrompt->toolTip() == aWhy; });
+		};
+		expect(promptsWait(QStringLiteral("Choose Continue at %1 or New session first.").arg(earlierHead)),
+			   "the suggested prompts wait on the card's choice and say so: " + (tab->suggestion_buttons().empty() ? std::string{ "none shown" } : tab->suggestion_buttons().front()->toolTip().toStdString()));
 		run.Shown = tab->banner();
 		run.sweep_drawer("agent-pinned-offered");
 		// The session with a checkout follows the head on its next question.
@@ -1381,8 +1479,47 @@ auto main(int argc, char** argv) -> int
 		// A session that goes on in the ordinary way says nothing of it; the
 		// one before it said that it was carried over.
 		expect(mode()->isHidden() && mode()->text().isEmpty(), "the refused session, which was not carried over, has no notice: " + mode()->text().toStdString());
+		// The card waits here too, so the prompts do.
+		expect(promptsWait(QStringLiteral("Choose Continue at %1 or New session first.").arg(earlierHead)),
+			   "after a refused question the suggested prompts wait on the card's choice too: " + (tab->suggestion_buttons().empty() ? std::string{ "none shown" } : tab->suggestion_buttons().front()->toolTip().toStdString()));
 		run.sweep_drawer("agent-pinned-refused");
-		run.Shown = nullptr;
+		// And a question typed meanwhile is not sent: it stays in the field,
+		// which says why.
+		{
+			const auto turns = tab->turn_count();
+			window->side_chat()->composer()->setPlainText(QStringLiteral("And is the shader still read?"));
+			tab->ask_button()->click();
+			settle_for(400);
+			expect(tab->turn_count() == turns && tab->state() == qt::agent_tab_state::stopped && tab->send_refusal_text() == QStringLiteral("Not sent. The pull request has moved on. Choose Continue or New session, then send.")
+					   && window->side_chat()->composer()->toPlainText() == QStringLiteral("And is the shader still read?"),
+				   "a question typed while the card waits is not sent and stays in the field: " + tab->send_refusal_text().toStdString());
+			run.sweep_drawer("agent-pinned-refused-typed");
+			window->side_chat()->composer()->clear();
+		}
+		// New session on the card: an empty session at the head under review,
+		// shown at once, and the kept message sent there. Not the old
+		// transcript with one more turn under it.
+		{
+			const auto refusedTurns = tab->turn_count();
+			expect(refusedTurns > 1U, "the refused session has a transcript to leave behind");
+			run.hold_turns();
+			tab->banner_second_button()->click();
+			wait([&] { return tab->state() == qt::agent_tab_state::working && tab->turn_count() == 1U; }, "New session sends the kept message");
+			expect(tab->turn_question(0U) == QStringLiteral("What changed in this push?"), "the new session's first turn is the kept message: " + tab->turn_question(0U).toStdString());
+			expect(tab->session_menu()->selected() != seeded && !tab->session_menu()->selected().empty(), "History's tick is on the new session");
+			expect(!window->side_chat()->head_oid_text().contains(earlierHead), "the new session reads the head under review: " + window->side_chat()->head_oid_text().toStdString());
+			expect(!tab->banner()->isVisibleTo(run.drawer()), "and the card that asked is gone");
+			run.Shown = nullptr;
+			run.sweep_drawer("agent-new-session-kept-sent");
+			expect(tab->state() == qt::agent_tab_state::working, "the kept message's turn still ran while the drawer was dragged");
+			run.release_turns();
+			wait([&] { return quiet(); }, "the kept message's turn ends");
+			expect(tab->state() == qt::agent_tab_state::idle && tab->turn_count() == 1U && tab->turn_answer(0U).contains(QStringLiteral("Fixture answer")), "the kept message is answered in the new session: " + tab->turn_answer(0U).toStdString());
+			run.sweep_drawer("agent-new-session-answered");
+			// The session left behind is in History with its turns.
+			open(seeded);
+			expect(tab->turn_count() >= 2U, "the session left behind keeps its transcript in History");
+		}
 		// The stop's chat, whose session read the earlier head.
 		window->open_review_tour();
 		editor->go_to_stop(stop.Stop);
@@ -1394,6 +1531,7 @@ auto main(int argc, char** argv) -> int
 			return old != nullptr && old->isVisibleTo(chat) && !chat->history_button()->property("loading").toBool();
 		},
 			 "the stop's chat says its session read the earlier head");
+		expect(chat->new_session_action()->isEnabled(), "History offers New session in a chat that read the earlier head");
 		run.sweep_chat("tour-stop-chat-head-moved");
 
 		const auto reached = std::vector<std::string>{ "comments",
@@ -1404,6 +1542,8 @@ auto main(int argc, char** argv) -> int
 													   "agent-finding-cards-open",
 													   "agent-finding-card-dismissed",
 													   "agent-queue",
+													   "agent-stopped",
+													   "agent-stopped-log",
 													   "tour-empty",
 													   "tour-drafting",
 													   "tour-proposal",
@@ -1419,6 +1559,8 @@ auto main(int argc, char** argv) -> int
 													   "tour-stop-chat-queue",
 													   "tour-stop-chat-suggestion",
 													   "tour-stop-chat-suggestion-editing",
+													   "tour-stop-chat-enhanced",
+													   "tour-whole-chat-new",
 													   "tour-whole-chat-answered",
 													   "tour-whole-chat-revision",
 													   "tour-revision-text-on-stop",
@@ -1426,6 +1568,9 @@ auto main(int argc, char** argv) -> int
 													   "tour-revision-removal-on-stop",
 													   "agent-pinned-offered",
 													   "agent-pinned-refused",
+													   "agent-pinned-refused-typed",
+													   "agent-new-session-kept-sent",
+													   "agent-new-session-answered",
 													   "tour-stop-chat-head-moved" };
 		expect(run.States == reached, "every state of the course is reached, in order (" + std::to_string(run.States.size()) + " of " + std::to_string(reached.size()) + ")");
 		expect(run.EdgesDrawn > 0U, "the course judged a chat's transcript off its start, with its edge drawn");

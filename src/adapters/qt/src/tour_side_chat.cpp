@@ -1,6 +1,7 @@
 #include "bpr/qt/tour_side_chat.hpp"
 
 #include "composer_parts.hpp"
+#include "conversation_glyphs.hpp"
 #include "pull_request_overview_support.hpp"
 #include "side_chat_parts.hpp"
 #include "wrapping_row.hpp"
@@ -297,11 +298,16 @@ namespace bpr::qt {
 		HistoryMenu->set_state_source([this] {
 			const auto thread = current();
 			return chat_history_menu::chat_state{
-				.AgentReady  = Ready,
-				.Closed      = !(thread && (!Draft || core::active_tour_thread(*Draft, *thread))),
-				.Running     = Running,
-				.Busy        = !HostIdle,
-				.ShownTurns  = thread ? core::thread_runs(Session, *thread).size() : 0U,
+				.AgentReady = Ready,
+				.Closed     = !(thread && (!Draft || core::active_tour_thread(*Draft, *thread))),
+				.Running    = Running,
+				.Busy       = !HostIdle,
+				.ShownTurns = thread ? core::thread_runs(Session, *thread).size() : 0U,
+				// Its session read an earlier head: never the new session,
+				// asked in or not. Without this a chat nothing was asked in
+				// kept New session greyed after the pull request moved, with
+				// "Choose New session in History" written under it.
+				.Pinned      = RevisionStale,
 				.EveryRun    = false,
 				.ResetAgents = false,
 				.Agent       = AgentName,
@@ -373,6 +379,13 @@ namespace bpr::qt {
 		ContinueOld->setToolTip(tr("Keep this chat's saved revision and workspace. No question is sent until you press Send."));
 		ContinueOld->hide();
 		noticeBox->addWidget(ContinueOld, 0, Qt::AlignLeft);
+		// What the next question starts from besides the chat's own turns.
+		CarriedAnswer = quiet(small(new QLabel{ Notice }));
+		CarriedAnswer->setObjectName(QStringLiteral("tourCarriedAnswer"));
+		CarriedAnswer->setTextFormat(Qt::PlainText);
+		CarriedAnswer->setWordWrap(true);
+		CarriedAnswer->hide();
+		noticeBox->addWidget(CarriedAnswer);
 		Notice->hide();
 		column->addWidget(Notice);
 		connect(ContinueOld, &QToolButton::clicked, this, [this] {
@@ -567,6 +580,8 @@ namespace bpr::qt {
 		}
 		if (Current != aIndex) {
 			Current = aIndex;
+			// What another part's chat starts from is the host's to say.
+			Carried = tour_carried_answer::none;
 			Edited.clear();
 			Editing.clear();
 			// Another chat opens at its end.
@@ -747,6 +762,7 @@ namespace bpr::qt {
 	void tour_side_chat::present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, const core::git_commit_oid aObservedHead, const bool aContinued)
 	{
 		const auto stale       = aOffer && aOffer->Required;
+		RevisionStale          = stale;
 		RevisionChoiceRequired = stale && !aContinued;
 		ContinueOld->setVisible(RevisionChoiceRequired);
 		RevisionStatus->setVisible(stale);
@@ -866,7 +882,26 @@ namespace bpr::qt {
 		rebuild();
 	}
 
-	auto tour_side_chat::prompts_usable() const -> bool { return Ready && !HistoryLoading && current() && (!Draft || core::active_tour_thread(*Draft, *current())) && !Mine && (!Running || takes_feedback()); }
+	auto tour_side_chat::prompt_block() const -> core::agent_suggestion_block
+	{
+		// A prompt is a question sent by a press: while the chat asks which
+		// revision to go on with, Send is refused and so is a prompt.
+		return core::decide_agent_suggestion_use({
+			.Sendable       = Ready && !HistoryLoading && current() && (!Draft || core::active_tour_thread(*Draft, *current())) && !Mine && (!Running || takes_feedback()),
+			.RevisionChoice = RevisionChoiceRequired,
+		});
+	}
+
+	auto tour_side_chat::prompts_usable() const -> bool { return prompt_block() == core::agent_suggestion_block::none; }
+
+	void tour_side_chat::present_carried_answer(const tour_carried_answer aCarried)
+	{
+		if (Carried == aCarried) {
+			return;
+		}
+		Carried = aCarried;
+		refresh_actions();
+	}
 
 	void tour_side_chat::choose_prompt(const QString& aPrompt, const bool aEditFirst)
 	{
@@ -1271,7 +1306,15 @@ namespace bpr::qt {
 		if (checks) {
 			wear_agent_accent(*PlanCheck, palette());
 		}
-		Notice->setVisible(!SessionNotice->isHidden() || !RevisionStatus->isHidden());
+		// Said only where a question can be asked: the line is about the
+		// next one.
+		const auto carries = active && Carried != tour_carried_answer::none;
+		CarriedAnswer->setText(!carries ? QString{ } : Carried == tour_carried_answer::draft ? tr("Your next question starts from the draft's answer.")
+																							 : tr("Your next question starts from the Enhance suggestion."));
+		CarriedAnswer->setToolTip(!carries ? QString{ } : Carried == tour_carried_answer::draft ? tr("Draft Tour ran outside this chat. What it proposed goes to the agent with your next question here, so the chat goes on from it.")
+																								: tr("Enhance ran outside this chat. Its suggestion goes to the agent with your next question here, so the chat goes on from it."));
+		CarriedAnswer->setVisible(carries);
+		Notice->setVisible(!SessionNotice->isHidden() || !RevisionStatus->isHidden() || !CarriedAnswer->isHidden());
 		refresh_unchanged_line();
 		// [[BPR-1930]]. The tour's chat is for feedback on its shape too.
 		Composer->setPlaceholderText(!thread                                            ? QString{ }
@@ -1368,7 +1411,8 @@ namespace bpr::qt {
 		Suggestions->present(std::move(chips), std::move(more));
 		Suggestions->lead()->setVisible(thread && core::thread_runs(Session, *thread).empty());
 		Suggestions->setVisible(Ready && any);
-		Suggestions->set_usable(prompts_usable());
+		const auto block = prompt_block();
+		Suggestions->set_usable(block == core::agent_suggestion_block::none, block == core::agent_suggestion_block::revision_choice ? tr("Choose New session in History or Continue old revision first.") : QString{ });
 	}
 
 	void tour_side_chat::send(const QString& aQuestion, const bool aUpdate, std::optional<core::tour_passage> aUpdatePassage)
@@ -2211,7 +2255,27 @@ namespace bpr::qt {
 					editor->setVisible(editing);
 					lines->addWidget(editor);
 					connect(editor, &QPlainTextEdit::textChanged, this, [this, index, editor] { Edited[index] = editor->toPlainText(); });
+					// The card's choices as a part's are in the tour, on one
+					// row: a pencil and a trash, the comments' own glyphs, and
+					// at the right the one worded action. Edit text, Discard
+					// and Ask more were worded buttons here, which wrapped to
+					// two rows in a narrow column beside the tour's icons for
+					// the same two choices.
 					auto* const buttons = new detail::wrapping_row{ nullptr, 6, 6 };
+					buttons->set_last_trails(true);
+					const auto tool = [card](const conversation_glyph aGlyph, const QString& aName) {
+						auto* const made = new quiet_tool_button{ card };
+						made->setObjectName(aName);
+						made->set_tinted(true);
+						made->setIcon(conversation_icon(aGlyph, card->palette()));
+						made->setIconSize(QSize{ 16, 16 });
+						made->setToolButtonStyle(Qt::ToolButtonIconOnly);
+						made->setAutoRaise(true);
+						made->setCursor(Qt::ArrowCursor);
+						// No choice takes the keyboard on a press; Tab reaches each.
+						made->setFocusPolicy(Qt::TabFocus);
+						return made;
+					};
 					// The same words and look as the part's button in the tour:
 					// Accept only on a stop's own text, which accepts the stop.
 					auto* const accept = make_tour_action(tour_proposal_apply_words(item.Part), card);
@@ -2223,29 +2287,26 @@ namespace bpr::qt {
 					if (tour_proposal_accepts_stop(item.Part)) {
 						wear_stop_accept(*accept);
 					}
-					auto* const edit = make_tour_action(editing ? tr("Show formatted") : tr("Edit text"), card);
-					edit->setObjectName(QStringLiteral("tourSideChatEdit"));
-					edit->setFocusPolicy(Qt::TabFocus);
-					auto* const discard = make_tour_action(tr("Discard"), card);
-					discard->setObjectName(QStringLiteral("tourSideChatDiscard"));
-					discard->setFocusPolicy(Qt::TabFocus);
-					buttons->addWidget(accept);
+					// The pencil is down while the source shows, and says which
+					// way it goes next. An icon only: its tooltip starts with
+					// its name, which is its accessible name.
+					auto* const edit = tool(conversation_glyph::edit, QStringLiteral("tourSideChatEdit"));
+					edit->setCheckable(true);
+					edit->setChecked(editing);
+					edit->setAccessibleName(editing ? tr("Show formatted") : tr("Edit text"));
+					edit->setAccessibleDescription(editing ? tr("Shows this text as it will read.") : tr("Shows this text's Markdown source, which you can change before you apply it."));
+					edit->setToolTip(edit->accessibleName() + QStringLiteral("\n") + edit->accessibleDescription());
+					auto* const discard = tool(conversation_glyph::trash, QStringLiteral("tourSideChatDiscard"));
+					discard->setAccessibleName(tr("Discard"));
+					discard->setAccessibleDescription(tr("Discards this suggestion. The tour is unchanged."));
+					discard->setToolTip(tr("Discard") + QStringLiteral("\n") + discard->accessibleDescription());
+					// No Ask more: on an Enhance's suggestion it opened the chat
+					// this card is in. What it also did, starting the chat's
+					// next question from the suggestion, happens without it
+					// and is said on the question field.
 					buttons->addWidget(edit);
 					buttons->addWidget(discard);
-					// [[BPR-2138]], RFC-BPR-0101 AC12. An Enhance is a fresh
-					// run; Ask more continues from its suggestion in this chat.
-					if (run->Fresh && AskMoreDispatch) {
-						auto* const more = make_tour_action(tr("Ask more"), card);
-						more->setObjectName(QStringLiteral("tourSideChatAskMore"));
-						more->setFocusPolicy(Qt::TabFocus);
-						more->setToolTip(tr("Ask about this suggestion here. Your next message starts from it, and the chat keeps the conversation."));
-						connect(more, &QPushButton::clicked, this, [this, made = run->Id] {
-							if (AskMoreDispatch) {
-								AskMoreDispatch(made);
-							}
-						});
-						buttons->addWidget(more);
-					}
+					buttons->addWidget(accept);
 					lines->addLayout(buttons);
 					Accepts[index] = accept;
 					// [[BPR-2000]]. Accept applies; it starts no run.
@@ -2258,12 +2319,12 @@ namespace bpr::qt {
 							}
 						}
 					});
-					connect(discard, &QPushButton::clicked, this, [this, index] {
+					connect(discard, &QToolButton::clicked, this, [this, index] {
 						if (DecideDispatch) {
 							DecideDispatch(index, core::tour_proposal_decision::discarded, { });
 						}
 					});
-					connect(edit, &QPushButton::clicked, this, [this, index] {
+					connect(edit, &QToolButton::clicked, this, [this, index] {
 						if (!Editing.insert(index).second) {
 							Editing.erase(index);
 						}

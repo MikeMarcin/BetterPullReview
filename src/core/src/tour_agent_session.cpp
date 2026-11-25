@@ -1224,6 +1224,27 @@ namespace bpr::core {
 		return runs;
 	}
 
+	auto fresh_answer_to_carry(const tour_agent_session& aSession, const tour_thread& aThread, const std::optional<tour_proposal>& aWaiting) noexcept -> std::optional<tour_agent_run_id>
+	{
+		const auto waits = [&aWaiting](const tour_agent_run_id aRun) {
+			return aWaiting && std::ranges::any_of(aWaiting->Items, [aRun](const tour_proposal_item& aItem) { return aItem.Run == aRun && aItem.Decision == tour_proposal_decision::pending; });
+		};
+		for (auto run = aSession.Runs.rbegin(); run != aSession.Runs.rend(); ++run) {
+			const auto draft = run->Request == tour_agent_request::draft_tour && aThread.Kind == tour_thread_kind::tour;
+			if (!draft && !(run->Request == tour_agent_request::ask && run->Thread == aThread)) {
+				continue;
+			}
+			const auto fresh = draft || run->Fresh;
+			if (run->State == tour_agent_run_state::running || (run->State == tour_agent_run_state::answered && !fresh)) {
+				return std::nullopt;
+			}
+			if (run->State == tour_agent_run_state::answered) {
+				return draft || waits(run->Id) ? std::optional{ run->Id } : std::nullopt;
+			}
+		}
+		return std::nullopt;
+	}
+
 	auto chat_threads(const tour_agent_session& aSession) -> std::vector<tour_thread>
 	{
 		auto threads = std::vector<tour_thread>{ };

@@ -66,8 +66,11 @@ namespace bpr::qt {
 		/// updated in place.
 		void present(std::vector<agent_suggestion> aChips, std::vector<agent_suggestion> aMore = { });
 		/// \brief Whether a choice can be made now; the chips show disabled
-		/// while it cannot.
-		void set_usable(bool aUsable);
+		/// while it cannot. `aWhyNot`, when given, is what must happen first,
+		/// in the reviewer's words: each greyed chip and More say it as their
+		/// tooltip and to a screen reader, in place of what a press would
+		/// send. Without it they keep their own.
+		void set_usable(bool aUsable, const QString& aWhyNot = { });
 		/// \brief The chips' texts, in order; More's items are not chips.
 		[[nodiscard]] auto prompts() const -> QStringList;
 		[[nodiscard]] auto chips() const noexcept -> const std::vector<agent_suggestion>& { return Chips; }
@@ -101,10 +104,12 @@ namespace bpr::qt {
 		std::vector<agent_suggestion>      More;
 		std::vector<QPointer<QPushButton>> Buttons;
 		QPointer<QPushButton>              MoreButton;
-		QMenu*                             MoreMenu      = nullptr;
-		bool                               Usable        = true;
-		bool                               EditFirst     = false;
-		bool                               MoreEditFirst = false;
+		QMenu*                             MoreMenu = nullptr;
+		bool                               Usable   = true;
+		/// Why no choice can be made, said by each chip while it is greyed.
+		QString WhyNot;
+		bool    EditFirst     = false;
+		bool    MoreEditFirst = false;
 	};
 }
 
