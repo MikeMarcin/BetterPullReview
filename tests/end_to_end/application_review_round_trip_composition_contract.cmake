@@ -4097,8 +4097,18 @@ function(bpr_verify_app_source_tree app_source_root)
 	# uses the same panel without a preference selector. Release access and
 	# review mutation composition stay outside the gesture. The full
 	# application and review-mutation branch pins are unchanged.
+	# [[BPR-2402]] coordinator reseal at the merge: the stopped card's New
+	# session opens History's new session and the kept message is sent once
+	# it is shown (window_agent_chat.cpp choose_pinned_conversation,
+	# window_agent_setup.cpp present_agent_native_history, one flag in
+	# window_composition.hpp); a tour chat's next question starts from a fresh
+	# run's answer as core decides, in place of Ask more's dispatch
+	# (window_tours.cpp, window_construction.cpp). Local agent turns and
+	# presentation only; no grant, provider, transport, mutation or
+	# publication path changes; full application and mutation-branch digests
+	# are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "fe1887cc794ff12bc20dd99a51f30374f3357c8b313b60d8311c2b000d89c20b"
+        "b2722ceab134e5bab3ba93350d3f0af64841acc172aca25938fbc67c99936ff5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
