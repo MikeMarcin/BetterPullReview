@@ -2471,6 +2471,74 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             },
         )
 
+    def test_workspace_git_runs_isolated_from_the_agents_configuration(
+        self,
+    ) -> None:
+        # RFC-BPR-0096. Git in a retained workspace names its repository and
+        # work tree, lists the agent-writable configuration's key names and
+        # runs every command under the core's command-scope isolation; from
+        # repair to move nothing builds workspace arguments around it.
+        runner = "src/adapters/git/src/installed_git_process.cpp"
+        result = self.run_check({runner: GIT_PROCESS_RUNNER_SOURCE})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        listing = (
+            'append_arguments(listing, "config", "--list", "--name-only", '
+            '"--includes", "-z");'
+        )
+        environment = (
+            "auto environment = workspace_git_environment(aWorkspace, aStop);"
+        )
+        for original, replacement in (
+            (
+                '"--work-tree=" + path_text(aWorkspace),',
+                "",
+            ),
+            (
+                '"--git-dir=" + path_text(aWorkspace / ".git"),',
+                "",
+            ),
+            (
+                listing,
+                'append_arguments(listing, "config", "--list");',
+            ),
+            (
+                "core::plan_workspace_git_isolation(listed->StandardOutput)",
+                "core::workspace_git_isolation{ }",
+            ),
+            (
+                "isolation.Refusal != core::workspace_git_refusal::none",
+                "false",
+            ),
+            (
+                environment,
+                "auto environment = std::optional{ std::vector<std::pair<"
+                "std::string, std::string>>{ } };",
+            ),
+            (
+                ".Environment = std::move(*environment)",
+                ".Environment = { }",
+            ),
+            (
+                'const auto checked = workspace_git(path, { "cat-file", '
+                '"--batch-check=%(objecttype)" }, aStop, false, input);',
+                "auto arguments = workspace_git_arguments(path, HooksRoot);\n"
+                'append_arguments(arguments, "cat-file");\n'
+                "const auto checked = submit(process_request{ .Arguments = "
+                "std::move(arguments) }, aStop);",
+            ),
+        ):
+            with self.subTest(original=original):
+                self.assertIn(original, GIT_PROCESS_RUNNER_SOURCE)
+                self.assert_failure(
+                    # CMake wraps its message.
+                    "Installed-Git workspace",
+                    {
+                        runner: GIT_PROCESS_RUNNER_SOURCE.replace(
+                            original, replacement, 1
+                        )
+                    },
+                )
+
     def test_installed_git_runner_rejects_expanded_authority(self) -> None:
         hostile_surfaces = (
             (

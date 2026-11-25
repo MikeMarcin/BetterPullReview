@@ -4,6 +4,7 @@
 #include "bpr/adapters/process_support/process_supervision.hpp"
 #include "bpr/core/operation_diagnosis.hpp"
 #include "bpr/core/review_skill.hpp"
+#include "bpr/core/workspace_git_isolation.hpp"
 #include "bpr/platform/windows_sharing_retry.hpp"
 #include "git_process_output.hpp"
 #include <glaze/json.hpp>
@@ -3096,9 +3097,30 @@ namespace bpr::adapters::git {
 				"maintenance.auto=false",
 				"--no-pager",
 				"--no-replace-objects",
+				// The repository and the work tree are named, never found:
+				// `core.worktree` in the workspace's configuration, or a `.git`
+				// that is a `gitdir:` file, cannot send a checkout elsewhere.
+				"--git-dir=" + path_text(aWorkspace / ".git"),
+				"--work-tree=" + path_text(aWorkspace),
 				"-C",
 				path_text(aWorkspace),
 			};
+		}
+
+		/// \brief Command-scope configuration as Git's `GIT_CONFIG_COUNT`,
+		/// `GIT_CONFIG_KEY_<n>` and `GIT_CONFIG_VALUE_<n>`: the scope of `-c`,
+		/// without spending the runner's argument bound, and a key whose
+		/// subsection holds `=` stays one key.
+		[[nodiscard]] auto command_scope_environment(const std::vector<core::git_config_override>& aOverrides) -> std::vector<std::pair<std::string, std::string>>
+		{
+			auto result = std::vector<std::pair<std::string, std::string>>{ };
+			result.reserve(1U + (2U * aOverrides.size()));
+			result.emplace_back("GIT_CONFIG_COUNT", std::to_string(aOverrides.size()));
+			for (auto index = std::size_t{ 0U }; index < aOverrides.size(); ++index) {
+				result.emplace_back("GIT_CONFIG_KEY_" + std::to_string(index), aOverrides[index].Key);
+				result.emplace_back("GIT_CONFIG_VALUE_" + std::to_string(index), aOverrides[index].Value);
+			}
+			return result;
 		}
 
 		[[nodiscard]] auto path_begins_with(
@@ -6085,16 +6107,8 @@ namespace bpr::adapters::git {
 				if (!std::filesystem::remove(alternate, removeError) || removeError || !write_private_file(shallow, aTips)) {
 					return restore();
 				}
-				auto arguments = workspace_git_arguments(aWorkspace, HooksRoot);
-				append_arguments(arguments, "pack-objects", "--revs", "--delta-base-offset", "--non-empty", "--", path_text(git / "objects" / "pack" / "pack"));
-				const auto packed = submit(
-					process_request{
-						.Arguments   = std::move(arguments),
-						.Input       = memory_input{ aTips },
-						.Timeout     = pack_process_timeout,
-						.Environment = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", quoted_object_alternate(aRepository / "objects") } },
-					},
-					aStop);
+				const auto packed = workspace_git(aWorkspace, { "pack-objects", "--revs", "--delta-base-offset", "--non-empty", "--", path_text(git / "objects" / "pack" / "pack") }, aStop, false, aTips,
+												  std::pair{ std::string{ "GIT_ALTERNATE_OBJECT_DIRECTORIES" }, quoted_object_alternate(aRepository / "objects") });
 				return packed.has_value() ? true : restore();
 			}
 
@@ -6120,13 +6134,53 @@ namespace bpr::adapters::git {
 			static constexpr std::string_view wip_identity = "BetterPullReview";
 			static constexpr std::string_view wip_subject  = "BetterPullReview: work in progress before moving to the latest head";
 
-			/// Git in a retained workspace, with the fixed identity a move's own
-			/// commits carry. The runner takes at most 64 arguments; each command
-			/// says what it needs (no signing, no autostash) as its own flags.
+			/// \brief The command-scope configuration one Git command in a
+			/// retained workspace runs with: the fixed overrides, and every
+			/// driver the workspace's configuration names disabled.
+			/// \details The agent can write the workspace's `.git/config`, its
+			/// includes and its attributes, and Git reads them whatever it is
+			/// told; command scope outranks them. Git itself lists the key
+			/// names, through includes, immediately before each command, under
+			/// the fixed overrides; listing runs nothing. A configuration the
+			/// core refuses (a configured hook) runs no command at all.
+			[[nodiscard]] auto workspace_git_environment(const std::filesystem::path& aWorkspace, const std::stop_token aStop)
+				-> git_process_result<std::vector<std::pair<std::string, std::string>>>
+			{
+				auto listing = workspace_git_arguments(aWorkspace, HooksRoot);
+				append_arguments(listing, "config", "--list", "--name-only", "--includes", "-z");
+				const auto listed = submit(
+					process_request{ .Arguments = std::move(listing), .StandardOutputLimit = 1024U * 1024U, .Environment = command_scope_environment(core::fixed_workspace_git_overrides()) },
+					aStop);
+				if (!listed) {
+					return std::unexpected(listed.error());
+				}
+				const auto isolation = core::plan_workspace_git_isolation(listed->StandardOutput);
+				if (isolation.Refusal != core::workspace_git_refusal::none) {
+					return std::unexpected(git_process_error{ git_process_failure::invalid_repository, "the workspace's Git configuration names a program BetterPullReview does not run" });
+				}
+				return command_scope_environment(isolation.Overrides);
+			}
+
+			/// Git in a retained workspace, isolated from the configuration the
+			/// agent can write (`workspace_git_environment`), with the fixed
+			/// identity a move's own commits carry. Every Git command in a
+			/// workspace an agent has run in goes through here; \p aAlternate
+			/// lends the review's cache to a copy. The runner takes at most 64
+			/// arguments; each command says what it needs (no signing, no
+			/// autostash) as its own flags too.
 			[[nodiscard]] auto workspace_git(const std::filesystem::path& aWorkspace, std::initializer_list<std::string_view> aArguments, const std::stop_token aStop,
-											 const bool aAllowExitOne = false, std::string aInput = { }) -> process_result
+											 const bool aAllowExitOne = false, std::string aInput = { }, std::optional<std::pair<std::string, std::string>> aAlternate = std::nullopt)
+				-> process_result
 			{
 				auto arguments = workspace_git_arguments(aWorkspace, HooksRoot);
+
+				auto environment = workspace_git_environment(aWorkspace, aStop);
+				if (!environment) {
+					return std::unexpected(environment.error());
+				}
+				if (aAlternate) {
+					environment->push_back(std::move(*aAlternate));
+				}
 				for (const auto setting : { "user.name=BetterPullReview", "user.email=agent-workspace@betterpullreview.invalid" }) {
 					append_arguments(arguments, "-c", setting);
 				}
@@ -6134,7 +6188,7 @@ namespace bpr::adapters::git {
 					arguments.emplace_back(argument);
 				}
 				return submit(
-					process_request{ .Arguments = std::move(arguments), .Input = memory_input{ std::move(aInput) }, .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U, .AllowExitOne = aAllowExitOne },
+					process_request{ .Arguments = std::move(arguments), .Input = memory_input{ std::move(aInput) }, .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U, .AllowExitOne = aAllowExitOne, .Environment = std::move(*environment) },
 					aStop);
 			}
 
@@ -6336,9 +6390,7 @@ namespace bpr::adapters::git {
 						tips += base + "\n";
 					}
 					const auto check = [&]() -> git_process_result<bool> {
-						auto arguments = workspace_git_arguments(path, HooksRoot);
-						append_arguments(arguments, "cat-file", "--batch-check=%(objecttype)");
-						const auto checked = submit(process_request{ .Arguments = std::move(arguments), .Input = memory_input{ input }, .StandardOutputLimit = 1024U }, aStop);
+						const auto checked = workspace_git(path, { "cat-file", "--batch-check=%(objecttype)" }, aStop, false, input);
 						if (!checked) {
 							return std::unexpected(checked.error());
 						}
@@ -6370,9 +6422,7 @@ namespace bpr::adapters::git {
 					}
 					return reattached;
 				}
-				auto arguments = workspace_git_arguments(path, HooksRoot);
-				append_arguments(arguments, "rev-list", "--objects", "--no-object-names", "--missing=print", head, "HEAD");
-				auto checked = submit(process_request{ .Arguments = std::move(arguments), .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U }, aStop);
+				auto checked = workspace_git(path, { "rev-list", "--objects", "--no-object-names", "--missing=print", head, "HEAD" }, aStop);
 				if (!checked) {
 					return std::unexpected(checked.error());
 				}
@@ -6616,16 +6666,9 @@ namespace bpr::adapters::git {
 					if (!answered || answered->StandardOutput != "commit\ncommit\n") {
 						return std::unexpected(git_process_failure::object_unavailable);
 					}
-					auto arguments = workspace_git_arguments(path, HooksRoot);
-					append_arguments(arguments, "pack-objects", "--revs", "--delta-base-offset", "--non-empty", "--", path_text(path / ".git" / "objects" / "pack" / "pack"));
-					const auto packed = submit(
-						process_request{
-							.Arguments   = std::move(arguments),
-							.Input       = memory_input{ head + "\n" + base + "\n^" + old + "\n" },
-							.Timeout     = pack_process_timeout,
-							.Environment = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", quoted_object_alternate(aRequest.Repository / "objects") } },
-						},
-						aStop);
+					const auto packed  = workspace_git(path, { "pack-objects", "--revs", "--delta-base-offset", "--non-empty", "--", path_text(path / ".git" / "objects" / "pack" / "pack") }, aStop, false,
+													   head + "\n" + base + "\n^" + old + "\n",
+													   std::pair{ std::string{ "GIT_ALTERNATE_OBJECT_DIRECTORIES" }, quoted_object_alternate(aRequest.Repository / "objects") });
 					const auto checked = workspace_git(path, { "cat-file", "--batch-check=%(objecttype)" }, aStop, false, head + "^{commit}\n" + head + "^{tree}\n" + base + "^{commit}\n" + base + "^{tree}\n");
 					if (!packed || !checked || checked->StandardOutput != "commit\ntree\ncommit\ntree\n") {
 						return std::unexpected(git_process_failure::object_unavailable);
