@@ -1895,6 +1895,7 @@ foreach(
         custom-agent-refused
         subject
         setup-list
+        head-move-send
 )
     if(course STREQUAL "positive")
         set(chat_test_name application_agent_chat_composition_contract)

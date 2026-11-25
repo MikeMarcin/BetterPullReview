@@ -752,7 +752,7 @@ namespace bpr::app {
 	/// [[BPR-2181]] slice 2. Opens (or finds) the session's runtime, attaches
 	/// this window as a presenter, and lends it the review this window
 	/// accepted, in the runtime's own name, when it holds no live loan of it.
-	void github_application::implementation::attach_agent_runtime(const core::agent_revision_binding& aBinding)
+	void github_application::implementation::attach_agent_runtime(const core::agent_revision_binding& aBinding, const core::explicit_comparison_selection& aComparison)
 	{
 		const auto session = ask_session_key();
 		if (Closing || Window == nullptr || session.empty() || !WindowRead || !Host || !AgentQueue || !AgentProjections || !LastAcceptedHandoff || ComposedAgentProfiles.empty()) {
@@ -780,7 +780,8 @@ namespace bpr::app {
 		if (stack == nullptr || stack->lent_for(aBinding)) {
 			return;
 		}
-		// The runtime follows the revision this window accepted.
+		// The runtime follows the revision this window accepted, and the
+		// comparison the window settled on for it.
 		auto lent = Host->lend_review_authority(
 			WindowRead, stack->session(), [registry = std::weak_ptr<application::review_agent_runtimes>{ Profile->AgentRuntimes }, session](application::lent_review_authority_end) {
 				if (const auto runtimes = registry.lock()) {
@@ -789,7 +790,7 @@ namespace bpr::app {
 			},
 			&*LastAcceptedHandoff);
 		if (lent) {
-			stack->lend(std::move(*lent), aBinding);
+			stack->lend(std::move(*lent), aBinding, aComparison);
 			AgentQueue->agent_changed(session);
 		}
 	}

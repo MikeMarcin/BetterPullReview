@@ -1771,15 +1771,18 @@ namespace bpr::app::detail {
 	/// \brief What the RFC-BPR-0012 side-chat session composition did.
 	struct agent_chat_composition_evidence
 	{
-		bool                                              ChatHostComposed      = false;
-		bool                                              SideChatPanelComposed = false;
-		std::size_t                                       Intents               = 0U;
-		std::size_t                                       Presentations         = 0U;
-		std::size_t                                       Turns                 = 0U;
-		std::size_t                                       RefusalsPresented     = 0U;
-		application::agent_chat_session_statistics        Statistics;
-		std::optional<core::agent_session>                Session;
-		std::optional<core::agent_revision_binding>       Observed;
+		bool                                        ChatHostComposed      = false;
+		bool                                        SideChatPanelComposed = false;
+		std::size_t                                 Intents               = 0U;
+		std::size_t                                 Presentations         = 0U;
+		std::size_t                                 Turns                 = 0U;
+		std::size_t                                 RefusalsPresented     = 0U;
+		application::agent_chat_session_statistics  Statistics;
+		std::optional<core::agent_session>          Session;
+		std::optional<core::agent_revision_binding> Observed;
+		/// The review the session runtime's own agent host observes: what
+		/// an Agent tab turn is admitted against. Empty with no runtime.
+		std::optional<core::agent_revision_binding>       RuntimeObserved;
 		std::optional<application::agent_chat_projection> Projection;
 		std::string                                       SendEnabled;
 		std::string                                       SessionStateText;

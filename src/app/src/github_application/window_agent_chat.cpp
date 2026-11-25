@@ -252,7 +252,7 @@ namespace bpr::app {
 		};
 		AgentHost->observe(
 			state.ApplicationSession, authority, observedBinding);
-		attach_agent_runtime(observedBinding);
+		attach_agent_runtime(observedBinding, core::explicit_comparison_selection{ .Left = comparison.Left.Identity, .Right = comparison.Right.Identity });
 		observe_agent_dif_context();
 		if (TourSession) {
 			TourSession->observe(state.ApplicationSession, authority, observedBinding);

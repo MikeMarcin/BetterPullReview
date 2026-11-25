@@ -4001,8 +4001,15 @@ function(bpr_verify_app_source_tree app_source_root)
 	# main.cpp's comma list and recovery answer), and Reset agents… and the workspaces' Remove…
 	# open it. No grant, provider, transport, mutation or publication path
 	# changes; the full application and mutation-branch digests are unchanged.
+	# [[BPR-2378]] reseal for the pinned-session implementer's report (2026-11-24): the
+	# window lends the agent runtime the comparison it settled on beside the
+	# revision (attach_agent_runtime, window_agent_chat.cpp and
+	# window_quick_ask.cpp), and review_agent_stack follows it as
+	# core::follow_comparison decides before a turn starts. Test access
+	# reads the runtime's observed binding. Agent launch readiness only; no
+	# grant, provider, transport, mutation or publication path changes.
 	set(bpr_expected_production_app_manifest_digest
-        "49a72d825c1e4c557b8a1cc541855ca8981b1557f3f85dd32ea2ad64f9fa462c"
+        "86596718af54050884d107d77dfc51c211327e1196ca63d5b8539ee98384908e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

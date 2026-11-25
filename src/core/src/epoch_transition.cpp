@@ -2974,6 +2974,34 @@ namespace bpr::core {
 		return resolution;
 	}
 
+	auto follow_comparison(
+		const epoch_state&                   aState,
+		const explicit_comparison_selection& aWanted) noexcept -> comparison_follow
+	{
+		if (!aState.Authority || !aState.AcceptedRevision || !aState.Catalog || aState.PendingIngestion || aState.PendingComparison
+			|| aState.PendingOccurrence) {
+			return { };
+		}
+		if (aState.AcceptedComparison && aState.AcceptedComparison->Left.Identity == aWanted.Left
+			&& aState.AcceptedComparison->Right.Identity == aWanted.Right) {
+			return { .Step = comparison_follow_step::followed };
+		}
+		// Asked for already, and nothing is resolving: it resolved to
+		// something else, or to nothing.
+		if (!anchor_belongs(aState, aWanted.Left) || !anchor_belongs(aState, aWanted.Right)
+			|| aState.RequestedSelection == comparison_selection{ aWanted }) {
+			return { .Step = comparison_follow_step::unreachable };
+		}
+		return {
+			.Step   = comparison_follow_step::select,
+			.Select = select_comparison_anchors_intent{
+				.Left                    = aWanted.Left,
+				.Right                   = aWanted.Right,
+				.ExpectedCatalogRevision = aState.Catalog->Revision,
+			},
+		};
+	}
+
 	auto transition(epoch_state& aState, const epoch_event& aEvent)
 		-> epoch_transition_output
 	{

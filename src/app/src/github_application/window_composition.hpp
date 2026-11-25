@@ -958,7 +958,7 @@ namespace bpr::app {
 		/// accepted, presents its turns and releases a queued message with its
 		/// whole context while attached; it never runs the session's turns
 		/// itself. Closing the window detaches, and a running turn goes on.
-		void               attach_agent_runtime(const core::agent_revision_binding& aBinding);
+		void               attach_agent_runtime(const core::agent_revision_binding& aBinding, const core::explicit_comparison_selection& aComparison);
 		void               detach_agent_runtime();
 		[[nodiscard]] auto agent_runtime() const -> application::review_agent_runtime*;
 		[[nodiscard]] auto agent_stack_seed() const -> review_agent_stack_seed;

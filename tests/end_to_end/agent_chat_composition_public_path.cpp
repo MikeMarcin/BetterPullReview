@@ -36,7 +36,11 @@
 /// through agent settings, the agent setup wizard doesn't update to show
 /// it"): with the setup open at its Agent step, an agent added, edited or
 /// removed in Settings is what the step shows at once, and one added by the
-/// step's Custom agent… is in Settings' list.
+/// step's Custom agent… is in Settings' list. **head-move-send** (the
+/// pinned-session implementer's report, 2026-11-24): after the head moves and
+/// the reviewer picks the previous upload to the latest, the first question
+/// from a new session is answered under that comparison, not refused as
+/// `stale_or_mismatched_agent_context`.
 
 #include "composition_source.hpp"
 #include "private_data_root.hpp"
@@ -54,6 +58,7 @@
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
@@ -924,6 +929,154 @@ namespace {
 		std::cout << "agent-chat-setup-list:pass\n";
 		return EXIT_SUCCESS;
 	}
+
+	/// \brief The comparison the window settled on is the one a send asks.
+	///
+	/// \details Reported by the pinned-session implementer, 2026-11-24, and
+	/// reproducible without a pinned conversation: after the head moved, the
+	/// session runtime kept the comparison it was lent at the move while the
+	/// window settled on another at the same head, and the next Agent tab
+	/// turn was refused as `stale_or_mismatched_agent_context` or ended as
+	/// `stale_result`. The head moves with the shipped refresh before any
+	/// question was asked; once the window's comparison has settled, one
+	/// plain send is answered by one process under that comparison.
+	[[nodiscard]] auto head_move_send_course(
+		app::github_application&     aApplication,
+		qt::workbench_window&        aWindow,
+		qt::side_chat_panel&         aChat,
+		const std::function<bool()>& aChooseJsonl,
+		const std::function<bool()>& aJsonlKept) -> int
+	{
+		using access     = app::detail::github_application_fixture_access;
+		const auto first = access::agent_chat_evidence(aApplication).Observed;
+		if (!first.has_value()) {
+			return fail(aApplication, "head-move-first-binding");
+		}
+		aWindow.github_refresh_action()->trigger();
+		const auto bindingText = [](const std::optional<core::agent_revision_binding>& aBinding) {
+			return aBinding.has_value() ? std::to_string(aBinding->LeftEpoch.value()) + "/" + std::to_string(aBinding->RightEpoch.value()) : std::string{ "none" };
+		};
+		// The window's own comparison at the new head, resolved and shown,
+		// with nothing of its epoch work or tab restoration still pending.
+		const auto settled = [&](wait_terms& aTerms) {
+			QApplication::processEvents();
+			const auto chat     = access::agent_chat_evidence(aApplication);
+			const auto identity = access::epoch_refresh_identity(aApplication);
+			aTerms.note_identifier("window", bindingText(chat.Observed));
+			aTerms.note_identifier("runtime", bindingText(chat.RuntimeObserved));
+			return aTerms.require("head-moved", chat.Observed.has_value() && chat.Observed->HeadOid != first->HeadOid)
+				&& aTerms.require("comparison-accepted", identity.AcceptedComparison.has_value())
+				&& aTerms.require("comparison-observed",
+								  identity.AcceptedComparison.has_value() && chat.Observed->LeftEpoch == identity.AcceptedComparison->Left.Identity.Epoch
+									  && chat.Observed->RightEpoch == identity.AcceptedComparison->Right.Identity.Epoch)
+				&& aTerms.require("comparison-settled", !identity.ComparisonPending && !identity.TabPending);
+		};
+		auto moved = wait_terms{ };
+		if (!wait_until_reporting(moved, settled, extended_agent_budget)) {
+			return fail(aApplication, "head-move-settled", moved.render());
+		}
+		// At the new head the reviewer compares the previous upload with the
+		// latest: a comparison the window settles on that the runtime, left
+		// to itself, would not choose.
+		const auto  atMove   = access::agent_chat_evidence(aApplication).Observed;
+		auto* const previous = aWindow.epoch_selectors()->previous_upload_action();
+		if (previous == nullptr || !previous->isEnabled()) {
+			return fail(aApplication, "head-move-previous-upload");
+		}
+		previous->trigger();
+		auto chosen = wait_terms{ };
+		if (!wait_until_reporting(
+				chosen,
+				[&](wait_terms& aTerms) {
+					const auto now = access::agent_chat_evidence(aApplication).Observed;
+					return settled(aTerms) && aTerms.require("comparison-chosen", now.has_value() && atMove.has_value() && now != atMove);
+				},
+				extended_agent_budget)) {
+			return fail(aApplication, "head-move-comparison", chosen.render());
+		}
+		// The head moving cleared the workbench selection with the comparison
+		// it belonged to: the reviewer points at a change again, as the
+		// continued course does, before asking about it.
+		auto* const files  = aWindow.files_drawer()->contents_view();
+		auto        listed = wait_terms{ };
+		if (!wait_until_reporting(
+				listed,
+				[files](wait_terms& aTerms) {
+					QApplication::processEvents();
+					return aTerms.require("files-listed", files->model()->rowCount() != 0);
+				},
+				extended_agent_budget)) {
+			return fail(aApplication, "head-move-files", listed.render());
+		}
+		files->selectionModel()->clearCurrentIndex();
+		QApplication::processEvents();
+		files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+		auto* const surface   = aWindow.comparison_surface();
+		auto        selection = wait_terms{ };
+		if (!wait_until_reporting(
+				selection,
+				[&](wait_terms& aTerms) {
+					QApplication::processEvents();
+					if (!surface->selection().has_value() && surface->current_result() != nullptr) {
+						static_cast<void>(surface->navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop));
+					}
+					// The chat's earlier session is about the comparison before:
+					// the reviewer starts a new one, which no question used.
+					if (aChat.new_session_action() != nullptr && aChat.new_session_action()->isEnabled()) {
+						aChat.new_session_action()->trigger();
+					}
+					return aTerms.require("comparison-shown", surface->current_result() != nullptr)
+						&& aTerms.require("selection-present", surface->selection().has_value()) && settled(aTerms)
+						&& aTerms.require("histories-settled", !aWindow.agent_tab()->ask_button()->property("conversationLoading").toBool())
+						&& aTerms.require("ask-enabled", aWindow.agent_tab()->ask_button()->isEnabled());
+				},
+				extended_agent_budget)) {
+			return fail(aApplication, "head-move-selection", selection.render());
+		}
+		if (!aJsonlKept() && !aChooseJsonl()) {
+			return fail(aApplication, "head-move-agent-choice");
+		}
+		const auto asked = access::agent_chat_evidence(aApplication).Observed;
+		aChat.composer()->setPlainText(QString::fromUtf8(chat_message.data(), static_cast<qsizetype>(chat_message.size())));
+		QApplication::processEvents();
+		// The Agent tab's own Send, as the reviewer presses it.
+		aWindow.agent_tab()->ask_button()->click();
+		QApplication::processEvents();
+		auto answered = wait_terms{ };
+		if (!wait_until_reporting(
+				answered,
+				[&](wait_terms& aTerms) {
+					QApplication::processEvents();
+					const auto invocation = access::agent_invocation_evidence(aApplication);
+					const auto chat       = access::agent_chat_evidence(aApplication);
+					aTerms.note("process", static_cast<std::uint64_t>(invocation.Statistics.ProcessStarts));
+					aTerms.note_identifier("panel", chat.AgentPanelStatusText);
+					aTerms.note_identifier("window", bindingText(chat.Observed));
+					aTerms.note_identifier("runtime", bindingText(chat.RuntimeObserved));
+					return aTerms.require("not-refused", chat.Statistics.Refusals == 0U)
+						&& aTerms.require("run-quiescent", invocation.Quiescent && invocation.Statistics.ProcessStarts == 1U)
+						&& aTerms.require("reply-delivered", chat.Statistics.Replies == 1U);
+				},
+				extended_agent_budget)) {
+			return fail(aApplication, "head-move-send", answered.render());
+		}
+		const auto after      = access::agent_chat_evidence(aApplication);
+		const auto invocation = access::agent_invocation_evidence(aApplication);
+		// One turn, admitted under the window's settled comparison at the new
+		// head and answered, with no refusal and no stale ending on the way.
+		const auto passed = invocation.Statistics.ProcessStarts == 1U && after.Statistics.Turns == 1U && after.Statistics.Replies == 1U
+			&& after.Statistics.Refusals == 0U && after.Session.has_value() && asked.has_value() && after.Session->Binding == *asked
+			&& after.RuntimeObserved == asked && after.AgentPanelStatusText.find("stale") == std::string::npos;
+		if (!passed) {
+			std::cerr << "agent-chat-head-move-send-evidence: session=" << bindingText(after.Session ? std::optional{ after.Session->Binding } : std::nullopt)
+					  << " asked=" << bindingText(asked) << " runtime=" << bindingText(after.RuntimeObserved) << " panel=" << after.AgentPanelStatusText << '\n';
+		}
+		if (!shutdown(aApplication) || !passed) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-chat-head-move-send:pass\n";
+		return EXIT_SUCCESS;
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -963,9 +1116,14 @@ auto main(int argc, char** argv) -> int
 	if (
 		course != "positive" && course != "stale" && course != "continued"
 		&& course != "anchored-continuation" && course != "construction-cut" && course != "conversation"
-		&& course != "custom-agent" && course != "custom-agent-refused" && course != "subject" && course != "setup-list") {
+		&& course != "custom-agent" && course != "custom-agent-refused" && course != "subject" && course != "setup-list"
+		&& course != "head-move-send") {
 		return EXIT_FAILURE;
 	}
+	// The pinned-session implementer's report, 2026-11-24: after the head
+	// moves, the first send from a conversation never used asks the agent
+	// about the comparison the window settled on, and is answered.
+	const auto headMoveSend = course == "head-move-send";
 	// The two courses that take `continue_against_old_revision` to a further
 	// turn. They differ in when that turn is sent, and in nothing else.
 	const auto continuing
@@ -1010,7 +1168,7 @@ auto main(int argc, char** argv) -> int
 			// revision to be preparable, because it goes on to ask a further
 			// question; the refresh recording is the only fixture path that
 			// serves a second head's material.
-			.EpochPhase                        = continuing
+			.EpochPhase                        = continuing || headMoveSend
 				? app::detail::github_epoch_fixture_phase::seed
 				: app::detail::github_epoch_fixture_phase::single,
 			.DisableChatSessionHostComposition = course == "construction-cut",
@@ -1305,6 +1463,9 @@ auto main(int argc, char** argv) -> int
 					"send-enabled", chat->send_action()->isEnabled());
 		})) {
 		return fail(*application, "chat-presented", presented.render());
+	}
+	if (headMoveSend) {
+		return head_move_send_course(*application, window, *chat, chooseJsonl, jsonlKept);
 	}
 	// [[BPR-1817]]. The custom agent: added in Settings as a reviewer adds
 	// one, under a neutral name, running the fixture program, and chosen in
