@@ -224,11 +224,12 @@ namespace {
 		const auto height = document.size().height();
 		reader->setFocus();
 		key(*reader, Qt::Key_Tab);
-		expect(reader->textCursor().selectedText().contains(QStringLiteral("Build log")), "Tab reaches the first summary");
+		expect(aView.keyboard_link().contains(QStringLiteral("Build log")) && !reader->textCursor().hasSelection(), "Tab reaches the first summary and selects none of its words");
 		expect(reader->accessibleDescription().startsWith(QStringLiteral("Collapsed section")), "a closed summary is announced as collapsed");
 		key(*reader, Qt::Key_Return);
 		expect(visible_block(document_of(aView), QStringLiteral("[1/3] Compiling")) && document_of(aView).size().height() > height, "Enter opens the section and the body grows");
-		expect(reader->accessibleDescription().startsWith(QStringLiteral("Expanded section")) && reader->textCursor().selectedText().contains(QStringLiteral("Build log")), "the summary keeps the focus and says it is open");
+		expect(reader->accessibleDescription().startsWith(QStringLiteral("Expanded section")) && aView.keyboard_link().contains(QStringLiteral("Build log")) && !reader->textCursor().hasSelection(),
+			   "the summary keeps the keyboard and says it is open");
 		key(*reader, Qt::Key_Return);
 		expect(!visible_block(document_of(aView), QStringLiteral("[1/3] Compiling")), "Enter closes it again");
 		const auto outer = block_containing(document_of(aView), QStringLiteral("Outer"));
@@ -238,6 +239,7 @@ namespace {
 		auto release = QMouseEvent{ QEvent::MouseButtonRelease, point, reader->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
 		QApplication::sendEvent(reader->viewport(), &release);
 		expect(visible_block(document_of(aView), QStringLiteral("Inner")) && !visible_block(document_of(aView), QStringLiteral("Nested content.")), "a click opens the outer section; the inner one stays closed");
+		expect(aView.keyboard_link().isEmpty() && !reader->textCursor().hasSelection(), "a summary the pointer pressed wears no ring and none of its words are selected");
 		expect(gestures == 0, "a summary never reaches the application");
 
 		// A link inside a closed section is skipped by Tab; a table inside one
@@ -246,7 +248,7 @@ namespace {
 		reader->setFocus();
 		key(*reader, Qt::Key_Tab);
 		key(*reader, Qt::Key_Tab);
-		expect(reader->textCursor().selectedText() == QStringLiteral("after"), "Tab passes a closed section's link");
+		expect(aView.keyboard_link() == QStringLiteral("after"), "Tab passes a closed section's link");
 		auto* table = qobject_cast<QTextTable*>(document_of(aView).rootFrame()->childFrames().value(0));
 		expect(table != nullptr && table->format().border() == 0.0, "a closed section's table draws no border");
 		key(*reader, Qt::Key_Tab);

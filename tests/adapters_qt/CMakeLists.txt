@@ -2119,6 +2119,27 @@ foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
     )
 endforeach()
 
+# The Markdown readers mark the keyboard's link with the window's focus ring,
+# never a text selection, and one click follows a link whatever is selected:
+# a comment's body, a report drawn as its Markdown and a code box's header,
+# at 1.0, 1.25 and 2.0 scale.
+bpr_add_executable(test_better_pull_review_markdown_link_mark_tests markdown_link_mark_tests.cpp)
+target_link_libraries(test_better_pull_review_markdown_link_mark_tests PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_markdown_link_mark_tests)
+bpr_enable_warnings(test_better_pull_review_markdown_link_mark_tests)
+foreach(bpr_markdown_link_mark_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_markdown_link_mark_whole "${bpr_markdown_link_mark_scale} / 100")
+    math(EXPR bpr_markdown_link_mark_fraction "${bpr_markdown_link_mark_scale} % 100")
+    bpr_add_network_isolated_test(NAME qt_markdown_link_mark_scale_${bpr_markdown_link_mark_scale} COMMAND test_better_pull_review_markdown_link_mark_tests)
+    set_tests_properties(
+        qt_markdown_link_mark_scale_${bpr_markdown_link_mark_scale}
+        PROPERTIES
+            ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_markdown_link_mark_whole}.${bpr_markdown_link_mark_fraction}"
+            PASS_REGULAR_EXPRESSION "markdown-link-mark-tests:pass"
+            TIMEOUT 60
+    )
+endforeach()
+
 # RFC-BPR-0128 (review, 2026-11-14). A report's page loads no resource.
 bpr_add_executable(test_better_pull_review_agent_report_view_tests agent_report_view_tests.cpp)
 target_link_libraries(test_better_pull_review_agent_report_view_tests PRIVATE BetterPullReview::AdapterQt)

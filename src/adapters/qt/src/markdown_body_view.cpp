@@ -13,11 +13,15 @@
 #include "bpr/core/feedback_conversation.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 
 #include <QAbstractTextDocumentLayout>
+#include <QAccessible>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
+#include <QElapsedTimer>
+#include <QFocusEvent>
 #include <QFontDatabase>
 #include <QFontMetricsF>
 #include <QHBoxLayout>
@@ -47,6 +51,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <limits>
+#include <optional>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -334,6 +339,18 @@ namespace bpr::qt {
 			setTabChangesFocus(true);
 			setMouseTracking(true);
 			setDocument(new detail::markdown_document{ this });
+			// The caret moved off the keyboard's link (an arrow key, Select
+			// All): the keyboard is where the caret is again.
+			const auto moved = [this] {
+				if (!OnLink) {
+					return;
+				}
+				if (const auto caret = textCursor(); caret.hasSelection() || caret.position() != Links[static_cast<std::size_t>(FocusedLink)].Start) {
+					leave_link();
+				}
+			};
+			connect(this, &QTextEdit::cursorPositionChanged, this, moved);
+			connect(this, &QTextEdit::selectionChanged, this, moved);
 		}
 
 		std::function<void(const QString&)> Activate;
@@ -347,10 +364,16 @@ namespace bpr::qt {
 		bool                        InPlace = false;
 		std::function<QMimeData*()> CopySelection;
 
-		void reset_links()
+		/// Reads the document's links again. `aSameBody` says the text is the
+		/// body it was, drawn again (an image arrived): the keyboard stays on
+		/// its link where the reader still has it.
+		void reset_links(const bool aSameBody = false)
 		{
-			KeySpans    = detail::markdown_keyboard_spans(*document());
+			KeySpans        = detail::markdown_keyboard_spans(*document());
+			const auto held = aSameBody && OnLink ? std::optional{ std::pair{ FocusedLink, Links[static_cast<std::size_t>(FocusedLink)].Target } } : std::nullopt;
+			leave_link();
 			FocusedLink = -1;
+			LinkPress   = false;
 			Pressed.clear();
 			Links.clear();
 			for (auto block = document()->begin(); block.isValid(); block = block.next()) {
@@ -368,7 +391,14 @@ namespace bpr::qt {
 					}
 				}
 			}
+			if (held && held->first < static_cast<int>(Links.size()) && Links[static_cast<std::size_t>(held->first)].Target == held->second) {
+				mark_link(held->first);
+			}
 		}
+
+		/// The words of the link the keyboard is on (an image's alternative
+		/// text); empty when it is on none.
+		[[nodiscard]] auto keyboard_link() const -> QString { return OnLink ? words_of(Links[static_cast<std::size_t>(FocusedLink)]) : QString{ }; }
 
 	protected:
 		QMimeData* createMimeDataFromSelection() const override
@@ -408,29 +438,80 @@ namespace bpr::qt {
 			aEvent->accept();
 		}
 
+		// A press of the pointer on a link is the link's, as a press on a
+		// button is the button's: it starts no selection and no drag, and
+		// the release on that link follows it, whatever the reader has
+		// selected. The owner, 2026-11-25, of a report's link whose words
+		// were selected: "I cant actually click go to draft properly until I
+		// deselect it and then click it again." A press on selected words
+		// is, to Qt, the start of a drag of them. A press with Shift held
+		// extends the selection, as it does anywhere in the text.
 		void mousePressEvent(QMouseEvent* aEvent) override
 		{
-			Pressed = aEvent->button() == Qt::LeftButton ? anchorAt(aEvent->position().toPoint()) : QString{ };
+			Pressed.clear();
+			LinkPress = false;
+			if (aEvent->button() == Qt::LeftButton) {
+				// The pointer has the reader now; the keyboard is on no link.
+				leave_link();
+				const auto at = aEvent->position().toPoint();
+				if (const auto target = anchorAt(at); !target.isEmpty() && !aEvent->modifiers().testFlag(Qt::ShiftModifier)) {
+					LinkPress = true;
+					// Tab goes on from the link the pointer pressed.
+					if (const auto* const hit = link_at(at); hit != nullptr) {
+						FocusedLink = static_cast<int>(hit - Links.data());
+					}
+					// The third press of a triple click is the same click
+					// still: its link was followed at the first.
+					if (!DoubleClicked.isValid() || DoubleClicked.elapsed() >= QApplication::doubleClickInterval()) {
+						Pressed = target;
+					}
+					aEvent->accept();
+					return;
+				}
+			}
 			QTextEdit::mousePressEvent(aEvent);
+		}
+
+		void mouseDoubleClickEvent(QMouseEvent* aEvent) override
+		{
+			// The second press of a double click on a link: the first click
+			// followed it, and its words are not selected.
+			if (aEvent->button() == Qt::LeftButton && !anchorAt(aEvent->position().toPoint()).isEmpty() && !aEvent->modifiers().testFlag(Qt::ShiftModifier)) {
+				Pressed.clear();
+				LinkPress = true;
+				DoubleClicked.start();
+				aEvent->accept();
+				return;
+			}
+			QTextEdit::mouseDoubleClickEvent(aEvent);
 		}
 
 		void mouseReleaseEvent(QMouseEvent* aEvent) override
 		{
-			QTextEdit::mouseReleaseEvent(aEvent);
-			const auto target = anchorAt(aEvent->position().toPoint());
-			if (aEvent->button() == Qt::LeftButton && !Pressed.isEmpty() && Pressed == target && !textCursor().hasSelection()) {
-				if (const auto* hit = link_at(aEvent->position().toPoint()); hit != nullptr && !hit->Internal.isEmpty()) {
-					jump_to(hit->Internal);
-				} else if (Activate) {
-					Activate(target);
-				}
+			if (aEvent->button() != Qt::LeftButton || !LinkPress) {
+				QTextEdit::mouseReleaseEvent(aEvent);
+				return;
 			}
-			Pressed.clear();
+			LinkPress          = false;
+			const auto pressed = std::exchange(Pressed, QString{ });
+			aEvent->accept();
+			// A press dragged off its link follows nothing.
+			if (pressed.isEmpty() || anchorAt(aEvent->position().toPoint()) != pressed) {
+				return;
+			}
+			if (const auto* hit = link_at(aEvent->position().toPoint()); hit != nullptr && !hit->Internal.isEmpty()) {
+				jump_to(hit->Internal, false);
+			} else if (Activate) {
+				Activate(pressed);
+			}
 		}
 
 		void mouseMoveEvent(QMouseEvent* aEvent) override
 		{
-			QTextEdit::mouseMoveEvent(aEvent);
+			// A link's press drags nothing.
+			if (!LinkPress || !aEvent->buttons().testFlag(Qt::LeftButton)) {
+				QTextEdit::mouseMoveEvent(aEvent);
+			}
 			const auto target = anchorAt(aEvent->position().toPoint());
 			viewport()->setCursor(target.isEmpty() ? Qt::IBeamCursor : Qt::PointingHandCursor);
 			if (Describe) {
@@ -441,23 +522,37 @@ namespace bpr::qt {
 		void keyPressEvent(QKeyEvent* aEvent) override
 		{
 			if (aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) {
+				// The link the keyboard is on, else the one the caret is in.
+				const auto format   = textCursor().charFormat();
+				const auto internal = OnLink ? Links[static_cast<std::size_t>(FocusedLink)].Internal : format.stringProperty(detail::markdown_internal_target_property);
+				const auto target   = OnLink ? Links[static_cast<std::size_t>(FocusedLink)].Target : format.anchorHref();
 				// [[BPR-1543]]. A footnote link moves within the body; only
 				// presentation sets its target, never an authored link.
-				if (const auto internal = textCursor().charFormat().stringProperty(detail::markdown_internal_target_property); !internal.isEmpty()) {
-					jump_to(internal);
+				if (!internal.isEmpty()) {
+					jump_to(internal, true);
 					aEvent->accept();
 					return;
 				}
-			}
-			if ((aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) && Activate) {
-				const auto target = textCursor().charFormat().anchorHref();
-				if (!target.isEmpty()) {
+				if (!target.isEmpty() && Activate) {
 					Activate(target);
 					aEvent->accept();
 					return;
 				}
 			}
 			QTextEdit::keyPressEvent(aEvent);
+		}
+
+		// The ring shows only while the reader holds the keyboard.
+		void focusInEvent(QFocusEvent* aEvent) override
+		{
+			QTextEdit::focusInEvent(aEvent);
+			viewport()->update();
+		}
+
+		void focusOutEvent(QFocusEvent* aEvent) override
+		{
+			QTextEdit::focusOutEvent(aEvent);
+			viewport()->update();
 		}
 
 		bool focusNextPrevChild(bool aNext) override
@@ -471,6 +566,7 @@ namespace bpr::qt {
 				focus_link(next);
 				return true;
 			}
+			leave_link();
 			FocusedLink      = -1;
 			const auto moved = QTextEdit::focusNextPrevChild(aNext);
 			// macOS can exclude push buttons from the ordinary Tab chain. Keep
@@ -509,7 +605,8 @@ namespace bpr::qt {
 				Code->paint_under(under, *document(), offset);
 			}
 			QTextEdit::paintEvent(aEvent);
-			if (AlertBars.empty() && KeySpans.empty() && !suggestions) {
+			const auto ringed = OnLink && hasFocus();
+			if (AlertBars.empty() && KeySpans.empty() && !suggestions && !ringed) {
 				return;
 			}
 			auto painter = QPainter{ viewport() };
@@ -530,6 +627,12 @@ namespace bpr::qt {
 				if (top < bottom) {
 					painter.fillRect(QRectF{ left, top, detail::markdown_alert_bar_width, bottom - top }.translated(offset), bar.Colour);
 				}
+			}
+			if (ringed) {
+				// The window's focus ring round the keyboard's link, over
+				// everything the reader draws.
+				const auto& link = Links[static_cast<std::size_t>(FocusedLink)];
+				paint_text_focus_ring(painter, *this, text_focus_boxes(*this, link.Start, link.End));
 			}
 		}
 
@@ -576,18 +679,69 @@ namespace bpr::qt {
 			return found == Links.end() ? nullptr : &*found;
 		}
 
+		/// An image link's alternative text; empty for a link of words.
+		[[nodiscard]] auto image_of(const link& aLink) const -> QString { return ImageLabel && aLink.End - aLink.Start == 1 ? ImageLabel(aLink.Start) : QString{ }; }
+
+		/// What a link reads as: its words, or its image's alternative text.
+		[[nodiscard]] auto words_of(const link& aLink) const -> QString
+		{
+			if (const auto image = image_of(aLink); !image.isEmpty()) {
+				return image;
+			}
+			auto words = QTextCursor{ document() };
+			words.setPosition(aLink.Start);
+			words.setPosition(aLink.End, QTextCursor::KeepAnchor);
+			return words.selectedText().replace(QChar::Nbsp, QLatin1Char{ ' ' });
+		}
+
+		/// The keyboard is on link `aIndex`: the link wears the window's focus
+		/// ring while the reader holds the keyboard. None of its words are
+		/// selected. A selection is the reader's own to make, and a link that
+		/// came up selected took a press of the pointer as a drag of its words.
+		void mark_link(const int aIndex)
+		{
+			if (!OnLink) {
+				// The caret's width is its holder's to set: the description
+				// shows none at all.
+				CaretWidth = cursorWidth();
+			}
+			FocusedLink = aIndex;
+			OnLink      = true;
+			// The caret waits at the link, unseen: the ring says where the
+			// keyboard is, and an arrow key goes on from here.
+			auto caret = textCursor();
+			caret.setPosition(Links[static_cast<std::size_t>(aIndex)].Start);
+			setTextCursor(caret);
+			setCursorWidth(0);
+			viewport()->update();
+		}
+
+		/// The keyboard is on no link: the caret shows where it is again. Tab
+		/// still goes on from the link it left.
+		void leave_link()
+		{
+			if (!std::exchange(OnLink, false)) {
+				return;
+			}
+			setCursorWidth(CaretWidth);
+			viewport()->update();
+		}
+
 		void focus_link(const int aIndex)
 		{
-			FocusedLink        = aIndex;
-			const auto& link   = Links[static_cast<std::size_t>(aIndex)];
-			auto        cursor = textCursor();
-			cursor.setPosition(link.Start);
-			cursor.setPosition(link.End, QTextCursor::KeepAnchor);
-			setTextCursor(cursor);
+			mark_link(aIndex);
+			const auto& link = Links[static_cast<std::size_t>(aIndex)];
 			ensureCursorVisible();
 			// An image link is announced by its alternative text, then where it
 			// goes; a section's summary by whether it is open.
-			const auto image = ImageLabel && link.End - link.Start == 1 ? ImageLabel(link.Start) : QString{ };
+			const auto image = image_of(link);
+			// No words are selected for a screen reader to read: it is told
+			// the link the keyboard reached.
+			if (const auto words = words_of(link); !words.isEmpty() && isVisible()) {
+				auto event = QAccessibleAnnouncementEvent{ this, words };
+				event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+				QAccessible::updateAccessibility(&event);
+			}
 			if (link.Internal.startsWith(detail::markdown_details_target)) {
 				const auto open = detail::markdown_details_open(*document(), link.Internal.mid(detail::markdown_details_target.size()).toInt());
 				setAccessibleDescription(open ? QStringLiteral("Expanded section. Enter hides its contents.") : QStringLiteral("Collapsed section. Enter shows its contents."));
@@ -603,10 +757,13 @@ namespace bpr::qt {
 			}
 		}
 
-		/// Selects the link a footnote link names and brings it into view,
-		/// so Enter there leads back; a summary opens or closes its section
-		/// and keeps the focus.
-		void jump_to(const QString& aName)
+		/// Puts the keyboard on the link a footnote link names and brings it
+		/// into view, so Enter there leads back: its ring shows where the
+		/// jump landed, whichever of the keyboard (`aKeyboard`) and the
+		/// pointer made it. A summary opens or closes its section and keeps
+		/// the focus; it keeps the keyboard's ring only when the keyboard
+		/// pressed it, as a button the pointer pressed wears none.
+		void jump_to(const QString& aName, const bool aKeyboard)
 		{
 			if (aName.startsWith(detail::markdown_details_target)) {
 				if (!hasFocus()) {
@@ -619,7 +776,11 @@ namespace bpr::qt {
 				reset_links();
 				const auto index = std::ranges::find(Links, aName, &link::Internal) - Links.begin();
 				if (index < static_cast<std::ptrdiff_t>(Links.size())) {
-					focus_link(static_cast<int>(index));
+					if (aKeyboard) {
+						focus_link(static_cast<int>(index));
+					} else {
+						FocusedLink = static_cast<int>(index);
+					}
 				}
 				return;
 			}
@@ -646,8 +807,17 @@ namespace bpr::qt {
 		}
 
 		std::vector<link> Links;
-		int               FocusedLink = -1;
-		QString           Pressed;
+		/// The link Tab goes on from, and whether the keyboard is on it now.
+		int  FocusedLink = -1;
+		bool OnLink      = false;
+		/// The caret's width as it was before the keyboard went onto a link.
+		int CaretWidth = 1;
+		/// The link a press of the pointer began on and its release follows,
+		/// and whether the press in hand is a link's at all.
+		QString Pressed;
+		bool    LinkPress = false;
+		/// Since the last double click on a link.
+		QElapsedTimer DoubleClicked;
 	};
 
 	class markdown_source_view final : public QPlainTextEdit
@@ -1411,6 +1581,7 @@ namespace bpr::qt {
 	auto markdown_body_view::rendered_available() const noexcept -> bool { return RenderedAvailable; }
 	auto markdown_body_view::fallback_reason() const -> QString { return Fallback; }
 	auto markdown_body_view::rendered_view() const noexcept -> QTextEdit* { return Rendered; }
+	auto markdown_body_view::keyboard_link() const -> QString { return Rendered->keyboard_link(); }
 	auto markdown_body_view::selected_source_bytes() const -> std::optional<std::pair<std::size_t, std::size_t>>
 	{
 		const auto cursor = Source->textCursor();
@@ -1577,7 +1748,7 @@ namespace bpr::qt {
 		if (!Images->apply(*document, aImage)) {
 			return;
 		}
-		Rendered->reset_links();
+		Rendered->reset_links(true);
 		const auto grown = document->size().height() - before;
 		if (above && grown != 0.0) {
 			scroll->setValue(scroll->value() + static_cast<int>(std::lround(grown)));

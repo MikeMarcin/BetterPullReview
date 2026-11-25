@@ -59,8 +59,16 @@ network capability.
 
 All destinations remain untrusted strings. Tab visits link text and shows its
 destination; Enter or a deliberate click emits that string to application
-admission. The widget performs no scheme parsing, relative resolution or browser
-handoff. The window read host checks the exact window generation, session,
+admission. The link the keyboard is on wears the window's focus ring
+(`paint_text_focus_ring`, shared with the report's page) while the reader holds
+the keyboard, and is never a text selection: the caret waits unseen at the
+link, a screen reader is told the link's words, and an arrow key or a press of
+the pointer ends the ring. A press of the pointer on a link is the link's, as
+a press on a button is the button's. It starts no selection and no drag, one
+click follows the link whatever the reader has selected, a press dragged off
+its link follows nothing, and a double click follows it once. A press with
+Shift held extends the selection as anywhere in the text. The widget performs
+no scheme parsing, relative resolution or browser handoff. The window read host checks the exact window generation, session,
 account generation, accepted snapshot and a monotonically increasing publication
 revision before core admission. The selected post must still exist and not be
 deleted. Description and image-placeholder links use this same path. The existing
@@ -190,10 +198,11 @@ number is a link.
 Footnote references and back references are in-body links. Their target is a
 character property only presentation sets, so an authored link such as
 `[x](#fn-1)` still goes to application admission. Enter or a click on one
-selects the other and scrolls the reader to it, so Enter there leads back and
-Tab continues from it; no gesture reaches the application. In place the reader
+puts the keyboard on the other, in its focus ring, and scrolls the reader to
+it, so the ring shows where the jump landed, Enter there leads back and Tab
+continues from it; no gesture reaches the application. In place the reader
 does not scroll: a holder that is a `QScrollArea` is asked to show the target,
-and any other holder keeps its scroll position while the selection moves.
+and any other holder keeps its scroll position while the ring moves.
 Copying a partial rendered selection serializes the presented document, so it
 carries "Note" and the footnote numbers rather than the source syntax; a full
 selection still copies the original bytes.
