@@ -31,6 +31,12 @@ namespace bpr::qt {
 		/// Between two slices, as the report page's meter has between its
 		/// cells.
 		constexpr double slice_gap = 2.0;
+		/// The least a legend row is tall: twice the least swatch.
+		constexpr int least_row = 16;
+		/// The corners of a row's wash and focus ring, where the row is tall
+		/// enough for them, and the ring's stroke.
+		constexpr double wash_corner = 5.0;
+		constexpr double ring_width  = 1.5;
 
 		[[nodiscard]] auto counted(const core::dressed_count& aCount) -> QString { return QString::number(aCount.Count); }
 
@@ -71,6 +77,11 @@ namespace bpr::qt {
 		// Every row takes the legend's width, so the washes line up and the
 		// counts make one column.
 		setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+		// The row paints its whole rect, so the legend lays it out by that
+		// rect and not by the style's idea of a push button's. The macOS
+		// style takes a bezel's 8 points off a button's foot: each row then
+		// stood 14 under the one before and was drawn over the next.
+		setAttribute(Qt::WA_LayoutUsesWidgetRect);
 		const auto word = QString::fromStdString(aCount.Word);
 		setAccessibleName(tr("%1: %2").arg(word, counted(aCount)));
 		setToolTip(tr("Open the report at its first %1").arg(word));
@@ -113,16 +124,19 @@ namespace bpr::qt {
 		auto painter = QPainter{ this };
 		painter.setRenderHint(QPainter::Antialiasing, true);
 		const auto text = palette().color(QPalette::Active, QPalette::WindowText);
-		const auto box  = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
+		// The wash and the ring are the row's own line, and nothing of the
+		// row above or below: the ring's stroke is drawn inside the row.
+		const auto box    = QRectF{ rect() }.adjusted(1.0, 0.0, -1.0, 0.0);
+		const auto corner = std::min(wash_corner, box.height() / 4.0);
 		if (View.highlighted() == Index || isDown()) {
 			painter.setPen(Qt::NoPen);
 			painter.setBrush(with_alpha(text, isDown() ? 0.10F : 0.06F));
-			painter.drawRoundedRect(box, 5.0, 5.0);
+			painter.drawRoundedRect(box, corner, corner);
 		}
 		if (hasFocus()) {
 			painter.setBrush(Qt::NoBrush);
-			painter.setPen(QPen{ palette().color(QPalette::Highlight), 1.5 });
-			painter.drawRoundedRect(box, 5.0, 5.0);
+			painter.setPen(QPen{ palette().color(QPalette::Highlight), ring_width });
+			painter.drawRoundedRect(box.adjusted(0.0, ring_width / 2.0, 0.0, -ring_width / 2.0), corner, corner);
 		}
 		painter.setPen(Qt::NoPen);
 		painter.setBrush(View.fill_of(Count));
@@ -417,7 +431,9 @@ namespace bpr::qt {
 		return result;
 	}
 
-	auto report_tally_view::line_height() const -> int { return std::max(20, QFontMetrics{ font() }.height() + 6); }
+	/// The taller of the word's font and the count's: a row holds its line
+	/// whole, and the rows stand as lines of text do.
+	auto report_tally_view::line_height() const -> int { return std::max({ least_row, QFontMetrics{ font() }.height(), QFontMetrics{ semibold(font()) }.height() }); }
 
 	/// The counts above it, as a share of the whole circle.
 	auto report_tally_view::slice_start(const std::size_t aIndex) const -> double
