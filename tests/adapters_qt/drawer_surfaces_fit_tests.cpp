@@ -1162,9 +1162,11 @@ namespace {
 		const auto look   = !aLookRoot.isEmpty();
 		const auto folder = look ? QStringLiteral("%1/%2-%3").arg(aLookRoot, QGuiApplication::platformName(), QApplication::style()->name().toLower()) : QString{ };
 		expect(!look || QDir{ }.mkpath(folder), "the look's directory exists");
-		const auto tag      = qEnvironmentVariable("BPR_PINNED_CARD_RENDER_TAG", QStringLiteral("card"));
-		const auto scale    = QString::number(qRound(qApp->devicePixelRatio() * 100.0));
-		const auto earlier  = *core::parse_git_commit_oid("3333333333333333333333333333333333333333");
+		const auto tag   = qEnvironmentVariable("BPR_PINNED_CARD_RENDER_TAG", QStringLiteral("card"));
+		const auto scale = QString::number(qRound(qApp->devicePixelRatio() * 100.0));
+		// The head the session read is named by seven of the widest digits a
+		// revision can hold, so the two choices are measured at their widest.
+		const auto earlier  = *core::parse_git_commit_oid("9696969696969696969696969696969696969696");
 		const auto binding  = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
 		auto       pinned   = binding;
 		pinned.HeadOid      = earlier;
@@ -1219,8 +1221,8 @@ namespace {
 					window.agent_panel()->admit(identity);
 					settle();
 					auto result               = application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::private_storage_failure };
-					result.RefusalReason      = aWorkInTheWay ? "This conversation's workspace at 3333333 has uncommitted edits, so it was not moved to 2222222. No question was sent."
-															  : "This conversation is pinned to an earlier revision, 3333333. Continue at 3333333 to keep asking about that revision, or start a new session at 2222222. No question was sent.";
+					result.RefusalReason      = aWorkInTheWay ? "This conversation's workspace at 9696969 has uncommitted edits, so it was not moved to 2222222. No question was sent."
+															  : "This conversation is pinned to an earlier revision, 9696969. Continue at 9696969 to keep asking about that revision, or start a new session at 2222222. No question was sent.";
 					result.StandardError      = result.RefusalReason;
 					result.PinnedConversation = core::offer_pinned_conversation({ .Pinned = pinned, .Observed = binding, .Remembers = true });
 					if (aWorkInTheWay) {
@@ -1252,16 +1254,25 @@ namespace {
 					// The same card in its three states: one title, the
 					// choices in one order, in the words RFC-BPR-0130 gives
 					// the card and History.
-					if (tab->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text() != QStringLiteral("This session read 3333333") || tab->banner_first_button()->text() != QStringLiteral("Continue at 3333333")
+					if (tab->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text() != QStringLiteral("This session read 9696969") || tab->banner_first_button()->text() != QStringLiteral("Continue at 9696969")
 						|| tab->banner_second_button()->text() != QStringLiteral("New session") || tab->banner_first_button()->toolTip().isEmpty() || tab->banner_second_button()->toolTip().isEmpty()) {
 						failures.push_back(where + ": the card says which head the session read, then Continue at it and New session: " + tab->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text().toStdString() + " / "
 										   + tab->banner_first_button()->text().toStdString() + " / " + tab->banner_second_button()->text().toStdString());
 					}
 				};
-				// A session with a turn, opened after the head moved.
+				// A session with turns enough to scroll in any typeface, opened
+				// after the head moved.
 				tab->set_session_title(QStringLiteral("#17 Keep review snapshots deterministic"));
 				tab->present_thread({ qt::agent_thread_turn{ .Question = QStringLiteral("What does this change do?"),
 															 .Answer   = QStringLiteral("It sorts the snapshot's files before hashing them, so two reads of one head give the same digest."),
+															 .Footer   = QStringLiteral("Answered") },
+									  qt::agent_thread_turn{ .Question = QStringLiteral("Which files does it touch?"),
+															 .Answer   = QStringLiteral("The snapshot reader and its tests. The reader sorts by path before it hashes; the tests read one head twice and compare the two digests, in both orders the "
+																						"file system may list the files in."),
+															 .Footer   = QStringLiteral("Answered") },
+									  qt::agent_thread_turn{ .Question = QStringLiteral("Is anything left unsorted?"),
+															 .Answer   = QStringLiteral("The submodule list keeps the order Git gives it, which is already stable for one head. Nothing else that reaches the digest is read in directory "
+																						"order, and the cache key is the digest itself."),
 															 .Footer   = QStringLiteral("Answered") } });
 				present(pinned);
 				judge(pinned_card::offered, "offered");
@@ -1272,6 +1283,20 @@ namespace {
 				// card: it says why, and the card does not say it again.
 				if (tab->banner_text() != QStringLiteral("Your message is kept and is sent when you choose.")) {
 					failures.push_back("after a refused question the card says only that the message is kept" + at + ": " + tab->banner_text().toStdString());
+				}
+				// Sent to the failure from elsewhere, the reader is shown the
+				// thread's end, where the refused turn is; the card is in
+				// view already.
+				if (auto* const bar = tab->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->verticalScrollBar(); bar->maximum() > bar->minimum()) {
+					bar->setValue(bar->minimum());
+					settle();
+					tab->reveal_run_failure();
+					settle();
+					if (bar->value() != bar->maximum()) {
+						failures.push_back("revealing a refused question shows the thread's end, where its turn says why" + at + ": " + std::to_string(bar->value()) + " of " + std::to_string(bar->maximum()));
+					}
+				} else if (width == 280U) {
+					failures.push_back("in the narrowest drawer the refused turn's thread is taller than its room, so its end can be shown" + at);
 				}
 				// Owner, attended review 2026-11-25: "This made the drawer
 				// have a horizontal scroll which should have been

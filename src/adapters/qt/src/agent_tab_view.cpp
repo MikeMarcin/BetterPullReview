@@ -652,7 +652,10 @@ namespace bpr::qt {
 		Banner       = new rounded{ rounded::look::callout, content };
 		Banner->setObjectName(QStringLiteral("agentStateBanner"));
 		auto* const bannerCol = new QVBoxLayout{ Banner };
-		bannerCol->setContentsMargins(12, 10, 12, 10);
+		// Its words start where the question field's do. The trailing inset
+		// is narrower, so that the two choices fit a 280 px drawer whole
+		// whatever seven characters name the revision.
+		bannerCol->setContentsMargins(12, 10, 8, 10);
 		bannerCol->setSpacing(4);
 		BannerTitle = new QLabel{ Banner };
 		BannerTitle->setObjectName(QStringLiteral("agentStateTitle"));
@@ -5085,9 +5088,15 @@ namespace bpr::qt {
 		if (!panels_alive() || Banner == nullptr || Banner->isHidden()) {
 			return;
 		}
-		// A card on the question field is in view already.
-		if (auto* const scroll = qobject_cast<QScrollArea*>(Viewport != nullptr ? Viewport->parentWidget() : nullptr); scroll != nullptr && !BannerDocked) {
-			scroll->ensureWidgetVisible(Banner);
+		if (auto* const scroll = qobject_cast<QScrollArea*>(Viewport != nullptr ? Viewport->parentWidget() : nullptr); scroll != nullptr) {
+			if (BannerDocked) {
+				// A card on the question field is in view already. The turn
+				// that says why is the thread's last: the thread goes to its
+				// end, and follows from there.
+				stick_to_bottom::attach(*scroll).pin();
+			} else {
+				scroll->ensureWidgetVisible(Banner);
+			}
 		}
 		if (BannerFirst != nullptr && !BannerFirst->isHidden()) {
 			BannerFirst->setFocus(Qt::OtherFocusReason);
