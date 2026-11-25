@@ -4050,8 +4050,28 @@ function(bpr_verify_app_source_tree app_source_root)
 	# member. One more read-and-select of the agent's own session store; no
 	# grant, provider, transport, mutation or publication path changes; the
 	# full application and mutation-branch digests are unchanged.
+	# Chat words reseal (the owner, 2026-11-25, of the Agent tab's heading:
+	# "I thought we were getting rid of 'Native continuation' altogether";
+	# RFC-BPR-0130's accepted words): the tour's side chat is told the display
+	# name of the agent it asks, which its carried-over notice and History's
+	# carry-over item name (window_tours.cpp, present_tour_native_history:
+	# one call to a Qt setter with a name the composition already reads).
+	# Two comments name the pinned-revision card's choice New session, as the
+	# card does (window_agent_chat.cpp, window_agent_setup.cpp). Presentation
+	# only; no grant, provider, transport, mutation or publication path
+	# changes; the full application and mutation-branch digests are unchanged.
+	# The value below also takes in ca0aac0e9 (RFC-BPR-0096 continue-at-latest,
+	# the editable reconcile prompt), which reached main without a reseal:
+	# main's tree at e847156c3 computes f68e6f6c… against its pin of 90de0e4d….
+	# Read here: the Agent tab's reconcile turn takes its prompt from the
+	# profile's accepted writing hooks (window_agent_chat.cpp,
+	# effective_reconcile_prompt) where it took the built-in text, and
+	# tour_assist.cpp names the new hook "reconcile-move". One read of
+	# settings the composition already holds; no grant, provider, transport,
+	# mutation or publication path changes. That change's own review belongs
+	# to its card.
 	set(bpr_expected_production_app_manifest_digest
-        "90de0e4d19fd4db318513df4d62cb1cf51a4c6a9b5db48958dae2836ab13820e"
+        "970567aff70b107ea8f5af9ac8c8dbcfb51570995192597e183e9a4f60acf20c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

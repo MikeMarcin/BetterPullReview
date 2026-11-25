@@ -358,8 +358,9 @@ namespace bpr::qt {
 		/// Delete all sessions…: the shared `agent_session_menu`.
 		[[nodiscard]] auto session_menu() const noexcept -> agent_session_menu* { return SessionMenu; }
 		/// \brief RFC-BPR-0130. The header's History menu, the tour chat's
-		/// own: New session first, the sessions, Delete all sessions…, the
-		/// private runs, Reset agents…, the revision read.
+		/// own: New session first, the sessions, carrying the open one over,
+		/// Delete all sessions…, Show every run…, Reset agents…, the revision
+		/// read.
 		[[nodiscard]] auto history_menu() const noexcept -> chat_history_menu* { return HistoryItems; }
 		/// \brief New session, History's first item: enabled exactly when
 		/// core offers it, and greyed with its reason otherwise.
@@ -418,7 +419,7 @@ namespace bpr::qt {
 		void set_native_history_dispatch(std::function<void(std::optional<std::string>)> aDispatch) { NativeHistoryDispatch = std::move(aDispatch); }
 		/// \brief Owner, 2026-11-24. Where the stopped card's pinned
 		/// conversation choices go: continue the conversation at its own
-		/// revision, or start a new session at the current one. The host
+		/// revision, or New session at the current one. The host
 		/// answers whether it took the choice; when it did, the tab resends
 		/// the kept message.
 		void set_pinned_conversation_dispatch(std::function<bool(core::agent_continuation)> aDispatch) { PinnedDispatch = std::move(aDispatch); }
@@ -447,6 +448,12 @@ namespace bpr::qt {
 		/// \brief The quiet line an opened conversation shows when its shared
 		/// checkout moved while another conversation asked; hidden otherwise.
 		[[nodiscard]] auto conversation_move_notice() const noexcept -> QLabel* { return ConversationMoved; }
+		/// \brief The quiet line of a session that does not go on in the
+		/// ordinary way: one carried over from a saved transcript, or one the
+		/// chosen agent cannot pick up. It names the chosen agent, stands on
+		/// the question field with the other notices, and is hidden and
+		/// empty for every other session.
+		[[nodiscard]] auto session_notice() const noexcept -> QLabel* { return SessionNotice; }
 		[[nodiscard]] auto banner_text() const -> QString;
 		/// \brief [[BPR-1753]], owner decision (a) 2026-10-23
 		/// ("Suggested prompts described that way sound great"). Where the
@@ -817,12 +824,12 @@ namespace bpr::qt {
 		session_edit_dispatch                        SessionEditDispatch;
 		agent_session_menu*                          SessionMenu  = nullptr;
 		chat_history_menu*                           HistoryItems = nullptr;
-		QString                                      CarryOverTip;
 		void                                         refresh_history();
+		void                                         present_session_notice();
 		QString                                      DefaultSessionTitle;
 		void                                         show_session_title();
 		application::native_agent_history_projection NativeHistoryView;
-		QLabel*                                      ContinuationMode  = nullptr;
+		QLabel*                                      SessionNotice     = nullptr;
 		QLabel*                                      ConversationMoved = nullptr;
 		/// Paints each glyph again in the current palette's ink.
 		void repaint_glyphs();

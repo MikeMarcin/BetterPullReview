@@ -88,7 +88,7 @@ namespace bpr::core {
 		bool CarriedOver = false;
 		/// The open session is pinned to a revision other than the one under
 		/// review, and the chat asks which to go on with (the pinned-revision
-		/// card's Start a new session and Continue at the revision it read).
+		/// card's New session and Continue at the revision it read).
 		bool Pinned = false;
 		/// Chats about other parts of the tour.
 		std::size_t OtherChats = 0U;
@@ -117,7 +117,7 @@ namespace bpr::core {
 	/// it stopped, whose empty session New session turns into one it can use.
 	/// A session pinned to another revision is never the new session, asked in
 	/// or not: New session opens one at the revision under review, which is
-	/// what the pinned-revision card's Start a new session chooses (owner,
+	/// what the pinned-revision card's New session chooses (owner,
 	/// 2026-11-24, of a card whose new session kept showing the old one).
 	[[nodiscard]] auto decide_new_session(const chat_history_facts& aFacts) noexcept -> new_session_refusal;
 

@@ -2218,8 +2218,9 @@ namespace {
 			expect(result.PinnedConversation && result.PinnedConversation->Pinned && result.PinnedConversation->ContinueOffered && result.PinnedConversation->NewSessionOffered
 					   && result.PinnedConversation->PinnedHead == earlier.HeadOid && result.PinnedConversation->ObservedHead == binding(hostId).HeadOid,
 				   "a used conversation offers both ways back");
-			expect(result.RefusalReason.find("Continue at " + earlierHead) != std::string::npos && result.RefusalReason.find("start a new session at " + currentHead) != std::string::npos,
-				   "and its reason names both, as the buttons say them");
+			expect(result.RefusalReason.find("Choose Continue at " + earlierHead) != std::string::npos && result.RefusalReason.find("or New session to ask at " + currentHead) != std::string::npos
+					   && result.RefusalReason.find("tart a new session") == std::string::npos,
+				   "and its reason names both, as the buttons say them: " + result.RefusalReason);
 			expect(result.PinnedSession && result.PinnedSession->Binding == earlier && result.PinnedSession->Profile == core::claude_stream_json_profile_id && core::valid_agent_session(*result.PinnedSession),
 				   "the session a continuation runs under is the conversation's own, at its own revision");
 
@@ -2241,14 +2242,14 @@ namespace {
 					   && test.NativeSessions.Records.at(scope).Binding == earlier,
 				   "it resumes the conversation's own session and keeps it at its revision");
 
-			// Start a new session at the current head instead.
+			// New session at the current head instead.
 			auto fresh                         = agent_tab_turn();
 			fresh.SelectedConversation         = selected;
 			fresh.NativeStartAtCurrentRevision = true;
 			test.Host.dispatch(fresh);
 			test.settle();
 			expect(test.Projection.Finished.size() == 3U && test.Projection.Finished.back().Outcome == application::agent_run_outcome::success && test.Processes.Starts == 2U,
-				   "Start a new session runs the turn though History last showed the pinned conversation");
+				   "New session runs the turn though History last showed the pinned conversation");
 			expect(test.NativeSessions.Records.at(scope).Id != selected && test.NativeSessions.Records.at(scope).Binding == binding(hostId)
 					   && test.Projection.Finished.back().Conversation == test.NativeSessions.Records.at(scope).Id,
 				   "in a new conversation at the current revision, which the result names");
@@ -2389,7 +2390,7 @@ namespace {
 				   "edits refuse the turn with the reconcile actions, Continue and a new session");
 			expect(refused.RefusalReason.find("uncommitted edits") != std::string::npos && refused.RefusalReason.find("Rebase onto " + to) != std::string::npos
 					   && refused.RefusalReason.find("Keep my changes on a branch and move") != std::string::npos && refused.RefusalReason.find("Continue at " + from) != std::string::npos
-					   && refused.RefusalReason.find("No question was sent.") != std::string::npos,
+					   && refused.RefusalReason.find(", or New session. No question was sent.") != std::string::npos && refused.RefusalReason.find("tart a new session") == std::string::npos,
 				   "its reason names what is in the way and every way on: " + refused.RefusalReason);
 			expect(test.NativeSessions.Moved == 0U && test.NativeSessions.Records.at(scope).Binding == earlier, "nothing is recorded as moved");
 
@@ -2480,6 +2481,9 @@ namespace {
 			expect(test.Workspaces.Moves == 0U && test.Processes.Starts == 0U && shared.MoveRefusal && shared.MoveRefusal->Blocked == state::busy && shared.MoveRefusal->ContinueOffered
 					   && !shared.MoveRefusal->RebaseOffered && shared.RefusalReason.find("kept workspace is the same checkout") != std::string::npos,
 				   "a checkout the pull request's kept workspace records is not moved");
+			// The card's two choices, by the names on its chips and no other.
+			expect(shared.RefusalReason.ends_with(" Choose Continue at " + from + " or New session. No question was sent."),
+				   "the refusal names Continue at the head it read and New session, as the card's chips do: " + shared.RefusalReason);
 			test.NativeSessions.KeptHolders = 0U;
 			test.Workspaces.MoveFailure     = application::agent_workspace_error{ application::agent_workspace_failure::unavailable, { }, application::agent_workspace_unavailable_reason::retained_objects_missing };
 			const auto missing              = send(test, selected);
@@ -3241,7 +3245,7 @@ namespace {
 			expect(result.Outcome == application::agent_run_outcome::workspace_unavailable && result.WorkspaceReason == why
 					   && result.RefusalReason == result.StandardError && result.RefusalReason.find("workspace") != std::string::npos
 					   && result.RefusalReason.find("PRIVATE_CANARY") == std::string::npos
-					   && result.RefusalReason.find("Start a new session") == std::string::npos,
+					   && result.RefusalReason.find("tart a new session") == std::string::npos && result.RefusalReason.find("New session") == std::string::npos,
 				   "retained inspection refuses with a safe visible workspace explanation, never private storage or raw Git text");
 			expect(test.Log.Events.size() == 1U && test.Log.Events.front().Operation == application::diagnostic_operation::agent_workspace
 					   && test.Log.Events.front().Outcome == application::diagnostic_outcome::failed

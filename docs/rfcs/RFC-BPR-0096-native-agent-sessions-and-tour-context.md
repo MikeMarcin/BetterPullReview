@@ -193,6 +193,11 @@ turn on it runs.
   between (bounded), or the git commands that show them.
 - **Still reachable.** Start a new session and Continue at <old> stay in the
   History menu; the refusal card shows them when the move cannot be made.
+  (Note, 2026-11-25: this amendment's text is kept as decided. The action it
+  calls "Start a new session" is named **New session** on the card, in
+  History and in every refusal that names it, as RFC-BPR-0130's note on its
+  words records; a refusal now ends "Choose Continue at <old> or New session.
+  No question was sent.")
 - **One checkout for the pull request's sessions.** Asked whether a session
   that shares its workspace with another should also move, the owner answered
   "a session in the same PR? yes single checkout", and then "The other

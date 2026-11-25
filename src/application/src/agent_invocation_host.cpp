@@ -73,18 +73,18 @@ namespace bpr::application {
 			const auto pinned   = std::string{ core::canonical_hex(aOffer.PinnedHead).view().substr(0U, 7U) };
 			const auto current  = std::string{ core::canonical_hex(aOffer.ObservedHead).view().substr(0U, 7U) };
 			const auto sameHead = aOffer.PinnedHead == aOffer.ObservedHead;
-			const auto newHere  = sameHead ? std::string{ "start a new session for the comparison on screen" } : "start a new session at " + current;
+			// The card's second choice is History's New session by name; what
+			// follows the name says where the question is then asked.
+			const auto newHere = sameHead ? std::string{ "New session to ask about the comparison on screen" } : "New session to ask at " + current;
 			if (aOffer.Staleness == core::agent_session_staleness::different_review) {
-				return "This conversation belongs to another pull request. Start a new session. No question was sent.";
+				return "This conversation belongs to another pull request. Choose New session. No question was sent.";
 			}
 			if (aOffer.ContinueOffered) {
-				return (sameHead ? "This conversation is pinned to another comparison of " + pinned + ". Continue at " + pinned + " to keep asking about that comparison, or "
-								 : "This conversation is pinned to an earlier revision, " + pinned + ". Continue at " + pinned + " to keep asking about that revision, or ")
+				return (sameHead ? "This conversation is pinned to another comparison of " + pinned + ". Choose Continue at " + pinned + " to keep asking about that comparison, or "
+								 : "This conversation is pinned to an earlier revision, " + pinned + ". Choose Continue at " + pinned + " to keep asking about that revision, or ")
 					+ newHere + ". No question was sent.";
 			}
-			auto next    = newHere;
-			next.front() = 'S';
-			return "This conversation is pinned to " + pinned + ". " + next + ". No question was sent.";
+			return "This conversation is pinned to " + pinned + ". Choose " + newHere + ". No question was sent.";
 		}
 
 		/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24: "it
@@ -135,18 +135,30 @@ namespace bpr::application {
 				ways.push_back("Continue at " + from);
 			}
 			if (aDecision.NewSessionOffered) {
-				ways.push_back("start a new session at " + to);
+				// By the card's own name for it; the sentence before names
+				// the head it opens at.
+				ways.emplace_back("New session");
 			}
 			if (!ways.empty()) {
 				words += " Choose ";
 				for (std::size_t index = 0U; index < ways.size(); ++index) {
-					words += (index == 0U ? "" : index + 1U == ways.size() ? ", or "
-																		   : ", ")
+					// Two ways are "one or the other"; a third takes commas.
+					const auto last = index + 1U == ways.size();
+					words += (index == 0U ? "" : !last ? ", "
+								  : ways.size() == 2U  ? " or "
+													   : ", or ")
 						+ ways[index];
 				}
 				words += ".";
 			}
 			return words + " No question was sent.";
+		}
+
+		/// The agent as a refusal names it: its display name, which the chat's
+		/// own notices use, or "The agent" for a profile that has none.
+		[[nodiscard]] auto agent_words(const core::agent_profile& aProfile) -> std::string
+		{
+			return aProfile.DisplayName.empty() ? std::string{ "The agent" } : aProfile.DisplayName;
 		}
 
 		// Read only this selected catalog generation, never an in-memory cache of other chats.
@@ -1079,11 +1091,13 @@ namespace bpr::application {
 						return;
 					}
 					if (aProfile.Protocol == core::agent_protocol::external_terminal && !selected->Replay) {
-						refuseNative("This backend has no qualified native continuation. Choose Transcript replay or New session in History; no question was sent.", core::operation_failure::unsupported);
+						// RFC-BPR-0130's accepted words, as the chat's notice says them.
+						refuseNative(agent_words(aProfile) + " can't pick up this conversation where it stopped. Choose New session, or carry the transcript over. No question was sent.",
+									 core::operation_failure::unsupported);
 						return;
 					}
 					if (selected->Pending) {
-						refuseNative("The previous question may have been sent before interruption. It was not resent. Start a new session or inspect the native history before continuing.", core::operation_failure::outcome_unknown);
+						refuseNative("The previous question may have been sent before interruption. It was not resent. Choose New session in History, or inspect the native history before continuing.", core::operation_failure::outcome_unknown);
 						return;
 					}
 					const auto pinned = core::offer_pinned_conversation({
@@ -1229,7 +1243,7 @@ namespace bpr::application {
 					if (aInvocation->Native->Replay) {
 						const auto history = NativeSessions->history(scope, aInvocation->Native->Configuration);
 						if (!history || history->Selected != aInvocation->Native->Id) {
-							refuseNative("Replay history changed or is unavailable. No question was sent.", core::operation_failure::storage_failed);
+							refuseNative("This carried-over conversation changed or is unavailable. No question was sent.", core::operation_failure::storage_failed);
 							return;
 						}
 						aSupplement.Replay = prose_replay(*history, aRequest.ReadOnlyTools);
@@ -1449,7 +1463,8 @@ namespace bpr::application {
 						if (launch->Protocol == core::agent_protocol::codex_jsonl_exec) {
 							auto prepared = prepare_native_agent_turn(std::move(*launch), false);
 							if (!prepared) {
-								refuseNative("Native resume is unavailable for this configuration. No replay was attempted.", core::operation_failure::unsupported);
+								refuseNative(agent_words(aProfile) + " can't pick up this conversation with its current settings. Nothing was carried over, and no question was sent.",
+											 core::operation_failure::unsupported);
 								return;
 							}
 							launch = std::move(*prepared);
@@ -2195,7 +2210,7 @@ namespace bpr::application {
 								return;
 							}
 							if (*outcome && (**outcome).Pending) {
-								self->project_refuse("The previous question may have been sent before interruption. It was not resent. Choose New session or explicitly create Transcript replay.");
+								self->project_refuse("The previous question may have been sent before interruption. It was not resent. Choose New session, or carry the transcript over.");
 							}
 							// RFC-BPR-0096, owner continue-at-latest amendment,
 							// 2026-11-24: a conversation whose retained workspace

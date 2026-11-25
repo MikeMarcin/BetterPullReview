@@ -80,7 +80,12 @@ themes, rendering mechanics, and event translation.
   each state, and refuse a horizontal bar, sideways range, content wider than
   its viewport, a control outside the drawer, a button narrower than its
   words, a chip drawn over another, a button's face or a text field cut by
-  a part that holds it, and a tool button the platform style draws. A state a real run
+  a part that holds it, and a tool button the platform style draws. It also
+  refuses a label or button drawn over what a scroll area scrolls, anything
+  between the Agent tab's header row and its transcript, and the words
+  RFC-BPR-0130 replaced ("Native continuation", "Transcript replay",
+  "Native:", "Private history and runs") on any label, button or menu item.
+  A state a real run
   reaches (an activity line, a suggested prompt, a refused question, a moved
   head) joins that course: a window nothing composed never shows it.
 - A state is what the window shows between two gestures, not only where a
@@ -133,6 +138,18 @@ themes, rendering mechanics, and event translation.
   there, each a `quiet_tool_button` with its name first in its tooltip and
   as its accessible name; a choice that only opens another surface the
   drawer already offers has no button of its own.
+- A chat's transcript keeps itself at its end (`stick_to_bottom`), so one
+  taller than its viewport cuts a turn at the top, wherever that falls. It
+  gets a
+  `transcript_edge` as well: a hairline on the viewport's first row while a
+  turn is cut there, and only then. Without it the cut turn reads as covered
+  by whatever is above (owner, 2026-11-25, of a question cut under a line of
+  the header: "partly hidden under the Native continuation line"); nothing
+  lay over it. The composed course refuses a transcript that keeps its end
+  and has no edge, one with a turn cut and no edge drawn, and an edge over a
+  first turn that is whole. What a chat says of its session (carried over,
+  cannot be picked up) is a quiet notice on the question field, never a line
+  between the header and the transcript.
 - A `QPlainTextEdit` that wraps at its width can still be given a few pixels
   of sideways range (Qt measures a block it lays out again as its widest
   line and some room more), which shows a horizontal scroll bar under words

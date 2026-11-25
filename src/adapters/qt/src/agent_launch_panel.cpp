@@ -37,7 +37,7 @@ namespace bpr::qt {
 			switch (aReason) {
 			case reason::retained_unavailable:
 			case reason::retained_objects_missing:
-				return QStringLiteral("The retained workspace or required Git objects are unavailable. Start a new session; its transcript and files are kept.");
+				return QStringLiteral("The retained workspace or required Git objects are unavailable. Choose New session in History; this conversation's transcript and files are kept.");
 			case reason::inspection_output_limit:
 				return QStringLiteral("The retained workspace check reached its output limit. Its transcript and files are kept.");
 			case reason::inspection_timed_out:

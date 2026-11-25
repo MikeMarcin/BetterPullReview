@@ -2426,6 +2426,14 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
     bpr_enable_warnings(test_stick_to_bottom)
     bpr_add_network_isolated_test(NAME qt_stick_to_bottom COMMAND test_stick_to_bottom)
     set_tests_properties(qt_stick_to_bottom PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "stick-to-bottom:pass" TIMEOUT 60)
+    # A transcript draws its top edge exactly while turns are scrolled under
+    # it: the Agent tab's conversation and the tour's side chat.
+    bpr_add_executable(test_transcript_edge transcript_edge_tests.cpp)
+    target_link_libraries(test_transcript_edge PRIVATE BetterPullReview::AdapterQt BetterPullReview::Application)
+    bpr_enable_hardening(test_transcript_edge)
+    bpr_enable_warnings(test_transcript_edge)
+    bpr_add_network_isolated_test(NAME qt_transcript_edge COMMAND test_transcript_edge)
+    set_tests_properties(qt_transcript_edge PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "transcript-edge:pass" TIMEOUT 60)
 endif()
 bpr_add_executable(test_review_tour_agent_setup_call review_tour_agent_setup_call_tests.cpp) # [[BPR-1881]]
 target_link_libraries(test_review_tour_agent_setup_call PRIVATE BetterPullReview::AdapterQt)

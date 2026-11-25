@@ -1688,6 +1688,9 @@ namespace bpr::app {
 		if (!thread || tour_native_scope(*thread) != aView.Scope) {
 			return;
 		}
+		// The chat's notice and its carry-over item name the agent it asks.
+		const auto agent = writing_agent();
+		Window->tour_editor()->side_chat()->set_agent_name(agent ? agent_display_name(*agent) : QString{ });
 		if (aView.ReadOnly) {
 			auto readable = aView;
 			for (auto& turn : readable.Turns) {

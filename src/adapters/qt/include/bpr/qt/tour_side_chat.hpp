@@ -324,6 +324,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-2377]]. What the last rename or deletion did.
 		void present_session_edit(const QString& aStatus);
 		void present_native_history(const application::native_agent_history_projection&);
+		/// \brief The display name of the agent this chat asks, which its
+		/// notice of a carried-over session and History's carry-over item
+		/// name; empty while none is chosen.
+		void set_agent_name(const QString& aName);
 		/// \brief Projects the core's revision choice without submitting a question.
 		void present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, core::git_commit_oid aObservedHead, bool aContinued);
 		void set_continuation_dispatch(std::function<void(const core::tour_thread&)> aDispatch) { ContinuationDispatch = std::move(aDispatch); }
@@ -430,7 +434,10 @@ namespace bpr::qt {
 		chat_history_menu*                                                        HistoryMenu     = nullptr;
 		quiet_tool_button*                                                        HistoryTool     = nullptr;
 		bool                                                                      SessionsOffered = true;
-		QString                                                                   CarryOverTip;
+		QString                                                                   AgentName;
+		bool                                                                      CarriedOver    = false;
+		bool                                                                      CannotContinue = false;
+		void                                                                      present_session_notice();
 		QString                                                                   ShowWords;
 		std::function<void(const core::tour_thread&)>                             ContinuationDispatch;
 		QToolButton*                                                              ContinueOld            = nullptr;
@@ -504,10 +511,10 @@ namespace bpr::qt {
 		QLabel*                                                                     FocusLine     = nullptr;
 		std::function<void(core::tour_agent_run_id)>                                FocusUndoDispatch;
 		[[nodiscard]] auto                                                          takes_feedback() const -> bool;
-		bool                                                                        Mine             = false;
-		bool                                                                        Ready            = true;
-		bool                                                                        HostIdle         = true;
-		QLabel*                                                                     ContinuationMode = nullptr;
+		bool                                                                        Mine          = false;
+		bool                                                                        Ready         = true;
+		bool                                                                        HostIdle      = true;
+		QLabel*                                                                     SessionNotice = nullptr;
 		QString                                                                     Why;
 		std::size_t                                                                 Shown = 0U;
 		QFont                                                                       CodeFont;

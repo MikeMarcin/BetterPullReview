@@ -15393,7 +15393,7 @@ namespace {
 			process_events();
 			auto result = application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::private_storage_failure };
 			if (aRemembers) {
-				result.RefusalReason      = "This conversation is pinned to an earlier revision, 3333333. Continue at 3333333 to keep asking about that revision, or start a new session at 2222222. No question was sent.";
+				result.RefusalReason      = "This conversation is pinned to an earlier revision, 3333333. Choose Continue at 3333333 to keep asking about that revision, or New session to ask at 2222222. No question was sent.";
 				result.StandardError      = result.RefusalReason;
 				result.PinnedConversation = core::offer_pinned_conversation({ .Pinned = [&] { auto pinned = binding; pinned.HeadOid = earlier; return pinned; }(), .Observed = binding, .Remembers = true });
 			} else {
@@ -15416,7 +15416,7 @@ namespace {
 		// thread's last and says why; the card says only what waits on the
 		// choice, so the reason is read once.
 		const auto refusedTurn = agent->turn_answer(agent->turn_count() - 1U);
-		expect(refusedTurn.contains(QStringLiteral("Continue at 3333333")) && refusedTurn.contains(QStringLiteral("start a new session at 2222222")),
+		expect(refusedTurn.contains(QStringLiteral("Continue at 3333333")) && refusedTurn.contains(QStringLiteral("New session to ask at 2222222")),
 			   "the refused turn's words name exactly those two: " + refusedTurn.toStdString());
 		expect(agent->banner_docked() && agent->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text() == QStringLiteral("This session read 3333333")
 				   && agent->banner_text() == QStringLiteral("Your message is kept and is sent when you choose."),
@@ -15540,6 +15540,71 @@ namespace {
 		const auto* const line = agent->turn_move_notice(agent->turn_count() - 1U);
 		expect(line != nullptr && line->isVisible() && line->text() == QStringLiteral("Updated to 2222222 — 3 commits"), "the transcript says the move: " + (line != nullptr ? line->text().toStdString() : std::string{ }));
 		expect(agent->turn_move_notice(0U) != nullptr && !agent->turn_move_notice(0U)->isVisible(), "a turn that did not move says nothing");
+
+		// Owner, attended review 2026-11-25, of a turn cut at the transcript's
+		// top: "partly hidden under the Native continuation line", and then:
+		// "I thought we were getting rid of 'Native continuation' altogether".
+		// The header is its one row, and the transcript starts under it. A
+		// session carried over, or one the agent cannot go on with, says so
+		// in RFC-BPR-0130's accepted words on the question field, under the
+		// transcript; every other session says nothing.
+		auto* const said   = agent->session_notice();
+		auto* const scroll = agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"));
+		auto* const row    = agent->findChild<QWidget*>(QStringLiteral("agentContextRow"));
+		expect(said != nullptr && scroll != nullptr && row != nullptr && agent->findChild<QLabel*>(QStringLiteral("agentContinuationMode")) == nullptr, "the tab has its said line and no continuation heading");
+		const auto inTab    = [agent](const QWidget& aPart) { return QRect{ aPart.mapTo(agent, QPoint{ 0, 0 }), aPart.size() }; };
+		const auto headless = [&] { return inTab(*scroll).top() == inTab(*row).bottom() + 1; };
+		const auto ordinary = application::native_agent_history_projection{ };
+		agent->present_native_history(ordinary);
+		process_events();
+		expect(said->isHidden() && said->text().isEmpty(), "an ordinary session says nothing of how it goes on: " + said->text().toStdString());
+		expect(headless(), "and its transcript starts directly under the header's row: " + std::to_string(inTab(*scroll).top()) + " under " + std::to_string(inTab(*row).bottom()));
+		const auto shownWords = [&] {
+			auto words = QStringList{ };
+			for (const auto* const label : agent->findChildren<QLabel*>()) {
+				if (label->isVisibleTo(agent)) {
+					words << label->text() << label->toolTip();
+				}
+			}
+			return words.join(QLatin1Char{ '|' });
+		};
+		const auto noticed = [&](const application::native_agent_history_projection& aView, const QString& aWords, const QString& aTip) {
+			agent->present_native_history(aView);
+			process_events();
+			expect(said->isVisible() && said->text() == aWords && said->toolTip() == aTip, "the session says how it goes on, naming the agent the tab asks: " + said->text().toStdString() + " / " + said->toolTip().toStdString());
+			expect(said->foregroundRole() == QPalette::PlaceholderText && inTab(*said).top() > inTab(*scroll).bottom() && inTab(*said).bottom() < inTab(*chat->composer()).top()
+					   && inTab(*said).left() >= 8 && inTab(*said).right() < agent->width() - 4,
+				   "as a quiet said on the question field, under the transcript and over the field");
+			expect(headless(), "and nothing stands between the header's row and the transcript");
+			for (const auto* const old : { "Native continuation", "Transcript replay", "KiB", "Replay " }) {
+				expect(!shownWords().contains(QString::fromLatin1(old)), std::string{ "no line of the tab says " } + old + ": " + shownWords().toStdString());
+			}
+		};
+		auto carried               = ordinary;
+		carried.Replay             = true;
+		carried.ReplayTurnsOmitted = 3U;
+		noticed(carried, QStringLiteral("Carried over from a saved transcript. Fixture agent has the questions and answers, not what the earlier agent read."),
+				QStringLiteral("Long conversations are shortened: the oldest turns are left out. This one left out 3 older turns."));
+		expect(said->property("replayTurnsOmitted").toULongLong() == 3U, "what was left out stays on the line for diagnostics");
+		auto unable            = ordinary;
+		unable.NativeSupported = false;
+		noticed(unable, QStringLiteral("Fixture agent can't pick up this conversation where it stopped. Choose New session, or carry the transcript over."), QString{ });
+		agent->present_native_history(ordinary);
+		process_events();
+		expect(said->isHidden() && said->text().isEmpty(), "and nothing again once the session goes on in the ordinary way");
+		// History says the same things in the same words.
+		expect(agent->history_button()->toolTip() == QStringLiteral("History: this chat's sessions, New session and every run")
+				   && agent->history_menu()->carry_over_action()->text() == QStringLiteral("Carry this conversation over to Fixture agent")
+				   && agent->history_menu()->carry_over_action()->objectName() == QStringLiteral("agentCarryOver")
+				   && agent->findChild<QAction*>(QStringLiteral("agentShowEveryRun")) != nullptr && agent->findChild<QAction*>(QStringLiteral("agentShowEveryRun"))->text() == QStringLiteral("Show every run…"),
+			   "History carries a conversation over to the agent by name and shows every run: " + agent->history_menu()->carry_over_action()->text().toStdString());
+
+		// The choices are named as the card's chips name them, and New session
+		// where History has it.
+		expect(qt::agent_tab_view::send_refusal_words(core::agent_send_refusal::session_stale, QStringLiteral("Fixture agent")) == QStringLiteral("The pull request has moved on. Choose Continue or New session, then send.")
+				   && qt::agent_tab_view::send_refusal_words(core::agent_send_refusal::session_profile_mismatch, QStringLiteral("Fixture agent"))
+					   == QStringLiteral("This conversation is with another agent. Choose New session in History to ask Fixture agent."),
+			   "a refused send names Continue and New session as the card and History do");
 	}
 
 	void test_a_refused_send_says_why_beside_the_composer()
@@ -16477,7 +16542,7 @@ namespace {
 				   && qt::agent_tab_view::draft_all_words({ .Drafted = 0U, .Dismissed = 1U }) == QStringLiteral("Nothing drafted. Skipped 1: 1 dismissed."),
 			   "every outcome is said in words");
 		// [[BPR-2059]]. The continuation line carries no replay counts.
-		expect(!agent->findChild<QLabel*>(QStringLiteral("agentContinuationMode"))->text().contains(QStringLiteral("Replay omits")), "no internal status line is shown");
+		expect(agent->findChild<QLabel*>(QStringLiteral("agentContinuationMode")) == nullptr && agent->session_notice()->isHidden() && agent->session_notice()->text().isEmpty(), "no internal status line is shown");
 	}
 
 	void test_the_agent_is_a_drawer_tab()

@@ -208,6 +208,22 @@ no sentence hard-codes one.
 | "Claude answered." / "The tour agent answered in 0:31 · $0.14" | One ending line: who, how long, what it cost |
 | Replay uses at most 50 retained turns, 8 KiB per field and 48 KiB total… | Long conversations are shortened: the oldest turns are left out. (The exact limits stay in the diagnostic log.) |
 
+**Note, 2026-11-25 (the table above is kept as the owner accepted it).** The
+action these words call "Start a new session" is named **New session**
+wherever it shows: History's first item, the pinned-revision card's second
+choice, and every refusal, notice and tooltip that names it. The card took
+History's name when its two choices were put on one line, and the owner
+accepted that wording on 2026-11-25.
+The third row is therefore shipped as "{agent} can't pick up this conversation
+where it stopped. Choose New session, or carry the transcript over." The
+replacement words for the continuation heading, the carried-over notice, the
+carry-over item, "Private history and runs" and the replay's limits landed
+ahead of the rest of stage 1, with that correction, after the owner asked of
+the heading: "I thought we were getting rid of 'Native continuation'
+altogether". The Agent tab's notice stands on the question field, where the
+tour chat's does. "Head changed. …" (stage 6) and the one ending line
+(stage 3) are not part of that.
+
 ### One chat component
 
 **Core decides** (`src/core/`, pure values and functions):

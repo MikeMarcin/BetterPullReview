@@ -737,7 +737,12 @@ off for as long as the course pressed Apply all on its way past it. In each
 the drawer is dragged to 280, 300, 340 and 420 pixels and the window made as
 narrow as it goes; nothing pans, nothing is cut off, no chip lies over
 another, no part cuts the face of a button or a text field it holds, and no
-tool button is left to the platform style to draw.
+tool button is left to the platform style to draw. Nothing lies over what a
+scroll area scrolls; a chat's transcript with a turn cut at its top draws its
+edge there, and one with none cut draws none; nothing stands between the Agent
+tab's header row and its transcript; and no label, button or menu item says
+"Native continuation", "Transcript replay", "Native:" or "Private history and
+runs".
 A code block is the one thing wider than its frame: code keeps its lines and
 scrolls inside the block until its **Wrap** is pressed. A question the
 application refuses before any agent runs is said once, in words that wrap,
@@ -2733,9 +2738,32 @@ New session, which keeps the conversation and opens an empty one; when that
 would change nothing (the open session is new, a turn runs, no agent is set
 up) it is greyed and says why under its name. Then the sessions, one row each
 (open, rename, delete, about; the open one ticked; lit under the pointer and
-the arrow keys as the menu's items are), transcript replay, Delete all
-sessions…, the private history and runs, Reset agents… and, last, the revision
-the open session reads. The tour's side chat opens the same menu.
+the arrow keys as the menu's items are), Carry this conversation over to
+*agent* (the agent the tab asks, by its name), Delete all sessions…, Show every
+run…, Reset agents… and, last, the revision the open session reads. The tour's
+side chat opens the same menu.
+The header is that one row, and nothing stands between it and the transcript.
+The "Native continuation" heading that stood there is gone (RFC-BPR-0130's
+accepted words; the owner, 2026-11-25: "I thought we were getting rid of
+'Native continuation' altogether"). A session that was carried over from a
+saved transcript, or one the agent cannot pick up, says so in one quiet line
+on the question field, under the transcript and over the card and the field,
+as the tour's chat does: "Carried over from a saved transcript. *agent* has
+the questions and answers, not what the earlier agent read." or "*agent* can't
+pick up this conversation where it stopped. Choose New session, or carry the
+transcript over." Its tooltip says that long conversations are shortened and,
+when turns were left out, how many; kibibytes stay in the diagnostic log.
+Every other session says nothing of how it goes on. A line that says a
+session's shared checkout moved while another session asked stands there too.
+A chat's transcript keeps itself at its end, so one taller than its viewport
+cuts a turn at the viewport's top, wherever that falls. While a turn is cut there, and only
+then, the transcript draws a hairline on its first row (`transcript_edge`, in
+the Agent tab, the tour's side chat and an item's side chat): the turn is seen
+to go on above and never reads as covered by the header (the owner,
+2026-11-25, of a refused question whose first line was cut directly under
+that heading: "partly hidden under the Native continuation line"). The blank
+room a transcript keeps over its first turn is not a turn, and a transcript at
+its start draws no line.
 Below it the conversation is a thread ([[BPR-1753]], owner looks v002
 and v003): each turn is what was asked, in an outlined bubble with its time
 right-aligned above it, then the agent's reply in its own card: the answer

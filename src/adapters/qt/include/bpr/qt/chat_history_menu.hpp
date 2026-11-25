@@ -64,15 +64,16 @@ namespace bpr::qt {
 			bool Pinned      = false;
 			bool EveryRun    = false;
 			bool ResetAgents = false;
-			/// What carrying a conversation over keeps and leaves out.
-			QString CarryOverTip;
+			/// The chosen agent's name, which carrying a conversation over
+			/// names; empty while none is known.
+			QString Agent;
 			auto    operator==(const chat_state&) const -> bool = default;
 		};
 
 		/// \brief Makes the menu of `aButton`, which opens it at once.
 		/// Questions (Delete, Delete all) open over `aOwner`. The actions are
-		/// named `<aPrefix>NewSession` and `<aPrefix>TranscriptReplay`, the
-		/// menu `<aPrefix>HistoryMenu`.
+		/// named `<aPrefix>NewSession`, `<aPrefix>CarryOver` and
+		/// `<aPrefix>ShowEveryRun`, the menu `<aPrefix>HistoryMenu`.
 		chat_history_menu(core::chat_history_kind aKind, QWidget& aOwner, QToolButton& aButton, const QString& aPrefix);
 		void set_dispatch(dispatch aDispatch);
 		/// \brief The sessions as the host read them. While they load the
@@ -99,6 +100,25 @@ namespace bpr::qt {
 		/// it can be chosen.
 		[[nodiscard]] auto new_session_reason() const -> QString;
 		[[nodiscard]] auto plan() const noexcept -> const core::chat_history_plan& { return Plan; }
+
+		/// \name A conversation carried over, in RFC-BPR-0130's accepted words
+		/// \details The same in every chat, with the chosen agent's display
+		/// name where `aAgent` is given and "The agent" where none is known;
+		/// no sentence names an agent of its own. They replace "Transcript
+		/// replay", "Native continuation unavailable" and the replay's limits
+		/// in kibibytes, which stay in the diagnostic log.
+		/// \{
+		/// \brief The notice of a session that was carried over from a saved
+		/// transcript.
+		[[nodiscard]] static auto carried_over_words(const QString& aAgent) -> QString;
+		/// \brief The notice of a session the chosen agent cannot go on with.
+		[[nodiscard]] static auto cannot_continue_words(const QString& aAgent) -> QString;
+		/// \brief The menu item that carries the open session over.
+		[[nodiscard]] static auto carry_over_words(const QString& aAgent) -> QString;
+		/// \brief What carrying over leaves out, and what it left out of this
+		/// conversation when it left anything.
+		[[nodiscard]] static auto carry_over_tip(std::size_t aTurnsLeftOut, bool aTextCut) -> QString;
+		/// \}
 		[[nodiscard]] auto loading() const noexcept -> bool { return Loading; }
 
 	private:

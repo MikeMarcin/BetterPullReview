@@ -175,8 +175,8 @@ namespace bpr::qt {
 			.Delete    = [this](const std::string& aId) { if (Dispatch.Edit) { Dispatch.Edit(aId, std::nullopt); } },
 			.DeleteAll = [this] { if (Dispatch.Edit) { Dispatch.Edit({ }, std::nullopt); } },
 		});
-		CarryOver = new QAction{ tr("Use Transcript replay with selected agent"), this };
-		CarryOver->setObjectName(aPrefix + QStringLiteral("TranscriptReplay"));
+		CarryOver = new QAction{ carry_over_words({ }), this };
+		CarryOver->setObjectName(aPrefix + QStringLiteral("CarryOver"));
 		connect(CarryOver, &QAction::triggered, this, [this] {
 			if (Plan.CarryOver && Dispatch.CarryOver) {
 				Dispatch.CarryOver(History.Selected);
@@ -188,8 +188,8 @@ namespace bpr::qt {
 		Copy->setObjectName(aPrefix + QStringLiteral("CopyChat"));
 		Copy->setToolTip(tr("Copy this chat as text"));
 		connect(Copy, &QAction::triggered, this, [this] { if (Dispatch.CopyConversation) { Dispatch.CopyConversation(); } });
-		EveryRun = new QAction{ tr("Private history and runs"), this };
-		EveryRun->setObjectName(aPrefix + QStringLiteral("PrivateHistoryAction"));
+		EveryRun = new QAction{ tr("Show every run…"), this };
+		EveryRun->setObjectName(aPrefix + QStringLiteral("ShowEveryRun"));
 		connect(EveryRun, &QAction::triggered, this, [this] { if (Dispatch.ShowEveryRun) { Dispatch.ShowEveryRun(); } });
 		Reset = new QAction{ tr("Reset agents…"), this };
 		Reset->setObjectName(aPrefix + QStringLiteral("ResetAgentsAction"));
@@ -266,6 +266,37 @@ namespace bpr::qt {
 		};
 	}
 
+	auto chat_history_menu::carried_over_words(const QString& aAgent) -> QString
+	{
+		return tr("Carried over from a saved transcript. %1 has the questions and answers, not what the earlier agent read.").arg(aAgent.isEmpty() ? tr("The agent") : aAgent);
+	}
+
+	auto chat_history_menu::cannot_continue_words(const QString& aAgent) -> QString
+	{
+		// The owner accepted "Start a new session, or carry the transcript
+		// over."; the action has since been named New session everywhere.
+		return tr("%1 can't pick up this conversation where it stopped. Choose New session, or carry the transcript over.").arg(aAgent.isEmpty() ? tr("The agent") : aAgent);
+	}
+
+	auto chat_history_menu::carry_over_words(const QString& aAgent) -> QString
+	{
+		return aAgent.isEmpty() ? tr("Carry this conversation over to the chosen agent") : tr("Carry this conversation over to %1").arg(aAgent);
+	}
+
+	auto chat_history_menu::carry_over_tip(const std::size_t aTurnsLeftOut, const bool aTextCut) -> QString
+	{
+		auto words = tr("Long conversations are shortened: the oldest turns are left out.");
+		if (aTurnsLeftOut == 1U) {
+			words += tr(" This one left out 1 older turn.");
+		} else if (aTurnsLeftOut > 1U) {
+			words += tr(" This one left out %1 older turns.").arg(aTurnsLeftOut);
+		}
+		if (aTextCut) {
+			words += tr(" Some of its longest text was cut.");
+		}
+		return words;
+	}
+
 	void chat_history_menu::refresh()
 	{
 		if (Source) {
@@ -277,7 +308,8 @@ namespace bpr::qt {
 		NewItem->setEnabled(Plan.NewSession == core::new_session_refusal::none);
 		NewItem->set_reason(refusal_words(Plan.NewSession));
 		CarryOver->setEnabled(Plan.CarryOver);
-		CarryOver->setToolTip(State.CarryOverTip);
+		CarryOver->setText(carry_over_words(State.Agent));
+		CarryOver->setToolTip(carry_over_tip(History.Replay ? History.ReplayTurnsOmitted : 0U, History.Replay && History.ReplayTextCutBytes > 0U));
 		Copy->setEnabled(Plan.Copy);
 		if (const auto open = std::ranges::find(History.Entries, History.Selected, &application::native_agent_history_entry::Id); open != History.Entries.end()) {
 			const auto head = QString::fromStdString(std::string{ core::canonical_hex(open->Binding.HeadOid).view() }).left(7);

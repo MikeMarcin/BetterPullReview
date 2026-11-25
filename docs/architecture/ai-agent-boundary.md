@@ -457,7 +457,10 @@ allowlist from an agent-editable index or configuration. New session or explicit
 chosen Transcript replay remains available under its usual checks.
 
 **Transcript replay** is an explicit alternative for unsupported backends or
-unavailable native state. Choosing it creates a separate generation at the shown
+unavailable native state. That is the mechanism's name here, in the store and in
+the agent's input; the chats call it carrying a conversation over (History's
+**Carry this conversation over to *agent***, and the notice "Carried over from a
+saved transcript. …", RFC-BPR-0130's accepted words). Choosing it creates a separate generation at the shown
 revision and keeps the source history, native handle and owned workspace intact.
 It sends saved answered questions/replies in `transcript_replay.*`, counting
 omitted turns and cut bytes. Agent replay takes the newest 50 within 48 KiB,

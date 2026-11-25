@@ -29,9 +29,11 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
+#include "bpr/qt/transcript_edge.hpp"
 #include "composer_parts.hpp"
 #include "conversation_glyphs.hpp"
 #include "pull_request_overview_support.hpp"
+#include "side_chat_parts.hpp"
 #include "wrapping_row.hpp"
 
 #include <QAbstractItemModel>
@@ -561,11 +563,12 @@ namespace bpr::qt {
 		Head->setToolTip(tr("The head the session reads"));
 		Head->setForegroundRole(QPalette::PlaceholderText);
 		row->addWidget(Head);
-		History = make_drawer_tool(context, drawer_icon(drawer_glyph::history, palette()), tr("History: this chat's sessions, New session and private runs"), QStringLiteral("agentHistory"));
+		History = make_drawer_tool(context, drawer_icon(drawer_glyph::history, palette()), tr("History: this chat's sessions, New session and every run"), QStringLiteral("agentHistory"));
 		History->setAccessibleName(tr("History"));
 		// [[BPR-2377]], RFC-BPR-0130. The one History menu, the tour chat's
-		// too: New session, a row a session (pencil, trash can, i), Delete all
-		// sessions…, the private runs, Reset agents…, the revision read.
+		// too: New session, a row a session (pencil, trash can, i), carrying
+		// the open one over, Delete all sessions…, Show every run…, Reset
+		// agents…, the revision read.
 		HistoryItems = new chat_history_menu{ core::chat_history_kind::agent_tab, *this, *History, QStringLiteral("agent") };
 		HistoryMenu  = HistoryItems->menu();
 		SessionMenu  = HistoryItems->rows();
@@ -583,35 +586,25 @@ namespace bpr::qt {
 		// What History offers is core's, from what the tab is doing when asked.
 		HistoryItems->set_state_source([this] {
 			return chat_history_menu::chat_state{
-				.AgentReady   = panels_alive() && State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up,
-				.Closed       = false,
-				.Running      = State == agent_tab_state::working,
-				.Busy         = false,
-				.ShownTurns   = Turns.size(),
-				.Pinned       = State == agent_tab_state::head_moved,
-				.EveryRun     = true,
-				.ResetAgents  = SetupView != nullptr,
-				.CarryOverTip = CarryOverTip,
+				.AgentReady  = panels_alive() && State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up,
+				.Closed      = false,
+				.Running     = State == agent_tab_state::working,
+				.Busy        = false,
+				.ShownTurns  = Turns.size(),
+				.Pinned      = State == agent_tab_state::head_moved,
+				.EveryRun    = true,
+				.ResetAgents = SetupView != nullptr,
+				.Agent       = agent_name(),
 			};
 		});
 		row->addWidget(History);
 		column->addWidget(context);
-		ContinuationMode = new QLabel{ tr("Native continuation"), this };
-		ContinuationMode->setObjectName(QStringLiteral("agentContinuationMode"));
-		ContinuationMode->setWordWrap(true);
-		ContinuationMode->setTextFormat(Qt::PlainText);
-		column->addWidget(ContinuationMode);
-		// RFC-BPR-0096, owner continue-at-latest amendment (owner, 2026-11-24:
-		// "a session in the same PR? yes single checkout"). A conversation
-		// whose shared checkout another one's turn moved says so when opened;
-		// nothing was sent to it.
-		ConversationMoved = new QLabel{ this };
-		ConversationMoved->setObjectName(QStringLiteral("agentConversationMoved"));
-		ConversationMoved->setWordWrap(true);
-		ConversationMoved->setTextFormat(Qt::PlainText);
-		ConversationMoved->setForegroundRole(QPalette::PlaceholderText);
-		ConversationMoved->hide();
-		column->addWidget(ConversationMoved);
+		// The header is that one row (RFC-BPR-0130, header A): nothing is
+		// said between it and the transcript. The "Native continuation"
+		// heading that stood here is gone, as the owner accepted and then
+		// asked again (2026-11-25: "I thought we were getting rid of 'Native
+		// continuation' altogether"); what a session has to say of itself is
+		// a notice on the question field.
 
 		Pages = new QStackedWidget{ this };
 		column->addWidget(Pages, 1);
@@ -883,6 +876,9 @@ namespace bpr::qt {
 		scroll->setWidget(content);
 		// [[BPR-2296]]. At its end, the conversation stays there as it grows.
 		stick_to_bottom::attach(*scroll);
+		// A turn cut at the top goes on under a drawn edge, not under the
+		// header's words.
+		transcript_edge::attach(*scroll);
 		talk->addWidget(scroll, 1);
 
 		// The question field: the words, its context chips, Context and Ask.
@@ -1114,6 +1110,28 @@ namespace bpr::qt {
 		connect(refusalClose, &QToolButton::clicked, this, [this] { hide_send_refusal(); });
 		refusalRow->addWidget(refusalClose, 0, Qt::AlignTop);
 		refusal->hide();
+		// The session's notices, as the tour's chat places its own: under the
+		// transcript and over the field, said only when there is something to
+		// say, in the quiet ink. RFC-BPR-0130: "That a conversation was
+		// carried over, or cannot be continued by the chosen agent: a
+		// notice, only then." The card that asks which revision to go on
+		// with stands under them, on the field (`dock_banner`).
+		SessionNotice = side_chat::quiet(side_chat::small(new QLabel{ ask }));
+		SessionNotice->setObjectName(QStringLiteral("agentSessionNotice"));
+		SessionNotice->setWordWrap(true);
+		SessionNotice->setTextFormat(Qt::PlainText);
+		SessionNotice->hide();
+		askCol->addWidget(SessionNotice);
+		// RFC-BPR-0096, owner continue-at-latest amendment (owner, 2026-11-24:
+		// "a session in the same PR? yes single checkout"). A conversation
+		// whose shared checkout another one's turn moved says so when opened;
+		// nothing was sent to it, and its next question tells the agent.
+		ConversationMoved = side_chat::quiet(side_chat::small(new QLabel{ ask }));
+		ConversationMoved->setObjectName(QStringLiteral("agentConversationMoved"));
+		ConversationMoved->setWordWrap(true);
+		ConversationMoved->setTextFormat(Qt::PlainText);
+		ConversationMoved->hide();
+		askCol->addWidget(ConversationMoved);
 		askCol->addWidget(refusal);
 		askCol->addWidget(field);
 		// [[BPR-2002]]. What is true about what the agent reads, said once:
@@ -1301,6 +1319,8 @@ namespace bpr::qt {
 		for (const auto& entry : CardEntries) {
 			show_card_keep(entry);
 		}
+		// The agent the tab asks may have changed: the notice names it.
+		present_session_notice();
 		const auto setUp      = Launch.offered_count() > 0U;
 		const auto running    = Launch.cancel_action()->isEnabled();
 		const auto status     = Launch.status_text();
@@ -2581,6 +2601,33 @@ namespace bpr::qt {
 		HistoryItems->refresh();
 	}
 
+	void agent_tab_view::present_session_notice()
+	{
+		// While the sessions are read again the line stays as it was.
+		if (SessionNotice == nullptr || NativeHistoryView.Loading) {
+			return;
+		}
+		// RFC-BPR-0130's accepted words, naming the agent the tab asks now. A
+		// session that goes on in the ordinary way says nothing, and the line
+		// is then empty as well as hidden.
+		const auto& view  = NativeHistoryView;
+		const auto  words = view.Replay ? chat_history_menu::carried_over_words(agent_name()) : view.NativeSupported ? QString{ }
+																													 : chat_history_menu::cannot_continue_words(agent_name());
+		SessionNotice->setText(words);
+		SessionNotice->setVisible(!words.isEmpty());
+		// [[BPR-2059]], owner 2026-11-10: a carried-over conversation's counts
+		// are a diagnostic, not words for the reviewer. They stay on the line
+		// for diagnostics and tests, and its tooltip says what was left out
+		// only when something was.
+		SessionNotice->setProperty("replayTurnsOmitted", QVariant::fromValue<qulonglong>(view.ReplayTurnsOmitted));
+		SessionNotice->setProperty("replayTextCutBytes", QVariant::fromValue<qulonglong>(view.ReplayTextCutBytes));
+		auto tip = view.Replay ? chat_history_menu::carry_over_tip(view.ReplayTurnsOmitted, view.ReplayTextCutBytes > 0U) : QString{ };
+		if (view.Replay && !view.ReplaySource.empty()) {
+			tip += tr(" Source history: %1").arg(QString::fromStdString(view.ReplaySource));
+		}
+		SessionNotice->setToolTip(tip);
+	}
+
 	void agent_tab_view::present_native_history(const application::native_agent_history_projection& aView)
 	{
 		NativeHistoryView = aView;
@@ -2595,22 +2642,7 @@ namespace bpr::qt {
 			ConversationMoved->setText(tr("Updated to %1 — this pull request's checkout moved from %2 while another session asked. The agent is told with your next question.").arg(to, from));
 		}
 		ConversationMoved->setVisible(aView.SelectedMove.has_value());
-		ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool memory is absent; PR files and Git are shared.") : aView.NativeSupported ? tr("Native continuation")
-																																														 : tr("Native continuation unavailable. Choose Transcript replay or New session in History."));
-		ContinuationMode->setToolTip(tr("Replay uses at most 50 retained turns, 8 KiB per field and 48 KiB total; older turns and cut text are omitted. The source history stays. New session starts empty and sends no question."));
-		// [[BPR-2059]], owner 2026-11-10: the replay's counts ("Replay omits 0
-		// retained turns and cuts 0 text bytes …") are a diagnostic, not words
-		// for the reviewer. They stay on the label for diagnostics and tests,
-		// and the tooltip says them only when something was left out.
-		ContinuationMode->setProperty("replayTurnsOmitted", QVariant::fromValue<qulonglong>(aView.ReplayTurnsOmitted));
-		ContinuationMode->setProperty("replayTextCutBytes", QVariant::fromValue<qulonglong>(aView.ReplayTextCutBytes));
-		if (aView.Replay && (aView.ReplayTurnsOmitted > 0U || aView.ReplayTextCutBytes > 0U)) {
-			ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" This replay leaves out %1 older turns and %2 bytes of cut text.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));
-		}
-		CarryOverTip = ContinuationMode->toolTip();
-		if (!aView.ReplaySource.empty()) {
-			ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" Source history: %1").arg(QString::fromStdString(aView.ReplaySource)));
-		}
+		present_session_notice();
 		// [[BPR-2377]], RFC-BPR-0130. The sessions, in the one History menu.
 		HistoryItems->present(aView);
 		refresh_history();
@@ -4061,7 +4093,8 @@ namespace bpr::qt {
 		// scrolled thread, so it is in view wherever the thread is scrolled.
 		BannerDocked = aDocked;
 		(aDocked ? BannerThread : BannerDock)->removeWidget(Banner);
-		(aDocked ? BannerDock : BannerThread)->insertWidget(0, Banner);
+		// On the field, under the session's notices and over a send's refusal.
+		(aDocked ? BannerDock : BannerThread)->insertWidget(aDocked ? BannerDock->indexOf(Refusal) : 0, Banner);
 	}
 
 	auto agent_tab_view::banner_text() const -> QString { return BannerText != nullptr ? BannerText->text() : QString{ }; }
@@ -5129,12 +5162,12 @@ namespace bpr::qt {
 		case core::agent_send_refusal::no_agent:                 return tr("Choose an agent in the agent menu, then send.");
 		case core::agent_send_refusal::empty_message:            return tr("Type a question, then send.");
 		case core::agent_send_refusal::request_in_flight:        return tr("%1 is still answering. Wait for its answer, or stop it and send again.").arg(agent);
-		case core::agent_send_refusal::session_stale:            return tr("The pull request has moved on. Start a new session or continue on the old head, then send.");
+		case core::agent_send_refusal::session_stale:            return tr("The pull request has moved on. Choose Continue or New session, then send.");
 		case core::agent_send_refusal::agent_unknown:            return tr("%1 is no longer set up. Choose another agent, or add it again in Settings › Agents.").arg(agent);
 		case core::agent_send_refusal::host_not_mapped:          return host_not_mapped_words();
 		case core::agent_send_refusal::agent_forbidden_on_host:  return tr("%1 isn't allowed for this pull request's server. Choose an agent the server allows.").arg(agent);
 		case core::agent_send_refusal::agent_not_required_one:   return tr("This pull request's server requires a different agent. Choose it in the agent menu.");
-		case core::agent_send_refusal::session_profile_mismatch: return tr("This conversation is with another agent. Start a new session to ask %1.").arg(agent);
+		case core::agent_send_refusal::session_profile_mismatch: return tr("This conversation is with another agent. Choose New session in History to ask %1.").arg(agent);
 		case core::agent_send_refusal::selection_required:       return tr("Select the lines to ask about in the diff, then send.");
 		case core::agent_send_refusal::unknown_action:           return tr("This question can't be asked here.");
 		case core::agent_send_refusal::scope_invalid:            return tr("What this question is about is no longer in the review. Choose its context again.");
