@@ -15408,11 +15408,19 @@ namespace {
 		auto* const first  = agent->banner_first_button();
 		auto* const second = agent->banner_second_button();
 		expect(agent->state() == qt::agent_tab_state::stopped && agent->banner()->isVisible(), "the refused turn stops with its card");
-		expect(first->isVisible() && first->text() == QStringLiteral("Continue at 3333333") && second->isVisible() && second->text() == QStringLiteral("Start a new session"),
-			   "the card offers Continue at the pinned head and Start a new session, not Resend: " + first->text().toStdString() + " / " + second->text().toStdString());
-		expect(agent->banner_text().contains(QStringLiteral("Continue at 3333333")) && agent->banner_text().contains(QStringLiteral("start a new session at 2222222"))
-				   && agent->banner_text().contains(QStringLiteral("Your message is kept and is sent when you choose.")),
-			   "its words name exactly those two: " + agent->banner_text().toStdString());
+		expect(first->isVisible() && first->text() == QStringLiteral("Continue at 3333333") && second->isVisible() && second->text() == QStringLiteral("New session"),
+			   "the card offers Continue at the pinned head and New session, not Resend: " + first->text().toStdString() + " / " + second->text().toStdString());
+		// Owner, attended review 2026-11-25: "it being at the top of the
+		// transcript is weird since we auto scroll to the bottom." The card
+		// stands on the question field, under the refused turn, which is the
+		// thread's last and says why; the card says only what waits on the
+		// choice, so the reason is read once.
+		const auto refusedTurn = agent->turn_answer(agent->turn_count() - 1U);
+		expect(refusedTurn.contains(QStringLiteral("Continue at 3333333")) && refusedTurn.contains(QStringLiteral("start a new session at 2222222")),
+			   "the refused turn's words name exactly those two: " + refusedTurn.toStdString());
+		expect(agent->banner_docked() && agent->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text() == QStringLiteral("This session read 3333333")
+				   && agent->banner_text() == QStringLiteral("Your message is kept and is sent when you choose."),
+			   "the card, on the question field, says which head the session read and that the message is kept: " + agent->banner_text().toStdString());
 		expect(std::ranges::none_of(agent->findChildren<QPushButton*>(), [](const QPushButton* aButton) { return aButton->isVisible() && aButton->text() == QStringLiteral("Resend"); }),
 			   "neither the card nor the refused turn offers a Resend that would be refused the same way");
 		if (const auto root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT"); !root.isEmpty()) {
@@ -15436,13 +15444,16 @@ namespace {
 		agent->banner_second_button()->click();
 		process_events();
 		expect(chosen.size() == 3U && chosen.back() == core::agent_continuation::start_new_session && sends.size() == refusedBefore + 1U && sends.back().Text == "Review this pull request",
-			   "Start a new session goes to the host and resends the kept message");
+			   "New session goes to the host and resends the kept message");
 
 		// Owner, 2026-11-24: any other stopped run's Resend sends the kept
 		// message again, as the turn's own Resend does.
 		refuse(false);
 		expect(agent->state() == qt::agent_tab_state::stopped && agent->banner_first_button()->isVisible() && agent->banner_first_button()->text() == QStringLiteral("Resend"),
 			   "an ordinary failure's card offers Resend");
+		expect(!agent->banner_docked() && agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->isAncestorOf(agent->banner())
+				   && agent->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text().endsWith(QStringLiteral("stopped before answering")),
+			   "a report of what happened heads the thread again, with its own title");
 		const auto beforeResend = sends.size();
 		agent->banner_first_button()->click();
 		process_events();
@@ -15485,18 +15496,11 @@ namespace {
 				   && reconcileRow[2]->text().startsWith(QStringLiteral("Ask ")) && reconcileRow[2]->text().endsWith(QStringLiteral(" to reconcile")),
 			   "the card offers Rebase onto the new head, Keep my changes on a branch and move, and Ask the agent to reconcile: " + reconcileRow[2]->text().toStdString());
 		expect(agent->banner_first_button()->isVisible() && agent->banner_first_button()->text() == QStringLiteral("Continue at 3333333") && agent->banner_second_button()->isVisible()
-				   && agent->banner_second_button()->text() == QStringLiteral("Start a new session"),
-			   "and Continue at the old head and Start a new session after them");
+				   && agent->banner_second_button()->text() == QStringLiteral("New session") && agent->banner_docked(),
+			   "and Continue at the old head and New session after them, on the question field");
 		expect(std::ranges::all_of(reconcileRow, [](const QPushButton* aButton) { return qt::agent_run_control(*aButton); }), "each reconcile starts a run and wears the Agent accent");
 		if (const auto root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT"); !root.isEmpty()) {
-			// The card heads the thread: scrolled to it, as the reviewer reads it.
-			for (auto* parent = agent->banner()->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
-				if (auto* const area = qobject_cast<QScrollArea*>(parent); area != nullptr) {
-					area->ensureWidgetVisible(agent->banner());
-					break;
-				}
-			}
-			process_events();
+			// The card stands on the question field: in view as it is.
 			expect(agent->grab().save(root + QStringLiteral("/agent-move-reconcile.png"), "PNG"), "render saved");
 		}
 		for (std::size_t index = 0U; index < reconcileRow.size(); ++index) {

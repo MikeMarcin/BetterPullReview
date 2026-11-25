@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_QUIET_PUSH_BUTTON_HPP
 
 #include <QPushButton>
+#include <QString>
 
 namespace bpr::qt {
 	/// \brief Secondary push actions and choices using the Overview chip.
@@ -10,7 +11,9 @@ namespace bpr::qt {
 	/// secondary stays bare at rest; checkable choices are raised when selected.
 	/// A chip whose words are a sentence may wrap them (`set_word_wrap`): in a
 	/// row that gives it less than their width it takes further lines instead
-	/// of being cut, as a drawer's labels do.
+	/// of being cut, as a drawer's labels do. A chip that must stay on its one
+	/// line beside another may be given shorter words (`set_short_text`): it
+	/// draws those where it is given less than its own words' width.
 	class quiet_push_button final : public QPushButton
 	{
 	public:
@@ -23,6 +26,15 @@ namespace bpr::qt {
 		/// one line; its minimum becomes its longest word.
 		void               set_word_wrap(bool aWrap);
 		[[nodiscard]] auto word_wrap() const noexcept -> bool { return WordWrap; }
+		/// \brief Shorter words a chip without an icon draws where it is given
+		/// less than its own words' width, so a row that must stay one line
+		/// neither wraps nor cuts it. Its text, its accessible name and its
+		/// size hint stay its own words; its minimum becomes the shorter
+		/// ones. An empty string gives it none. Word wrap takes precedence.
+		void               set_short_text(const QString& aShort);
+		[[nodiscard]] auto short_text() const noexcept -> const QString& { return ShortText; }
+		/// \brief Whether it draws its shorter words now.
+		[[nodiscard]] auto shortened() const -> bool;
 		[[nodiscard]] auto hasHeightForWidth() const -> bool override;
 		[[nodiscard]] auto heightForWidth(int aWidth) const -> int override;
 
@@ -34,8 +46,11 @@ namespace bpr::qt {
 	private:
 		[[nodiscard]] auto uses_chip() const -> bool;
 		[[nodiscard]] auto wraps() const -> bool;
+		[[nodiscard]] auto shortens() const -> bool;
+		void               apply_size_policy();
 		bool               KeyboardFocus = false;
 		bool               WordWrap      = false;
+		QString            ShortText;
 	};
 } // namespace bpr::qt
 

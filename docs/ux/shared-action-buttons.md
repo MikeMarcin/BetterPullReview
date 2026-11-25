@@ -36,7 +36,15 @@ QMessageBox standard/default/destructive controls keep their platform behavior.
   A chip without an icon whose words are a sentence may wrap them
   (`set_word_wrap`): its size hint stays the one line, its minimum is its
   longest word, and in a `wrapping_row` that gives it less than its words it
-  takes further lines instead of being cut (the Agent tab's stopped card).
+  takes further lines instead of being cut (the reconcile choices of the
+  Agent tab's card for a session that read an earlier head).
+  A chip without an icon that must stay on its one line beside another may
+  be given shorter words (`set_short_text`): its text, accessible name and
+  size hint stay its own words, its minimum is the shorter ones, and in a
+  row that gives it less than its own it draws those. That card's Continue
+  at *rev* draws Continue beside New session where a typeface is too wide
+  for both in a 280-pixel drawer; in the macOS and Windows typefaces both
+  keep their whole words.
 - [[BPR-1855]]. Both chips measure and draw their own content in
   `button_surface`: the words in the button's font with fractional advances
   rounded up, an icon and its 4-pixel gap when shown, inside 6 pixels of
@@ -50,7 +58,7 @@ QMessageBox standard/default/destructive controls keep their platform behavior.
 | Translation unit | Disposition and controls |
 |---|---|
 | [agent_launch_panel.cpp](../../src/adapters/qt/src/agent_launch_panel.cpp) | Migrated `ExistingCheckoutButton` and Stop (`CancelButton`). Retain `StartButton`: explicit primary agent launch, not a choice/secondary. |
-| [agent_tab_view.cpp](../../src/adapters/qt/src/agent_tab_view.cpp) | Migrated Context, Back to conversation, Draft a comment, Ask follow-up, Add to notes and flat `BannerSecond` (continue old head/log). Retain `BannerFirst`: the banner’s primary Start/Ask again/Stop action; `review` launches a review; `menu_word` is a custom popup. |
+| [agent_tab_view.cpp](../../src/adapters/qt/src/agent_tab_view.cpp) | Migrated Context, Back to conversation, Draft a comment, Ask follow-up, Add to notes and the state card's `BannerFirst` and `BannerSecond` (Continue at *rev* and New session as two chips on one line; Resend, Stop and the bare Show the log). Its reconcile choices are the same chips. Retain `review`, which launches a review; `menu_word` is a custom popup. |
 | [appearance_settings_panel.cpp](../../src/adapters/qt/src/appearance_settings_panel.cpp) | Tab-width choices use `quiet_tool_button`. Retain `make_header_button` products Theme/Type/Colours/Dif Reset, Import/Export and Cancel changes: the accepted flat card-header/footer language, never defaults. Keep changes is the primary preview confirmation. |
 | [claude_wrapper_panel.cpp](../../src/adapters/qt/src/claude_wrapper_panel.cpp) | Migrated Choose. Retain `SaveButton` and `ModelSave`: explicit commits of wrapper/model configuration, the panels’ primary actions. |
 | [colour_role_list.cpp](../../src/adapters/qt/src/colour_role_list.cpp) | Retain `swatch`: colour/icon-only picker. It paints a colour, not an action label. |
@@ -113,7 +121,7 @@ rebase onto `4e318b625`:
 | [agent_setup_view.cpp](../../src/adapters/qt/src/agent_setup_view.cpp) | Shared: Install Claude Code, Install Codex, the suggested clone folders, Choose a folder…, Copy (the sign-in command) and Stop. Retain each step's primary default action (Check and Check again, Use this clone, Choose its folder…), the agent and clone radio choices, and `link_push`: hyperlink-style Change, Look again, Agent settings, Use another program…, Use a private copy and Edit clone folders…, drawn in the palette's link colour. |
 | [agent_setup_settings.cpp](../../src/adapters/qt/src/agent_setup_settings.cpp) | Shared: Set up agent…, Choose…, Remove (a clone folder, which deletes nothing on disk), Compare, Keep mine and Restore default. Retain Save (the programs and the review skill), Use version N (it replaces the edited copy, saved to Downloads first), and Forget (it removes a remembered link, as Forget server does). |
 | [folder_list_editor.cpp](../../src/adapters/qt/src/folder_list_editor.cpp) | Retain Visual Studio's folder-list tools: icon-only New folder, Remove, Move down and Move up, and the editing row's icon-like **…** browse tool. |
-| [agent_tab_view.cpp](../../src/adapters/qt/src/agent_tab_view.cpp) | Shared: the header's History (New session is its first item), the question field's Context and Suggestions, and a reply's Copy (`make_drawer_tool` icons from `drawer_icon`); the field's Send (and Stop) is its primary push button; the suggested prompts above the question field (`quiet_push_button`), a finding card's Add as draft comment, Draft comment or Keep local, Dismiss and Undo and a reply's keep action (`quiet_push_button`). The agent chip lists the added agents in its `menu_word` popup. Retain the model and effort chip and Suggestions in the question field, `menu_word` popups like History. The ready line's What the agent gets is a `disclosure_button`; its icon-only dismiss is retained. Check again, which takes `BannerFirst`'s place after an Ask that ended for a setup reason, keeps that primary treatment. |
+| [agent_tab_view.cpp](../../src/adapters/qt/src/agent_tab_view.cpp) | Shared: the header's History (New session is its first item), the question field's Context and Suggestions, and a reply's Copy (`make_drawer_tool` icons from `drawer_icon`); the field's Send (and Stop) is its primary push button; the suggested prompts above the question field (`quiet_push_button`), a finding card's Add as draft comment, Draft comment or Keep local, Dismiss and Undo and a reply's keep action (`quiet_push_button`). The agent chip lists the added agents in its `menu_word` popup. Retain the model and effort chip and Suggestions in the question field, `menu_word` popups like History. The ready line's What the agent gets is a `disclosure_button`; its icon-only dismiss is retained. The state card's two buttons and its reconcile choices are `quiet_push_button` chips, laid out by their own rect. |
 
 ## Dedicated specialized implementations
 

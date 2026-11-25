@@ -10,6 +10,7 @@
 #include <QButtonGroup>
 #include <QDialog>
 #include <QDir>
+#include <QHBoxLayout>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -20,6 +21,7 @@
 #include <array>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -207,6 +209,73 @@ namespace {
 		expect(!button.hasHeightForWidth() && button.minimumSizeHint() == line, "and wrapping can be turned off again");
 	}
 
+	/// A chip that must stay on its one line beside another draws shorter
+	/// words where the row gives it less than its own (owner, attended review
+	/// 2026-11-25: "surely we can find a way to fit both options on one line
+	/// at the narrowest drawer"), and stays what it is called.
+	void test_short_text()
+	{
+		QWidget host;
+		host.resize(480, 120);
+		auto* const row = new QHBoxLayout{ &host };
+		row->setContentsMargins(10, 10, 10, 10);
+		row->setSpacing(6);
+		auto* const first  = new qt::quiet_push_button{ QStringLiteral("Continue at 3f9c2ab"), &host };
+		auto* const second = new qt::quiet_push_button{ QStringLiteral("New session"), &host };
+		// Bare at rest, so the only ink is the words.
+		first->setFlat(true);
+		row->addWidget(first);
+		row->addWidget(second);
+		row->addStretch(1);
+		const auto whole = first->sizeHint();
+		expect(first->short_text().isEmpty() && first->minimumSizeHint() == whole && !first->shortened(), "a chip has no shorter words unless given some");
+		first->set_short_text(QStringLiteral("Continue"));
+		const auto least = first->minimumSizeHint();
+		expect(first->sizeHint() == whole && least.height() == whole.height() && least.width() < whole.width() && least.width() >= first->fontMetrics().horizontalAdvance(QStringLiteral("Continue")),
+			   "given shorter words, it still asks for its own and may be as narrow as the shorter ones");
+		expect(!first->hasHeightForWidth() && first->text() == QStringLiteral("Continue at 3f9c2ab"), "it stays one line tall and keeps its own words as its text");
+		const auto ink = [&host](QWidget& aButton) {
+			const auto image  = raster(aButton);
+			const auto ground = QColor{ host.palette().color(QPalette::Window) }.rgb();
+			auto       box    = QRect{ };
+			for (int y = 0; y < image.height(); ++y) {
+				for (int x = 0; x < image.width(); ++x) {
+					if (image.pixelColor(x, y).rgb() != ground) {
+						box |= QRect{ x / 2, y / 2, 1, 1 };
+					}
+				}
+			}
+			return box;
+		};
+		host.show();
+		settle();
+		expect(first->width() == whole.width() && !first->shortened() && first->geometry().top() == second->geometry().top() && first->geometry().right() < second->geometry().left(),
+			   "with room, the row gives it its own words beside the other");
+		const auto wholeInk = ink(*first);
+		// A row narrower than both chips' own words: the other keeps its
+		// width, this one draws its shorter words, and neither leaves the line.
+		const auto narrow = 20 + least.width() + 6 + second->sizeHint().width() + 8;
+		host.resize(narrow, 120);
+		settle();
+		expect(first->shortened() && first->width() >= least.width() && first->width() < whole.width() && second->width() == second->sizeHint().width(), "in a narrower row it draws its shorter words and the other keeps its own");
+		expect(first->geometry().top() == second->geometry().top() && first->geometry().right() < second->geometry().left() && second->geometry().right() < host.width() - 10 + 1 && first->height() == whole.height(),
+			   "both stay on the one line, inside the row");
+		const auto shortInk = ink(*first);
+		expect(wholeInk.isValid() && shortInk.isValid() && shortInk.width() < wholeInk.width() && shortInk.left() >= 4 && shortInk.right() < first->width() - 4,
+			   "the shorter words are drawn whole inside its padding (" + std::to_string(shortInk.width()) + " of " + std::to_string(wholeInk.width()) + " px of ink)");
+		expect(first->text() == QStringLiteral("Continue at 3f9c2ab"), "and it is still called by its own words");
+		capture(host, QStringLiteral("quiet-push-short-text"));
+		// Wrapping, an icon, or taking the shorter words away keeps its own.
+		first->set_word_wrap(true);
+		expect(!first->shortened() && first->hasHeightForWidth(), "a chip told to wrap wraps instead");
+		first->set_word_wrap(false);
+		first->setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogOpenButton));
+		expect(!first->shortened() && first->minimumSizeHint() == first->sizeHint(), "a chip with an icon keeps its own words");
+		first->setIcon({ });
+		first->set_short_text({ });
+		expect(first->minimumSizeHint() == whole && !first->shortened(), "and the shorter words can be taken away again");
+	}
+
 	void test_production_surfaces()
 	{
 		qt::diagnostic_settings_panel                    diagnostics;
@@ -312,6 +381,7 @@ auto main(int argc, char** argv) -> int
 	QApplication app{ argc, argv };
 	test_push_contract();
 	test_word_wrap();
+	test_short_text();
 	test_production_surfaces();
 	std::cout << "quiet-buttons-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString()
 			  << " style=" << QApplication::style()->name().toStdString() << " dpr=" << app.devicePixelRatio() << '\n';
