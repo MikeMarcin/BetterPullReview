@@ -8,7 +8,15 @@
 #include <QFocusEvent>
 #include <QHash>
 #include <QPainter>
+#include <QPen>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
+#include <QTextEdit>
+#include <QTextLayout>
 
+#include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace bpr::qt {
@@ -131,6 +139,69 @@ namespace bpr::qt {
 		painter.setPen(QPen{ focus_ring_colour(control.palette(), control.backgroundRole()), focus_ring_width });
 		constexpr auto inset = focus_ring_width / 2.0;
 		painter.drawRoundedRect(QRectF{ rect() }.adjusted(inset, inset, -inset, -inset), 3.0, 3.0);
+	}
+
+	auto text_focus_boxes(const QTextEdit& aReader, const int aFirst, const int aLast) -> std::vector<QRectF>
+	{
+		auto boxes  = std::vector<QRectF>{ };
+		auto cursor = QTextCursor{ aReader.document() };
+		for (auto block = aReader.document()->findBlock(aFirst); block.isValid() && block.position() < aLast; block = block.next()) {
+			const auto* const layout = block.layout();
+			for (auto index = 0; block.isVisible() && layout != nullptr && index < layout->lineCount(); ++index) {
+				const auto line  = layout->lineAt(index);
+				const auto first = std::max(aFirst - block.position(), line.textStart());
+				const auto last  = std::min(aLast - block.position(), line.textStart() + line.textLength());
+				if (first >= last) {
+					continue;
+				}
+				// The reader says where the line stands on its viewport, in
+				// whole pixels; the line says how far its words run.
+				cursor.setPosition(block.position() + first);
+				const auto caret = QRectF{ aReader.cursorRect(cursor) };
+				const auto run   = std::round(line.cursorToX(last) - line.cursorToX(first));
+				boxes.emplace_back(caret.left() + std::min(0.0, run), caret.top(), std::abs(run), caret.height());
+			}
+		}
+		return boxes;
+	}
+
+	void paint_text_focus_ring(QPainter& aPainter, const QTextEdit& aReader, const std::vector<QRectF>& aBoxes)
+	{
+		constexpr auto inset = focus_ring_width / 2.0;
+		// Beside the words the ring's middle is two pixels out: its stroke
+		// then stands in the middle of the space between two words, clear of
+		// the link's last letter and of the next word's first.
+		constexpr auto aside = 2.0;
+		constexpr auto above = 1.0;
+		const auto     edge  = QRectF{ aReader.viewport()->rect() };
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		aPainter.setBrush(Qt::NoBrush);
+		aPainter.setPen(QPen{ focus_ring_colour(aReader.palette(), QPalette::Base), focus_ring_width });
+		for (const auto& words : aBoxes) {
+			// A reader in place has no margin: its first word starts at the
+			// viewport's edge and its first line at the top. A side with no
+			// room beyond the words is brought to the edge. Above and below,
+			// a line has room over its letters, and the side is drawn whole
+			// inside the edge. Beside them it has none: the side is drawn on
+			// the edge, where half its width shows and no letter is drawn
+			// over. Words scrolled part out of view stay cut.
+			auto ring = words.adjusted(-aside, -above, aside, above);
+			if (words.left() >= edge.left()) {
+				ring.setLeft(std::max(ring.left(), edge.left()));
+			}
+			if (words.top() >= edge.top()) {
+				ring.setTop(std::max(ring.top(), edge.top() + inset));
+			}
+			if (words.right() <= edge.right()) {
+				ring.setRight(std::min(ring.right(), edge.right()));
+			}
+			if (words.bottom() <= edge.bottom()) {
+				ring.setBottom(std::min(ring.bottom(), edge.bottom() - inset));
+			}
+			aPainter.drawRoundedRect(ring, 3.0, 3.0);
+		}
+		aPainter.restore();
 	}
 
 	void ring_keyboard_focus(QWidget& aRoot, const QString& aObjectName, const QWidget* const aExcept)

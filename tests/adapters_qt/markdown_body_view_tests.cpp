@@ -408,14 +408,18 @@ Final content: Ω 日本語 😀
 		auto* reader = aView.rendered_view();
 		reader->setFocus();
 		key(*reader, Qt::Key_Tab);
-		expect(reader->textCursor().selectedText() == QStringLiteral("First"), "Tab selects the first link");
+		// The keyboard's link is a state of its own, drawn as a focus ring:
+		// Tab selects none of the link's words.
+		expect(aView.keyboard_link() == QStringLiteral("First") && !reader->textCursor().hasSelection(), "Tab puts the keyboard on the first link and selects none of its words");
 		key(*reader, Qt::Key_Return);
 		expect(gestures == 1 && activated == "https://example.test/first", "Enter emits exactly one original destination gesture");
+		expect(aView.keyboard_link() == QStringLiteral("First") && !reader->textCursor().hasSelection(), "and the keyboard stays on the link it followed");
 		key(*reader, Qt::Key_Tab);
+		expect(aView.keyboard_link() == QStringLiteral("Untrusted") && !reader->textCursor().hasSelection(), "Tab goes on to the next link");
 		key(*reader, Qt::Key_Return);
 		expect(gestures == 2 && activated == "javascript:alert", "untrusted target remains an application admission request, never a widget effect");
 		key(*reader, Qt::Key_Tab);
-		expect(!reader->hasFocus(), "Tab can leave the last link");
+		expect(!reader->hasFocus() && aView.keyboard_link().isEmpty(), "Tab can leave the last link, and the keyboard is on none");
 		auto empty = reader->textCursor();
 		empty.clearSelection();
 		reader->setTextCursor(empty);

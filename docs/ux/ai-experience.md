@@ -54,7 +54,11 @@ The functional core decides whether an explicit AI action is legal, what local c
   and is never a text selection. Tab and Shift+Tab move it, Return follows
   it, and a keep action made with Return hands it to the **Go to draft** or
   **Go to comment** left in its place. One made with the pointer hands it
-  to nothing, and a press of the pointer on the page ends it.
+  to nothing, and a press of the pointer on the page ends it. The Markdown
+  readers follow the same rule: an answer in the Agent tab, a report drawn
+  as its Markdown, a comment's body and a code box's header mark the link
+  Tab reached with the ring, close round its words, and one click follows a
+  link there whatever is selected.
 - The report is drawn in the app's own hand (look review-report-v001's
   hand-back; docs/design/review-report-v2, Cards): the application's font
   and the pane's own ground and ink, the opening on a bordered band with the

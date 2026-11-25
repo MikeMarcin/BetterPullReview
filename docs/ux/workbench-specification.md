@@ -3188,7 +3188,9 @@ label header and its decorations stay as written at the front, in semibold
 Copy source in its name row; links open through the application's admission.
 Tab from the notes enters the open thread's first post, Tab walks its links
 and then the next post, and in a post's text the arrows move the reading
-caret, which the drawer keeps in view. What is new is
+caret, which the drawer keeps in view. The link Tab is on wears the window's
+focus ring and none of its words are selected; Return follows it, and one
+click follows any link whatever the post has selected. What is new is
 said in the header: beside the line number a blue "N new", the closed note's
 count kept while the thread is open. A New rule is never a thread's first
 element: it stands only where a read post is followed by the first new one, in

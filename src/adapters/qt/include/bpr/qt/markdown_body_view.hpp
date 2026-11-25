@@ -227,6 +227,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto rendered_available() const noexcept -> bool;
 		[[nodiscard]] auto fallback_reason() const -> QString;
 		[[nodiscard]] auto rendered_view() const noexcept -> QTextEdit*;
+		/// \brief The words of the rendered link the keyboard is on (an
+		/// image's alternative text); empty when it is on none.
+		/// \details Tab and Shift+Tab move it and Return follows it. The link
+		/// wears the window's focus ring while the reader holds the keyboard
+		/// and none of its words are selected; an arrow key or a press of the
+		/// pointer ends it.
+		[[nodiscard]] auto keyboard_link() const -> QString;
 		[[nodiscard]] auto source_view() const noexcept -> QPlainTextEdit*;
 		/// Exact raw UTF-8 byte span for the native source selection; refuses a changed display.
 		[[nodiscard]] auto selected_source_bytes() const -> std::optional<std::pair<std::size_t, std::size_t>>;

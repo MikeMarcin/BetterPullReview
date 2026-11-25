@@ -81,12 +81,14 @@
 ///     composed_drawer_fit_public_path FIXTURE_AGENT
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/window_system_keys.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_pending_list.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -122,6 +124,8 @@
 #include <QStyleOptionButton>
 #include <QTabBar>
 #include <QTemporaryDir>
+#include <QTextCursor>
+#include <QTextEdit>
 #include <QToolButton>
 
 #include <algorithm>
@@ -308,6 +312,12 @@ namespace {
 			const auto* const button = qobject_cast<const QAbstractButton*>(child);
 			const auto* const label  = qobject_cast<const QLabel*>(child);
 			if ((button == nullptr && label == nullptr) || !child->isVisibleTo(&aSurface) || child->width() <= 0 || child->visibleRegion().isEmpty()) {
+				continue;
+			}
+			// A tooltip a part of the drawer raised (the destination of the
+			// link Tab reached) is a window of its own, placed on the screen:
+			// the drawer does not lay it out and cannot cut it.
+			if (child->window() != aSurface.window()) {
 				continue;
 			}
 			if (const auto* const area = qobject_cast<const QAbstractScrollArea*>(child->parentWidget() != nullptr ? child->parentWidget()->parentWidget() : nullptr); area != nullptr && shows_code(*area)) {
@@ -856,6 +866,25 @@ auto main(int argc, char** argv) -> int
 		ask(QStringLiteral("What does this change do?"));
 		wait([&] { return quiet() && tab->turn_count() >= 1U; }, "the first question is answered");
 		run.sweep_drawer("agent-answered");
+		// The keyboard on the answer's link. Tab from the answer's words
+		// reaches the place the answer names, which wears the window's focus
+		// ring; none of its words are selected.
+		{
+			auto* const answer = tab->turn_answer_view(0U);
+			expect(answer != nullptr && answer->rendered_view()->isVisibleTo(run.drawer()), "the first answer reads in the Agent tab");
+			auto* const reader = answer->rendered_view();
+			reader->setFocus(Qt::TabFocusReason);
+			tests::window_system_key(*reader, Qt::Key_Tab);
+			settle();
+			const auto on = [answer] { return answer->keyboard_link().toStdString(); };
+			expect(reader->hasFocus() && on() == "src/engine/renderer.cpp:12", "Tab reaches the place the answer names: the keyboard is on \"" + on() + "\"");
+			expect(!reader->textCursor().hasSelection(), "and selects none of its words: \"" + reader->textCursor().selectedText().toStdString() + "\" is selected");
+			run.Shown = answer;
+			run.sweep_drawer("agent-answer-link-keyboard");
+			run.Shown = nullptr;
+			expect(reader->hasFocus() && on() == "src/engine/renderer.cpp:12" && !reader->textCursor().hasSelection(), "the keyboard stays on the link while the drawer is dragged; it is on \"" + on() + "\"");
+			leave_no_keyboard_behind();
+		}
 		ask(QStringLiteral("Review this pull request"));
 		wait([&] { return quiet() && tab->turn_count() >= 2U; }, "the review is answered");
 		run.sweep_drawer("agent-report");
@@ -1074,6 +1103,7 @@ auto main(int argc, char** argv) -> int
 		const auto reached = std::vector<std::string>{ "comments",
 													   "agent-ready",
 													   "agent-answered",
+													   "agent-answer-link-keyboard",
 													   "agent-report",
 													   "agent-queue",
 													   "tour-empty",

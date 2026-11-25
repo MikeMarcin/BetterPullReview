@@ -3,8 +3,14 @@
 
 #include <QColor>
 #include <QPalette>
+#include <QRectF>
 #include <QString>
 #include <QWidget>
+
+#include <vector>
+
+class QPainter;
+class QTextEdit;
 
 namespace bpr::qt {
 	/// \brief The colour a focus ring is drawn in over the `aSurface` colour of
@@ -37,6 +43,23 @@ namespace bpr::qt {
 		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 		void paintEvent(QPaintEvent* aEvent) override;
 	};
+
+	/// \brief Where the words from `aFirst` to `aLast` of `aReader`'s text
+	/// stand on its viewport, one box a line: a link the keyboard is on.
+	[[nodiscard]] auto text_focus_boxes(const QTextEdit& aReader, int aFirst, int aLast) -> std::vector<QRectF>;
+
+	/// \brief Draws the window's focus ring close round each of `aBoxes` on
+	/// `aReader`'s viewport: the mark of the link the keyboard is on.
+	///
+	/// \details A reader of text marks its keyboard's link with this ring and
+	/// never by selecting the link's words (owner, 2026-11-25, of a link that
+	/// came up selected: "I cant actually click go to draft properly until I
+	/// deselect it and then click it again"). A selection is the reader's own
+	/// to make, and a press of the pointer on selected words starts a drag of
+	/// them. The ring stands a little outside the words. Where the words are
+	/// at the viewport's edge, with no room beyond them, that side is drawn
+	/// at the edge, so the ring shows on every side.
+	void paint_text_focus_ring(QPainter& aPainter, const QTextEdit& aReader, const std::vector<QRectF>& aBoxes);
 
 	/// \brief Puts a `keyboard_focus_ring` named `aObjectName` on every control
 	/// under `aRoot` that Tab can reach, except `aExcept` and the controls

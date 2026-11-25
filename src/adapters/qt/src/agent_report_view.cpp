@@ -129,21 +129,8 @@ namespace bpr::qt {
 					return { .Boxes = { words.adjusted(-edge.leftPadding() - edge.leftBorder(), -edge.topPadding() - edge.topBorder(), edge.rightPadding() + edge.rightBorder(), edge.bottomPadding() + edge.bottomBorder()) }, .Chip = true };
 				}
 			}
-			auto              ring   = link_ring{ };
-			const auto        block  = document->findBlock(aFirst);
-			const auto* const layout = block.layout();
-			for (auto index = 0; layout != nullptr && index < layout->lineCount(); ++index) {
-				const auto line  = layout->lineAt(index);
-				const auto first = std::max(aFirst - block.position(), line.textStart());
-				const auto last  = std::min(aLast - block.position(), line.textStart() + line.textLength());
-				if (first >= last) {
-					continue;
-				}
-				cursor.setPosition(block.position() + first);
-				const auto caret = QRectF{ aPage.cursorRect(cursor) };
-				ring.Boxes.emplace_back(caret.left(), caret.top(), line.cursorToX(last) - line.cursorToX(first), caret.height());
-			}
-			return ring;
+			// A link in the text: as every reader of text rings one.
+			return { .Boxes = text_focus_boxes(aPage, aFirst, aLast), .Chip = false };
 		}
 
 		/// Look report-templates-v003. The object a code box's place is in the
@@ -1579,17 +1566,18 @@ namespace bpr::qt {
 		if (!KeyboardLink || !Dressed->hasFocus()) {
 			return;
 		}
-		const auto     ring  = ring_of(*Dressed, KeyboardLink->first, KeyboardLink->second);
+		const auto ring = ring_of(*Dressed, KeyboardLink->first, KeyboardLink->second);
+		if (!ring.Chip) {
+			// As the Markdown readers ring a link in their text.
+			paint_text_focus_ring(aPainter, *Dressed, ring.Boxes);
+			return;
+		}
 		constexpr auto inset = focus_ring_width / 2.0;
 		aPainter.setRenderHint(QPainter::Antialiasing, true);
 		aPainter.setBrush(Qt::NoBrush);
 		aPainter.setPen(QPen{ focus_ring_colour(Dressed->palette(), QPalette::Base), focus_ring_width, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin });
 		for (const auto& box : ring.Boxes) {
-			if (ring.Chip) {
-				aPainter.drawRect(box.adjusted(inset, inset, -inset, -inset));
-			} else {
-				aPainter.drawRoundedRect(box.adjusted(-3.0, -1.0, 3.0, 1.0), 3.0, 3.0);
-			}
+			aPainter.drawRect(box.adjusted(inset, inset, -inset, -inset));
 		}
 	}
 

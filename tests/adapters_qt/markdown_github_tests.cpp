@@ -395,18 +395,20 @@ namespace {
 		auto* reader = aView.rendered_view();
 		reader->setFocus();
 		key(*reader, Qt::Key_Tab);
-		const auto first    = reader->textCursor().selectionStart();
-		const auto firstEnd = reader->textCursor().selectionEnd();
-		expect(reader->textCursor().selectedText() == QStringLiteral("[1]"), "Tab reaches the first reference");
+		// The keyboard's link wears a ring and selects nothing: the caret
+		// waits at the link's first character.
+		const auto first    = reader->textCursor().position();
+		const auto firstEnd = first + static_cast<int>(aView.keyboard_link().size());
+		expect(aView.keyboard_link() == QStringLiteral("[1]") && !reader->textCursor().hasSelection(), "Tab reaches the first reference and selects none of it");
 		key(*reader, Qt::Key_Return);
-		expect(reader->textCursor().selectedText() == QStringLiteral("↩") && reader->textCursor().block().blockFormat().boolProperty(footnote_property), "Enter moves to the footnote's back reference");
+		expect(aView.keyboard_link() == QStringLiteral("↩") && reader->textCursor().block().blockFormat().boolProperty(footnote_property), "Enter moves to the footnote's back reference");
 		key(*reader, Qt::Key_Return);
-		expect(reader->textCursor().selectionStart() == first && reader->textCursor().selectedText() == QStringLiteral("[1]"), "Enter on the back reference returns to the reference");
+		expect(reader->textCursor().position() == first && aView.keyboard_link() == QStringLiteral("[1]"), "Enter on the back reference returns to the reference");
 		key(*reader, Qt::Key_Tab);
 		key(*reader, Qt::Key_Tab);
-		expect(reader->textCursor().selectedText() == QStringLiteral("[1]"), "Tab reaches the second reference to footnote 1");
+		expect(aView.keyboard_link() == QStringLiteral("[1]"), "Tab reaches the second reference to footnote 1");
 		key(*reader, Qt::Key_Return);
-		expect(reader->textCursor().selectedText() == QStringLiteral("↩2"), "the second reference moves to the second back reference");
+		expect(aView.keyboard_link() == QStringLiteral("↩2") && !reader->textCursor().hasSelection(), "the second reference moves to the second back reference");
 		// The pointer: press and release on the first reference.
 		auto cursor = QTextCursor{ reader->document() };
 		cursor.setPosition(first);
@@ -426,7 +428,7 @@ namespace {
 		QApplication::sendEvent(reader->viewport(), &press);
 		auto release = QMouseEvent{ QEvent::MouseButtonRelease, point, reader->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
 		QApplication::sendEvent(reader->viewport(), &release);
-		expect(reader->textCursor().selectedText() == QStringLiteral("↩"), "a click on a reference moves to its footnote");
+		expect(aView.keyboard_link() == QStringLiteral("↩") && !reader->textCursor().hasSelection(), "a click on a reference moves to its footnote, whose back reference wears the ring");
 		expect(gestures == 0, "in-body footnote links never reach the application");
 		show(aView, "[Ordinary](#fn-1) link.", "footnotes:authored");
 		reader->setFocus();
