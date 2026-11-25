@@ -4091,8 +4091,14 @@ function(bpr_verify_app_source_tree app_source_root)
 	# or publication path changes; the full application and mutation-branch
 	# digests are unchanged. Resealed by the coordinator at the merge onto
 	# 60673a9fc (BPR-2399).
+	# [[BPR-2401]] reviewed 03b882b14..0c850d6e9. The only pinned source
+	# change is release_update_desktop.cpp. General Settings dispatches
+	# the channel choice to the app-wide updater service. The release offer
+	# uses the same panel without a preference selector. Release access and
+	# review mutation composition stay outside the gesture. The full
+	# application and review-mutation branch pins are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "f006ed52cae65cae7da156afdd9785f2f6540561b5317e380dab635f1bb66100"
+        "fe1887cc794ff12bc20dd99a51f30374f3357c8b313b60d8311c2b000d89c20b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
