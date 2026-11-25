@@ -13,6 +13,10 @@
 ///   on a file the pull request does not change offer Keep local, which keeps
 ///   a Local comment on the file and on the pull request. The queue offers
 ///   the core's one.
+/// - A follow-up on a finding card that no report holds: Update suggested
+///   comment and Use update the card's comment and, with it, the draft the
+///   card made while the reviewer has not changed it. A draft changed since is
+///   kept; the card says it differs and offers Update draft, which replaces it.
 /// - AC12: with a Local comment and a draft present, a turn request carries
 ///   Local comments only with the Local opt-in and the draft only with the
 ///   drafts opt-in, each independently (all four settings).
@@ -24,6 +28,7 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -36,18 +41,24 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QElapsedTimer>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QTabBar>
 #include <QTemporaryDir>
+#include <QToolButton>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -144,6 +155,15 @@ auto main(int argc, char** argv) -> int
 		expect(application != nullptr, "startup succeeds");
 		application->show();
 		auto& window = application->window();
+		if (QGuiApplication::platformName() != QStringLiteral("offscreen")) {
+			// The native look keeps the window off screen, and the platform
+			// never makes such a window active: Qt is told it is, so the
+			// keyboard goes where it does on screen.
+			QT_WARNING_PUSH
+			QT_WARNING_DISABLE_DEPRECATED
+			QApplication::setActiveWindow(&window);
+			QT_WARNING_POP
+		}
 		window.resize(1440, 960);
 		window.github_connect_action()->trigger();
 		wait([&] { return window.github_open_action()->isEnabled(); }, "connected");
@@ -202,6 +222,184 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return placed->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Drafted")); },
 			 "Draft drafts the placed finding");
 		std::cout << "keep-action: cards=pass\n";
+		// A follow-up on a finding card no report holds: the answer was not a
+		// review, so its findings are cards under it and no report has them.
+		// Ask follow-up, Update suggested comment and Use update the card's
+		// comment; the draft the card made follows it while it is unchanged.
+		// Changed by the reviewer, it is kept, and the card says it differs
+		// and offers Update draft.
+		{
+			auto* const followUp = window.item_side_chat();
+			auto* const askAbout = placed->findChild<QAbstractButton*>(QStringLiteral("agentFindingFollowUp"));
+			auto* const update   = placed->findChild<QAbstractButton*>(QStringLiteral("agentFindingUpdateDraft"));
+			auto* const differs  = placed->findChild<QLabel*>(QStringLiteral("agentFindingDraftDiffers"));
+			auto* const said     = placed->findChild<QLabel*>(QStringLiteral("agentFindingState"));
+			expect(shown(askAbout) && update != nullptr && differs != nullptr && !shown(update) && !shown(differs), "a drafted card offers Ask follow-up, and no Update draft while its draft is the comment's");
+			// The card's draft is the one the editor shows, on the line the
+			// card's Draft chose; another line's draft is not it.
+			const auto shownLine = [&]() -> std::optional<std::uint32_t> {
+				const auto& mine = window.review_editor()->shown_draft();
+				return mine ? std::optional{ mine->Anchor.Line } : std::nullopt;
+			};
+			const auto draftLine = shownLine();
+			const auto draftText = [&] {
+				const auto& mine = window.review_editor()->shown_draft();
+				return mine && draftLine == std::optional{ mine->Anchor.Line } ? QString::fromStdString(mine->Body)
+																			   : QStringLiteral("<the card's draft is not the one shown: line %1>").arg(shownLine() ? QString::number(*shownLine() + 1U) : QStringLiteral("none"));
+			};
+			std::cout << "keep-action: the card's draft is on line " << (draftLine ? std::to_string(*draftLine + 1U) : std::string{ "none" }) << '\n';
+			const auto comment = [placed] {
+				const auto* const text = dynamic_cast<const qt::markdown_body_view*>(placed->findChild<QWidget*>(QStringLiteral("agentFindingComment")));
+				return text != nullptr ? QString::fromStdString(text->original_body()) : QString{ };
+			};
+			// The Agent tab's own scroll, which holds the card.
+			auto* scroll = static_cast<QScrollArea*>(nullptr);
+			for (auto* parent = placed->parentWidget(); parent != nullptr && scroll == nullptr; parent = parent->parentWidget()) {
+				scroll = qobject_cast<QScrollArea*>(parent);
+			}
+			expect(scroll != nullptr && scroll->widget() != nullptr, "the card is in the Agent tab's scroll");
+			// With BPR_AGENT_KEEP_ACTION_RENDER_ROOT set, the window is saved
+			// there as a PNG, the right tray on the tab named and the card in
+			// view on the Agent tab.
+			const auto render = [&window, scroll, placed](const QString& aTab, const QString& aName) {
+				const auto root = qEnvironmentVariable("BPR_AGENT_KEEP_ACTION_RENDER_ROOT");
+				if (root.isEmpty()) {
+					return;
+				}
+				auto* const tray = window.tray_tabs();
+				for (auto index = 0; index < tray->count(); ++index) {
+					if (tray->tabText(index).startsWith(aTab)) {
+						tray->setCurrentIndex(index);
+					}
+				}
+				auto clock = QElapsedTimer{ };
+				clock.start();
+				while (clock.elapsed() < 600) {
+					QApplication::processEvents(QEventLoop::AllEvents, 20);
+					scroll->ensureWidgetVisible(placed, 0, 12);
+				}
+				static_cast<void>(window.grab().save(root + QLatin1Char{ '/' } + aName + QStringLiteral(".png")));
+			};
+			const auto first  = QStringLiteral("so the retry loop sees an exhausted budget");
+			const auto second = QStringLiteral("add a test that runs the budget out");
+			wait([&] { return draftText().contains(QStringLiteral("Consider moving the reset into `begin_request` instead")); }, "the card's draft holds its suggested comment: " + draftText().toStdString());
+			const auto propose = [&](const std::string& aStep) {
+				askAbout->click();
+				wait([&] { return followUp->isVisible() && followUp->subject_text().startsWith(QStringLiteral("Suggested comment at renderer.cpp:1")); }, aStep + ": the side chat about the card's finding opens: " + followUp->subject_text().toStdString());
+				expect(followUp->apply_button()->isVisible() && followUp->apply_button()->text() == QStringLiteral("Update suggested comment"), aStep + ": it offers Update suggested comment; it offers " + followUp->apply_button()->text().toStdString());
+				followUp->apply_button()->click();
+				if (!e2e::wait_until_plain([&] { return !followUp->proposal_text().isEmpty() && !followUp->running(); }, e2e::extended_agent_budget)) {
+					throw std::runtime_error{ aStep + ": Update suggested comment proposes a text; it says: " + followUp->status_text().toStdString() };
+				}
+			};
+			// Unchanged since the card drafted it: the update replaces it too.
+			propose("an unchanged draft");
+			expect(followUp->proposal_text().contains(first), "the proposal is the rewritten comment: " + followUp->proposal_text().toStdString());
+			expect(!draftText().contains(first), "nothing is replaced before Use");
+			followUp->use_button()->click();
+			wait([&] { return comment().contains(first); }, "the card shows the updated comment: " + comment().toStdString());
+			static_cast<void>(e2e::wait_until_plain([&] { return draftText().contains(first); }, std::chrono::seconds{ 5 }));
+			render(QStringLiteral("Agent"), QStringLiteral("card-follow-up-used-agent-tab"));
+			render(QStringLiteral("Comments"), QStringLiteral("card-follow-up-used-comments"));
+			if (!e2e::wait_until_plain([&] { return draftText().contains(first) && !draftText().contains(QStringLiteral("Consider moving the reset")); }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "a follow-up from a finding card updates the unchanged draft that card made; the draft still says: " + draftText().toStdString() + "; the side chat says: " + followUp->status_text().toStdString() };
+			}
+			expect(followUp->status_text().startsWith(QStringLiteral("Suggested comment and its draft updated.")), "the side chat says both were updated: " + followUp->status_text().toStdString());
+			expect(!shown(update) && !shown(differs) && said->text().startsWith(QStringLiteral("Drafted")), "nothing to update: the draft is the comment, and the card says Drafted");
+			std::cout << "keep-action: card-follow-up-updates-draft=pass\n";
+
+			// Changed since: left as it is, and offered.
+			if (!cards->writing_draft()) {
+				cards->open_thread(qt::conversation_cards_view::draft_identity());
+			}
+			wait([&] { return cards->writing_draft() && cards->draft_editor() != nullptr; }, "the card's draft is open in the drawer");
+			const auto edited = draftText() + QStringLiteral("\n\nAlso worth a test.");
+			cards->draft_editor()->setPlainText(edited);
+			wait([&] { return draftText() == edited; }, "the reviewer's change is the draft's");
+			propose("a changed draft");
+			expect(followUp->proposal_text().contains(second), "the proposal is a second rewrite: " + followUp->proposal_text().toStdString());
+			followUp->use_button()->click();
+			wait([&] { return comment().contains(second); }, "the card shows the second update: " + comment().toStdString());
+			if (!e2e::wait_until_plain([&] { return shown(update) && shown(differs); }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "a card whose changed draft was kept offers Update draft and says the draft differs; the side chat says: " + followUp->status_text().toStdString() };
+			}
+			expect(draftText() == edited, "the reviewer's draft is not replaced: " + draftText().toStdString());
+			expect(followUp->status_text().contains(QStringLiteral("left as it is")), "the side chat says the changed draft was left: " + followUp->status_text().toStdString());
+			expect(differs->text() == QStringLiteral("Drafted. The draft differs from the updated suggested comment. Nothing is published.") && !shown(said), "the card says the draft differs, under its row, in place of its state: " + differs->text().toStdString());
+			expect(update->text() == QStringLiteral("Update draft") && update->isEnabled() && update->width() >= update->sizeHint().width() && differs->width() <= placed->width(), "Update draft keeps its words, and what the card says stays inside the card");
+			render(QStringLiteral("Comments"), QStringLiteral("card-draft-differs-comments"));
+			render(QStringLiteral("Agent"), QStringLiteral("card-draft-differs-agent-tab"));
+			// No drawer pans sideways: with the Agent tab in front, the card
+			// in this state, among the answer's open cards, is judged at each
+			// width the drawer is dragged to. Its two buttons keep their words
+			// inside the card and do not stand over each other, what it says
+			// wraps inside it, and the tab's own scroll has no sideways range.
+			{
+				window.open_agent_question();
+				auto* const splitter = window.central_splitter();
+				auto* const drawer   = window.conversations_drawer();
+				const auto  handle   = splitter->indexOf(drawer);
+				const auto  was      = drawer->width();
+				expect(handle > 0, "the right drawer is in the window's splitter");
+				const auto drag = [&](const int aWidth) {
+					for (auto round = 0; round < 3 && drawer->width() != aWidth; ++round) {
+						splitter->move_handle(handle, splitter->handle(handle)->x() + drawer->width() - aWidth);
+						auto clock = QElapsedTimer{ };
+						clock.start();
+						while (clock.elapsed() < 300) {
+							QApplication::processEvents(QEventLoop::AllEvents, 20);
+						}
+					}
+				};
+				for (const auto width : { 280, 300, 340, 420 }) {
+					drag(width);
+					scroll->ensureWidgetVisible(placed, 0, 12);
+					QApplication::processEvents();
+					const auto at = " in a " + std::to_string(drawer->width()) + " px drawer (asked for " + std::to_string(width) + ")";
+					expect(placed->isVisibleTo(&window) && update->isVisibleTo(&window) && askAbout->isVisibleTo(&window) && differs->isVisibleTo(&window), "the card shows Update draft, Ask follow-up and what it says" + at);
+					// What forces the width, innermost first, when it pans.
+					auto past = std::string{ };
+					for (const auto* const child : scroll->widget()->findChildren<QWidget*>()) {
+						const auto reach = [&](const QWidget& aPart) { return aPart.mapTo(scroll->widget(), QPoint{ 0, 0 }).x() + std::max(aPart.minimumWidth(), aPart.minimumSizeHint().width()); };
+						if (!child->isVisible() || reach(*child) <= scroll->viewport()->width()) {
+							continue;
+						}
+						if (std::ranges::none_of(child->findChildren<QWidget*>(), [&](const QWidget* aInner) { return aInner->isVisible() && reach(*aInner) > scroll->viewport()->width(); })) {
+							past += child->objectName().toStdString() + " reaches " + std::to_string(reach(*child)) + "; ";
+						}
+					}
+					expect(scroll->horizontalScrollBar()->maximum() == 0 && !scroll->horizontalScrollBar()->isVisible() && scroll->widget()->width() <= scroll->viewport()->width(),
+						   "the Agent tab has no sideways range" + at + ": its content is " + std::to_string(scroll->widget()->width()) + " wide in a " + std::to_string(scroll->viewport()->width()) + " px viewport (" + past + ")");
+					for (const auto* const button : { update, askAbout }) {
+						const auto left = button->mapTo(placed, QPoint{ 0, 0 }).x();
+						expect(button->width() >= button->sizeHint().width(), button->text().toStdString() + " keeps its words" + at + ": " + std::to_string(button->width()) + " of " + std::to_string(button->sizeHint().width()));
+						expect(left >= 0 && left + button->width() <= placed->width(), button->text().toStdString() + " is inside the card" + at + ": " + std::to_string(left) + " to " + std::to_string(left + button->width()) + " of " + std::to_string(placed->width()));
+					}
+					const auto updateFace = QRect{ update->mapTo(placed, QPoint{ 0, 0 }), update->size() };
+					const auto askFace    = QRect{ askAbout->mapTo(placed, QPoint{ 0, 0 }), askAbout->size() };
+					expect(!updateFace.intersects(askFace), "the two buttons do not stand over each other" + at);
+					const auto saidLeft = differs->mapTo(placed, QPoint{ 0, 0 }).x();
+					expect(saidLeft >= 0 && saidLeft + differs->width() <= placed->width() && differs->height() >= differs->heightForWidth(differs->width()) && differs->mapTo(placed, QPoint{ 0, 0 }).y() >= std::max(updateFace.bottom(), askFace.bottom()),
+						   "what the card says wraps inside the card, under its buttons" + at + ": " + std::to_string(differs->width()) + " wide, " + std::to_string(differs->height()) + " high of " + std::to_string(differs->heightForWidth(differs->width())));
+					if (const auto renders = qEnvironmentVariable("BPR_AGENT_KEEP_ACTION_RENDER_ROOT"); !renders.isEmpty()) {
+						static_cast<void>(drawer->grab().save(QStringLiteral("%1/card-draft-differs-drawer-%2.png").arg(renders).arg(drawer->width())));
+					}
+					std::cout << "keep-action: card-draft-differs" << at << ": the card is " << placed->width() << " px wide, Update draft " << update->width() << ", Ask follow-up " << askAbout->width() << ", what it says " << differs->width() << " by "
+							  << differs->height() << '\n';
+				}
+				drag(was);
+			}
+			update->click();
+			wait([&] { return draftText().contains(second) && !draftText().contains(QStringLiteral("Also worth a test.")); }, "Update draft replaces the draft with the updated comment: " + draftText().toStdString());
+			wait([&] { return !shown(update) && !shown(differs) && shown(said) && said->text().startsWith(QStringLiteral("Drafted")); }, "and is no longer offered: the card says Drafted");
+			render(QStringLiteral("Agent"), QStringLiteral("card-draft-updated-agent-tab"));
+			render(QStringLiteral("Comments"), QStringLiteral("card-draft-updated-comments"));
+			const auto unsent = access::review_mutation_evidence(*application);
+			expect(unsent.Submissions == mutation.Submissions && unsent.StoredComments == mutation.StoredComments, "nothing reached GitHub from the follow-up");
+			followUp->close_button()->click();
+			wait([&] { return !followUp->isVisible(); }, "the side chat closes");
+			std::cout << "keep-action: card-follow-up-keeps-changed-draft=pass\n";
+		}
 		// Kept as a draft, it can be moved to Local from its card (the state
 		// control): the owner's "they can move it to local after".
 

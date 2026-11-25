@@ -81,6 +81,22 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 
+	// A finding's side chat asking for its suggested comment rewritten
+	// (Update suggested comment): the proposal is only the comment's text, so
+	// a course sees a finding card's comment and the draft it made follow the
+	// update. Asked again over that update, it gives another.
+	if (buffer.str().find("bpr.follow-up.update-suggestion") != std::string::npos) {
+		const auto again = buffer.str().find("so the retry loop sees an exhausted budget") != std::string::npos;
+		std::cout << "{\"type\":\"thread.started\",\"thread_id\":\"suggestions-fixture\"}\n"
+					 "{\"type\":\"turn.started\"}\n"
+					 "{\"type\":\"item.completed\",\"item\":{\"id\":\"item-1\",\"type\":\"agent_message\",\"text\":\""
+				  << (again ? "suggestion: move the reset into `begin_request`, and add a test that runs the budget out." : "suggestion: move the reset into `begin_request`, so the retry loop sees an exhausted budget.")
+				  << "\"}}\n"
+					 "{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":1,\"cached_input_tokens\":0,\"output_tokens\":1}}\n";
+		std::cout.flush();
+		return EXIT_SUCCESS;
+	}
+
 	// One-based, inclusive lines, as the review skill asks.
 	constexpr suggestion findings[] = {
 		{ .Path       = "src/engine/renderer.cpp",

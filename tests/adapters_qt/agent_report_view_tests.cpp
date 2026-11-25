@@ -35,6 +35,7 @@
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
+#include <QTextLayout>
 #include <QTextTable>
 #include <QUrl>
 #include <QUuid>
@@ -210,16 +211,30 @@ namespace {
 		view.present({ .Turn = 1U, .Title = QStringLiteral("Review of #5"), .Markdown = markdown, .Question = QStringLiteral("Review this pull request"), .Byline = { } });
 		const auto wide = measure(1400);
 		expect(wide.Words.height() < 2.0 * wide.Line, "wide, the words take one line");
-		for (const auto width : { 300, 340 }) {
+		// Narrower, the words wrap beside the chip, in two lines at most; and
+		// where they would need a third, they stand under it at the row's
+		// width. The chip is the same chip throughout.
+		auto wrapped = 0;
+		auto under   = 0;
+		for (auto width = 300; width <= 560; width += 10) {
 			const auto narrow = measure(width);
+			const auto beside = std::abs(narrow.Chip.top() - narrow.Words.top()) <= 1.0;
 			std::cout << "BPR-2268 width " << width << ": chip box " << narrow.Box.height() << " (one line beside: " << wide.Box.height() << "), chip text top " << narrow.Chip.top() << ", words top "
-					  << narrow.Words.top() << ", words " << narrow.Words.height() << " high\n";
-			expect(narrow.Words.height() >= 2.0 * narrow.Line, "narrow, the words wrap at " + std::to_string(width));
+					  << narrow.Words.top() << ", words " << narrow.Words.height() << " high, " << (beside ? "beside" : "under") << "\n";
 			expect(narrow.Chip.height() < 1.5 * narrow.Line, "Draft comment stays on one line at " + std::to_string(width));
-			expect(narrow.Box.height() == wide.Box.height() && narrow.Box.height() <= narrow.Chip.height() + 12.0,
-				   "the chip keeps its natural height, its one line and padding, beside wrapped words at " + std::to_string(width));
-			expect(std::abs(narrow.Chip.top() - narrow.Words.top()) <= 1.0, "the chip's words are level with the first line beside it at " + std::to_string(width));
+			expect(narrow.Box.height() == wide.Box.height() && narrow.Box.height() <= narrow.Chip.height() + 12.0, "the chip keeps its natural height, its one line and padding, at " + std::to_string(width));
+			if (beside) {
+				// Level with the first line beside it, however many it takes.
+				expect(narrow.Words.height() < 3.0 * narrow.Line, "beside the chip the words take two lines at most at " + std::to_string(width));
+				wrapped += narrow.Words.height() >= 2.0 * narrow.Line ? 1 : 0;
+			} else {
+				// The chip's padding and border, and room, under its words.
+				expect(narrow.Words.top() >= narrow.Chip.bottom() + 5.0 + 4.0, "the words stand clear under the chip at " + std::to_string(width));
+				++under;
+			}
 		}
+		expect(wrapped > 0, "at some width the words wrap beside the chip, the chip keeping its height");
+		expect(under > 0, "narrower still, the words stand under the chip");
 	}
 
 	/// [[BPR-2299]] (owner, 2026-11-19: "The current report width feels too
@@ -643,6 +658,190 @@ namespace {
 		press(QStringLiteral("Update draft"));
 		expect(updated == 1, "with the page selected, one click on Update draft updates: " + std::to_string(updated) + " times");
 	}
+
+	/// The owner's report, narrowed by its side chat: the keep row's
+	/// sentence ("at renderer.cpp:11. Nothing is published") stood a letter
+	/// to a line beside its three chips. The page arranges each row for the
+	/// width it is drawn at. At every width a report can be dragged to: no
+	/// row is wider than the page, every chip keeps its words on one line,
+	/// and every sentence breaks only between words. Wide, a row is one line
+	/// as it was; narrow, its sentence stands under its chips and the chips
+	/// take the lines they need.
+	void check_keep_rows_fit_every_width()
+	{
+		auto view = bpr::qt::agent_report_view{ };
+		view.set_reading_limit(std::nullopt);
+		view.resize(1'300, 900);
+		view.show();
+		auto records = std::map<std::pair<bpr::core::agent_findings_digest, std::uint32_t>, bpr::core::agent_finding_card_record>{ };
+		view.set_keep_records([&records](const bpr::core::report_finding_key& aKey) {
+			const auto found = records.find({ aKey.Findings, aKey.Ordinal });
+			return found == records.end() ? bpr::core::agent_finding_card_record{ } : found->second;
+		});
+		view.set_draft_dispatch([&records](const bpr::qt::report_draft& aDraft, const bpr::qt::report_draft_done& aDone) {
+			auto record                                          = bpr::core::agent_finding_card_record{ };
+			record.Findings                                      = aDraft.Key.Findings;
+			record.Ordinal                                       = aDraft.Key.Ordinal;
+			record.State                                         = aDraft.Keep == bpr::core::report_keep::draft_comment ? bpr::core::agent_finding_card_disposition::drafted : bpr::core::agent_finding_card_disposition::noted;
+			record.Note                                          = 7U;
+			records[{ aDraft.Key.Findings, aDraft.Key.Ordinal }] = record;
+			aDone(true, { });
+		});
+		view.set_go_dispatch([](const bpr::qt::report_draft&) { });
+		view.set_follow_up_dispatch([](const bpr::qt::report_draft&) { });
+		view.set_dismiss_dispatch([&records](const bpr::qt::report_draft& aFinding, const bool aDismiss) {
+			auto record                                              = bpr::core::agent_finding_card_record{ };
+			record.Findings                                          = aFinding.Key.Findings;
+			record.Ordinal                                           = aFinding.Key.Ordinal;
+			record.State                                             = aDismiss ? bpr::core::agent_finding_card_disposition::dismissed : bpr::core::agent_finding_card_disposition::open;
+			records[{ aFinding.Key.Findings, aFinding.Key.Ordinal }] = record;
+		});
+		view.set_draft_all_dispatch([](std::vector<bpr::qt::report_draft>, const bpr::core::draft_all_outcome&, bpr::qt::report_draft_all_done) { });
+		view.set_placeable([](const bpr::qt::report_draft&) { return true; });
+		const auto differs = QStringLiteral("src/engine/shaders/post/tonemap.frag");
+		view.set_revision_source([&differs](const bpr::qt::report_draft& aDraft) { return aDraft.Path == differs ? std::optional{ QStringLiteral("issue: read the exposure.") } : std::nullopt; });
+		view.set_draft_update([&differs](const bpr::qt::report_draft& aDraft) { return aDraft.Path == differs; }, [](const bpr::qt::report_draft&) { });
+		view.present({ .Turn     = 1U,
+					   .Title    = QStringLiteral("Review of #5"),
+					   .Markdown = QStringLiteral("# Review of #5\n\n**Verdict:** Needs changes\n\nThe move is clean. One thing must be fixed before this merges.\n\n## Must fix\n\n"
+												  "### issue (blocking): A zero height still asserts\n\n`src/engine/renderer.cpp:12-13`\n\nClamp it.\n\n"
+												  "### issue: The width is read twice\n\n`src/engine/renderer.cpp:11`\n\nRead it once.\n\n"
+												  "### issue: The pass ignores exposure\n\n`src/engine/shaders/post/tonemap.frag:5`\n\nIt writes the scene straight through.\n\n"
+												  "### nitpick: The README is stale\n\n`README.md`\n\nIt names the old folder.\n\n"
+												  "### question: Is the bracket right?\n\n`src/engine/renderer.cpp:3`\n\nBegin, draw, present.\n"),
+					   .Question = QStringLiteral("Review this pull request"),
+					   .Byline   = { } });
+		QApplication::processEvents();
+		expect(view.findings().size() == 5U && view.findings()[3].Keep == bpr::core::report_keep::keep_local, "the report has four findings to draft and one to keep local");
+		// One row of each kind: offered, drafted, drafted with a draft that
+		// differs, kept local and dismissed; and the summary's and Draft
+		// all's.
+		expect(view.press(view.findings()[1].Outline, bpr::qt::report_link::keep) && view.press(view.findings()[2].Outline, bpr::qt::report_link::keep) && view.press(view.findings()[3].Outline, bpr::qt::report_link::keep)
+				   && view.press(view.findings()[4].Outline, bpr::qt::report_link::dismiss),
+			   "the findings take their states");
+		QApplication::processEvents();
+		auto* const page     = view.dressed_view();
+		const auto  expected = QStringList{
+			QStringLiteral("as a local comment on the pull request. Nothing is published"),
+			QStringLiteral("Each finding not yet drafted, at its lines. Nothing is published"),
+			QStringLiteral("at renderer.cpp:12-13. Nothing is published"),
+			QStringLiteral("Nothing is published"),
+			QStringLiteral("Drafted. The draft differs from the updated suggested comment. Nothing is published"),
+			QStringLiteral("Nothing was made"),
+		};
+		const auto chips = QStringList{ QStringLiteral("Keep summary"), QStringLiteral("Draft all (1)"), QStringLiteral("Draft comment"), QStringLiteral("Dismiss"), QStringLiteral("Ask follow-up"),
+										QStringLiteral("Go to draft"), QStringLiteral("Update draft"), QStringLiteral("Go to comment"), QStringLiteral("Undo") };
+		// How the first finding's row is arranged: where its sentence and
+		// its chips stand.
+		struct arrangement
+		{
+			int  ChipLines     = 0;
+			int  SentenceLines = 0;
+			bool Beside        = false;
+		};
+		const auto judge = [&](const int aWidth) {
+			view.resize(aWidth, 900);
+			for (auto pass = 0; pass < 4; ++pass) {
+				QApplication::processEvents();
+			}
+			const auto  at       = " at " + std::to_string(aWidth) + " (the page " + std::to_string(view.column()->width()) + ")";
+			auto* const document = page->document();
+			auto* const layout   = document->documentLayout();
+			const auto  width    = static_cast<qreal>(view.column()->width());
+			expect(page->width() == view.column()->width() && page->horizontalScrollBar()->maximum() == 0, "the page takes its column and has no sideways range" + at);
+			// Every sentence of a row breaks between words, never in one.
+			auto found = QStringList{ };
+			auto lines = std::map<QString, int>{ };
+			for (auto block = document->begin(); block.isValid(); block = block.next()) {
+				const auto text = block.text();
+				if (!expected.contains(text)) {
+					continue;
+				}
+				found << text;
+				const auto* const laid = block.layout();
+				lines[text]            = laid->lineCount();
+				for (auto index = 0; index + 1 < laid->lineCount(); ++index) {
+					const auto line = laid->lineAt(index);
+					const auto last = text.at(line.textStart() + line.textLength() - 1);
+					expect(last.isSpace(), "\"" + text.toStdString() + "\" breaks between words" + at + ": line " + std::to_string(index + 1) + " is \"" + text.mid(line.textStart(), line.textLength()).toStdString() + "\"");
+				}
+				expect(layout->blockBoundingRect(block).right() <= width + 0.5, "the sentence stays in the page" + at);
+			}
+			for (const auto& sentence : expected) {
+				expect(found.contains(sentence), "the page says \"" + sentence.toStdString() + "\"" + at + "; it says:\n" + page->toPlainText().toStdString());
+			}
+			// Every chip keeps its words on one line, inside the page.
+			auto seen = QStringList{ };
+			for (auto block = document->begin(); block.isValid(); block = block.next()) {
+				for (auto fragment = block.begin(); !fragment.atEnd(); ++fragment) {
+					const auto part  = fragment.fragment();
+					const auto words = part.text().replace(QChar::Nbsp, QLatin1Char{ ' ' });
+					if (part.charFormat().anchorHref().isEmpty() || !chips.contains(words)) {
+						continue;
+					}
+					seen << words;
+					expect(block.layout()->lineCount() == 1 && block.text().replace(QChar::Nbsp, QLatin1Char{ ' ' }) == words, words.toStdString() + " keeps its words on one line" + at);
+					// Its border and padding stand outside its words.
+					expect(layout->blockBoundingRect(block).right() + 11.0 <= width + 0.5, words.toStdString() + " is inside the page" + at + ": it reaches " + std::to_string(layout->blockBoundingRect(block).right() + 11.0));
+				}
+			}
+			for (const auto& chip : chips) {
+				expect(seen.contains(chip), "the page offers " + chip.toStdString() + at);
+			}
+			// The first finding's row: Draft comment, Dismiss, Ask follow-up
+			// and where it goes.
+			auto       shape    = arrangement{ };
+			const auto first    = document->find(QStringLiteral("Draft comment"));
+			const auto sentence = document->find(QStringLiteral("at renderer.cpp:12-13"), first);
+			expect(!first.isNull() && !sentence.isNull(), "the first finding offers Draft comment and says where" + at);
+			const auto draftTop = layout->blockBoundingRect(first.block()).top();
+			const auto saidTop  = layout->blockBoundingRect(sentence.block()).top();
+			auto       tops     = std::vector<qreal>{ draftTop };
+			for (const auto& words : { QStringLiteral("Dismiss"), QStringLiteral("Ask follow-up") }) {
+				const auto chip = document->find(words, first);
+				expect(!chip.isNull() && chip.position() < sentence.position(), "its chips keep their order before its sentence" + at);
+				if (const auto top = layout->blockBoundingRect(chip.block()).top(); std::abs(top - tops.back()) > 1.0) {
+					tops.push_back(top);
+				}
+			}
+			shape.ChipLines     = static_cast<int>(tops.size());
+			shape.SentenceLines = sentence.block().layout()->lineCount();
+			shape.Beside        = std::abs(saidTop - tops.back()) <= 1.0;
+			expect(shape.Beside || saidTop > tops.back() + 12.0, "its sentence is level with its chips or clear under them" + at);
+			std::cout << "keep row" << at << ": chips on " << shape.ChipLines << (shape.ChipLines == 1 ? " line" : " lines") << ", the sentence " << (shape.Beside ? "beside" : "under") << " on " << shape.SentenceLines
+					  << (shape.SentenceLines == 1 ? " line" : " lines") << "\n";
+			return shape;
+		};
+		// BPR_REPORT_KEEP_ROW_RENDER_ROOT: the page as it is drawn at four
+		// widths, saved there before it is judged.
+		if (const auto renders = qEnvironmentVariable("BPR_REPORT_KEEP_ROW_RENDER_ROOT"); !renders.isEmpty()) {
+			for (const auto width : { 1'100, 660, 520, 420, 330 }) {
+				view.resize(width, 900);
+				for (auto pass = 0; pass < 4; ++pass) {
+					QApplication::processEvents();
+				}
+				static_cast<void>(page->grab().save(QStringLiteral("%1/keep-rows-%2.png").arg(renders).arg(view.column()->width())));
+			}
+		}
+		const auto wide = judge(1'300);
+		expect(wide.ChipLines == 1 && wide.Beside && wide.SentenceLines == 1, "wide, a row is one line: its chips and its sentence beside them");
+		const auto plain = page->toPlainText();
+		auto       under = false;
+		auto       stack = false;
+		for (const auto width : { 1'100, 980, 900, 840, 780, 720, 680, 640, 600, 570, 540, 510, 480, 450, 420, 400, 380, 360, 340, 320, 300, 280 }) {
+			const auto shape = judge(width);
+			// Beside, a sentence takes two lines at most: a third makes a
+			// thin column taller than the chips it explains.
+			expect(!shape.Beside || shape.SentenceLines <= 2, "beside its chips a sentence takes two lines at most at " + std::to_string(width));
+			expect(shape.Beside || shape.SentenceLines <= 2 || width < 300, "under its chips the sentence has the row's width at " + std::to_string(width));
+			under = under || !shape.Beside;
+			stack = stack || shape.ChipLines > 1;
+		}
+		expect(under && stack, "narrow, the sentence stands under its chips and the chips take a second line");
+		// Wide again, the row is the one line it was.
+		const auto again = judge(1'300);
+		expect(again.ChipLines == 1 && again.Beside && again.SentenceLines == 1 && page->toPlainText() == plain, "wide again, the page is as it was");
+	}
 }
 
 int main(int aArgc, char** aArgv)
@@ -1028,6 +1227,7 @@ try {
 		expect(!shown.mid(at).contains(QStringLiteral("```")), "and no fence shows as text");
 	}
 	check_inline_code();
+	check_keep_rows_fit_every_width();
 	check_keep_chip();
 	check_a_link_takes_one_click();
 	check_reading_width();

@@ -644,10 +644,16 @@ namespace {
 		render(QStringLiteral("summary-narrow-larger-font"));
 		expect_whole(*tally, *scroll, "narrowest drawer, larger font");
 		{
-			// Smaller only where the full donut beside the legend would not fit.
-			const auto full = tally->mapTo(scroll->widget(), QPoint{ }).x() + tally->minimumSizeHint().width() + qt::report_tally_pie::diameter - qt::report_tally_pie::compact_diameter;
-			std::cout << "BPR-2344 narrowest drawer, larger font: the donut is " << tally->pie()->ring_diameter() << " px; the full one needs " << full << " of " << scroll->viewport()->width() << '\n';
-			expect(fullRing() || full > scroll->viewport()->width(), "narrowest drawer, larger font: the donut is smaller only where the full one would not fit");
+			// Smaller only where the full donut beside the legend would not
+			// fit in the width the summary is given. That width stops short
+			// of the drawer's edge by the reply's own margins. Measured
+			// against the drawer's edge it once passed only because finding
+			// cards whose rows could not wrap made the conversation 69 px
+			// wider than the drawer, and the summary with it.
+			const auto full = tally->minimumSizeHint().width() + qt::report_tally_pie::diameter - qt::report_tally_pie::compact_diameter;
+			std::cout << "BPR-2344 narrowest drawer, larger font: the donut is " << tally->pie()->ring_diameter() << " px; the full one needs " << full << " of the summary's " << tally->width() << " in a " << scroll->viewport()->width()
+					  << " px drawer\n";
+			expect(fullRing() || full > tally->width(), "narrowest drawer, larger font: the donut is smaller only where the full one would not fit");
 		}
 		QApplication::setFont(original);
 		publish_drawer(window, 360U);

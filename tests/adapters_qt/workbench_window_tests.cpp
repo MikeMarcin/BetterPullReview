@@ -16816,6 +16816,41 @@ namespace {
 			expect(agent->finding_card_state(0U) == qt::agent_finding_card_state::drafted && turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Drafted"))
 					   && !turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->isVisibleTo(turnCard),
 				   "drafted, the card says so and offers nothing more");
+			// A follow-up updated the card's suggested comment and its draft,
+			// which the reviewer had changed, was kept: the card offers
+			// Update draft and says the draft differs under its row, as a
+			// report's finding does; a card that stops saying Drafted stops.
+			{
+				const auto  session = cardAsks.back().Session;
+				const auto  ordinal = cardAsks.back().Ordinal;
+				auto* const update  = turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingUpdateDraft"));
+				auto* const differs = turnCard->findChild<QLabel*>(QStringLiteral("agentFindingDraftDiffers"));
+				auto* const state   = turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"));
+				expect(update != nullptr && differs != nullptr && update->isHidden() && differs->isHidden() && agent->finding_card_draft(session, ordinal) == 0U, "a drafted card offers no Update draft by itself, and names no draft it was not told of");
+				auto updates = std::vector<std::pair<std::uint64_t, std::size_t>>{ };
+				agent->set_draft_update_dispatch([&updates](const std::uint64_t aSession, const std::size_t aOrdinal) { updates.emplace_back(aSession, aOrdinal); });
+				agent->present_finding_card_state(session, ordinal, qt::agent_finding_card_state::drafted, { }, 91U);
+				expect(agent->finding_card_draft(session, ordinal) == 91U && agent->finding_card_draft(session, ordinal + 1U) == 0U, "the card says which draft it made");
+				agent->present_finding_draft_outdated(session, ordinal, true);
+				process_events();
+				expect(update->isVisibleTo(turnCard) && update->text() == QStringLiteral("Update draft") && differs->isVisibleTo(turnCard)
+						   && differs->text() == QStringLiteral("Drafted. The draft differs from the updated suggested comment. Nothing is published.") && state->isHidden(),
+					   "a card whose changed draft was kept offers Update draft and says the draft differs, in place of its state");
+				expect(differs->geometry().top() >= update->geometry().bottom() && differs->geometry().right() <= turnCard->width() && update->width() >= update->sizeHint().width(),
+					   "what it says stands under its row at the card's width, and Update draft keeps its words");
+				update->click();
+				expect(updates == std::vector{ std::pair{ session, ordinal } }, "Update draft names the card");
+				agent->present_finding_draft_outdated(session, ordinal, false);
+				process_events();
+				expect(update->isHidden() && differs->isHidden() && state->isVisibleTo(turnCard) && state->text().startsWith(QStringLiteral("Drafted")), "updated, the card says Drafted again");
+				// A draft deleted opens the card again: the offer goes with it.
+				agent->present_finding_draft_outdated(session, ordinal, true);
+				agent->present_finding_card_state(session, ordinal, qt::agent_finding_card_state::open);
+				agent->present_finding_card_state(session, ordinal, qt::agent_finding_card_state::drafted, { }, 92U);
+				process_events();
+				expect(update->isHidden() && differs->isHidden(), "a card drafted again offers no Update draft for the draft before it");
+				agent->set_draft_update_dispatch({ });
+			}
 			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::refused, QStringLiteral("Open src/engine/renderer.cpp, then try again."));
 			process_events();
 			expect(turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Open src/engine")) && turnCard->findChild<QAbstractButton*>(QStringLiteral("agentFindingDraftComment"))->isVisibleTo(turnCard),

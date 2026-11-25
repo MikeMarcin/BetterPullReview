@@ -209,6 +209,9 @@ namespace bpr::qt {
 			{
 				return QSize{ fontMetrics().horizontalAdvance(QStringLiteral("…:9")), QLabel::minimumSizeHint().height() };
 			}
+			/// It asks for its least and takes what its row has left, so the
+			/// severity and kind before it are placed first.
+			[[nodiscard]] auto sizeHint() const -> QSize override { return QSize{ minimumSizeHint().width(), QLabel::sizeHint().height() }; }
 			[[nodiscard]] auto shown_text() const -> QString { return fontMetrics().elidedText(text(), Qt::ElideMiddle, std::max(0, contentsRect().width())); }
 
 		protected:
@@ -4403,8 +4406,12 @@ namespace bpr::qt {
 		auto* const col = new QVBoxLayout{ card };
 		col->setContentsMargins(14, 10, 12, 10);
 		col->setSpacing(5);
-		auto* const meta = new QHBoxLayout{ };
-		meta->setSpacing(6);
+		// A row that wraps inside the card, as its choices below do: the
+		// severity and kind, which keep their words, are wider than the
+		// narrowest drawer leaves a card. The anchor takes what its row has
+		// left, shortened in the middle, and a row of its own when the
+		// others leave it none.
+		auto* const meta     = new detail::wrapping_row{ nullptr, 6, 2 };
 		auto* const severity = new QLabel{ capitalised(core::name(finding.Severity)), card };
 		auto        sevFont  = severity->font();
 		sevFont.setWeight(QFont::DemiBold);
@@ -4421,7 +4428,6 @@ namespace bpr::qt {
 		// their words; the anchor gives way and shortens in the middle.
 		kind->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
 		meta->addWidget(kind);
-		meta->addStretch(1);
 		// Lines are shown one-based, first and last, as an editor numbers them.
 		const auto  first = finding.Lines.Begin + 1U;
 		const auto  last  = std::max(first, finding.Lines.End);
@@ -4430,7 +4436,7 @@ namespace bpr::qt {
 												card };
 		where->setObjectName(QStringLiteral("agentFindingAnchor"));
 		where->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-		where->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		where->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 		where->setMinimumWidth(where->minimumSizeHint().width());
 		auto code = QFont{ QStringLiteral("Menlo") };
 		code.setStyleHint(QFont::Monospace);
@@ -4439,7 +4445,7 @@ namespace bpr::qt {
 		where->setFont(code);
 		where->setToolTip(aEntry.Anchored ? QString::fromStdString(finding.Path) : tr("%1 (not the file open when the agent answered)").arg(QString::fromStdString(finding.Path)));
 		where->setAccessibleName(where->text());
-		meta->addWidget(where, 1);
+		meta->addWidget(where);
 		col->addLayout(meta);
 		aEntry.Id = NextCardId++;
 		// [[BPR-2059]], owner 2026-11-10 ("just a big wall of text"): the
@@ -4490,8 +4496,11 @@ namespace bpr::qt {
 			auto* const insetColumn = new QVBoxLayout{ inset };
 			insetColumn->setContentsMargins(12, 7, 10, 8);
 			insetColumn->setSpacing(3);
-			auto* const captionRow = new QHBoxLayout{ };
-			captionRow->setSpacing(8);
+			// The caption and the comment's label: on one row with the label
+			// at its right end, and the label under the caption where a long
+			// one ("suggestion (non-blocking)") does not fit beside it.
+			auto* const captionRow = new detail::wrapping_row{ nullptr, 8, 2 };
+			captionRow->set_last_trails(true);
 			auto* const caption = new QLabel{ tr("Suggested comment"), inset };
 			caption->setObjectName(QStringLiteral("agentFindingSuggestionCaption"));
 			caption->setForegroundRole(QPalette::PlaceholderText);
@@ -4499,7 +4508,6 @@ namespace bpr::qt {
 			small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
 			caption->setFont(small);
 			captionRow->addWidget(caption);
-			captionRow->addStretch(1);
 			auto* const labelled = new QLabel{ inset };
 			labelled->setObjectName(QStringLiteral("agentFindingSuggestionLabel"));
 			// [[BPR-2236]]. In its tone, as the report page draws the label.
@@ -4515,9 +4523,13 @@ namespace bpr::qt {
 			show_card_suggestion(aEntry, *inset);
 		}
 		col->addSpacing(2);
-		auto* const actions = new QHBoxLayout{ };
-		actions->setSpacing(6);
-		const auto index = aEntry.Id;
+		// No drawer pans sideways: the card's choices and what it says of
+		// itself are a row that wraps inside the card. Three buttons side by
+		// side needed 256 px, more than a 280 px drawer leaves a card, and the
+		// Agent tab panned under open cards. What the card says takes the
+		// rest of a row that holds it and a row of its own when none does.
+		auto* const actions = new detail::wrapping_row{ nullptr, 6, 4 };
+		const auto  index   = aEntry.Id;
 		// RFC-BPR-0127. One keep action, in one place: Draft comment where
 		// its line takes a draft, Keep local where none does
 		// (`core::decide_keep`; `show_card_state` shows the one).
@@ -4528,12 +4540,33 @@ namespace bpr::qt {
 		draft->setObjectName(QStringLiteral("agentFindingDraftComment"));
 		draft->setIcon(conversation_icon(conversation_glyph::edit, palette()));
 		connect(draft, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::draft_comment); });
+		// Each chip of the row paints its whole rect and is laid out by it:
+		// by a bezel it does not have, it is drawn over the one beside it.
+		draft->setAttribute(Qt::WA_LayoutUsesWidgetRect);
 		actions->addWidget(draft);
 		auto* const dismiss = new quiet_push_button{ tr("Dismiss"), card };
 		dismiss->setObjectName(QStringLiteral("agentFindingDismiss"));
 		dismiss->setFlat(true);
 		connect(dismiss, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::dismiss); });
+		dismiss->setAttribute(Qt::WA_LayoutUsesWidgetRect);
 		actions->addWidget(dismiss);
+		// A drafted card whose draft the reviewer changed before a follow-up
+		// updated its suggested comment: Update draft, as a report's finding
+		// offers it. What it is and why stand under the row, at the card's
+		// whole width (`show_card_state`).
+		auto* const update = new quiet_push_button{ tr("Update draft"), card };
+		update->setObjectName(QStringLiteral("agentFindingUpdateDraft"));
+		update->setToolTip(tr("Replace the draft with the updated suggested comment. Nothing is posted."));
+		update->setAccessibleDescription(update->toolTip());
+		update->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+		update->hide();
+		connect(update, &QPushButton::clicked, this, [this, index] {
+			const auto found = std::ranges::find(CardEntries, index, &card_entry::Id);
+			if (found != CardEntries.end() && DraftUpdateDispatch) {
+				DraftUpdateDispatch(found->Session, found->Ordinal);
+			}
+		});
+		actions->addWidget(update);
 		// [[BPR-2286]]. Ask follow-up: a conversation about this finding, in
 		// its own window; it sends nothing by itself.
 		auto* const followUp = new quiet_push_button{ tr("Ask follow-up"), card };
@@ -4542,6 +4575,7 @@ namespace bpr::qt {
 		followUp->setToolTip(tr("Ask the agent about this finding, and have it rewrite the suggested comment if you want. Nothing is posted."));
 		followUp->setAccessibleDescription(followUp->toolTip());
 		followUp->setVisible(static_cast<bool>(FollowUpDispatch));
+		followUp->setAttribute(Qt::WA_LayoutUsesWidgetRect);
 		connect(followUp, &QPushButton::clicked, this, [this, index] {
 			const auto found = std::ranges::find(CardEntries, index, &card_entry::Id);
 			if (found != CardEntries.end() && FollowUpDispatch) {
@@ -4554,10 +4588,11 @@ namespace bpr::qt {
 		state->setForegroundRole(QPalette::PlaceholderText);
 		state->setWordWrap(true);
 		state->hide();
-		actions->addWidget(state, 1);
+		actions->addWidget(state);
 		auto* const undo = new quiet_push_button{ tr("Undo"), card };
 		undo->setObjectName(QStringLiteral("agentFindingUndo"));
 		undo->setFlat(true);
+		undo->setAttribute(Qt::WA_LayoutUsesWidgetRect);
 		undo->hide();
 		connect(undo, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::undo_dismiss); });
 		actions->addWidget(undo);
@@ -4565,6 +4600,7 @@ namespace bpr::qt {
 		auto* const goToNote = new quiet_push_button{ tr("Go to comment"), card };
 		goToNote->setObjectName(QStringLiteral("agentFindingGoToComment"));
 		goToNote->setToolTip(tr("Open the local comment this finding was kept as"));
+		goToNote->setAttribute(Qt::WA_LayoutUsesWidgetRect);
 		goToNote->hide();
 		connect(goToNote, &QPushButton::clicked, this, [this, index] {
 			const auto found = std::ranges::find(CardEntries, index, &card_entry::Id);
@@ -4573,8 +4609,13 @@ namespace bpr::qt {
 			}
 		});
 		actions->addWidget(goToNote);
-		actions->addStretch(1);
 		col->addLayout(actions);
+		auto* const differs = new QLabel{ tr("Drafted. The draft differs from the updated suggested comment. Nothing is published."), card };
+		differs->setObjectName(QStringLiteral("agentFindingDraftDiffers"));
+		differs->setForegroundRole(QPalette::PlaceholderText);
+		differs->setWordWrap(true);
+		differs->hide();
+		col->addWidget(differs);
 		// Choosing a card selects its finding and shows its lines.
 		card->installEventFilter(this);
 		card->setProperty("agentFindingCard", QVariant::fromValue<qulonglong>(index));
@@ -4622,6 +4663,33 @@ namespace bpr::qt {
 		}
 	}
 
+	auto agent_tab_view::finding_card_draft(const std::uint64_t aSession, const std::size_t aOrdinal) const -> std::uint64_t
+	{
+		const auto drafted = [aSession, aOrdinal](const card_entry& aEntry) { return aEntry.Session == aSession && aEntry.Ordinal == aOrdinal && aEntry.State == agent_finding_card_state::drafted && aEntry.Note != 0U; };
+		if (const auto found = std::ranges::find_if(CardEntries, drafted); found != CardEntries.end()) {
+			return found->Note;
+		}
+		return 0U;
+	}
+
+	void agent_tab_view::present_finding_draft_outdated(const std::uint64_t aSession, const std::size_t aOrdinal, const bool aOutdated)
+	{
+		for (auto& entry : CardEntries) {
+			if (entry.Session == aSession && entry.Ordinal == aOrdinal && entry.Outdated != aOutdated) {
+				entry.Outdated = aOutdated;
+				show_card_state(entry);
+			}
+		}
+	}
+
+	void agent_tab_view::set_draft_update_dispatch(std::function<void(std::uint64_t, std::size_t)> aDispatch)
+	{
+		DraftUpdateDispatch = std::move(aDispatch);
+		for (auto& entry : CardEntries) {
+			show_card_state(entry);
+		}
+	}
+
 	auto agent_tab_view::revise_finding(const std::uint64_t aSession, const std::size_t aOrdinal, const QString& aComment) -> bool
 	{
 		auto revised = false;
@@ -4656,12 +4724,26 @@ namespace bpr::qt {
 		if (auto* const goToNote = card->findChild<QPushButton*>(QStringLiteral("agentFindingGoToComment")); goToNote != nullptr) {
 			goToNote->setVisible(aEntry.State == agent_finding_card_state::noted && aEntry.Note != 0U && NoteNavigate);
 		}
+		// A draft that differs from the comment a follow-up updated: Update
+		// draft in the row, and what is so under it, in place of the state
+		// beside the buttons.
+		aEntry.Outdated     = aEntry.Outdated && aEntry.State == agent_finding_card_state::drafted;
+		const auto outdated = aEntry.Outdated && DraftUpdateDispatch;
+		if (auto* const update = card->findChild<QPushButton*>(QStringLiteral("agentFindingUpdateDraft")); update != nullptr) {
+			update->setVisible(outdated);
+		}
+		if (auto* const differs = card->findChild<QLabel*>(QStringLiteral("agentFindingDraftDiffers")); differs != nullptr) {
+			differs->setVisible(outdated);
+		}
 		// [[BPR-2298]]. A draft whose lines need saying (a range widened to
 		// its suggestion's lines, or one to check) says so.
 		switch (aEntry.State) {
-		case agent_finding_card_state::open:      state->clear(); break;
-		case agent_finding_card_state::working:   state->setText(tr("Working…")); break;
-		case agent_finding_card_state::drafted:   state->setText(aEntry.Why.isEmpty() ? tr("Drafted. It is a private draft until you publish it.") : aEntry.Why); break;
+		case agent_finding_card_state::open:    state->clear(); break;
+		case agent_finding_card_state::working: state->setText(tr("Working…")); break;
+		case agent_finding_card_state::drafted:
+			state->setText(outdated ? QString{ } : aEntry.Why.isEmpty() ? tr("Drafted. It is a private draft until you publish it.")
+																		: aEntry.Why);
+			break;
 		case agent_finding_card_state::noted:     state->setText(tr("Kept local.")); break;
 		case agent_finding_card_state::dismissed: state->setText(tr("Dismissed.")); break;
 		case agent_finding_card_state::refused:   state->setText(aEntry.Why.isEmpty() ? tr("That could not be done.") : aEntry.Why); break;

@@ -27,6 +27,20 @@
 /// on another finding's Draft comment hands the keyboard to its Go to draft,
 /// which wears the focus ring and is not selected, and Return goes.
 ///
+/// A finding kept as a Local comment arrives the same way. Go to comment went
+/// to the finding's lines only: the right tray stayed where it was and the
+/// Local comment was left a closed note. Keep local on the report's README
+/// finding, then one click on Go to comment with the tray on the Agent tab,
+/// from another file and from the comment's own: the file's tab comes in
+/// front, the tray turns to Comments, and the Local comment's card is open,
+/// whole in the drawer, holding the keyboard.
+///
+/// The report narrowed by its side chat. Ask follow-up opens the finding's
+/// chat beside the report, and the keep row's sentence ("at renderer.cpp:12-13.
+/// Nothing is published") stood a letter to a line beside its three chips.
+/// At that width, and at each narrower window, no row is wider than the page
+/// and every row's sentence breaks only between words.
+///
 ///     report_draft_reveal_public_path
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/window_system_keys.hpp"
@@ -37,10 +51,12 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
+#include "report_page_rows.hpp"
 
 #include <QAbstractButton>
 #include <QAction>
@@ -56,6 +72,7 @@
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextEdit>
+#include <QToolButton>
 
 #include <algorithm>
 #include <chrono>
@@ -239,6 +256,48 @@ auto main(int argc, char** argv) -> int
 		// click of the pointer on the report's own link.
 		auto* const page = report->dressed_view();
 		render(window, QStringLiteral("report-draft-offered"));
+		// The report narrowed by its side chat: Ask follow-up opens the
+		// finding's chat beside the report. Its rows are judged there and in
+		// each narrower window, down to the narrowest the window takes.
+		{
+			auto* const chat = window.item_side_chat();
+			expect(e2e::report_rows_wrong(*report).empty(), "before its side chat opens the report's rows are whole: " + e2e::report_rows_wrong(*report));
+			click_link(*report, QStringLiteral("Ask follow-up"), "Ask follow-up");
+			wait([&] { return chat->isVisible() && window.report_shown(); }, "the finding's side chat opens beside the report");
+			settle(500);
+			// A chip never wraps its words, so no arrangement fits a page
+			// narrower than its widest chip inside a finding's box (Draft
+			// comment, 152 px). With both drawers and the chat open the window
+			// leaves the report that little only under about 1200 px wide.
+			constexpr auto oneChip = 170;
+			auto           wrong   = std::string{ };
+			auto           judged  = 0;
+			for (const auto width : { 1'440, 1'400, 1'360, 1'320, 1'280, 1'250, 1'220, 1'140 }) {
+				window.resize(width, 720);
+				settle(400);
+				const auto wide = report->column()->width();
+				if (wide < oneChip) {
+					std::cout << "report-draft-reveal: beside its side chat, in a " << window.width() << " px window, the report's page is " << wide << " px wide: narrower than one chip, not judged\n";
+					continue;
+				}
+				++judged;
+				const auto found = e2e::report_rows_wrong(*report);
+				std::cout << "report-draft-reveal: beside its side chat, in a " << window.width() << " px window, the report's page is " << wide << " px wide (sideways range " << page->horizontalScrollBar()->maximum()
+						  << "): " << (found.empty() ? "its rows are whole" : found) << '\n';
+				render(window, QStringLiteral("report-beside-side-chat-%1").arg(window.width()));
+				render(*page, QStringLiteral("report-beside-side-chat-%1-page").arg(window.width()));
+				if (!found.empty()) {
+					wrong += "in a " + std::to_string(window.width()) + " px window: " + found;
+				}
+			}
+			expect(judged >= 5, "the report was judged beside its side chat at five widths or more: " + std::to_string(judged));
+			window.resize(1'440, 720);
+			settle(400);
+			expect(wrong.empty(), "beside its side chat every row of the report is inside the page and its sentence breaks between words; " + wrong);
+			chat->close_button()->click();
+			wait([&] { return !chat->isVisible(); }, "the side chat closes");
+			settle(300);
+		}
 		click_link(*report, QStringLiteral("Draft comment"), "Draft comment");
 		wait([&] {
 			const auto phase = report->keep_state(issue.Outline).Phase;
@@ -354,6 +413,64 @@ auto main(int argc, char** argv) -> int
 		expect(report->keyboard_link() == QStringLiteral("Go to draft") && !page->textCursor().hasSelection(), "the keyboard: it goes on to Go to draft, which is not selected");
 		tests::window_system_key(*page, Qt::Key_Return);
 		wait([&] { return !window.report_shown() && cards->writing_draft(); }, "the keyboard: Return on Go to draft goes to the draft");
+		// Go to comment. The README finding has no line, so the report keeps it
+		// as a Local comment on its file. With the comment a closed note and
+		// the right tray on the Agent tab, one click on Go to comment goes to
+		// the comment itself, from another file and from its own.
+		{
+			leave("a local comment");
+			row->click();
+			wait([&] { return window.report_shown() && report->isVisible(); }, "a local comment: the report is in front");
+			const auto note = std::ranges::find_if(report->findings(), [](const core::report_finding& aFinding) { return aFinding.Keep == core::report_keep::keep_local && !aFinding.Path.empty(); });
+			expect(note != report->findings().end(), "the report has a finding it keeps as a Local comment on a file");
+			const auto noteOutline = note->Outline;
+			const auto notePath    = QString::fromStdString(note->Path);
+			click_link(*report, QStringLiteral("Keep local"), "Keep local");
+			wait([&] {
+				const auto phase = report->keep_state(noteOutline).Phase;
+				return phase == qt::report_keep_phase::kept || phase == qt::report_keep_phase::refused;
+			},
+				 "Keep local is answered");
+			expect(report->keep_state(noteOutline).Phase == qt::report_keep_phase::kept, "the finding is kept local: " + report->keep_state(noteOutline).Why.toStdString());
+			settle(1'000);
+			const auto isLocal = [&cards] { return qt::conversation_cards_view::local_comment_of(cards->open_identity()).has_value(); };
+			const auto comes   = [&](const std::string& aFrom, const QString& aRender) {
+				// The reviewer went on: the comment a closed note, the tray on
+				// the Agent tab, the report in front.
+				if (cards->open_card() != nullptr && isLocal()) {
+					auto* const close = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadClose"));
+					expect(close != nullptr && close->isEnabled(), aFrom + ": the open Local comment offers Close");
+					close->click();
+					wait([&] { return !isLocal(); }, aFrom + ": the Local comment is left a closed note");
+				}
+				window.open_agent_question();
+				wait(onAgent, aFrom + ": the right tray shows the Agent tab");
+				if (!window.report_shown()) {
+					row->click();
+				}
+				wait([&] { return window.report_shown() && report->isVisible(); }, aFrom + ": the report is in front");
+				expect(onAgent() && !isLocal(), aFrom + ": the Local comment is closed and the tray is on the Agent tab before the press");
+				render(window, aRender + QStringLiteral("-before"));
+				click_link(*report, QStringLiteral("Go to comment"), aFrom);
+				const auto there = e2e::wait_until_plain([&] { return window.active_document_path() == notePath && !window.report_shown(); }, std::chrono::seconds{ 10 });
+				static_cast<void>(e2e::wait_until_plain([&] { return onNotes() && cards->open_card() != nullptr && isLocal(); }, std::chrono::seconds{ 10 }));
+				settle(1'000);
+				render(window, aRender);
+				std::cout << "report-draft-reveal: " << aFrom << ", Go to comment: the file " << (there ? "is in front" : "is not in front") << ", the tray shows " << window.tray_tabs()->tabText(window.tray_tabs()->currentIndex()).toStdString() << ", "
+						  << (isLocal() ? "the Local comment open, " : "the Local comment not open, ") << said(*cards) << '\n';
+				expect(there, aFrom + ": one click on Go to comment shows the comment's file, " + notePath.toStdString());
+				expect(onNotes() && cards->isVisible(), aFrom + ": Go to comment turns the right tray to Comments; it shows " + window.tray_tabs()->tabText(window.tray_tabs()->currentIndex()).toStdString());
+				expect(cards->open_card() != nullptr && isLocal(), aFrom + ": the Local comment's card is open, not a closed note: " + said(*cards));
+				const auto* const opened = cards->open_card();
+				expect(opened->geometry().top() >= 0 && opened->geometry().bottom() < cards->viewport()->height(), aFrom + ": the whole Local comment is in the drawer's view: " + said(*cards));
+				const auto* const focus = QApplication::focusWidget();
+				expect(focus != nullptr && (focus == opened || opened->isAncestorOf(focus)), aFrom + ": the Local comment holds the keyboard; it is with " + (focus != nullptr ? focus->objectName().toStdString() : std::string{ "nothing" }));
+			};
+			// From another file: the one the last draft was gone to.
+			comes("a local comment, from another file", QStringLiteral("report-go-to-comment"));
+			// From its own file, behind the report.
+			comes("a local comment, from its own file", QStringLiteral("report-go-to-comment-own-file"));
+		}
 		const auto after = access::review_mutation_evidence(*application);
 		expect(after.Submissions == mutation.Submissions && after.StoredComments == mutation.StoredComments && after.NativePosts == mutation.NativePosts && after.FilePosts == mutation.FilePosts, "nothing is published");
 

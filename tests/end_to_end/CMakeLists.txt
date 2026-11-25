@@ -4674,6 +4674,10 @@ set_tests_properties(application_update_from_target_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "update-from-target:pass")
 
 bpr_add_executable(test_agent_keep_action_public_path agent_keep_action_public_path.cpp)
+if(APPLE)
+    # Renders for the owner's looks are native with BPR_NATIVE_LOOK=1.
+    target_sources(test_agent_keep_action_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
 target_link_libraries(test_agent_keep_action_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_agent_keep_action_public_path PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_agent_keep_action_public_path)

@@ -295,8 +295,13 @@ namespace bpr::qt {
 		bool eventFilter(QObject* aObject, QEvent* aEvent) override;
 
 	private:
-		void               place_menu_button();
-		void               fit_body();
+		void place_menu_button();
+		void fit_body();
+		/// The page's rows are arranged for a width (`report_page_fit`): at a
+		/// new width the page is drawn again when the width crossed one its
+		/// rows change their arrangement at, and only laid out again
+		/// otherwise.
+		void               fit_page();
 		void               dress_headings();
 		void               choose(int aRow);
 		void               render_dressed();
@@ -340,10 +345,13 @@ namespace bpr::qt {
 		std::vector<report_code_slot>    Slots;
 		std::vector<markdown_body_view*> CodeViews;
 		std::vector<int>                 CodePlaces;
-		QObject*                         CodeObjects = nullptr;
-		core::dressed_report             Dress;
-		report_colours                   Colours;
-		report_look                      Look = report_look::cards;
+		/// The width the page's rows were last arranged for, and the widths
+		/// their arrangement changes at.
+		report_page_fit      PageFit;
+		QObject*             CodeObjects = nullptr;
+		core::dressed_report Dress;
+		report_colours       Colours;
+		report_look          Look = report_look::cards;
 		/// The report's findings, and what became of each keep action, by
 		/// the report's turn and the action's row (0: the summary), so a
 		/// report opened again says what was already kept.

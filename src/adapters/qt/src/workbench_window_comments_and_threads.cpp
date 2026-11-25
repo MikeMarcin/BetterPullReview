@@ -612,9 +612,74 @@ namespace bpr::qt {
 		ConversationPanel->cards()->open_thread(conversation_cards_view::local_comment_identity(aId));
 	}
 
+	auto workbench_window::open_local_comment(const std::uint64_t aId) -> bool
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return false;
+		}
+		const auto& comments = ConversationPanel->cards()->local_comments();
+		const auto  found    = std::ranges::find(comments, aId, &local_comment_card::Id);
+		if (found == comments.end()) {
+			return false;
+		}
+		if (found->Place == local_comment_place::pull_request) {
+			// On the pull request: it is on Overview's Comments tab.
+			open_pull_request_conversation(conversation_cards_view::local_comment_identity(aId));
+			return true;
+		}
+		// Its file: another file's own, else the one the comparison holds,
+		// which a report in front leaves behind it.
+		const auto elsewhere = found->Place == local_comment_place::other_file;
+		const auto context   = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+		const auto path      = elsewhere ? found->Path : context.has_value() ? path_of(context->Key.File)
+																			 : QString{ };
+		if (path.isEmpty() || !file_for_path(path).has_value()) {
+			statusBar()->showMessage(tr("That comment's file is not in this pull request now."), 6000);
+			return false;
+		}
+		if (CompositionPage != nullptr) {
+			close_review_composition();
+		}
+		// A draft or a line gone to and still waited for gives way: this is
+		// where the reviewer asked to be now.
+		PendingCommentPick.reset();
+		PendingCommentOpen.reset();
+		PendingLineGo.reset();
+		PendingNoteOpen        = aId;
+		PendingLocalMakeDraft  = false;
+		PendingLocalArrives    = true;
+		PendingLocalFromReport = ReportShown;
+		choose_home(false);
+		choose_modality(review_modality::review);
+		if (ReportShown) {
+			// The file behind the report has its tab made active as it
+			// stands; another file's own tab opens, as a line gone to from a
+			// report opens it (RFC-BPR-0128, AC06).
+			if (!elsewhere) {
+				activate_document_path(path);
+			}
+			if ((elsewhere || active_document_path() != path) && !open_file_in_review(path)) {
+				PendingNoteOpen.reset();
+				PendingLocalArrives    = false;
+				PendingLocalFromReport = false;
+				statusBar()->showMessage(tr("%1 is not in this pull request at its current head.").arg(path), 6000);
+				return false;
+			}
+		} else if (elsewhere && Dispatch) {
+			Dispatch(core::select_workbench_file_intent{ .File = *file_for_path(path) });
+		}
+		resume_private_note_open();
+		return true;
+	}
+
 	void workbench_window::resume_private_note_open()
 	{
 		if (!PendingNoteOpen || ConversationPanel == nullptr) {
+			return;
+		}
+		// Gone to from a report, it waits for its file's tab to be in front
+		// with its own reading back, as a draft gone to does.
+		if (PendingLocalFromReport && !file_tab_settled()) {
 			return;
 		}
 		// RFC-BPR-0127. It opens once the composition has placed it in the
@@ -626,12 +691,38 @@ namespace bpr::qt {
 		}
 		const auto id = *PendingNoteOpen;
 		PendingNoteOpen.reset();
-		const auto makeDraft = std::exchange(PendingLocalMakeDraft, false);
-		if (ConversationPanel->cards()->open_thread_id() != conversation_cards_view::local_comment_identity(id)) {
+		const auto makeDraft   = std::exchange(PendingLocalMakeDraft, false);
+		const auto arrives     = std::exchange(PendingLocalArrives, false);
+		PendingLocalFromReport = false;
+		auto* const cards      = ConversationPanel->cards();
+		const auto  identity   = conversation_cards_view::local_comment_identity(id);
+		if (arrives) {
+			// Go to comment: Comments in front with the drawer open, whatever
+			// the tray showed, and the card opened, never toggled shut.
+			if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+				Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
+			}
+			if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab) {
+				TrayTabs->setCurrentIndex(tray_comments_tab);
+			}
+			if (cards->open_thread_id() != identity) {
+				cards->open_thread(identity);
+			}
+		} else if (cards->open_thread_id() != identity) {
 			show_private_note(id);
 		}
 		if (found->Line.has_value() && ComparisonSurface != nullptr) {
 			static_cast<void>(ComparisonSurface->reveal_conversation_line(found->Side, *found->Line - 1U));
+		}
+		if (arrives) {
+			// Whole in the drawer once the code has brought its line, and
+			// holding the keyboard, as a draft gone to is.
+			cards->reveal_open_card();
+			if (auto* const open = cards->open_card(); open != nullptr) {
+				open->setFocus(Qt::OtherFocusReason);
+			} else {
+				cards->setFocus(Qt::OtherFocusReason);
+			}
 		}
 		// RFC-BPR-0127 ([[BPR-2159]]). Make Draft from a Threads row, now
 		// that its file is shown.
@@ -1253,8 +1344,10 @@ namespace bpr::qt {
 		TabsProjection = aProjection;
 		update_go_to_line_action();
 		present_document_tabs();
-		// A draft gone to from a report waits for its file's tab.
+		// A draft gone to from a report waits for its file's tab, and so
+		// does a Local comment.
 		resume_pending_comment_pick();
+		resume_private_note_open();
 		update_older_pair_notice();
 		update_comment_target();
 		place_item_side_chat();

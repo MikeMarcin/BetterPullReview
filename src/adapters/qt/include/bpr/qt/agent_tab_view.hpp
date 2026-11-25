@@ -511,6 +511,18 @@ namespace bpr::qt {
 		/// the card at `aOrdinal` of delivery `aSession`: the card shows it and
 		/// Draft drafts it. \returns Whether a card was there.
 		auto revise_finding(std::uint64_t aSession, std::size_t aOrdinal, const QString& aComment) -> bool;
+		/// \brief The review draft the card at `aOrdinal` of delivery
+		/// `aSession` made, while that card says Drafted; 0 for none.
+		[[nodiscard]] auto finding_card_draft(std::uint64_t aSession, std::size_t aOrdinal) const -> std::uint64_t;
+		/// \brief A follow-up updated a drafted card's suggested comment and
+		/// its draft, which the reviewer had changed, was kept: while
+		/// `aOutdated`, the card says the draft differs from the updated
+		/// comment and offers Update draft, as a report's finding does. A
+		/// card that stops saying Drafted stops offering it.
+		void present_finding_draft_outdated(std::uint64_t aSession, std::size_t aOrdinal, bool aOutdated);
+		/// \brief Where a card's Update draft goes: the card's delivery and
+		/// place. Without it no card offers Update draft.
+		void set_draft_update_dispatch(std::function<void(std::uint64_t aSession, std::size_t aOrdinal)> aDispatch);
 		/// \brief `aNote` is what the action made: the note when `noted`, the
 		/// review draft when `drafted` ([[BPR-2325]]).
 		void present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { }, std::uint64_t aNote = 0U);
@@ -857,13 +869,17 @@ namespace bpr::qt {
 			/// [[BPR-2331]]. Its turn's report holds it: the report shows it
 			/// and its actions, and the Agent tab does not.
 			bool Held = false;
+			/// Drafted, and its draft differs from the comment a follow-up
+			/// updated since: it offers Update draft.
+			bool Outdated = false;
 		};
 		[[nodiscard]] auto make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*;
 		/// [[BPR-2059]]. Sets one of a card's Markdown texts to the height its width needs.
-		void                        fit_card_text(markdown_body_view& aView) const;
-		void                        show_card_state(card_entry& aEntry);
-		void                        show_card_suggestion(card_entry& aEntry, QWidget& aInset);
-		agent_finding_card_dispatch FollowUpDispatch;
+		void                                            fit_card_text(markdown_body_view& aView) const;
+		void                                            show_card_state(card_entry& aEntry);
+		void                                            show_card_suggestion(card_entry& aEntry, QWidget& aInset);
+		agent_finding_card_dispatch                     FollowUpDispatch;
+		std::function<void(std::uint64_t, std::size_t)> DraftUpdateDispatch;
 		/// RFC-BPR-0127. Shows the card's one keep action, Draft comment or Keep local.
 		void          show_card_keep(const card_entry& aEntry) const;
 		void          act_on_card(std::uint64_t aCard, agent_finding_card_action aAction);

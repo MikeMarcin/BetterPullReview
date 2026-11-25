@@ -196,10 +196,31 @@ namespace bpr::qt {
 	/// \returns How many runs it marked.
 	auto mark_report_inline_code(QTextDocument& aDocument) -> std::size_t;
 
+	/// \brief The width a page's rows are arranged for.
+	/// \details A keep action's row is its controls and a sentence. Rich
+	/// text lays a table row out on one line at any width, and takes the room
+	/// it lacks from the sentence, down to a letter a line. So the page
+	/// arranges each row for the width it is drawn at: on one line where it
+	/// fits; the sentence beside its controls where it has room for about two
+	/// lines of whole words; else the sentence under them at the row's whole
+	/// width, the controls on as many lines as they need.
+	struct report_page_fit
+	{
+		/// The page's text width, in pixels. 0: no limit, every row on one
+		/// line as it is written.
+		int Width = 0;
+		/// Set by `report_page_html`: the widths at which some row's
+		/// arrangement changes, ascending. Two widths with the same breaks at
+		/// or under them give the same page, so a view draws the page again
+		/// only when its width crosses one.
+		std::vector<int> Breaks;
+	};
+
 	/// \brief The page's HTML. Each code block is a marker paragraph, its
-	/// slot appended to `aSlots`.
+	/// slot appended to `aSlots`. `aFit`: the width its rows are arranged
+	/// for; none arranges each on one line.
 	[[nodiscard]] auto report_page_html(const core::dressed_report& aReport, const report_colours& aColours, const report_page_actions& aActions = { }, std::vector<report_code_slot>* aSlots = nullptr,
-										report_look aLook = report_look::cards) -> QString;
+										report_look aLook = report_look::cards, report_page_fit* aFit = nullptr) -> QString;
 
 	/// \brief The colour a tone wears on the page; neutral is the stronger
 	/// rule.

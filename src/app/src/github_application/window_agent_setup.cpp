@@ -770,72 +770,67 @@ namespace bpr::app {
 		}
 	}
 
-	namespace {
-		/// [[BPR-2376]]. The draft a finding's Draft comment made, as the
-		/// store holds it now: its body the field's when it is the line's
-		/// draft being written.
-		struct finding_draft_now
-		{
-			core::revisioned_review_draft Draft;
-			std::string                   Body;
+	auto github_application::implementation::decide_finding_draft(const std::uint64_t aDraft, const std::optional<std::string>& aPrevious, const std::string& aRevised) const -> std::optional<finding_draft_decision>
+	{
+		if (Closing || !SharedDrafts || aDraft == 0U) {
+			return std::nullopt;
+		}
+		const auto read = SharedDrafts->read(DraftConsumer, core::review_draft_id{ aDraft });
+		if (!read.Accepted) {
+			return std::nullopt;
+		}
+		// The line's draft being written says what its field holds.
+		const auto body = ReviewDraft && ReviewDraft->Id == read.Accepted->Draft.Id ? ReviewDraft->Body : read.Accepted->Draft.Body;
+		return finding_draft_decision{
+			.Draft   = *read.Accepted,
+			.Decided = core::decide_finding_draft_revision(
+				{ .Drafting = read.Accepted->Draft.State == core::review_draft_state::drafting, .Draft = body, .Previous = aPrevious ? std::optional<std::string_view>{ *aPrevious } : std::nullopt, .Revised = aRevised }),
 		};
-	} // namespace
+	}
+
+	void github_application::implementation::write_finding_draft(const core::revisioned_review_draft& aDraft, std::string aBody, std::function<void(bool)> aWritten)
+	{
+		change_review_drafts({ core::revisioned_review_draft_command{ .Command = { .Id = aDraft.Draft.Id, .Kind = core::review_draft_command_kind::edit, .Body = std::move(aBody) }, .ExpectedRevision = aDraft.Revision, .Scope = aDraft.Scope } },
+							 std::move(aWritten));
+	}
 
 	auto github_application::implementation::revise_finding_draft(const qt::report_draft& aFinding, const std::string& aPrevious) -> core::finding_draft_revision_kind
 	{
-		const auto now = [this, &aFinding]() -> std::optional<finding_draft_now> {
-			if (Closing || !AgentFindingCards || !SharedDrafts || aFinding.Keep != core::report_keep::draft_comment) {
-				return std::nullopt;
-			}
-			const auto record = AgentFindingCards->memory().recall(aFinding.Key.Findings, aFinding.Key.Ordinal);
-			if (record.State != core::agent_finding_card_disposition::drafted || record.Note == 0U) {
-				return std::nullopt;
-			}
-			const auto read = SharedDrafts->read(DraftConsumer, core::review_draft_id{ record.Note });
-			if (!read.Accepted) {
-				return std::nullopt;
-			}
-			auto found  = finding_draft_now{ };
-			found.Draft = *read.Accepted;
-			found.Body  = ReviewDraft && ReviewDraft->Id == read.Accepted->Draft.Id ? ReviewDraft->Body : read.Accepted->Draft.Body;
-			return found;
-		}();
 		std::erase(OutdatedFindingDrafts, aFinding.Key);
+		if (Closing || !AgentFindingCards || aFinding.Keep != core::report_keep::draft_comment) {
+			return core::finding_draft_revision_kind::none;
+		}
+		const auto record = AgentFindingCards->memory().recall(aFinding.Key.Findings, aFinding.Key.Ordinal);
+		if (record.State != core::agent_finding_card_disposition::drafted) {
+			return core::finding_draft_revision_kind::none;
+		}
+		const auto now = decide_finding_draft(record.Note, aPrevious, aFinding.Comment.toStdString());
 		if (!now) {
 			return core::finding_draft_revision_kind::none;
 		}
-		const auto revised = aFinding.Comment.toStdString();
-		const auto decided = core::decide_finding_draft_revision({ .Drafting = now->Draft.Draft.State == core::review_draft_state::drafting, .Draft = now->Body, .Previous = aPrevious, .Revised = revised });
-		if (decided.Kind == core::finding_draft_revision_kind::edited) {
+		if (now->Decided.Kind == core::finding_draft_revision_kind::edited) {
 			OutdatedFindingDrafts.push_back(aFinding.Key);
-		} else if (decided.Kind == core::finding_draft_revision_kind::replace) {
-			change_review_drafts({ core::revisioned_review_draft_command{ .Command = { .Id = now->Draft.Draft.Id, .Kind = core::review_draft_command_kind::edit, .Body = decided.Body }, .ExpectedRevision = now->Draft.Revision, .Scope = now->Draft.Scope } },
-								 [this](const bool) {
-									 if (!Closing && Window != nullptr && Window->report_view() != nullptr) {
-										 Window->report_view()->refresh_keeps();
-									 }
-								 });
+		} else if (now->Decided.Kind == core::finding_draft_revision_kind::replace) {
+			write_finding_draft(now->Draft, now->Decided.Body, [this](const bool) {
+				if (!Closing && Window != nullptr && Window->report_view() != nullptr) {
+					Window->report_view()->refresh_keeps();
+				}
+			});
 		}
-		return decided.Kind;
+		return now->Decided.Kind;
 	}
 
 	auto github_application::implementation::finding_draft_outdated(const qt::report_draft& aFinding) const -> bool
 	{
-		if (std::ranges::find(OutdatedFindingDrafts, aFinding.Key) == OutdatedFindingDrafts.end() || !AgentFindingCards || !SharedDrafts) {
+		if (std::ranges::find(OutdatedFindingDrafts, aFinding.Key) == OutdatedFindingDrafts.end() || !AgentFindingCards) {
 			return false;
 		}
 		const auto record = AgentFindingCards->memory().recall(aFinding.Key.Findings, aFinding.Key.Ordinal);
-		if (record.State != core::agent_finding_card_disposition::drafted || record.Note == 0U) {
+		if (record.State != core::agent_finding_card_disposition::drafted) {
 			return false;
 		}
-		const auto read = SharedDrafts->read(DraftConsumer, core::review_draft_id{ record.Note });
-		if (!read.Accepted) {
-			return false;
-		}
-		const auto body    = ReviewDraft && ReviewDraft->Id == read.Accepted->Draft.Id ? ReviewDraft->Body : read.Accepted->Draft.Body;
-		const auto revised = aFinding.Comment.toStdString();
-		return core::decide_finding_draft_revision({ .Drafting = read.Accepted->Draft.State == core::review_draft_state::drafting, .Draft = body, .Previous = std::nullopt, .Revised = revised }).Kind
-			== core::finding_draft_revision_kind::edited;
+		const auto now = decide_finding_draft(record.Note, std::nullopt, aFinding.Comment.toStdString());
+		return now && now->Decided.Kind == core::finding_draft_revision_kind::edited;
 	}
 
 	void github_application::implementation::update_finding_draft(const qt::report_draft& aFinding)
@@ -844,22 +839,61 @@ namespace bpr::app {
 			return;
 		}
 		const auto record = AgentFindingCards->memory().recall(aFinding.Key.Findings, aFinding.Key.Ordinal);
-		const auto read   = SharedDrafts->read(DraftConsumer, core::review_draft_id{ record.Note });
+		const auto now    = decide_finding_draft(record.Note, std::nullopt, aFinding.Comment.toStdString());
+		if (!now) {
+			return;
+		}
 		std::erase(OutdatedFindingDrafts, aFinding.Key);
-		change_review_drafts({ core::revisioned_review_draft_command{ .Command          = { .Id = read.Accepted->Draft.Id, .Kind = core::review_draft_command_kind::edit, .Body = core::finding_draft_body(aFinding.Comment.toStdString()) },
-																	  .ExpectedRevision = read.Accepted->Revision,
-																	  .Scope            = read.Accepted->Scope } },
-							 [this, key = aFinding.Key](const bool aChanged) {
-								 if (Closing || Window == nullptr || Window->report_view() == nullptr) {
-									 return;
-								 }
-								 // Refused (the draft changed meanwhile): offered again.
-								 if (!aChanged && std::ranges::find(OutdatedFindingDrafts, key) == OutdatedFindingDrafts.end()) {
-									 OutdatedFindingDrafts.push_back(key);
-								 }
-								 Window->report_view()->refresh_keeps();
-							 });
+		write_finding_draft(now->Draft, core::finding_draft_body(aFinding.Comment.toStdString()), [this, key = aFinding.Key](const bool aChanged) {
+			if (Closing || Window == nullptr || Window->report_view() == nullptr) {
+				return;
+			}
+			// Refused (the draft changed meanwhile): offered again.
+			if (!aChanged && std::ranges::find(OutdatedFindingDrafts, key) == OutdatedFindingDrafts.end()) {
+				OutdatedFindingDrafts.push_back(key);
+			}
+			Window->report_view()->refresh_keeps();
+		});
 		Window->report_view()->refresh_keeps();
+	}
+
+	auto github_application::implementation::revise_card_draft(const std::uint64_t aSession, const std::size_t aOrdinal, const std::string& aPrevious, const std::string& aRevised) -> core::finding_draft_revision_kind
+	{
+		auto* const tab = Window != nullptr ? Window->agent_tab() : nullptr;
+		if (Closing || tab == nullptr) {
+			return core::finding_draft_revision_kind::none;
+		}
+		// The card says which draft it made, while it says Drafted.
+		const auto now = decide_finding_draft(tab->finding_card_draft(aSession, aOrdinal), aPrevious, aRevised);
+		if (!now) {
+			tab->present_finding_draft_outdated(aSession, aOrdinal, false);
+			return core::finding_draft_revision_kind::none;
+		}
+		tab->present_finding_draft_outdated(aSession, aOrdinal, now->Decided.Kind == core::finding_draft_revision_kind::edited);
+		if (now->Decided.Kind == core::finding_draft_revision_kind::replace) {
+			write_finding_draft(now->Draft, now->Decided.Body, [](const bool) { });
+		}
+		return now->Decided.Kind;
+	}
+
+	void github_application::implementation::update_card_draft(const std::uint64_t aSession, const std::size_t aOrdinal, const std::string& aRevised)
+	{
+		auto* const tab = Window != nullptr ? Window->agent_tab() : nullptr;
+		if (Closing || tab == nullptr) {
+			return;
+		}
+		const auto now = decide_finding_draft(tab->finding_card_draft(aSession, aOrdinal), std::nullopt, aRevised);
+		// The offer goes with the press, and comes back if the edit is
+		// refused (the draft changed meanwhile).
+		tab->present_finding_draft_outdated(aSession, aOrdinal, false);
+		if (!now || now->Decided.Kind != core::finding_draft_revision_kind::edited) {
+			return;
+		}
+		write_finding_draft(now->Draft, core::finding_draft_body(aRevised), [this, aSession, aOrdinal](const bool aChanged) {
+			if (!aChanged && !Closing && Window != nullptr && Window->agent_tab() != nullptr) {
+				Window->agent_tab()->present_finding_draft_outdated(aSession, aOrdinal, true);
+			}
+		});
 	}
 
 	auto github_application::implementation::named_turns(std::vector<qt::agent_thread_turn> aTurns) const -> std::vector<qt::agent_thread_turn>

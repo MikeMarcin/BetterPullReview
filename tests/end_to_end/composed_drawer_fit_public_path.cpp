@@ -45,6 +45,9 @@
 /// to the pixel. The course had pressed Apply all on its way to the route, so
 /// that state was neither measured nor drawn.
 ///
+/// Finding cards no report holds join it: an answer that is not a review brings
+/// them under it in the Agent tab, open and then one dismissed.
+///
 /// In each state the drawer is dragged by its handle to 280, 300, 340 and 420
 /// pixels. The chat column is the Tour tab's second: there the drawer is
 /// first dragged as narrow as it goes and then the column itself is given
@@ -1143,6 +1146,33 @@ auto main(int argc, char** argv) -> int
 		ask(QStringLiteral("Review this pull request"));
 		wait([&] { return quiet() && tab->turn_count() >= 2U; }, "the review is answered");
 		run.sweep_drawer("agent-report");
+		// Finding cards no report holds. An answer that is not a review
+		// brings its findings as cards under it in the Agent tab itself, each
+		// with Draft, Dismiss and Ask follow-up in a row. Three buttons side
+		// by side were wider than a 280 pixel drawer leaves a card, and no
+		// state of this course showed one: a review's findings are its
+		// report's. Open, then one dismissed and saying so beside its Undo.
+		{
+			const auto turn = tab->turn_count();
+			ask(QStringLiteral("Any findings worth a comment?"));
+			wait([&] { return quiet() && tab->turn_count() > turn && tab->turn_cards(turn).size() == 3U; }, "an answer with findings brings three finding cards under it");
+			const auto shown = [&run](const QWidget* const aCard) { return aCard != nullptr && aCard->isVisibleTo(run.drawer()); };
+			for (const auto* const card : tab->turn_cards(turn)) {
+				expect(shown(card) && shown(card->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))) && shown(card->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss")))
+						   && shown(card->findChild<QPushButton*>(QStringLiteral("agentFindingFollowUp"))),
+					   "each finding is an open card in the Agent tab, with Draft, Dismiss and Ask follow-up");
+			}
+			run.Shown = tab->turn_cards(turn).front();
+			run.sweep_drawer("agent-finding-cards-open");
+			auto* const second = tab->turn_cards(turn).at(1U);
+			second->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss"))->click();
+			settle();
+			expect(shown(second->findChild<QPushButton*>(QStringLiteral("agentFindingUndo"))) && shown(second->findChild<QLabel*>(QStringLiteral("agentFindingState"))), "a dismissed card says so beside its Undo");
+			run.Shown = second;
+			run.sweep_drawer("agent-finding-card-dismissed");
+			run.Shown = nullptr;
+			leave_no_keyboard_behind();
+		}
 		ask(QStringLiteral("Take your time and read the renderer."));
 		wait([&] { return tab->state() == qt::agent_tab_state::working; }, "the slow turn runs");
 		const auto longWords = QStringLiteral("Explain why the renderer clamps the resize before the next frame and whether the shaders under src/engine/shaders/post still compile");
@@ -1371,6 +1401,8 @@ auto main(int argc, char** argv) -> int
 													   "agent-answered",
 													   "agent-answer-link-keyboard",
 													   "agent-report",
+													   "agent-finding-cards-open",
+													   "agent-finding-card-dismissed",
 													   "agent-queue",
 													   "tour-empty",
 													   "tour-drafting",

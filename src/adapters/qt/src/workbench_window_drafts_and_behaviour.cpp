@@ -510,9 +510,13 @@ namespace bpr::qt {
 		}
 		PendingCommentOpen.reset();
 		// A line gone to and still waited for (a long file being measured)
-		// gives way: this is where the reviewer asked to be now.
+		// gives way, and so does a Local comment gone to: this is where the
+		// reviewer asked to be now.
 		PendingLineGo.reset();
-		PendingCommentPick = pending_comment_pick{
+		PendingNoteOpen.reset();
+		PendingLocalArrives    = false;
+		PendingLocalFromReport = false;
+		PendingCommentPick     = pending_comment_pick{
 			.File        = core::file_identity_of(aPath.toStdString()),
 			.Side        = aSide,
 			.Line        = aLine,
@@ -638,6 +642,18 @@ namespace bpr::qt {
 		}
 	}
 
+	auto workbench_window::file_tab_settled() const -> bool
+	{
+		if (ReportShown) {
+			return false;
+		}
+		if (!TabsProjection) {
+			return true;
+		}
+		const auto active = std::ranges::find(TabsProjection->Tabs, true, &application::document_tab_entry::Active);
+		return active == TabsProjection->Tabs.end() || (active->Report.empty() && active->State != core::document_tab_view_state::idle && active->State != core::document_tab_view_state::loading);
+	}
+
 	void workbench_window::resume_pending_comment_pick()
 	{
 		if (!PendingCommentPick.has_value() || ComparisonSurface == nullptr || (Modality != nullptr && Modality->current() != review_modality::review)) {
@@ -647,18 +663,7 @@ namespace bpr::qt {
 		// with its own reading restored: a tab made active is given back the
 		// line it remembered, and a line chosen before that would be given up
 		// to it, the draft closing with it.
-		const auto settled = [this] {
-			if (ReportShown) {
-				return false;
-			}
-			if (!TabsProjection) {
-				return true;
-			}
-			const auto active = std::ranges::find(TabsProjection->Tabs, true, &application::document_tab_entry::Active);
-			return active == TabsProjection->Tabs.end()
-				|| (active->Report.empty() && active->State != core::document_tab_view_state::idle && active->State != core::document_tab_view_state::loading);
-		};
-		if (PendingCommentPick->FromReport && !settled()) {
+		if (PendingCommentPick->FromReport && !file_tab_settled()) {
 			return;
 		}
 		const auto context = ComparisonSurface->current_context();
