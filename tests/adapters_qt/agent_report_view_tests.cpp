@@ -471,8 +471,6 @@ namespace {
 	/// A link takes one click whatever the page has selected; the keyboard's
 	/// link is a focus ring, never a selection; and only a keep action made
 	/// with Return hands the keyboard on.
-	/// With BPR_REPORT_LINK_RENDER_ROOT set, the page is saved there at the
-	/// states this checks.
 	void check_a_link_takes_one_click()
 	{
 		auto view = bpr::qt::agent_report_view{ };
@@ -512,13 +510,6 @@ namespace {
 			expect(at.has_value(), "the page offers " + aWords.toStdString());
 			bpr::tests::window_system_clicks(*page->viewport(), QPointF{ *at }, 1);
 		};
-		const auto render = [&view](const QString& aName) {
-			const auto root = qEnvironmentVariable("BPR_REPORT_LINK_RENDER_ROOT");
-			if (!root.isEmpty()) {
-				QApplication::processEvents();
-				expect(view.grab().save(root + QLatin1Char{ '/' } + aName + QStringLiteral(".png")), "the render is saved");
-			}
-		};
 		const auto selected = [page] { return page->textCursor().selectedText().toStdString(); };
 
 		// The pointer. One click on Draft comment drafts; Go to draft stands
@@ -529,7 +520,6 @@ namespace {
 		expect(!page->textCursor().hasSelection(), "after Draft comment nothing on the page is selected; \"" + selected() + "\" is");
 		expect(view.keyboard_link().isEmpty(), "a keep action made with the pointer hands the keyboard to no link; it is on " + view.keyboard_link().toStdString());
 		const auto ringless = page->viewport()->grab().toImage();
-		render(QStringLiteral("1-pointer-after-draft-comment"));
 		press(QStringLiteral("Go to draft"));
 		expect(gone == 1, "one click on Go to draft goes to the draft: went " + std::to_string(gone) + " times");
 		expect(!page->textCursor().hasSelection() && view.keyboard_link().isEmpty(), "the click selects nothing");
@@ -586,7 +576,6 @@ namespace {
 		}
 		expect(view.keyboard_link() == QStringLiteral("Draft comment") && page->hasFocus(), "Tab reaches the second finding's Draft comment; the keyboard is on \"" + view.keyboard_link().toStdString() + "\"");
 		expect(view.last_announcement() == QStringLiteral("Draft comment"), "a screen reader hears the link Tab reached: " + view.last_announcement().toStdString());
-		render(QStringLiteral("2-keyboard-on-draft-comment"));
 		// Return on it drafts, and the keyboard goes on to Go to draft, in
 		// its ring: the chip's edge is the ring's colour, which it was not
 		// after the pointer's Draft comment.
@@ -595,7 +584,6 @@ namespace {
 		expect(view.keyboard_link() == QStringLiteral("Go to draft") && page->hasFocus(), "made with Return, the keyboard goes on to Go to draft; it is on \"" + view.keyboard_link().toStdString() + "\"");
 		expect(!page->textCursor().hasSelection(), "and Go to draft is not selected; \"" + selected() + "\" is");
 		const auto ringed = page->viewport()->grab().toImage();
-		render(QStringLiteral("3-keyboard-after-draft-comment"));
 		// A render (a keep's state read back) keeps the keyboard where it is.
 		view.refresh_keeps();
 		QApplication::processEvents();
@@ -624,7 +612,10 @@ namespace {
 			std::cout << "report-link-ring:" << said << "\n";
 			expect(plain.pixel(from) == plain.pixel(face(1)) && colour_gap(plain.pixelColor(edge), ring) > 60, "without the keyboard the chip's border is its own" + said);
 			expect(colour_gap(ringed.pixelColor(edge), ring) <= 12, "the keyboard's Go to draft wears the window's focus ring on its border" + said);
-			expect(ringed.pixel(edge + step) == plain.pixel(edge + step), "and the ring stays inside the chip's edge" + said);
+			// The border is one logical pixel: a whole one beyond its inner
+			// edge is outside the chip at any scale, a fractional one too.
+			const auto beyond = edge + step * static_cast<int>(std::ceil(scale));
+			expect(ringed.pixel(beyond) == plain.pixel(beyond), "and the ring stays inside the chip's edge" + said);
 			const auto other = face_edge(ringed, face(0), step == QPoint{ 1, 0 } ? QPoint{ -1, 0 } : step);
 			expect(colour_gap(ringed.pixelColor(other), ring) > 60 && colour_gap(ringless.pixelColor(other), ring) > 60, "a chip the keyboard is not on, and Go to draft after the pointer's Draft comment, wear none" + said);
 		}
@@ -635,7 +626,6 @@ namespace {
 		bpr::tests::window_system_clicks(*page->viewport(), QPointF{ *link_point(*page, QStringLiteral("Go to draft"), 1) }, 1);
 		expect(gone == 6, "one click on the keyboard's Go to draft goes: went " + std::to_string(gone) + " times");
 		expect(view.keyboard_link().isEmpty() && !page->textCursor().hasSelection(), "a press of the pointer takes the keyboard off its link and selects nothing");
-		render(QStringLiteral("4-pointer-after-keyboard"));
 
 		// The page's other actions are the same links. Keep local leaves Go
 		// to comment unselected, and one click on it goes; Update draft
