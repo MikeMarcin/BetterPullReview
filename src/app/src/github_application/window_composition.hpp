@@ -3029,6 +3029,7 @@ namespace bpr::app {
 		application::native_agent_history_projection AgentNativeHistory;
 		void                                         present_agent_native_history(const application::native_agent_history_projection&);
 		void                                         observe_agent_native_history(std::optional<std::string> aChoice = std::nullopt);
+		void                                         open_new_agent_session();
 		void                                         edit_agent_session(const std::string& aId, std::optional<std::string> aName);
 		void                                         edit_tour_session(const std::string& aId, std::optional<std::string> aName);
 		void                                         open_clear_local_data(core::profile_data_reset aCategory);

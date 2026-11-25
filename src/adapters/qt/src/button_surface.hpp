@@ -75,6 +75,18 @@ namespace bpr::qt {
 	/// the ink of `aSurface`.
 	void paint_button_label(QPainter& aPainter, const QAbstractButton& aButton, QSize aIconSize, bool aShowIcon, QPalette::ColorRole aSurface = QPalette::Window);
 
+	/// \brief The width of a chip's longest word: the narrowest its words can
+	/// be set without cutting one.
+	[[nodiscard]] auto chip_longest_word_width(const QAbstractButton& aButton) -> int;
+
+	/// \brief The height a chip's words take on lines no wider than `aWidth`.
+	[[nodiscard]] auto chip_wrapped_words_height(const QAbstractButton& aButton, int aWidth) -> int;
+
+	/// \brief Draws a chip's words on as many lines as its width needs, from
+	/// its leading padding, in the ink of `aSurface`. For a chip without an
+	/// icon whose words are a sentence (`quiet_push_button::set_word_wrap`).
+	void paint_wrapped_button_label(QPainter& aPainter, const QAbstractButton& aButton, QPalette::ColorRole aSurface = QPalette::Window);
+
 	/// \brief What a chip shows beside its words.
 	enum class button_mark : std::uint8_t {
 		none,

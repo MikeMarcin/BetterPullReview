@@ -147,6 +147,43 @@ namespace bpr::qt {
 		return { aIconSize.width() + chip_icon_gap + words.width(), std::max(aIconSize.height(), words.height()) };
 	}
 
+	auto chip_longest_word_width(const QAbstractButton& aButton) -> int
+	{
+		const auto metrics = QFontMetricsF{ aButton.font() };
+		auto       widest  = 0.0;
+		for (const auto& word : aButton.text().split(QLatin1Char{ ' ' }, Qt::SkipEmptyParts)) {
+			widest = std::max(widest, metrics.size(Qt::TextShowMnemonic, word).width());
+		}
+		return static_cast<int>(std::ceil(widest));
+	}
+
+	auto chip_wrapped_words_height(const QAbstractButton& aButton, const int aWidth) -> int
+	{
+		const auto lines = QFontMetricsF{ aButton.font() }.boundingRect(QRectF{ 0.0, 0.0, static_cast<qreal>(std::max(aWidth, 1)), 0.0 }, Qt::AlignLeft | Qt::TextWordWrap | Qt::TextShowMnemonic, aButton.text());
+		return static_cast<int>(std::ceil(lines.height()));
+	}
+
+	void paint_wrapped_button_label(QPainter& aPainter, const QAbstractButton& aButton, const QPalette::ColorRole aSurface)
+	{
+		aPainter.save();
+		auto* const style   = aButton.style();
+		const auto  colours = button_colours_on(aButton.palette(), aSurface);
+		const auto& ink     = aButton.isEnabled() ? colours.Ink : colours.DisabledInk;
+		auto        option  = QStyleOption{ };
+		option.initFrom(&aButton);
+		auto flags = static_cast<int>(Qt::AlignLeft | Qt::AlignVCenter | Qt::TextShowMnemonic | Qt::TextWordWrap);
+		if (style->styleHint(QStyle::SH_UnderlineShortcut, &option, &aButton) == 0) {
+			flags |= Qt::TextHideMnemonic;
+		}
+		auto words = aButton.palette();
+		for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
+			words.setColor(group, QPalette::WindowText, ink);
+		}
+		const auto place = aButton.rect().adjusted(chip_padding, 0, -chip_padding, 0);
+		style->drawItemText(&aPainter, QStyle::visualRect(aButton.layoutDirection(), aButton.rect(), place), flags, words, true, aButton.text(), QPalette::WindowText);
+		aPainter.restore();
+	}
+
 	void paint_button_label(QPainter& aPainter, const QAbstractButton& aButton, const QSize aIconSize, const bool aShowIcon, const QPalette::ColorRole aSurface)
 	{
 		paint_button_label(aPainter, aButton, button_colours_on(aButton.palette(), aSurface), aIconSize, aShowIcon ? button_mark::icon : button_mark::none);

@@ -151,6 +151,62 @@ namespace {
 		expect(iconWidth >= quiet.sizeHint().width() + 24, "text and icon sizing reserves the icon and gap");
 	}
 
+	/// A chip whose words are a sentence wraps them where it is given less
+	/// than their width, and cuts none (owner, attended review 2026-11-24, of
+	/// a choice cut off in a 300 px drawer).
+	void test_word_wrap()
+	{
+		QWidget host;
+		host.resize(480, 200);
+		qt::quiet_push_button button{ QStringLiteral("Keep my changes on a branch and move"), &host };
+		button.setFlat(true);
+		const auto line = button.sizeHint();
+		expect(!button.word_wrap() && !button.hasHeightForWidth() && button.minimumSizeHint() == line, "a chip is one line, and no narrower than it, unless told to wrap");
+		button.set_word_wrap(true);
+		const auto least = button.minimumSizeHint();
+		expect(button.hasHeightForWidth() && button.sizeHint() == line, "told to wrap, it still asks for its one line");
+		expect(least.width() < line.width() / 2 && least.width() >= button.fontMetrics().horizontalAdvance(QStringLiteral("changes")) && least.height() == line.height(),
+			   "and may be as narrow as its longest word");
+		expect(button.heightForWidth(line.width()) == line.height() && button.heightForWidth(line.width() + 80) == line.height(), "given its words' width or more it is one line tall");
+		const auto narrow = (line.width() * 2) / 3;
+		const auto tall   = button.heightForWidth(narrow);
+		expect(tall >= line.height() + button.fontMetrics().height() - 2 && tall < line.height() + (2 * button.fontMetrics().lineSpacing()), "two thirds as wide, it is a line taller");
+		expect(button.heightForWidth(least.width()) > tall, "and taller again at its longest word");
+
+		// Painted so, every word is inside it: ink on two lines, none at the
+		// edges where a cut word would end.
+		const auto ink = [&host](QWidget& aButton) {
+			const auto image  = raster(aButton);
+			const auto ground = QColor{ host.palette().color(QPalette::Window) }.rgb();
+			auto       box    = QRect{ };
+			for (int y = 0; y < image.height(); ++y) {
+				for (int x = 0; x < image.width(); ++x) {
+					if (image.pixelColor(x, y).rgb() != ground) {
+						box |= QRect{ x / 2, y / 2, 1, 1 };
+					}
+				}
+			}
+			return box;
+		};
+		button.setGeometry(10, 10, line.width(), line.height());
+		host.show();
+		settle();
+		const auto oneLine = ink(button);
+		button.setGeometry(10, 10, narrow, tall);
+		settle();
+		const auto wrapped = ink(button);
+		expect(oneLine.isValid() && wrapped.isValid() && wrapped.height() >= oneLine.height() + button.fontMetrics().height() - 4, "its words are drawn on two lines");
+		expect(wrapped.left() >= 4 && wrapped.right() < narrow - 4 && wrapped.top() >= 0 && wrapped.bottom() < tall, "inside its padding, none cut at an edge");
+		capture(host, QStringLiteral("quiet-push-word-wrap"));
+
+		// An icon keeps the chip to one line, and so does turning it off.
+		button.setIcon(QApplication::style()->standardIcon(QStyle::SP_DialogOpenButton));
+		expect(!button.hasHeightForWidth() && button.minimumSizeHint() == button.sizeHint(), "a chip with an icon does not wrap");
+		button.setIcon({ });
+		button.set_word_wrap(false);
+		expect(!button.hasHeightForWidth() && button.minimumSizeHint() == line, "and wrapping can be turned off again");
+	}
+
 	void test_production_surfaces()
 	{
 		qt::diagnostic_settings_panel                    diagnostics;
@@ -255,6 +311,7 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication app{ argc, argv };
 	test_push_contract();
+	test_word_wrap();
 	test_production_surfaces();
 	std::cout << "quiet-buttons-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString()
 			  << " style=" << QApplication::style()->name().toStdString() << " dpr=" << app.devicePixelRatio() << '\n';

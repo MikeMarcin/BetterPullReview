@@ -582,6 +582,7 @@ namespace bpr::qt {
 				.Running      = State == agent_tab_state::working,
 				.Busy         = false,
 				.ShownTurns   = Turns.size(),
+				.Pinned       = State == agent_tab_state::head_moved,
 				.EveryRun     = true,
 				.ResetAgents  = SetupView != nullptr,
 				.CarryOverTip = CarryOverTip,
@@ -680,12 +681,22 @@ namespace bpr::qt {
 		auto* const reconciles = new detail::wrapping_row{ BannerReconcile };
 		BannerRebase           = new QPushButton{ BannerReconcile };
 		BannerRebase->setObjectName(QStringLiteral("agentStateRebase"));
-		BannerSave = new quiet_push_button{ BannerReconcile };
-		BannerSave->setObjectName(QStringLiteral("agentStateSaveAndMove"));
-		BannerSave->setFlat(true);
-		BannerAsk = new quiet_push_button{ BannerReconcile };
-		BannerAsk->setObjectName(QStringLiteral("agentStateAskToReconcile"));
-		BannerAsk->setFlat(true);
+		// The macOS style lays a native button out by its bezel, which is
+		// smaller than the widget; in this row's own widget that left the
+		// button shorter than the style draws it, so it drew a square one.
+		BannerRebase->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+		// A choice that is a sentence, or names an agent, takes a second line
+		// in a drawer narrower than its words; none is cut.
+		auto* const saveChoice = new quiet_push_button{ BannerReconcile };
+		saveChoice->setObjectName(QStringLiteral("agentStateSaveAndMove"));
+		saveChoice->setFlat(true);
+		saveChoice->set_word_wrap(true);
+		BannerSave            = saveChoice;
+		auto* const askChoice = new quiet_push_button{ BannerReconcile };
+		askChoice->setObjectName(QStringLiteral("agentStateAskToReconcile"));
+		askChoice->setFlat(true);
+		askChoice->set_word_wrap(true);
+		BannerAsk = askChoice;
 		reconciles->addWidget(BannerRebase);
 		reconciles->addWidget(BannerSave);
 		reconciles->addWidget(BannerAsk);
@@ -694,16 +705,20 @@ namespace bpr::qt {
 		connect(BannerAsk, &QPushButton::clicked, this, [this] { choose_reconcile(core::conversation_reconcile::ask_agent); });
 		BannerReconcile->hide();
 		bannerCol->addWidget(BannerReconcile);
-		auto* const bannerRow = new QHBoxLayout{ };
-		bannerRow->setSpacing(6);
-		BannerFirst = new QPushButton{ Banner };
+		// The card's own choices wrap as the reconcile choices do (owner,
+		// attended review 2026-11-24, of "Continue against the old revision"
+		// cut off in a 300 px drawer): each keeps its words whole at every
+		// drawer width.
+		auto* const bannerRow = new detail::wrapping_row{ };
+		BannerFirst           = new QPushButton{ Banner };
 		BannerFirst->setObjectName(QStringLiteral("agentStateFirst"));
-		BannerSecond = new quiet_push_button{ Banner };
-		BannerSecond->setObjectName(QStringLiteral("agentStateSecond"));
-		BannerSecond->setFlat(true);
+		auto* const second = new quiet_push_button{ Banner };
+		second->setObjectName(QStringLiteral("agentStateSecond"));
+		second->setFlat(true);
+		second->set_word_wrap(true);
+		BannerSecond = second;
 		bannerRow->addWidget(BannerFirst);
 		bannerRow->addWidget(BannerSecond);
-		bannerRow->addStretch(1);
 		bannerCol->addLayout(bannerRow);
 		Log = new QLabel{ Banner };
 		Log->setObjectName(QStringLiteral("agentStateLog"));
@@ -3795,6 +3810,7 @@ namespace bpr::qt {
 		BannerSecond->disconnect();
 		BannerFirst->setToolTip({ });
 		BannerSecond->setToolTip({ });
+		BannerFirst->setEnabled(true);
 		BannerFirst->show();
 		BannerSecond->show();
 		BannerReconcile->hide();
@@ -3847,15 +3863,33 @@ namespace bpr::qt {
 			BannerSecond->hide();
 			break;
 		}
-		case agent_tab_state::head_moved:
-			BannerTitle->setText(tr("This session read %1").arg(Head->text()));
+		case agent_tab_state::head_moved: {
+			const auto read = Head->text();
+			BannerTitle->setText(tr("This session read %1").arg(read));
 			BannerText->setText(tr("The pull request has moved on. Its findings stay anchored to the head it read."));
-			BannerFirst->setText(Chat.new_session_action()->text().isEmpty() ? tr("Start a new session") : Chat.new_session_action()->text());
+			// Owner, 2026-11-24, of a new session that left the old transcript,
+			// title and History tick in place: "you click it and it does
+			// nothing which feels broken". The card's Start a new session is
+			// History's New session, under core's one rule for it: offered
+			// while it can be chosen, greyed with core's reason while not. The
+			// host opens the empty session at the head under review at once.
+			HistoryItems->refresh();
+			const auto refused = HistoryItems->new_session_reason();
+			BannerFirst->setText(tr("Start a new session"));
+			BannerFirst->setEnabled(HistoryItems->new_session_action()->isEnabled());
+			BannerFirst->setToolTip(refused.isEmpty() ? tr("Keep this conversation in History and start an empty one at the current head. Nothing is sent until you ask.") : refused);
 			wear_ordinary_roles(*BannerFirst);
 			connect(BannerFirst, &QPushButton::clicked, Chat.new_session_action(), &QAction::trigger);
-			BannerSecond->setText(Chat.continue_old_revision_action()->text().isEmpty() ? tr("Continue on the old head") : Chat.continue_old_revision_action()->text());
+			// RFC-BPR-0130's words for the card, the stopped card's too: the
+			// revision by its seven characters, short enough for any drawer.
+			BannerSecond->setText(read.isEmpty() ? tr("Continue at its head") : tr("Continue at %1").arg(read));
+			BannerSecond->setToolTip(read.isEmpty() ? tr("Keep this conversation and ask about the revision it read") : tr("Keep this conversation and ask about %1, the revision it read").arg(read));
+			// Neither choice starts a run here; a refused question's card
+			// before this one left the second in the agent accent.
+			wear_ordinary_roles(*BannerSecond);
 			connect(BannerSecond, &QPushButton::clicked, Chat.continue_old_revision_action(), &QAction::trigger);
 			break;
+		}
 		case agent_tab_state::stopped:
 			BannerTitle->setText(tr("%1 stopped before answering").arg(Launch.profile_selector()->currentText()));
 			// [[BPR-1738]]. A stop with a reason says it and what to do;
@@ -3939,6 +3973,7 @@ namespace bpr::qt {
 				BannerFirst->hide();
 			}
 			BannerSecond->setText(LogShown ? tr("Hide the log") : tr("Show the log"));
+			wear_ordinary_roles(*BannerSecond);
 			connect(BannerSecond, &QPushButton::clicked, this, [this] {
 				LogShown = !LogShown;
 				Log->setText(Launch.output_text().isEmpty() ? tr("The agent wrote nothing.") : Launch.output_text());

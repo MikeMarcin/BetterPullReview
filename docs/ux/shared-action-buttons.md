@@ -33,6 +33,10 @@ QMessageBox standard/default/destructive controls keep their platform behavior.
   push signals, dialog defaults, mnemonics, icons and accessibility; default,
   menu and icon-only controls fall back to native painting. A flat secondary
   retains its bare rest treatment. No push button becomes a tool button.
+  A chip without an icon whose words are a sentence may wrap them
+  (`set_word_wrap`): its size hint stays the one line, its minimum is its
+  longest word, and in a `wrapping_row` that gives it less than its words it
+  takes further lines instead of being cut (the Agent tab's stopped card).
 - [[BPR-1855]]. Both chips measure and draw their own content in
   `button_surface`: the words in the button's font with fractional advances
   rounded up, an icon and its 4-pixel gap when shown, inside 6 pixels of
@@ -170,7 +174,7 @@ screen, which the application sets from the appearance profile.
 
 | Surface | Starts a run: the accent | Starts no run: ordinary roles |
 |---|---|---|
-| Agent tab | Send (`agentAsk`), each suggestion (`agentSuggestion`), Resend on an error turn and in the stopped banner | Stop, History, Suggestions toggle, Attach lines, the lines chip's close, Agent settings…, Start a new session, Continue on the old head, Show the log, Copy, Keep local, Draft comment, Delete |
+| Agent tab | Send (`agentAsk`), each suggestion (`agentSuggestion`), Resend on an error turn and in the stopped banner | Stop, History, Suggestions toggle, Attach lines, the lines chip's close, Agent settings…, Start a new session, Continue at the head a session read, Show the log, Copy, Keep local, Draft comment, Delete |
 | Selected-lines side chat | Send (the Agent tab's, as the panel's composer is the Agent tab's) | Promote reply to draft, the hidden panel's scope and context controls |
 | Tour side chat | Send, Update … from this chat, Resend, each suggestion | Accept (a stop's own text), Add to tour, Use this text, Apply all, Edit, Discard, Show, Copy, Copy chat (a local draft's discussion), Close, the passage's close, History, Continue on the old head |
 | Tour | Enhance (Problem, Solution, a stop), Suggest an outline, Draft the tour | Accept (one button wherever it accepts a stop: the default push button), Add to tour, Use this text, Apply all, Undo reset, Move, Reset tour, Conversation, the chat toggles (each part's and the whole tour's), Clear focus, Insert selected skeleton stops, Show the run, Set up the agent, the agent picker |

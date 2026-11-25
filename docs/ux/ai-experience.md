@@ -314,7 +314,14 @@ transcript replay, or one whose turn ended before the agent named its
 session). The core's `offer_pinned_conversation` decides: a conversation of
 this pull request that was never used moves to the head under review without
 asking (a new conversation takes its place); any other pinned conversation
-offers Start a new session and Continue at its own head. A turn that still
+offers Start a new session and Continue at its own head ("Continue at
+1a2b3c4"). Start a new session there is History's New session, under core's
+one rule for it (`decide_new_session`, which never calls a session pinned to
+another revision the new one): at once, and with nothing sent, the tab shows
+an empty unnamed session at the head under review, ticked in History, and the
+conversation left behind stays in History with its name and turns. The
+card's choices wrap onto further rows in a narrow drawer, and a choice whose
+words are a sentence takes a second line; none is cut. A turn that still
 reaches a pinned conversation is refused before anything runs, and the
 stopped card shows those buttons ("Continue at 1a2b3c4", "Start a new
 session") in place of Resend; the refusal's words name exactly them, and

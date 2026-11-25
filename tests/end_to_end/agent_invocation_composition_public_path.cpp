@@ -1250,6 +1250,13 @@ auto main(int argc, char** argv) -> int
 				}
 				replays.push_back(id);
 			}
+			// The last replay is named, so the tab's title says whose
+			// transcript it shows.
+			const auto replayName = QStringLiteral("Kept replay");
+			tab->session_menu()->rename(replays.back(), replayName);
+			if (!wait_until([&] { return historyIn() && tab->session_title()->text() == replayName; }) || tab->turn_count() == 0U) {
+				return failLogged("pinned-replay-named", tab->session_title()->text().toStdString() + " turns=" + std::to_string(tab->turn_count()));
+			}
 
 			// [[BPR-1254]]. Moving the head reopens the review ledger; a turn
 			// asks for its private context once it has settled.
@@ -1287,7 +1294,8 @@ auto main(int argc, char** argv) -> int
 				return wait_until([&] {
 					return reread() && open(aId) && tab->state() == qt::agent_tab_state::head_moved && window.side_chat()->head_oid_text().left(7) == earlierHead
 						&& tab->banner_first_button()->isVisible() && tab->banner_first_button()->text() == QStringLiteral("Start a new session")
-						&& tab->banner_second_button()->isVisible();
+						&& tab->banner_first_button()->isEnabled() && tab->banner_second_button()->isVisible()
+						&& tab->banner_second_button()->text() == QStringLiteral("Continue at ") + earlierHead;
 				});
 			};
 			const auto beforeChoice = starts();
@@ -1296,6 +1304,56 @@ auto main(int argc, char** argv) -> int
 			}
 			if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "native-pinned-up-front.png").u16string()))) {
 				return failLogged("pinned-up-front-render");
+			}
+			// Owner, 2026-11-24, of a new session that changed nothing on the
+			// screen: "you click it and it does nothing which feels broken".
+			// Start a new session on the replay's card is History's New
+			// session: at once, and with nothing sent, the tab shows an empty
+			// unnamed session at the head under review, ticked in History; the
+			// replay stays there with its name and its turns.
+			{
+				const auto& replay      = replays.back();
+				const auto  replayTurns = tab->turn_count();
+				const auto  known       = tab->session_menu()->ids();
+				const auto  newHead     = [&] { return window.side_chat()->head_oid_text().left(7); };
+				const auto  said        = [&] {
+					return " selected=" + tab->session_menu()->selected() + " replay=" + replay + " turns=" + std::to_string(tab->turn_count()) + " title=" + tab->session_title()->text().toStdString()
+						+ " mode=" + mode->text().toStdString() + " head=" + newHead().toStdString() + " earlier=" + earlierHead.toStdString() + " state=" + std::to_string(static_cast<int>(tab->state()))
+						+ " starts=" + std::to_string(starts() - beforeChoice) + " reason=" + tab->history_menu()->new_session_reason().toStdString();
+				};
+				if (replayTurns == 0U || tab->session_title()->text() != replayName || tab->session_menu()->selected() != replay || !tab->new_session_action()->isEnabled()) {
+					return failLogged("pinned-replay-shown-before-new-session", said());
+				}
+				tab->banner_first_button()->click();
+				const auto switched = wait_until([&] {
+					const auto fresh = tab->session_menu()->selected();
+					return historyIn() && tab->state() == qt::agent_tab_state::idle && !tab->banner()->isVisible() && !fresh.empty() && fresh != replay
+						&& std::ranges::find(known, fresh) == known.end() && tab->turn_count() == 0U && tab->session_title()->text() != replayName
+						&& !mode->text().startsWith(QStringLiteral("Transcript replay")) && newHead().size() == 7 && newHead() != earlierHead && tab->ask_button()->isEnabled();
+				});
+				if (!switched || starts() != beforeChoice) {
+					return failLogged("pinned-new-session-shown-at-once", said());
+				}
+				// The new session is the open one in History, the replay is
+				// kept as it was, and New session there is now greyed: this is it.
+				QMetaObject::invokeMethod(tab->history_button()->menu(), "aboutToShow");
+				const auto listed = wait_until([&] {
+					const auto ids = tab->session_menu()->ids();
+					return historyIn() && ids.size() == known.size() + 1U && std::ranges::find(ids, replay) != ids.end() && tab->session_menu()->turns(replay) == replayTurns
+						&& tab->session_menu()->replay(replay) && tab->session_menu()->turns(tab->session_menu()->selected()) == 0U && !tab->new_session_action()->isEnabled()
+						&& tab->history_menu()->new_session_reason() == QStringLiteral("This session is new: nothing has been asked in it.");
+				});
+				if (!listed || starts() != beforeChoice) {
+					return failLogged("pinned-new-session-in-history", said() + " listed=" + std::to_string(tab->session_menu()->ids().size()) + " known=" + std::to_string(known.size()));
+				}
+				if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "native-pinned-new-session.png").u16string()))) {
+					return failLogged("pinned-new-session-render");
+				}
+				// The replay is still pinned where it read: opened again, its
+				// card is offered again with its name and its transcript.
+				if (!offeredUpFront(replay) || tab->session_title()->text() != replayName || tab->turn_count() != replayTurns || starts() != beforeChoice) {
+					return failLogged("pinned-replay-kept", said());
+				}
 			}
 
 			// The seeded conversation follows the head: no choice first. An

@@ -54,13 +54,16 @@ namespace bpr::qt {
 		/// \brief What the chat says of itself; the sessions come by `present`.
 		struct chat_state
 		{
-			bool        AgentReady  = true;
-			bool        Closed      = false;
-			bool        Running     = false;
-			bool        Busy        = false;
-			std::size_t ShownTurns  = 0U;
-			bool        EveryRun    = false;
-			bool        ResetAgents = false;
+			bool        AgentReady = true;
+			bool        Closed     = false;
+			bool        Running    = false;
+			bool        Busy       = false;
+			std::size_t ShownTurns = 0U;
+			/// The chat shows the pinned-revision card: the open session
+			/// reads a revision other than the one under review.
+			bool Pinned      = false;
+			bool EveryRun    = false;
+			bool ResetAgents = false;
 			/// What carrying a conversation over keeps and leaves out.
 			QString CarryOverTip;
 			auto    operator==(const chat_state&) const -> bool = default;

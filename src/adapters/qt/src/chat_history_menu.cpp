@@ -258,6 +258,7 @@ namespace bpr::qt {
 			.Uncertain       = found && open->Pending,
 			.NativeSupported = History.NativeSupported,
 			.CarriedOver     = History.Replay,
+			.Pinned          = State.Pinned,
 			.OtherChats      = History.OtherChats.size(),
 			.RevisionKnown   = found && open->Binding.HeadOid != decltype(open->Binding.HeadOid){ },
 			.EveryRun        = State.EveryRun,

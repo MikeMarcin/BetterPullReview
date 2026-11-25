@@ -845,6 +845,19 @@ try {
 	const auto fromReplay = natives->choose(scope, "claude", binding, "");
 	expect(fromReplay && !fromReplay->Replay && fromReplay->Id != replayed->Id, "New session from replay starts empty native generation and preserves source");
 	expect(natives->choose(scope, "claude", binding, restored->Id).has_value(), "restore original native provenance after replay");
+	// The new session of an agent that cannot continue natively is an empty
+	// replay. Asked for again where nothing was asked, it is the same one;
+	// asked for after the head moved, it is a new one at the head under
+	// review, and the one left behind keeps the revision it read.
+	const auto emptyReplay = natives->replay(scope, "claude", binding, "");
+	const auto sameReplay  = natives->replay(scope, "claude", binding, "");
+	expect(emptyReplay && emptyReplay->Replay && emptyReplay->ReplaySource.empty() && emptyReplay->Binding == binding && sameReplay && sameReplay->Id == emptyReplay->Id,
+		   "an empty replay nothing was asked in is taken up again at the revision it reads");
+	const auto movedReplay = natives->replay(scope, "claude", changedBinding, "");
+	expect(movedReplay && movedReplay->Replay && movedReplay->Id != emptyReplay->Id && movedReplay->Binding == changedBinding, "after the head moved, a new empty replay reads the head under review");
+	const auto leftBehind = natives->choose(scope, "claude", changedBinding, emptyReplay->Id);
+	expect(leftBehind && leftBehind->Binding == binding, "and the one left behind still reads its own revision");
+	expect(natives->choose(scope, "claude", binding, restored->Id).has_value(), "the original native conversation is selected again");
 
 	const auto removedScope = std::string{ "authority:agent-a:tour:71:0:3:9" };
 	auto       removed      = natives->select(removedScope, "readonly", binding);

@@ -1750,6 +1750,13 @@ namespace bpr::app {
 			.Session = choice.Session, .Choice = choice.Choice, .OfferedBinding = choice.OfferedBinding });
 		if (outcome.Started && choice.Choice == core::agent_continuation::start_new_session) {
 			NativeFreshAtCurrentRevision = outcome.Started;
+			// Owner, 2026-11-24, of the pinned-revision card: "you click it and
+			// it does nothing which feels broken". Start a new session is
+			// History's New session: the store opens an empty session at the
+			// revision under review now, and the tab shows it (no transcript,
+			// the pull request's title, History's tick) before any question,
+			// with the conversation left behind kept in History.
+			open_new_agent_session();
 		}
 	}
 

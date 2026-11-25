@@ -30,13 +30,27 @@
 /// Agent on the owner's pull request and on a local draft; and the local
 /// draft's Review and Overview tabs.
 ///
+/// The Agent tab's card for a session that read an earlier head (owner,
+/// attended review 2026-11-24, of "Continue against the old revision" cut off
+/// in a 300 px drawer) is held to the same at 280, 300, 340 and 760 pixels in
+/// its three states: offered before a question, a refused question, and work
+/// in the way of the move. Its buttons wrap; none is narrower than its words,
+/// none lies over another and none leaves the card.
+///
 /// `BPR_DRAWER_FIT_RENDER_ROOT`, when set, receives a render of each state.
+/// `BPR_PINNED_CARD_RENDER_ROOT`, when set, makes the run a look of that card
+/// alone: Light and Dark at 280, 300 and 340 pixels, saved under a folder
+/// named for the platform and style that drew them as
+/// `<tag>-<theme>-<scale>-<state>-<width>.png` (`BPR_PINNED_CARD_RENDER_TAG`,
+/// else "card"), then checked.
 
 #include "../support/review_tour_fixture.hpp"
 
 #include "bpr/application/local_draft_workbench.hpp"
 #include "bpr/application/review_tour_projection.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/agent_entry.hpp"
+#include "bpr/core/agent_session.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/author_mode.hpp"
 #include "bpr/core/epoch_model.hpp"
@@ -45,6 +59,8 @@
 #include "bpr/core/review_submission.hpp"
 #include "bpr/core/workflow_action.hpp"
 #include "bpr/core/workflow_configuration.hpp"
+#include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
@@ -58,21 +74,27 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractScrollArea>
 #include <QApplication>
+#include <QDir>
 #include <QLabel>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
+#include <QStyle>
+#include <QStyleHints>
+#include <QStyleOptionButton>
 #include <QTabBar>
 #include <QToolButton>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -975,18 +997,226 @@ namespace {
 			}
 		}
 	}
+	/// \brief The Agent tab's card for a session that read an earlier head.
+	enum class pinned_card : std::uint8_t {
+		/// Offered as the session opens, before a question.
+		offered,
+		/// A question was refused: the two ways back, each resends it.
+		refused,
+		/// Work is in the way of the move: the reconcile choices first.
+		reconcile,
+	};
+
+	/// \brief Where a push button is drawn in \p aCard. A native button's
+	/// widget is larger than its face, so two widgets may overlap where their
+	/// faces do not.
+	[[nodiscard]] auto face_in(const QPushButton& aButton, const QWidget& aCard) -> QRect
+	{
+		auto face   = aButton.rect();
+		auto option = QStyleOptionButton{ };
+		option.initFrom(&aButton);
+		if (const auto item = aButton.style()->subElementRect(QStyle::SE_PushButtonLayoutItem, &option, &aButton); item.isValid()) {
+			face = item;
+		}
+		return face.translated(aButton.mapTo(&aCard, QPoint{ 0, 0 }));
+	}
+
+	/// \brief Every way the card's buttons fail to fit it, and the tab pans.
+	[[nodiscard]] auto card_faults(const qt::agent_tab_view& aTab) -> QStringList
+	{
+		auto              found = QStringList{ };
+		const auto* const card  = aTab.banner();
+		auto              shown = std::vector<const QPushButton*>{ };
+		for (const auto* const button : card->findChildren<QPushButton*>()) {
+			if (button->isVisibleTo(card)) {
+				shown.push_back(button);
+			}
+		}
+		for (const auto* const button : shown) {
+			const auto place = QRect{ button->mapTo(card, QPoint{ 0, 0 }), button->size() };
+			if (place.left() < 0 || place.right() >= card->width()) {
+				found.push_back(QStringLiteral("%1 spans %2..%3 of the card's %4").arg(describe(*button)).arg(place.left()).arg(place.right() + 1).arg(card->width()));
+			}
+			// A button that wraps its words needs its longest word and the
+			// lines they take at its width; any other, its one line.
+			const auto wraps = button->hasHeightForWidth();
+			const auto needs = wraps ? QSize{ button->minimumSizeHint().width(), button->heightForWidth(button->width()) } : button->sizeHint();
+			if (button->width() < needs.width() || button->height() < needs.height()) {
+				found.push_back(QStringLiteral("%1 is %2x%3, its words need %4x%5").arg(describe(*button)).arg(button->width()).arg(button->height()).arg(needs.width()).arg(needs.height()));
+			}
+		}
+		for (std::size_t first = 0U; first < shown.size(); ++first) {
+			for (std::size_t second = first + 1U; second < shown.size(); ++second) {
+				if (face_in(*shown[first], *card).intersects(face_in(*shown[second], *card))) {
+					found.push_back(QStringLiteral("%1 lies over %2").arg(describe(*shown[first]), describe(*shown[second])));
+				}
+			}
+		}
+		for (const auto* const scroll : aTab.findChildren<QScrollArea*>()) {
+			if (scroll->isVisible() && scroll->widget() != nullptr && scroll->isAncestorOf(card) && scroll->widget()->width() > scroll->viewport()->width()) {
+				found.push_back(QStringLiteral("the conversation is %1 wide in a %2 px drawer column").arg(scroll->widget()->width()).arg(scroll->viewport()->width()));
+			}
+		}
+		return found;
+	}
+
+	/// \brief The card in each state at each width. As a look (\p aLookRoot
+	/// set) it draws Light and Dark under the system appearance each is used
+	/// in and checks the card alone; otherwise every theme, and the whole
+	/// drawer with it.
+	void test_the_pinned_revision_card_fits(const QString& aLookRoot = { })
+	{
+		const auto look   = !aLookRoot.isEmpty();
+		const auto folder = look ? QStringLiteral("%1/%2-%3").arg(aLookRoot, QGuiApplication::platformName(), QApplication::style()->name().toLower()) : QString{ };
+		expect(!look || QDir{ }.mkpath(folder), "the look's directory exists");
+		const auto tag      = qEnvironmentVariable("BPR_PINNED_CARD_RENDER_TAG", QStringLiteral("card"));
+		const auto scale    = QString::number(qRound(qApp->devicePixelRatio() * 100.0));
+		const auto earlier  = *core::parse_git_commit_oid("3333333333333333333333333333333333333333");
+		const auto binding  = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
+		auto       pinned   = binding;
+		pinned.HeadOid      = earlier;
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::entry_profile_id(core::agent_protocol::codex_jsonl_exec, 1U);
+		profile.Protocol    = core::agent_protocol::codex_jsonl_exec;
+		profile.DisplayName = "Fixture agent";
+		profile.Executable  = "/usr/bin/true";
+		const auto widths   = look ? std::vector<std::uint32_t>{ 280U, 300U, 340U } : std::vector<std::uint32_t>{ 280U, 300U, 340U, 760U };
+		for (const auto& [mode, name] : themes) {
+			const auto dark = mode == core::appearance_mode::dark || mode == core::appearance_mode::high_contrast_dark;
+			if (look) {
+				if (mode != core::appearance_mode::light && mode != core::appearance_mode::dark) {
+					continue;
+				}
+				QGuiApplication::styleHints()->setColorScheme(dark ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
+			}
+			auto appearance = profile_for(mode);
+			for (const auto width : widths) {
+				qt::workbench_window window;
+				open_review(window, appearance, width == 760U ? 1'920 : 1'280, width);
+				auto* const drawer = window.conversations_drawer();
+				auto* const tab    = window.agent_tab();
+				auto* const chat   = window.side_chat();
+				window.tray_tabs()->setCurrentIndex(2);
+				window.agent_panel()->offer_profiles(std::vector{ profile });
+				settle();
+				const auto at = std::string{ " " } + name + " at " + std::to_string(width);
+				expect(drawer->isVisible() && drawer->width() == static_cast<int>(width) && tab->isVisible(), "the Agent tab shows in a drawer of that width" + at);
+				chat->set_dispatch([](const qt::side_chat_intent&) { });
+				tab->set_pinned_conversation_dispatch([](core::agent_continuation) { return false; });
+				tab->set_move_reconcile_dispatch([](core::conversation_reconcile) { return false; });
+				const auto present = [&](const core::agent_revision_binding& aRead) {
+					const auto session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile.Id, .Binding = aRead };
+					chat->present(qt::side_chat_projection{
+						.Session        = session,
+						.Continuations  = core::offer_agent_continuations(session, binding),
+						.Chat           = { .Scope = { .Kind = core::agent_chat_scope_kind::pull_request } },
+						.PrivateContext = { .Session = session.Id },
+					});
+					settle();
+				};
+				auto       generation = std::uint64_t{ 0U };
+				const auto stop       = [&](const bool aWorkInTheWay) {
+					chat->composer()->setPlainText(QStringLiteral("Review this pull request"));
+					tab->ask_button()->click();
+					settle();
+					auto identity                 = application::agent_invocation_projection_identity{ };
+					identity.ApplicationSession   = core::application_session_id{ 1U };
+					identity.Session.Id           = core::agent_session_id{ 9U };
+					identity.InvocationGeneration = ++generation;
+					window.agent_panel()->admit(identity);
+					settle();
+					auto result               = application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::private_storage_failure };
+					result.RefusalReason      = aWorkInTheWay ? "This conversation's workspace at 3333333 has uncommitted edits, so it was not moved to 2222222. No question was sent."
+															  : "This conversation is pinned to an earlier revision, 3333333. Continue at 3333333 to keep asking about that revision, or start a new session at 2222222. No question was sent.";
+					result.StandardError      = result.RefusalReason;
+					result.PinnedConversation = core::offer_pinned_conversation({ .Pinned = pinned, .Observed = binding, .Remembers = true });
+					if (aWorkInTheWay) {
+						result.MoveRefusal = core::decide_conversation_move({ .Pinned = pinned, .Observed = binding, .Remembers = true, .Resumable = true, .Workspace = core::conversation_workspace_state::local_edits });
+					}
+					window.agent_panel()->finish(identity, result);
+					settle();
+				};
+				const auto judge = [&](const pinned_card aState, const char* const aName) {
+					// The card heads the thread: scrolled to it, as it is read.
+					for (auto* parent = tab->banner()->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+						if (auto* const area = qobject_cast<QScrollArea*>(parent); area != nullptr) {
+							area->ensureWidgetVisible(tab->banner());
+							break;
+						}
+					}
+					settle();
+					const auto where   = std::string{ "the Agent tab's pinned-revision card, " } + aName + at;
+					const auto choices = tab->banner()->findChildren<QPushButton*>();
+					const auto buttons = std::ranges::count_if(choices, [&](const QPushButton* aButton) { return aButton->isVisibleTo(tab->banner()); });
+					expect(tab->banner()->isVisible() && tab->state() == (aState == pinned_card::offered ? qt::agent_tab_state::head_moved : qt::agent_tab_state::stopped)
+							   && buttons == (aState == pinned_card::reconcile ? 5 : 2),
+						   where + " shows its " + (aState == pinned_card::reconcile ? "five" : "two") + " choices (" + std::to_string(buttons) + ")");
+					if (look) {
+						expect(drawer->grab().save(QStringLiteral("%1/%2-%3-%4-%5-%6.png").arg(folder, tag, QString::fromLatin1(name), scale, QString::fromLatin1(aName)).arg(width), "PNG"), "the look is saved");
+					} else {
+						save(window, QStringLiteral("agent-pinned-card-%1-%2-%3").arg(QString::fromLatin1(aName), QString::fromLatin1(name)).arg(width));
+						// The refused turn under the card shows the agent's own
+						// words in a code block, which pans inside itself until
+						// its Wrap is pressed; the column is `card_faults`'.
+						require_whole(*drawer, where);
+					}
+					if (const auto faults = card_faults(*tab); !faults.isEmpty()) {
+						failures.push_back(where + ": " + faults.join(QStringLiteral("; ")).toStdString());
+					}
+				};
+				// A session with a turn, opened after the head moved.
+				tab->set_session_title(QStringLiteral("#17 Keep review snapshots deterministic"));
+				tab->present_thread({ qt::agent_thread_turn{ .Question = QStringLiteral("What does this change do?"),
+															 .Answer   = QStringLiteral("It sorts the snapshot's files before hashing them, so two reads of one head give the same digest."),
+															 .Footer   = QStringLiteral("Answered") } });
+				present(pinned);
+				judge(pinned_card::offered, "offered");
+				if (tab->banner_first_button()->text() != QStringLiteral("Start a new session") || tab->banner_second_button()->text() != QStringLiteral("Continue at 3333333")) {
+					failures.push_back("offered before a question, the card says Start a new session and Continue at the head it read" + at + ": " + tab->banner_first_button()->text().toStdString() + " / "
+									   + tab->banner_second_button()->text().toStdString());
+				}
+				present(binding);
+				stop(false);
+				judge(pinned_card::refused, "refused");
+				stop(true);
+				judge(pinned_card::reconcile, "reconcile");
+				// Offered again after a refused question: neither choice
+				// starts a run, so neither keeps the refused card's accent.
+				present(pinned);
+				if (tab->state() != qt::agent_tab_state::head_moved || qt::agent_run_control(*tab->banner_first_button()) || qt::agent_run_control(*tab->banner_second_button())) {
+					failures.push_back("offered after a refused question, the card's choices wear the ordinary roles" + at);
+				}
+			}
+		}
+		if (look) {
+			std::cout << "pinned-card-look: " << folder.toStdString() << ", device pixel ratio " << qApp->devicePixelRatio() << '\n';
+		}
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
-	const auto   scale = qEnvironmentVariable("QT_SCALE_FACTOR").toDouble();
+	// A look: the pinned-revision card's renders and its checks, nothing else,
+	// so the same binary draws and measures it under the native look too. The
+	// scale in each file's name is `QT_SCALE_FACTOR` times the screen's own ratio.
+	if (const auto root = qEnvironmentVariable("BPR_PINNED_CARD_RENDER_ROOT"); !root.isEmpty()) {
+		test_the_pinned_revision_card_fits(root);
+		for (const auto& failure : failures) {
+			std::cerr << "CLIPPED: " << failure << '\n';
+		}
+		expect(failures.empty(), std::to_string(failures.size()) + " states of the pinned-revision card do not fit");
+		std::cout << "pinned-card-look:pass dpr=" << application.devicePixelRatio() << '\n';
+		return EXIT_SUCCESS;
+	}
+	const auto scale = qEnvironmentVariable("QT_SCALE_FACTOR").toDouble();
 	if (scale > 0) {
 		expect(qFuzzyCompare(application.devicePixelRatio(), scale), "the requested display scale is effective");
 	}
 	test_the_checks_catch_clipping();
 	test_the_status_drawer_fits();
 	test_the_drawer_tabs_fit();
+	test_the_pinned_revision_card_fits();
 	test_the_overview_conversation_tabs_fit();
 	test_the_author_drawer_fits();
 	test_the_sheet_and_pages_fit();

@@ -86,6 +86,10 @@ namespace bpr::core {
 		bool NativeSupported = true;
 		/// The open session continues from a saved transcript.
 		bool CarriedOver = false;
+		/// The open session is pinned to a revision other than the one under
+		/// review, and the chat asks which to go on with (the pinned-revision
+		/// card's Start a new session and Continue at the revision it read).
+		bool Pinned = false;
 		/// Chats about other parts of the tour.
 		std::size_t OtherChats = 0U;
 		/// The revision the open session reads is known.
@@ -111,6 +115,10 @@ namespace bpr::core {
 	/// New session again would show the same empty chat under the same name.
 	/// The one exception is an agent that cannot continue a conversation where
 	/// it stopped, whose empty session New session turns into one it can use.
+	/// A session pinned to another revision is never the new session, asked in
+	/// or not: New session opens one at the revision under review, which is
+	/// what the pinned-revision card's Start a new session chooses (owner,
+	/// 2026-11-24, of a card whose new session kept showing the old one).
 	[[nodiscard]] auto decide_new_session(const chat_history_facts& aFacts) noexcept -> new_session_refusal;
 
 	/// \brief The History menu for what the chat observed.

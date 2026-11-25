@@ -22,7 +22,7 @@ namespace bpr::core {
 		}
 		const auto untouched = aFacts.SavedTurns == 0U && aFacts.ShownTurns == 0U && !aFacts.Uncertain;
 		const auto usable    = aFacts.NativeSupported || aFacts.CarriedOver;
-		return untouched && usable ? new_session_refusal::already_new : new_session_refusal::none;
+		return untouched && usable && !aFacts.Pinned ? new_session_refusal::already_new : new_session_refusal::none;
 	}
 
 	auto plan_chat_history(const chat_history_facts& aFacts) -> chat_history_plan

@@ -1951,7 +1951,13 @@ namespace bpr::adapters::sqlite {
 				if (replaying) {
 					replaySource    = aChoice->substr(7U);
 					auto reuseEmpty = false;
-					if (replaySource.empty() && status == SQLITE_ROW && sqlite3_column_int(row->Value, 8) == 0 && sqlite3_column_int64(row->Value, 7) == 2) {
+					// An unused empty replay is taken up again only at the
+					// revision it reads: a new session asked for after the head
+					// moved reads the head under review, as a native one does.
+					const auto readsBinding = status == SQLITE_ROW && column_text(row->Value, 2) == std::optional{ std::string{ core::canonical_hex(aBinding.BaseOid).view() } }
+						&& column_text(row->Value, 3) == std::optional{ std::string{ core::canonical_hex(aBinding.HeadOid).view() } } && sqlite3_column_int64(row->Value, 4) == aBinding.LeftEpoch.value()
+						&& sqlite3_column_int64(row->Value, 5) == aBinding.RightEpoch.value();
+					if (replaySource.empty() && readsBinding && sqlite3_column_int(row->Value, 8) == 0 && sqlite3_column_int64(row->Value, 7) == 2) {
 						auto unused = detail::prepare(db, "SELECT 1 FROM native_agent_replays WHERE conversation=?1 AND source='' AND NOT EXISTS(SELECT 1 FROM native_agent_turns WHERE conversation=?1)");
 						if (!unused) {
 							return std::unexpected(failure::unavailable);
