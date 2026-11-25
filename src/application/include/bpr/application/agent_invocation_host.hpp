@@ -106,6 +106,13 @@ namespace bpr::application {
 		std::string NativeQuestion;
 		std::string SelectedConversation;
 		bool        TranscriptReplay = false;
+		/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24. How
+		/// the reviewer chose to carry work that stopped the conversation's
+		/// workspace from moving to the head under review; `none` on a plain
+		/// send. With `ask_agent`, `ReconcilePrompt` is the built-in prompt the
+		/// turn asks after the move note (`default_reconcile_prompt`).
+		core::conversation_reconcile Reconcile = core::conversation_reconcile::none;
+		std::string                  ReconcilePrompt;
 		/// [[BPR-2007]], RFC-BPR-0104. The turn gets its session's scratch
 		/// folder and the narrow allowance to write and run there. Only an
 		/// Agent tab turn: never with `WritingOnly` or `ReadOnlyTools`.

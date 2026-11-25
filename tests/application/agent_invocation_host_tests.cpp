@@ -5,6 +5,7 @@
 #include "bpr/application/agent_queue_host.hpp"
 #include "bpr/application/agent_runtime_steer.hpp"
 #include "bpr/application/operation_diagnostics.hpp"
+#include "bpr/application/writing_hooks.hpp"
 
 #include "../support/scratch_directory.hpp"
 #include "../support/sparse_file.hpp"
@@ -289,7 +290,55 @@ namespace {
 			if (ReattachedGuard) {
 				reattached.LifetimeGuard = ReattachedGuard;
 			}
+			// One move ahead of the conversation, as the journal can be.
+			if (JournalHead) {
+				reattached.Workspace.PinnedHead = *std::exchange(JournalHead, std::nullopt);
+			}
 			return reattached;
+		}
+
+		/// RFC-BPR-0096, owner continue-at-latest amendment. As the Git
+		/// adapter moves: nothing over work without a reconcile, a rebase
+		/// that conflicts is put back, otherwise the workspace is at the head.
+		std::size_t                                            Moves = 0U;
+		std::vector<application::agent_workspace_move_request> MoveRequests;
+		core::conversation_workspace_state                     MoveObserved = core::conversation_workspace_state::clean;
+		std::vector<std::string>                               RebaseConflicts;
+		std::optional<application::agent_workspace_error>      MoveFailure;
+		std::optional<core::git_commit_oid>                    JournalHead;
+		[[nodiscard]] auto                                     move_agent_workspace(const application::agent_workspace_move_request& aRequest, std::stop_token)
+			-> std::expected<application::agent_workspace_move_result, application::agent_workspace_error> override
+		{
+			using reconcile = core::conversation_reconcile;
+			++Moves;
+			MoveRequests.push_back(aRequest);
+			if (MoveFailure) {
+				return std::unexpected(*MoveFailure);
+			}
+			auto result      = application::agent_workspace_move_result{ };
+			result.Workspace = aRequest.Workspace;
+			result.Observed  = MoveObserved;
+			const auto work  = MoveObserved != core::conversation_workspace_state::clean;
+			if (MoveObserved == core::conversation_workspace_state::busy || (work && aRequest.Reconcile == reconcile::none)) {
+				return result;
+			}
+			if (work && aRequest.Reconcile == reconcile::rebase && !RebaseConflicts.empty()) {
+				result.History.Conflicts = RebaseConflicts;
+				return result;
+			}
+			result.Moved                          = true;
+			result.Workspace.Workspace.PinnedHead = aRequest.Head;
+			result.Workspace.RequiredBase         = aRequest.Base;
+			result.History.Listed                 = true;
+			result.History.Commits                = { { "aaaaaaa", "First change" }, { "bbbbbbb", "Second change" } };
+			result.History.CommitCount            = 2U;
+			result.History.Files                  = { "src/moved.cpp" };
+			result.History.FileCount              = 1U;
+			result.History.Rebased                = work && aRequest.Reconcile == reconcile::rebase;
+			if (work && (aRequest.Reconcile == reconcile::save_and_move || aRequest.Reconcile == reconcile::ask_agent)) {
+				result.History.SavedBranch = aRequest.SavedBranch;
+			}
+			return result;
 		}
 
 		[[nodiscard]] auto cleanup_agent_workspace(
@@ -812,6 +861,30 @@ namespace {
 				return false;
 			}
 			return Kept.try_emplace(aKey, aWorkspace).second;
+		}
+		/// RFC-BPR-0096, owner continue-at-latest amendment. As the store
+		/// records a move: the binding, the workspace and its key at once.
+		std::size_t Moved        = 0U;
+		std::size_t OtherHolders = 0U;
+		auto        move_conversation(application::native_agent_session& aSession) -> bool override
+		{
+			auto& stored = Records.at(aSession.Scope);
+			if (FailStore || stored.Revision != aSession.Revision || !aSession.Workspace) {
+				return false;
+			}
+			std::erase_if(SharedWorkspaces, [&](const auto& aEntry) { return aEntry.second.Workspace.Path == aSession.Workspace->Workspace.Path; });
+			SharedWorkspaces.insert_or_assign(aSession.WorkspaceKey, *aSession.Workspace);
+			++Moved;
+			++aSession.Revision;
+			stored = aSession;
+			return true;
+		}
+		auto removal(const std::string& aScope, const std::string& aId) -> std::expected<application::native_agent_session_removal, application::native_agent_storage_failure> override
+		{
+			auto found         = application::native_agent_session_removal{ };
+			found.Found        = Records.contains(aScope) && Records.at(aScope).Id == aId;
+			found.OtherHolders = OtherHolders;
+			return found;
 		}
 		auto store(application::native_agent_session& aSession) -> bool override
 		{
@@ -2195,6 +2268,179 @@ namespace {
 		}
 	}
 
+	/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24: "i want
+	/// it to work like a normal claude code session where ... I git pull in
+	/// another terminal in the same repo and continue chatting". A resumable
+	/// conversation whose complete workspace is retained moves it to the head
+	/// under review on send and runs the turn there with the note; work in
+	/// the way refuses with the reconcile actions, each of which then moves.
+	void test_a_conversation_moves_to_the_latest_head()
+	{
+		using reconcile    = core::conversation_reconcile;
+		using state        = core::conversation_workspace_state;
+		const auto hostId  = core::git_host_id{ 1U };
+		auto       earlier = binding(hostId);
+		earlier.HeadOid    = commit(9U);
+		const auto current = binding(hostId);
+		const auto scope   = application::native_scope_key(authority(hostId), "incarnation", "agent-tab");
+		// The directory the workspace spy makes for every turn's checkout.
+		const auto path = owned_root() + "/exact-head";
+		auto       made = std::error_code{ };
+		std::filesystem::create_directories(path, made);
+		const auto retained = [&](const core::git_commit_oid& aHead) {
+			auto workspace                 = application::owned_agent_workspace{ };
+			workspace.Workspace.Policy     = core::agent_workspace_policy::disposable_review_workspace;
+			workspace.Workspace.PinnedHead = aHead;
+			workspace.Workspace.Path       = path;
+			workspace.Session              = core::agent_session_id{ 7U };
+			workspace.OwnershipMarker      = "owned";
+			workspace.DirectoryIdentity    = { .Opaque = { 2U, 1U, 0U, 1U } };
+			return workspace;
+		};
+		const auto seed = [&](harness& aTest, const core::agent_revision_binding& aAt) {
+			auto saved = aTest.NativeSessions.select(scope, std::to_string(static_cast<unsigned>(core::agent_protocol::claude_stream_json)) + ":incarnation", aAt);
+			expect(saved.has_value(), "seed a used conversation");
+			saved->Turn      = 3U;
+			saved->Handle    = "native-earlier-handle";
+			saved->Workspace = retained(aAt.HeadOid);
+			expect(aTest.NativeSessions.store(*saved), "seed is kept");
+			aTest.NativeSessions.SharedWorkspaces.emplace(application::agent_workspace_key(authority(hostId), aAt), *saved->Workspace);
+			return saved->Id;
+		};
+		const auto send = [&](harness& aTest, const std::string& aSelected, const reconcile aReconcile = reconcile::none, std::string aPrompt = { }) {
+			auto input                 = agent_tab_turn();
+			input.SelectedConversation = aSelected;
+			input.Reconcile            = aReconcile;
+			input.ReconcilePrompt      = std::move(aPrompt);
+			input.Context.ChatMessage  = "MOVE_QUESTION_CANARY";
+			aTest.Host.dispatch(input);
+			aTest.settle();
+			return aTest.Projection.Finished.back();
+		};
+		const auto observe = [&](harness& aTest) {
+			aTest.Host.observe(core::application_session_id{ 1U }, authority(hostId), current);
+			aTest.settle();
+		};
+		const auto from = std::string{ core::canonical_hex(earlier.HeadOid).view().substr(0U, 7U) };
+		const auto to   = std::string{ core::canonical_hex(current.HeadOid).view().substr(0U, 7U) };
+		{
+			// A plain send moves, and the turn resumes the same session there.
+			auto       test     = harness{ };
+			const auto selected = seed(test, earlier);
+			observe(test);
+			const auto result = send(test, selected);
+			expect(test.Workspaces.Moves == 1U && test.Workspaces.MoveRequests.front().Head == current.HeadOid && test.Workspaces.MoveRequests.front().Reconcile == reconcile::none
+					   && test.Workspaces.MoveRequests.front().Workspace.Workspace.PinnedHead == earlier.HeadOid,
+				   "a plain send moves the conversation's workspace from its head to the one under review");
+			const auto& stored = test.NativeSessions.Records.at(scope);
+			expect(test.NativeSessions.Moved == 1U && stored.Id == selected && stored.Binding == current && stored.Workspace && stored.Workspace->Workspace.PinnedHead == current.HeadOid
+					   && test.NativeSessions.SharedWorkspaces.contains(application::agent_workspace_key(authority(hostId), current))
+					   && !test.NativeSessions.SharedWorkspaces.contains(application::agent_workspace_key(authority(hostId), earlier)),
+				   "the store records the same conversation at the new head, under the new key only");
+			expect(result.Outcome == application::agent_run_outcome::success && !result.PinnedConversation && test.Processes.Starts == 1U && test.Processes.LastRequest
+					   && test.Processes.LastRequest->NativeHandle == "native-earlier-handle",
+				   "the turn runs and resumes the agent's own session");
+			const auto& input = test.Processes.LastRequest->Input;
+			const auto  note  = input.find("Note from BetterPullReview: the pull request moved from");
+			expect(note != std::string::npos && input.find("- aaaaaaa First change") != std::string::npos && input.find("MOVE_QUESTION_CANARY") > note,
+				   "the agent is told of the move, with the commits between, before the question");
+			expect(result.ConversationMove && result.ConversationMove->From == earlier.HeadOid && result.ConversationMove->To == current.HeadOid && result.ConversationMove->Commits == 2U
+					   && result.ConversationMove->Reconcile == reconcile::none,
+				   "the result carries the move for the transcript's notice");
+			// The next send is at the head: nothing moves again.
+			const auto again = send(test, selected);
+			expect(test.Workspaces.Moves == 1U && again.Outcome == application::agent_run_outcome::success && !again.ConversationMove, "a conversation at the head moves no more");
+		}
+		{
+			// Edits stop the plain move; the refusal offers every reconcile.
+			auto       test              = harness{ };
+			const auto selected          = seed(test, earlier);
+			test.Workspaces.MoveObserved = state::local_edits;
+			observe(test);
+			const auto refused = send(test, selected);
+			expect(test.Processes.Starts == 0U && refused.MoveRefusal && refused.MoveRefusal->Blocked == state::local_edits && refused.MoveRefusal->RebaseOffered
+					   && refused.MoveRefusal->SaveAndMoveOffered && refused.MoveRefusal->AskAgentOffered && refused.PinnedConversation && refused.PinnedConversation->ContinueOffered
+					   && refused.PinnedConversation->NewSessionOffered && refused.PinnedSession && refused.PinnedSession->Binding == earlier,
+				   "edits refuse the turn with the reconcile actions, Continue and a new session");
+			expect(refused.RefusalReason.find("uncommitted edits") != std::string::npos && refused.RefusalReason.find("Rebase onto " + to) != std::string::npos
+					   && refused.RefusalReason.find("Keep my changes on a branch and move") != std::string::npos && refused.RefusalReason.find("Continue at " + from) != std::string::npos
+					   && refused.RefusalReason.find("No question was sent.") != std::string::npos,
+				   "its reason names what is in the way and every way on: " + refused.RefusalReason);
+			expect(test.NativeSessions.Moved == 0U && test.NativeSessions.Records.at(scope).Binding == earlier, "nothing is recorded as moved");
+
+			// A rebase that conflicts is put back, and names the files.
+			test.Workspaces.RebaseConflicts = { "src/conflicted.cpp" };
+			const auto conflicted           = send(test, selected, reconcile::rebase);
+			expect(test.Processes.Starts == 0U && conflicted.MoveRefusal && !conflicted.MoveRefusal->RebaseOffered && conflicted.MoveRefusal->SaveAndMoveOffered
+					   && conflicted.MoveConflicts == std::vector<std::string>{ "src/conflicted.cpp" } && conflicted.RefusalReason.find("src/conflicted.cpp") != std::string::npos,
+				   "a conflicted rebase refuses with the files and does not offer itself again");
+
+			// Rebase that succeeds.
+			test.Workspaces.RebaseConflicts.clear();
+			const auto rebased = send(test, selected, reconcile::rebase);
+			expect(rebased.Outcome == application::agent_run_outcome::success && rebased.ConversationMove && rebased.ConversationMove->Reconcile == reconcile::rebase
+					   && test.Workspaces.MoveRequests.back().Reconcile == reconcile::rebase,
+				   "Rebase onto the new head moves and runs the turn");
+		}
+		for (const auto chosen : { reconcile::save_and_move, reconcile::ask_agent }) {
+			auto       test              = harness{ };
+			const auto selected          = seed(test, earlier);
+			test.Workspaces.MoveObserved = state::edits_and_commits;
+			observe(test);
+			const auto prompt = std::string{ application::default_reconcile_prompt() };
+			const auto result = send(test, selected, chosen, chosen == reconcile::ask_agent ? prompt : std::string{ });
+			expect(result.Outcome == application::agent_run_outcome::success && result.ConversationMove && result.ConversationMove->Reconcile == chosen
+					   && result.ConversationMove->SavedBranch == "bpr/saved/7/" + from && test.Workspaces.MoveRequests.back().SavedBranch == "bpr/saved/7/" + from,
+				   "the work is kept on the saved branch, and the workspace moves");
+			const auto& input = test.Processes.LastRequest->Input;
+			const auto  asked = input.find(prompt.substr(0U, 60U));
+			expect(chosen == reconcile::ask_agent ? asked != std::string::npos && asked > input.find("Note from BetterPullReview") && asked < input.find("MOVE_QUESTION_CANARY")
+												  : asked == std::string::npos,
+				   chosen == reconcile::ask_agent ? "Ask the agent sends the built-in reconcile prompt after the note" : "Keep on a branch asks nothing more");
+		}
+		{
+			// Another holder of the workspace, or a turn using it: never moved.
+			auto       test                  = harness{ };
+			const auto selected              = seed(test, earlier);
+			test.NativeSessions.OtherHolders = 1U;
+			observe(test);
+			const auto shared = send(test, selected);
+			expect(test.Workspaces.Moves == 0U && test.Processes.Starts == 0U && shared.MoveRefusal && shared.MoveRefusal->Blocked == state::busy && shared.MoveRefusal->ContinueOffered
+					   && !shared.MoveRefusal->RebaseOffered && shared.RefusalReason.find("Another conversation shares this workspace") != std::string::npos,
+				   "a workspace another conversation holds is not moved");
+			test.NativeSessions.OtherHolders = 0U;
+			test.Workspaces.MoveFailure      = application::agent_workspace_error{ application::agent_workspace_failure::unavailable, { }, application::agent_workspace_unavailable_reason::retained_objects_missing };
+			const auto missing               = send(test, selected);
+			expect(missing.MoveRefusal && missing.MoveRefusal->Blocked == state::objects_unavailable && missing.PinnedConversation && missing.PinnedConversation->ContinueOffered
+					   && test.Processes.Starts == 0U,
+				   "a head whose commits cannot be brought in refuses with Continue and a new session");
+		}
+		{
+			// One move behind: the journal moved and the store did not.
+			auto       test             = harness{ };
+			const auto selected         = seed(test, current);
+			test.Workspaces.JournalHead = earlier.HeadOid;
+			observe(test);
+			const auto result = send(test, selected);
+			expect(test.Workspaces.Moves == 1U && test.Workspaces.MoveRequests.front().Workspace.Workspace.PinnedHead == earlier.HeadOid
+					   && test.Workspaces.MoveRequests.front().Head == current.HeadOid && result.Outcome == application::agent_run_outcome::success && result.ConversationMove
+					   && result.ConversationMove->From == earlier.HeadOid && test.NativeSessions.Moved == 1U,
+				   "a workspace found at another head is moved to the conversation's, and the agent told");
+		}
+		{
+			// Loading history: a conversation a send would move is not pinned,
+			// and the chat holds it at the head under review.
+			auto test = harness{ };
+			static_cast<void>(seed(test, earlier));
+			observe(test);
+			test.Host.restore_native(core::claude_stream_json_profile_id, "incarnation", "agent-tab");
+			test.settle();
+			expect(test.Projection.Pins.empty() && test.Processes.Starts == 0U && test.Workspaces.Moves == 0U, "a conversation that follows the head offers no choice first and moves nothing yet");
+			expect(!test.Projection.SessionCatalogs.empty() && test.Projection.SessionCatalogs.back().Latest && test.Projection.SessionCatalogs.back().Latest->Binding == current,
+				   "the chat holds it at the head under review");
+		}
+	}
+
 	[[nodiscard]] auto kept_turn(application::agent_run_result aReturned, const bool aQuit) -> application::agent_conversation_turn
 	{
 		auto       test         = harness{ };
@@ -2955,6 +3201,7 @@ auto main(const int aCount, char** aArguments) -> int
 	native_project_size_does_not_gate_first_or_continued_turns();
 	test_tour_history_keeps_the_terminal_answer_item();
 	test_a_pinned_conversation_offers_its_ways_back();
+	test_a_conversation_moves_to_the_latest_head();
 #if defined(_WIN32)
 	test_a_windows_launch_carries_no_grant();
 #else

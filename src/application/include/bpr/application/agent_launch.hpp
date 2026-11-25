@@ -1330,6 +1330,24 @@ namespace bpr::application {
 		auto operator<=>(const agent_stream_event&) const = default;
 	};
 
+	/// \brief RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24:
+	/// "maybe drop a notice in the transcript that it happened". One move of a
+	/// conversation's workspace between turns, as the transcript says it.
+	struct agent_conversation_move
+	{
+		core::git_commit_oid From;
+		core::git_commit_oid To;
+		/// The commits between, when they were listed and the history is linear.
+		std::size_t Commits = 0U;
+		bool        Listed  = false;
+		bool        Linear  = true;
+		/// What carried the reviewer's work, when any was in the way.
+		core::conversation_reconcile Reconcile = core::conversation_reconcile::none;
+		std::string                  SavedBranch;
+
+		auto operator<=>(const agent_conversation_move&) const = default;
+	};
+
 	struct agent_run_result
 	{
 		core::agent_session_id          Session;
@@ -1349,6 +1367,15 @@ namespace bpr::application {
 		/// binding. `RefusalReason` names exactly the actions offered.
 		std::optional<core::pinned_conversation_offer> PinnedConversation;
 		std::optional<core::agent_session>             PinnedSession;
+		/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24. When
+		/// the conversation's workspace could not move to the head under
+		/// review, the core's decision (the reconcile actions it offers beside
+		/// `PinnedConversation`'s), and the files a rebase stopped on.
+		std::optional<core::conversation_move_decision> MoveRefusal;
+		std::vector<std::string>                        MoveConflicts;
+		/// The move this turn made before it ran, for the transcript's notice
+		/// ("Updated to <sha> — <n> commits"); kept whatever the turn did after.
+		std::optional<agent_conversation_move> ConversationMove;
 		/// The turn's decoded findings, before any verdict. Absent when the
 		/// turn returned none. Unlike `Events` this survives a stale
 		/// finalization, because a payload the reviewer can no longer act on

@@ -305,6 +305,9 @@ namespace bpr::core {
 		conversation_workspace_state Workspace = conversation_workspace_state::clean;
 		/// The reviewer's choice on the card; `none` on a plain send.
 		conversation_reconcile Reconcile = conversation_reconcile::none;
+		/// A rebase onto the observed head stopped on conflicts and was put
+		/// back; refused, the same rebase is not offered again.
+		bool RebaseConflicted = false;
 
 		auto operator<=>(const conversation_move_facts&) const = default;
 	};
@@ -352,7 +355,8 @@ namespace bpr::core {
 	/// new session and Continue at <old>. A busy workspace, or one whose new
 	/// objects are missing, is refused with those two. Edits or agent commits
 	/// stop the move unless the reviewer chose a reconcile; refused, they
-	/// offer the three reconcile actions as well. Otherwise the conversation
+	/// offer the three reconcile actions as well (no rebase after one
+	/// conflicted). Otherwise the conversation
 	/// moves, with the reconcile chosen (rebase only when there is work to
 	/// carry; a clean workspace moves plainly).
 	[[nodiscard]] auto decide_conversation_move(const conversation_move_facts& aFacts) noexcept

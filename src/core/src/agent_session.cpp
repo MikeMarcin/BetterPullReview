@@ -195,7 +195,7 @@ namespace bpr::core {
 		const auto work = state != conversation_workspace_state::clean;
 		if (work && decision.MovesHead && aFacts.Reconcile == conversation_reconcile::none) {
 			refuse(state, true);
-			decision.RebaseOffered      = true;
+			decision.RebaseOffered      = !aFacts.RebaseConflicted;
 			decision.SaveAndMoveOffered = true;
 			decision.AskAgentOffered    = true;
 			return decision;

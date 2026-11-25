@@ -314,6 +314,9 @@ namespace {
 			}
 		}
 		expect(decide(moved, true, true, state::clean, reconcile::rebase).Reconcile == reconcile::none, "a clean workspace has nothing to reconcile");
+		const auto conflicted = core::decide_conversation_move({ .Pinned = binding(), .Observed = moved, .Remembers = true, .Resumable = true, .Workspace = state::agent_commits, .RebaseConflicted = true });
+		expect(conflicted.Verdict == verdict::refuse && !conflicted.RebaseOffered && conflicted.SaveAndMoveOffered && conflicted.AskAgentOffered,
+			   "after a rebase conflicted, the same rebase is not offered again");
 		for (const auto name : { core::stable_name(verdict::refuse), core::stable_name(reconcile::ask_agent), core::stable_name(state::edits_and_commits) }) {
 			expect(!name.empty(), "each value has a stable name");
 		}
