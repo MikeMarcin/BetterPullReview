@@ -16953,6 +16953,16 @@ namespace {
 					return std::ranges::any_of(inlineAsks, [&aText](const application::markdown_code_syntax_request& aRequest) { return aRequest.Selector == "code.cpp" && aRequest.Text && *aRequest.Text == aText; });
 				};
 				expect(askedInline("diagnostic::invalid_calibration") && askedInline("validate(scale, bias, gamma)"), "with it, each inline code span is asked for as C++");
+				// Owner, 2026-11-24: "Why does the sha always get weird syntax
+				// highlights here". The workspace name and a commit are not
+				// code: never asked for, so never coloured in part.
+				inlineAsks.clear();
+				agent->present_thread({ { .Question = QStringLiteral("Review this pull request"),
+										  .Answer   = QStringLiteral("The workspace at the PR head is `betterpullreview-agent-9dbd6144...`. Reading the diff at `9cbc5b604`; `Target.resize` is called."),
+										  .Footer   = QStringLiteral("answered") } });
+				process_events();
+				expect(askedInline("Target.resize") && !askedInline("betterpullreview-agent-9dbd6144...") && !askedInline("9cbc5b604"),
+					   "the Agent tab asks for its code, never for the workspace name or the commit");
 				agent->set_inline_code_file({ });
 				// The dispatch holds this block's list; it goes with the block.
 				agent->set_code_syntax_dispatch({ });

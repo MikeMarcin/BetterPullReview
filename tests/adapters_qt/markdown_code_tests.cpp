@@ -434,6 +434,46 @@ namespace {
 		aPath.deliver(view);
 	}
 
+	/// Owner, 2026-11-24: "Why does the sha always get weird syntax
+	/// highlights here". Through the packaged C++ grammar, the Agent tab's
+	/// workspace name and a commit stay plain monospace, prose with a keyword
+	/// in it is not coloured in part, and code and a fenced block beside them
+	/// are still coloured.
+	void check_inline_not_code(composed& aPath)
+	{
+		auto view = qt::markdown_body_view{ };
+		view.set_in_place(true);
+		view.set_code_theme(code_theme(core::appearance_variant::light));
+		view.set_inline_code_selector("code.cpp");
+		aPath.bind(view);
+		view.resize(600, 300);
+		view.show();
+		const auto body = std::string{ "The workspace at the PR head is `betterpullreview-agent-9dbd6144...`. Reading the diff.\n\n"
+									   "Then `Target.resize`, `9cbc5b604`, `src/engine/renderer.cpp` and `Review this pull request`.\n\n"
+									   "```cpp\nint x = 0x1F;\n```\n" };
+		show(view, body, "inline:not-code");
+		const auto& texts = view.code_store()->inline_code_texts();
+		expect(texts.size() == 2U && *texts[0].Text == "Target.resize" && *texts[1].Text == "Review this pull request", "only what reads as code is held: no workspace name, commit or path");
+		const auto requests = view.code_store()->requests();
+		expect(std::ranges::none_of(requests, [](const application::markdown_code_syntax_request& aRequest) { return aRequest.Text && aRequest.Text->find("9dbd6144") != std::string::npos; }),
+			   "the workspace name is never classified");
+		aPath.deliver(view);
+		settle();
+		const auto owner = document_of(view).begin();
+		expect(owner.text().contains(QStringLiteral("9dbd6144")) && formats_of(owner).isEmpty(), "the owner's workspace name is plain monospace, not a number beside a name");
+		const auto mentions = owner.next();
+		const auto line     = mentions.text();
+		const auto code     = line.indexOf(QStringLiteral("Target.resize"));
+		const auto formats  = formats_of(mentions);
+		expect(code >= 0 && !formats.isEmpty() && std::ranges::all_of(formats, [&](const QTextLayout::FormatRange& aRange) { return aRange.start >= code && aRange.start + aRange.length <= code + 13; }),
+			   "code is coloured, and nothing else in the paragraph: not the commit, the path or prose coloured in part");
+		auto fenced = false;
+		for (auto block = document_of(view).begin(); block.isValid(); block = block.next()) {
+			fenced = fenced || (block.text().contains(QStringLiteral("int x")) && !formats_of(block).isEmpty());
+		}
+		expect(fenced, "the fenced C++ block beside them is still coloured");
+	}
+
 	/// [[BPR-1563]]. Each diff line's marks, colours and contrast.
 	void check_diff(qt::markdown_body_view& aView)
 	{
@@ -1066,6 +1106,7 @@ try {
 	check_languages(view, path);
 	check_arrival(view, path);
 	check_inline(path);
+	check_inline_not_code(path);
 	check_report_member_access(path);
 	check_report_file_context(path);
 	check_reopened_agent_answer();

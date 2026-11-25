@@ -303,7 +303,10 @@ namespace bpr::qt::detail {
 			}
 			for_each_inline_run(current, [this](int /*aStart*/, const QString& aText) {
 				auto utf8 = aText.toUtf8().toStdString();
-				if (utf8.empty() || utf8.find('\n') != std::string::npos || std::ranges::any_of(Inline, [&utf8](const inline_code& aCode) { return *aCode.Text == utf8; })) {
+				// A hash, path, version or name that is not code is never asked
+				// for, so it stays plain monospace.
+				if (utf8.find('\n') != std::string::npos || !core::markdown_inline_code_reads_as_code(utf8)
+					|| std::ranges::any_of(Inline, [&utf8](const inline_code& aCode) { return *aCode.Text == utf8; })) {
 					return;
 				}
 				Inline.push_back({ .Text = std::make_shared<const std::string>(std::move(utf8)), .Spans = { }, .Arrived = { } });
@@ -650,7 +653,7 @@ namespace bpr::qt::detail {
 			for (auto& code : Inline) {
 				if (*code.Text == *aSpans.Text && code.Arrived != aSpans.Spans) {
 					code.Arrived = aSpans.Spans;
-					code.Spans   = std::make_shared<const application::token_span_list>(core::markdown_inline_code_members(*code.Text, *aSpans.Spans));
+					code.Spans   = std::make_shared<const application::token_span_list>(core::markdown_inline_code_spans(*code.Text, *aSpans.Spans));
 					taken        = true;
 				}
 			}

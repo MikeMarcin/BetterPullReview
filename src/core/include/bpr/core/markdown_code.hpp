@@ -107,6 +107,30 @@ namespace bpr::core {
 	/// are. Columns are bytes of `aText`; the result is ordered by column.
 	[[nodiscard]] auto markdown_inline_code_members(std::string_view aText, const token_span_list& aSpans) -> token_span_list;
 
+	/// \brief Whether inline code reads as code, so it is classified at all
+	/// (owner, 2026-11-24: "Why does the sha always get weird syntax
+	/// highlights here"; "code should be highlighted when possible").
+	/// \details A language's grammar splits a mention that is not code into
+	/// tokens and colours some of them: `agent-9dbd6144...` drew `9dbd6144...`
+	/// as a C++ number beside a plain name. These stay plain monospace:
+	/// a URL (`://`, `www.`); a path (a `/` or `\` with no blank in the
+	/// text); a file's name (`README.md`, `renderer.cpp`); a version (`1.2.3`,
+	/// `v6.12`); a run of 7 or more hex digits holding a digit and a letter
+	/// (a commit or other hash); a hyphenated name (`clang-format`,
+	/// `agent-9dbd6144`, a `-` between letters or digits whose next part
+	/// starts with a letter or is a digit-led word); a command-line flag
+	/// (`--preset`, `-j 8`). Anything else is asked for, and
+	/// `markdown_inline_code_spans` decides what of the answer is drawn.
+	[[nodiscard]] auto markdown_inline_code_reads_as_code(std::string_view aText) -> bool;
+
+	/// \brief The spans inline code is drawn with: none for text that does
+	/// not read as code (`markdown_inline_code_reads_as_code`), none for
+	/// words of prose of which the classifier coloured only some (`Review
+	/// this pull request` colours `this`); otherwise the classifier's spans
+	/// with member access named (`markdown_inline_code_members`). Inline code
+	/// is coloured whole or not at all, never in a broken part.
+	[[nodiscard]] auto markdown_inline_code_spans(std::string_view aText, const token_span_list& aSpans) -> token_span_list;
+
 	/// \brief How GitHub's diff grammar marks a run of a `diff` block's line.
 	enum class markdown_diff_mark_kind : std::uint8_t {
 		/// `+`, `>` and `+++ file`: GitHub's inserted text.
