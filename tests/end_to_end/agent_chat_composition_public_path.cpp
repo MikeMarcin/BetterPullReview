@@ -84,6 +84,7 @@
 #include <QTemporaryDir>
 
 #include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -1050,6 +1051,16 @@ auto main(int argc, char** argv) -> int
 	auto* const panel     = window.agent_panel();
 	auto        offerings = wait_terms{ };
 	if (!wait_until_reporting(offerings, [&window, panel, custom](wait_terms& aTerms) {
+			// The menu as it stands, so a miscount says what was offered: each
+			// row's profile id, or "-" for a row with none (a chosen agent
+			// said as unavailable).
+			auto offered = std::string{ };
+			for (auto at = 0; at < panel->profile_selector()->count(); ++at) {
+				const auto id = panel->profile_selector()->itemData(at);
+				offered += (at == 0 ? "" : ",") + (id.isValid() ? std::to_string(id.toULongLong()) : std::string{ "-" });
+			}
+			aTerms.note("profiles", static_cast<std::uint64_t>(panel->profile_selector()->count()));
+			aTerms.note_identifier("offered", offered);
 			return aTerms.require(
 					   "files-listed",
 					   window.files_drawer()->contents_view()->model()->rowCount()
