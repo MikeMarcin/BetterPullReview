@@ -149,6 +149,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # paths, registered on macOS without their pins until now.
     "application_agent_steer_sent_public_path": "unmeasured (registered on macOS)",
     "application_agent_steer_unavailable_public_path": "unmeasured (registered on macOS)",
+    # The pinned-session implementer's report, 2026-11-24: a send after the
+    # head moved is asked under the comparison the window settled on.
+    "application_agent_chat_head_move_send_contract": "unmeasured (registered on macOS)",
     "application_tour_feedback_queue_public_path": "private-data-root-refused",
     "application_agent_queue_windows_public_path": "private-data-root-refused",
     # Build 96 AppContainer course: "update-from-target: private cold fixture root".

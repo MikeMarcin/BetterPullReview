@@ -143,7 +143,13 @@ reorder, remove, pause and resume, Steer, Stop all); none decides when a
 message goes, and closing one neither pauses nor hands a queue over. The
 Agent tab's turns run on the profile's runtime of the session
 (`application::review_agent_runtime`), so a session no window shows still
-drains. A turn a window sends after the last turn's finish (its answer
+drains. That runtime's own epoch host follows the revision the window lent
+it and the comparison the window settled on for it, as
+`core::follow_comparison` decides: no turn starts until it has, a turn
+already running keeps the comparison it was admitted under and the runtime
+follows at its retirement, and a comparison the core says cannot be followed
+leaves the next turn refused by name rather than answered under another.
+A turn a window sends after the last turn's finish (its answer
 shown) and before that run retires is held by the runtime and sent at the
 retirement, ahead of the queue ([[BPR-2243]]). A window offers the runner a second runtime for the sessions it
 holds (`window_chat_queues.cpp`): the tour's first-draft feedback (which a

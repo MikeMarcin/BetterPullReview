@@ -101,7 +101,15 @@ namespace bpr::app {
 		/// on) waits for that turn's run to retire, since accepting it again
 		/// re-authorizes the epoch host's blobs and a workspace being made
 		/// under the old authorization would end stale.
-		void lend(application::lent_review_authority aLent, core::agent_revision_binding aFor);
+		///
+		/// `aComparison` is the comparison the window settled on for that
+		/// revision. The stack's own epoch host resolves a comparison of its
+		/// own, so once the loan is in it follows this one (the core decides
+		/// how, `core::follow_comparison`) and no turn starts until it has,
+		/// or until the core says it cannot. A turn running meanwhile keeps
+		/// the comparison it was admitted under: the stack follows once that
+		/// run retires.
+		void lend(application::lent_review_authority aLent, core::agent_revision_binding aFor, core::explicit_comparison_selection aComparison);
 		/// \brief A live loan was lent for the window's review at `aBinding`.
 		[[nodiscard]] auto lent_for(const core::agent_revision_binding& aBinding) const -> bool;
 		[[nodiscard]] auto session() const noexcept -> core::application_session_id;
@@ -136,7 +144,10 @@ namespace bpr::app {
 
 	private:
 		[[nodiscard]] auto lent_revision_observed() const -> bool;
-		void               apply_loan(application::lent_review_authority aLent, core::agent_revision_binding aFor);
+		void               apply_loan(application::lent_review_authority aLent, core::agent_revision_binding aFor, core::explicit_comparison_selection aComparison);
+		/// Asks the epoch host for the lent comparison when the core decides
+		/// to; true when it asked, and the resolution's update decides again.
+		[[nodiscard]] auto follow_lent_comparison() -> bool;
 		/// Applies a loan that waited for the running turn, once none runs.
 		void apply_waiting_loan();
 		struct epoch_observer;
@@ -157,11 +168,25 @@ namespace bpr::app {
 		/// [[BPR-2193]]. A loan was applied and the epoch host has not yet
 		/// settled its ingestion.
 		bool LoanPending = false;
+		/// The comparison the window settled on for the loan last lent.
+		std::optional<core::explicit_comparison_selection> LentComparison;
+		/// The catalog revision the lent comparison was last asked for at. An
+		/// ask the epoch host refused (its catalog moved before it ran) is
+		/// asked again only at a later catalog revision, so it ends.
+		std::optional<core::epoch_catalog_revision> FollowAskedAt;
+		/// The core said the lent comparison is followed, or cannot be.
+		bool FollowSettled = true;
 		/// [[BPR-2193]]. A loan of the same revision lent while a turn ran.
-		std::optional<std::pair<application::lent_review_authority, core::agent_revision_binding>> WaitingLoan;
-		bool                                                                                       Closing           = false;
-		bool                                                                                       ReviewHostsClosed = false;
-		application::lent_review_lease                                                             Lease;
+		struct waiting_loan
+		{
+			application::lent_review_authority  Lent;
+			core::agent_revision_binding        For;
+			core::explicit_comparison_selection Comparison;
+		};
+		std::optional<waiting_loan>    WaitingLoan;
+		bool                           Closing           = false;
+		bool                           ReviewHostsClosed = false;
+		application::lent_review_lease Lease;
 		// Declared in dependency order: each is destroyed before what it holds.
 		std::unique_ptr<adapters::agent::agent_process_launcher> Launcher;
 	#if defined(BPR_BUILD_TESTING)

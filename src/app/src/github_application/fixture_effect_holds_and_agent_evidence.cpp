@@ -833,6 +833,11 @@ namespace bpr::app {
 			evidence.Observed   = implementation->ChatHost->observed();
 			evidence.Projection = implementation->ChatHost->projection();
 		}
+		if (const auto* const stack = implementation->presented_agent_stack(); stack != nullptr) {
+			if (const auto observed = stack->observed_review(); observed) {
+				evidence.RuntimeObserved = observed->second;
+			}
+		}
 		if (implementation->SideChat != nullptr) {
 			evidence.SendEnabled
 				= implementation->SideChat->send_action() != nullptr

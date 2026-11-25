@@ -133,6 +133,43 @@ namespace bpr::core {
 		const comparison_candidates&  aCandidates,
 		comparison_base_basis         aBasis = comparison_base_basis::merge_base) noexcept -> resolved_comparison;
 
+	/// \brief Where one consumer of a review stands against a comparison
+	/// another consumer of the same review settled on.
+	enum class comparison_follow_step : std::uint8_t {
+		/// The accepted comparison is the wanted pair.
+		followed,
+		/// Ingestion, a resolution or an import is still running, or no
+		/// revision or catalog is accepted yet: decide again on its outcome.
+		waiting,
+		/// `Select` asks for the wanted pair.
+		select,
+		/// The wanted pair is not this state's to select (another authority
+		/// or catalog incarnation), or it was asked for and resolved to
+		/// something else. Following it again would ask the same question.
+		unreachable,
+	};
+
+	/// \brief The decision `follow_comparison` returns.
+	struct comparison_follow
+	{
+		comparison_follow_step                          Step = comparison_follow_step::waiting;
+		std::optional<select_comparison_anchors_intent> Select;
+
+		auto operator<=>(const comparison_follow&) const = default;
+	};
+
+	/// \brief Decides how a consumer's state reaches the comparison another
+	/// consumer of the same review settled on.
+	/// \details The pinned-session implementer's report (2026-11-24): the
+	/// agent runtime's own epoch state resolved its default comparison
+	/// while the window showed another, so the runtime's comparison epochs
+	/// never matched the turn the window composed. Selection stays the
+	/// core's: the answer is a typed intent the caller dispatches, never a
+	/// state it edits. Equal state and wanted pair give equal decisions.
+	[[nodiscard]] auto follow_comparison(
+		const epoch_state&                   aState,
+		const explicit_comparison_selection& aWanted) noexcept -> comparison_follow;
+
 	/// \brief Applies an accepted event to the supplied state.
 	[[nodiscard]] auto transition(epoch_state& aState, const epoch_event& aEvent)
 		-> epoch_transition_output;

@@ -10706,6 +10706,43 @@ namespace {
 		registry.shutdown();
 		expect(registry.is_quiescent(), "profile registry drains separately from its window facades");
 	}
+
+	/// The pinned-session implementer's report (2026-11-24). This host plays
+	/// the agent runtime's epoch host: after the head moved it resolved its
+	/// own comparison (Whole PR at the new head) while the window settled on
+	/// another pair at that head, so every turn the window composed named a
+	/// comparison this host never accepted. It now follows the window's pair
+	/// as the core decides, at the moved head. (This fixture's catalog keeps
+	/// one epoch, so the other pair is the reverse of its own; the fixture
+	/// course `application_agent_chat_head_move_send_contract` moves epochs.)
+	void a_second_consumer_follows_the_comparison_the_window_settled_on()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto before = *value.Host->state().AcceptedComparison;
+		value.Host->accept(make_handoff(value.State, 2U, 21U, true));
+		drain(value);
+		const auto& state = value.Host->state();
+		expect(state.AcceptedRevision && state.AcceptedRevision->Head == oid<core::git_commit_oid>(21U) && state.AcceptedComparison,
+			   "the head moved and this host resolved a comparison of its own");
+		const auto own     = *state.AcceptedComparison;
+		const auto settled = core::explicit_comparison_selection{ .Left = own.Right.Identity, .Right = own.Left.Identity };
+		expect(before.Left.Identity != settled.Left && own.Left.Identity != settled.Left, "the window settled on a pair this host did not choose");
+		const auto decided = core::follow_comparison(state, settled);
+		expect(decided.Step == core::comparison_follow_step::select && decided.Select.has_value(), "the core asks for the window's pair");
+		value.Host->dispatch(*decided.Select);
+		expect(core::follow_comparison(state, settled).Step == core::comparison_follow_step::waiting, "its resolution is waited for");
+		drain(value);
+		expect(core::follow_comparison(state, settled).Step == core::comparison_follow_step::followed && state.AcceptedComparison
+				   && state.AcceptedComparison->Left.Identity == settled.Left && state.AcceptedComparison->Right.Identity == settled.Right
+				   && state.AcceptedRevision->Head == oid<core::git_commit_oid>(21U),
+			   "this host accepts the window's pair at the moved head");
+		const auto asked = core::follow_comparison(state, settled);
+		expect(asked.Step == core::comparison_follow_step::followed && !asked.Select, "a followed pair asks nothing more");
+		value.Host->shutdown();
+		drain(value);
+		expect(value.Host->is_quiescent(), "the following host quiesces");
+	}
 } // namespace
 
 namespace {
@@ -10903,6 +10940,7 @@ int main(int argc, char** argv)
 	profile_actor_runs_reviewer_work_before_queued_preparation();
 	profile_actor_replacement_waits_for_session_destruction();
 	profile_windows_share_one_cache_without_sharing_selection_or_lifetime();
+	a_second_consumer_follows_the_comparison_the_window_settled_on();
 	profile_owned_host_holds_its_review_after_the_window_closes();
 	epoch_preparation_diagnostics_preserve_results();
 	refused_preparation_abort_names_its_step();

@@ -2690,6 +2690,45 @@ namespace {
 			   "an imported epoch never stands for the pull request's base");
 	}
 
+	// The pinned-session implementer's report (2026-11-24). A second consumer
+	// of the review (the agent runtime's epoch state) follows the comparison
+	// the window settled on: the core names the selection to dispatch, waits
+	// while one resolves, says when it is followed, and says when it cannot be
+	// rather than asking the same question again.
+	auto test_follow_comparison_decides_the_settled_pair() -> void
+	{
+		expect(follow_comparison(initial_state(), { }) == comparison_follow{ }, "nothing accepted yet waits");
+
+		auto       fixture   = make_ready_fixture();
+		const auto whole     = *fixture.State.AcceptedComparison;
+		const auto alternate = anchor(summary(fixture.Authority, fixture.Catalog, 2, 12U, 32U), comparison_anchor_kind::epoch_head);
+		const auto settled   = explicit_comparison_selection{ .Left = whole.Left.Identity, .Right = alternate.Identity };
+		const auto same      = explicit_comparison_selection{ .Left = whole.Left.Identity, .Right = whole.Right.Identity };
+		const auto decided   = follow_comparison(fixture.State, settled);
+		expect(follow_comparison(fixture.State, same).Step == comparison_follow_step::followed, "the accepted pair is followed already");
+		expect(decided.Step == comparison_follow_step::select && decided.Select
+				   && *decided.Select
+					   == select_comparison_anchors_intent{ .Left = settled.Left, .Right = settled.Right, .ExpectedCatalogRevision = fixture.Catalog.Revision },
+			   "another pair is asked for at the accepted catalog revision");
+		expect(follow_comparison(fixture.State, settled) == decided, "equal state and pair decide equally");
+
+		const auto  asked   = transition(fixture.State, *decided.Select);
+		const auto* resolve = request_from<resolve_comparison_request>(asked);
+		expect(resolve != nullptr && follow_comparison(fixture.State, settled).Step == comparison_follow_step::waiting,
+			   "a resolution in flight waits for its outcome");
+		static_cast<void>(transition(fixture.State, comparison_resolved_event{ .Context = resolve->Context, .Candidates = { .Catalog = fixture.Catalog, .ExplicitLeft = whole.Left, .ExplicitRight = alternate } }));
+		expect(follow_comparison(fixture.State, settled).Step == comparison_follow_step::followed, "the resolved pair is the settled one");
+
+		auto elsewhere                     = make_ready_fixture();
+		elsewhere.State.RequestedSelection = comparison_selection{ settled };
+		expect(follow_comparison(elsewhere.State, settled) == comparison_follow{ .Step = comparison_follow_step::unreachable },
+			   "a pair asked for that resolved to another is not asked again");
+		auto foreign              = settled;
+		foreign.Right.Incarnation = opaque<epoch_catalog_incarnation_id>(42U);
+		expect(follow_comparison(make_ready_fixture().State, foreign).Step == comparison_follow_step::unreachable,
+			   "a pair from another catalog incarnation is not this state's to select");
+	}
+
 	auto test_pending_one_sided_selection_supersession() -> void
 	{
 		auto        fixture      = make_ready_fixture();
@@ -4308,6 +4347,7 @@ auto main() -> int
 	test_selection_transition_policy();
 	test_whole_pr_compares_only_from_a_named_merge_base();
 	test_resolution_names_the_pull_request_base();
+	test_follow_comparison_decides_the_settled_pair();
 	test_pending_one_sided_selection_supersession();
 	test_overflow_is_checked_and_invalidation_fails_closed();
 	test_bounded_epoch_history_paging();

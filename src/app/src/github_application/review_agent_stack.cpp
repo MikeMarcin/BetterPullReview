@@ -1,6 +1,8 @@
 #include "github_application/review_agent_stack.hpp"
 
 #if defined(BPR_AGENT_INTEGRATIONS)
+	#include "bpr/core/epoch_transition.hpp"
+
 	#include <QString>
 	#include <QtGlobal>
 
@@ -109,8 +111,11 @@ namespace bpr::app {
 		self.Agent->set_retired_observer([alive = std::weak_ptr<bool>{ self.Alive }, &self] {
 			if (const auto live = alive.lock(); live && *live) {
 				// [[BPR-2193]]. A loan that waited for this run goes in first,
-				// so the next turn waits for its acceptance.
+				// so the next turn waits for its acceptance. A comparison the
+				// stack held off following while the run went on is followed
+				// now, for the same reason.
 				self.apply_waiting_loan();
+				self.observe_review();
 				if (self.Retired) {
 					self.Retired();
 				}
@@ -125,7 +130,7 @@ namespace bpr::app {
 		Lease.release();
 	}
 
-	void review_agent_stack::lend(application::lent_review_authority aLent, const core::agent_revision_binding aFor)
+	void review_agent_stack::lend(application::lent_review_authority aLent, const core::agent_revision_binding aFor, const core::explicit_comparison_selection aComparison)
 	{
 		if (Closing || Epoch == nullptr) {
 			return;
@@ -135,18 +140,21 @@ namespace bpr::app {
 		// epoch host's blob authorization under that turn's workspace.
 		const auto sameRevision = LentFor && LentFor->BaseOid == aFor.BaseOid && LentFor->HeadOid == aFor.HeadOid;
 		if (sameRevision && Lease.live() && Agent != nullptr && !Agent->is_quiescent()) {
-			WaitingLoan.emplace(std::move(aLent), aFor);
+			WaitingLoan = waiting_loan{ .Lent = std::move(aLent), .For = aFor, .Comparison = aComparison };
 			return;
 		}
 		WaitingLoan.reset();
-		apply_loan(std::move(aLent), aFor);
+		apply_loan(std::move(aLent), aFor, aComparison);
 	}
 
-	void review_agent_stack::apply_loan(application::lent_review_authority aLent, const core::agent_revision_binding aFor)
+	void review_agent_stack::apply_loan(application::lent_review_authority aLent, const core::agent_revision_binding aFor, const core::explicit_comparison_selection aComparison)
 	{
-		Lease       = std::move(aLent.Lease);
-		LentFor     = aFor;
-		LoanPending = true;
+		Lease          = std::move(aLent.Lease);
+		LentFor        = aFor;
+		LentComparison = aComparison;
+		LoanPending    = true;
+		FollowAskedAt.reset();
+		FollowSettled = false;
 		Epoch->accept(std::move(aLent.Handoff));
 	}
 
@@ -157,8 +165,8 @@ namespace bpr::app {
 		}
 		auto waiting = std::move(*WaitingLoan);
 		WaitingLoan.reset();
-		if (waiting.first.Lease.live()) {
-			apply_loan(std::move(waiting.first), waiting.second);
+		if (waiting.Lent.Lease.live()) {
+			apply_loan(std::move(waiting.Lent), waiting.For, waiting.Comparison);
 		}
 	}
 
@@ -168,7 +176,7 @@ namespace bpr::app {
 			return false;
 		}
 		if (WaitingLoan) {
-			return WaitingLoan->first.Lease.live() && WaitingLoan->second == aBinding;
+			return WaitingLoan->Lent.Lease.live() && WaitingLoan->For == aBinding;
 		}
 		return Lease.live() && LentFor == std::optional{ aBinding };
 	}
@@ -186,7 +194,19 @@ namespace bpr::app {
 			return;
 		}
 		const auto& state = Epoch->state();
-		if (!state.Authority || !state.AcceptedRevision || !state.AcceptedComparison) {
+		if (!state.Authority || !state.AcceptedRevision) {
+			return;
+		}
+		const auto wasReady = lent_revision_observed();
+		// [[BPR-2193]]. The loan last lent is in once the epoch host has
+		// ingested it and accepts its revision.
+		if (LoanPending && !state.PendingIngestion && LentFor && state.AcceptedRevision->Base == LentFor->BaseOid
+			&& state.AcceptedRevision->Head == LentFor->HeadOid) {
+			LoanPending = false;
+		}
+		// Then the comparison the window settled on for it. Asking for it
+		// moves the accepted comparison; its resolution decides again.
+		if (follow_lent_comparison() || !state.AcceptedComparison) {
 			return;
 		}
 		const auto binding = core::agent_revision_binding{
@@ -198,14 +218,8 @@ namespace bpr::app {
 			.LeftEpoch   = state.AcceptedComparison->Left.Identity.Epoch,
 			.RightEpoch  = state.AcceptedComparison->Right.Identity.Epoch,
 		};
-		// [[BPR-2193]]. The loan last lent is in once the epoch host has
-		// ingested it and accepts its revision.
-		const auto settled = LoanPending && !state.PendingIngestion && LentFor && binding.BaseOid == LentFor->BaseOid && binding.HeadOid == LentFor->HeadOid;
-		if (settled) {
-			LoanPending = false;
-		}
 		if (Observed == std::optional{ binding }) {
-			if (settled && Ready) {
+			if (!wasReady && lent_revision_observed() && Ready) {
 				Ready();
 			}
 			return;
@@ -304,11 +318,46 @@ namespace bpr::app {
 	/// [[BPR-2193]]. Whether the epoch host has taken in what was last lent.
 	/// Accepting a loan re-authorizes its blobs, and a workspace admitted
 	/// under the authorization before ends stale, so no turn starts until the
-	/// loan's ingestion has settled on its revision. (The comparison's epochs
-	/// are the stack's own and need not be the window's.)
+	/// loan's ingestion has settled on its revision, and until the core has
+	/// said the window's comparison for it is followed or cannot be: a turn
+	/// the window composed names the window's comparison epochs, and the
+	/// agent host admits it only under the same.
 	auto review_agent_stack::lent_revision_observed() const -> bool
 	{
-		return Observed.has_value() && !LoanPending && (!LentFor || (Observed->BaseOid == LentFor->BaseOid && Observed->HeadOid == LentFor->HeadOid));
+		return Observed.has_value() && !LoanPending && FollowSettled
+			&& (!LentFor || (Observed->BaseOid == LentFor->BaseOid && Observed->HeadOid == LentFor->HeadOid));
+	}
+
+	auto review_agent_stack::follow_lent_comparison() -> bool
+	{
+		// A running turn keeps the comparison it was admitted under: moving
+		// the agent host's binding now would supersede it. Its retirement
+		// observes the review again.
+		if (LoanPending || FollowSettled || !LentComparison || Epoch == nullptr || (Agent != nullptr && !Agent->is_quiescent())) {
+			return false;
+		}
+		const auto decision = core::follow_comparison(Epoch->state(), *LentComparison);
+		switch (decision.Step) {
+		case core::comparison_follow_step::waiting:
+			return false;
+		case core::comparison_follow_step::followed:
+		case core::comparison_follow_step::unreachable:
+			// Unreachable: a turn sent now is refused by the agent host by
+			// name, never answered under a comparison the window left.
+			FollowSettled = true;
+			return false;
+		case core::comparison_follow_step::select:
+			break;
+		}
+		if (!decision.Select || FollowAskedAt == std::optional{ decision.Select->ExpectedCatalogRevision }) {
+			// Asked at this catalog revision already: asking again would ask
+			// the same question.
+			FollowSettled = true;
+			return false;
+		}
+		FollowAskedAt = decision.Select->ExpectedCatalogRevision;
+		Epoch->dispatch(*decision.Select);
+		return true;
 	}
 
 	auto review_agent_stack::authorized() const -> bool { return !Closing && Lease.live() && lent_revision_observed(); }
