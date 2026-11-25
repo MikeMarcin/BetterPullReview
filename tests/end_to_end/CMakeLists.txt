@@ -5431,6 +5431,10 @@ endif()
 # The owner: "Draft comment on a report barely puts the draft on screen in
 # the comments drawer". Go to draft from the report shows the whole composer.
 bpr_add_executable(test_report_draft_reveal_public_path report_draft_reveal_public_path.cpp)
+if(APPLE)
+    # Renders for the owner's looks are native with BPR_NATIVE_LOOK=1.
+    target_sources(test_report_draft_reveal_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
 target_link_libraries(test_report_draft_reveal_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_report_draft_reveal_public_path PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_report_draft_reveal_public_path)

@@ -15,8 +15,22 @@
 /// front, the tray turns to Comments, and the draft is open in its composer,
 /// whole in the drawer, holding the keyboard. Nothing is published.
 ///
+/// The owner, on the look after that: "When I click draft comment it sends me
+/// to go to draft with this button text selected and then I cant actually
+/// click go to draft properly until I deselect it and then click it again."
+/// Draft comment and every Go to draft here are one click of the pointer on
+/// the report's own link, through the window system: after Draft comment
+/// nothing on the page is selected, and the one click on Go to draft goes.
+/// The owner again: "It's worse than that actually, clicking on it does
+/// nothing, you had to click away first before you were allowed to click."
+/// No click is made anywhere else between the two. Then the keyboard: Return
+/// on another finding's Draft comment hands the keyboard to its Go to draft,
+/// which wears the focus ring and is not selected, and Return goes.
+///
 ///     report_draft_reveal_public_path
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/window_system_keys.hpp"
+#include "../support/window_system_mouse.hpp"
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/ask_menu.hpp"
@@ -36,13 +50,19 @@
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QTabBar>
 #include <QTemporaryDir>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextEdit>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -88,6 +108,45 @@ namespace {
 		static_cast<void>(aWidget.grab().save(root + QLatin1Char('/') + aName + QStringLiteral(".png")));
 	}
 
+	/// The middle of the report's first link whose words are `aWords`, on
+	/// the page's viewport; none when the page has no such link.
+	[[nodiscard]] auto link_point(QTextEdit& aPage, const QString& aWords) -> std::optional<QPoint>
+	{
+		for (auto block = aPage.document()->begin(); block.isValid(); block = block.next()) {
+			for (auto fragment = block.begin(); !fragment.atEnd(); ++fragment) {
+				const auto part = fragment.fragment();
+				// A chip's words are kept on one line with no-break spaces.
+				if (part.charFormat().anchorHref().isEmpty() || part.text().replace(QChar::Nbsp, QLatin1Char{ ' ' }) != aWords) {
+					continue;
+				}
+				auto cursor = QTextCursor{ aPage.document() };
+				cursor.setPosition(part.position());
+				const auto first = aPage.cursorRect(cursor);
+				cursor.setPosition(part.position() + part.length());
+				return QPoint{ (first.left() + aPage.cursorRect(cursor).left()) / 2, first.center().y() };
+			}
+		}
+		return std::nullopt;
+	}
+
+	/// One click of the pointer on the report's link `aWords`, as a hand
+	/// makes it: the link is brought into the pane, then pressed and released
+	/// where it is drawn, through the window system.
+	void click_link(qt::agent_report_view& aReport, const QString& aWords, const std::string& aFrom)
+	{
+		auto* const page = aReport.dressed_view();
+		auto        at   = link_point(*page, aWords);
+		expect(at.has_value(), aFrom + ": the report offers " + aWords.toStdString());
+		if (auto* const pane = aReport.findChild<QScrollArea*>(QStringLiteral("agentReportScroll")); pane != nullptr && pane->widget() != nullptr) {
+			const auto in = page->viewport()->mapTo(pane->widget(), *at);
+			pane->ensureVisible(in.x(), in.y(), 0, 80);
+			QApplication::processEvents();
+			at = link_point(*page, aWords);
+		}
+		expect(at.has_value() && page->viewport()->visibleRegion().contains(*at), aFrom + ": " + aWords.toStdString() + " is in the pane");
+		tests::window_system_clicks(*page->viewport(), QPointF{ *at }, 1);
+	}
+
 	/// Where the open card stands in the drawer, in words.
 	[[nodiscard]] auto said(const qt::conversation_cards_view& aCards) -> std::string
 	{
@@ -124,6 +183,15 @@ auto main(int argc, char** argv) -> int
 		expect(application != nullptr, "startup succeeds");
 		application->show();
 		auto& window = application->window();
+		if (QGuiApplication::platformName() != QStringLiteral("offscreen")) {
+			// The native look keeps the window off screen, and the platform
+			// never makes such a window active: Qt is told it is, so a click
+			// gives the keyboard as it does on screen.
+			QT_WARNING_PUSH
+			QT_WARNING_DISABLE_DEPRECATED
+			QApplication::setActiveWindow(&window);
+			QT_WARNING_POP
+		}
 		// A laptop's window: the drawer holds the whole composer, but the
 		// finding's composer, hanging at its line, ran past the drawer's foot.
 		window.resize(1440, 720);
@@ -167,8 +235,11 @@ auto main(int argc, char** argv) -> int
 		const auto& issue    = findings[0];
 		const auto  mutation = access::review_mutation_evidence(*application);
 
-		// Draft comment, behind the report; then Go to draft.
-		expect(report->press(issue.Outline, qt::report_link::keep), "Draft comment is pressed");
+		// Draft comment, behind the report; then Go to draft. Each is one
+		// click of the pointer on the report's own link.
+		auto* const page = report->dressed_view();
+		render(window, QStringLiteral("report-draft-offered"));
+		click_link(*report, QStringLiteral("Draft comment"), "Draft comment");
 		wait([&] {
 			const auto phase = report->keep_state(issue.Outline).Phase;
 			return phase == qt::report_keep_phase::kept || phase == qt::report_keep_phase::refused;
@@ -187,11 +258,24 @@ auto main(int argc, char** argv) -> int
 		const auto        height = cards->viewport()->height();
 		expect(open->geometry().top() >= 0 && open->geometry().bottom() < height, "the whole draft, its editor and its controls, is in the drawer's view: " + said(*cards));
 		expect(cards->draft_editor()->toPlainText().startsWith(QStringLiteral("issue: ")) && cards->draft_editor()->visibleRegion().boundingRect() == cards->draft_editor()->rect(), "its editor holds the finding's words, all of it in view");
+		const auto words   = cards->draft_editor()->toPlainText();
+		const auto onNotes = [&window] { return window.tray_tabs()->tabText(window.tray_tabs()->currentIndex()).startsWith(QStringLiteral("Comments")); };
+		// The owner's two clicks. Go to draft stands where Draft comment was
+		// with nothing on the page selected, and one click on it goes: the
+		// file comes in front with the draft still open in Comments.
+		const auto selected = page->textCursor().selectedText();
+		std::cout << "report-draft-reveal: after Draft comment the page's selection is \"" << selected.toStdString() << "\"\n";
+		click_link(*report, QStringLiteral("Go to draft"), "straight after Draft comment");
+		const auto went = e2e::wait_until_plain([&] { return window.active_document_path() == path && !window.report_shown(); }, std::chrono::seconds{ 5 });
+		settle(500);
+		render(window, QStringLiteral("report-go-to-draft-one-click"));
+		std::cout << "report-draft-reveal: one click on Go to draft " << (went ? "goes to the draft" : "goes nowhere") << '\n';
+		expect(selected.isEmpty(), "after Draft comment nothing on the report is selected; \"" + selected.toStdString() + "\" is");
+		expect(went, "straight after Draft comment: one click on Go to draft goes to the draft");
+		expect(onNotes() && cards->writing_draft() && cards->draft_editor() != nullptr && cards->draft_editor()->toPlainText() == words, "straight after Draft comment: the draft is open in Comments: " + said(*cards));
 		// Go to draft. The reviewer left the draft as a closed note and turned
 		// the right tray to the Agent tab; the report is still in front.
-		const auto words   = cards->draft_editor()->toPlainText();
 		const auto onAgent = [&window] { return window.tray_tabs()->tabText(window.tray_tabs()->currentIndex()).startsWith(QStringLiteral("Agent")); };
-		const auto onNotes = [&window] { return window.tray_tabs()->tabText(window.tray_tabs()->currentIndex()).startsWith(QStringLiteral("Comments")); };
 		const auto isDraft = [](const qt::thread_card& aCard) { return aCard.Draft; };
 		const auto leave   = [&](const std::string& aFrom) {
 			if (cards->writing_draft()) {
@@ -207,7 +291,7 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return window.report_shown() && report->isVisible(); }, aFrom + ": the report is in front");
 			expect(onAgent() && !cards->writing_draft(), aFrom + ": the draft is closed and the tray is on the Agent tab before the press");
 			render(window, aRender + QStringLiteral("-before"));
-			expect(report->press(issue.Outline, qt::report_link::go), aFrom + ": Go to draft is pressed");
+			click_link(*report, QStringLiteral("Go to draft"), aFrom);
 			wait([&] { return window.active_document_path() == path && !window.report_shown(); }, aFrom + ": Go to draft shows the file");
 			static_cast<void>(e2e::wait_until_plain([&] { return onNotes() && cards->writing_draft() && cards->draft_editor() != nullptr; }, e2e::extended_agent_budget));
 			settle(1'000);
@@ -223,6 +307,7 @@ auto main(int argc, char** argv) -> int
 		};
 		// From the draft's own line: the line's draft is a closed note.
 		leave("its own line");
+		row->click();
 		goes("its own line", QStringLiteral("report-go-to-draft"));
 		// From another line of its file: the draft is another line's saved one.
 		leave("another line");
@@ -240,6 +325,35 @@ auto main(int argc, char** argv) -> int
 		window.open_agent_question();
 		row->click();
 		goes("another file", QStringLiteral("report-go-to-draft-other-file"));
+		// The keyboard. With the report in front again, Tab reaches another
+		// finding's Draft comment; Return drafts it behind the report and
+		// the keyboard goes on to its Go to draft, in the window's focus
+		// ring and not selected; Return on that goes to the draft.
+		leave("the keyboard");
+		row->click();
+		wait([&] { return window.report_shown() && report->isVisible(); }, "the keyboard: the report is in front");
+		const auto kept = [&report] {
+			return std::ranges::count_if(report->findings(), [&report](const core::report_finding& aFinding) { return report->keep_state(aFinding.Outline).Phase == qt::report_keep_phase::kept; });
+		};
+		page->setFocus(Qt::TabFocusReason);
+		page->moveCursor(QTextCursor::Start);
+		for (auto presses = 0; presses < 60 && report->keyboard_link() != QStringLiteral("Draft comment"); ++presses) {
+			tests::window_system_key(*page, Qt::Key_Tab);
+		}
+		render(window, QStringLiteral("report-keyboard-on-draft-comment"));
+		expect(report->keyboard_link() == QStringLiteral("Draft comment") && page->hasFocus() && !page->textCursor().hasSelection(),
+			   "the keyboard: Tab reaches a Draft comment and selects nothing; it is on \"" + report->keyboard_link().toStdString() + "\"");
+		const auto keptBefore = kept();
+		tests::window_system_key(*page, Qt::Key_Return);
+		wait([&] { return kept() == keptBefore + 1; }, "the keyboard: Return on Draft comment drafts its finding");
+		settle(1'000);
+		render(window, QStringLiteral("report-keyboard-go-to-draft"));
+		std::cout << "report-draft-reveal: after Return on Draft comment the keyboard is on \"" << report->keyboard_link().toStdString() << "\" and the page's selection is \""
+				  << page->textCursor().selectedText().toStdString() << "\"\n";
+		expect(window.report_shown() && page->hasFocus(), "the keyboard: the report stays in front and keeps the keyboard");
+		expect(report->keyboard_link() == QStringLiteral("Go to draft") && !page->textCursor().hasSelection(), "the keyboard: it goes on to Go to draft, which is not selected");
+		tests::window_system_key(*page, Qt::Key_Return);
+		wait([&] { return !window.report_shown() && cards->writing_draft(); }, "the keyboard: Return on Go to draft goes to the draft");
 		const auto after = access::review_mutation_evidence(*application);
 		expect(after.Submissions == mutation.Submissions && after.StoredComments == mutation.StoredComments && after.NativePosts == mutation.NativePosts && after.FilePosts == mutation.FilePosts, "nothing is published");
 
