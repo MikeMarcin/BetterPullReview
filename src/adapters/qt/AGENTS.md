@@ -93,6 +93,18 @@ themes, rendering mechanics, and event translation.
   2026-11-10 ("some kind of theme disparity ... between what I see and your
   offscreen renders") came from offscreen renders: Fusion, always Light,
   another font database.
+- A look of a control is drawn from the window that composes it, in a
+  built-in theme applied with `appearance_profile::apply_to`, and saved under
+  a directory named for the platform and style that drew it. Do not grab a
+  part out of a bare panel, add a reference widget to the row being drawn,
+  set a made-up palette or force the macOS style under offscreen: the row has
+  no layout, a theme's `Highlight` is its pale selection colour and not the
+  default palette's strong blue, and offscreen cannot draw Cocoa. The owner,
+  2026-11-24: "your screenshot captures look busted, but the frozen build
+  looks better than those." `render_drawer_filters` in
+  `tests/adapters_qt/github_conversation_panel_tests.cpp` is the pattern. A
+  window kept off screen is never made active, so a look that shows keyboard
+  focus tells Qt the window is active first.
 - On Windows every Qt test executable of `tests/adapters_qt` runs offscreen
   with the Windows fonts (`QT_QPA_FONTDIR` from `%WINDIR%` unless set) and
   Segoe UI 9 pt (`windows_fonts_startup.cpp`, [[BPR-2200]]). Without them

@@ -1,5 +1,8 @@
 #include "discuss_header.hpp"
 
+#include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
+
 #include "button_surface.hpp"
 #include "conversation_open_card.hpp"
 
@@ -26,8 +29,18 @@ namespace bpr::qt {
 		constexpr int   inner_gap       = 5;
 		constexpr int   bare_side       = 22;
 		constexpr int   part_gap        = 14;
-		/// The corner of a drawer icon's chosen face: a quiet button's.
-		constexpr qreal drawer_icon_radius = 3.0;
+		/// A drawer toggle's corner: a chip's, at the drawer's smaller size.
+		constexpr qreal drawer_toggle_radius = 6.0;
+		/// What an off drawer toggle's glyph reads at on the drawer. Above the
+		/// 3:1 a mark is held to by the third a thin stroke loses to
+		/// antialiasing, and far enough under the ink that the same glyph on
+		/// and off differ by 3:1 in each built-in theme.
+		constexpr double dimmed_glyph_contrast = 4.0;
+		/// How far an on drawer toggle's face goes from the drawer's ground
+		/// toward its accent: further in a dark theme, where the same step
+		/// shows less.
+		constexpr qreal drawer_toggle_fill      = 0.26;
+		constexpr qreal drawer_toggle_fill_dark = 0.40;
 
 		[[nodiscard]] auto blend(const QColor& aFrom, const QColor& aTo, const qreal aAmount) -> QColor
 		{
@@ -35,6 +48,23 @@ namespace bpr::qt {
 				return static_cast<int>(std::lround(aA + (aB - aA) * aAmount));
 			};
 			return QColor{ channel(aFrom.red(), aTo.red()), channel(aFrom.green(), aTo.green()), channel(aFrom.blue(), aTo.blue()) };
+		}
+
+		/// \brief `aInk` taken toward `aGround` until it reads there at
+		/// `dimmed_glyph_contrast`: an off toggle's glyph. An ink that already
+		/// reads below that is kept.
+		[[nodiscard]] auto dimmed(const QColor& aInk, const QColor& aGround) -> QColor
+		{
+			const auto ground = to_appearance_color(aGround);
+			auto       result = aInk;
+			for (auto hundredths = 1; hundredths < 100; ++hundredths) {
+				const auto shade = blend(aInk, aGround, hundredths / 100.0);
+				if (contrast_ratio(to_appearance_color(shade), ground) < dimmed_glyph_contrast) {
+					break;
+				}
+				result = shade;
+			}
+			return result;
 		}
 
 		[[nodiscard]] auto weighted(QFont aFont, const QFont::Weight aWeight) -> QFont
@@ -144,7 +174,10 @@ namespace bpr::qt {
 	auto discuss_tool::sizeHint() const -> QSize
 	{
 		if (Shape == discuss_tool_shape::native) {
-			return QToolButton::sizeHint();
+			// The style's icon tool, squared: the box is drawn to its edge.
+			const auto tool = QToolButton::sizeHint();
+			const auto side = std::max(tool.width(), tool.height());
+			return QSize{ side, side };
 		}
 		if (Shape == discuss_tool_shape::bare) {
 			return QSize{ bare_side, bare_side };
@@ -184,30 +217,62 @@ namespace bpr::qt {
 
 	auto discuss_tool::minimumSizeHint() const -> QSize
 	{
-		return Shape == discuss_tool_shape::native ? QToolButton::minimumSizeHint() : sizeHint();
+		return sizeHint();
 	}
 
 	void discuss_tool::paint_drawer_icon()
 	{
-		// The platform's tool button face is not used: outside a toolbar the
-		// macOS style draws a square bezel under every tool button, checked or
-		// not, so an off filter read as on. Off is the bare icon of the arrows
-		// beside it; on takes a chosen chip's soft accent fill inside the
-		// accent edge of the toolbar's chosen toggles.
-		auto       painter = QPainter{ this };
+		// Discuss's chip at the drawer's size, on the drawer's own ground.
+		// Off is an empty hairline box around a dimmed glyph. On fills the
+		// box toward the accent inside an accent edge, with the glyph in the
+		// whole ink. The owner, 2026-11-24: "it's not obvious when its on or
+		// off still, there is a dimmed version for off from discuss look to
+		// that for inspiration". The face before had no off look of its own
+		// (the bare glyph of the arrows beside it), and its on fill was mixed
+		// toward the cards' base, a step from the drawer's ground too small
+		// to see. The platform style is not asked: outside a toolbar the
+		// macOS style draws a square bezel under every tool button, checked
+		// or not.
+		auto painter = QPainter{ this };
+		painter.setRenderHint(QPainter::Antialiasing, true);
 		const auto colours = button_colours_on(palette(), QPalette::Window);
-		if (isChecked()) {
-			const auto signal = colours_of(*this, NewInk);
-			painter.save();
-			painter.setRenderHint(QPainter::Antialiasing, true);
-			// The whole accent for the edge, as the toolbar's chosen toggles.
-			painter.setPen(QPen{ signal.Signal, 1.0 });
-			painter.setBrush(signal_soft(signal));
-			painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), drawer_icon_radius, drawer_icon_radius);
-			painter.restore();
+		const auto box     = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+		if (!isEnabled()) {
+			// A filter that cannot be used is a bare glyph, as a disabled
+			// arrow is: only a toggle that can be turned has its box.
+			paint_button_glyph(painter, *this, iconSize(), colours.DisabledInk);
+			return;
 		}
-		paint_button_surface(painter, *this, colours, false, ringed());
-		paint_button_glyph(painter, *this, iconSize(), isEnabled() ? colours.Ink : colours.DisabledInk);
+		const auto pressed = isDown();
+		const auto hovered = underMouse();
+		auto       fill    = QColor{ Qt::transparent };
+		auto       edge    = blend(colours.Ground, colours.Ink, 0.16);
+		auto       glyph   = dimmed(colours.Ink, colours.Ground);
+		if (isChecked()) {
+			// The focus ring's colour is the accent held to 3:1 on this
+			// ground, so the edge alone marks the state.
+			const auto base = colours.Ground.lightness() < 128 ? drawer_toggle_fill_dark : drawer_toggle_fill;
+			const auto lift = pressed ? 0.12 : (hovered ? 0.06 : 0.0);
+			fill            = blend(colours.Ground, colours.Focus, base + lift);
+			edge            = colours.Focus;
+			glyph           = colours.Ink;
+		} else if (pressed || hovered) {
+			// Under the pointer an off toggle answers in the ink, not the
+			// accent: it is still off.
+			fill  = blend(colours.Ground, colours.Ink, pressed ? 0.10 : 0.045);
+			edge  = blend(colours.Ground, colours.Ink, 0.26);
+			glyph = colours.Ink;
+		}
+		painter.setPen(QPen{ edge, 1.0 });
+		painter.setBrush(fill);
+		painter.drawRoundedRect(box, drawer_toggle_radius, drawer_toggle_radius);
+		if (ringed()) {
+			const auto inset = (focus_ring_width - 1.0) / 2.0;
+			painter.setPen(QPen{ colours.Focus, focus_ring_width });
+			painter.setBrush(Qt::NoBrush);
+			painter.drawRoundedRect(box.adjusted(inset, inset, -inset, -inset), drawer_toggle_radius, drawer_toggle_radius);
+		}
+		paint_button_glyph(painter, *this, iconSize(), glyph);
 	}
 
 	void discuss_tool::paintEvent(QPaintEvent* /*aEvent*/)

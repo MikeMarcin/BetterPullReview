@@ -327,8 +327,10 @@ namespace bpr::qt {
 		ReadTools = new QWidget{ this };
 		ReadTools->setObjectName(QStringLiteral("conversationReadTools"));
 		ReadToolsRow = new QHBoxLayout{ ReadTools };
-		ReadToolsRow->setContentsMargins(0, 0, 0, 0);
-		ReadToolsRow->setSpacing(1);
+		// The two filters are boxed toggles: a gap between them, and a
+		// little more before the arrows, which are bare.
+		ReadToolsRow->setContentsMargins(0, 0, 3, 0);
+		ReadToolsRow->setSpacing(4);
 		auto* const unread = new discuss_tool{ ReadTools };
 		unread->set_glyph(conversation_glyph::only_new);
 		FilterUnread = unread;

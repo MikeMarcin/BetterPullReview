@@ -1,11 +1,17 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 
+#include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/appearance_contrast.hpp"
+#include "bpr/core/appearance_model.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
-#include "bpr/qt/quiet_tool_button.hpp"
+#include "bpr/qt/workbench_window.hpp"
 
 #include <QAccessible>
 #include <QApplication>
 #include <QComboBox>
+#include <QDir>
+#include <QGuiApplication>
 #include <QIcon>
 #include <QImage>
 #include <QKeyEvent>
@@ -15,11 +21,14 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRectF>
 #include <QScrollBar>
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QStyleFactory>
+#include <QStyleHints>
 #include <QStyleOptionViewItem>
+#include <QTabBar>
 #include <QToolButton>
 #include <QTreeView>
 #include <QWheelEvent>
@@ -989,117 +998,340 @@ namespace {
 		}
 	}
 
-	/// \brief The owner: "These filter buttons at the top of the comments
-	/// drawer look enabled to me even when they're off". Beside the code Only
-	/// new and Hide resolved are the drawer's quiet icons: off, each is
-	/// pixel for pixel the quiet icon tool the arrows beside it are; on, it
-	/// takes an accent face; keyboard focus rings it; its tooltip and its
-	/// accessible state say which. The platform style is never asked to draw
-	/// them, so the macOS style's square bezel cannot make off read as on.
+	/// \brief One of the application's built-in themes.
+	struct built_in_theme
+	{
+		core::appearance_mode Mode;
+		const char*           Name;
+		bool                  Dark;
+	};
+
+	constexpr built_in_theme built_in_themes[] = {
+		{ core::appearance_mode::light, "light", false },
+		{ core::appearance_mode::dark, "dark", true },
+		{ core::appearance_mode::high_contrast_light, "high-contrast-light", false },
+		{ core::appearance_mode::high_contrast_dark, "high-contrast-dark", true },
+	};
+
+	/// \brief Two threads on the file beside the code: one with a new reply,
+	/// one resolved.
+	[[nodiscard]] auto drawer_threads() -> std::vector<conversation>
+	{
+		const auto post = [](std::string aId, std::string aParent, std::string aAuthor, std::string aBody, std::string aAt) {
+			auto node        = reply(std::move(aId), std::move(aParent));
+			node.AuthorLogin = std::move(aAuthor);
+			node.Body        = std::move(aBody);
+			node.CreatedAt   = std::move(aAt);
+			node.Path        = "src/parser.cpp";
+			return node;
+		};
+		auto open     = root("review-thread:open", "src/parser.cpp");
+		auto done     = root("review-thread:done", "src/parser.cpp");
+		done.Line     = 48U;
+		done.Resolved = true;
+		return {
+			open,
+			post("review-comment:open-first", "review-thread:open", "reviewer-two", "Can this loop end early?", "2026-10-02T09:00:00Z"),
+			post("review-comment:open-reply", "review-comment:open-first", "author-one", "Yes, once the buffer is empty.", "2026-10-02T10:00:00Z"),
+			done,
+			post("review-comment:done-first", "review-thread:done", "reviewer-one", "Rename this to token_count.", "2026-10-03T09:00:00Z"),
+		};
+	}
+
+	/// \brief The window in Review with its Comments drawer open, in a
+	/// built-in theme applied as the application applies it: the drawer the
+	/// reviewer has beside the code, with its tab row, tools and notes.
+	///
+	/// \details What a look of the drawer's tools is drawn from, and what the
+	/// checks measure. A tool grabbed out of a bare panel is not what the
+	/// window shows: its row has no layout until the window composes it, its
+	/// ground is not the drawer's, and a palette made up for the test is not
+	/// a theme (a theme's `Highlight` is its pale selection colour, which the
+	/// default palette's strong blue made look far plainer than it is).
+	void open_review_drawer(qt::workbench_window& aWindow, qt::appearance_profile& aProfile)
+	{
+		aWindow.resize(1'280, 760);
+		aProfile.apply_to(aWindow);
+		aWindow.show();
+		auto opened   = application::workbench_projection{ };
+		auto commands = core::workbench_command_delta{ };
+		for (std::size_t index = 0U; index < core::workbench_command_count; ++index) {
+			commands.Commands[index] = { .Id = static_cast<core::workbench_command_id>(index), .Enabled = true, .DisabledReason = core::workbench_reason_code::none };
+		}
+		opened.Commands = commands;
+		opened.Drawers  = core::workbench_drawer_delta{ .Files = core::workbench_drawer_state::expanded, .Conversations = core::workbench_drawer_state::expanded };
+		opened.Layout   = application::workbench_layout_delta{ .FilesWidth = 260U, .ConversationsWidth = 375U };
+		aWindow.publish(opened);
+		process_events();
+		aWindow.choose_modality(qt::review_modality::review);
+		process_events();
+		aWindow.conversation_panel()->adopt(drawer_threads(), QStringLiteral("2 review threads available."));
+		aWindow.present_read_state({ qt::thread_read_state{ .Thread = "review-thread:open", .UnreadPosts = { "review-comment:open-reply" } } });
+		aWindow.tray_tabs()->setCurrentIndex(0);
+		// Only an active window's focus widget has focus, and the platform
+		// never makes a window active that is kept off screen (the native
+		// look), so Qt is told it is.
+		QT_WARNING_PUSH
+		QT_WARNING_DISABLE_DEPRECATED
+		QApplication::setActiveWindow(&aWindow);
+		QT_WARNING_POP
+		process_events();
+	}
+
+	/// \brief The contrast of two colours, as the themes' floors measure it.
+	[[nodiscard]] auto contrast(const QColor& aOne, const QColor& aOther) -> double
+	{
+		return qt::contrast_ratio(qt::to_appearance_color(aOne), qt::to_appearance_color(aOther));
+	}
+
+	/// \brief \p aWidget as \p aWindow paints it, in device pixels.
+	[[nodiscard]] auto painted(QWidget& aWindow, const QWidget& aWidget) -> QImage
+	{
+		process_events();
+		return aWindow.grab(QRect{ aWidget.mapTo(&aWindow, QPoint{ 0, 0 }), aWidget.size() }).toImage();
+	}
+
+	/// \brief The pixel of \p aPart of \p aImage, given in the widget's own
+	/// pixels, that reads strongest against \p aAgainst.
+	[[nodiscard]] auto strongest(const QImage& aImage, const QRectF& aPart, const QColor& aAgainst) -> QColor
+	{
+		const auto scale = aImage.devicePixelRatio();
+		const auto part  = QRectF{ aPart.x() * scale, aPart.y() * scale, aPart.width() * scale, aPart.height() * scale }.toAlignedRect().intersected(aImage.rect());
+		auto       found = aAgainst;
+		auto       best  = 1.0;
+		for (auto y = part.top(); y <= part.bottom(); ++y) {
+			for (auto x = part.left(); x <= part.right(); ++x) {
+				const auto colour = aImage.pixelColor(x, y);
+				if (const auto measured = contrast(colour, aAgainst); measured > best) {
+					best  = measured;
+					found = colour;
+				}
+			}
+		}
+		return found;
+	}
+
+	/// \brief What a drawer toggle shows, read from its picture: its face (a
+	/// point inside its box, clear of the glyph and of a focus ring), the
+	/// strongest pixel of its left edge, and the strongest of its glyph.
+	struct toggle_look
+	{
+		QColor Ground;
+		QColor Face;
+		QColor Edge;
+		QColor Glyph;
+	};
+
+	[[nodiscard]] auto look_of(const QImage& aImage, const QSize aSize) -> toggle_look
+	{
+		const auto scale  = aImage.devicePixelRatio();
+		const auto ground = aImage.pixelColor(0, 0);
+		const auto face   = aImage.pixelColor(static_cast<int>(4.5 * scale), static_cast<int>(4.5 * scale));
+		const auto middle = QPointF{ aSize.width() / 2.0, aSize.height() / 2.0 };
+		return {
+			.Ground = ground,
+			.Face   = face,
+			.Edge   = strongest(aImage, QRectF{ 0.0, middle.y() - 3.0, 2.0, 6.0 }, ground),
+			.Glyph  = strongest(aImage, QRectF{ middle.x() - 6.0, middle.y() - 6.0, 12.0, 12.0 }, face),
+		};
+	}
+
+	/// \brief The owner, of the drawer's filters: "it's not obvious when its
+	/// on or off still, there is a dimmed version for off from discuss look
+	/// to that for inspiration". Beside the code Only new and Hide resolved
+	/// are Discuss's chips at the drawer's size, measured in the window as it
+	/// composes them, in each built-in theme. Off is an empty hairline box
+	/// around a dimmed glyph; on fills the box toward the accent inside an
+	/// accent edge, the glyph in the whole ink; the same glyph on and off
+	/// differs by the 3:1 a state is held to. Keyboard focus rings either;
+	/// the tooltip and the accessible state say which. The platform style is
+	/// never asked to draw them, so the macOS style's square bezel cannot
+	/// make off read as on.
 	void test_drawer_filters_read_off_when_off()
 	{
-		const auto renderRoot = qEnvironmentVariable("BPR_DRAWER_FILTER_RENDER_ROOT");
-		auto       styles     = std::vector<QString>{ QString{ } };
+		const auto indicator = static_cast<double>(core::minimum_contrast_hundredths(core::contrast_kind::indicator, core::appearance_variant::light)) / 100.0;
+		auto       styles    = std::vector<QString>{ QString{ } };
 		if (QStyleFactory::keys().contains(QStringLiteral("macOS"))) {
 			styles.emplace_back(QStringLiteral("macOS"));
 		}
 		for (const auto& styleName : styles) {
 			auto style = std::unique_ptr<QStyle>{ styleName.isEmpty() ? nullptr : QStyleFactory::create(styleName) };
-			for (const auto dark : { false, true }) {
-				auto panel = qt::github_conversation_panel{ };
-				if (dark) {
-					panel.setPalette(dark_palette());
-				}
-				panel.relayout();
-				auto* const unread     = panel.filter_unread_button();
-				auto* const unresolved = panel.filter_unresolved_button();
-				expect(unread->isCheckable() && unresolved->isCheckable() && !unread->isChecked() && !unresolved->isChecked(),
-					   "beside the code both filters are toggles, off at first");
-				// The quiet icon tool the drawer's arrows are, on the same row.
-				auto* const plain = new qt::quiet_tool_button{ panel.read_tools() };
-				plain->set_tinted(true);
-				plain->setAutoRaise(true);
-				plain->setToolButtonStyle(Qt::ToolButtonIconOnly);
-				plain->setIconSize(unread->iconSize());
-				plain->setIcon(unread->icon());
+			for (const auto& [mode, name, dark] : built_in_themes) {
+				const auto at      = std::string{ " (" } + name + (styleName.isEmpty() ? ", default style)" : ", macOS style)");
+				auto       profile = qt::appearance_profile{ };
+				expect(profile.select_mode(mode), "the built-in theme is selected" + at);
+				auto window = qt::workbench_window{ };
+				open_review_drawer(window, profile);
+				auto* const panel      = window.conversation_panel();
+				auto* const unread     = panel->filter_unread_button();
+				auto* const unresolved = panel->filter_unresolved_button();
+				auto* const header     = window.findChild<QWidget*>(QStringLiteral("workbenchTrayHeader"));
 				if (style) {
-					for (auto* const button : std::initializer_list<QToolButton*>{ unread, unresolved, plain }) {
+					for (auto* const button : { unread, unresolved }) {
 						button->setStyle(style.get());
+						button->updateGeometry();
 					}
+					process_events();
 				}
-				const auto size = unread->sizeHint();
-				unread->setFixedSize(size);
-				plain->setFixedSize(size);
-				const auto variant = (styleName.isEmpty() ? QStringLiteral("default") : styleName) + (dark ? QStringLiteral("-dark") : QStringLiteral("-light"));
-				const auto save    = [&renderRoot, &variant](QWidget& aWidget, const QString& aName) {
-					if (!renderRoot.isEmpty()) {
-						expect(aWidget.grab().save(renderRoot + QStringLiteral("/") + variant + QStringLiteral("-") + aName + QStringLiteral(".png")), "render saved");
-					}
-				};
+				expect(unread->isCheckable() && unresolved->isCheckable() && !unread->isChecked() && !unresolved->isChecked(), "beside the code both filters are toggles, off at first" + at);
 
-				save(*panel.read_tools(), QStringLiteral("row-off"));
-				save(*unread, QStringLiteral("off"));
-				const auto off      = unread->grab().toImage();
-				const auto quiet    = plain->grab().toImage();
-				const auto ground   = panel.palette().color(QPalette::Window);
-				const auto edge     = QPoint{ 1, off.height() / 2 };
-				const auto interior = QPoint{ 3, 3 };
-				expect(off == quiet, "off, a filter is drawn exactly as the quiet icon tool beside it");
-				expect(off.pixelColor(edge).rgb() == ground.rgb() && off.pixelColor(interior).rgb() == ground.rgb(),
-					   "off, a filter has no face: its edge and its inside are the drawer's ground");
+				// Each is a square box, whole inside the tab row, clear of the
+				// other and of the arrows.
+				const auto inHeader = [header](const QWidget* const aWidget) { return QRect{ aWidget->mapTo(header, QPoint{ 0, 0 }), aWidget->size() }; };
+				const auto first    = inHeader(unread);
+				const auto second   = inHeader(unresolved);
+				expect(header != nullptr && unread->isVisible() && unresolved->isVisible() && header->rect().contains(first) && header->rect().contains(second),
+					   "both filters are whole inside the drawer's tab row" + at);
+				expect(first.width() == first.height() && first.size() == second.size() && first.width() >= 22, "each filter is a square the size of an icon tool" + at);
+				expect(second.left() - first.right() > 2 && inHeader(window.previous_comment_button()).left() - second.right() > 2,
+					   "the boxes stand clear of each other and of the arrows" + at);
 
+				// Off: an empty hairline box around a dimmed glyph.
+				const auto offImage = painted(window, *unread);
+				const auto off      = look_of(offImage, unread->size());
+				const auto ground   = window.palette().color(QPalette::Active, QPalette::Window);
+				const auto ink      = window.palette().color(QPalette::Active, QPalette::WindowText);
+				expect(off.Ground.rgb() == ground.rgb() && off.Face.rgb() == ground.rgb(), "off, a filter has no face: inside its box is the drawer's ground" + at);
+				expect(contrast(off.Edge, ground) > 1.1 && contrast(off.Edge, ground) < indicator, "off, its box is a hairline, quieter than a mark" + at);
+				expect(contrast(off.Glyph, ground) >= indicator && contrast(off.Glyph, ground) < contrast(ink, ground) / 2.0,
+					   "off, its glyph is dimmed: under half the ink's contrast, and still a mark (" + std::to_string(contrast(off.Glyph, ground)) + ")" + at);
+
+				// On: the box filled toward the accent inside an accent edge,
+				// the glyph in the whole ink.
 				unread->setChecked(true);
-				save(*unread, QStringLiteral("on"));
-				save(*panel.read_tools(), QStringLiteral("row-unread-on"));
-				const auto on = unread->grab().toImage();
-				expect(on != off, "on and off are drawn differently");
-				const auto onFace = on.pixelColor(interior);
-				const auto accent = panel.palette().color(QPalette::Highlight);
-				expect(onFace.rgb() != ground.rgb() && onFace.blue() > onFace.red() && accent.blue() > accent.red(),
-					   "on, a filter is filled with the accent's soft face");
-				expect(on.pixelColor(QPoint{ 0, on.height() / 2 }).rgb() != ground.rgb(), "on, a filter has an accent edge");
-				const auto centre = QPoint{ on.width() / 2, on.height() / 2 };
-				expect(std::abs(on.pixelColor(centre).lightness() - off.pixelColor(centre).lightness()) < 40, "on or off, the glyph keeps its ink");
+				const auto onImage = painted(window, *unread);
+				const auto on      = look_of(onImage, unread->size());
+				expect(onImage != offImage && on.Ground.rgb() == ground.rgb(), "on and off are drawn differently, on the same ground" + at);
+				expect(contrast(on.Face, ground) >= 1.2, "on, the box is filled a step anyone can see from the drawer's ground (" + std::to_string(contrast(on.Face, ground)) + ")" + at);
+				expect(contrast(on.Edge, ground) >= indicator - 0.25, "on, its edge is the accent at a mark's strength (" + std::to_string(contrast(on.Edge, ground)) + ")" + at);
+				expect(contrast(on.Glyph, on.Face) >= 4.5, "on, its glyph is the whole ink on the fill (" + std::to_string(contrast(on.Glyph, on.Face)) + ")" + at);
+				expect(contrast(on.Glyph, off.Glyph) >= indicator,
+					   "the same glyph on and off differs by what a state is held to (" + std::to_string(contrast(on.Glyph, off.Glyph)) + ")" + at);
 
 				// The tooltip and the accessible state say which, however the
 				// state changes: a remembered filter is set with signals blocked.
 				auto* const accessible = QAccessible::queryAccessibleInterface(unread);
-				expect(accessible != nullptr && accessible->state().checkable && accessible->state().checked, "on, the filter is reported checked");
-				expect(unread->toolTip() == QStringLiteral("Only threads with new replies: on"), "on, the tooltip says so");
+				expect(accessible != nullptr && accessible->state().checkable && accessible->state().checked, "on, the filter is reported checked" + at);
+				expect(unread->toolTip() == QStringLiteral("Only threads with new replies: on"), "on, the tooltip says so" + at);
 				{
 					const QSignalBlocker blocked{ unread };
 					unread->setChecked(false);
 				}
-				expect(accessible->state().checkable && !accessible->state().checked, "off, the filter is reported not checked");
-				expect(unread->toolTip() == QStringLiteral("Only threads with new replies: off"), "off, the tooltip says so, even with signals blocked");
+				expect(accessible->state().checkable && !accessible->state().checked, "off, the filter is reported not checked" + at);
+				expect(unread->toolTip() == QStringLiteral("Only threads with new replies: off"), "off, the tooltip says so, even with signals blocked" + at);
 				expect(unresolved->toolTip() == QStringLiteral("Hide resolved threads: off") && unread->accessibleName() == QStringLiteral("Only new")
 						   && unresolved->accessibleName() == QStringLiteral("Hide resolved"),
-					   "each filter is named for what it does");
+					   "each filter is named for what it does" + at);
+				expect(painted(window, *unread) == offImage, "turned off again, it is drawn as it was" + at);
 
-				// Keyboard focus rings the button, on or off; a click does not.
-				panel.resize(400, 300);
-				panel.show();
-				process_events();
-				unresolved->setFixedSize(size);
+				// Under the pointer an off filter answers in the ink, not the
+				// accent: it is still off.
+				unread->setAttribute(Qt::WA_UnderMouse, true);
+				unread->update();
+				const auto hovered = look_of(painted(window, *unread), unread->size());
+				unread->setAttribute(Qt::WA_UnderMouse, false);
+				unread->update();
+				expect(hovered.Face.rgb() != ground.rgb() && contrast(hovered.Face, ground) < contrast(on.Face, ground) && contrast(hovered.Glyph, off.Glyph) >= indicator,
+					   "hovered, an off filter shows a quiet face and its glyph in the whole ink" + at);
+
+				// Keyboard focus rings the box, on or off; a click does not.
 				unresolved->setFocus(Qt::TabFocusReason);
-				process_events();
-				save(*unresolved, QStringLiteral("off-focus"));
-				const auto ringedOff = unresolved->grab().toImage();
-				expect(unresolved->hasFocus() && ringedOff.pixelColor(QPoint{ 2, ringedOff.height() / 2 }).rgb() != ground.rgb(),
-					   "keyboard focus rings an off filter");
+				const auto ringedOff = look_of(painted(window, *unresolved), unresolved->size());
+				expect(unresolved->hasFocus() && contrast(ringedOff.Edge, ground) >= indicator - 0.25 && ringedOff.Face.rgb() == ground.rgb()
+						   && contrast(ringedOff.Glyph, ground) < contrast(ink, ground) / 2.0,
+					   "keyboard focus rings an off filter, which stays empty and dimmed" + at);
 				unresolved->setChecked(true);
-				process_events();
-				save(*unresolved, QStringLiteral("on-focus"));
-				const auto ringedOn = unresolved->grab().toImage();
-				expect(ringedOn != on && ringedOn.pixelColor(QPoint{ 2, ringedOn.height() / 2 }) != on.pixelColor(QPoint{ 2, on.height() / 2 }),
-					   "keyboard focus rings an on filter, apart from its edge");
+				const auto ringedOnImage = painted(window, *unresolved);
+				unresolved->clearFocus();
+				const auto plainOnImage = painted(window, *unresolved);
+				expect(ringedOnImage != plainOnImage && look_of(ringedOnImage, unresolved->size()).Face == look_of(plainOnImage, unresolved->size()).Face,
+					   "keyboard focus rings an on filter, which stays filled" + at);
+				unresolved->setFocus(Qt::MouseFocusReason);
+				expect(unresolved->hasFocus() && painted(window, *unresolved) == plainOnImage, "a click's focus draws no ring" + at);
+				unresolved->clearFocus();
 				unresolved->setChecked(false);
-				panel.close();
-				for (auto* const button : std::initializer_list<QToolButton*>{ unread, unresolved, plain }) {
+
+				// A filter that cannot be used is a bare glyph, as a disabled
+				// arrow is: no box says it can be turned.
+				unread->setEnabled(false);
+				const auto disabled = look_of(painted(window, *unread), unread->size());
+				unread->setEnabled(true);
+				expect(disabled.Edge.rgb() == ground.rgb() && disabled.Face.rgb() == ground.rgb() && disabled.Glyph.rgb() != ground.rgb(), "disabled, a filter is a bare glyph" + at);
+
+				for (auto* const button : { unread, unresolved }) {
 					button->setStyle(nullptr);
 				}
+				window.close();
 			}
 		}
+	}
+
+	/// \brief With `BPR_DRAWER_FILTER_RENDER_ROOT` set: the drawer's filters
+	/// as the window shows them, for a look.
+	///
+	/// \details The renders go to a directory under the root named for the
+	/// platform and style that drew them. Only `cocoa-macos`, made with the
+	/// native look (`native_look_startup.cpp`), is what the owner's window
+	/// paints; `offscreen-fusion` is layout evidence in another style and
+	/// font and is not shown to the owner. Each theme is drawn under the
+	/// system appearance it is used in. `QT_SCALE_FACTOR` times the screen's
+	/// own ratio is the scale in each file's name.
+	void render_drawer_filters(const QString& aRoot)
+	{
+		const auto folder = QStringLiteral("%1/%2-%3").arg(aRoot, QGuiApplication::platformName(), QApplication::style()->name().toLower());
+		expect(QDir{ }.mkpath(folder), "the render directory exists");
+		const auto scale = QString::number(qRound(qApp->devicePixelRatio() * 100.0));
+		for (const auto& [mode, name, dark] : built_in_themes) {
+			QGuiApplication::styleHints()->setColorScheme(dark ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
+			auto profile = qt::appearance_profile{ };
+			expect(profile.select_mode(mode), "the built-in theme is selected");
+			auto window = qt::workbench_window{ };
+			open_review_drawer(window, profile);
+			auto* const panel      = window.conversation_panel();
+			auto* const unread     = panel->filter_unread_button();
+			auto* const unresolved = panel->filter_unresolved_button();
+			auto* const drawer     = window.conversations_drawer();
+			auto* const header     = window.findChild<QWidget*>(QStringLiteral("workbenchTrayHeader"));
+			expect(header != nullptr && drawer->isVisible() && unread->isVisible(), "the drawer shows its tab row and filters");
+			const auto stem = QStringLiteral("%1/%2-%3-").arg(folder, QString::fromLatin1(name), scale);
+			const auto save = [&](const QString& aState) {
+				process_events();
+				expect(header->grab().save(stem + QStringLiteral("row-") + aState + QStringLiteral(".png")), "row render saved");
+				expect(drawer->grab().save(stem + QStringLiteral("drawer-") + aState + QStringLiteral(".png")), "drawer render saved");
+			};
+			save(QStringLiteral("1-both-off"));
+			unread->setChecked(true);
+			save(QStringLiteral("2-only-new-on"));
+			unresolved->setChecked(true);
+			save(QStringLiteral("3-both-on"));
+			unread->setChecked(false);
+			save(QStringLiteral("4-hide-resolved-on"));
+			unresolved->setChecked(false);
+			unread->setAttribute(Qt::WA_UnderMouse, true);
+			unread->update();
+			save(QStringLiteral("5-off-hovered"));
+			unread->setAttribute(Qt::WA_UnderMouse, false);
+			unread->setFocus(Qt::TabFocusReason);
+			save(QStringLiteral("6-off-keyboard-focus"));
+			unread->setChecked(true);
+			save(QStringLiteral("7-on-keyboard-focus"));
+			window.close();
+
+			// Discuss's band in the same theme: the chips these follow.
+			auto discuss = qt::github_conversation_panel{ };
+			profile.apply_to(discuss);
+			discuss.adopt(drawer_threads(), QStringLiteral("2 review threads available."));
+			discuss.set_discuss(true);
+			discuss.resize(760, 300);
+			discuss.show();
+			process_events();
+			expect(discuss.discuss_controls()->grab().save(stem + QStringLiteral("discuss-band-1-both-off.png")), "band render saved");
+			discuss.filter_unread_button()->setChecked(true);
+			process_events();
+			expect(discuss.discuss_controls()->grab().save(stem + QStringLiteral("discuss-band-2-only-new-on.png")), "band render saved");
+			discuss.close();
+		}
+		std::cout << "drawer-filter-renders: " << folder.toStdString() << ", device pixel ratio " << qApp->devicePixelRatio() << '\n';
 	}
 
 	/// [[BPR-1808]]. The owner: "Seems like I can't show new replies only or
@@ -1361,6 +1593,14 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	// A look: the filters' renders, then their checks, and nothing else, so
+	// the same binary draws and measures them under the native look too.
+	if (const auto root = qEnvironmentVariable("BPR_DRAWER_FILTER_RENDER_ROOT"); !root.isEmpty()) {
+		render_drawer_filters(root);
+		test_drawer_filters_read_off_when_off();
+		std::cout << "drawer-filter-renders:pass\n";
+		return EXIT_SUCCESS;
+	}
 	test_choosing_a_file_visits_only_its_conversations();
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewConversationPanelTests"));
