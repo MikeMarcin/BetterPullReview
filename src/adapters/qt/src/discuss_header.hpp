@@ -17,7 +17,8 @@
 
 namespace bpr::qt {
 	/// \brief [[BPR-1337]]. How a Discuss header button is drawn. Beside the
-	/// code the filter buttons are the drawer's own icons (`native`); in
+	/// code the filter buttons are the drawer's own icons (`native`, drawn as
+	/// the drawer's quiet icons, never by the platform style); in
 	/// Discuss they are chips in the language of Threads' bar.
 	enum class discuss_tool_shape : std::uint8_t {
 		native,
@@ -44,6 +45,9 @@ namespace bpr::qt {
 		void set_count(const QString& aCount, bool aNew);
 		/// \brief The colour of what is new: the notes' accent.
 		void set_new_ink(const QColor& aInk);
+		/// \brief A toggle's tooltip: \p aTip followed by whether it is on or
+		/// off, kept current however its state changes.
+		void set_toggle_tip(const QString& aTip);
 
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
@@ -51,8 +55,13 @@ namespace bpr::qt {
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
 		void focusInEvent(QFocusEvent* aEvent) override;
+		void checkStateSet() override;
 
 	private:
+		void tell_toggle_state();
+		/// \brief The `native` face: the drawer's quiet icon when off, a soft
+		/// accent fill inside an accent edge when on.
+		void paint_drawer_icon();
 		/// \brief Whether focus came from the keyboard, so the ring shows only
 		/// then: a click leaves no ring that reads as a choice.
 		[[nodiscard]] auto ringed() const -> bool;
@@ -63,6 +72,7 @@ namespace bpr::qt {
 		QString                           Count;
 		bool                              CountIsNew = false;
 		QColor                            NewInk;
+		QString                           ToggleTip;
 	};
 
 	/// \brief [[BPR-1337]]. One part of the counts line: a number and its word.

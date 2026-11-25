@@ -1,6 +1,7 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QAccessible>
 #include <QApplication>
@@ -15,6 +16,9 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QSignalBlocker>
+#include <QStyle>
+#include <QStyleFactory>
 #include <QStyleOptionViewItem>
 #include <QToolButton>
 #include <QTreeView>
@@ -23,7 +27,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <initializer_list>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -983,6 +989,119 @@ namespace {
 		}
 	}
 
+	/// \brief The owner: "These filter buttons at the top of the comments
+	/// drawer look enabled to me even when they're off". Beside the code Only
+	/// new and Hide resolved are the drawer's quiet icons: off, each is
+	/// pixel for pixel the quiet icon tool the arrows beside it are; on, it
+	/// takes an accent face; keyboard focus rings it; its tooltip and its
+	/// accessible state say which. The platform style is never asked to draw
+	/// them, so the macOS style's square bezel cannot make off read as on.
+	void test_drawer_filters_read_off_when_off()
+	{
+		const auto renderRoot = qEnvironmentVariable("BPR_DRAWER_FILTER_RENDER_ROOT");
+		auto       styles     = std::vector<QString>{ QString{ } };
+		if (QStyleFactory::keys().contains(QStringLiteral("macOS"))) {
+			styles.emplace_back(QStringLiteral("macOS"));
+		}
+		for (const auto& styleName : styles) {
+			auto style = std::unique_ptr<QStyle>{ styleName.isEmpty() ? nullptr : QStyleFactory::create(styleName) };
+			for (const auto dark : { false, true }) {
+				auto panel = qt::github_conversation_panel{ };
+				if (dark) {
+					panel.setPalette(dark_palette());
+				}
+				panel.relayout();
+				auto* const unread     = panel.filter_unread_button();
+				auto* const unresolved = panel.filter_unresolved_button();
+				expect(unread->isCheckable() && unresolved->isCheckable() && !unread->isChecked() && !unresolved->isChecked(),
+					   "beside the code both filters are toggles, off at first");
+				// The quiet icon tool the drawer's arrows are, on the same row.
+				auto* const plain = new qt::quiet_tool_button{ panel.read_tools() };
+				plain->set_tinted(true);
+				plain->setAutoRaise(true);
+				plain->setToolButtonStyle(Qt::ToolButtonIconOnly);
+				plain->setIconSize(unread->iconSize());
+				plain->setIcon(unread->icon());
+				if (style) {
+					for (auto* const button : std::initializer_list<QToolButton*>{ unread, unresolved, plain }) {
+						button->setStyle(style.get());
+					}
+				}
+				const auto size = unread->sizeHint();
+				unread->setFixedSize(size);
+				plain->setFixedSize(size);
+				const auto variant = (styleName.isEmpty() ? QStringLiteral("default") : styleName) + (dark ? QStringLiteral("-dark") : QStringLiteral("-light"));
+				const auto save    = [&renderRoot, &variant](QWidget& aWidget, const QString& aName) {
+					if (!renderRoot.isEmpty()) {
+						expect(aWidget.grab().save(renderRoot + QStringLiteral("/") + variant + QStringLiteral("-") + aName + QStringLiteral(".png")), "render saved");
+					}
+				};
+
+				save(*panel.read_tools(), QStringLiteral("row-off"));
+				save(*unread, QStringLiteral("off"));
+				const auto off      = unread->grab().toImage();
+				const auto quiet    = plain->grab().toImage();
+				const auto ground   = panel.palette().color(QPalette::Window);
+				const auto edge     = QPoint{ 1, off.height() / 2 };
+				const auto interior = QPoint{ 3, 3 };
+				expect(off == quiet, "off, a filter is drawn exactly as the quiet icon tool beside it");
+				expect(off.pixelColor(edge).rgb() == ground.rgb() && off.pixelColor(interior).rgb() == ground.rgb(),
+					   "off, a filter has no face: its edge and its inside are the drawer's ground");
+
+				unread->setChecked(true);
+				save(*unread, QStringLiteral("on"));
+				save(*panel.read_tools(), QStringLiteral("row-unread-on"));
+				const auto on = unread->grab().toImage();
+				expect(on != off, "on and off are drawn differently");
+				const auto onFace = on.pixelColor(interior);
+				const auto accent = panel.palette().color(QPalette::Highlight);
+				expect(onFace.rgb() != ground.rgb() && onFace.blue() > onFace.red() && accent.blue() > accent.red(),
+					   "on, a filter is filled with the accent's soft face");
+				expect(on.pixelColor(QPoint{ 0, on.height() / 2 }).rgb() != ground.rgb(), "on, a filter has an accent edge");
+				const auto centre = QPoint{ on.width() / 2, on.height() / 2 };
+				expect(std::abs(on.pixelColor(centre).lightness() - off.pixelColor(centre).lightness()) < 40, "on or off, the glyph keeps its ink");
+
+				// The tooltip and the accessible state say which, however the
+				// state changes: a remembered filter is set with signals blocked.
+				auto* const accessible = QAccessible::queryAccessibleInterface(unread);
+				expect(accessible != nullptr && accessible->state().checkable && accessible->state().checked, "on, the filter is reported checked");
+				expect(unread->toolTip() == QStringLiteral("Only threads with new replies: on"), "on, the tooltip says so");
+				{
+					const QSignalBlocker blocked{ unread };
+					unread->setChecked(false);
+				}
+				expect(accessible->state().checkable && !accessible->state().checked, "off, the filter is reported not checked");
+				expect(unread->toolTip() == QStringLiteral("Only threads with new replies: off"), "off, the tooltip says so, even with signals blocked");
+				expect(unresolved->toolTip() == QStringLiteral("Hide resolved threads: off") && unread->accessibleName() == QStringLiteral("Only new")
+						   && unresolved->accessibleName() == QStringLiteral("Hide resolved"),
+					   "each filter is named for what it does");
+
+				// Keyboard focus rings the button, on or off; a click does not.
+				panel.resize(400, 300);
+				panel.show();
+				process_events();
+				unresolved->setFixedSize(size);
+				unresolved->setFocus(Qt::TabFocusReason);
+				process_events();
+				save(*unresolved, QStringLiteral("off-focus"));
+				const auto ringedOff = unresolved->grab().toImage();
+				expect(unresolved->hasFocus() && ringedOff.pixelColor(QPoint{ 2, ringedOff.height() / 2 }).rgb() != ground.rgb(),
+					   "keyboard focus rings an off filter");
+				unresolved->setChecked(true);
+				process_events();
+				save(*unresolved, QStringLiteral("on-focus"));
+				const auto ringedOn = unresolved->grab().toImage();
+				expect(ringedOn != on && ringedOn.pixelColor(QPoint{ 2, ringedOn.height() / 2 }) != on.pixelColor(QPoint{ 2, on.height() / 2 }),
+					   "keyboard focus rings an on filter, apart from its edge");
+				unresolved->setChecked(false);
+				panel.close();
+				for (auto* const button : std::initializer_list<QToolButton*>{ unread, unresolved, plain }) {
+					button->setStyle(nullptr);
+				}
+			}
+		}
+	}
+
 	/// [[BPR-1808]]. The owner: "Seems like I can't show new replies only or
 	/// hide resolved threads on the overview comments tab". Overview's
 	/// Comments has Discuss's Only new and Hide resolved, the core's counts
@@ -1266,6 +1385,7 @@ auto main(int argc, char** argv) -> int
 	test_discuss_top_is_one_named_band();
 	test_discuss_top_wraps_when_narrow();
 	test_discuss_top_follows_the_theme();
+	test_drawer_filters_read_off_when_off();
 	test_a_new_comment_is_written_under_the_conversation();
 	test_overview_comments_filter_new_and_resolved();
 	test_remembered_filters_open_and_only_a_reviewers_change_is_told();
