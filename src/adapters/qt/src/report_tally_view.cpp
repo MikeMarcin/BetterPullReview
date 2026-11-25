@@ -319,7 +319,8 @@ namespace bpr::qt {
 		// The view's least width is its own (`minimumSizeHint`): the layout
 		// would hold it at the full donut's.
 		row->setSizeConstraint(QLayout::SetNoConstraint);
-		row->setContentsMargins(0, 6, 0, 0);
+		// The attachment stands under the summary: the room is below it.
+		row->setContentsMargins(0, 0, 0, attachment_gap);
 		row->setSpacing(legend_gap);
 		Pie = new report_tally_pie{ *this };
 		row->addWidget(Pie, 0, Qt::AlignVCenter);
@@ -367,11 +368,28 @@ namespace bpr::qt {
 			Legend->layout()->addWidget(row);
 			Rows.push_back(row);
 		}
+		order_rows();
 		Pie->setAccessibleName(tr("Report summary: %1 in all").arg(Total));
 		Pie->update();
 		setVisible(!aCounts.empty());
 		updateGeometry();
 		fit_ring();
+	}
+
+	/// A widget joins the end of its window's focus order when it is made,
+	/// and the rows are made when the counts arrive, after whatever stands
+	/// under the summary. They belong where the summary stands, in the
+	/// report's order. Qt orders only widgets that take focus, so the legend
+	/// takes it for as long as this lasts.
+	void report_tally_view::order_rows()
+	{
+		Legend->setFocusPolicy(Qt::TabFocus);
+		auto* previous = Legend;
+		for (auto* const row : Rows) {
+			QWidget::setTabOrder(previous, row);
+			previous = row;
+		}
+		Legend->setFocusPolicy(Qt::NoFocus);
 	}
 
 	void report_tally_view::set_tones(const tone_colours& aTones)

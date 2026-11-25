@@ -2,17 +2,23 @@
 /// \brief [[BPR-2331]] (owner, 2026-11-20: "let's just keep in the report when
 /// they're part of the report and remove them from the agent's tab. We can
 /// put a brief summary in the agents tab below the report."). A report turn
-/// in the Agent tab shows its attachment and, under it, the report's tally
-/// as a donut, and no finding card the report holds.
+/// in the Agent tab shows the report's tally as a donut and its attachment,
+/// and no finding card the report holds. The tally stands over the
+/// attachment (owner, 2026-11-25: "I'm thinking that I want to move the
+/// report findings donut & counts above the attachment.").
 ///
 /// \details In a real window's Agent tab: a restored review turn whose report
 /// holds two of its three cards and a short turn that is no report; the
 /// summary's rows read whole at the narrowest and a wide drawer and with a
 /// larger font; a row opens the report at its label's first finding; and a
-/// live report turn that ends at the conversation's end leaves its
-/// attachment in view. [[BPR-2344]]: the summary is a donut, each slice
+/// live report turn that ends at the conversation's end leaves its summary
+/// and attachment in view. [[BPR-2344]]: the summary is a donut, each slice
 /// exactly its count's share, with a legend beside it; a slice or a row
-/// opens the report. Registered at 1.0, 1.25 and 2.0 scale.
+/// opens the report. The reply reads answer, summary, attachment, byline at
+/// every drawer width, and Tab goes through the counts to the attachment.
+/// Registered at 1.0, 1.25 and 2.0 scale. A look of the turn is drawn from
+/// the application's own window, by `review_report_public_path.cpp` under
+/// `BPR_REVIEW_REPORT_LOOK`, not from this course's window.
 
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_workspace.hpp"
@@ -21,7 +27,6 @@
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
-#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/report_tally_view.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
@@ -30,11 +35,9 @@
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QComboBox>
-#include <QDir>
 #include <QEnterEvent>
 #include <QEventLoop>
 #include <QFontMetrics>
-#include <QGuiApplication>
 #include <QHelpEvent>
 #include <QImage>
 #include <QKeyEvent>
@@ -44,8 +47,6 @@
 #include <QMouseEvent>
 #include <QScrollArea>
 #include <QScrollBar>
-#include <QStyle>
-#include <QStyleHints>
 #include <QTabWidget>
 #include <QTextBlock>
 #include <QTextDocument>
@@ -427,8 +428,8 @@ namespace {
 		expect(!draftAll.isEmpty() && draftAll.front()->isHidden(), "a report turn whose report holds its cards offers Draft all on the report, not here");
 
 		// With BPR_REPORT_SUMMARY_RENDER set to a folder, the reply with its
-		// attachment and summary is saved there at the narrowest and a wide
-		// drawer: the renders a look carries.
+		// summary and attachment is saved there at the narrowest and a wide
+		// drawer: layout evidence, not a look, which the application draws.
 		const auto renderRoot = qEnvironmentVariable("BPR_REPORT_SUMMARY_RENDER");
 		const auto render     = [&](const QString& aName) {
 			if (!renderRoot.isEmpty()) {
@@ -535,6 +536,130 @@ namespace {
 		qobject_cast<QPushButton*>(card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen")))->click();
 		settle();
 		expect(opened.size() == 3U && opened.back().Heading == 0U, "the attachment opens the report at no row");
+		window.hide();
+	}
+
+	/// A report of a report's shape that labels no finding: it counts nothing.
+	[[nodiscard]] auto plain_report() -> QString
+	{
+		return QStringLiteral("# Placeholder walk-through\n\nPlaceholder summary of the walk-through.\n\n"
+							  "## Placeholder first part\n\nPlaceholder text.\n\n"
+							  "## Placeholder second part\n\nPlaceholder text.\n");
+	}
+
+	/// \p aWidget's place in \p aReply; its bottom is one past its last row.
+	[[nodiscard]] auto placed_in(const QWidget& aReply, const QWidget& aWidget) -> QRect { return QRect{ aWidget.mapTo(&aReply, QPoint{ }), aWidget.size() }; }
+
+	/// The next widget Tab stops at after \p aFrom, as Qt's focus order has it.
+	[[nodiscard]] auto next_tab_stop(const QWidget& aFrom) -> QWidget*
+	{
+		for (auto* next = aFrom.nextInFocusChain(); next != nullptr && next != &aFrom; next = next->nextInFocusChain()) {
+			if ((next->focusPolicy() & Qt::TabFocus) != 0 && next->isVisible() && next->isEnabled() && next->focusProxy() == nullptr) {
+				return next;
+			}
+		}
+		return nullptr;
+	}
+
+	/// Owner, 2026-11-25: "I'm thinking that I want to move the report
+	/// findings donut & counts above the attachment." Down the reply: the
+	/// answer, the summary, the attachment, the byline, on one left edge.
+	void expect_summary_over_attachment(const qt::agent_tab_view& aTab, const std::size_t aTurn, const std::string& aWhere)
+	{
+		auto* const reply  = aTab.turn_reply(aTurn);
+		auto* const card   = aTab.turn_report_card(aTurn);
+		auto* const tally  = aTab.turn_report_tally(aTurn);
+		auto* const answer = aTab.turn_answer_view(aTurn);
+		expect(reply != nullptr && card != nullptr && tally != nullptr && answer != nullptr && card->isVisible() && tally->isVisible() && answer->isVisible(), aWhere + ": the reply shows its answer and its report");
+		auto* const open   = card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"));
+		auto* const legend = tally->findChild<QWidget*>(QStringLiteral("agentTurnReportTallyLegend"));
+		auto* const byline = reply->findChild<QWidget*>(QStringLiteral("agentTurnFooter"));
+		expect(open != nullptr && open->isVisible() && legend != nullptr && byline != nullptr && byline->isVisible(), aWhere + ": the report has its attachment and the reply its byline");
+		const auto answerBox = placed_in(*reply, *answer);
+		const auto tallyBox  = placed_in(*reply, *tally);
+		const auto openBox   = placed_in(*reply, *open);
+		const auto bylineBox = placed_in(*reply, *byline);
+		// What the summary draws ends with the taller of its donut and legend.
+		const auto drawnEnd  = std::max(placed_in(*reply, *tally->pie()).bottom(), placed_in(*reply, *legend).bottom()) + 1;
+		const auto positions = ": answer " + std::to_string(answerBox.top()) + ".." + std::to_string(answerBox.bottom() + 1) + ", summary " + std::to_string(tallyBox.top()) + ".." + std::to_string(drawnEnd) + ", attachment "
+			+ std::to_string(openBox.top()) + ".." + std::to_string(openBox.bottom() + 1) + ", byline " + std::to_string(bylineBox.top());
+		expect(answerBox.bottom() < tallyBox.top(), aWhere + ": the summary stands under the answer" + positions);
+		expect(drawnEnd <= openBox.top(), aWhere + ": the attachment stands under the summary" + positions);
+		expect(openBox.top() - drawnEnd == qt::report_tally_view::attachment_gap, aWhere + ": the attachment is its gap under the donut and legend" + positions);
+		expect(openBox.bottom() < bylineBox.top() && bylineBox.top() - openBox.bottom() - 1 == reply->layout()->spacing(), aWhere + ": the byline follows the attachment as it follows any reply's last part" + positions);
+		expect(tallyBox.left() == answerBox.left() && openBox.left() == answerBox.left() && openBox.right() == answerBox.right(), aWhere + ": answer, summary and attachment share the reply's edges" + positions);
+		// Tab goes through the counts in the report's order, then to the
+		// attachment they stand over.
+		const auto rows = tally->rows();
+		for (std::size_t index = 0U; index + 1U < rows.size(); ++index) {
+			expect(next_tab_stop(*rows[index]) == rows[index + 1U], aWhere + ": Tab goes from " + rows[index]->count().Word + " to " + rows[index + 1U]->count().Word);
+		}
+		expect(!rows.empty() && next_tab_stop(*rows.back()) == open, aWhere + ": Tab goes from the last count to the attachment");
+	}
+
+	void test_the_summary_stands_over_its_attachment()
+	{
+		qt::workbench_window window;
+		open_review(window, 900);
+		auto* const tab = window.agent_tab();
+		tab->present_thread({ { .Question = QStringLiteral("Review this pull request"), .Answer = review_report(), .Footer = QStringLiteral("Placeholder agent answered in 0:04"), .Outcome = core::agent_turn_outcome::answered },
+							  { .Question = QStringLiteral("Placeholder walk-through?"), .Answer = plain_report(), .Footer = QStringLiteral("Placeholder agent answered in 0:02"), .Outcome = core::agent_turn_outcome::answered } });
+		settle();
+		expect(tab->turn_count() == 2U, "the two report turns are restored");
+		// A report that counts nothing: its attachment alone, where an
+		// attachment has always stood under its answer.
+		auto* const plainCard = tab->turn_report_card(1U);
+		expect(plainCard != nullptr && plainCard->isVisible() && (tab->turn_report_tally(1U) == nullptr || tab->turn_report_tally(1U)->isHidden()), "a report that labels no finding shows its attachment and no summary");
+		const auto alone = [&] {
+			const auto answerBox = placed_in(*tab->turn_reply(1U), *tab->turn_answer_view(1U));
+			const auto openBox   = placed_in(*tab->turn_reply(1U), *plainCard->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen")));
+			return openBox.top() - answerBox.bottom() - 1;
+		};
+		const auto summaryGap = [&] { return placed_in(*tab->turn_reply(0U), *tab->turn_report_tally(0U)).top() - placed_in(*tab->turn_reply(0U), *tab->turn_answer_view(0U)).bottom() - 1; };
+		for (const auto width : { 280U, 320U, 360U, 420U, 640U }) {
+			publish_drawer(window, width);
+			wait(150);
+			const auto where = "a " + std::to_string(width) + " drawer";
+			expect_summary_over_attachment(*tab, 0U, where);
+			expect(alone() == tab->turn_reply(1U)->layout()->spacing() + 9, where + ": an attachment alone stands nine under its answer, " + std::to_string(alone()));
+			// The summary reads on from the answer: it stands nearer to it
+			// than the bordered row does alone.
+			expect(summaryGap() > tab->turn_reply(0U)->layout()->spacing() && summaryGap() < alone(),
+				   where + ": the summary stands nearer the answer than an attachment alone does, " + std::to_string(summaryGap()) + " for " + std::to_string(alone()));
+		}
+		const auto original = QApplication::font();
+		auto       larger   = original;
+		larger.setPointSizeF(original.pointSizeF() * 1.6);
+		QApplication::setFont(larger);
+		settle();
+		expect_summary_over_attachment(*tab, 0U, "a 640 drawer, larger font");
+		publish_drawer(window, 280U);
+		wait(150);
+		expect_summary_over_attachment(*tab, 0U, "a 280 drawer, larger font");
+		QApplication::setFont(original);
+		settle();
+		// From the keyboard, in fact: Tab on the last count reaches the
+		// attachment, and Shift+Tab goes back.
+		publish_drawer(window, 360U);
+		wait(150);
+		auto* const tally = tab->turn_report_tally(0U);
+		auto* const open  = tab->turn_report_card(0U)->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"));
+		// A window kept off screen is never made active; Qt is told it is.
+		QT_WARNING_PUSH
+		QT_WARNING_DISABLE_DEPRECATED
+		QApplication::setActiveWindow(&window);
+		QT_WARNING_POP
+		tally->rows().back()->setFocus(Qt::TabFocusReason);
+		settle();
+		expect(tally->rows().back()->hasFocus(), "the last count takes focus");
+		auto forward = QKeyEvent{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+		QApplication::sendEvent(tally->rows().back(), &forward);
+		settle();
+		expect(open->hasFocus(), "Tab on the last count reaches the attachment");
+		auto back = QKeyEvent{ QEvent::KeyPress, Qt::Key_Backtab, Qt::ShiftModifier };
+		QApplication::sendEvent(open, &back);
+		settle();
+		expect(tally->rows().back()->hasFocus(), "Shift+Tab on the attachment goes back to the last count");
 		window.hide();
 	}
 
@@ -652,11 +777,17 @@ namespace {
 		window.hide();
 	}
 
-	void test_a_report_turn_ends_with_its_attachment_in_view()
+	/// The least height the window takes.
+	constexpr int shortest_window = 360;
+
+	/// A live report turn ends at the end of a conversation shorter than the
+	/// turn, in a window `aHeight` tall. Whether the conversation had the
+	/// room for the summary and the attachment both.
+	[[nodiscard]] auto report_turn_ends_in_view(const int aHeight) -> bool
 	{
 		qt::workbench_window window;
 		// A short window: the turn's end is taller than the conversation.
-		open_review(window, 620);
+		open_review(window, aHeight);
 		auto* const tab    = window.agent_tab();
 		auto* const scroll = tab->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"));
 		expect(scroll != nullptr && qt::stick_to_bottom::of(*scroll) != nullptr, "the conversation follows its end");
@@ -681,71 +812,48 @@ namespace {
 		window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 		wait(200);
 		expect(tab->state() != qt::agent_tab_state::working, "the turn ended");
-		const auto  at   = tab->turn_count() - 1U;
-		auto* const card = tab->turn_report_card(at);
-		expect(card != nullptr && card->isVisible(), "the turn ended as a report");
-		const auto top = card->mapTo(scroll->viewport(), QPoint{ }).y();
-		expect(top >= 0 && top + 24 <= scroll->viewport()->height(), "the attachment is in view at the turn's end: its top at " + std::to_string(top) + " of " + std::to_string(scroll->viewport()->height()));
+		const auto  at    = tab->turn_count() - 1U;
+		auto* const card  = tab->turn_report_card(at);
+		auto* const tally = tab->turn_report_tally(at);
+		expect(card != nullptr && card->isVisible() && tally != nullptr && tally->isVisible(), "the turn ended as a report with its summary");
+		auto* const open = card->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"));
+		expect(open != nullptr && open->isVisible(), "the report has its attachment");
+		const auto shown = scroll->viewport()->height();
+		const auto top   = open->mapTo(scroll->viewport(), QPoint{ }).y();
+		const auto said  = ": the attachment at " + std::to_string(top) + ".." + std::to_string(top + open->height()) + " of " + std::to_string(shown);
+		// The attachment opens the report: it is whole in view whatever the
+		// conversation's height.
+		expect(top >= 0 && top + open->height() <= shown, "the attachment is whole in view at the turn's end" + said);
+		const auto summary = tally->mapTo(scroll->viewport(), QPoint{ }).y();
+		const auto both    = open->mapTo(card, QPoint{ 0, open->height() }).y() + 24;
+		std::cout << "report-in-view " << aHeight << said << ", the summary's top at " << summary << ", both need " << both << '\n';
+		if (both <= shown) {
+			expect(summary >= 0, "with the room for both, the summary over the attachment is in view too" + said + ", the summary's top at " + std::to_string(summary));
+		} else {
+			// Too short for both: the attachment is the one kept whole, at
+			// the conversation's foot, with as much of the summary as fits.
+			expect(summary < 0 && shown - (top + open->height()) <= 24, "too short for both, the attachment stands whole at the foot" + said);
+		}
 		window.hide();
+		return both <= shown;
 	}
 
-	/// The report turn as the window's Agent tab draws it, for a look: the
-	/// reply and the drawer around it, in the Light and the Dark theme, at
-	/// each drawer width from the narrowest.
-	///
-	/// \details The renders go to a directory under the root named for the
-	/// platform and style that drew them. Only `cocoa-macos`, made with the
-	/// native look (`native_look_startup.cpp`), is what the owner's window
-	/// paints. `QT_SCALE_FACTOR` is the scale in each file's name; the
-	/// screen's own ratio multiplies it.
-	void render_report_turns(const QString& aRoot)
+	/// The attachment's keeping in view, in a conversation that holds the
+	/// summary over it too and in one too short for both.
+	void test_a_report_turn_ends_with_its_attachment_in_view()
 	{
-		const auto folder = QStringLiteral("%1/%2-%3").arg(aRoot, QGuiApplication::platformName(), QApplication::style()->name().toLower());
-		expect(QDir{ }.mkpath(folder), "the render directory exists");
-		const auto factor = qEnvironmentVariable("QT_SCALE_FACTOR", QStringLiteral("1")).toDouble();
-		const auto scale  = QString::number(qRound(factor * 100.0));
-		struct theme
-		{
-			core::appearance_mode Mode;
-			const char*           Name;
-			bool                  Dark;
-		};
-		for (const auto& [mode, name, dark] : { theme{ core::appearance_mode::light, "light", false }, theme{ core::appearance_mode::dark, "dark", true } }) {
-			QGuiApplication::styleHints()->setColorScheme(dark ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
-			auto profile = qt::appearance_profile{ };
-			expect(profile.select_mode(mode), "the built-in theme is selected");
-			qt::workbench_window window;
-			profile.apply_to(window);
-			open_review(window, 900);
-			auto* const tab = window.agent_tab();
-			tab->present_thread({ { .Question = QStringLiteral("Review this pull request"), .Answer = review_report(), .Footer = QStringLiteral("Fixture agent answered in 0:04 · 2 turns"), .Outcome = core::agent_turn_outcome::answered } });
-			settle();
-			auto* const tally = tab->turn_report_tally(0U);
-			expect(tally != nullptr && tally->isVisible() && tab->turn_reply(0U) != nullptr, "the review shows its summary");
-			for (const auto width : { 280U, 320U, 360U, 420U, 640U }) {
-				publish_drawer(window, width);
-				wait(150);
-				const auto stem = QStringLiteral("%1/%2-%3-%4-").arg(folder, QString::fromLatin1(name), scale).arg(width);
-				expect(tab->turn_reply(0U)->grab().save(stem + QStringLiteral("reply.png")), "the reply's render is saved");
-				expect(window.conversations_drawer()->grab().save(stem + QStringLiteral("drawer.png")), "the drawer's render is saved");
-			}
-			window.close();
-		}
-		std::cout << "report-summary-renders: " << folder.toStdString() << ", device pixel ratio " << qApp->devicePixelRatio() << '\n';
+		expect(report_turn_ends_in_view(620), "a short window's conversation holds the summary and its attachment");
+		expect(!report_turn_ends_in_view(shortest_window), "the shortest window's conversation is too short for both");
 	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
-	// A look's renders alone, for the owner: no check runs.
-	if (const auto look = qEnvironmentVariable("BPR_REPORT_SUMMARY_LOOK"); !look.isEmpty()) {
-		render_report_turns(look);
-		return EXIT_SUCCESS;
-	}
 	test_the_donut_is_exact();
 	test_a_narrow_summary_draws_the_smaller_donut();
 	test_a_report_turn_shows_its_summary_not_its_cards();
+	test_the_summary_stands_over_its_attachment();
 	test_a_jump_shows_its_item_whole_under_the_tab_header();
 	test_a_report_turn_ends_with_its_attachment_in_view();
 	std::cout << "agent-report-summary:pass\n";

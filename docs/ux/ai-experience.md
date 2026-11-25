@@ -19,7 +19,12 @@ The functional core decides whether an explicit AI action is legal, what local c
 - Reports (RFC-BPR-0128): an answer that is a report (What changed since my
   review, Explain this file and Was this addressed? about several threads
   always; any other by its shape) is a card where it was asked, its summary
-  and an attachment row, and opens as a tab in the files' tab strip. The
+  and an attachment row, and opens as a tab in the files' tab strip. Where
+  the report labels findings, their counts stand between the two as a donut
+  with a legend, and a slice or a count opens the report at its first
+  finding (owner, 2026-11-25: "I'm thinking that I want to move the report
+  findings donut & counts above the attachment"); Tab goes through the
+  counts to the attachment. The
   tab draws a report that keeps to its template (docs/design/report-templates-v1)
   as a page: verdict rules, a tally, places that open the code, the Agent
   tab's code boxes and Suggested change with Add as draft comment, in the
