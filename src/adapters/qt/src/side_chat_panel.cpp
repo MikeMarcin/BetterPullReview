@@ -227,7 +227,7 @@ namespace bpr::qt {
 			this, tr("Add context"), QStringLiteral("sideChatAddContext"));
 		Members.NewSession = make_action(
 			this,
-			tr("Start a new session"),
+			tr("New session"),
 			QStringLiteral("sideChatStartNewSession"));
 		Members.ContinueOldRevision = make_action(
 			this,

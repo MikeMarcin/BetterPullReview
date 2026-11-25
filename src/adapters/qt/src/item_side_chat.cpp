@@ -15,6 +15,7 @@
 #include "bpr/qt/stick_to_bottom.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
+#include "bpr/qt/transcript_edge.hpp"
 
 #include <QAccessible>
 #include <QClipboard>
@@ -296,6 +297,9 @@ namespace bpr::qt {
 		Scroll->viewport()->installEventFilter(this);
 		// [[BPR-2296]]. At its end, the chat stays there as it grows.
 		stick_to_bottom::attach(*Scroll);
+		// A turn cut at the top goes on under a drawn edge, as in the Agent
+		// tab and the tour's chat.
+		transcript_edge::attach(*Scroll);
 		column->addWidget(Scroll, 1);
 
 		// Under the transcript: a notice only when there is something to say,

@@ -18,6 +18,7 @@
 #include "bpr/qt/skill_completer.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
+#include "bpr/qt/transcript_edge.hpp"
 
 #include <QAbstractButton>
 #include <QClipboard>
@@ -272,7 +273,7 @@ namespace bpr::qt {
 		HistoryTool = make_drawer_tool(this, drawer_icon(drawer_glyph::history, palette()), tr("History: this chat's sessions, and New session"), QStringLiteral("tourChatHistory"));
 		HistoryTool->setAccessibleName(tr("History"));
 		HistoryMenu = new chat_history_menu{ core::chat_history_kind::tour_side_chat, *this, *HistoryTool, QStringLiteral("tourChat") };
-		HistoryMenu->carry_over_action()->setObjectName(QStringLiteral("tourTranscriptReplay"));
+		HistoryMenu->carry_over_action()->setObjectName(QStringLiteral("tourCarryOver"));
 		const auto choose = [this](std::optional<std::string> aChoice) {
 			if (auto thread = current(); thread && HistoryDispatch) {
 				HistoryDispatch(*thread, std::move(aChoice));
@@ -296,14 +297,14 @@ namespace bpr::qt {
 		HistoryMenu->set_state_source([this] {
 			const auto thread = current();
 			return chat_history_menu::chat_state{
-				.AgentReady   = Ready,
-				.Closed       = !(thread && (!Draft || core::active_tour_thread(*Draft, *thread))),
-				.Running      = Running,
-				.Busy         = !HostIdle,
-				.ShownTurns   = thread ? core::thread_runs(Session, *thread).size() : 0U,
-				.EveryRun     = false,
-				.ResetAgents  = false,
-				.CarryOverTip = CarryOverTip,
+				.AgentReady  = Ready,
+				.Closed      = !(thread && (!Draft || core::active_tour_thread(*Draft, *thread))),
+				.Running     = Running,
+				.Busy        = !HostIdle,
+				.ShownTurns  = thread ? core::thread_runs(Session, *thread).size() : 0U,
+				.EveryRun    = false,
+				.ResetAgents = false,
+				.Agent       = AgentName,
 			};
 		});
 		// A chat that keeps no sessions (a local draft's discussion) has no
@@ -336,12 +337,15 @@ namespace bpr::qt {
 		// [[BPR-2296]]. At its end, the chat stays there as it grows; scrolled
 		// back, by the bar, a wheel or a gesture, it stays where the author put it.
 		stick_to_bottom::attach(*Scroll);
+		// A turn cut at the top goes on under a drawn edge, not under the
+		// header's words, as in the Agent tab.
+		transcript_edge::attach(*Scroll);
 		column->addWidget(Scroll, 1);
 
 		// [[BPR-1995]], RFC-BPR-0100 AC01, owner 2026-11-10: "The tour side chat
 		// window UX got made ugly, especially at the bottom." Under the
-		// transcript: a notice only when something is not as usual (a replay,
-		// native continuation unavailable, a moved head), then the composer
+		// transcript: a notice only when something is not as usual (a session
+		// carried over, one the agent cannot pick up, a moved head), then the composer
 		// with its passage as a chip inside the field, then what the session
 		// cost. The sessions are the header's History (RFC-BPR-0130). The
 		// update is offered only by the link under an answer that changed
@@ -351,12 +355,12 @@ namespace bpr::qt {
 		noticeBox->setContentsMargins(0, 0, 0, 0);
 		noticeBox->setSpacing(2);
 		Notice->setObjectName(QStringLiteral("tourSideChatNotice"));
-		ContinuationMode = quiet(small(new QLabel{ tr("Native continuation"), Notice }));
-		ContinuationMode->setObjectName(QStringLiteral("tourContinuationMode"));
-		ContinuationMode->setWordWrap(true);
-		ContinuationMode->setTextFormat(Qt::PlainText);
-		ContinuationMode->hide();
-		noticeBox->addWidget(ContinuationMode);
+		SessionNotice = quiet(small(new QLabel{ Notice }));
+		SessionNotice->setObjectName(QStringLiteral("tourSessionNotice"));
+		SessionNotice->setWordWrap(true);
+		SessionNotice->setTextFormat(Qt::PlainText);
+		SessionNotice->hide();
+		noticeBox->addWidget(SessionNotice);
 		RevisionStatus = quiet(small(new QLabel{ Notice }));
 		RevisionStatus->setObjectName(QStringLiteral("tourRevisionStatus"));
 		RevisionStatus->setTextFormat(Qt::PlainText);
@@ -654,6 +658,26 @@ namespace bpr::qt {
 		changed();
 	}
 
+	void tour_side_chat::set_agent_name(const QString& aName)
+	{
+		if (AgentName == aName) {
+			return;
+		}
+		AgentName = aName;
+		present_session_notice();
+		HistoryMenu->refresh();
+	}
+
+	void tour_side_chat::present_session_notice()
+	{
+		// RFC-BPR-0130's accepted words, the Agent tab's too; a session that
+		// goes on in the ordinary way says nothing.
+		const auto words = CarriedOver ? chat_history_menu::carried_over_words(AgentName) : CannotContinue ? chat_history_menu::cannot_continue_words(AgentName)
+																										   : QString{ };
+		SessionNotice->setText(words);
+		SessionNotice->setVisible(!words.isEmpty());
+	}
+
 	void tour_side_chat::present_native_history(const application::native_agent_history_projection& aView)
 	{
 		if (aView.ReadOnly) {
@@ -676,22 +700,20 @@ namespace bpr::qt {
 		HistoryLoading = aView.Loading;
 		HistoryTool->setProperty("loading", aView.Loading);
 		if (!aView.Loading) {
-			// A notice only when this is not a native continuation.
-			ContinuationMode->setVisible(aView.Replay || !aView.NativeSupported);
-			ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool memory is absent; PR files and Git are shared.") : aView.NativeSupported ? tr("Native continuation")
-																																															 : tr("Native continuation unavailable. Choose Transcript replay or New session in History."));
-			ContinuationMode->setToolTip(tr("Replay keeps at most the newest 12 answered turns within 48 KiB. Older or unanswered turns are omitted. The source history stays. Tour tool and network restrictions still apply."));
-			// [[BPR-2059]]. The replay's counts are a diagnostic, kept on the
-			// label, and said in its tooltip only when something was left out.
-			ContinuationMode->setProperty("replayTurnsOmitted", QVariant::fromValue<qulonglong>(aView.ReplayTurnsOmitted));
-			ContinuationMode->setProperty("replayTextCutBytes", QVariant::fromValue<qulonglong>(aView.ReplayTextCutBytes));
-			if (aView.Replay && (aView.ReplayTurnsOmitted > 0U || aView.ReplayTextCutBytes > 0U)) {
-				ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" This replay leaves out %1 older turns and %2 bytes of cut text.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));
+			// A notice only when the session does not go on in the ordinary
+			// way. [[BPR-2059]]: a carried-over conversation's counts are a
+			// diagnostic, kept on the line, and said in its tooltip only when
+			// something was left out.
+			CarriedOver    = aView.Replay;
+			CannotContinue = !aView.Replay && !aView.NativeSupported;
+			SessionNotice->setProperty("replayTurnsOmitted", QVariant::fromValue<qulonglong>(aView.ReplayTurnsOmitted));
+			SessionNotice->setProperty("replayTextCutBytes", QVariant::fromValue<qulonglong>(aView.ReplayTextCutBytes));
+			auto tip = aView.Replay ? chat_history_menu::carry_over_tip(aView.ReplayTurnsOmitted, aView.ReplayTextCutBytes > 0U) : QString{ };
+			if (aView.Replay && !aView.ReplaySource.empty()) {
+				tip += tr(" Source history: %1").arg(QString::fromStdString(aView.ReplaySource));
 			}
-			CarryOverTip = ContinuationMode->toolTip();
-			if (!aView.ReplaySource.empty()) {
-				ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" Source history: %1").arg(QString::fromStdString(aView.ReplaySource)));
-			}
+			SessionNotice->setToolTip(tip);
+			present_session_notice();
 		}
 		// [[BPR-2377]], RFC-BPR-0130. The sessions, in the one History menu.
 		HistoryMenu->present(aView);
@@ -1249,7 +1271,7 @@ namespace bpr::qt {
 		if (checks) {
 			wear_agent_accent(*PlanCheck, palette());
 		}
-		Notice->setVisible(!ContinuationMode->isHidden() || !RevisionStatus->isHidden());
+		Notice->setVisible(!SessionNotice->isHidden() || !RevisionStatus->isHidden());
 		refresh_unchanged_line();
 		// [[BPR-1930]]. The tour's chat is for feedback on its shape too.
 		Composer->setPlaceholderText(!thread                                            ? QString{ }

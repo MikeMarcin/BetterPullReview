@@ -117,9 +117,9 @@ auto main(int argc, char** argv) -> int
 	auto* const menu = agent->menu();
 	expect(button.menu() == menu && button.popupMode() == QToolButton::InstantPopup && menu->objectName() == QStringLiteral("agentHistoryMenu"), "the menu is its button's, opened at once");
 	expect(names(*menu)
-			   == QStringList{ QStringLiteral("agentNewSession"), QStringLiteral("-"), QStringLiteral("agentSessionRows"), QStringLiteral("-"), QStringLiteral("agentTranscriptReplay"), QStringLiteral("agentSessionDeleteAll"),
-							   QStringLiteral("-"), QStringLiteral("agentPrivateHistoryAction"), QStringLiteral("-"), QStringLiteral("agentResetAgentsAction"), QStringLiteral("-"), QStringLiteral("agentRevisionRead") },
-		   "New session first, the sessions, Delete all sessions…, the private runs, Reset agents…, the revision read last: " + names(*menu).join(QLatin1Char{ '|' }).toStdString());
+			   == QStringList{ QStringLiteral("agentNewSession"), QStringLiteral("-"), QStringLiteral("agentSessionRows"), QStringLiteral("-"), QStringLiteral("agentCarryOver"), QStringLiteral("agentSessionDeleteAll"),
+							   QStringLiteral("-"), QStringLiteral("agentShowEveryRun"), QStringLiteral("-"), QStringLiteral("agentResetAgentsAction"), QStringLiteral("-"), QStringLiteral("agentRevisionRead") },
+		   "New session first, the sessions, Delete all sessions…, Show every run…, Reset agents…, the revision read last: " + names(*menu).join(QLatin1Char{ '|' }).toStdString());
 	expect(menu->findChild<QMenu*>(QStringLiteral("nativeAgentSessions")) == nullptr, "the sessions are the menu's own rows, not a level down");
 	expect(agent->revision_action()->text() == QStringLiteral("Reads the pull request at 2222222") && !agent->revision_action()->isEnabled(), "the last line names the revision read and is never chosen");
 
@@ -199,6 +199,47 @@ auto main(int argc, char** argv) -> int
 	state.AgentReady = true;
 	agent->set_state(state);
 
+	// RFC-BPR-0130's accepted words: no "Transcript replay", no "Private
+	// history and runs", no kibibytes; the chosen agent by its own name.
+	{
+		const auto said = [menu] {
+			auto words = QStringList{ };
+			for (const auto* const action : menu->actions()) {
+				words << action->text() << action->toolTip();
+			}
+			return words.join(QLatin1Char{ '|' });
+		};
+		expect(agent->carry_over_action()->text() == QStringLiteral("Carry this conversation over to the chosen agent")
+				   && agent->carry_over_action()->toolTip() == QStringLiteral("Long conversations are shortened: the oldest turns are left out."),
+			   "with no agent named, carrying over names none: " + agent->carry_over_action()->text().toStdString());
+		state.Agent = QStringLiteral("Codex");
+		agent->set_state(state);
+		expect(agent->carry_over_action()->text() == QStringLiteral("Carry this conversation over to Codex"), "carrying over names the chosen agent");
+		state.Agent = QStringLiteral("Claude Code");
+		agent->set_state(state);
+		expect(agent->carry_over_action()->text() == QStringLiteral("Carry this conversation over to Claude Code"), "and another agent chosen, that one");
+		expect(said().contains(QStringLiteral("Show every run…")), "the runs are shown by Show every run…: " + said().toStdString());
+		for (const auto* const old : { "Transcript replay", "Native", "Private history", "KiB", "Replay " }) {
+			expect(!said().contains(QString::fromLatin1(old)), std::string{ "no item of the menu says " } + old + ": " + said().toStdString());
+		}
+		using menu_words = qt::chat_history_menu;
+		expect(menu_words::carried_over_words(QStringLiteral("Codex")) == QStringLiteral("Carried over from a saved transcript. Codex has the questions and answers, not what the earlier agent read.")
+				   && menu_words::carried_over_words({ }) == QStringLiteral("Carried over from a saved transcript. The agent has the questions and answers, not what the earlier agent read."),
+			   "a carried-over session's notice, with the agent's name or none");
+		expect(menu_words::cannot_continue_words(QStringLiteral("Codex")) == QStringLiteral("Codex can't pick up this conversation where it stopped. Choose New session, or carry the transcript over."),
+			   "the notice of a session the agent cannot go on with names New session as History does");
+		expect(menu_words::carry_over_tip(0U, false) == QStringLiteral("Long conversations are shortened: the oldest turns are left out.")
+				   && menu_words::carry_over_tip(1U, false).endsWith(QStringLiteral(" This one left out 1 older turn."))
+				   && menu_words::carry_over_tip(7U, true).endsWith(QStringLiteral(" This one left out 7 older turns. Some of its longest text was cut.")),
+			   "what carrying over leaves out is said in turns, and only when something was left out");
+		auto shortened               = history(3U);
+		shortened.Replay             = true;
+		shortened.ReplayTurnsOmitted = 4U;
+		agent->present(shortened);
+		expect(agent->carry_over_action()->toolTip().endsWith(QStringLiteral(" This one left out 4 older turns.")), "a carried-over session that left turns out says how many: " + agent->carry_over_action()->toolTip().toStdString());
+		agent->present(history(3U));
+	}
+
 	// The other items reach their dispatch.
 	agent->carry_over_action()->trigger();
 	expect(carried == std::vector<std::string>{ "b" }, "carry over names the open session");
@@ -206,11 +247,11 @@ auto main(int argc, char** argv) -> int
 	agent->rows()->rename("a", QStringLiteral("Second look"));
 	expect(opened == std::vector<std::string>{ "a" } && edits.size() == 1U && edits.back().first == "a" && edits.back().second == std::string{ "Second look" }, "a row's open and rename reach the chat");
 	for (auto* const action : menu->actions()) {
-		if (action->objectName() == QStringLiteral("agentPrivateHistoryAction") || action->objectName() == QStringLiteral("agentResetAgentsAction")) {
+		if (action->objectName() == QStringLiteral("agentShowEveryRun") || action->objectName() == QStringLiteral("agentResetAgentsAction")) {
 			action->trigger();
 		}
 	}
-	expect(everyRun == 1 && resets == 1, "the private runs and Reset agents… reach the chat");
+	expect(everyRun == 1 && resets == 1, "Show every run… and Reset agents… reach the chat");
 	state.ResetAgents = false;
 	agent->set_state(state);
 	expect(!names(*menu).contains(QStringLiteral("agentResetAgentsAction")) && !names(*menu).contains(QStringLiteral("agentCopyChat")), "no setup to reset: no Reset agents…; the Agent tab has no copy of the whole chat");
@@ -243,7 +284,7 @@ auto main(int argc, char** argv) -> int
 	tour->set_state(tourState);
 	tour->present(partHistory);
 	expect(names(*tour->menu())
-			   == QStringList{ QStringLiteral("tourChatNewSession"), QStringLiteral("-"), QStringLiteral("agentSessionRows"), QStringLiteral("-"), QStringLiteral("tourChatTranscriptReplay"), QStringLiteral("agentSessionDeleteAll"),
+			   == QStringList{ QStringLiteral("tourChatNewSession"), QStringLiteral("-"), QStringLiteral("agentSessionRows"), QStringLiteral("-"), QStringLiteral("tourChatCarryOver"), QStringLiteral("agentSessionDeleteAll"),
 							   QStringLiteral("-"), QStringLiteral("Other tour chats and detached history"), QStringLiteral("tourChatCopyChat"), QStringLiteral("-"), QStringLiteral("tourChatRevisionRead") },
 		   "the tour chat's History is the same menu with its own two items: " + names(*tour->menu()).join(QLatin1Char{ '|' }).toStdString());
 	auto* const others = tour->menu()->findChild<QMenu*>(QStringLiteral("tourChatOtherChats"));

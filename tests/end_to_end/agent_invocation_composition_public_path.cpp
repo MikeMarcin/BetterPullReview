@@ -1125,7 +1125,7 @@ auto main(int argc, char** argv) -> int
 				return code;
 			};
 			auto*      tab       = window.agent_tab();
-			auto*      mode      = tab->findChild<QLabel*>(QStringLiteral("agentContinuationMode"));
+			auto*      mode      = tab->session_notice();
 			const auto first     = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
 			const auto second    = core::entry_profile_id(core::agent_protocol::codex_app_server, 2U);
 			const auto evidence  = [&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application); };
@@ -1313,13 +1313,13 @@ auto main(int argc, char** argv) -> int
 			auto replays = std::vector<std::string>{ };
 			for (auto made = 0; made < 3; ++made) {
 				const auto before = selectedId();
-				auto*      replay = tab->findChild<QAction*>(QStringLiteral("agentTranscriptReplay"));
+				auto*      replay = tab->findChild<QAction*>(QStringLiteral("agentCarryOver"));
 				if (replay == nullptr) {
 					return failLogged("pinned-replay-offer");
 				}
 				replay->trigger();
 				auto id = std::string{ };
-				if (!wait_until([&] { id = selectedId(); return id != before && mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->ask_button()->isEnabled(); })) {
+				if (!wait_until([&] { id = selectedId(); return id != before && mode->text().startsWith(QStringLiteral("Carried over from a saved transcript.")) && tab->ask_button()->isEnabled(); })) {
 					return failLogged("pinned-replay-choice");
 				}
 				replays.push_back(id);
@@ -1406,7 +1406,7 @@ auto main(int argc, char** argv) -> int
 					const auto fresh = tab->session_menu()->selected();
 					return historyIn() && tab->state() == qt::agent_tab_state::idle && !tab->banner()->isVisible() && !fresh.empty() && fresh != replay
 						&& std::ranges::find(known, fresh) == known.end() && tab->turn_count() == 0U && tab->session_title()->text() != replayName
-						&& !mode->text().startsWith(QStringLiteral("Transcript replay")) && newHead().size() == 7 && newHead() != earlierHead && tab->ask_button()->isEnabled();
+						&& !mode->text().startsWith(QStringLiteral("Carried over from a saved transcript.")) && newHead().size() == 7 && newHead() != earlierHead && tab->ask_button()->isEnabled();
 				});
 				if (!switched || starts() != beforeChoice) {
 					return failLogged("pinned-new-session-shown-at-once", said());
@@ -1599,7 +1599,7 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "replay-agent-choice");
 			}
 			auto* tab       = window.agent_tab();
-			auto* mode      = tab->findChild<QLabel*>(QStringLiteral("agentContinuationMode"));
+			auto* mode      = tab->session_notice();
 			auto* histories = tab->history_button()->menu();
 			if (!wait_until([&] { return !tab->ask_button()->property("conversationLoading").toBool() && histories && mode; })) {
 				return fail(*application, "replay-history-ready");
@@ -1690,12 +1690,12 @@ auto main(int argc, char** argv) -> int
 				if (!refused || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != afterPressure.Statistics.ProcessStarts) {
 					return fail(*application, "missing-native-no-retry", panel->status_text().toStdString());
 				}
-				auto* replay = tab->findChild<QAction*>(QStringLiteral("agentTranscriptReplay"));
+				auto* replay = tab->findChild<QAction*>(QStringLiteral("agentCarryOver"));
 				if (!replay) {
 					return fail(*application, "replay-explicit-offer");
 				}
 				replay->trigger();
-				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->turn_count() == 2U && tab->ask_button()->isEnabled(); })) {
+				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Carried over from a saved transcript.")) && tab->turn_count() == 2U && tab->ask_button()->isEnabled(); })) {
 					return fail(*application, "replay-separate-projection");
 				}
 				if (app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != afterPressure.Statistics.ProcessStarts) {
@@ -1710,7 +1710,7 @@ auto main(int argc, char** argv) -> int
 					}
 				}
 			} else {
-				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->turn_count() >= 2U && tab->ask_button()->isEnabled(); })) {
+				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Carried over from a saved transcript.")) && tab->turn_count() >= 2U && tab->ask_button()->isEnabled(); })) {
 					return fail(*application, "replay-restart-mode-and-history");
 				}
 				if (app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != 0U) {
@@ -1741,7 +1741,7 @@ auto main(int argc, char** argv) -> int
 				const auto nativeReadyWhileLegacyHeld = chosen && wait_until([&] {
 															const auto loaded = app::detail::github_application_fixture_access::agent_conversation_loaded(*application);
 															return loaded.has_value() && !*loaded
-																&& mode->text().contains(QStringLiteral("Native continuation unavailable"))
+																&& mode->text().contains(QStringLiteral("can't pick up this conversation where it stopped"))
 																&& panel->selected_profile() == std::optional{ custom };
 														},
 																			 std::chrono::milliseconds{ 5000 });
@@ -1772,14 +1772,14 @@ auto main(int argc, char** argv) -> int
 				}
 				QMetaObject::invokeMethod(tab->history_button()->menu(), "aboutToShow");
 				QApplication::processEvents();
-				if (!mode->text().contains(QStringLiteral("unavailable"))) {
+				if (!mode->isVisibleTo(tab) || !mode->text().contains(QStringLiteral("can't pick up this conversation where it stopped"))) {
 					return fail(*application, "unsupported-visible-capability");
 				}
 				if (!wait_until([&] { return tab->new_session_action()->isEnabled() && !tab->ask_button()->property("conversationLoading").toBool(); })) {
 					return fail(*application, "unsupported-new-ready");
 				}
 				tab->new_session_action()->trigger();
-				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->ask_button()->isEnabled(); })) {
+				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Carried over from a saved transcript.")) && tab->ask_button()->isEnabled(); })) {
 					return fail(*application, "unsupported-replay-choice", mode->text().toStdString() + " status=" + panel->status_text().toStdString());
 				}
 				const auto unusedEntries = tab->session_menu()->ids().size();
@@ -1797,7 +1797,7 @@ auto main(int argc, char** argv) -> int
 				if (!send(QStringLiteral("verify-nonresuming-followup")) || !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("nonresuming-replay-ok"))) {
 					return fail(*application, "nonresuming-second-generation-turn", panel->output_text().toStdString());
 				}
-				if (!tab->choose_agent(profile.value()) || !wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->turn_count() >= 2U && tab->ask_button()->isEnabled(); })) {
+				if (!tab->choose_agent(profile.value()) || !wait_until([&] { return mode->text().startsWith(QStringLiteral("Carried over from a saved transcript.")) && tab->turn_count() >= 2U && tab->ask_button()->isEnabled(); })) {
 					return fail(*application, "legacy-return-after-custom");
 				}
 			}
@@ -2028,13 +2028,13 @@ auto main(int argc, char** argv) -> int
 						return fail(*application, "tour-native-history-reopen", chat->chat_text().toStdString());
 					}
 					if (thread.Kind == core::tour_thread_kind::tour) {
-						auto* replay = chat->findChild<QAction*>(QStringLiteral("tourTranscriptReplay"));
+						auto* replay = chat->findChild<QAction*>(QStringLiteral("tourCarryOver"));
 						if (!replay) {
 							return fail(*application, "tour-replay-offer");
 						}
 						replay->trigger();
-						auto* mode = chat->findChild<QLabel*>(QStringLiteral("tourContinuationMode"));
-						if (!wait_until([&] { return mode && mode->text().startsWith(QStringLiteral("Transcript replay")) && !chat->history_button()->property("loading").toBool(); })) {
+						auto* mode = chat->findChild<QLabel*>(QStringLiteral("tourSessionNotice"));
+						if (!wait_until([&] { return mode && mode->text().startsWith(QStringLiteral("Carried over from a saved transcript.")) && !chat->history_button()->property("loading").toBool(); })) {
 							return fail(*application, "tour-replay-mode");
 						}
 						const auto beforeReplay = chat->turn_count();
@@ -2047,7 +2047,7 @@ auto main(int argc, char** argv) -> int
 							return fail(*application, "tour-replay-raster");
 						}
 						chat->session_rows().open(priorId.toStdString());
-						if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Native")) && !chat->history_button()->property("loading").toBool(); })) {
+						if (!wait_until([&] { return mode->text().isEmpty() && mode->isHidden() && !chat->history_button()->property("loading").toBool(); })) {
 							return fail(*application, "tour-native-provenance-after-replay");
 						}
 					}

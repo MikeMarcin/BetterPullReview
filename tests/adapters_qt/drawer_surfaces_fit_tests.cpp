@@ -1222,7 +1222,7 @@ namespace {
 					settle();
 					auto result               = application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::private_storage_failure };
 					result.RefusalReason      = aWorkInTheWay ? "This conversation's workspace at 9696969 has uncommitted edits, so it was not moved to 2222222. No question was sent."
-															  : "This conversation is pinned to an earlier revision, 9696969. Continue at 9696969 to keep asking about that revision, or start a new session at 2222222. No question was sent.";
+															  : "This conversation is pinned to an earlier revision, 9696969. Choose Continue at 9696969 to keep asking about that revision, or New session to ask at 2222222. No question was sent.";
 					result.StandardError      = result.RefusalReason;
 					result.PinnedConversation = core::offer_pinned_conversation({ .Pinned = pinned, .Observed = binding, .Remembers = true });
 					if (aWorkInTheWay) {

@@ -60,7 +60,30 @@
 /// - no two buttons lie over one another;
 /// - no button's face and no text field is cut by a part that holds it: a
 ///   row laid out shorter than its buttons, or a card still as tall as the
-///   words a field replaced, clips them where no scrolling brings them back.
+///   words a field replaced, clips them where no scrolling brings them back;
+/// - nothing lies over what a scroll area scrolls: no label or button that is
+///   not the area's own is drawn inside its viewport;
+/// - a chat's transcript, which keeps itself at its end, draws its top edge
+///   exactly while turns are scrolled under it, so a turn cut at the top is
+///   seen to go on above and never reads as covered by the header; where the
+///   cut falls depends on every height above it, so it cannot be laid out
+///   away. At its start the transcript draws none;
+/// - the Agent tab's header is its one row: its transcript starts directly
+///   under it, and what a session says of itself (that it was carried over,
+///   or cannot be picked up) is a notice on the question field;
+/// - no label, button or menu item says the words RFC-BPR-0130 replaced:
+///   "Native continuation", "Transcript replay", "Native:", "Private history
+///   and runs".
+///
+/// Owner, attended review 2026-11-25, of a question refused after a push, in
+/// a 280 pixel drawer: its first line was "partly hidden under the Native
+/// continuation line". Nothing lay over it. The transcript held the session's
+/// earlier turns too, some 1,700 pixels more than its viewport, and was at its
+/// end, so the viewport's top fell where it fell: inside that question's
+/// bubble, directly under a line of words that stood at the drawer's edge in
+/// the transcript's own ink with nothing drawn between. The owner
+/// then, of that line: "I thought we were getting rid of 'Native
+/// continuation' altogether".
 ///
 /// A code block is code: it keeps its lines and pans inside its own frame
 /// until its Wrap is pressed. The block itself is held to the rules above;
@@ -93,8 +116,10 @@
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/stick_to_bottom.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
+#include "bpr/qt/transcript_edge.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
@@ -109,10 +134,12 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QGuiApplication>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
@@ -402,6 +429,222 @@ namespace {
 		return found;
 	}
 
+	/// \brief Where \p aPart is drawn in \p aSurface: its rect, less what the
+	/// parts that hold it clip.
+	[[nodiscard]] auto drawn_in(const QWidget& aPart, const QWidget& aSurface) -> QRect
+	{
+		auto drawn = QRect{ aPart.mapTo(&aSurface, QPoint{ 0, 0 }), aPart.size() };
+		for (const auto* parent = aPart.parentWidget(); parent != nullptr && parent != &aSurface; parent = parent->parentWidget()) {
+			drawn &= QRect{ parent->mapTo(&aSurface, QPoint{ 0, 0 }), parent->size() };
+		}
+		return drawn & aSurface.rect();
+	}
+
+	/// \brief Every way what \p aSurface scrolls is covered from above, or
+	/// reads as covered: a label or button that is not a scroll area's own
+	/// drawn inside its viewport; a chat's transcript with a turn cut at its
+	/// top and no edge drawn on its first row, or with none cut and one
+	/// drawn; and anything standing between the Agent tab's header row and
+	/// its transcript.
+	/// \p aEdges, when given, counts the transcripts found off their start
+	/// with their edge drawn.
+	[[nodiscard]] auto covered_from_above(const QWidget& aSurface, std::size_t* const aEdges = nullptr) -> QStringList
+	{
+		auto found = QStringList{ };
+		for (auto* const area : aSurface.findChildren<QScrollArea*>()) {
+			if (!area->isVisibleTo(&aSurface) || shows_code(*area)) {
+				continue;
+			}
+			const auto view = drawn_in(*area->viewport(), aSurface);
+			if (view.isEmpty()) {
+				continue;
+			}
+			for (const auto* const child : aSurface.findChildren<QWidget*>()) {
+				const auto* const label = qobject_cast<const QLabel*>(child);
+				const auto        words = label != nullptr && (!label->text().isEmpty() || !label->pixmap().isNull());
+				if ((qobject_cast<const QAbstractButton*>(child) == nullptr && !words) || !child->isVisibleTo(&aSurface) || area->isAncestorOf(child)) {
+					continue;
+				}
+				if (const auto over = drawn_in(*child, aSurface) & view; !over.isEmpty()) {
+					found.push_back(QStringLiteral("%1 lies over %2x%3 of what %4 scrolls").arg(describe(*child)).arg(over.width()).arg(over.height()).arg(describe(*area)));
+				}
+			}
+			const auto* const edge = qt::transcript_edge::of(*area);
+			if (area->widget() == nullptr) {
+				continue;
+			}
+			if (edge == nullptr) {
+				// A transcript keeps itself at its end, so it is the scroll
+				// area whose first turn is cut at the top as a matter of course.
+				if (qt::stick_to_bottom::of(*area) != nullptr) {
+					found.push_back(QStringLiteral("%1 keeps itself at its end and has no edge to draw over a turn cut at its top").arg(describe(*area)));
+				}
+				continue;
+			}
+			// Whether anything the transcript holds is cut at the viewport's
+			// top or gone above it. The blank margin over its first turn is
+			// not: a transcript a pixel taller than its viewport cuts nothing.
+			const auto* const bar   = area->verticalScrollBar();
+			const auto        under = bar->value() - bar->minimum();
+			const auto        row   = QRect{ area->viewport()->geometry().topLeft(), QSize{ area->viewport()->width(), 1 } };
+			const auto        above = std::ranges::any_of(area->widget()->children(), [area](const QObject* const aChild) {
+				const auto* const part = qobject_cast<const QWidget*>(aChild);
+				return part != nullptr && !part->isHidden() && part->height() > 0 && part->mapTo(area->viewport(), QPoint{ 0, 0 }).y() < 0;
+			});
+			if (!above) {
+				if (edge->isVisible()) {
+					found.push_back(QStringLiteral("%1 cuts nothing at its top (%2 px off its start) and draws an edge over its first turn").arg(describe(*area)).arg(under));
+				}
+				continue;
+			}
+			if (!edge->isVisible() || edge->geometry() != row) {
+				found.push_back(QStringLiteral("%1 is %2 px off its start with no edge on its viewport's first row: the turn cut there reads as covered by what is above it").arg(describe(*area)).arg(under));
+				continue;
+			}
+			// Drawn, not only placed: the row is the edge's colour.
+			const auto image  = area->grab(row).toImage().convertToFormat(QImage::Format_ARGB32);
+			const auto colour = qt::transcript_edge::colour(edge->palette()).rgb();
+			auto       same   = 0;
+			for (int x = 0; x < image.width(); ++x) {
+				same += image.pixel(x, 0) == colour ? 1 : 0;
+			}
+			if (same * 10 < image.width() * 9) {
+				found.push_back(QStringLiteral("%1's edge is drawn on %2 of its first row's %3 pixels").arg(describe(*area)).arg(same).arg(image.width()));
+			} else if (aEdges != nullptr) {
+				++*aEdges;
+			}
+		}
+		// The Agent tab's header is its one row; its transcript starts under it.
+		const auto* const row    = aSurface.findChild<QWidget*>(QStringLiteral("agentContextRow"));
+		const auto* const thread = aSurface.findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"));
+		if (row != nullptr && thread != nullptr && row->isVisibleTo(&aSurface) && thread->isVisibleTo(&aSurface)) {
+			if (const auto between = thread->mapTo(&aSurface, QPoint{ 0, 0 }).y() - row->mapTo(&aSurface, QPoint{ 0, row->height() }).y(); between != 0) {
+				found.push_back(QStringLiteral("%1 px stand between the Agent tab's header row and its transcript").arg(between));
+			}
+		}
+		return found;
+	}
+
+	/// \brief Everything \p aSurface shows, or one of its menus offers, that
+	/// says words RFC-BPR-0130 replaced (AC03: "In no state does a chat show
+	/// "Native continuation", "Transcript replay" or "Native:""), in its text
+	/// or its tooltip.
+	[[nodiscard]] auto internal_words(const QWidget& aSurface) -> QStringList
+	{
+		auto       found = QStringList{ };
+		const auto said  = [&found](const QString& aWho, const QString& aText) {
+			for (const auto* const old : { "Native continuation", "Transcript replay", "Native:", "Private history and runs" }) {
+				if (aText.contains(QString::fromLatin1(old))) {
+					found.push_back(QStringLiteral("%1 says \"%2\"").arg(aWho, QString::fromLatin1(old)));
+				}
+			}
+		};
+		for (const auto* const child : aSurface.findChildren<QWidget*>()) {
+			if (!child->isVisibleTo(&aSurface)) {
+				continue;
+			}
+			if (const auto* const label = qobject_cast<const QLabel*>(child); label != nullptr) {
+				said(describe(*label), label->text() + QLatin1Char{ '\n' } + label->toolTip());
+			} else if (const auto* const button = qobject_cast<const QAbstractButton*>(child); button != nullptr) {
+				said(describe(*button), button->text() + QLatin1Char{ '\n' } + button->toolTip());
+			}
+		}
+		// A menu is read whether or not it is open.
+		for (const auto* const menu : aSurface.findChildren<QMenu*>()) {
+			for (const auto* const action : menu->actions()) {
+				said(QStringLiteral("the item \"%1\" of %2").arg(action->text().left(40), describe(*menu)), action->text() + QLatin1Char{ '\n' } + action->toolTip());
+			}
+		}
+		return found;
+	}
+
+	/// \brief `covered_from_above` fails on what it claims to catch.
+	void check_what_covers()
+	{
+		QWidget surface;
+		surface.resize(300, 300);
+		auto* const header = new QWidget{ &surface };
+		header->setObjectName(QStringLiteral("agentContextRow"));
+		header->setGeometry(0, 0, 300, 40);
+		auto* const title = new QLabel{ QStringLiteral("The session's title"), header };
+		title->setGeometry(10, 8, 280, 20);
+		auto* const scroll = new QScrollArea{ &surface };
+		scroll->setObjectName(QStringLiteral("agentConversationScroll"));
+		scroll->setGeometry(0, 40, 300, 200);
+		scroll->setWidgetResizable(true);
+		scroll->setFrameShape(QFrame::NoFrame);
+		scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		auto* const content = new QWidget{ };
+		content->setMinimumHeight(260);
+		scroll->setWidget(content);
+		auto* const turn = new QLabel{ QStringLiteral("What changed in this push?"), content };
+		turn->setGeometry(12, 8, 200, 20);
+		surface.setAttribute(Qt::WA_DontShowOnScreen);
+		surface.show();
+		settle();
+		const auto said = [&surface](std::size_t* const aEdges = nullptr) { return covered_from_above(surface, aEdges).join(QStringLiteral("; ")); };
+		expect(said().isEmpty(), "a scroll area under its header, at its start, is covered by nothing: " + said().toStdString());
+		// A transcript at its end with nothing drawn at its top: what the
+		// owner saw as the question hidden under the line above it.
+		qt::stick_to_bottom::attach(*scroll).pin();
+		settle();
+		expect(scroll->verticalScrollBar()->value() == 60 && said().contains(QStringLiteral("has no edge to draw")), "negative control: a transcript that keeps its end and has no edge is caught: " + said().toStdString());
+		auto& edge  = qt::transcript_edge::attach(*scroll);
+		auto  edges = std::size_t{ 0U };
+		settle();
+		expect(said(&edges).isEmpty() && edges == 1U, "and with its edge drawn it is not: " + said().toStdString());
+		edge.hide();
+		expect(said().contains(QStringLiteral("60 px off its start with no edge")), "negative control: a transcript off its start whose edge is not shown is caught: " + said().toStdString());
+		edge.show();
+		edge.setGeometry(0, 0, 150, 1);
+		expect(said().contains(QStringLiteral("with no edge on its viewport's first row")), "negative control: an edge that does not span the first row is caught");
+		scroll->verticalScrollBar()->setValue(0);
+		settle();
+		expect(said().isEmpty(), "at its start the transcript draws no edge, and nothing is found: " + said().toStdString());
+		edge.show();
+		expect(said().contains(QStringLiteral("cuts nothing at its top (0 px off its start) and draws an edge")), "negative control: an edge over the first turn of a transcript at its start is caught");
+		// Off its start by less than the room over its first turn: nothing is
+		// cut, so an edge there would be a line over a whole first turn.
+		scroll->verticalScrollBar()->setValue(8);
+		settle();
+		edge.show();
+		expect(said().contains(QStringLiteral("cuts nothing at its top (8 px off its start)")), "negative control: an edge with only blank room scrolled under it is caught");
+		scroll->verticalScrollBar()->setValue(9);
+		settle();
+		edge.hide();
+		expect(said().contains(QStringLiteral("9 px off its start with no edge")), "negative control: one pixel of the first turn cut with no edge is caught");
+		scroll->verticalScrollBar()->setValue(0);
+		settle();
+		edge.hide();
+		// Words laid where the transcript scrolls.
+		const auto words = [&surface] { return internal_words(surface).join(QStringLiteral("; ")); };
+		expect(words().isEmpty(), "a title and a question are no internal words: " + words().toStdString());
+		auto* const mode = new QLabel{ QStringLiteral("Native continuation"), &surface };
+		mode->setGeometry(0, 30, 300, 20);
+		mode->show();
+		settle();
+		expect(said().contains(QStringLiteral("lies over 300x10 of what")), "negative control: a label drawn over a scroll area's viewport is caught: " + said().toStdString());
+		expect(words().contains(QStringLiteral("says \"Native continuation\"")), "negative control: a line that says Native continuation is caught: " + words().toStdString());
+		// The line the owner saw: under the header's row, over the transcript.
+		scroll->setGeometry(0, 60, 300, 180);
+		mode->setGeometry(0, 40, 300, 20);
+		settle();
+		expect(said() == QStringLiteral("20 px stand between the Agent tab's header row and its transcript"), "negative control: a line between the header's row and the transcript is caught: " + said().toStdString());
+		mode->setText(QStringLiteral("Carried over from a saved transcript."));
+		mode->setToolTip(QStringLiteral("Transcript replay keeps 48 KiB."));
+		expect(words().contains(QStringLiteral("says \"Transcript replay\"")), "negative control: a tooltip that says Transcript replay is caught");
+		mode->setToolTip({ });
+		auto* const menu = new QMenu{ &surface };
+		menu->addAction(QStringLiteral("Private history and runs"));
+		expect(words().contains(QStringLiteral("says \"Private history and runs\"")), "negative control: a menu item that says Private history and runs is caught, though the menu is closed");
+		menu->clear();
+		// The notice on the question field, under the transcript.
+		scroll->setGeometry(0, 40, 300, 180);
+		mode->setGeometry(10, 224, 280, 20);
+		settle();
+		expect(said().isEmpty() && words().isEmpty(), "and a notice in the accepted words under the transcript is neither: " + said().toStdString() + words().toStdString());
+	}
+
 	/// \brief The checks themselves fail on what they claim to catch.
 	void check_the_checks()
 	{
@@ -466,6 +709,7 @@ namespace {
 		frame->show();
 		settle();
 		expect(cut_off(surface).join(QStringLiteral("; ")).contains(QStringLiteral("QPlainTextEdit")), "negative control: a text field taller than the frame that holds it is caught");
+		check_what_covers();
 	}
 
 	/// The course: one window of the composed application and what it found.
@@ -477,6 +721,9 @@ namespace {
 		QString                  RenderPrefix;
 		std::vector<std::string> Faults;
 		std::vector<std::string> States;
+		/// How often a chat's transcript was judged off its start with its
+		/// edge drawn.
+		std::size_t EdgesDrawn = 0U;
 		/// The part of the drawer the state being judged is about, if it
 		/// could be scrolled out of view.
 		QPointer<QWidget> Shown;
@@ -552,6 +799,12 @@ namespace {
 			}
 			if (const auto cut = cut_off(*drawer()); !cut.isEmpty()) {
 				Faults.push_back(where + ": cut off: " + cut.join(QStringLiteral("; ")).toStdString());
+			}
+			if (const auto covered = covered_from_above(*drawer(), &EdgesDrawn); !covered.isEmpty()) {
+				Faults.push_back(where + ": covered from above: " + covered.join(QStringLiteral("; ")).toStdString());
+			}
+			if (const auto old = internal_words(*drawer()); !old.isEmpty()) {
+				Faults.push_back(where + ": internal words: " + old.join(QStringLiteral("; ")).toStdString());
 			}
 		}
 
@@ -1017,7 +1270,7 @@ auto main(int argc, char** argv) -> int
 
 		// ---- After the pull request's head moves ----------------------------
 		window->open_agent_question();
-		const auto mode      = [&] { return tab->findChild<QLabel*>(QStringLiteral("agentContinuationMode")); };
+		const auto mode      = [&] { return tab->session_notice(); };
 		const auto historyIn = [&] { return mode() != nullptr && !tab->ask_button()->property("conversationLoading").toBool(); };
 		const auto selected  = [&] {
 			auto id = std::string{ };
@@ -1035,11 +1288,11 @@ auto main(int argc, char** argv) -> int
 		expect(!seeded.empty(), "the Agent tab's session is in History");
 		// A transcript replay of it: a conversation with no checkout of its
 		// own, which stays at the head it read.
-		auto* const replay = tab->findChild<QAction*>(QStringLiteral("agentTranscriptReplay"));
-		expect(replay != nullptr, "History offers a transcript replay");
+		auto* const replay = tab->findChild<QAction*>(QStringLiteral("agentCarryOver"));
+		expect(replay != nullptr && replay->text() == QStringLiteral("Carry this conversation over to Fixture agent"), "History offers to carry the conversation over to the agent the tab asks");
 		replay->trigger();
 		auto replayed = std::string{ };
-		wait([&] { replayed = selected(); return replayed != seeded && mode()->text().startsWith(QStringLiteral("Transcript replay")) && tab->ask_button()->isEnabled(); }, "the transcript replay opens");
+		wait([&] { replayed = selected(); return replayed != seeded && mode()->text().startsWith(QStringLiteral("Carried over from a saved transcript.")) && tab->ask_button()->isEnabled(); }, "the carried-over session opens");
 		const auto earlierHead = window->side_chat()->head_oid_text().left(7);
 		// The author pushes; Refresh reads the pull request at its new head.
 		const auto pinned = access::agent_chat_evidence(*run.Owner).Observed;
@@ -1070,6 +1323,8 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return tab->state() == qt::agent_tab_state::head_moved && tab->banner()->isVisible() && tab->banner_first_button()->isVisible() && tab->banner_second_button()->isVisible(); },
 			 "the replay that read the earlier head offers its card");
 		expect(tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead, "the card offers to continue at the head it read: " + tab->banner_first_button()->text().toStdString());
+		expect(mode()->isVisibleTo(tab) && mode()->text() == QStringLiteral("Carried over from a saved transcript. Fixture agent has the questions and answers, not what the earlier agent read."),
+			   "the carried-over session says so on the question field, naming the agent: " + mode()->text().toStdString());
 		run.Shown = tab->banner();
 		run.sweep_drawer("agent-pinned-offered");
 		// The session with a checkout follows the head on its next question.
@@ -1084,7 +1339,16 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return quiet() && tab->state() == qt::agent_tab_state::stopped && tab->banner()->isVisible(); }, "the question is refused: the session's workspace was not moved");
 		expect(tab->banner_first_button()->isVisibleTo(tab->banner()) && tab->banner_second_button()->isVisibleTo(tab->banner()) && tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead
 				   && tab->banner_second_button()->text() == QStringLiteral("New session"),
-			   "the stopped card offers to continue at the earlier head or start a new session: " + tab->banner_text().toStdString());
+			   "the stopped card offers to continue at the earlier head or a new session: " + tab->banner_text().toStdString());
+		// The refused turn names those two by the words on the card's chips.
+		{
+			const auto said = tab->turn_answer(tab->turn_count() - 1U);
+			expect(said.contains(QStringLiteral(" Choose Continue at %1 or New session. No question was sent.").arg(earlierHead)) && !said.contains(QStringLiteral("tart a new session")),
+				   "the refused turn names the card's two choices as the card does: " + said.toStdString());
+		}
+		// A session that goes on in the ordinary way says nothing of it; the
+		// one before it said that it was carried over.
+		expect(mode()->isHidden() && mode()->text().isEmpty(), "the refused session, which was not carried over, has no notice: " + mode()->text().toStdString());
 		run.sweep_drawer("agent-pinned-refused");
 		run.Shown = nullptr;
 		// The stop's chat, whose session read the earlier head.
@@ -1130,15 +1394,16 @@ auto main(int argc, char** argv) -> int
 													   "agent-pinned-refused",
 													   "tour-stop-chat-head-moved" };
 		expect(run.States == reached, "every state of the course is reached, in order (" + std::to_string(run.States.size()) + " of " + std::to_string(reached.size()) + ")");
+		expect(run.EdgesDrawn > 0U, "the course judged a chat's transcript off its start, with its edge drawn");
 		for (const auto& fault : run.Faults) {
 			std::cerr << "FAULT: " << fault << '\n';
 		}
-		std::cout << "composed-drawer-fit: " << run.States.size() << " states, " << run.Faults.size() << " faults, dpr " << qApp->devicePixelRatio() << ", " << QGuiApplication::platformName().toStdString() << "/"
+		std::cout << "composed-drawer-fit: " << run.States.size() << " states, " << run.Faults.size() << " faults, " << run.EdgesDrawn << " transcript edges drawn, dpr " << qApp->devicePixelRatio() << ", " << QGuiApplication::platformName().toStdString() << "/"
 				  << QApplication::style()->name().toStdString() << '\n';
 		window->findChild<QAction*>(QStringLiteral("quitProfilesAction"))->trigger();
 		wait([&] { return desktop->is_quiescent(); }, "Quit drains every session");
 		if (!run.Faults.empty() && !report) {
-			std::cerr << run.Faults.size() << " states of the right drawer pan sideways or cut a control off\n";
+			std::cerr << run.Faults.size() << " states of the right drawer pan sideways, cut a control off, cover what they scroll or say internal words\n";
 			return EXIT_FAILURE;
 		}
 		std::cout << (run.Faults.empty() ? "composed-drawer-fit:pass\n" : "composed-drawer-fit:reported\n");

@@ -978,7 +978,7 @@ namespace bpr::app {
 		AgentWorkspaceSweepAfterHistory = AgentWorkspaceSweepAfterHistory || aChoice.has_value();
 		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice));
 	}
-	/// History › New session, and Start a new session on the card of a session
+	/// History › New session, and New session on the card of a session
 	/// that read an earlier head: the selected agent's store starts an empty
 	/// session at the revision under review (or takes up the one nothing was
 	/// asked in), and the tab is shown it.

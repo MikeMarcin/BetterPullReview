@@ -906,8 +906,32 @@ auto main(int argc, char** argv) -> int
 		view.Replay = true;
 		chat->present_native_history(view);
 		settle();
-		expect(chat->notice()->isVisibleTo(chat) && chat->findChild<QLabel*>(QStringLiteral("tourContinuationMode"))->isVisibleTo(chat) && !chat->findChild<QLabel*>(QStringLiteral("tourRevisionStatus"))->isVisibleTo(chat),
+		auto* const carried = chat->findChild<QLabel*>(QStringLiteral("tourSessionNotice"));
+		expect(chat->notice()->isVisibleTo(chat) && carried != nullptr && carried->isVisibleTo(chat) && !chat->findChild<QLabel*>(QStringLiteral("tourRevisionStatus"))->isVisibleTo(chat),
 			   "AC01 a replay adds its one notice");
+		// RFC-BPR-0130's accepted words, naming the agent the chat asks: no
+		// "Transcript replay", no "Native continuation", no kibibytes.
+		expect(carried->text() == QStringLiteral("Carried over from a saved transcript. The agent has the questions and answers, not what the earlier agent read.")
+				   && carried->toolTip() == QStringLiteral("Long conversations are shortened: the oldest turns are left out."),
+			   "a carried-over session says so in the accepted words: " + carried->text().toStdString() + " / " + carried->toolTip().toStdString());
+		chat->set_agent_name(QStringLiteral("Codex"));
+		expect(carried->text() == QStringLiteral("Carried over from a saved transcript. Codex has the questions and answers, not what the earlier agent read.")
+				   && chat->history_menu()->carry_over_action()->text() == QStringLiteral("Carry this conversation over to Codex") && chat->history_menu()->carry_over_action()->objectName() == QStringLiteral("tourCarryOver"),
+			   "the notice and History's carry-over item name the chosen agent: " + carried->text().toStdString());
+		chat->set_agent_name(QStringLiteral("Claude Code"));
+		expect(carried->text().startsWith(QStringLiteral("Carried over from a saved transcript. Claude Code has")) && chat->history_menu()->carry_over_action()->text() == QStringLiteral("Carry this conversation over to Claude Code"),
+			   "and another agent chosen, that one");
+		{
+			auto unable            = view;
+			unable.Replay          = false;
+			unable.NativeSupported = false;
+			chat->present_native_history(unable);
+			settle();
+			expect(carried->isVisibleTo(chat) && carried->text() == QStringLiteral("Claude Code can't pick up this conversation where it stopped. Choose New session, or carry the transcript over.") && carried->toolTip().isEmpty(),
+				   "a session the agent cannot go on with says so, naming it: " + carried->text().toStdString());
+			chat->present_native_history(view);
+			settle();
+		}
 		expect(chat->notice()->geometry().bottom() <= chat->composer_box()->geometry().top(), "above the composer");
 		render(*chat, prefix, "side-chat-foot-replay");
 		view.Replay = false;
@@ -916,7 +940,7 @@ auto main(int argc, char** argv) -> int
 		moved.Required = true;
 		chat->present_revision_continuation(moved, { }, false);
 		settle();
-		expect(chat->notice()->isVisibleTo(chat) && !chat->findChild<QLabel*>(QStringLiteral("tourContinuationMode"))->isVisibleTo(chat) && chat->findChild<QLabel*>(QStringLiteral("tourRevisionStatus"))->isVisibleTo(chat)
+		expect(chat->notice()->isVisibleTo(chat) && !carried->isVisibleTo(chat) && carried->text().isEmpty() && chat->findChild<QLabel*>(QStringLiteral("tourRevisionStatus"))->isVisibleTo(chat)
 				   && chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision"))->isVisibleTo(chat),
 			   "AC01 a moved head adds its one notice, with Continue old revision");
 		chat->present_revision_continuation(std::nullopt, { }, false);

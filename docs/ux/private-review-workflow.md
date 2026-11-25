@@ -1,6 +1,6 @@
 # Private review
 
-The Agent tab's **History > Private history and runs** lets you think through a pull request
+The Agent tab's **History > Show every run…** lets you think through a pull request
 privately, alone or with an agent, and publish only what you choose.
 
 - Private history stays on this computer. Nothing private is added to a

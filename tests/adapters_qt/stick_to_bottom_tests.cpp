@@ -20,6 +20,7 @@
 #include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/nested_scroll_latch.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
+#include "bpr/qt/transcript_edge.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QApplication>
@@ -345,6 +346,7 @@ namespace {
 		settle();
 		auto* const scroll = chat->findChild<QScrollArea*>(QStringLiteral("itemSideChatScroll"));
 		expect(scroll != nullptr && qt::stick_to_bottom::of(*scroll) != nullptr, "the item's side chat follows its end");
+		expect(qt::transcript_edge::of(*scroll) != nullptr, "and draws its top edge while rounds are scrolled under it, as the other chats do");
 		auto       round = 0;
 		const auto ask   = [&] {
 			const auto question = "Why is round " + std::to_string(++round) + " blocking?";

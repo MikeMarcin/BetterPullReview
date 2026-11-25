@@ -283,7 +283,8 @@ same turn, as the conversation contract states; a whole-tour revision is also a 
 that lists its parts in plain words, with **Apply all**, **Review each** (in the tour, where the
 parts wait marked grey) and **Discard**, drawn from the one proposal so deciding in either place
 settles the other. Under the transcript sit only a notice when something is not as usual (a
-transcript replay, native continuation unavailable, a moved head with Continue old revision), the
+session carried over from a saved transcript, one the agent cannot pick up, a moved head with
+Continue old revision; the first two in RFC-BPR-0130's accepted words, naming the agent), the
 composer with an attached passage as a chip inside its field, and what the session cost. The
 sessions are the header's **History** (RFC-BPR-0130, header A): `qt::chat_history_menu`, the one
 menu the Agent tab's header opens too, built from `core::plan_chat_history`, which decides its

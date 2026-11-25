@@ -138,7 +138,7 @@ namespace bpr::qt {
 				words += QObject::tr(" %1 so far.").arg(QString::fromStdString(core::agent_cost_words(*aEntry.Cost)));
 			}
 			if (aEntry.Replay) {
-				words += QObject::tr(" Transcript replay.");
+				words += QObject::tr(" Carried over from a saved transcript.");
 			}
 			if (aOpen) {
 				words = QObject::tr("The open session. ") + words;
