@@ -28,13 +28,22 @@
 ///   helpful. It's just restating the thing that's drawn above it." The
 ///   report never restates an updated comment: its Suggested change is the
 ///   finding's own, once, and one line under the keep row says what is so
-///   (Draft comment drafts the update, or the draft differs from it).
+///   (Draft comment drafts the update, or the draft differs from it). A
+///   finding no follow-up updated shows its suggested comment's words and
+///   not its suggestion a second time: the Suggested change above is that
+///   suggestion, and the label says it goes with the words.
 ///
 /// - The owner, of Go to draft: "How come when I clicked goto draft it didnt
 ///   switch to the comments tab? Then goto draft went to the comment but
 ///   didn't select it, it was still collapsed". From an updated finding,
 ///   with the draft closed and the right tray on the Agent tab, Go to draft
 ///   turns the tray to Comments and opens the draft in its composer.
+///
+/// - The draft gone to shows its first column: its words from their first
+///   letter and its suggestion's line, wider than the drawer, from its
+///   start. It opened panned sideways ("ssue: clamp both sides ..."). The
+///   field has no sideways range at any width the drawer is dragged to; the
+///   caret at the end of the long line moves the line's box, not the field.
 ///
 /// - [[BPR-2370]] (owner: "Why does the report side chat not have access to
 ///   the code?"): each round runs in the pull request's workspace, as a tour
@@ -73,13 +82,19 @@
 #include <QFile>
 #include <QFrame>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollBar>
+#include <QSplitter>
 #include <QTabBar>
 #include <QTemporaryDir>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
 #include <QTextEdit>
 #include <QToolButton>
 
@@ -89,6 +104,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -410,7 +426,18 @@ auto main(int argc, char** argv) -> int
 			const auto page = report->dressed_view()->toPlainText();
 			expect(page.count(draftsTheUpdate) == 1 && !page.contains(QStringLiteral("Suggested comment, updated")) && !page.contains(QStringLiteral("clamp the height as well as the width")),
 				   "the updated comment is not restated under its finding:\n" + page.toStdString());
-			expect(page.contains(QStringLiteral("Suggested comment:")), "a finding no follow-up updated still shows its suggested comment");
+			// A finding no follow-up updated keeps its suggested comment's
+			// words. Its suggestion is the Suggested change drawn above
+			// them, once: the page does not write its lines out again in a
+			// box under the words, and says the change goes with them.
+			const auto suggestedLine = QStringLiteral("const auto height = std::max(aSize.Height, 1);");
+			auto       changes       = 0;
+			for (const auto* const view : report->code_views()) {
+				changes += view->rendered_view()->toPlainText().contains(suggestedLine) ? 1 : 0;
+			}
+			expect(page.contains(QStringLiteral("Suggested comment, with the suggested change above:")) && page.contains(QStringLiteral("Clamp both.")),
+				   "a finding no follow-up updated still shows its suggested comment's words, and says its change is the one above:\n" + page.toStdString());
+			expect(changes == 1 && !page.contains(suggestedLine), "its suggestion shows once, as the Suggested change, not again under the words: in " + std::to_string(changes) + " code boxes, and the page:\n" + page.toStdString());
 		}
 		render(*report, QStringLiteral("follow-up-report"));
 		render(*report->dressed_view(), QStringLiteral("follow-up-report-page"));
@@ -591,6 +618,65 @@ auto main(int argc, char** argv) -> int
 			}
 			render(window, QStringLiteral("follow-up-go-to-draft"));
 			expect(cards->draft_editor()->toPlainText() == updatedDraft && updatedDraft.contains(thirdLine), "the open draft is the finding's, holding the update: " + cards->draft_editor()->toPlainText().toStdString());
+			// The draft gone to shows its first column: its words from
+			// their first letter, and its suggestion's line, wider than the
+			// drawer, from its start in its own box. The field has no
+			// sideways range at any drawer width, so the caret at the end of
+			// that line, where a suggestion's caret goes, cannot pan it.
+			{
+				auto* const editor   = cards->draft_editor();
+				const auto  sideways = [editor] { return editor->horizontalScrollBar()->maximum() != 0 || editor->horizontalScrollBar()->value() != 0 || editor->cursorRect(QTextCursor{ editor->document() }).left() < 0; };
+				const auto  placed   = [editor] {
+					return "range " + std::to_string(editor->horizontalScrollBar()->maximum()) + ", at " + std::to_string(editor->horizontalScrollBar()->value()) + ", first letter at "
+						+ std::to_string(editor->cursorRect(QTextCursor{ editor->document() }).left()) + " of " + std::to_string(editor->viewport()->width());
+				};
+				expect(!sideways(), "the draft gone to shows its words from their first letter: " + placed());
+				auto* const box = editor->viewport()->findChild<QScrollBar*>(QStringLiteral("threadCodeBlockScroll"));
+				expect(box != nullptr && box->isVisible() && box->maximum() > 0 && box->value() == 0,
+					   "its suggestion's line is wider than the drawer and shows from its start: " + (box != nullptr ? "at " + std::to_string(box->value()) + " of " + std::to_string(box->maximum()) : std::string{ "no bar" }));
+				// Its caret is where a suggestion's caret goes, at the end of
+				// that line and so out of sight. A key that leaves it there
+				// brings it into sight in its box, and the field stays.
+				const auto code = editor->document()->findBlockByNumber(editor->document()->blockCount() - 2);
+				expect(code.text() == thirdLine && editor->textCursor().block() == code && editor->textCursor().atBlockEnd(), "the caret is at the end of the suggestion's line: " + code.text().toStdString());
+				const auto caretShows = [editor, box] {
+					const auto at = editor->cursorRect();
+					return box->maximum() > 0 && box->value() > 0 && at.left() >= 0 && at.right() <= editor->viewport()->width();
+				};
+				{
+					const auto endOfLine = QKeySequence{ QKeySequence::MoveToEndOfLine }[0];
+					auto       press     = QKeyEvent{ QEvent::KeyPress, endOfLine.key(), endOfLine.keyboardModifiers() };
+					QApplication::sendEvent(editor, &press);
+					QApplication::processEvents();
+					expect(editor->textCursor().block() == code && editor->textCursor().atBlockEnd() && caretShows() && !sideways(), "the end-of-line key shows the caret in its box and leaves the field: box at " + std::to_string(box->value()) + ", " + placed());
+				}
+				// The drawer dragged through the widths a reviewer may leave
+				// it at: the words wrap to each, and the caret sent to the
+				// end of the long line moves the box, never the field.
+				auto* const splitter = window.central_splitter();
+				const auto  seam     = splitter->handle(3)->x();
+				auto        widths   = std::vector<int>{ };
+				for (auto wider = 0; wider <= 48; wider += 3) {
+					splitter->move_handle(3, seam - wider);
+					QApplication::processEvents();
+					auto* const dragged = cards->draft_editor();
+					expect(dragged == editor && cards->writing_draft(), "the draft stays open while its drawer is dragged");
+					if (std::ranges::find(widths, editor->viewport()->width()) == widths.end()) {
+						widths.push_back(editor->viewport()->width());
+					}
+					auto caret = editor->textCursor();
+					caret.setPosition(0);
+					editor->setTextCursor(caret);
+					caret.setPosition(code.position() + code.length() - 1);
+					editor->setTextCursor(caret);
+					QApplication::processEvents();
+					expect(!sideways(), "the drawer " + std::to_string(wider) + " px wider, with the caret at the end of the suggestion's line: " + placed());
+					expect(caretShows(), "and the box scrolls to the caret the reviewer put there: box at " + std::to_string(box->value()) + " of " + std::to_string(box->maximum()));
+				}
+				expect(widths.size() > 8U, "the editor was drawn at each width: " + std::to_string(widths.size()) + " widths");
+				splitter->move_handle(3, seam);
+				QApplication::processEvents();
+			}
 			const auto* const focus = QApplication::focusWidget();
 			expect(focus != nullptr && (focus == cards->open_card() || cards->open_card()->isAncestorOf(focus)),
 				   "the draft holds the keyboard; it is with " + (focus != nullptr ? std::string{ focus->metaObject()->className() } + " " + focus->objectName().toStdString() : std::string{ "nothing" }));

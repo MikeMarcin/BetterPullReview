@@ -57,6 +57,7 @@
 #include <QPainterPath>
 #include <QPalette>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QSignalBlocker>
@@ -617,6 +618,18 @@ namespace bpr::qt {
 				fit();
 			}
 
+			/// \brief Text that arrives, not typed, reads from its first
+			/// column: each block shows its lines from their start, wherever
+			/// the caret was put. A suggestion's caret goes to the end of its
+			/// last line, which in a line wider than the box left the box
+			/// showing the line's tail to a reviewer who came to read it. The
+			/// block scrolls to the caret once the reviewer moves it or presses a key.
+			void show_line_starts()
+			{
+				Code->show_line_starts();
+				sync_bars();
+			}
+
 			/// \brief [[BPR-2273]]. The tallest the field grows before it
 			/// scrolls: about 60% of the drawer, as the drawer says.
 			void set_maximum(const int aMaximum)
@@ -1145,6 +1158,29 @@ namespace bpr::qt {
 					return;
 				}
 				QPlainTextEdit::wheelEvent(aEvent);
+			}
+
+			/// A key that leaves the caret where it is still brings it into
+			/// sight: End at the end of a line whose block shows its start,
+			/// as a block does whose text arrived. A modifier alone is no
+			/// such key.
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				const auto key  = aEvent->key();
+				const auto here = QPointer<QPlainTextEdit>{ this };
+				QPlainTextEdit::keyPressEvent(aEvent);
+				switch (key) {
+				case Qt::Key_Shift:
+				case Qt::Key_Control:
+				case Qt::Key_Meta:
+				case Qt::Key_Alt:
+				case Qt::Key_AltGr:
+				case Qt::Key_CapsLock: return;
+				default:               break;
+				}
+				if (here != nullptr) {
+					reveal_caret();
+				}
 			}
 
 			void changeEvent(QEvent* aEvent) override
@@ -4213,6 +4249,7 @@ namespace bpr::qt {
 				}
 			}
 			ReplyBox->setTextCursor(cursor);
+			static_cast<reply_text*>(ReplyBox)->show_line_starts();
 			Applying = false;
 		}
 		// [[BPR-2353]] (owner, 2026-11-21). A suggestion no longer turns
@@ -4603,6 +4640,7 @@ namespace bpr::qt {
 			auto cursor = ReplyBox->textCursor();
 			cursor.movePosition(QTextCursor::End);
 			ReplyBox->setTextCursor(cursor);
+			static_cast<reply_text*>(ReplyBox)->show_line_starts();
 			Applying = false;
 		}
 		if (ReplyStatus) {

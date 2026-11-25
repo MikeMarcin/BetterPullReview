@@ -69,8 +69,22 @@ namespace bpr::qt {
 		/// \brief Scrolls the block holding `aBlock` so that `aX`, a position
 		/// in its line as laid out now, shows inside the box.
 		void reveal(const QTextBlock& aBlock, qreal aX);
+		/// \brief Scrolls every block back to its lines' first column.
+		void show_line_starts();
 
 		[[nodiscard]] auto blockBoundingRect(const QTextBlock& aBlock) const -> QRectF override;
+		/// \brief The document's size, never wider than the box.
+		/// \details The field scrolls sideways by the width this reports
+		/// beyond its viewport, bar or no bar. The plain layout reports its
+		/// widest laid-out line and 8 px more once it lays that line's block
+		/// out again, as after every change of width, so words that wrap
+		/// within 8 px of the field's edge gave the field a few pixels of
+		/// range. The caret at the end of a code line wider than the box,
+		/// where a suggestion's caret is put, then panned the field by that
+		/// range before the block scrolled to it, and the words lost their
+		/// first letters. The words wrap at the box's width and a block's
+		/// code scrolls in its own box, so nothing is wider than the box.
+		[[nodiscard]] auto documentSize() const -> QSizeF override;
 
 	protected:
 		void documentChanged(int aFrom, int aCharsRemoved, int aCharsAdded) override;

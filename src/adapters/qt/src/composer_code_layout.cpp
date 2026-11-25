@@ -106,6 +106,22 @@ namespace bpr::qt {
 		}
 	}
 
+	void composer_code_layout::show_line_starts()
+	{
+		for (auto index = std::size_t{ 0U }; index < runs().size(); ++index) {
+			set_scroll(index, 0.0);
+		}
+	}
+
+	auto composer_code_layout::documentSize() const -> QSizeF
+	{
+		auto size = QPlainTextDocumentLayout::documentSize();
+		if (BoxWidth > 0.0) {
+			size.setWidth(std::min(size.width(), BoxWidth));
+		}
+		return size;
+	}
+
 	auto composer_code_layout::blockBoundingRect(const QTextBlock& aBlock) const -> QRectF
 	{
 		if (!aBlock.isValid()) {

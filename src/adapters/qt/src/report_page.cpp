@@ -2,6 +2,7 @@
 
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/appearance_model.hpp"
+#include "bpr/core/markdown_code.hpp"
 #include "bpr/qt/agent_reference_links.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 
@@ -171,21 +172,45 @@ namespace bpr::qt {
 		/// block, a fix in the file's language or a suggestion, as the page's
 		/// own code box. The boxes stay page HTML, not collected code views:
 		/// the plain box the owner accepted, without Copy or Wrap.
-		[[nodiscard]] auto comment_html(const QString& aLabel, const QString& aComment, const palette& aPalette) -> QString
+		/// \details The finding's Suggested change, drawn above from the
+		/// same lines (`aDrawn`), is the comment's `suggestion` block already:
+		/// the removed and added lines, numbered. That block is not drawn a
+		/// second time as a plain box of its added lines (the owner, of an
+		/// updated comment written out under its finding: "It's just
+		/// restating the thing that's drawn above it"). The label says the
+		/// change goes with the words, so the comment does not read as words
+		/// only. A fix in the file's language is not a Suggested change and
+		/// keeps its box: nothing above says the comment carries it.
+		[[nodiscard]] auto comment_html(const QString& aComment, const std::vector<std::string>* const aDrawn, const palette& aPalette) -> QString
 		{
+			// Which lines a comment suggests is core's reading.
+			const auto withAbove = aDrawn != nullptr && core::comment_suggestion_lines(aComment.toStdString()) == *aDrawn;
+			auto       above     = withAbove;
 			auto       html      = QString{ };
-			auto       lead      = aLabel.toHtmlEscaped() + QLatin1Char{ ' ' };
+			auto       lead      = (withAbove ? QObject::tr("Suggested comment, with the suggested change above:") : QObject::tr("Suggested comment:")).toHtmlEscaped() + QLatin1Char{ ' ' };
 			auto       words     = QStringList{ };
 			auto       fence     = QString{ };
 			auto       code      = dressed_block{ .Kind = dressed_block_kind::code };
+			// Whether the comment shows anything of its own here.
+			auto       shown     = false;
 			const auto paragraph = [&] {
 				const auto text = words.join(QLatin1Char{ '\n' }).trimmed();
 				words.clear();
 				if (text.isEmpty() && lead.isEmpty()) {
 					return;
 				}
+				shown = shown || !text.isEmpty();
 				html += QStringLiteral("<p style=\"margin-top:6px;font-family:%1;font-size:13px;color:%2;white-space:pre-wrap\">%3<span style=\"color:%4\">%5</span></p>")
 							.arg(sans(), aPalette.Faint, std::exchange(lead, QString{ }), aPalette.Ink, text.toHtmlEscaped());
+			};
+			// A closed block: its box, or nothing for the one drawn above.
+			const auto box = [&] {
+				if (above && core::markdown_code_language_of(code.Language).Kind == core::markdown_code_kind::suggestion && code.Lines == *aDrawn) {
+					above = false;
+					return;
+				}
+				shown = true;
+				html += code_box_html(code, aPalette);
 			};
 			for (const auto& line : aComment.split(QLatin1Char{ '\n' })) {
 				const auto bare = line.trimmed();
@@ -210,22 +235,29 @@ namespace bpr::qt {
 					continue;
 				}
 				if (bare.startsWith(fence) && bare.count(fence.front()) == bare.size()) {
-					html += code_box_html(code, aPalette);
+					box();
 					fence.clear();
 					continue;
 				}
 				code.Lines.push_back(line.toStdString());
 			}
 			if (!fence.isEmpty()) {
-				html += code_box_html(code, aPalette);
+				box();
 			}
 			paragraph();
+			if (withAbove && !shown) {
+				// A comment that is its suggestion and no words.
+				return QStringLiteral("<p style=\"margin-top:6px;font-family:%1;font-size:13px;color:%2\">%3</p>").arg(sans(), aPalette.Faint, QObject::tr("The suggested comment is the suggested change above.").toHtmlEscaped());
+			}
 			return html;
 		}
 
 		/// One keep action's row: the chip and what it does, or what became
 		/// of it. `aOutline` 0 is the summary's.
-		[[nodiscard]] auto keep_row(const std::uint32_t aOutline, const core::report_keep aKeep, const QString& aWhere, const bool aGoes, const palette& aPalette) -> QString
+		/// `aDrawn`: the lines of the Suggested change the finding draws
+		/// above the row, when it draws one.
+		[[nodiscard]] auto keep_row(const std::uint32_t aOutline, const core::report_keep aKeep, const QString& aWhere, const bool aGoes, const palette& aPalette, const std::vector<std::string>* const aDrawn = nullptr)
+			-> QString
 		{
 			if (Actions == nullptr || !Actions->Link || aKeep == core::report_keep::none) {
 				return { };
@@ -304,7 +336,7 @@ namespace bpr::qt {
 					under           = QStringLiteral("<p style=\"margin-top:6px;font-family:%1;font-size:13px;color:%2\">%3%4</p>").arg(sans(), outdated ? aPalette.Roles.Tones.Open.name() : aPalette.Faint, lead, said.toHtmlEscaped());
 				}
 			} else if (const auto suggested = Actions->Suggested.find(aOutline); suggested != Actions->Suggested.end()) {
-				under = comment_html(QObject::tr("Suggested comment:"), suggested->second, aPalette);
+				under = comment_html(suggested->second, aDrawn, aPalette);
 			}
 			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells) + under;
 		}
@@ -329,13 +361,14 @@ namespace bpr::qt {
 			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells);
 		}
 
-		/// The keep action of the item at `aOutline`, when it is a finding.
-		[[nodiscard]] auto finding_row(const std::uint32_t aOutline, const palette& aPalette) -> QString
+		/// The keep action of `aItem`, when it is a finding.
+		[[nodiscard]] auto finding_row(const dressed_item& aItem, const palette& aPalette) -> QString
 		{
 			if (Actions == nullptr) {
 				return { };
 			}
-			const auto found = std::ranges::find(Actions->Findings, aOutline, &core::report_finding::Outline);
+			const auto aOutline = aItem.Outline;
+			const auto found    = std::ranges::find(Actions->Findings, aOutline, &core::report_finding::Outline);
 			if (found == Actions->Findings.end()) {
 				return { };
 			}
@@ -343,7 +376,10 @@ namespace bpr::qt {
 			const auto where = found->First == 0U ? (found->Path.empty() ? QObject::tr("as a local comment on the pull request") : QObject::tr("as a local comment on %1").arg(file))
 				: found->First == found->Last     ? QObject::tr("at %1:%2").arg(file).arg(found->First)
 												  : QObject::tr("at %1:%2-%3").arg(file).arg(found->First).arg(found->Last);
-			return keep_row(aOutline, found->Keep, where, !found->Path.empty(), aPalette);
+			// What `blocks_html` drew as the item's Suggested change: a
+			// suggestion under a place.
+			const auto drawn = aItem.Place.empty() ? aItem.Body.end() : std::ranges::find(aItem.Body, dressed_block_kind::suggestion, &dressed_block::Kind);
+			return keep_row(aOutline, found->Keep, where, !found->Path.empty(), aPalette, drawn != aItem.Body.end() ? &drawn->Lines : nullptr);
 		}
 
 		/// Emphasis, `**strong**` and `*emphasis*` or `_emphasis_`, outside
@@ -516,7 +552,7 @@ namespace bpr::qt {
 		{
 			if (aItem.Label.empty() && aItem.Place.empty()) {
 				return QStringLiteral("<p style=\"margin:16px 0 6px 0;font-size:14px;font-weight:600\">%1%2</p>%3")
-					.arg(anchor(aItem.Outline), inline_html(aItem.Heading, aPalette), blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem.Outline, aPalette));
+					.arg(anchor(aItem.Outline), inline_html(aItem.Heading, aPalette), blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem, aPalette));
 			}
 			const auto tone = aItem.Tone == report_tone::neutral ? aPalette.Strong : report_tone_colour(aItem.Tone, aPalette.Roles).name();
 			const auto word = aItem.Tone == report_tone::neutral ? aPalette.Dim : tone;
@@ -535,7 +571,7 @@ namespace bpr::qt {
 						   inline_html(aItem.Heading, aPalette),
 						   (aItem.OtherPlaces.empty() ? QString{ }
 													  : QStringLiteral("<p style=\"margin:0 0 6px 0;font-family:%1;font-size:13px;color:%2\">%3 %4</p>").arg(sans(), aPalette.Dim, QObject::tr("Also"), inline_html(aItem.OtherPlaces, aPalette)))
-							   + blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem.Outline, aPalette));
+							   + blocks_html(aItem.Body, &aItem, aPalette) + finding_row(aItem, aPalette));
 		}
 
 		[[nodiscard]] auto tally_html(const dressed_report& aReport, const palette& aPalette) -> QString
