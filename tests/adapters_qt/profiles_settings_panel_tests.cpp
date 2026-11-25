@@ -17,9 +17,11 @@
 #include <QPushButton>
 #include <memory>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <iterator>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -533,8 +535,15 @@ namespace {
 			}
 			expect(!windowLines.isEmpty() && desktopLines == windowLines,
 				   "Pull Request carries the window menu's own commands, on their keys, in the window menu's own order");
+			// A command the window's Help hides until it applies (saved update
+			// drafts, while there are none) is not one it carries.
+			const auto shown = [](const QList<QAction*>& aActions) {
+				auto result = QList<QAction*>{ };
+				std::ranges::copy_if(aActions, std::back_inserter(result), [](const QAction* const aAction) { return aAction->isVisible(); });
+				return result;
+			};
 			auto* const windowHelp = window.findChild<QMenu*>(QStringLiteral("releaseUpdateMenu"));
-			expect(windowHelp != nullptr && withKeys(helpActions) == withKeys(windowHelp->actions()),
+			expect(windowHelp != nullptr && withKeys(shown(helpActions)) == withKeys(shown(windowHelp->actions())),
 				   "Help carries the window menu's own commands, on their keys, in the window menu's own order");
 		}
 		expect(pullRequest->accessibleDescription().endsWith(QStringLiteral("unavailable while no window is open")),

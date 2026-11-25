@@ -13,10 +13,12 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def run(program: Path, arguments: list[str], text: str, environment: dict[str, str] | None = None) -> subprocess.CompletedProcess:
@@ -114,7 +116,7 @@ def check_held_turn(claude: Path) -> None:
     """A course holds a turn open with a file: while `hold-turns` stands
     beside the agent's own executable its turn waits, and it answers once the
     file is gone. Only that copy of the agent is held."""
-    with tempfile.TemporaryDirectory() as root:
+    with contained_temporary_directory(prefix="bpr-fixture-agent-hold-") as root:
         own = Path(root) / claude.name
         shutil.copy2(claude, own)
         hold = Path(root) / "hold-turns"
