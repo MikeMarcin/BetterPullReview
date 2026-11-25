@@ -1047,6 +1047,10 @@ auto main(int argc, char** argv) -> int
 		// The tour's agent holds the pull request's checkout, so the move is
 		// refused and the stopped card offers the two ways on.
 		open(seeded);
+		// The replay's card goes as the session's own conversation comes in.
+		// A question sent while that card still shows is the replay's to
+		// answer, and is not sent: the course waits for the card to go.
+		static_cast<void>(e2e::wait_until_plain([&] { return tab->state() != qt::agent_tab_state::head_moved; }, std::chrono::milliseconds{ 10000 }));
 		ask(QStringLiteral("What changed in this push?"));
 		wait([&] { return quiet() && tab->state() == qt::agent_tab_state::stopped && tab->banner()->isVisible(); }, "the question is refused: the session's workspace was not moved");
 		expect(tab->banner_first_button()->isVisibleTo(tab->banner()) && tab->banner_second_button()->isVisibleTo(tab->banner()) && tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead
