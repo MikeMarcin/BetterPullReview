@@ -96,6 +96,36 @@ namespace bpr::qt {
 		constexpr std::size_t      chips_each_way  = 3U;
 		constexpr std::string_view draft_card_id   = "draft:unpublished";
 
+		/// \brief Watches the draft's editor, whose events the view's own
+		/// filter does not see: the reader's wheel or press there ends the
+		/// draft's reveal, and a key typed there is writing.
+		class draft_editor_watch final : public QObject
+		{
+		public:
+			draft_editor_watch(std::function<void()> aEnd, std::function<void()> aTyped, QObject* const aParent)
+				: QObject{ aParent }
+				, End{ std::move(aEnd) }
+				, Typed{ std::move(aTyped) }
+			{
+				setObjectName(QStringLiteral("draftEditorWatch"));
+			}
+
+		protected:
+			auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::Wheel || aEvent->type() == QEvent::MouseButtonPress) {
+					End();
+				} else if (aEvent->type() == QEvent::KeyPress) {
+					Typed();
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+
+		private:
+			std::function<void()> End;
+			std::function<void()> Typed;
+		};
+
 		[[nodiscard]] auto semibold(QFont aFont) -> QFont;
 		[[nodiscard]] auto scaled(QFont aFont, qreal aFactor) -> QFont;
 
@@ -698,6 +728,7 @@ namespace bpr::qt {
 		viewport()->setAutoFillBackground(true);
 		viewport()->setBackgroundRole(QPalette::Window);
 		viewport()->setMouseTracking(true);
+		connect(verticalScrollBar(), &QScrollBar::actionTriggered, this, [this] { RevealDraft = false; });
 		// [[BPR-1781]]. Beside the code the drawer is about code: the pull
 		// request's own conversation is Overview's Comments tab, and this quiet
 		// link is the way there. The window decides what it opens.
@@ -4018,7 +4049,14 @@ namespace bpr::qt {
 				DraftTextDispatch(aText);
 			}
 		};
-		OpenCard->HeightChanged  = [this] { place_cards(true); };
+		OpenCard->HeightChanged = [this] {
+			// Where the card stood at the scroll now, before it is placed again:
+			// the widget's own geometry may still be the last placement's.
+			const auto shown  = card_index(Open);
+			const auto before = shown.has_value() ? to_viewport(Cards[*shown].Rect) : QRect{ };
+			place_cards(true);
+			keep_grown_draft(before);
+		};
 		OpenCard->CloseRequested = [this, writing = card.Writing] {
 			// [[BPR-1212]]. Closing the draft being written keeps it unless it
 			// is empty, which the window decides.
@@ -4304,6 +4342,11 @@ namespace bpr::qt {
 		OpenCard->set_notch(notch);
 		if (!OpenCard->isVisible()) {
 			OpenCard->show();
+		}
+		// The draft's reveal waits for the drawer and the code to settle:
+		// every placement restarts it.
+		if (RevealDraft && DraftReveal != nullptr && !MovingNotes) {
+			DraftReveal->start();
 		}
 		// [[BPR-1293]]. A picked post is brought into view once, after the
 		// code has settled with the card hanging at its line: every frame of
@@ -5223,7 +5266,12 @@ namespace bpr::qt {
 		if (auto* const editor = OpenCard->reply_editor(); editor != nullptr) {
 			editor->setFocus(Qt::OtherFocusReason);
 			place_cards(true);
-			ensure_visible(QRect{ editor->mapTo(viewport(), QPoint{ 0, 0 }), editor->size() });
+			// The owner: "Draft comment on a report barely puts the draft on
+			// screen in the comments drawer". The editor alone was brought in,
+			// at once, before the finding's words arrived and before the code
+			// had moved to the line, so the card grew past the drawer's foot.
+			// The whole card is brought in, and again as the drawer settles.
+			arm_draft_reveal();
 		}
 	}
 
@@ -5343,24 +5391,110 @@ namespace bpr::qt {
 		if (aViewportRect.top() - move < visible.top()) {
 			move = aViewportRect.top() - visible.top();
 		}
-		if (move == 0) {
+		move_notes(move);
+	}
+
+	void conversation_cards_view::move_notes(const int aMove)
+	{
+		if (aMove == 0) {
 			return;
 		}
+		auto* const bar = verticalScrollBar();
 		if (!aligned()) {
-			verticalScrollBar()->setValue(verticalScrollBar()->value() + move);
+			bar->setValue(bar->value() + aMove);
 			return;
 		}
+		const auto moving = MovingNotes;
+		MovingNotes       = true;
 		// The drawer follows the code: move it as a wheel over the notes does.
 		const auto centre = QPointF{ viewport()->rect().center() };
 		const auto before = OpenCard != nullptr ? OpenCard->y() : 0;
-		auto       wheel  = QWheelEvent{ centre, viewport()->mapToGlobal(centre), QPoint{ 0, -move }, QPoint{ 0, -move }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+		auto       wheel  = QWheelEvent{ centre, viewport()->mapToGlobal(centre), QPoint{ 0, -aMove }, QPoint{ 0, -aMove }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
 		wheelEvent(&wheel);
 		// [[BPR-1740]]. What the code could not take, near the end of a
 		// short file, the notes' own overflow does: focus on the Reply field
 		// of a thread taller than the drawer left the field out of view.
 		const auto moved = OpenCard != nullptr ? before - OpenCard->y() : 0;
-		if (const auto rest = move - moved; rest != 0 && (rest > 0) == (move > 0)) {
-			verticalScrollBar()->setValue(verticalScrollBar()->value() + rest);
+		if (const auto rest = aMove - moved; rest != 0 && (rest > 0) == (aMove > 0)) {
+			bar->setValue(bar->value() + rest);
+		}
+		MovingNotes = moving;
+	}
+
+	auto conversation_cards_view::view_band() const -> card_view_band
+	{
+		// Clear of the chips on the top and bottom edges, as a picked post is.
+		const auto height = viewport()->height();
+		return { .Top = edge_reach + 8, .Bottom = height - (edge_reach + 8), .Rest = height / 3 };
+	}
+
+	void conversation_cards_view::arm_draft_reveal()
+	{
+		if (DraftReveal == nullptr) {
+			DraftReveal = new QTimer{ this };
+			DraftReveal->setSingleShot(true);
+			DraftReveal->setInterval(120);
+			connect(DraftReveal, &QTimer::timeout, this, [this] { step_draft_reveal(true); });
+		}
+		RevealDraft      = true;
+		DraftRevealSteps = 0;
+		DraftRevealClock.start();
+		if (auto* const editor = OpenCard != nullptr ? OpenCard->reply_editor() : nullptr; editor != nullptr && editor->findChild<QObject*>(QStringLiteral("draftEditorWatch"), Qt::FindDirectChildrenOnly) == nullptr) {
+			auto* const watch = new draft_editor_watch{ [this] { RevealDraft = false; }, [this] { DraftTyped.start(); }, editor };
+			editor->installEventFilter(watch);
+			editor->viewport()->installEventFilter(watch);
+		}
+		step_draft_reveal(false);
+		DraftReveal->start();
+	}
+
+	void conversation_cards_view::step_draft_reveal(const bool aSettled)
+	{
+		// Bounded: the code's move to the line arrives within it; after it,
+		// or once the card has settled whole, only the reader moves the notes.
+		constexpr auto settling = 1'500;
+		if (!RevealDraft || !writing_draft() || OpenCard == nullptr || DraftRevealSteps >= 8 || DraftRevealClock.elapsed() > settling) {
+			RevealDraft = false;
+			return;
+		}
+		const auto place = OpenCard->geometry();
+		const auto move  = whole_card_move(place.top(), place.height(), view_band());
+		if (move == 0 && aSettled) {
+			RevealDraft = false;
+			return;
+		}
+		if (move != 0) {
+			++DraftRevealSteps;
+			move_notes(move);
+		}
+		// A long move of the code is taken in frames: the next placement
+		// restarts the wait, and the card is measured again once it is still.
+		DraftReveal->start();
+	}
+
+	void conversation_cards_view::keep_grown_draft(const QRect& aBefore)
+	{
+		// While the reveal still waits for the drawer to settle, it is the
+		// reveal's to place the card. Only writing grows it into view: words
+		// presented to it (a draft read back, a longer one shown) do not
+		// move the drawer under the reader.
+		constexpr auto typing = 1'000;
+		if (RevealDraft || OpenCard == nullptr || !writing_draft() || !DraftTyped.isValid() || DraftTyped.elapsed() > typing) {
+			return;
+		}
+		// Scrolled away from by the reader, it is left where they put it.
+		const auto band = view_band();
+		if (aBefore.isEmpty() || aBefore.top() < band.Top || aBefore.bottom() + 1 > band.Bottom) {
+			return;
+		}
+		if (OpenCard->geometry().height() <= aBefore.height()) {
+			return;
+		}
+		// The notes' own scroll takes it, as the editor's reveal always did
+		// ([[BPR-1740]]): the code is the reader's, and stays where it is.
+		const auto place = OpenCard->geometry();
+		if (const auto move = grown_card_move(place.top(), place.height(), band); move != 0) {
+			verticalScrollBar()->setValue(verticalScrollBar()->value() + move);
 		}
 	}
 
@@ -5431,6 +5565,7 @@ namespace bpr::qt {
 
 	void conversation_cards_view::mousePressEvent(QMouseEvent* const aEvent)
 	{
+		RevealDraft = false;
 		if (aEvent->button() != Qt::LeftButton) {
 			QAbstractScrollArea::mousePressEvent(aEvent);
 			return;
@@ -5479,6 +5614,9 @@ namespace bpr::qt {
 
 	void conversation_cards_view::wheelEvent(QWheelEvent* const aEvent)
 	{
+		if (!MovingNotes) {
+			RevealDraft = false;
+		}
 		if (!aligned()) {
 			QAbstractScrollArea::wheelEvent(aEvent);
 			return;
@@ -5742,6 +5880,11 @@ namespace bpr::qt {
 				reveal_focus(*static_cast<QWidget*>(aWatched));
 			}
 			return false;
+		}
+		if (aEvent->type() == QEvent::Wheel && OpenCard != nullptr && (aWatched == OpenCard || OpenCard->isAncestorOf(qobject_cast<QWidget*>(aWatched)))) {
+			// The reader's own scroll ends the draft's reveal, even one a
+			// field or a latched gesture takes.
+			RevealDraft = false;
 		}
 		if (aEvent->type() == QEvent::Wheel && OpenCard != nullptr && OpenCard->isAncestorOf(qobject_cast<QWidget*>(aWatched))) {
 			// A sideways wheel is a wide code block's or table's own.
