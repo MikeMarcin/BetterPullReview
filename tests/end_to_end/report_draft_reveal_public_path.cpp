@@ -269,14 +269,14 @@ auto main(int argc, char** argv) -> int
 			// narrower than its widest chip inside a finding's box (Draft
 			// comment, 152 px). With both drawers and the chat open the window
 			// leaves the report that little only under about 1200 px wide.
-			constexpr auto one_chip = 170;
-			auto           wrong    = std::string{ };
-			auto           judged   = 0;
+			constexpr auto oneChip = 170;
+			auto           wrong   = std::string{ };
+			auto           judged  = 0;
 			for (const auto width : { 1'440, 1'400, 1'360, 1'320, 1'280, 1'250, 1'220, 1'140 }) {
 				window.resize(width, 720);
 				settle(400);
 				const auto wide = report->column()->width();
-				if (wide < one_chip) {
+				if (wide < oneChip) {
 					std::cout << "report-draft-reveal: beside its side chat, in a " << window.width() << " px window, the report's page is " << wide << " px wide: narrower than one chip, not judged\n";
 					continue;
 				}

@@ -653,6 +653,24 @@ namespace {
 		if (holds(aRequest, "commit message") || holds(aRequest, "Commit message")) {
 			return "Clamp the resize to one pixel\n\nA zero-width frame asserted in the swap chain; the renderer now resizes to at least one pixel.";
 		}
+		// Findings no report holds. Asked whether anything is worth a comment,
+		// it answers in a sentence, with no heading and so no report, and a
+		// findings block: the Agent tab shows them as cards under the answer.
+		// One with a blocking label, one with a long label and code in its
+		// comment, one with no comment.
+		if (holds(aRequest, "bpr-findings") && holds(aRequest, "Any findings worth a comment")) {
+			return "Three things are worth a comment. Each is a card below; nothing was spent.\n\n"
+				   "```bpr-findings\n"
+				   R"({"findings": [{"path": "src/engine/renderer.cpp", "startLine": 12, "endLine": 13, "severity": "major", "category": "correctness", "confidence": "high", )"
+				   R"("claim": "A zero height still reaches the swap chain.", "evidence": "`resize` clamps the width only; `Target.resize` takes `aSize.Height` as it arrives.", )"
+				   R"("suggestedComment": "issue (blocking): clamp the height as well as the width. A minimised window reports a height of zero."}, )"
+				   R"({"path": "src/engine/shaders/post/tonemap.frag", "startLine": 5, "endLine": 5, "severity": "minor", "category": "maintainability", "confidence": "medium", )"
+				   R"("claim": "The tonemap pass ignores exposure.", "evidence": "It writes the scene colour straight through; `uExposure` is not read.", )"
+				   R"("suggestedComment": "suggestion (non-blocking): read `uExposure` here, or say in a comment that the pass is a placeholder for now."}, )"
+				   R"({"path": "src/engine/renderer.h", "startLine": 1, "endLine": 1, "severity": "minor", "category": "documentation", "confidence": "low", )"
+				   R"("claim": "The header does not say which thread may call `resize`.", "evidence": "No comment or assertion names the render thread."}]})"
+				   "\n```\n";
+		}
 		// A review (the review skill asks every turn for findings it finds;
 		// only a review is answered with them).
 		// [[BPR-2248]]. Review these commits: a review of the selected

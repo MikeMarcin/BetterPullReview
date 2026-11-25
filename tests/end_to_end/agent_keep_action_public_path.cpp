@@ -306,8 +306,6 @@ auto main(int argc, char** argv) -> int
 			}
 			expect(followUp->status_text().startsWith(QStringLiteral("Suggested comment and its draft updated.")), "the side chat says both were updated: " + followUp->status_text().toStdString());
 			expect(!shown(update) && !shown(differs) && said->text().startsWith(QStringLiteral("Drafted")), "nothing to update: the draft is the comment, and the card says Drafted");
-			// What the card needs sideways while it only says Drafted.
-			const auto draftedNeeds = placed->minimumSizeHint().width();
 			std::cout << "keep-action: card-follow-up-updates-draft=pass\n";
 
 			// Changed since: left as it is, and offered.
@@ -332,10 +330,10 @@ auto main(int argc, char** argv) -> int
 			render(QStringLiteral("Comments"), QStringLiteral("card-draft-differs-comments"));
 			render(QStringLiteral("Agent"), QStringLiteral("card-draft-differs-agent-tab"));
 			// No drawer pans sideways: with the Agent tab in front, the card
-			// in this state is judged at each width the drawer is dragged to.
-			// Its two buttons keep their words inside the card, side by side
-			// and not over each other, what it says wraps inside it, and the
-			// tab's own scroll has no sideways range.
+			// in this state, among the answer's open cards, is judged at each
+			// width the drawer is dragged to. Its two buttons keep their words
+			// inside the card and do not stand over each other, what it says
+			// wraps inside it, and the tab's own scroll has no sideways range.
 			{
 				window.open_agent_question();
 				auto* const splitter = window.central_splitter();
@@ -353,31 +351,25 @@ auto main(int argc, char** argv) -> int
 						}
 					}
 				};
-				// What an open card beside it needs: its three buttons' row.
-				auto open = 0;
-				for (const auto* const card : tab->turn_cards(prTurn)) {
-					if (card != placed) {
-						open = std::max(open, card->minimumSizeHint().width());
-					}
-				}
-				expect(open > 0 && placed->minimumSizeHint().width() <= open && placed->minimumSizeHint().width() <= std::max(draftedNeeds, open),
-					   "the card whose draft differs needs no more width than an open card does: " + std::to_string(placed->minimumSizeHint().width()) + " against " + std::to_string(open) + " (and " + std::to_string(draftedNeeds)
-						   + " while it only said Drafted)");
-				std::cout << "keep-action: a card needs " << placed->minimumSizeHint().width() << " px when its draft differs, " << draftedNeeds << " when it says Drafted, " << open << " when open\n";
 				for (const auto width : { 280, 300, 340, 420 }) {
 					drag(width);
 					scroll->ensureWidgetVisible(placed, 0, 12);
 					QApplication::processEvents();
 					const auto at = " in a " + std::to_string(drawer->width()) + " px drawer (asked for " + std::to_string(width) + ")";
 					expect(placed->isVisibleTo(&window) && update->isVisibleTo(&window) && askAbout->isVisibleTo(&window) && differs->isVisibleTo(&window), "the card shows Update draft, Ask follow-up and what it says" + at);
-					// The tab's content is as wide as its widest card needs.
-					// Where that is more than the drawer shows, it is the
-					// open cards' need and was before this state existed:
-					// this card's is not the greater.
-					const auto pans = scroll->widget()->width() > scroll->viewport()->width() || scroll->horizontalScrollBar()->maximum() > 0;
-					std::cout << "keep-action: the Agent tab" << at << " is " << scroll->widget()->width() << " px of content in a " << scroll->viewport()->width() << " px viewport; this card needs " << placed->minimumSizeHint().width()
-							  << ", an open card " << open << (pans ? ": it pans, as it does with open cards alone" : ": it does not pan") << '\n';
-					expect(!pans || placed->minimumSizeHint().width() < open, "where the Agent tab pans it is not for this card" + at);
+					// What forces the width, innermost first, when it pans.
+					auto past = std::string{ };
+					for (const auto* const child : scroll->widget()->findChildren<QWidget*>()) {
+						const auto reach = [&](const QWidget& aPart) { return aPart.mapTo(scroll->widget(), QPoint{ 0, 0 }).x() + std::max(aPart.minimumWidth(), aPart.minimumSizeHint().width()); };
+						if (!child->isVisible() || reach(*child) <= scroll->viewport()->width()) {
+							continue;
+						}
+						if (std::ranges::none_of(child->findChildren<QWidget*>(), [&](const QWidget* aInner) { return aInner->isVisible() && reach(*aInner) > scroll->viewport()->width(); })) {
+							past += child->objectName().toStdString() + " reaches " + std::to_string(reach(*child)) + "; ";
+						}
+					}
+					expect(scroll->horizontalScrollBar()->maximum() == 0 && !scroll->horizontalScrollBar()->isVisible() && scroll->widget()->width() <= scroll->viewport()->width(),
+						   "the Agent tab has no sideways range" + at + ": its content is " + std::to_string(scroll->widget()->width()) + " wide in a " + std::to_string(scroll->viewport()->width()) + " px viewport (" + past + ")");
 					for (const auto* const button : { update, askAbout }) {
 						const auto left = button->mapTo(placed, QPoint{ 0, 0 }).x();
 						expect(button->width() >= button->sizeHint().width(), button->text().toStdString() + " keeps its words" + at + ": " + std::to_string(button->width()) + " of " + std::to_string(button->sizeHint().width()));

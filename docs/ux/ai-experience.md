@@ -188,6 +188,11 @@ The functional core decides whether an explicit AI action is legal, what local c
   the pull request. They then read **Go to draft** and **Go to comment**.
   Finding cards, the finding queue and Explain this file follow the same
   rule. Nothing is published until the reviewer publishes.
+- A finding card fits the Agent tab at the drawer's narrowest width. Its
+  severity, kind and place, its suggested comment's caption and label, and
+  its choices with what it says of itself are each a row that wraps inside
+  the card. A card whose draft a follow-up's update left behind offers
+  **Update draft** in that row and says under it that the draft differs.
 
 No opening, navigation, refresh, comment arrival, or revision update automatically invokes an agent.
 
