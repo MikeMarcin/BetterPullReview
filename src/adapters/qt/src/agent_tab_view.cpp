@@ -31,6 +31,7 @@
 #include "bpr/qt/stick_to_bottom.hpp"
 #include "composer_parts.hpp"
 #include "conversation_glyphs.hpp"
+#include "wrapping_row.hpp"
 
 #include <QAbstractItemModel>
 #include <QAccessible>
@@ -445,6 +446,24 @@ namespace bpr::qt {
 			}
 			return words;
 		}
+
+		/// RFC-BPR-0096, owner continue-at-latest amendment: "Updated to
+		/// <new> — <n> commits", "— history rewritten", or with the reconcile
+		/// that carried the reviewer's work.
+		[[nodiscard]] auto move_notice_words(const application::agent_conversation_move& aMove) -> QString
+		{
+			const auto to    = QString::fromUtf8(core::canonical_hex(aMove.To).view().substr(0U, 7U));
+			auto       words = !aMove.Linear          ? QObject::tr("Updated to %1 — history rewritten").arg(to)
+				: aMove.Listed && aMove.Commits == 1U ? QObject::tr("Updated to %1 — 1 commit").arg(to)
+				: aMove.Listed                        ? QObject::tr("Updated to %1 — %2 commits").arg(to).arg(aMove.Commits)
+													  : QObject::tr("Updated to %1").arg(to);
+			if (aMove.Reconcile == core::conversation_reconcile::rebase) {
+				words += QStringLiteral(". ") + QObject::tr("Your changes were rebased onto it.");
+			} else if (!aMove.SavedBranch.empty()) {
+				words += QStringLiteral(". ") + QObject::tr("Your changes are kept on %1.").arg(QString::fromStdString(aMove.SavedBranch));
+			}
+			return words;
+		}
 	} // namespace
 
 	auto agent_model_display_name(const QString& aModel) -> QString
@@ -640,6 +659,27 @@ namespace bpr::qt {
 		BannerText->setWordWrap(true);
 		BannerText->setForegroundRole(QPalette::PlaceholderText);
 		bannerCol->addWidget(BannerText);
+		// RFC-BPR-0096, owner continue-at-latest amendment: "a few
+		// non-agentic options and then a system prompt to just fix it". The
+		// reconcile choices wrap on their own row, so the card never pans.
+		BannerReconcile        = new QWidget{ Banner };
+		auto* const reconciles = new detail::wrapping_row{ BannerReconcile };
+		BannerRebase           = new QPushButton{ BannerReconcile };
+		BannerRebase->setObjectName(QStringLiteral("agentStateRebase"));
+		BannerSave = new quiet_push_button{ BannerReconcile };
+		BannerSave->setObjectName(QStringLiteral("agentStateSaveAndMove"));
+		BannerSave->setFlat(true);
+		BannerAsk = new quiet_push_button{ BannerReconcile };
+		BannerAsk->setObjectName(QStringLiteral("agentStateAskToReconcile"));
+		BannerAsk->setFlat(true);
+		reconciles->addWidget(BannerRebase);
+		reconciles->addWidget(BannerSave);
+		reconciles->addWidget(BannerAsk);
+		connect(BannerRebase, &QPushButton::clicked, this, [this] { choose_reconcile(core::conversation_reconcile::rebase); });
+		connect(BannerSave, &QPushButton::clicked, this, [this] { choose_reconcile(core::conversation_reconcile::save_and_move); });
+		connect(BannerAsk, &QPushButton::clicked, this, [this] { choose_reconcile(core::conversation_reconcile::ask_agent); });
+		BannerReconcile->hide();
+		bannerCol->addWidget(BannerReconcile);
 		auto* const bannerRow = new QHBoxLayout{ };
 		bannerRow->setSpacing(6);
 		BannerFirst = new QPushButton{ Banner };
@@ -1539,6 +1579,16 @@ namespace bpr::qt {
 		fixedNote->hide();
 		replyColumn->addWidget(fixedNote);
 		aTurn.FixedNote = fixedNote;
+		// RFC-BPR-0096, owner continue-at-latest amendment: "maybe drop a
+		// notice in the transcript that it happened". One quiet line over the
+		// answer, said once the turn ends.
+		auto* const moveNotice = new QLabel{ reply };
+		moveNotice->setObjectName(QStringLiteral("agentTurnMoved"));
+		moveNotice->setForegroundRole(QPalette::PlaceholderText);
+		moveNotice->setWordWrap(true);
+		moveNotice->hide();
+		replyColumn->addWidget(moveNotice);
+		aTurn.MoveNotice = moveNotice;
 		// Owner decision (a): the answer reads as the agent wrote it, its
 		// Markdown rendered in place, its code coloured as comments' are;
 		// links and images do nothing.
@@ -3222,7 +3272,13 @@ namespace bpr::qt {
 			break;
 		}
 		// The request ended: say what came of it.
-		current.Done          = true;
+		current.Done = true;
+		if (const auto& moved = Launch.last_move(); moved && current.MoveNotice != nullptr) {
+			current.MoveNotice->setText(move_notice_words(*moved));
+			current.MoveNotice->setToolTip(tr("This conversation's workspace moved from %1 to %2 before this question; the agent was told.")
+											   .arg(QString::fromUtf8(core::canonical_hex(moved->From).view()), QString::fromUtf8(core::canonical_hex(moved->To).view())));
+			current.MoveNotice->show();
+		}
 		const auto findings   = Findings.finding_count();
 		const auto succeeded  = Launch.last_outcome() == application::agent_run_outcome::success;
 		current.Outcome       = application::turn_outcome(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start));
@@ -3730,6 +3786,7 @@ namespace bpr::qt {
 		BannerSecond->setToolTip({ });
 		BannerFirst->show();
 		BannerSecond->show();
+		BannerReconcile->hide();
 		BannerDismiss->setVisible(State == agent_tab_state::stopped);
 		Log->setVisible(LogShown && State == agent_tab_state::stopped);
 		switch (State) {
@@ -3830,6 +3887,26 @@ namespace bpr::qt {
 				if (!pinned->ContinueOffered) {
 					BannerSecond->hide();
 				}
+				// RFC-BPR-0096, owner continue-at-latest amendment. Work in
+				// the way of the move: the ways to carry it come first.
+				if (const auto& move = Launch.move_refusal(); move && ReconcileDispatch && (move->RebaseOffered || move->SaveAndMoveOffered || move->AskAgentOffered)) {
+					const auto observed = QString::fromUtf8(core::canonical_hex(pinned->ObservedHead).view().substr(0U, 7U));
+					const auto name     = agent_short_name(Launch.profile_selector()->currentText());
+					BannerRebase->setText(tr("Rebase onto %1").arg(observed));
+					BannerRebase->setToolTip(tr("Replay this conversation's commits and edits onto %1; on a conflict nothing changes").arg(observed));
+					BannerSave->setText(tr("Keep my changes on a branch and move"));
+					BannerSave->setToolTip(tr("Keep the work on a saved branch, move to %1 and send your message").arg(observed));
+					BannerAsk->setText(tr("Ask %1 to reconcile").arg(name));
+					BannerAsk->setToolTip(tr("Keep the work on a saved branch, move to %1, and ask %2 to bring it over").arg(observed, name));
+					for (auto* const button : { BannerRebase, BannerSave, BannerAsk }) {
+						// [[BPR-2000]]. Each choice starts a run.
+						wear_agent_accent(*button, palette());
+					}
+					BannerRebase->setVisible(move->RebaseOffered);
+					BannerSave->setVisible(move->SaveAndMoveOffered);
+					BannerAsk->setVisible(move->AskAgentOffered);
+					BannerReconcile->show();
+				}
 				break;
 			}
 			BannerFirst->setText(tr("Resend"));
@@ -3882,6 +3959,31 @@ namespace bpr::qt {
 			resend(Turns.back());
 		}
 	}
+
+	void agent_tab_view::choose_reconcile(const core::conversation_reconcile aChoice)
+	{
+		if (!panels_alive() || State != agent_tab_state::stopped || Turns.empty() || !ReconcileDispatch) {
+			return;
+		}
+		const auto& move = Launch.move_refusal();
+		using reconcile  = core::conversation_reconcile;
+		if (!move
+			|| !(aChoice == reconcile::rebase              ? move->RebaseOffered
+					 : aChoice == reconcile::save_and_move ? move->SaveAndMoveOffered
+					 : aChoice == reconcile::ask_agent     ? move->AskAgentOffered
+														   : false)) {
+			return;
+		}
+		if (!ReconcileDispatch(aChoice)) {
+			return;
+		}
+		// The kept message, as a turn's Resend sends it.
+		if (Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered) {
+			resend(Turns.back());
+		}
+	}
+
+	auto agent_tab_view::turn_move_notice(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].MoveNotice.data() : nullptr; }
 
 	auto agent_tab_view::finding_cards() const -> std::vector<QWidget*>
 	{

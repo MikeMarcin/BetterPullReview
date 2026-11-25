@@ -15448,6 +15448,94 @@ namespace {
 		process_events();
 		expect(sends.size() == beforeResend + 1U && sends.back().Text == "Review this pull request" && chosen.size() == 3U,
 			   "the card's Resend sends the kept message, not a start gesture");
+		const auto reconcileRow = agent->banner_reconcile_buttons();
+		expect(std::ranges::none_of(reconcileRow, [](const QPushButton* aButton) { return aButton->isVisible(); }), "an ordinary failure offers no reconcile");
+
+		// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24: work
+		// in the way of the move offers the reconcile choices first, then
+		// Continue and a new session; each reconcile resends the kept message.
+		auto reconciled = std::vector<core::conversation_reconcile>{ };
+		agent->set_move_reconcile_dispatch([&](const core::conversation_reconcile aChoice) {
+			reconciled.push_back(aChoice);
+			return true;
+		});
+		const auto stopMove = [&](const bool aConflicted) {
+			chat->composer()->setPlainText(QStringLiteral("Review this pull request"));
+			agent->ask_button()->click();
+			process_events();
+			auto identity                 = application::agent_invocation_projection_identity{ };
+			identity.ApplicationSession   = core::application_session_id{ 1U };
+			identity.Session.Id           = core::agent_session_id{ 9U };
+			identity.InvocationGeneration = ++generation;
+			window.agent_panel()->admit(identity);
+			process_events();
+			auto pinned               = binding;
+			pinned.HeadOid            = earlier;
+			auto result               = application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::private_storage_failure };
+			result.RefusalReason      = "This conversation's workspace at 3333333 has uncommitted edits, so it was not moved to 2222222. No question was sent.";
+			result.StandardError      = result.RefusalReason;
+			result.PinnedConversation = core::offer_pinned_conversation({ .Pinned = pinned, .Observed = binding, .Remembers = true });
+			result.MoveRefusal        = core::decide_conversation_move({ .Pinned = pinned, .Observed = binding, .Remembers = true, .Resumable = true, .Workspace = core::conversation_workspace_state::local_edits, .RebaseConflicted = aConflicted });
+			window.agent_panel()->finish(identity, result);
+			process_events();
+		};
+		stopMove(false);
+		expect(reconcileRow[0]->isVisible() && reconcileRow[0]->text() == QStringLiteral("Rebase onto 2222222") && reconcileRow[1]->isVisible()
+				   && reconcileRow[1]->text() == QStringLiteral("Keep my changes on a branch and move") && reconcileRow[2]->isVisible()
+				   && reconcileRow[2]->text().startsWith(QStringLiteral("Ask ")) && reconcileRow[2]->text().endsWith(QStringLiteral(" to reconcile")),
+			   "the card offers Rebase onto the new head, Keep my changes on a branch and move, and Ask the agent to reconcile: " + reconcileRow[2]->text().toStdString());
+		expect(agent->banner_first_button()->isVisible() && agent->banner_first_button()->text() == QStringLiteral("Continue at 3333333") && agent->banner_second_button()->isVisible()
+				   && agent->banner_second_button()->text() == QStringLiteral("Start a new session"),
+			   "and Continue at the old head and Start a new session after them");
+		expect(std::ranges::all_of(reconcileRow, [](const QPushButton* aButton) { return qt::agent_run_control(*aButton); }), "each reconcile starts a run and wears the Agent accent");
+		if (const auto root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT"); !root.isEmpty()) {
+			// The card heads the thread: scrolled to it, as the reviewer reads it.
+			for (auto* parent = agent->banner()->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+				if (auto* const area = qobject_cast<QScrollArea*>(parent); area != nullptr) {
+					area->ensureWidgetVisible(agent->banner());
+					break;
+				}
+			}
+			process_events();
+			expect(agent->grab().save(root + QStringLiteral("/agent-move-reconcile.png"), "PNG"), "render saved");
+		}
+		for (std::size_t index = 0U; index < reconcileRow.size(); ++index) {
+			if (index != 0U) {
+				stopMove(false);
+			}
+			const auto before = sends.size();
+			agent->banner_reconcile_buttons()[index]->click();
+			process_events();
+			expect(reconciled.size() == index + 1U && sends.size() == before + 1U && sends.back().Text == "Review this pull request",
+				   "each reconcile goes to the host and resends the kept message");
+		}
+		expect(reconciled == std::vector{ core::conversation_reconcile::rebase, core::conversation_reconcile::save_and_move, core::conversation_reconcile::ask_agent },
+			   "in the order the card shows them");
+		stopMove(true);
+		expect(!agent->banner_reconcile_buttons()[0]->isVisible() && agent->banner_reconcile_buttons()[1]->isVisible(), "after a rebase conflicted, Rebase is not offered again");
+
+		// The turn that moved says so, quietly, over its answer.
+		chat->composer()->setPlainText(QStringLiteral("What changed?"));
+		agent->ask_button()->click();
+		process_events();
+		auto identity                 = application::agent_invocation_projection_identity{ };
+		identity.ApplicationSession   = core::application_session_id{ 1U };
+		identity.Session.Id           = core::agent_session_id{ 9U };
+		identity.InvocationGeneration = ++generation;
+		window.agent_panel()->admit(identity);
+		process_events();
+		auto moved             = application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success };
+		auto notice            = application::agent_conversation_move{ };
+		notice.From            = earlier;
+		notice.To              = binding.HeadOid;
+		notice.Commits         = 3U;
+		notice.Listed          = true;
+		moved.ConversationMove = notice;
+		window.agent_panel()->finish(identity, moved);
+		process_events();
+		const auto* const line = agent->turn_move_notice(agent->turn_count() - 1U);
+		expect(line != nullptr && line->isVisible() && line->text() == QStringLiteral("Updated to 2222222 — 3 commits"), "the transcript says the move: " + (line != nullptr ? line->text().toStdString() : std::string{ }));
+		expect(agent->turn_move_notice(0U) != nullptr && !agent->turn_move_notice(0U)->isVisible(), "a turn that did not move says nothing");
 	}
 
 	void test_a_refused_send_says_why_beside_the_composer()

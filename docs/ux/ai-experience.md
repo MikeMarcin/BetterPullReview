@@ -311,6 +311,17 @@ session") in place of Resend; the refusal's words name exactly them, and
 each sends the kept message. Elsewhere the stopped card's Resend sends the
 kept message again (owner, 2026-11-24).
 
+A conversation the agent can resume, whose complete workspace is kept,
+follows the head instead, like a `git pull` in another terminal (RFC-BPR-0096,
+owner continue-at-latest amendment, 2026-11-24). Sending a question moves its
+workspace to the head under review, the agent is told what moved, and the
+turn's reply card says "Updated to 1a2b3c4 — 3 commits". Uncommitted edits or
+commits of the conversation's own stop the move: the stopped card then offers
+Rebase onto the new head, Keep my changes on a branch and move, and Ask the
+agent to reconcile (which sends a built-in prompt after the move), before
+Continue at the old head and Start a new session. A rebase that conflicts puts
+the workspace back as it was and names the files.
+
 ### What surface the workshop actually uses
 
 Plain text, on two `QPlainTextEdit` surfaces shown at once: the reviewer's

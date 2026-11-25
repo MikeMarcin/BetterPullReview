@@ -286,3 +286,45 @@ check after `select`:
    branch and move, Ask <agent> to reconcile, Continue at <old> and Start a
    new session. Ask <agent> resends with the built-in reconcile prompt, kept
    with the other built-in prompts (RFC-BPR-0125).
+
+### Slice 3 as built (2026-11-24)
+
+- **Which conversations move.** In `agent_invocation_host::run`, after the
+  pinned check, a conversation of the same review with a runtime handle or a
+  replay, whose retained workspace is complete and at its stored head, moves
+  when the heads differ and `decide_conversation_move` says move. A pinned
+  conversation that differs only in the comparison (the same head), or holds
+  no complete retained workspace, keeps the refusal of
+  `offer_pinned_conversation`.
+- **Leases.** The old binding's key lease and the workspace path lease are
+  taken beside the observed key's; `removal().OtherHolders` must be 0. A lease
+  held elsewhere is `busy`; another holder refuses with its own words.
+- **Refusal.** The result carries `PinnedConversation` and `PinnedSession` as
+  before, plus `MoveRefusal` (the core's decision, made with the observed
+  state and no reconcile) and `MoveConflicts`. The reason names exactly the
+  offered ways on. The core gained `conversation_move_facts::RebaseConflicted`:
+  after a rebase conflicted, Rebase is not offered again.
+- **Moved.** `move_conversation` records the binding, workspace and key; the
+  question is sent after `conversation_move_note` and, for Ask the agent, the
+  built-in prompt `default_reconcile_prompt()`
+  (`resources/review-preparation/reconcile-move.md`, version
+  `reconcile-move-v1`), shipped beside the other built-in prompts. It is not
+  yet editable in Settings › Prompts: that needs its own settings column and
+  migration. The result's `ConversationMove` (from, to, commits, linearity,
+  reconcile, saved branch) drives the transcript line "Updated to <sha> —
+  <n> commits", "— history rewritten", followed by the reconcile done.
+- **One move behind.** An inspected workspace at a head other than the stored
+  one is moved to the conversation's head through the same path, and the
+  agent is told.
+- **History load.** A conversation a send would move is no longer pinned to
+  the chat; a restored runtime session is held at the head under review, so a
+  plain send reaches the move.
+- **Qt.** The stopped card shows, on a wrapping row above Continue at <old>
+  and Start a new session, the offered Rebase onto <new>, Keep my changes on a
+  branch and move and Ask <agent> to reconcile. Each goes to the composition
+  (`choose_move_reconcile`), which puts the reconcile on the resent turn once,
+  and resends the kept message. A moved turn's reply card shows the notice.
+- **Tests.** `application_agent_invocation_host`
+  (`test_a_conversation_moves_to_the_latest_head`), `core_agent_session` and
+  `qt_workbench_agent_send_refusal`
+  (`test_a_pinned_conversation_card_offers_what_it_names`).

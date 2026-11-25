@@ -371,6 +371,25 @@ namespace bpr::app {
 		return true;
 	}
 
+	auto github_application::implementation::choose_move_reconcile(const core::conversation_reconcile aChoice) -> bool
+	{
+		if (Closing || ChatHost == nullptr || Window == nullptr || !PinnedAgentSession || !ChatHost->observed()) {
+			return false;
+		}
+		const auto& move  = Window->agent_panel()->move_refusal();
+		using reconcile   = core::conversation_reconcile;
+		const auto offers = move
+			&& ((aChoice == reconcile::rebase && move->RebaseOffered) || (aChoice == reconcile::save_and_move && move->SaveAndMoveOffered)
+				|| (aChoice == reconcile::ask_agent && move->AskAgentOffered));
+		if (!offers) {
+			return false;
+		}
+		// The resent turn asks at the head under review, as the refused one
+		// did, and carries the choice; the host moves with it.
+		NativeReconcile = std::pair{ aChoice, *ChatHost->observed() };
+		return true;
+	}
+
 	void github_application::implementation::compose_question_subject(application::agent_context_observation& aObservation, const core::agent_question& aQuestion)
 	{
 		auto subject = core::supplement_subject{ .Subject = aQuestion.Subject };
@@ -970,6 +989,14 @@ namespace bpr::app {
 				invocation.SelectedConversation         = AgentNativeHistory.Selected;
 				invocation.NativeStartAtCurrentRevision = NativeFreshAtCurrentRevision && NativeFreshAtCurrentRevision->Profile == aProfile
 					&& NativeFreshAtCurrentRevision->Binding == invocation.Context.Binding;
+				// RFC-BPR-0096, owner continue-at-latest amendment. The
+				// stopped card's reconcile rides the resent turn once.
+				if (const auto chosen = std::exchange(NativeReconcile, std::nullopt); chosen && chosen->second == invocation.Context.Binding) {
+					invocation.Reconcile = chosen->first;
+					if (chosen->first == core::conversation_reconcile::ask_agent) {
+						invocation.ReconcilePrompt = std::string{ application::default_reconcile_prompt() };
+					}
+				}
 				// Any Agent tab turn may start a new conversation: a chosen new
 				// session, or one never used that moves to the head.
 				NativeFreshSent = true;

@@ -206,6 +206,13 @@ namespace bpr::qt {
 		/// native conversation is pinned to another revision; none otherwise.
 		/// Cleared when the next run is admitted or the host refuses one.
 		[[nodiscard]] auto pinned_conversation() const noexcept -> const std::optional<core::pinned_conversation_offer>& { return LastPinned; }
+		/// \brief RFC-BPR-0096, owner continue-at-latest amendment. When the
+		/// last run was refused because its conversation's workspace could not
+		/// move to the head under review: the core's decision, whose reconcile
+		/// actions the card offers beside `pinned_conversation`'s; none otherwise.
+		[[nodiscard]] auto move_refusal() const noexcept -> const std::optional<core::conversation_move_decision>& { return LastMoveRefusal; }
+		/// \brief The move the last run made before it ran, for its notice.
+		[[nodiscard]] auto last_move() const noexcept -> const std::optional<application::agent_conversation_move>& { return LastMove; }
 		/// \brief [[BPR-2295]]. Whether the last run stopped for a reason a
 		/// resend repeats: its workspace could not be made from what the
 		/// review and the linked clone hold.
@@ -275,6 +282,8 @@ namespace bpr::qt {
 		std::optional<application::agent_draft_choice>                 OfferedDraft;
 		QString                                                        StopReason;
 		std::optional<core::pinned_conversation_offer>                 LastPinned;
+		std::optional<core::conversation_move_decision>                LastMoveRefusal;
+		std::optional<application::agent_conversation_move>            LastMove;
 		std::optional<application::agent_run_outcome>                  LastOutcome;
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceReason;
 		bool                                                           PullRequestFilesOnly = false;

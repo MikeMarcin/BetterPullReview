@@ -2039,6 +2039,7 @@ namespace bpr::app {
 		/// conversation card; true when it was taken and the message may be
 		/// resent.
 		[[nodiscard]] auto choose_pinned_conversation(core::agent_continuation aChoice) -> bool;
+		[[nodiscard]] auto choose_move_reconcile(core::conversation_reconcile aChoice) -> bool;
 
 		[[nodiscard]] auto dispatch_agent_invocation(
 			const core::agent_profile_id                          aProfile,
@@ -3150,6 +3151,10 @@ namespace bpr::app {
 		/// The session the last refused Agent tab run would continue under,
 		/// when its native conversation is pinned to another revision.
 		std::optional<core::agent_session> PinnedAgentSession;
+		/// RFC-BPR-0096, owner continue-at-latest amendment. The reconcile the
+		/// reviewer chose on the stopped card, and the binding it was offered
+		/// at; the next Agent tab turn at that binding carries it, once.
+		std::optional<std::pair<core::conversation_reconcile, core::agent_revision_binding>> NativeReconcile;
 		/// The running turn is the Agent tab's, whose native conversation
 		/// the window's History selection follows.
 		bool                                                NativeFreshSent          = false;

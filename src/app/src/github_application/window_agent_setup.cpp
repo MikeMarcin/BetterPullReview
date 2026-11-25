@@ -1058,6 +1058,7 @@ namespace bpr::app {
 		}
 		LatestAgentSession.reset();
 		NativeFreshAtCurrentRevision.reset();
+		NativeReconcile.reset();
 		auto turns = std::vector<qt::agent_thread_turn>{ };
 		for (const auto& turn : aView.Turns) {
 			turns.push_back({ .Question = QString::fromStdString(turn.Asked),
@@ -1934,6 +1935,7 @@ namespace bpr::app {
 		// [[BPR-2377]]. History › Rename or delete sessions….
 		tab->set_session_edit_dispatch([this](const std::string& aId, std::optional<std::string> aName) { edit_agent_session(aId, std::move(aName)); });
 		tab->set_pinned_conversation_dispatch([this](const core::agent_continuation aChoice) { return choose_pinned_conversation(aChoice); });
+		tab->set_move_reconcile_dispatch([this](const core::conversation_reconcile aChoice) { return choose_move_reconcile(aChoice); });
 		tab->set_clear_session_dispatch([this] {
 			if (!Closing && AgentConversation) {
 				observe_agent_native_history(std::string{ });
