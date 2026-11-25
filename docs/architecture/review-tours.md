@@ -346,8 +346,16 @@ than helpful. It's just restating the thing that's drawn above it."). The findin
 update already, so its Suggested change shows once. Under the keep row one line says what is so: an
 undrafted finding says Draft comment (or Keep local) takes the comment as the follow-up updated it,
 a draft the reviewer changed says it differs beside Update draft, and a draft in step with the
-update says nothing more. The comment it replaced is not shown either. A finding no follow-up
-updated keeps its "Suggested comment:".
+update says nothing more. The comment it replaced is not shown either.
+
+A finding no follow-up updated keeps its suggested comment's words under the keep row. Its
+`suggestion` block is not drawn there a second time: the Suggested change above is drawn from the
+same lines (`core::comment_suggestion_lines`), so a plain box of its added lines under the words was
+the same restatement. The label says the change goes with the words ("Suggested comment, with the
+suggested change above:"), so the comment does not read as words only; a comment that is only its
+suggestion is one line saying so. A fix written in the file's language keeps its box under the words
+(owner, 2026-11-21: "The code block didn't appear in the suggested comment"), because nothing above
+says the comment carries it, and so does a suggestion that is not the one drawn.
 
 Go to draft, from a report finding or an Agent answer, goes to the draft and not only to its lines
 (same review: "How come when I clicked goto draft it didnt switch to the comments tab? Then goto
@@ -359,6 +367,14 @@ keyboard. From a report the line is chosen only once the file's tab has its own 
 since a tab made active is given the line it remembered. A draft the pull request no longer lists
 falls back to its lines. Closed, a draft is a card on a wash of the writing blue inside a dashed
 frame in that blue, with "Draft" in that ink; a Local comment wears the same card in the quiet ink.
+
+A draft gone to shows its first column. The comment field never has a sideways range:
+`composer_code_layout::documentSize` reports a document no wider than the field, because Qt's plain
+layout otherwise reports its widest wrapped line and 8 px more after a change of width, and a caret
+at the end of an unwrapped code line then panned the field by those pixels, cutting the first
+letters off its words. Text that arrives in the field, not typed, shows each fenced block from its
+lines' start; a suggestion's caret still goes to the end of its last line, and the block scrolls to
+it when the reviewer moves the caret or presses a key.
 
 Since [[BPR-1934]] (owner, 2026-11-07: "Tour side chat should get suggestions
 like the agent tab has") an empty chat offers suggested prompts under its

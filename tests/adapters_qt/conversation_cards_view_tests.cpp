@@ -4618,6 +4618,128 @@ namespace {
 		expect(document->toPlainText() == QString::fromStdString(body), "and undo takes the typed block back whole");
 	}
 
+	/// \brief A draft gone to shows its first column. Go to draft on a
+	/// report finding opened the draft's editor panned sideways, its words
+	/// missing their first letters ("ssue: clamp both sides where the extent
+	/// is / nade."), and its suggestion's box showing the tail of its line.
+	/// \details The field took a sideways range of a few pixels whenever its
+	/// words wrapped within 8 px of its edge and it had been laid out again,
+	/// as after any change of width: Qt's plain layout then counts its widest
+	/// line and 8 px more. A suggestion's caret goes to the end of its last
+	/// line, far right of the field in a line wider than the box, and Qt
+	/// panned the field to it by that range before the block scrolled. Now
+	/// the field has no sideways range at any width, and text that arrives
+	/// shows each block from its lines' start; the block scrolls to the caret
+	/// once the reviewer moves it.
+	auto test_a_revealed_draft_shows_its_first_column(const QString& aDirectory) -> void
+	{
+		const auto                  longLine = std::string{ "Target.resize(extent{ std::max(aSize.Width, 1), std::max(aSize.Height, 1) });" };
+		const auto                  body     = "issue: clamp both sides where the extent is made.\n\n```suggestion\n" + longLine + "\n```";
+		qt::conversation_cards_view view;
+		view.resize(320, 760);
+		view.show();
+		QApplication::processEvents();
+		open_composer(view, body);
+		const auto present = [&view, &body, &longLine] {
+			view.present_draft(qt::draft_composer_presentation{
+				.Body        = QString::fromStdString(body),
+				.Publishable = true,
+				.Editable    = true,
+				.Lines       = QStringLiteral("Lines 12–13"),
+				.Change      = core::suggested_change{ .Fenced = true, .Removed = { "Target.resize(extent{ width, height });" }, .Added = { longLine } },
+			});
+			settle_card();
+		};
+		const auto firstLetter = [&view] { return view.draft_editor()->cursorRect(QTextCursor{ view.draft_editor()->document() }).left(); };
+		const auto placed      = [&view, &firstLetter] {
+			auto* const field = view.draft_editor();
+			return "field " + std::to_string(field->viewport()->width()) + ", range " + std::to_string(field->horizontalScrollBar()->maximum()) + ", at " + std::to_string(field->horizontalScrollBar()->value())
+				+ ", first letter at " + std::to_string(firstLetter());
+		};
+		const auto unpanned = [&view, &firstLetter] { return view.draft_editor()->horizontalScrollBar()->maximum() == 0 && view.draft_editor()->horizontalScrollBar()->value() == 0 && firstLetter() >= 0; };
+		const auto boxBar   = [&view] { return view.draft_editor()->viewport()->findChild<QScrollBar*>(QStringLiteral("threadCodeBlockScroll")); };
+		const auto arrived  = [&](const std::string& aWhen) {
+			auto* const field = view.draft_editor();
+			expect(field != nullptr, aWhen + ": the composer has its field");
+			expect(field->textCursor().block().blockNumber() == 3 && field->textCursor().atBlockEnd(), aWhen + ": the caret is at the end of the suggestion's last line");
+			expect(unpanned(), aWhen + ": the words show from their first letter: " + placed());
+			auto* const bar = boxBar();
+			expect(bar != nullptr && bar->isVisible() && bar->maximum() > 0, aWhen + ": the suggestion's line is wider than its box");
+			expect(bar->value() == 0 && field->document()->findBlockByNumber(3).layout()->lineAt(0).x() >= 0.0, aWhen + ": the suggestion's line shows from its start: at " + std::to_string(bar->value()) + " of " + std::to_string(bar->maximum()));
+		};
+		present();
+		arrived("opened");
+		if (!aDirectory.isEmpty()) {
+			expect(view.grab().save(aDirectory + QStringLiteral("/revealed-draft.png")), "render the revealed draft");
+		}
+		// The caret is out of sight at the line's end. A key that leaves it
+		// there brings it into sight in its box; a modifier alone does not.
+		{
+			auto* const field = view.draft_editor();
+			press_in(field, Qt::Key_Shift, Qt::ShiftModifier);
+			expect(boxBar()->value() == 0, "Shift alone leaves the block at its start");
+			const auto endOfLine = QKeySequence{ QKeySequence::MoveToEndOfLine }[0];
+			press_in(field, endOfLine.key(), endOfLine.keyboardModifiers());
+			QApplication::processEvents();
+			const auto caret = field->cursorRect();
+			expect(field->textCursor().block().blockNumber() == 3 && field->textCursor().atBlockEnd() && boxBar()->value() > 0 && caret.left() >= 0 && caret.right() <= field->viewport()->width() && unpanned(),
+				   "the end-of-line key shows the caret in its box and leaves the field: box at " + std::to_string(boxBar()->value()) + ", " + placed());
+		}
+		// Gone to while it is open, the draft is as the reviewer left it.
+		{
+			const auto left = boxBar()->value();
+			view.begin_draft();
+			present();
+			expect(boxBar() != nullptr && boxBar()->value() == left && unpanned(), "gone to while open, the block stays where the reviewer scrolled it");
+		}
+		// Closed and gone to again, as Go to draft opens it.
+		view.end_draft();
+		settle_card();
+		expect(!view.writing_draft() && view.draft_editor() == nullptr, "the draft is closed");
+		view.begin_draft();
+		present();
+		arrived("gone to again");
+
+		// Every width a reviewer may drag the drawer to. With the caret put
+		// at the end of the long line, the block scrolls to it and the field
+		// stays. Among the widths are ones whose words wrap within 8 px of
+		// the field's edge, the ones that panned.
+		auto closeWraps = 0;
+		for (auto width = 300; width <= 348; ++width) {
+			view.resize(width, 760);
+			QApplication::processEvents();
+			auto* const field = view.draft_editor();
+			expect(field != nullptr && view.writing_draft(), "the draft stays open at each width");
+			const auto* const words  = field->document()->firstBlock().layout();
+			auto              widest = qreal{ 0.0 };
+			for (auto line = 0; line < words->lineCount(); ++line) {
+				widest = std::max(widest, words->lineAt(line).naturalTextWidth());
+			}
+			closeWraps += widest + 8.0 >= static_cast<qreal>(field->viewport()->width() + 1) ? 1 : 0;
+			expect(unpanned(), "resized to " + std::to_string(width) + ": the field has no sideways range: " + placed());
+			auto cursor = field->textCursor();
+			cursor.setPosition(0);
+			field->setTextCursor(cursor);
+			cursor.setPosition(field->document()->findBlockByNumber(3).position() + static_cast<int>(longLine.size()));
+			field->setTextCursor(cursor);
+			QApplication::processEvents();
+			const auto caret = field->cursorRect();
+			expect(unpanned(), "at " + std::to_string(width) + ", the caret at the end of the suggestion's line leaves the field where it is: " + placed());
+			expect(boxBar()->value() > 0 && caret.left() >= 0 && caret.right() <= field->viewport()->width(),
+				   "at " + std::to_string(width) + ", the block scrolls to the caret the reviewer put there: caret " + std::to_string(caret.left()) + " to " + std::to_string(caret.right()));
+			if (!aDirectory.isEmpty() && width == 320) {
+				expect(view.grab().save(aDirectory + QStringLiteral("/revealed-draft-caret-at-line-end.png")), "render the draft with its caret at the line's end");
+			}
+		}
+		std::cout << "revealed draft: " << closeWraps << " of 49 widths wrap within 8 px of the field's edge\n";
+		expect(closeWraps > 0, "the widths tried include ones whose words wrap within 8 px of the field's edge");
+		// Text that arrives again, not typed, shows from its first column.
+		view.present_draft(qt::draft_composer_presentation{ .Body = QStringLiteral("Seen."), .Publishable = true, .Editable = true, .Lines = QStringLiteral("Lines 12–13") });
+		settle_card();
+		present();
+		arrived("presented again");
+	}
+
 	/// \brief [[BPR-2358]]. Shift selected lines with Tab and Shift+Tab in
 	/// the composer and use the same undo history as other draft edits.
 	void test_selected_composer_code_shifts_by_one_tab()
@@ -5100,6 +5222,11 @@ auto main(int argc, char** argv) -> int
 		std::cout << "render-fenced-composer:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-revealed-draft") {
+		test_a_revealed_draft_shows_its_first_column(QString::fromLocal8Bit(argv[2]));
+		std::cout << "render-revealed-draft:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc > 2 && std::string_view{ argv[1] } == "--render-code-box") {
 		test_a_code_block_is_its_own_box(QString::fromLocal8Bit(argv[2]));
 		std::cout << "render-code-box:pass\n";
@@ -5170,6 +5297,7 @@ auto main(int argc, char** argv) -> int
 	test_a_long_draft_grows_then_scrolls({ });
 	test_a_fenced_block_styles_only_its_own_lines({ });
 	test_a_code_block_is_its_own_box({ });
+	test_a_revealed_draft_shows_its_first_column({ });
 	test_selected_composer_code_shifts_by_one_tab();
 	test_a_code_box_is_coloured_and_names_its_language();
 	test_a_reply_code_box_borrows_its_files_names();

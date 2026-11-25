@@ -322,6 +322,62 @@ namespace {
 			   "a changed draft's state and its reason are one line under the row");
 	}
 
+	/// A finding no follow-up updated: its suggested comment's suggestion is
+	/// the Suggested change drawn above it, so the page shows the comment's
+	/// words and not the suggestion's lines a second time in a box (the
+	/// owner, of an updated comment written out under its finding: "It's
+	/// just restating the thing that's drawn above it"). A fix in the file's
+	/// language, which nothing above says the comment carries, keeps its box
+	/// ([[BPR-2352]]), and so does a suggestion that is not the one drawn.
+	void test_a_suggested_comment_does_not_restate_its_suggested_change()
+	{
+		const auto report  = core::dress_report("# Review\n\n**Verdict:** Needs changes\n\nOne thing.\n\n## Must fix\n\n### issue (blocking): A zero height\n\n`src/r.cpp:12-13`\n\nThe height is not clamped.\n\n"
+												"```cpp\nconst auto width = clamp(w);\nresize(width, h);\n```\n\n```suggestion\nconst auto width = clamp(w);\nresize(width, clamp(h));\n```\n");
+		auto       actions = qt::report_page_actions{ .Findings = core::report_findings(report) };
+		expect(!actions.Findings.empty(), "the report has a finding");
+		const auto outline   = actions.Findings.front().Outline;
+		actions.Link         = [](const std::uint32_t aOutline, const qt::report_link aLink) { return QStringLiteral("action-%1-%2").arg(aOutline).arg(static_cast<int>(aLink)); };
+		const auto plain     = QStringLiteral("Suggested comment:");
+		const auto withAbove = QStringLiteral("Suggested comment, with the suggested change above:");
+		const auto changed   = QStringLiteral("resize(width, clamp(h));");
+
+		// The comment's suggestion is the one drawn: its words, and no box.
+		actions.Suggested[outline] = QStringLiteral("issue (blocking): clamp both.\n\n```suggestion\nconst auto width = clamp(w);\nresize(width, clamp(h));\n```\n\nSee the note above.");
+		auto page                  = qt::report_page_html(report, { }, actions);
+		expect(page.count(changed) == 1, "the suggestion's lines show once, in the Suggested change: " + std::to_string(page.count(changed)));
+		expect(page.count(withAbove) == 1 && !page.contains(plain) && page.contains(QStringLiteral("clamp both.")) && page.contains(QStringLiteral("See the note above.")),
+			   "the comment's words stay, before and after its suggestion, and its label says the change above goes with them");
+		expect(page.indexOf(changed) < page.indexOf(withAbove), "the Suggested change is above the comment");
+		// Drafted, the same.
+		actions.States[outline] = qt::report_keep_state{ .Phase = qt::report_keep_phase::kept };
+		page                    = qt::report_page_html(report, { }, actions);
+		expect(page.count(changed) == 1 && page.count(withAbove) == 1, "a drafted finding shows it once as well");
+		actions.States.clear();
+
+		// A comment that is its suggestion and no words says so in a line.
+		actions.Suggested[outline] = QStringLiteral("```suggestion\nconst auto width = clamp(w);\nresize(width, clamp(h));\n```");
+		page                       = qt::report_page_html(report, { }, actions);
+		expect(page.count(changed) == 1 && page.count(QStringLiteral("The suggested comment is the suggested change above.")) == 1 && !page.contains(withAbove) && !page.contains(plain),
+			   "a comment of only its suggestion is one line, not a label over nothing");
+
+		// A suggestion that is not the one drawn keeps its box.
+		actions.Suggested[outline] = QStringLiteral("issue (blocking): clamp both.\n\n```suggestion\nresize(clamp(w), clamp(h));\n```");
+		page                       = qt::report_page_html(report, { }, actions);
+		expect(page.count(plain) == 1 && !page.contains(withAbove) && page.count(QStringLiteral("resize(clamp(w), clamp(h));")) == 1 && page.count(changed) == 1, "another suggestion than the one drawn is shown in its box");
+
+		// A fix in the file's language keeps its box, under a finding with a
+		// Suggested change or without one.
+		actions.Suggested[outline] = QStringLiteral("issue (blocking): clamp both.\n\n```cpp\nconst auto width = clamp(w);\nresize(width, clamp(h));\n```");
+		page                       = qt::report_page_html(report, { }, actions);
+		expect(page.count(plain) == 1 && !page.contains(withAbove) && page.count(changed) == 2, "a fix written as code is the comment's own and keeps its box: " + std::to_string(page.count(changed)));
+
+		// A comment with the drawn suggestion and a second block: the first
+		// is the one above, the second its own.
+		actions.Suggested[outline] = QStringLiteral("issue (blocking): clamp both.\n\n```suggestion\nconst auto width = clamp(w);\nresize(width, clamp(h));\n```\n\nAnd in the caller:\n\n```cpp\ncaller(clamp(h));\n```");
+		page                       = qt::report_page_html(report, { }, actions);
+		expect(page.count(withAbove) == 1 && page.count(changed) == 1 && page.count(QStringLiteral("caller(clamp(h));")) == 1 && page.contains(QStringLiteral("And in the caller:")), "only the drawn suggestion is left out; another block keeps its box");
+	}
+
 	void test_a_threads_ask_menu_offers_ask_about_this()
 	{
 		auto       followed = std::vector<QString>{ };
@@ -440,6 +496,7 @@ auto main(int argc, char** argv) -> int
 	test_the_tour_chat_shares_the_parts();
 	test_a_report_finding_offers_ask_follow_up();
 	test_an_updated_comment_moves_the_suggested_change();
+	test_a_suggested_comment_does_not_restate_its_suggested_change();
 	test_a_threads_ask_menu_offers_ask_about_this();
 	test_the_column_opens_narrow_and_resizes_and_remembers();
 	std::cout << "item-side-chat-tests:pass\n";
