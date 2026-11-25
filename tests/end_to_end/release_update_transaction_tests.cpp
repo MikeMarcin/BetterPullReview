@@ -100,6 +100,7 @@ namespace {
 	void numbered_candidate_restarts_from_journal()
 	{
 		fixture course;
+		course.Candidate.Tag         = "v1.2.3-build.99";
 		course.Candidate.AssetName   = "BetterPullReview-1.2.3-build.99-macos-universal.zip";
 		course.Candidate.BuildNumber = 99U;
 		course.Candidate.Sha256.emplace().fill(0x99U);

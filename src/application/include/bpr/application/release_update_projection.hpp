@@ -20,15 +20,17 @@ namespace bpr::application {
 		std::string                                            Notes;
 		bool                                                   AutomaticAvailable = false;
 		std::optional<bool>                                    InstallationOutcome;
-		std::uint32_t                                          InstalledBuildNumber = 0U;
+		std::uint32_t                                          InstalledBuildNumber   = 0U;
+		bool                                                   ChannelChangeAvailable = false;
 	};
 
 	/// \brief Settings and release offer share the application's semantic dispatch.
 	struct release_update_dispatch
 	{
-		std::function<void(core::release_update_intent)> Intent;
-		std::function<void(bool)>                        Automatic;
-		std::function<void()>                            ViewRelease;
+		std::function<void(core::release_update_intent)>  Intent;
+		std::function<void(bool)>                         Automatic;
+		std::function<void()>                             ViewRelease;
+		std::function<void(core::release_update_channel)> Channel;
 	};
 
 	/// \brief Observational publication; exceptions cannot veto core acceptance.

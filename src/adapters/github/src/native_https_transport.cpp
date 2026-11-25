@@ -5457,16 +5457,17 @@ namespace bpr::adapters::github::detail {
 			return result;
 		}
 		auto release_https(std::span<const std::byte> aCredential, std::uint64_t aAsset, std::uint64_t aLimit,
-						   std::stop_token aStop, const release_update_consumer& aConsume, const transport_policy& aPolicy) -> release_update_wire_result
+						   std::stop_token aStop, const release_update_consumer& aConsume, const transport_policy& aPolicy, core::release_update_channel aChannel) -> release_update_wire_result
 		{
 			if (aCredential.size() > application::maximum_github_credential_bytes || !aConsume
-				|| aLimit == 0U || aLimit > (aAsset == 0U ? application::release_update_maximum_metadata_bytes : core::release_update_maximum_archive_bytes)
+				|| aLimit == 0U || aLimit > (aAsset == 0U ? application::release_update_metadata_limit(aChannel) : core::release_update_maximum_archive_bytes)
 				|| !std::ranges::all_of(aCredential, [](std::byte aByte) { const auto byte = std::to_integer<unsigned char>(aByte); return ascii_alpha_numeric(byte) || byte == '-' || byte == '_' || byte == '.' || byte == '~' || byte == '+' || byte == '/' || byte == '='; })) {
 				return { update_reason::unavailable };
 			}
-			const auto path     = aAsset == 0U ? std::string{ release_update_latest_path } : std::string{ release_update_asset_path_prefix } + std::to_string(aAsset);
-			auto       url      = QUrl::fromEncoded(QByteArray::fromStdString(std::string{ release_update_api_origin } + path), QUrl::StrictMode);
-			const auto deadline = std::chrono::steady_clock::now() + (aAsset == 0U ? aPolicy.TotalTimeout : aPolicy.SmartTotalTimeout);
+			const auto metadataPath = aChannel == core::release_update_channel::include_prereleases ? release_update_list_path : release_update_latest_path;
+			const auto path         = aAsset == 0U ? std::string{ metadataPath } : std::string{ release_update_asset_path_prefix } + std::to_string(aAsset);
+			auto       url          = QUrl::fromEncoded(QByteArray::fromStdString(std::string{ release_update_api_origin } + path), QUrl::StrictMode);
+			const auto deadline     = std::chrono::steady_clock::now() + (aAsset == 0U ? aPolicy.TotalTimeout : aPolicy.SmartTotalTimeout);
 			for (std::uint32_t hop = 0U; hop <= release_update_maximum_redirects; ++hop) {
 				if (aStop.stop_requested()) {
 					return { update_reason::cancelled };
@@ -5503,16 +5504,16 @@ namespace bpr::adapters::github::detail {
 		}
 	}
 	auto perform_release_update_https(std::span<const std::byte> aCredential, std::uint64_t aAsset, std::uint64_t aLimit,
-									  std::stop_token aStop, const release_update_consumer& aConsume) -> release_update_wire_result
+									  std::stop_token aStop, const release_update_consumer& aConsume, core::release_update_channel aChannel) -> release_update_wire_result
 	{
 		transport_policy policy;
 		policy.TotalTimeout      = std::chrono::seconds{ application::release_update_metadata_timeout_seconds };
 		policy.SmartTotalTimeout = std::chrono::seconds{ application::release_update_download_timeout_seconds };
-		return release_https(aCredential, aAsset, aLimit, aStop, aConsume, policy);
+		return release_https(aCredential, aAsset, aLimit, aStop, aConsume, policy, aChannel);
 	}
 #if defined(BPR_NATIVE_HTTPS_TESTING)
 	auto perform_release_update_https_for_test(std::span<const std::byte> aCredential, std::uint64_t aAsset, std::uint64_t aLimit,
-											   std::stop_token aStop, const release_update_consumer& aConsume, const native_https_test_configuration& aConfiguration) -> release_update_wire_result
+											   std::stop_token aStop, const release_update_consumer& aConsume, const native_https_test_configuration& aConfiguration, core::release_update_channel aChannel) -> release_update_wire_result
 	{
 		if (!valid_test_configuration(aConfiguration)) {
 			return { update_reason::unavailable };
@@ -5524,7 +5525,7 @@ namespace bpr::adapters::github::detail {
 		policy.TrustedCaCertificatePem = aConfiguration.TrustedCaCertificatePem;
 		policy.TotalTimeout            = aConfiguration.TotalTimeout;
 		policy.SmartTotalTimeout       = aConfiguration.TotalTimeout;
-		return release_https(aCredential, aAsset, aLimit, aStop, aConsume, policy);
+		return release_https(aCredential, aAsset, aLimit, aStop, aConsume, policy, aChannel);
 	}
 #endif
 } // namespace bpr::adapters::github::detail

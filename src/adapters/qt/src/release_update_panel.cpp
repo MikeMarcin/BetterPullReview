@@ -6,6 +6,7 @@
 #include <QAccessible>
 #include <QAction>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDateTime>
 #include <QEvent>
 #include <QHBoxLayout>
@@ -164,11 +165,13 @@ namespace bpr::qt {
 		auto detail_line(const application::release_update_projection& aProjection) -> QString
 		{
 			switch (aProjection.Phase) {
-			case phase::checking: return installed(aProjection);
-			case phase::available:
-				return aProjection.Candidate && aProjection.Candidate->Size != 0U
-					? joined(installed(aProjection), QStringLiteral("The download is %1.").arg(size(aProjection.Candidate->Size)))
-					: installed(aProjection);
+			case phase::checking:  return installed(aProjection);
+			case phase::available: {
+				const auto& candidate = aProjection.Candidate;
+				const auto  download  = candidate && candidate->Size != 0U ? QStringLiteral("The download is %1.").arg(size(candidate->Size)) : QString{ };
+				const auto  kind      = candidate && core::parse_release_update_prerelease_tag(candidate->Tag) ? QStringLiteral("This is a prerelease.") : QString{ };
+				return joined(joined(kind, installed(aProjection)), download);
+			}
 			case phase::downloading:
 				return aProjection.Candidate ? QStringLiteral("%1 of %2").arg(size(aProjection.Bytes), size(aProjection.Candidate->Size))
 											 : QString{ };
@@ -297,6 +300,26 @@ namespace bpr::qt {
 		column->addSpacing(10);
 		column->addWidget(Automatic);
 		connect(Automatic, &QCheckBox::toggled, this, [this](bool aEnabled) { if (Dispatch.Automatic) { Dispatch.Automatic(aEnabled); } });
+		ChannelRow          = new QWidget{ this };
+		auto* channelLayout = new QHBoxLayout{ ChannelRow };
+		channelLayout->setContentsMargins(0, 0, 0, 0);
+		auto* channelLabel = new QLabel{ QStringLiteral("Update channel"), ChannelRow };
+		ChannelChoice      = new QComboBox{ ChannelRow };
+		ChannelChoice->setObjectName(QStringLiteral("releaseUpdateChannel"));
+		ChannelChoice->setAccessibleName(channelLabel->text());
+		channelLabel->setBuddy(ChannelChoice);
+		ChannelChoice->addItem(QStringLiteral("Stable only"), static_cast<int>(core::release_update_channel::stable));
+		ChannelChoice->addItem(QStringLiteral("Include prereleases"), static_cast<int>(core::release_update_channel::include_prereleases));
+		channelLayout->addWidget(channelLabel);
+		channelLayout->addWidget(ChannelChoice);
+		channelLayout->addStretch();
+		column->addWidget(ChannelRow);
+		ChannelRow->hide();
+		connect(ChannelChoice, &QComboBox::activated, this, [this](int aIndex) {
+			if (Dispatch.Channel) {
+				Dispatch.Channel(static_cast<core::release_update_channel>(ChannelChoice->itemData(aIndex).toInt()));
+			}
+		});
 	}
 	void release_update_panel::emphasize()
 	{
@@ -323,6 +346,9 @@ namespace bpr::qt {
 			Automatic->setChecked(aProjection.Preferences.AutomaticChecks);
 		}
 		Automatic->setVisible(aProjection.AutomaticAvailable);
+		ChannelRow->setVisible(Dispatch.Channel && aProjection.AutomaticAvailable);
+		ChannelChoice->setCurrentIndex(ChannelChoice->findData(static_cast<int>(aProjection.Preferences.Channel)));
+		ChannelChoice->setEnabled(aProjection.ChannelChangeAvailable);
 		const auto text = headline(aProjection);
 		const auto line = detail_line(aProjection);
 		Detail->setText(line);

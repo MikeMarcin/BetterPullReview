@@ -43,11 +43,12 @@ auto main(int aArgc, char** aArgv) -> int
 	if (aArgc == 7) {
 		assetVersion += "-build." + std::string{ aArgv[6] };
 	}
-	auto  candidate = core::release_update_asset_candidate(
-						  core::release_update_release_id{ 10U }, "v" + version,
-						  { core::release_update_asset_id{ 20U }, "BetterPullReview-" + assetVersion + "-macos-universal.zip", std::filesystem::file_size(zip), { }, true })
-						  .Candidate.value();
-	QFile input{ QString::fromStdString(zip.string()) };
+	const auto tag       = scenario.contains("prerelease") ? "v" + assetVersion : "v" + version;
+	auto       candidate = core::release_update_asset_candidate(
+							   core::release_update_release_id{ 10U }, tag,
+							   { core::release_update_asset_id{ 20U }, "BetterPullReview-" + assetVersion + "-macos-universal.zip", std::filesystem::file_size(zip), { }, true })
+							   .Candidate.value();
+	QFile      input{ QString::fromStdString(zip.string()) };
 	expect(input.open(QIODevice::ReadOnly), "fixture archive opens");
 	QCryptographicHash digest{ QCryptographicHash::Sha256 };
 	expect(digest.addData(&input), "fixture digest");
@@ -89,13 +90,16 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 	auto                                result = adapter->verify(archive, stop.get_token());
 	const std::map<std::string, reason> refusals{
-		{ "numbered", reason::wrong_signer }, { "numbered-target", reason::wrong_signer }, { "numbered-other-target", reason::invalid_bundle }, { "missing-target-build", reason::invalid_bundle }, { "numbered-zero", reason::invalid_bundle }, { "numbered-mismatch", reason::invalid_bundle }, { "numbered-missing-seal", reason::invalid_bundle }, { "expanded-size", reason::size_limit }, { "entry-limit", reason::size_limit }, { "digest", reason::digest_mismatch }, { "changed-archive", reason::changed_candidate }, { "cancel", reason::cancelled }, { "traversal", reason::unsafe_archive }, { "absolute", reason::unsafe_archive }, { "symlink-escape", reason::unsafe_archive }, { "symlink-write", reason::unsafe_archive }, { "duplicate", reason::unsafe_archive }, { "device", reason::unsafe_archive }, { "wrong-top", reason::invalid_bundle }, { "wrong-id", reason::invalid_bundle }, { "wrong-version", reason::invalid_bundle }, { "future-os", reason::invalid_bundle }, { "wrong-architecture", reason::wrong_architecture }, { "unsigned", reason::wrong_signer }
+		{ "prerelease-match", reason::wrong_signer }, { "prerelease-mismatch", reason::invalid_bundle }, { "numbered", reason::wrong_signer }, { "numbered-target", reason::wrong_signer }, { "numbered-other-target", reason::invalid_bundle }, { "missing-target-build", reason::invalid_bundle }, { "numbered-zero", reason::invalid_bundle }, { "numbered-mismatch", reason::invalid_bundle }, { "numbered-missing-seal", reason::invalid_bundle }, { "expanded-size", reason::size_limit }, { "entry-limit", reason::size_limit }, { "digest", reason::digest_mismatch }, { "changed-archive", reason::changed_candidate }, { "cancel", reason::cancelled }, { "traversal", reason::unsafe_archive }, { "absolute", reason::unsafe_archive }, { "symlink-escape", reason::unsafe_archive }, { "symlink-write", reason::unsafe_archive }, { "duplicate", reason::unsafe_archive }, { "device", reason::unsafe_archive }, { "wrong-top", reason::invalid_bundle }, { "wrong-id", reason::invalid_bundle }, { "wrong-version", reason::invalid_bundle }, { "future-os", reason::invalid_bundle }, { "wrong-architecture", reason::wrong_architecture }, { "unsigned", reason::wrong_signer }
 	};
-	const auto failure = scenario == "signed" ? reason::none : refusals.at(scenario);
+	const bool signedBundle = scenario == "signed" || scenario == "signed-prerelease";
+	const auto failure      = signedBundle ? reason::none : refusals.at(scenario);
 	std::cout << "staging:" << scenario << ":reason=" << static_cast<int>(result.Failure) << ":expected=" << static_cast<int>(failure) << '\n';
 	expect(result.Failure == failure, "native validation terminal matches criterion");
-	if (scenario == "signed") {
-		expect(adapters::update::release_update_installation_capability(installed, { }) == core::release_update_capability::eligible, "native signed installed copy is eligible after bounded mount inventory");
+	if (signedBundle) {
+		if (scenario == "signed") {
+			expect(adapters::update::release_update_installation_capability(installed, { }) == core::release_update_capability::eligible, "native signed installed copy is eligible after bounded mount inventory");
+		}
 		expect(result.Bundle && adapter->revalidate(result.Bundle, { }) == reason::none, "exact signed candidate revalidates");
 		std::ofstream changed{ transaction / "BetterPullReview.app/Contents/Resources/rfc0035-fixture-change" };
 		changed << "fixture";

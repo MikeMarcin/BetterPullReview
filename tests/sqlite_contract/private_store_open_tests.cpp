@@ -55,6 +55,7 @@
 #include <iostream>
 #include <memory>
 #include <new>
+#include <sqlite3.h>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -216,6 +217,40 @@ namespace {
 		}
 		expect(refused.empty() && missing.empty(), "every store opens and has its file under state/v1:" + summary);
 		return result;
+	}
+
+	void test_legacy_updater_channel()
+	{
+		using channel    = core::release_update_channel;
+		const auto root  = scratch_root{ "bpr-2401-legacy-updater" };
+		const auto path  = (root.Path / "state/v1/release-update.sqlite3").u8string();
+		auto       store = adapters::sqlite::make_release_update_store(root.Path);
+		expect(store->load().has_value(), "updater store opened with private permissions");
+		store.reset();
+		sqlite3*                                                 raw  = nullptr;
+		const auto                                               code = sqlite3_open_v2(reinterpret_cast<const char*>(path.c_str()), &raw, SQLITE_OPEN_READWRITE, nullptr);
+		const std::unique_ptr<sqlite3, decltype(&sqlite3_close)> database{ raw, sqlite3_close };
+		expect(code == SQLITE_OK, "open fixture database with previous SQL");
+		const auto execute = [&](const char* aSql) {
+			expect(sqlite3_exec(raw, aSql, nullptr, nullptr, nullptr) == SQLITE_OK, "previous updater SQL remains usable");
+		};
+		execute("DROP TABLE updater_channel");
+		execute("INSERT OR REPLACE INTO updater VALUES(1,0,'0.5.3',100,99,'')");
+		store            = adapters::sqlite::make_release_update_store(root.Path);
+		auto preferences = store->load();
+		expect(preferences && preferences->Preferences.Channel == channel::stable && !preferences->Preferences.AutomaticChecks
+				   && preferences->Preferences.SkippedVersion == core::release_update_version{ 0U, 5U, 3U }
+				   && preferences->Preferences.LastAttempt == 100 && preferences->Preferences.LastSuccess == 99,
+			   "legacy settings default to Stable only and keep their values");
+		preferences->Preferences.Channel = channel::include_prereleases;
+		expect(store->save(*preferences), "opt-in saves beside the legacy row");
+		store.reset();
+		execute("INSERT OR REPLACE INTO updater VALUES(1,1,'0.5.3',101,100,'')");
+		store         = adapters::sqlite::make_release_update_store(root.Path);
+		auto restored = store->load();
+		expect(restored && restored->Preferences.Channel == channel::include_prereleases && restored->Preferences.AutomaticChecks
+				   && restored->Preferences.LastAttempt == 101 && restored->Preferences.LastSuccess == 100,
+			   "a previous updater can save its preferences after rollback without erasing the opt-in");
 	}
 
 	void test_non_ansi_root_opens_every_store()
@@ -484,16 +519,19 @@ try {
 	// [[BPR-0841]] item 5. Anything else is a usage error, never a pass. A
 	// course is known only on the platforms it runs on.
 #if defined(_WIN32)
-	constexpr auto courses = std::array<std::string_view, 6U>{
-		"non-ansi-root", "symbolic-link", "hard-link", "exception-releases-file", "admission-retry", "lone-surrogate-root"
+	constexpr auto courses = std::array<std::string_view, 7U>{
+		"non-ansi-root", "legacy-updater-channel", "symbolic-link", "hard-link", "exception-releases-file", "admission-retry", "lone-surrogate-root"
 	};
 #else
-	constexpr auto courses = std::array<std::string_view, 2U>{ "non-ansi-root", "owner-only" };
+	constexpr auto courses = std::array<std::string_view, 3U>{ "non-ansi-root", "legacy-updater-channel", "owner-only" };
 #endif
 	const auto only = argc > 1 ? std::string_view{ argv[1] } : std::string_view{ };
 	if (argc > 2 || (!only.empty() && std::find(courses.begin(), courses.end(), only) == courses.end())) {
 		std::cerr << "FAILED: unknown course; expected no argument or one of the named courses\n";
 		return EXIT_FAILURE;
+	}
+	if (only.empty() || only == "legacy-updater-channel") {
+		test_legacy_updater_channel();
 	}
 	if (only.empty() || only == "non-ansi-root") {
 		test_non_ansi_root_opens_every_store();

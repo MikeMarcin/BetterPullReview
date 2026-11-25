@@ -31,6 +31,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFont>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
 #include <QMenuBar>
@@ -80,18 +81,24 @@ namespace {
 	};
 	struct access final : application::release_update_access_port
 	{
-		std::atomic<unsigned>        Checks = 0U, Downloads = 0U;
+		std::atomic<unsigned>        Checks = 0U, PrereleaseChecks = 0U, Downloads = 0U;
 		std::atomic<bool>            Revoked = false;
 		reason                       Failure = reason::none;
 		core::release_update_release Release{
 			core::release_update_source::better_pull_review_github_com, core::release_update_release_id{ 10U }, "v2.3.4", false, false, { { core::release_update_asset_id{ 20U }, "BetterPullReview-2.3.4-macos-universal.zip", 100U, { }, true } }
 		};
-		auto binding() const noexcept -> core::release_update_access_id override { return core::release_update_access_id{ Revoked ? 0U : 7U }; }
-		auto kind() const noexcept -> core::release_update_access_kind override { return core::release_update_access_kind::native_github_com; }
-		auto latest(std::stop_token) -> application::release_update_check_result override
+		std::vector<application::release_update_listing> Prereleases;
+		auto                                             binding() const noexcept -> core::release_update_access_id override { return core::release_update_access_id{ Revoked ? 0U : 7U }; }
+		auto                                             kind() const noexcept -> core::release_update_access_kind override { return core::release_update_access_kind::native_github_com; }
+		auto                                             check(core::release_update_channel aChannel, std::stop_token) -> application::release_update_check_result override
 		{
 			++Checks;
-			return { Failure, Release, 0U, std::string{ fixture_notes } };
+			application::release_update_check_result result{ Failure, { { Release, fixture_notes } } };
+			if (aChannel == core::release_update_channel::include_prereleases) {
+				++PrereleaseChecks;
+				result.Releases.insert(result.Releases.end(), Prereleases.begin(), Prereleases.end());
+			}
+			return result;
 		}
 		auto download(const core::release_update_candidate&     aCandidate, std::stop_token,
 					  const std::function<void(std::uint64_t)>& aProgress) -> application::release_update_download_result override
@@ -388,7 +395,7 @@ namespace {
 		until([&] { return desktop->projection().Installed.has_value(); }, "settings loaded before gestures");
 		auto* panel = dynamic_cast<qt::release_update_panel*>(settings.findChild<QWidget*>(QStringLiteral("releaseUpdatePanel")));
 		expect(panel, "Settings owns live update panel");
-		expect(!panel->findChild<QComboBox*>(), "no release-account picker");
+		expect(panel->findChildren<QComboBox*>().size() == 1 && panel->findChild<QComboBox*>(QStringLiteral("releaseUpdateChannel")), "no release-account picker");
 		until([&] { return desktop->projection().Commands.front().enabled(); }, "the offered release access is selected without a picker");
 		auto* menu = window.findChild<QAction*>(QStringLiteral("checkForUpdatesAction"));
 		expect(menu, "public menu entry exists");
@@ -527,6 +534,114 @@ namespace {
 		until([&] { return desktop->quiescent(); }, "stable cohort fixture drains");
 	}
 
+	void update_channel_gestures()
+	{
+		using channel = core::release_update_channel;
+		QTemporaryDir temporary;
+		const auto    dataRoot = root(temporary);
+		{
+			auto store   = adapters::sqlite::make_release_update_store(dataRoot);
+			auto initial = store->load();
+			expect(initial && initial->Preferences.Channel == channel::stable, "a new installation starts with Stable only");
+			initial->Preferences.AutomaticChecks = false;
+			expect(store->save(*initial), "channel course uses explicit checks");
+		}
+		auto wire            = std::make_shared<access>();
+		auto validator       = std::make_shared<verifier>();
+		auto install         = std::make_shared<installer>();
+		wire->Release.Tag    = "v0.5.3";
+		wire->Release.Assets = {
+			{ core::release_update_asset_id{ 21U }, "BetterPullReview-0.5.3-macos-universal.zip", 100U, { }, true },
+			{ core::release_update_asset_id{ 22U }, "BetterPullReview-0.5.3-build.99-macos-universal.zip", 100U, { }, true },
+		};
+		wire->Prereleases = {
+			{ { core::release_update_source::better_pull_review_github_com, core::release_update_release_id{ 11U }, "v0.5.3-build.103", false, true, { { core::release_update_asset_id{ 23U }, "BetterPullReview-0.5.3-build.103-macos-universal.zip", 100U, { }, true } } }, "Release candidate notes" },
+			{ { core::release_update_source::better_pull_review_github_com, core::release_update_release_id{ 12U }, "v0.5.4-build.108", true, true, { { core::release_update_asset_id{ 24U }, "BetterPullReview-0.5.4-build.108-macos-universal.zip", 100U, { }, true } } }, "Draft notes" }
+		};
+		const auto start = [&](std::uint32_t aBuild, qt::settings_window& aSettings, QMenuBar& aMenu) {
+			auto result = app::release_update_desktop::start({ "0.5.3", core::release_update_capability::eligible, std::make_shared<clock>(), adapters::sqlite::make_release_update_store(dataRoot), validator, { }, { }, install, aBuild });
+			result->set_accounts({ { std::string(64U, 'a'), "Fixture account", [wire](auto, auto, auto aDone) { aDone(wire); } } });
+			result->attach(aSettings);
+			result->attach(aMenu);
+			until([&] { return result->projection().Commands.front().enabled(); }, "channel fixture release access ready");
+			return result;
+		};
+		const auto choose = [](QComboBox& aChoice, int aKey) {
+			QKeyEvent event{ QEvent::KeyPress, aKey, Qt::NoModifier };
+			QApplication::sendEvent(&aChoice, &event);
+		};
+		const auto check = [&](app::release_update_desktop& aDesktop, QMenuBar& aBar, std::uint32_t aBuild) {
+			aBar.findChild<QAction*>(QStringLiteral("checkForUpdatesAction"))->trigger();
+			until([&] { return aDesktop.projection().Phase == phase::available; }, "public check offers a build");
+			expect(aDesktop.projection().Candidate->BuildNumber == aBuild, "public offer selects the expected cohort");
+		};
+		qt::settings_window settings;
+		QMenuBar            menu;
+		auto                desktop = start(95U, settings, menu);
+		settings.present(qt::settings_page::general);
+		auto* choice = settings.findChild<QComboBox*>(QStringLiteral("releaseUpdateChannel"));
+		expect(choice && choice->isVisible() && choice->isEnabled() && choice->accessibleName() == QStringLiteral("Update channel")
+				   && choice->currentText() == QStringLiteral("Stable only"),
+			   "Settings exposes the accessible stable default");
+		check(*desktop, menu, 99U);
+		expect(wire->Checks == 1U && wire->PrereleaseChecks == 0U, "stable uses the stable route exclusively");
+		choose(*choice, Qt::Key_Down);
+		expect(choice->currentText() == QStringLiteral("Include prereleases") && !desktop->projection().Candidate,
+			   "keyboard opt-in invalidates the old offer");
+		const auto screenshot = qEnvironmentVariable("BPR_UPDATE_CHANNEL_SCREENSHOT_PATH");
+		if (!screenshot.isEmpty()) {
+			settings.present(qt::settings_page::general);
+			QApplication::processEvents();
+			expect(choice->isVisible() && settings.grab().save(screenshot), "composed Settings channel capture");
+		}
+		check(*desktop, menu, 103U);
+		expect(desktop->projection().Notes == "Release candidate notes", "selected RC carries its own notes and excludes the higher draft");
+		auto* offer = desktop->panel();
+		expect(offer && !offer->action(command::install)->isEnabled(), "unverified RC cannot install");
+		offer->action(command::download)->trigger();
+		until([&] { return desktop->projection().Phase == phase::ready; }, "RC reaches verified staging");
+		choose(*choice, Qt::Key_Up);
+		expect(!desktop->projection().Candidate && !offer->action(command::install)->isEnabled() && install->Calls == 0U,
+			   "switching to Stable only discards the staged RC");
+		choose(*choice, Qt::Key_Down);
+		desktop->shutdown();
+		until([&] { return desktop->quiescent(); }, "opt-in channel persists before shutdown");
+		desktop.reset();
+		qt::settings_window restartedSettings;
+		QMenuBar            restartedMenu;
+		desktop               = start(95U, restartedSettings, restartedMenu);
+		auto* restartedChoice = restartedSettings.findChild<QComboBox*>(QStringLiteral("releaseUpdateChannel"));
+		expect(restartedChoice && restartedChoice->currentText() == QStringLiteral("Include prereleases"), "Settings restores opt-in from a reopened store");
+		check(*desktop, restartedMenu, 103U);
+		const auto candidate = desktop->projection().Candidate;
+		offer                = desktop->panel();
+		offer->action(command::download)->trigger();
+		until([&] { return desktop->projection().Phase == phase::ready; }, "exact RC is verified again");
+		const auto checks = wire->PrereleaseChecks.load();
+		offer->action(command::install)->trigger();
+		until([&] { return desktop->projection().Phase == phase::handed_off; }, "explicit Install and Restart refreshes the RC and hands it off");
+		expect(wire->PrereleaseChecks == checks + 1U && install->Calls == 1U && desktop->projection().Candidate == candidate,
+			   "install uses the opt-in channel and exact candidate");
+		expect(!restartedChoice->isEnabled(), "channel is locked during installer ownership");
+		desktop->shutdown();
+		until([&] { return desktop->quiescent(); }, "RC install course drains");
+		desktop.reset();
+		wire->Release.Assets.back().Name = "BetterPullReview-0.5.3-build.104-macos-universal.zip";
+		qt::settings_window followupSettings;
+		QMenuBar            followupMenu;
+		desktop = start(103U, followupSettings, followupMenu);
+		check(*desktop, followupMenu, 104U);
+		expect(desktop->projection().Candidate->Tag == wire->Release.Tag, "opt-in advances an installed RC to the higher stable release");
+		choose(*followupSettings.findChild<QComboBox*>(QStringLiteral("releaseUpdateChannel")), Qt::Key_Up);
+		desktop->shutdown();
+		until([&] { return desktop->quiescent(); }, "stable selection persists before shutdown");
+		desktop.reset();
+		auto saved = adapters::sqlite::make_release_update_store(dataRoot)->load();
+		expect(saved && saved->Preferences.Channel == channel::stable && !saved->Preferences.AutomaticChecks,
+			   "Stable only persists without changing the automatic check preference");
+		std::cout << "update-channel-gestures:pass\n";
+	}
+
 	/// [[BPR-1672]]. A self-updating build offers the public releases first,
 	/// and its update settings must save with that access selected. The
 	/// readable "public:github.com" binding was refused by the store, so
@@ -652,10 +767,10 @@ namespace {
 		std::atomic<unsigned>                                      Checks = 0U;
 		auto                                                       binding() const noexcept -> core::release_update_access_id override { return core::release_update_access_id{ 350U }; }
 		auto                                                       kind() const noexcept -> core::release_update_access_kind override { return core::release_update_access_kind::native_github_com; }
-		auto                                                       latest(std::stop_token) -> application::release_update_check_result override
+		auto                                                       check(core::release_update_channel, std::stop_token) -> application::release_update_check_result override
 		{
 			++Checks;
-			return { reason::none, { core::release_update_source::better_pull_review_github_com, core::release_update_release_id{ 350U }, "v" + Version, false, false, { { core::release_update_asset_id{ 351U }, "BetterPullReview-" + Version + "-macos-universal.zip", std::filesystem::file_size(Archive), { }, true } } }, 0U, "Disposable signed qualification" };
+			return { reason::none, { { { core::release_update_source::better_pull_review_github_com, core::release_update_release_id{ 350U }, "v" + Version, false, false, { { core::release_update_asset_id{ 351U }, "BetterPullReview-" + Version + "-macos-universal.zip", std::filesystem::file_size(Archive), { }, true } } }, "Disposable signed qualification" } } };
 		}
 		auto download(const core::release_update_candidate& aCandidate, std::stop_token aStop, const std::function<void(std::uint64_t)>& aProgress) -> application::release_update_download_result override
 		{
@@ -748,6 +863,10 @@ try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QApplication::setApplicationVersion(QStringLiteral("2.3.3"));
+	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--update-channel") {
+		update_channel_gestures();
+		return 0;
+	}
 	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--numbered-build") {
 		numbered_build_gestures();
 		return 0;
@@ -766,6 +885,7 @@ try {
 	desktop_recovery_lifecycle();
 	gestures_restart_and_staging();
 	numbered_build_gestures();
+	update_channel_gestures();
 	public_release_access_persists();
 	unavailable_installations();
 	std::cout << "release-update-public-path:pass\n";

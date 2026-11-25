@@ -35,6 +35,17 @@ prerelease exclusion, marketing-version ordering, and skipped-version storage
 still apply. A client with the previous version check requires a manual install
 to switch to a different build of the same marketing version.
 
+## Opt-in prerelease updates
+
+[[BPR-2401]] adds an application-wide **Update channel** choice to General
+Settings. **Stable only** remains the default. **Include prereleases** checks
+the distribution repository's bounded release list for published stable releases
+and numbered GitHub prereleases. It considers marketing version first and the
+numbered build second. A numbered prerelease accepts only the canonical ZIP whose
+build matches its tag. Changing channels cancels obsolete checks and discards
+offers and staging. Installation still requires the user's confirmation and the
+same exact candidate on refresh under the selected channel.
+
 ## Owner amendment 2026-11-16 — AC-03 without a private release target
 
 On the 2026-11-15 hygiene audit's question (authorize a named private-release

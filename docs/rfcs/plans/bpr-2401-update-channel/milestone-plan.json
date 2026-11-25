@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-2401-update-channel",
+  "scope": {
+    "issues": [
+      "BPR-2401"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "m1-update-channel",
+      "outcome": "A durable application-wide channel preference selects eligible BPR updates and preserves exact package and install authority.",
+      "depends_on": [],
+      "work": [
+        {
+          "issue": "BPR-2401"
+        }
+      ],
+      "boundary": "Hand back the locally verified update-channel feature without publishing or replacing any installed copy.",
+      "exit_criteria": [
+        "Stable only is the default for existing and new update settings, and both choices persist.",
+        "The Settings course reaches the shipped updater composition and offers published compatible RCs or stable releases according to the selected channel.",
+        "Channel changes invalidate stale checks and staging, and install refresh preserves candidate and native package identity."
+      ]
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

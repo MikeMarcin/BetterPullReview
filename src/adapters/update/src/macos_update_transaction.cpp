@@ -201,9 +201,8 @@ namespace bpr::adapters::update {
 		auto read_candidate(const QJsonObject& aRecord) -> std::optional<core::release_update_candidate>
 		{
 			const auto release = number(aRecord, "release"), asset = number(aRecord, "asset"), size = number(aRecord, "size");
-			const auto tag     = aRecord.value("tag").toString().toStdString();
-			const auto version = core::parse_release_update_version(tag);
-			if (!release || !asset || !size || !version || *version == core::release_update_version{ }) {
+			const auto tag = aRecord.value("tag").toString().toStdString();
+			if (!release || !asset || !size) {
 				return { };
 			}
 			const core::release_update_asset archive{
@@ -213,8 +212,8 @@ namespace bpr::adapters::update {
 				aRecord.contains("digest") ? std::optional{ aRecord.value("digest").toString().toStdString() } : std::nullopt,
 				true
 			};
-			const auto selected = core::release_update_asset_candidate(core::release_update_release_id{ *release }, tag, archive);
-			return selected.Candidate;
+			auto selected = core::release_update_asset_candidate(core::release_update_release_id{ *release }, tag, archive);
+			return selected.Candidate && selected.Candidate->Version != core::release_update_version{ } ? std::move(selected.Candidate) : std::nullopt;
 		}
 		auto file_digest(const fs::path& aPath) -> std::string
 		{

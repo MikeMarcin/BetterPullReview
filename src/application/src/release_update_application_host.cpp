@@ -25,10 +25,10 @@ namespace bpr::application {
 		};
 		struct delivery
 		{
-			core::release_update_event                            Event;
-			std::shared_ptr<const release_update_archive>         Archive;
-			std::shared_ptr<const release_update_verified_bundle> Bundle;
-			std::string                                           Notes{ };
+			core::release_update_event                                           Event;
+			std::shared_ptr<const release_update_archive>                        Archive;
+			std::shared_ptr<const release_update_verified_bundle>                Bundle;
+			std::vector<std::pair<core::release_update_release_id, std::string>> Notes{ };
 		};
 
 		core::release_update_state                            State;
@@ -77,7 +77,7 @@ namespace bpr::application {
 			return { State.Installed, State.Phase, reason, State.Candidate, State.Preferences,
 					 commands, State.Bytes, State.OfferVisible, Notes,
 					 State.Capability == core::release_update_capability::eligible && !State.Stopped, State.InstallationOutcome,
-					 State.InstalledBuildNumber };
+					 State.InstalledBuildNumber, core::release_update_can_change_channel(State) };
 		}
 
 		void cancel_all()
@@ -98,7 +98,8 @@ namespace bpr::application {
 				Notes.clear();
 			}
 			if (output.Accepted && State.Candidate && std::holds_alternative<core::release_update_checked>(aDelivery.Event)) {
-				Notes = std::move(aDelivery.Notes);
+				const auto notes = std::ranges::find(aDelivery.Notes, State.Candidate->Release, [](const auto& aPair) { return aPair.first; });
+				Notes            = notes == aDelivery.Notes.end() ? std::string{ } : std::move(notes->second);
 			}
 			if (output.Accepted && aDelivery.Archive && State.Candidate) {
 				Archive = std::move(aDelivery.Archive);
@@ -195,14 +196,23 @@ namespace bpr::application {
 				if (!aAccess) {
 					break;
 				}
-				auto result = aAccess->latest(stop);
+				auto result = aAccess->check(context.Channel, stop);
 				if (result.Failure != update_reason::none) {
 					return { core::release_update_failed{ context, result.Failure, result.RetryAfterSeconds }, { }, { } };
 				}
-				if (result.Notes.size() > release_update_maximum_notes_bytes) {
+				if (result.Releases.size() > core::release_update_maximum_releases) {
 					return { core::release_update_failed{ context, update_reason::size_limit }, { }, { } };
 				}
-				return { core::release_update_checked{ context, std::move(result.Release) }, { }, { }, std::move(result.Notes) };
+				std::vector<core::release_update_release> releases;
+				decltype(delivery::Notes)                 notes;
+				for (auto& item : result.Releases) {
+					if (item.Notes.size() > release_update_maximum_notes_bytes) {
+						return { core::release_update_failed{ context, update_reason::size_limit }, { }, { } };
+					}
+					notes.emplace_back(item.Release.Id, std::move(item.Notes));
+					releases.push_back(std::move(item.Release));
+				}
+				return { core::release_update_checked{ context, std::move(releases) }, { }, { }, std::move(notes) };
 			}
 			case update_operation::download: {
 				if (!aAccess || !context.Candidate) {
@@ -365,6 +375,7 @@ namespace bpr::application {
 	auto release_update_application_host::dispatch(core::release_update_intent aIntent) -> bool { return Impl->enqueue(std::move(aIntent)); }
 	auto release_update_application_host::tick() -> bool { return Impl->enqueue(core::release_update_tick{ }); }
 	auto release_update_application_host::set_automatic_checks(const bool aEnabled) -> bool { return Impl->enqueue(core::release_update_set_automatic{ aEnabled }); }
+	auto release_update_application_host::set_channel(const core::release_update_channel aChannel) -> bool { return Impl->enqueue(core::release_update_set_channel{ aChannel }); }
 	void release_update_application_host::shutdown()
 	{
 		Impl->ShutdownRequested = true;

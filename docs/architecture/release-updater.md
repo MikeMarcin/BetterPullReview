@@ -56,7 +56,7 @@ request and one coalesced latest selection.
 | Fact | Bound value |
 |---|---|
 | API origin | `https://api.github.com` |
-| Metadata operation | `GET /repos/MikeMarcin/BetterPullReview/releases/latest` |
+| Metadata operations | `GET /repos/MikeMarcin/BetterPullReview/releases/latest` (Stable only), `GET /repos/MikeMarcin/BetterPullReview/releases` (Include prereleases) |
 | Asset operation | `GET /repos/MikeMarcin/BetterPullReview/releases/assets/<selected numeric ID>` |
 | API version | `2022-11-28`, explicitly pinned; independent of GitHub documentation's current default |
 | Accept | `application/vnd.github+json` for metadata; `application/octet-stream` for asset bytes |
@@ -64,7 +64,7 @@ request and one coalesced latest selection.
 | Production bundle | `BetterPullReview.app`, `com.gamecoretech.betterpullreview`, team `YTQKP2V2A8` |
 | Required architectures | Both `arm64` and `x86_64` in the initial universal package |
 
-GitHub documents the [latest release](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)
+GitHub documents the [release list](https://docs.github.com/en/rest/releases/releases#list-releases), [latest release](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)
 and [binary asset](https://docs.github.com/en/rest/releases/assets#get-a-release-asset)
 operations, including direct-byte and redirect responses for assets. The single
 asset origin above is the initial packaged allowlist, not a claim that live
@@ -81,9 +81,9 @@ View Release is a host browser request constructed from the fixed GitHub.com
 repository and the percent-encoded validated tag. Do not pass a service-provided
 `html_url`, signed asset URL, HTML note or installer command through presentation.
 
-## Stable versions and exact selection
+## Release channels and exact selection
 
-The core accepts `[v]MAJOR.MINOR.PATCH[+BUILD]`, with decimal unsigned 64-bit
+For stable tags, the core accepts `[v]MAJOR.MINOR.PATCH[+BUILD]`, with decimal unsigned 64-bit
 components, no leading zeroes except `0`, and nonempty dot-separated ASCII
 alphanumeric/hyphen build identifiers. The entire tag is at most 128 bytes.
 Prerelease suffixes, unknown formats, whitespace and numeric overflow refuse.
@@ -95,7 +95,7 @@ Equal or older build numbers and unnumbered installations keep the current
 installation when the marketing version matches. SemVer build metadata still
 has no precedence.
 
-For a strictly newer stable release, require exactly one uploaded
+In the default channel, a strictly newer stable release requires exactly one uploaded
 `BetterPullReview-<tag without leading v>-macos-universal.zip`. Build metadata,
 when present, stays in this exact filename. No source archive, other product,
 single-architecture package, duplicate name/ID or DMG fallback is eligible.
@@ -111,9 +111,21 @@ The same-version candidate records the selected build number and exact numbered
 asset. The install refresh must select that same candidate. The helper
 reconstructs the build number from the journaled asset name.
 
+**Include prereleases** scans one list of up to 30 release records and
+considers both published stable releases and prereleases. A prerelease must
+use `vMAJOR.MINOR.PATCH-build.N` with the GitHub prerelease flag and an exact
+numbered universal ZIP for that tag. Drafts and incompatible releases are
+ineligible. Compatible candidates rank by marketing version, then build
+number. Stable wins a tie, and distinct candidates with the same best rank
+refuse the offer. For stable releases with numbered assets, the opt-in channel
+uses the numbered ZIP to bind the build and compare it with prereleases. A
+legacy stable ZIP can qualify for a newer marketing version when the release
+has no numbered ZIP.
+
 | Bound | Initial limit |
 |---|---|
-| Metadata / assets / release notes | 1 MiB / 128 / 32 KiB |
+| Stable metadata / opt-in listing | 1 MiB / 4 MiB |
+| Assets / release notes per release | 128 / 32 KiB |
 | Archive / expanded data / archive entries | 512 MiB / 2 GiB / 50,000 |
 | Metadata / download / verification time | 30 seconds / 15 minutes / 5 minutes |
 
@@ -141,7 +153,7 @@ links must resolve inside the application. Cleanup owns only its private
 transaction, retains its lock through asynchronous disposal, and never changes
 the running application.
 
-Validation compares the declared SHA-256 when present, the exact tag version,
+Validation compares the declared SHA-256 when present, the tag’s exact marketing version,
 the selected build number against the signed bundle's `CFBundleVersion` and
 `BPRReleaseBuild` when a numbered ZIP was selected, the bundle identifier,
 both Mach-O slices and their deployment commands. It validates
@@ -163,8 +175,11 @@ candidate, one pending operation and typed status. The host supplies explicit
 wall/monotonic facts. A one-second desktop timer supplies opportunities; core
 decides whether a request is due. The application service loads preferences before
 admitting controls and serializes/coalesces their nonsecret snapshots through an
-owner-private `state/v1/release-update.sqlite3` store. Automatic checks, the skipped
-version, attempt/success times and opaque account binding survive orderly restart.
+owner-private `state/v1/release-update.sqlite3` store. Automatic checks, the update
+channel, the skipped version, attempt/success times and opaque account binding
+survive orderly restart. The channel lives in a separate table in the same
+transaction. Existing settings default to Stable only and the previous
+updater can still read and save its preferences after a rollback.
 Foreign schemas, corruption and storage failures are refused and shown as
 session-only state. No release notes, URLs, archives or credentials enter SQLite.
 
@@ -184,9 +199,12 @@ no automatic request. Unsupported, untrusted, read-only, translocated and
 mounted-image installations have distinct manual-fallback reasons.
 
 Every request carries application session, request ID, generation, release-access
-lease ID, operation and complete candidate where applicable. Bounded equality
+lease ID, selected channel, operation and complete candidate where applicable. Bounded equality
 rejects stale/duplicate observations before any candidate can be published.
-Disable, cancel, authority replacement and shutdown invalidate pending policy.
+Disable, cancel, channel changes, authority replacement and shutdown invalidate
+pending policy. A channel change clears the last successful check and discards
+any staged candidate while preserving automatic-check cadence and retry delays.
+The channel cannot change once the installer operation starts.
 Download and verification require exact accepted candidate identity; worker
 exceptions become typed failures. An absent installer remains explicitly disabled,
 including when native validation reaches `ready`. `BPRManagedUpdates=true` in

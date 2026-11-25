@@ -98,8 +98,11 @@ class Proxy:
             self.stop.wait(1)
             return
         body = b"{}" if scenario == "metadata" else b"x" * 100
+        if scenario == "release-list":
+            # Approximate the pinned repository's observed list size.
+            body = b"[]" + b" " * (1_212_810 - 2)
         status, headers = b"200 OK", []
-        content_type = b"application/json" if scenario == "metadata" else b"application/octet-stream"
+        content_type = b"application/json" if scenario in ("metadata", "release-list") else b"application/octet-stream"
         if scenario in ("401", "403", "404", "429"):
             status, body = scenario.encode() + b" Refused", b""
             if scenario == "429":
@@ -142,7 +145,11 @@ class Proxy:
             assert support.one_header(headers, "accept-encoding") == b"identity"
             assert b"cookie:" not in request.lower()
             if authority == b"api.github.com:443":
-                path = b"releases/latest" if self.scenario in ("metadata", "metadata-redirect") else b"releases/assets/20"
+                path = b"releases/assets/20"
+                if self.scenario.startswith("metadata"):
+                    path = b"releases/latest"
+                elif self.scenario.startswith("release-list"):
+                    path = b"releases"
                 assert first == b"GET /repos/MikeMarcin/BetterPullReview/" + path + b" HTTP/1.1"
                 assert support.one_header(headers, "authorization") == b"Bearer " + self.secret
             else:
@@ -168,7 +175,7 @@ def main():
     parser.add_argument("--executable", type=Path, required=True)
     parser.add_argument("--openssl", type=Path, required=True)
     args = parser.parse_args()
-    scenarios = ("metadata", "asset", "asset-redirect", "metadata-redirect", "cross-redirect", "http-redirect", "userinfo-redirect", "api-redirect", "redirect-loop", "401", "403", "404", "429", "encoding", "headers", "type", "duplicate", "size", "stream-size", "sink-refuses", "cancel", "timeout", "timeout-connect", "timeout-handshake", "pre-cancel", "untrusted")
+    scenarios = ("metadata", "release-list", "release-list-redirect", "asset", "asset-redirect", "metadata-redirect", "cross-redirect", "http-redirect", "userinfo-redirect", "api-redirect", "redirect-loop", "401", "403", "404", "429", "encoding", "headers", "type", "duplicate", "size", "stream-size", "sink-refuses", "cancel", "timeout", "timeout-connect", "timeout-handshake", "pre-cancel", "untrusted")
     support.HOST = "release-assets.githubusercontent.com"
     with support.contained_temporary_directory(prefix="bpr-release-wire-") as temporary:
         certificate = support.generate_certificate_material(args.openssl, Path(temporary))

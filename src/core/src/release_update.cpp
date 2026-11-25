@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <charconv>
 #include <limits>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -59,12 +60,22 @@ namespace bpr::core {
 			return aTag.starts_with('v') ? aTag.substr(1U) : aTag;
 		}
 
+		constexpr std::string_view build_marker = "-build.";
+
+		[[nodiscard]] auto build_number(std::string_view aText) noexcept -> std::optional<std::uint32_t>
+		{
+			const auto number = aText.size() <= 4U ? parse_component(aText, true) : std::nullopt;
+			if (!number || *number == 0U || *number > release_update_maximum_build_number) {
+				return std::nullopt;
+			}
+			return static_cast<std::uint32_t>(*number);
+		}
+
 		[[nodiscard]] auto package_build_number(const std::string_view aVersion, std::string_view aName)
 			-> std::optional<std::uint32_t>
 		{
 			constexpr std::string_view prefix = "BetterPullReview-";
 			constexpr std::string_view suffix = "-macos-universal.zip";
-			constexpr std::string_view build  = "-build.";
 			if (aName.size() < prefix.size() + suffix.size() || !aName.starts_with(prefix) || !aName.ends_with(suffix)) {
 				return std::nullopt;
 			}
@@ -77,18 +88,15 @@ namespace bpr::core {
 				return std::nullopt;
 			}
 			aName.remove_prefix(aVersion.size());
-			if (!aName.starts_with(build)) {
-				return std::nullopt;
-			}
-			aName.remove_prefix(build.size());
-			if (aName.size() > 4U) {
-				return std::nullopt;
-			}
-			const auto number = parse_component(aName, true);
-			if (!number || *number == 0U || *number > release_update_maximum_build_number) {
-				return std::nullopt;
-			}
-			return static_cast<std::uint32_t>(*number);
+			return aName.starts_with(build_marker) ? build_number(aName.substr(build_marker.size())) : std::nullopt;
+		}
+
+		[[nodiscard]] auto matching_build(std::string_view aTag, const std::optional<release_update_prerelease_tag>& aPrerelease,
+										  const release_update_asset& aAsset) -> std::optional<std::uint32_t>
+		{
+			const auto version = package_version(aPrerelease ? aPrerelease->MarketingTag : aTag);
+			const auto build   = package_build_number(version, aAsset.Name);
+			return aPrerelease && build != aPrerelease->BuildNumber ? std::nullopt : build;
 		}
 
 		[[nodiscard]] auto digest_bytes(const std::string_view aText)
@@ -217,7 +225,7 @@ namespace bpr::core {
 				aOutput.Changed  = true;
 				return;
 			}
-			aState.Pending     = release_update_context{ aState.Session, aState.NextRequest, aState.Generation, aState.Access, aOperation, aState.Candidate };
+			aState.Pending     = release_update_context{ aState.Session, aState.NextRequest, aState.Generation, aState.Access, aOperation, aState.Candidate, aState.Preferences.Channel };
 			aState.NextRequest = request_id{ aState.NextRequest.value() + 1U };
 			aOutput.Requests.push_back({ *aState.Pending, false });
 			aOutput.Accepted = true;
@@ -314,6 +322,43 @@ namespace bpr::core {
 			aOutput.Changed     = true;
 		}
 
+		auto select_from_listing(const release_update_version& aInstalled, std::uint32_t aInstalledBuildNumber,
+								 const std::vector<release_update_release>& aReleases, release_update_channel aChannel)
+			-> release_update_selection
+		{
+			if (aChannel == release_update_channel::stable) {
+				return aReleases.size() == 1U ? select_release_update(aInstalled, aReleases.front(), aInstalledBuildNumber)
+											  : release_update_selection{ { }, release_update_reason::malformed_release };
+			}
+			if (aReleases.size() > release_update_maximum_releases) {
+				return { { }, release_update_reason::size_limit };
+			}
+			using rank = std::tuple<release_update_version, std::uint32_t, bool>;
+			std::optional<rank>      bestRank;
+			release_update_selection best{ { }, release_update_reason::current };
+			bool                     ambiguous = false;
+			for (const auto& release : aReleases) {
+				auto selected = select_release_update(aInstalled, release, aInstalledBuildNumber, aChannel);
+				if (!selected.Candidate) {
+					if (!bestRank && selected.Reason != release_update_reason::unstable_release
+						&& selected.Reason != release_update_reason::current
+						&& (best.Reason == release_update_reason::current || selected.Reason < best.Reason)) {
+						best.Reason = selected.Reason;
+					}
+					continue;
+				}
+				const rank current{ selected.Candidate->Version, selected.Candidate->BuildNumber, !release.Prerelease };
+				if (!bestRank || current > *bestRank) {
+					bestRank  = current;
+					ambiguous = std::ranges::count(aReleases, release.Id, &release_update_release::Id) != 1;
+					best      = std::move(selected);
+				} else if (current == *bestRank) {
+					ambiguous = true;
+				}
+			}
+			return ambiguous ? release_update_selection{ { }, release_update_reason::ambiguous_asset } : best;
+		}
+
 		void complete(release_update_state& aState, release_update_output& aOutput, const release_update_checked& aEvent, const release_update_time aTime)
 		{
 			const auto refreshing = aEvent.Context.Operation == release_update_operation::refresh_install;
@@ -321,7 +366,7 @@ namespace bpr::core {
 				aOutput.Diagnostic = release_update_reason::stale_completion;
 				return;
 			}
-			auto selected = select_release_update(*aState.Installed, aEvent.Release, aState.InstalledBuildNumber);
+			auto selected = select_from_listing(*aState.Installed, aState.InstalledBuildNumber, aEvent.Releases, aEvent.Context.Channel);
 			if (refreshing) {
 				if (!selected.Candidate || selected.Candidate != aState.Candidate) {
 					fail(aState, aOutput, release_update_reason::changed_candidate);
@@ -448,14 +493,32 @@ namespace bpr::core {
 		return release_update_version{ *major, *minor, *patch };
 	}
 
+	auto parse_release_update_prerelease_tag(const std::string_view aTag) noexcept -> std::optional<release_update_prerelease_tag>
+	{
+		if (!aTag.starts_with('v') || aTag.size() > release_update_maximum_tag_bytes) {
+			return std::nullopt;
+		}
+		const auto separator = aTag.find(build_marker);
+		if (separator == std::string_view::npos) {
+			return std::nullopt;
+		}
+		const auto marketing = aTag.substr(0U, separator);
+		const auto build     = build_number(aTag.substr(separator + build_marker.size()));
+		if (!build || marketing.contains('+') || !parse_release_update_version(marketing)) {
+			return std::nullopt;
+		}
+		return release_update_prerelease_tag{ marketing, *build };
+	}
+
 	auto release_update_asset_candidate(const release_update_release_id aRelease, const std::string_view aTag,
 										const release_update_asset& aAsset) -> release_update_selection
 	{
-		const auto version = parse_release_update_version(aTag);
+		const auto prerelease = parse_release_update_prerelease_tag(aTag);
+		const auto version    = parse_release_update_version(prerelease ? prerelease->MarketingTag : aTag);
 		if (!version) {
 			return { { }, release_update_reason::invalid_version };
 		}
-		const auto build = package_build_number(package_version(aTag), aAsset.Name);
+		const auto build = matching_build(aTag, prerelease, aAsset);
 		if (!build) {
 			return { { }, release_update_reason::no_compatible_asset };
 		}
@@ -473,16 +536,17 @@ namespace bpr::core {
 	}
 
 	auto select_release_update(const release_update_version& aInstalled, const release_update_release& aRelease,
-							   const std::uint32_t aInstalledBuildNumber) -> release_update_selection
+							   const std::uint32_t aInstalledBuildNumber, const release_update_channel aChannel) -> release_update_selection
 	{
 		if (aRelease.Source != release_update_source::better_pull_review_github_com || aRelease.Id.value() == 0U || aRelease.Assets.size() > release_update_maximum_assets) {
 			return { { }, release_update_reason::malformed_release };
 		}
-		if (aRelease.Draft || aRelease.Prerelease) {
+		if (aRelease.Draft || (aRelease.Prerelease && aChannel != release_update_channel::include_prereleases)) {
 			return { { }, release_update_reason::unstable_release };
 		}
-		const auto version = parse_release_update_version(aRelease.Tag);
-		if (!version) {
+		const auto prerelease = aRelease.Prerelease ? parse_release_update_prerelease_tag(aRelease.Tag) : std::nullopt;
+		const auto version    = parse_release_update_version(prerelease ? prerelease->MarketingTag : aRelease.Tag);
+		if (!version || (aRelease.Prerelease && !prerelease)) {
 			return { { }, release_update_reason::invalid_version };
 		}
 		const bool sameVersion         = *version == aInstalled;
@@ -490,14 +554,17 @@ namespace bpr::core {
 		if (*version < aInstalled || (sameVersion && (!knownInstalledBuild || *version == release_update_version{ }))) {
 			return { { }, release_update_reason::current };
 		}
-		const auto packageVersion = package_version(aRelease.Tag);
-		const auto matches        = [packageVersion, sameVersion](const release_update_asset& aAsset) {
-			const auto build = package_build_number(packageVersion, aAsset.Name);
-			return build && (*build != 0U) == sameVersion;
+		const bool numbered = sameVersion || prerelease.has_value()
+			|| (aChannel == release_update_channel::include_prereleases && std::ranges::any_of(aRelease.Assets, [&](const auto& aAsset) {
+								  return matching_build(aRelease.Tag, prerelease, aAsset).value_or(0U) != 0U;
+							  }));
+		const auto matches = [&](const release_update_asset& aAsset) {
+			const auto build = matching_build(aRelease.Tag, prerelease, aAsset);
+			return build && (*build != 0U) == numbered;
 		};
 		const auto count = std::ranges::count_if(aRelease.Assets, matches);
 		if (count == 0) {
-			return { { }, sameVersion ? release_update_reason::current : release_update_reason::no_compatible_asset };
+			return { { }, sameVersion && !prerelease ? release_update_reason::current : release_update_reason::no_compatible_asset };
 		}
 		if (count > 1) {
 			return { { }, release_update_reason::ambiguous_asset };
@@ -552,6 +619,13 @@ namespace bpr::core {
 		return commands;
 	}
 
+	auto release_update_can_change_channel(const release_update_state& aState) noexcept -> bool
+	{
+		return !aState.Stopped && aState.Capability == release_update_capability::eligible
+			&& aState.Phase != release_update_phase::handed_off
+			&& (!aState.Pending || aState.Pending->Operation != release_update_operation::install);
+	}
+
 	auto transition(release_update_state& aState, const release_update_event& aEvent, const release_update_time aTime) -> release_update_output
 	{
 		release_update_output output;
@@ -577,6 +651,14 @@ namespace bpr::core {
 					aState.Preferences.AutomaticChecks = aValue.Enabled;
 					output.PreferencesChanged          = true;
 					invalidate(aState, output, aValue.Enabled ? release_update_reason::none : release_update_reason::disabled);
+				}
+			} else if constexpr (std::is_same_v<event_type, release_update_set_channel>) {
+				if (release_update_can_change_channel(aState) && aState.Preferences.Channel != aValue.Channel
+					&& (aValue.Channel == release_update_channel::stable || aValue.Channel == release_update_channel::include_prereleases)) {
+					aState.Preferences.Channel = aValue.Channel;
+					aState.Preferences.LastSuccess.reset();
+					output.PreferencesChanged = true;
+					invalidate(aState, output, release_update_reason::none);
 				}
 			} else if constexpr (std::is_same_v<event_type, release_update_shutdown>) {
 				if (!aState.Stopped) {

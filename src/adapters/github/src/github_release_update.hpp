@@ -17,7 +17,7 @@ namespace bpr::adapters::github::detail {
 	/// \brief Credential-free lease on the same pinned public release routes.
 	[[nodiscard]] auto make_public_release_update_access(core::release_update_access_id aIdentity, std::shared_ptr<application::release_update_archive_store> aStore)
 		-> std::shared_ptr<native_release_update_access>;
-	[[nodiscard]] auto parse_release_update_metadata(std::string_view aBody) -> application::release_update_check_result;
+	[[nodiscard]] auto parse_release_update_metadata(std::string_view aBody, core::release_update_channel aChannel = core::release_update_channel::stable) -> application::release_update_check_result;
 	/// \brief Builds a browser address only from the fixed repository and validated tag.
 	[[nodiscard]] auto release_update_browser_address(std::string_view aTag) -> std::string;
 
@@ -31,13 +31,13 @@ namespace bpr::adapters::github::detail {
 	/// \brief Runs only on an effect worker; native HTTPS alone owns network objects.
 	[[nodiscard]] auto perform_release_update_https(std::span<const std::byte> aCredential,
 													std::uint64_t aAsset, std::uint64_t aLimit, std::stop_token aStop,
-													const release_update_consumer& aConsume) -> release_update_wire_result;
+													const release_update_consumer& aConsume, core::release_update_channel aChannel = core::release_update_channel::stable) -> release_update_wire_result;
 
 #if defined(BPR_NATIVE_HTTPS_TESTING)
 	struct native_https_test_configuration;
 	[[nodiscard]] auto perform_release_update_https_for_test(std::span<const std::byte> aCredential,
 															 std::uint64_t aAsset, std::uint64_t aLimit, std::stop_token aStop,
-															 const release_update_consumer& aConsume, const native_https_test_configuration& aConfiguration) -> release_update_wire_result;
+															 const release_update_consumer& aConsume, const native_https_test_configuration& aConfiguration, core::release_update_channel aChannel = core::release_update_channel::stable) -> release_update_wire_result;
 #endif
 }
 #endif

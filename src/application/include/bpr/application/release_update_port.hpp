@@ -17,12 +17,20 @@ namespace bpr::application {
 	inline constexpr std::string_view release_update_bundle_identifier            = "com.gamecoretech.betterpullreview";
 	inline constexpr std::string_view release_update_signing_team                 = "YTQKP2V2A8";
 	inline constexpr std::uint64_t    release_update_maximum_metadata_bytes       = 1024U * 1024U;
+	inline constexpr std::uint64_t    release_update_maximum_listing_bytes        = 4U * 1024U * 1024U;
 	inline constexpr std::uint64_t    release_update_maximum_notes_bytes          = 32U * 1024U;
 	inline constexpr std::uint64_t    release_update_maximum_expanded_bytes       = 2ULL * 1024U * 1024U * 1024U;
 	inline constexpr std::uint64_t    release_update_maximum_entries              = 50'000U;
 	inline constexpr std::uint32_t    release_update_metadata_timeout_seconds     = 30U;
 	inline constexpr std::uint32_t    release_update_download_timeout_seconds     = 15U * 60U;
 	inline constexpr std::uint32_t    release_update_verification_timeout_seconds = 5U * 60U;
+
+	[[nodiscard]] constexpr auto release_update_metadata_limit(core::release_update_channel aChannel) noexcept -> std::uint64_t
+	{
+		return aChannel == core::release_update_channel::include_prereleases
+			? release_update_maximum_listing_bytes
+			: release_update_maximum_metadata_bytes;
+	}
 
 	/// \brief Clock effects belong to the host; core receives these facts explicitly.
 	class release_update_clock_port
@@ -64,13 +72,19 @@ namespace bpr::application {
 		core::release_update_candidate Candidate;
 	};
 
-	/// \brief Normalized release or typed failure, with no remote free-form diagnostic.
+	/// \brief One normalized release and its bounded, untrusted notes.
+	struct release_update_listing
+	{
+		core::release_update_release Release;
+		std::string                  Notes;
+	};
+
+	/// \brief Complete bounded release listing or typed failure.
 	struct release_update_check_result
 	{
-		core::release_update_reason  Failure = core::release_update_reason::none;
-		core::release_update_release Release{ };
-		std::uint64_t                RetryAfterSeconds = 0U;
-		std::string                  Notes{ };
+		core::release_update_reason         Failure = core::release_update_reason::none;
+		std::vector<release_update_listing> Releases{ };
+		std::uint64_t                       RetryAfterSeconds = 0U;
 	};
 	/// \brief Download terminal retains an owned archive capability and actual byte count.
 	struct release_update_download_result
@@ -104,7 +118,7 @@ namespace bpr::application {
 		virtual ~release_update_access_port()                                                                                                             = default;
 		[[nodiscard]] virtual auto binding() const noexcept -> core::release_update_access_id                                                             = 0;
 		[[nodiscard]] virtual auto kind() const noexcept -> core::release_update_access_kind                                                              = 0;
-		[[nodiscard]] virtual auto latest(std::stop_token aStop) -> release_update_check_result                                                           = 0;
+		[[nodiscard]] virtual auto check(core::release_update_channel aChannel, std::stop_token aStop) -> release_update_check_result                     = 0;
 		[[nodiscard]] virtual auto download(const core::release_update_candidate& aCandidate,
 											std::stop_token aStop, const std::function<void(std::uint64_t)>& aProgress) -> release_update_download_result = 0;
 	};

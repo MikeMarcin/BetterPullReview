@@ -170,6 +170,12 @@ namespace bpr::application {
 			static_cast<void>(Impl->Host->set_automatic_checks(aEnabled));
 		}
 	}
+	void release_update_service::set_channel(core::release_update_channel aChannel)
+	{
+		if (Impl->Host && !Impl->Closing) {
+			static_cast<void>(Impl->Host->set_channel(aChannel));
+		}
+	}
 	void release_update_service::tick()
 	{
 		if (Impl->Host && !Impl->Closing) {

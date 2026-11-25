@@ -7,7 +7,6 @@
 #include <QJsonValue>
 #include <QUrl>
 
-#include <atomic>
 #include <cmath>
 
 namespace bpr::adapters::github::detail {
@@ -33,21 +32,19 @@ namespace bpr::adapters::github::detail {
 			void revoke() noexcept override { Revocation.request_stop(); }
 			auto binding() const noexcept -> core::release_update_access_id override { return Revocation.stop_requested() ? core::release_update_access_id{ } : Identity; }
 			auto kind() const noexcept -> core::release_update_access_kind override { return core::release_update_access_kind::native_github_com; }
-			auto latest(std::stop_token aStop) -> application::release_update_check_result override
+			auto check(core::release_update_channel aChannel, std::stop_token aStop) -> application::release_update_check_result override
 			{
 				std::stop_source   stop;
 				std::stop_callback caller{ aStop, [&stop] { stop.request_stop(); } };
 				std::stop_callback revoked{ Revocation.get_token(), [&stop] { stop.request_stop(); } };
 				std::string        body;
-				auto               result = perform_release_update_https(credential(), 0, application::release_update_maximum_metadata_bytes,
-																		 stop.get_token(), [&body](std::span<const std::byte> aBytes) {
+				auto               result = perform_release_update_https(credential(), 0, application::release_update_metadata_limit(aChannel), stop.get_token(), [&body](std::span<const std::byte> aBytes) {
 															   body.append(reinterpret_cast<const char*>(aBytes.data()), aBytes.size());
-															   return true;
-																		 });
+															   return true; }, aChannel);
 				if (result.Failure != reason::none) {
 					return { result.Failure, { }, result.RetryAfterSeconds };
 				}
-				return parse_release_update_metadata(body);
+				return parse_release_update_metadata(body, aChannel);
 			}
 			auto download(const core::release_update_candidate& aCandidate, std::stop_token aStop,
 						  const std::function<void(std::uint64_t)>& aProgress) -> application::release_update_download_result override
@@ -114,72 +111,96 @@ namespace bpr::adapters::github::detail {
 		// GHE-only profile still updates ([[BPR-1669]]).
 		return std::make_shared<release_access>(std::nullopt, aIdentity, std::move(aStore));
 	}
-	auto parse_release_update_metadata(std::string_view aBody) -> application::release_update_check_result
+	namespace {
+		auto parse_release(const QJsonObject& aObject) -> std::expected<application::release_update_listing, reason>
+		{
+			const auto id         = positive_integer(aObject.value(QStringLiteral("id")));
+			const auto tag        = aObject.value(QStringLiteral("tag_name"));
+			const auto draft      = aObject.value(QStringLiteral("draft"));
+			const auto prerelease = aObject.value(QStringLiteral("prerelease"));
+			const auto assets     = aObject.value(QStringLiteral("assets"));
+			if (!id || !tag.isString() || !draft.isBool() || !prerelease.isBool() || !assets.isArray()) {
+				return std::unexpected(reason::malformed_release);
+			}
+			application::release_update_listing result;
+			result.Release.Source     = core::release_update_source::better_pull_review_github_com;
+			result.Release.Id         = core::release_update_release_id{ *id };
+			result.Release.Tag        = tag.toString().toStdString();
+			result.Release.Draft      = draft.toBool();
+			result.Release.Prerelease = prerelease.toBool();
+			if (assets.toArray().size() > static_cast<qsizetype>(core::release_update_maximum_assets)) {
+				return std::unexpected(reason::size_limit);
+			}
+			for (const auto& asset : assets.toArray()) {
+				if (!asset.isObject()) {
+					return std::unexpected(reason::malformed_release);
+				}
+				const auto record  = asset.toObject();
+				const auto assetId = positive_integer(record.value(QStringLiteral("id")));
+				const auto size    = positive_integer(record.value(QStringLiteral("size")));
+				const auto name    = record.value(QStringLiteral("name"));
+				const auto state   = record.value(QStringLiteral("state"));
+				const auto digest  = record.value(QStringLiteral("digest"));
+				if (!assetId || !size || !name.isString() || !state.isString()
+					|| (!digest.isUndefined() && !digest.isNull() && !digest.isString()) || name.toString().size() > 256) {
+					return std::unexpected(reason::malformed_release);
+				}
+				result.Release.Assets.push_back({ core::release_update_asset_id{ *assetId }, name.toString().toStdString(), *size,
+												  digest.isString() ? std::optional{ digest.toString().toStdString() } : std::nullopt, state.toString() == QStringLiteral("uploaded") });
+			}
+			const auto body = aObject.value(QStringLiteral("body"));
+			if (!body.isUndefined() && !body.isNull() && !body.isString()) {
+				return std::unexpected(reason::malformed_release);
+			}
+			auto notes = body.toString().toUtf8();
+			if (notes.size() > static_cast<qsizetype>(application::release_update_maximum_notes_bytes)) {
+				notes.truncate(static_cast<qsizetype>(application::release_update_maximum_notes_bytes));
+				while (!notes.isEmpty() && (static_cast<unsigned char>(notes.back()) & 0xc0U) == 0x80U) {
+					notes.chop(1);
+				}
+				if (!notes.isEmpty() && static_cast<unsigned char>(notes.back()) >= 0xc0U) {
+					notes.chop(1);
+				}
+			}
+			result.Notes = notes.toStdString();
+			return result;
+		}
+	}
+
+	auto parse_release_update_metadata(std::string_view aBody, core::release_update_channel aChannel) -> application::release_update_check_result
 	{
-		const auto failure = [](reason aReason) { return application::release_update_check_result{ aReason }; };
-		if (aBody.size() > application::release_update_maximum_metadata_bytes) {
-			return failure(reason::size_limit);
+		if (aBody.size() > application::release_update_metadata_limit(aChannel)) {
+			return { reason::size_limit };
 		}
 		QJsonParseError error;
 		const auto      document = QJsonDocument::fromJson(QByteArray{ aBody.data(), static_cast<qsizetype>(aBody.size()) }, &error);
-		if (error.error != QJsonParseError::NoError || !document.isObject()) {
-			return failure(reason::malformed_release);
+		const bool      listing  = aChannel == core::release_update_channel::include_prereleases;
+		if (error.error != QJsonParseError::NoError || (listing ? !document.isArray() : !document.isObject())) {
+			return { reason::malformed_release };
 		}
-		const auto object     = document.object();
-		const auto id         = positive_integer(object.value(QStringLiteral("id")));
-		const auto tag        = object.value(QStringLiteral("tag_name"));
-		const auto draft      = object.value(QStringLiteral("draft"));
-		const auto prerelease = object.value(QStringLiteral("prerelease"));
-		const auto assets     = object.value(QStringLiteral("assets"));
-		if (!id || !tag.isString() || !draft.isBool() || !prerelease.isBool() || !assets.isArray()) {
-			return failure(reason::malformed_release);
+		if (!listing) {
+			auto release = parse_release(document.object());
+			return release ? application::release_update_check_result{ reason::none, { std::move(*release) } }
+						   : application::release_update_check_result{ release.error() };
+		}
+		const auto records = document.array();
+		if (records.size() > static_cast<qsizetype>(core::release_update_maximum_releases)) {
+			return { reason::size_limit };
 		}
 		application::release_update_check_result result;
-		result.Release.Source     = core::release_update_source::better_pull_review_github_com;
-		result.Release.Id         = core::release_update_release_id{ *id };
-		result.Release.Tag        = tag.toString().toStdString();
-		result.Release.Draft      = draft.toBool();
-		result.Release.Prerelease = prerelease.toBool();
-		if (assets.toArray().size() > static_cast<qsizetype>(core::release_update_maximum_assets)) {
-			return failure(reason::size_limit);
-		}
-		for (const auto& asset : assets.toArray()) {
-			if (!asset.isObject()) {
-				return failure(reason::malformed_release);
-			}
-			const auto record  = asset.toObject();
-			const auto assetId = positive_integer(record.value(QStringLiteral("id")));
-			const auto size    = positive_integer(record.value(QStringLiteral("size")));
-			const auto name    = record.value(QStringLiteral("name"));
-			const auto state   = record.value(QStringLiteral("state"));
-			const auto digest  = record.value(QStringLiteral("digest"));
-			if (!assetId || !size || !name.isString() || !state.isString()
-				|| (!digest.isUndefined() && !digest.isNull() && !digest.isString()) || name.toString().size() > 256) {
-				return failure(reason::malformed_release);
-			}
-			result.Release.Assets.push_back({ core::release_update_asset_id{ *assetId }, name.toString().toStdString(), *size,
-											  digest.isString() ? std::optional{ digest.toString().toStdString() } : std::nullopt, state.toString() == QStringLiteral("uploaded") });
-		}
-		const auto body = object.value(QStringLiteral("body"));
-		if (!body.isUndefined() && !body.isNull() && !body.isString()) {
-			return failure(reason::malformed_release);
-		}
-		auto notes = body.toString().toUtf8();
-		if (notes.size() > static_cast<qsizetype>(application::release_update_maximum_notes_bytes)) {
-			notes.truncate(static_cast<qsizetype>(application::release_update_maximum_notes_bytes));
-			while (!notes.isEmpty() && (static_cast<unsigned char>(notes.back()) & 0xc0U) == 0x80U) {
-				notes.chop(1);
-			}
-			if (!notes.isEmpty() && static_cast<unsigned char>(notes.back()) >= 0xc0U) {
-				notes.chop(1);
+		for (const auto& record : records) {
+			if (auto release = parse_release(record.toObject())) {
+				result.Releases.push_back(std::move(*release));
 			}
 		}
-		result.Notes = notes.toStdString();
+		if (!records.isEmpty() && result.Releases.empty()) {
+			return { reason::malformed_release };
+		}
 		return result;
 	}
 	auto release_update_browser_address(std::string_view aTag) -> std::string
 	{
 		const std::string base = "https://github.com/MikeMarcin/BetterPullReview/releases";
-		return core::parse_release_update_version(aTag) ? base + "/tag/" + QUrl::toPercentEncoding(QString::fromUtf8(aTag.data(), static_cast<qsizetype>(aTag.size()))).toStdString() : base;
+		return (core::parse_release_update_version(aTag) || core::parse_release_update_prerelease_tag(aTag)) ? base + "/tag/" + QUrl::toPercentEncoding(QString::fromUtf8(aTag.data(), static_cast<qsizetype>(aTag.size()))).toStdString() : base;
 	}
 }

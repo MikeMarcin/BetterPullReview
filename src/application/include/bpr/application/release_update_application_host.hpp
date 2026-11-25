@@ -36,6 +36,7 @@ namespace bpr::application {
 		[[nodiscard]] auto tick() -> bool;
 		void               observe_installation_result(bool aInstalled);
 		[[nodiscard]] auto set_automatic_checks(bool aEnabled) -> bool;
+		[[nodiscard]] auto set_channel(core::release_update_channel aChannel) -> bool;
 		void               shutdown();
 		[[nodiscard]] auto quiescent() const noexcept -> bool;
 		[[nodiscard]] auto projection() const -> release_update_projection;

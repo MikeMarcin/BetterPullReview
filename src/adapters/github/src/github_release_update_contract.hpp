@@ -7,6 +7,7 @@
 namespace bpr::adapters::github::detail {
 	/// \brief Pinned release-only routes; no configurable feed or PR transport changes.
 	inline constexpr std::string_view release_update_api_origin        = "https://api.github.com";
+	inline constexpr std::string_view release_update_list_path         = "/repos/MikeMarcin/BetterPullReview/releases";
 	inline constexpr std::string_view release_update_latest_path       = "/repos/MikeMarcin/BetterPullReview/releases/latest";
 	inline constexpr std::string_view release_update_asset_path_prefix = "/repos/MikeMarcin/BetterPullReview/releases/assets/";
 	inline constexpr std::string_view release_update_api_version       = "2022-11-28";

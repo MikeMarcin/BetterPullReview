@@ -111,26 +111,26 @@ namespace {
 		{ }
 		auto binding() const noexcept -> core::release_update_access_id override { return Binding; }
 		auto kind() const noexcept -> core::release_update_access_kind override { return core::release_update_access_kind::native_github_com; }
-		auto latest(std::stop_token aStop) -> application::release_update_check_result override
+		auto check(core::release_update_channel, std::stop_token aStop) -> application::release_update_check_result override
 		{
 			++State->Checks;
 			if (!pause(State->CheckDelay, aStop)) {
-				return { reason::cancelled, { }, 0U, { } };
+				return { reason::cancelled };
 			}
 			auto release = core::release_update_release{ core::release_update_source::better_pull_review_github_com, core::release_update_release_id{ 40U }, offered_tag, false, false, { { core::release_update_asset_id{ 41U }, offered_asset, offered_size, { }, true } } };
 			switch (static_cast<check_outcome>(State->Check.load())) {
-			case check_outcome::offer: return { reason::none, std::move(release), 0U, offered_notes };
+			case check_outcome::offer: return { reason::none, { { std::move(release), offered_notes } } };
 			case check_outcome::current:
 				release.Tag            = std::string{ "v" } + installed_version;
 				release.Assets[0].Name = std::string{ "BetterPullReview-" } + installed_version + "-macos-universal.zip";
-				return { reason::none, std::move(release), 0U, { } };
-			case check_outcome::offline:      return { reason::offline, { }, 0U, { } };
-			case check_outcome::rate_limited: return { reason::rate_limited, { }, 60U, { } };
+				return { reason::none, { { std::move(release), { } } } };
+			case check_outcome::offline:      return { reason::offline };
+			case check_outcome::rate_limited: return { reason::rate_limited, { }, 60U };
 			case check_outcome::no_asset:
 				release.Assets[0].Name = "BetterPullReview-0.4.0-windows-x64.zip";
-				return { reason::none, std::move(release), 0U, offered_notes };
+				return { reason::none, { { std::move(release), offered_notes } } };
 			}
-			return { reason::offline, { }, 0U, { } };
+			return { reason::offline };
 		}
 		auto download(const core::release_update_candidate& aCandidate, std::stop_token aStop,
 					  const std::function<void(std::uint64_t)>& aProgress) -> application::release_update_download_result override

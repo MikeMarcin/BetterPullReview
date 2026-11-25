@@ -44,7 +44,7 @@ namespace {
 		std::stop_token                  LastStop;
 		auto                             binding() const noexcept -> core::release_update_access_id override { return Binding; }
 		auto                             kind() const noexcept -> core::release_update_access_kind override { return Kind; }
-		auto                             latest(const std::stop_token aStop) -> application::release_update_check_result override
+		auto                             check(core::release_update_channel, const std::stop_token aStop) -> application::release_update_check_result override
 		{
 			++Checks;
 			LastStop = aStop;
@@ -54,7 +54,7 @@ namespace {
 			if (RevokeDuringCheck) {
 				Binding = core::release_update_access_id{ };
 			}
-			return { Failure, Release, 60U };
+			return { Failure, { { Release, { } } }, 60U };
 		}
 		auto download(const core::release_update_candidate& aCandidate, const std::stop_token aStop,
 					  const std::function<void(std::uint64_t)>& aProgress) -> application::release_update_download_result override

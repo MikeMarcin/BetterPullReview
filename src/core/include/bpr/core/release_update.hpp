@@ -15,6 +15,7 @@
 namespace bpr::core {
 
 	inline constexpr std::uint64_t release_update_day_seconds           = 86'400U;
+	inline constexpr std::size_t   release_update_maximum_releases      = 30U;
 	inline constexpr std::size_t   release_update_maximum_assets        = 128U;
 	inline constexpr std::size_t   release_update_maximum_tag_bytes     = 128U;
 	inline constexpr std::uint64_t release_update_maximum_archive_bytes = 512U * 1024U * 1024U;
@@ -32,6 +33,16 @@ namespace bpr::core {
 	/// \brief Parses bounded [v]MAJOR.MINOR.PATCH[+BUILD], refusing prereleases.
 	[[nodiscard]] auto parse_release_update_version(std::string_view aTag) noexcept
 		-> std::optional<release_update_version>;
+
+	/// \brief The distribution's numbered GitHub prerelease tag, vMAJOR.MINOR.PATCH-build.N.
+	/// \details MarketingTag is a view into the input tag.
+	struct release_update_prerelease_tag
+	{
+		std::string_view MarketingTag;
+		std::uint32_t    BuildNumber;
+	};
+	[[nodiscard]] auto parse_release_update_prerelease_tag(std::string_view aTag) noexcept
+		-> std::optional<release_update_prerelease_tag>;
 
 	struct release_update_release_id_tag;
 	struct release_update_asset_id_tag;
@@ -70,6 +81,8 @@ namespace bpr::core {
 														 verify,
 														 refresh_install,
 														 install };
+	enum class release_update_channel : std::uint8_t { stable,
+													   include_prereleases };
 	enum class release_update_check_mode : std::uint8_t { automatic,
 														  manual };
 	enum class release_update_reason : std::uint8_t {
@@ -130,7 +143,7 @@ namespace bpr::core {
 		bool                       Uploaded = true;
 	};
 
-	/// \brief A latest-release observation; no URL, note, token or provider type.
+	/// \brief A published-release observation; no URL, note, token or provider type.
 	struct release_update_release
 	{
 		release_update_source             Source = release_update_source::unrecognized;
@@ -161,13 +174,14 @@ namespace bpr::core {
 		std::optional<release_update_candidate> Candidate;
 		release_update_reason                   Reason = release_update_reason::none;
 	};
-	/// \brief Validates one exact universal ZIP for a stable tag and binds its numbered identity if present.
+	/// \brief Validates the exact universal ZIP for a stable or numbered prerelease tag.
 	[[nodiscard]] auto release_update_asset_candidate(release_update_release_id aRelease,
 													  std::string_view aTag, const release_update_asset& aAsset) -> release_update_selection;
-	/// \brief Selects a newer marketing version or a newer cohort of the same stable version.
+	/// \brief Selects a newer marketing version or a newer cohort of the same version.
 	[[nodiscard]] auto select_release_update(const release_update_version& aInstalled,
 											 const release_update_release& aRelease,
-											 std::uint32_t                 aInstalledBuildNumber = 0U) -> release_update_selection;
+											 std::uint32_t                 aInstalledBuildNumber = 0U,
+											 release_update_channel        aChannel              = release_update_channel::stable) -> release_update_selection;
 
 	/// \brief Explicit host clock facts. Monotonic time is never persisted.
 	struct release_update_time
@@ -183,6 +197,7 @@ namespace bpr::core {
 		std::optional<release_update_version> SkippedVersion;
 		std::optional<std::int64_t>           LastAttempt;
 		std::optional<std::int64_t>           LastSuccess;
+		release_update_channel                Channel                                              = release_update_channel::stable;
 		auto                                  operator<=>(const release_update_preferences&) const = default;
 	};
 
@@ -195,6 +210,7 @@ namespace bpr::core {
 		release_update_access_id                Access;
 		release_update_operation                Operation = release_update_operation::check;
 		std::optional<release_update_candidate> Candidate;
+		release_update_channel                  Channel                                          = release_update_channel::stable;
 		auto                                    operator<=>(const release_update_context&) const = default;
 	};
 
@@ -218,6 +234,10 @@ namespace bpr::core {
 	{
 		bool Enabled = true;
 	};
+	struct release_update_set_channel
+	{
+		release_update_channel Channel;
+	};
 	/// \brief Replaces or revokes the separately selected release authority.
 	struct release_update_access_changed
 	{
@@ -230,8 +250,8 @@ namespace bpr::core {
 	/// \brief One complete bounded metadata observation, never a partial asset page.
 	struct release_update_checked
 	{
-		release_update_context Context;
-		release_update_release Release;
+		release_update_context              Context;
+		std::vector<release_update_release> Releases;
 	};
 	/// \brief Actual received bytes for one exact pending download.
 	struct release_update_progress
@@ -268,7 +288,7 @@ namespace bpr::core {
 		std::uint64_t          RetryAfterSeconds = 0U;
 	};
 	using release_update_event = std::variant<release_update_intent, release_update_tick,
-											  release_update_set_automatic, release_update_access_changed, release_update_shutdown,
+											  release_update_set_automatic, release_update_set_channel, release_update_access_changed, release_update_shutdown,
 											  release_update_checked, release_update_progress, release_update_downloaded,
 											  release_update_verified, release_update_handed_off, release_update_failed, release_update_installation_result>;
 
@@ -333,6 +353,8 @@ namespace bpr::core {
 	/// \brief Projects every updater command, including the uncomposed installer refusal.
 	[[nodiscard]] auto release_update_commands(const release_update_state& aState)
 		-> std::array<release_update_command_projection, 6>;
+	/// \brief Channel changes are allowed until the installer owns the handoff.
+	[[nodiscard]] auto release_update_can_change_channel(const release_update_state& aState) noexcept -> bool;
 	/// \brief Applies policy without clocks, credentials, I/O or platform dependencies.
 	[[nodiscard]] auto transition(release_update_state&       aState,
 								  const release_update_event& aEvent, release_update_time aTime) -> release_update_output;

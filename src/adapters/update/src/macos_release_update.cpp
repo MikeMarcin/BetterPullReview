@@ -534,7 +534,14 @@ namespace bpr::adapters::update {
 			const auto minimumText  = string_value(dictionary, CFSTR("LSMinimumSystemVersion"));
 			const auto minimum      = QVersionNumber::fromString(QString::fromStdString(minimumText));
 			const auto os           = QOperatingSystemVersion::current();
-			const auto exactVersion = aCandidate.Tag.starts_with('v') ? aCandidate.Tag.substr(1) : aCandidate.Tag;
+			const auto prerelease   = core::parse_release_update_prerelease_tag(aCandidate.Tag);
+			auto       exactVersion = prerelease ? prerelease->MarketingTag : std::string_view{ aCandidate.Tag };
+			if (exactVersion.starts_with('v')) {
+				exactVersion.remove_prefix(1);
+			}
+			if (prerelease && prerelease->BuildNumber != aCandidate.BuildNumber) {
+				return reason::invalid_bundle;
+			}
 			if (identifier != application::release_update_bundle_identifier || version != exactVersion || core::parse_release_update_version(version) != aCandidate.Version
 				|| !numbered_bundle_identity(dictionary, version, aCandidate.BuildNumber)
 				|| (!minimumText.empty() && (minimum.isNull() || minimum > QVersionNumber{ os.majorVersion(), os.minorVersion(), os.microVersion() }))) {

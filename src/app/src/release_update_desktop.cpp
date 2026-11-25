@@ -129,7 +129,7 @@ namespace bpr::app {
 				});
 			});
 		}
-		auto dispatch() -> application::release_update_dispatch
+		auto dispatch(bool aSettings) -> application::release_update_dispatch
 		{
 			const auto weak = weak_from_this();
 			return {
@@ -139,12 +139,18 @@ namespace bpr::app {
                     const auto current = self->Service ? self->Service->projection().Candidate : std::nullopt;
                     self->Components.Browser(adapters::github::detail::release_update_browser_address(current ? current->Tag : std::string_view{}));
                 } },
+				aSettings ? std::function<void(core::release_update_channel)>{ [weak](core::release_update_channel aChannel) {
+					if (auto self = weak.lock(); self && self->Service) {
+						self->Service->set_channel(aChannel);
+					}
+				} }
+						  : nullptr,
 			};
 		}
-		auto add_panel(QWidget* aParent) -> qt::release_update_panel*
+		auto add_panel(QWidget* aParent, bool aSettings) -> qt::release_update_panel*
 		{
 			auto* panel = new qt::release_update_panel{ aParent };
-			panel->set_dispatch(dispatch());
+			panel->set_dispatch(dispatch(aSettings));
 			Panels.emplace_back(panel);
 			if (Service) {
 				panel->adopt(Service->projection(), Service->durable());
@@ -164,7 +170,7 @@ namespace bpr::app {
 				// The window follows the panel, so release notes and progress
 				// get room when they appear and give it back when they go.
 				column->setSizeConstraint(QLayout::SetFixedSize);
-				MainPanel = add_panel(Dialog.get());
+				MainPanel = add_panel(Dialog.get(), false);
 				MainPanel->setFixedWidth(480);
 				column->addWidget(MainPanel);
 			}
@@ -307,7 +313,7 @@ namespace bpr::app {
 			auto* group = new QGroupBox{ QStringLiteral("Software Update") };
 			group->setObjectName(QStringLiteral("releaseUpdateGroup"));
 			auto* column = new QVBoxLayout{ group };
-			column->addWidget(Impl->add_panel(group));
+			column->addWidget(Impl->add_panel(group, true));
 			aSettings.adopt_panel(qt::settings_page::general, group);
 		}
 	}

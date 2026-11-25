@@ -12,6 +12,7 @@
 
 class QAction;
 class QCheckBox;
+class QComboBox;
 class QHBoxLayout;
 class QLabel;
 class QMenuBar;
@@ -43,14 +44,16 @@ namespace bpr::qt {
 		application::release_update_projection               Projection;
 		std::map<core::release_update_command, QAction*>     Actions;
 		std::map<core::release_update_command, QPushButton*> Buttons;
-		QCheckBox*                                           Automatic = nullptr;
-		QLabel*                                              Status    = nullptr;
-		QLabel*                                              Detail    = nullptr;
-		markdown_body_view*                                  Notes     = nullptr;
-		QLabel*                                              Notice    = nullptr;
-		QProgressBar*                                        Progress  = nullptr;
-		QPushButton*                                         View      = nullptr;
-		QHBoxLayout*                                         Row       = nullptr;
+		QCheckBox*                                           Automatic     = nullptr;
+		QWidget*                                             ChannelRow    = nullptr;
+		QComboBox*                                           ChannelChoice = nullptr;
+		QLabel*                                              Status        = nullptr;
+		QLabel*                                              Detail        = nullptr;
+		markdown_body_view*                                  Notes         = nullptr;
+		QLabel*                                              Notice        = nullptr;
+		QProgressBar*                                        Progress      = nullptr;
+		QPushButton*                                         View          = nullptr;
+		QHBoxLayout*                                         Row           = nullptr;
 	};
 	/// \brief Keeps one visible macOS application-menu gesture across window and desktop bars.
 	class release_update_menu final : public QObject

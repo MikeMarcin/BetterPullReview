@@ -5,6 +5,7 @@ title: "Choose whether to receive prerelease updates"
 status: "In Progress"
 rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-2395"]
+metadata: {"milestone_plan":{"id":"bpr-2401-update-channel","path":"docs/rfcs/plans/bpr-2401-update-channel/milestone-plan.json"}}
 ---
 
 The owner asked for an app setting to choose prerelease builds or stable builds

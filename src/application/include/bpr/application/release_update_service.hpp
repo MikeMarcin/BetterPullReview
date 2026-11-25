@@ -23,6 +23,7 @@ namespace bpr::application {
 		void               revoke_access();
 		void               dispatch(core::release_update_intent aIntent);
 		void               set_automatic_checks(bool aEnabled);
+		void               set_channel(core::release_update_channel aChannel);
 		void               tick();
 		[[nodiscard]] auto observe_installation_result(bool aInstalled) -> bool;
 		void               shutdown();

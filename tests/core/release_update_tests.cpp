@@ -41,7 +41,7 @@ namespace {
 	void offer(release_update_state& aState)
 	{
 		const auto context = begin(aState);
-		static_cast<void>(transition(aState, release_update_checked{ context, release() }, { 100'001, 101U }));
+		static_cast<void>(transition(aState, release_update_checked{ context, { release() } }, { 100'001, 101U }));
 		expect(aState.Phase == phase::available && aState.Candidate, "newer exact ZIP is offered");
 	}
 
@@ -148,6 +148,61 @@ namespace {
 		}
 	}
 
+	void test_prerelease_channel()
+	{
+		using channel = release_update_channel;
+		auto rc       = release("v0.5.3-build.103");
+		rc.Prerelease = true;
+		auto stable   = release("v0.5.3");
+		stable.Id     = release_update_release_id{ 11U };
+		stable.Assets.push_back({ release_update_asset_id{ 21U }, "BetterPullReview-0.5.3-build.104-macos-universal.zip", 100U, { }, true });
+		const auto version = release_update_version{ 0U, 5U, 3U };
+		const auto select  = [&](const release_update_release& aRelease, std::uint32_t aInstalled) {
+			return select_release_update(version, aRelease, aInstalled, channel::include_prereleases);
+		};
+		expect(select_release_update(version, rc, 95U).Reason == reason::unstable_release, "stable refuses a published RC");
+		expect(select(rc, 95U).Candidate->BuildNumber == 103U, "opt-in binds the exact RC build");
+		expect(select(rc, 103U).Reason == reason::current && select(rc, 104U).Reason == reason::current, "equal and older RC builds cannot replace");
+		expect(select(rc, 0U).Reason == reason::current, "an unknown installed cohort cannot be replaced at the same version");
+		rc.Draft = true;
+		expect(select(rc, 95U).Reason == reason::unstable_release, "drafts are refused in the opt-in channel");
+		rc.Draft = false;
+		for (const auto tag : { "v0.5.3-build.0", "v0.5.3-build.0103", "v0.5.3-build.10000", "v0.5.3+meta-build.103", "v0.5.3-rc.103", "0.5.3-build.103", "v0.5.3" }) {
+			auto invalid = rc;
+			invalid.Tag  = tag;
+			expect(select(invalid, 95U).Reason == reason::invalid_version, "only the canonical numbered RC tag is allowed");
+		}
+		auto mismatch                = rc;
+		mismatch.Assets.front().Name = "BetterPullReview-0.5.3-build.104-macos-universal.zip";
+		expect(select(mismatch, 95U).Reason == reason::no_compatible_asset, "the tag and ZIP cohort must agree");
+		mismatch            = rc;
+		mismatch.Prerelease = false;
+		expect(select(mismatch, 95U).Reason == reason::invalid_version, "the numbered tag requires the prerelease flag");
+		auto current                 = state();
+		current.Installed            = version;
+		current.InstalledBuildNumber = 95U;
+		const auto old               = begin(current);
+		const auto switched          = transition(current, release_update_set_channel{ channel::include_prereleases }, { 100'000, 100U });
+		expect(switched.PreferencesChanged && switched.Requests.size() == 1U && switched.Requests.front().Cancel && switched.Requests.front().Context == old,
+			   "changing channel cancels the previous exact request");
+		expect(transition(current, release_update_checked{ old, { stable } }, { 100'000, 100U }).Diagnostic == reason::stale_completion, "old channel cannot publish a late offer");
+		const auto check = begin(current);
+		expect(check.Channel == channel::include_prereleases, "check is bound to the selected channel");
+		static_cast<void>(transition(current, release_update_checked{ check, { rc, stable } }, { 100'000, 100U }));
+		expect(current.Candidate && current.Candidate->BuildNumber == 104U, "higher stable build wins over an RC of the same version");
+		auto duplicate    = stable;
+		duplicate.Id      = release_update_release_id{ 12U };
+		const auto second = begin(current);
+		static_cast<void>(transition(current, release_update_checked{ second, { stable, rc, duplicate } }, { 100'000, 100U }));
+		expect(!current.Candidate && current.Reason == reason::ambiguous_asset, "two releases claiming the best cohort refuse the offer");
+		const auto third = begin(current);
+		auto       newer = release("v0.6.0-build.1");
+		newer.Id         = release_update_release_id{ 13U };
+		newer.Prerelease = true;
+		static_cast<void>(transition(current, release_update_checked{ third, { stable, rc, newer } }, { 100'000, 100U }));
+		expect(current.Candidate && current.Candidate->Tag == newer.Tag, "marketing version ranks before cohort number");
+	}
+
 	void test_scheduling_preferences_and_failures()
 	{
 		auto current = state();
@@ -165,20 +220,20 @@ namespace {
 		expect(output.Requests.empty() && output.Diagnostic == reason::rate_limited, "manual respects retry-after");
 		output = transition(current, release_update_intent{ command::check, { } }, { 4, 86'621U });
 		expect(output.Requests.size() == 1U, "manual bypasses daily delay after rate expiry");
-		static_cast<void>(transition(current, release_update_checked{ *current.Pending, release() }, { 5, 86'622U }));
+		static_cast<void>(transition(current, release_update_checked{ *current.Pending, { release() } }, { 5, 86'622U }));
 		const auto offered = current.Candidate;
 		static_cast<void>(transition(current, release_update_intent{ command::later, offered }, { 6, 86'623U }));
 		expect(!current.OfferVisible && !current.Preferences.SkippedVersion, "Later never skips");
 		static_cast<void>(transition(current, release_update_intent{ command::skip, offered }, { 6, 86'623U }));
 		expect(current.Preferences.SkippedVersion == offered->Version && !current.Candidate, "Skip stores the exact semantic version");
 		static_cast<void>(transition(current, release_update_tick{ }, { 7, 173'021U }));
-		static_cast<void>(transition(current, release_update_checked{ *current.Pending, release() }, { 8, 173'022U }));
+		static_cast<void>(transition(current, release_update_checked{ *current.Pending, { release() } }, { 8, 173'022U }));
 		expect(!current.Candidate && current.Reason == reason::skipped, "automatic offer honors skip");
 		const auto manual = begin(current, { 9, 173'023U });
-		static_cast<void>(transition(current, release_update_checked{ manual, release() }, { 10, 173'024U }));
+		static_cast<void>(transition(current, release_update_checked{ manual, { release() } }, { 10, 173'024U }));
 		expect(current.Candidate && current.Preferences.LastSuccess == 10, "manual ignores skip and records successful time separately");
 		static_cast<void>(transition(current, release_update_tick{ }, { 11, 259'423U }));
-		static_cast<void>(transition(current, release_update_checked{ *current.Pending, release("v3.0.0") }, { 12, 259'424U }));
+		static_cast<void>(transition(current, release_update_checked{ *current.Pending, { release("v3.0.0") } }, { 12, 259'424U }));
 		expect(current.Candidate && current.Candidate->Version == release_update_version{ 3U, 0U, 0U }, "Skip never suppresses a newer version");
 		auto restored = state(current.Preferences, { 13, 5U });
 		expect(restored.Preferences == current.Preferences
@@ -218,7 +273,7 @@ namespace {
 			const auto pending = begin(current);
 			const auto output  = transition(current, event, { 100'000, 100U });
 			expect(output.Requests.size() == 1U && output.Requests[0].Cancel, "invalidation cancels exact operation");
-			expect(transition(current, release_update_checked{ pending, release() }, { 100'000, 100U }).Diagnostic == reason::stale_completion && !current.Candidate, "late completion cannot restore authority");
+			expect(transition(current, release_update_checked{ pending, { release() } }, { 100'000, 100U }).Diagnostic == reason::stale_completion && !current.Candidate, "late completion cannot restore authority");
 		}
 		auto       current = state();
 		const auto pending = begin(current);
@@ -232,10 +287,10 @@ namespace {
 			case 4:  changed.Operation = release_update_operation::download; break;
 			default: changed.Candidate = select_release_update({ 1U, 0U, 0U }, release()).Candidate; break;
 			}
-			expect(transition(current, release_update_checked{ changed, release() }, { 100'000, 100U }).Diagnostic == reason::stale_completion, "all context fields reject mismatch");
+			expect(transition(current, release_update_checked{ changed, { release() } }, { 100'000, 100U }).Diagnostic == reason::stale_completion, "all context fields reject mismatch");
 		}
-		static_cast<void>(transition(current, release_update_checked{ pending, release() }, { 100'000, 100U }));
-		expect(transition(current, release_update_checked{ pending, release() }, { 100'000, 100U }).Diagnostic == reason::stale_completion, "duplicate terminal rejected");
+		static_cast<void>(transition(current, release_update_checked{ pending, { release() } }, { 100'000, 100U }));
+		expect(transition(current, release_update_checked{ pending, { release() } }, { 100'000, 100U }).Diagnostic == reason::stale_completion, "duplicate terminal rejected");
 	}
 
 	void test_exact_download_verification_course()
@@ -302,7 +357,7 @@ auto main() -> int
 		if (changed) {
 			metadata.Assets.front().Digest = "sha256:" + std::string(64U, 'a');
 		}
-		const auto refreshed = transition(current, release_update_checked{ *current.Pending, metadata }, { 100003, 103 });
+		const auto refreshed = transition(current, release_update_checked{ *current.Pending, { metadata } }, { 100003, 103 });
 		if (changed) {
 			expect(current.Phase == phase::failed && current.Reason == reason::changed_candidate && refreshed.Requests.empty(), "changed digest cannot transfer installation");
 		} else {
@@ -316,6 +371,7 @@ auto main() -> int
 	test_version_grammar_and_precedence();
 	test_release_and_asset_selection();
 	test_numbered_stable_selection();
+	test_prerelease_channel();
 	test_scheduling_preferences_and_failures();
 	test_capability_gates_and_identity();
 	test_exact_download_verification_course();

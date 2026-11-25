@@ -17,11 +17,12 @@ its credential through the existing vault and exports only a revocable
 release-read capability. No token reaches core, Qt presentation, SQLite, helper arguments or
 logs. GHES and GitHub CLI credentials cannot be borrowed. Sign-out/replacement
 revokes the lease, cancels work and invalidates pending generations; installation
-refreshes the exact release and asset under the same authority.
+refreshes the exact release and asset under the same authority and channel.
 
 | Destination | Purpose and credential rule |
 |---|---|
 | `https://api.github.com/repos/MikeMarcin/BetterPullReview/releases/latest` | Stable metadata GET, API `2022-11-28`, JSON Accept, selected credential on the API origin only; redirects refused |
+| `https://api.github.com/repos/MikeMarcin/BetterPullReview/releases` | Opt-in release list GET, up to 30 records and 4 MiB under the same API origin, header and redirect rules |
 | `https://api.github.com/repos/MikeMarcin/BetterPullReview/releases/assets/<id>` | Exact selected asset GET with binary Accept; direct bytes or bounded redirects |
 | `https://release-assets.githubusercontent.com` | Exact allowlisted HTTPS asset origin, at most three hops; fresh credential/cookie-free requests |
 | Fixed repository page on `https://github.com` | Explicit View Release through the system browser; browser sign-in is independent |
@@ -37,9 +38,12 @@ and fixture-tested, not inferred from successful access to a live release.
 
 ## Package and process boundary
 
-The updater selects one exact universal ZIP from a stable release. Its marketing
-version must be higher, or its numbered ZIP must name a higher build of the same
-marketing version and match the signed bundle.
+The updater selects one exact universal ZIP from a published stable release
+or, with the user's opt-in, a numbered prerelease. Its marketing version must
+be higher, or its numbered ZIP must name a higher build of the same marketing
+version. A prerelease tag must match the numbered ZIP and signed bundle.
+Changing channels invalidates outstanding checks and any staged candidate
+before the installation operation starts.
 Remote release notes are bounded text, shown in the shared Markdown reader with
 its sanitized HTML subset and no link or image dispatch bound; they cannot
 supply executable code, helper arguments, update-source configuration, active

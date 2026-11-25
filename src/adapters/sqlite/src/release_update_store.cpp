@@ -11,7 +11,10 @@ namespace bpr::adapters::sqlite {
 	namespace {
 		constexpr std::int64_t     application_id = 0x42505255;
 		constexpr std::string_view schema         = "CREATE TABLE updater(id INTEGER PRIMARY KEY CHECK(id=1),automatic INTEGER NOT NULL CHECK(automatic IN(0,1)),skipped TEXT NOT NULL,attempt INTEGER,success INTEGER,binding TEXT NOT NULL CHECK(length(binding)<=128)) STRICT";
-		auto                       valid_binding(std::string_view aBinding) -> bool
+		// Keep the v1 row and schema version readable by the previous updater after a rollback.
+		constexpr std::string_view channel_schema = "CREATE TABLE IF NOT EXISTS updater_channel(id INTEGER PRIMARY KEY CHECK(id=1),prereleases INTEGER NOT NULL CHECK(prereleases IN(0,1))) STRICT";
+
+		auto valid_binding(std::string_view aBinding) -> bool
 		{
 			return aBinding.empty() || (aBinding.size() == 64U && std::ranges::all_of(aBinding, [](char aValue) { return (aValue >= '0' && aValue <= '9') || (aValue >= 'a' && aValue <= 'f'); }));
 		}
@@ -43,9 +46,27 @@ namespace bpr::adapters::sqlite {
 			auto save(const application::release_update_settings& aSettings) -> bool override
 			{
 				const std::scoped_lock lock{ Mutex };
-				if (!Healthy || !valid_binding(aSettings.AccountBinding) || !open() || !read()) {
+				const auto             channel = aSettings.Preferences.Channel;
+				if (!Healthy || !valid_binding(aSettings.AccountBinding) || !open() || !read()
+					|| (channel != core::release_update_channel::stable && channel != core::release_update_channel::include_prereleases)
+					|| !detail::execute(Database, "BEGIN IMMEDIATE")) {
 					return false;
 				}
+				struct rollback
+				{
+					sqlite3* Database;
+					~rollback() { detail::rollback_open_transaction(Database); }
+				} transaction{ Database };
+				const auto updateChannel = channel == core::release_update_channel::include_prereleases
+					? "INSERT OR REPLACE INTO updater_channel VALUES(1,1)"
+					: "INSERT OR REPLACE INTO updater_channel VALUES(1,0)";
+				return save_preferences(aSettings) && detail::execute(Database, updateChannel).has_value()
+					&& detail::execute(Database, "COMMIT").has_value();
+			}
+
+		private:
+			auto save_preferences(const application::release_update_settings& aSettings) -> bool
+			{
 				auto statement = detail::prepare(Database, "INSERT OR REPLACE INTO updater VALUES(1,?1,?2,?3,?4,?5)");
 				if (!statement) {
 					return false;
@@ -61,10 +82,9 @@ namespace bpr::adapters::sqlite {
 					&& sqlite3_step(row) == SQLITE_DONE;
 			}
 
-		private:
 			auto read() -> std::expected<application::release_update_settings, core::release_update_reason>
 			{
-				auto statement = detail::prepare(Database, "SELECT automatic,skipped,attempt,success,binding FROM updater WHERE id=1");
+				auto statement = detail::prepare(Database, "SELECT automatic,skipped,attempt,success,binding,COALESCE(prereleases,0) FROM updater LEFT JOIN updater_channel USING(id) WHERE updater.id=1");
 				if (!statement) {
 					return std::unexpected(core::release_update_reason::unavailable);
 				}
@@ -77,10 +97,12 @@ namespace bpr::adapters::sqlite {
 					return std::unexpected(core::release_update_reason::unavailable);
 				}
 				application::release_update_settings value;
-				const auto                           automatic = sqlite3_column_int(row, 0);
-				const auto                           skipped   = text(row, 1);
-				value.AccountBinding                           = text(row, 4);
+				const auto                           automatic   = sqlite3_column_int(row, 0);
+				const auto                           skipped     = text(row, 1);
+				const auto                           prereleases = sqlite3_column_int64(row, 5);
+				value.AccountBinding                             = text(row, 4);
 				if (sqlite3_column_type(row, 0) != SQLITE_INTEGER || (automatic != 0 && automatic != 1)
+					|| sqlite3_column_type(row, 5) != SQLITE_INTEGER || (prereleases != 0 && prereleases != 1)
 					|| sqlite3_column_type(row, 1) != SQLITE_TEXT || sqlite3_column_type(row, 4) != SQLITE_TEXT
 					|| (sqlite3_column_type(row, 2) != SQLITE_NULL && sqlite3_column_type(row, 2) != SQLITE_INTEGER)
 					|| (sqlite3_column_type(row, 3) != SQLITE_NULL && sqlite3_column_type(row, 3) != SQLITE_INTEGER)
@@ -88,6 +110,7 @@ namespace bpr::adapters::sqlite {
 					return std::unexpected(core::release_update_reason::unavailable);
 				}
 				value.Preferences.AutomaticChecks = automatic == 1;
+				value.Preferences.Channel         = prereleases == 1 ? core::release_update_channel::include_prereleases : core::release_update_channel::stable;
 				if (!skipped.empty()) {
 					value.Preferences.SkippedVersion = core::parse_release_update_version(skipped);
 					if (!value.Preferences.SkippedVersion) {
@@ -132,6 +155,9 @@ namespace bpr::adapters::sqlite {
 					valid = detail::execute(Database, "BEGIN IMMEDIATE").has_value() && detail::execute(Database, schema).has_value()
 						&& detail::execute(Database, "PRAGMA application_id=1112560213").has_value()
 						&& detail::execute(Database, "PRAGMA user_version=1").has_value() && detail::execute(Database, "COMMIT").has_value();
+				}
+				if (valid) {
+					valid = detail::execute(Database, channel_schema).has_value();
 				}
 				if (!valid) {
 					sqlite3_close(Database);

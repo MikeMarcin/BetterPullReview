@@ -8,8 +8,14 @@ Administrators can turn self-update off by setting the boolean
 `BPRManagedUpdates` preference in the `com.gamecoretech.betterpullreview`
 domain to `true`.
 
-The macOS updater can offer a higher build of the same version from a stable
-release. Copies from the 0.5.3 release-candidate series shipped with the older
+In **Settings › General › Software Update**, **Update channel** defaults to
+**Stable only**. Choose **Include prereleases** to receive newer numbered
+prerelease builds as well as stable releases. You can switch back at any time
+before installation starts. A channel change clears the current offer, so use
+**Check Now** to see what is available on the selected channel. An installed
+prerelease stays in place until a newer build is available on that channel.
+
+The macOS updater can offer a higher build of the same version. Copies from the 0.5.3 release-candidate series shipped with the older
 version check. To move from one of those copies to stable 0.5.3, quit
 BetterPullReview and replace it with the app from the stable macOS DMG.
 
