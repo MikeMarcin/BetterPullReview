@@ -164,6 +164,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_tour_chat_queue_stop_public_path": "private-data-root-refused",
     "application_tour_chat_queue_whole_tour_public_path": "private-data-root-refused",
     "application_tour_chat_queue_local_draft_public_path": "private-data-root-refused",
+    # The composed window's right drawer at its widths: the tour chat queue
+    # course's desktop and data root, registered on macOS.
+    "application_composed_drawer_fit_scale_100": "unmeasured (registered on macOS)",
+    "application_composed_drawer_fit_scale_200": "unmeasured (registered on macOS)",
+    "application_composed_drawer_fit_cocoa": "unmeasured (registered on macOS)",
     # [[BPR-1933]]. Native Limited interactive Windows Release, source
     # a30ed6f5b, 2026-11-08 UTC: the unchanged course passes normally. The
     # byte-identical image, argv, cwd and configured environment/modifications

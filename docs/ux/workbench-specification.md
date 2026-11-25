@@ -718,6 +718,23 @@ Author's Workflow, Tour and Agent; and a local draft's tabs.
 `qt_drawer_surfaces_fit_scale_100`, `_125` and `_200` hold each of them to it
 at the narrowest and a wide width in all four themes.
 
+The right drawer is held to it in the application's own window as well (the
+owner, 2026-11-25: "This made the drawer have a horizontal scroll which
+should have been disallowed by our tests."). `application_composed_drawer_fit_scale_100`,
+`_200` and, on macOS, `_cocoa` run the composed desktop with the Fixture agent
+through Comments, the Agent tab (ready, answered, a report, a running turn
+over its pending list, and after a push the card of a session that read the
+earlier head and the card of a refused question) and the Tour tab with its
+chat column (a stop's chat new, answered, queued and with a suggestion; the
+whole tour's chat with a revision; a chat whose session read the earlier
+head). In each the drawer is dragged to 280, 300, 340 and 420 pixels and the
+window made as narrow as it goes; nothing pans, nothing is cut off, no chip
+lies over another, and no tool button is left to the platform style to draw.
+A code block is the one thing wider than its frame: code keeps its lines and
+scrolls inside the block until its **Wrap** is pressed. A question the
+application refuses before any agent runs is said once, in words that wrap,
+and never again as what the agent wrote.
+
 ## Overview summary
 
 RFC-BPR-0063 replaces the four-line preview with a resizable description above

@@ -388,6 +388,9 @@ namespace bpr::qt {
 		Head->setContentsMargins(0, 0, 0, 0);
 		Draft = new quiet_push_button{ tr("Draft Tour"), this };
 		Draft->setObjectName(QStringLiteral("tourDraftTour"));
+		// The chip paints its whole rect; laid out by the macOS style's
+		// bezel it was drawn a pixel over the tool wrapped under it.
+		Draft->setAttribute(Qt::WA_LayoutUsesWidgetRect);
 		Draft->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 		Draft->setToolTip(tr("Asks the drafting agent, in the background, to read this pull request's code and propose the stops. You accept, edit or discard each one."));
 		Head->addWidget(Draft);

@@ -20,6 +20,11 @@
 // question makes that turn run a helper for about twenty seconds and report a
 // scripted cost mid-turn ([[BPR-2252]]).
 //
+// A tour chat's turn that asks for a change proposes one: an update of a stop
+// (Enhance, or Update this stop from this chat) a new explanation for that
+// stop, and "Drop stop N" in the whole tour's chat that removal. Any other
+// tour turn changes nothing.
+//
 // [[BPR-2370]]. A side chat round's answer says whether its working folder
 // holds the pull request's `src/engine/renderer.cpp`, the one file it looks for
 // (it reads no file's contents).
@@ -35,6 +40,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
@@ -284,6 +290,54 @@ namespace {
 		return "Fixture agent: read your message (" + question + "). Nothing in the tour changes; nothing was spent.";
 	}
 
+	/// The number `aText` starts with, or 0.
+	auto leading_number(const std::string_view aText) -> int
+	{
+		auto number = 0;
+		std::from_chars(aText.data(), aText.data() + aText.size(), number);
+		return number;
+	}
+
+	/// Where this turn's own members start in a tour chat's request.
+	auto tour_turn_start(const std::string& aRequest) -> std::size_t
+	{
+		auto turn = aRequest.rfind(R"(this_turn\":)");
+		if (turn == std::string::npos) {
+			turn = aRequest.rfind(R"(this_turn":)");
+		}
+		return turn == std::string::npos ? 0U : turn;
+	}
+
+	/// The stop a stop's chat is about, as its request numbers it ("stop 2"
+	/// is this turn's thread); 0 in the whole tour's chat.
+	auto tour_turn_stop(const std::string& aRequest) -> int
+	{
+		for (const auto open : { std::string_view{ R"(\"thread\":\"stop )" }, std::string_view{ R"("thread":"stop )" } }) {
+			const auto found = aRequest.find(open, tour_turn_start(aRequest));
+			if (found != std::string::npos) {
+				return leading_number(std::string_view{ aRequest }.substr(found + open.size()));
+			}
+		}
+		return 0;
+	}
+
+	/// Whether this turn asks for the part's text to be rewritten: Enhance,
+	/// or Update this stop from this chat.
+	auto tour_turn_updates(const std::string& aRequest) -> bool
+	{
+		const auto from = tour_turn_start(aRequest);
+		return aRequest.find(R"(\"update\":true)", from) != std::string::npos || aRequest.find(R"("update":true)", from) != std::string::npos;
+	}
+
+	/// The stop the whole tour's chat is asked to drop ("Drop stop 2"), or 0.
+	auto tour_dropped_stop(const std::string& aRequest) -> int
+	{
+		const auto question = tour_question(aRequest);
+		const auto marker   = std::string_view{ "Drop stop " };
+		const auto found    = question.find(marker);
+		return found == std::string::npos ? 0 : leading_number(std::string_view{ question }.substr(found + marker.size()));
+	}
+
 	/// A review: the review skill asks every turn for findings it finds; only
 	/// a review is answered with them.
 	auto reviews(const std::string& aRequest) -> bool
@@ -370,11 +424,25 @@ namespace {
 		// [[BPR-2154]]. A turn of a tour part's chat: the reply says which
 		// message it read, so a look and a course see each queued message go
 		// as its own turn, in order; it changes nothing in the tour.
+		// A turn that asks for a change proposes one, so a look and a course
+		// see a proposal and its choices: "Drop stop 2" in the whole tour's
+		// chat proposes that removal, and an update of a stop (Enhance, or
+		// Update this stop from this chat) a new explanation for it.
 		if (holds(aRequest, "bpr.tour-revise.v2")) {
+			if (const auto dropped = tour_dropped_stop(aRequest); dropped > 0) {
+				return R"({"schema":"bpr.tour-revise.v2","reply":"Fixture agent: I propose taking stop )" + std::to_string(dropped)
+					+ R"( out of the tour. Nothing changes until you accept it; nothing was spent.","stops":[],"stop_texts":[],"remove_stops":[)" + std::to_string(dropped)
+					+ R"(],"merge_stops":[],"split_stops":[],"order":[],"focus":"","replace_waiting_stops":false})";
+			}
 			return R"({"schema":"bpr.tour-revise.v2","reply":")" + tour_reply(aRequest)
 				+ R"(","stops":[],"stop_texts":[],"remove_stops":[],"merge_stops":[],"split_stops":[],"order":[],"focus":"","replace_waiting_stops":false})";
 		}
 		if (holds(aRequest, "bpr.tour-ask.v2")) {
+			if (const auto stop = tour_turn_stop(aRequest); stop > 0 && tour_turn_updates(aRequest)) {
+				return R"({"schema":"bpr.tour-ask.v2","reply":"Fixture agent: I rewrote the explanation of stop )" + std::to_string(stop)
+					+ R"(. Nothing changes until you accept it; nothing was spent.","stops":[],"stop_texts":[{"stop":)" + std::to_string(stop)
+					+ R"(,"explanation":"Fixture rewrite: each view clears and draws its own scene between begin_frame() and present(), so two views in one frame never draw over each other."}]})";
+			}
 			return R"({"schema":"bpr.tour-ask.v2","reply":")" + tour_reply(aRequest) + R"(","stops":[],"stop_texts":[]})";
 		}
 		if (slow(aRequest)) {

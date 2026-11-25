@@ -3,6 +3,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
+#include "wrapping_row.hpp"
 
 #include <QFileInfo>
 #include <QFontDatabase>
@@ -278,14 +279,21 @@ namespace bpr::qt {
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(0, 0, 0, 0);
 		column->setSpacing(4);
-		// After the turn: one quiet line that opens to the rows.
-		Summary = new QToolButton{ this };
+		// After the turn: one quiet line that opens to the rows. A plain
+		// auto-raise tool button with an arrow is the platform style's to
+		// draw: under the macOS style a bezel in the system's grey round
+		// words in the tool-button font, under every answer of every chat
+		// (owner, attended review 2026-11-25, of the tour chat: "No, doesnt
+		// look like your screenshots."). The quiet chip draws a chevron and
+		// the words in the status line's faint ink, bare until it is opened.
+		auto* const summary = new quiet_tool_button{ this };
+		Summary             = summary;
 		Summary->setObjectName(QStringLiteral("agentActivitySummary"));
 		Summary->setAutoRaise(true);
 		Summary->setCheckable(true);
 		Summary->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		Summary->setArrowType(Qt::RightArrow);
-		Summary->setForegroundRole(QPalette::PlaceholderText);
+		summary->set_surface_colours(palette().color(QPalette::Active, QPalette::Window), palette().color(QPalette::Active, QPalette::PlaceholderText));
 		// It never widens the turn: its words are cut to the width there is.
 		Summary->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 		Summary->hide();
@@ -320,15 +328,18 @@ namespace bpr::qt {
 		QuietWords->setWordWrap(true);
 		QuietWords->setTextFormat(Qt::PlainText);
 		notice->addWidget(QuietWords);
-		auto* const choices = new QHBoxLayout{ };
-		choices->setSpacing(6);
-		StopKeeping = new quiet_push_button{ tr("Stop and keep what arrived"), Quiet };
+		// The two choices wrap: side by side they are wider than the
+		// narrowest drawer's column, and no drawer pans sideways.
+		auto* const choices = new detail::wrapping_row{ nullptr, 6, 4 };
+		StopKeeping         = new quiet_push_button{ tr("Stop and keep what arrived"), Quiet };
 		StopKeeping->setObjectName(QStringLiteral("agentQuietStop"));
 		KeepWaiting = new quiet_push_button{ tr("Keep waiting"), Quiet };
 		KeepWaiting->setObjectName(QStringLiteral("agentQuietKeepWaiting"));
+		// Each chip paints its whole rect, so it is laid out by it.
+		StopKeeping->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+		KeepWaiting->setAttribute(Qt::WA_LayoutUsesWidgetRect);
 		choices->addWidget(StopKeeping);
 		choices->addWidget(KeepWaiting);
-		choices->addStretch(1);
 		notice->addLayout(choices);
 		Quiet->hide();
 		column->addWidget(Quiet);
@@ -633,12 +644,22 @@ namespace bpr::qt {
 		fit_summary();
 	}
 
+	void agent_activity_view::changeEvent(QEvent* aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::PaletteChange && Summary != nullptr) {
+			static_cast<quiet_tool_button*>(Summary)->set_surface_colours(palette().color(QPalette::Active, QPalette::Window), palette().color(QPalette::Active, QPalette::PlaceholderText));
+		}
+	}
+
 	void agent_activity_view::fit_summary()
 	{
 		const auto words = Summary->property("words").toString();
-		// The arrow and the button's margins take about two lines' height.
-		const auto room = std::max(40, width() - Summary->iconSize().width() - 24);
-		Summary->setText(Summary->fontMetrics().elidedText(words, Qt::ElideRight, room));
+		// What the line takes beside its words: its chevron and its padding.
+		Summary->setText(words);
+		const auto metrics = Summary->fontMetrics();
+		const auto beside  = Summary->sizeHint().width() - metrics.horizontalAdvance(words) + 2;
+		Summary->setText(metrics.elidedText(words, Qt::ElideRight, std::max(40, width() - beside)));
 	}
 
 	auto agent_activity_view::rows_open() const -> bool { return !Rows->isHidden(); }

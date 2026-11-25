@@ -188,6 +188,7 @@ namespace bpr::qt {
 
 	protected:
 		void resizeEvent(QResizeEvent* aEvent) override;
+		void changeEvent(QEvent* aEvent) override;
 
 	private:
 		void rebuild_rows();

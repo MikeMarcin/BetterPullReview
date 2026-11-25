@@ -750,7 +750,13 @@ namespace bpr::qt {
 				auto              height  = 8 + std::max(ring_size, metrics.height()) + 4 + code.height() + 6;
 				const auto        excerpt = aIndex.data(excerpt_role).toString();
 				if (!Page && !excerpt.isEmpty()) {
-					const auto lines = std::min(2, static_cast<int>(std::ceil(static_cast<double>(metrics.horizontalAdvance(excerpt)) / std::max(1, width - text_left - 10))));
+					// The lines `paint` draws it on: the same words, cut to two
+					// lines' length, wrapped at the same width by whole words.
+					// Its length over the width counts a line too few whenever
+					// a word does not fit the end of the first.
+					const auto room  = std::max(1, width - text_left - 11);
+					const auto drawn = metrics.boundingRect(QRect{ 0, 0, room, 16'384 }, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, metrics.elidedText(excerpt, Qt::ElideRight, room * 2 - 20));
+					const auto lines = std::clamp(static_cast<int>(std::ceil(static_cast<double>(drawn.height()) / std::max(1, metrics.lineSpacing()))), 1, 2);
 					height += lines * metrics.lineSpacing() + 2;
 				}
 				return { width, height + 6 };
