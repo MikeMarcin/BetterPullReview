@@ -510,9 +510,13 @@ namespace bpr::qt {
 		}
 		PendingCommentOpen.reset();
 		// A line gone to and still waited for (a long file being measured)
-		// gives way: this is where the reviewer asked to be now.
+		// gives way, and so does a Local comment gone to: this is where the
+		// reviewer asked to be now.
 		PendingLineGo.reset();
-		PendingCommentPick = pending_comment_pick{
+		PendingNoteOpen.reset();
+		PendingLocalArrives    = false;
+		PendingLocalFromReport = false;
+		PendingCommentPick     = pending_comment_pick{
 			.File        = core::file_identity_of(aPath.toStdString()),
 			.Side        = aSide,
 			.Line        = aLine,

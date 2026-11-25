@@ -213,6 +213,9 @@ namespace bpr::qt {
 			return;
 		}
 		PendingLocalMakeDraft = aMakeDraft;
+		// A row's own opening, not a Go to comment still waited for.
+		PendingLocalArrives    = false;
+		PendingLocalFromReport = false;
 		if (found->Place == local_comment_place::other_file) {
 			open_local_elsewhere(conversation_cards_view::local_comment_identity(aLocal));
 			return;
