@@ -1416,7 +1416,11 @@ namespace bpr::app {
 			Window->open_thread_reply(draft.Thread);
 			return;
 		case core::answer_draft_place::line_comment:
-			static_cast<void>(Window->go_to_file_line(QString::fromStdString(draft.Path), draft.First + 1U, draft.Side == core::diff_side::left));
+			// The draft itself, in Comments, open and whole in the drawer; its
+			// lines alone when the pull request no longer lists it.
+			if (!draft.Drafted || !Window->open_roster_draft(*draft.Drafted)) {
+				static_cast<void>(Window->go_to_file_line(QString::fromStdString(draft.Path), draft.First + 1U, draft.Side == core::diff_side::left));
+			}
 			return;
 		case core::answer_draft_place::pull_request_comment:
 			Window->open_pull_request_comment();

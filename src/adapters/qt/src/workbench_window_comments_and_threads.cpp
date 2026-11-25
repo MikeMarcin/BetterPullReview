@@ -1253,6 +1253,8 @@ namespace bpr::qt {
 		TabsProjection = aProjection;
 		update_go_to_line_action();
 		present_document_tabs();
+		// A draft gone to from a report waits for its file's tab.
+		resume_pending_comment_pick();
 		update_older_pair_notice();
 		update_comment_target();
 		place_item_side_chat();

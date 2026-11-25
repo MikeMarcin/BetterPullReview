@@ -857,6 +857,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto draft_roster() const noexcept -> const core::draft_roster&;
 		/// \brief [[BPR-2092]]. Goes to one draft: its lines in Review with it
 		/// open beside them, or a reply's thread.
+		/// \details Every Go to draft ends here (a Threads row, Finish your
+		/// review's list, a report finding's and an Agent answer's), so each
+		/// arrives alike: the file's own tab in front, of a report too; the
+		/// right tray on Comments with the drawer open; and the draft open in
+		/// its composer, whole in the drawer and holding the keyboard, never
+		/// left a closed note. The owner, of a report's Go to draft: "How come
+		/// when I clicked goto draft it didnt switch to the comments tab? Then
+		/// goto draft went to the comment but didn't select it, it was still
+		/// collapsed so it was hard to even tell it was the draft."
+		/// \returns False when the draft is not among the pull request's
+		/// drafts now, or its file is not known; nothing is opened then.
 		auto open_roster_draft(core::review_draft_id aDraft) -> bool;
 		/// \brief [[BPR-2093]]. Threads with My drafts on, at the first draft
 		/// in \p aPath (a file or a folder; empty for all).
@@ -3551,6 +3562,10 @@ namespace bpr::qt {
 			/// [[BPR-1590]] v003. The draft to open once the line shows, and where.
 			std::optional<core::review_draft_id> Draft;
 			core::workbench_thread_destination   Destination = core::workbench_thread_destination::review;
+			/// Asked for with a report in front: the file's tab comes in
+			/// front first, and its own reading is restored before the line
+			/// is chosen.
+			bool FromReport = false;
 		};
 		std::optional<pending_comment_pick> PendingCommentPick;
 		/// [[BPR-1590]] v003. Opens the picked draft where it was asked for.

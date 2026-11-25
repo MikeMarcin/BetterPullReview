@@ -432,9 +432,19 @@ namespace bpr::app {
 				report->settle_keep(aFinding.Key);
 			});
 			// Go to draft, Go to comment: the file, at the finding's lines.
+			// Go to draft goes to the draft itself, as every Go to draft does
+			// (workbench_window::open_roster_draft): Comments in the right
+			// tray, the draft open and whole in the drawer. The lines alone
+			// are for a draft the pull request no longer lists.
 			report->set_go_dispatch([this](const qt::report_draft& aDraft) {
 				if (Closing || Window == nullptr || aDraft.Path.isEmpty()) {
 					return;
+				}
+				if (aDraft.Keep == core::report_keep::draft_comment && AgentFindingCards) {
+					const auto record = AgentFindingCards->memory().recall(aDraft.Key.Findings, aDraft.Key.Ordinal);
+					if (record.State == core::agent_finding_card_disposition::drafted && record.Note != 0U && Window->open_roster_draft(core::review_draft_id{ record.Note })) {
+						return;
+					}
 				}
 				if (aDraft.First != 0U) {
 					static_cast<void>(Window->go_to_file_line(aDraft.Path, aDraft.First, false));

@@ -1207,6 +1207,11 @@ namespace bpr::qt {
 		/// \brief [[BPR-1471]]. Where a closed note that is not a draft draws
 		/// its meta row; all empty for a draft or a note without posts.
 		[[nodiscard]] auto closed_meta(const thread_card& aCard) const -> closed_note_meta;
+		/// \brief Where my closed draft or Local comment says what it is, in
+		/// viewport coordinates: its mark (a draft's pencil, Local's
+		/// computer) and its word, at the right of its name row, in the ink
+		/// of its dashed frame. Empty for a note that is not mine to send.
+		[[nodiscard]] auto draft_tag_rect(const thread_card& aCard) const -> QRect;
 		/// \brief Where a closed note's rail is drawn, in viewport coordinates:
 		/// down its left edge, 2 px wide or 4 px when blocking, growing outward.
 		[[nodiscard]] auto rail_rect(const thread_card& aCard) const -> QRectF;
