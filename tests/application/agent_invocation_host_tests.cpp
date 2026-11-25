@@ -2130,8 +2130,12 @@ namespace {
 			continued.SelectedConversation = selected;
 			continued.ContinuedSession     = *result.PinnedSession;
 			continued.Context.Binding      = earlier;
+			const auto streamedBefore      = test.Projection.Streamed.size();
 			test.Host.dispatch(continued);
 			test.settle();
+			expect(std::ranges::any_of(test.Projection.Streamed.begin() + static_cast<std::ptrdiff_t>(streamedBefore), test.Projection.Streamed.end(),
+									   [](const application::agent_stream_event& aEvent) { return aEvent.Text == "bounded result"; }),
+				   "the continued turn's answer streams though the review is at a later head (it was dropped before)");
 			expect(test.Projection.Finished.size() == 2U && test.Projection.Finished.back().Outcome == application::agent_run_outcome::success && test.Processes.Starts == 1U
 					   && !test.Projection.Finished.back().PinnedConversation,
 				   "Continue runs the turn on the pinned conversation");

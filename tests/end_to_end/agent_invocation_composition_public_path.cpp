@@ -34,6 +34,7 @@
 #include <QComboBox>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
 #include <QItemSelectionModel>
@@ -1149,9 +1150,34 @@ auto main(int argc, char** argv) -> int
 			if (!wait_until([&] { return historyIn() && tab->ask_button()->isEnabled() && tab->turn_count() == 0U; }) || !choose(first)) {
 				return fail(*application, "pinned-unused-conversation");
 			}
+			// [[BPR-1254]]. Moving the head reopens the review ledger; a turn
+			// asks for its private context once it has settled.
 			if (!app::detail::github_application_fixture_access::reaccept_fixture_revision(*application, true)
-				|| !wait_until([&] { return evidence().Quiescent; })) {
+				|| !wait_until([&] {
+					   return evidence().Quiescent && app::detail::github_application_fixture_access::review_ledger_settled(*application)
+						   && app::detail::github_application_fixture_access::review_ledger_available(*application) == std::optional{ true };
+				   },
+							   extended_agent_budget)) {
 				return fail(*application, "pinned-head-moved");
+			}
+			// The comparison a moved head brings is settled when the accepted
+			// pair and the window's agree and stay put for a second; a turn
+			// sent before that is superseded when the pair changes under it.
+			{
+				auto last   = std::optional<core::comparison_pair>{ };
+				auto stable = QElapsedTimer{ };
+				if (!wait_until([&] {
+						const auto pairs = app::detail::github_application_fixture_access::tab_comparison_evidence(*application);
+						if (!pairs.Accepted || pairs.Accepted != pairs.Window || pairs.Accepted != last) {
+							last = pairs.Accepted;
+							stable.start();
+							return false;
+						}
+						return stable.elapsed() >= 1000;
+					},
+								extended_agent_budget)) {
+					return fail(*application, "pinned-comparison-settled");
+				}
 			}
 			// The choice comes before a question: the replay is pinned to the
 			// earlier head, and the tab says so as soon as its history loads.
@@ -1172,10 +1198,10 @@ auto main(int argc, char** argv) -> int
 			// Continue at the earlier head: the question is answered there.
 			tab->banner_second_button()->click();
 			if (!wait_until([&] { return tab->state() != qt::agent_tab_state::head_moved && tab->ask_button()->isEnabled(); })
-				|| !send(QStringLiteral("verify-replay")) || !latestIs(core::agent_turn_outcome::answered)
-				|| !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("transcript-replay-ok")) || panel->pinned_conversation().has_value()
+				|| !send(QStringLiteral("native source question")) || !latestIs(core::agent_turn_outcome::answered)
+				|| !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral(" backend=")) || panel->pinned_conversation().has_value()
 				|| window.side_chat()->head_oid_text().left(7) != earlierHead) {
-				return fail(*application, "pinned-continue", panel->status_text().toStdString() + " " + panel->stop_reason_text().toStdString());
+				return fail(*application, "pinned-continue", panel->status_text().toStdString() + " " + panel->stop_reason_text().toStdString() + " head=" + window.side_chat()->head_oid_text().toStdString() + " earlier=" + earlierHead.toStdString() + " output=" + panel->output_text().left(1500).toStdString() + " answer=" + (tab->turn_count() ? tab->turn_answer(tab->turn_count() - 1U).left(300).toStdString() : std::string{ "none" }));
 			}
 			// Read again, the choice is offered again; Start a new session asks
 			// at the current head instead, and the next question follows there.

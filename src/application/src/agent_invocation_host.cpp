@@ -479,11 +479,16 @@ namespace bpr::application {
 			const std::shared_ptr<invocation>& aInvocation) const -> bool
 		{
 			std::scoped_lock lock{ StateMutex };
+			// A continuation is asked about its session's own revision, which
+			// BPR-0521 lets differ from the one under review; it streams while
+			// the review is the same, as `supersede` lets it run. Before this a
+			// continued turn's every frame was dropped and its answer was never
+			// shown (owner report, 2026-11-24).
 			return ActiveInvocation == aInvocation
 				&& ApplicationSession
 				== std::optional{ aInvocation->Identity.ApplicationSession }
 			&& Authority == std::optional{ aInvocation->Identity.Authority }
-			&& Binding == std::optional{ aInvocation->Identity.Session.Binding };
+			&& (aInvocation->Continued || Binding == std::optional{ aInvocation->Identity.Session.Binding });
 		}
 
 		[[nodiscard]] auto still_active(
