@@ -27,6 +27,16 @@
 #include <set>
 
 namespace bpr::adapters::update {
+	auto detail::bundle_version_from_release_tag(std::string_view aTag) noexcept -> std::string_view
+	{
+		if (const auto prerelease = core::parse_release_update_prerelease_tag(aTag)) {
+			aTag = prerelease->MarketingTag;
+		} else if (!core::parse_release_update_version(aTag)) {
+			return { };
+		}
+		return aTag.starts_with('v') ? aTag.substr(1U) : aTag;
+	}
+
 	namespace {
 		namespace fs               = std::filesystem;
 		using reason               = core::release_update_reason;
@@ -535,10 +545,7 @@ namespace bpr::adapters::update {
 			const auto minimum      = QVersionNumber::fromString(QString::fromStdString(minimumText));
 			const auto os           = QOperatingSystemVersion::current();
 			const auto prerelease   = core::parse_release_update_prerelease_tag(aCandidate.Tag);
-			auto       exactVersion = prerelease ? prerelease->MarketingTag : std::string_view{ aCandidate.Tag };
-			if (exactVersion.starts_with('v')) {
-				exactVersion.remove_prefix(1);
-			}
+			const auto exactVersion = detail::bundle_version_from_release_tag(aCandidate.Tag);
 			if (prerelease && prerelease->BuildNumber != aCandidate.BuildNumber) {
 				return reason::invalid_bundle;
 			}

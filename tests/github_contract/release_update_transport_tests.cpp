@@ -127,7 +127,7 @@ auto main(int aArgc, char** aArgv) -> int
 		expected = reason::none;
 	}
 	if (result.Failure != expected) {
-		std::cerr << "reason=" << static_cast<int>(result.Failure) << " expected=" << static_cast<int>(expected) << '\n';
+		std::cerr << "reason=" << static_cast<int>(result.Failure) << " expected=" << static_cast<int>(expected) << " bytes=" << received << '\n';
 	}
 	expect(result.Failure == expected, "wire terminal classification");
 	expect(received <= limit && result.Bytes <= limit, "streaming bound held");

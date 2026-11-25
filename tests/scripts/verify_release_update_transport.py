@@ -135,6 +135,11 @@ class Proxy:
         if scenario == "duplicate":
             headers.append((b"Content-Type", b"text/html"))
         channel.sendall(b"HTTP/1.1 " + status + b"\r\nConnection: close\r\n" + b"".join(k + b": " + v + b"\r\n" for k, v in headers) + b"\r\n" + body)
+        if scenario == "release-list":
+            # Complete the TLS shutdown so the client's bounded reader can
+            # drain the queued records before the underlying socket closes.
+            with channel.unwrap():
+                pass
 
     def verify(self):
         assert not self.errors, (self.scenario, self.errors)

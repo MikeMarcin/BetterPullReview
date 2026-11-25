@@ -833,7 +833,7 @@ namespace bpr::adapters::update {
 		if (lstat((state->Control / "active.json").c_str(), &activeInfo) == 0) {
 			const auto active  = read_record(state->Control / "active.json");
 			const auto tag     = active ? active->value("candidate").toObject().value("tag").toString().toStdString() : std::string{ };
-			const auto version = std::string_view{ tag }.starts_with('v') ? std::string_view{ tag }.substr(1) : std::string_view{ tag };
+			const auto version = detail::bundle_version_from_release_tag(tag);
 			if (!active || !valid_id(aStartupTransaction) || active->value("transaction").toString().toStdString() != aStartupTransaction
 				|| aRunningVersion != version || version.empty()
 				|| (active->value("phase").toInt(-1) != static_cast<int>(detail::install_boundary::before_launch)
@@ -927,8 +927,8 @@ namespace bpr::adapters::update {
 		}
 		const auto tag          = active->value("candidate").toObject().value("tag").toString().toStdString();
 		const auto digest       = file_digest(Impl->Installed / executable_name);
-		const auto exactVersion = std::string_view{ tag }.starts_with('v') ? std::string_view{ tag }.substr(1) : std::string_view{ tag };
-		if (aVersion != exactVersion
+		const auto exactVersion = detail::bundle_version_from_release_tag(tag);
+		if (exactVersion.empty() || aVersion != exactVersion
 			|| digest.empty() || digest != active->value("executable").toString().toStdString()
 			|| inode(Impl->Installed) != active->value("new_inode").toString().toStdString()
 			|| (Impl->StartupRoot && (!private_directory(*Impl->StartupRoot) || inode(*Impl->StartupRoot) != active->value("state_root_inode").toString().toStdString()))) {

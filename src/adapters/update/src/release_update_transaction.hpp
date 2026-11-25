@@ -8,6 +8,9 @@
 
 namespace bpr::adapters::update::detail {
 
+	/// \brief Returns the native marketing version from a valid release tag.
+	[[nodiscard]] auto bundle_version_from_release_tag(std::string_view aTag) noexcept -> std::string_view;
+
 	/// \brief Native transaction facts. Paths never cross the application-facing port.
 	struct install_material
 	{
