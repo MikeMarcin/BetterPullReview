@@ -21,6 +21,7 @@
 #include "bpr/qt/agent_report_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/report_tally_view.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
@@ -29,9 +30,11 @@
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QComboBox>
+#include <QDir>
 #include <QEnterEvent>
 #include <QEventLoop>
 #include <QFontMetrics>
+#include <QGuiApplication>
 #include <QHelpEvent>
 #include <QImage>
 #include <QKeyEvent>
@@ -41,6 +44,8 @@
 #include <QMouseEvent>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QStyle>
+#include <QStyleHints>
 #include <QTabWidget>
 #include <QTextBlock>
 #include <QTextDocument>
@@ -683,11 +688,61 @@ namespace {
 		expect(top >= 0 && top + 24 <= scroll->viewport()->height(), "the attachment is in view at the turn's end: its top at " + std::to_string(top) + " of " + std::to_string(scroll->viewport()->height()));
 		window.hide();
 	}
+
+	/// The report turn as the window's Agent tab draws it, for a look: the
+	/// reply and the drawer around it, in the Light and the Dark theme, at
+	/// each drawer width from the narrowest.
+	///
+	/// \details The renders go to a directory under the root named for the
+	/// platform and style that drew them. Only `cocoa-macos`, made with the
+	/// native look (`native_look_startup.cpp`), is what the owner's window
+	/// paints. `QT_SCALE_FACTOR` is the scale in each file's name; the
+	/// screen's own ratio multiplies it.
+	void render_report_turns(const QString& aRoot)
+	{
+		const auto folder = QStringLiteral("%1/%2-%3").arg(aRoot, QGuiApplication::platformName(), QApplication::style()->name().toLower());
+		expect(QDir{ }.mkpath(folder), "the render directory exists");
+		const auto factor = qEnvironmentVariable("QT_SCALE_FACTOR", QStringLiteral("1")).toDouble();
+		const auto scale  = QString::number(qRound(factor * 100.0));
+		struct theme
+		{
+			core::appearance_mode Mode;
+			const char*           Name;
+			bool                  Dark;
+		};
+		for (const auto& [mode, name, dark] : { theme{ core::appearance_mode::light, "light", false }, theme{ core::appearance_mode::dark, "dark", true } }) {
+			QGuiApplication::styleHints()->setColorScheme(dark ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
+			auto profile = qt::appearance_profile{ };
+			expect(profile.select_mode(mode), "the built-in theme is selected");
+			qt::workbench_window window;
+			profile.apply_to(window);
+			open_review(window, 900);
+			auto* const tab = window.agent_tab();
+			tab->present_thread({ { .Question = QStringLiteral("Review this pull request"), .Answer = review_report(), .Footer = QStringLiteral("Fixture agent answered in 0:04 · 2 turns"), .Outcome = core::agent_turn_outcome::answered } });
+			settle();
+			auto* const tally = tab->turn_report_tally(0U);
+			expect(tally != nullptr && tally->isVisible() && tab->turn_reply(0U) != nullptr, "the review shows its summary");
+			for (const auto width : { 280U, 320U, 360U, 420U, 640U }) {
+				publish_drawer(window, width);
+				wait(150);
+				const auto stem = QStringLiteral("%1/%2-%3-%4-").arg(folder, QString::fromLatin1(name), scale).arg(width);
+				expect(tab->turn_reply(0U)->grab().save(stem + QStringLiteral("reply.png")), "the reply's render is saved");
+				expect(window.conversations_drawer()->grab().save(stem + QStringLiteral("drawer.png")), "the drawer's render is saved");
+			}
+			window.close();
+		}
+		std::cout << "report-summary-renders: " << folder.toStdString() << ", device pixel ratio " << qApp->devicePixelRatio() << '\n';
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	// A look's renders alone, for the owner: no check runs.
+	if (const auto look = qEnvironmentVariable("BPR_REPORT_SUMMARY_LOOK"); !look.isEmpty()) {
+		render_report_turns(look);
+		return EXIT_SUCCESS;
+	}
 	test_the_donut_is_exact();
 	test_a_narrow_summary_draws_the_smaller_donut();
 	test_a_report_turn_shows_its_summary_not_its_cards();
