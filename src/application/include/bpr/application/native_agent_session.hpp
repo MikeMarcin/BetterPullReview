@@ -39,6 +39,10 @@ namespace bpr::application {
 		/// [[BPR-1999]]. What the conversation has cost, and the runtime's
 		/// last figure for the session it resumes.
 		core::agent_cost_ledger Cost;
+		/// RFC-BPR-0096, owner continue-at-latest amendment. The head it was
+		/// at before another conversation's turn moved their shared checkout
+		/// to `Binding`'s; its own next turn is told, then it is forgotten.
+		std::optional<core::git_commit_oid> MovedFrom;
 	};
 
 	enum class native_agent_storage_failure { unavailable,
@@ -75,6 +79,9 @@ namespace bpr::application {
 		/// Other conversations, and the pull request's kept workspace, that
 		/// hold the same retained workspace.
 		std::size_t OtherHolders = 0U;
+		/// Of those, the kept workspace: no conversation's, so a move of the
+		/// checkout is refused while it is recorded on the same tree.
+		std::size_t KeptHolders = 0U;
 	};
 
 	/// \brief [[BPR-2293]]. The turn lease that guards one retained workspace by
@@ -152,12 +159,24 @@ namespace bpr::application {
 		/// owner continue-at-latest amendment, 2026-11-24): its `Binding` (base,
 		/// head and epochs), its `Workspace`'s marker and identities, and the
 		/// pull request key `WorkspaceKey` that leads to it now, in one
-		/// revision. The old key no longer leads to it. Refused when the
-		/// revision changed, or when another conversation or a kept workspace
-		/// holds the same tree. Updates the caller's revision on success.
+		/// revision. The old keys no longer lead to it. Every other
+		/// conversation on the same checkout is rebound to the same binding
+		/// in that revision and keeps the head it was at as its `MovedFrom`
+		/// (owner, 2026-11-24: "a session in the same PR? yes single
+		/// checkout"); nothing is sent to it. Refused when the revision
+		/// changed, or when the pull request's kept workspace is the same
+		/// tree. Updates the caller's revision on success.
 		[[nodiscard]] virtual auto move_conversation(native_agent_session& aSession) -> bool
 		{
 			static_cast<void>(aSession);
+			return false;
+		}
+		/// \brief RFC-BPR-0096, owner continue-at-latest amendment. The
+		/// conversation \p aId's turn told it that its checkout moved: it
+		/// forgets its `MovedFrom`. Answers whether it was written.
+		[[nodiscard]] virtual auto acknowledge_move(const std::string& aId) -> bool
+		{
+			static_cast<void>(aId);
 			return false;
 		}
 		/// \brief [[BPR-2293]]. Every retained workspace a conversation holds,

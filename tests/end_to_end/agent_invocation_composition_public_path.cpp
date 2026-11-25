@@ -1100,7 +1100,25 @@ auto main(int argc, char** argv) -> int
 		// earlier head, which the chat does not show as moved, refuses the
 		// question; the stopped card offers what the refusal names, and each
 		// choice sends the kept message.
+		// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24: "i
+		// want it to work like a normal claude code session where ... I git
+		// pull in another terminal in the same repo and continue chatting". A
+		// conversation whose checkout is retained moves it to the head under
+		// review on send, and the agent is told; work in the way is offered
+		// Rebase, Keep my changes on a branch and move, Ask the agent to
+		// reconcile, Continue at the old head and Start a new session. "a
+		// session in the same PR? yes single checkout": the pull request's
+		// other conversations on the checkout move with it, and "The other
+		// sessions, we dont wake them up and send them messages".
 		if (pinnedCourse) {
+			// A failure relays the application's own log, read once it has
+			// closed.
+			const auto failLogged = [&](const char* aReason, const std::string& aState = { }) {
+				const auto code = fail(*application, aReason, aState);
+				application.reset();
+				relayLog(aReason);
+				return code;
+			};
 			auto*      tab       = window.agent_tab();
 			auto*      mode      = tab->findChild<QLabel*>(QStringLiteral("agentContinuationMode"));
 			const auto first     = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
@@ -1114,42 +1132,124 @@ auto main(int argc, char** argv) -> int
 				const auto count = tab->turn_count();
 				return count > 0U && tab->turn_outcome(count - 1U) == aOutcome;
 			};
+			const auto latestAnswer = [&] {
+				const auto count = tab->turn_count();
+				return count > 0U ? tab->turn_answer(count - 1U) : QString{ };
+			};
+			const auto latestNotice = [&] {
+				const auto  count  = tab->turn_count();
+				auto* const notice = count > 0U ? tab->turn_move_notice(count - 1U) : nullptr;
+				return notice != nullptr && !notice->isHidden() ? notice->text() : QString{ };
+			};
+			// What a step ends with: one more turn, answered or refused, and
+			// nothing running.
+			const auto settleAfter = [&](const std::function<void()>& aAct) {
+				const auto turns = tab->turn_count();
+				aAct();
+				return wait_until([&] { return evidence().Quiescent && tab->turn_count() > turns && tab->state() != qt::agent_tab_state::working; }, extended_agent_budget);
+			};
 			const auto send = [&](const QString& aQuestion) {
 				window.side_chat()->composer()->setPlainText(aQuestion);
 				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
 					return false;
 				}
-				const auto starts = evidence().Statistics.ProcessStarts;
-				tab->ask_button()->click();
-				return wait_until([&] { return evidence().Quiescent && (evidence().Statistics.ProcessStarts > starts || panel->pinned_conversation().has_value()) && tab->state() != qt::agent_tab_state::working; }, extended_agent_budget);
+				return settleAfter([&] { tab->ask_button()->click(); });
 			};
+			const auto click = [&](QPushButton* aButton) { return aButton != nullptr && aButton->isVisible() && settleAfter([&] { aButton->click(); }); };
 			// Reading each agent's history again, as a reopened window would.
-			const auto reread = [&] { return choose(second) && choose(first); };
+			const auto reread     = [&] { return choose(second) && choose(first); };
+			const auto selectedId = [&] {
+				auto id = std::string{ };
+				QMetaObject::invokeMethod(tab->history_button()->menu(), "aboutToShow");
+				static_cast<void>(wait_until([&] { id = tab->session_menu()->selected(); return !id.empty() && historyIn(); }));
+				return id;
+			};
+			const auto open = [&](const std::string& aId) {
+				QMetaObject::invokeMethod(tab->history_button()->menu(), "aboutToShow");
+				if (!wait_until([&] { const auto ids = tab->session_menu()->ids(); return historyIn() && std::ranges::find(ids, aId) != ids.end(); })) {
+					return false;
+				}
+				tab->session_menu()->open(aId);
+				return wait_until([&] { return historyIn() && tab->session_menu()->selected() == aId && tab->state() != qt::agent_tab_state::working; });
+			};
+			// The pull request checkouts the fixture agent has run in, by the
+			// state file it keeps at their roots.
+			const auto checkouts = [&] {
+				auto found = std::set<std::filesystem::path>{ };
+				auto error = std::error_code{ };
+				for (auto item = std::filesystem::recursive_directory_iterator{ evidence().WorkspaceRoot, error }; !error && item != std::filesystem::recursive_directory_iterator{ }; item.increment(error)) {
+					if (item->path().filename() == ".git") {
+						item.disable_recursion_pending();
+					} else if (item->path().filename() == ".bpr-native-fixture-state") {
+						found.insert(item->path().parent_path());
+					}
+				}
+				return found;
+			};
+			const auto madeSince = [&](const std::set<std::filesystem::path>& aBefore) {
+				for (const auto& found : checkouts()) {
+					if (!aBefore.contains(found)) {
+						return found;
+					}
+				}
+				return std::filesystem::path{ };
+			};
+			const auto writeFile = [](const std::filesystem::path& aPath, const std::string& aText, const bool aAppend) {
+				auto output = std::ofstream{ aPath, aAppend ? std::ios::app : std::ios::trunc };
+				output << aText;
+				return static_cast<bool>(output);
+			};
+			const auto status = [&] {
+				return " state=" + std::to_string(static_cast<int>(tab->state())) + " banner=" + tab->banner_text().toStdString() + " answer=" + latestAnswer().left(400).toStdString()
+					+ " notice=" + latestNotice().toStdString() + " stop=" + panel->stop_reason_text().toStdString() + " output=" + panel->output_text().left(800).toStdString() + " status=" + panel->status_text().toStdString();
+			};
+			const auto starts = [&] { return evidence().Statistics.ProcessStarts; };
+
+			// At the first head: the first agent's conversation, a second
+			// agent's conversation on the same pull request checkout, and three
+			// transcript replays of the first.
 			if (!choose(first)) {
-				return fail(*application, "pinned-agent-choice");
+				return failLogged("pinned-agent-choice");
 			}
 			const auto earlierHead = window.side_chat()->head_oid_text().left(7);
 			if (earlierHead.size() != 7 || !send(QStringLiteral("native source question")) || !latestIs(core::agent_turn_outcome::answered)) {
-				return fail(*application, "pinned-seed", panel->status_text().toStdString());
+				return failLogged("pinned-seed", panel->status_text().toStdString());
 			}
-			// A conversation that remembers but has no runtime session: a
-			// transcript replay of that one.
-			auto* replay = tab->findChild<QAction*>(QStringLiteral("agentTranscriptReplay"));
-			if (replay == nullptr) {
-				return fail(*application, "pinned-replay-offer");
+			const auto seeded   = selectedId();
+			const auto shared   = checkouts();
+			const auto checkout = shared.size() == 1U ? *shared.begin() : std::filesystem::path{ };
+			if (seeded.empty() || checkout.empty()) {
+				return failLogged("pinned-seed-checkout", std::to_string(shared.size()));
 			}
-			replay->trigger();
-			if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->ask_button()->isEnabled(); })) {
-				return fail(*application, "pinned-replay-choice");
+			if (!choose(second) || !send(QStringLiteral("native source question")) || !latestIs(core::agent_turn_outcome::answered) || checkouts() != shared) {
+				return failLogged("pinned-second-on-one-checkout", panel->status_text().toStdString() + " checkouts=" + std::to_string(checkouts().size()));
 			}
+			const auto sharing = selectedId();
 			// And one that was started and never used, for the second agent.
-			if (!choose(second) || !wait_until([&] { return tab->clear_session_button()->isEnabled(); })) {
-				return fail(*application, "pinned-second-agent");
+			if (!wait_until([&] { return tab->clear_session_button()->isEnabled(); })) {
+				return failLogged("pinned-second-agent");
 			}
 			tab->clear_session_button()->click();
-			if (!wait_until([&] { return historyIn() && tab->ask_button()->isEnabled() && tab->turn_count() == 0U; }) || !choose(first)) {
-				return fail(*application, "pinned-unused-conversation");
+			if (!wait_until([&] { return historyIn() && tab->ask_button()->isEnabled() && tab->turn_count() == 0U; }) || !choose(first) || !open(seeded)) {
+				return failLogged("pinned-unused-conversation");
 			}
+			// Conversations that remember but have no runtime session or
+			// checkout: transcript replays.
+			auto replays = std::vector<std::string>{ };
+			for (auto made = 0; made < 3; ++made) {
+				const auto before = selectedId();
+				auto*      replay = tab->findChild<QAction*>(QStringLiteral("agentTranscriptReplay"));
+				if (replay == nullptr) {
+					return failLogged("pinned-replay-offer");
+				}
+				replay->trigger();
+				auto id = std::string{ };
+				if (!wait_until([&] { id = selectedId(); return id != before && mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->ask_button()->isEnabled(); })) {
+					return failLogged("pinned-replay-choice");
+				}
+				replays.push_back(id);
+			}
+
 			// [[BPR-1254]]. Moving the head reopens the review ledger; a turn
 			// asks for its private context once it has settled.
 			if (!app::detail::github_application_fixture_access::reaccept_fixture_revision(*application, true)
@@ -1158,7 +1258,7 @@ auto main(int argc, char** argv) -> int
 						   && app::detail::github_application_fixture_access::review_ledger_available(*application) == std::optional{ true };
 				   },
 							   extended_agent_budget)) {
-				return fail(*application, "pinned-head-moved");
+				return failLogged("pinned-head-moved");
 			}
 			// The comparison a moved head brings is settled when the accepted
 			// pair and the window's agree and stay put for a second; a turn
@@ -1176,53 +1276,174 @@ auto main(int argc, char** argv) -> int
 						return stable.elapsed() >= 1000;
 					},
 								extended_agent_budget)) {
-					return fail(*application, "pinned-comparison-settled");
+					return failLogged("pinned-comparison-settled");
 				}
 			}
-			// The choice comes before a question: the replay is pinned to the
-			// earlier head, and the tab says so as soon as its history loads.
-			const auto offeredUpFront = [&] {
+			// The choice comes before a question: a replay with no checkout of
+			// its own is pinned to the earlier head, and the tab says so as
+			// soon as its history loads.
+			const auto offeredUpFront = [&](const std::string& aId) {
 				return wait_until([&] {
-					return reread() && tab->state() == qt::agent_tab_state::head_moved && window.side_chat()->head_oid_text().left(7) == earlierHead
+					return reread() && open(aId) && tab->state() == qt::agent_tab_state::head_moved && window.side_chat()->head_oid_text().left(7) == earlierHead
 						&& tab->banner_first_button()->isVisible() && tab->banner_first_button()->text() == QStringLiteral("Start a new session")
 						&& tab->banner_second_button()->isVisible();
 				});
 			};
-			const auto beforeChoice = evidence().Statistics.ProcessStarts;
-			if (!offeredUpFront() || evidence().Statistics.ProcessStarts != beforeChoice) {
-				return fail(*application, "pinned-offered-up-front", "state=" + std::to_string(static_cast<int>(tab->state())) + " head=" + window.side_chat()->head_oid_text().toStdString());
+			const auto beforeChoice = starts();
+			if (!offeredUpFront(replays.back()) || starts() != beforeChoice) {
+				return failLogged("pinned-offered-up-front", "state=" + std::to_string(static_cast<int>(tab->state())) + " head=" + window.side_chat()->head_oid_text().toStdString() + " starts=" + std::to_string(starts() - beforeChoice) + " selected=" + tab->session_menu()->selected() + " want=" + replays.back() + " first=" + tab->banner_first_button()->text().toStdString() + (tab->banner_first_button()->isVisible() ? "+" : "-") + " second=" + tab->banner_second_button()->text().toStdString() + (tab->banner_second_button()->isVisible() ? "+" : "-"));
 			}
 			if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "native-pinned-up-front.png").u16string()))) {
-				return fail(*application, "pinned-up-front-render");
+				return failLogged("pinned-up-front-render");
 			}
-			// Continue at the earlier head: the question is answered there.
-			tab->banner_second_button()->click();
-			if (!wait_until([&] { return tab->state() != qt::agent_tab_state::head_moved && tab->ask_button()->isEnabled(); })
-				|| !send(QStringLiteral("native source question")) || !latestIs(core::agent_turn_outcome::answered)
-				|| !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral(" backend=")) || panel->pinned_conversation().has_value()
-				|| window.side_chat()->head_oid_text().left(7) != earlierHead) {
-				return fail(*application, "pinned-continue", panel->status_text().toStdString() + " " + panel->stop_reason_text().toStdString() + " head=" + window.side_chat()->head_oid_text().toStdString() + " earlier=" + earlierHead.toStdString() + " output=" + panel->output_text().left(1500).toStdString() + " answer=" + (tab->turn_count() ? tab->turn_answer(tab->turn_count() - 1U).left(300).toStdString() : std::string{ "none" }));
-			}
-			// Read again, the choice is offered again; Start a new session asks
-			// at the current head instead, and the next question follows there.
-			if (!offeredUpFront()) {
-				return fail(*application, "pinned-offered-again");
-			}
-			tab->banner_first_button()->click();
-			if (!wait_until([&] { return tab->state() != qt::agent_tab_state::head_moved && tab->ask_button()->isEnabled(); })) {
-				return fail(*application, "pinned-new-session-chosen");
+
+			// The seeded conversation follows the head: no choice first. An
+			// untracked file in its checkout is work in the way.
+			if (!open(seeded) || tab->state() == qt::agent_tab_state::head_moved) {
+				return failLogged("pinned-follows", status());
 			}
 			const auto currentHead = window.side_chat()->head_oid_text().left(7);
-			if (currentHead == earlierHead || !send(QStringLiteral("native source question")) || !latestIs(core::agent_turn_outcome::answered) || panel->pinned_conversation().has_value()
+			if (currentHead.size() != 7 || currentHead == earlierHead || !writeFile(checkout / "course-edit.txt", "the reviewer's own notes\n", false)) {
+				return failLogged("pinned-follows-head", currentHead.toStdString());
+			}
+			const auto moveNote = [&](const QString& aCheckout) {
+				return QStringLiteral("move-note from=%1 to=%2 checkout=%3 before-question=yes").arg(earlierHead, currentHead, aCheckout);
+			};
+			const auto refusedWithAll = [&](const bool aRebase) {
+				const auto reconciles = tab->banner_reconcile_buttons();
+				return tab->state() == qt::agent_tab_state::stopped && panel->pinned_conversation().has_value() && reconciles[0]->isVisible() == aRebase && reconciles[1]->isVisible()
+					&& reconciles[2]->isVisible() && tab->banner_first_button()->isVisible() && tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead
+					&& tab->banner_second_button()->isVisible() && tab->banner_second_button()->text() == QStringLiteral("Start a new session")
+					&& (!aRebase || reconciles[0]->text() == QStringLiteral("Rebase onto ") + currentHead);
+			};
+			auto before = starts();
+			if (!send(QStringLiteral("verify-move-note with edits")) || starts() != before || !refusedWithAll(true) || !tab->banner_text().contains(QStringLiteral("uncommitted edits"))) {
+				return failLogged("pinned-edits-block", status());
+			}
+			// Continue at the earlier head: answered there, nothing moved, the
+			// edit kept.
+			if (!click(tab->banner_first_button()) || !latestIs(core::agent_turn_outcome::answered) || starts() != before + 1U
+				|| !latestAnswer().contains(QStringLiteral("move-note=none")) || !std::filesystem::exists(checkout / "course-edit.txt")) {
+				return failLogged("pinned-edits-continue", status());
+			}
+			// Read again, the move is offered again; Start a new session asks at
+			// the current head instead, and the next question follows there.
+			if (!reread() || !open(seeded) || !send(QStringLiteral("verify-move-note with edits")) || !refusedWithAll(true)) {
+				return failLogged("pinned-edits-block-again", status());
+			}
+			before = starts();
+			if (!click(tab->banner_second_button()) || !latestIs(core::agent_turn_outcome::answered) || starts() != before + 1U
+				|| !latestAnswer().contains(QStringLiteral("move-note=none checkout=") + currentHead) || panel->pinned_conversation().has_value()
 				|| !send(QStringLiteral("remember-tool-observation")) || !latestIs(core::agent_turn_outcome::answered) || panel->pinned_conversation().has_value()
 				|| window.side_chat()->head_oid_text().left(7) != currentHead) {
-				return fail(*application, "pinned-new-session", panel->status_text().toStdString() + " " + panel->stop_reason_text().toStdString());
+				return failLogged("pinned-new-session", status());
 			}
-			// The second agent's conversation was never used: it moves to the
-			// head under review without asking, and the question is answered.
-			if (!choose(second) || tab->state() == qt::agent_tab_state::head_moved || !send(QStringLiteral("Review this pull request"))
-				|| !latestIs(core::agent_turn_outcome::answered) || panel->pinned_conversation().has_value()) {
-				return fail(*application, "pinned-unused-moves-silently", panel->status_text().toStdString() + " " + panel->stop_reason_text().toStdString());
+			// A rebase that conflicts is put back as it was, names the file,
+			// and is not offered again.
+			auto tracked = std::filesystem::path{ };
+			for (auto item = std::filesystem::recursive_directory_iterator{ checkout }; item != std::filesystem::recursive_directory_iterator{ }; ++item) {
+				if (item->path().filename() == ".git") {
+					item.disable_recursion_pending();
+				} else if (item->is_regular_file() && item->path().filename() != ".bpr-native-fixture-state" && item->path().filename() != "course-edit.txt") {
+					tracked = item->path();
+				}
+			}
+			const auto conflicting = std::string{ "\tstatic_assert(course_only, \"the reviewer's line\");\n" };
+			if (tracked.empty() || !writeFile(tracked, conflicting, true) || !open(seeded) || !send(QStringLiteral("verify-move-note with a conflict")) || !refusedWithAll(true)) {
+				return failLogged("pinned-conflict-block", status());
+			}
+			before                 = starts();
+			const auto trackedName = QString::fromStdU16String(tracked.filename().u16string());
+			const auto readTracked = [&] {
+				auto input = std::ifstream{ tracked };
+				return std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+			};
+			if (!click(tab->banner_reconcile_buttons()[0]) || starts() != before || !refusedWithAll(false) || !tab->banner_text().contains(trackedName)
+				|| !tab->banner_text().contains(QStringLiteral("conflicts")) || !readTracked().ends_with(conflicting) || !std::filesystem::exists(checkout / "course-edit.txt")) {
+				return failLogged("pinned-rebase-conflict", status() + " file=" + trackedName.toStdString());
+			}
+			// Keep my changes on a branch and move: the work is on the saved
+			// branch, the checkout at the new head, the agent told before the
+			// question, and the transcript says so. Only this conversation
+			// runs: the second agent's, on the same checkout, is rebound only.
+			if (!click(tab->banner_reconcile_buttons()[1]) || !latestIs(core::agent_turn_outcome::answered) || starts() != before + 1U
+				|| !latestAnswer().contains(moveNote(currentHead) + QStringLiteral(" reconcile-prompt=none saved-branch=present rewritten=yes"))
+				|| !latestNotice().startsWith(QStringLiteral("Updated to ") + currentHead + QStringLiteral(" — history rewritten")) || !latestNotice().contains(QStringLiteral("kept on bpr/saved/"))) {
+				return failLogged("pinned-save-and-move", status());
+			}
+
+			// The second agent's never-used conversation moves to the head
+			// under review without asking, and the question is answered.
+			if (!choose(second) || tab->state() == qt::agent_tab_state::head_moved || !send(QStringLiteral("Review this pull request")) || !latestIs(core::agent_turn_outcome::answered)
+				|| panel->pinned_conversation().has_value()) {
+				return failLogged("pinned-unused-moves-silently", status());
+			}
+			// The second agent's conversation on the moved checkout: opened, it
+			// says the move and holds no turn it did not ask; its next question
+			// is told once, and nothing moves again.
+			auto* const moved = tab->conversation_move_notice();
+			if (!open(sharing) || tab->turn_count() != 1U || tab->state() == qt::agent_tab_state::head_moved || moved == nullptr || moved->isHidden()
+				|| !moved->text().startsWith(QStringLiteral("Updated to ") + currentHead)) {
+				return failLogged("pinned-shared-opened", status() + " turns=" + std::to_string(tab->turn_count()) + " moved=" + (moved ? moved->text().toStdString() : std::string{ "none" }));
+			}
+			before = starts();
+			if (!send(QStringLiteral("verify-move-note in the other session")) || !latestIs(core::agent_turn_outcome::answered) || starts() != before + 1U
+				|| !latestAnswer().contains(moveNote(currentHead)) || !latestNotice().startsWith(QStringLiteral("Updated to ") + currentHead) || !moved->isHidden()
+				|| !send(QStringLiteral("verify-move-note once more")) || !latestAnswer().contains(QStringLiteral("move-note=none checkout=") + currentHead)) {
+				return failLogged("pinned-shared-told", status());
+			}
+
+			// A replay continued at the earlier head makes a checkout of its
+			// own there; read again, it follows the head, and a plain send
+			// moves it.
+			const auto continueReplay = [&](const std::string& aId) -> std::filesystem::path {
+				const auto known = checkouts();
+				if (!choose(first) || !offeredUpFront(aId)) {
+					return { };
+				}
+				tab->banner_second_button()->click();
+				if (!wait_until([&] { return tab->state() != qt::agent_tab_state::head_moved && tab->ask_button()->isEnabled(); })
+					|| !send(QStringLiteral("native source question")) || !latestIs(core::agent_turn_outcome::answered)
+					|| !latestAnswer().contains(QStringLiteral(" backend=")) || panel->pinned_conversation().has_value()
+					|| window.side_chat()->head_oid_text().left(7) != earlierHead) {
+					return { };
+				}
+				auto made = madeSince(known);
+				if (made.empty() || !reread() || !open(aId) || tab->state() == qt::agent_tab_state::head_moved) {
+					return { };
+				}
+				return made;
+			};
+			if (continueReplay(replays[0]).empty()) {
+				return failLogged("pinned-continue", status() + " head=" + window.side_chat()->head_oid_text().toStdString() + " earlier=" + earlierHead.toStdString());
+			}
+			before = starts();
+			if (!send(QStringLiteral("verify-move-note plain")) || !latestIs(core::agent_turn_outcome::answered) || starts() != before + 1U
+				|| !latestAnswer().contains(moveNote(currentHead) + QStringLiteral(" reconcile-prompt=none saved-branch=none rewritten=yes"))
+				|| latestNotice() != QStringLiteral("Updated to ") + currentHead + QStringLiteral(" — history rewritten")) {
+				return failLogged("pinned-plain-move", status());
+			}
+			// Rebase onto the new head, with nothing in the way of it.
+			const auto rebased = continueReplay(replays[1]);
+			if (rebased.empty() || !writeFile(rebased / "course-rebase.txt", "carried over\n", false) || !send(QStringLiteral("verify-move-note rebase")) || !refusedWithAll(true)) {
+				return failLogged("pinned-rebase-block", status());
+			}
+			before = starts();
+			if (!click(tab->banner_reconcile_buttons()[0]) || !latestIs(core::agent_turn_outcome::answered) || starts() != before + 1U
+				|| !latestAnswer().contains(moveNote(currentHead) + QStringLiteral(" reconcile-prompt=none saved-branch=none")) || !latestNotice().contains(QStringLiteral("rebased"))
+				|| !std::filesystem::exists(rebased / "course-rebase.txt")) {
+				return failLogged("pinned-rebase", status());
+			}
+			// Ask the agent to reconcile: the built-in prompt follows the note.
+			const auto asked = continueReplay(replays[2]);
+			if (asked.empty() || !writeFile(asked / "course-ask.txt", "for the agent\n", false) || !send(QStringLiteral("verify-move-note ask")) || !refusedWithAll(true)) {
+				return failLogged("pinned-ask-block", status());
+			}
+			before = starts();
+			if (!click(tab->banner_reconcile_buttons()[2]) || !latestIs(core::agent_turn_outcome::answered) || starts() != before + 1U
+				|| !latestAnswer().contains(moveNote(currentHead) + QStringLiteral(" reconcile-prompt=after-note saved-branch=present"))
+				|| !latestNotice().contains(QStringLiteral("kept on bpr/saved/"))) {
+				return failLogged("pinned-ask-agent", status());
 			}
 			if (!shutdown(*application)) {
 				return EXIT_FAILURE;

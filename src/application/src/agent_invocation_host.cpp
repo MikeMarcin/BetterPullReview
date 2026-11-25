@@ -92,7 +92,7 @@ namespace bpr::application {
 		/// the head under review, and the ways on the core offered, in the
 		/// words the Agent tab's buttons use.
 		[[nodiscard]] auto move_refusal_words(const core::conversation_move_decision& aDecision, const core::git_commit_oid& aFrom, const core::git_commit_oid& aTo,
-											  const std::vector<std::string>& aConflicts, const bool aOtherHolders) -> std::string
+											  const std::vector<std::string>& aConflicts, const bool aKeptHolder) -> std::string
 		{
 			using state      = core::conversation_workspace_state;
 			const auto from  = std::string{ core::canonical_hex(aFrom).view().substr(0U, 7U) };
@@ -107,8 +107,8 @@ namespace bpr::application {
 					files += " and " + std::to_string(aConflicts.size() - 5U) + " more";
 				}
 				words = "Rebasing onto " + to + " stopped on conflicts in " + files + ", so the workspace was put back at " + from + " as it was.";
-			} else if (aOtherHolders) {
-				words = "Another conversation shares this workspace, so it was not moved from " + from + " to " + to + ".";
+			} else if (aKeptHolder) {
+				words = "This pull request's kept workspace is the same checkout, so it was not moved from " + from + " to " + to + ".";
 			} else {
 				switch (aDecision.Blocked) {
 				case state::local_edits:       words = "This conversation's workspace at " + from + " has uncommitted edits, so it was not moved to " + to + "."; break;
@@ -258,7 +258,10 @@ namespace bpr::application {
 			/// RFC-BPR-0096, owner continue-at-latest amendment. The move of
 			/// the conversation's workspace this turn made before it ran.
 			std::optional<agent_conversation_move> Moved;
-			bool                                   RetainWorkspace = false;
+			/// Its conversation's `MovedFrom` is said by this turn's note, and
+			/// forgotten once the question was sent.
+			bool ToldMove        = false;
+			bool RetainWorkspace = false;
 			/// [[BPR-1999]]. The run resumed the runtime's own session (its
 			/// handle was known at launch), so its reported cost is that
 			/// session's running total.
@@ -932,7 +935,8 @@ namespace bpr::application {
 		{
 			core::conversation_workspace_state State = core::conversation_workspace_state::clean;
 			std::vector<std::string>           Conflicts;
-			bool                               OtherHolders = false;
+			/// The pull request's kept workspace is the same checkout.
+			bool KeptHolder = false;
 			/// Not a state the core decides from: the turn ends as this says.
 			std::optional<std::pair<std::string, core::operation_failure>> Failed;
 			agent_run_outcome                                              Outcome = agent_run_outcome::private_storage_failure;
@@ -959,8 +963,16 @@ namespace bpr::application {
 			request.Reconcile   = aRequest.Reconcile;
 			request.SavedBranch = saved_branch_name(aWorkspace.Session, aFrom);
 			post_stream(aInvocation, { .Session = aInvocation->Identity.Session.Id, .Run = core::agent_run_id{ aInvocation->DurableRun.load(std::memory_order_acquire) }, .Kind = agent_stream_kind::workspace_check });
+			auto stop = move_stopped{ };
+			// An idle agent process kept for a conversation on this checkout
+			// holds its lease between turns; it is ended first, and its
+			// conversation resumes its own session in a new process. One that
+			// is answering keeps the checkout busy.
+			if (!Processes.release_native_connections(aWorkspace.Workspace.Path)) {
+				stop.State = core::conversation_workspace_state::busy;
+				return std::unexpected(std::move(stop));
+			}
 			const auto moved = Workspaces.move_agent_workspace(request, aInvocation->Stop->get_token());
-			auto       stop  = move_stopped{ };
 			if (!moved) {
 				using reason = agent_workspace_unavailable_reason;
 				if (moved.error().Code == agent_workspace_failure::cancelled) {
@@ -1110,10 +1122,15 @@ namespace bpr::application {
 						if ((oldKey != workspaceKey && !held) || !workspacePathLease) {
 							stopped        = move_stopped{ };
 							stopped->State = core::conversation_workspace_state::busy;
-						} else if (const auto holders = NativeSessions->removal(scope, selected->Id); !holders || holders->OtherHolders != 0U) {
-							stopped               = move_stopped{ };
-							stopped->State        = core::conversation_workspace_state::busy;
-							stopped->OtherHolders = holders.has_value();
+						} else if (const auto holders = NativeSessions->removal(scope, selected->Id); !holders || holders->KeptHolders != 0U) {
+							// Owner, 2026-11-24: "a session in the same PR? yes
+							// single checkout". Other conversations of the pull
+							// request on it move with it, and are only rebound;
+							// the pull request's kept workspace is no
+							// conversation's, so it is never moved under it.
+							stopped             = move_stopped{ };
+							stopped->State      = core::conversation_workspace_state::busy;
+							stopped->KeptHolder = holders.has_value();
 							if (!holders) {
 								stopped->Failed = std::pair{ std::string{ "Native session storage is unavailable, full, or changed in another window. No question was sent." }, core::operation_failure::storage_failed };
 							}
@@ -1135,7 +1152,7 @@ namespace bpr::application {
 							auto       offer        = pinned;
 							offer.ContinueOffered   = decision.ContinueOffered;
 							offer.NewSessionOffered = decision.NewSessionOffered;
-							const auto reason       = move_refusal_words(decision, from.HeadOid, aInvocation->Identity.Session.Binding.HeadOid, stopped->Conflicts, stopped->OtherHolders);
+							const auto reason       = move_refusal_words(decision, from.HeadOid, aInvocation->Identity.Session.Binding.HeadOid, stopped->Conflicts, stopped->KeptHolder);
 							record_operation(Log, { .Action = core::operation_action::native_continuation, .Failure = core::operation_failure::stale });
 							auto refused               = agent_run_result{ };
 							refused.Session            = aInvocation->Identity.Session.Id;
@@ -1144,7 +1161,7 @@ namespace bpr::application {
 							refused.RefusalReason      = reason;
 							refused.PinnedConversation = offer;
 							refused.PinnedSession      = core::agent_session{
-								.Id      = selected->Workspace && selected->Workspace->Session.value() != 0U ? selected->Workspace->Session : aInvocation->Identity.Session.Id,
+								.Id      = aInvocation->Identity.Session.Id,
 								.Profile = aInvocation->Identity.Session.Profile,
 								.Binding = from,
 							};
@@ -1154,6 +1171,24 @@ namespace bpr::application {
 							return;
 						}
 					}
+					// RFC-BPR-0096, owner continue-at-latest amendment: a
+					// conversation whose shared checkout another one's turn
+					// moved is told now, before its own question ("The other
+					// sessions, we dont wake them up and send them messages").
+					if (selected->MovedFrom && !pinned.Pinned && !aInvocation->Moved && *selected->MovedFrom != selected->Binding.HeadOid) {
+						auto history   = core::conversation_move_history{ };
+						history.Linear = true;
+						auto message   = core::conversation_move_note(*selected->MovedFrom, selected->Binding.HeadOid, history);
+						if (!aSupplement.Message.empty()) {
+							message += "\n\n" + aSupplement.Message;
+						}
+						aSupplement.Message = std::move(message);
+						auto notice         = agent_conversation_move{ };
+						notice.From         = *selected->MovedFrom;
+						notice.To           = selected->Binding.HeadOid;
+						aInvocation->Moved  = std::move(notice);
+					}
+					aInvocation->ToldMove = selected->MovedFrom.has_value() && aInvocation->Moved.has_value();
 					if (pinned.Pinned && !aInvocation->Moved) {
 						const auto reason = pinned_conversation_words(pinned);
 						record_operation(Log, { .Action = core::operation_action::native_continuation, .Failure = core::operation_failure::stale });
@@ -1163,7 +1198,7 @@ namespace bpr::application {
 									 .RefusalReason      = reason,
 									 .PinnedConversation = pinned,
 									 .PinnedSession      = core::agent_session{
-										 .Id      = selected->Workspace && selected->Workspace->Session.value() != 0U ? selected->Workspace->Session : aInvocation->Identity.Session.Id,
+										 .Id      = aInvocation->Identity.Session.Id,
 										 .Profile = aInvocation->Identity.Session.Profile,
 										 .Binding = selected->Binding,
 									 } },
@@ -1544,7 +1579,8 @@ namespace bpr::application {
 					for (auto& steered : bounded.front().Steered) {
 						steered.At = std::min(steered.At, bounded.front().Answered.size());
 					}
-					if (!NativeSessions->append(session.Id, bounded.front()) || !NativeSessions->store(session)) {
+					if (!NativeSessions->append(session.Id, bounded.front()) || !NativeSessions->store(session)
+						|| (aInvocation->ToldMove && !NativeSessions->acknowledge_move(session.Id))) {
 						result.Outcome       = agent_run_outcome::private_storage_failure;
 						result.StandardError = "The question ended, but native session storage failed. Its submission remains uncertain; it will not be resent.";
 					}

@@ -1587,6 +1587,16 @@ namespace bpr::application {
 		virtual void cancel() noexcept                                   = 0;
 		/// \brief Whether all requested native connection shutdowns have settled.
 		[[nodiscard]] virtual auto native_connections_quiescent() const noexcept -> bool { return true; }
+		/// \brief RFC-BPR-0096, owner continue-at-latest amendment. Ends the
+		/// idle native connections whose agent works in \p aWorkingDirectory,
+		/// so none holds that checkout while it moves; their conversations
+		/// resume their own sessions in a new process. Answers false, and ends
+		/// none, when one of them is running a turn.
+		[[nodiscard]] virtual auto release_native_connections(const std::string& aWorkingDirectory) -> bool
+		{
+			static_cast<void>(aWorkingDirectory);
+			return true;
+		}
 		/// \brief [[BPR-2153]], RFC-BPR-0126 Q14. Hands a correction to the
 		/// turn running in `aRequest.Conversation`, after its current tool
 		/// call.

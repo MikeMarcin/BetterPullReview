@@ -80,6 +80,8 @@ namespace bpr::application {
 		void               cancel() noexcept override;
 
 		[[nodiscard]] auto native_connections_quiescent() const noexcept -> bool override { return Inner.native_connections_quiescent(); }
+
+		[[nodiscard]] auto release_native_connections(const std::string& aWorkingDirectory) -> bool override { return Inner.release_native_connections(aWorkingDirectory); }
 		/// \brief [[BPR-2153]]. Steering goes to the connection the inner
 		/// port keeps; nothing is started.
 		[[nodiscard]] auto steer_support(const agent_steer_request& aRequest) const -> core::agent_steer_support override { return Inner.steer_support(aRequest); }

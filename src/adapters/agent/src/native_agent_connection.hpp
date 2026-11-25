@@ -48,6 +48,8 @@ namespace bpr::adapters::agent::detail {
 				&& Template.Metadata.Configured == aRequest.Metadata.Configured;
 		}
 		[[nodiscard]] auto done() const noexcept -> bool { return Done.load(); }
+		/// \brief Where its agent works.
+		[[nodiscard]] auto working_directory() const noexcept -> const std::string& { return Template.WorkingDirectory; }
 		[[nodiscard]] auto busy() const -> bool
 		{
 			const auto lock = std::scoped_lock{ Mutex };

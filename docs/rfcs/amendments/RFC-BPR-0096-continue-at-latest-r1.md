@@ -24,6 +24,10 @@ Relayed by the coordinator, verbatim:
   some reconcile options.. it must be recoverable.", and: "Yes a few
   non-agentic options and then a system prompt to just fix it".
 
+- Asked whether a session that shares its workspace with another session also
+  moves: "a session in the same PR? yes single checkout." Then: "The other
+  sessions, we dont wake them up and send them messages".
+
 The owner accepts the risk that an agent continuing after the move remembers
 tool observations about the earlier head. The move is never silent: the
 transcript and the agent are both told.
@@ -328,3 +332,54 @@ check after `select`:
   (`test_a_conversation_moves_to_the_latest_head`), `core_agent_session` and
   `qt_workbench_agent_send_refusal`
   (`test_a_pinned_conversation_card_offers_what_it_names`).
+
+### Slice 4 as built: one checkout for the pull request (2026-11-24)
+
+Owner, through the coordinator: "a session in the same PR? yes single
+checkout", and "The other sessions, we dont wake them up and send them
+messages". Slice 3 refused a move while another conversation held the tree
+(`removal().OtherHolders`); that is withdrawn.
+
+- **Store.** `move_conversation` refuses only when the pull request's kept
+  workspace records the tree (`native_agent_session_removal::KeptHolders`).
+  In the same transaction it rebinds every other conversation on the tree
+  (binding, marker, identities) and records the head each was at in
+  `native_agent_moved_conversations`; the keys that led to the tree go and the
+  new key leads to it unless another tree is already there. A conversation
+  whose record holds exactly its own checkout at its head keeps working in it
+  when the key leads to another tree at that head (`shared_workspace`,
+  `store`); nothing changes its working directory.
+- **Nothing is sent to the others.** The move starts no turn for them. Their
+  `native_agent_session::MovedFrom` is read on their own next turn, which
+  begins with `conversation_move_note` (history not listed, so the note names
+  the git commands) and whose transcript shows the notice; the store forgets
+  it once that question was sent (`acknowledge_move`). History, opened, shows
+  "Updated to <new> — this pull request's checkout moved from <old> while
+  another session asked" (`native_agent_history_projection::SelectedMove`).
+- **Idle agent processes.** A native connection kept between turns holds the
+  checkout's lease, so the move found the record busy. The host now ends the
+  idle connections working in the checkout first
+  (`agent_process_port::release_native_connections`); a connection answering
+  a turn keeps it busy. Their conversations resume their own sessions in a
+  new process.
+- **Found on the way.** A refused turn named the checkout's workspace session
+  as its pinned session; a checkout Agent setup's check made carries one from
+  the probes' reserved range, which no private run may name, so Continue at
+  <old> from the refusal card failed to start. The refusal now names the
+  turn's own session, and the window's chat keeps its own session when a
+  restored one is in that range.
+- **Transcript replays.** A replay holds no checkout until it runs a turn, so
+  one made before the head moved is still offered Start a new session and
+  Continue at <old> when opened. Once it has run at the old head it holds a
+  checkout and follows the head like any other conversation.
+- **Course.** `application_agent_invocation_native_pinned_contract`, with the
+  fixture agent only: edits refuse with every way on and no process; Continue
+  at <old> answers there and keeps the edit; Start a new session answers at
+  the new head; a conflicting Rebase is put back, names the file and is not
+  offered again; Keep my changes on a branch and move moves with the branch
+  present and the note before the question, starting exactly one process
+  while the second agent's conversation on the same checkout is only rebound;
+  that conversation, opened, says the move, has no new turn, and its next
+  question carries the note once; a never-used conversation moves silently;
+  a replay continued at the old head then moves on a plain send; Rebase
+  succeeds; Ask the agent puts the built-in prompt after the note.

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cerrno>
 #include <chrono>
 #include <cstddef>
@@ -755,6 +756,15 @@ namespace {
 		if (!std::filesystem::exists(state)) {
 			auto output = std::ofstream{ state };
 			output << "shared workspace file\n";
+			// RFC-BPR-0096, owner continue-at-latest amendment. The fixture's
+			// own state is not the reviewer's work: the checkout ignores it,
+			// so a move sees only what a course writes there.
+			auto excluded = std::error_code{ };
+			if (std::filesystem::is_directory(std::filesystem::current_path() / ".git", excluded)) {
+				std::filesystem::create_directories(std::filesystem::current_path() / ".git" / "info", excluded);
+				auto exclude = std::ofstream{ std::filesystem::current_path() / ".git" / "info" / "exclude", std::ios::app };
+				exclude << "/.bpr-native-fixture-state\n";
+			}
 		}
 
 #if defined(_WIN32)
@@ -819,6 +829,43 @@ namespace {
 				const auto readOnly = protocol == protocol::codex_app_server && line.find("\"sandboxPolicy\":{\"type\":\"readOnly\",\"networkAccess\":false}") != std::string::npos;
 				const auto valid    = pinned && readOnly && hasFact(stale ? "\"head_changed\":true" : "\"head_changed\":false") && (stale ? !current : current);
 				answer              = (valid ? (stale ? "stale-native-validated head=" : "current-native-validated head=") + head : "native-revision-context-failed") + std::string{ " process=" } + process;
+			}
+			// RFC-BPR-0096, owner continue-at-latest amendment. What the turn
+			// after a move told the agent, and where its checkout is: the
+			// note's two heads, the checkout's HEAD, the saved branch the note
+			// names (and whether it is there), and whether the built-in
+			// reconcile prompt follows the note and precedes the question.
+			if (line.find("verify-move-note") != std::string::npos) {
+				constexpr std::string_view lead = "Note from BetterPullReview: the pull request moved from ";
+				const auto                 note = line.find(lead);
+				auto                       head = std::string{ };
+				auto                       read = std::ifstream{ std::filesystem::current_path() / ".git" / "HEAD" };
+				std::getline(read, head);
+				answer = "move-note=none checkout=" + head.substr(0U, 7U);
+				if (note != std::string::npos) {
+					const auto                 from       = line.substr(note + lead.size(), 40U);
+					const auto                 toAt       = note + lead.size() + 40U + 4U;
+					const auto                 to         = line.substr(toAt, 40U);
+					const auto                 question   = line.find("verify-move-note");
+					const auto                 prompt     = line.find("Bring that work onto the new head");
+					constexpr std::string_view branchLead = "kept on the branch ";
+					const auto                 branchAt   = line.find(branchLead);
+					auto                       branch     = std::string{ };
+					if (branchAt != std::string::npos) {
+						for (auto at = branchAt + branchLead.size(); at < line.size() && (std::isalnum(static_cast<unsigned char>(line[at])) != 0 || line[at] == '/' || line[at] == '-' || line[at] == '_'); ++at) {
+							branch += line[at];
+						}
+					}
+					auto present = std::error_code{ };
+					answer       = "move-note from=" + from.substr(0U, 7U) + " to=" + to.substr(0U, 7U) + " checkout=" + head.substr(0U, 7U)
+						+ " before-question=" + (note < question ? "yes" : "no")
+						+ " reconcile-prompt=" + (prompt == std::string::npos ? "none" : note < prompt && prompt < question ? "after-note"
+																															: "misplaced")
+						+ " saved-branch=" + (branch.empty() ? "none" : std::filesystem::exists(std::filesystem::current_path() / ".git" / "refs" / "heads" / branch, present) ? "present"
+																																											   : "missing")
+						+ " rewritten=" + (line.find("The history was rewritten") != std::string::npos ? "yes" : "no");
+				}
+				answer += " process=" + process;
 			}
 			const auto processAt = answer.find(" process=");
 			answer.insert(processAt, " backend=" + handle + (line.find("remember-tool-observation") != std::string::npos ? " memory=" + backend->Observation : ""));

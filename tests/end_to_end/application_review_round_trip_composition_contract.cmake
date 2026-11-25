@@ -4015,11 +4015,16 @@ function(bpr_verify_app_source_tree app_source_root)
 	# the window's selection follows a new conversation a run started
 	# (window_construction.cpp), and a reconcile choice rides the resent
 	# Agent tab turn once (choose_move_reconcile, window_agent_chat.cpp,
-	# window_agent_setup.cpp, window_composition.hpp). Local agent turns
-	# only; no grant, provider, transport, mutation or publication path
-	# changes; the full application and mutation-branch digests are unchanged.
+	# window_agent_setup.cpp, window_composition.hpp). Owner, 2026-11-24:
+	# "a session in the same PR? yes single checkout": the process port a
+	# composition forwards releases idle agent connections on a moving
+	# checkout (agent_composition.hpp), and the chat keeps its own session
+	# when a restored one is from the probes' reserved range
+	# (window_construction.cpp). Local agent turns only; no grant,
+	# provider, transport, mutation or publication path changes; the full
+	# application and mutation-branch digests are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "475b7e5e567467ad62e82d087edbc8f6e6016f1945920bafa03eb2b97e39698d"
+        "9a40f5b8d0311b9f1183ef4d4656d13e668deb974e3ae944dfafbdbae80a0568"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -591,6 +591,17 @@ namespace bpr::qt {
 		ContinuationMode->setWordWrap(true);
 		ContinuationMode->setTextFormat(Qt::PlainText);
 		column->addWidget(ContinuationMode);
+		// RFC-BPR-0096, owner continue-at-latest amendment (owner, 2026-11-24:
+		// "a session in the same PR? yes single checkout"). A conversation
+		// whose shared checkout another one's turn moved says so when opened;
+		// nothing was sent to it.
+		ConversationMoved = new QLabel{ this };
+		ConversationMoved->setObjectName(QStringLiteral("agentConversationMoved"));
+		ConversationMoved->setWordWrap(true);
+		ConversationMoved->setTextFormat(Qt::PlainText);
+		ConversationMoved->setForegroundRole(QPalette::PlaceholderText);
+		ConversationMoved->hide();
+		column->addWidget(ConversationMoved);
 
 		Pages = new QStackedWidget{ this };
 		column->addWidget(Pages, 1);
@@ -2535,6 +2546,12 @@ namespace bpr::qt {
 			return;
 		}
 		show_session_title();
+		if (aView.SelectedMove) {
+			const auto from = QString::fromUtf8(core::canonical_hex(aView.SelectedMove->first).view().substr(0U, 7U));
+			const auto to   = QString::fromUtf8(core::canonical_hex(aView.SelectedMove->second).view().substr(0U, 7U));
+			ConversationMoved->setText(tr("Updated to %1 — this pull request's checkout moved from %2 while another session asked. The agent is told with your next question.").arg(to, from));
+		}
+		ConversationMoved->setVisible(aView.SelectedMove.has_value());
 		SessionMenu->present(aView);
 		SessionMenu->set_running(State == agent_tab_state::working);
 		NativeHistoryMenu->clear();
@@ -3278,6 +3295,8 @@ namespace bpr::qt {
 			current.MoveNotice->setToolTip(tr("This conversation's workspace moved from %1 to %2 before this question; the agent was told.")
 											   .arg(QString::fromUtf8(core::canonical_hex(moved->From).view()), QString::fromUtf8(core::canonical_hex(moved->To).view())));
 			current.MoveNotice->show();
+			// The turn told the agent; the opened conversation's line is said.
+			ConversationMoved->hide();
 		}
 		const auto findings   = Findings.finding_count();
 		const auto succeeded  = Launch.last_outcome() == application::agent_run_outcome::success;

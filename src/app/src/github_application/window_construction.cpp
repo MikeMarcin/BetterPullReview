@@ -1023,7 +1023,20 @@ namespace bpr::app {
 					AgentScratchRoot = root;
 				}
 			}
-			AgentProjections->NativeSession = [this](const core::agent_session& aSession) { if (!Closing && ChatHost) { LatestAgentSession=aSession; ChatHost->admitted(aSession,true); } };
+			// RFC-BPR-0096, owner continue-at-latest amendment. A checkout
+			// Agent setup's check made carries a session from the probes'
+			// reserved range, which no private run may name; the chat keeps
+			// its own session for that conversation.
+			AgentProjections->NativeSession = [this](const core::agent_session& aSession) {
+				if (!Closing && ChatHost) {
+					auto session = aSession;
+					if (session.Id.value() >= (std::uint64_t{ 1U } << 63U) && ChatHost->session()) {
+						session.Id = ChatHost->session()->Id;
+					}
+					LatestAgentSession = session;
+					ChatHost->admitted(session, true);
+				}
+			};
 			AgentProjections->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_agent_native_history(aView); };
 			// Owner, 2026-11-24. The chat keeps its own session and takes the
 			// pinned conversation's revision, so the tab offers Start a new

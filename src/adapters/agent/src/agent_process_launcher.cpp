@@ -678,6 +678,31 @@ namespace bpr::adapters::agent {
 		return std::ranges::all_of(Implementation->Native, [](const auto& aEntry) { return aEntry.second->done(); });
 	}
 
+	auto agent_process_launcher::release_native_connections(const std::string& aWorkingDirectory) -> bool
+	{
+		auto released = std::vector<std::shared_ptr<detail::native_agent_connection>>{ };
+		{
+			const auto lock    = std::scoped_lock{ Implementation->NativeMutex };
+			const auto working = [&](const auto& aEntry) { return aEntry.second->working_directory() == aWorkingDirectory; };
+			if (std::ranges::any_of(Implementation->Native, [&](const auto& aEntry) { return working(aEntry) && aEntry.second->busy(); })) {
+				return false;
+			}
+			for (auto entry = Implementation->Native.begin(); entry != Implementation->Native.end();) {
+				if (working(*entry)) {
+					entry->second->stop();
+					released.push_back(std::move(entry->second));
+					entry = Implementation->Native.erase(entry);
+				} else {
+					++entry;
+				}
+			}
+		}
+		// Each ends its process and joins its thread as it goes, outside the
+		// lock, so the checkout's lease is released before this answers.
+		released.clear();
+		return true;
+	}
+
 	auto inspect_claude_process_wrapper(const std::string_view aPath) -> std::optional<core::agent_wrapper_refusal>
 	{
 #if defined(Q_OS_WIN)

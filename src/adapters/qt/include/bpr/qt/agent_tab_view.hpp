@@ -429,6 +429,9 @@ namespace bpr::qt {
 		/// \brief The quiet line a turn shows when its conversation moved to
 		/// the latest head before it ran; hidden otherwise.
 		[[nodiscard]] auto turn_move_notice(std::size_t aTurn) const -> QLabel*;
+		/// \brief The quiet line an opened conversation shows when its shared
+		/// checkout moved while another conversation asked; hidden otherwise.
+		[[nodiscard]] auto conversation_move_notice() const noexcept -> QLabel* { return ConversationMoved; }
 		[[nodiscard]] auto banner_text() const -> QString;
 		/// \brief [[BPR-1753]], owner decision (a) 2026-10-23
 		/// ("Suggested prompts described that way sound great"). Where the
@@ -803,6 +806,7 @@ namespace bpr::qt {
 		application::native_agent_history_projection NativeHistoryView;
 		QMenu*                                       NativeHistoryMenu = nullptr;
 		QLabel*                                      ContinuationMode  = nullptr;
+		QLabel*                                      ConversationMoved = nullptr;
 		/// Paints each glyph again in the current palette's ink.
 		void repaint_glyphs();
 		void rebuild_findings();

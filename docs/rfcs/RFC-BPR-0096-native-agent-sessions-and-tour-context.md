@@ -192,6 +192,17 @@ turn on it runs.
   between (bounded), or the git commands that show them.
 - **Still reachable.** Start a new session and Continue at <old> stay in the
   History menu; the refusal card shows them when the move cannot be made.
+- **One checkout for the pull request's sessions.** Asked whether a session
+  that shares its workspace with another should also move, the owner answered
+  "a session in the same PR? yes single checkout", and then "The other
+  sessions, we dont wake them up and send them messages". The checkout moves
+  for every conversation of the pull request recorded on it: in the same store
+  revision each is rebound to the new head and keeps the head it was at. No
+  turn starts and nothing is sent to them. When one is opened, its transcript
+  says the checkout moved; its next question begins with the core's move note,
+  once. A checkout the pull request's kept workspace records is not moved,
+  and an idle agent process kept for a conversation on the checkout is ended
+  first, so its conversation resumes its own session in a new process.
 
 Acceptance **AC13** below covers this amendment; AC07's second continuation
 now has a third, the move, alongside new session and old revision.
@@ -666,4 +677,7 @@ The owner authorized implementation on 2026-11-08 under mandate `native-agent-se
   <old> and Start a new session, each recoverable from
   the pre-move ref, a conflicting rebase restored and named. A crash at any
   step of the move recovers to the old or the new head with the journal,
-  marker and stored conversation in agreement (Git contract tests).
+  marker and stored conversation in agreement (Git contract tests). The
+  pull request's other conversations on the moved checkout are rebound in the
+  same store revision without a turn or any input; each says the move when
+  opened and its next question carries the move note once.

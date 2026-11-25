@@ -322,6 +322,14 @@ agent to reconcile (which sends a built-in prompt after the move), before
 Continue at the old head and Start a new session. A rebase that conflicts puts
 the workspace back as it was and names the files.
 
+The pull request's sessions share one checkout, and it moves for all of them
+(owner, 2026-11-24: "a session in the same PR? yes single checkout"). The
+other sessions are not woken: nothing is sent to them ("The other sessions, we
+dont wake them up and send them messages"). Opened later, such a session shows
+a quiet line under its continuation mode, "Updated to 1a2b3c4 — this pull
+request's checkout moved from 9f8e7d6 while another session asked", and its
+next question tells the agent, once.
+
 ### What surface the workshop actually uses
 
 Plain text, on two `QPlainTextEdit` surfaces shown at once: the reviewer's

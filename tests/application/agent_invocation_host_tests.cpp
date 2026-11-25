@@ -864,13 +864,27 @@ namespace {
 		}
 		/// RFC-BPR-0096, owner continue-at-latest amendment. As the store
 		/// records a move: the binding, the workspace and its key at once.
+		/// Owner, 2026-11-24: "a session in the same PR? yes single
+		/// checkout". Every other conversation on the checkout is rebound and
+		/// keeps the head it was at.
 		std::size_t Moved        = 0U;
-		std::size_t OtherHolders = 0U;
+		std::size_t KeptHolders  = 0U;
+		std::size_t Acknowledged = 0U;
 		auto        move_conversation(application::native_agent_session& aSession) -> bool override
 		{
 			auto& stored = Records.at(aSession.Scope);
 			if (FailStore || stored.Revision != aSession.Revision || !aSession.Workspace) {
 				return false;
+			}
+			for (auto& [scope, other] : Records) {
+				if (scope != aSession.Scope && other.Workspace && other.Workspace->Workspace.Path == aSession.Workspace->Workspace.Path) {
+					if (!other.MovedFrom && other.Binding.HeadOid != aSession.Binding.HeadOid) {
+						other.MovedFrom = other.Binding.HeadOid;
+					}
+					other.Binding   = aSession.Binding;
+					other.Workspace = aSession.Workspace;
+					++other.Revision;
+				}
 			}
 			std::erase_if(SharedWorkspaces, [&](const auto& aEntry) { return aEntry.second.Workspace.Path == aSession.Workspace->Workspace.Path; });
 			SharedWorkspaces.insert_or_assign(aSession.WorkspaceKey, *aSession.Workspace);
@@ -883,8 +897,19 @@ namespace {
 		{
 			auto found         = application::native_agent_session_removal{ };
 			found.Found        = Records.contains(aScope) && Records.at(aScope).Id == aId;
-			found.OtherHolders = OtherHolders;
+			found.KeptHolders  = KeptHolders;
+			found.OtherHolders = KeptHolders;
 			return found;
+		}
+		auto acknowledge_move(const std::string& aId) -> bool override
+		{
+			for (auto& [scope, record] : Records) {
+				if (record.Id == aId) {
+					record.MovedFrom.reset();
+				}
+			}
+			++Acknowledged;
+			return !FailStore;
 		}
 		auto store(application::native_agent_session& aSession) -> bool override
 		{
@@ -2399,18 +2424,65 @@ namespace {
 				   chosen == reconcile::ask_agent ? "Ask the agent sends the built-in reconcile prompt after the note" : "Keep on a branch asks nothing more");
 		}
 		{
-			// Another holder of the workspace, or a turn using it: never moved.
-			auto       test                  = harness{ };
-			const auto selected              = seed(test, earlier);
-			test.NativeSessions.OtherHolders = 1U;
+			// Owner, 2026-11-24: "a session in the same PR? yes single
+			// checkout", and "The other sessions, we dont wake them up and
+			// send them messages". Another conversation on the checkout moves
+			// with it: it is rebound, and nothing runs in it.
+			auto       test        = harness{ };
+			const auto selected    = seed(test, earlier);
+			const auto otherScope  = application::native_scope_key(authority(hostId), "incarnation-two", "agent-tab");
+			auto       other       = test.NativeSessions.select(otherScope, std::to_string(static_cast<unsigned>(core::agent_protocol::claude_stream_json)) + ":incarnation-two", earlier);
+			other->Turn            = 3U;
+			other->Handle          = "native-other-handle";
+			other->Workspace       = retained(earlier.HeadOid);
+			const auto otherId     = other->Id;
+			const auto otherStored = test.NativeSessions.store(*other);
+			observe(test);
+			const auto  moved   = send(test, selected);
+			const auto& rebound = test.NativeSessions.Records.at(otherScope);
+			expect(otherStored && moved.Outcome == application::agent_run_outcome::success && test.Workspaces.Moves == 1U && test.Processes.Starts == 1U
+					   && test.Processes.LastRequest->NativeHandle == "native-earlier-handle",
+				   "a checkout another conversation of the pull request shares moves, and only the asking conversation's turn runs");
+			expect(rebound.Binding == current && rebound.Workspace && rebound.Workspace->Workspace.PinnedHead == current.HeadOid && rebound.MovedFrom == std::optional{ earlier.HeadOid }
+					   && test.NativeSessions.Acknowledged == 0U,
+				   "the other conversation is rebound to the new head and keeps the head it was at");
+			// Its own next question is told, once, and moves nothing more.
+			auto input                 = agent_tab_turn();
+			input.NativeAgentIdentity  = "incarnation-two";
+			input.SelectedConversation = otherId;
+			input.Context.ChatMessage  = "OTHER_QUESTION_CANARY";
+			test.Host.dispatch(input);
+			test.settle();
+			const auto  told = test.Projection.Finished.back();
+			const auto& sent = test.Processes.LastRequest->Input;
+			const auto  note = sent.find("Note from BetterPullReview: the pull request moved from " + std::string{ core::canonical_hex(earlier.HeadOid).view() });
+			expect(told.Outcome == application::agent_run_outcome::success && test.Workspaces.Moves == 1U && test.Processes.Starts == 2U
+					   && test.Processes.LastRequest->NativeHandle == "native-other-handle" && note != std::string::npos && sent.find("OTHER_QUESTION_CANARY") > note,
+				   "the other conversation's next question carries the note before it");
+			expect(told.ConversationMove && told.ConversationMove->From == earlier.HeadOid && told.ConversationMove->To == current.HeadOid
+					   && !test.NativeSessions.Records.at(otherScope).MovedFrom && test.NativeSessions.Acknowledged == 1U,
+				   "its transcript says the move, and the store forgets it once told");
+			const auto again = [&] {
+				test.Host.dispatch(input);
+				test.settle();
+				return test.Projection.Finished.back();
+			}();
+			expect(!again.ConversationMove && test.Processes.LastRequest->Input.find("Note from BetterPullReview") == std::string::npos, "the note is said once");
+		}
+		{
+			// The pull request's kept workspace on the same tree, or a turn
+			// using it: never moved.
+			auto       test                 = harness{ };
+			const auto selected             = seed(test, earlier);
+			test.NativeSessions.KeptHolders = 1U;
 			observe(test);
 			const auto shared = send(test, selected);
 			expect(test.Workspaces.Moves == 0U && test.Processes.Starts == 0U && shared.MoveRefusal && shared.MoveRefusal->Blocked == state::busy && shared.MoveRefusal->ContinueOffered
-					   && !shared.MoveRefusal->RebaseOffered && shared.RefusalReason.find("Another conversation shares this workspace") != std::string::npos,
-				   "a workspace another conversation holds is not moved");
-			test.NativeSessions.OtherHolders = 0U;
-			test.Workspaces.MoveFailure      = application::agent_workspace_error{ application::agent_workspace_failure::unavailable, { }, application::agent_workspace_unavailable_reason::retained_objects_missing };
-			const auto missing               = send(test, selected);
+					   && !shared.MoveRefusal->RebaseOffered && shared.RefusalReason.find("kept workspace is the same checkout") != std::string::npos,
+				   "a checkout the pull request's kept workspace records is not moved");
+			test.NativeSessions.KeptHolders = 0U;
+			test.Workspaces.MoveFailure     = application::agent_workspace_error{ application::agent_workspace_failure::unavailable, { }, application::agent_workspace_unavailable_reason::retained_objects_missing };
+			const auto missing              = send(test, selected);
 			expect(missing.MoveRefusal && missing.MoveRefusal->Blocked == state::objects_unavailable && missing.PinnedConversation && missing.PinnedConversation->ContinueOffered
 					   && test.Processes.Starts == 0U,
 				   "a head whose commits cannot be brought in refuses with Continue and a new session");

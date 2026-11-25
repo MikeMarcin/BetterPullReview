@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -306,14 +307,17 @@ namespace {
 
 	/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24. A
 	/// conversation whose workspace moved records its new binding, marker and
-	/// key in one revision; one sharing its tree with another is refused.
+	/// key in one revision. Owner: "a session in the same PR? yes single
+	/// checkout": every other conversation on the checkout is rebound in the
+	/// same revision and keeps the head it was at until its next turn is
+	/// told. A tree the pull request's kept workspace records is refused.
 	void move_a_conversation()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "agent-session-move" };
 		auto                                 store  = adapters::sqlite::make_native_agent_session_store(scratch.path());
 		const auto                           own    = session(*store, "Own", "/synthetic-own-workspace", "own-authority:base:head");
 		const auto                           shared = session(*store, "Shared", "/synthetic-shared-workspace");
-		static_cast<void>(session(*store, "Also shared", "/synthetic-shared-workspace"));
+		const auto                           also   = session(*store, "Also shared", "/synthetic-shared-workspace");
 
 		auto       moved                      = *store->choose(scope, "claude", binding(), own);
 		const auto stale                      = moved;
@@ -337,9 +341,32 @@ namespace {
 		expect(!store->move_conversation(again), "a stale revision is refused");
 
 		auto holder                            = *store->choose(scope, "claude", binding(), shared);
-		holder.Binding.HeadOid                 = moved.Binding.HeadOid;
+		holder.Binding                         = moved.Binding;
 		holder.Workspace->Workspace.PinnedHead = moved.Binding.HeadOid;
-		expect(!store->move_conversation(holder), "a tree another conversation holds is not moved");
+		holder.Workspace->OwnershipMarker      = "shared-moved-marker";
+		holder.WorkspaceKey                    = "exact-authority:base:head3";
+		expect(store->move_conversation(holder), "a checkout other conversations of the pull request share moves");
+		expect(entry(*store, also)->Binding.HeadOid == moved.Binding.HeadOid && entry(*store, also)->Binding.RightEpoch == moved.Binding.RightEpoch, "the other conversation on it is rebound to the new head");
+		const auto other = store->removal(scope, also);
+		expect(other && other->Workspace && other->Workspace->OwnershipMarker == "shared-moved-marker" && other->OtherHolders == 1U, "with the moved marker, still sharing the one checkout");
+		const auto told = *store->choose(scope, "claude", binding(), also);
+		expect(told.MovedFrom == std::optional{ binding().HeadOid } && !store->choose(scope, "claude", binding(), shared)->MovedFrom,
+			   "it keeps the head it was at; the conversation that moved keeps none");
+		static_cast<void>(store->choose(scope, "claude", binding(), also));
+		const auto opened = store->history(scope, "claude");
+		expect(opened && opened->SelectedMove == std::optional{ std::pair{ binding().HeadOid, moved.Binding.HeadOid } }, "its transcript, opened, says the move");
+		expect(store->acknowledge_move(also) && !store->choose(scope, "claude", binding(), also)->MovedFrom && !store->history(scope, "claude")->SelectedMove,
+			   "once its turn told it, it is forgotten");
+
+		// The pull request's kept workspace is no conversation's.
+		auto kept                 = workspace("/synthetic-kept-workspace");
+		kept.Workspace.PinnedHead = binding().HeadOid;
+		expect(store->keep_workspace("kept-authority:base:head", binding(), kept), "a workspace is kept for the pull request");
+		const auto beside                          = session(*store, "Beside the kept one", "/synthetic-kept-workspace", "beside-authority:base:head");
+		auto       keptHolder                      = *store->choose(scope, "claude", binding(), beside);
+		keptHolder.Binding                         = moved.Binding;
+		keptHolder.Workspace->Workspace.PinnedHead = moved.Binding.HeadOid;
+		expect(!store->move_conversation(keptHolder), "a checkout the kept workspace records is not moved");
 	}
 } // namespace
 
