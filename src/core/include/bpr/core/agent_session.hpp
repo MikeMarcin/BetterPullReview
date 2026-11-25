@@ -11,7 +11,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace bpr::core {
 	struct agent_session_id_tag;
@@ -133,12 +136,15 @@ namespace bpr::core {
 
 	/// \brief What a reviewer may do with a session that no longer matches.
 	///
-	/// \details Two, and there is no third. Either ask again about what you
-	/// are looking at now, which is a new session with a new binding, or keep
-	/// talking to this one about the revision it was asked about. The third
-	/// choice a product usually grows here — "keep this session, point it at
-	/// the new head" — is the silent retargeting `agent_session` exists to
-	/// prevent, so it is not an enumerator that could be added by accident.
+	/// \details Two for a chat session: ask again about what you are looking
+	/// at now, which is a new session with a new binding, or keep talking to
+	/// this one about the revision it was asked about. Silently pointing a
+	/// session at the new head is still what `agent_session` exists to
+	/// prevent, so it is not an enumerator here. The one explicit, announced
+	/// way a native conversation follows the head is a separate decision,
+	/// `decide_conversation_move` (RFC-BPR-0096, owner continue-at-latest
+	/// amendment, 2026-11-24): the workspace moves between turns and the
+	/// agent and the transcript are told.
 	enum class agent_continuation : std::uint8_t {
 		start_new_session,
 		continue_against_old_revision,
@@ -247,6 +253,147 @@ namespace bpr::core {
 	/// review cannot answer about this one).
 	[[nodiscard]] auto offer_pinned_conversation(const pinned_conversation_facts& aFacts) noexcept
 		-> pinned_conversation_offer;
+	/// \brief What the host observed of a conversation's workspace before a
+	/// move (RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24).
+	enum class conversation_workspace_state : std::uint8_t {
+		/// HEAD is the old head and nothing is changed.
+		clean,
+		/// The working tree or index has changes.
+		local_edits,
+		/// HEAD has commits past the old head.
+		agent_commits,
+		/// Both of the above.
+		edits_and_commits,
+		/// A turn on this workspace is running.
+		busy,
+		/// The new head's objects could not be brought in.
+		objects_unavailable,
+	};
+
+	[[nodiscard]] auto stable_name(conversation_workspace_state aState) noexcept -> std::string_view;
+
+	/// \brief How the reviewer reconciles work that stops a move.
+	enum class conversation_reconcile : std::uint8_t {
+		/// Move only when nothing is in the way.
+		none,
+		/// Keep edits as a WIP commit, rebase the commits onto the new head;
+		/// a conflict aborts back to the pre-move ref.
+		rebase,
+		/// Keep the work on a saved branch, then move.
+		save_and_move,
+		/// Keep the work on a saved branch, move, and ask the agent with the
+		/// built-in reconcile prompt to bring it onto the new head.
+		ask_agent,
+	};
+
+	[[nodiscard]] auto stable_name(conversation_reconcile aReconcile) noexcept -> std::string_view;
+
+	/// \brief The facts one move decision is made from.
+	struct conversation_move_facts
+	{
+		agent_revision_binding Pinned;
+		agent_revision_binding Observed;
+		/// The conversation holds an earlier turn, a runtime session, a
+		/// retained workspace or a replay (as `pinned_conversation_facts`).
+		bool Remembers = false;
+		/// The backend resumes this conversation by its own session handle,
+		/// or the conversation is a replay, which carries its own prose.
+		bool Resumable = false;
+		/// The host's observation of the workspace; `clean` when it has none
+		/// (a conversation whose workspace is not retained has nothing to
+		/// move).
+		conversation_workspace_state Workspace = conversation_workspace_state::clean;
+		/// The reviewer's choice on the card; `none` on a plain send.
+		conversation_reconcile Reconcile = conversation_reconcile::none;
+
+		auto operator<=>(const conversation_move_facts&) const = default;
+	};
+
+	/// \brief What happens to a conversation when a question is sent.
+	enum class conversation_move_verdict : std::uint8_t {
+		/// At the observed binding already: the turn runs as before.
+		current,
+		/// The workspace moves to the observed head, then the turn runs.
+		move,
+		/// Never used: a new conversation at the observed binding takes its
+		/// place, then the turn runs.
+		start_fresh,
+		/// The turn is refused before anything is sent; `Offer` says the ways back.
+		refuse,
+	};
+
+	[[nodiscard]] auto stable_name(conversation_move_verdict aVerdict) noexcept -> std::string_view;
+
+	struct conversation_move_decision
+	{
+		conversation_move_verdict    Verdict   = conversation_move_verdict::current;
+		conversation_reconcile       Reconcile = conversation_reconcile::none;
+		conversation_workspace_state Blocked   = conversation_workspace_state::clean;
+		/// The workspace's HEAD changes (the heads differ); false when only
+		/// the comparison changed.
+		bool MovesHead = false;
+		/// For `refuse`: the reconcile actions that may be offered, and the
+		/// card's other ways back.
+		bool RebaseOffered      = false;
+		bool SaveAndMoveOffered = false;
+		bool AskAgentOffered    = false;
+		bool ContinueOffered    = false;
+		bool NewSessionOffered  = false;
+
+		auto operator<=>(const conversation_move_decision&) const = default;
+	};
+
+	/// \brief RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24:
+	/// "Yes just move it", "it must be recoverable".
+	///
+	/// \details In this order: a conversation at the observed binding is
+	/// current. One about another review is refused with a new session. One
+	/// never used starts fresh. One that cannot be resumed is refused with a
+	/// new session and Continue at <old>. A busy workspace, or one whose new
+	/// objects are missing, is refused with those two. Edits or agent commits
+	/// stop the move unless the reviewer chose a reconcile; refused, they
+	/// offer the three reconcile actions as well. Otherwise the conversation
+	/// moves, with the reconcile chosen (rebase only when there is work to
+	/// carry; a clean workspace moves plainly).
+	[[nodiscard]] auto decide_conversation_move(const conversation_move_facts& aFacts) noexcept
+		-> conversation_move_decision;
+
+	/// \brief The most commits and files one move note lists.
+	inline constexpr std::size_t maximum_move_note_commits = 20U;
+	inline constexpr std::size_t maximum_move_note_files   = 40U;
+
+	/// \brief What the host found between the two heads, bounded by it.
+	struct conversation_move_history
+	{
+		/// The new head descends from the old one.
+		bool Linear = true;
+		/// The objects were available to list; when false the note gives the
+		/// commands instead.
+		bool Listed = false;
+		/// Oldest first: short head and subject.
+		std::vector<std::pair<std::string, std::string>> Commits;
+		std::size_t                                      CommitCount = 0U;
+		std::vector<std::string>                         Files;
+		std::size_t                                      FileCount = 0U;
+		/// The branch the work was kept on, or the rebase that carried it.
+		std::string              SavedBranch;
+		std::string              PreMoveRef;
+		bool                     Rebased = false;
+		std::vector<std::string> Conflicts;
+
+		auto operator<=>(const conversation_move_history&) const = default;
+	};
+
+	/// \brief The note the agent's first turn after a move begins with.
+	///
+	/// \details Names both heads, says earlier observations describe the old
+	/// one, lists at most `maximum_move_note_commits` commits and
+	/// `maximum_move_note_files` files with how many more, or the commands
+	/// that show them when the history is rewritten or was not listed, and
+	/// names any saved branch, rebase and pre-move ref. Deterministic in its
+	/// inputs.
+	[[nodiscard]] auto conversation_move_note(const git_commit_oid& aFrom, const git_commit_oid& aTo, const conversation_move_history& aHistory)
+		-> std::string;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_SESSION_HPP
