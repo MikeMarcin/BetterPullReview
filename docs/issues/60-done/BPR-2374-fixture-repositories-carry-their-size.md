@@ -4,7 +4,7 @@ id: "BPR-2374"
 title: "Recorded GitHub fixtures serve the repository's size, so BPR-2364's whole-history bound no longer refuses every fixture review"
 status: "Done"
 rfcs: []
-depends_on: ["BPR-2364"]
+depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"defect","found_by":"coordinator, 2026-11-24: every end-to-end course that opens bpr-fixtures/nested-folders#21 failed at 'the file opens' after 606cf91a1 and c88b2bfa6","reservation":"docs/issues/_reservations/BPR-2374--BPR-2374--c7b51b8109d3.json","related":["BPR-2364","BPR-2291","BPR-1879"],"acceptance":["BPR-2374:contract","BPR-2374:courses","BPR-2374:bpr-2364"]}
