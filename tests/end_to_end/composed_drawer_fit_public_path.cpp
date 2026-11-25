@@ -792,7 +792,7 @@ auto main(int argc, char** argv) -> int
 		open(replayed);
 		wait([&] { return tab->state() == qt::agent_tab_state::head_moved && tab->banner()->isVisible() && tab->banner_first_button()->isVisible() && tab->banner_second_button()->isVisible(); },
 			 "the replay that read the earlier head offers its card");
-		expect(tab->banner_second_button()->text() == QStringLiteral("Continue at ") + earlierHead, "the card offers to continue at the head it read: " + tab->banner_second_button()->text().toStdString());
+		expect(tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead, "the card offers to continue at the head it read: " + tab->banner_first_button()->text().toStdString());
 		run.Shown = tab->banner();
 		run.sweep_drawer("agent-pinned-offered");
 		// The session with a checkout follows the head on its next question.
@@ -802,7 +802,7 @@ auto main(int argc, char** argv) -> int
 		ask(QStringLiteral("What changed in this push?"));
 		wait([&] { return quiet() && tab->state() == qt::agent_tab_state::stopped && tab->banner()->isVisible(); }, "the question is refused: the session's workspace was not moved");
 		expect(tab->banner_first_button()->isVisibleTo(tab->banner()) && tab->banner_second_button()->isVisibleTo(tab->banner()) && tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead
-				   && tab->banner_second_button()->text() == QStringLiteral("Start a new session"),
+				   && tab->banner_second_button()->text() == QStringLiteral("New session"),
 			   "the stopped card offers to continue at the earlier head or start a new session: " + tab->banner_text().toStdString());
 		run.sweep_drawer("agent-pinned-refused");
 		run.Shown = nullptr;
