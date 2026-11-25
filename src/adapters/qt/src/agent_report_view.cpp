@@ -347,10 +347,9 @@ namespace bpr::qt {
 		});
 		auto* const meta = new QHBoxLayout{ };
 		meta->setSpacing(6);
-		auto* const icon = new QLabel{ Column };
-		icon->setObjectName(QStringLiteral("agentReportQuestionIcon"));
-		icon->setPixmap(bubble_glyph(palette().color(QPalette::Link)));
-		meta->addWidget(icon, 0, Qt::AlignTop);
+		QuestionIcon = new QLabel{ Column };
+		QuestionIcon->setObjectName(QStringLiteral("agentReportQuestionIcon"));
+		meta->addWidget(QuestionIcon, 0, Qt::AlignTop);
 		meta->addWidget(Byline, 1);
 		column->addLayout(meta);
 		column->addSpacing(10);
@@ -455,21 +454,15 @@ namespace bpr::qt {
 		connect(Sections, &QListWidget::itemClicked, this, [this](QListWidgetItem* const aItem) { choose(Sections->row(aItem)); });
 		Popover->installEventFilter(this);
 		Scroll->verticalScrollBar()->installEventFilter(this);
+		apply_colours();
 	}
 
 	void agent_report_view::present(const agent_report_document& aDocument)
 	{
 		Document = aDocument;
 		Title->setText(aDocument.Title);
-		auto said = QStringList{ };
-		for (const auto& part : { aDocument.Byline.Ending, aDocument.Byline.When, aDocument.Byline.Head.isEmpty() ? QString{ } : tr("at %1").arg(aDocument.Byline.Head) }) {
-			if (!part.isEmpty()) {
-				said << part;
-			}
-		}
-		const auto byline = said.join(QStringLiteral(" · "));
-		Byline->setText(QStringLiteral("<a href=\"conversation\" style=\"text-decoration:none\">%1</a>%2")
-							.arg(aDocument.Question.toHtmlEscaped(), byline.isEmpty() ? QString{ } : QStringLiteral(" &nbsp;·&nbsp; ") + byline.toHtmlEscaped()));
+		// The line under the title is written with the page's colours
+		// (`apply_colours`, which every render ends with).
 		Byline->setToolTip(tr("Show in conversation"));
 		// [[BPR-2219]]. What the agent said while it worked is not the report:
 		// the report starts at its title.
@@ -858,8 +851,28 @@ namespace bpr::qt {
 		// the pane's own ground, in its own ink and font; the report's
 		// theme roles are spent only on verdicts. The title is the app's
 		// font, larger and heavier, with or without the page.
+		// Owner, 2026-11-24 ("Why is "Review this pull request" at the top in
+		// the dark blue and the other links are in the more pastel blue?").
+		// The page wrote its places in its own link colour while the
+		// question, its bubble and the menu's bar read the palette's link
+		// role, which no theme owns: the platform's brighter blue. The
+		// page's colour is now that role for everything on the page, so a
+		// report drawn as Markdown and the code boxes' links wear what the
+		// page's places wear, and the question says it in its own text.
 		auto*      page    = Scroll->widget();
-		const auto colours = palette();
+		const auto link    = report_link_colour(native_colours());
+		auto       colours = palette();
+		for (const auto role : { QPalette::Link, QPalette::LinkVisited }) {
+			colours.setColor(role, link);
+		}
+		show_byline(link);
+		QuestionIcon->setPixmap(bubble_glyph(link));
+		// The menu is the pane's and keeps its palette; only its bar for the
+		// current section is the page's link.
+		if (auto marked = Sections->palette(); marked.color(QPalette::Link) != link) {
+			marked.setColor(QPalette::Link, link);
+			Sections->setPalette(marked);
+		}
 		page->setPalette(colours);
 		Scroll->viewport()->setPalette(colours);
 		Title->setPalette(colours);
@@ -868,6 +881,37 @@ namespace bpr::qt {
 		big.setPointSizeF(font().pointSizeF() * 1.55);
 		big.setWeight(QFont::DemiBold);
 		Title->setFont(big);
+	}
+
+	/// The line under the title: the question as a link in `aLink`, then how
+	/// the turn ended, when, and at which commit. The colour is written into
+	/// the link: a label's rich text takes a link's colour from the
+	/// application's palette when it is read, not from the label's own.
+	void agent_report_view::show_byline(const QColor& aLink)
+	{
+		auto said = QStringList{ };
+		for (const auto& part : { Document.Byline.Ending, Document.Byline.When, Document.Byline.Head.isEmpty() ? QString{ } : tr("at %1").arg(Document.Byline.Head) }) {
+			if (!part.isEmpty()) {
+				said << part;
+			}
+		}
+		const auto byline = said.join(QStringLiteral(" · "));
+		const auto text   = QStringLiteral("<a href=\"conversation\" style=\"text-decoration:none;color:%1\">%2</a>%3")
+								.arg(aLink.name(), Document.Question.toHtmlEscaped(), byline.isEmpty() ? QString{ } : QStringLiteral(" &nbsp;·&nbsp; ") + byline.toHtmlEscaped());
+		if (Byline->text() != text) {
+			Byline->setText(text);
+		}
+	}
+
+	/// A theme change redraws the page: its colours, the link among them, are
+	/// derived from the pane's palette and written into what it drew.
+	void agent_report_view::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		// Not while the view is still being built.
+		if (aEvent->type() == QEvent::PaletteChange && Sections != nullptr) {
+			render_dressed();
+		}
 	}
 
 	/// The page's colours: the pane's own ground and ink, the theme's three

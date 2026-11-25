@@ -572,6 +572,8 @@ namespace bpr::qt {
 		return tone_colour(aTone, aColours.Tones).value_or(QColor{ palette_of(aColours).Strong });
 	}
 
+	auto report_link_colour(const report_colours& aColours) -> QColor { return QColor{ palette_of(aColours).Link }; }
+
 	auto mark_report_inline_code(QTextDocument& aDocument) -> std::size_t
 	{
 		// Found first, then marked: a merge rewrites the fragments.

@@ -202,6 +202,12 @@ namespace bpr::qt {
 	/// \brief The colour a tone wears on the page; neutral is the stronger
 	/// rule.
 	[[nodiscard]] auto report_tone_colour(core::report_tone aTone, const report_colours& aColours) -> QColor;
+
+	/// \brief The colour every link of the page wears: the page's own blue,
+	/// which the core derives from the paper and ink and holds to the text
+	/// floor (`core::derive_report_shades`). A platform's link role is not
+	/// it: no theme owns that role, and it is the brighter system blue.
+	[[nodiscard]] auto report_link_colour(const report_colours& aColours) -> QColor;
 } // namespace bpr::qt
 
 #endif // BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REPORT_PAGE_HPP
