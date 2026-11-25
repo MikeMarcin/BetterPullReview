@@ -204,7 +204,9 @@ formatted while it is down) and the trash discards the part. The owner,
 "edit and discard have pretty standard pencil and trash can glyphs in the
 app"; and of Ask more, which a draft's stops also held: it "just opens the
 whole tour chat, so that shouldn't even be on the draft stops". The row is one
-line at the drawer's narrowest, and wraps before it would cut a button. One line
+line at the drawer's narrowest, and wraps before it would cut a button. A
+stop's card takes the height a part waiting on it asks for, so a source the
+pencil opens is whole. One line
 under the button counts them, with **Apply all** (for parts no chat card holds). **Ready, next** shows only
 when it can act: a read stop whose title, explanation and lines are confirmed
 and which is not yet Ready. Until the lines are confirmed (Show in code, then

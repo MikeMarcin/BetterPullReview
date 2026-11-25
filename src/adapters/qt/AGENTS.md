@@ -79,8 +79,8 @@ themes, rendering mechanics, and event translation.
   Tour tab's chat column, drag the drawer to 280, 300, 340 and 420 pixels in
   each state, and refuse a horizontal bar, sideways range, content wider than
   its viewport, a control outside the drawer, a button narrower than its
-  words, a chip drawn over another, a button whose face a part that holds it
-  cuts, and a tool button the platform style draws. A state a real run
+  words, a chip drawn over another, a button's face or a text field cut by
+  a part that holds it, and a tool button the platform style draws. A state a real run
   reaches (an activity line, a suggested prompt, a refused question, a moved
   head) joins that course: a window nothing composed never shows it.
 - A state is what the window shows between two gestures, not only where a

@@ -736,8 +736,8 @@ gestures, not only where a flow ends: the proposal before Apply all was cut
 off for as long as the course pressed Apply all on its way past it. In each
 the drawer is dragged to 280, 300, 340 and 420 pixels and the window made as
 narrow as it goes; nothing pans, nothing is cut off, no chip lies over
-another, no part cuts the face of a button it holds, and no tool button is
-left to the platform style to draw.
+another, no part cuts the face of a button or a text field it holds, and no
+tool button is left to the platform style to draw.
 A code block is the one thing wider than its frame: code keeps its lines and
 scrolls inside the block until its **Wrap** is pressed. A question the
 application refuses before any agent runs is said once, in words that wrap,
