@@ -14,6 +14,8 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
+#include <QMouseEvent>
+#include <QPainter>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QStyle>
@@ -124,6 +126,105 @@ namespace bpr::qt {
 			}
 		}
 
+		/// A tooltip that wraps. Qt wraps only rich text, so each paragraph
+		/// is escaped into one.
+		[[nodiscard]] auto wrapped_tip(const QStringList& aParagraphs) -> QString
+		{
+			auto tip = QStringLiteral("<qt>");
+			for (const auto& each : aParagraphs) {
+				tip += QStringLiteral("<p>%1</p>").arg(each.toHtmlEscaped());
+			}
+			return tip + QStringLiteral("</qt>");
+		}
+
+		/// One line that ends in "…" where its cell is narrower than its
+		/// text. `text()` stays whole, and the cell may narrow to almost
+		/// nothing rather than widen the page. Disabled, it is its own colour
+		/// fainter: a palette's disabled placeholder colour need not be the
+		/// dimmer one.
+		class one_line_label final : public QLabel
+		{
+		public:
+			using QLabel::QLabel;
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return QSize{ fontMetrics().horizontalAdvance(QStringLiteral("F…")), QLabel::minimumSizeHint().height() };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* const /*aEvent*/) override
+			{
+				auto       painter = QPainter{ this };
+				const auto shown   = fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, contentsRect().width()));
+				auto       colours = palette();
+				colours.setCurrentColorGroup(QPalette::Active);
+				painter.setOpacity(isEnabled() ? 1.0 : 0.5);
+				style()->drawItemText(&painter, contentsRect(), static_cast<int>(alignment()), colours, true, shown, foregroundRole());
+			}
+		};
+
+		/// The Clear list's table: the header row and a row per category on
+		/// one grid, so the columns line up at any font and scale. It paints
+		/// the header's band and rule from the palette, and a click anywhere
+		/// on a row is a click on that row's box.
+		class reset_table final : public QFrame
+		{
+		public:
+			explicit reset_table(QWidget* const aParent)
+				: QFrame{ aParent }
+			{
+				setFrameShape(QFrame::StyledPanel);
+				setAutoFillBackground(true);
+				setBackgroundRole(QPalette::Base);
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				if (const auto* const grid = qobject_cast<QGridLayout*>(layout()); grid != nullptr && grid->rowCount() > 0) {
+					const auto inner   = contentsRect();
+					const auto bottom  = grid->cellRect(0, 0).bottom();
+					const auto ground  = palette().color(QPalette::Base);
+					const auto ink     = palette().color(QPalette::Text);
+					auto       painter = QPainter{ this };
+					painter.fillRect(QRect{ inner.left(), inner.top(), inner.width(), bottom - inner.top() }, blend(ground, ink, 0.05));
+					painter.fillRect(QRect{ inner.left(), bottom, inner.width(), 1 }, blend(ground, ink, 0.16));
+				}
+				QFrame::paintEvent(aEvent);
+			}
+
+			void mousePressEvent(QMouseEvent* const aEvent) override
+			{
+				// Taken, so the release that toggles the row comes here.
+				aEvent->setAccepted(aEvent->button() == Qt::LeftButton);
+			}
+
+			void mouseReleaseEvent(QMouseEvent* const aEvent) override
+			{
+				const auto* const grid = qobject_cast<QGridLayout*>(layout());
+				if (grid == nullptr || aEvent->button() != Qt::LeftButton || !rect().contains(aEvent->position().toPoint())) {
+					return;
+				}
+				// Row 0 is the header: only its own box checks everything.
+				for (auto row = 1; row < grid->rowCount(); ++row) {
+					const auto        cell = grid->cellRect(row, 0);
+					const auto* const item = grid->itemAtPosition(row, 0);
+					if (item == nullptr || aEvent->position().y() < cell.top() || aEvent->position().y() > cell.bottom()) {
+						continue;
+					}
+					if (auto* const box = qobject_cast<QCheckBox*>(item->widget()); box != nullptr && box->isEnabled()) {
+						// Focus as a click on the box itself would give it.
+						if ((box->focusPolicy() & Qt::ClickFocus) != 0) {
+							box->setFocus(Qt::MouseFocusReason);
+						}
+						box->click();
+					}
+					return;
+				}
+			}
+		};
+
 		/// A quiet second line under a check box, indented to its words.
 		[[nodiscard]] auto option(QWidget* aParent, QVBoxLayout* aColumn, const QString& aText, const QString& aDetail, const QString& aName, const bool aChecked) -> QCheckBox*
 		{
@@ -152,49 +253,58 @@ namespace bpr::qt {
 		switch (aReset) {
 		case reset::caches:
 			return { QStringLiteral("Caches"),
+					 QStringLiteral("Downloaded repository data, images and summaries"),
 					 QStringLiteral("Repository data downloaded from GitHub, images, Home’s summaries and context snapshots kept for agents. They download again when needed."),
 					 { QStringLiteral("Repository data downloaded from GitHub"), QStringLiteral("Images in descriptions and comments"),
 					   QStringLiteral("Pull request summaries on Home"), QStringLiteral("Context snapshots kept for agents") } };
 		case reset::settings:
 			return { QStringLiteral("Settings"),
+					 QStringLiteral("Settings choices, prompts, filters and window layout"),
 					 QStringLiteral("Every choice in Settings, agent setup and prompts, notifications, filters and window layout. Agent sessions are kept."),
 					 { QStringLiteral("Every choice in Settings"), QStringLiteral("Agents you added, their models and checks, and your prompts"),
 					   QStringLiteral("Home’s queue filters and sort"), QStringLiteral("Notification choices"), QStringLiteral("Window layout and which windows reopen") } };
 		case reset::agent_setup:
 			return { QStringLiteral("Agent setup"),
+					 QStringLiteral("Agents you added, clone folders and your review skill"),
 					 QStringLiteral("Every agent you added with its model, effort and check, the clone folders and linked clones, and your edited review skill (a copy goes to Downloads). Setup starts again; prompts and agent sessions stay."),
 					 { QStringLiteral("Agents you added, their models, efforts and checks"), QStringLiteral("Clone folders and linked clones"),
 					   QStringLiteral("Your edited review skill, after a copy to Downloads") } };
 		case reset::agent_sessions:
 			return { QStringLiteral("Agent sessions"),
+					 QStringLiteral("Transcripts, names, costs and queued follow-ups"),
 					 QStringLiteral("BetterPullReview’s agent sessions with their transcripts, names and costs, the follow-ups queued for them, and the workspaces they keep. Claude Code’s and Codex’s own session files stay."),
 					 { QStringLiteral("Agent sessions: transcripts, names, costs and finding cards"), QStringLiteral("Follow-up messages queued to send next") } };
 		case reset::agent_workspaces:
 			return { QStringLiteral("Agent workspaces"),
+					 QStringLiteral("Idle workspaces and unpublished changes"),
 					 QStringLiteral("Retained agent workspaces not in use, with any changes an agent made there and did not publish. Sessions stay and make a fresh one when they next ask."),
 					 { QStringLiteral("Retained agent workspaces, except one another app holds") } };
 		case reset::review_data:
 			return { QStringLiteral("Review data"),
+					 QStringLiteral("Read marks, private notes, unsent comments and tours"),
 					 QStringLiteral("Read and seen marks, private notes, unsent comments and reviews, tours and Review Cycles."),
 					 { QStringLiteral("Read and seen marks"), QStringLiteral("Private notes and their threads"), QStringLiteral("Unsent comments, replies and reviews"),
 					   QStringLiteral("Review tours"), QStringLiteral("Review Cycles and their rounds") } };
 		case reset::saved_sources:
 			return { QStringLiteral("Saved repositories and servers"),
+					 QStringLiteral("Your saved list, observer rules and Home’s queue"),
 					 QStringLiteral("The repositories and servers you saved, observer rules and Home’s queue."),
 					 { QStringLiteral("Saved repositories and servers"), QStringLiteral("Observer rules"), QStringLiteral("Home’s queue") } };
 		case reset::statistics:
 			return { QStringLiteral("Insights statistics"),
+					 QStringLiteral("Lifetime statistics and history"),
 					 QStringLiteral("Insights’ lifetime statistics and history."),
 					 { QStringLiteral("Insights statistics and history") } };
 		case reset::connections:
 			return { QStringLiteral("Connections"),
+					 QStringLiteral("Sign-ins and saved tokens; signs you out of this app"),
 					 QStringLiteral("Sign-ins made in this app and their saved tokens, and this profile’s GitHub CLI connection. Signs you out; GitHub CLI itself stays signed in."),
 					 { QStringLiteral("Sign-ins made in this app, and their saved tokens"), QStringLiteral("This profile’s GitHub CLI connection"),
 					   QStringLiteral("Which account each server uses") } };
 		case reset::everything:
 			break;
 		}
-		return { QStringLiteral("Everything"), QStringLiteral("Every category above, as on first launch."), { } };
+		return { QStringLiteral("Everything"), QStringLiteral("Every category, as on first launch"), QStringLiteral("Every category above, as on first launch."), { } };
 	}
 
 	auto profile_data_reset_wording_for(const core::profile_data_reset_selection aReset, const QString& aProfile) -> profile_data_reset_wording
@@ -507,59 +617,104 @@ namespace bpr::qt {
 		: QGroupBox{ QStringLiteral("Clear local data"), aParent }
 	{
 		// [[BPR-2377]], owner amendment 2026-11-24: one checklist and one
-		// Clear in place of a button per reset.
+		// Clear in place of a button per reset. The same day, on its look:
+		// "The settings menu is too expanded. Checkmark, label, and
+		// description should all fit a single line per option." So a table,
+		// and its header row's box in place of a Check all button.
 		setObjectName(QStringLiteral("profileResetPanel"));
 		auto* const column = new QVBoxLayout{ this };
 		column->setSpacing(4);
-		auto* const lead = new QLabel{ QStringLiteral("Check what to clear, then Clear. It asks first, closes this profile’s windows and reopens Home. Nothing on GitHub changes."), this };
+		// One line at the Settings window's own size; the confirmation says
+		// that the profile's windows close and Home reopens.
+		auto* const lead = new QLabel{ QStringLiteral("Check what to clear, then Clear. It asks first, and nothing on GitHub changes."), this };
 		lead->setObjectName(QStringLiteral("profileResetLead"));
 		lead->setWordWrap(true);
 		lead->setForegroundRole(QPalette::PlaceholderText);
 		column->addWidget(lead);
 		column->addSpacing(6);
+
+		auto* const table = new reset_table{ this };
+		table->setObjectName(QStringLiteral("profileResetTable"));
+		auto* const grid = new QGridLayout{ table };
+		grid->setContentsMargins(10, 0, 12, 3);
+		// Box, name, a gap that sets the longest name apart from its line,
+		// then the line.
+		constexpr auto nameColumn = 1;
+		constexpr auto gapColumn  = 2;
+		constexpr auto lineColumn = 3;
+		grid->setHorizontalSpacing(8);
+		grid->setVerticalSpacing(0);
+		grid->setColumnMinimumWidth(gapColumn, 8);
+		grid->setColumnStretch(lineColumn, 1);
+		SelectAll = new QCheckBox{ table };
+		SelectAll->setObjectName(QStringLiteral("profileResetSelectAll"));
+		SelectAll->setTristate(true);
+		SelectAll->setAccessibleName(QStringLiteral("Check all"));
+		SelectAll->setAccessibleDescription(QStringLiteral("Checks every kind of local data, or unchecks them when all are checked."));
+		SelectAll->setToolTip(QStringLiteral("Check or uncheck all"));
+		// A click on a three-state box would step through "some"; here it
+		// always means all, or none when everything is already checked.
+		connect(SelectAll, &QCheckBox::clicked, this, [this] {
+			const auto all = checked() == core::profile_data_reset_selection::all();
+			set_checked(all ? core::profile_data_reset_selection{ } : core::profile_data_reset_selection::all());
+		});
+		grid->addWidget(SelectAll, 0, 0, Qt::AlignVCenter);
+		const auto heading = [table, grid](const QString& aText, const QString& aName, const int aColumn) {
+			auto* const title = new QLabel{ aText, table };
+			title->setObjectName(aName);
+			title->setForegroundRole(QPalette::PlaceholderText);
+			auto font = title->font();
+			font.setPointSizeF(font.pointSizeF() * 0.92);
+			title->setFont(font);
+			grid->addWidget(title, 0, aColumn, Qt::AlignVCenter | Qt::AlignLeft);
+		};
+		heading(QStringLiteral("Data"), QStringLiteral("profileResetNameTitle"), nameColumn);
+		heading(QStringLiteral("What it clears"), QStringLiteral("profileResetLineTitle"), lineColumn);
+		const auto rowHeight = std::max(SelectAll->sizeHint().height(), table->fontMetrics().height()) + 6;
+		grid->setRowMinimumHeight(0, rowHeight + 2);
+		auto row = 1;
 		for (const auto each : core::profile_data_reset_categories) {
 			const auto  words = profile_data_reset_category_words_for(each);
 			const auto  key   = object_key(each);
-			auto* const row   = new QHBoxLayout;
-			row->setSpacing(8);
-			auto* const box = new QCheckBox{ words.Name, this };
+			auto* const box   = new QCheckBox{ table };
 			box->setObjectName(QStringLiteral("profileReset%1").arg(key));
-			box->setAccessibleDescription(words.Line);
-			row->addWidget(box, 1);
-			auto* const size = new QLabel{ this };
+			box->setAccessibleName(words.Name);
+			grid->addWidget(box, row, 0, Qt::AlignVCenter);
+			auto* const name = new QLabel{ words.Name, table };
+			name->setObjectName(QStringLiteral("profileReset%1Name").arg(key));
+			name->setForegroundRole(QPalette::Text);
+			// Settings search names a box by the label it is the buddy of.
+			name->setBuddy(box);
+			grid->addWidget(name, row, nameColumn, Qt::AlignVCenter | Qt::AlignLeft);
+			auto* const detail = new QHBoxLayout;
+			detail->setSpacing(12);
+			auto* const line = new one_line_label{ words.Brief, table };
+			line->setObjectName(QStringLiteral("profileReset%1Line").arg(key));
+			line->setForegroundRole(QPalette::PlaceholderText);
+			line->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			detail->addWidget(line, 1);
+			auto* const size = new one_line_label{ table };
 			size->setObjectName(QStringLiteral("profileReset%1Size").arg(key));
 			size->setForegroundRole(QPalette::PlaceholderText);
 			size->hide();
-			row->addWidget(size, 0, Qt::AlignRight);
-			column->addLayout(row);
-			auto* const line = new QLabel{ words.Line, this };
-			line->setObjectName(QStringLiteral("profileReset%1Line").arg(key));
-			line->setWordWrap(true);
-			line->setForegroundRole(QPalette::PlaceholderText);
-			auto font = line->font();
-			font.setPointSizeF(font.pointSizeF() * 0.92);
-			line->setFont(font);
-			line->setContentsMargins(box->style()->pixelMetric(QStyle::PM_IndicatorWidth) + 6, 0, 0, 4);
-			column->addWidget(line);
+			detail->addWidget(size, 0, Qt::AlignRight);
+			grid->addLayout(detail, row, lineColumn);
+			grid->setRowMinimumHeight(row, rowHeight);
 			const auto index = category_index(each);
 			Boxes[index]     = box;
-			Sizes[index]     = size;
+			Names[index]     = name;
 			Lines[index]     = line;
+			Sizes[index]     = size;
 			connect(box, &QCheckBox::toggled, this, [this, index](const bool aOn) {
 				Own[index] = aOn;
 				refresh();
 			});
+			++row;
 		}
+		column->addWidget(table);
+
 		auto* const buttons = new QHBoxLayout;
 		buttons->setContentsMargins(0, 8, 0, 0);
-		SelectAll = new quiet_push_button{ QStringLiteral("Check all"), this };
-		SelectAll->setObjectName(QStringLiteral("profileResetSelectAll"));
-		SelectAll->setAutoDefault(false);
-		connect(SelectAll, &QPushButton::clicked, this, [this] {
-			const auto all = checked() == core::profile_data_reset_selection::all();
-			set_checked(all ? core::profile_data_reset_selection{ } : core::profile_data_reset_selection::all());
-		});
-		buttons->addWidget(SelectAll);
 		buttons->addStretch(1);
 		Clear = new question_button{ QStringLiteral("Clear…"), question_button_role::destructive, this };
 		Clear->setObjectName(QStringLiteral("profileResetClear"));
@@ -588,23 +743,39 @@ namespace bpr::qt {
 
 	void profile_reset_panel::refresh()
 	{
-		// What the person checked, and what that implies shown checked and
-		// locked, with why. Unchecking Settings gives the box its own choice back.
-		const auto implied = core::profile_data_reset_implied(chosen());
+		// What the person checked, and what the other checked rows imply
+		// shown checked and locked, with why first in the row's tooltip and
+		// the box's description. A row they imply is locked whether or not
+		// the person checked it too, so Settings always shows what it takes;
+		// unchecking Settings gives the box its own choice back.
+		const auto own = chosen();
 		for (const auto each : core::profile_data_reset_categories) {
-			const auto           index = category_index(each);
-			auto* const          box   = Boxes[index];
-			const auto           held  = implied.contains(each);
-			const QSignalBlocker quiet{ box };
-			box->setEnabled(!held);
-			box->setChecked(held || Own[index]);
+			const auto  index = category_index(each);
+			auto* const box   = Boxes[index];
+			const auto  held  = core::profile_data_reset_implied(own.without(each)).contains(each);
+			{
+				const QSignalBlocker quiet{ box };
+				box->setEnabled(!held);
+				box->setChecked(held || Own[index]);
+			}
 			const auto words = profile_data_reset_category_words_for(each);
-			Lines[index]->setText(held ? implied_by(each) + QStringLiteral(" ") + words.Line : words.Line);
+			const auto why   = held ? QStringList{ implied_by(each), words.Line } : QStringList{ words.Line };
+			box->setAccessibleDescription(why.join(QLatin1Char{ ' ' }));
+			const auto tip = wrapped_tip(why);
+			box->setToolTip(tip);
+			for (QLabel* const part : { Names[index], Lines[index], Sizes[index] }) {
+				part->setToolTip(tip);
+				part->setEnabled(!held);
+			}
 		}
-		const auto any = !checked().empty();
-		Clear->setEnabled(any);
-		Clear->setToolTip(any ? QString{ } : QStringLiteral("Check what to clear first"));
-		SelectAll->setText(chosen() == core::profile_data_reset_selection::all() ? QStringLiteral("Uncheck all") : QStringLiteral("Check all"));
+		const auto now = checked();
+		{
+			const QSignalBlocker quiet{ SelectAll };
+			SelectAll->setCheckState(now.empty() ? Qt::Unchecked : now == core::profile_data_reset_selection::all() ? Qt::Checked
+																													: Qt::PartiallyChecked);
+		}
+		Clear->setEnabled(!now.empty());
+		Clear->setToolTip(now.empty() ? QStringLiteral("Check what to clear first") : QString{ });
 	}
 
 	void profile_reset_panel::set_dispatch(dispatch aDispatch)
@@ -663,7 +834,7 @@ namespace bpr::qt {
 
 	auto profile_reset_panel::clear_button() const noexcept -> QPushButton* { return Clear; }
 
-	auto profile_reset_panel::select_all_button() const noexcept -> QPushButton* { return SelectAll; }
+	auto profile_reset_panel::select_all_box() const noexcept -> QCheckBox* { return SelectAll; }
 
 	auto profile_reset_panel::checked() const -> core::profile_data_reset_selection
 	{

@@ -23,7 +23,10 @@ class QPushButton;
 /// Presentation only: core decides what each category removes, what a
 /// selection implies and whether a request is admitted; the desktop
 /// performs it. [[BPR-2377]]: one checklist and one Clear replace a button
-/// per reset (owner, 2026-11-24).
+/// per reset (owner, 2026-11-24). The checklist is a table of one line per
+/// category under a header row whose box checks or unchecks them all (owner,
+/// 2026-11-24: "Checkmark, label, and description should all fit a single
+/// line per option").
 namespace bpr::qt {
 	/// \brief The words one confirmation says.
 	struct profile_data_reset_wording
@@ -42,7 +45,11 @@ namespace bpr::qt {
 	struct profile_data_reset_category_words
 	{
 		QString Name;
-		/// The one line under its checkbox: exactly what it clears.
+		/// Its row's one line: what it clears, short enough to sit beside
+		/// its name.
+		QString Brief;
+		/// Exactly what it clears and what stays: the row's tooltip and its
+		/// box's accessible description.
 		QString Line;
 		/// What its confirmation lists as removed.
 		QStringList Removes;
@@ -106,14 +113,19 @@ namespace bpr::qt {
 	};
 
 	/// \brief Clear local data on Settings › Storage & privacy.
-	/// \details A checkbox per category in core's order, each with one line
-	/// saying exactly what it clears and its size where one is known; none
-	/// checked at first. A category the checked ones imply shows checked and
-	/// locked with why. One Clear…, enabled once something is checked, asks
-	/// one confirmation for the whole selection; a confirmed request goes to
-	/// the dispatch. Nothing here removes anything. Children are named
-	/// `profileReset<Category>` (the box), `…Line`, `…Size`,
-	/// `profileResetClear` and `profileResetSelectAll`.
+	/// \details A table of one line per category in core's order: its box,
+	/// its name, a short line saying what it clears and its size where one is
+	/// known; none checked at first. A line too long for its cell ends in "…";
+	/// the row's tooltip and the box's accessible description say exactly
+	/// what the category clears. The header row's box checks every category,
+	/// or unchecks them when all are checked, and shows a dash when only some
+	/// are. A category the checked ones imply shows checked and locked, with
+	/// why first in its tooltip and description. A click anywhere on a row
+	/// is a click on its box. One Clear…, enabled once something is checked,
+	/// asks one confirmation for the whole selection; a confirmed request goes
+	/// to the dispatch. Nothing here removes anything. Children are named
+	/// `profileReset<Category>` (the box), `…Name`, `…Line`, `…Size`,
+	/// `profileResetTable`, `profileResetClear` and `profileResetSelectAll`.
 	class profile_reset_panel final : public QGroupBox
 	{
 	public:
@@ -130,7 +142,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto check_box(core::profile_data_reset aCategory) const noexcept -> QCheckBox*;
 		[[nodiscard]] auto size_label(core::profile_data_reset aCategory) const noexcept -> QLabel*;
 		[[nodiscard]] auto clear_button() const noexcept -> QPushButton*;
-		[[nodiscard]] auto select_all_button() const noexcept -> QPushButton*;
+		/// \brief The header row's box: checked when every category is,
+		/// partially checked when only some are.
+		[[nodiscard]] auto select_all_box() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
 		/// \brief What is checked, implied categories included.
 		[[nodiscard]] auto checked() const -> core::profile_data_reset_selection;
@@ -151,10 +165,11 @@ namespace bpr::qt {
 		/// What the person checked, before what that implies.
 		std::array<bool, category_count>       Own{ };
 		std::array<QCheckBox*, category_count> Boxes{ };
-		std::array<QLabel*, category_count>    Sizes{ };
+		std::array<QLabel*, category_count>    Names{ };
 		std::array<QLabel*, category_count>    Lines{ };
+		std::array<QLabel*, category_count>    Sizes{ };
+		QCheckBox*                             SelectAll = nullptr;
 		QPushButton*                           Clear     = nullptr;
-		QPushButton*                           SelectAll = nullptr;
 		QLabel*                                Status    = nullptr;
 	};
 

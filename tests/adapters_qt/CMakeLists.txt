@@ -2877,6 +2877,22 @@ set_tests_properties(
         ENVIRONMENT "${bpr_qt_github_common_environment}"
         PASS_REGULAR_EXPRESSION "profile-data-reset-views-tests:pass"
 )
+# The Clear list is a table of one line per category: the same course at
+# 125% and 200%, where a row that wrapped or a cut line would show.
+foreach(bpr_profile_reset_scale IN ITEMS 125 200)
+    math(EXPR bpr_profile_reset_whole "${bpr_profile_reset_scale} / 100")
+    math(EXPR bpr_profile_reset_fraction "${bpr_profile_reset_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_profile_data_reset_views_scale_${bpr_profile_reset_scale}
+        COMMAND test_better_pull_review_qt_profile_data_reset_views_tests
+    )
+    set_tests_properties(
+        qt_profile_data_reset_views_scale_${bpr_profile_reset_scale}
+        PROPERTIES
+            ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_profile_reset_whole}.${bpr_profile_reset_fraction}"
+            PASS_REGULAR_EXPRESSION "profile-data-reset-views-tests:pass"
+    )
+endforeach()
 
 # [[BPR-2377]]. The session rows of the Agent tab and tour chat History menus.
 bpr_add_executable(test_better_pull_review_qt_agent_session_menu_tests agent_session_menu_tests.cpp)

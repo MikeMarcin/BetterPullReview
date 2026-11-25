@@ -335,7 +335,7 @@ try {
 		expect(run.runtime() == before && question->isVisible(), "an unacknowledged Reset everything does nothing");
 		question->reject();
 		// Asking for everything checked every box; a person unchecks them.
-		shown->profile_reset_panel_widget()->select_all_button()->click();
+		shown->profile_reset_panel_widget()->select_all_box()->click();
 	}
 
 	const auto logs = log_files(root);
