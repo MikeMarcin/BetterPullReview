@@ -104,7 +104,8 @@ this amendment, and that choice is now a separate, explicit decision
 Grounded in `src/adapters/git/src/installed_git_process.cpp` at `faba46f37`.
 Slice 1 (this amendment folded into the RFC; `core::decide_conversation_move`
 and `core::conversation_move_note`) is done. What follows is the design for
-the Git adapter move, not yet implemented.
+the Git adapter move. Slice 2a, the adapter move and its recovery, is built
+("Slice 2a as built" below). The store and plumbing are not built yet.
 
 **What records the head today.**
 
@@ -196,3 +197,45 @@ the inspect cases near its retained-workspace tests):
   target ref, after the checkout, after the marker, after the journal),
   recovered to the old or the new head with journal, marker and git agreeing.
 - An old-version reader refusing a moved journal is stated, not tested.
+
+### Slice 2a as built (2026-11-24)
+
+`git_process_port::move_agent_workspace` and the recovery inside
+`inspect_agent_workspace` are implemented in the installed Git adapter, with
+`git_process_contract`'s workspace-move course (`--workspace-move`). Where the
+build differs from the design above:
+
+- **The journal line comes before the marker.** Step 7 appends the 7→7 line,
+  then writes the marker, then deletes the refs. With the marker first, the
+  window between the two holds a marker for the new head and a journal whose
+  `Head` and `PreviousHead` both name older heads, which the "marker of `Head`
+  or `PreviousHead`" rule does not cover. With the line first, the marker
+  always names the journal's `Head` or `PreviousHead`, so `cleanup_locked`
+  and retained-workspace removal accept it throughout.
+- **`refs/bpr/move-restore`** records HEAD before any reconcile and is deleted
+  before `refs/bpr/move-target`. Recovery runs when either exists. Without
+  the target ref, a crash came before the checkout, and `reset --mixed` to the
+  restore ref uncommits the WIP. With it, the journal decides as designed:
+  roll back checks out the pre-move ref (or the old head for a plain move)
+  with `--force`, since the WIP commit holds every edit, and then resets to the
+  restore ref.
+- **The WIP is made on a detached HEAD** (`update-ref --no-deref`), so a
+  branch the agent made keeps pointing where it did. After an in-process
+  rollback HEAD is reattached to that branch. After a crash rollback HEAD
+  stays detached at the same commit.
+- **A rebased WIP commit is uncommitted again** (`reset --mixed HEAD~1` when
+  the tip is the WIP), so a rebase behaves like `pull --rebase --autostash`.
+- **One move behind** is reported by the returned workspace's `PinnedHead`
+  being the journal's head rather than the stored one. A move asked for from
+  that stored workspace to the journal's head reports the finished move.
+- **Bounded journal.** A move refuses (`invalid_repository`, "no room for
+  another move") before changing anything when one more line would pass the
+  record's 64 KiB bound. That bound allows about 50 moves. Compacting the
+  record is left for later.
+- **Crash course.** The `git_process_contract` build now also defines
+  `BPR_WORKSPACE_OWNERSHIP_FAULT_INJECTION`. Its checkpoint hook throws at the
+  named step. That leaves every file as a kill would, and the test then drops
+  the adapter and recovers with a fresh one. The checkpoints are
+  `move-after-wip`, `-target`, `-checkout`, `-journal` and `-marker`.
+- **Busy.** A turn holding the record's lock shared (an agent running)
+  returns "not moved" with `busy`, and nothing changes.

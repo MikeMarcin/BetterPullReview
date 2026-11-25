@@ -242,6 +242,43 @@ namespace bpr::application {
 		auto operator<=>(const git_agent_workspace_request&) const = default;
 	};
 
+	/// \brief Moves a retained conversation's workspace to a new head between
+	/// turns (RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24:
+	/// "like git pull in another terminal").
+	struct git_agent_workspace_move_request
+	{
+		/// The retained workspace as the conversation stores it.
+		owned_agent_workspace Workspace;
+		/// The review's cache, read only: the new head's and base's objects
+		/// come from it.
+		std::filesystem::path        Repository;
+		core::git_commit_oid         Head;
+		core::git_commit_oid         Base;
+		core::conversation_reconcile Reconcile = core::conversation_reconcile::none;
+		/// The branch under `refs/heads/` that `save_and_move` and `ask_agent`
+		/// keep the work on; it starts `bpr/saved/` and must not exist.
+		std::string SavedBranch;
+
+		auto operator<=>(const git_agent_workspace_move_request&) const = default;
+	};
+
+	/// \brief What one move did.
+	///
+	/// \details Not moved: `Observed` says what stopped it (edits or agent
+	/// commits with no reconcile, a busy workspace), or `History.Conflicts`
+	/// names the files a rebase stopped on, after the workspace was put back
+	/// as it was. Moved: `Workspace` is the reattached workspace at the new
+	/// head, and `History` what lies between the two heads.
+	struct git_agent_workspace_move_result
+	{
+		bool                               Moved = false;
+		owned_agent_workspace              Workspace;
+		core::conversation_workspace_state Observed = core::conversation_workspace_state::clean;
+		core::conversation_move_history    History;
+
+		auto operator<=>(const git_agent_workspace_move_result&) const = default;
+	};
+
 	/// \brief Describes one exact, bounded blob materialization request.
 	struct git_blob_request
 	{
@@ -538,10 +575,33 @@ namespace bpr::application {
 		/// store no longer holds its head or base is repaired from the review
 		/// cache at `aRepository`, read only.
 		/// \returns [[BPR-2118]]. The workspace with the identities its journal records now.
+		/// A move a crash interrupted is finished or undone first
+		/// (RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24). When
+		/// the workspace moved and the conversation was not yet told, the
+		/// returned workspace's `PinnedHead` is the journal's new head, not the
+		/// stored one: the caller rebinds the conversation and still tells
+		/// the agent.
 		[[nodiscard]] virtual auto inspect_agent_workspace(const owned_agent_workspace&, const std::filesystem::path& aRepository, std::stop_token)
 			-> git_process_result<owned_agent_workspace>
 		{
 			static_cast<void>(aRepository);
+			return std::unexpected(git_process_failure::invalid_request);
+		}
+		/// \brief Moves a retained, complete workspace to a new head
+		/// (RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24).
+		///
+		/// \details Validates as `inspect_agent_workspace` does, observes edits
+		/// and agent commits, and changes nothing when there is work and no
+		/// reconcile. Every reconcile keeps the work recoverable: a WIP commit
+		/// for edits, `refs/bpr/pre-move/<old>` and, for `save_and_move` and
+		/// `ask_agent`, the saved branch. A rebase conflict is aborted and the
+		/// workspace put back. A sparse workspace is refused as
+		/// `object_unavailable`.
+		[[nodiscard]] virtual auto move_agent_workspace(const git_agent_workspace_move_request& aRequest, std::stop_token aStop)
+			-> git_process_result<git_agent_workspace_move_result>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
 			return std::unexpected(git_process_failure::invalid_request);
 		}
 		[[nodiscard]] virtual auto cleanup_agent_workspace(

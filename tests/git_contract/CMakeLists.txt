@@ -84,6 +84,9 @@ target_compile_definitions(
     test_better_pull_review_git_process_contract_tests
     PRIVATE
         BPR_INSTALLED_GIT_PROCESS_FAULT_INJECTION=1
+        # RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24: the
+        # workspace move's crash course stops at the ownership checkpoints.
+        BPR_WORKSPACE_OWNERSHIP_FAULT_INJECTION=1
         BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
         BPR_FSCK_SEVERITY_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/git/fsck-severity/v1"
 )

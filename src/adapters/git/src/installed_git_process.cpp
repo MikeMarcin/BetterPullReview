@@ -3410,6 +3410,22 @@ namespace bpr::adapters::git {
 			}
 			return false;
 		}
+		/// Back to the shared lock an owner holds while its workspace lives,
+		/// after a move held it exclusively.
+		[[nodiscard]] auto downgrade_journal_lock(const journal_native aHandle, bool& aPoisoned) -> bool
+		{
+	#if defined(Q_OS_WIN)
+			if (!journal_unlock(aHandle)) {
+				aPoisoned = true;
+				return false;
+			}
+	#endif
+			if (!journal_lock(aHandle, false)) {
+				aPoisoned = true;
+				return false;
+			}
+			return true;
+		}
 
 		[[nodiscard]] auto workspace_private_directory(const std::filesystem::path& aPath) -> bool
 		{
@@ -3975,7 +3991,13 @@ namespace bpr::adapters::git {
 			std::array<std::uint64_t, 10U>                Scope{ };
 			std::array<std::array<std::uint8_t, 32U>, 3U> AuthorityFingerprints{ };
 			std::string                                   Head;
-			auto                                          operator<=>(const workspace_record&) const = default;
+			/// The head a retained workspace moved from (RFC-BPR-0096, owner
+			/// continue-at-latest amendment, 2026-11-24). Absent until the
+			/// first move, and then not written, so an unmoved record reads as
+			/// before. A journal that has one cannot be read by an older
+			/// version, which refuses unknown keys.
+			std::optional<std::string> PreviousHead;
+			auto                       operator<=>(const workspace_record&) const = default;
 			struct glaze
 			{
 				using self                  = workspace_record;
@@ -3983,7 +4005,8 @@ namespace bpr::adapters::git {
 					"Version", &self::Version, "Phase", &self::Phase, "Token", &self::Token,
 					"Registry", &self::Registry, "Neighbourhood", &self::Neighbourhood,
 					"File", &self::File, "Parent", &self::Parent, "Child", &self::Child,
-					"Scope", &self::Scope, "AuthorityFingerprints", &self::AuthorityFingerprints, "Head", &self::Head);
+					"Scope", &self::Scope, "AuthorityFingerprints", &self::AuthorityFingerprints, "Head", &self::Head,
+					"PreviousHead", &self::PreviousHead);
 			};
 		};
 
@@ -4039,11 +4062,22 @@ namespace bpr::adapters::git {
 			const auto phase    = aNew.Phase;
 			if (!((phase == oldPhase + 1U && oldPhase < 6U)
 				  || (oldPhase == 0U && phase == 6U) || (oldPhase == 1U && phase == 5U)
-				  || (oldPhase == 2U && phase == 4U) || (oldPhase == 3U && phase == 7U) || (oldPhase == 7U && phase == 4U))) {
+				  || (oldPhase == 2U && phase == 4U) || (oldPhase == 3U && phase == 7U) || (oldPhase == 7U && phase == 4U)
+				  || (oldPhase == 7U && phase == 7U))) {
 				return false;
 			}
 			auto adjusted  = aNew;
 			adjusted.Phase = oldPhase;
+			// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24: a
+			// retained workspace moves to a new head, and the line says which
+			// head it left. Nothing else changes.
+			if (oldPhase == 7U && phase == 7U) {
+				if (aNew.Head == aOld.Head || aNew.PreviousHead != aOld.Head) {
+					return false;
+				}
+				adjusted.Head         = aOld.Head;
+				adjusted.PreviousHead = aOld.PreviousHead;
+			}
 			if (oldPhase == 0U && phase == 1U) {
 				if (!application::valid(application::agent_workspace_directory_identity{ aNew.Parent }) || aNew.Parent[0] != 2U) {
 					return false;
@@ -4059,6 +4093,29 @@ namespace bpr::adapters::git {
 			return adjusted == aOld;
 		}
 
+		/// The `.git/bpr-owned-workspace` marker of \p aRecord's workspace at
+		/// \p aHead.
+		[[nodiscard]] auto workspace_marker(const workspace_record& aRecord, const std::string_view aHead) -> std::string
+		{
+			return "bpr-agent-workspace-v1:" + std::to_string(aRecord.Scope[0]) + ":" + std::to_string(aRecord.Scope[4]) + ":" + std::string{ aHead } + "\n";
+		}
+		/// The marker at \p aPath is the one of the record's head, or of the
+		/// head it moved from: a move appends its line before it rewrites the
+		/// marker (RFC-BPR-0096, owner continue-at-latest amendment,
+		/// 2026-11-24).
+		[[nodiscard]] auto workspace_marker_names(const std::filesystem::path& aPath, const workspace_record& aRecord) -> bool
+		{
+			return read_exact_file(aPath, workspace_marker(aRecord, aRecord.Head))
+				|| (aRecord.PreviousHead && read_exact_file(aPath, workspace_marker(aRecord, *aRecord.PreviousHead)));
+		}
+
+		/// A conversation's stored marker names the record's head, or the head
+		/// it moved from when the conversation was not yet told of the move.
+		[[nodiscard]] auto stored_marker_named(const workspace_record& aRecord, const std::string_view aStored) -> bool
+		{
+			return aStored == workspace_marker(aRecord, aRecord.Head) || (aRecord.PreviousHead && aStored == workspace_marker(aRecord, *aRecord.PreviousHead));
+		}
+
 		class workspace_ownership final : public installed_agent_workspace_ownership
 		{
 		public:
@@ -4072,7 +4129,7 @@ namespace bpr::adapters::git {
 				Layout.Parent          = Neighbourhood / ("betterpullreview-agent-" + Record.Token);
 				Layout.Workspace       = Layout.Parent / "workspace";
 				Layout.Guard           = { .Path = path_text(Journal), .FileIdentity = Record.File };
-				Layout.OwnershipMarker = "bpr-agent-workspace-v1:" + std::to_string(Record.Scope[0]) + ":" + std::to_string(Record.Scope[4]) + ":" + Record.Head + "\n";
+				Layout.OwnershipMarker = workspace_marker(Record, Record.Head);
 				refresh_identities();
 			}
 			~workspace_ownership() override
@@ -4111,6 +4168,34 @@ namespace bpr::adapters::git {
 				next.Phase = aPhase;
 				return append(std::move(next));
 			}
+			/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24:
+			/// the line of a retained workspace's move to \p aHead.
+			[[nodiscard]] auto moved_record(const std::string& aHead) const -> workspace_record
+			{
+				auto next         = Record;
+				next.PreviousHead = Record.Head;
+				next.Head         = aHead;
+				return next;
+			}
+			/// The record has room for that line under its fixed bound.
+			[[nodiscard]] auto move_fits(const std::string& aHead) const -> bool
+			{
+				std::string bytes;
+				const auto  status = journal_stat(Descriptor);
+				return !glz::write_json(moved_record(aHead), bytes) && status && status->Size + bytes.size() + 1U <= maximum_workspace_journal_bytes;
+			}
+			[[nodiscard]] auto append_move(const std::string& aHead) -> bool
+			{
+				if (Record.Phase != 7U || !append(moved_record(aHead))) {
+					return false;
+				}
+				Layout.OwnershipMarker = workspace_marker(Record, Record.Head);
+				return true;
+			}
+			/// A workspace this process made: its owner's shared lock becomes
+			/// exclusive for the move, and shared again after.
+			[[nodiscard]] auto exclusive() -> bool { return upgrade_journal_lock(Descriptor, Poisoned); }
+			[[nodiscard]] auto shared() -> bool { return downgrade_journal_lock(Descriptor, Poisoned); }
 			[[nodiscard]] auto mark_ready(const bool aRetained) -> bool override
 			{
 				auto boundary = process_boundary_lock{ Registry };
@@ -4147,7 +4232,7 @@ namespace bpr::adapters::git {
 					}
 				}
 				if (Record.Phase == 2U || Record.Phase == 3U || Record.Phase == 7U) {
-					if (!directories_match() || ((Record.Phase == 3U || Record.Phase == 7U) && !read_exact_file(Layout.Workspace / ".git" / "bpr-owned-workspace", Layout.OwnershipMarker)) || !advance(4U)) {
+					if (!directories_match() || ((Record.Phase == 3U || Record.Phase == 7U) && !workspace_marker_names(Layout.Workspace / ".git" / "bpr-owned-workspace", Record)) || !advance(4U)) {
 						return false;
 					}
 				}
@@ -4235,6 +4320,11 @@ namespace bpr::adapters::git {
 																: workspace_record_finding::replaced;
 			return std::unexpected{ workspace_record_problem{ .Check = workspace_refusal_check::record_moved, .Finding = finding } };
 		}
+		[[nodiscard]] auto workspace_head_text(const std::string_view aHead) -> bool
+		{
+			return (aHead.size() == 40U || aHead.size() == 64U)
+				&& std::ranges::all_of(aHead, [](char aCharacter) { return (aCharacter >= '0' && aCharacter <= '9') || (aCharacter >= 'a' && aCharacter <= 'f'); });
+		}
 		/// Every line of a record, parsed, with each line's own fields and the
 		/// phase chain checked. Identities are left to the caller. \p aEnd is
 		/// where the last complete line ends.
@@ -4253,8 +4343,8 @@ namespace bpr::adapters::git {
 					|| (record.Version != 1U && record.Version != workspace_record_version)
 					|| (previous != nullptr && record.Version != previous->Version)
 					|| record.Token != aToken
-					|| (record.Head.size() != 40U && record.Head.size() != 64U)
-					|| !std::ranges::all_of(record.Head, [](char aCharacter) { return (aCharacter >= '0' && aCharacter <= '9') || (aCharacter >= 'a' && aCharacter <= 'f'); })
+					|| !workspace_head_text(record.Head)
+					|| (record.PreviousHead && (!workspace_head_text(*record.PreviousHead) || record.PreviousHead->size() != record.Head.size()))
 					|| std::ranges::any_of(record.Scope, [](auto aId) { return aId == 0U; })
 					|| std::ranges::any_of(record.AuthorityFingerprints, [](const auto& aFingerprint) { return std::ranges::all_of(aFingerprint, [](auto aByte) { return aByte == 0U; }); })
 					|| (previous != nullptr ? !record_transition(*previous, record) : record.Phase != 0U || record.Parent != ownership_identity{ } || record.Child != ownership_identity{ })) {
@@ -6016,10 +6106,146 @@ namespace bpr::adapters::git {
 				if (!boundary.valid() || !application::valid(aWorkspace) || !aWorkspace.LifetimeGuard || !WorkspaceRegistry) {
 					return std::unexpected(git_process_failure::invalid_request);
 				}
+				return inspect_agent_workspace_locked(aWorkspace, aRepository, false, aStop);
+			}
+
+			/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24.
+			/// The refs one move writes in its workspace: the head it moves to,
+			/// written before the checkout and deleted last; the head before
+			/// any reconcile, while one is in progress; and the workspace as it
+			/// was, kept after the move.
+			static constexpr std::string_view move_target_ref  = "refs/bpr/move-target";
+			static constexpr std::string_view move_restore_ref = "refs/bpr/move-restore";
+			[[nodiscard]] static auto         pre_move_ref(const std::string_view aOld) -> std::string { return "refs/bpr/pre-move/" + std::string{ aOld }; }
+			static constexpr std::string_view wip_identity = "BetterPullReview";
+			static constexpr std::string_view wip_subject  = "BetterPullReview: work in progress before moving to the latest head";
+
+			/// Git in a retained workspace, with the fixed identity a move's own
+			/// commits carry. The runner takes at most 64 arguments; each command
+			/// says what it needs (no signing, no autostash) as its own flags.
+			[[nodiscard]] auto workspace_git(const std::filesystem::path& aWorkspace, std::initializer_list<std::string_view> aArguments, const std::stop_token aStop,
+											 const bool aAllowExitOne = false, std::string aInput = { }) -> process_result
+			{
+				auto arguments = workspace_git_arguments(aWorkspace, HooksRoot);
+				for (const auto setting : { "user.name=BetterPullReview", "user.email=agent-workspace@betterpullreview.invalid" }) {
+					append_arguments(arguments, "-c", setting);
+				}
+				for (const auto argument : aArguments) {
+					arguments.emplace_back(argument);
+				}
+				return submit(
+					process_request{ .Arguments = std::move(arguments), .Input = memory_input{ std::move(aInput) }, .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U, .AllowExitOne = aAllowExitOne },
+					aStop);
+			}
+
+			/// The value of each of the move's in-progress refs, empty when
+			/// absent. Read as the loose files `update-ref` writes, without a
+			/// process: no agent runs, and nothing packs refs, while a move is
+			/// unfinished, and a borrowed store that has gone cannot fail it.
+			[[nodiscard]] static auto move_refs(const std::filesystem::path& aWorkspace) -> std::optional<std::pair<std::string, std::string>>
+			{
+				const auto read = [&](const std::string_view aRef) -> std::optional<std::string> {
+					const auto file = aWorkspace / ".git" / std::filesystem::path{ aRef };
+					if (absent(file)) {
+						return std::string{ };
+					}
+					std::error_code error;
+					if (!std::filesystem::is_regular_file(file, error) || error || std::filesystem::file_size(file, error) > 128U || error) {
+						return std::nullopt;
+					}
+					std::ifstream input{ file, std::ios::binary };
+					auto          text = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+					if (input.bad() || text.empty() || text.back() != '\n' || !workspace_head_text(std::string_view{ text }.substr(0U, text.size() - 1U))) {
+						return std::nullopt;
+					}
+					text.pop_back();
+					return text;
+				};
+				auto target  = read(move_target_ref);
+				auto restore = read(move_restore_ref);
+				if (!target || !restore) {
+					return std::nullopt;
+				}
+				return std::pair{ std::move(*target), std::move(*restore) };
+			}
+
+			/// Replaces the ownership marker whole: a temporary file, then a rename.
+			[[nodiscard]] static auto write_workspace_marker(const std::filesystem::path& aWorkspace, const std::string& aMarker) -> bool
+			{
+				const auto git    = aWorkspace / ".git";
+				const auto marker = git / "bpr-owned-workspace";
+				if (read_exact_file(marker, aMarker)) {
+					return true;
+				}
+				const auto next = git / "bpr-owned-workspace.next";
+				if (!write_private_file(next, aMarker)) {
+					return false;
+				}
+				std::error_code error;
+				std::filesystem::rename(next, marker, error);
+				return !error && sync_workspace_directory(git) && read_exact_file(marker, aMarker);
+			}
+
+			/// Puts a workspace back at \p aOld as it was before a move that did
+			/// not reach its journal line: a rebase is aborted, the work comes
+			/// back from `refs/bpr/pre-move/<old>` with its edits uncommitted
+			/// again, and the in-progress refs go. \p aCrashed also removes the
+			/// index lock the killed Git left.
+			[[nodiscard]] auto undo_workspace_move(const std::filesystem::path& aWorkspace, const std::string& aOld, const std::pair<std::string, std::string>& aRefs,
+												   const bool aCrashed, const std::stop_token aStop) -> bool
+			{
+				const auto git = aWorkspace / ".git";
+				if (aCrashed) {
+					std::error_code error;
+					static_cast<void>(std::filesystem::remove(git / "index.lock", error));
+				}
+				if (!absent(git / "rebase-merge") || !absent(git / "rebase-apply")) {
+					if (!workspace_git(aWorkspace, { "rebase", "--abort" }, aStop) && !workspace_git(aWorkspace, { "rebase", "--quit" }, aStop)) {
+						return false;
+					}
+				}
+				const auto& [target, restore] = aRefs;
+				if (!target.empty()) {
+					const auto back = restore.empty() ? aOld : pre_move_ref(aOld);
+					if (!workspace_git(aWorkspace, { "checkout", "--quiet", "--force", "--detach", back }, aStop)) {
+						return false;
+					}
+				}
+				if (!restore.empty() && !workspace_git(aWorkspace, { "reset", "--quiet", "--mixed", restore }, aStop)) {
+					return false;
+				}
+				return (restore.empty() || workspace_git(aWorkspace, { "update-ref", "-d", move_restore_ref }, aStop))
+					&& (target.empty() || workspace_git(aWorkspace, { "update-ref", "-d", move_target_ref }, aStop));
+			}
+
+			/// \brief RFC-BPR-0096, owner continue-at-latest amendment,
+			/// 2026-11-24. Finishes or undoes a move a crash interrupted.
+			///
+			/// \details The journal decides: a line at the target means the
+			/// workspace was checked out there, so the marker is finished and the
+			/// refs go (forward); otherwise the workspace goes back to the
+			/// journal's head (back). The caller holds the registry's boundary.
+			[[nodiscard]] auto recover_workspace_move(const std::filesystem::path& aWorkspace, const workspace_record& aRecord, const std::pair<std::string, std::string>& aRefs,
+													  const std::stop_token aStop) -> bool
+			{
+				if (!aRefs.first.empty() && aRefs.first == aRecord.Head) {
+					return write_workspace_marker(aWorkspace, workspace_marker(aRecord, aRecord.Head))
+						&& (aRefs.second.empty() || workspace_git(aWorkspace, { "update-ref", "-d", move_restore_ref }, aStop))
+						&& workspace_git(aWorkspace, { "update-ref", "-d", move_target_ref }, aStop);
+				}
+				return undo_workspace_move(aWorkspace, aRecord.Head, aRefs, true, aStop) && write_workspace_marker(aWorkspace, workspace_marker(aRecord, aRecord.Head));
+			}
+
+			/// \p aRegistryHeld: the caller already holds the registry's
+			/// boundary, as a move does.
+			[[nodiscard]] auto inspect_agent_workspace_locked(const application::owned_agent_workspace& aWorkspace, const std::filesystem::path& aRepository,
+															  const bool aRegistryHeld, const std::stop_token aStop)
+				-> git_process_result<application::owned_agent_workspace>
+			{
 				const auto path    = std::filesystem::path{ aWorkspace.Workspace.Path };
 				const auto journal = std::filesystem::path{ aWorkspace.LifetimeGuard->Path };
 				if (journal.parent_path() != *WorkspaceRegistry || journal.extension() != ".jsonl"
-					|| !workspace_private_directory(path) || !read_exact_file(path / ".git" / "bpr-owned-workspace", aWorkspace.OwnershipMarker)) {
+					|| !workspace_private_directory(path) || !private_regular_file(path / ".git" / "bpr-owned-workspace")) {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
 				workspace_descriptor descriptor{ open_journal(journal) };
@@ -6040,14 +6266,47 @@ namespace bpr::adapters::git {
 				auto reattached                        = aWorkspace;
 				reattached.DirectoryIdentity.Opaque    = record->Child;
 				reattached.LifetimeGuard->FileIdentity = record->File;
-				const auto  head                       = std::string{ core::canonical_hex(*aWorkspace.Workspace.PinnedHead).view() };
+				const auto  stored                     = std::string{ core::canonical_hex(*aWorkspace.Workspace.PinnedHead).view() };
 				const auto& authority                  = aWorkspace.Authority;
 				const auto  expectedScope              = std::array<std::uint64_t, 10U>{ record->Scope[0], authority.Host.value(), authority.Repository.value(), authority.PullRequest.value(), aWorkspace.Session.value(), authority.Profile.value(), authority.ProfileRevision.value(), authority.Account.value(), authority.Viewer.value(), authority.Number.value() };
-				if (record->Scope != expectedScope || record->Head != head
+				// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24: a
+				// conversation may be one move behind its journal, when the app
+				// stopped after the move and before the conversation was stored.
+				const auto behind = record->PreviousHead && stored == *record->PreviousHead && stored != record->Head;
+				if (record->Scope != expectedScope || (record->Head != stored && !behind)
+					|| aWorkspace.OwnershipMarker != workspace_marker(*record, stored)
+					|| !workspace_marker_names(path / ".git" / "bpr-owned-workspace", *record)
 					|| record->AuthorityFingerprints[0] != authority.HostAuthority.bytes()
 					|| record->AuthorityFingerprints[1] != authority.Cache.bytes()
 					|| record->AuthorityFingerprints[2] != authority.Scope.bytes()) {
 					return std::unexpected(git_process_failure::invalid_repository);
+				}
+				const auto head = record->Head;
+				if (!aWorkspace.Workspace.Shallow) {
+					const auto refs = move_refs(path);
+					if (!refs) {
+						return std::unexpected(git_process_failure::invalid_repository);
+					}
+					if (!refs->first.empty() || !refs->second.empty()) {
+						auto registryBoundary = std::optional<process_boundary_lock>{ };
+						if (!aRegistryHeld) {
+							registryBoundary.emplace(*WorkspaceRegistry, aStop);
+						}
+						if ((registryBoundary && !registryBoundary->valid()) || !recover_workspace_move(path, *record, *refs, aStop)) {
+							return std::unexpected(git_process_failure::invalid_repository);
+						}
+					}
+				}
+				if (!read_exact_file(path / ".git" / "bpr-owned-workspace", workspace_marker(*record, head))) {
+					return std::unexpected(git_process_failure::invalid_repository);
+				}
+				if (behind) {
+					const auto moved = core::parse_git_commit_oid(head);
+					if (!moved) {
+						return std::unexpected(git_process_failure::invalid_repository);
+					}
+					reattached.Workspace.PinnedHead = *moved;
+					reattached.OwnershipMarker      = workspace_marker(*record, head);
 				}
 
 				if (!absent(path / ".git" / "objects" / "info" / "http-alternates")) {
@@ -6099,7 +6358,7 @@ namespace bpr::adapters::git {
 					// head and the base are copied from the review's cache, the
 					// workspace's history ends at them, and the alternates line
 					// goes. Nothing is copied when the cache lacks them.
-					if (!borrowedLine || !repair_borrowed_workspace(path, aRepository, *aWorkspace.Workspace.PinnedHead, tips, *borrowedLine, aStop)) {
+					if (!borrowedLine || !repair_borrowed_workspace(path, aRepository, *reattached.Workspace.PinnedHead, tips, *borrowedLine, aStop)) {
 						return std::unexpected(git_process_failure::object_unavailable);
 					}
 					const auto repaired = check();
@@ -6126,6 +6385,359 @@ namespace bpr::adapters::git {
 					return std::unexpected(git_process_failure::object_unavailable);
 				}
 				return reattached;
+			}
+
+			/// The fields of \p aText between \p aSeparator, the empty ones too.
+			[[nodiscard]] static auto split_fields(const std::string_view aText, const char aSeparator) -> std::vector<std::string_view>
+			{
+				auto fields = std::vector<std::string_view>{ };
+				auto start  = std::size_t{ 0U };
+				while (start < aText.size()) {
+					const auto end = std::min(aText.find(aSeparator, start), aText.size());
+					fields.push_back(aText.substr(start, end - start));
+					start = end + 1U;
+				}
+				return fields;
+			}
+
+			/// A saved branch's name: under `bpr/saved/`, and one Git accepts.
+			[[nodiscard]] static auto saved_branch_name(const std::string_view aName) -> bool
+			{
+				return aName.starts_with("bpr/saved/") && aName.size() <= 200U && !aName.ends_with('/') && !aName.ends_with(".lock")
+					&& aName.find("..") == std::string_view::npos && aName.find("//") == std::string_view::npos && aName.find("/.") == std::string_view::npos
+					&& std::ranges::all_of(aName, [](const char aCharacter) {
+						   return (aCharacter >= 'a' && aCharacter <= 'z') || (aCharacter >= 'A' && aCharacter <= 'Z') || (aCharacter >= '0' && aCharacter <= '9')
+							   || aCharacter == '/' || aCharacter == '-' || aCharacter == '_' || aCharacter == '.';
+					   });
+			}
+
+			/// \brief What lies between \p aFrom and \p aTo, bounded as the
+			/// move note lists it.
+			[[nodiscard]] auto workspace_move_history(const std::filesystem::path& aWorkspace, const std::string& aFrom, const std::string& aTo, const std::stop_token aStop)
+				-> core::conversation_move_history
+			{
+				auto       history = core::conversation_move_history{ };
+				const auto linear  = workspace_git(aWorkspace, { "merge-base", "--is-ancestor", aFrom, aTo }, aStop, true);
+				history.Linear     = linear && linear->ExitCode == 0;
+				auto listed        = linear.has_value();
+				if (history.Linear) {
+					const auto range = aFrom + ".." + aTo;
+					const auto log   = workspace_git(aWorkspace, { "log", "--reverse", "--no-decorate", "--format=%H%x00%s", range, "--" }, aStop);
+					listed           = listed && log.has_value();
+					for (const auto text : log ? split_fields(log->StandardOutput, '\n') : std::vector<std::string_view>{ }) {
+						const auto nul = text.find('\0');
+						if (nul == std::string_view::npos) {
+							continue;
+						}
+						if (history.Commits.size() < core::maximum_move_note_commits) {
+							history.Commits.emplace_back(std::string{ text.substr(0U, 7U) }, std::string{ text.substr(nul + 1U) });
+						}
+						++history.CommitCount;
+					}
+				}
+				const auto diff = workspace_git(aWorkspace, { "diff", "--name-only", "-z", "--no-renames", aFrom, aTo, "--" }, aStop);
+				listed          = listed && diff.has_value();
+				for (const auto name : diff ? split_fields(diff->StandardOutput, '\0') : std::vector<std::string_view>{ }) {
+					if (name.empty()) {
+						continue;
+					}
+					if (history.Files.size() < core::maximum_move_note_files) {
+						history.Files.emplace_back(name.begin(), name.end());
+					}
+					++history.FileCount;
+				}
+				history.Listed = listed;
+				if (!listed) {
+					history.Commits.clear();
+					history.CommitCount = 0U;
+					history.Files.clear();
+					history.FileCount = 0U;
+				}
+				return history;
+			}
+
+			[[nodiscard]] auto move_agent_workspace(const application::git_agent_workspace_move_request& aRequest, const std::stop_token aStop)
+				-> git_process_result<application::git_agent_workspace_move_result> override
+			{
+				using state          = core::conversation_workspace_state;
+				using reconcile      = core::conversation_reconcile;
+				const auto& stored   = aRequest.Workspace;
+				const auto  saving   = aRequest.Reconcile == reconcile::save_and_move || aRequest.Reconcile == reconcile::ask_agent;
+				auto        boundary = process_boundary_lock{ IsolationRoot, aStop };
+				if (!boundary.valid() || !application::valid(stored) || !stored.LifetimeGuard || !WorkspaceRegistry || !stored.Workspace.PinnedHead
+					|| aRequest.Head.algorithm() != stored.Workspace.PinnedHead->algorithm() || aRequest.Base.algorithm() != aRequest.Head.algorithm()
+					|| aRequest.Head == *stored.Workspace.PinnedHead || (saving && !saved_branch_name(aRequest.SavedBranch))) {
+					return std::unexpected(git_process_failure::invalid_request);
+				}
+				// The first slice moves complete workspaces; a sparse one holds
+				// only the pull request's files, and follows.
+				if (stored.Workspace.Shallow) {
+					return std::unexpected(git_process_failure::object_unavailable);
+				}
+				auto registryBoundary = process_boundary_lock{ *WorkspaceRegistry, aStop };
+				if (!registryBoundary.valid()) {
+					return std::unexpected(aStop.stop_requested() ? git_process_failure::cancelled : git_process_failure::invalid_configuration);
+				}
+				auto result = application::git_agent_workspace_move_result{ .Workspace = stored };
+
+				// The record's lock, exclusive: the owner this process made holds
+				// it shared and converts; any other is opened and locked here. A
+				// lock another process holds is a turn running: busy.
+				const auto ownersLock = std::scoped_lock{ WorkspaceOwners->Mutex };
+				const auto journal    = std::filesystem::path{ stored.LifetimeGuard->Path };
+				auto       found      = WorkspaceOwners->Owners.find(stored.LifetimeGuard->Path);
+				auto       local      = std::optional<workspace_ownership>{ };
+				auto*      owner      = static_cast<workspace_ownership*>(nullptr);
+				if (found != WorkspaceOwners->Owners.end()) {
+					owner = dynamic_cast<workspace_ownership*>(found->second.second.get());
+					if (owner == nullptr || found->second.first.Workspace.Path != stored.Workspace.Path) {
+						return std::unexpected(git_process_failure::invalid_repository);
+					}
+					if (!owner->exclusive()) {
+						result.Observed = state::busy;
+						return result;
+					}
+				} else {
+					if (journal.parent_path() != *WorkspaceRegistry || journal.extension() != ".jsonl"
+						|| !admit_workspace_object(journal, false, workspace_refusal_check::record_not_private, nullptr)) {
+						return std::unexpected(git_process_failure::invalid_repository);
+					}
+					workspace_descriptor descriptor{ open_journal(journal) };
+					if (!descriptor.valid()) {
+						return std::unexpected(git_process_failure::invalid_repository);
+					}
+					if (!journal_lock(descriptor.get(), true)) {
+						if (!lock_busy()) {
+							return std::unexpected(git_process_failure::invalid_repository);
+						}
+						result.Observed = state::busy;
+						return result;
+					}
+					auto record = load_workspace_record(descriptor.get(), *WorkspaceRegistry, stored.ParentDirectory.parent_path(), journal.stem().string(), true);
+					if (!record || record->Phase != 7U) {
+						return std::unexpected(git_process_failure::invalid_repository);
+					}
+					local.emplace(*WorkspaceRegistry, stored.ParentDirectory.parent_path(), std::move(*record), descriptor.release());
+					owner = &*local;
+				}
+				// Shared again however this returns, for the owner this process made.
+				class shared_again
+				{
+				public:
+					explicit shared_again(workspace_ownership* aOwner)
+						: Owner{ aOwner }
+					{ }
+					~shared_again()
+					{
+						if (Owner != nullptr) {
+							static_cast<void>(Owner->shared());
+						}
+					}
+					shared_again(const shared_again&)                    = delete;
+					shared_again(shared_again&&)                         = delete;
+					auto operator=(const shared_again&) -> shared_again& = delete;
+					auto operator=(shared_again&&) -> shared_again&      = delete;
+
+				private:
+					workspace_ownership* Owner;
+				};
+				const auto restoreShared = shared_again{ local ? nullptr : owner };
+
+				// 1. Validate as inspect does, finishing or undoing a move a crash
+				// interrupted. The workspace is then at the journal's head.
+				auto inspected = inspect_agent_workspace_locked(stored, aRequest.Repository, true, aStop);
+				if (!inspected) {
+					return std::unexpected(inspected.error());
+				}
+				result.Workspace = *inspected;
+				const auto path  = std::filesystem::path{ stored.Workspace.Path };
+				const auto known = std::string{ core::canonical_hex(*stored.Workspace.PinnedHead).view() };
+				const auto old   = std::string{ core::canonical_hex(*inspected->Workspace.PinnedHead).view() };
+				const auto head  = std::string{ core::canonical_hex(aRequest.Head).view() };
+				const auto base  = std::string{ core::canonical_hex(aRequest.Base).view() };
+				if (owner->Record.Head != old) {
+					return std::unexpected(git_process_failure::invalid_repository);
+				}
+				const auto moved = [&] {
+					auto workspace                 = *inspected;
+					workspace.Workspace.PinnedHead = aRequest.Head;
+					workspace.OwnershipMarker      = workspace_marker(owner->Record, head);
+					workspace.RequiredBase         = aRequest.Base;
+					return workspace;
+				};
+				// A crash after the journal line and before the conversation was
+				// stored already moved it here.
+				if (old == head) {
+					result.Moved     = true;
+					result.Workspace = moved();
+					result.History   = workspace_move_history(path, known, head, aStop);
+					return result;
+				}
+				if (!owner->move_fits(head)) {
+					return std::unexpected(git_process_error{ git_process_failure::invalid_repository, "the workspace's ownership record has no room for another move" });
+				}
+
+				// 2. Observe edits and agent commits. With either and no
+				// reconcile, nothing changes.
+				const auto status = workspace_git(path, { "status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignore-submodules=none" }, aStop);
+				const auto now    = workspace_git(path, { "rev-parse", "--verify", "HEAD^{commit}" }, aStop);
+				if (!status || !now) {
+					return std::unexpected(!status ? status.error() : now.error());
+				}
+				const auto current = now->StandardOutput.substr(0U, now->StandardOutput.find('\n'));
+				const auto edits   = !status->StandardOutput.empty();
+				const auto commits = current != old;
+				result.Observed    = edits && commits ? state::edits_and_commits
+					: edits                           ? state::local_edits
+					: commits                         ? state::agent_commits
+													  : state::clean;
+				if (result.Observed != state::clean && aRequest.Reconcile == reconcile::none) {
+					return result;
+				}
+				const auto work   = result.Observed != state::clean;
+				const auto rebase = work && aRequest.Reconcile == reconcile::rebase;
+				const auto save   = work && saving;
+				if (save) {
+					const auto existing = workspace_git(path, { "rev-parse", "--verify", "--quiet", "refs/heads/" + aRequest.SavedBranch }, aStop, true);
+					if (!existing || existing->ExitCode != 1) {
+						return std::unexpected(existing ? git_process_error{ git_process_failure::invalid_request, "the saved branch already exists" } : existing.error());
+					}
+				}
+
+				// 3. The new head's and base's objects, from the review's cache.
+				const auto algorithm = aRequest.Head.algorithm() == core::git_hash_algorithm::sha1 ? git_hash_algorithm::sha1 : git_hash_algorithm::sha256;
+				if (!valid_repository(aRequest.Repository, algorithm)) {
+					return std::unexpected(git_process_failure::object_unavailable);
+				}
+				{
+					auto held = common_git_arguments(aRequest.Repository, HooksRoot);
+					append_arguments(held, "cat-file", "--batch-check=%(objecttype)");
+					const auto answered = submit(process_request{ .Arguments = std::move(held), .Input = memory_input{ head + "\n" + base + "\n" }, .StandardOutputLimit = 1024U }, aStop);
+					if (!answered || answered->StandardOutput != "commit\ncommit\n") {
+						return std::unexpected(git_process_failure::object_unavailable);
+					}
+					auto arguments = workspace_git_arguments(path, HooksRoot);
+					append_arguments(arguments, "pack-objects", "--revs", "--delta-base-offset", "--non-empty", "--", path_text(path / ".git" / "objects" / "pack" / "pack"));
+					const auto packed = submit(
+						process_request{
+							.Arguments   = std::move(arguments),
+							.Input       = memory_input{ head + "\n" + base + "\n^" + old + "\n" },
+							.Timeout     = pack_process_timeout,
+							.Environment = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", quoted_object_alternate(aRequest.Repository / "objects") } },
+						},
+						aStop);
+					const auto checked = workspace_git(path, { "cat-file", "--batch-check=%(objecttype)" }, aStop, false, head + "^{commit}\n" + head + "^{tree}\n" + base + "^{commit}\n" + base + "^{tree}\n");
+					if (!packed || !checked || checked->StandardOutput != "commit\ntree\ncommit\ntree\n") {
+						return std::unexpected(git_process_failure::object_unavailable);
+					}
+				}
+
+				// 4. Keep the work: edits as a WIP commit on a detached HEAD (a
+				// branch the agent made keeps pointing where it did), the
+				// pre-move ref, and the saved branch.
+				const auto branch = work ? workspace_git(path, { "symbolic-ref", "--quiet", "HEAD" }, aStop, true) : process_result{ process_success{ .ExitCode = 1 } };
+				if (!branch) {
+					return std::unexpected(branch.error());
+				}
+				const auto attached = branch->ExitCode == 0 ? branch->StandardOutput.substr(0U, branch->StandardOutput.find('\n')) : std::string{ };
+				const auto preMove  = pre_move_ref(old);
+				// Back as it was, before the journal line; true when it was.
+				const auto rollBack = [&] {
+					const auto refs = move_refs(path);
+					return refs && undo_workspace_move(path, old, *refs, false, aStop)
+						&& (attached.empty() || workspace_git(path, { "symbolic-ref", "HEAD", attached }, aStop));
+				};
+				const auto failed = [&](git_process_error aError) -> git_process_result<application::git_agent_workspace_move_result> {
+					if (!rollBack()) {
+						return std::unexpected(git_process_error{ git_process_failure::invalid_repository, "the move could not be undone: " + aError.Detail });
+					}
+					return std::unexpected(std::move(aError));
+				};
+				if (work) {
+					if (!workspace_git(path, { "update-ref", "--no-deref", "HEAD", current }, aStop) || !workspace_git(path, { "update-ref", move_restore_ref, current }, aStop)) {
+						return failed(git_process_failure::invalid_repository);
+					}
+					if (edits) {
+						if (const auto added = workspace_git(path, { "add", "--all", "--", "." }, aStop); !added) {
+							return failed(added.error());
+						}
+						if (const auto committed = workspace_git(path, { "commit", "--quiet", "--no-verify", "--no-gpg-sign", "--author=BetterPullReview <agent-workspace@betterpullreview.invalid>", "--message", wip_subject }, aStop);
+							!committed) {
+							return failed(committed.error());
+						}
+						workspace_checkpoint("move-after-wip");
+					}
+					if (!workspace_git(path, { "update-ref", preMove, "HEAD" }, aStop)
+						|| (save && !workspace_git(path, { "update-ref", "refs/heads/" + aRequest.SavedBranch, "HEAD", std::string(old.size(), '0') }, aStop))) {
+						return failed(git_process_failure::invalid_repository);
+					}
+				}
+
+				// 5. The in-progress record, then 6. the checkout or the rebase.
+				if (!workspace_git(path, { "update-ref", move_target_ref, head }, aStop)) {
+					return failed(git_process_failure::invalid_repository);
+				}
+				workspace_checkpoint("move-after-target");
+				if (rebase) {
+					const auto rebased = workspace_git(path, { "-c", "rebase.updateRefs=false", "rebase", "--quiet", "--no-autosquash", "--no-autostash", "--no-gpg-sign", "--onto", head, old }, aStop);
+					if (!rebased) {
+						const auto unmerged  = workspace_git(path, { "diff", "--name-only", "-z", "--diff-filter=U" }, aStop);
+						auto       conflicts = std::vector<std::string>{ };
+						for (const auto name : unmerged ? split_fields(unmerged->StandardOutput, '\0') : std::vector<std::string_view>{ }) {
+							if (!name.empty()) {
+								conflicts.emplace_back(name.begin(), name.end());
+							}
+						}
+						if (conflicts.empty()) {
+							return failed(rebased.error());
+						}
+						if (!rollBack()) {
+							return std::unexpected(git_process_error{ git_process_failure::invalid_repository, "the rebase conflicted and could not be undone" });
+						}
+						result.History.Conflicts = std::move(conflicts);
+						return result;
+					}
+					// The WIP commit, rebased, becomes uncommitted edits again.
+					const auto tip = workspace_git(path, { "log", "-1", "--format=%an%x00%s", "HEAD" }, aStop);
+					if (edits && tip && tip->StandardOutput == std::string{ wip_identity } + '\0' + std::string{ wip_subject } + "\n"
+						&& !workspace_git(path, { "reset", "--quiet", "--mixed", "HEAD~1" }, aStop)) {
+						return failed(git_process_failure::invalid_repository);
+					}
+				} else if (const auto checkedOut = workspace_git(path, { "checkout", "--quiet", "--detach", head }, aStop); !checkedOut) {
+					return failed(checkedOut.error());
+				}
+				workspace_checkpoint("move-after-checkout");
+
+				// 7. The journal line, the marker, and the in-progress refs go.
+				// The line comes first, so the marker always names the record's
+				// head or the head it moved from.
+				if (!owner->append_move(head)) {
+					return failed(git_process_failure::invalid_repository);
+				}
+				workspace_checkpoint("move-after-journal");
+				if (!write_workspace_marker(path, workspace_marker(owner->Record, head))) {
+					return std::unexpected(git_process_failure::invalid_repository);
+				}
+				workspace_checkpoint("move-after-marker");
+				if ((work && !workspace_git(path, { "update-ref", "-d", move_restore_ref }, aStop)) || !workspace_git(path, { "update-ref", "-d", move_target_ref }, aStop)) {
+					return std::unexpected(git_process_failure::invalid_repository);
+				}
+
+				// 8. The reattached workspace, and what lies between.
+				result.Moved     = true;
+				result.Workspace = moved();
+				if (found != WorkspaceOwners->Owners.end()) {
+					found->second.first = result.Workspace;
+				}
+				result.History         = workspace_move_history(path, known, head, aStop);
+				result.History.Rebased = rebase;
+				if (save) {
+					result.History.SavedBranch = aRequest.SavedBranch;
+				}
+				if (work) {
+					result.History.PreMoveRef = preMove;
+				}
+				return result;
 			}
 
 			[[nodiscard]] auto cleanup_agent_workspace(
@@ -9120,8 +9732,10 @@ namespace bpr::adapters::git {
 						const auto lock  = std::scoped_lock{ Owners->Mutex };
 						const auto found = Owners->Owners.find(aWorkspace.LifetimeGuard->Path);
 						if (found != Owners->Owners.end()) {
-							const auto& made = found->second.first;
-							if (made.Workspace.Path != aWorkspace.Workspace.Path || made.OwnershipMarker != aWorkspace.OwnershipMarker || !found->second.second->cleanup()) {
+							const auto& made  = found->second.first;
+							const auto* owner = dynamic_cast<const workspace_ownership*>(found->second.second.get());
+							if (made.Workspace.Path != aWorkspace.Workspace.Path || owner == nullptr || !stored_marker_named(owner->Record, aWorkspace.OwnershipMarker)
+								|| !found->second.second->cleanup()) {
 								return removal::refused;
 							}
 							Owners->Owners.erase(found);
@@ -9150,7 +9764,8 @@ namespace bpr::adapters::git {
 					auto record = load_workspace_record(descriptor.get(), Registry, neighbourhood, token, true);
 					if (!record || record->Phase != 7U || !workspace_private_directory(path) || ownership_id(path, exact_artifact_kind::directory) != record->Child
 						|| !retained_identity_names(aWorkspace.DirectoryIdentity.Opaque, record->Child)
-						|| !read_exact_file(path / ".git" / "bpr-owned-workspace", aWorkspace.OwnershipMarker)) {
+						|| !stored_marker_named(*record, aWorkspace.OwnershipMarker)
+						|| !workspace_marker_names(path / ".git" / "bpr-owned-workspace", *record)) {
 						return removal::refused;
 					}
 					workspace_ownership owner{ Registry, neighbourhood, std::move(*record), descriptor.get() };
