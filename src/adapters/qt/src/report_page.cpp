@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -246,6 +247,14 @@ namespace bpr::qt {
 				cells = beside(draft ? QObject::tr("Drafted") : QObject::tr("Kept"), aPalette.Roles.Tones.Done.name(), true);
 				if (aGoes) {
 					cells += chip(Actions->Link(aOutline, report_link::go), draft ? QObject::tr("Go to draft") : QObject::tr("Go to comment"), aPalette.Link, aPalette) + spacer;
+				}
+				// [[BPR-2376]]. A draft the reviewer changed before a
+				// follow-up updated the comment is kept; it says so and offers
+				// the update.
+				if (draft && std::ranges::find(Actions->Outdated, aOutline) != Actions->Outdated.end()) {
+					cells += chip(Actions->Link(aOutline, report_link::update_draft), QObject::tr("Update draft"), aPalette.Ink, aPalette) + spacer + ask;
+					cells += beside(QObject::tr("The draft differs from the updated suggested comment. %1").arg(unsent), aPalette.Roles.Tones.Open.name(), false);
+					break;
 				}
 				cells += ask;
 				// [[BPR-2331]]. What the draft says of its lines, when it says
@@ -630,7 +639,15 @@ namespace bpr::qt {
 						   : QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\"><tr><td width=\"3\" bgcolor=\"%1\"></td><td style=\"padding-left:16px\">%2</td></tr></table>").arg(verdict, opening);
 		}
 		html += tally_html(aReport, colours);
-		for (const auto& section : aReport.Sections) {
+		// [[BPR-2376]]. A finding a follow-up updated shows the Suggested
+		// change its updated comment makes, as the core revised it.
+		auto revisions = std::vector<core::report_revision>{ };
+		for (const auto& [outline, comment] : aActions.Revised) {
+			revisions.push_back({ .Outline = outline, .Comment = comment.toStdString() });
+		}
+		const auto  revised = revisions.empty() ? std::optional<core::dressed_report>{ } : std::optional{ core::revise_report(aReport, revisions) };
+		const auto& shown   = revised ? *revised : aReport;
+		for (const auto& section : shown.Sections) {
 			if (!section.Name.empty()) {
 				html += QStringLiteral("<table width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:30px\"><tr>"
 									   "<td style=\"border-top:1px solid %1;padding-top:14px;font-family:%2;font-size:13px;font-weight:600;color:%3\">%4%5</td>"

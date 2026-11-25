@@ -390,6 +390,87 @@ namespace {
 		const auto plain = report_card_of("# What a.cpp does\n\nIt resizes.\n\n## How\n\nx\n");
 		expect(plain.Verdict.empty() && plain.VerdictTone == report_tone::neutral && plain.Summary == "It resizes.", "a report with no verdict keeps its summary whole");
 	}
+
+	/// [[BPR-2376]]. A follow-up's updated comment is the finding's one
+	/// source: its suggestion block is the finding's Suggested change, and a
+	/// draft unchanged since the earlier comment follows it.
+	void test_revised_comment_moves_the_suggested_change()
+	{
+		expect(comment_suggestion_lines("issue: clamp it.\n\n```suggestion\na\n\nb\n```\n\n```suggestion\nc\n```") == std::optional{ std::vector<std::string>{ "a", "", "b" } }, "the first suggestion block's lines, blank lines kept");
+		expect(comment_suggestion_lines("issue: clamp it.\n\n~~~ suggestion\na\n~~~") == std::optional{ std::vector<std::string>{ "a" } }, "a tilde fence, its info string spaced");
+		expect(!comment_suggestion_lines("issue: clamp it.\n\n```Suggestion\na\n```"), "GitHub's info string is lower case: Suggestion is a plain block");
+		expect(comment_suggestion_lines("issue: delete it.\n\n```suggestion\n```") == std::optional{ std::vector<std::string>{ } }, "an empty suggestion deletes the lines: none, not no suggestion");
+		expect(!comment_suggestion_lines("issue: clamp it.\n\n```cpp\nconst auto height = 1;\n```"), "a plain code block suggests no lines");
+		expect(!comment_suggestion_lines("issue: clamp it."), "words alone suggest none");
+
+		const auto answer   = std::string{ "# Review of #21\n\n**Verdict:** Needs changes\n\nOne fix.\n\n## Must fix\n\n"
+										   "### issue (blocking): A zero height still asserts\n\n`src/r.cpp:12-13`\n\nThe height is not clamped.\n\n"
+										   "```cpp\nconst auto width = clamp(w);\nresize(width, h);\n```\n\n"
+										   "```suggestion\nconst auto width = clamp(w);\nresize(width, clamp(h));\n```\n\n"
+										   "### question: Is exposure ignored?\n\n`src/t.frag:5`\n\nIt writes the scene straight through.\n\n"
+										   "```glsl\nout = scene;\n```\n" };
+		const auto dressed  = dress_report(answer);
+		const auto findings = report_findings(dressed);
+		expect(findings.size() == 2U, "two findings");
+		const auto block = [](const dressed_report& aReport, const std::uint32_t aOutline) -> const dressed_block* {
+			for (const auto& section : aReport.Sections) {
+				for (const auto& item : section.Items) {
+					if (item.Outline == aOutline) {
+						const auto found = std::ranges::find(item.Body, dressed_block_kind::suggestion, &dressed_block::Kind);
+						return found == item.Body.end() ? nullptr : &*found;
+					}
+				}
+			}
+			return nullptr;
+		};
+		const auto fix   = findings[0].Outline;
+		const auto quest = findings[1].Outline;
+		expect(block(dressed, fix) != nullptr && block(dressed, fix)->Lines.back() == "resize(width, clamp(h));" && block(dressed, quest) == nullptr, "as written, the first suggests and the second does not");
+
+		const auto  moved = revise_report(dressed, { { .Outline = fix, .Comment = "issue (blocking): clamp both.\n\n```suggestion\nresize(clamp(w), clamp(h));\n```" } });
+		const auto* now   = block(moved, fix);
+		expect(now != nullptr && now->Lines == std::vector<std::string>{ "resize(clamp(w), clamp(h));" } && now->Replaced == block(dressed, fix)->Replaced && now->FirstLine == std::optional{ 12U },
+			   "the Suggested change takes the updated comment's lines and still replaces the item's lines");
+		const auto rows = [](const std::vector<report_finding>& aFindings) {
+			auto outlines = std::vector<std::uint32_t>{ };
+			for (const auto& finding : aFindings) {
+				outlines.push_back(finding.Outline);
+			}
+			return outlines;
+		};
+		expect(rows(report_findings(moved)) == rows(findings), "the same findings, at the same rows");
+		expect(revise_report(dressed, { }) == dressed, "no revision changes nothing");
+
+		const auto gone = revise_report(dressed, { { .Outline = fix, .Comment = "issue (blocking): clamp both.\n\n```cpp\nresize(clamp(w), clamp(h));\n```" } });
+		expect(block(gone, fix) == nullptr, "a comment whose change is only a plain code block leaves no Suggested change");
+
+		const auto  added = revise_report(dressed, { { .Outline = quest, .Comment = "question: apply exposure?\n\n```suggestion\nout = scene * exposure;\n```" } });
+		const auto* now2  = block(added, quest);
+		expect(now2 != nullptr && now2->Lines == std::vector<std::string>{ "out = scene * exposure;" } && now2->Replaced == std::vector<std::string>{ "out = scene;" } && now2->FirstLine == std::optional{ 5U },
+			   "a suggestion the item did not have shows, replacing the lines its quoted code holds");
+		expect(block(added, fix) != nullptr && *block(added, fix) == *block(dressed, fix), "the other finding is as it was");
+		expect(revise_report(dressed, { { .Outline = fix, .Comment = "x\n```suggestion\ny\n```" } }) == revise_report(dressed, { { .Outline = fix, .Comment = "x\n```suggestion\ny\n```" } }), "deterministic");
+	}
+
+	void test_finding_draft_follows_an_unchanged_draft_only()
+	{
+		const auto before  = std::string{ "issue (blocking): clamp the height.\n\n```suggestion\nresize(width, clamp(h));\n```" };
+		const auto after   = std::string{ "issue (blocking): clamp both.\n\n```suggestion\nresize(clamp(w), clamp(h));\n```" };
+		const auto drafted = finding_draft_body(before);
+		expect(drafted.find("resize(width, clamp(h));") != std::string::npos, "the draft body keeps the suggestion");
+
+		const auto replaced = decide_finding_draft_revision({ .Drafting = true, .Draft = drafted, .Previous = before, .Revised = after });
+		expect(replaced.Kind == finding_draft_revision_kind::replace && replaced.Body == finding_draft_body(after), "a draft unchanged since it was drafted takes the updated comment");
+		expect(decide_finding_draft_revision({ .Drafting = true, .Draft = "\n" + drafted + "\n", .Previous = before, .Revised = after }).Kind == finding_draft_revision_kind::replace, "whitespace around it is no change");
+
+		const auto edited = decide_finding_draft_revision({ .Drafting = true, .Draft = drafted + "\n\nAlso worth a test.", .Previous = before, .Revised = after });
+		expect(edited.Kind == finding_draft_revision_kind::edited && edited.Body == finding_draft_body(after), "a draft the reviewer changed is kept, and Update draft would put the updated body");
+
+		expect(decide_finding_draft_revision({ .Drafting = true, .Draft = finding_draft_body(after), .Previous = before, .Revised = after }).Kind == finding_draft_revision_kind::current, "a draft already saying it is current");
+		expect(decide_finding_draft_revision({ .Drafting = false, .Draft = drafted, .Previous = before, .Revised = after }).Kind == finding_draft_revision_kind::none, "a draft no longer being written is never touched");
+		expect(decide_finding_draft_revision({ .Drafting = true, .Draft = drafted, .Previous = std::nullopt, .Revised = after }).Kind == finding_draft_revision_kind::edited, "without the earlier comment, a different draft is never replaced");
+		expect(stable_name(finding_draft_revision_kind::replace) == "replace" && stable_name(finding_draft_revision_kind::edited) == "edited", "stable names");
+	}
 } // namespace
 
 auto main() -> int
@@ -403,6 +484,8 @@ auto main() -> int
 	test_review_answer_verdict_and_findings();
 	test_tones_of_severity_and_the_card_verdict();
 	test_report_findings_share_their_cards_state();
+	test_revised_comment_moves_the_suggested_change();
+	test_finding_draft_follows_an_unchanged_draft_only();
 	std::cout << "agent-report-tests:pass\n";
 	return EXIT_SUCCESS;
 }

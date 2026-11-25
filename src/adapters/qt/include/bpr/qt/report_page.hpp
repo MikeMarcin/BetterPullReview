@@ -131,6 +131,9 @@ namespace bpr::qt {
 		/// [[BPR-2331]]. Undo the drafts the report's last Draft all made,
 		/// as the Agent tab's Draft all offered.
 		undo_draft_all,
+		/// [[BPR-2376]]. Put a finding's updated suggested comment in the
+		/// draft it made, which the reviewer changed since.
+		update_draft,
 	};
 
 	/// \brief [[BPR-2219]] (docs/design/review-report-v1, A). The page's keep
@@ -164,6 +167,10 @@ namespace bpr::qt {
 		bool                             Dismiss = false;
 		std::map<std::uint32_t, QString> Suggested;
 		bool                             DraftAllUndo = false;
+		/// [[BPR-2376]]. The drafted findings, by row, whose draft the
+		/// reviewer changed before a follow-up updated their suggested
+		/// comment: each says its draft differs and offers Update draft.
+		std::vector<std::uint32_t> Outdated;
 	};
 
 	/// \brief [[BPR-2219]], round 2 (owner, look review-report-v001: "redesign

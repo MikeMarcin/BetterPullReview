@@ -450,10 +450,21 @@ namespace bpr::app {
 			if (const auto card = card_of(decided.Key)) {
 				static_cast<void>(Window->agent_tab()->revise_finding(card->first, card->second, text));
 			}
+			// [[BPR-2376]]. The report finding's draft follows the update
+			// while the reviewer has not changed it.
+			auto draft = core::finding_draft_revision_kind::none;
 			if (auto* const report = Window->report_view(); report != nullptr) {
+				for (const auto& finding : report->findings()) {
+					if (const auto request = report->finding_request(finding.Outline); request && report_key(report->document().Turn, *request) == decided.Key) {
+						draft = revise_finding_draft(*request, *current);
+					}
+				}
 				report->refresh_keeps();
 			}
-			Window->item_side_chat()->show_status(QStringLiteral("Suggested comment updated. Draft comment drafts it from now on; nothing is posted."));
+			Window->item_side_chat()->show_status(draft == core::finding_draft_revision_kind::replace ? QStringLiteral("Suggested comment and its draft updated. Nothing is posted.")
+													  : draft == core::finding_draft_revision_kind::edited
+													  ? QStringLiteral("Suggested comment updated. Its draft, which you changed, was left as it is: Update draft on the finding replaces it. Nothing is posted.")
+													  : QStringLiteral("Suggested comment updated. Draft comment drafts it from now on; nothing is posted."));
 			return;
 		}
 		case core::follow_up_apply::update_draft:

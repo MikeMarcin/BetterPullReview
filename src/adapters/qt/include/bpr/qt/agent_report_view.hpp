@@ -197,6 +197,15 @@ namespace bpr::qt {
 		/// updated it, if one did: its keep action drafts that, and the page
 		/// shows it.
 		void set_revision_source(std::function<std::optional<QString>(const report_draft&)> aSource);
+		/// \brief [[BPR-2376]]. Whether a drafted finding's draft, which the
+		/// reviewer changed, differs from the suggested comment a follow-up
+		/// updated since (the finding offers Update draft), and where Update
+		/// draft goes.
+		void set_draft_update(std::function<bool(const report_draft&)> aOutdated, std::function<void(const report_draft&)> aUpdate);
+		/// \brief [[BPR-2376]]. The keep action at `aOutline` as it would be
+		/// made now (a follow-up's update in place of the comment); none
+		/// where the page offers none.
+		[[nodiscard]] auto finding_request(std::uint32_t aOutline) const -> std::optional<report_draft> { return keep_request(aOutline); }
 		/// \brief [[BPR-2331]]. Dismiss and its Undo on a finding, which its
 		/// Agent tab card offered; the host keeps the finding's one state.
 		void set_dismiss_dispatch(report_dismiss_dispatch aDispatch);
@@ -337,6 +346,8 @@ namespace bpr::qt {
 		std::function<void(const report_draft&)>                   GoDispatch;
 		std::function<void(const report_draft&)>                   FollowUpDispatch;
 		std::function<std::optional<QString>(const report_draft&)> RevisionSource;
+		std::function<bool(const report_draft&)>                   DraftOutdated;
+		std::function<void(const report_draft&)>                   DraftUpdate;
 		QLabel*                                                    Title      = nullptr;
 		QLabel*                                                    Byline     = nullptr;
 		QScrollArea*                                               Scroll     = nullptr;

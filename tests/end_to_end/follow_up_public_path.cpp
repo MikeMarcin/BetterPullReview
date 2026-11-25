@@ -455,6 +455,93 @@ auto main(int argc, char** argv) -> int
 			expect(unpublished(), "nothing is published");
 		}
 
+		// [[BPR-2376]]. A drafted finding with a suggested change: an update
+		// whose comment carries another suggestion changes the finding's
+		// Suggested change and its draft with it; a draft the reviewer changed
+		// since is left as it is, the finding says so and offers Update draft.
+		{
+			const auto& fix = report->findings().at(0);
+			expect(fix.Path == "src/engine/renderer.cpp" && fix.First == 12U && fix.Last == 13U && fix.Comment.find("```suggestion") != std::string::npos, "the report's first finding is the renderer's suggested change");
+			const auto oldLine   = QStringLiteral("Target.resize(extent{ width, height });");
+			const auto newLine   = QStringLiteral("Target.resize(clamped);");
+			const auto thirdLine = QStringLiteral("Target.resize(extent{ std::max(aSize.Width, 1), std::max(aSize.Height, 1) });");
+			// The page's code boxes, a suggested change among them, lie over
+			// the page in their own readers.
+			const auto codeText = [&] {
+				auto text = QString{ };
+				for (const auto* const view : report->code_views()) {
+					text += view->rendered_view()->toPlainText() + QStringLiteral("\n---\n");
+				}
+				return text;
+			};
+			const auto codeShows    = [&](const QString& aLine) { return codeText().contains(aLine); };
+			const auto renderer     = QStringLiteral("src/engine/renderer.cpp");
+			const auto isFixDraft   = [&renderer](const qt::thread_card& aCard) { return aCard.Draft && (aCard.Path == renderer || aCard.Path.isEmpty()) && aCard.Line == 13U; };
+			const auto fixDraftText = [&]() -> QString {
+				const auto found = std::ranges::find_if(cards->cards(), isFixDraft);
+				if (found == cards->cards().end()) {
+					return QStringLiteral("<no draft>");
+				}
+				cards->open_thread(found->Id);
+				QApplication::processEvents();
+				return cards->field_text(found->Id).value_or(QStringLiteral("<not open>"));
+			};
+			expect(codeShows(oldLine), "the finding's Suggested change shows its replacement lines: " + codeText().toStdString());
+			expect(report->press(fix.Outline, qt::report_link::keep), "Draft comment is pressed on the suggested change");
+			wait([&] { return report->keep_state(fix.Outline).Phase == qt::report_keep_phase::kept; }, "the suggested change is drafted: " + report->keep_state(fix.Outline).Why.toStdString());
+			if (!e2e::wait_until_plain([&] { return fixDraftText().contains(oldLine); }, e2e::extended_agent_budget)) {
+				auto       listed = std::string{ };
+				const auto number = [](const std::optional<std::uint32_t>& aLine) { return aLine ? std::to_string(*aLine) : std::string{ "-" }; };
+				for (const auto& each : cards->cards()) {
+					listed += each.Path.toStdString() + ":" + number(each.Line) + "/" + number(each.StartLine) + "/" + number(each.FirstLine) + (each.Draft ? " draft" : "") + "; ";
+				}
+				throw std::runtime_error{ "its draft holds the suggestion: " + fixDraftText().toStdString() + " among " + listed };
+			}
+
+			// Unchanged since it was drafted: the update replaces it too.
+			expect(report->press(fix.Outline, qt::report_link::ask), "Ask follow-up on the drafted finding");
+			wait([&] { return followUp->isVisible() && followUp->subject_text() == QStringLiteral("Suggested comment at renderer.cpp:12–13"); }, "the side chat about the drafted finding: " + followUp->subject_text().toStdString());
+			propose(*followUp, QStringLiteral("Update suggested comment"));
+			expect(followUp->proposal_text().contains(newLine), "the proposal carries another suggestion: " + followUp->proposal_text().toStdString());
+			followUp->use_button()->click();
+			wait([&] {
+				const auto page = report->dressed_view()->toPlainText();
+				return page.contains(QStringLiteral("Suggested comment, updated:")) && page.contains(newLine);
+			},
+				 "the report shows the updated comment");
+			if (!e2e::wait_until_plain([&] { return codeShows(newLine) && !codeShows(oldLine); }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "the finding's Suggested change shows the updated comment's lines, not the old replacement: " + codeText().toStdString() };
+			}
+			expect(!report->dressed_view()->toPlainText().contains(oldLine), "nor does the page");
+			wait([&] { return fixDraftText().contains(newLine) && !fixDraftText().contains(oldLine); }, "the unchanged draft follows the updated comment: " + fixDraftText().toStdString());
+			expect(followUp->status_text().startsWith(QStringLiteral("Suggested comment and its draft updated.")), "it says both were updated: " + followUp->status_text().toStdString());
+			expect(!report->dressed_view()->toPlainText().contains(QStringLiteral("Update draft")), "nothing to update: the draft is the comment");
+
+			// Changed since: left as it is, and offered.
+			const auto edited = fixDraftText() + QStringLiteral("\n\nAlso worth a test.");
+			auto*      field  = cards->draft_editor();
+			expect(field != nullptr, "the draft is open in the drawer");
+			field->setPlainText(edited);
+			wait([&] { return window.review_editor()->shown_draft() && window.review_editor()->shown_draft()->Body == edited.toStdString(); }, "the reviewer's change is the draft's");
+			expect(report->press(fix.Outline, qt::report_link::ask), "Ask follow-up on the finding again");
+			wait([&] { return followUp->isVisible(); }, "the side chat opens again");
+			propose(*followUp, QStringLiteral("Update suggested comment"));
+			expect(followUp->proposal_text().contains(thirdLine), "the proposal carries a third suggestion: " + followUp->proposal_text().toStdString());
+			followUp->use_button()->click();
+			if (!e2e::wait_until_plain([&] { return codeShows(thirdLine) && !codeShows(newLine) && report->dressed_view()->toPlainText().contains(thirdLine); }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "the finding's Suggested change shows the third suggestion and not the second: " + codeText().toStdString() };
+			}
+			expect(followUp->status_text().contains(QStringLiteral("left as it is")), "it says the changed draft was left: " + followUp->status_text().toStdString());
+			expect(fixDraftText() == edited, "the reviewer's draft is not replaced: " + fixDraftText().toStdString());
+			wait([&] { return report->dressed_view()->toPlainText().contains(QStringLiteral("Update draft")); }, "the finding offers Update draft:\n" + report->dressed_view()->toPlainText().toStdString());
+			expect(report->dressed_view()->toPlainText().contains(QStringLiteral("The draft differs from the updated suggested comment")), "and says why");
+			render(*report, QStringLiteral("follow-up-draft-differs"));
+			expect(report->press(fix.Outline, qt::report_link::update_draft), "Update draft is pressed");
+			wait([&] { return fixDraftText().contains(thirdLine) && !fixDraftText().contains(QStringLiteral("Also worth a test.")); }, "Update draft replaces the draft: " + fixDraftText().toStdString());
+			wait([&] { return !report->dressed_view()->toPlainText().contains(QStringLiteral("Update draft")); }, "and is no longer offered");
+			expect(unpublished(), "nothing is published");
+		}
+
 		// [[BPR-2322]]. The log says what was asked and applied, and the
 		// anonymized export none of the words.
 		{
@@ -473,7 +560,7 @@ auto main(int argc, char** argv) -> int
 			// Words the reviewer asked, the agent answered or proposed, and
 			// the items quoted: none reaches the log or the export.
 			for (const auto* const marker : { "Is this clear enough for the author", "Is the reviewer right", "Why is this blocking", "Can it be softer", "Fixture follow-up: I read the item", "does a zero height still reach",
-											  "Thanks for checking", "clamp the height as well as the width", "The tonemap pass ignores exposure", "this seems wrong" }) {
+											  "Thanks for checking", "clamp the height as well as the width", "clamp both sides", "The tonemap pass ignores exposure", "this seems wrong" }) {
 				expect(document->Bytes.find(marker) == std::string::npos, std::string{ "the anonymized export holds none of the words: " } + marker);
 				expect(logs.find(marker) == std::string::npos, std::string{ "nor does the log: " } + marker);
 			}

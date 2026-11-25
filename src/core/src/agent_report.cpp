@@ -1,6 +1,8 @@
 #include "bpr/core/agent_report.hpp"
 
+#include "bpr/core/agent_comment_suggestion.hpp"
 #include "bpr/core/local_comment.hpp"
+#include "bpr/core/markdown_code.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1030,5 +1032,88 @@ namespace bpr::core {
 			comment += "\n\n" + rows;
 		}
 		return comment;
+	}
+
+	auto comment_suggestion_lines(const std::string_view aComment) -> std::optional<std::vector<std::string>>
+	{
+		for (auto& block : scan_markdown_fenced_code(aComment)) {
+			if (markdown_code_language_of(block.Info).Kind == markdown_code_kind::suggestion) {
+				return std::move(block.Lines);
+			}
+		}
+		return std::nullopt;
+	}
+
+	auto revise_report(dressed_report aReport, const std::vector<report_revision>& aRevisions) -> dressed_report
+	{
+		for (const auto& revision : aRevisions) {
+			for (auto& section : aReport.Sections) {
+				for (auto& item : section.Items) {
+					if (item.Outline != revision.Outline) {
+						continue;
+					}
+					auto       lines = comment_suggestion_lines(revision.Comment);
+					const auto shown = std::ranges::find(item.Body, dressed_block_kind::suggestion, &dressed_block::Kind);
+					if (!lines) {
+						if (shown != item.Body.end()) {
+							item.Body.erase(shown);
+						}
+						continue;
+					}
+					if (shown != item.Body.end()) {
+						shown->Lines = std::move(*lines);
+						continue;
+					}
+					// A suggestion the item did not have: numbered from its
+					// place, replacing the lines its quoted code holds, as
+					// `dress_report` reads one written in the report.
+					const auto from  = read_report_place(item.Place);
+					auto       block = dressed_block{ .Kind = dressed_block_kind::suggestion, .Lines = std::move(*lines) };
+					if (from) {
+						block.FirstLine  = from->First;
+						const auto quote = std::ranges::find(item.Body, dressed_block_kind::code, &dressed_block::Kind);
+						if (quote != item.Body.end() && quote->FirstLine && *quote->FirstLine <= from->First && from->Last < *quote->FirstLine + quote->Lines.size()) {
+							block.Replaced.assign(quote->Lines.begin() + (from->First - *quote->FirstLine), quote->Lines.begin() + (from->Last - *quote->FirstLine + 1U));
+						}
+					}
+					item.Body.push_back(std::move(block));
+				}
+			}
+		}
+		return aReport;
+	}
+
+	auto finding_draft_body(const std::string_view aComment) -> std::string { return read_agent_comment_suggestion(aComment).Body; }
+
+	auto stable_name(const finding_draft_revision_kind aKind) noexcept -> std::string_view
+	{
+		switch (aKind) {
+		case finding_draft_revision_kind::none:    return "none";
+		case finding_draft_revision_kind::replace: return "replace";
+		case finding_draft_revision_kind::current: return "current";
+		case finding_draft_revision_kind::edited:  return "edited";
+		}
+		return "unknown";
+	}
+
+	auto decide_finding_draft_revision(const finding_draft_revision_facts& aFacts) -> finding_draft_revision
+	{
+		if (!aFacts.Drafting) {
+			return { };
+		}
+		// Whitespace around a body is not the reviewer's change: the draft
+		// store and the field may trim it.
+		const auto bare = [](std::string_view aText) {
+			constexpr auto space = std::string_view{ " \t\r\n" };
+			const auto     first = aText.find_first_not_of(space);
+			return first == std::string_view::npos ? std::string_view{ } : aText.substr(first, aText.find_last_not_of(space) - first + 1U);
+		};
+		auto revised = finding_draft_revision{ .Kind = finding_draft_revision_kind::edited, .Body = finding_draft_body(aFacts.Revised) };
+		if (bare(aFacts.Draft) == bare(revised.Body)) {
+			revised.Kind = finding_draft_revision_kind::current;
+		} else if (aFacts.Previous && bare(aFacts.Draft) == bare(finding_draft_body(*aFacts.Previous))) {
+			revised.Kind = finding_draft_revision_kind::replace;
+		}
+		return revised;
 	}
 } // namespace bpr::core

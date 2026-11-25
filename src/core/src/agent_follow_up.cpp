@@ -131,7 +131,10 @@ namespace bpr::core {
 		{
 			switch (aApply) {
 			case follow_up_apply::update_suggestion:
-				return "Rewrite the suggested comment as the conversation above settled it. Answer with only the new comment, exactly as it would be posted: no preamble, no explanation, no quotes around it.";
+				// [[BPR-2376]]. Only a suggestion block is the finding's
+				// Suggested change (`comment_suggestion_lines`).
+				return "Rewrite the suggested comment as the conversation above settled it. Answer with only the new comment, exactly as it would be posted: no preamble, no explanation, no quotes around it. "
+					   "Write a change to the commented lines as a fenced block whose info string is suggestion, holding the lines that replace them, as GitHub applies it; a block in another language is posted as code, not as a change.";
 			case follow_up_apply::update_draft:
 				return "Rewrite the reviewer's draft as the conversation above settled it, keeping the reviewer's voice. Answer with only the new draft, exactly as it would be posted: no preamble, no explanation, no quotes around it.";
 			case follow_up_apply::draft_reply:
