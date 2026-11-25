@@ -2366,6 +2366,22 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
                 TIMEOUT 60
         )
     endforeach()
+    if(APPLE)
+        # The same course as the owner's window draws it: Cocoa, the macOS
+        # style, the system font, at the display's own scale, every window
+        # kept off screen (native_look_startup.cpp). The macOS style gives a
+        # push button a layout rect smaller than the button, and the legend's
+        # rows, laid out by it, each stood over the next; the rows above run
+        # offscreen under Fusion, which has no such rect, and passed.
+        bpr_add_network_isolated_test(NAME qt_agent_report_summary_native_look COMMAND test_agent_report_summary)
+        set_tests_properties(
+            qt_agent_report_summary_native_look
+            PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=cocoa;QT_MAC_DISABLE_FOREGROUND_APPLICATION_TRANSFORM=1;BPR_NATIVE_LOOK=1"
+                PASS_REGULAR_EXPRESSION "agent-report-summary:pass"
+                TIMEOUT 120
+        )
+    endif()
     # [[BPR-2337]]. The item side chat belongs to its document tab; in it and
     # the tour's side chat Send stands as the Agent tab's, at 1.0 and 2.0.
     bpr_add_executable(test_side_chat_tab_and_send side_chat_tab_and_send_tests.cpp)

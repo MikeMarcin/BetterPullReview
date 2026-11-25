@@ -16,8 +16,13 @@
 /// exactly its count's share, with a legend beside it; a slice or a row
 /// opens the report. The reply reads answer, summary, attachment, byline at
 /// every drawer width, and Tab goes through the counts to the attachment.
-/// Registered at 1.0, 1.25 and 2.0 scale. A look of the turn is drawn from
-/// the application's own window, by `review_report_public_path.cpp` under
+/// The legend's rows stand one under the other as lines of text, none over
+/// the next, whatever layout rect the style gives a push button, and a
+/// row's wash and focus ring stay in the row. Registered at 1.0, 1.25 and
+/// 2.0 scale and, on macOS, under the native look
+/// (`qt_agent_report_summary_native_look`: Cocoa and the macOS style, where
+/// the rows once overlapped). A look of the turn is drawn from the
+/// application's own window, by `review_report_public_path.cpp` under
 /// `BPR_REVIEW_REPORT_LOOK`, not from this course's window.
 
 #include "bpr/application/agent_launch.hpp"
@@ -43,16 +48,22 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLayout>
+#include <QLayoutItem>
 #include <QListWidget>
 #include <QMouseEvent>
+#include <QProxyStyle>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QStyle>
+#include <QStyleOptionButton>
 #include <QTabWidget>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QTextFrame>
 #include <QTimer>
+#include <QVBoxLayout>
 
 #include <algorithm>
 #include <cmath>
@@ -89,6 +100,16 @@ namespace {
 		QTimer::singleShot(aMilliseconds, &loop, &QEventLoop::quit);
 		loop.exec();
 		settle();
+	}
+
+	/// A window kept off screen is never made active; Qt is told it is, so
+	/// a row that is given the keyboard has it.
+	void make_active(QWidget& aWindow)
+	{
+		QT_WARNING_PUSH
+		QT_WARNING_DISABLE_DEPRECATED
+		QApplication::setActiveWindow(&aWindow);
+		QT_WARNING_POP
 	}
 
 	void publish_drawer(qt::workbench_window& aWindow, const std::uint32_t aConversationsWidth)
@@ -201,6 +222,90 @@ namespace {
 		expect(!pie->slice_at(pie->centre()).has_value(), aWhere + ": the hole is no slice");
 	}
 
+	/// The legend's rows stand as lines of text do: each one line of its
+	/// font tall and holding that line whole, each exactly under the one
+	/// before, no row over any other, and the legend as tall as its rows.
+	/// \details Under the macOS style each row was 22 points tall and stood
+	/// 14 under the one before: the style gives a push button a layout rect
+	/// 8 points shorter than the button, and the legend laid its rows out by
+	/// that. The rows are laid out by the rect they paint.
+	void expect_rows_tile(const qt::report_tally_view& aTally, const std::string& aWhere)
+	{
+		const auto        rows   = aTally.rows();
+		const auto* const legend = aTally.findChild<QWidget*>(QStringLiteral("agentTurnReportTallyLegend"));
+		expect(legend != nullptr && !rows.empty(), aWhere + ": the legend has its rows");
+		const auto line = aTally.line_height();
+		for (std::size_t index = 0U; index < rows.size(); ++index) {
+			const auto* const row  = rows[index];
+			const auto        said = aWhere + ", " + row->count().Word;
+			const auto        box  = row->geometry();
+			const auto        font = QFontMetrics{ row->font() }.height();
+			expect(row->parentWidget() == legend && legend->rect().contains(box), said + ": the row is inside the legend");
+			expect(box.height() == line && line >= font, said + ": the row is one whole line of its font, " + std::to_string(box.height()) + " for a line of " + std::to_string(font));
+			expect(box.top() == static_cast<int>(index) * line, said + ": the row stands exactly under the one before, at " + std::to_string(box.top()) + " for " + std::to_string(static_cast<int>(index) * line));
+			for (std::size_t other = 0U; other < index; ++other) {
+				expect(!box.intersects(rows[other]->geometry()), said + ": the row is over no part of " + rows[other]->count().Word);
+			}
+		}
+		expect(legend->height() == static_cast<int>(rows.size()) * line, aWhere + ": the legend is as tall as its rows, " + std::to_string(legend->height()) + " for " + std::to_string(rows.size()) + " of " + std::to_string(line));
+	}
+
+	/// What the pointer and the keyboard draw on a row (its wash, its focus
+	/// ring) is drawn in that row: no pixel of another row's line changes.
+	/// Before, a row's wash reached into the words above it and below it.
+	void expect_states_keep_to_their_row(qt::report_tally_view& aTally, const std::string& aWhere)
+	{
+		auto* const legend = aTally.findChild<QWidget*>(QStringLiteral("agentTurnReportTallyLegend"));
+		expect(legend != nullptr, aWhere + ": the summary has its legend");
+		const auto rows = aTally.rows();
+		if (auto* const focused = QApplication::focusWidget(); focused != nullptr && legend->isAncestorOf(focused)) {
+			focused->clearFocus();
+		}
+		aTally.set_hovered(std::nullopt);
+		settle();
+		const auto rest  = legend->grab().toImage();
+		const auto scale = rest.devicePixelRatio();
+		// A row's pixels are the device pixels wholly inside it: at a scale
+		// of 1.25 the pixel row on the edge between two rows is both rows'.
+		const auto changed = [&](const QImage& aDrawn, const QRect& aBox) {
+			const auto top   = static_cast<int>(std::ceil(aBox.top() * scale));
+			const auto end   = std::min(aDrawn.height(), static_cast<int>(std::floor((aBox.bottom() + 1) * scale)));
+			const auto left  = static_cast<int>(std::ceil(aBox.left() * scale));
+			const auto wide  = std::min(aDrawn.width(), static_cast<int>(std::floor((aBox.right() + 1) * scale)));
+			auto       count = 0;
+			for (auto y = top; y < end; ++y) {
+				for (auto x = left; x < wide; ++x) {
+					count += aDrawn.pixel(x, y) != rest.pixel(x, y) ? 1 : 0;
+				}
+			}
+			return count;
+		};
+		const auto judge = [&](const qt::report_tally_row& aLit, const std::string& aState) {
+			settle();
+			const auto drawn = legend->grab().toImage();
+			expect(drawn.size() == rest.size(), aWhere + ": the legend keeps its size " + aState);
+			for (const auto* const row : rows) {
+				const auto differs = changed(drawn, row->geometry());
+				if (row == &aLit) {
+					expect(differs > 0, aWhere + ", " + row->count().Word + ": the row shows it is " + aState);
+				} else {
+					expect(differs == 0, aWhere + ", " + row->count().Word + ": " + std::to_string(differs) + " pixels of the row change while " + aLit.count().Word + " is " + aState);
+				}
+			}
+		};
+		for (auto* const row : rows) {
+			aTally.set_hovered(row->index());
+			judge(*row, "under the pointer");
+			aTally.set_hovered(std::nullopt);
+			row->setFocus(Qt::TabFocusReason);
+			settle();
+			expect(row->hasFocus(), aWhere + ", " + row->count().Word + ": the row takes the keyboard");
+			judge(*row, "holding the keyboard");
+			row->clearFocus();
+			settle();
+		}
+	}
+
 	/// [[BPR-2344]]. The summary is a donut and its legend: a row a count in
 	/// the report's order, its swatch, word and count whole and apart, the
 	/// legend beside the donut. The summary never needs more room than the
@@ -251,6 +356,7 @@ namespace {
 				expect(shownRight < aScroll.viewport()->width(), said + ": the count is in view, its right at " + std::to_string(shownRight) + " of " + std::to_string(aScroll.viewport()->width()));
 			}
 		}
+		expect_rows_tile(aTally, aWhere);
 		expect_exact_slices(aTally, aWhere);
 		expect_drawn_slices(aTally, aWhere);
 	}
@@ -388,6 +494,84 @@ namespace {
 		expect_drawn_slices(tally, "the full donut again");
 	}
 
+	/// A style that gives a push button a layout rect smaller than the
+	/// button, as the macOS style does (8 points off its foot); this one
+	/// takes some off every side.
+	class bezel_style final : public QProxyStyle
+	{
+	public:
+		[[nodiscard]] auto subElementRect(const SubElement aElement, const QStyleOption* const aOption, const QWidget* const aWidget) const -> QRect override
+		{
+			if (aElement == SE_PushButtonLayoutItem && aOption != nullptr) {
+				return aOption->rect.adjusted(3, 4, -3, -8);
+			}
+			return QProxyStyle::subElementRect(aElement, aOption, aWidget);
+		}
+	};
+
+	/// The legend's rows stand apart whatever rect the style gives a push
+	/// button, on every platform this course runs on, and what the pointer
+	/// and the keyboard draw on a row stays in it.
+	/// \details The style is shown to be one that does it: two plain push
+	/// buttons one under the other, laid out by it, stand over each other,
+	/// which is what the legend's rows did under the macOS style.
+	void test_the_rows_stand_apart_whatever_rect_the_style_gives_a_button()
+	{
+		auto style = bezel_style{ };
+		{
+			auto        plain  = QWidget{ };
+			auto* const column = new QVBoxLayout{ &plain };
+			column->setContentsMargins(0, 0, 0, 0);
+			column->setSpacing(0);
+			auto* const first  = new QPushButton{ QStringLiteral("Placeholder"), &plain };
+			auto* const second = new QPushButton{ QStringLiteral("Placeholder"), &plain };
+			for (auto* const button : { first, second }) {
+				button->setStyle(&style);
+				button->setFixedHeight(22);
+				column->addWidget(button);
+			}
+			plain.show();
+			settle();
+			expect(first->geometry().intersects(second->geometry()), "under the style, two plain push buttons stand over each other: the second at " + std::to_string(second->geometry().top()) + ", the first ending at " + std::to_string(first->geometry().bottom() + 1));
+		}
+		auto tally = qt::report_tally_view{ };
+		tally.set_counts({
+			core::dressed_count{ .Word = "issue", .Count = 2U, .Tone = core::report_tone::open, .First = 2U },
+			core::dressed_count{ .Word = "question", .Count = 1U, .Tone = core::report_tone::neutral, .First = 4U },
+			core::dressed_count{ .Word = "suggestion", .Count = 1U, .Tone = core::report_tone::neutral, .First = 6U },
+			core::dressed_count{ .Word = "praise", .Count = 1U, .Tone = core::report_tone::done, .First = 9U },
+		});
+		auto* const legend = tally.findChild<QWidget*>(QStringLiteral("agentTurnReportTallyLegend"));
+		expect(legend != nullptr && legend->layout() != nullptr, "the summary has its legend");
+		for (auto* const row : tally.rows()) {
+			row->setStyle(&style);
+			auto option = QStyleOptionButton{ };
+			option.initFrom(row);
+			expect(row->style()->subElementRect(QStyle::SE_PushButtonLayoutItem, &option, row) != row->rect(), row->count().Word + ": the style gives the row a smaller layout rect than the row");
+		}
+		legend->layout()->invalidate();
+		tally.resize(tally.sizeHint());
+		tally.show();
+		settle();
+		expect_rows_tile(tally, "a style with a smaller button rect");
+		const auto pie = tally.pie()->geometry();
+		for (const auto* const row : tally.rows()) {
+			const auto placed = QRect{ row->mapTo(&tally, QPoint{ }), row->size() };
+			expect(tally.rect().contains(placed) && placed.left() == pie.right() + 1 + qt::report_tally_view::legend_gap, row->count().Word + ": the row stands its gap beside the donut, inside the summary, at " + std::to_string(placed.left()));
+		}
+		make_active(tally);
+		expect_states_keep_to_their_row(tally, "a style with a smaller button rect");
+		// In the font a person may choose, too.
+		auto larger = tally.font();
+		larger.setPointSizeF(larger.pointSizeF() * 1.6);
+		tally.setFont(larger);
+		settle();
+		tally.resize(tally.sizeHint());
+		settle();
+		expect_rows_tile(tally, "a style with a smaller button rect, larger font");
+		expect_states_keep_to_their_row(tally, "a style with a smaller button rect, larger font");
+	}
+
 	void test_a_report_turn_shows_its_summary_not_its_cards()
 	{
 		qt::workbench_window window;
@@ -521,6 +705,7 @@ namespace {
 			auto* const nitpick = tally->rows().at(2U);
 			expect(nitpick->focusPolicy() == Qt::StrongFocus && nitpick->accessibleName() == QStringLiteral("nitpick: 1") && nitpick->toolTip() == QStringLiteral("Open the report at its first nitpick"),
 				   "a row takes focus, names its count and says what it opens");
+			make_active(window);
 			nitpick->setFocus(Qt::TabFocusReason);
 			settle();
 			expect(tally->highlighted() == std::optional<std::size_t>{ nitpick->index() }, "a focused row lights its slice");
@@ -549,6 +734,14 @@ namespace {
 
 	/// \p aWidget's place in \p aReply; its bottom is one past its last row.
 	[[nodiscard]] auto placed_in(const QWidget& aReply, const QWidget& aWidget) -> QRect { return QRect{ aWidget.mapTo(&aReply, QPoint{ }), aWidget.size() }; }
+
+	/// \p aWidget's place in \p aReply as its layout gave it: the widget's
+	/// own rect, or the smaller one a style lays a push button out by.
+	[[nodiscard]] auto laid_out_in(const QWidget& aReply, QWidget& aWidget) -> QRect
+	{
+		const auto item = QWidgetItem{ &aWidget }.geometry();
+		return QRect{ aWidget.parentWidget()->mapTo(&aReply, item.topLeft()), item.size() };
+	}
 
 	/// The next widget Tab stops at after \p aFrom, as Qt's focus order has it.
 	[[nodiscard]] auto next_tab_stop(const QWidget& aFrom) -> QWidget*
@@ -610,10 +803,22 @@ namespace {
 		// attachment has always stood under its answer.
 		auto* const plainCard = tab->turn_report_card(1U);
 		expect(plainCard != nullptr && plainCard->isVisible() && (tab->turn_report_tally(1U) == nullptr || tab->turn_report_tally(1U)->isHidden()), "a report that labels no finding shows its attachment and no summary");
+		// The attachment row is a push button too, and the macOS style lays
+		// one out by a rect smaller than the button: alone under its answer
+		// the row is drawn that much above where its card put it. That is
+		// the row's own to settle, not the legend's, so the place judged
+		// here is the one the layout gave, and the course says where the
+		// drawn row is not at it.
+		auto* const plainOpen = plainCard->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"));
+		expect(plainOpen != nullptr, "the attachment alone has its row");
 		const auto alone = [&] {
 			const auto answerBox = placed_in(*tab->turn_reply(1U), *tab->turn_answer_view(1U));
-			const auto openBox   = placed_in(*tab->turn_reply(1U), *plainCard->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen")));
-			return openBox.top() - answerBox.bottom() - 1;
+			const auto laidOut   = laid_out_in(*tab->turn_reply(1U), *plainOpen).top() - answerBox.bottom() - 1;
+			const auto drawn     = placed_in(*tab->turn_reply(1U), *plainOpen).top() - answerBox.bottom() - 1;
+			if (drawn != laidOut) {
+				std::cout << "report-attachment-alone: drawn " << drawn << " under its answer, laid out " << laidOut << " (the " << QApplication::style()->name().toStdString() << " style's push button rect)\n";
+			}
+			return laidOut;
 		};
 		const auto summaryGap = [&] { return placed_in(*tab->turn_reply(0U), *tab->turn_report_tally(0U)).top() - placed_in(*tab->turn_reply(0U), *tab->turn_answer_view(0U)).bottom() - 1; };
 		for (const auto width : { 280U, 320U, 360U, 420U, 640U }) {
@@ -644,11 +849,7 @@ namespace {
 		wait(150);
 		auto* const tally = tab->turn_report_tally(0U);
 		auto* const open  = tab->turn_report_card(0U)->findChild<QPushButton*>(QStringLiteral("agentTurnReportOpen"));
-		// A window kept off screen is never made active; Qt is told it is.
-		QT_WARNING_PUSH
-		QT_WARNING_DISABLE_DEPRECATED
-		QApplication::setActiveWindow(&window);
-		QT_WARNING_POP
+		make_active(window);
 		tally->rows().back()->setFocus(Qt::TabFocusReason);
 		settle();
 		expect(tally->rows().back()->hasFocus(), "the last count takes focus");
@@ -852,6 +1053,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	test_the_donut_is_exact();
 	test_a_narrow_summary_draws_the_smaller_donut();
+	test_the_rows_stand_apart_whatever_rect_the_style_gives_a_button();
 	test_a_report_turn_shows_its_summary_not_its_cards();
 	test_the_summary_stands_over_its_attachment();
 	test_a_jump_shows_its_item_whole_under_the_tab_header();

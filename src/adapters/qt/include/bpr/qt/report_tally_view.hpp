@@ -22,7 +22,8 @@ namespace bpr::qt {
 	/// \brief [[BPR-2331]], [[BPR-2344]]. One count of a report's summary in
 	/// the Agent tab, as its row of the donut's legend: its swatch in its
 	/// slice's colour, its word in its tone and its count. The row opens the
-	/// report at the first item it counts.
+	/// report at the first item it counts. Its wash under the pointer and
+	/// its focus ring are its own line and no part of its neighbours'.
 	class report_tally_row final : public QPushButton
 	{
 	public:
@@ -148,7 +149,12 @@ namespace bpr::qt {
 		/// \brief The least width: the smaller donut beside the legend.
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 
-		/// \brief A legend row's height: one line of the current font.
+		/// \brief A legend row's height: one line of the current font, which
+		/// the row holds whole.
+		/// \details The rows stand one under the other as lines of text do,
+		/// each as tall as this and none over the next, under any style: a
+		/// row is laid out by the rect it paints, not by the smaller one a
+		/// style may give a push button.
 		[[nodiscard]] auto line_height() const -> int;
 		/// \brief Where the slice at `aIndex` starts and how far it goes, in
 		/// degrees clockwise from twelve o'clock: its count's exact share of

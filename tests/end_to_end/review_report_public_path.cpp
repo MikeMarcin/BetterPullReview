@@ -26,6 +26,7 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/prompts_page.hpp"
+#include "bpr/qt/report_tally_view.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -90,7 +91,9 @@ namespace {
 
 	/// With `BPR_REVIEW_REPORT_LOOK` set to a folder, the review's turn in
 	/// the Agent tab is saved there as the application draws it, at each
-	/// drawer width from the narrowest: the reply, the drawer and the window.
+	/// drawer width from the narrowest: the reply, the drawer and the window,
+	/// and at 280 and 360 the reply with a count of its summary under the
+	/// pointer and with the keyboard on it.
 	///
 	/// \details This is the application's own window, composed as it ships,
 	/// in the theme its appearance setting follows, answered by the fixture
@@ -120,6 +123,25 @@ namespace {
 			expect(aWindow.conversations_drawer()->grab().save(stem + QStringLiteral("drawer.png")), "the drawer's render is saved");
 			if (width == 360U) {
 				expect(aWindow.grab().save(stem + QStringLiteral("window.png")), "the window's render is saved");
+			}
+			// The legend as a pointer and the keyboard find it: the second
+			// count under the pointer, then holding the keyboard. A window
+			// kept off screen is never made active; Qt is told it is.
+			if (auto* const tally = tab->turn_report_tally(aTurn); (width == 280U || width == 360U) && tally->rows().size() > 1U) {
+				auto* const second = tally->rows()[1];
+				tally->set_hovered(second->index());
+				QApplication::processEvents();
+				expect(tab->turn_reply(aTurn)->grab().save(stem + QStringLiteral("reply-pointer-on-second-count.png")), "the pointed-at count's render is saved");
+				tally->set_hovered(std::nullopt);
+				QT_WARNING_PUSH
+				QT_WARNING_DISABLE_DEPRECATED
+				QApplication::setActiveWindow(&aWindow);
+				QT_WARNING_POP
+				second->setFocus(Qt::TabFocusReason);
+				QApplication::processEvents();
+				expect(tab->turn_reply(aTurn)->grab().save(stem + QStringLiteral("reply-keyboard-on-second-count.png")), "the focused count's render is saved");
+				second->clearFocus();
+				QApplication::processEvents();
 			}
 		}
 		std::cout << "review-report-look: " << folder.toStdString() << ", " << scheme.toStdString() << ", device pixel ratio " << qApp->devicePixelRatio() << '\n';
