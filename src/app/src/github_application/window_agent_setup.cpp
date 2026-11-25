@@ -978,6 +978,17 @@ namespace bpr::app {
 		AgentWorkspaceSweepAfterHistory = AgentWorkspaceSweepAfterHistory || aChoice.has_value();
 		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice));
 	}
+	/// History › New session, and Start a new session on the card of a session
+	/// that read an earlier head: the selected agent's store starts an empty
+	/// session at the revision under review (or takes up the one nothing was
+	/// asked in), and the tab is shown it.
+	void github_application::implementation::open_new_agent_session()
+	{
+		if (!Closing && AgentConversation) {
+			observe_agent_native_history(std::string{ });
+		}
+	}
+
 	/// [[BPR-2377]]. Settings › Storage & privacy › Clear local data, with
 	/// exactly `aCategory` checked: where Reset agents…, the workspaces'
 	/// Remove… and the unreadable agent setup's recovery lead.
@@ -1940,11 +1951,7 @@ namespace bpr::app {
 		tab->set_session_edit_dispatch([this](const std::string& aId, std::optional<std::string> aName) { edit_agent_session(aId, std::move(aName)); });
 		tab->set_pinned_conversation_dispatch([this](const core::agent_continuation aChoice) { return choose_pinned_conversation(aChoice); });
 		tab->set_move_reconcile_dispatch([this](const core::conversation_reconcile aChoice) { return choose_move_reconcile(aChoice); });
-		tab->set_clear_session_dispatch([this] {
-			if (!Closing && AgentConversation) {
-				observe_agent_native_history(std::string{ });
-			}
-		});
+		tab->set_clear_session_dispatch([this] { open_new_agent_session(); });
 		// Owner decision (a). The suggested prompts name the open file and
 		// the selected lines, one-based.
 		// RFC-BPR-0125; [[BPR-2181]] (AC13, Prompts review B1). The Agent

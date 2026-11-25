@@ -4041,8 +4041,17 @@ function(bpr_verify_app_source_tree app_source_root)
 	# records the composition already holds; no grant, provider, transport,
 	# mutation or publication path changes; the full application and
 	# mutation-branch digests are unchanged.
+	# Pinned-revision card reseal (the owner, of a new session that changed
+	# nothing on screen: "you click it and it does nothing which feels
+	# broken"): the chat's Start a new session choice (window_agent_chat.cpp)
+	# also opens History's new session, through open_new_agent_session
+	# (window_agent_setup.cpp, declared in window_composition.hpp), which is
+	# the History item's own call to the native session store moved into one
+	# member. One more read-and-select of the agent's own session store; no
+	# grant, provider, transport, mutation or publication path changes; the
+	# full application and mutation-branch digests are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "17f9b28a3489b998d37fdf29678b3d9e8b98b695856568c40babda355ceb344e"
+        "90de0e4d19fd4db318513df4d62cb1cf51a4c6a9b5db48958dae2836ab13820e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

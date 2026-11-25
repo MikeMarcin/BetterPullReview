@@ -42,6 +42,20 @@ namespace {
 		unsupported.CarriedOver = true;
 		expect(decide_new_session(unsupported) == new_session_refusal::already_new, "and that one, untouched, is the new session");
 
+		// Owner, 2026-11-24, of the pinned-revision card's Start a new
+		// session. A session pinned to another revision is never the new
+		// one: New session opens one at the revision under review.
+		auto pinned   = chat_history_facts{ };
+		pinned.Pinned = true;
+		expect(decide_new_session(pinned) == new_session_refusal::none, "a session pinned to another revision, asked in or not, can be left for one at the revision under review");
+		unsupported.Pinned = true;
+		expect(decide_new_session(unsupported) == new_session_refusal::none, "so can a carried-over one nothing was asked in");
+		pinned.Loading = true;
+		expect(decide_new_session(pinned) == new_session_refusal::loading, "but not while the sessions are still read");
+		pinned.Loading = false;
+		pinned.Running = true;
+		expect(decide_new_session(pinned) == new_session_refusal::running, "nor while a turn runs");
+
 		auto running    = used;
 		running.Running = true;
 		expect(decide_new_session(running) == new_session_refusal::running, "a running turn holds New session back");

@@ -269,8 +269,9 @@ namespace bpr::qt {
 		idle,
 		/// An invocation runs: what it reads, and Stop.
 		working,
-		/// The session read an earlier head: Start a new session, or Continue
-		/// on the old head.
+		/// The session read an earlier head: Start a new session, which opens
+		/// an empty one at the current head at once as History's New session
+		/// does, or Continue at the head it read.
 		head_moved,
 		/// The last invocation did not finish: what happened, the question
 		/// kept, Resend and Show the log.

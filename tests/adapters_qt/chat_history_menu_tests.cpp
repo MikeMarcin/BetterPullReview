@@ -166,6 +166,17 @@ auto main(int argc, char** argv) -> int
 	}
 	menu->close();
 
+	// The same session pinned to another revision (the tab shows its card):
+	// New session opens one at the revision under review, so it is offered.
+	state.Pinned = true;
+	agent->set_state(state);
+	expect(fresh->isEnabled() && agent->new_session_reason().isEmpty(), "New session is offered on a session pinned to another revision, though nothing was asked in it");
+	fresh->trigger();
+	expect(started == 2, "and it starts one");
+	state.Pinned = false;
+	agent->set_state(state);
+	expect(!fresh->isEnabled(), "at the revision under review it is the new session again");
+
 	// A running turn, the sessions being read, and no agent.
 	state.ShownTurns = 3U;
 	state.Running    = true;
