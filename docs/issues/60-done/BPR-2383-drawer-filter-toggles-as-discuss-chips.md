@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2383"
 title: "The comments drawer's Only new and Hide resolved are dimmed when off and filled when on"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-2372"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-parked_on: "human-review"
 metadata: {"kind":"bug","mandate_revision":"v0-5-0-prerelease-targets-r1","origin":"owner rejection of BPR-2372 in attended review 374cb080088e516421011d3a88d707e0, 2026-11-24","reservation":"docs/issues/_reservations/BPR-2383--BPR-2383--814cc2570d48.json","related":["BPR-1290","BPR-1337","BPR-2372"],"acceptance":["BPR-2383:faces","BPR-2383:state","BPR-2383:render-path","BPR-2383:neighbours"],"pending":["BPR-2383:owner-look"]}
 ---
 
@@ -149,3 +148,7 @@ drawer, four themes, device pixel ratios 1, 1.25 and 2, with contact sheets.
   change, CTest runs the row offscreen, and it is outside this card.
 - `agentActivitySummary` is still a plain checkable `QToolButton`, as
   [[BPR-2372]] left it for the agent panel's redesign.
+
+## Owner acceptance
+
+Accepted by the owner in attended review 5627b21a56838de9fae9f2ac4e4349d4 (question 01-drawer-filters-dimmed-off), 2026-11-25.
