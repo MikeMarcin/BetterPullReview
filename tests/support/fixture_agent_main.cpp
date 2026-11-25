@@ -40,6 +40,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
@@ -289,6 +290,14 @@ namespace {
 		return "Fixture agent: read your message (" + question + "). Nothing in the tour changes; nothing was spent.";
 	}
 
+	/// The number `aText` starts with, or 0.
+	auto leading_number(const std::string_view aText) -> int
+	{
+		auto number = 0;
+		std::from_chars(aText.data(), aText.data() + aText.size(), number);
+		return number;
+	}
+
 	/// Where this turn's own members start in a tour chat's request.
 	auto tour_turn_start(const std::string& aRequest) -> std::size_t
 	{
@@ -306,7 +315,7 @@ namespace {
 		for (const auto open : { std::string_view{ R"(\"thread\":\"stop )" }, std::string_view{ R"("thread":"stop )" } }) {
 			const auto found = aRequest.find(open, tour_turn_start(aRequest));
 			if (found != std::string::npos) {
-				return std::atoi(aRequest.c_str() + found + open.size());
+				return leading_number(std::string_view{ aRequest }.substr(found + open.size()));
 			}
 		}
 		return 0;
@@ -326,7 +335,7 @@ namespace {
 		const auto question = tour_question(aRequest);
 		const auto marker   = std::string_view{ "Drop stop " };
 		const auto found    = question.find(marker);
-		return found == std::string::npos ? 0 : std::atoi(question.c_str() + found + marker.size());
+		return found == std::string::npos ? 0 : leading_number(std::string_view{ question }.substr(found + marker.size()));
 	}
 
 	/// A review: the review skill asks every turn for findings it finds; only

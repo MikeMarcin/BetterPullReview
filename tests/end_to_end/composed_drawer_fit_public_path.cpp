@@ -600,7 +600,7 @@ auto main(int argc, char** argv) -> int
 			const auto scheme = QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark ? QStringLiteral("dark") : QStringLiteral("light");
 			run.RenderPrefix  = QStringLiteral("%1-%2-%3-").arg(qEnvironmentVariable("BPR_COMPOSED_DRAWER_RENDER_TAG", QStringLiteral("drawer")), scheme).arg(qRound(qApp->devicePixelRatio() * 100.0));
 		}
-		auto options                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+		auto options                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 		options.ClaudeAgentExecutable = agent;
 		options.ClaudeSearch          = search;
 		// As an owner's look runs: the Fixture agent is a saved agent entry.
@@ -718,12 +718,12 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return asked(stop) == 4 && !tour_running(*panel); }, "the stop's queued follow-ups go and are answered");
 		// Update this stop from this chat: the stop's explanation rewritten,
 		// offered as a suggestion with its choices.
-		const auto free = [&] {
+		const auto agentIsFree = [&] {
 			chat->composer()->setPlainText(QStringLiteral("x"));
 			wait([&] { return chat->send_button()->accessibleName() == QStringLiteral("Send") && chat->send_button()->isEnabled(); }, "the tour agent is free");
 			chat->composer()->clear();
 		};
-		free();
+		agentIsFree();
 		expect(chat->can_update() && chat->request_update(), "Update this stop from this chat is asked");
 		wait([&] { return asked(stop) == 5 && !tour_running(*panel) && chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAccept")) != nullptr; }, "the update proposes the stop's new explanation");
 		run.sweep_chat("tour-stop-chat-suggestion");
