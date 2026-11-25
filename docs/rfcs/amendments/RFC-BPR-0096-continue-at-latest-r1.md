@@ -98,3 +98,101 @@ this amendment, and that choice is now a separate, explicit decision
   fresh, or is refused with which ways back, from facts the host observes
   (memory, native resumability, the workspace's state). The host performs the
   move. Qt presents the notice and the actions.
+
+## Implementation design for the workspace move (checkpoint, 2026-11-24)
+
+Grounded in `src/adapters/git/src/installed_git_process.cpp` at `faba46f37`.
+Slice 1 (this amendment folded into the RFC; `core::decide_conversation_move`
+and `core::conversation_move_note`) is done. What follows is the design for
+the Git adapter move, not yet implemented.
+
+**What records the head today.**
+
+- The ownership journal's `workspace_record.Head`.
+- The `.git/bpr-owned-workspace` marker
+  (`bpr-agent-workspace-v1:<scope0>:<session>:<head>`), checked by
+  `inspect_agent_workspace`, `mark_ready` and `cleanup_locked`.
+- The stored conversation (binding, `owned_agent_workspace` with
+  `PinnedHead`, `RequiredBase` and `OwnershipMarker`).
+- The shared-workspace map key `agent_workspace_key(authority, binding)`,
+  which includes the head.
+
+`record_transition` admits no retained→retained step. Startup recovery leaves
+phase 7 records alone (`++result.Live`), so a move has to be safe at
+`inspect_agent_workspace` and `cleanup_locked`.
+
+**Journal.**
+
+- Add `std::optional<std::string> PreviousHead` to `workspace_record`. Glaze
+  does not require a nullable member, so Version 2 records stay readable.
+  Journals of moved workspaces cannot be read by older app versions; that is a
+  downgrade limit to state in the release notes.
+- Admit a 7→7 transition that changes only `Head` and `PreviousHead`.
+- Marker checks accept the marker of `Head` or of `PreviousHead`, which closes
+  the window between writing the marker and appending the journal record.
+
+**The move**, a new `git_process_port::move_agent_workspace(request, stop)`
+taking the workspace, the cache repository, the new head and base, the
+reconcile choice and the saved-branch name, under the process boundary lock
+and the journal's exclusive lock (as `cleanup_agent_workspace` takes it):
+
+1. Validate exactly as `inspect_agent_workspace` does. In the first slice a
+   shallow (sparse) workspace returns `object_unavailable`; sparse follows.
+2. Observe the workspace: `status --porcelain=v1 -z --untracked-files=all` for
+   edits; `merge-base --is-ancestor <old> HEAD` and `rev-list --count
+   <old>..HEAD` for agent commits. If there is work and the reconcile is none,
+   return "not moved" with that state; nothing is changed.
+3. Bring the new head's and base's commits and trees in from the review
+   cache, the way `repair_borrowed_workspace` copies from it; refuse with
+   `object_unavailable` when the cache lacks them.
+4. For a reconcile with edits, commit them as a WIP commit with a fixed
+   BetterPullReview identity and `--no-verify`. Write
+   `refs/bpr/pre-move/<old>` at HEAD. For save and move, or ask the agent,
+   write `refs/heads/bpr/saved/<conversation>/<old short>` at HEAD.
+5. Write `refs/bpr/move-target` at the new head: the in-progress record.
+6. Check out the new head detached, without `--force`. For rebase, run
+   `rebase --onto <new> <old>`. On a conflict, collect `diff --name-only
+   --diff-filter=U`, run `rebase --abort`, check out the pre-move ref, run
+   `reset --mixed` to the pre-WIP head so the edits are uncommitted again, and
+   return "not moved" with the conflicting files.
+7. Write the marker for the new head (temporary file, then rename), append the
+   7→7 record (`Head` new, `PreviousHead` old), and delete
+   `refs/bpr/move-target`.
+8. Return the reattached workspace at the new head and the history:
+   linearity, commits oldest first, changed files, all bounded by
+   `core::maximum_move_note_*`.
+
+**Recovery in `inspect_agent_workspace`:**
+
+- When `refs/bpr/move-target` exists and the journal `Head` is still the
+  old head, abort any rebase, check out the pre-move ref and its marker, and
+  delete the target ref (roll back).
+- When the journal `Head` is the target, finish the checkout and marker, then
+  delete the ref (roll forward).
+- When the stored conversation's head is the journal's `PreviousHead` (a crash
+  after the journal step and before the store), return the reattached
+  workspace at the journal head, flagged as moved, so the host rebinds the
+  conversation and still tells the agent.
+
+**Store and plumbing.**
+
+- `git_cache_port` and `agent_workspace_port` each gain the move, through the
+  review actor, the way `inspect` runs.
+- The native session store's update writes the conversation's base, head and
+  epochs and the retained workspace's head. The shared-workspace map moves
+  from the old key to the new one.
+- The host calls the move on send when `decide_conversation_move` says move,
+  holding the workspace lease, then runs the turn with the note.
+
+**Contract tests** (`tests/git_contract/git_process_contract_tests.cpp`, beside
+the inspect cases near its retained-workspace tests):
+
+- A clean move, plain and borrowing a clone.
+- Edits, and agent commits, observed and left untouched.
+- Rebase that succeeds; rebase that conflicts, restored and naming the files.
+- Save and move; ask the agent (saved branch, then move).
+- Objects missing.
+- A crash at each new `workspace_checkpoint` (after the WIP commit, after the
+  target ref, after the checkout, after the marker, after the journal),
+  recovered to the old or the new head with journal, marker and git agreeing.
+- An old-version reader refusing a moved journal is stated, not tested.
