@@ -920,7 +920,7 @@ the host and the refusal card, one checkout for the pull request's sessions),
 workspace),
 [BPR-2387](../issues/60-done/BPR-2387-workspace-git-isolated-from-agent-config.md)
 (BetterPullReview's own Git in the workspace runs nothing the agent
-configured) and BPR-NNNN (partial-history workspaces move, the reconcile
+configured) and BPR-2396 (partial-history workspaces move, the reconcile
 prompt is editable, the ownership record compacts). The amendment records each
 slice as built.
 
@@ -948,7 +948,7 @@ Each clause of AC13 and its evidence:
   (`test_a_pinned_conversation_card_offers_what_it_names`) and the composed
   course (every way on, Rebase not offered again after a conflict, Ask the
   agent sends the reconcile prompt after the note on the moved workspace
-  with the saved branch present). Since BPR-NNNN the reconcile prompt is a
+  with the saved branch present). Since BPR-2396 the reconcile prompt is a
   built-in prompt edited in Settings › Prompts (`qt_settings_window`,
   `application_writing_delivery`, `sqlite_workbench_settings_storage`,
   `sqlite_agent_configuration_storage`), and the move covers partial-history
@@ -973,7 +973,7 @@ Each clause of AC13 and its evidence:
   holes for every conversation on a partial checkout) and the composed course
   (step 7 of BPR-2379's course).
 
-Evidence for BPR-NNNN at `8e6fec863`, macOS arm64, Debug, Git 2.50.1 (Apple
+Evidence for BPR-2396 at `8e6fec863`, macOS arm64, Debug, Git 2.50.1 (Apple
 Git-155):
 
 - `ctest --preset dev -R '^git_process_contract$'`: passed (143 s);
