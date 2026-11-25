@@ -137,13 +137,27 @@ The whole tour and each stop have separate conversations for
 the selected agent. **Draft Tour** and that agent's whole-tour chat continue the
 same native session. Small writing hooks remain separate requests.
 
-**New session** starts fresh in the selected chat and retains its earlier
-conversation in **History**. It asks no clear-confirmation question and sends
-nothing until you send a message. Choose an earlier session to read it or
-continue it after its revision and permissions are checked. A storage refusal
-keeps the previous session selected. **Other tour chats and detached history**
-opens retained chats for reading, including removed stops and drafts left behind
-by Reset tour. It does not make them the current draft's conversation.
+The chat's header is one row: the part and its place, **Show in code**,
+**History** and close. The part and its place each keep one line and end in an
+ellipsis in a narrow column, with the whole of it in the tooltip; in the
+narrowest column Show in code reads **Show**. Rows of buttons in the chat wrap
+rather than run out of the column.
+
+**History** is the same menu as the Agent tab's. **New session** is its first
+item: it starts fresh in the selected chat and retains its earlier conversation
+in History. It asks no clear-confirmation question and sends nothing until you
+send a message. When choosing it would change nothing (nothing was asked in the
+open session, a turn is running, the agent is at work on another part) it is
+greyed and says why under its name. Below it each session is a row: click it,
+or reach it with the arrow keys and press Return, to read it or continue it
+after its revision and permissions are checked; its pencil renames it, its
+trash can deletes it and its **i** says its turns and cost. The open session is
+the ticked one. A storage refusal keeps the previous session selected. **Other
+tour chats and detached history** opens retained chats for reading, including
+removed stops and drafts left behind by Reset tour. It does not make them the
+current draft's conversation. **Copy chat** copies the open chat as text, and
+the last line names the revision the open session reads. A local draft's
+discussion keeps no sessions: its header has Copy chat where History would be.
 
 When the head changes, the chat shows its saved revision and the current head.
 Choose **Continue old revision** to keep its exact native conversation and

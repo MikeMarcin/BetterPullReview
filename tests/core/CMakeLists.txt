@@ -22,6 +22,13 @@ bpr_enable_hardening(test_agent_session_management_core)
 bpr_enable_warnings(test_agent_session_management_core)
 bpr_add_network_isolated_test(NAME core_agent_session_management COMMAND test_agent_session_management_core)
 
+# The History menu of a chat with an agent: New session's offer and the items.
+bpr_add_executable(test_chat_history_core chat_history_tests.cpp)
+target_link_libraries(test_chat_history_core PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_chat_history_core)
+bpr_enable_warnings(test_chat_history_core)
+bpr_add_network_isolated_test(NAME core_chat_history COMMAND test_chat_history_core)
+
 bpr_add_executable(test_release_update_core release_update_tests.cpp)
 target_link_libraries(test_release_update_core PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_release_update_core)

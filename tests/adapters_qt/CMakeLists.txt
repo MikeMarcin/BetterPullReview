@@ -2906,6 +2906,18 @@ set_tests_properties(
         ENVIRONMENT "${bpr_qt_github_common_environment}"
         PASS_REGULAR_EXPRESSION "agent-session-menu-tests:pass"
 )
+# RFC-BPR-0130. The History menu the Agent tab and the tour's side chat share.
+bpr_add_executable(test_better_pull_review_qt_chat_history_menu_tests chat_history_menu_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_chat_history_menu_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_chat_history_menu_tests)
+bpr_enable_warnings(test_better_pull_review_qt_chat_history_menu_tests)
+bpr_add_network_isolated_test(NAME qt_chat_history_menu COMMAND test_better_pull_review_qt_chat_history_menu_tests)
+set_tests_properties(
+    qt_chat_history_menu
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "chat-history-menu-tests:pass"
+)
 
 # RFC-BPR-0087: push semantics and production secondary/choice surfaces.
 bpr_add_executable(test_better_pull_review_qt_quiet_buttons_tests quiet_buttons_tests.cpp)
@@ -3019,6 +3031,21 @@ bpr_enable_hardening(test_tour_side_chat)
 bpr_enable_warnings(test_tour_side_chat)
 bpr_add_network_isolated_test(NAME qt_tour_side_chat COMMAND test_tour_side_chat)
 set_tests_properties(qt_tour_side_chat PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "tour-side-chat:pass" TIMEOUT 30)
+# The tour's side chat at its narrowest and two wider widths: every button and
+# label inside the column, none clipped, none over another, at each scale.
+bpr_add_executable(test_tour_side_chat_width tour_side_chat_width_tests.cpp)
+target_link_libraries(test_tour_side_chat_width PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_tour_side_chat_width)
+bpr_enable_warnings(test_tour_side_chat_width)
+foreach(bpr_tour_chat_width_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_tour_chat_width_whole "${bpr_tour_chat_width_scale} / 100")
+    math(EXPR bpr_tour_chat_width_fraction "${bpr_tour_chat_width_scale} % 100")
+    bpr_add_network_isolated_test(NAME qt_tour_side_chat_width_scale_${bpr_tour_chat_width_scale} COMMAND test_tour_side_chat_width)
+    set_tests_properties(qt_tour_side_chat_width_scale_${bpr_tour_chat_width_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_tour_chat_width_whole}.${bpr_tour_chat_width_fraction}"
+        PASS_REGULAR_EXPRESSION "tour-side-chat-width:pass"
+        TIMEOUT 60)
+endforeach()
 # [[BPR-1914]] v004. A click in the Tour tab keeps its scroll position.
 bpr_add_executable(test_tour_click_scroll tour_click_scroll_tests.cpp)
 target_link_libraries(test_tour_click_scroll PRIVATE BetterPullReview::AdapterQt)

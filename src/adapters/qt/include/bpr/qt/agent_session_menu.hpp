@@ -20,14 +20,18 @@ class QMenu;
 
 /// \file
 /// \brief [[BPR-2377]]. The session list of a chat's History menu: each
-/// session a row with its title (open it), a pencil (rename it in place), a
-/// trash can (delete it after a question) and an i (its turns, revision and
-/// cost on hover), and Delete all sessions… beside it.
+/// session a row (click it, or Return on it, to open it) with its title, a
+/// pencil (rename it in place), a trash can (delete it after a question) and
+/// an i (its turns, revision and cost on hover), and Delete all sessions…
+/// beside it. A row reads as one of the menu's own items: lit under the
+/// pointer and under the arrow keys, the open session ticked (owner,
+/// attended review 2026-11-24: "there no highlight on the mouse over for the
+/// session rows").
 /// \details Owner, 2026-11-24 (agent panel review): "put trash can and pencil
 /// on the session rows in the menu to delete or rename them. Put the cost and
 /// turns in a info tooltip ... you can just have delete all sessions". One
-/// component for every chat with sessions (the Agent tab and the tour side
-/// chat; the agent panel's redesign drops it into its own header). It knows
+/// component for every chat with sessions: `chat_history_menu` holds it for
+/// the Agent tab and the tour side chat (RFC-BPR-0130). It knows
 /// only a history projection, whether a turn runs, and a dispatch; core tidies
 /// names and decides deletions, the host performs them.
 namespace bpr::qt {
@@ -39,11 +43,15 @@ namespace bpr::qt {
 	/// \brief The rows, as a menu item: add it to a menu, with
 	/// `delete_all_action()` after it.
 	/// \details Each menu that shows it gets its own rows widget, rebuilt when
-	/// `present` changes the history; the rows' children are named
-	/// `agentSessionRow`, `agentSessionTitle`, `agentSessionRenameField`,
+	/// `present` changes the history; a row is named `agentSessionRow` (its
+	/// `sessionId`, `sessionOpen` and `highlighted` properties say which
+	/// session it is, whether it is the open one and whether it is lit), its
+	/// children `agentSessionTitle`, `agentSessionRenameField`,
 	/// `agentSessionRename`, `agentSessionDelete`, `agentSessionInfo`, and the
-	/// list's `agentSessionStatus`. Delete and Delete all are refused while a
-	/// turn runs; rename is not. Questions open over `aOwner`.
+	/// list's `agentSessionStatus`. Up and Down walk the rows and leave them
+	/// for the menu's other items; Left and Right move between a row and its
+	/// marks. Delete and Delete all are refused while a turn runs; rename is
+	/// not. Questions open over `aOwner`.
 	class agent_session_menu final : public QWidgetAction
 	{
 	public:

@@ -4,6 +4,7 @@
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
+#include "menu_row.hpp"
 
 #include "bpr/core/agent_cost.hpp"
 #include "bpr/core/hex.hpp"
@@ -15,7 +16,7 @@
 #include <QLabel>
 #include <QLayoutItem>
 #include <QLineEdit>
-#include <QMouseEvent>
+#include <QMenu>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -23,39 +24,73 @@
 
 namespace bpr::qt {
 	namespace {
-		/// A session's title: a click or Return opens it.
-		class session_title final : public QLabel
+		/// The rows of one menu. The menu gives it the keyboard when its item
+		/// is reached with the arrows; it hands that to its first row, or its
+		/// last when the arrow came from below, and moves between its rows
+		/// until an arrow leaves them, which is the menu's again.
+		class session_list final : public QWidget
 		{
 		public:
-			session_title(const QString& aText, std::function<void()> aOpen, QWidget* aParent)
-				: QLabel{ aText, aParent }
-				, Open{ std::move(aOpen) }
+			explicit session_list(QWidget* aParent)
+				: QWidget{ aParent }
 			{
-				setFocusPolicy(Qt::StrongFocus);
-				setCursor(Qt::PointingHandCursor);
-				setTextFormat(Qt::PlainText);
+				setFocusPolicy(Qt::TabFocus);
+				if (aParent != nullptr) {
+					aParent->installEventFilter(this);
+				}
 			}
 
 		protected:
-			void mouseReleaseEvent(QMouseEvent* aEvent) override
+			auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override
 			{
-				if (aEvent->button() == Qt::LeftButton && Open) {
-					Open();
-					return;
+				if (aWatched == parentWidget() && aEvent->type() == QEvent::KeyPress) {
+					LastKey = static_cast<QKeyEvent*>(aEvent)->key();
 				}
-				QLabel::mouseReleaseEvent(aEvent);
+				return QWidget::eventFilter(aWatched, aEvent);
+			}
+			void focusInEvent(QFocusEvent* aEvent) override
+			{
+				QWidget::focusInEvent(aEvent);
+				const auto rows = session_rows();
+				if (!rows.isEmpty()) {
+					(LastKey == Qt::Key_Up ? rows.back() : rows.front())->setFocus(Qt::TabFocusReason);
+				}
 			}
 			void keyPressEvent(QKeyEvent* aEvent) override
 			{
-				if ((aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter || aEvent->key() == Qt::Key_Space) && Open) {
-					Open();
-					return;
+				if (aEvent->key() == Qt::Key_Up || aEvent->key() == Qt::Key_Down) {
+					const auto        rows  = session_rows();
+					const auto* const focus = QApplication::focusWidget();
+					for (auto index = qsizetype{ 0 }; index < rows.size(); ++index) {
+						if (focus == nullptr || (rows[index] != focus && !rows[index]->isAncestorOf(focus))) {
+							continue;
+						}
+						const auto next = index + (aEvent->key() == Qt::Key_Down ? 1 : -1);
+						if (next >= 0 && next < rows.size()) {
+							rows[next]->setFocus(Qt::TabFocusReason);
+							aEvent->accept();
+							return;
+						}
+					}
 				}
-				QLabel::keyPressEvent(aEvent);
+				// Past either end, and every other key: the menu's.
+				QWidget::keyPressEvent(aEvent);
 			}
 
 		private:
-			std::function<void()> Open;
+			/// The rows, top to bottom (the list also holds its status line).
+			[[nodiscard]] auto session_rows() const -> QList<QWidget*>
+			{
+				auto found = QList<QWidget*>{ };
+				for (auto index = 0; layout() != nullptr && index < layout()->count(); ++index) {
+					if (auto* const row = layout()->itemAt(index)->widget(); row != nullptr && row->objectName() == QStringLiteral("agentSessionRow")) {
+						found.push_back(row);
+					}
+				}
+				return found;
+			}
+
+			int LastKey = 0;
 		};
 
 		/// The rename field: Return keeps the name, Esc puts the title back.
@@ -294,11 +329,20 @@ namespace bpr::qt {
 
 	auto agent_session_menu::createWidget(QWidget* const aParent) -> QWidget*
 	{
-		auto* const rows = new QWidget{ aParent };
+		auto* const rows = new session_list{ aParent };
 		rows->setObjectName(QStringLiteral("agentSessionList"));
 		auto* const column = new QVBoxLayout{ rows };
-		column->setContentsMargins(6, 2, 6, 2);
+		column->setContentsMargins(0, 0, 0, 0);
 		column->setSpacing(0);
+		// Another item under the pointer or the arrows: the rows give the
+		// keyboard back, so one item is lit at a time.
+		if (auto* const menu = qobject_cast<QMenu*>(aParent); menu != nullptr) {
+			connect(menu, &QMenu::hovered, rows, [this, menu, rows](const QAction* const aAction) {
+				if (aAction != this && rows->isAncestorOf(QApplication::focusWidget())) {
+					menu->setFocus(Qt::PopupFocusReason);
+				}
+			});
+		}
 		fill(*rows);
 		return rows;
 	}
@@ -324,31 +368,47 @@ namespace bpr::qt {
 			}
 			delete item;
 		}
+		// Words start where the menu's own items start theirs.
+		const auto* const menu  = aRows.parentWidget() != nullptr ? aRows.parentWidget() : &aRows;
+		const auto        inset = detail::menu_text_inset(*menu);
 		if (History.Entries.empty()) {
 			auto* const none = new QLabel{ tr("No sessions yet"), &aRows };
+			none->setObjectName(QStringLiteral("agentSessionNone"));
 			none->setForegroundRole(QPalette::PlaceholderText);
+			none->setContentsMargins(inset, 2, 6, 2);
+			none->setMinimumHeight(detail::menu_item_height(*menu));
 			column->addWidget(none);
 		}
 		for (const auto& each : History.Entries) {
 			const auto  id     = each.Id;
 			const auto  isOpen = id == History.Selected;
 			const auto  title  = QString::fromStdString(each.Title).simplified();
-			auto* const row    = new QWidget{ &aRows };
+			const auto  said   = info_text(each, isOpen);
+			auto* const row    = new detail::menu_row{ &aRows };
 			row->setObjectName(QStringLiteral("agentSessionRow"));
 			row->setProperty("sessionId", QString::fromStdString(id));
-			auto* const line = new QHBoxLayout{ row };
-			line->setContentsMargins(4, 1, 0, 1);
-			line->setSpacing(2);
-			auto* const name = new session_title{ aRows.fontMetrics().elidedText(title, Qt::ElideRight, 260), [this, id] { open(id); }, row };
-			name->setObjectName(QStringLiteral("agentSessionTitle"));
-			name->setToolTip(title);
-			name->setAccessibleName(isOpen ? tr("%1, the open session").arg(title) : title);
-			name->setEnabled(!Running || isOpen);
-			if (isOpen) {
-				auto font = name->font();
-				font.setBold(true);
-				name->setFont(font);
+			row->setProperty("sessionOpen", isOpen);
+			row->set_action(this);
+			// RFC-BPR-0130: the open session is the ticked one.
+			row->set_ticked(isOpen);
+			row->setAccessibleName(isOpen ? tr("%1, the open session").arg(title) : title);
+			row->setAccessibleDescription(said);
+			// A turn runs: only the open session's row does anything.
+			const auto opens = !Running || isOpen;
+			if (opens) {
+				row->set_activation([this, id] { open(id); });
+			} else {
+				row->setToolTip(tr("Stop the running turn first"));
 			}
+			auto* const line = new QHBoxLayout{ row };
+			line->setContentsMargins(inset, 0, 6, 0);
+			line->setSpacing(2);
+			auto* const name = new QLabel{ aRows.fontMetrics().elidedText(title, Qt::ElideRight, 260), row };
+			name->setObjectName(QStringLiteral("agentSessionTitle"));
+			name->setTextFormat(Qt::PlainText);
+			name->setAttribute(Qt::WA_TransparentForMouseEvents);
+			name->setToolTip(title);
+			name->setEnabled(opens);
 			auto* const field = new rename_field{ [this, id](const QString& aTyped) { rename(id, aTyped); }, [this] { refresh(); }, row };
 			field->setObjectName(QStringLiteral("agentSessionRenameField"));
 			field->setPlaceholderText(tr("Name; empty for the first question"));
@@ -358,7 +418,8 @@ namespace bpr::qt {
 			line->addWidget(field, 1);
 			auto* const pencil = row_tool(row, drawer_glyph::rename, tr("Rename"), QStringLiteral("agentSessionRename"));
 			pencil->setToolTip(tr("Rename. Clear the name to show the first question again."));
-			connect(pencil, &QToolButton::clicked, row, [name, field, each] {
+			connect(pencil, &QToolButton::clicked, row, [row, name, field, each] {
+				row->set_plain(true);
 				name->hide();
 				field->setText(QString::fromStdString(each.Name.empty() ? each.Title : each.Name));
 				field->show();
@@ -370,13 +431,27 @@ namespace bpr::qt {
 			trash->setToolTip(Running ? tr("Stop the running turn first") : tr("Delete this session"));
 			connect(trash, &QToolButton::clicked, this, [this, id] { ask_delete(id); });
 			auto* const info = row_tool(row, drawer_glyph::info, tr("About this session"), QStringLiteral("agentSessionInfo"));
-			const auto  said = info_text(each, isOpen);
 			info->setToolTip(said);
 			info->setAccessibleDescription(said);
 			connect(info, &QToolButton::clicked, info, [info] { show_anchored_tooltip(*info, info->rect(), info->toolTip(), anchored_tooltip_hold::focus); });
 			line->addWidget(pencil);
 			line->addWidget(trash);
 			line->addWidget(info);
+			for (auto* const tool : { pencil, trash, info }) {
+				row->add_control(*tool);
+			}
+			// Lit, the row's words and marks are read in the highlight's ink.
+			row->set_highlight_observer([row, name, pencil, trash, info](const bool aLit) {
+				auto worn = QPalette{ };
+				if (aLit) {
+					worn = name->palette();
+					worn.setColor(QPalette::WindowText, row->ink());
+				}
+				name->setPalette(worn);
+				for (auto* const tool : { pencil, trash, info }) {
+					tool->set_surface_colours(aLit ? row->ground() : QColor{ }, aLit ? row->ink() : QColor{ });
+				}
+			});
 			column->addWidget(row);
 		}
 		if (!Status.isEmpty()) {
@@ -384,6 +459,7 @@ namespace bpr::qt {
 			status->setObjectName(QStringLiteral("agentSessionStatus"));
 			status->setWordWrap(true);
 			status->setForegroundRole(QPalette::PlaceholderText);
+			status->setContentsMargins(inset, 2, 6, 2);
 			column->addWidget(status);
 		}
 	}

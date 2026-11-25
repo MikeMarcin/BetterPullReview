@@ -34,6 +34,10 @@ def main():
             print(result.stderr, end='')
             if result.returncode or f'agent-invocation-{course}:pass' not in result.stdout:
                 return 1
+            # New session through the real window: a named session with turns
+            # is kept and an empty one opens; on that one it is greyed.
+            if course == 'native-session' and 'AGENT_NEW_SESSION:named-session-kept:empty-unnamed-opened:greyed-when-new:asks-nothing' not in result.stdout:
+                return 1
         if args.evidence_dir:
             args.evidence_dir.mkdir(parents=True, exist_ok=True)
             for name in ('native-agent-tab.png', 'native-reopen.png', 'native-tour.png', 'native-tour-refusal.png', 'native-tour-reopen.png', 'transcript-replay.png', 'transcript-replay-reopen.png', 'transcript-replay-tour.png', 'tour-old-revision.png'):

@@ -31,6 +31,7 @@
 #include "bpr/qt/stick_to_bottom.hpp"
 #include "composer_parts.hpp"
 #include "conversation_glyphs.hpp"
+#include "pull_request_overview_support.hpp"
 #include "wrapping_row.hpp"
 
 #include <QAbstractItemModel>
@@ -538,8 +539,11 @@ namespace bpr::qt {
 		// the question field; the selector stays the one choice, unseen.
 		profiles->hide();
 		// Owner look v003 and the VS Code agent drawers: the session's title,
-		// then History and New session as icons.
-		SessionTitle = new QLabel{ tr("Agent"), context };
+		// then History. RFC-BPR-0130, header A: the title ends in an ellipsis
+		// where it does not fit, and New session is History's first item
+		// (owner, 2026-11-24: "move new session into that menu as the top
+		// item so it doesn't take up extra space on the drawer").
+		SessionTitle = new eliding_heading{ tr("Agent"), context };
 		SessionTitle->setObjectName(QStringLiteral("agentSessionTitle"));
 		SessionTitle->setTextFormat(Qt::PlainText);
 		SessionTitle->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
@@ -551,40 +555,39 @@ namespace bpr::qt {
 		Head->setToolTip(tr("The head the session reads"));
 		Head->setForegroundRole(QPalette::PlaceholderText);
 		row->addWidget(Head);
-		History = make_drawer_tool(context, drawer_icon(drawer_glyph::history, palette()), tr("History: sessions, earlier heads and private runs"), QStringLiteral("agentHistory"));
+		History = make_drawer_tool(context, drawer_icon(drawer_glyph::history, palette()), tr("History: this chat's sessions, New session and private runs"), QStringLiteral("agentHistory"));
 		History->setAccessibleName(tr("History"));
-		History->setPopupMode(QToolButton::InstantPopup);
-		auto* const historyMenu = new QMenu{ History };
-		HistoryMenu             = historyMenu;
-		historyMenu->setObjectName(QStringLiteral("agentHistoryMenu"));
-		NativeHistoryMenu = historyMenu->addMenu(tr("Sessions"));
-		NativeHistoryMenu->setObjectName(QStringLiteral("nativeAgentSessions"));
-		connect(historyMenu, &QMenu::aboutToShow, this, [this] { if (NativeHistoryDispatch) { NativeHistoryDispatch(std::nullopt); } });
-		// [[BPR-2377]], owner 2026-11-24 (agent panel review): the Sessions
-		// rows carry a pencil, a trash can and an i; Delete all sits below.
-		SessionMenu = new agent_session_menu{ *this, this };
-		SessionMenu->set_dispatch({
-			.Open      = [this](const std::string& aId) { if (NativeHistoryDispatch) { NativeHistoryDispatch(aId); } },
-			.Rename    = [this](const std::string& aId, std::string aName) { if (SessionEditDispatch) { SessionEditDispatch(aId, std::move(aName)); } },
-			.Delete    = [this](const std::string& aId) { if (SessionEditDispatch) { SessionEditDispatch(aId, std::nullopt); } },
-			.DeleteAll = [this] { if (SessionEditDispatch) { SessionEditDispatch({ }, std::nullopt); } },
+		// [[BPR-2377]], RFC-BPR-0130. The one History menu, the tour chat's
+		// too: New session, a row a session (pencil, trash can, i), Delete all
+		// sessions…, the private runs, Reset agents…, the revision read.
+		HistoryItems = new chat_history_menu{ core::chat_history_kind::agent_tab, *this, *History, QStringLiteral("agent") };
+		HistoryMenu  = HistoryItems->menu();
+		SessionMenu  = HistoryItems->rows();
+		HistoryItems->set_dispatch({
+			.AboutToShow      = [this] { if (NativeHistoryDispatch) { NativeHistoryDispatch(std::nullopt); } },
+			.NewSession       = [this] { clear_session(); },
+			.Open             = [this](const std::string& aId) { if (NativeHistoryDispatch) { NativeHistoryDispatch(aId); } },
+			.CarryOver        = [this](const std::string& aId) { if (NativeHistoryDispatch) { NativeHistoryDispatch("replay:" + aId); } },
+			.ViewOther        = { },
+			.Edit             = [this](const std::string& aId, std::optional<std::string> aName) { if (SessionEditDispatch) { SessionEditDispatch(aId, std::move(aName)); } },
+			.CopyConversation = { },
+			.ShowEveryRun     = [this] { show_history(true); },
+			.ResetAgents      = [this] { reset_agents(); },
 		});
-		historyMenu->addAction(Chat.new_session_action());
-		historyMenu->addAction(Chat.continue_old_revision_action());
-		historyMenu->addSeparator();
-		auto* const privateRuns = historyMenu->addAction(tr("Private history and runs"));
-		privateRuns->setObjectName(QStringLiteral("agentPrivateHistoryAction"));
-		connect(privateRuns, &QAction::triggered, this, [this] { show_history(true); });
-
-		History->setMenu(historyMenu);
+		// What History offers is core's, from what the tab is doing when asked.
+		HistoryItems->set_state_source([this] {
+			return chat_history_menu::chat_state{
+				.AgentReady   = panels_alive() && State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up,
+				.Closed       = false,
+				.Running      = State == agent_tab_state::working,
+				.Busy         = false,
+				.ShownTurns   = Turns.size(),
+				.EveryRun     = true,
+				.ResetAgents  = SetupView != nullptr,
+				.CarryOverTip = CarryOverTip,
+			};
+		});
 		row->addWidget(History);
-		// Owner decision (b) 2026-10-23: a new session clears the current
-		// agent's thread.
-		ClearSession = make_drawer_tool(context, drawer_icon(drawer_glyph::new_session, palette()), tr("New session: retain this conversation in history and start fresh"),
-										QStringLiteral("agentClearSession"));
-		ClearSession->setAccessibleName(tr("New session"));
-		connect(ClearSession, &QToolButton::clicked, this, [this] { clear_session(); });
-		row->addWidget(ClearSession);
 		column->addWidget(context);
 		ContinuationMode = new QLabel{ tr("Native continuation"), this };
 		ContinuationMode->setObjectName(QStringLiteral("agentContinuationMode"));
@@ -1241,13 +1244,10 @@ namespace bpr::qt {
 		SetupView = &aSetup;
 		Pages->addWidget(SetupView);
 		SetupView->set_change_observer([this] { refresh(); });
-		HistoryMenu->addSeparator();
 		// Owner look v006 ("I dont think we should have this option to go back
 		// to the wizard, actually we can keep it if it's a "reset agents"
-		// which clears all settings and goes back to the wizard fresh").
-		auto* const reset = HistoryMenu->addAction(tr("Reset agents…"));
-		reset->setObjectName(QStringLiteral("agentResetAgentsAction"));
-		connect(reset, &QAction::triggered, this, [this] { reset_agents(); });
+		// which clears all settings and goes back to the wizard fresh"):
+		// History's Reset agents…, offered once there is a setup to reset.
 		refresh();
 	}
 
@@ -1348,9 +1348,7 @@ namespace bpr::qt {
 		rebuild_findings();
 		Thread->setVisible(!Turns.empty());
 		EmptyIntro->setVisible(Turns.empty() && (State == agent_tab_state::idle || State == agent_tab_state::stopped) && !ReadyCard->isVisible());
-		ClearSession->setVisible(true);
-		ClearSession->setEnabled(!NativeHistoryView.Loading && State != agent_tab_state::working);
-		SessionMenu->set_running(State == agent_tab_state::working);
+		refresh_history();
 		// Claude's effort list is fetched when the tab can show it.
 		if (isVisible() && CatalogDispatch && State != agent_tab_state::setting_up && State != agent_tab_state::not_set_up) {
 			if (const auto* const settings = RunSettingsSource->current(); settings != nullptr && settings->Listing == agent_model_listing::not_offered) {
@@ -2538,11 +2536,18 @@ namespace bpr::qt {
 		}
 	}
 
+	auto agent_tab_view::new_session_action() const noexcept -> QAction* { return HistoryItems->new_session_action(); }
+
+	void agent_tab_view::refresh_history()
+	{
+		HistoryItems->refresh();
+	}
+
 	void agent_tab_view::present_native_history(const application::native_agent_history_projection& aView)
 	{
 		NativeHistoryView = aView;
-		ClearSession->setEnabled(!aView.Loading && State != agent_tab_state::working);
 		if (aView.Loading) {
+			HistoryItems->present(aView);
 			return;
 		}
 		show_session_title();
@@ -2552,9 +2557,6 @@ namespace bpr::qt {
 			ConversationMoved->setText(tr("Updated to %1 — this pull request's checkout moved from %2 while another session asked. The agent is told with your next question.").arg(to, from));
 		}
 		ConversationMoved->setVisible(aView.SelectedMove.has_value());
-		SessionMenu->present(aView);
-		SessionMenu->set_running(State == agent_tab_state::working);
-		NativeHistoryMenu->clear();
 		ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool memory is absent; PR files and Git are shared.") : aView.NativeSupported ? tr("Native continuation")
 																																														 : tr("Native continuation unavailable. Choose Transcript replay or New session in History."));
 		ContinuationMode->setToolTip(tr("Replay uses at most 50 retained turns, 8 KiB per field and 48 KiB total; older turns and cut text are omitted. The source history stays. New session starts empty and sends no question."));
@@ -2567,23 +2569,13 @@ namespace bpr::qt {
 		if (aView.Replay && (aView.ReplayTurnsOmitted > 0U || aView.ReplayTextCutBytes > 0U)) {
 			ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" This replay leaves out %1 older turns and %2 bytes of cut text.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));
 		}
-		auto* replay = NativeHistoryMenu->addAction(tr("Use Transcript replay with selected agent"));
-		replay->setObjectName(QStringLiteral("agentTranscriptReplay"));
-		replay->setToolTip(ContinuationMode->toolTip());
+		CarryOverTip = ContinuationMode->toolTip();
 		if (!aView.ReplaySource.empty()) {
 			ContinuationMode->setToolTip(ContinuationMode->toolTip() + tr(" Source history: %1").arg(QString::fromStdString(aView.ReplaySource)));
 		}
-		replay->setEnabled(State != agent_tab_state::working);
-		connect(replay, &QAction::triggered, this, [this, id = aView.Selected] {
-			if (NativeHistoryDispatch) {
-				NativeHistoryDispatch("replay:" + id);
-			} });
-		NativeHistoryMenu->addSeparator();
-		// [[BPR-2377]]. One row per session (open, rename, delete, i), then
-		// Delete all sessions…. The rows are the tab's, kept across clears.
-		NativeHistoryMenu->addAction(SessionMenu);
-		NativeHistoryMenu->addAction(SessionMenu->delete_all_action());
-		NativeHistoryMenu->setEnabled(true);
+		// [[BPR-2377]], RFC-BPR-0130. The sessions, in the one History menu.
+		HistoryItems->present(aView);
+		refresh_history();
 	}
 
 	void agent_tab_view::set_suggestion_context(std::function<agent_suggestion_context()> aContext)
@@ -3416,7 +3408,7 @@ namespace bpr::qt {
 		}
 		// [[BPR-2331]]. Once the end's own growth is laid out.
 		QTimer::singleShot(0, this, [this, serial = current.Serial] { keep_report_in_view(serial); });
-		ClearSession->setVisible(true);
+		refresh_history();
 		if (!current.Explain.isEmpty()) {
 			publish_explain(Turns.size() - 1U, std::nullopt, footer, succeeded, seconds);
 		}
@@ -3650,8 +3642,8 @@ namespace bpr::qt {
 		const auto entry = std::ranges::find(NativeHistoryView.Entries, NativeHistoryView.Selected, &application::native_agent_history_entry::Id);
 		const auto named = entry != NativeHistoryView.Entries.end() && !entry->Name.empty() && !NativeHistoryView.Selected.empty();
 		const auto title = named ? QString::fromStdString(entry->Name) : DefaultSessionTitle;
-		SessionTitle->setText(title.isEmpty() ? tr("Agent") : title);
-		SessionTitle->setToolTip(named ? tr("%1, in %2").arg(title, DefaultSessionTitle) : title);
+		// The whole title is its tooltip whenever the row shortens it.
+		static_cast<eliding_heading*>(SessionTitle)->present(title.isEmpty() ? tr("Agent") : title, named ? tr("%1, in %2").arg(title, DefaultSessionTitle) : QString{ });
 	}
 
 	void agent_tab_view::set_session_edit_dispatch(session_edit_dispatch aDispatch)
@@ -3661,7 +3653,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::present_session_edit(const QString& aStatus)
 	{
-		SessionMenu->present_status(aStatus);
+		HistoryItems->present_status(aStatus);
 	}
 
 	void agent_tab_view::dress_answer(markdown_body_view& aAnswer) const
@@ -5352,7 +5344,6 @@ namespace bpr::qt {
 		// nearly unseeable on dark mode"). A glyph is painted in the ink of
 		// the palette it was made with, so a theme change paints each again.
 		History->setIcon(drawer_icon(drawer_glyph::history, palette()));
-		ClearSession->setIcon(drawer_icon(drawer_glyph::new_session, palette()));
 		ConversationClose->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		LinesClose->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		Context->setIcon(drawer_icon(drawer_glyph::plus, palette()));

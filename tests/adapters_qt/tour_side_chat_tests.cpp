@@ -444,7 +444,9 @@ auto main(int argc, char** argv) -> int
 	auto* const clipboard = QGuiApplication::clipboard();
 	chat->copy_reply_button(0)->click();
 	expect(clipboard->text().startsWith(QStringLiteral("It is the frame window:")), "Copy takes the reply as written");
-	chat->copy_chat_button()->click();
+	// RFC-BPR-0130: the header has History, whose Copy conversation this is.
+	expect(chat->history_button()->isVisibleTo(chat) && !chat->copy_chat_button()->isVisibleTo(chat) && chat->history_menu()->copy_action()->isEnabled(), "a chat with sessions copies its conversation from History");
+	chat->history_menu()->copy_action()->trigger();
 	expect(clipboard->text().startsWith(QStringLiteral("## Side chat: Stop 2")) && clipboard->text().contains(QStringLiteral("**You:** What does this mean?")) && clipboard->text().contains(QStringLiteral("**Claude Code** (answered in 0:07):")), "Copy chat takes the whole chat: " + clipboard->text().toStdString());
 
 	// (3) Update this stop from our chat: an Update turn, and its proposal
@@ -829,19 +831,33 @@ auto main(int argc, char** argv) -> int
 		};
 		// [[BPR-2337]]. Send is inside the composer's field, as the Agent tab's.
 		expect(chat->send_button()->parentWidget() == chat->composer_box(), "Send is in the composer's field");
-		expect(under() == QStringList{ QStringLiteral("tourChatSession"), QStringLiteral("tourSideChatField"), QStringLiteral("tourSideChatSessionCost") },
-			   "AC01 under the transcript only the composer and the session line: " + under().join(QLatin1Char(',')).toStdString());
-		expect(chat->session_button()->text() == QStringLiteral("Session 1") && chat->session_cost_line()->text() == QStringLiteral("$0.04 this session"), "the session line: its ordinal on the left, its cost on the right: " + chat->session_button()->text().toStdString());
-		expect(chat->session_button()->menu()->actions().contains(chat->new_session_action()) && chat->new_session_action()->text() == QStringLiteral("New session"), "New session is an item of the Session menu");
-		expect(chat->session_button()->geometry().top() > chat->composer_box()->geometry().bottom(), "the session line is under the composer");
+		expect(under() == QStringList{ QStringLiteral("tourSideChatField"), QStringLiteral("tourSideChatSessionCost") },
+			   "AC01 under the transcript only the composer and what the session cost: " + under().join(QLatin1Char(',')).toStdString());
+		expect(chat->session_cost_line()->text() == QStringLiteral("$0.04 this session"), "the session's cost under the composer: " + chat->session_cost_line()->text().toStdString());
+		// RFC-BPR-0130, header A (owner, attended review 2026-11-24: "It looks
+		// like tour built a different session selector from agent too for no
+		// reason."). The sessions are the header's History, the Agent tab's
+		// own menu, with New session its first item; no Session button.
+		{
+			auto* const history = chat->history_button();
+			expect(chat->findChild<QToolButton*>(QStringLiteral("tourChatSession")) == nullptr && history->objectName() == QStringLiteral("tourChatHistory") && history->isVisibleTo(chat), "the chat has History and no Session button of its own");
+			expect(history->geometry().bottom() < chat->findChild<QWidget*>(QStringLiteral("tourSideChatScroll"))->geometry().top() && history->geometry().right() < chat->close_button()->geometry().left()
+					   && chat->show_button()->geometry().right() < history->geometry().left() && chat->subject()->geometry().right() < chat->show_button()->geometry().left(),
+				   "the header is one row: the part, Show in code, History, close");
+			expect(history->menu() == chat->history_menu()->menu() && history->menu()->actions().front() == chat->new_session_action() && chat->new_session_action()->text() == QStringLiteral("New session"),
+				   "New session is History's first item");
+			// The open session "older" has saved no turn, but the chat shows
+			// one: a session with something in it can be left for a new one.
+			expect(chat->new_session_action()->isEnabled() && chat->history_menu()->new_session_reason().isEmpty(), "New session is offered on a chat that shows a turn");
+		}
 		render(*chat, prefix, "side-chat-foot");
 		// [[BPR-2377]]. The Session menu holds the same session rows as the
 		// Agent tab's, and their edits reach the chat's dispatch for the thread.
 		{
 			auto edits = std::vector<std::pair<std::string, std::optional<std::string>>>{ };
 			chat->set_session_edit_dispatch([&edits](const core::tour_thread&, const std::string& aId, std::optional<std::string> aName) { edits.emplace_back(aId, std::move(aName)); });
-			const auto sessionActions = chat->session_button()->menu()->actions();
-			expect(sessionActions.contains(&chat->session_rows()) && sessionActions.contains(chat->session_rows().delete_all_action()), "the Session menu holds the session rows and Delete all sessions…");
+			const auto sessionActions = chat->history_button()->menu()->actions();
+			expect(sessionActions.contains(&chat->session_rows()) && sessionActions.contains(chat->session_rows().delete_all_action()), "History holds the session rows and Delete all sessions…");
 			expect(chat->session_rows().ids() == std::vector<std::string>{ "newest", "older" } && chat->session_rows().selected() == "older", "the rows are the thread's sessions");
 			chat->session_rows().rename("older", QStringLiteral("Stop one notes"));
 			expect(edits.size() == 1U && edits.back().first == "older" && edits.back().second == std::string{ "Stop one notes" }, "a rename reaches the chat's dispatch");
@@ -855,9 +871,38 @@ auto main(int argc, char** argv) -> int
 			chat->present_session_edit(QStringLiteral("Renamed."));
 			expect(chat->session_rows().status() == QStringLiteral("Renamed."), "the outcome is said under the rows");
 		}
+		// Owner, the same review: "New session either needs to always work or
+		// get greyed out if it won't." An empty chat on a session nothing was
+		// asked in is the new session: greyed, with why, and it asks nothing.
+		{
+			// What the chat asks of the host; opening a chat reads its sessions.
+			auto started = 0;
+			chat->set_history_dispatch([&started](const core::tour_thread&, const std::optional<std::string>& aChoice) { started += aChoice && aChoice->empty() ? 1 : 0; });
+			chat->new_session_action()->trigger();
+			expect(started == 1, "offered, New session asks the host for a new session");
+			editor.present_tour_session(core::tour_agent_session{ }, std::nullopt);
+			chat->open(stopThread);
+			chat->present_native_history(view);
+			settle();
+			expect(chat->turn_count() == 0U && !chat->new_session_action()->isEnabled() && chat->history_menu()->new_session_reason() == QStringLiteral("This session is new: nothing has been asked in it."),
+				   "on the session nothing was asked in, New session is greyed and says why: " + chat->history_menu()->new_session_reason().toStdString());
+			chat->new_session_action()->trigger();
+			expect(started == 1, "and it asks the host nothing");
+			// A local draft's discussion keeps no sessions: Copy conversation
+			// in History's place, as core decides.
+			chat->set_sessions_offered(false);
+			settle();
+			expect(!chat->history_button()->isVisibleTo(chat) && chat->copy_chat_button()->isVisibleTo(chat), "a chat that keeps no sessions shows Copy conversation where History was");
+			chat->set_sessions_offered(true);
+			settle();
+			expect(chat->history_button()->isVisibleTo(chat) && !chat->copy_chat_button()->isVisibleTo(chat), "and History again when it keeps them");
+			chat->set_history_dispatch({ });
+			editor.present_tour_session(footSession, std::nullopt);
+			chat->open(stopThread);
+			settle();
+		}
 		view.Selected = { };
 		chat->present_native_history(view);
-		expect(chat->session_button()->text() == QStringLiteral("Session 3"), "a chat with no session selected starts the next one");
 		view.Replay = true;
 		chat->present_native_history(view);
 		settle();

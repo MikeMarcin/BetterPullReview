@@ -2702,9 +2702,15 @@ comment's card offers Make draft (or Make draft on line N), Copy text, Delete
 need no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
 follows Tour, its spark beside its name. Its header (owner look v003, after the
 agent drawers' convention) is the session's title, the pull request's number
-and title, the head its session reads, and two icons: History (Clear session,
-a new session, continuing on an earlier head, the private history and runs,
-and the sessions) and New session, which clears the current agent's thread.
+and title, ending in an ellipsis where the row is narrow, the head its session
+reads, and one icon, History (RFC-BPR-0130, header A). History's first item is
+New session, which keeps the conversation and opens an empty one; when that
+would change nothing (the open session is new, a turn runs, no agent is set
+up) it is greyed and says why under its name. Then the sessions, one row each
+(open, rename, delete, about; the open one ticked; lit under the pointer and
+the arrow keys as the menu's items are), transcript replay, Delete all
+sessions…, the private history and runs, Reset agents… and, last, the revision
+the open session reads. The tour's side chat opens the same menu.
 Below it the conversation is a thread ([[BPR-1753]], owner looks v002
 and v003): each turn is what was asked, in an outlined bubble with its time
 right-aligned above it, then the agent's reply in its own card: the answer

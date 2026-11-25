@@ -27,6 +27,7 @@
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_session_menu.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
+#include "bpr/qt/chat_history_menu.hpp"
 #include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
@@ -351,9 +352,16 @@ namespace bpr::qt {
 		/// name deletes them all.
 		using session_edit_dispatch = std::function<void(const std::string& aId, std::optional<std::string> aName)>;
 		void set_session_edit_dispatch(session_edit_dispatch aDispatch);
-		/// \brief [[BPR-2377]]. History › Sessions' rows (pencil, trash, i) and
+		/// \brief [[BPR-2377]]. History's session rows (pencil, trash, i) and
 		/// Delete all sessions…: the shared `agent_session_menu`.
 		[[nodiscard]] auto session_menu() const noexcept -> agent_session_menu* { return SessionMenu; }
+		/// \brief RFC-BPR-0130. The header's History menu, the tour chat's
+		/// own: New session first, the sessions, Delete all sessions…, the
+		/// private runs, Reset agents…, the revision read.
+		[[nodiscard]] auto history_menu() const noexcept -> chat_history_menu* { return HistoryItems; }
+		/// \brief New session, History's first item: enabled exactly when
+		/// core offers it, and greyed with its reason otherwise.
+		[[nodiscard]] auto new_session_action() const noexcept -> QAction*;
 		/// \brief [[BPR-2377]]. What the last rename or deletion did.
 		void               present_session_edit(const QString& aStatus);
 		[[nodiscard]] auto turn_copy_button(std::size_t aTurn) const -> QToolButton*;
@@ -399,15 +407,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto session_cost_line() const noexcept -> QLabel* { return SessionCostLine; }
 		void               set_thread_observer(std::function<void(std::vector<agent_thread_turn>)> aObserver);
 		[[nodiscard]] auto thread_turns() const -> std::vector<agent_thread_turn>;
-		/// \brief Clear session: asks `set_clear_confirmation`'s question when
-		/// the thread has turns (they leave it), then empties the thread and
-		/// tells the host, which starts the next question afresh.
-		void               set_clear_session_dispatch(std::function<void()> aDispatch);
-		void               set_clear_confirmation(std::function<bool(std::size_t aTurns)> aConfirm);
-		void               clear_session();
-		void               present_native_history(const application::native_agent_history_projection&);
-		void               set_native_history_dispatch(std::function<void(std::optional<std::string>)> aDispatch) { NativeHistoryDispatch = std::move(aDispatch); }
-		[[nodiscard]] auto clear_session_button() const noexcept -> QToolButton* { return ClearSession; }
+		/// \brief New session: tells the host, which keeps the conversation in
+		/// History and opens an empty one; nothing while a turn runs.
+		void set_clear_session_dispatch(std::function<void()> aDispatch);
+		void set_clear_confirmation(std::function<bool(std::size_t aTurns)> aConfirm);
+		void clear_session();
+		void present_native_history(const application::native_agent_history_projection&);
+		void set_native_history_dispatch(std::function<void(std::optional<std::string>)> aDispatch) { NativeHistoryDispatch = std::move(aDispatch); }
 		/// \brief Owner, 2026-11-24. Where the stopped card's pinned
 		/// conversation choices go: continue the conversation at its own
 		/// revision, or start a new session at the current one. The host
@@ -800,11 +806,13 @@ namespace bpr::qt {
 		std::function<void(std::optional<std::string>)> NativeHistoryDispatch;
 		/// [[BPR-2377]]
 		session_edit_dispatch                        SessionEditDispatch;
-		agent_session_menu*                          SessionMenu = nullptr;
+		agent_session_menu*                          SessionMenu  = nullptr;
+		chat_history_menu*                           HistoryItems = nullptr;
+		QString                                      CarryOverTip;
+		void                                         refresh_history();
 		QString                                      DefaultSessionTitle;
 		void                                         show_session_title();
 		application::native_agent_history_projection NativeHistoryView;
-		QMenu*                                       NativeHistoryMenu = nullptr;
 		QLabel*                                      ContinuationMode  = nullptr;
 		QLabel*                                      ConversationMoved = nullptr;
 		/// Paints each glyph again in the current palette's ink.
@@ -1142,7 +1150,6 @@ namespace bpr::qt {
 		void                                      choose_pinned(core::agent_continuation aChoice);
 		void                                      choose_reconcile(core::conversation_reconcile aChoice);
 		std::function<bool(std::size_t)>          ClearConfirm;
-		QToolButton*                              ClearSession = nullptr;
 		std::function<agent_suggestion_context()> SuggestionContext;
 		/// [[BPR-1934]]. The suggestion component the tour chats share.
 		agent_suggestion_list* Suggestions     = nullptr;

@@ -3397,6 +3397,8 @@ namespace bpr::app {
 		Window->tour_editor()->set_local_words(std::nullopt);
 		// RFC-BPR-0120. A pull request's tour plans no check.
 		Window->tour_editor()->side_chat()->set_check_dispatch({ });
+		// Its chats keep sessions, in History.
+		Window->tour_editor()->side_chat()->set_sessions_offered(true);
 		Window->tour_editor()->set_tour_running(std::nullopt, false);
 		if (TourHost) {
 			auto shown         = TourHost->presentation();

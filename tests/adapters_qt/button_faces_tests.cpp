@@ -185,7 +185,7 @@ namespace {
 				open_agent_tab(window, profile);
 				auto* const agent = window.agent_tab();
 				auto        tab   = faces::sweep(window, faces::quiet_buttons(*agent), "agent-tab " + key, floors);
-				require(aCourse, tab, "agent-tab " + key, { "agentHistory", "agentClearSession", "agentAddContext", "agentSuggestionsToggle", "agentTurnCopy" });
+				require(aCourse, tab, "agent-tab " + key, { "agentHistory", "agentAddContext", "agentSuggestionsToggle", "agentTurnCopy" });
 				aCourse.Surfaces["agent-tab"].merge(tab);
 				faces::render(*agent, QStringLiteral("agent-tab-%1").arg(QString::fromStdString(key)));
 				// The answer's code block, its Wrap off and then on.

@@ -3,13 +3,17 @@
 /// menu's session rows: each session's title (open it), a pencil (rename in
 /// place; empty restores the default), a trash can (delete after a question
 /// that names what stays) and an i (turns, revision and cost on hover); Delete
-/// all sessions… below; delete waits while a turn runs. Saves a render when
+/// all sessions… below; delete waits while a turn runs. A row is lit under
+/// the pointer and under the arrow keys, as the menu's own items are (owner,
+/// attended review 2026-11-24: "there no highlight on the mouse over for the
+/// session rows"), and the open session is the ticked one. Saves renders when
 /// `BPR_AGENT_SESSION_RENDER_DIR` names a folder.
 #include "bpr/qt/agent_session_menu.hpp"
 #include "bpr/qt/destructive_question.hpp"
 
 #include <QAction>
 #include <QApplication>
+#include <QEnterEvent>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -103,7 +107,8 @@ auto main(int argc, char** argv) -> int
 	auto shown = rows_of(*list);
 	expect(shown.size() == 2U, "one row per session");
 	auto* const firstTitle = shown[0]->findChild<QLabel*>(QStringLiteral("agentSessionTitle"));
-	expect(firstTitle->text() == QStringLiteral("Parser review") && firstTitle->font().bold(), "a row shows its title; the open session is marked");
+	expect(firstTitle->text() == QStringLiteral("Parser review") && shown[0]->property("sessionOpen").toBool() && !shown[1]->property("sessionOpen").toBool(), "a row shows its title; the open session is the ticked one");
+	expect(firstTitle->mapTo(list, QPoint{ 0, 0 }).x() > 12 && shown[0]->width() == list->width() && shown[0]->x() == 0, "a row spans the menu, its title where an item's words start");
 	for (auto* const row : shown) {
 		expect(row->findChild<QToolButton*>(QStringLiteral("agentSessionRename")) != nullptr && row->findChild<QToolButton*>(QStringLiteral("agentSessionDelete")) != nullptr
 				   && row->findChild<QToolButton*>(QStringLiteral("agentSessionInfo")) != nullptr,
@@ -115,6 +120,58 @@ auto main(int argc, char** argv) -> int
 	if (const auto folder = qEnvironmentVariable("BPR_AGENT_SESSION_RENDER_DIR"); !folder.isEmpty()) {
 		static_cast<void>(menu->grab().save(folder + QStringLiteral("/agent-session-menu.png")));
 	}
+
+	// A row is lit under the pointer, one at a time, and is then the menu's
+	// active item, so no other item stays lit beside it.
+	const auto lit = [](const QWidget* const aRow) { return aRow->property("highlighted").toBool(); };
+	const auto key = [](const int aKey) {
+		QKeyEvent press{ QEvent::KeyPress, aKey, Qt::NoModifier };
+		QApplication::sendEvent(QApplication::focusWidget() != nullptr ? QApplication::focusWidget() : QApplication::activePopupWidget(), &press);
+		settle();
+	};
+	expect(!lit(shown[0]) && !lit(shown[1]), "no row is lit until the pointer or the keys reach it");
+	{
+		QEnterEvent enter{ QPointF{ 30.0, 5.0 }, QPointF{ 30.0, 5.0 }, shown[1]->mapToGlobal(QPointF{ 30.0, 5.0 }) };
+		QApplication::sendEvent(shown[1], &enter);
+		settle();
+		expect(lit(shown[1]) && !lit(shown[0]) && menu->activeAction() == rows, "the row under the pointer is lit, and is the menu's active item");
+		if (const auto folder = qEnvironmentVariable("BPR_AGENT_SESSION_RENDER_DIR"); !folder.isEmpty()) {
+			static_cast<void>(menu->grab().save(folder + QStringLiteral("/agent-session-menu-hover.png")));
+		}
+		QEvent leave{ QEvent::Leave };
+		QApplication::sendEvent(shown[1], &leave);
+		settle();
+		expect(!lit(shown[1]), "and is not once the pointer leaves it");
+	}
+	if (qEnvironmentVariable("BPR_NATIVE_LOOK") == QStringLiteral("1")) {
+		// A native-look run keeps its windows off screen, where no window
+		// holds the keyboard: it is for the renders above.
+		menu->close();
+		std::cout << "agent-session-menu-tests:renders\n";
+		return EXIT_SUCCESS;
+	}
+	// The arrow keys walk the rows as they walk the menu's items: Down from
+	// the top reaches the first row, Down again the next, Down again leaves
+	// the rows for Delete all sessions…, and Up comes back to the last row.
+	menu->setActiveAction(nullptr);
+	key(Qt::Key_Down);
+	expect(lit(shown[0]) && !lit(shown[1]) && QApplication::focusWidget() == shown[0], "Down reaches the first row");
+	key(Qt::Key_Down);
+	expect(lit(shown[1]) && !lit(shown[0]), "Down again the next");
+	key(Qt::Key_Right);
+	expect(QApplication::focusWidget() == shown[1]->findChild<QToolButton*>(QStringLiteral("agentSessionRename")) && lit(shown[1]), "Right moves to the row's pencil; the row stays lit");
+	key(Qt::Key_Left);
+	expect(QApplication::focusWidget() == shown[1], "Left comes back to the row");
+	key(Qt::Key_Down);
+	expect(!lit(shown[0]) && !lit(shown[1]) && menu->activeAction() == rows->delete_all_action(), "Down past the last row is the menu's next item");
+	key(Qt::Key_Up);
+	expect(lit(shown[1]) && QApplication::focusWidget() == shown[1], "Up comes back to the last row");
+	key(Qt::Key_Return);
+	expect(opened == std::vector<std::string>{ "a" } && !menu->isVisible(), "Return opens the lit row's session and the menu closes");
+	opened.clear();
+	menu->popup(owner.mapToGlobal(QPoint{ 10, 10 }));
+	settle();
+	shown = rows_of(*menu->findChild<QWidget*>(QStringLiteral("agentSessionList")));
 
 	// Rename in place: the pencil opens the field, Return keeps the name.
 	shown[1]->findChild<QToolButton*>(QStringLiteral("agentSessionRename"))->click();
@@ -129,11 +186,11 @@ auto main(int argc, char** argv) -> int
 	rows->rename("a", QStringLiteral("What changed?"));
 	expect(renamed.size() == 2U, "an unchanged title sends nothing");
 
-	// A click on a title opens it and closes the menu.
+	// A click anywhere on a row outside its marks opens it and closes the menu.
 	{
-		auto* const title = shown[1]->findChild<QLabel*>(QStringLiteral("agentSessionTitle"));
-		QMouseEvent release{ QEvent::MouseButtonRelease, QPointF{ 4.0, 4.0 }, title->mapToGlobal(QPointF{ 4.0, 4.0 }), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
-		QApplication::sendEvent(title, &release);
+		shown = rows_of(*menu->findChild<QWidget*>(QStringLiteral("agentSessionList")));
+		QMouseEvent release{ QEvent::MouseButtonRelease, QPointF{ 30.0, 4.0 }, shown[1]->mapToGlobal(QPointF{ 30.0, 4.0 }), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(shown[1], &release);
 	}
 	settle();
 	expect(opened == std::vector<std::string>{ "a" } && !menu->isVisible(), "a title opens its session and the menu closes");

@@ -16719,8 +16719,9 @@ namespace {
 					   && observedThread[1].Answer == QStringLiteral("Yes. The retry budget is reset once per frame.") && observedThread[1].Footer.contains(QStringLiteral("answered in")),
 				   "the thread is kept as each turn ends");
 			expect(agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && agent->findChild<QLabel*>(QStringLiteral("agentSuggestionsLine"))->isHidden()
-					   && agent->suggestions_toggle()->isVisible() && agent->clear_session_button()->isVisible(),
-				   "once the thread has turns the suggestions stay, without the empty thread's line, and Clear session is offered");
+					   && agent->suggestions_toggle()->isVisible() && agent->new_session_action()->isEnabled() && agent->history_button()->menu()->actions().front() == agent->new_session_action()
+					   && agent->findChild<QToolButton*>(QStringLiteral("agentClearSession")) == nullptr,
+				   "once the thread has turns the suggestions stay, without the empty thread's line, and New session is offered, History's first item and no button of the row");
 			{
 				auto* const suggestionsShown = agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"));
 				auto* const lastTurn         = agent->conversation_thread();
@@ -17111,11 +17112,11 @@ namespace {
 				asks.push_back(aTurns);
 				return confirm;
 			});
-			agent->clear_session_button()->click();
+			agent->new_session_action()->trigger();
 			process_events();
 			expect(asks.empty() && cleared == 1 && agent->turn_count() == 4U, "New session needs no destructive confirmation and waits for retained admission");
 			confirm = true;
-			agent->clear_session_button()->click();
+			agent->new_session_action()->trigger();
 			process_events();
 			expect(cleared == 2 && asks.empty() && agent->turn_count() == 4U,
 				   "repeated New session sends an explicit request without erasing an unsaved conversation");

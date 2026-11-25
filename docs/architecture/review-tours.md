@@ -274,9 +274,14 @@ that lists its parts in plain words, with **Apply all**, **Review each** (in the
 parts wait marked grey) and **Discard**, drawn from the one proposal so deciding in either place
 settles the other. Under the transcript sit only a notice when something is not as usual (a
 transcript replay, native continuation unavailable, a moved head with Continue old revision), the
-composer with an attached passage as a chip inside its field, and one line: the **Session** menu
-(its ordinal; New session, transcript replay and earlier sessions are its items) and what the
-session cost. Enhance on the Problem, the Solution, a stop or a selection opens that part's chat
+composer with an attached passage as a chip inside its field, and what the session cost. The
+sessions are the header's **History** (RFC-BPR-0130, header A): `qt::chat_history_menu`, the one
+menu the Agent tab's header opens too, built from `core::plan_chat_history`, which decides its
+items and whether New session can be chosen (`core::decide_new_session`); refused, New session is
+greyed and says why. The header is one row (the part and its place, Show in code, History, close)
+whose words end in an ellipsis rather than wrap, and `qt_tour_side_chat_width_scale_100/125/200`
+holds every state of the column inside 300, 340 and 420 px with no button cut and none over
+another. Enhance on the Problem, the Solution, a stop or a selection opens that part's chat
 and sends its update turn there; a selection's answer replaces only the selection
 (`core::confine_to_passage`). The one-shot writing hooks remain for the `bpr tour` CLI, an empty
 field's draft and RFC-BPR-0051's hooks. A stop's text cites code as `path:first-last`: in the

@@ -402,6 +402,9 @@ namespace bpr::app {
 			}
 		}
 		auto* const chat = editor->side_chat();
+		// A local draft's discussion is one conversation: no History, and
+		// Copy conversation in its place.
+		chat->set_sessions_offered(false);
 		if (projection.ChecksAvailable) {
 			chat->set_check_dispatch({ .Plan    = [this](const QString& aWords) { plan_check(aWords); },
 									   .Run     = [this](const core::tour_agent_run_id aRun) { run_check(aRun, false); },

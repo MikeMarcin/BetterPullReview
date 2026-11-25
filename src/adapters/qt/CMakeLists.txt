@@ -76,6 +76,8 @@ add_library(
         src/defect_card_view.cpp
         src/agent_tab_view.cpp
         src/agent_session_menu.cpp
+        src/chat_history_menu.cpp
+        src/menu_row.cpp
         src/agent_pending_list.cpp
         src/agent_steered_words.cpp
         src/agent_reference_links.cpp
