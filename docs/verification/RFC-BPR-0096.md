@@ -920,7 +920,7 @@ the host and the refusal card, one checkout for the pull request's sessions),
 workspace),
 [BPR-2387](../issues/60-done/BPR-2387-workspace-git-isolated-from-agent-config.md)
 (BetterPullReview's own Git in the workspace runs nothing the agent
-configured) and AC13_CARD (partial-history workspaces move, the reconcile
+configured) and BPR-NNNN (partial-history workspaces move, the reconcile
 prompt is editable, the ownership record compacts). The amendment records each
 slice as built.
 
@@ -948,7 +948,7 @@ Each clause of AC13 and its evidence:
   (`test_a_pinned_conversation_card_offers_what_it_names`) and the composed
   course (every way on, Rebase not offered again after a conflict, Ask the
   agent sends the reconcile prompt after the note on the moved workspace
-  with the saved branch present). Since AC13_CARD the reconcile prompt is a
+  with the saved branch present). Since BPR-NNNN the reconcile prompt is a
   built-in prompt edited in Settings › Prompts (`qt_settings_window`,
   `application_writing_delivery`, `sqlite_workbench_settings_storage`,
   `sqlite_agent_configuration_storage`), and the move covers partial-history
@@ -973,7 +973,22 @@ Each clause of AC13 and its evidence:
   holes for every conversation on a partial checkout) and the composed course
   (step 7 of BPR-2379's course).
 
-Evidence at AC13_CANDIDATE, macOS arm64, Debug: AC13_EVIDENCE
+Evidence for BPR-NNNN at `8e6fec863`, macOS arm64, Debug, Git 2.50.1 (Apple
+Git-155):
+
+- `ctest --preset dev -R '^git_process_contract$'`: passed (143 s);
+  `better_pull_review_git_process_contract_tests --workspace-move`:
+  `GIT_WORKSPACE_MOVE_OK` (36 s), the workspace-git-isolation course
+  included in the full run.
+- `ctest --preset dev -R '^(agent_workspace_ownership|retained_workspace_expiry|sqlite_agent_session_management|sqlite_workbench_settings_storage|sqlite_agent_configuration_storage|application_writing_delivery|application_epoch_host|application_agent_invocation_host|qt_settings_window|architecture_boundaries|architecture_boundary_contract)$'`:
+  11/11 passed.
+- clang-tidy 22 on the changed translation units: no new finding (two
+  existing ones, a switch's identical branches in `review_tour_editor.cpp`
+  and a string concatenation in `agent_setup_store.cpp`'s table widening);
+  clang-format 22 applied.
+
+BPR-2379's evidence for the composed course, the refusal card and the host's
+move stands at its own candidate (`e92dfa069` and later on that card).
 
 AC13 holds. RFC-BPR-0096 stays Auto-Verified; no other criterion's evidence
 changes.
