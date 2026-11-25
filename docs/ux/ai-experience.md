@@ -41,6 +41,15 @@ The functional core decides whether an explicit AI action is legal, what local c
   says so. **Keep summary**, under the summary, keeps the verdict, the
   summary and a line a finding as a Local comment on the pull request.
   Nothing is published until the reviewer publishes.
+- The report's links answer the pointer as buttons do (owner, 2026-11-25:
+  "I cant actually click go to draft properly until I deselect it and then
+  click it again"): a press on a link starts no selection, and one click
+  follows it whatever the page has selected. The link the keyboard is on
+  wears the window's focus ring, round the whole button of a keep action,
+  and is never a text selection. Tab and Shift+Tab move it, Return follows
+  it, and a keep action made with Return hands it to the **Go to draft** or
+  **Go to comment** left in its place. One made with the pointer hands it
+  to nothing, and a press of the pointer on the page ends it.
 - The report is drawn in the app's own hand (look review-report-v001's
   hand-back; docs/design/review-report-v2, Cards): the application's font
   and the pane's own ground and ink, the opening on a bordered band with the

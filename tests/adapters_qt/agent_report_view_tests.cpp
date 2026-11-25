@@ -499,12 +499,12 @@ namespace {
 		view.present({ .Turn     = 1U,
 					   .Title    = QStringLiteral("Review of #5"),
 					   .Markdown = QStringLiteral("# Review of #5\n\nTwo fixes.\n\n## Must fix\n\n### issue: A zero height reaches the swap chain\n\n`src/a.cpp:12`\n\nClamp it.\n\n"
-												  "### issue: The width is read twice\n\n`src/b.cpp:3`\n\nRead it once.\n"),
+												  "### issue: The width is read twice\n\n`src/b.cpp:3`\n\nRead it once.\n\n### nitpick: The README is stale\n\n`README.md`\n\nIt names the old folder.\n"),
 					   .Question = QStringLiteral("Review this pull request"),
 					   .Byline   = { } });
 		QApplication::processEvents();
 		auto* const page = view.dressed_view();
-		expect(view.findings().size() == 2U, "the report has two findings");
+		expect(view.findings().size() == 3U && view.findings()[2].Keep == bpr::core::report_keep::keep_local, "the report has two findings to draft and one to keep local");
 		const auto first  = view.findings()[0].Outline;
 		const auto second = view.findings()[1].Outline;
 		const auto press  = [page](const QString& aWords) {
@@ -636,6 +636,22 @@ namespace {
 		expect(gone == 6, "one click on the keyboard's Go to draft goes: went " + std::to_string(gone) + " times");
 		expect(view.keyboard_link().isEmpty() && !page->textCursor().hasSelection(), "a press of the pointer takes the keyboard off its link and selects nothing");
 		render(QStringLiteral("4-pointer-after-keyboard"));
+
+		// The page's other actions are the same links. Keep local leaves Go
+		// to comment unselected, and one click on it goes; Update draft
+		// takes one click with the page selected.
+		press(QStringLiteral("Keep local"));
+		expect(drafts == 3 && view.keep_state(view.findings()[2].Outline).Phase == bpr::qt::report_keep_phase::kept, "one click on Keep local keeps the finding");
+		expect(!page->textCursor().hasSelection() && view.keyboard_link().isEmpty(), "after Keep local nothing on the page is selected; \"" + selected() + "\" is");
+		press(QStringLiteral("Go to comment"));
+		expect(gone == 7, "one click on Go to comment goes: went " + std::to_string(gone) + " times");
+		auto updated = 0;
+		view.set_revision_source([](const bpr::qt::report_draft& aDraft) { return aDraft.Path == QStringLiteral("src/a.cpp") ? std::optional{ QStringLiteral("issue: clamp both.") } : std::nullopt; });
+		view.set_draft_update([](const bpr::qt::report_draft&) { return true; }, [&updated](const bpr::qt::report_draft&) { ++updated; });
+		QApplication::processEvents();
+		page->selectAll();
+		press(QStringLiteral("Update draft"));
+		expect(updated == 1, "with the page selected, one click on Update draft updates: " + std::to_string(updated) + " times");
 	}
 }
 
