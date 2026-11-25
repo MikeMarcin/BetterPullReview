@@ -183,7 +183,6 @@ auto main(int argc, char** argv) -> int
 	editor.set_dispatch([](core::tour_command) { }, [](qt::tour_editor_action) { });
 	editor.set_tour_ask_dispatch([](const qt::tour_ask&) { });
 	editor.set_tour_session_dispatch([] { }, [] { }, [](std::size_t, core::tour_proposal_decision, const QString&) { });
-	editor.set_tour_ask_more_dispatch([](core::tour_agent_run_id) { });
 	editor.resize(420, 900);
 	editor.show();
 	editor.present({ .Draft = shared });

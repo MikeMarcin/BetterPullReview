@@ -723,15 +723,23 @@ owner, 2026-11-25: "This made the drawer have a horizontal scroll which
 should have been disallowed by our tests."). `application_composed_drawer_fit_scale_100`,
 `_200` and, on macOS, `_cocoa` run the composed desktop with the Fixture agent
 through Comments, the Agent tab (ready, answered, a report, a running turn
-over its pending list, and after a push the card of a session that read the
-earlier head and the card of a refused question), the Tour tab (nothing
+over its pending list, the report of a run that stopped and that run's log
+shown, and after a push the card of a session that read the earlier head, the
+card of a refused question, a question typed while that card waits, and the
+new session its New session opens with the refused question running and then
+answered), the Tour tab (nothing
 drafted, Draft Tour running, its proposal waiting before any of it is applied,
 a proposed text being edited, Reset tour asked and done, one proposed stop
 added while the other waits, the route, a stop being written and its removal
 asked, a revision's parts waiting on the stops they change) and its chat
-column (a stop's chat new, answered, queued, with a suggestion and with that
-suggestion being edited; the whole tour's chat with a revision; a chat whose
-session read the earlier head). A state is what the window shows between two
+column (a stop's chat new, answered, queued, with a suggestion, with that
+suggestion being edited and after the stop's Enhance; the whole tour's chat as
+its toggle opens it after Draft Tour, answered and with a revision; a chat
+whose session read the earlier head). It also holds those states to what their
+cards say: the prompts wait while the revision card does, New session shows
+the empty session before the kept message runs in it, and the first question
+after a draft or an Enhance starts from that answer, which the Fixture agent's
+reply confirms. A state is what the window shows between two
 gestures, not only where a flow ends: the proposal before Apply all was cut
 off for as long as the course pressed Apply all on its way past it. In each
 the drawer is dragged to 280, 300, 340 and 420 pixels and the window made as
@@ -2741,7 +2749,10 @@ up) it is greyed and says why under its name. Then the sessions, one row each
 the arrow keys as the menu's items are), Carry this conversation over to
 *agent* (the agent the tab asks, by its name), Delete all sessions…, Show every
 run…, Reset agents… and, last, the revision the open session reads. The tour's
-side chat opens the same menu.
+side chat opens the same menu, and tells core the same thing of a session that
+read an earlier head: it is never the new session, so New session is offered
+there even in a chat nothing was asked in, where it had stayed greyed under a
+notice that said to choose it.
 The header is that one row, and nothing stands between it and the transcript.
 The "Native continuation" heading that stood there is gone (RFC-BPR-0130's
 accepted words; the owner, 2026-11-25: "I thought we were getting rid of
@@ -2884,20 +2895,52 @@ up an agent), setting up, working (whether its workspace is being made or the
 agent is running, the time it has taken, its latest line, and Stop), finished
 (how many findings, or that its answer is below, or that it found nothing),
 head moved (which head the session read, then Continue at it or New session)
-and stopped (what happened, the message kept, Resend and Show the log,
-whatever the cause; hidden once the latest turn says its cause is fixed
-since, or once that turn is deleted).
-A report of what happened (working, finished, stopped) heads the thread. The
-card that asks which revision to go on with does not: it stands on the
-question field, under the thread and outside it, so it is in view wherever
-the thread is scrolled (the owner, 2026-11-25: "it being at the top of the
-transcript is weird since we auto scroll to the bottom"). It is the same
-card before a question and after a refused one: "This session read *rev*",
-one sentence, and Continue at *rev* and New session on one line at every
-drawer width, in that order. After a refused question the turn above it
-says why and the card says only that the message is kept and is sent on the
-choice; work in the way of the move adds Rebase onto *rev*, Keep my changes
-on a branch and move and Ask *agent* to reconcile above the two.
+and stopped (that the message is kept, Resend and Show the log, whatever
+the cause; hidden once the latest turn says its cause is fixed since, or once
+that turn is deleted).
+A report of a run working or finished heads the thread. The card that asks
+which revision to go on with does not, and neither does the report of a run
+that stopped: each stands on the question field, under the thread and outside
+it, so it is in view wherever the thread is scrolled (the owner, 2026-11-25:
+"it being at the top of the transcript is weird since we auto scroll to the
+bottom"). The revision card is the same before a question and after a refused
+one: "This session read *rev*", one sentence, and Continue at *rev* and New
+session on one line at every drawer width, in that order. After a refused
+question the turn above it says why and the card says only that the message is
+kept and is sent on the choice; work in the way of the move adds Rebase onto
+*rev*, Keep my changes on a branch and move and Ask *agent* to reconcile above
+the two.
+
+Continue at *rev* sends the kept message at once, under the transcript it
+belongs to. New session after a refused question is History's New session and
+then the message: the tab shows an empty unnamed session at the head under
+review, ticked in History, and the kept message is sent there as its first
+turn; the session left behind stays in History with its transcript. The card
+goes at the press. If the new session cannot be opened the card comes back
+with the message still kept. Before this the press sent the message again
+under the old transcript, title and History tick, while the agent answered it
+in a session nothing showed.
+
+While the revision card waits, nothing else is sent, before a question and
+after a refused one alike (`core::decide_agent_suggestion_use`,
+`decide_agent_send`). Each suggested prompt is greyed and says what to choose
+first as its tooltip and to a screen reader ("Choose Continue at *rev* or New
+session first."; "Choose New session first." where only that is offered;
+"Choose how to go on, on the card over the question field, first." where the
+ways to carry work are), and a typed question stays in the field under "Not
+sent. The pull request has moved on. Choose Continue or New session, then
+send." The tour's side chat holds its prompts the same way while it asks
+which revision to go on with ("Choose New session in History or Continue old
+revision first.").
+
+The report of a run that stopped is "*agent* stopped before answering", that
+the message is kept, Resend and Show the log, with its close button. The
+stopped turn directly above says why, so the card says the reason only when no
+turn does. Show the log puts what the run wrote on the card under the two
+buttons, which stay where they were: as tall as its lines up to nine, scrolled
+inside the card past that, wrapped at the card's width (a line with no space
+in it wraps where it must), read-only and selectable. A run that stopped for a
+reason of its own leaves the suggested prompts to press.
 A send asks the agent the pill shows, whatever agent the conversation used
 before; choosing another agent starts that agent's conversation
 ([[BPR-1817]]). The pill keeps the reviewer's choice ([[BPR-1823]], owner

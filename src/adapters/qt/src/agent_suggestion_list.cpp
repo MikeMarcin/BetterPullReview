@@ -83,10 +83,13 @@ namespace bpr::qt {
 	void agent_suggestion_list::dress(QPushButton& aButton, const agent_suggestion& aPrompt) const
 	{
 		const auto shown = shortened(aButton, aPrompt.Label);
+		const auto waits = !Usable && !WhyNot.isEmpty();
 		aButton.setText(shown);
-		aButton.setToolTip(tooltip_of(aPrompt, shown != aPrompt.Label));
+		// A chip that cannot be pressed says what to do first, not what a
+		// press would send.
+		aButton.setToolTip(waits ? WhyNot : tooltip_of(aPrompt, shown != aPrompt.Label));
 		aButton.setAccessibleName(aPrompt.Label);
-		aButton.setAccessibleDescription(description_of(aPrompt));
+		aButton.setAccessibleDescription(waits ? WhyNot : description_of(aPrompt));
 		aButton.setProperty("agentPrompt", aPrompt.Label);
 		aButton.setProperty("agentPromptKey", aPrompt.Key);
 		aButton.setProperty("agentPromptExpansion", aPrompt.Expansion);
@@ -171,7 +174,7 @@ namespace bpr::qt {
 		const auto count = static_cast<int>(More.size());
 		MoreButton->setText(tr("More prompts (%1)…").arg(count));
 		MoreButton->setAccessibleName(tr("More prompts, %1 more").arg(count));
-		MoreButton->setToolTip(tr("%1 more suggested prompts. Choose one to send it; Shift puts it in the question field.").arg(count));
+		MoreButton->setToolTip(!Usable && !WhyNot.isEmpty() ? WhyNot : tr("%1 more suggested prompts. Choose one to send it; Shift puts it in the question field.").arg(count));
 		MoreMenu->clear();
 		for (const auto& prompt : More) {
 			auto* const item = MoreMenu->addAction(prompt.Label);
@@ -203,16 +206,25 @@ namespace bpr::qt {
 		}
 	}
 
-	void agent_suggestion_list::set_usable(const bool aUsable)
+	void agent_suggestion_list::set_usable(const bool aUsable, const QString& aWhyNot)
 	{
-		Usable = aUsable;
-		for (const auto& button : Buttons) {
-			if (button != nullptr) {
-				button->setEnabled(aUsable);
+		const auto said = aUsable ? QString{ } : aWhyNot;
+		const auto same = Usable == aUsable && WhyNot == said;
+		Usable          = aUsable;
+		WhyNot          = said;
+		for (std::size_t index = 0U; index < Buttons.size(); ++index) {
+			if (Buttons[index] != nullptr) {
+				Buttons[index]->setEnabled(aUsable);
+				if (!same && index < Chips.size()) {
+					dress(*Buttons[index], Chips[index]);
+				}
 			}
 		}
 		if (MoreButton != nullptr) {
 			MoreButton->setEnabled(aUsable);
+			if (!same) {
+				present_more();
+			}
 		}
 	}
 

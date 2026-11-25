@@ -357,8 +357,14 @@ words are a sentence takes a second line; none is cut. A turn that still
 reaches a pinned conversation is refused before anything runs, and the
 stopped card shows those buttons ("Continue at 1a2b3c4", "New session")
 in place of Resend; the refusal's words name exactly them ("Choose Continue
-at 1a2b3c4 or New session."), and each sends the kept message. Elsewhere the stopped card's Resend sends the
-kept message again (owner, 2026-11-24).
+at 1a2b3c4 or New session."), and each sends the kept message: Continue under
+the transcript it was asked in, New session as the first turn of the empty
+session it opens at the head under review, which the tab shows at once with
+History's tick, the conversation left behind kept in History. While that card
+waits no suggested prompt can be pressed (each says what to choose first) and
+a typed question stays in the field. Elsewhere the stopped card's Resend sends
+the kept message again (owner, 2026-11-24), and the card stands on the
+question field with its log folded under Show the log.
 
 A conversation the agent can resume, whose complete workspace is kept,
 follows the head instead, like a `git pull` in another terminal (RFC-BPR-0096,

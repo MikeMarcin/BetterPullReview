@@ -50,6 +50,15 @@ namespace {
 		expect(decide_new_session(pinned) == new_session_refusal::none, "a session pinned to another revision, asked in or not, can be left for one at the revision under review");
 		unsupported.Pinned = true;
 		expect(decide_new_session(unsupported) == new_session_refusal::none, "so can a carried-over one nothing was asked in");
+		// The tour's side chat says the same of its own session: after the
+		// pull request moved, a chat nothing was asked in still reads the
+		// earlier head, and New session is the way to the new one.
+		auto tourPinned   = chat_history_facts{ .Kind = chat_history_kind::tour_side_chat };
+		tourPinned.Pinned = true;
+		expect(decide_new_session(tourPinned) == new_session_refusal::none && plan_chat_history(tourPinned).NewSession == new_session_refusal::none,
+			   "a tour chat nothing was asked in, whose session read an earlier head, can be left for one at the head under review");
+		tourPinned.Pinned = false;
+		expect(decide_new_session(tourPinned) == new_session_refusal::already_new, "and without that fact it is the new session");
 		pinned.Loading = true;
 		expect(decide_new_session(pinned) == new_session_refusal::loading, "but not while the sessions are still read");
 		pinned.Loading = false;

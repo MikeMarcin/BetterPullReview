@@ -15,6 +15,7 @@
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
@@ -888,6 +889,52 @@ auto main(int argc, char** argv) -> int
 				   "on the session nothing was asked in, New session is greyed and says why: " + chat->history_menu()->new_session_reason().toStdString());
 			chat->new_session_action()->trigger();
 			expect(started == 1, "and it asks the host nothing");
+			// After the pull request moves, that session reads an earlier
+			// head and the chat says "Choose New session in History". It is
+			// no longer the new session: New session opens one at the head
+			// under review. Before the chat told core its session was pinned,
+			// New session stayed greyed under the words that named it.
+			auto earlier     = core::agent_continuation_offer{ };
+			earlier.Required = true;
+			chat->present_revision_continuation(earlier, { }, false);
+			settle();
+			expect(chat->turn_count() == 0U && chat->findChild<QLabel*>(QStringLiteral("tourRevisionStatus"))->isVisibleTo(chat) && chat->new_session_action()->isEnabled() && chat->history_menu()->new_session_reason().isEmpty(),
+				   "a chat nothing was asked in, whose session read an earlier head, offers New session: " + chat->history_menu()->new_session_reason().toStdString());
+			expect(chat->history_menu()->plan().NewSession == core::new_session_refusal::none, "as core decides for a pinned session");
+			// While the chat asks which revision to go on with, Send is refused;
+			// a suggested prompt is a question sent by a press, so it waits too,
+			// and says what to choose first where it said what it would send.
+			{
+				const auto prompts = [chat] { return chat->suggestions()->buttons(); };
+				expect(chat->suggestions()->isVisibleTo(chat) && !prompts().empty(), "the stop's chat shows its suggested prompts");
+				chat->composer()->setPlainText(QStringLiteral("And after the head moved?"));
+				expect(!chat->send_button()->isEnabled(), "Send waits on the revision choice");
+				chat->composer()->clear();
+				expect(std::ranges::all_of(prompts(), [](const QPushButton* aPrompt) {
+						   return !aPrompt->isEnabled() && aPrompt->toolTip() == QStringLiteral("Choose New session in History or Continue old revision first.") && aPrompt->accessibleDescription() == aPrompt->toolTip() && !aPrompt->accessibleName().isEmpty();
+					   }),
+					   "each suggested prompt is greyed and says what to choose first: " + prompts().front()->toolTip().toStdString());
+				const auto sent = asked.size();
+				prompts().front()->click();
+				expect(asked.size() == sent, "and a press sends nothing");
+				// Continue old revision chosen: the choice is made, and they send again.
+				chat->present_revision_continuation(earlier, { }, true);
+				settle();
+				expect(std::ranges::all_of(prompts(), [](const QPushButton* aPrompt) { return aPrompt->isEnabled() && aPrompt->toolTip() != QStringLiteral("Choose New session in History or Continue old revision first.") && !aPrompt->toolTip().isEmpty(); }),
+					   "once the revision is chosen the prompts can be pressed and say what they send again");
+				chat->present_revision_continuation(earlier, { }, false);
+				settle();
+			}
+			chat->new_session_action()->trigger();
+			expect(started == 2, "and New session asks the host for the session at the head under review");
+			// Continue old revision keeps the chat at that revision: New
+			// session is still the way to the new head.
+			chat->present_revision_continuation(earlier, { }, true);
+			settle();
+			expect(chat->new_session_action()->isEnabled(), "a chat continuing at its saved revision still offers New session");
+			chat->present_revision_continuation(std::nullopt, { }, false);
+			settle();
+			expect(!chat->new_session_action()->isEnabled() && chat->history_menu()->new_session_reason() == QStringLiteral("This session is new: nothing has been asked in it."), "and at the head under review it is the new session again");
 			// A local draft's discussion keeps no sessions: Copy conversation
 			// in History's place, as core decides.
 			chat->set_sessions_offered(false);
@@ -986,16 +1033,70 @@ auto main(int argc, char** argv) -> int
 			suggested.StopTexts   = { { 2U, "Each view clears between begin and present, so two never share a frame." } };
 			const auto suggestion = core::propose_tour_changes(*enhanced, suggested, { }, draft);
 			static_cast<void>(core::answer_tour_ask(freshSession, *enhanced, suggested.Reply, core::tally_of(suggestion)));
-			auto askedMore = std::vector<core::tour_agent_run_id>{ };
-			editor.set_tour_ask_more_dispatch([&askedMore](const core::tour_agent_run_id aRun) { askedMore.push_back(aRun); });
 			editor.present_tour_session(freshSession, suggestion);
 			chat->open(partThread);
 			settle();
-			auto* const more = chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAskMore"));
-			expect(more != nullptr && more->text() == QStringLiteral("Ask more") && !more->isFlat() && more->property("bprTourAction").toBool(), "AC12 the fresh suggestion offers Ask more, in the one Tour action style (owner, 2026-11-13)");
-			more->click();
-			expect(askedMore.size() == 1U && askedMore[0] == *enhanced, "AC12 Ask more names the fresh run whose answer the chat continues from");
-			render(*chat, prefix, "side-chat-ask-more");
+			// Owner, 2026-11-25, of the same choices on a part Draft Tour
+			// proposed: "edit and discard have pretty standard pencil and
+			// trash can glyphs in the app", and of Ask more there: it "just
+			// opens the whole tour chat". The chat's own suggestion card has
+			// the tour's row: a pencil, a trash, and Accept in words at the
+			// right. It has no Ask more, which opened the chat it is in.
+			const auto shownIn = [chat](const QString& aName) {
+				auto* found = static_cast<QAbstractButton*>(nullptr);
+				for (auto* const button : chat->findChildren<QAbstractButton*>(aName)) {
+					if (button->isVisibleTo(chat)) {
+						found = button;
+					}
+				}
+				return found;
+			};
+			expect(chat->findChildren<QAbstractButton*>(QStringLiteral("tourSideChatAskMore")).isEmpty(), "the fresh suggestion offers no Ask more");
+			for (const auto* const button : chat->findChildren<QAbstractButton*>()) {
+				expect(button->text() != QStringLiteral("Ask more") && button->text() != QStringLiteral("Edit text") && button->text() != QStringLiteral("Discard"), "no button of the suggestion card says Ask more, Edit text or Discard in words: " + button->objectName().toStdString());
+			}
+			auto* const accept = qobject_cast<QPushButton*>(shownIn(QStringLiteral("tourSideChatAccept")));
+			auto* const pencil = dynamic_cast<qt::quiet_tool_button*>(shownIn(QStringLiteral("tourSideChatEdit")));
+			auto* const trash  = dynamic_cast<qt::quiet_tool_button*>(shownIn(QStringLiteral("tourSideChatDiscard")));
+			expect(accept != nullptr && accept->text() == QStringLiteral("Accept") && accept->property("bprTourAction").toBool(), "Accept stays a worded Tour action");
+			expect(pencil != nullptr && trash != nullptr, "Edit text and Discard are the profile's quiet icon tools");
+			expect(pencil->text().isEmpty() && !pencil->icon().isNull() && trash->text().isEmpty() && !trash->icon().isNull() && pencil->toolButtonStyle() == Qt::ToolButtonIconOnly && trash->toolButtonStyle() == Qt::ToolButtonIconOnly,
+				   "each is an icon with no words");
+			expect(pencil->accessibleName() == QStringLiteral("Edit text") && pencil->toolTip().startsWith(QStringLiteral("Edit text\n")) && pencil->isCheckable() && !pencil->isChecked(), "the pencil is named Edit text, to a screen reader and in its tooltip");
+			expect(trash->accessibleName() == QStringLiteral("Discard") && trash->toolTip().startsWith(QStringLiteral("Discard\n")) && !trash->accessibleDescription().isEmpty(), "the trash is named Discard");
+			const auto place = [chat](const QWidget* const aButton) { return QRect{ aButton->mapTo(chat, QPoint{ 0, 0 }), aButton->size() }; };
+			expect(place(pencil).right() < place(trash).left() && place(trash).right() < place(accept).left(), "the pencil, the trash, then Accept, left to right");
+			expect(place(pencil).center().y() < place(accept).bottom() && place(pencil).center().y() > place(accept).top() && place(trash).center().y() < place(accept).bottom() && place(trash).center().y() > place(accept).top(), "on one row");
+			pencil->click();
+			settle();
+			auto* const down = dynamic_cast<qt::quiet_tool_button*>(shownIn(QStringLiteral("tourSideChatEdit")));
+			expect(down != nullptr && down->isChecked() && down->accessibleName() == QStringLiteral("Show formatted") && down->toolTip().startsWith(QStringLiteral("Show formatted\n")), "the pencil is down while the source shows, and says which way it goes next");
+			down->click();
+			settle();
+			// What Ask more also did happens without it: the chat's next
+			// question starts from the suggestion, and the chat says so on
+			// its question field once the host tells it.
+			auto* const line = chat->carried_answer_line();
+			expect(line != nullptr && line->isHidden() && line->text().isEmpty(), "with nothing carried the chat says nothing of it");
+			chat->present_carried_answer(qt::tour_carried_answer::enhance);
+			settle();
+			expect(line->isVisibleTo(chat) && line->text() == QStringLiteral("Your next question starts from the Enhance suggestion.") && chat->notice()->isVisibleTo(chat) && !line->toolTip().isEmpty(),
+				   "AC12 the chat says its next question starts from the Enhance suggestion: " + line->text().toStdString());
+			expect(line->mapTo(chat, QPoint{ 0, 0 }).y() < chat->composer_box()->mapTo(chat, QPoint{ 0, 0 }).y() && line->mapTo(chat, QPoint{ 0, 0 }).y() > chat->findChild<QScrollArea*>(QStringLiteral("tourSideChatScroll"))->mapTo(chat, QPoint{ 0, 0 }).y(),
+				   "on the question field, under the transcript");
+			render(*chat, prefix, "side-chat-fresh-suggestion");
+			chat->present_carried_answer(qt::tour_carried_answer::draft);
+			expect(line->isVisibleTo(chat) && line->text() == QStringLiteral("Your next question starts from the draft's answer."), "and for Draft Tour's answer in the draft's words: " + line->text().toStdString());
+			// Another part's chat starts from nothing until the host says so.
+			chat->open(core::tour_thread{ });
+			settle();
+			expect(line->isHidden() && line->text().isEmpty(), "a chat opened for another part does not repeat the line");
+			chat->open(partThread);
+			settle();
+			chat->present_carried_answer(qt::tour_carried_answer::enhance);
+			expect(line->isVisibleTo(chat), "the host says it again for the part it holds for");
+			chat->present_carried_answer(qt::tour_carried_answer::none);
+			expect(line->isHidden() && line->text().isEmpty(), "and once it is carried the line goes");
 		}
 	}
 	// (9) [[BPR-1995]], RFC-BPR-0100 AC03, AC04. A change request in the

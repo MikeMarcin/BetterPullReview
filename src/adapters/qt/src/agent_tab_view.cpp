@@ -34,9 +34,11 @@
 #include "conversation_glyphs.hpp"
 #include "pull_request_overview_support.hpp"
 #include "side_chat_parts.hpp"
+#include "wrapped_text_field.hpp"
 #include "wrapping_row.hpp"
 
 #include <QAbstractItemModel>
+#include <QAbstractTextDocumentLayout>
 #include <QAccessible>
 #include <QAction>
 #include <QActionGroup>
@@ -78,7 +80,11 @@
 #include <QStackedWidget>
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
+#include <QTextBlock>
 #include <QTextCursor>
+#include <QTextDocument>
+#include <QTextLayout>
+#include <QTextOption>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -641,9 +647,10 @@ namespace bpr::qt {
 		auto* const contentCol = new QVBoxLayout{ content };
 		contentCol->setContentsMargins(12, 8, 12, 12);
 		contentCol->setSpacing(10);
-		// The state's card. A report of what happened (it works, it finished,
-		// it stopped) heads the thread, here. A choice the next question waits
-		// on stands on the question field instead (`dock_banner`).
+		// The state's card. A report of a run working or finished heads the
+		// thread, here. A choice the next question waits on, and the report
+		// of a run that stopped, stand on the question field instead
+		// (`dock_banner`).
 		BannerThread = contentCol;
 		Banner       = new rounded{ rounded::look::callout, content };
 		Banner->setObjectName(QStringLiteral("agentStateBanner"));
@@ -731,12 +738,30 @@ namespace bpr::qt {
 		}
 		bannerRow->addStretch(1);
 		bannerCol->addLayout(bannerRow);
-		Log = new QLabel{ Banner };
+		// What the stopped run wrote. It can be twenty lines of the agent's
+		// errors, and the card stands on the question field: the log is as
+		// tall as its lines up to `stopped_log_lines` and scrolls inside the
+		// card past that. A line with no space in it (a path, a token) wraps
+		// where it must, so the card never pans.
+		LogBox             = new QWidget{ Banner };
+		auto* const logCol = new QVBoxLayout{ LogBox };
+		logCol->setContentsMargins(0, 4, 0, 0);
+		logCol->setSpacing(0);
+		Log = new QPlainTextEdit{ LogBox };
 		Log->setObjectName(QStringLiteral("agentStateLog"));
-		Log->setWordWrap(true);
-		Log->setTextInteractionFlags(Qt::TextSelectableByMouse);
-		Log->hide();
-		bannerCol->addWidget(Log);
+		Log->setAccessibleName(tr("What the agent wrote"));
+		Log->setReadOnly(true);
+		Log->setFrameShape(QFrame::NoFrame);
+		Log->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		detail::hold_wrapped_text_still(*Log);
+		Log->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+		Log->document()->setDocumentMargin(0);
+		// The card's own ground shows through.
+		Log->viewport()->setAutoFillBackground(false);
+		Log->installEventFilter(this);
+		logCol->addWidget(Log);
+		LogBox->hide();
+		bannerCol->addWidget(LogBox);
 		contentCol->addWidget(Banner);
 		// [[BPR-1753]]. The ready line once setup finishes, and what
 		// the agent gets with each question.
@@ -2749,7 +2774,7 @@ namespace bpr::qt {
 		const auto press    = core::decide_agent_suggestion_press({
 			.EditFirst = aEditFirst || offer.finish(),
 			.DraftHeld = !draft.trimmed().isEmpty(),
-			.Usable    = Chat.send_action()->isEnabled() && State != agent_tab_state::working,
+			.Usable    = core::decide_agent_suggestion_use({ .Sendable = Chat.send_action()->isEnabled() && State != agent_tab_state::working, .RevisionChoice = revision_choice_waits() }) == core::agent_suggestion_block::none,
 		});
 		auto       carried  = macro_send{
 			.Key       = QString::fromStdString(offer.Id),
@@ -2863,9 +2888,12 @@ namespace bpr::qt {
 		for (const auto& offer : offers.More) {
 			more.push_back(suggestion_of(offer));
 		}
-		const auto usable = Chat.send_action()->isEnabled() && State != agent_tab_state::working;
+		// A prompt is a question sent by a press, held to what a typed one
+		// is: while the card asks which revision to go on with it waits, and
+		// says what to choose first. The core decides.
+		const auto block = core::decide_agent_suggestion_use({ .Sendable = Chat.send_action()->isEnabled() && State != agent_tab_state::working, .RevisionChoice = revision_choice_waits() });
 		Suggestions->present(std::move(chips), std::move(more));
-		Suggestions->set_usable(usable);
+		Suggestions->set_usable(block == core::agent_suggestion_block::none, block == core::agent_suggestion_block::revision_choice ? revision_choice_words() : QString{ });
 		const auto conversing = State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up;
 		Suggestions->lead()->setVisible(Turns.empty());
 		// [[BPR-1755]], the owner's accept of look v007 ("Hide
@@ -3893,7 +3921,9 @@ namespace bpr::qt {
 		BannerSecond->setFlat(true);
 		BannerReconcile->hide();
 		BannerDismiss->setVisible(State == agent_tab_state::stopped);
-		Log->setVisible(LogShown && State == agent_tab_state::stopped);
+		// Only the report of a run that stopped for a reason of its own shows
+		// what the run wrote.
+		auto logShown = false;
 		switch (State) {
 		case agent_tab_state::not_set_up:
 		case agent_tab_state::setting_up:
@@ -3912,6 +3942,7 @@ namespace bpr::qt {
 																	   : tr("It found nothing to report. Ask a question below."));
 			BannerFirst->hide();
 			BannerSecond->hide();
+			LogBox->hide();
 			dock_banner(false);
 			Banner->show();
 			Banner->update();
@@ -3973,14 +4004,20 @@ namespace bpr::qt {
 			connect(BannerSecond, &QPushButton::clicked, Chat.new_session_action(), &QAction::trigger);
 			break;
 		}
-		case agent_tab_state::stopped:
+		case agent_tab_state::stopped: {
 			BannerTitle->setText(tr("%1 stopped before answering").arg(Launch.profile_selector()->currentText()));
 			// [[BPR-1738]]. A stop with a reason says it and what to do;
 			// the log keeps the raw text.
 			// [[BPR-1817]]. Said in words, never as the outcome's stable name.
-			BannerText->setText(tr("%1 Your message is kept.")
-									.arg(Launch.stop_reason_text().isEmpty() ? run_failure_words(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start), Launch.profile_selector()->currentText())
-																			 : Launch.stop_reason_text()));
+			// The card stands on the question field, directly under the
+			// stopped turn, which is the thread's last and says why: the card
+			// says the reason only when no turn does, as the card of a
+			// refused question does, so it is not read twice a hand's width
+			// apart.
+			const auto reason     = Launch.stop_reason_text().isEmpty() ? run_failure_words(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start), Launch.profile_selector()->currentText())
+																		: Launch.stop_reason_text();
+			const auto saidByTurn = !Turns.empty() && Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered;
+			BannerText->setText(saidByTurn ? tr("Your message is kept.") : tr("%1 Your message is kept.").arg(reason));
 			// [[BPR-1876]]. The latest turn says its cause is fixed since:
 			// a banner still saying it stopped would read as how things stand.
 			// [[BPR-1876]]. Nor once the stopped run's turn is deleted.
@@ -4004,8 +4041,7 @@ namespace bpr::qt {
 				// turn, the thread's last and just above the card, says why
 				// in the core's words: the card says them only when no turn
 				// does, so the reason is not read twice a hand's width apart.
-				docked                = true;
-				const auto saidByTurn = !Turns.empty() && Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered;
+				docked = true;
 				BannerTitle->setText(pinned_card_title(shortHead));
 				BannerText->setText(saidByTurn ? tr("Your message is kept and is sent when you choose.") : tr("%1 Your message is kept and is sent when you choose.").arg(Launch.stop_reason_text()));
 				auto* const next = pinned->ContinueOffered ? BannerSecond : BannerFirst;
@@ -4019,7 +4055,7 @@ namespace bpr::qt {
 				}
 				next->setText(tr("New session"));
 				next->setFlat(false);
-				next->setToolTip(tr("Start an empty conversation at the current head and send your message there"));
+				next->setToolTip(tr("Keep this conversation in History, start an empty one at the current head and send your message there"));
 				wear_agent_accent(*next, palette());
 				connect(next, &QPushButton::clicked, this, [this] { choose_pinned(core::agent_continuation::start_new_session); });
 				if (!pinned->ContinueOffered) {
@@ -4047,7 +4083,16 @@ namespace bpr::qt {
 				}
 				break;
 			}
+			// Owner, 2026-11-25, of the card that asks which revision to go
+			// on with: "it being at the top of the transcript is weird since
+			// we auto scroll to the bottom." The same holds for a run that
+			// stopped: its turn is the thread's last, the thread keeps itself
+			// there, and a report at the thread's head was a screen or more
+			// above it. It stands on the question field, with its log bounded
+			// so that the field and both choices stay in view.
+			docked = true;
 			BannerFirst->setText(tr("Resend"));
+			BannerFirst->setToolTip(tr("Send your message to the agent again"));
 			// [[BPR-2000]]. Resend starts a run.
 			wear_agent_accent(*BannerFirst, palette());
 			// Owner, 2026-11-24. Resend sends the kept message again, as the
@@ -4066,17 +4111,76 @@ namespace bpr::qt {
 				BannerFirst->hide();
 			}
 			BannerSecond->setText(LogShown ? tr("Hide the log") : tr("Show the log"));
+			BannerSecond->setToolTip(LogShown ? tr("Fold what the agent wrote") : tr("Show what the agent wrote before it stopped"));
 			wear_ordinary_roles(*BannerSecond);
 			connect(BannerSecond, &QPushButton::clicked, this, [this] {
 				LogShown = !LogShown;
-				Log->setText(Launch.output_text().isEmpty() ? tr("The agent wrote nothing.") : Launch.output_text());
 				present_banner();
 			});
+			if (LogShown) {
+				const auto wrote = Launch.output_text().isEmpty() ? tr("The agent wrote nothing.") : Launch.output_text();
+				if (Log->toPlainText() != wrote) {
+					Log->setPlainText(wrote);
+				}
+				logShown = true;
+			}
 			break;
 		}
+		}
+		LogBox->setVisible(logShown);
 		dock_banner(docked);
 		Banner->show();
 		Banner->update();
+		fit_log();
+	}
+
+	void agent_tab_view::fit_log()
+	{
+		if (Log == nullptr || LogBox->isHidden()) {
+			return;
+		}
+		// Its lines as they wrap at the card's width, counted only as far as
+		// the card shows them.
+		auto        lines  = 0;
+		auto* const layout = Log->document()->documentLayout();
+		for (auto block = Log->document()->begin(); block.isValid() && lines < stopped_log_lines; block = block.next()) {
+			static_cast<void>(layout->blockBoundingRect(block));
+			lines += std::max(1, block.layout() != nullptr ? block.layout()->lineCount() : 1);
+		}
+		const auto height = std::clamp(lines, 1, stopped_log_lines) * Log->fontMetrics().lineSpacing() + 2;
+		if (Log->height() != height || Log->minimumHeight() != height) {
+			Log->setFixedHeight(height);
+		}
+	}
+
+	auto agent_tab_view::revision_choice_waits() const -> bool
+	{
+		if (ChoosingRevision || !panels_alive()) {
+			return false;
+		}
+		if (State == agent_tab_state::head_moved) {
+			return true;
+		}
+		// The card of a refused question, while it shows.
+		const auto& pinned = Launch.pinned_conversation();
+		return State == agent_tab_state::stopped && !LatestFixedSince && !StoppedDismissed && pinned && pinned->Pinned && PinnedDispatch;
+	}
+
+	auto agent_tab_view::revision_choice_words() const -> QString
+	{
+		// The card's own choices, by the words on its chips.
+		if (State == agent_tab_state::head_moved) {
+			const auto read = Head->text();
+			return read.isEmpty() ? tr("Choose Continue or New session first.") : tr("Choose Continue at %1 or New session first.").arg(read);
+		}
+		const auto& pinned = Launch.pinned_conversation();
+		if (!pinned) {
+			return { };
+		}
+		if (const auto& move = Launch.move_refusal(); move && ReconcileDispatch && (move->RebaseOffered || move->SaveAndMoveOffered || move->AskAgentOffered)) {
+			return tr("Choose how to go on, on the card over the question field, first.");
+		}
+		return pinned->ContinueOffered ? tr("Choose Continue at %1 or New session first.").arg(QString::fromUtf8(core::canonical_hex(pinned->PinnedHead).view().substr(0U, 7U))) : tr("Choose New session first.");
 	}
 
 	auto agent_tab_view::pinned_card_title(const QString& aRead) -> QString
@@ -4112,13 +4216,81 @@ namespace bpr::qt {
 			|| (aChoice == core::agent_continuation::continue_against_old_revision ? !pinned->ContinueOffered : !pinned->NewSessionOffered)) {
 			return;
 		}
+		const auto refused = Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered;
+		if (aChoice == core::agent_continuation::start_new_session) {
+			// Owner, 2026-11-24, of the card before a question: "you click it
+			// and it does nothing which feels broken". After a refused one
+			// the press did do something, and it read as wrong: the kept
+			// message was sent again under the old transcript, title and
+			// History tick, while the agent answered it in a session nothing
+			// showed. New session is History's New session here too: the host
+			// opens an empty session at the head under review, the tab shows
+			// it, and the message is sent there as its first turn
+			// (`send_kept_message`). Held before the host is asked, since
+			// taking the choice replaces the thread.
+			KeptForNewSession = refused ? std::optional{ kept_message{ .Question = Turns.back().Question, .Review = Turns.back().Review } } : std::nullopt;
+			if (!PinnedDispatch(aChoice)) {
+				KeptForNewSession.reset();
+				return;
+			}
+			// The card asked and was answered: it goes at the press.
+			StoppedDismissed = true;
+			present_banner();
+			refresh_suggestions();
+			return;
+		}
 		if (!PinnedDispatch(aChoice)) {
 			return;
 		}
 		// The kept message, as a turn's Resend sends it.
-		if (Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered) {
+		if (refused) {
+			ChoosingRevision = true;
 			resend(Turns.back());
+			ChoosingRevision = false;
 		}
+	}
+
+	void agent_tab_view::send_kept_message()
+	{
+		const auto kept = std::exchange(KeptForNewSession, std::nullopt);
+		if (!panels_alive() || !kept) {
+			return;
+		}
+		if (kept->Review) {
+			Launch.start_action()->trigger();
+			return;
+		}
+		// As a turn's Resend sends it, with one difference: the turn that
+		// held the message went with the session left behind, so a message
+		// that cannot leave must stay in the field. What the reviewer was
+		// typing is put back after it either way.
+		auto* const composer = Chat.composer();
+		const auto  draft    = composer->toPlainText();
+		const auto  held     = !draft.trimmed().isEmpty();
+		composer->setPlainText(kept->Question);
+		KeepingDraft     = held;
+		ChoosingRevision = true;
+		ask();
+		ChoosingRevision = false;
+		KeepingDraft     = false;
+		if (!held) {
+			return;
+		}
+		composer->setPlainText(ShownRefusal == core::agent_send_refusal::none ? draft : kept->Question + QStringLiteral("\n\n") + draft);
+		auto cursor = composer->textCursor();
+		cursor.movePosition(QTextCursor::End);
+		composer->setTextCursor(cursor);
+	}
+
+	void agent_tab_view::abandon_kept_message()
+	{
+		if (!panels_alive() || !KeptForNewSession) {
+			return;
+		}
+		KeptForNewSession.reset();
+		StoppedDismissed = false;
+		present_banner();
+		refresh_suggestions();
 	}
 
 	void agent_tab_view::choose_reconcile(const core::conversation_reconcile aChoice)
@@ -4140,7 +4312,9 @@ namespace bpr::qt {
 		}
 		// The kept message, as a turn's Resend sends it.
 		if (Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered) {
+			ChoosingRevision = true;
 			resend(Turns.back());
+			ChoosingRevision = false;
 		}
 	}
 
@@ -5175,8 +5349,11 @@ namespace bpr::qt {
 	{
 		const auto required = !Chat.offered_continuations().empty();
 		return {
-			.ReviewOpen           = Chat.send_action()->isEnabled() || required,
-			.ContinuationRequired = required,
+			.ReviewOpen = Chat.send_action()->isEnabled() || required,
+			// After a refused question the card asks the same thing as
+			// before one: the choice comes first there too, and a question
+			// typed meanwhile stays in the field.
+			.ContinuationRequired = required || revision_choice_waits(),
 			.AgentChosen          = Launch.selected_profile().has_value(),
 			.AgentUnavailable     = !Launch.unavailable_agent_name().isEmpty(),
 			.MessageEmpty         = aMessageEmpty,
@@ -5495,6 +5672,10 @@ namespace bpr::qt {
 				Opposite = false;
 				return true;
 			}
+		}
+		// The log wraps again at the card's new width.
+		if (aEvent->type() == QEvent::Resize && aWatched == Log) {
+			fit_log();
 		}
 		// A resize, or a control in the field changing its size (the
 		// picker's words, the scope's, the picker shown or hidden).

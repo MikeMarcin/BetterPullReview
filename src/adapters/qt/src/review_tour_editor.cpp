@@ -2505,11 +2505,6 @@ namespace bpr::qt {
 		}
 	}
 	void review_tour_editor::set_agent_failure_dispatch(std::function<void()> aDispatch) { AgentFailureDispatch = std::move(aDispatch); }
-	void review_tour_editor::set_tour_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aAskMore)
-	{
-		SideChat->set_ask_more_dispatch(std::move(aAskMore));
-	}
-
 	void review_tour_editor::set_tour_session_dispatch(std::function<void()> aDraft, std::function<void()> aStop, std::function<void(std::size_t, core::tour_proposal_decision, const QString&)> aDecide, std::function<void(std::size_t)> aRelocate)
 	{
 		TourAgentPanel->set_relocate_dispatch(std::move(aRelocate));

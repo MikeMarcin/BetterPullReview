@@ -1019,8 +1019,8 @@ namespace bpr::app {
 		[[nodiscard]] auto               ask_queue_agent() const -> core::queue_agent;
 		/// RFC-BPR-0126 AC03, Q1 ([[BPR-2151]]). Whole-tour feedback typed
 		/// while Draft the tour runs is the whole-tour conversation's first
-		/// queued message, released on the draft's real completion with the
-		/// Ask more seed.
+		/// queued message, released on the draft's real completion, and
+		/// starts from the draft's answer as that chat's first question does.
 		[[nodiscard]] auto tour_queue_key() const -> std::string;
 		[[nodiscard]] auto tour_queue_agent() const -> core::queue_agent;
 		[[nodiscard]] auto release_tour_feedback(const core::queued_entry& aEntry) -> application::queued_admission;
@@ -1228,10 +1228,17 @@ namespace bpr::app {
 		void               finish_tour_draft(const std::optional<core::tour_agent_run_id> aRun, const application::agent_run_result& aResult, const QString& aWords);
 		void               decide_tour_proposal(const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText);
 		void               relocate_tour_proposal(const std::size_t aIndex);
-		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12. Ask more on a fresh run's
-		/// answer: its thread's chat opens, and its next turn starts its
-		/// session with the answer.
-		void ask_more_from(core::tour_agent_run_id aRun);
+		/// \brief RFC-BPR-0101 AC12, without its button. The fresh run
+		/// whose answer `aThread`'s next question starts from: core
+		/// decides (`fresh_answer_to_carry`) over the turns of the
+		/// conversation that question goes on with and the fresh runs beside
+		/// it. Draft Tour's answer is kept only for the draft this window
+		/// ran, so a draft read back from History carries nothing.
+		[[nodiscard]] auto tour_fresh_answer(const core::tour_thread& aThread) const -> std::optional<core::tour_agent_run_id>;
+		/// \brief What that question is given of the fresh run, at most 8 KiB.
+		[[nodiscard]] auto tour_fresh_seed(const core::tour_agent_run& aRun) const -> std::string;
+		/// \brief Tells the open tour chat what its next question starts from.
+		void present_tour_carried_answer();
 		void present_tour_session();
 		void cancel_tour_run();
 		/// [[BPR-1930]]. Clears the remembered focus (its chip's ×).
@@ -3057,9 +3064,13 @@ namespace bpr::app {
 		void                                         present_agent_native_history(const application::native_agent_history_projection&);
 		void                                         observe_agent_native_history(std::optional<std::string> aChoice = std::nullopt);
 		void                                         open_new_agent_session();
-		void                                         edit_agent_session(const std::string& aId, std::optional<std::string> aName);
-		void                                         edit_tour_session(const std::string& aId, std::optional<std::string> aName);
-		void                                         open_clear_local_data(core::profile_data_reset aCategory);
+		/// The stopped card's New session was chosen after a refused
+		/// question: the tab keeps that message, and sends it in the new
+		/// session once History shows it open.
+		bool AgentKeptMessageWaits = false;
+		void edit_agent_session(const std::string& aId, std::optional<std::string> aName);
+		void edit_tour_session(const std::string& aId, std::optional<std::string> aName);
+		void open_clear_local_data(core::profile_data_reset aCategory);
 		/// \brief [[BPR-2377]]. The live sweep Settings' Remove… ran before it
 		/// led to Clear local data; a course seam only.
 		void               remove_idle_agent_workspaces();
@@ -3083,21 +3094,15 @@ namespace bpr::app {
 		void                                                                      finish_tour_footer(const application::agent_run_result& aResult);
 		std::optional<core::tour_proposal>                                        TourProposal;
 		/// [[BPR-2138]]. Draft Tour's first draft runs fresh; its answer
-		/// seeds the whole-tour conversation's next turn (Ask more).
-		std::string TourDraftSeed;
+		/// seeds the whole-tour conversation's next turn, and is the answer
+		/// of the run named here.
+		std::string                            TourDraftSeed;
+		std::optional<core::tour_agent_run_id> TourDraftSeedRun;
 		/// [[BPR-2140]]. The next tour run's built-in instructions.
 		std::string TourRunInstructions;
 		/// [[BPR-2141]]. The next tour run is one tool-free call with the
 		/// pull request's diff in its request.
 		bool TourRunUpFront = false;
-		/// [[BPR-2138]]. Ask more, pressed on a fresh answer: the next turn
-		/// of that thread starts its session with the answer as context.
-		struct tour_ask_more
-		{
-			core::tour_thread Thread;
-			std::string       Seed;
-		};
-		std::optional<tour_ask_more> TourAskMore;
 		/// [[BPR-2141]]. The snapshot's files as a tour request names them,
 		/// with their patches.
 		[[nodiscard]] auto tour_request_files() const -> std::vector<application::tour_draft_file>;

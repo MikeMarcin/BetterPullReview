@@ -1314,6 +1314,67 @@ namespace {
 				if (tab->state() != qt::agent_tab_state::head_moved || qt::agent_run_control(*tab->banner_first_button()) || qt::agent_run_control(*tab->banner_second_button())) {
 					failures.push_back("offered after a refused question, the card's choices wear the ordinary roles" + at);
 				}
+				// A run that stopped for a reason of its own reports in the
+				// same place, on the question field under its stopped turn,
+				// with Resend and Show the log; and with the log shown, which
+				// is as long as the agent wrote and has lines no space breaks.
+				present(binding);
+				if (auto* const dismiss = tab->stopped_dismiss_button(); dismiss != nullptr && dismiss->isVisible()) {
+					dismiss->click();
+					settle();
+				}
+				{
+					chat->composer()->setPlainText(QStringLiteral("Review this pull request"));
+					tab->ask_button()->click();
+					settle();
+					auto identity                 = application::agent_invocation_projection_identity{ };
+					identity.ApplicationSession   = core::application_session_id{ 1U };
+					identity.Session.Id           = core::agent_session_id{ 9U };
+					identity.InvocationGeneration = ++generation;
+					window.agent_panel()->admit(identity);
+					settle();
+					auto result    = application::agent_run_result{ };
+					result.Session = identity.Session.Id;
+					result.Outcome = application::agent_run_outcome::nonzero_exit;
+					for (auto index = 1; index <= 30; ++index) {
+						result.StandardError += "error line " + std::to_string(index) + "\n";
+					}
+					window.agent_panel()->finish(identity, result);
+					settle();
+				}
+				const auto stopped = [&](const char* const aName) {
+					settle();
+					const auto where = std::string{ "the Agent tab's stopped card, " } + aName + at;
+					expect(tab->banner()->isVisible() && tab->state() == qt::agent_tab_state::stopped && tab->banner_first_button()->isVisibleTo(tab->banner()) && tab->banner_first_button()->text() == QStringLiteral("Resend")
+							   && tab->banner_second_button()->isVisibleTo(tab->banner()),
+						   where + " shows Resend and its log's toggle");
+					if (look) {
+						expect(drawer->grab().save(QStringLiteral("%1/%2-%3-%4-%5-%6.png").arg(folder, tag, QString::fromLatin1(name), scale, QString::fromLatin1(aName)).arg(width), "PNG"), "the look is saved");
+					} else {
+						save(window, QStringLiteral("agent-stopped-card-%1-%2-%3").arg(QString::fromLatin1(aName), QString::fromLatin1(name)).arg(width));
+						require_drawer(*drawer, where);
+					}
+					if (const auto faults = card_faults(*tab) + placement_faults(*tab, *chat->composer()); !faults.isEmpty()) {
+						failures.push_back(where + ": " + faults.join(QStringLiteral("; ")).toStdString());
+					}
+				};
+				stopped("stopped");
+				if (tab->banner_text() != QStringLiteral("Your message is kept.") || tab->banner_second_button()->text() != QStringLiteral("Show the log")) {
+					failures.push_back("a stopped run's card says the message is kept and offers its log" + at + ": " + tab->banner_text().toStdString() + " / " + tab->banner_second_button()->text().toStdString());
+				}
+				tab->banner_second_button()->click();
+				stopped("stopped-log");
+				{
+					const auto* const log   = tab->stopped_log();
+					const auto        limit = qt::agent_tab_view::stopped_log_lines * log->fontMetrics().lineSpacing() + 2;
+					if (!log->isVisibleTo(tab) || log->height() != limit || log->verticalScrollBar()->maximum() <= 0 || log->horizontalScrollBar()->maximum() > log->horizontalScrollBar()->minimum() || log->horizontalScrollBar()->isVisible()
+						|| tab->banner_second_button()->text() != QStringLiteral("Hide the log")) {
+						failures.push_back("a long log is nine lines tall on the card, scrolls inside it and pans nowhere" + at + ": " + std::to_string(log->height()) + " px of " + std::to_string(limit) + ", sideways range "
+										   + std::to_string(log->horizontalScrollBar()->maximum() - log->horizontalScrollBar()->minimum()));
+					}
+				}
+				tab->banner_second_button()->click();
+				settle();
 			}
 		}
 		if (look) {

@@ -358,17 +358,22 @@ namespace bpr::app {
 		if (!offer->NewSessionOffered) {
 			return false;
 		}
-		// A new conversation at the revision under review: the store starts
-		// it when the resent turn asks.
-		if (ChatHost->session() && ChatHost->session()->Binding != *ChatHost->observed()) {
-			ChatHost->reset_conversation();
-		}
-		NativeFreshAtCurrentRevision = core::agent_session{
-			.Id      = ChatHost->session() ? ChatHost->session()->Id : pinned.Id,
-			.Profile = pinned.Profile,
-			.Binding = *ChatHost->observed(),
-		};
-		return true;
+		// Owner, 2026-11-24, of the card before a question: "you click it and
+		// it does nothing which feels broken". After a refused question the
+		// press sent the kept message again under the old transcript, title
+		// and History tick, and the store started the new conversation unseen
+		// as that turn asked. It is History's New session here too: the store
+		// opens an empty session at the revision under review now, the tab
+		// shows it, and the tab's kept message is sent there once it is shown
+		// (`present_agent_native_history`). The conversation left behind
+		// stays in History.
+		AgentKeptMessageWaits = true;
+		open_new_agent_session();
+		// Opening says at once that the sessions are being read. When it
+		// could not start (no agent entry, a turn not yet retired) nothing
+		// will be shown, so the choice is not taken and the card stays.
+		AgentKeptMessageWaits = AgentNativeHistory.Loading;
+		return AgentKeptMessageWaits;
 	}
 
 	auto github_application::implementation::choose_move_reconcile(const core::conversation_reconcile aChoice) -> bool

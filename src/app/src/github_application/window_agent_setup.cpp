@@ -1096,6 +1096,11 @@ namespace bpr::app {
 		}
 		if (!aView.Failure.empty()) {
 			present_agent_refusal("session history", aView.Failure);
+			// The session that asked is still the one shown: its card comes
+			// back, with the message it kept.
+			if (std::exchange(AgentKeptMessageWaits, false)) {
+				tab->abandon_kept_message();
+			}
 			return;
 		}
 		if (ChatHost) {
@@ -1118,6 +1123,17 @@ namespace bpr::app {
 		// [[BPR-1999]]. The conversation's cost, kept with its history.
 		tab->present_session_cost(aView.SessionCost);
 		present_agent_pull_request();
+		// The stopped card's New session: the empty session is shown, and
+		// the message the refused turn kept is sent there as its first turn.
+		// After this presentation has returned to the host that made it, so
+		// the send starts from a settled window as a typed one does.
+		if (std::exchange(AgentKeptMessageWaits, false)) {
+			QTimer::singleShot(0, Window.get(), [this, weak = std::weak_ptr<const int>{ WindowLifetime }] {
+				if (!weak.expired() && !Closing && Window != nullptr) {
+					Window->agent_tab()->send_kept_message();
+				}
+			});
+		}
 	}
 
 	void github_application::implementation::observe_conversation_agent()

@@ -203,7 +203,20 @@ formatted while it is down) and the trash discards the part. The owner,
 2026-11-25, of that row as four worded buttons cut off in a narrow drawer:
 "edit and discard have pretty standard pencil and trash can glyphs in the
 app"; and of Ask more, which a draft's stops also held: it "just opens the
-whole tour chat, so that shouldn't even be on the draft stops". The row is one
+whole tour chat, so that shouldn't even be on the draft stops". A suggestion a
+part's chat holds on a card of its own has the same row: the pencil, the
+trash, and Accept in words at the right. Ask more is on neither. What it did
+besides opening a chat is the rule now (`core::fresh_answer_to_carry`): Draft
+Tour's first draft and an Enhance run fresh, outside any chat's conversation,
+so the first question asked afterwards in the whole tour's chat (however it
+was opened: the tour's own chat toggle, History, feedback queued behind the
+draft) starts from the draft's answer, and the first asked in a part's chat
+while its Enhance suggestion still waits starts from that suggestion. The chat
+says so in one quiet line on its question field ("Your next question starts
+from the draft's answer.", "Your next question starts from the Enhance
+suggestion.") until that question runs. A question that fails leaves the
+answer for the next; a draft read back from History has no answer kept and
+carries none. The row is one
 line at the drawer's narrowest, and wraps before it would cut a button. A
 stop's card takes the height a part waiting on it asks for, so a source the
 pencil opens is whole. One line

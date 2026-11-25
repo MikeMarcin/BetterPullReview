@@ -111,7 +111,9 @@ namespace bpr::qt {
 		/// have pretty standard pencil and trash can glyphs in the app", and
 		/// of Ask more, which the same row held on a draft's stops: it "just
 		/// opens the whole tour chat, so that shouldn't even be on the draft
-		/// stops". The tour's own chat toggle opens that chat.
+		/// stops". The tour's own chat toggle opens that chat, and its next
+		/// question starts from the draft's answer without being asked to
+		/// (`core::fresh_answer_to_carry`).
 		using proposal_placer = std::function<bool(std::size_t, const core::tour_proposal_item&, QWidget*)>;
 		void set_proposal_placer(std::function<void()> aBegin, proposal_placer aPlace)
 		{

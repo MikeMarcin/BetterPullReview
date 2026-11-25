@@ -47,6 +47,7 @@
 
 class QAbstractButton;
 class QLabel;
+class QPlainTextEdit;
 class QMenu;
 class QTimer;
 class QPushButton;
@@ -275,7 +276,9 @@ namespace bpr::qt {
 		/// as History's New session does.
 		head_moved,
 		/// The last invocation did not finish: what happened, the question
-		/// kept, Resend and Show the log.
+		/// kept, Resend and Show the log, on the question field. A question
+		/// refused because its session read another head shows that session's
+		/// card there instead, with the same two choices as `head_moved`.
 		stopped,
 		/// [[BPR-1753]]. The setup is in place of the conversation.
 		setting_up,
@@ -420,9 +423,23 @@ namespace bpr::qt {
 		/// \brief Owner, 2026-11-24. Where the stopped card's pinned
 		/// conversation choices go: continue the conversation at its own
 		/// revision, or New session at the current one. The host
-		/// answers whether it took the choice; when it did, the tab resends
-		/// the kept message.
+		/// answers whether it took the choice. Continue resends the kept
+		/// message at once, under the transcript it belongs to. New session
+		/// is History's New session: the host opens an empty session at the
+		/// head under review, the tab shows it, and the kept message is sent
+		/// there when the host says it is open (`send_kept_message`). The card
+		/// goes as the choice is taken, so the press is seen to do something.
 		void set_pinned_conversation_dispatch(std::function<bool(core::agent_continuation)> aDispatch) { PinnedDispatch = std::move(aDispatch); }
+		/// \brief The new session the stopped card's New session asked for is
+		/// open and shown: sends the message kept for it there, as its first
+		/// turn. A message that cannot leave stays in the question field,
+		/// which says why. Nothing without a kept message.
+		void send_kept_message();
+		/// \brief The new session could not be opened: the session that asked
+		/// is still shown, and its card comes back with the message kept.
+		void abandon_kept_message();
+		/// \brief Whether a message waits for the new session to open.
+		[[nodiscard]] auto keeps_message_for_new_session() const noexcept -> bool { return KeptForNewSession.has_value(); }
 		/// \brief The state card's two buttons, for courses and tests. On the
 		/// card of a session that read an earlier head, before a question and
 		/// after a refused one alike, the first is Continue at that head and
@@ -431,8 +448,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto banner_second_button() const noexcept -> quiet_push_button* { return BannerSecond; }
 		/// \brief Whether the state card stands on the question field, outside
 		/// the scrolled thread: it does while it asks which revision to go on
-		/// with. A report (working, finished, stopped) heads the thread.
+		/// with, and while it says a run stopped (the thread keeps itself at
+		/// its end, where the stopped turn is, so a card at its head was out
+		/// of view). A run working or finished heads the thread.
 		[[nodiscard]] auto banner_docked() const noexcept -> bool { return BannerDocked; }
+		/// \brief What the stopped run wrote, on the stopped card under its
+		/// choices while Show the log is on: as tall as its lines up to
+		/// `stopped_log_lines`, and scrolled inside the card past that, so
+		/// Resend and Hide the log stay where they were.
+		[[nodiscard]] auto stopped_log() const noexcept -> QPlainTextEdit* { return Log; }
+		/// \brief The most lines of the log the stopped card shows at once.
+		static constexpr int stopped_log_lines = 9;
 		/// \brief RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24.
 		/// Where the stopped card's reconcile choices go when work stopped the
 		/// conversation's workspace from moving: Rebase onto the new head, Keep
@@ -1188,9 +1214,29 @@ namespace bpr::qt {
 		std::function<void()>                               ClearDispatch;
 		std::function<bool(core::agent_continuation)>       PinnedDispatch;
 		std::function<bool(core::conversation_reconcile)>   ReconcileDispatch;
-		/// Takes one pinned conversation choice and resends the kept message.
-		void                                      choose_pinned(core::agent_continuation aChoice);
-		void                                      choose_reconcile(core::conversation_reconcile aChoice);
+		/// Takes one pinned conversation choice: Continue resends the kept
+		/// message; New session keeps it for the session the host opens.
+		void choose_pinned(core::agent_continuation aChoice);
+		void choose_reconcile(core::conversation_reconcile aChoice);
+		/// What the stopped card's New session keeps while the host opens the
+		/// new session: the refused turn's message, or that it was a review.
+		struct kept_message
+		{
+			QString Question;
+			bool    Review = false;
+		};
+		std::optional<kept_message> KeptForNewSession;
+		/// A choice on the card is being taken: its own resend is not held
+		/// back as a question typed while the card waits is.
+		bool ChoosingRevision = false;
+		/// \brief Whether the card asks which revision to go on with: before
+		/// a question (`head_moved`) or after a refused one. While it does a
+		/// typed question is refused in place and the suggested prompts wait.
+		[[nodiscard]] auto revision_choice_waits() const -> bool;
+		/// \brief What to choose first, as the greyed prompts say it.
+		[[nodiscard]] auto revision_choice_words() const -> QString;
+		/// The log as tall as its lines, up to `stopped_log_lines`.
+		void                                      fit_log();
 		std::function<bool(std::size_t)>          ClearConfirm;
 		std::function<agent_suggestion_context()> SuggestionContext;
 		/// [[BPR-1934]]. The suggestion component the tour chats share.
@@ -1325,8 +1371,10 @@ namespace bpr::qt {
 		std::function<agent_answer_draft_target()>          DraftTargetSource;
 		agent_answer_draft_dispatch                         DraftDispatch;
 		agent_answer_draft_navigation                       DraftNavigate;
-		QLabel*                                             Log      = nullptr;
-		bool                                                LogShown = false;
+		QPlainTextEdit*                                     Log = nullptr;
+		/// The log and the room over it, shown and hidden as one.
+		QWidget* LogBox   = nullptr;
+		bool     LogShown = false;
 		/// [[BPR-1876]]. The latest turn says its cause is fixed since, so
 		/// the stopped banner stands down.
 		bool LatestFixedSince = false;

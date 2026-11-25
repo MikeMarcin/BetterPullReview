@@ -1920,21 +1920,81 @@ namespace bpr::app {
 		// [[BPR-2140]]. The turn's instructions are the system prompt; the
 		// message is the pull request, the tour and the conversation.
 		auto parts = application::split_tour_prompt(*prompt);
-		// [[BPR-2138]], RFC-BPR-0101 AC12. Ask more, pressed on a fresh
-		// answer (Draft Tour's first draft, a part's Enhance), puts that
-		// answer in this thread's next turn: the session that resumes from
-		// here holds it.
-		const auto seed = !fresh && TourAskMore && TourAskMore->Thread == aThread;
-		if (seed) {
-			parts.Message = "Earlier, in a separate run, the agent answered this. It is context for this conversation:\n" + TourAskMore->Seed + "\n\n" + parts.Message;
+		// [[BPR-2138]], RFC-BPR-0101 AC12. A fresh answer (Draft Tour's first
+		// draft, a part's Enhance) goes in this thread's next turn: the
+		// session that resumes from here holds it. Ask more asked for that by
+		// a press; core now decides it for every such turn, so the tour's own
+		// chat toggle, History and feedback queued behind the draft all start
+		// from the answer. Once this turn runs or is answered core carries it
+		// no more; a turn that fails leaves it for the next.
+		if (const auto carried = fresh ? std::nullopt : tour_fresh_answer(aThread)) {
+			if (const auto* const made = core::find_tour_run(TourAgent, *carried); made != nullptr) {
+				parts.Message = "Earlier, in a separate run, the agent answered this. It is context for this conversation:\n" + tour_fresh_seed(*made) + "\n\n" + parts.Message;
+			}
 		}
 		TourRunInstructions = std::move(parts.Instructions);
 		TourAskPending      = true;
 		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, parts.Message, std::nullopt, aPassage, aThread, aUpdate, std::move(skills))) {
 			TourAskPending = false;
-		} else if (seed) {
-			TourAskMore.reset();
 		}
+	}
+
+	auto github_application::implementation::tour_fresh_answer(const core::tour_thread& aThread) const -> std::optional<core::tour_agent_run_id>
+	{
+		const auto agent        = tour_native_agent();
+		const auto key          = agent + ":" + tour_native_scope(aThread);
+		const auto selected     = TourSelectedConversations.find(key);
+		auto       conversation = core::tour_agent_session{ };
+		// A fresh run is no conversation's. A turn counts when the next
+		// question goes on from it: every turn of the thread where the
+		// conversation is replayed from this session, and the selected
+		// conversation's where the agent keeps its own.
+		std::ranges::copy_if(TourAgent.Runs, std::back_inserter(conversation.Runs), [&](const core::tour_agent_run& aRun) {
+			return aRun.Request == core::tour_agent_request::draft_tour || aRun.Fresh || agent.empty()
+				|| (aRun.ConversationScope == key && (selected == TourSelectedConversations.end() || aRun.Conversation == selected->second));
+		});
+		const auto        carried = core::fresh_answer_to_carry(conversation, aThread, TourProposal);
+		const auto* const made    = carried ? core::find_tour_run(TourAgent, *carried) : nullptr;
+		return made != nullptr && (made->Request != core::tour_agent_request::draft_tour || TourDraftSeedRun == std::optional{ made->Id }) ? carried : std::nullopt;
+	}
+
+	auto github_application::implementation::tour_fresh_seed(const core::tour_agent_run& aRun) const -> std::string
+	{
+		auto seed = std::string{ };
+		if (aRun.Request == core::tour_agent_request::draft_tour) {
+			seed = TourDraftSeed;
+		} else {
+			seed = "Enhance, asked: " + aRun.Question + "\n\nIt answered: " + aRun.Reply;
+			if (TourProposal) {
+				for (const auto& item : TourProposal->Items) {
+					if (item.Run == aRun.Id && !item.Text.empty()) {
+						seed += "\n\nIts suggestion:\n" + item.Text;
+					}
+				}
+			}
+		}
+		if (seed.size() > 8192U) {
+			seed.resize(8192U);
+		}
+		return seed;
+	}
+
+	void github_application::implementation::present_tour_carried_answer()
+	{
+		if (Window == nullptr) {
+			return;
+		}
+		auto* const chat    = Window->tour_editor()->side_chat();
+		auto        carried = qt::tour_carried_answer::none;
+		// A local draft's turns replay or resume their conversation; none is fresh.
+		if (const auto thread = chat->current(); thread && !local_tour_shown()) {
+			const auto        fresh = tour_fresh_answer(*thread);
+			const auto* const made  = fresh ? core::find_tour_run(TourAgent, *fresh) : nullptr;
+			if (made != nullptr) {
+				carried = made->Request == core::tour_agent_request::draft_tour ? qt::tour_carried_answer::draft : qt::tour_carried_answer::enhance;
+			}
+		}
+		chat->present_carried_answer(carried);
 	}
 
 	/// [[BPR-1914]]. An answered turn: its reply in the conversation, and
@@ -2022,9 +2082,10 @@ namespace bpr::app {
 		return tour_session_idle() && TourProposal ? core::queue_agent::idle : core::queue_agent::busy;
 	}
 
-	/// The feedback goes as the whole-tour conversation's next turn, with the
-	/// draft's answer as the Ask more seed and its proposal in the request,
-	/// so it revises that draft (Q1).
+	/// The feedback goes as the whole-tour conversation's next turn, which
+	/// starts from the draft's answer as every first question after a draft
+	/// does (`tour_fresh_answer`), with its proposal in the request, so it
+	/// revises that draft (Q1).
 	auto github_application::implementation::release_tour_feedback(const core::queued_entry& aEntry) -> application::queued_admission
 	{
 		if (Closing || Window == nullptr) {
@@ -2032,7 +2093,6 @@ namespace bpr::app {
 		}
 		TourFeedbackQueued = false;
 		TourAgent.Waiting.reset();
-		TourAskMore      = tour_ask_more{ .Thread = core::tour_thread{ }, .Seed = TourDraftSeed.empty() ? std::string{ "Draft Tour proposed a tour." } : TourDraftSeed };
 		TourQueueSending = true;
 		request_tour_ask(core::tour_thread{ }, std::nullopt, QString::fromStdString(aEntry.Input.Text), false);
 		if (!TourAskPending) {
@@ -2421,7 +2481,6 @@ namespace bpr::app {
 		core::remember_tour_proposal(TourAgent, TourProposal, std::nullopt);
 		TourProposal.reset();
 		TourDraftPending = true;
-		TourAskMore.reset();
 		Window->tour_editor()->show_writing_notice(tour_context_notice(route, bytes));
 		// [[BPR-2140]]. Its instructions are the system prompt; the message
 		// is the pull request and the tour so far.
@@ -2458,8 +2517,10 @@ namespace bpr::app {
 		auto       files    = tour_anchor_files(aResult);
 		const auto proposed = core::propose_tour(*aRun, *answer, files, *draft, TourWorkspaceHead);
 		core::remember_tour_proposal(TourAgent, TourProposal, proposed);
-		// [[BPR-2138]]. What the fresh first draft said, for Ask more.
-		TourDraftSeed = "Draft Tour";
+		// [[BPR-2138]]. What the fresh first draft said, for the whole
+		// tour's next question.
+		TourDraftSeedRun = *aRun;
+		TourDraftSeed    = "Draft Tour";
 		TourDraftSeed += "\n\nProposed stops: " + std::to_string(answer->Stops.size()) + ".";
 		if (TourDraftSeed.size() > 8192U) {
 			TourDraftSeed.resize(8192U);
@@ -2471,39 +2532,6 @@ namespace bpr::app {
 		static_cast<void>(core::note_finished_tour_run(TourAgent, *aRun, core::left_out_entries(*TourProposal)));
 		Window->tour_editor()->show_writing_notice(TourProposal->Items.empty() ? QStringLiteral("The agent proposed nothing for this tour.")
 																			   : QStringLiteral("A proposed tour is ready to review. Nothing changes until you apply it."));
-	}
-
-	void github_application::implementation::ask_more_from(const core::tour_agent_run_id aRun)
-	{
-		const auto* const run = core::find_tour_run(TourAgent, aRun);
-		if (Closing || Window == nullptr || run == nullptr) {
-			return;
-		}
-		auto more = tour_ask_more{ };
-		if (run->Request == core::tour_agent_request::draft_tour) {
-			// Draft Tour continues in the chat about the tour as a whole.
-			more.Seed = TourDraftSeed.empty() ? std::string{ "Draft Tour proposed a tour." } : TourDraftSeed;
-		} else if (run->Fresh) {
-			// An Enhance continues in its part's own chat.
-			more.Thread = run->Thread;
-			more.Seed   = "Enhance, asked: " + run->Question + "\n\nIt answered: " + run->Reply;
-			if (TourProposal) {
-				for (const auto& item : TourProposal->Items) {
-					if (item.Run == aRun && !item.Text.empty()) {
-						more.Seed += "\n\nIts suggestion:\n" + item.Text;
-					}
-				}
-			}
-		} else {
-			return;
-		}
-		if (more.Seed.size() > 8192U) {
-			more.Seed.resize(8192U);
-		}
-		const auto thread = more.Thread;
-		TourAskMore       = std::move(more);
-		Window->tour_editor()->side_chat()->open(thread);
-		Window->tour_editor()->show_writing_notice(QStringLiteral("Ask your follow-up in the chat. It starts from that answer and keeps the conversation."));
 	}
 
 	/// [[BPR-1900]]. The author accepts (with their edit) or discards one
@@ -2639,6 +2667,7 @@ namespace bpr::app {
 		const auto session = TourNativeSessions.find(key);
 		const auto offer   = session != TourNativeSessions.end() && observed ? std::optional{ core::offer_agent_continuations(session->second, *observed) } : std::nullopt;
 		chat->present_revision_continuation(offer, observed ? observed->HeadOid : core::git_commit_oid{ }, thread && continued_tour_session(*thread).has_value());
+		present_tour_carried_answer();
 	}
 
 	void github_application::implementation::present_tour_session()
