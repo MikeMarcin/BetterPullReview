@@ -2432,6 +2432,45 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             },
         )
 
+    def test_workspace_move_checkout_and_diff_stay_in_the_workspace(
+        self,
+    ) -> None:
+        # RFC-BPR-0096, continue-at-latest amendment. The move's checkout and
+        # diff are allowed only as `workspace_git` calls, and only while
+        # `workspace_git` runs under the workspace's hardened arguments.
+        runner = "src/adapters/git/src/installed_git_process.cpp"
+        self.assertIn('workspace_git(path, { "checkout"', GIT_PROCESS_RUNNER_SOURCE)
+        self.assertIn('workspace_git(path, { "diff"', GIT_PROCESS_RUNNER_SOURCE)
+        result = self.run_check(
+            {
+                runner: GIT_PROCESS_RUNNER_SOURCE
+                + 'workspace_git(aWorkspace, { "diff", "--name-only" }, aStop);\n'
+            }
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for hostile in (
+            'const char* verb = "checkout";\n',
+            'run(aContext, { "diff", "--name-only" }, aStop);\n',
+            'workspace_git(path, { "merge", "--ff-only" }, aStop);\n',
+            'workspace_git(path, { "-c", "x=y", "checkout", head }, aStop);\n',
+        ):
+            with self.subTest(hostile=hostile.strip()):
+                self.assert_failure(
+                    "Forbidden installed-Git process surface",
+                    {runner: GIT_PROCESS_RUNNER_SOURCE + hostile},
+                )
+        self.assert_failure(
+            # CMake wraps its message after "checkout and".
+            "the workspace move's checkout and",
+            {
+                runner: GIT_PROCESS_RUNNER_SOURCE.replace(
+                    "auto arguments = workspace_git_arguments(aWorkspace, "
+                    "HooksRoot);",
+                    "auto arguments = repository_arguments(aWorkspace);",
+                )
+            },
+        )
+
     def test_installed_git_runner_rejects_expanded_authority(self) -> None:
         hostile_surfaces = (
             (
