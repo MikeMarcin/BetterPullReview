@@ -4089,10 +4089,10 @@ function(bpr_verify_app_source_tree app_source_root)
 	# The edit is the same private draft command through change_review_drafts,
 	# refused when the draft changed; no grant, provider, transport, mutation
 	# or publication path changes; the full application and mutation-branch
-	# digests are unchanged. The pin's value is main's: it is resealed for
-	# this lane at the merge.
+	# digests are unchanged. Resealed by the coordinator at the merge onto
+	# 60673a9fc (BPR-2399).
 	set(bpr_expected_production_app_manifest_digest
-        "12a4468cec1961e4e442a9f02f3af18f8e4bffcab1a797e4d80c61a8c49aaaee"
+        "f006ed52cae65cae7da156afdd9785f2f6540561b5317e380dab635f1bb66100"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
