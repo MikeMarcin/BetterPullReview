@@ -129,6 +129,10 @@ namespace bpr::qt {
 		for (const auto& prompt : Chips) {
 			auto* const button = new quiet_push_button{ this };
 			button->setObjectName(QStringLiteral("agentSuggestion"));
+			// The chip paints its whole rect. The macOS style lays a push
+			// button out by its bezel, which is smaller, so each chip of the
+			// column was drawn over the foot of the one above it.
+			button->setAttribute(Qt::WA_LayoutUsesWidgetRect);
 			dress(*button, prompt);
 			// [[BPR-2000]], RFC-BPR-0101. A suggestion sends: it starts a run.
 			wear_agent_accent(*button, palette());
@@ -143,6 +147,7 @@ namespace bpr::qt {
 			// in the same order and with the same press rules.
 			auto* const more = new quiet_push_button{ this };
 			more->setObjectName(QStringLiteral("agentSuggestionMore"));
+			more->setAttribute(Qt::WA_LayoutUsesWidgetRect);
 			// Quiet: bare at rest, the chip on hover; not in the accent, so it
 			// does not read as one more prompt.
 			more->setFlat(true);

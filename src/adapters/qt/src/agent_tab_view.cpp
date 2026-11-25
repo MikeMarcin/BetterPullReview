@@ -3363,7 +3363,10 @@ namespace bpr::qt {
 			// entry in the thread: what happened in words, then the tail of
 			// what the agent wrote to its error stream.
 			auto answer = stopReason.isEmpty() ? run_failure_words(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start), agent) : stopReason;
-			if (auto said = Launch.output_text().trimmed(); !said.isEmpty() && Launch.last_outcome() != application::agent_run_outcome::cancelled) {
+			// A question the application refused before any agent ran has
+			// only the refusal for output: it is said once, above, and not
+			// again as what the agent wrote, in a code block that pans.
+			if (auto said = Launch.output_text().trimmed(); !said.isEmpty() && said != answer.trimmed() && Launch.last_outcome() != application::agent_run_outcome::cancelled) {
 				// The last lines, which say why; the log keeps all of it.
 				auto lines = said.split(QLatin1Char{ '\n' });
 				if (lines.size() > 12) {
