@@ -65,12 +65,20 @@ qualification cause.
 
 ## Clear this profile's local data
 
-**Settings > Storage & privacy > Clear local data** lists each kind of local
-data with a checkbox and one line saying exactly what it holds. Check any
-number, choose **Clear…**, and confirm once; the profile's windows close, the
-checked data goes, and Home reopens with what was cleared, naming any kind
-that could not be. Nothing on GitHub changes. **Check all** is the former
-**Reset everything**.
+**Settings > Storage & privacy > Clear local data** is a table with one line
+for each kind of local data: its checkbox, its name, a short line saying what
+it clears and its size where one is known. A line too long for a narrow window
+ends in "…"; pointing at a row shows exactly what it clears and what stays.
+Check any number, choose **Clear…**, and confirm once; the profile's windows
+close, the checked data goes, and Home reopens with what was cleared, naming
+any kind that could not be. Nothing on GitHub changes.
+
+The checkbox in the table's header row checks every kind, or unchecks them all
+when all are checked, and shows a dash when only some are. Checking them all
+is the former **Reset everything**. A kind that a checked one includes
+(**Agent setup** with **Settings**, **Agent workspaces** with **Agent
+sessions**) is checked and locked; pointing at it says why. A click anywhere
+on a row checks or unchecks it, and Space does the same from the keyboard.
 
 | Checkbox | Clears |
 |---|---|

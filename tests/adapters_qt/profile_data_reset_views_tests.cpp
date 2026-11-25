@@ -1,11 +1,13 @@
 /// \file
 /// \brief [[BPR-1602]], [[BPR-2377]]. Settings › Storage & privacy › Clear
-/// local data: a checkbox per category, what a checked one implies, one
+/// local data: a table of one line per category under a header row whose
+/// three-state box checks or unchecks them all, what a checked one implies, one
 /// Clear… and one confirmation for the selection; its Removes and Keeps lists; the
 /// acknowledgement that gates a destructive reset; Cancel as the default; the
 /// request that reaches the dispatch; Settings search; the recovery dialog's
-/// three answers; and the status notice. Saves Light and Dark renders when
-/// `BPR_PROFILE_RESET_RENDER_DIR` names a folder.
+/// three answers; and the status notice. When `BPR_PROFILE_RESET_RENDER_DIR`
+/// names a folder it saves Light and Dark renders there and checks nothing:
+/// a native-look run keeps its windows off screen, where none takes focus.
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -17,8 +19,10 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QStatusBar>
 
 #include <cstdlib>
@@ -90,6 +94,30 @@ namespace {
 		return question;
 	}
 
+	/// A left click on `aWidget`'s centre, as the window would deliver it.
+	void click_on(QWidget& aWidget)
+	{
+		const auto  local  = QPointF{ aWidget.rect().center() };
+		const auto  global = QPointF{ aWidget.mapToGlobal(aWidget.rect().center()) };
+		QMouseEvent press{ QEvent::MouseButtonPress, local, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(&aWidget, &press);
+		QMouseEvent release{ QEvent::MouseButtonRelease, local, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(&aWidget, &release);
+	}
+
+	void press_space(QWidget& aWidget)
+	{
+		QKeyEvent press{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(&aWidget, &press);
+		QKeyEvent release{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(&aWidget, &release);
+	}
+
+	[[nodiscard]] auto row_label(const qt::profile_reset_panel& aPanel, const reset aCategory, const QString& aPart) -> QLabel*
+	{
+		return aPanel.findChild<QLabel*>(aPanel.check_box(aCategory)->objectName() + aPart);
+	}
+
 	void test_the_group_on_storage_and_privacy()
 	{
 		qt::workbench_window window;
@@ -98,22 +126,31 @@ namespace {
 		expect(panel != nullptr && panel->title() == QStringLiteral("Clear local data"), "Storage & privacy has one Clear local data group");
 		auto* const page = window.settings()->page_widget(qt::settings_page::storage_and_privacy);
 		expect(page != nullptr && page->isAncestorOf(panel), "the group is on the Storage & privacy page");
-		// [[BPR-2377]]. A checkbox per category with one line saying exactly
-		// what it clears; nothing checked; Clear waits for a check.
+		// [[BPR-2377]]. A row per category: its box, its name and one short
+		// line; the whole account is the row's tooltip and the box's
+		// description. Nothing checked; Clear waits for a check.
 		for (const auto& [each, text] : { std::pair{ reset::caches, "Caches" }, std::pair{ reset::settings, "Settings" }, std::pair{ reset::agent_setup, "Agent setup" },
 										  std::pair{ reset::agent_sessions, "Agent sessions" }, std::pair{ reset::agent_workspaces, "Agent workspaces" },
 										  std::pair{ reset::review_data, "Review data" }, std::pair{ reset::saved_sources, "Saved repositories and servers" },
 										  std::pair{ reset::statistics, "Insights statistics" }, std::pair{ reset::connections, "Connections" } }) {
-			auto* const box = panel->check_box(each);
-			expect(box != nullptr && box->text() == QString::fromUtf8(text) && !box->isChecked() && box->isEnabled(), "each category is an unchecked box with its name");
-			auto* const line = panel->findChild<QLabel*>(box->objectName() + QStringLiteral("Line"));
-			expect(line != nullptr && !line->text().isEmpty() && box->accessibleDescription() == line->text(), "each category says what it clears");
+			const auto  words = qt::profile_data_reset_category_words_for(each);
+			auto* const box   = panel->check_box(each);
+			expect(box != nullptr && box->accessibleName() == QString::fromUtf8(text) && !box->isChecked() && box->isEnabled(), "each category is an unchecked box with its name");
+			expect((box->focusPolicy() & Qt::TabFocus) != 0, "each box is reached with the keyboard");
+			auto* const name = row_label(*panel, each, QStringLiteral("Name"));
+			expect(name != nullptr && name->text() == QString::fromUtf8(text) && name->buddy() == box, "the name beside a box is its label");
+			auto* const line = row_label(*panel, each, QStringLiteral("Line"));
+			expect(line != nullptr && line->text() == words.Brief && !words.Brief.isEmpty() && !line->wordWrap() && !words.Brief.contains(QLatin1Char{ '\n' }), "each category says what it clears in one line");
+			expect(box->accessibleDescription() == words.Line && words.Line.size() >= words.Brief.size(), "the box's description is the whole account");
+			for (QWidget* const part : { static_cast<QWidget*>(box), static_cast<QWidget*>(name), static_cast<QWidget*>(line) }) {
+				expect(part->toolTip().contains(words.Line.toHtmlEscaped()), "the row's tooltip is the whole account");
+			}
 		}
-		expect(panel->findChild<QLabel*>(QStringLiteral("profileResetSettingsLine"))->text().contains(QStringLiteral("Agent sessions are kept")), "Settings says it keeps agent conversations");
-		const auto agentLine = panel->findChild<QLabel*>(QStringLiteral("profileResetAgentSessionsLine"))->text();
+		expect(panel->check_box(reset::settings)->accessibleDescription().contains(QStringLiteral("Agent sessions are kept")), "Settings says it keeps agent conversations");
+		const auto agentLine = panel->check_box(reset::agent_sessions)->accessibleDescription();
 		expect(agentLine.contains(QStringLiteral("agent sessions with their transcripts")) && agentLine.contains(QStringLiteral("Claude Code’s and Codex’s own session files stay")),
 			   "Agent sessions says it clears conversations, and leaves the agents' own files");
-		expect(panel->findChild<QLabel*>(QStringLiteral("profileResetAgentSetupLine"))->text().contains(QStringLiteral("review skill")), "Agent setup says what Reset agents did");
+		expect(panel->check_box(reset::agent_setup)->accessibleDescription().contains(QStringLiteral("review skill")), "Agent setup says what Reset agents did");
 		expect(!panel->clear_button()->isEnabled() && panel->checked().empty(), "nothing is checked and Clear waits");
 		// A measured size is shown beside its category.
 		panel->present_size(reset::agent_workspaces, QStringLiteral("3 workspaces, 17.2 GB"));
@@ -123,20 +160,61 @@ namespace {
 		// [[BPR-2377]], owner: Settings and Agent sessions are independent.
 		panel->check_box(reset::settings)->click();
 		expect(!panel->check_box(reset::agent_sessions)->isChecked() && panel->check_box(reset::agent_sessions)->isEnabled(), "Settings leaves Agent sessions alone");
-		expect(panel->check_box(reset::agent_setup)->isChecked() && !panel->check_box(reset::agent_setup)->isEnabled()
-				   && panel->findChild<QLabel*>(QStringLiteral("profileResetAgentSetupLine"))->text().startsWith(QStringLiteral("Included with Settings")),
-			   "Settings includes Agent setup, whose store it removes, and says why");
+		auto* const setup = panel->check_box(reset::agent_setup);
+		expect(setup->isChecked() && !setup->isEnabled(), "Settings includes Agent setup, whose store it removes: checked and locked");
+		expect(setup->accessibleDescription().startsWith(QStringLiteral("Included with Settings")) && setup->toolTip().contains(QStringLiteral("Included with Settings"))
+				   && row_label(*panel, reset::agent_setup, QStringLiteral("Line"))->toolTip() == setup->toolTip(),
+			   "the locked row's tooltip and description say why first");
+		expect(setup->toolTip().contains(qt::profile_data_reset_category_words_for(reset::agent_setup).Line.toHtmlEscaped())
+				   && row_label(*panel, reset::agent_setup, QStringLiteral("Line"))->text() == qt::profile_data_reset_category_words_for(reset::agent_setup).Brief,
+			   "and still what it clears; its one line is unchanged");
+		expect(!row_label(*panel, reset::agent_setup, QStringLiteral("Name"))->isEnabled() && !row_label(*panel, reset::agent_setup, QStringLiteral("Line"))->isEnabled(), "a locked row is dimmed whole");
 		panel->check_box(reset::settings)->click();
-		expect(!panel->check_box(reset::agent_setup)->isChecked() && panel->check_box(reset::agent_setup)->isEnabled(), "unchecking Settings frees it again");
+		expect(!setup->isChecked() && setup->isEnabled() && !setup->toolTip().contains(QStringLiteral("Included with"))
+				   && row_label(*panel, reset::agent_setup, QStringLiteral("Name"))->isEnabled(),
+			   "unchecking Settings frees it again");
 		panel->check_box(reset::agent_sessions)->click();
-		expect(panel->check_box(reset::agent_workspaces)->isChecked() && !panel->check_box(reset::agent_workspaces)->isEnabled()
-				   && panel->findChild<QLabel*>(QStringLiteral("profileResetAgentWorkspacesLine"))->text().startsWith(QStringLiteral("Included with Agent sessions")),
+		auto* const workspaces = panel->check_box(reset::agent_workspaces);
+		expect(workspaces->isChecked() && !workspaces->isEnabled() && workspaces->accessibleDescription().startsWith(QStringLiteral("Included with Agent sessions"))
+				   && workspaces->toolTip().contains(QStringLiteral("Included with Agent sessions")),
 			   "Agent sessions takes their workspaces, and says why");
 		panel->check_box(reset::agent_sessions)->click();
-		panel->select_all_button()->click();
-		expect(panel->checked() == core::profile_data_reset_selection::all() && panel->select_all_button()->text() == QStringLiteral("Uncheck all"), "Check all checks every category");
-		panel->select_all_button()->click();
-		expect(panel->checked().empty() && !panel->clear_button()->isEnabled(), "Uncheck all clears the list");
+
+		// The header row's box replaces Check all: unchecked with nothing
+		// checked, a dash with some, checked with all; a click checks all,
+		// or unchecks all when all are checked.
+		auto* const all = panel->select_all_box();
+		expect(all != nullptr && all->isTristate() && all->text().isEmpty() && all->accessibleName() == QStringLiteral("Check all") && (all->focusPolicy() & Qt::TabFocus) != 0,
+			   "the header row holds one three-state box, named for screen readers and reached with the keyboard");
+		expect(panel->findChild<QPushButton*>(QStringLiteral("profileResetSelectAll")) == nullptr, "no Check all button is left");
+		expect(all->checkState() == Qt::Unchecked, "nothing checked: the header box is unchecked");
+		panel->check_box(reset::caches)->click();
+		expect(all->checkState() == Qt::PartiallyChecked, "some checked: the header box shows a dash");
+		all->click();
+		expect(panel->checked() == core::profile_data_reset_selection::all() && all->checkState() == Qt::Checked, "a click on a dash checks every category");
+		for (const auto each : core::profile_data_reset_categories) {
+			expect(panel->check_box(each)->isChecked(), "every row shows checked");
+		}
+		expect(!setup->isEnabled() && !workspaces->isEnabled(), "and the implied rows stay locked");
+		all->click();
+		expect(panel->checked().empty() && all->checkState() == Qt::Unchecked && !panel->clear_button()->isEnabled(), "a click on a checked header unchecks every category");
+		expect(setup->isEnabled() && workspaces->isEnabled(), "which frees the implied rows");
+		all->click();
+		expect(panel->checked() == core::profile_data_reset_selection::all() && all->checkState() == Qt::Checked, "a click on an unchecked header checks every category");
+		panel->check_box(reset::connections)->click();
+		expect(all->checkState() == Qt::PartiallyChecked && !panel->checked().contains(reset::connections), "unchecking one row turns the header to a dash");
+		panel->set_checked({ });
+		// Every row a person can check, checked: the implied ones make it all.
+		for (const auto each : { reset::caches, reset::settings, reset::agent_sessions, reset::review_data, reset::saved_sources, reset::statistics, reset::connections }) {
+			panel->check_box(each)->click();
+		}
+		expect(all->checkState() == Qt::Checked && panel->checked() == core::profile_data_reset_selection::all(), "the header is checked when every row shows checked, implied ones included");
+		press_space(*all);
+		expect(panel->checked().empty() && all->checkState() == Qt::Unchecked, "Space on the header box unchecks all");
+		press_space(*panel->check_box(reset::review_data));
+		expect(panel->checked() == core::profile_data_reset_selection{ reset::review_data } && all->checkState() == Qt::PartiallyChecked, "Space on a row's box checks that row");
+		panel->set_checked({ });
+
 		// Settings search finds a category by its name on this page.
 		window.settings()->present(qt::settings_page::storage_and_privacy);
 		settle();
@@ -146,6 +224,86 @@ namespace {
 		expect(results->count() > 0 && results->item(0)->text().contains(QStringLiteral("Agent sessions")), "search finds Agent sessions");
 		window.settings()->search_field()->clear();
 		settle();
+	}
+
+	/// Whether `aLine` draws its whole text at its present width.
+	[[nodiscard]] auto whole(const QLabel& aLine) -> bool
+	{
+		return aLine.fontMetrics().horizontalAdvance(aLine.text()) <= aLine.contentsRect().width();
+	}
+
+	/// Owner, 2026-11-24: "Checkmark, label, and description should all fit a
+	/// single line per option." At the Settings window's own size every row is
+	/// one line with nothing shortened; narrower, a line ends in "…" and the
+	/// rows stay one line.
+	void test_one_line_per_category()
+	{
+		qt::workbench_window window;
+		window.set_profile_label(QStringLiteral("Default"));
+		auto* const panel = window.profile_reset_panel_widget();
+		panel->present_size(reset::agent_workspaces, QStringLiteral("3 workspaces, 17.2 GB"));
+		const auto openedAt = window.settings()->size();
+		window.settings()->present(qt::settings_page::storage_and_privacy);
+		settle();
+		expect(window.settings()->size() == openedAt, "Settings opens at its own size");
+		auto* const table = panel->findChild<QWidget*>(QStringLiteral("profileResetTable"));
+		expect(table != nullptr && table->isVisibleTo(window.settings()), "the categories are one table");
+		auto* const scroll = window.settings()->findChild<QScrollArea*>(QStringLiteral("settingsPageScroll-%1").arg(static_cast<int>(qt::settings_page::storage_and_privacy)));
+		expect(scroll != nullptr && panel->width() <= scroll->viewport()->width(), "the group fits its page");
+		const auto oneLine = [&](const std::string_view aWhen) {
+			const auto lineHeight = table->fontMetrics().lineSpacing();
+			auto       previous   = panel->select_all_box()->geometry().center().y();
+			for (const auto each : core::profile_data_reset_categories) {
+				auto* const box  = panel->check_box(each);
+				auto* const name = row_label(*panel, each, QStringLiteral("Name"));
+				auto* const line = row_label(*panel, each, QStringLiteral("Line"));
+				const auto  y    = box->geometry().center().y();
+				expect(name->height() < 2 * lineHeight && line->height() < 2 * lineHeight, std::string{ "a row's name and line are one line each " }.append(aWhen));
+				expect(std::abs(name->geometry().center().y() - y) <= 2 && std::abs(line->geometry().center().y() - y) <= 2, std::string{ "a row's box, name and line share one line " }.append(aWhen));
+				expect(box->geometry().center().x() < name->geometry().left() && name->geometry().right() < line->geometry().left(), std::string{ "box, name, line, left to right " }.append(aWhen));
+				expect(y - previous > 0 && y - previous < 2 * lineHeight + 4, std::string{ "rows are one line apart " }.append(aWhen));
+				expect(whole(*name), std::string{ "a name is never shortened " }.append(aWhen));
+				previous = y;
+			}
+			auto* const size = panel->size_label(reset::agent_workspaces);
+			auto* const line = row_label(*panel, reset::agent_workspaces, QStringLiteral("Line"));
+			expect(whole(*size) && std::abs(size->geometry().center().y() - line->geometry().center().y()) <= 2 && line->geometry().right() < size->geometry().left()
+					   && size->geometry().right() <= table->contentsRect().right(),
+				   std::string{ "a size sits whole at the end of its row's line " }.append(aWhen));
+		};
+		oneLine("at the window's own size");
+		for (const auto each : core::profile_data_reset_categories) {
+			expect(whole(*row_label(*panel, each, QStringLiteral("Line"))), "at the window's own size no line is shortened");
+		}
+		const auto tableHeight = table->height();
+		// Checking, and the lock a check implies, change no row's height.
+		panel->set_checked(core::profile_data_reset_selection::all());
+		settle();
+		oneLine("with everything checked");
+		expect(table->height() == tableHeight, "checking changes no row's height");
+		panel->set_checked({ });
+		// The narrowest Settings: lines shorten, rows stay one line, and
+		// what was cut is whole in the tooltip.
+		window.settings()->resize(window.settings()->minimumSize());
+		settle();
+		oneLine("at the narrowest window");
+		expect(table->height() == tableHeight && panel->width() <= scroll->viewport()->width() && scroll->horizontalScrollBar()->maximum() == 0, "narrowing wraps nothing and pans nothing");
+		for (const auto each : core::profile_data_reset_categories) {
+			auto* const line = row_label(*panel, each, QStringLiteral("Line"));
+			expect(line->width() > 0 && line->toolTip().contains(qt::profile_data_reset_category_words_for(each).Line.toHtmlEscaped()), "a shortened line is whole in its tooltip");
+		}
+		// A click anywhere on a row is a click on its box; the header row
+		// is not a row.
+		click_on(*row_label(*panel, reset::review_data, QStringLiteral("Line")));
+		expect(panel->checked() == core::profile_data_reset_selection{ reset::review_data }, "a click on a row's line checks its box");
+		click_on(*row_label(*panel, reset::review_data, QStringLiteral("Name")));
+		expect(panel->checked().empty(), "a click on a row's name unchecks it");
+		click_on(*panel->findChild<QLabel*>(QStringLiteral("profileResetLineTitle")));
+		expect(panel->checked().empty(), "a click on a column title checks nothing");
+		panel->check_box(reset::settings)->click();
+		click_on(*row_label(*panel, reset::agent_setup, QStringLiteral("Line")));
+		expect(panel->check_box(reset::agent_setup)->isChecked() && panel->checked() == core::plan_profile_data_reset(reset::settings).Selection, "a click on a locked row changes nothing");
+		panel->set_checked({ });
 	}
 
 	void test_confirmations()
@@ -345,11 +503,25 @@ namespace {
 			}
 			settle();
 			save_render(*window.settings(), QStringLiteral("page-storage-") + name);
-			// [[BPR-2377]]. Settings checked brings Agent sessions with it.
+			// [[BPR-2377]]. Settings checked brings Agent setup with it.
 			window.profile_reset_panel_widget()->present_size(reset::agent_workspaces, QStringLiteral("3 workspaces, 17.2 GB"));
 			window.profile_reset_panel_widget()->set_checked(core::profile_data_reset_selection{ reset::caches }.with(reset::settings));
 			settle();
 			save_render(*window.settings(), QStringLiteral("page-storage-checked-") + name);
+			save_render(*window.profile_reset_panel_widget(), QStringLiteral("group-checked-") + name);
+			window.profile_reset_panel_widget()->set_checked(core::profile_data_reset_selection::all());
+			settle();
+			save_render(*window.profile_reset_panel_widget(), QStringLiteral("group-all-") + name);
+			window.profile_reset_panel_widget()->set_checked({ });
+			settle();
+			save_render(*window.profile_reset_panel_widget(), QStringLiteral("group-none-") + name);
+			// The window's own size, then its narrowest, where lines shorten.
+			window.profile_reset_panel_widget()->set_checked(core::profile_data_reset_selection{ reset::caches }.with(reset::settings));
+			for (const auto& [size, slug] : { std::pair{ QSize{ 960, 640 }, "default" }, std::pair{ window.settings()->minimumSize(), "narrowest" } }) {
+				window.settings()->resize(size);
+				settle();
+				save_render(*window.profile_reset_panel_widget(), QStringLiteral("group-%1-%2").arg(QString::fromLatin1(slug), name));
+			}
 			window.profile_reset_panel_widget()->set_checked({ });
 			for (const auto& [each, slug] : { std::pair{ core::profile_data_reset_selection{ reset::caches }, "caches" }, std::pair{ core::profile_data_reset_selection{ reset::settings }, "settings" },
 											  std::pair{ core::profile_data_reset_selection{ reset::caches }.with(reset::review_data), "several" },
@@ -375,7 +547,12 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (!qEnvironmentVariable("BPR_PROFILE_RESET_RENDER_DIR").isEmpty()) {
+		test_renders();
+		return EXIT_SUCCESS;
+	}
 	test_the_group_on_storage_and_privacy();
+	test_one_line_per_category();
 	test_confirmations();
 	test_notices();
 	test_recovery_dialog();
