@@ -874,6 +874,11 @@ namespace bpr::adapters::sqlite {
 				// [[BPR-2377]]. The name the reviewer gave a conversation; one
 				// with no row shows its first question.
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_session_names(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 120)) STRICT")
+				// RFC-BPR-0096, owner continue-at-latest amendment (owner,
+				// 2026-11-24: "a session in the same PR? yes single checkout").
+				// A conversation whose checkout another conversation's turn
+				// moved, and the head it was at: its own next turn is told.
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_moved_conversations(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), previous TEXT NOT NULL CHECK(length(previous) IN (40,64))) STRICT")
 				// [[BPR-2293]]. When each retained workspace was last used by a
 				// turn, by its path, in seconds since the epoch.
 				|| !detail::execute(db,
@@ -1709,6 +1714,51 @@ namespace bpr::adapters::sqlite {
 			return ledger;
 		}
 
+		/// RFC-BPR-0096, owner continue-at-latest amendment. Whether \p aSession's
+		/// own record already holds exactly its workspace, at its binding's
+		/// head: a checkout that moved there while the pull request key led to
+		/// another tree at that head. It keeps working in its own.
+		[[nodiscard]] auto holds_own_checkout(sqlite3* aDatabase, const application::native_agent_session& aSession) -> bool
+		{
+			if (!aSession.Workspace || aSession.Workspace->Workspace.PinnedHead != std::optional{ aSession.Binding.HeadOid }) {
+				return false;
+			}
+			auto row = detail::prepare(aDatabase, "SELECT 1 FROM native_agent_sessions WHERE id=?1 AND workspace=?2 AND marker=?3 AND directory=?4 AND head=?5");
+			if (!row) {
+				return false;
+			}
+			bind_text(row->Value, 1, aSession.Id);
+			bind_text(row->Value, 2, aSession.Workspace->Workspace.Path);
+			bind_text(row->Value, 3, aSession.Workspace->OwnershipMarker);
+			sqlite3_bind_blob(row->Value, 4, aSession.Workspace->DirectoryIdentity.Opaque.data(), 32, SQLITE_TRANSIENT);
+			bind_text(row->Value, 5, std::string{ core::canonical_hex(aSession.Binding.HeadOid).view() });
+			return sqlite3_step(row->Value) == SQLITE_ROW;
+		}
+
+		/// RFC-BPR-0096, owner continue-at-latest amendment. The head a
+		/// conversation was at before another conversation's turn moved their
+		/// shared checkout, until its own next turn is told; none otherwise.
+		[[nodiscard]] auto read_moved_from(sqlite3* aDatabase, const std::string& aId) -> std::optional<std::optional<core::git_commit_oid>>
+		{
+			auto row = detail::prepare(aDatabase, "SELECT previous FROM native_agent_moved_conversations WHERE conversation=?1");
+			if (!row) {
+				return std::nullopt;
+			}
+			bind_text(row->Value, 1, aId);
+			const auto status = sqlite3_step(row->Value);
+			if (status == SQLITE_DONE) {
+				return std::optional<core::git_commit_oid>{ };
+			}
+			if (status != SQLITE_ROW) {
+				return std::nullopt;
+			}
+			auto previous = core::parse_git_commit_oid(column_text(row->Value, 0).value_or(""));
+			if (!previous) {
+				return std::nullopt;
+			}
+			return previous;
+		}
+
 		[[nodiscard]] auto write_native_cost(sqlite3* aDatabase, const std::string& aId, const core::agent_cost_ledger& aLedger) -> bool
 		{
 			constexpr auto largest = static_cast<core::agent_cost>(std::numeric_limits<sqlite3_int64>::max());
@@ -1849,6 +1899,13 @@ namespace bpr::adapters::sqlite {
 					return std::unexpected(failure::unavailable);
 				}
 				if (aSession.Workspace && (aSession.Workspace->Workspace.Path != (**workspace).Workspace.Path || aSession.Workspace->DirectoryIdentity != (**workspace).DirectoryIdentity || aSession.Workspace->OwnershipMarker != (**workspace).OwnershipMarker)) {
+					// RFC-BPR-0096, owner continue-at-latest amendment. A
+					// conversation whose own checkout moved to this head keeps
+					// working in it, as its record says: nothing changes its
+					// working directory. Any other tree is a conflict.
+					if (holds_own_checkout(connection->Database.get(), aSession)) {
+						return aSession.Workspace;
+					}
 					return std::unexpected(failure::conflict);
 				}
 				return workspace;
@@ -2027,6 +2084,11 @@ namespace bpr::adapters::sqlite {
 					if (value.Id.size() != 32U || value.Handle.size() > core::maximum_remote_run_id_bytes || value.Turn < 2U || value.Revision == 0U) {
 						return std::unexpected(failure::unavailable);
 					}
+					const auto movedFrom = read_moved_from(db, value.Id);
+					if (!movedFrom) {
+						return std::unexpected(failure::unavailable);
+					}
+					value.MovedFrom = *movedFrom;
 					const auto cost = read_native_cost(db, value.Id);
 					if (!cost) {
 						return std::unexpected(failure::unavailable);
@@ -2204,6 +2266,15 @@ namespace bpr::adapters::sqlite {
 						view.Replay       = entry.Replay;
 						view.ReplaySource = entry.ReplaySource;
 						view.SessionCost  = entry.Cost;
+						// RFC-BPR-0096, owner continue-at-latest amendment: the
+						// transcript says, when opened, that its checkout moved.
+						const auto movedFrom = read_moved_from(db, entry.Id);
+						if (!movedFrom) {
+							return std::unexpected(failure::unavailable);
+						}
+						if (*movedFrom) {
+							view.SelectedMove = std::pair{ **movedFrom, entry.Binding.HeadOid };
+						}
 					}
 					view.Entries.push_back(std::move(entry));
 				}
@@ -2335,7 +2406,9 @@ namespace bpr::adapters::sqlite {
 				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
 					return false;
 				}
-				auto row = detail::prepare(connection->Database.get(), "UPDATE native_agent_sessions SET handle=?1,turn=?2,pending=?3,workspace=?4,parent=?5,marker=?6,application=?7,session=?8,directory=?9,guard=?10,guard_identity=?11,shallow=?12,revision=revision+1 WHERE id=?13 AND revision=?14");
+				// Read before this write records the workspace.
+				const auto ownCheckout = holds_own_checkout(connection->Database.get(), aSession);
+				auto       row         = detail::prepare(connection->Database.get(), "UPDATE native_agent_sessions SET handle=?1,turn=?2,pending=?3,workspace=?4,parent=?5,marker=?6,application=?7,session=?8,directory=?9,guard=?10,guard_identity=?11,shallow=?12,revision=revision+1 WHERE id=?13 AND revision=?14");
 				if (!row) {
 					return false;
 				}
@@ -2418,7 +2491,7 @@ namespace bpr::adapters::sqlite {
 					bind_text(exact->Value, 2, workspace.Workspace.Path);
 					bind_text(exact->Value, 3, workspace.OwnershipMarker);
 					sqlite3_bind_blob(exact->Value, 4, workspace.DirectoryIdentity.Opaque.data(), 32, SQLITE_TRANSIENT);
-					if (sqlite3_step(exact->Value) != SQLITE_ROW) {
+					if (sqlite3_step(exact->Value) != SQLITE_ROW && !ownCheckout) {
 						return false;
 					}
 					// [[BPR-2345]]. The workspace Agent setup's check kept is now
@@ -2609,6 +2682,113 @@ namespace bpr::adapters::sqlite {
 				sqlite3_bind_int64(used->Value, 2, std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
 				return sqlite3_step(used->Value) == SQLITE_DONE && detail::execute(db, "COMMIT").has_value();
 			}
+			/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24.
+			auto move_conversation(application::native_agent_session& aSession) -> bool override
+			{
+				if (aSession.Id.size() != 32U || aSession.Revision == 0U || !aSession.Workspace || aSession.Workspace->Workspace.Path.empty()
+					|| aSession.Workspace->Workspace.Path.size() > 4096U || aSession.WorkspaceKey.size() > 4096U || !aSession.Workspace->LifetimeGuard
+					|| aSession.Workspace->Workspace.PinnedHead != std::optional{ aSession.Binding.HeadOid }) {
+					return false;
+				}
+				const auto& workspace  = *aSession.Workspace;
+				auto        connection = open_sessions(Root);
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
+					return false;
+				}
+				auto* const db = connection->Database.get();
+				// A kept workspace on the same tree is no conversation's: it is
+				// not moved underneath it.
+				auto kept = detail::prepare(db, "SELECT count(*) FROM native_agent_kept_workspaces WHERE workspace=?1");
+				if (!kept) {
+					return false;
+				}
+				bind_text(kept->Value, 1, workspace.Workspace.Path);
+				if (sqlite3_step(kept->Value) != SQLITE_ROW || sqlite3_column_int64(kept->Value, 0) != 0) {
+					return false;
+				}
+				const auto bindMoved = [&](sqlite3_stmt* aStatement) {
+					bind_text(aStatement, 1, std::string{ core::canonical_hex(aSession.Binding.BaseOid).view() });
+					bind_text(aStatement, 2, std::string{ core::canonical_hex(aSession.Binding.HeadOid).view() });
+					sqlite3_bind_int64(aStatement, 3, static_cast<sqlite3_int64>(aSession.Binding.LeftEpoch.value()));
+					sqlite3_bind_int64(aStatement, 4, static_cast<sqlite3_int64>(aSession.Binding.RightEpoch.value()));
+					bind_text(aStatement, 5, workspace.OwnershipMarker);
+					sqlite3_bind_blob(aStatement, 6, workspace.DirectoryIdentity.Opaque.data(), 32, SQLITE_TRANSIENT);
+					sqlite3_bind_blob(aStatement, 7, workspace.LifetimeGuard->FileIdentity.data(), 32, SQLITE_TRANSIENT);
+					bind_text(aStatement, 8, aSession.Id);
+				};
+				auto row = detail::prepare(db, "UPDATE native_agent_sessions SET base=?1,head=?2,left_epoch=?3,right_epoch=?4,marker=?5,directory=?6,guard_identity=?7,revision=revision+1 WHERE id=?8 AND revision=?9 AND workspace=?10");
+				if (!row) {
+					return false;
+				}
+				bindMoved(row->Value);
+				sqlite3_bind_int64(row->Value, 9, static_cast<sqlite3_int64>(aSession.Revision));
+				bind_text(row->Value, 10, workspace.Workspace.Path);
+				if (sqlite3_step(row->Value) != SQLITE_DONE || sqlite3_changes(db) != 1) {
+					return false;
+				}
+				// Owner, 2026-11-24: "a session in the same PR? yes single
+				// checkout", and "The other sessions, we dont wake them up and
+				// send them messages". Every other conversation of the pull
+				// request on this checkout is rebound to the new head here and
+				// nothing else: each keeps the head it was at, and its own next
+				// turn is told (`MovedFrom`). One told of an earlier move keeps
+				// the earliest head.
+				auto told   = detail::prepare(db, "INSERT INTO native_agent_moved_conversations(conversation,previous) SELECT id,head FROM native_agent_sessions WHERE workspace=?1 AND id<>?2 AND head<>?3 "
+												  "ON CONFLICT(conversation) DO NOTHING");
+				auto others = detail::prepare(db, "UPDATE native_agent_sessions SET base=?1,head=?2,left_epoch=?3,right_epoch=?4,marker=?5,directory=?6,guard_identity=?7,revision=revision+1 WHERE workspace=?9 AND id<>?8");
+				auto back   = detail::prepare(db, "DELETE FROM native_agent_moved_conversations WHERE previous=?2 AND conversation IN (SELECT id FROM native_agent_sessions WHERE workspace=?1)");
+				if (!told || !others || !back) {
+					return false;
+				}
+				bind_text(told->Value, 1, workspace.Workspace.Path);
+				bind_text(told->Value, 2, aSession.Id);
+				bind_text(told->Value, 3, std::string{ core::canonical_hex(aSession.Binding.HeadOid).view() });
+				bindMoved(others->Value);
+				bind_text(others->Value, 9, workspace.Workspace.Path);
+				// One moved back to the head it was told about has nothing to be
+				// told.
+				bind_text(back->Value, 1, workspace.Workspace.Path);
+				bind_text(back->Value, 2, std::string{ core::canonical_hex(aSession.Binding.HeadOid).view() });
+				if (sqlite3_step(told->Value) != SQLITE_DONE || sqlite3_step(others->Value) != SQLITE_DONE || sqlite3_step(back->Value) != SQLITE_DONE) {
+					return false;
+				}
+				// The shared-workspace map: the keys that led to this checkout go,
+				// and the new one leads here unless another tree is already there.
+				auto unmapped = detail::prepare(db, "DELETE FROM native_agent_workspaces WHERE conversation IN (SELECT id FROM native_agent_sessions WHERE workspace=?1)");
+				auto mapped   = detail::prepare(db, "INSERT INTO native_agent_workspaces(scope,conversation) VALUES(?1,?2) ON CONFLICT(scope) DO NOTHING");
+				if (!unmapped || !mapped) {
+					return false;
+				}
+				bind_text(unmapped->Value, 1, workspace.Workspace.Path);
+				if (sqlite3_step(unmapped->Value) != SQLITE_DONE) {
+					return false;
+				}
+				if (!aSession.WorkspaceKey.empty()) {
+					bind_text(mapped->Value, 1, aSession.WorkspaceKey);
+					bind_text(mapped->Value, 2, aSession.Id);
+					if (sqlite3_step(mapped->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				if (!detail::execute(db, "COMMIT")) {
+					return false;
+				}
+				++aSession.Revision;
+				return true;
+			}
+			auto acknowledge_move(const std::string& aId) -> bool override
+			{
+				auto connection = open_sessions(Root);
+				if (aId.size() != 32U || !connection) {
+					return false;
+				}
+				auto row = detail::prepare(connection->Database.get(), "DELETE FROM native_agent_moved_conversations WHERE conversation=?1");
+				if (!row) {
+					return false;
+				}
+				bind_text(row->Value, 1, aId);
+				return sqlite3_step(row->Value) == SQLITE_DONE;
+			}
 			auto forget_workspace(const application::owned_agent_workspace& aWorkspace) -> bool override
 			{
 				if (aWorkspace.Workspace.Path.empty() || aWorkspace.Workspace.Path.size() > 4096U) {
@@ -2732,6 +2912,15 @@ namespace bpr::adapters::sqlite {
 					return std::unexpected(failure::unavailable);
 				}
 				result.OtherHolders = static_cast<std::size_t>(sqlite3_column_int64(others->Value, 0));
+				auto kept           = detail::prepare(db, "SELECT count(*) FROM native_agent_kept_workspaces WHERE workspace=?1 AND marker=?2 AND directory=?3");
+				if (!kept) {
+					return std::unexpected(failure::unavailable);
+				}
+				bind(kept->Value);
+				if (sqlite3_step(kept->Value) != SQLITE_ROW) {
+					return std::unexpected(failure::unavailable);
+				}
+				result.KeptHolders = static_cast<std::size_t>(sqlite3_column_int64(kept->Value, 0));
 				bind(keys->Value);
 				for (auto keyStatus = sqlite3_step(keys->Value); keyStatus != SQLITE_DONE; keyStatus = sqlite3_step(keys->Value)) {
 					if (keyStatus != SQLITE_ROW) {
@@ -2781,6 +2970,7 @@ namespace bpr::adapters::sqlite {
 						 "DELETE FROM native_agent_costs WHERE conversation=?1",
 						 "DELETE FROM native_agent_sparse_objects WHERE conversation=?1",
 						 "DELETE FROM native_agent_session_names WHERE conversation=?1",
+						 "DELETE FROM native_agent_moved_conversations WHERE conversation=?1",
 						 unused,
 						 "DELETE FROM native_agent_sessions WHERE id=?1",
 					 }) {
@@ -2805,6 +2995,7 @@ namespace bpr::adapters::sqlite {
 				for (const auto* const statement : {
 						 "DELETE FROM native_agent_workspaces", "DELETE FROM native_agent_selection", "DELETE FROM native_agent_turn_steers", "DELETE FROM native_agent_turns",
 						 "DELETE FROM native_agent_replays", "DELETE FROM native_agent_costs", "DELETE FROM native_agent_sparse_objects", "DELETE FROM native_agent_session_names",
+						 "DELETE FROM native_agent_moved_conversations",
 						 "DELETE FROM native_agent_workspace_use", "DELETE FROM native_agent_kept_workspaces", "DELETE FROM native_agent_sessions",
 						 // The conversations kept before native sessions, and what
 						 // they recorded beside their turns.

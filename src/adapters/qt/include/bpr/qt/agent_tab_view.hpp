@@ -14,6 +14,7 @@
 #include "bpr/core/agent_draft_all.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_question.hpp"
+#include "bpr/core/agent_session.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/prompt_macro.hpp"
 #include "bpr/core/quick_ask.hpp"
@@ -31,6 +32,7 @@
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/report_tally_view.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -406,6 +408,31 @@ namespace bpr::qt {
 		void               present_native_history(const application::native_agent_history_projection&);
 		void               set_native_history_dispatch(std::function<void(std::optional<std::string>)> aDispatch) { NativeHistoryDispatch = std::move(aDispatch); }
 		[[nodiscard]] auto clear_session_button() const noexcept -> QToolButton* { return ClearSession; }
+		/// \brief Owner, 2026-11-24. Where the stopped card's pinned
+		/// conversation choices go: continue the conversation at its own
+		/// revision, or start a new session at the current one. The host
+		/// answers whether it took the choice; when it did, the tab resends
+		/// the kept message.
+		void set_pinned_conversation_dispatch(std::function<bool(core::agent_continuation)> aDispatch) { PinnedDispatch = std::move(aDispatch); }
+		/// \brief The stopped card's buttons, for courses and tests.
+		[[nodiscard]] auto banner_first_button() const noexcept -> QPushButton* { return BannerFirst; }
+		[[nodiscard]] auto banner_second_button() const noexcept -> QPushButton* { return BannerSecond; }
+		/// \brief RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24.
+		/// Where the stopped card's reconcile choices go when work stopped the
+		/// conversation's workspace from moving: Rebase onto the new head, Keep
+		/// my changes on a branch and move, or Ask the agent to reconcile. The
+		/// host answers whether it took the choice; when it did, the tab
+		/// resends the kept message.
+		void set_move_reconcile_dispatch(std::function<bool(core::conversation_reconcile)> aDispatch) { ReconcileDispatch = std::move(aDispatch); }
+		/// \brief The stopped card's reconcile buttons, in that order.
+		[[nodiscard]] auto banner_reconcile_buttons() const -> std::array<QPushButton*, 3U> { return { BannerRebase, BannerSave, BannerAsk }; }
+		/// \brief The quiet line a turn shows when its conversation moved to
+		/// the latest head before it ran; hidden otherwise.
+		[[nodiscard]] auto turn_move_notice(std::size_t aTurn) const -> QLabel*;
+		/// \brief The quiet line an opened conversation shows when its shared
+		/// checkout moved while another conversation asked; hidden otherwise.
+		[[nodiscard]] auto conversation_move_notice() const noexcept -> QLabel* { return ConversationMoved; }
+		[[nodiscard]] auto banner_text() const -> QString;
 		/// \brief [[BPR-1753]], owner decision (a) 2026-10-23
 		/// ("Suggested prompts described that way sound great"). Where the
 		/// suggestions read the open file and the selected lines, and a call
@@ -779,6 +806,7 @@ namespace bpr::qt {
 		application::native_agent_history_projection NativeHistoryView;
 		QMenu*                                       NativeHistoryMenu = nullptr;
 		QLabel*                                      ContinuationMode  = nullptr;
+		QLabel*                                      ConversationMoved = nullptr;
 		/// Paints each glyph again in the current palette's ink.
 		void repaint_glyphs();
 		void rebuild_findings();
@@ -894,6 +922,12 @@ namespace bpr::qt {
 		QLabel*               BannerText   = nullptr;
 		QPushButton*          BannerFirst  = nullptr;
 		QPushButton*          BannerSecond = nullptr;
+		/// RFC-BPR-0096, owner continue-at-latest amendment. The reconcile
+		/// choices, on their own wrapping row above the first two.
+		QWidget*     BannerReconcile = nullptr;
+		QPushButton* BannerRebase    = nullptr;
+		QPushButton* BannerSave      = nullptr;
+		QPushButton* BannerAsk       = nullptr;
 		/// [[BPR-2295]]. Closes a stop's block, as the ready box's close does.
 		QToolButton*                               BannerDismiss = nullptr;
 		QWidget*                                   Cards         = nullptr;
@@ -1017,6 +1051,9 @@ namespace bpr::qt {
 			/// one made since; and the line that says it is fixed since.
 			bool             CauseRechecked = false;
 			QPointer<QLabel> FixedNote;
+			/// RFC-BPR-0096, owner continue-at-latest amendment: "maybe drop a
+			/// notice in the transcript that it happened".
+			QPointer<QLabel> MoveNotice;
 			/// [[BPR-1876]], [[BPR-1880]]. Delete: an error turn leaves the
 			/// thread.
 			QPointer<QPushButton> Delete;
@@ -1072,6 +1109,8 @@ namespace bpr::qt {
 		/// [[BPR-1847]]. Each ended turn's actions, as the core decides them.
 		void present_turn_actions();
 		void recover(const turn& aTurn);
+		/// Sends a turn's message again, as it was asked.
+		void resend(const turn& aTurn);
 		/// [[BPR-1876]]. Removes a turn whose message never reached the agent
 		/// from the thread, and keeps the thread without it.
 		void delete_turn(std::size_t aTurn);
@@ -1097,9 +1136,14 @@ namespace bpr::qt {
 		void                                                fit_answer(markdown_body_view& aAnswer) const;
 		std::function<void(std::vector<agent_thread_turn>)> ThreadObserver;
 		std::function<void()>                               ClearDispatch;
-		std::function<bool(std::size_t)>                    ClearConfirm;
-		QToolButton*                                        ClearSession = nullptr;
-		std::function<agent_suggestion_context()>           SuggestionContext;
+		std::function<bool(core::agent_continuation)>       PinnedDispatch;
+		std::function<bool(core::conversation_reconcile)>   ReconcileDispatch;
+		/// Takes one pinned conversation choice and resends the kept message.
+		void                                      choose_pinned(core::agent_continuation aChoice);
+		void                                      choose_reconcile(core::conversation_reconcile aChoice);
+		std::function<bool(std::size_t)>          ClearConfirm;
+		QToolButton*                              ClearSession = nullptr;
+		std::function<agent_suggestion_context()> SuggestionContext;
 		/// [[BPR-1934]]. The suggestion component the tour chats share.
 		agent_suggestion_list* Suggestions     = nullptr;
 		quiet_tool_button*     SuggestionsMenu = nullptr;

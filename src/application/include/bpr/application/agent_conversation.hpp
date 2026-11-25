@@ -13,6 +13,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace bpr::application {
@@ -95,6 +96,11 @@ namespace bpr::application {
 		std::string                             Failure;
 		/// [[BPR-1999]]. What the selected conversation has cost, once known.
 		std::optional<core::agent_cost> SessionCost;
+		/// RFC-BPR-0096, owner continue-at-latest amendment. The heads the
+		/// selected conversation's checkout moved from and to while another
+		/// conversation of the pull request asked, until its own next turn is
+		/// told; none otherwise.
+		std::optional<std::pair<core::git_commit_oid, core::git_commit_oid>> SelectedMove;
 	};
 
 	/// The most turns one pull request keeps; older ones go first.

@@ -228,6 +228,23 @@ namespace bpr::application {
 		return reattached;
 	}
 
+	auto epoch_application_host::move_agent_workspace(const agent_workspace_move_request& aRequest, const std::stop_token aStop)
+		-> std::expected<agent_workspace_move_result, agent_workspace_error>
+	{
+		// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24. On the
+		// review's actor, as an inspection runs, with its own start and end.
+		auto* const log   = Implementation->DiagnosticLog.get();
+		const auto  watch = operation_stopwatch{ };
+		auto        moved = agent_workspace_move_result{ };
+		record_operation(log, { .Action = core::operation_action::workspace_verify }, true);
+		auto done = Implementation->cleanup_agent_workspace(aRequest.Workspace, aStop, nullptr, &aRequest, &moved);
+		record_operation(log, { .Action = core::operation_action::workspace_verify, .Failure = done ? core::operation_failure::none : operation_failure_of(done.error()), .DurationMilliseconds = watch.milliseconds() });
+		if (!done) {
+			return std::unexpected{ std::move(done.error()) };
+		}
+		return moved;
+	}
+
 	auto epoch_application_host::cleanup_agent_workspace(
 		const owned_agent_workspace& aWorkspace,
 		const std::stop_token        aStop)

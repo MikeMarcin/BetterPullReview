@@ -273,6 +273,47 @@ namespace bpr::application {
 		return aError.Code == aCode;
 	}
 
+	/// \brief Moves a retained conversation's workspace to a new head between
+	/// turns (RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24:
+	/// "like git pull in another terminal").
+	struct agent_workspace_move_request
+	{
+		/// The retained workspace as the conversation stores it.
+		owned_agent_workspace        Workspace;
+		core::git_commit_oid         Head;
+		core::git_commit_oid         Base;
+		core::conversation_reconcile Reconcile = core::conversation_reconcile::none;
+		/// The branch under `refs/heads/` that `save_and_move` and `ask_agent`
+		/// keep the work on; it starts `bpr/saved/` and must not exist.
+		std::string SavedBranch;
+
+		auto operator<=>(const agent_workspace_move_request&) const = default;
+	};
+
+	/// \brief What one move did.
+	///
+	/// \details Not moved: `Observed` says what stopped it (edits or agent
+	/// commits with no reconcile, a busy workspace), or `History.Conflicts`
+	/// names the files a rebase stopped on, after the workspace was put back
+	/// as it was. Moved: `Workspace` is the reattached workspace at the new
+	/// head, and `History` what lies between the two heads.
+	struct agent_workspace_move_result
+	{
+		bool                               Moved = false;
+		owned_agent_workspace              Workspace;
+		core::conversation_workspace_state Observed = core::conversation_workspace_state::clean;
+		core::conversation_move_history    History;
+
+		auto operator<=>(const agent_workspace_move_result&) const = default;
+	};
+
+	/// \brief The saved branch a reconcile keeps \p aSession's work on when it
+	/// leaves \p aOld: `bpr/saved/<session>/<old short>`.
+	[[nodiscard]] inline auto saved_branch_name(const core::agent_session_id aSession, const core::git_commit_oid& aOld) -> std::string
+	{
+		return "bpr/saved/" + std::to_string(aSession.value()) + "/" + std::string{ core::canonical_hex(aOld).view().substr(0U, 7U) };
+	}
+
 	/// \brief Materializes and cleans workspaces on the retained cache actor.
 	class agent_workspace_port
 	{
@@ -289,6 +330,16 @@ namespace bpr::application {
 		/// place of the stored copy.
 		[[nodiscard]] virtual auto inspect_agent_workspace(const owned_agent_workspace&, std::stop_token)
 			-> std::expected<owned_agent_workspace, agent_workspace_error> { return std::unexpected(agent_workspace_failure::unavailable); }
+		/// \brief Moves a retained workspace to a new head, through the same
+		/// serialized owner as `inspect_agent_workspace` (RFC-BPR-0096, owner
+		/// continue-at-latest amendment, 2026-11-24).
+		[[nodiscard]] virtual auto move_agent_workspace(const agent_workspace_move_request& aRequest, std::stop_token aStop)
+			-> std::expected<agent_workspace_move_result, agent_workspace_error>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected(agent_workspace_failure::unavailable);
+		}
 		[[nodiscard]] virtual auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
 			std::stop_token              aStop)

@@ -1976,6 +1976,7 @@ foreach(
         staleness
         cleanup-retry
         workspace-diagnostic
+        native-pinned
 )
 	if(course STREQUAL "positive")
 		set(test_name application_agent_invocation_composition_contract)

@@ -65,6 +65,90 @@ namespace bpr::application {
 			return messages;
 		}
 
+		/// Owner, 2026-11-24: "There doesn't appear to be an option anywhere
+		/// to continue like it suggests". The refusal names the actions the
+		/// core offered, in the words the Agent tab's buttons use, and no other.
+		[[nodiscard]] auto pinned_conversation_words(const core::pinned_conversation_offer& aOffer) -> std::string
+		{
+			const auto pinned   = std::string{ core::canonical_hex(aOffer.PinnedHead).view().substr(0U, 7U) };
+			const auto current  = std::string{ core::canonical_hex(aOffer.ObservedHead).view().substr(0U, 7U) };
+			const auto sameHead = aOffer.PinnedHead == aOffer.ObservedHead;
+			const auto newHere  = sameHead ? std::string{ "start a new session for the comparison on screen" } : "start a new session at " + current;
+			if (aOffer.Staleness == core::agent_session_staleness::different_review) {
+				return "This conversation belongs to another pull request. Start a new session. No question was sent.";
+			}
+			if (aOffer.ContinueOffered) {
+				return (sameHead ? "This conversation is pinned to another comparison of " + pinned + ". Continue at " + pinned + " to keep asking about that comparison, or "
+								 : "This conversation is pinned to an earlier revision, " + pinned + ". Continue at " + pinned + " to keep asking about that revision, or ")
+					+ newHere + ". No question was sent.";
+			}
+			auto next    = newHere;
+			next.front() = 'S';
+			return "This conversation is pinned to " + pinned + ". " + next + ". No question was sent.";
+		}
+
+		/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24: "it
+		/// must be recoverable". Why a conversation's workspace did not move to
+		/// the head under review, and the ways on the core offered, in the
+		/// words the Agent tab's buttons use.
+		[[nodiscard]] auto move_refusal_words(const core::conversation_move_decision& aDecision, const core::git_commit_oid& aFrom, const core::git_commit_oid& aTo,
+											  const std::vector<std::string>& aConflicts, const bool aKeptHolder) -> std::string
+		{
+			using state      = core::conversation_workspace_state;
+			const auto from  = std::string{ core::canonical_hex(aFrom).view().substr(0U, 7U) };
+			const auto to    = std::string{ core::canonical_hex(aTo).view().substr(0U, 7U) };
+			auto       words = std::string{ };
+			if (!aConflicts.empty()) {
+				auto files = std::string{ };
+				for (std::size_t index = 0U; index < aConflicts.size() && index < 5U; ++index) {
+					files += (index == 0U ? "" : ", ") + aConflicts[index];
+				}
+				if (aConflicts.size() > 5U) {
+					files += " and " + std::to_string(aConflicts.size() - 5U) + " more";
+				}
+				words = "Rebasing onto " + to + " stopped on conflicts in " + files + ", so the workspace was put back at " + from + " as it was.";
+			} else if (aKeptHolder) {
+				words = "This pull request's kept workspace is the same checkout, so it was not moved from " + from + " to " + to + ".";
+			} else {
+				switch (aDecision.Blocked) {
+				case state::local_edits:       words = "This conversation's workspace at " + from + " has uncommitted edits, so it was not moved to " + to + "."; break;
+				case state::agent_commits:     words = "This conversation's workspace at " + from + " has commits of its own, so it was not moved to " + to + "."; break;
+				case state::edits_and_commits: words = "This conversation's workspace at " + from + " has edits and commits of its own, so it was not moved to " + to + "."; break;
+				case state::busy:              words = "Another agent is using this conversation's workspace, so it was not moved from " + from + " to " + to + "."; break;
+				case state::objects_unavailable:
+					words = "The commits of " + to + " could not be brought into this conversation's workspace, so it stays at " + from + ".";
+					break;
+				case state::clean: words = "This conversation's workspace was not moved from " + from + " to " + to + "."; break;
+				}
+			}
+			auto ways = std::vector<std::string>{ };
+			if (aDecision.RebaseOffered) {
+				ways.push_back("Rebase onto " + to);
+			}
+			if (aDecision.SaveAndMoveOffered) {
+				ways.emplace_back("Keep my changes on a branch and move");
+			}
+			if (aDecision.AskAgentOffered) {
+				ways.emplace_back("ask the agent to reconcile");
+			}
+			if (aDecision.ContinueOffered) {
+				ways.push_back("Continue at " + from);
+			}
+			if (aDecision.NewSessionOffered) {
+				ways.push_back("start a new session at " + to);
+			}
+			if (!ways.empty()) {
+				words += " Choose ";
+				for (std::size_t index = 0U; index < ways.size(); ++index) {
+					words += (index == 0U ? "" : index + 1U == ways.size() ? ", or "
+																		   : ", ")
+						+ ways[index];
+				}
+				words += ".";
+			}
+			return words + " No question was sent.";
+		}
+
 		// Read only this selected catalog generation, never an in-memory cache of other chats.
 		auto prose_replay(const native_agent_history_projection& aHistory, const bool aTour) -> core::transcript_replay
 		{
@@ -171,7 +255,13 @@ namespace bpr::application {
 			std::mutex                                  WorkspaceMutex;
 			std::optional<owned_agent_workspace>        OwnedWorkspace;
 			std::optional<native_agent_session>         Native;
-			bool                                        RetainWorkspace = false;
+			/// RFC-BPR-0096, owner continue-at-latest amendment. The move of
+			/// the conversation's workspace this turn made before it ran.
+			std::optional<agent_conversation_move> Moved;
+			/// Its conversation's `MovedFrom` is said by this turn's note, and
+			/// forgotten once the question was sent.
+			bool ToldMove        = false;
+			bool RetainWorkspace = false;
 			/// [[BPR-1999]]. The run resumed the runtime's own session (its
 			/// handle was known at launch), so its reported cost is that
 			/// session's running total.
@@ -457,11 +547,16 @@ namespace bpr::application {
 			const std::shared_ptr<invocation>& aInvocation) const -> bool
 		{
 			std::scoped_lock lock{ StateMutex };
+			// A continuation is asked about its session's own revision, which
+			// BPR-0521 lets differ from the one under review; it streams while
+			// the review is the same, as `supersede` lets it run. Before this a
+			// continued turn's every frame was dropped and its answer was never
+			// shown (owner report, 2026-11-24).
 			return ActiveInvocation == aInvocation
 				&& ApplicationSession
 				== std::optional{ aInvocation->Identity.ApplicationSession }
 			&& Authority == std::optional{ aInvocation->Identity.Authority }
-			&& Binding == std::optional{ aInvocation->Identity.Session.Binding };
+			&& (aInvocation->Continued || Binding == std::optional{ aInvocation->Identity.Session.Binding });
 		}
 
 		[[nodiscard]] auto still_active(
@@ -835,6 +930,100 @@ namespace bpr::application {
 			return true;
 		}
 
+		/// \brief Why one workspace move did not happen, for the refusal.
+		struct move_stopped
+		{
+			core::conversation_workspace_state State = core::conversation_workspace_state::clean;
+			std::vector<std::string>           Conflicts;
+			/// The pull request's kept workspace is the same checkout.
+			bool KeptHolder = false;
+			/// Not a state the core decides from: the turn ends as this says.
+			std::optional<std::pair<std::string, core::operation_failure>> Failed;
+			agent_run_outcome                                              Outcome = agent_run_outcome::private_storage_failure;
+		};
+
+		/// \brief RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24
+		/// ("Yes just move it, maybe drop a notice in the transcript that it
+		/// happened"). Moves \p aSession's retained workspace from \p aFrom to
+		/// \p aTo and records the move in the store, under the turn's leases.
+		///
+		/// \details The move note leads the turn's message (and, for
+		/// `ask_agent`, the built-in reconcile prompt after it), and the turn
+		/// keeps the move for the transcript's notice. Answers the moved
+		/// workspace, or why it did not move; nothing is sent either way.
+		[[nodiscard]] auto move_workspace(native_agent_session& aSession, const owned_agent_workspace& aWorkspace, const core::git_commit_oid& aFrom,
+										  const core::agent_revision_binding& aTo, const std::string& aKey, const agent_invocation_request& aRequest,
+										  core::agent_context_supplement& aSupplement, const std::shared_ptr<invocation>& aInvocation)
+			-> std::expected<owned_agent_workspace, move_stopped>
+		{
+			auto request        = agent_workspace_move_request{ };
+			request.Workspace   = aWorkspace;
+			request.Head        = aTo.HeadOid;
+			request.Base        = aTo.BaseOid;
+			request.Reconcile   = aRequest.Reconcile;
+			request.SavedBranch = saved_branch_name(aWorkspace.Session, aFrom);
+			post_stream(aInvocation, { .Session = aInvocation->Identity.Session.Id, .Run = core::agent_run_id{ aInvocation->DurableRun.load(std::memory_order_acquire) }, .Kind = agent_stream_kind::workspace_check });
+			auto stop = move_stopped{ };
+			// An idle agent process kept for a conversation on this checkout
+			// holds its lease between turns; it is ended first, and its
+			// conversation resumes its own session in a new process. One that
+			// is answering keeps the checkout busy.
+			if (!Processes.release_native_connections(aWorkspace.Workspace.Path)) {
+				stop.State = core::conversation_workspace_state::busy;
+				return std::unexpected(std::move(stop));
+			}
+			const auto moved = Workspaces.move_agent_workspace(request, aInvocation->Stop->get_token());
+			if (!moved) {
+				using reason = agent_workspace_unavailable_reason;
+				if (moved.error().Code == agent_workspace_failure::cancelled) {
+					stop.Failed  = std::pair{ std::string{ "Moving the conversation's workspace was stopped. No question was sent." }, core::operation_failure::cancelled };
+					stop.Outcome = agent_run_outcome::cancelled;
+				} else if (moved.error().Code == agent_workspace_failure::unavailable && moved.error().Reason == reason::retained_objects_missing) {
+					stop.State = core::conversation_workspace_state::objects_unavailable;
+				} else {
+					stop.Failed  = std::pair{ std::string{ "The conversation's workspace could not be moved to the head under review. No question was sent; its transcript and files are kept." },
+											  operation_failure_of(moved.error()) };
+					stop.Outcome = agent_run_outcome::workspace_unavailable;
+				}
+				return std::unexpected(std::move(stop));
+			}
+			if (!moved->Moved) {
+				stop.State     = moved->Observed;
+				stop.Conflicts = moved->History.Conflicts;
+				return std::unexpected(std::move(stop));
+			}
+			aSession.Binding      = aTo;
+			aSession.Workspace    = moved->Workspace;
+			aSession.WorkspaceKey = aKey;
+			if (!NativeSessions->move_conversation(aSession)) {
+				// The workspace moved; the next turn finds it one move ahead
+				// of the store and records it then.
+				stop.Failed = std::pair{ std::string{ "The conversation's move to the head under review could not be saved. No question was sent; its transcript and files are kept." },
+										 core::operation_failure::storage_failed };
+				return std::unexpected(std::move(stop));
+			}
+			auto message = core::conversation_move_note(aFrom, aTo.HeadOid, moved->History);
+			if (aRequest.Reconcile == core::conversation_reconcile::ask_agent && !aRequest.ReconcilePrompt.empty()) {
+				message += "\n\n" + aRequest.ReconcilePrompt;
+			}
+			if (!aSupplement.Message.empty()) {
+				message += "\n\n" + aSupplement.Message;
+			}
+			aSupplement.Message = std::move(message);
+			auto notice         = agent_conversation_move{ };
+			notice.From         = aFrom;
+			notice.To           = aTo.HeadOid;
+			notice.Commits      = moved->History.CommitCount;
+			notice.Listed       = moved->History.Listed;
+			notice.Linear       = moved->History.Linear;
+			notice.Reconcile    = moved->History.Rebased ? core::conversation_reconcile::rebase
+				: moved->History.SavedBranch.empty()     ? core::conversation_reconcile::none
+														 : aRequest.Reconcile;
+			notice.SavedBranch  = moved->History.SavedBranch;
+			aInvocation->Moved  = std::move(notice);
+			return moved->Workspace;
+		}
+
 		void run(
 			agent_invocation_request           aRequest,
 			core::agent_profile                aProfile,
@@ -873,14 +1062,19 @@ namespace bpr::application {
 						return;
 					}
 					// Application/window and invocation IDs are deliberately absent.
-					const auto scope    = native_scope_key(aRequest.Authority, aRequest.NativeAgentIdentity, aRequest.NativeScope);
-					auto       selected = NativeSessions->select(scope, std::to_string(static_cast<unsigned>(aProfile.Protocol)) + ":" + aRequest.NativeAgentIdentity + (aRequest.ReadOnlyTools ? ":read-only" : ""),
-																 aInvocation->Identity.Session.Binding, aRequest.NativeStartAtCurrentRevision);
+					const auto scope         = native_scope_key(aRequest.Authority, aRequest.NativeAgentIdentity, aRequest.NativeScope);
+					const auto configuration = std::to_string(static_cast<unsigned>(aProfile.Protocol)) + ":" + aRequest.NativeAgentIdentity + (aRequest.ReadOnlyTools ? ":read-only" : "");
+					auto       selected      = NativeSessions->select(scope, configuration, aInvocation->Identity.Session.Binding, aRequest.NativeStartAtCurrentRevision);
 					if (!selected) {
 						refuseNative("Native session storage is unavailable, full, or changed in another window. No question was sent.", core::operation_failure::storage_failed);
 						return;
 					}
-					if ((!aRequest.SelectedConversation.empty() && selected->Id != aRequest.SelectedConversation) || selected->Replay != aRequest.TranscriptReplay) {
+					// A new session the reviewer chose at the current revision is
+					// the conversation the store just started, not the one History
+					// last showed.
+					const auto startedFresh = aRequest.NativeStartAtCurrentRevision && selected->Id != aRequest.SelectedConversation && selected->Binding == aInvocation->Identity.Session.Binding
+						&& selected->Turn == 2U && selected->Handle.empty() && !selected->Workspace && !selected->Replay && !selected->Pending;
+					if (!startedFresh && ((!aRequest.SelectedConversation.empty() && selected->Id != aRequest.SelectedConversation) || selected->Replay != aRequest.TranscriptReplay)) {
 						refuseNative("The selected continuation changed. Open History and choose it again; no question was sent.", core::operation_failure::changed_candidate);
 						return;
 					}
@@ -892,10 +1086,123 @@ namespace bpr::application {
 						refuseNative("The previous question may have been sent before interruption. It was not resent. Start a new session or inspect the native history before continuing.", core::operation_failure::outcome_unknown);
 						return;
 					}
-					auto bound    = aInvocation->Identity.Session;
-					bound.Binding = selected->Binding;
-					if (!core::may_treat_as_current(bound, aInvocation->Identity.Session.Binding)) {
-						refuseNative("This native session is pinned to an earlier revision. Explicitly continue that revision or start a new session.", core::operation_failure::stale);
+					const auto pinned = core::offer_pinned_conversation({
+						.Pinned    = selected->Binding,
+						.Observed  = aInvocation->Identity.Session.Binding,
+						.Remembers = selected->Turn > 2U || !selected->Handle.empty() || selected->Workspace.has_value() || selected->Replay,
+					});
+					// Owner, 2026-11-24: a conversation never used moves to the
+					// head under review without asking. Nothing was asked at its
+					// revision, so nothing is retargeted: the store starts a new
+					// conversation at the observed binding in its place.
+					if (pinned.StartFresh) {
+						selected = NativeSessions->select(scope, configuration, aInvocation->Identity.Session.Binding, true);
+						if (!selected || selected->Binding != aInvocation->Identity.Session.Binding) {
+							refuseNative("Native session storage is unavailable, full, or changed in another window. No question was sent.", core::operation_failure::storage_failed);
+							return;
+						}
+					}
+					// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24:
+					// "i want it to work like a normal claude code session where
+					// ... I git pull in another terminal in the same repo and
+					// continue chatting". A resumable conversation of this review
+					// whose complete workspace is retained moves it to the head
+					// under review, then the turn runs there.
+					const auto resumable = !selected->Handle.empty() || selected->Replay;
+					const auto movable   = pinned.Pinned && selected->Workspace && !selected->Workspace->Workspace.Shallow && selected->Workspace->Workspace.PinnedHead
+						&& *selected->Workspace->Workspace.PinnedHead == selected->Binding.HeadOid && selected->Binding.HeadOid != aInvocation->Identity.Session.Binding.HeadOid
+						&& core::decide_conversation_move({ .Pinned = selected->Binding, .Observed = aInvocation->Identity.Session.Binding, .Remembers = true, .Resumable = resumable }).Verdict
+							== core::conversation_move_verdict::move;
+					if (movable) {
+						const auto from    = selected->Binding;
+						const auto oldKey  = agent_workspace_key(aRequest.Authority, from);
+						auto       held    = oldKey == workspaceKey ? std::unique_ptr<agent_workspace_turn_lease>{ } : NativeSessions->try_lock_workspace(oldKey);
+						workspacePathLease = NativeSessions->try_lock_workspace(agent_workspace_path_lease(selected->Workspace->Workspace.Path));
+						auto stopped       = std::optional<move_stopped>{ };
+						if ((oldKey != workspaceKey && !held) || !workspacePathLease) {
+							stopped        = move_stopped{ };
+							stopped->State = core::conversation_workspace_state::busy;
+						} else if (const auto holders = NativeSessions->removal(scope, selected->Id); !holders || holders->KeptHolders != 0U) {
+							// Owner, 2026-11-24: "a session in the same PR? yes
+							// single checkout". Other conversations of the pull
+							// request on it move with it, and are only rebound;
+							// the pull request's kept workspace is no
+							// conversation's, so it is never moved under it.
+							stopped             = move_stopped{ };
+							stopped->State      = core::conversation_workspace_state::busy;
+							stopped->KeptHolder = holders.has_value();
+							if (!holders) {
+								stopped->Failed = std::pair{ std::string{ "Native session storage is unavailable, full, or changed in another window. No question was sent." }, core::operation_failure::storage_failed };
+							}
+						} else {
+							auto retained               = *selected->Workspace;
+							retained.Authority          = aRequest.Authority;
+							retained.ApplicationSession = aRequest.ApplicationSession;
+							auto moved                  = move_workspace(*selected, retained, from.HeadOid, aInvocation->Identity.Session.Binding, workspaceKey, aRequest, aSupplement, aInvocation);
+							if (!moved) {
+								stopped = std::move(moved.error());
+							}
+						}
+						if (stopped) {
+							if (stopped->Failed) {
+								refuseNative(stopped->Failed->first, stopped->Failed->second, stopped->Outcome);
+								return;
+							}
+							const auto decision     = core::decide_conversation_move({ .Pinned = from, .Observed = aInvocation->Identity.Session.Binding, .Remembers = true, .Resumable = true, .Workspace = stopped->State, .RebaseConflicted = !stopped->Conflicts.empty() });
+							auto       offer        = pinned;
+							offer.ContinueOffered   = decision.ContinueOffered;
+							offer.NewSessionOffered = decision.NewSessionOffered;
+							const auto reason       = move_refusal_words(decision, from.HeadOid, aInvocation->Identity.Session.Binding.HeadOid, stopped->Conflicts, stopped->KeptHolder);
+							record_operation(Log, { .Action = core::operation_action::native_continuation, .Failure = core::operation_failure::stale });
+							auto refused               = agent_run_result{ };
+							refused.Session            = aInvocation->Identity.Session.Id;
+							refused.Outcome            = agent_run_outcome::private_storage_failure;
+							refused.StandardError      = reason;
+							refused.RefusalReason      = reason;
+							refused.PinnedConversation = offer;
+							refused.PinnedSession      = core::agent_session{
+								.Id      = aInvocation->Identity.Session.Id,
+								.Profile = aInvocation->Identity.Session.Profile,
+								.Binding = from,
+							};
+							refused.MoveRefusal   = decision;
+							refused.MoveConflicts = std::move(stopped->Conflicts);
+							finish_run(std::move(refused), aInvocation);
+							return;
+						}
+					}
+					// RFC-BPR-0096, owner continue-at-latest amendment: a
+					// conversation whose shared checkout another one's turn
+					// moved is told now, before its own question ("The other
+					// sessions, we dont wake them up and send them messages").
+					if (selected->MovedFrom && !pinned.Pinned && !aInvocation->Moved && *selected->MovedFrom != selected->Binding.HeadOid) {
+						auto history   = core::conversation_move_history{ };
+						history.Linear = true;
+						auto message   = core::conversation_move_note(*selected->MovedFrom, selected->Binding.HeadOid, history);
+						if (!aSupplement.Message.empty()) {
+							message += "\n\n" + aSupplement.Message;
+						}
+						aSupplement.Message = std::move(message);
+						auto notice         = agent_conversation_move{ };
+						notice.From         = *selected->MovedFrom;
+						notice.To           = selected->Binding.HeadOid;
+						aInvocation->Moved  = std::move(notice);
+					}
+					aInvocation->ToldMove = selected->MovedFrom.has_value() && aInvocation->Moved.has_value();
+					if (pinned.Pinned && !aInvocation->Moved) {
+						const auto reason = pinned_conversation_words(pinned);
+						record_operation(Log, { .Action = core::operation_action::native_continuation, .Failure = core::operation_failure::stale });
+						finish_run({ .Session            = aInvocation->Identity.Session.Id,
+									 .Outcome            = agent_run_outcome::private_storage_failure,
+									 .StandardError      = reason,
+									 .RefusalReason      = reason,
+									 .PinnedConversation = pinned,
+									 .PinnedSession      = core::agent_session{
+										 .Id      = aInvocation->Identity.Session.Id,
+										 .Profile = aInvocation->Identity.Session.Profile,
+										 .Binding = selected->Binding,
+									 } },
+								   aInvocation);
 						return;
 					}
 					selected->WorkspaceKey = workspaceKey;
@@ -911,7 +1218,7 @@ namespace bpr::application {
 					// [[BPR-2293]]. The retained workspace is held by its path
 					// too, so expiry never removes one a turn is using, even
 					// one kept before its pull request key was recorded.
-					if (selected->Workspace) {
+					if (selected->Workspace && !workspacePathLease) {
 						workspacePathLease = NativeSessions->try_lock_workspace(agent_workspace_path_lease(selected->Workspace->Workspace.Path));
 						if (!workspacePathLease) {
 							refuseNative("Another agent is using this pull request's workspace. Wait for it to finish or stop it, then send again. No question was sent.", core::operation_failure::changed_candidate);
@@ -960,10 +1267,31 @@ namespace bpr::application {
 									 agent_run_outcome::workspace_unavailable, why);
 						return;
 					}
+					// RFC-BPR-0096, owner continue-at-latest amendment. A
+					// workspace one move ahead of its conversation (the app
+					// stopped between the move and recording it) is moved back
+					// to the head the turn is about, which the agent is told.
+					auto current = *inspected;
+					if (inspected->Workspace.PinnedHead && retained.Workspace.PinnedHead && *inspected->Workspace.PinnedHead != *retained.Workspace.PinnedHead) {
+						auto moved = move_workspace(*aInvocation->Native, *inspected, *inspected->Workspace.PinnedHead, aInvocation->Native->Binding, aInvocation->Native->WorkspaceKey, aRequest, aSupplement, aInvocation);
+						if (!moved) {
+							const auto& stopped = moved.error();
+							if (stopped.Failed) {
+								refuseNative(stopped.Failed->first, stopped.Failed->second, stopped.Outcome);
+							} else {
+								const auto decision = core::decide_conversation_move({ .Pinned = aInvocation->Native->Binding, .Observed = aInvocation->Native->Binding, .Remembers = true, .Resumable = true, .Workspace = stopped.State });
+								auto       blocked  = decision;
+								blocked.Blocked     = stopped.State;
+								refuseNative(move_refusal_words(blocked, *inspected->Workspace.PinnedHead, aInvocation->Native->Binding.HeadOid, stopped.Conflicts, false), core::operation_failure::changed_candidate);
+							}
+							return;
+						}
+						current = std::move(*moved);
+					}
 					// [[BPR-2118]]. The run uses the identities the journal
 					// records now; the agent launcher checks the guard by them.
-					workspace                    = inspected->Workspace;
-					lifetimeGuard                = inspected->LifetimeGuard;
+					workspace                    = current.Workspace;
+					lifetimeGuard                = current.LifetimeGuard;
 					aInvocation->RetainWorkspace = true;
 				} else if (aRequest.ExistingCheckoutChosen) {
 					workspace = std::move(aExisting.Workspace);
@@ -1251,7 +1579,8 @@ namespace bpr::application {
 					for (auto& steered : bounded.front().Steered) {
 						steered.At = std::min(steered.At, bounded.front().Answered.size());
 					}
-					if (!NativeSessions->append(session.Id, bounded.front()) || !NativeSessions->store(session)) {
+					if (!NativeSessions->append(session.Id, bounded.front()) || !NativeSessions->store(session)
+						|| (aInvocation->ToldMove && !NativeSessions->acknowledge_move(session.Id))) {
 						result.Outcome       = agent_run_outcome::private_storage_failure;
 						result.StandardError = "The question ended, but native session storage failed. Its submission remains uncertain; it will not be resent.";
 					}
@@ -1316,6 +1645,10 @@ namespace bpr::application {
 					aResult.Events.clear();
 					aResult.Findings.reset();
 				}
+			}
+			// The transcript says the move whatever the turn did after it.
+			if (aInvocation->Moved && !aResult.ConversationMove) {
+				aResult.ConversationMove = aInvocation->Moved;
 			}
 			// [[BPR-2007]]. What the turn left in its scratch folder; a turn's
 			// own folder goes with it.
@@ -1864,6 +2197,32 @@ namespace bpr::application {
 							if (*outcome && (**outcome).Pending) {
 								self->project_refuse("The previous question may have been sent before interruption. It was not resent. Choose New session or explicitly create Transcript replay.");
 							}
+							// RFC-BPR-0096, owner continue-at-latest amendment,
+							// 2026-11-24: a conversation whose complete workspace
+							// a send moves to the head under review offers no
+							// choice first. The chat holds it at that head, and
+							// the move refuses with its ways back if work is in
+							// the way.
+							const auto follows = *outcome && aScope == "agent-tab" && (**outcome).Workspace && !(**outcome).Workspace->Workspace.Shallow
+								&& (**outcome).Binding.HeadOid != self->Binding->HeadOid
+								&& core::decide_conversation_move({ .Pinned = (**outcome).Binding, .Observed = *self->Binding, .Remembers = true, .Resumable = !(**outcome).Handle.empty() || (**outcome).Replay }).Verdict
+									== core::conversation_move_verdict::move;
+							if (aScope == "agent-tab" && *outcome && !follows && ((**outcome).Replay || !(**outcome).Workspace || (**outcome).Handle.empty())) {
+								// Owner, 2026-11-24: when the head has moved, the
+								// choice is offered before a question is sent, for
+								// a conversation with no runtime session too.
+								const auto& kept   = **outcome;
+								const auto  pinned = core::offer_pinned_conversation({
+									.Pinned    = kept.Binding,
+									.Observed  = *self->Binding,
+									.Remembers = kept.Turn > 2U || !kept.Handle.empty() || kept.Workspace.has_value() || kept.Replay,
+								});
+								if (pinned.Pinned && pinned.ContinueOffered && !kept.Pending) {
+									try {
+										self->Projection.pin_native_conversation(aProfile, kept.Binding);
+									} catch (...) { }
+								}
+							}
 							if (!*outcome || (**outcome).Replay || !(**outcome).Workspace || (**outcome).Handle.empty()) {
 								return;
 							}
@@ -1871,7 +2230,7 @@ namespace bpr::application {
 							auto        session = core::agent_session{ };
 							session.Id          = saved.Workspace->Session;
 							session.Profile     = aProfile;
-							session.Binding     = saved.Binding;
+							session.Binding     = follows ? *self->Binding : saved.Binding;
 							if (!core::valid_agent_session(session)) {
 								self->project_refuse("native_session_history_invalid");
 								return;

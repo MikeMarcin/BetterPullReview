@@ -348,6 +348,9 @@ namespace bpr::application {
 			std::optional<std::expected<void, agent_workspace_error>> Result;
 			/// [[BPR-2118]]. What an inspection hands back on success.
 			std::optional<owned_agent_workspace> Inspected;
+			/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24.
+			/// What a move hands back on success.
+			std::optional<agent_workspace_move_result> Moved;
 			// See `blob_waiter::Abandoned`. Abandoning a cleanup is safe: the
 			// removal still runs, and only its outcome goes unread. BPR-0397.
 			bool Abandoned = false;
@@ -1351,10 +1354,14 @@ namespace bpr::application {
 			-> std::expected<owned_agent_workspace, agent_workspace_error>;
 
 		/// \brief Cleans the exact workspace up, or, given \p aInspected,
-		/// inspects it instead and writes the reattached workspace there.
+		/// inspects it instead and writes the reattached workspace there, or,
+		/// given \p aMove and \p aMoved, moves it (RFC-BPR-0096, owner
+		/// continue-at-latest amendment, 2026-11-24) and writes what the move
+		/// did there.
 		[[nodiscard]] auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
-			const std::stop_token aStop, owned_agent_workspace* aInspected = nullptr)
+			const std::stop_token aStop, owned_agent_workspace* aInspected = nullptr,
+			const agent_workspace_move_request* aMove = nullptr, agent_workspace_move_result* aMoved = nullptr)
 			-> std::expected<void, agent_workspace_error>;
 
 		void accept(accepted_pull_request_handoff aHandoff);

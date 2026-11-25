@@ -84,7 +84,7 @@ The owner accepted [RFC-BPR-0127](RFC-BPR-0127-comments-absorb-notes.md) on 2026
 - Structured findings validate path/line/OID and cannot silently attach to a newer revision.
 - Converting a finding creates only a local draft until explicit publication.
 - Full-agent GitHub changes round-trip through normal synchronization without a private backchannel.
-- The side chat shows stale state after head movement and offers new-session or explicit old-revision continuation.
+- The side chat shows stale state after head movement and offers new-session or explicit old-revision continuation. As amended by [RFC-BPR-0096](RFC-BPR-0096-native-agent-sessions-and-tour-context.md#owner-continue-at-latest-amendment-2026-11-24) (owner, 2026-11-24), a native Agent tab conversation instead moves its own workspace to the new head when the reviewer sends, and says so; new-session and old-revision continuation stay available.
 - The MCP helper exposes only documented read-only operations and cannot access credentials, network, writes, or unrelated filesystem content.
 - Private notes and drafts are never included without explicit selection.
 - Finding/chat/promotion decisions are core-tested without agent/Qt dependencies; host protocol tests and Qt workflow tests prove all results re-enter through typed revision-bound events.

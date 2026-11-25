@@ -105,6 +105,11 @@ namespace bpr::core {
 		/// [[BPR-1876]]. The check its cause names (`agent_turn_cause_of`)
 		/// has run again since the turn ended, and passed.
 		bool CausePassedSince = false;
+		/// Owner, 2026-11-24. The turn was refused because its conversation
+		/// is pinned to another revision (`offer_pinned_conversation`). The
+		/// stopped card's choices resend it; a Resend of its own would be
+		/// refused the same way.
+		bool RevisionChoice = false;
 
 		auto operator<=>(const agent_turn_facts&) const = default;
 	};
@@ -153,7 +158,8 @@ namespace bpr::core {
 	/// [[BPR-2261]]. A turn the application's closing stopped is not an
 	/// error: it keeps Copy when it has words, never offers the keep action
 	/// (it is no finished answer), and offers Delete while nothing runs and,
-	/// on the latest turn, Resend.
+	/// on the latest turn, Resend. A turn refused for its pinned revision
+	/// offers no recovery of its own: the revision choice is its way back.
 	[[nodiscard]] auto decide_agent_turn_actions(const agent_turn_facts& aFacts) noexcept -> agent_turn_actions;
 
 	/// \brief What the Agent tab knows when it would show suggested prompts.

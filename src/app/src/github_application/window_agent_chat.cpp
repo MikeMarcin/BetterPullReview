@@ -313,16 +313,81 @@ namespace bpr::app {
 		}
 		const auto start = std::get<qt::start_agent_intent>(aIntent);
 		// A start gesture is not a chat turn, so it asks nothing: the
-		// supplement's message stays empty on this path.
+		// supplement's message stays empty on this path. A conversation the
+		// reviewer chose to continue at its own revision is continued by the
+		// start gesture too, so its resend asks the revision chosen.
+		auto continued = std::optional<core::agent_session>{ };
+		if (ChatHost != nullptr) {
+			if (const auto shown = ChatHost->projection(); shown && !shown->Continuations.Status.Current && !shown->Continuations.Required && shown->Session.Profile == start.Profile) {
+				continued = shown->Session;
+			}
+		}
 		static_cast<void>(dispatch_agent_invocation(
 			start.Profile,
 			start.IncludedNotes,
 			start.IncludedDraft,
 			start.ExistingCheckoutChosen,
 			std::string_view{ },
-			std::nullopt,
+			continued,
 			core::agent_entry_point::ask_about_selection,
 			std::nullopt));
+	}
+
+	auto github_application::implementation::choose_pinned_conversation(const core::agent_continuation aChoice) -> bool
+	{
+		if (Closing || ChatHost == nullptr || Window == nullptr || !PinnedAgentSession || !ChatHost->observed()) {
+			return false;
+		}
+		const auto& offer = Window->agent_panel()->pinned_conversation();
+		if (!offer || !offer->Pinned) {
+			return false;
+		}
+		const auto pinned = *PinnedAgentSession;
+		if (aChoice == core::agent_continuation::continue_against_old_revision) {
+			if (!offer->ContinueOffered) {
+				return false;
+			}
+			// The chat now holds the conversation's own session, and the
+			// reviewer's choice is the core's continuation of it: the turn is
+			// composed from that revision, never retargeted.
+			ChatHost->admitted(pinned, true);
+			const auto chosen = ChatHost->choose(application::agent_chat_continuation_choice{
+				.Session = pinned.Id, .Choice = aChoice, .OfferedBinding = pinned.Binding });
+			return chosen.Refusal == application::agent_chat_refusal::none;
+		}
+		if (!offer->NewSessionOffered) {
+			return false;
+		}
+		// A new conversation at the revision under review: the store starts
+		// it when the resent turn asks.
+		if (ChatHost->session() && ChatHost->session()->Binding != *ChatHost->observed()) {
+			ChatHost->reset_conversation();
+		}
+		NativeFreshAtCurrentRevision = core::agent_session{
+			.Id      = ChatHost->session() ? ChatHost->session()->Id : pinned.Id,
+			.Profile = pinned.Profile,
+			.Binding = *ChatHost->observed(),
+		};
+		return true;
+	}
+
+	auto github_application::implementation::choose_move_reconcile(const core::conversation_reconcile aChoice) -> bool
+	{
+		if (Closing || ChatHost == nullptr || Window == nullptr || !PinnedAgentSession || !ChatHost->observed()) {
+			return false;
+		}
+		const auto& move  = Window->agent_panel()->move_refusal();
+		using reconcile   = core::conversation_reconcile;
+		const auto offers = move
+			&& ((aChoice == reconcile::rebase && move->RebaseOffered) || (aChoice == reconcile::save_and_move && move->SaveAndMoveOffered)
+				|| (aChoice == reconcile::ask_agent && move->AskAgentOffered));
+		if (!offers) {
+			return false;
+		}
+		// The resent turn asks at the head under review, as the refused one
+		// did, and carries the choice; the host moves with it.
+		NativeReconcile = std::pair{ aChoice, *ChatHost->observed() };
+		return true;
 	}
 
 	void github_application::implementation::compose_question_subject(application::agent_context_observation& aObservation, const core::agent_question& aQuestion)
@@ -924,6 +989,17 @@ namespace bpr::app {
 				invocation.SelectedConversation         = AgentNativeHistory.Selected;
 				invocation.NativeStartAtCurrentRevision = NativeFreshAtCurrentRevision && NativeFreshAtCurrentRevision->Profile == aProfile
 					&& NativeFreshAtCurrentRevision->Binding == invocation.Context.Binding;
+				// RFC-BPR-0096, owner continue-at-latest amendment. The
+				// stopped card's reconcile rides the resent turn once.
+				if (const auto chosen = std::exchange(NativeReconcile, std::nullopt); chosen && chosen->second == invocation.Context.Binding) {
+					invocation.Reconcile = chosen->first;
+					if (chosen->first == core::conversation_reconcile::ask_agent) {
+						invocation.ReconcilePrompt = std::string{ application::default_reconcile_prompt() };
+					}
+				}
+				// Any Agent tab turn may start a new conversation: a chosen new
+				// session, or one never used that moves to the head.
+				NativeFreshSent = true;
 			}
 		}
 		invocation.Path = core::agent_run_path::agent_tab;

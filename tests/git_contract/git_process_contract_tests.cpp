@@ -33,6 +33,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <stop_token>
 #include <string>
 #include <string_view>
@@ -42,12 +43,47 @@
 
 #if defined(Q_OS_UNIX)
 	#include <fcntl.h>
+	#include <sys/file.h>
 	#include <sys/stat.h>
 	#include <sys/types.h>
 	#include <unistd.h>
 
 	#include "bpr/platform/durable_volume_identity.hpp"
 #endif
+
+namespace {
+	namespace application = bpr::application;
+	namespace core        = bpr::core;
+	namespace git_adapter = bpr::adapters::git;
+
+	/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24. The
+	/// workspace checkpoint a move stops at, as a kill would: the exception
+	/// leaves every file as it was at that step, and the test then drops the
+	/// adapter, as a restart does, and lets a fresh one recover.
+	std::string workspace_crash_at;
+	class simulated_workspace_crash final : public std::runtime_error
+	{
+	public:
+		simulated_workspace_crash()
+			: std::runtime_error{ "simulated crash at a workspace checkpoint" }
+		{ }
+	};
+}
+
+namespace bpr::adapters::git {
+	void installed_workspace_checkpoint(const std::string_view aName)
+	{
+		if (!workspace_crash_at.empty() && aName == workspace_crash_at) {
+			workspace_crash_at.clear();
+			throw simulated_workspace_crash{ };
+		}
+	}
+	auto installed_workspace_migration_io(const std::string_view aOperation, const std::size_t aRequested) -> std::optional<std::size_t>
+	{
+		static_cast<void>(aOperation);
+		return aRequested;
+	}
+}
 
 namespace {
 	namespace application = bpr::application;
@@ -4899,6 +4935,262 @@ namespace {
 		require(read_text(git / "index") == cloneIndex && run_clone_git(git, { "rev-parse", "HEAD" }) == base, "nothing in the clone changed");
 	}
 	#endif
+
+	/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24: "Yes just
+	/// move it"; with edits or agent commits, "it must be recoverable". A
+	/// retained workspace moves to the new head between turns like a `git
+	/// pull`; work stops the move unless a reconcile is chosen, and every
+	/// reconcile keeps the work; a crash at each step is finished or undone at
+	/// the next inspect.
+	auto run_workspace_move_contract() -> void
+	{
+		temporary_root root{ "git-workspace-move" };
+		const auto     cacheIsolation = root.Path / "cache";
+		require(std::filesystem::create_directory(cacheIsolation), "create the cache isolation");
+		std::filesystem::permissions(cacheIsolation, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		const auto registry = root.Path / "registry";
+		auto       adapter  = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+		const auto cache    = repository_path(cacheIsolation, '1');
+		initialize_repository(*adapter, cache, application::git_hash_algorithm::sha1);
+		const auto commit = [&](const std::vector<std::pair<std::string, std::string>>& aFiles, const std::string& aSubject, const std::optional<std::string>& aParent) {
+			auto listing = std::string{ };
+			for (const auto& [name, text] : aFiles) {
+				listing += "100644 blob " + run_fixture_git(cache, { "hash-object", "-w", "--stdin" }, text) + "\t" + name + "\n";
+			}
+			auto made = std::vector<std::string>{ "commit-tree", run_fixture_git(cache, { "mktree" }, listing) };
+			if (aParent) {
+				made.insert(made.end(), { "-p", *aParent });
+			}
+			return run_fixture_git(cache, made, aSubject + "\n");
+		};
+		// The pull request's base, the head the conversation was asked at,
+		// the head it moved to (README changed, b.txt added), and a rewrite
+		// that does not descend from the old head.
+		const auto base      = commit({ { "README.md", "base\n" }, { "a.txt", "a\n" } }, "base", std::nullopt);
+		const auto old       = commit({ { "README.md", "one\n" }, { "a.txt", "a\n" } }, "old head", base);
+		const auto head      = commit({ { "README.md", "two\n" }, { "a.txt", "a\n" }, { "b.txt", "b\n" } }, "new head", old);
+		const auto rewritten = commit({ { "README.md", "rewritten\n" }, { "a.txt", "a\n" } }, "rewritten head", base);
+		const auto oid       = [](const std::string& aHex) {
+			return core::git_commit_oid{ core::git_hash_algorithm::sha1, object<application::git_commit_id>(aHex, application::git_hash_algorithm::sha1).Digest };
+		};
+		const auto authority   = workspace_authority();
+		auto       session     = std::uint64_t{ 30U };
+		const auto materialize = [&](const std::optional<std::filesystem::path>& aClone = std::nullopt) {
+			const auto parent = root.Path / "neighbourhood";
+			std::filesystem::create_directory(parent);
+			std::filesystem::permissions(parent, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+			auto made                                        = application::git_agent_workspace_request{ };
+			made.Repository                                  = cache;
+			made.Materialization.ApplicationSession          = core::application_session_id{ 1U };
+			made.Materialization.Authority                   = authority;
+			made.Materialization.Session.Id                  = core::agent_session_id{ session++ };
+			made.Materialization.Session.Profile             = core::external_terminal_profile_id;
+			made.Materialization.Session.Binding.Host        = authority.Host;
+			made.Materialization.Session.Binding.Repository  = authority.Repository;
+			made.Materialization.Session.Binding.PullRequest = authority.PullRequest;
+			made.Materialization.Session.Binding.BaseOid     = oid(base);
+			made.Materialization.Session.Binding.HeadOid     = oid(old);
+			made.Materialization.Session.Binding.LeftEpoch   = core::epoch_ordinal{ 1U };
+			made.Materialization.Session.Binding.RightEpoch  = core::epoch_ordinal{ 1U };
+			made.Materialization.ParentDirectory             = parent;
+			made.Materialization.HistoryClone                = aClone;
+			made.Materialization.RetainForSession            = true;
+			auto owned                                       = adapter->materialize_agent_workspace(made, { });
+			require(owned.has_value(), "a retained workspace is made at the old head");
+			return *owned;
+		};
+		const auto move = [&](const application::owned_agent_workspace& aWorkspace, const std::string& aHead, const core::conversation_reconcile aReconcile = core::conversation_reconcile::none,
+							  const std::string& aSaved = { }) {
+			auto request             = application::git_agent_workspace_move_request{ };
+			request.Move.Workspace   = aWorkspace;
+			request.Repository       = cache;
+			request.Move.Head        = oid(aHead);
+			request.Move.Base        = oid(base);
+			request.Move.Reconcile   = aReconcile;
+			request.Move.SavedBranch = aSaved;
+			auto result              = adapter->move_agent_workspace(request, { });
+			if (!result) {
+				std::cerr << "workspace-move:failure=" << static_cast<unsigned>(result.error().Code) << ":detail=" << result.error().Detail << '\n';
+			}
+			return result;
+		};
+		const auto git    = [](const application::owned_agent_workspace& aWorkspace) { return std::filesystem::path{ aWorkspace.Workspace.Path } / ".git"; };
+		const auto at     = [&](const application::owned_agent_workspace& aWorkspace) { return run_clone_git(git(aWorkspace), { "rev-parse", "HEAD" }); };
+		const auto status = [&](const application::owned_agent_workspace& aWorkspace) { return run_clone_git(git(aWorkspace), { "status", "--porcelain=v1", "--untracked-files=all" }); };
+		const auto marker = [&](const application::owned_agent_workspace& aWorkspace) { return read_text(git(aWorkspace) / "bpr-owned-workspace"); };
+		const auto noRefs = [&](const application::owned_agent_workspace& aWorkspace) {
+			return run_clone_git(git(aWorkspace), { "for-each-ref", "refs/bpr/move-target", "refs/bpr/move-restore" }).empty();
+		};
+		const auto file = [](const application::owned_agent_workspace& aWorkspace, const std::string& aName) { return read_text(std::filesystem::path{ aWorkspace.Workspace.Path } / aName); };
+		const auto edit = [](const application::owned_agent_workspace& aWorkspace, const std::string& aName, const std::string& aText) {
+			write_text(std::filesystem::path{ aWorkspace.Workspace.Path } / aName, aText);
+		};
+		const auto agentCommit = [&](const application::owned_agent_workspace& aWorkspace) {
+			edit(aWorkspace, "c.txt", "c\n");
+			static_cast<void>(run_clone_git(git(aWorkspace), { "add", "c.txt" }));
+			static_cast<void>(run_clone_git(git(aWorkspace), { "commit", "--quiet", "--message", "agent commit" }));
+		};
+		const auto stopped = [&](const application::owned_agent_workspace& aWorkspace, const std::string& aHead) {
+			auto moved = adapter->inspect_agent_workspace(aWorkspace, cache, { });
+			return moved && moved->Workspace.PinnedHead == std::optional{ oid(aHead) } && noRefs(aWorkspace) && marker(aWorkspace) == moved->OwnershipMarker;
+		};
+
+		// A clean move: checked out at the new head, the marker and the journal
+		// follow, and the note's history is listed.
+		{
+			const auto owned = materialize();
+			const auto moved = move(owned, head);
+			require(moved && moved->Moved && moved->Observed == core::conversation_workspace_state::clean, "a clean workspace moves");
+			require(moved->Workspace.Workspace.PinnedHead == std::optional{ oid(head) } && moved->Workspace.RequiredBase == std::optional{ oid(base) } && at(moved->Workspace) == head
+						&& status(moved->Workspace).empty() && file(moved->Workspace, "b.txt") == "b\n" && file(moved->Workspace, "README.md") == "two\n",
+					"the moved workspace is checked out at the new head");
+			require(marker(moved->Workspace) == moved->Workspace.OwnershipMarker && moved->Workspace.OwnershipMarker != owned.OwnershipMarker && noRefs(moved->Workspace),
+					"the marker names the new head and no move is left in progress");
+			require(read_text(owned.LifetimeGuard->Path).find("\"PreviousHead\":\"" + old + "\"") != std::string::npos, "the journal's last line names the head it moved from");
+			const auto& history = moved->History;
+			require(history.Linear && history.Listed && history.CommitCount == 1U && history.Commits.size() == 1U && history.Commits[0].first == head.substr(0U, 7U)
+						&& history.Commits[0].second == "new head" && history.FileCount == 2U && history.Files == std::vector<std::string>{ "README.md", "b.txt" }
+						&& history.PreMoveRef.empty() && history.SavedBranch.empty() && !history.Rebased,
+					"the history lists the commit and the files between the heads");
+			require(adapter->inspect_agent_workspace(moved->Workspace, cache, { }) == moved->Workspace, "the moved workspace resumes");
+			// A conversation that was not told of the move resumes at the new head.
+			const auto behind = adapter->inspect_agent_workspace(owned, cache, { });
+			require(behind && behind->Workspace.PinnedHead == std::optional{ oid(head) } && behind->OwnershipMarker == moved->Workspace.OwnershipMarker,
+					"a conversation one move behind its journal resumes at the journal's head");
+			// From another process: the record's own lock, not the owner's.
+			adapter.reset();
+			adapter          = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+			const auto again = move(moved->Workspace, rewritten);
+			require(again && again->Moved && at(again->Workspace) == rewritten && file(again->Workspace, "README.md") == "rewritten\n", "a fresh adapter moves it again");
+			require(!again->History.Linear && again->History.Listed && again->History.Commits.empty() && again->History.FileCount == 2U, "a rewritten history is said, not listed");
+			adapter.reset();
+			const auto recovered = git_adapter::recover_installed_agent_workspaces(registry, root.Path / "neighbourhood");
+			require(recovered && recovered->Live == 1U && recovered->Recovered == 0U, "startup leaves a moved retained workspace alone");
+			adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+		}
+		// A workspace borrowing a linked clone that holds only the old head:
+		// the new head's objects come from the review's cache.
+		{
+			const auto clone = root.Path / "clone";
+			std::filesystem::create_directories(clone);
+			static_cast<void>(run_fixture_git(clone / ".git", { "init", "--quiet" }, { }, false));
+			static_cast<void>(run_fixture_git(cache, { "pack-objects", "--revs", (clone / ".git" / "objects" / "pack" / "pack").string() }, old + "\n"));
+			const auto owned = materialize(clone);
+			require(owned.Workspace.BorrowsHistory, "the workspace borrows the clone");
+			const auto alternates = read_text(git(owned) / "objects" / "info" / "alternates");
+			const auto moved      = move(owned, head);
+			require(moved && moved->Moved && at(moved->Workspace) == head && file(moved->Workspace, "b.txt") == "b\n" && read_text(git(owned) / "objects" / "info" / "alternates") == alternates,
+					"a borrowing workspace moves and keeps borrowing");
+			require(adapter->inspect_agent_workspace(moved->Workspace, cache, { }).has_value(), "it resumes after the move");
+		}
+		// Edits, agent commits, or both stop a plain move, and nothing changes.
+		{
+			const auto owned = materialize();
+			edit(owned, "a.txt", "edited\n");
+			edit(owned, "note.txt", "untracked\n");
+			auto refused = move(owned, head);
+			require(refused && !refused->Moved && refused->Observed == core::conversation_workspace_state::local_edits && at(owned) == old
+						&& file(owned, "a.txt") == "edited\n" && file(owned, "note.txt") == "untracked\n" && noRefs(owned),
+					"edits stop the move and stay as they were");
+			agentCommit(owned);
+			refused = move(owned, head);
+			require(refused && !refused->Moved && refused->Observed == core::conversation_workspace_state::edits_and_commits && file(owned, "a.txt") == "edited\n", "edits and a commit stop it");
+			static_cast<void>(run_clone_git(git(owned), { "checkout", "--quiet", "--", "a.txt" }));
+			std::filesystem::remove(std::filesystem::path{ owned.Workspace.Path } / "note.txt");
+			const auto agentHead = at(owned);
+			refused              = move(owned, head);
+			require(refused && !refused->Moved && refused->Observed == core::conversation_workspace_state::agent_commits && at(owned) == agentHead, "an agent commit stops it");
+			require(stopped(owned, old), "the stopped workspace resumes at the old head");
+		}
+		// Rebase: the agent's commit and its edit are carried onto the new
+		// head, and the edit is uncommitted again.
+		{
+			const auto owned = materialize();
+			agentCommit(owned);
+			edit(owned, "a.txt", "edited\n");
+			const auto moved = move(owned, head, core::conversation_reconcile::rebase);
+			require(moved && moved->Moved && moved->Observed == core::conversation_workspace_state::edits_and_commits && moved->History.Rebased, "a rebase moves the work");
+			require(run_clone_git(git(owned), { "rev-list", "--count", head + "..HEAD" }) == "1" && run_clone_git(git(owned), { "log", "-1", "--format=%s" }) == "agent commit"
+						&& file(owned, "c.txt") == "c\n" && file(owned, "a.txt") == "edited\n" && file(owned, "b.txt") == "b\n" && status(owned) == "M a.txt",
+					"the commit is on the new head and the edit is uncommitted");
+			require(moved->History.PreMoveRef == "refs/bpr/pre-move/" + old && run_clone_git(git(owned), { "show", moved->History.PreMoveRef + ":a.txt" }) == "edited", "the pre-move ref keeps the work as it was");
+			require(noRefs(owned) && adapter->inspect_agent_workspace(moved->Workspace, cache, { }).has_value(), "the rebased workspace resumes");
+		}
+		// A rebase that conflicts is undone and names the files.
+		{
+			const auto owned = materialize();
+			edit(owned, "README.md", "agent\n");
+			const auto refused = move(owned, head, core::conversation_reconcile::rebase);
+			require(refused && !refused->Moved && refused->History.Conflicts == std::vector<std::string>{ "README.md" }, "a conflicting rebase names the file");
+			require(at(owned) == old && file(owned, "README.md") == "agent\n" && status(owned) == "M README.md" && marker(owned) == owned.OwnershipMarker && stopped(owned, old),
+					"the workspace is put back with its edit uncommitted");
+		}
+		// Save and move, and ask the agent: the work is kept on the branch,
+		// and the workspace moves clean.
+		for (const auto reconcile : { core::conversation_reconcile::save_and_move, core::conversation_reconcile::ask_agent }) {
+			const auto owned  = materialize();
+			const auto branch = "bpr/saved/" + std::to_string(owned.Session.value()) + "/" + old.substr(0U, 7U);
+			agentCommit(owned);
+			edit(owned, "README.md", "agent\n");
+			require(!move(owned, head, reconcile, "not-saved/branch"), "a saved branch outside bpr/saved/ is refused");
+			const auto moved = move(owned, head, reconcile, branch);
+			require(moved && moved->Moved && moved->History.SavedBranch == branch && at(owned) == head && status(owned).empty(), "the work is saved and the workspace moves clean");
+			require(run_clone_git(git(owned), { "show", "refs/heads/" + branch + ":README.md" }) == "agent" && run_clone_git(git(owned), { "show", "refs/heads/" + branch + "~1:c.txt" }) == "c",
+					"the saved branch holds the edit and the agent's commit");
+		}
+		// Objects the cache does not have: refused, and nothing changes.
+		{
+			const auto owned   = materialize();
+			const auto missing = move(owned, std::string(40U, 'e'));
+			require(!missing && missing.error().Code == application::git_process_failure::object_unavailable && at(owned) == old && stopped(owned, old), "a head the cache lacks is refused");
+			auto sparse              = owned;
+			sparse.Workspace.Shallow = true;
+			const auto refused       = move(sparse, head);
+			require(!refused && refused.error().Code == application::git_process_failure::object_unavailable, "a sparse workspace is not moved in this slice");
+		}
+	#if defined(Q_OS_UNIX)
+		// A turn running holds the record's lock shared: busy, and nothing changes.
+		{
+			const auto owned = materialize();
+			const auto guard = ::open(owned.LifetimeGuard->Path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+			require(guard >= 0 && ::flock(guard, LOCK_SH | LOCK_NB) == 0, "a turn's lock is taken");
+			const auto busy = move(owned, head);
+			static_cast<void>(::close(guard));
+			require(busy && !busy->Moved && busy->Observed == core::conversation_workspace_state::busy && at(owned) == old, "a workspace a turn holds is busy");
+			require(move(owned, head).value().Moved, "it moves once the turn ends");
+		}
+	#endif
+		// A crash at each new checkpoint: before the journal line the next
+		// inspect undoes the move, after it the move is finished. Journal,
+		// marker and Git agree either way, and the edit is never lost.
+		for (const auto& [checkpoint, forward] : std::vector<std::pair<std::string, bool>>{
+				 { "move-after-wip", false }, { "move-after-target", false }, { "move-after-checkout", false }, { "move-after-journal", true }, { "move-after-marker", true } }) {
+			const auto owned = materialize();
+			edit(owned, "a.txt", "edited\n");
+			workspace_crash_at = checkpoint;
+			auto crashed       = false;
+			try {
+				static_cast<void>(move(owned, head, core::conversation_reconcile::rebase));
+			} catch (const simulated_workspace_crash&) {
+				crashed = true;
+			}
+			require(crashed, "the move reaches " + checkpoint);
+			adapter.reset();
+			adapter              = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+			const auto expected  = forward ? head : old;
+			const auto recovered = adapter->inspect_agent_workspace(owned, cache, { });
+			require(recovered && recovered->Workspace.PinnedHead == std::optional{ oid(expected) } && at(owned) == expected, checkpoint + ": recovered to the " + (forward ? "new" : "old") + " head");
+			require(marker(owned) == recovered->OwnershipMarker && noRefs(owned) && file(owned, "a.txt") == "edited\n" && status(owned) == "M a.txt",
+					checkpoint + ": the marker agrees and the edit is uncommitted");
+			if (forward) {
+				const auto finished = move(owned, head);
+				require(finished && finished->Moved && finished->Workspace == *recovered, checkpoint + ": moving again reports the finished move");
+			} else {
+				const auto retried = move(owned, head, core::conversation_reconcile::rebase);
+				require(retried && retried->Moved && at(owned) != old && file(owned, "a.txt") == "edited\n", checkpoint + ": the undone move can be made again");
+			}
+		}
+	}
 #endif
 
 	auto run_borrowed_history_workspace_contract(const bool aInventoryControl = false, const bool aRetained = false) -> void
@@ -5631,6 +5923,15 @@ try {
 		std::cout << "GIT_BORROWED_HISTORY_INVENTORY_CONTROL_OK\n";
 		return 0;
 	}
+	if (argc == 2 && std::string_view{ argv[1] } == "--workspace-move") {
+#ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
+		run_workspace_move_contract();
+		std::cout << "GIT_WORKSPACE_MOVE_OK\n";
+		return 0;
+#else
+		return 2;
+#endif
+	}
 	if (argc == 2 && std::string_view{ argv[1] } == "--native-retained-workspace") {
 #ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
 		run_borrowed_history_workspace_contract(false, true);
@@ -5664,6 +5965,7 @@ try {
 #ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
 	run_borrowed_history_workspace_contract(false, true);
 	run_incomplete_clone_history_workspace_contract();
+	run_workspace_move_contract();
 	run_linked_clone_checkout_contract();
 	#if defined(Q_OS_MACOS)
 	run_linked_clone_unicode_contract();

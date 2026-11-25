@@ -94,6 +94,7 @@ namespace bpr::adapters::agent {
 		/// toolkit and process-tree operations on its owning thread.
 		void               cancel() noexcept override;
 		[[nodiscard]] auto native_connections_quiescent() const noexcept -> bool override;
+		[[nodiscard]] auto release_native_connections(const std::string& aWorkingDirectory) -> bool override;
 		/// \brief [[BPR-2153]]. Hands a correction to the turn running on the
 		/// kept connection of `aRequest.Conversation`; refuses it when there
 		/// is none. Never starts a process.

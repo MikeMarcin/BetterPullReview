@@ -134,6 +134,79 @@ conversation's workspace use pauses and is not retried. Steer adds no
 process, replay or restart; a run that cannot be steered says why and keeps
 Queue.
 
+## Owner continue-at-latest amendment, 2026-11-24
+
+The owner reported "There doesn't appear to be an option anywhere to continue
+like it suggests", then decided: "if we continue the chat can move the pin
+forward and read the latest commit's code right?", "A: amend the RFC", and
+"just to be clear, i want it to work like a normal claude code session where if
+i am running and doing turns and then I git pull in another terminal in the
+same repo and continue chatting". Asked whether the move should be the default:
+"Yes just move it, maybe drop a notice in the transcript that it happened."
+Asked about edits or agent commits in the workspace: "That's fine if we have
+some reconcile options.. it must be recoverable.", then: "Yes a few
+non-agentic options and then a system prompt to just fix it". The decision record, the
+superseded text and the design notes are in
+[amendment r1](amendments/RFC-BPR-0096-continue-at-latest-r1.md).
+
+This supersedes, for a native conversation of the same pull request, "Refresh
+never moves HEAD … or silently changes an old native session's working
+directory" (owner shared-workspace amendment) and "Never move the old
+workspace underneath a native conversation" (Updated BPR state and revision
+changes). Refresh alone still moves nothing, and no workspace moves while a
+turn on it runs.
+
+- **Sending moves the conversation forward.** When the head under review has
+  moved past a conversation's revision and the reviewer sends a question, the
+  conversation keeps its native memory and working directory, and its PR
+  workspace moves to the new head before the turn runs, as a `git pull` does
+  in the repository a Claude Code session is using. The core decides from the
+  host's observations (`decide_conversation_move`): a conversation of this pull
+  request that holds native memory or a replay moves; one never used starts
+  fresh at the new head; one about another review, or one the backend cannot
+  resume, is refused with Start a new session and Continue at <old>.
+- **Recoverable.** Before the move, `refs/bpr/pre-move/<old head>` records the
+  current HEAD in the workspace. The ownership journal records the move as its
+  own step, so recovery after a crash completes or rolls back the move with the
+  marker, journal and stored conversation in agreement. Objects come from the
+  review's own cache, as materialization takes them, including a sparse
+  review's files.
+- **Reconcile options.** Edits in the working tree, or commits past the old
+  head, stop the default move; the turn is refused before anything is sent,
+  names what is in the way, and offers **Rebase onto <new>** (edits first kept
+  as a WIP commit; a conflicting rebase is aborted back to the pre-move ref and
+  names the files), **Keep my changes on a branch and move**
+  (`bpr/saved/<conversation>/<old short head>`, named in the notice),
+  **Ask <agent> to reconcile**, **Continue at <old>** and **Start a new
+  session**. Ask <agent> to reconcile keeps the work on the saved branch,
+  moves the workspace to the new head, and sends a built-in prompt (with the
+  other built-in prompts, RFC-BPR-0125) telling the agent what happened (both
+  heads, the saved branch and pre-move ref, the files that conflicted) and to
+  bring its work onto the new head and report what it did. The pre-move ref
+  and the saved branch stay, so every option can be undone.
+- **Told, not silent.** The transcript shows a quiet line where the move
+  happened ("Updated to <new> — <n> commits", or "— history rewritten", with
+  any saved branch or rebase). The agent's first turn after the move begins
+  with a note from the core naming both heads, saying earlier tool
+  observations describe the old one, and listing the commits and changed files
+  between (bounded), or the git commands that show them.
+- **Still reachable.** Start a new session and Continue at <old> stay in the
+  History menu; the refusal card shows them when the move cannot be made.
+- **One checkout for the pull request's sessions.** Asked whether a session
+  that shares its workspace with another should also move, the owner answered
+  "a session in the same PR? yes single checkout", and then "The other
+  sessions, we dont wake them up and send them messages". The checkout moves
+  for every conversation of the pull request recorded on it: in the same store
+  revision each is rebound to the new head and keeps the head it was at. No
+  turn starts and nothing is sent to them. When one is opened, its transcript
+  says the checkout moved; its next question begins with the core's move note,
+  once. A checkout the pull request's kept workspace records is not moved,
+  and an idle agent process kept for a conversation on the checkout is ended
+  first, so its conversation resumes its own session in a new process.
+
+Acceptance **AC13** below covers this amendment; AC07's second continuation
+now has a third, the move, alongside new session and old revision.
+
 ## Required final critical review — completed
 
 The owner requested “do an an rfc-review-critical before we closeout the whole
@@ -592,3 +665,19 @@ The owner authorized implementation on 2026-11-08 under mandate `native-agent-se
   amendment, explain transcript/workspace ownership and retention, and
   distinguish native continuation, replay, New session, Reset tour and purge.
   Focused acceptance and the documentation gate pass for the eventual change.
+- **AC13:** Owner continue-at-latest amendment: sending in a conversation of
+  this pull request whose workspace is at an earlier head moves that
+  workspace to the head under review between turns and runs the turn there,
+  resuming the same native session in the same directory; the transcript
+  shows the update line and the agent's input begins with the core's move
+  note. No workspace moves during a turn or on refresh. Edits or agent
+  commits stop the move with Rebase onto <new>, Keep my changes on a branch
+  and move, Ask <agent> to reconcile (the built-in reconcile prompt runs on
+  the moved workspace with the work kept on its saved branch), Continue at
+  <old> and Start a new session, each recoverable from
+  the pre-move ref, a conflicting rebase restored and named. A crash at any
+  step of the move recovers to the old or the new head with the journal,
+  marker and stored conversation in agreement (Git contract tests). The
+  pull request's other conversations on the moved checkout are rebound in the
+  same store revision without a turn or any input; each says the move when
+  opened and its next question carries the move note once.

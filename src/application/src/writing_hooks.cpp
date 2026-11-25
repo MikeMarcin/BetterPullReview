@@ -80,6 +80,7 @@ namespace bpr::application {
 	}
 	auto default_writing_hook_digest(const core::writing_hook aHook) -> std::array<std::uint8_t, 32> { return core::writing_digest(default_writing_hook(aHook)); }
 	auto writing_application_contract() -> std::string_view { return detail::WritingContract; }
+	auto default_reconcile_prompt() -> std::string_view { return detail::ReconcileMove; }
 	auto effective_writing_hook(const core::writing_hook_settings& aSettings, core::writing_hook aHook) -> std::string_view
 	{
 		const auto index = static_cast<std::size_t>(aHook);

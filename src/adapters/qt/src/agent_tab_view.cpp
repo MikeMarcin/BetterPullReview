@@ -31,6 +31,7 @@
 #include "bpr/qt/stick_to_bottom.hpp"
 #include "composer_parts.hpp"
 #include "conversation_glyphs.hpp"
+#include "wrapping_row.hpp"
 
 #include <QAbstractItemModel>
 #include <QAccessible>
@@ -445,6 +446,24 @@ namespace bpr::qt {
 			}
 			return words;
 		}
+
+		/// RFC-BPR-0096, owner continue-at-latest amendment: "Updated to
+		/// <new> — <n> commits", "— history rewritten", or with the reconcile
+		/// that carried the reviewer's work.
+		[[nodiscard]] auto move_notice_words(const application::agent_conversation_move& aMove) -> QString
+		{
+			const auto to    = QString::fromUtf8(core::canonical_hex(aMove.To).view().substr(0U, 7U));
+			auto       words = !aMove.Linear          ? QObject::tr("Updated to %1 — history rewritten").arg(to)
+				: aMove.Listed && aMove.Commits == 1U ? QObject::tr("Updated to %1 — 1 commit").arg(to)
+				: aMove.Listed                        ? QObject::tr("Updated to %1 — %2 commits").arg(to).arg(aMove.Commits)
+													  : QObject::tr("Updated to %1").arg(to);
+			if (aMove.Reconcile == core::conversation_reconcile::rebase) {
+				words += QStringLiteral(". ") + QObject::tr("Your changes were rebased onto it.");
+			} else if (!aMove.SavedBranch.empty()) {
+				words += QStringLiteral(". ") + QObject::tr("Your changes are kept on %1.").arg(QString::fromStdString(aMove.SavedBranch));
+			}
+			return words;
+		}
 	} // namespace
 
 	auto agent_model_display_name(const QString& aModel) -> QString
@@ -572,6 +591,17 @@ namespace bpr::qt {
 		ContinuationMode->setWordWrap(true);
 		ContinuationMode->setTextFormat(Qt::PlainText);
 		column->addWidget(ContinuationMode);
+		// RFC-BPR-0096, owner continue-at-latest amendment (owner, 2026-11-24:
+		// "a session in the same PR? yes single checkout"). A conversation
+		// whose shared checkout another one's turn moved says so when opened;
+		// nothing was sent to it.
+		ConversationMoved = new QLabel{ this };
+		ConversationMoved->setObjectName(QStringLiteral("agentConversationMoved"));
+		ConversationMoved->setWordWrap(true);
+		ConversationMoved->setTextFormat(Qt::PlainText);
+		ConversationMoved->setForegroundRole(QPalette::PlaceholderText);
+		ConversationMoved->hide();
+		column->addWidget(ConversationMoved);
 
 		Pages = new QStackedWidget{ this };
 		column->addWidget(Pages, 1);
@@ -640,6 +670,27 @@ namespace bpr::qt {
 		BannerText->setWordWrap(true);
 		BannerText->setForegroundRole(QPalette::PlaceholderText);
 		bannerCol->addWidget(BannerText);
+		// RFC-BPR-0096, owner continue-at-latest amendment: "a few
+		// non-agentic options and then a system prompt to just fix it". The
+		// reconcile choices wrap on their own row, so the card never pans.
+		BannerReconcile        = new QWidget{ Banner };
+		auto* const reconciles = new detail::wrapping_row{ BannerReconcile };
+		BannerRebase           = new QPushButton{ BannerReconcile };
+		BannerRebase->setObjectName(QStringLiteral("agentStateRebase"));
+		BannerSave = new quiet_push_button{ BannerReconcile };
+		BannerSave->setObjectName(QStringLiteral("agentStateSaveAndMove"));
+		BannerSave->setFlat(true);
+		BannerAsk = new quiet_push_button{ BannerReconcile };
+		BannerAsk->setObjectName(QStringLiteral("agentStateAskToReconcile"));
+		BannerAsk->setFlat(true);
+		reconciles->addWidget(BannerRebase);
+		reconciles->addWidget(BannerSave);
+		reconciles->addWidget(BannerAsk);
+		connect(BannerRebase, &QPushButton::clicked, this, [this] { choose_reconcile(core::conversation_reconcile::rebase); });
+		connect(BannerSave, &QPushButton::clicked, this, [this] { choose_reconcile(core::conversation_reconcile::save_and_move); });
+		connect(BannerAsk, &QPushButton::clicked, this, [this] { choose_reconcile(core::conversation_reconcile::ask_agent); });
+		BannerReconcile->hide();
+		bannerCol->addWidget(BannerReconcile);
 		auto* const bannerRow = new QHBoxLayout{ };
 		bannerRow->setSpacing(6);
 		BannerFirst = new QPushButton{ Banner };
@@ -1539,6 +1590,16 @@ namespace bpr::qt {
 		fixedNote->hide();
 		replyColumn->addWidget(fixedNote);
 		aTurn.FixedNote = fixedNote;
+		// RFC-BPR-0096, owner continue-at-latest amendment: "maybe drop a
+		// notice in the transcript that it happened". One quiet line over the
+		// answer, said once the turn ends.
+		auto* const moveNotice = new QLabel{ reply };
+		moveNotice->setObjectName(QStringLiteral("agentTurnMoved"));
+		moveNotice->setForegroundRole(QPalette::PlaceholderText);
+		moveNotice->setWordWrap(true);
+		moveNotice->hide();
+		replyColumn->addWidget(moveNotice);
+		aTurn.MoveNotice = moveNotice;
 		// Owner decision (a): the answer reads as the agent wrote it, its
 		// Markdown rendered in place, its code coloured as comments' are;
 		// links and images do nothing.
@@ -2485,6 +2546,12 @@ namespace bpr::qt {
 			return;
 		}
 		show_session_title();
+		if (aView.SelectedMove) {
+			const auto from = QString::fromUtf8(core::canonical_hex(aView.SelectedMove->first).view().substr(0U, 7U));
+			const auto to   = QString::fromUtf8(core::canonical_hex(aView.SelectedMove->second).view().substr(0U, 7U));
+			ConversationMoved->setText(tr("Updated to %1 — this pull request's checkout moved from %2 while another session asked. The agent is told with your next question.").arg(to, from));
+		}
+		ConversationMoved->setVisible(aView.SelectedMove.has_value());
 		SessionMenu->present(aView);
 		SessionMenu->set_running(State == agent_tab_state::working);
 		NativeHistoryMenu->clear();
@@ -3222,7 +3289,15 @@ namespace bpr::qt {
 			break;
 		}
 		// The request ended: say what came of it.
-		current.Done          = true;
+		current.Done = true;
+		if (const auto& moved = Launch.last_move(); moved && current.MoveNotice != nullptr) {
+			current.MoveNotice->setText(move_notice_words(*moved));
+			current.MoveNotice->setToolTip(tr("This conversation's workspace moved from %1 to %2 before this question; the agent was told.")
+											   .arg(QString::fromUtf8(core::canonical_hex(moved->From).view()), QString::fromUtf8(core::canonical_hex(moved->To).view())));
+			current.MoveNotice->show();
+			// The turn told the agent; the opened conversation's line is said.
+			ConversationMoved->hide();
+		}
 		const auto findings   = Findings.finding_count();
 		const auto succeeded  = Launch.last_outcome() == application::agent_run_outcome::success;
 		current.Outcome       = application::turn_outcome(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start));
@@ -3406,6 +3481,7 @@ namespace bpr::qt {
 				.Latest           = latest,
 				.Working          = working,
 				.CausePassedSince = kept.CauseRechecked && check == std::optional{ core::setup_check_state::passed },
+				.RevisionChoice   = latest && Launch.pinned_conversation() && Launch.pinned_conversation()->Pinned && PinnedDispatch,
 			});
 			if (auto* const card = static_cast<rounded*>(kept.Reply.data()); card != nullptr) {
 				// A fixed error is no longer drawn as one that holds now.
@@ -3483,32 +3559,37 @@ namespace bpr::qt {
 		switch (aTurn.RecoveryKind) {
 		case core::agent_turn_recovery::none: return;
 		case core::agent_turn_recovery::resend:
-			if (aTurn.Review) {
-				Launch.start_action()->trigger();
-			} else if (Chat.send_action()->isEnabled()) {
-				// The question as it was asked, not a suggestion looked up by
-				// its words: a typed question is offered by no list. What the
-				// reviewer is typing is put back after it.
-				auto* const composer = Chat.composer();
-				const auto  draft    = composer->toPlainText();
-				const auto  kept     = !draft.trimmed().isEmpty();
-				composer->setPlainText(aTurn.Question);
-				KeepingDraft = kept;
-				ask();
-				KeepingDraft = false;
-				if (kept) {
-					composer->setPlainText(draft);
-					auto cursor = composer->textCursor();
-					cursor.movePosition(QTextCursor::End);
-					composer->setTextCursor(cursor);
-				}
-			}
+			resend(aTurn);
 			return;
 		case core::agent_turn_recovery::agent_settings:
 			if (Setup) {
 				Setup();
 			}
 			return;
+		}
+	}
+
+	void agent_tab_view::resend(const turn& aTurn)
+	{
+		if (aTurn.Review) {
+			Launch.start_action()->trigger();
+		} else if (Chat.send_action()->isEnabled()) {
+			// The question as it was asked, not a suggestion looked up by
+			// its words: a typed question is offered by no list. What the
+			// reviewer is typing is put back after it.
+			auto* const composer = Chat.composer();
+			const auto  draft    = composer->toPlainText();
+			const auto  kept     = !draft.trimmed().isEmpty();
+			composer->setPlainText(aTurn.Question);
+			KeepingDraft = kept;
+			ask();
+			KeepingDraft = false;
+			if (kept) {
+				composer->setPlainText(draft);
+				auto cursor = composer->textCursor();
+				cursor.movePosition(QTextCursor::End);
+				composer->setTextCursor(cursor);
+			}
 		}
 	}
 
@@ -3720,8 +3801,11 @@ namespace bpr::qt {
 		callout->Look       = State == agent_tab_state::stopped ? rounded::look::danger : rounded::look::callout;
 		BannerFirst->disconnect();
 		BannerSecond->disconnect();
+		BannerFirst->setToolTip({ });
+		BannerSecond->setToolTip({ });
 		BannerFirst->show();
 		BannerSecond->show();
+		BannerReconcile->hide();
 		BannerDismiss->setVisible(State == agent_tab_state::stopped);
 		Log->setVisible(LogShown && State == agent_tab_state::stopped);
 		switch (State) {
@@ -3800,10 +3884,63 @@ namespace bpr::qt {
 			// starts the agent and makes its workspace, which is the check. A
 			// Check again that re-ran only the setup check left this banner
 			// up, and the owner read it as the check failing.
+			// Owner, 2026-11-24: "There doesn't appear to be an option
+			// anywhere to continue like it suggests". A conversation pinned
+			// to another revision offers, here, exactly the ways back the
+			// core decided and its reason names; each resends the message.
+			if (const auto& pinned = Launch.pinned_conversation(); pinned && pinned->Pinned && PinnedDispatch) {
+				const auto shortHead = QString::fromUtf8(core::canonical_hex(pinned->PinnedHead).view().substr(0U, 7U));
+				BannerText->setText(tr("%1 Your message is kept and is sent when you choose.").arg(Launch.stop_reason_text()));
+				auto* const next = pinned->ContinueOffered ? BannerSecond : BannerFirst;
+				if (pinned->ContinueOffered) {
+					BannerFirst->setText(tr("Continue at %1").arg(shortHead));
+					BannerFirst->setToolTip(tr("Keep this conversation and ask about %1, the revision it read").arg(shortHead));
+					// [[BPR-2000]]. Each choice starts a run.
+					wear_agent_accent(*BannerFirst, palette());
+					connect(BannerFirst, &QPushButton::clicked, this, [this] { choose_pinned(core::agent_continuation::continue_against_old_revision); });
+				}
+				next->setText(tr("Start a new session"));
+				next->setToolTip(tr("Start an empty conversation at the current head and send your message there"));
+				wear_agent_accent(*next, palette());
+				connect(next, &QPushButton::clicked, this, [this] { choose_pinned(core::agent_continuation::start_new_session); });
+				if (!pinned->ContinueOffered) {
+					BannerSecond->hide();
+				}
+				// RFC-BPR-0096, owner continue-at-latest amendment. Work in
+				// the way of the move: the ways to carry it come first.
+				if (const auto& move = Launch.move_refusal(); move && ReconcileDispatch && (move->RebaseOffered || move->SaveAndMoveOffered || move->AskAgentOffered)) {
+					const auto observed = QString::fromUtf8(core::canonical_hex(pinned->ObservedHead).view().substr(0U, 7U));
+					const auto name     = agent_short_name(Launch.profile_selector()->currentText());
+					BannerRebase->setText(tr("Rebase onto %1").arg(observed));
+					BannerRebase->setToolTip(tr("Replay this conversation's commits and edits onto %1; on a conflict nothing changes").arg(observed));
+					BannerSave->setText(tr("Keep my changes on a branch and move"));
+					BannerSave->setToolTip(tr("Keep the work on a saved branch, move to %1 and send your message").arg(observed));
+					BannerAsk->setText(tr("Ask %1 to reconcile").arg(name));
+					BannerAsk->setToolTip(tr("Keep the work on a saved branch, move to %1, and ask %2 to bring it over").arg(observed, name));
+					for (auto* const button : { BannerRebase, BannerSave, BannerAsk }) {
+						// [[BPR-2000]]. Each choice starts a run.
+						wear_agent_accent(*button, palette());
+					}
+					BannerRebase->setVisible(move->RebaseOffered);
+					BannerSave->setVisible(move->SaveAndMoveOffered);
+					BannerAsk->setVisible(move->AskAgentOffered);
+					BannerReconcile->show();
+				}
+				break;
+			}
 			BannerFirst->setText(tr("Resend"));
 			// [[BPR-2000]]. Resend starts a run.
 			wear_agent_accent(*BannerFirst, palette());
-			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
+			// Owner, 2026-11-24. Resend sends the kept message again, as the
+			// stopped turn's own Resend does; with no such turn it starts
+			// the run the launch gesture would.
+			connect(BannerFirst, &QPushButton::clicked, this, [this] {
+				if (!Turns.empty() && Turns.back().Done && Turns.back().RecoveryKind == core::agent_turn_recovery::resend) {
+					recover(Turns.back());
+				} else {
+					Launch.start_action()->trigger();
+				}
+			});
 			// [[BPR-2295]]. A stop that would stop the same way again is not
 			// offered a Resend as its fix; the reason says what would change it.
 			if (Launch.stopped_for_good()) {
@@ -3820,6 +3957,52 @@ namespace bpr::qt {
 		Banner->show();
 		Banner->update();
 	}
+
+	auto agent_tab_view::banner_text() const -> QString { return BannerText != nullptr ? BannerText->text() : QString{ }; }
+
+	void agent_tab_view::choose_pinned(const core::agent_continuation aChoice)
+	{
+		if (!panels_alive() || State != agent_tab_state::stopped || Turns.empty() || !PinnedDispatch) {
+			return;
+		}
+		const auto& pinned = Launch.pinned_conversation();
+		if (!pinned || !pinned->Pinned
+			|| (aChoice == core::agent_continuation::continue_against_old_revision ? !pinned->ContinueOffered : !pinned->NewSessionOffered)) {
+			return;
+		}
+		if (!PinnedDispatch(aChoice)) {
+			return;
+		}
+		// The kept message, as a turn's Resend sends it.
+		if (Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered) {
+			resend(Turns.back());
+		}
+	}
+
+	void agent_tab_view::choose_reconcile(const core::conversation_reconcile aChoice)
+	{
+		if (!panels_alive() || State != agent_tab_state::stopped || Turns.empty() || !ReconcileDispatch) {
+			return;
+		}
+		const auto& move = Launch.move_refusal();
+		using reconcile  = core::conversation_reconcile;
+		if (!move
+			|| !(aChoice == reconcile::rebase              ? move->RebaseOffered
+					 : aChoice == reconcile::save_and_move ? move->SaveAndMoveOffered
+					 : aChoice == reconcile::ask_agent     ? move->AskAgentOffered
+														   : false)) {
+			return;
+		}
+		if (!ReconcileDispatch(aChoice)) {
+			return;
+		}
+		// The kept message, as a turn's Resend sends it.
+		if (Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered) {
+			resend(Turns.back());
+		}
+	}
+
+	auto agent_tab_view::turn_move_notice(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].MoveNotice.data() : nullptr; }
 
 	auto agent_tab_view::finding_cards() const -> std::vector<QWidget*>
 	{

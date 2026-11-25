@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <tuple>
 
@@ -219,6 +220,139 @@ namespace {
 			"reporting a moved head and inviting a refresh that could not "
 			"mean anything");
 	}
+	/// \brief Owner, 2026-11-24: a refusal that names a way back offers it.
+	/// A pinned conversation offers a new session always, and continuing at
+	/// its own revision when it is about this review. One of this review that
+	/// was never used starts fresh at the observed revision without asking.
+	void test_a_pinned_conversation_offers_what_it_names()
+	{
+		auto moved            = binding();
+		moved.HeadOid         = commit(9U);
+		auto reselected       = binding();
+		reselected.LeftEpoch  = core::epoch_ordinal{ 2 };
+		auto elsewhere        = binding();
+		elsewhere.PullRequest = core::pull_request_id{ 31U };
+
+		struct row
+		{
+			core::agent_revision_binding  Observed;
+			bool                          Remembers;
+			core::agent_session_staleness Staleness;
+			bool                          Pinned;
+			bool                          Continue;
+			bool                          Fresh;
+		};
+		const auto rows = std::array{
+			row{ binding(), true, core::agent_session_staleness::current, false, false, false },
+			row{ binding(), false, core::agent_session_staleness::current, false, false, false },
+			row{ moved, true, core::agent_session_staleness::head_moved, true, true, false },
+			row{ moved, false, core::agent_session_staleness::head_moved, false, false, true },
+			row{ reselected, true, core::agent_session_staleness::epoch_pair_changed, true, true, false },
+			row{ reselected, false, core::agent_session_staleness::epoch_pair_changed, false, false, true },
+			row{ elsewhere, true, core::agent_session_staleness::different_review, true, false, false },
+			row{ elsewhere, false, core::agent_session_staleness::different_review, true, false, false },
+		};
+		for (const auto& expected : rows) {
+			const auto facts = core::pinned_conversation_facts{ .Pinned = binding(), .Observed = expected.Observed, .Remembers = expected.Remembers };
+			const auto offer = core::offer_pinned_conversation(facts);
+			expect(offer == core::offer_pinned_conversation(facts), "equal facts give an equal offer");
+			expect(offer.Staleness == expected.Staleness && offer.Staleness == core::observe_agent_session(session(), expected.Observed).Staleness,
+				   "the offer carries observe_agent_session's verdict");
+			expect(offer.Pinned == expected.Pinned, "only a conversation at another binding is pinned");
+			expect(offer.NewSessionOffered == expected.Pinned, "a pinned conversation always offers a new session, and a current one offers nothing");
+			expect(offer.StartFresh == expected.Fresh && !(offer.StartFresh && offer.Pinned),
+				   "a conversation of this review never used starts fresh without asking, and only it");
+			expect(offer.ContinueOffered == expected.Continue,
+				   "continuing is offered only for a used conversation about this review");
+			expect(offer.PinnedHead == binding().HeadOid && offer.ObservedHead == expected.Observed.HeadOid,
+				   "the offer names the conversation's head and the observed one, so a button can say which");
+		}
+	}
+	/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24: "Yes just
+	/// move it", "it must be recoverable".
+	void test_a_conversation_moves_or_says_why_not()
+	{
+		auto moved            = binding();
+		moved.HeadOid         = commit(9U);
+		auto reselected       = binding();
+		reselected.LeftEpoch  = core::epoch_ordinal{ 2 };
+		auto elsewhere        = binding();
+		elsewhere.PullRequest = core::pull_request_id{ 31U };
+		using state           = core::conversation_workspace_state;
+		using reconcile       = core::conversation_reconcile;
+		using verdict         = core::conversation_move_verdict;
+		const auto decide     = [](const core::agent_revision_binding& aObserved, const bool aRemembers, const bool aResumable, const state aState, const reconcile aReconcile) {
+			return core::decide_conversation_move({ .Pinned = binding(), .Observed = aObserved, .Remembers = aRemembers, .Resumable = aResumable, .Workspace = aState, .Reconcile = aReconcile });
+		};
+
+		expect(decide(binding(), true, true, state::clean, reconcile::none).Verdict == verdict::current, "a conversation at the observed binding is current");
+		const auto plain = decide(moved, true, true, state::clean, reconcile::none);
+		expect(plain.Verdict == verdict::move && plain.MovesHead && plain.Reconcile == reconcile::none, "a clean, resumable conversation moves on a plain send");
+		expect(plain == decide(moved, true, true, state::clean, reconcile::none), "equal facts, equal decision");
+		const auto epochs = decide(reselected, true, true, state::agent_commits, reconcile::none);
+		expect(epochs.Verdict == verdict::move && !epochs.MovesHead && epochs.Reconcile == reconcile::none,
+			   "only the comparison changed: nothing in the workspace moves, so its work is no obstacle");
+		expect(decide(moved, false, false, state::clean, reconcile::none).Verdict == verdict::start_fresh, "one never used starts fresh");
+		const auto other = decide(elsewhere, true, true, state::clean, reconcile::none);
+		expect(other.Verdict == verdict::refuse && other.NewSessionOffered && !other.ContinueOffered && !other.RebaseOffered, "another review offers a new session only");
+		const auto unresumable = decide(moved, true, false, state::clean, reconcile::none);
+		expect(unresumable.Verdict == verdict::refuse && unresumable.NewSessionOffered && unresumable.ContinueOffered && !unresumable.AskAgentOffered,
+			   "one the backend cannot resume offers a new session and continuing at its own head");
+		for (const auto blocked : { state::busy, state::objects_unavailable }) {
+			const auto refused = decide(moved, true, true, blocked, reconcile::rebase);
+			expect(refused.Verdict == verdict::refuse && refused.Blocked == blocked && refused.ContinueOffered && !refused.RebaseOffered,
+				   "a busy workspace, or missing objects, is never moved, whatever was chosen");
+		}
+		for (const auto work : { state::local_edits, state::agent_commits, state::edits_and_commits }) {
+			const auto stopped = decide(moved, true, true, work, reconcile::none);
+			expect(stopped.Verdict == verdict::refuse && stopped.Blocked == work && stopped.RebaseOffered && stopped.SaveAndMoveOffered && stopped.AskAgentOffered
+					   && stopped.ContinueOffered && stopped.NewSessionOffered,
+				   "work in the way stops the plain move and offers every way to reconcile it");
+			for (const auto chosen : { reconcile::rebase, reconcile::save_and_move, reconcile::ask_agent }) {
+				const auto reconciled = decide(moved, true, true, work, chosen);
+				expect(reconciled.Verdict == verdict::move && reconciled.Reconcile == chosen, "a chosen reconcile moves with it");
+			}
+		}
+		expect(decide(moved, true, true, state::clean, reconcile::rebase).Reconcile == reconcile::none, "a clean workspace has nothing to reconcile");
+		const auto conflicted = core::decide_conversation_move({ .Pinned = binding(), .Observed = moved, .Remembers = true, .Resumable = true, .Workspace = state::agent_commits, .RebaseConflicted = true });
+		expect(conflicted.Verdict == verdict::refuse && !conflicted.RebaseOffered && conflicted.SaveAndMoveOffered && conflicted.AskAgentOffered,
+			   "after a rebase conflicted, the same rebase is not offered again");
+		for (const auto name : { core::stable_name(verdict::refuse), core::stable_name(reconcile::ask_agent), core::stable_name(state::edits_and_commits) }) {
+			expect(!name.empty(), "each value has a stable name");
+		}
+	}
+
+	/// The agent is told where it is, what changed and how to get its work back.
+	void test_the_move_note_says_what_happened()
+	{
+		const auto from    = core::canonical_hex(commit(2U));
+		const auto to      = core::canonical_hex(commit(9U));
+		auto       history = core::conversation_move_history{ .Linear = true, .Listed = true };
+		for (auto index = 0U; index < 25U; ++index) {
+			history.Commits.emplace_back("c" + std::to_string(index), "subject " + std::to_string(index));
+		}
+		history.CommitCount = 25U;
+		history.Files       = { "src/a.cpp", "src/b.cpp" };
+		history.FileCount   = 2U;
+		history.PreMoveRef  = "refs/bpr/pre-move/x";
+		const auto note     = core::conversation_move_note(commit(2U), commit(9U), history);
+		expect(note == core::conversation_move_note(commit(2U), commit(9U), history), "the note is deterministic");
+		expect(note.find(std::string{ from.view() }) != std::string::npos && note.find(std::string{ to.view() }) != std::string::npos
+				   && note.find("earlier tool observations describe") != std::string::npos,
+			   "it names both heads and what the earlier observations describe");
+		expect(note.find("- c19 subject 19") != std::string::npos && note.find("- c20 ") == std::string::npos && note.find("and 5 more") != std::string::npos,
+			   "it lists at most twenty commits and says how many more");
+		expect(note.find("- src/b.cpp") != std::string::npos && note.find("git log") == std::string::npos && note.find("refs/bpr/pre-move/x") != std::string::npos,
+			   "listed history needs no commands; the pre-move ref is named");
+
+		auto       rewritten = core::conversation_move_history{ .Linear = false, .Listed = true, .SavedBranch = "bpr/saved/c/abc1234", .Conflicts = { "src/a.cpp" } };
+		const auto forced    = core::conversation_move_note(commit(2U), commit(9U), rewritten);
+		expect(forced.find("history was rewritten") != std::string::npos && forced.find("git log --oneline") != std::string::npos
+				   && forced.find("bpr/saved/c/abc1234") != std::string::npos && forced.find("- src/a.cpp") != std::string::npos,
+			   "a rewritten history gives the commands, the saved branch and the conflicting files");
+		const auto unlisted = core::conversation_move_note(commit(2U), commit(9U), core::conversation_move_history{ .Linear = true, .Listed = false });
+		expect(unlisted.find("git diff --stat") != std::string::npos && unlisted.find("Commits between") == std::string::npos, "unlisted history gives the commands");
+	}
 } // namespace
 
 auto main() -> int
@@ -228,6 +362,9 @@ auto main() -> int
 	test_the_epoch_pair_is_part_of_the_identity();
 	test_a_stale_session_offers_exactly_two_continuations();
 	test_another_review_is_not_staleness();
+	test_a_pinned_conversation_offers_what_it_names();
+	test_a_conversation_moves_or_says_why_not();
+	test_the_move_note_says_what_happened();
 	std::cout << "agent-session-tests:pass\n";
 	return EXIT_SUCCESS;
 }

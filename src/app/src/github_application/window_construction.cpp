@@ -829,6 +829,18 @@ namespace bpr::app {
 					}
 					finish_writing(aIdentity, aResult);
 					note_agent_scratch(aIdentity.Session.Profile, aResult);
+					// Owner, 2026-11-24. A turn refused because its native
+					// conversation is pinned keeps the session a continuation
+					// would run under, for the card's choice.
+					PinnedAgentSession = aResult.PinnedConversation ? aResult.PinnedSession : std::nullopt;
+					// A new conversation the run started (a chosen new session,
+					// or one never used moved to the head) is the one the next
+					// turn resumes; History reads it again when opened.
+					if (std::exchange(NativeFreshSent, false) && !aResult.Conversation.empty() && aResult.Conversation != AgentNativeHistory.Selected
+						&& !AgentNativeHistory.Scope.empty()) {
+						AgentNativeHistory.Selected = aResult.Conversation;
+						AgentNativeHistory.Replay   = false;
+					}
 					settle_comment_workshop(
 						aIdentity.Session.Id, aResult.Outcome);
 					Window->finish_dif_invocation(aIdentity, aResult.Outcome);
@@ -1011,8 +1023,32 @@ namespace bpr::app {
 					AgentScratchRoot = root;
 				}
 			}
-			AgentProjections->NativeSession = [this](const core::agent_session& aSession) { if (!Closing && ChatHost) { LatestAgentSession=aSession; ChatHost->admitted(aSession,true); } };
+			// RFC-BPR-0096, owner continue-at-latest amendment. A checkout
+			// Agent setup's check made carries a session from the probes'
+			// reserved range, which no private run may name; the chat keeps
+			// its own session for that conversation.
+			AgentProjections->NativeSession = [this](const core::agent_session& aSession) {
+				if (!Closing && ChatHost) {
+					auto session = aSession;
+					if (session.Id.value() >= (std::uint64_t{ 1U } << 63U) && ChatHost->session()) {
+						session.Id = ChatHost->session()->Id;
+					}
+					LatestAgentSession = session;
+					ChatHost->admitted(session, true);
+				}
+			};
 			AgentProjections->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_agent_native_history(aView); };
+			// Owner, 2026-11-24. The chat keeps its own session and takes the
+			// pinned conversation's revision, so the tab offers Start a new
+			// session or Continue at that revision before anything is sent.
+			AgentProjections->NativePinned = [this](const core::agent_profile_id aAgent, const core::agent_revision_binding& aBinding) {
+				if (!Closing && ChatHost && ChatHost->session()) {
+					auto pinned    = *ChatHost->session();
+					pinned.Profile = aAgent;
+					pinned.Binding = aBinding;
+					ChatHost->admitted(pinned, true);
+				}
+			};
 			compose_tour_session(agentProfiles, agentPolicies);
 			compose_follow_up_session(agentProfiles, agentPolicies);
 			compose_local_draft_agent(agentProfiles);

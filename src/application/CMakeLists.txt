@@ -30,7 +30,9 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/comment-labe
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/review-update-from-target.md" WRITING_REVIEW_UPDATE_FROM_TARGET)
 # RFC-BPR-0128: the report shape the Agent tab's requests carry.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/report-templates.md" WRITING_REPORT_TEMPLATES)
-foreach(resource IN ITEMS application-contract tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message review-latest-upload review-proposed-fix review-explain-file review-suggest-change local-run-check report-templates writing-style comment-labels review-update-from-target)
+# RFC-BPR-0096, owner continue-at-latest amendment: Ask the agent to reconcile.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/reconcile-move.md" WRITING_RECONCILE_MOVE)
+foreach(resource IN ITEMS application-contract tour-outline tour-stop-comment review-feedback enhance-tour-stop enhance-writing suggested-comment local-description local-discussion local-commit-message review-latest-upload review-proposed-fix review-explain-file review-suggest-change local-run-check report-templates writing-style comment-labels review-update-from-target reconcile-move)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/${resource}.md")
 endforeach()
 configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)

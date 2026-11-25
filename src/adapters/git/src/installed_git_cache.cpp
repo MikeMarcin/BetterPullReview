@@ -5109,6 +5109,38 @@ namespace bpr::adapters::git {
 				return std::move(*cleaned);
 			}
 
+			/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24.
+			/// Admitted as an inspection is; the new head and base must be of
+			/// this cache's object format.
+			[[nodiscard]] auto move_agent_workspace(const application::agent_workspace_move_request& aRequest, const std::stop_token aStop)
+				-> application::git_cache_result<application::agent_workspace_move_result> override
+			{
+				std::lock_guard operationGuard{ State->OperationMutex };
+				if (aStop.stop_requested()) {
+					return std::unexpected{ application::git_cache_failure::cancelled };
+				}
+				const auto& workspace = aRequest.Workspace;
+				if (!application::valid(workspace) || workspace.ApplicationSession != State->Request.ApplicationSession || workspace.Authority != State->Request.Authority
+					|| workspace.Workspace.PinnedHead->algorithm() != State->Request.ObjectFormat || aRequest.Head.algorithm() != State->Request.ObjectFormat
+					|| aRequest.Base.algorithm() != State->Request.ObjectFormat || !State->validated_inventory(aStop, false).has_value()) {
+					return std::unexpected{ application::git_cache_failure::invalid_authority };
+				}
+				auto moved = State->Process->move_agent_workspace(application::git_agent_workspace_move_request{ .Move = aRequest, .Repository = State->Repository }, aStop);
+				if (!State->active_boundary_still_owned()) {
+					return std::unexpected{ application::git_cache_failure::repair_required };
+				}
+				if (!moved.has_value()) {
+					auto error            = State->process_failure(moved.error());
+					using failure         = application::git_process_failure;
+					using reason          = application::agent_workspace_unavailable_reason;
+					error.WorkspaceReason = moved.error() == failure::timeout ? reason::inspection_timed_out
+						: moved.error() == failure::object_unavailable        ? reason::retained_objects_missing
+																			  : reason::retained_unavailable;
+					return std::unexpected(std::move(error));
+				}
+				return std::move(*moved);
+			}
+
 			[[nodiscard]] auto cleanup_agent_workspace(
 				const application::owned_agent_workspace& aWorkspace,
 				const std::stop_token                     aStop)

@@ -902,6 +902,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_invocation_staleness_contract": "dos-volume-name",
     "application_agent_invocation_cleanup_retry_contract": "dos-volume-name",
     "application_agent_invocation_workspace_diagnostic_contract": "dos-volume-name",
+    "application_agent_invocation_native_pinned_contract": "unmeasured (registered on macOS)",
     "application_epoch_persistence_github-com": "dos-volume-name",
     "application_epoch_persistence_ghes-3_18": "dos-volume-name",
     "application_composition_contract": "ninja-named-pipe",

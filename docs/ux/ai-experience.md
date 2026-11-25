@@ -297,6 +297,39 @@ runs with nothing frozen and its findings arrive unanchored, which is the
 behaviour the owner accepted (BPR-0521) and which remains the documented
 fallback; a fresh session at the new head anchors as usual.
 
+The saved native conversation an Agent tab turn resumes is pinned the same
+way. When the head has moved, the tab offers the choice before a question is
+sent, also for a conversation with no runtime session to restore (a
+transcript replay, or one whose turn ended before the agent named its
+session). The core's `offer_pinned_conversation` decides: a conversation of
+this pull request that was never used moves to the head under review without
+asking (a new conversation takes its place); any other pinned conversation
+offers Start a new session and Continue at its own head. A turn that still
+reaches a pinned conversation is refused before anything runs, and the
+stopped card shows those buttons ("Continue at 1a2b3c4", "Start a new
+session") in place of Resend; the refusal's words name exactly them, and
+each sends the kept message. Elsewhere the stopped card's Resend sends the
+kept message again (owner, 2026-11-24).
+
+A conversation the agent can resume, whose complete workspace is kept,
+follows the head instead, like a `git pull` in another terminal (RFC-BPR-0096,
+owner continue-at-latest amendment, 2026-11-24). Sending a question moves its
+workspace to the head under review, the agent is told what moved, and the
+turn's reply card says "Updated to 1a2b3c4 — 3 commits". Uncommitted edits or
+commits of the conversation's own stop the move: the stopped card then offers
+Rebase onto the new head, Keep my changes on a branch and move, and Ask the
+agent to reconcile (which sends a built-in prompt after the move), before
+Continue at the old head and Start a new session. A rebase that conflicts puts
+the workspace back as it was and names the files.
+
+The pull request's sessions share one checkout, and it moves for all of them
+(owner, 2026-11-24: "a session in the same PR? yes single checkout"). The
+other sessions are not woken: nothing is sent to them ("The other sessions, we
+dont wake them up and send them messages"). Opened later, such a session shows
+a quiet line under its continuation mode, "Updated to 1a2b3c4 — this pull
+request's checkout moved from 9f8e7d6 while another session asked", and its
+next question tells the agent, once.
+
 ### What surface the workshop actually uses
 
 Plain text, on two `QPlainTextEdit` surfaces shown at once: the reviewer's
