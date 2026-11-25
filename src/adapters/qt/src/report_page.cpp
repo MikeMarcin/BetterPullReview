@@ -240,20 +240,25 @@ namespace bpr::qt {
 			const auto ask = Actions->FollowUp && aOutline != 0U ? chip(Actions->Link(aOutline, report_link::ask), QObject::tr("Ask follow-up"), aPalette.Ink, aPalette) + spacer : QString{ };
 			// [[BPR-2331]]. Dismiss, beside a finding's keep action, as its
 			// Agent tab card had it.
-			const auto dismiss = Actions->Dismiss && aOutline != 0U ? chip(Actions->Link(aOutline, report_link::dismiss), QObject::tr("Dismiss"), aPalette.Ink, aPalette) + spacer : QString{ };
+			const auto dismiss  = Actions->Dismiss && aOutline != 0U ? chip(Actions->Link(aOutline, report_link::dismiss), QObject::tr("Dismiss"), aPalette.Ink, aPalette) + spacer : QString{ };
+			const auto outdated = draft && state.Phase == report_keep_phase::kept && std::ranges::find(Actions->Outdated, aOutline) != Actions->Outdated.end();
 			switch (state.Phase) {
 			case report_keep_phase::working: cells = beside(draft ? QObject::tr("Drafting\u2026") : QObject::tr("Keeping\u2026"), aPalette.Faint, false); break;
 			case report_keep_phase::kept:
-				cells = beside(draft ? QObject::tr("Drafted") : QObject::tr("Kept"), aPalette.Roles.Tones.Done.name(), true);
+				// [[BPR-2376]]. A draft the reviewer changed before a
+				// follow-up updated the comment is kept and offers the update.
+				// Its row is its three controls, and what it is and why are
+				// said under them, whole at any width: beside them, in a
+				// report narrowed by its side chat, "Drafted" and the
+				// sentence had a letter's width each.
+				if (!outdated) {
+					cells = beside(draft ? QObject::tr("Drafted") : QObject::tr("Kept"), aPalette.Roles.Tones.Done.name(), true);
+				}
 				if (aGoes) {
 					cells += chip(Actions->Link(aOutline, report_link::go), draft ? QObject::tr("Go to draft") : QObject::tr("Go to comment"), aPalette.Link, aPalette) + spacer;
 				}
-				// [[BPR-2376]]. A draft the reviewer changed before a
-				// follow-up updated the comment is kept; it says so and offers
-				// the update.
-				if (draft && std::ranges::find(Actions->Outdated, aOutline) != Actions->Outdated.end()) {
+				if (outdated) {
 					cells += chip(Actions->Link(aOutline, report_link::update_draft), QObject::tr("Update draft"), aPalette.Ink, aPalette) + spacer + ask;
-					cells += beside(QObject::tr("The draft differs from the updated suggested comment. %1").arg(unsent), aPalette.Roles.Tones.Open.name(), false);
 					break;
 				}
 				cells += ask;
@@ -277,16 +282,31 @@ namespace bpr::qt {
 				cells += state.Phase == report_keep_phase::refused ? beside(state.Why, aPalette.Roles.Tones.Open.name(), false) : beside(QStringLiteral("%1. %2").arg(aWhere, unsent), aPalette.Faint, false);
 				break;
 			}
-			auto revised = QString{ };
-			// [[BPR-2331]]. The comment Draft comment drafts: a follow-up's
-			// update, else the one the agent suggested, as its card showed it.
-			const auto edited    = Actions->Revised.find(aOutline);
-			const auto suggested = Actions->Suggested.find(aOutline);
-			if (edited != Actions->Revised.end() || suggested != Actions->Suggested.end()) {
-				const auto updated = edited != Actions->Revised.end();
-				revised            = comment_html(updated ? QObject::tr("Suggested comment, updated:") : QObject::tr("Suggested comment:"), updated ? edited->second : suggested->second, aPalette);
+			// [[BPR-2331]]. The comment Draft comment drafts, as the agent
+			// suggested it and its card showed it.
+			// The owner, of a comment a follow-up updated, shown here again
+			// under its finding: "This updated comment section at the bottom
+			// is more confusing than helpful. It's just restating the thing
+			// that's drawn above it." The finding above is drawn from the
+			// update already (its Suggested change, as the core revised it),
+			// so neither comment is written out again: one line says what
+			// Draft comment drafts now, or that the draft made earlier
+			// differs from it.
+			auto under = QString{ };
+			if (outdated || Actions->Revised.contains(aOutline)) {
+				const auto open = state.Phase == report_keep_phase::offered || state.Phase == report_keep_phase::refused;
+				const auto said = outdated ? QObject::tr("The draft differs from the updated suggested comment. %1").arg(unsent)
+					: !open                ? QString{ }
+					: draft                ? QObject::tr("Draft comment drafts the comment as the follow-up updated it.")
+										   : QObject::tr("Keep local keeps the comment as the follow-up updated it.");
+				if (!said.isEmpty()) {
+					const auto lead = outdated ? QStringLiteral("<span style=\"font-weight:600;color:%1\">%2</span> ").arg(aPalette.Roles.Tones.Done.name(), QObject::tr("Drafted.").toHtmlEscaped()) : QString{ };
+					under           = QStringLiteral("<p style=\"margin-top:6px;font-family:%1;font-size:13px;color:%2\">%3%4</p>").arg(sans(), outdated ? aPalette.Roles.Tones.Open.name() : aPalette.Faint, lead, said.toHtmlEscaped());
+				}
+			} else if (const auto suggested = Actions->Suggested.find(aOutline); suggested != Actions->Suggested.end()) {
+				under = comment_html(QObject::tr("Suggested comment:"), suggested->second, aPalette);
 			}
-			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells) + revised;
+			return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:12px;border-collapse:collapse;font-family:%1;font-size:13px\"><tr>%2</tr></table>").arg(sans(), cells) + under;
 		}
 
 		/// [[BPR-2232]]. Draft all from the report: the chip while it has a

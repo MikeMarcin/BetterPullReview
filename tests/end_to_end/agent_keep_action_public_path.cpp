@@ -41,6 +41,7 @@
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QTabBar>
 #include <QTemporaryDir>
 
 #include <algorithm>
@@ -216,6 +217,49 @@ auto main(int argc, char** argv) -> int
 		expect(draft->text() == QStringLiteral("Go to draft"), "Draft becomes Go to draft: " + draft->text().toStdString());
 		wait([&] { const auto& shownDraft = window.review_editor()->shown_draft(); return shownDraft && !shownDraft->Body.empty() && shownDraft->Anchor.Line == 4U; }, "the draft stands at the selected line");
 		std::cout << "keep-action: footer-draft=pass\n";
+		// The owner, of a report's Go to draft: "How come when I clicked goto
+		// draft it didnt switch to the comments tab? Then goto draft went to
+		// the comment but didn't select it, it was still collapsed". An
+		// answer's Go to draft goes the same way: with the right tray on the
+		// Agent tab, the draft closed and another line selected, it turns the
+		// tray to Comments and opens the draft in its composer. The drawer
+		// and the tray are then left as they stood.
+		{
+			auto* const tray       = window.tray_tabs();
+			const auto  trayShows  = [tray] { return tray->tabText(tray->currentIndex()); };
+			const auto  wasWriting = cards->writing_draft();
+			const auto  wasTab     = tray->currentIndex();
+			const auto  words      = QString::fromStdString(window.review_editor()->shown_draft()->Body);
+			const auto  closeDraft = [&] {
+				auto* const close = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadClose")) : nullptr;
+				expect(close != nullptr && close->isEnabled(), "the open draft offers Close");
+				close->click();
+				wait([&] { return !cards->writing_draft(); }, "the draft is left a closed note");
+			};
+			if (wasWriting) {
+				closeDraft();
+			}
+			expect(surface->select_conversation_line(core::diff_side::right, 1U), "another line is selected");
+			wait([&] { const auto& shownDraft = window.review_editor()->shown_draft(); return !shownDraft || shownDraft->Anchor.Line != 4U; }, "the answer's draft is another line's saved draft");
+			window.open_agent_question();
+			wait([&] { return trayShows().startsWith(QStringLiteral("Agent")); }, "the right tray shows the Agent tab");
+			expect(draft->text() == QStringLiteral("Go to draft") && draft->isEnabled() && !cards->writing_draft(), "the answer still offers Go to draft, its draft closed");
+			draft->click();
+			if (!e2e::wait_until_plain([&] { return trayShows().startsWith(QStringLiteral("Comments")) && cards->writing_draft() && cards->draft_editor() != nullptr; }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "an answer's Go to draft turns the right tray to Comments and opens the draft; the tray shows " + trayShows().toStdString() + (cards->writing_draft() ? ", the draft open" : ", the draft closed") };
+			}
+			expect(window.review_editor()->shown_draft() && window.review_editor()->shown_draft()->Anchor.Line == 4U && cards->draft_editor()->toPlainText() == words, "the open draft is the answer's, at its line, with its words");
+			const auto* const opened = cards->open_card();
+			expect(opened->geometry().top() >= 0 && opened->geometry().bottom() < cards->viewport()->height(), "the whole draft is in the drawer's view");
+			const auto* const focus = QApplication::focusWidget();
+			expect(focus != nullptr && (focus == opened || opened->isAncestorOf(focus)), "the draft holds the keyboard");
+			if (!wasWriting) {
+				closeDraft();
+			}
+			tray->setCurrentIndex(wasTab);
+			QApplication::processEvents();
+			std::cout << "keep-action: footer-go-to-draft=pass\n";
+		}
 		// A Local comment of mine for the opt-ins below (no agent surface
 		// keeps one now).
 		expect(access::seed_local_comment(*application, "LOCAL-ONLY: kept by hand.", false), "a Local comment is stored");

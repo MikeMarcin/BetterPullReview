@@ -156,8 +156,10 @@ namespace bpr::qt {
 		bool        DraftAllBusy = false;
 		QString     DraftAllSaid;
 		/// [[BPR-2286]]. Ask follow-up is offered beside each finding's keep
-		/// action; a finding whose suggested comment a follow-up updated
-		/// shows the comment it now drafts, by its row in the menu.
+		/// action; the comment a follow-up updated, by its finding's row in
+		/// the menu. The finding is drawn from it (its Suggested change) and
+		/// the comment is not written out again under it: one line says that
+		/// Draft comment drafts the update.
 		bool                             FollowUp = false;
 		std::map<std::uint32_t, QString> Revised;
 		/// [[BPR-2331]]. Dismiss is offered beside each finding's keep

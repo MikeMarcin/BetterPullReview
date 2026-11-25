@@ -4,9 +4,16 @@
 /// agent (no real agent, no network, no cost): Review this pull request is
 /// answered with a report; its first finding's Draft comment makes a draft
 /// behind the report and writes it in the Comments drawer beside the report.
-/// The whole composer, its editor and its controls, is in the drawer's view;
-/// after Go to draft the draft's note is in view at its line. Nothing is
-/// published.
+/// The whole composer, its editor and its controls, is in the drawer's view.
+///
+/// The owner, on the look that followed: "How come when I clicked goto draft
+/// it didnt switch to the comments tab? Then goto draft went to the comment
+/// but didn't select it, it was still collapsed so it was hard to even tell
+/// it was the draft." Go to draft, pressed with the draft closed and the
+/// right tray on the Agent tab, from the draft's own line, from another line
+/// of its file and from another file: each time the file's tab comes in
+/// front, the tray turns to Comments, and the draft is open in its composer,
+/// whole in the drawer, holding the keyboard. Nothing is published.
 ///
 ///     report_draft_reveal_public_path
 #include "../../src/app/src/github_application_fixture_access.hpp"
@@ -16,10 +23,12 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QElapsedTimer>
@@ -27,6 +36,7 @@
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QTabBar>
 #include <QTemporaryDir>
 
 #include <algorithm>
@@ -177,16 +187,59 @@ auto main(int argc, char** argv) -> int
 		const auto        height = cards->viewport()->height();
 		expect(open->geometry().top() >= 0 && open->geometry().bottom() < height, "the whole draft, its editor and its controls, is in the drawer's view: " + said(*cards));
 		expect(cards->draft_editor()->toPlainText().startsWith(QStringLiteral("issue: ")) && cards->draft_editor()->visibleRegion().boundingRect() == cards->draft_editor()->rect(), "its editor holds the finding's words, all of it in view");
-		// Go to draft: the file, with the draft's note in view at its line.
-		expect(report->press(issue.Outline, qt::report_link::go), "Go to draft is pressed");
-		wait([&] { return window.active_document_path() == path && !window.report_shown(); }, "Go to draft shows the file");
-		settle(1'000);
-		render(window, QStringLiteral("report-draft-go-to-draft"));
-		const auto note = std::ranges::find_if(cards->cards(), [](const qt::thread_card& aCard) { return aCard.Draft; });
-		expect(note != cards->cards().end(), "the draft is a note in the drawer");
-		const auto shownAt = cards->note_rect(note->Id);
-		expect(cards->open_card() != nullptr ? cards->open_card()->geometry().bottom() < cards->viewport()->height() : (shownAt.top() >= 0 && shownAt.bottom() < cards->viewport()->height()),
-			   "after Go to draft the draft's note is in view too");
+		// Go to draft. The reviewer left the draft as a closed note and turned
+		// the right tray to the Agent tab; the report is still in front.
+		const auto words   = cards->draft_editor()->toPlainText();
+		const auto onAgent = [&window] { return window.tray_tabs()->tabText(window.tray_tabs()->currentIndex()).startsWith(QStringLiteral("Agent")); };
+		const auto onNotes = [&window] { return window.tray_tabs()->tabText(window.tray_tabs()->currentIndex()).startsWith(QStringLiteral("Comments")); };
+		const auto isDraft = [](const qt::thread_card& aCard) { return aCard.Draft; };
+		const auto leave   = [&](const std::string& aFrom) {
+			if (cards->writing_draft()) {
+				auto* const close = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadClose"));
+				expect(close != nullptr && close->isEnabled(), aFrom + ": the open draft offers Close");
+				close->click();
+			}
+			wait([&] { return !cards->writing_draft() && std::ranges::any_of(cards->cards(), isDraft); }, aFrom + ": the draft is left a closed note");
+			window.open_agent_question();
+			wait(onAgent, aFrom + ": the right tray shows the Agent tab");
+		};
+		const auto goes = [&](const std::string& aFrom, const QString& aRender) {
+			wait([&] { return window.report_shown() && report->isVisible(); }, aFrom + ": the report is in front");
+			expect(onAgent() && !cards->writing_draft(), aFrom + ": the draft is closed and the tray is on the Agent tab before the press");
+			render(window, aRender + QStringLiteral("-before"));
+			expect(report->press(issue.Outline, qt::report_link::go), aFrom + ": Go to draft is pressed");
+			wait([&] { return window.active_document_path() == path && !window.report_shown(); }, aFrom + ": Go to draft shows the file");
+			static_cast<void>(e2e::wait_until_plain([&] { return onNotes() && cards->writing_draft() && cards->draft_editor() != nullptr; }, e2e::extended_agent_budget));
+			settle(1'000);
+			render(window, aRender);
+			std::cout << "report-draft-reveal: " << aFrom << ", " << said(*cards) << '\n';
+			expect(onNotes() && cards->isVisible(), aFrom + ": Go to draft turns the right tray to Comments; it shows " + window.tray_tabs()->tabText(window.tray_tabs()->currentIndex()).toStdString());
+			expect(cards->writing_draft() && cards->open_card() != nullptr && cards->draft_editor() != nullptr, aFrom + ": the draft is open in its composer, not a closed note: " + said(*cards));
+			const auto* const opened = cards->open_card();
+			expect(opened->geometry().top() >= 0 && opened->geometry().bottom() < cards->viewport()->height(), aFrom + ": the whole draft is in the drawer's view: " + said(*cards));
+			expect(cards->draft_editor()->toPlainText() == words && cards->draft_editor()->visibleRegion().boundingRect() == cards->draft_editor()->rect(), aFrom + ": its editor holds the draft's words, all of it in view");
+			const auto* const focus = QApplication::focusWidget();
+			expect(focus != nullptr && (focus == opened || opened->isAncestorOf(focus)), aFrom + ": the draft holds the keyboard; it is with " + (focus != nullptr ? focus->objectName().toStdString() : std::string{ "nothing" }));
+		};
+		// From the draft's own line: the line's draft is a closed note.
+		leave("its own line");
+		goes("its own line", QStringLiteral("report-go-to-draft"));
+		// From another line of its file: the draft is another line's saved one.
+		leave("another line");
+		expect(window.go_to_file_line(path, 3U, false), "another line is gone to");
+		wait([&] { const auto& shown = window.review_editor()->shown_draft(); return !window.report_shown() && shown && shown->Anchor.Line == 2U; }, "line 3 is the selected line, and the draft another line's");
+		window.open_agent_question();
+		row->click();
+		goes("another line", QStringLiteral("report-go-to-draft-other-line"));
+		// From another file, behind the report.
+		leave("another file");
+		const auto other = QStringLiteral("src/ui/widgets/button.cpp");
+		wait([&] { return window.open_file_in_review(other) && window.active_document_path() == other; }, "another file opens");
+		wait([&] { return window.comparison_surface()->current_result() != nullptr && !window.report_shown(); }, "its comparison is in");
+		settle(500);
+		window.open_agent_question();
+		row->click();
+		goes("another file", QStringLiteral("report-go-to-draft-other-file"));
 		const auto after = access::review_mutation_evidence(*application);
 		expect(after.Submissions == mutation.Submissions && after.StoredComments == mutation.StoredComments && after.NativePosts == mutation.NativePosts && after.FilePosts == mutation.FilePosts, "nothing is published");
 

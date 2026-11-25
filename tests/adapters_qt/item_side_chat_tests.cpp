@@ -266,10 +266,29 @@ namespace {
 		actions.FollowUp = true;
 		const auto page  = qt::report_page_html(report, { }, actions);
 		expect(page.contains(askLink) && page.contains(QStringLiteral("Ask follow-up")), "a finding offers Ask follow-up beside its keep action");
-		expect(!page.contains(QStringLiteral("Suggested comment, updated")), "nothing updated yet");
-		actions.Revised[outline] = QStringLiteral("issue (blocking): clamp <both>.");
+		const auto draftsTheUpdate = QStringLiteral("Draft comment drafts the comment as the follow-up updated it.");
+		expect(!page.contains(draftsTheUpdate), "nothing updated yet");
+		// The owner: "This updated comment section at the bottom is more
+		// confusing than helpful. It's just restating the thing that's drawn
+		// above it." An updated comment is not written out under its finding,
+		// and nor is the one it replaced: one line says what Draft comment
+		// drafts now.
+		actions.Suggested[outline] = QStringLiteral("issue (blocking): clamp it.");
+		expect(qt::report_page_html(report, { }, actions).contains(QStringLiteral("Suggested comment:")) && qt::report_page_html(report, { }, actions).contains(QStringLiteral("clamp it.")),
+			   "the comment the agent suggested shows under its finding");
+		actions.Revised[outline] = QStringLiteral("issue (blocking): clamp <both>.\n\n```suggestion\nresize(clamp(w), clamp(h));\n```");
 		const auto revised       = qt::report_page_html(report, { }, actions);
-		expect(revised.contains(QStringLiteral("Suggested comment, updated:")) && revised.contains(QStringLiteral("clamp &lt;both&gt;.")), "the updated comment shows, escaped");
+		expect(revised.count(draftsTheUpdate) == 1, "an updated finding says that Draft comment drafts the update, once");
+		expect(!revised.contains(QStringLiteral("Suggested comment")) && !revised.contains(QStringLiteral("clamp &lt;both&gt;")) && !revised.contains(QStringLiteral("clamp it.")), "neither the update nor the comment it replaced is written out under the finding");
+		// Drafted and in step with the update, there is nothing to say.
+		actions.States[outline] = qt::report_keep_state{ .Phase = qt::report_keep_phase::kept };
+		const auto drafted      = qt::report_page_html(report, { }, actions);
+		expect(!drafted.contains(draftsTheUpdate) && !drafted.contains(QStringLiteral("The draft differs")) && !drafted.contains(QStringLiteral("Suggested comment")), "a drafted finding in step with its update says nothing more");
+		// A finding kept local says so in its own action's name.
+		auto local = actions;
+		local.States.clear();
+		local.Findings.front().Keep = core::report_keep::keep_local;
+		expect(qt::report_page_html(report, { }, local).contains(QStringLiteral("Keep local keeps the comment as the follow-up updated it.")), "an updated finding kept local names Keep local");
 	}
 
 	/// [[BPR-2376]]. The finding's Suggested change is its updated comment's;
@@ -285,7 +304,7 @@ namespace {
 		expect(qt::report_page_html(report, { }, actions).contains(QStringLiteral("resize(width, keep_h);")), "the Suggested change as written");
 		actions.Revised[outline] = QStringLiteral("issue (blocking): clamp both.\n\n```suggestion\nresize(clamp(w), clamp_h);\n```");
 		const auto moved         = qt::report_page_html(report, { }, actions);
-		expect(moved.contains(QStringLiteral("resize(clamp(w), clamp_h);")) && !moved.contains(QStringLiteral("resize(width, keep_h);")), "the Suggested change is the updated comment's, and the old lines are gone");
+		expect(moved.count(QStringLiteral("resize(clamp(w), clamp_h);")) == 1 && !moved.contains(QStringLiteral("resize(width, keep_h);")), "the Suggested change is the updated comment's, shown once, and the old lines are gone");
 		actions.Revised[outline] = QStringLiteral("issue (blocking): clamp both, somewhere.");
 		expect(!qt::report_page_html(report, { }, actions).contains(QStringLiteral("resize(width, keep_h);")), "an updated comment with no suggestion shows no Suggested change");
 
@@ -294,7 +313,13 @@ namespace {
 		expect(!qt::report_page_html(report, { }, actions).contains(update), "a drafted finding offers no Update draft by itself");
 		actions.Outdated   = { outline };
 		const auto offered = qt::report_page_html(report, { }, actions);
-		expect(offered.contains(update) && offered.contains(QStringLiteral("Update draft")) && offered.contains(QStringLiteral("The draft differs from the updated suggested comment")), "a changed draft says so and offers Update draft");
+		expect(offered.contains(update) && offered.contains(QStringLiteral("Update draft")) && offered.count(QStringLiteral("The draft differs from the updated suggested comment.")) == 1, "a changed draft says so, once, and offers Update draft");
+		expect(!offered.contains(QStringLiteral("Suggested comment, updated")) && !offered.contains(QStringLiteral("somewhere")), "and the update is not written out again under it");
+		// What it is and why stand under its controls, whole at any width,
+		// not in a cell beside them.
+		const auto under = offered.indexOf(QStringLiteral("</table>"), offered.indexOf(update));
+		expect(under > 0 && offered.indexOf(QStringLiteral("Drafted.")) > under && offered.indexOf(QStringLiteral("The draft differs")) > under && offered.count(QStringLiteral("Drafted")) == 1,
+			   "a changed draft's state and its reason are one line under the row");
 	}
 
 	void test_a_threads_ask_menu_offers_ask_about_this()

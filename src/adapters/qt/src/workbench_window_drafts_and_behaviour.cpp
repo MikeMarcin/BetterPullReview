@@ -509,6 +509,9 @@ namespace bpr::qt {
 			close_review_composition();
 		}
 		PendingCommentOpen.reset();
+		// A line gone to and still waited for (a long file being measured)
+		// gives way: this is where the reviewer asked to be now.
+		PendingLineGo.reset();
 		PendingCommentPick = pending_comment_pick{
 			.File        = core::file_identity_of(aPath.toStdString()),
 			.Side        = aSide,
@@ -518,11 +521,28 @@ namespace bpr::qt {
 				: std::nullopt,
 			.Draft       = aDraft,
 			.Destination = aDestination,
+			.FromReport  = ReportShown,
 		};
 		choose_home(false);
 		choose_modality(review_modality::review);
 		const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
-		if (!context.has_value() || context->Key.File != PendingCommentPick->File) {
+		const auto behind  = ReportShown && context.has_value() && context->Key.File == PendingCommentPick->File;
+		if (behind) {
+			// From a report whose file this is, behind it: the file's tab
+			// comes in front as it stands. Choosing the file again would
+			// give the line chosen here up to the file's first change.
+			activate_document_path(aPath);
+		}
+		if (ReportShown && (!behind || active_document_path() != aPath)) {
+			// From a report, another file's own tab opens, as a line gone to
+			// from one opens it (RFC-BPR-0128, AC06). A file that cannot
+			// open leaves nothing waiting to jump to it later.
+			if (!open_file_in_review(aPath)) {
+				PendingCommentPick.reset();
+				statusBar()->showMessage(tr("%1 is not in this pull request at its current head.").arg(aPath), 6000);
+				return;
+			}
+		} else if (!ReportShown && (!context.has_value() || context->Key.File != PendingCommentPick->File)) {
 			if (const auto file = file_for_path(aPath); file.has_value() && Dispatch) {
 				Dispatch(core::select_workbench_file_intent{ .File = *file });
 			}
@@ -563,10 +583,12 @@ namespace bpr::qt {
 		// a saved draft there, so until then it waits.
 		const auto card = std::string{ "draft:unpublished" };
 		if (ReviewEditor == nullptr || !ReviewEditor->shown_draft().has_value() || ReviewEditor->shown_draft()->Id != *aPick.Draft) {
-			const auto saved = card + ":" + std::to_string(aPick.Draft->value());
-			if (std::ranges::any_of(cards->cards(), [&saved](const thread_card& aCard) { return aCard.Id == saved; })) {
-				PendingCommentOpen = aPick;
-			} else {
+			// It waits whether or not the drawer lists it yet: a file opened
+			// for it (from a report's Go to draft, or Threads) may show its
+			// line before its drafts are read. Another file shown drops it.
+			PendingCommentOpen = aPick;
+			const auto saved   = card + ":" + std::to_string(aPick.Draft->value());
+			if (std::ranges::none_of(cards->cards(), [&saved](const thread_card& aCard) { return aCard.Id == saved; })) {
 				statusBar()->showMessage(tr("The comment's line is shown; its note opens once its draft is read."));
 			}
 			return;
@@ -621,12 +643,34 @@ namespace bpr::qt {
 		if (!PendingCommentPick.has_value() || ComparisonSurface == nullptr || (Modality != nullptr && Modality->current() != review_modality::review)) {
 			return;
 		}
+		// Asked for from a report, it waits for the file's tab to be in front
+		// with its own reading restored: a tab made active is given back the
+		// line it remembered, and a line chosen before that would be given up
+		// to it, the draft closing with it.
+		const auto settled = [this] {
+			if (ReportShown) {
+				return false;
+			}
+			if (!TabsProjection) {
+				return true;
+			}
+			const auto active = std::ranges::find(TabsProjection->Tabs, true, &application::document_tab_entry::Active);
+			return active == TabsProjection->Tabs.end()
+				|| (active->Report.empty() && active->State != core::document_tab_view_state::idle && active->State != core::document_tab_view_state::loading);
+		};
+		if (PendingCommentPick->FromReport && !settled()) {
+			return;
+		}
 		const auto context = ComparisonSurface->current_context();
 		const auto digest  = ComparisonSurface->current_result() != nullptr ? std::optional{ ComparisonSurface->current_result()->Alignment.Digest } : std::nullopt;
 		if (context.has_value() && context->Key.File == PendingCommentPick->File && digest.has_value()) {
 			const auto pick = *PendingCommentPick;
 			PendingCommentPick.reset();
-			static_cast<void>(ComparisonSurface->select_conversation_line(pick.Side, pick.Line));
+			// Revealed, not only selected: the line is brought into view and
+			// stays the code's anchor, so a line gone to earlier (from a
+			// report, or an answer's link) does not take the selection back
+			// when the file is laid out again.
+			static_cast<void>(ComparisonSurface->reveal_conversation_line(pick.Side, pick.Line));
 			finish_pending_comment_pick(pick);
 			return;
 		}

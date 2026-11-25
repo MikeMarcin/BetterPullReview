@@ -4032,8 +4032,17 @@ function(bpr_verify_app_source_tree app_source_root)
 	# two calls to one Qt setter; no grant, provider, transport, mutation or
 	# publication path changes; the full application and mutation-branch
 	# digests are unchanged.
+	# Go to draft reseal (owner, attended review
+	# 374cb080088e516421011d3a88d707e0: "How come when I clicked goto draft it
+	# didnt switch to the comments tab?"): a report finding's Go to draft
+	# (window_quick_ask.cpp) and an Agent answer's (window_agent_setup.cpp)
+	# name the draft they made to workbench_window::open_roster_draft and
+	# fall back to its lines. Navigation in the window only: two reads of
+	# records the composition already holds; no grant, provider, transport,
+	# mutation or publication path changes; the full application and
+	# mutation-branch digests are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "61a20728423ccfa02c389ca3a9b4177dd78802a312013372b46910eb996c17c1"
+        "17f9b28a3489b998d37fdf29678b3d9e8b98b695856568c40babda355ceb344e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

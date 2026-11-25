@@ -19,8 +19,22 @@
 ///   the report's summary and no finding card. The report's Ask follow-up on
 ///   a finding: two rounds, each carrying the ones before; Update suggested
 ///   comment is seen first and replaces nothing until Use; then the report
-///   shows it beside the finding, opening the chat again shows the same
-///   chat beside the report, and Draft comment drafts the updated text.
+///   says under the finding that Draft comment drafts the update, opening
+///   the chat again shows the same chat beside the report, and Draft comment
+///   drafts the updated text.
+///
+/// - The owner, of the updated comment written out again under its finding:
+///   "This updated comment section at the bottom is more confusing than
+///   helpful. It's just restating the thing that's drawn above it." The
+///   report never restates an updated comment: its Suggested change is the
+///   finding's own, once, and one line under the keep row says what is so
+///   (Draft comment drafts the update, or the draft differs from it).
+///
+/// - The owner, of Go to draft: "How come when I clicked goto draft it didnt
+///   switch to the comments tab? Then goto draft went to the comment but
+///   didn't select it, it was still collapsed". From an updated finding,
+///   with the draft closed and the right tray on the Agent tab, Go to draft
+///   turns the tray to Comments and opens the draft in its composer.
 ///
 /// - [[BPR-2370]] (owner: "Why does the report side chat not have access to
 ///   the code?"): each round runs in the pull request's workspace, as a tour
@@ -64,6 +78,7 @@
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QTabBar>
 #include <QTemporaryDir>
 #include <QTextEdit>
 #include <QToolButton>
@@ -386,13 +401,19 @@ auto main(int argc, char** argv) -> int
 		followUp->use_button()->click();
 		expect(followUp->status_text().startsWith(QStringLiteral("Suggested comment updated.")), "it says the comment was updated: " + followUp->status_text().toStdString());
 
-		// The report: the update beside the finding, the same conversation, and Draft comment drafts it.
-		wait([&] {
+		// The report: one line under the finding says Draft comment drafts
+		// the update, the comment itself is not written out again, and Draft
+		// comment drafts it.
+		const auto draftsTheUpdate = QStringLiteral("Draft comment drafts the comment as the follow-up updated it.");
+		wait([&] { return report->dressed_view()->toPlainText().contains(draftsTheUpdate); }, "the finding says Draft comment drafts the update:\n" + report->dressed_view()->toPlainText().toStdString());
+		{
 			const auto page = report->dressed_view()->toPlainText();
-			return page.contains(QStringLiteral("Suggested comment, updated:")) && page.contains(QStringLiteral("clamp the height as well as the width"));
-		},
-			 "the report shows the updated comment beside the finding");
+			expect(page.count(draftsTheUpdate) == 1 && !page.contains(QStringLiteral("Suggested comment, updated")) && !page.contains(QStringLiteral("clamp the height as well as the width")),
+				   "the updated comment is not restated under its finding:\n" + page.toStdString());
+			expect(page.contains(QStringLiteral("Suggested comment:")), "a finding no follow-up updated still shows its suggested comment");
+		}
 		render(*report, QStringLiteral("follow-up-report"));
+		render(*report->dressed_view(), QStringLiteral("follow-up-report-page"));
 		followUp->close_button()->click();
 		expect(!followUp->isVisible(), "Close closes the chat");
 		expect(report->press(issue.Outline, qt::report_link::ask), "Ask follow-up is pressed on the report again");
@@ -504,17 +525,19 @@ auto main(int argc, char** argv) -> int
 			propose(*followUp, QStringLiteral("Update suggested comment"));
 			expect(followUp->proposal_text().contains(newLine), "the proposal carries another suggestion: " + followUp->proposal_text().toStdString());
 			followUp->use_button()->click();
-			wait([&] {
-				const auto page = report->dressed_view()->toPlainText();
-				return page.contains(QStringLiteral("Suggested comment, updated:")) && page.contains(newLine);
-			},
-				 "the report shows the updated comment");
 			if (!e2e::wait_until_plain([&] { return codeShows(newLine) && !codeShows(oldLine); }, e2e::extended_agent_budget)) {
 				throw std::runtime_error{ "the finding's Suggested change shows the updated comment's lines, not the old replacement: " + codeText().toStdString() };
 			}
-			expect(!report->dressed_view()->toPlainText().contains(oldLine), "nor does the page");
+			{
+				// Once, in the Suggested change: the page under it writes out
+				// neither the update nor the comment it replaced.
+				const auto page = report->dressed_view()->toPlainText();
+				expect(!page.contains(oldLine) && !page.contains(newLine) && !page.contains(QStringLiteral("Suggested comment, updated")) && !page.contains(QStringLiteral("clamp both sides")),
+					   "the updated comment is not restated under the drafted finding:\n" + page.toStdString());
+			}
 			wait([&] { return fixDraftText().contains(newLine) && !fixDraftText().contains(oldLine); }, "the unchanged draft follows the updated comment: " + fixDraftText().toStdString());
 			expect(followUp->status_text().startsWith(QStringLiteral("Suggested comment and its draft updated.")), "it says both were updated: " + followUp->status_text().toStdString());
+			render(*report->dressed_view(), QStringLiteral("follow-up-draft-updated-page"));
 			expect(!report->dressed_view()->toPlainText().contains(QStringLiteral("Update draft")), "nothing to update: the draft is the comment");
 
 			// Changed since: left as it is, and offered.
@@ -528,18 +551,50 @@ auto main(int argc, char** argv) -> int
 			propose(*followUp, QStringLiteral("Update suggested comment"));
 			expect(followUp->proposal_text().contains(thirdLine), "the proposal carries a third suggestion: " + followUp->proposal_text().toStdString());
 			followUp->use_button()->click();
-			if (!e2e::wait_until_plain([&] { return codeShows(thirdLine) && !codeShows(newLine) && report->dressed_view()->toPlainText().contains(thirdLine); }, e2e::extended_agent_budget)) {
+			if (!e2e::wait_until_plain([&] { return codeShows(thirdLine) && !codeShows(newLine); }, e2e::extended_agent_budget)) {
 				throw std::runtime_error{ "the finding's Suggested change shows the third suggestion and not the second: " + codeText().toStdString() };
 			}
+			expect(!report->dressed_view()->toPlainText().contains(thirdLine), "the third suggestion shows once, in the Suggested change, not again under the finding");
 			expect(followUp->status_text().contains(QStringLiteral("left as it is")), "it says the changed draft was left: " + followUp->status_text().toStdString());
 			expect(fixDraftText() == edited, "the reviewer's draft is not replaced: " + fixDraftText().toStdString());
 			wait([&] { return report->dressed_view()->toPlainText().contains(QStringLiteral("Update draft")); }, "the finding offers Update draft:\n" + report->dressed_view()->toPlainText().toStdString());
 			expect(report->dressed_view()->toPlainText().contains(QStringLiteral("The draft differs from the updated suggested comment")), "and says why");
 			render(*report, QStringLiteral("follow-up-draft-differs"));
+			render(*report->dressed_view(), QStringLiteral("follow-up-draft-differs-page"));
 			expect(report->press(fix.Outline, qt::report_link::update_draft), "Update draft is pressed");
 			wait([&] { return fixDraftText().contains(thirdLine) && !fixDraftText().contains(QStringLiteral("Also worth a test.")); }, "Update draft replaces the draft: " + fixDraftText().toStdString());
 			wait([&] { return !report->dressed_view()->toPlainText().contains(QStringLiteral("Update draft")); }, "and is no longer offered");
+			expect(!report->dressed_view()->toPlainText().contains(QStringLiteral("The draft differs")), "nor does the finding still say the draft differs");
+			render(*report->dressed_view(), QStringLiteral("follow-up-draft-in-step-page"));
 			expect(unpublished(), "nothing is published");
+
+			// Go to draft from the updated finding: the draft closed and the
+			// right tray on the Agent tab, as a reviewer who went on leaves
+			// them. Comments comes in front and the draft opens.
+			const auto  updatedDraft = fixDraftText();
+			auto* const close        = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadClose")) : nullptr;
+			expect(cards->writing_draft() && close != nullptr && close->isEnabled(), "the open draft offers Close");
+			close->click();
+			wait([&] { return !cards->writing_draft(); }, "the draft is left a closed note");
+			window.open_agent_question();
+			const auto trayShows = [&window] { return window.tray_tabs()->tabText(window.tray_tabs()->currentIndex()); };
+			wait([&] { return trayShows().startsWith(QStringLiteral("Agent")); }, "the right tray shows the Agent tab");
+			wait([&] { return window.report_shown() && report->isVisible(); }, "the report is in front");
+			// The window a person presses in is the active one; the Delete
+			// question above left none active offscreen.
+			window.activateWindow();
+			wait([&] { return QApplication::activeWindow() == &window; }, "the window is the active one");
+			expect(report->press(fix.Outline, qt::report_link::go), "Go to draft is pressed on the updated finding");
+			wait([&] { return window.active_document_path() == renderer && !window.report_shown(); }, "Go to draft shows the file");
+			if (!e2e::wait_until_plain([&] { return trayShows().startsWith(QStringLiteral("Comments")) && cards->writing_draft() && cards->draft_editor() != nullptr; }, e2e::extended_agent_budget)) {
+				throw std::runtime_error{ "Go to draft turns the right tray to Comments and opens the draft; the tray shows " + trayShows().toStdString() + (cards->writing_draft() ? ", the draft open" : ", the draft closed") };
+			}
+			render(window, QStringLiteral("follow-up-go-to-draft"));
+			expect(cards->draft_editor()->toPlainText() == updatedDraft && updatedDraft.contains(thirdLine), "the open draft is the finding's, holding the update: " + cards->draft_editor()->toPlainText().toStdString());
+			const auto* const focus = QApplication::focusWidget();
+			expect(focus != nullptr && (focus == cards->open_card() || cards->open_card()->isAncestorOf(focus)),
+				   "the draft holds the keyboard; it is with " + (focus != nullptr ? std::string{ focus->metaObject()->className() } + " " + focus->objectName().toStdString() : std::string{ "nothing" }));
+			expect(unpublished(), "nothing is published by going to it");
 		}
 
 		// [[BPR-2322]]. The log says what was asked and applied, and the

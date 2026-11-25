@@ -340,6 +340,26 @@ takes the update while it is still what the earlier comment drafted
 (`core::decide_finding_draft_revision`), in one revisioned edit. A draft the reviewer changed is
 kept, and the finding says it differs and offers Update draft.
 
+The report does not write an updated comment out again under its finding (owner, attended review
+`374cb080088e516421011d3a88d707e0`: "This updated comment section at the bottom is more confusing
+than helpful. It's just restating the thing that's drawn above it."). The finding is drawn from the
+update already, so its Suggested change shows once. Under the keep row one line says what is so: an
+undrafted finding says Draft comment (or Keep local) takes the comment as the follow-up updated it,
+a draft the reviewer changed says it differs beside Update draft, and a draft in step with the
+update says nothing more. The comment it replaced is not shown either. A finding no follow-up
+updated keeps its "Suggested comment:".
+
+Go to draft, from a report finding or an Agent answer, goes to the draft and not only to its lines
+(same review: "How come when I clicked goto draft it didnt switch to the comments tab? Then goto
+draft went to the comment but didn't select it, it was still collapsed so it was hard to even tell
+it was the draft."). Both end in `workbench_window::open_roster_draft`, the route a Threads row and
+Finish your review's list already took: the file's own tab comes in front of the report, the right
+tray turns to Comments, and the draft opens in its composer, whole in the drawer and holding the
+keyboard. From a report the line is chosen only once the file's tab has its own reading back,
+since a tab made active is given the line it remembered. A draft the pull request no longer lists
+falls back to its lines. Closed, a draft is a card on a wash of the writing blue inside a dashed
+frame in that blue, with "Draft" in that ink; a Local comment wears the same card in the quiet ink.
+
 Since [[BPR-1934]] (owner, 2026-11-07: "Tour side chat should get suggestions
 like the agent tab has") an empty chat offers suggested prompts under its
 invitation, in the Agent tab's own component (`agent_suggestion_list`,

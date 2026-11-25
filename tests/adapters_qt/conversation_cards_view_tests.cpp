@@ -3829,6 +3829,181 @@ namespace {
 		QApplication::setStyle(QStyleFactory::create(original));
 	}
 
+	/// The owner, of my draft closed in the drawer after Go to draft: "it
+	/// was still collapsed so it was hard to even tell it was the draft. I
+	/// think collapsed draft might need a more substantial visual than the
+	/// little draft in top right corner. Maybe a border?" The note had a
+	/// dashed frame in the hairline's grey and "Draft" in the faint ink.
+	///
+	/// In every built-in theme my closed draft, my draft pending in my
+	/// review and my Local comment each stand on a ground of their own (not
+	/// the drawer's), inside a dashed frame that reaches the theme's floor
+	/// for a mark against the drawer, and say what they are in ink that
+	/// reaches the text floor on that ground. A draft's frame and words are
+	/// the writing blue's; a Local comment's are not. A published note beside
+	/// them has no ground and no frame. With a directory, each theme's
+	/// drawer is drawn there.
+	auto test_my_closed_draft_reads_as_a_draft(const QString& aDirectory) -> void
+	{
+		const auto modes = std::array{
+			std::pair{ "light", core::appearance_mode::light },
+			std::pair{ "dark", core::appearance_mode::dark },
+			std::pair{ "high-contrast-light", core::appearance_mode::high_contrast_light },
+			std::pair{ "high-contrast-dark", core::appearance_mode::high_contrast_dark },
+		};
+		const auto ratio = [](const QColor& aOne, const QColor& aOther) {
+			return static_cast<double>(core::contrast_ratio_hundredths(qt::to_appearance_color(aOne), qt::to_appearance_color(aOther))) / 100.0;
+		};
+		for (const auto& [modeName, mode] : modes) {
+			const auto name    = std::string{ modeName };
+			auto       profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			const auto                  floor        = static_cast<double>(core::minimum_contrast_hundredths(core::contrast_kind::text, profile.variant())) / 100.0;
+			const auto                  indicator    = static_cast<double>(core::minimum_contrast_hundredths(core::contrast_kind::indicator, profile.variant())) / 100.0;
+			const auto                  highContrast = mode == core::appearance_mode::high_contrast_light || mode == core::appearance_mode::high_contrast_dark;
+			qt::conversation_cards_view view;
+			view.setPalette(profile.derive(QApplication::palette()));
+			view.set_colours(profile.color(core::appearance_role::state_unread), QColor{ 0xD2, 0x99, 0x22 });
+			view.set_code_theme({ .Colors = qt::code_role_colors_of(profile.palette()), .Variant = profile.variant() });
+			view.set_viewer_login(QStringLiteral("reviewer"));
+			view.resize(380, 470);
+			view.show();
+			QApplication::processEvents();
+			view.set_line_locator([](core::diff_side, const std::uint32_t aLine) -> std::optional<int> {
+				return aLine == 10U ? std::optional{ 40 } : aLine == 20U ? std::optional{ 140 }
+					: aLine == 30U                                       ? std::optional{ 240 }
+					: aLine == 40U                                       ? std::optional{ 340 }
+																		 : std::nullopt;
+			});
+			view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+			auto root = thread("review-thread:T1", "src/a.cpp", 10U);
+			auto post = reply("c-1", "review-thread:T1", "tbutler", "issue (blocking): draw_scene() runs before the clear finishes on the second view.");
+			post.Line = 10U;
+			view.adopt({ root, post });
+			const auto comparison = core::file_comparison_digest{ };
+			auto       mine       = core::review_comment_draft{ };
+			mine.Id               = core::review_draft_id{ 2U };
+			mine.Anchor           = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 19U };
+			mine.Body             = "issue: the width is clamped but the height is not, so a minimised window still asserts in the swap chain.";
+			auto pending          = mine;
+			pending.Id            = core::review_draft_id{ 3U };
+			pending.Anchor.Line   = 29U;
+			pending.Body          = "question: where does 0.01 come from?";
+			pending.InReview      = core::review_pending_mark{ .Path = "src/a.cpp", .Head = core::git_commit_oid{ core::git_hash_algorithm::sha1, std::array<std::uint8_t, 32>{ 1U } } };
+			view.set_draft(std::nullopt, comparison);
+			view.set_saved_drafts({ mine, pending });
+			view.set_local_comments({ qt::local_comment_card{ .Id = 8U, .Revision = 1U, .Body = QStringLiteral("Ask whether the tonemap pass is a placeholder."), .Comparison = comparison, .Side = core::diff_side::right, .Line = 40U, .MakeDraft = QStringLiteral("Make draft") } });
+			QApplication::processEvents();
+			const auto at = [&view](const std::uint32_t aLine) -> const qt::thread_card& {
+				const auto found = std::ranges::find_if(view.cards(), [aLine](const qt::thread_card& aCard) { return aCard.Line == std::optional{ aLine }; });
+				expect(found != view.cards().end(), "a note stands at each line");
+				return *found;
+			};
+			const auto& published = at(10U);
+			const auto& draft     = at(20U);
+			const auto& inReview  = at(30U);
+			const auto& local     = at(40U);
+			expect(!published.Draft && draft.Draft && !draft.Pending && !draft.Local && inReview.Draft && inReview.Pending && local.Local && view.open_card() == nullptr,
+				   name + ": a published thread, my draft, my pending draft and my Local comment, all closed");
+			auto       image  = view.viewport()->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+			const auto scale  = image.devicePixelRatio();
+			const auto drawer = view.palette().color(QPalette::Active, QPalette::Window);
+			if (!aDirectory.isEmpty()) {
+				expect(image.save(aDirectory + QStringLiteral("/closed-drafts-%1.png").arg(QLatin1StringView{ modeName })), name + ": capture the drawer");
+			}
+			const auto pixel = [&image, scale](const QPoint aPoint) { return image.pixelColor(static_cast<int>(aPoint.x() * scale), static_cast<int>(aPoint.y() * scale)); };
+			// The card's ground: under its words' column, between two lines
+			// of its row for the name, clear of every glyph.
+			const auto groundOf = [&](const qt::thread_card& aCard) { return pixel(QPoint{ view.note_rect(aCard.Id).right() - 4, view.note_rect(aCard.Id).bottom() - 4 }); };
+			// The frame: the pixel along the note's top edge that stands
+			// furthest from the drawer.
+			const auto frameOf = [&](const qt::thread_card& aCard) {
+				const auto rect = view.note_rect(aCard.Id);
+				auto       best = drawer;
+				for (auto x = rect.left() + 12; x < rect.right() - 12; ++x) {
+					for (auto y = rect.top(); y <= rect.top() + 2; ++y) {
+						if (const auto colour = pixel(QPoint{ x, y }); ratio(colour, drawer) > ratio(best, drawer)) {
+							best = colour;
+						}
+					}
+				}
+				return best;
+			};
+			// The words of its state: the pixel of its tag furthest from the
+			// card's ground.
+			const auto tagOf = [&](const qt::thread_card& aCard) {
+				const auto rect   = view.draft_tag_rect(aCard);
+				const auto ground = groundOf(aCard);
+				auto       best   = ground;
+				for (auto y = rect.top(); y <= rect.bottom(); ++y) {
+					for (auto x = rect.left(); x <= rect.right(); ++x) {
+						if (const auto colour = pixel(QPoint{ x, y }); ratio(colour, ground) > ratio(best, ground)) {
+							best = colour;
+						}
+					}
+				}
+				return best;
+			};
+			expect(view.draft_tag_rect(published).isEmpty() && groundOf(published) == drawer && ratio(frameOf(published), drawer) < 1.2,
+				   name + ": a published note at rest stands on the drawer, with no frame and no state of mine");
+			for (const auto* const card : { &draft, &inReview, &local }) {
+				const auto what   = name + " " + (card->Local ? "Local" : card->Pending ? "pending draft"
+																						: "draft");
+				const auto ground = groundOf(*card);
+				const auto frame  = frameOf(*card);
+				const auto tag    = tagOf(*card);
+				std::cout << "closed-draft " << what << ": drawer " << drawer.name().toStdString() << " ground " << ground.name().toStdString() << " frame " << frame.name().toStdString() << " (" << ratio(frame, drawer)
+						  << ") tag " << tag.name().toStdString() << " (" << ratio(tag, ground) << ")\n";
+				expect(!view.draft_tag_rect(*card).isEmpty() && view.note_rect(card->Id).contains(view.draft_tag_rect(*card)), what + ": it says what it is, inside its note");
+				// A high contrast theme's floor leaves the wash little room,
+				// and none on a paper that is the drawer's own colour.
+				expect(ground != drawer || highContrast, what + ": it stands on a ground of its own, not the drawer's");
+				expect(ratio(frame, drawer) + 0.005 >= indicator, what + ": its frame reaches the theme's floor for a mark against the drawer");
+				expect(ratio(tag, ground) + 0.005 >= floor, what + ": its state's words reach the theme's text floor on its ground");
+			}
+			// A draft is the writing blue's, pending or not; Local is not.
+			expect(groundOf(draft) == groundOf(inReview) && frameOf(draft) == frameOf(inReview), name + ": a draft wears one frame, pending in my review or not");
+			expect(frameOf(local) != frameOf(draft) || highContrast, name + ": a Local comment's frame is not a draft's");
+			expect(tagOf(local) != tagOf(draft) || highContrast, name + ": nor are its state's words in a draft's ink");
+			// The frame is dashed: along its top edge the drawer shows through.
+			{
+				// A dash is the frame's ink; between two the ground shows, or
+				// most of it where a gap is narrower than a pixel.
+				const auto rect   = view.note_rect(draft.Id);
+				const auto ground = groundOf(draft);
+				const auto inkAt  = ratio(frameOf(draft), ground) * 0.6;
+				auto       gaps   = 0;
+				auto       inked  = false;
+				for (auto x = rect.left() + 12; x < rect.right() - 12; ++x) {
+					auto dash = false;
+					for (auto y = rect.top(); y <= rect.top() + 2; ++y) {
+						dash = dash || ratio(pixel(QPoint{ x, y }), ground) >= inkAt;
+					}
+					gaps += inked && !dash ? 1 : 0;
+					inked = dash;
+				}
+				expect(gaps >= 8, name + ": my draft's frame is dashed (" + std::to_string(gaps) + " gaps along its top)");
+			}
+			// Words, not only colour: its own words are still read.
+			expect(view.closed_preview(draft.Id).contains(QStringLiteral("the width is clamped")), name + ": my closed draft still shows its words");
+			// Under the pointer its ground deepens, and its state still reads.
+			{
+				const auto rest = groundOf(draft);
+				auto       move = QMouseEvent{ QEvent::MouseMove, QPointF{ view.note_rect(draft.Id).center() }, QPointF{ view.viewport()->mapToGlobal(view.note_rect(draft.Id).center()) }, Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+				QApplication::sendEvent(view.viewport(), &move);
+				QApplication::processEvents();
+				image = view.viewport()->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+				if (!aDirectory.isEmpty()) {
+					expect(image.save(aDirectory + QStringLiteral("/closed-drafts-hover-%1.png").arg(QLatin1StringView{ modeName })), name + ": capture my draft under the pointer");
+				}
+				std::cout << "closed-draft " << name << " draft under the pointer: ground " << groundOf(draft).name().toStdString() << " tag " << tagOf(draft).name().toStdString() << " (" << ratio(tagOf(draft), groundOf(draft)) << ")\n";
+				expect(view.hovered_thread() == draft.Id && (groundOf(draft) != rest || highContrast), name + ": under the pointer my draft's ground deepens");
+				expect(ratio(tagOf(draft), groundOf(draft)) + 0.005 >= floor, name + ": under the pointer its state's words still reach the text floor");
+			}
+			view.hide();
+		}
+	}
+
 	/// [[BPR-1803]]. The owner, 2026-10-28: "I don't like the comments or
 	/// windows saying "you" id rather just always have our GitHub names like
 	/// everyone else". My thread, my reply and my unpublished note are named
@@ -4894,6 +5069,11 @@ auto main(int argc, char** argv) -> int
 		std::cout << "render-line-numbers:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-closed-drafts") {
+		test_my_closed_draft_reads_as_a_draft(QString::fromLocal8Bit(argv[2]));
+		std::cout << "render-closed-drafts:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc > 2 && std::string_view{ argv[1] } == "--render-bpr-1803") {
 		test_my_posts_are_named_by_my_login(QString::fromLocal8Bit(argv[2]));
 		test_reactions_render_in_light_and_dark(QString::fromLocal8Bit(argv[2]));
@@ -4982,6 +5162,7 @@ auto main(int argc, char** argv) -> int
 	test_reactions_render_in_light_and_dark({ });
 	test_my_posts_are_named_by_my_login({ });
 	test_line_numbers_read_on_the_open_card({ });
+	test_my_closed_draft_reads_as_a_draft({ });
 	test_conversation_lists_comments_not_reviews();
 	test_a_review_body_is_a_comment_in_its_bundle();
 	test_my_comments_are_edited_in_place();

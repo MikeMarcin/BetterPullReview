@@ -1,5 +1,6 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/workbench_interaction.hpp"
@@ -246,6 +247,67 @@ namespace bpr::qt {
 				aFont.setPixelSize(std::max(1, static_cast<int>(std::lround(aFont.pixelSize() * aFactor))));
 			}
 			return aFont;
+		}
+
+		/// `aShare` of `aTint` laid into `aGround`.
+		[[nodiscard]] auto tinted(const QColor& aGround, const QColor& aTint, const qreal aShare) -> QColor
+		{
+			const auto channel = [aShare](const int aFrom, const int aTo) { return static_cast<int>(std::lround(aFrom + (aTo - aFrom) * aShare)); };
+			return QColor{ channel(aGround.red(), aTint.red()), channel(aGround.green(), aTint.green()), channel(aGround.blue(), aTint.blue()) };
+		}
+
+		/// \brief The owner, of my draft closed in the drawer: "it was still
+		/// collapsed so it was hard to even tell it was the draft. I think
+		/// collapsed draft might need a more substantial visual than the
+		/// little draft in top right corner. Maybe a border?" The note had a
+		/// frame, dashed in the hairline's grey, and "Draft" in the faint
+		/// ink: neither read at a glance.
+		///
+		/// My closed draft is the composer shut: a card on its own ground,
+		/// washed with the writing blue the open composer is edged in, inside
+		/// a dashed frame in that blue (dashed is not sent, as a draft's mark
+		/// is everywhere), with its state in that ink. A Local comment, never
+		/// sent, wears the same card in the quiet ink its open card is edged
+		/// in. `aRaised`: under the pointer or the keyboard's cursor.
+		/// `aVariant` names the text floor the state's words are held to.
+		struct draft_frame
+		{
+			QColor Edge;
+			QColor Ground;
+			QColor Ink;
+		};
+		[[nodiscard]] auto draft_frame_of(const note_colours& aColours, const bool aLocal, const bool aRaised, const core::appearance_variant aVariant) -> draft_frame
+		{
+			const auto& ink  = aLocal ? aColours.Ink2 : aColours.SignalInk;
+			auto        wash = aLocal ? (aRaised ? 0.07 : 0.035)
+				: aColours.Dark       ? (aRaised ? 0.15 : 0.11)
+									  : (aRaised ? 0.085 : 0.055);
+			// The wash gives way to the words: its state must still reach the
+			// theme's text floor on it, with room for a thin stem's blending,
+			// so a high contrast theme takes little of it or none.
+			const auto text   = core::minimum_contrast_hundredths(core::contrast_kind::text, aVariant);
+			const auto floor  = text + (text * 5U) / 100U;
+			auto       ground = tinted(aColours.Panel, ink, wash);
+			for (auto step = 0; step < 6 && core::contrast_ratio_hundredths(to_appearance_color(ink), to_appearance_color(ground)) < floor; ++step) {
+				wash   = step == 5 ? 0.0 : wash * 0.6;
+				ground = tinted(aColours.Panel, ink, wash);
+			}
+			return { .Edge = ink, .Ground = ground, .Ink = ink };
+		}
+
+		/// What my closed draft says it is, in the room its name row has.
+		/// [[BPR-1345]]. A draft pending in my review says so; in a narrow
+		/// drawer, "Pending", so the name keeps its room. [[BPR-1374]]. My
+		/// kept reply was never sent, and says so.
+		[[nodiscard]] auto draft_tag_words(const thread_card& aCard, const int aRoom, const QFontMetrics& aMetrics) -> QString
+		{
+			const auto whole = QStringLiteral("Pending in your review");
+			return aCard.Local                                         ? QStringLiteral("Local")
+				: aCard.UnsentReply.has_value()                        ? QStringLiteral("Not sent")
+				: aCard.MovedSuggestion                                ? QStringLiteral("Earlier head")
+				: !aCard.Pending                                       ? QStringLiteral("Draft")
+				: aRoom - aMetrics.horizontalAdvance(whole) - 20 >= 90 ? whole
+																	   : QStringLiteral("Pending");
 		}
 
 		[[nodiscard]] auto name_height(const QFont& aFont) -> int
@@ -4541,15 +4603,24 @@ namespace bpr::qt {
 		if (aCard.Resolved && !aHovered && !aFocused) {
 			aPainter.setOpacity(0.62);
 		}
-		if (aHovered || aFocused) {
-			aPainter.setPen(aFocused ? QPen{ colours.Signal, 2.0 } : QPen{ colours.Rule, 1.0 });
-			aPainter.setBrush(colours.Panel);
+		const auto frame = aCard.Draft ? std::optional{ draft_frame_of(colours, aCard.Local, aHovered || aFocused, CodeTheme ? CodeTheme->Variant : core::appearance_variant::light) } : std::nullopt;
+		if (frame) {
+			aPainter.setPen(Qt::NoPen);
+			aPainter.setBrush(frame->Ground);
 			aPainter.drawRoundedRect(box, 8.0, 8.0);
 		}
-		if (aCard.Draft) {
-			aPainter.setPen(QPen{ colours.Rule2, 1.5, Qt::DashLine });
+		if (aFocused || (aHovered && !frame)) {
+			aPainter.setPen(aFocused ? QPen{ colours.Signal, 2.0 } : QPen{ colours.Rule, 1.0 });
+			aPainter.setBrush(frame ? QBrush{ Qt::NoBrush } : QBrush{ colours.Panel });
+			aPainter.drawRoundedRect(box, 8.0, 8.0);
+		}
+		if (frame) {
+			// On whole pixels, so each dash is its ink and not a blend of it
+			// with the ground; inside the keyboard cursor's ring, so both read.
+			const auto inset = aFocused ? 3.0 : 1.0;
+			aPainter.setPen(QPen{ frame->Edge, 1.5, Qt::DashLine });
 			aPainter.setBrush(Qt::NoBrush);
-			aPainter.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 8.0, 8.0);
+			aPainter.drawRoundedRect(box.adjusted(inset, inset, -inset, -inset), 8.0 - inset, 8.0 - inset);
 		}
 		if (aCard.Posts.empty()) {
 			aPainter.restore();
@@ -4575,26 +4646,20 @@ namespace bpr::qt {
 		// whether it is resolved; my draft says so instead.
 		aPainter.setFont(small);
 		const auto smallMetrics = QFontMetrics{ small };
-		if (aCard.Draft) {
-			// [[BPR-1345]]. A draft pending in my review says so in the
-			// writing blue, as the start-a-review frames tag it.
-			// In a narrow drawer, "Pending", so the name keeps its room.
-			const auto whole = QStringLiteral("Pending in your review");
-			// [[BPR-1374]]. My kept reply was never sent, and says so.
-			const auto words = aCard.Local                                        ? QStringLiteral("Local")
-				: aCard.UnsentReply.has_value()                                   ? QStringLiteral("Not sent")
-				: aCard.MovedSuggestion                                           ? QStringLiteral("Earlier head")
-				: !aCard.Pending                                                  ? QStringLiteral("Draft")
-				: right - left - smallMetrics.horizontalAdvance(whole) - 20 >= 90 ? whole
-																				  : QStringLiteral("Pending");
-			const auto ink   = aCard.Pending ? colours.SignalInk : colours.Faint;
-			const auto w     = smallMetrics.horizontalAdvance(words);
-			aPainter.setPen(ink);
-			aPainter.drawText(QRect{ right - w, top, w + 1, nameH }, Qt::AlignRight | Qt::AlignVCenter, words);
+		if (frame) {
+			// What it is, in its frame's ink and the name's weight: a draft
+			// in the writing blue, pending in my review or not; a Local
+			// comment in the quiet ink.
+			const auto tag   = draft_tag_rect(aCard);
+			const auto words = draft_tag_words(aCard, right - left, QFontMetrics{ semibold(small) });
+			aPainter.setFont(semibold(small));
+			aPainter.setPen(frame->Ink);
+			aPainter.drawText(tag.adjusted(16, 0, 0, 0), Qt::AlignRight | Qt::AlignVCenter, words);
 			// RFC-BPR-0127 (owner, Q1): the computer is Local and nothing
 			// else; a draft wears its pencil, and no state wears a lock.
-			paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - w - 16), top + (nameH - 12) / 2.0, 12.0, 12.0 }, aCard.Local ? conversation_glyph::computer : conversation_glyph::edit, ink);
-			right -= w + 20;
+			paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(tag.left()), top + (nameH - 12) / 2.0, 12.0, 12.0 }, aCard.Local ? conversation_glyph::computer : conversation_glyph::edit, frame->Ink);
+			aPainter.setFont(small);
+			right = tag.left() - 4;
 		} else {
 			// [[BPR-1471]], [[BPR-1473]]. The resolved check's slot is kept on
 			// every note and the blue count follows it, so the counts line up
@@ -4930,6 +4995,18 @@ namespace bpr::qt {
 		const auto rect = to_viewport(aCard.Rect);
 		// Centred under the 18 px avatar: one pixel either side at any whole scale.
 		return QRect{ rect.left() + gut_left + (avatar_size - mark_size) / 2, rect.top() + note_top + 1 + avatar_size + mark_gap, mark_size, mark_size };
+	}
+
+	auto conversation_cards_view::draft_tag_rect(const thread_card& aCard) const -> QRect
+	{
+		if (!aCard.Draft || aCard.Posts.empty() || aCard.Rect.isEmpty()) {
+			return { };
+		}
+		const auto rect    = to_viewport(aCard.Rect);
+		const auto metrics = QFontMetrics{ semibold(scaled(font(), 0.92)) };
+		const auto right   = rect.right() - note_right;
+		const auto width   = metrics.horizontalAdvance(draft_tag_words(aCard, right - (rect.left() + text_left), metrics));
+		return QRect{ right - width - 16, rect.top() + note_top, width + 17, name_height(font()) };
 	}
 
 	auto conversation_cards_view::rail_rect(const thread_card& aCard) const -> QRectF
