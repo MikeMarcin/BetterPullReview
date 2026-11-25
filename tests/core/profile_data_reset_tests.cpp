@@ -176,6 +176,9 @@ namespace {
 
 		expect(profile_data_reset_selection_from_names("caches,agent-sessions") == selection{ reset::caches }.with(reset::agent_sessions), "the command line takes a list");
 		expect(profile_data_reset_selection_from_names("everything") == selection::all(), "the command line still takes everything");
+		expect(profile_data_reset_selection_names(selection{ reset::agent_sessions }.with(reset::caches)) == "caches,agent-sessions" && profile_data_reset_selection_names(selection::all()) == "everything"
+				   && profile_data_reset_selection_names(reset::review_data) == "review-data" && profile_data_reset_selection_names({ }).empty(),
+			   "a selection names itself as the command line takes it");
 		expect(!profile_data_reset_selection_from_names("caches,") && !profile_data_reset_selection_from_names("") && !profile_data_reset_selection_from_names("caches,nope"),
 			   "an empty or unknown name refuses the list");
 	}

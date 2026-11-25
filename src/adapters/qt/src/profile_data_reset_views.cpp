@@ -167,8 +167,8 @@ namespace bpr::qt {
 					   QStringLiteral("Your edited review skill, after a copy to Downloads") } };
 		case reset::agent_sessions:
 			return { QStringLiteral("Agent sessions"),
-					 QStringLiteral("BetterPullReview’s agent sessions with their transcripts, names and costs, and the workspaces they keep. Claude Code’s and Codex’s own session files stay."),
-					 { QStringLiteral("Agent sessions: transcripts, names, costs and finding cards") } };
+					 QStringLiteral("BetterPullReview’s agent sessions with their transcripts, names and costs, the follow-ups queued for them, and the workspaces they keep. Claude Code’s and Codex’s own session files stay."),
+					 { QStringLiteral("Agent sessions: transcripts, names, costs and finding cards"), QStringLiteral("Follow-up messages queued to send next") } };
 		case reset::agent_workspaces:
 			return { QStringLiteral("Agent workspaces"),
 					 QStringLiteral("Retained agent workspaces not in use, with any changes an agent made there and did not publish. Sessions stay and make a fresh one when they next ask."),

@@ -1557,7 +1557,7 @@ namespace {
 			static_cast<void>(dialog.exec());
 		}
 		const auto request = dialog.request();
-		QTextStream{ stdout } << "PROFILE_RECOVERY_CHOICE:" << (request ? QString::fromUtf8(bpr::core::profile_data_reset_name(request->Reset)) : QStringLiteral("quit")) << '\n';
+		QTextStream{ stdout } << "PROFILE_RECOVERY_CHOICE:" << (request ? QString::fromStdString(bpr::core::profile_data_reset_selection_names(request->Reset)) : QStringLiteral("quit")) << '\n';
 		return request;
 	}
 

@@ -36,6 +36,11 @@ namespace bpr::adapters::sqlite {
 	/// earlier build's conversation tables out of `agent-setup.sqlite3`
 	/// first (a stopped move finishes here). Answers whether it is ready.
 	[[nodiscard]] auto prepare_agent_sessions_store(const std::filesystem::path& aRoot) -> bool;
+	/// \brief [[BPR-NNNN]]. Forgets every chat's queued follow-ups (the
+	/// agent queues kept with the agent setup), as clearing Agent sessions
+	/// does; a profile with no agent setup store has none. Answers whether
+	/// none is left.
+	[[nodiscard]] auto clear_agent_queues(const std::filesystem::path& aRoot) -> bool;
 
 	/// \brief [[BPR-1750]], RFC-BPR-0092 D2. The same file's clone
 	/// folders (at most `core::maximum_clone_folders`, in order) and repository

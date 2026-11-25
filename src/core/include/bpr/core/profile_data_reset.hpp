@@ -6,6 +6,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -317,6 +318,11 @@ namespace bpr::core {
 	/// \brief [[BPR-NNNN]]. The selection a comma-separated list of names
 	/// selects ("caches,agent-sessions"), or none when any name is unknown or
 	/// empty.
+	/// \brief [[BPR-NNNN]]. The command-line names of a selection, comma
+	/// separated in the Clear list's order ("caches,agent-sessions");
+	/// "everything" for every category, empty for none.
+	[[nodiscard]] auto profile_data_reset_selection_names(profile_data_reset_selection aSelection) -> std::string;
+
 	[[nodiscard]] auto profile_data_reset_selection_from_names(std::string_view aNames) noexcept -> std::optional<profile_data_reset_selection>;
 }
 

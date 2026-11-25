@@ -77,7 +77,7 @@ that could not be. Nothing on GitHub changes. **Check all** is the former
 | Caches | Repository data downloaded from GitHub, images, Home's summaries and agent context snapshots. They download again. |
 | Settings | Every choice in Settings, agent setup and prompts, notifications, filters and window layout (`agent-setup.sqlite3` among them). Agent conversations are kept. Includes Agent setup. |
 | Agent setup | The former **Reset agents…**: every agent you added with its model, effort and check, the clone folders and linked clones, and an edited review skill (a copy goes to Downloads first). Setup starts again; prompts and conversations stay. |
-| Agent sessions | BetterPullReview's agent conversations (transcripts, names, costs, finding card states) in `agent-sessions.sqlite3`. Includes Agent workspaces. |
+| Agent sessions | BetterPullReview's agent sessions (transcripts, names, costs, finding card states) in `agent-sessions.sqlite3`, and the follow-ups queued to send next. Includes Agent workspaces. |
 | Agent workspaces | The former workspace **Remove…**: every retained agent workspace not in use, with its measured size beside the box. Conversations stay and make a fresh one when they next ask. |
 | Review data | Read and seen marks, private notes, unsent comments and reviews, tours and Review Cycles. |
 | Saved repositories and servers | Saved repositories and servers, observer rules and Home's queue. |

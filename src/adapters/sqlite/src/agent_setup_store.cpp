@@ -4684,6 +4684,28 @@ namespace bpr::adapters::sqlite {
 
 	auto agent_sessions_store_file(const std::filesystem::path& aRoot) -> std::filesystem::path { return aRoot / "state" / "v1" / std::filesystem::path{ agent_sessions_file }; }
 
+	auto clear_agent_queues(const std::filesystem::path& aRoot) -> bool
+	{
+		try {
+			auto present = std::error_code{ };
+			if (!std::filesystem::exists(agent_setup_store_file(aRoot), present) || present) {
+				return !present;
+			}
+			auto store = open(aRoot);
+			if (!store || !detail::execute(store->Database.get(), "BEGIN IMMEDIATE")) {
+				return false;
+			}
+			auto* const db = store->Database.get();
+			if (!detail::execute(db, "DELETE FROM agent_queue_entries") || !detail::execute(db, "DELETE FROM agent_queues") || !detail::execute(db, "COMMIT")) {
+				static_cast<void>(detail::execute(db, "ROLLBACK"));
+				return false;
+			}
+			return true;
+		} catch (...) {
+			return false;
+		}
+	}
+
 	auto prepare_agent_sessions_store(const std::filesystem::path& aRoot) -> bool
 	{
 		try {

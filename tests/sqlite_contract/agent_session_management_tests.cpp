@@ -5,6 +5,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/application/agent_session_management.hpp"
+#include "bpr/core/agent_queue.hpp"
 #include "scratch_root.hpp"
 
 #include <sqlite3.h>
@@ -178,6 +179,19 @@ namespace {
 		const auto history = store->history(scope, "claude");
 		const auto records = store->retained_workspaces();
 		expect(history && history->Entries.empty() && records && records->empty(), "nothing is left in the catalog");
+		// [[BPR-NNNN]]. The chats' queued follow-ups go with the sessions.
+		{
+			auto entry          = core::queued_entry{ };
+			entry.Id            = 1U;
+			entry.Input.Text    = "waiting";
+			entry.Input.Threads = { "thread-a" };
+			auto queue          = core::agent_queue{ };
+			queue.LastId        = 1U;
+			queue.Entries.push_back(entry);
+			auto queues = adapters::sqlite::make_agent_queue_store(scratch.path());
+			expect(queues->store("session", queue) && queues->load()->size() == 1U, "a follow-up is queued");
+			expect(adapters::sqlite::clear_agent_queues(scratch.path()) && queues->load() && queues->load()->empty(), "clearing the queues leaves none");
+		}
 		// An empty catalog clears without the files port.
 		expect(application::clear_agent_sessions(*store, nullptr, { }).Cleared, "nothing to remove clears at once");
 	}

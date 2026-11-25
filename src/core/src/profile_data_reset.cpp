@@ -246,6 +246,21 @@ namespace bpr::core {
 		return std::nullopt;
 	}
 
+	auto profile_data_reset_selection_names(const profile_data_reset_selection aSelection) -> std::string
+	{
+		if (aSelection == profile_data_reset_selection::all()) {
+			return std::string{ profile_data_reset_name(profile_data_reset::everything) };
+		}
+		auto joined = std::string{ };
+		for (const auto each : profile_data_reset_categories) {
+			if (aSelection.contains(each)) {
+				joined += joined.empty() ? "" : ",";
+				joined += profile_data_reset_name(each);
+			}
+		}
+		return joined;
+	}
+
 	auto profile_data_reset_selection_from_names(const std::string_view aNames) noexcept -> std::optional<profile_data_reset_selection>
 	{
 		auto selection = profile_data_reset_selection{ };

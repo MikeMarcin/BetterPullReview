@@ -252,6 +252,11 @@ namespace bpr::app {
 				return report;
 			}
 		}
+		// [[BPR-NNNN]]. The chats' queued follow-ups go with the sessions they
+		// were waiting for; with Settings the store that keeps them is gone.
+		if (files.contains(core::profile_data_reset::agent_sessions) && !files.contains(core::profile_data_reset::settings) && !adapters::sqlite::clear_agent_queues(aRoot)) {
+			report.Outcome.Failed = report.Outcome.Failed.with(core::profile_data_reset::agent_sessions);
+		}
 		if (core::profile_data_reset_restores_queue_display(files)) {
 			try {
 				auto       store                    = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = aRoot });
