@@ -7,7 +7,9 @@
 
 #include "bpr/core/agent_report.hpp"
 #include "bpr/core/agent_report_keep.hpp"
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/workbench_interaction.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/report_page.hpp"
 
@@ -16,9 +18,11 @@
 #include <QAbstractScrollArea>
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
+#include <QColor>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
@@ -276,6 +280,137 @@ namespace {
 		}
 	}
 
+	/// The colour the document draws the link reading `aWords` in; none when
+	/// the page has no such link.
+	[[nodiscard]] auto anchor_colour(QTextEdit& aPage, const QString& aWords) -> std::optional<QColor>
+	{
+		for (auto block = aPage.document()->begin(); block.isValid(); block = block.next()) {
+			for (auto fragment = block.begin(); !fragment.atEnd(); ++fragment) {
+				if (const auto format = fragment.fragment().charFormat(); format.isAnchor() && !format.anchorHref().isEmpty() && fragment.fragment().text() == aWords) {
+					return format.foreground().color();
+				}
+			}
+		}
+		return std::nullopt;
+	}
+
+	/// What a widget draws, as its pixels' colours.
+	[[nodiscard]] auto drawn(QWidget& aWidget) -> QImage { return aWidget.grab().toImage().convertToFormat(QImage::Format_ARGB32); }
+
+	/// Whether any pixel leans to the stand-in platform link (a magenta):
+	/// green well under both red and blue, which no blend of a blue and a
+	/// ground is.
+	[[nodiscard]] auto draws_platform_link(const QImage& aImage) -> bool
+	{
+		for (auto y = 0; y < aImage.height(); ++y) {
+			for (auto x = 0; x < aImage.width(); ++x) {
+				const auto pixel = aImage.pixelColor(x, y);
+				if (pixel.alpha() > 0 && pixel.red() - pixel.green() > 40 && pixel.blue() - pixel.green() > 40) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/// How near the nearest opaque pixel of `aImage` comes to `aColour`: the
+	/// largest difference of a channel.
+	[[nodiscard]] auto nearest(const QImage& aImage, const QColor& aColour) -> int
+	{
+		auto best = 255;
+		for (auto y = 0; y < aImage.height(); ++y) {
+			for (auto x = 0; x < aImage.width(); ++x) {
+				const auto pixel = aImage.pixelColor(x, y);
+				if (pixel.alpha() == 255) {
+					best = std::min(best, std::max({ std::abs(pixel.red() - aColour.red()), std::abs(pixel.green() - aColour.green()), std::abs(pixel.blue() - aColour.blue()) }));
+				}
+			}
+		}
+		return best;
+	}
+
+	/// The owner, 2026-11-24: "Why is "Review this pull request" at the top
+	/// in the dark blue and the other links are in the more pastel blue? Can
+	/// we have the softer blue for the question link too on reports." The
+	/// question read the palette's link role, which no theme owns (the
+	/// platform's blue); the page writes its places in a blue of its own. In
+	/// the built-in Light and Dark, under a platform link role unlike
+	/// either, the question, its bubble, the menu's bar and a report drawn
+	/// as Markdown wear the colour the page's places wear.
+	void check_question_link()
+	{
+		namespace core = bpr::core;
+		namespace qt   = bpr::qt;
+		// The role a platform hands the application, as no page would derive.
+		const auto platform  = QColor{ 0xFF, 0x00, 0xC8 };
+		const auto inherited = QApplication::palette();
+		auto       handed    = inherited;
+		handed.setColor(QPalette::Link, platform);
+		QApplication::setPalette(handed);
+		const auto settle = [] {
+			for (auto pass = 0; pass < 4; ++pass) {
+				QApplication::processEvents();
+			}
+		};
+		{
+			// The control: a label left to the palette draws the platform's
+			// role, which is what the question did.
+			QLabel plain{ QStringLiteral("<a href=\"conversation\" style=\"text-decoration:none\">Review this pull request</a>") };
+			plain.setTextFormat(Qt::RichText);
+			plain.show();
+			settle();
+			expect(draws_platform_link(drawn(plain)), "a link left to the palette is drawn in the platform's link role");
+		}
+		auto view = qt::agent_report_view{ };
+		view.resize(820, 700);
+		view.show();
+		const auto report = QStringLiteral("# Review of #7\n\n**Verdict:** Needs changes\n\nOne fix, and [the tests](tests/a_tests.cpp:4) miss it.\n\n## Must fix\n\n### issue: A zero height\n\n"
+										   "`src/engine/renderer.cpp:12`\n\nClamp it.\n");
+		view.present({ .Turn = 1U, .Title = QStringLiteral("Review of #7"), .Markdown = report, .Question = QStringLiteral("Review this pull request"), .Byline = { } });
+		auto       profile = qt::appearance_profile{ };
+		auto       seen    = std::vector<QColor>{ };
+		const auto place   = QStringLiteral("src/engine/renderer.cpp:12");
+		for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, std::string{ "Light" } }, std::pair{ core::appearance_mode::dark, std::string{ "Dark" } } }) {
+			// The theme arrives as a palette alone: the page shown is drawn
+			// again in it, with no new report and no tone told.
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(view);
+			settle();
+			const auto wanted = qt::to_presentation_color(core::derive_report_shades(profile.palette()).Link);
+			const auto ground = view.palette().color(QPalette::Base);
+			expect(view.dressed_shown() && (ground.lightness() < 128) == (mode == core::appearance_mode::dark), name + ": the page is shown in the theme");
+			expect(wanted != platform && qt::report_link_colour({ .Paper = ground, .Ink = view.palette().color(QPalette::Text) }) == wanted, name + ": the page's link is the core's, off the theme's ground and ink");
+			auto* const page = view.dressed_view();
+			expect(anchor_colour(*page, place) == std::optional{ wanted }, name + ": a place is written in the page's link colour");
+			expect(anchor_colour(*page, QStringLiteral("the tests")) == std::optional{ wanted }, name + ": and so is a link in the summary");
+			auto* const byline = view.findChild<QLabel*>(QStringLiteral("agentReportByline"));
+			auto* const bubble = view.findChild<QLabel*>(QStringLiteral("agentReportQuestionIcon"));
+			auto* const menu   = view.findChild<QWidget*>(QStringLiteral("agentReportOutline"));
+			expect(byline != nullptr && bubble != nullptr && menu != nullptr, name + ": the question, its bubble and the menu");
+			expect(byline->text().contains(QStringLiteral("Review this pull request")) && byline->text().contains(QStringLiteral("color:") + wanted.name()), name + ": the question is written in the page's link colour");
+			const auto question = drawn(*byline);
+			const auto near     = nearest(question, wanted);
+			std::cout << "report-question-link " << name << ": page link " << wanted.name().toStdString() << ", nearest pixel of the question drawn within "
+					  << near << ", platform role " << platform.name().toStdString() << "\n";
+			expect(!draws_platform_link(question), name + ": no pixel of the question is the platform's link role");
+			expect(near <= 24, name + ": the question is drawn in the page's link colour, within " + std::to_string(near));
+			const auto glyph = bubble->pixmap().toImage().convertToFormat(QImage::Format_ARGB32);
+			expect(!glyph.isNull() && nearest(glyph, wanted) <= 2 && !draws_platform_link(glyph), name + ": the bubble before it is the same colour");
+			expect(menu->palette().color(QPalette::Active, QPalette::Link) == wanted, name + ": the menu marks the current section in it");
+			seen.push_back(wanted);
+		}
+		expect(seen.size() == 2U && seen[0] != seen[1], "Light and Dark each have their own");
+		// A report that does not keep to the template is drawn as Markdown:
+		// its links and the question still agree, in the theme left on (Dark).
+		view.present({ .Turn = 2U, .Title = QStringLiteral("Notes"), .Markdown = QStringLiteral("# Notes\n\nSee [the clamp](src/engine/renderer.cpp:12) first.\n"), .Question = QStringLiteral("Review this pull request"), .Byline = { } });
+		settle();
+		auto* const body = dynamic_cast<qt::markdown_body_view*>(view.findChild<QWidget*>(QStringLiteral("agentReportBody")));
+		expect(!view.dressed_shown() && body != nullptr && body->rendered_view() != nullptr, "a report with no sections is drawn as Markdown");
+		expect(anchor_colour(*body->rendered_view(), QStringLiteral("the clamp")) == std::optional{ seen.back() }, "its link is the page's link colour");
+		expect(view.findChild<QLabel*>(QStringLiteral("agentReportByline"))->text().contains(QStringLiteral("color:") + seen.back().name()) && nearest(drawn(*view.findChild<QLabel*>(QStringLiteral("agentReportByline"))), seen.back()) <= 24, "and so is the question over it");
+		QApplication::setPalette(inherited);
+	}
+
 	void click(QTextEdit& aPage, const QPoint aAt)
 	{
 		QMouseEvent press{ QEvent::MouseButtonPress, QPointF{ aAt }, aPage.viewport()->mapToGlobal(QPointF{ aAt }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
@@ -328,7 +463,22 @@ try {
 		const auto look = qEnvironmentVariable("BPR_REPORT_RENDER_LOOK");
 		view.set_look(look == QStringLiteral("band") ? bpr::qt::report_look::band : look == QStringLiteral("plain") ? bpr::qt::report_look::plain
 																													: bpr::qt::report_look::cards);
-		if (view.palette().color(QPalette::Base).lightness() < 128) {
+		// BPR_REPORT_RENDER_SCHEME (light or dark) draws it in that built-in
+		// theme, as the application applies it. The offscreen platform has
+		// no theme of its own, so BPR_REPORT_RENDER_PLATFORM_LINK stands in
+		// for the link role a platform hands the application, which no
+		// theme owns (macOS: #0068DA light, #419CFF dark).
+		if (const auto inherited = QColor{ qEnvironmentVariable("BPR_REPORT_RENDER_PLATFORM_LINK") }; inherited.isValid()) {
+			auto platform = QApplication::palette();
+			platform.setColor(QPalette::Link, inherited);
+			QApplication::setPalette(platform);
+		}
+		auto profile = bpr::qt::appearance_profile{ };
+		if (const auto scheme = qEnvironmentVariable("BPR_REPORT_RENDER_SCHEME"); !scheme.isEmpty()) {
+			static_cast<void>(profile.select_mode(scheme == QStringLiteral("dark") ? bpr::core::appearance_mode::dark : bpr::core::appearance_mode::light));
+			profile.apply_to(view);
+			view.set_tone_colours(bpr::qt::tone_colours_of(profile));
+		} else if (view.palette().color(QPalette::Base).lightness() < 128) {
 			view.set_tone_colours(bpr::qt::builtin_tone_colours(true));
 		}
 		const auto markdown = QString::fromUtf8(file.readAll());
@@ -658,6 +808,7 @@ try {
 	check_inline_code();
 	check_keep_chip();
 	check_reading_width();
+	check_question_link();
 	std::cout << "AGENT_REPORT_VIEW_OK\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {

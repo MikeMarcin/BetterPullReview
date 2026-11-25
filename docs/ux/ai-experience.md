@@ -46,6 +46,16 @@ The functional core decides whether an explicit AI action is legal, what local c
   and the pane's own ground and ink, the opening on a bordered band with the
   verdict as a filled mark, each finding a bordered box as a conversation
   card is. The theme's report roles colour only verdicts.
+- A report has one link colour: the page's own blue, which
+  `core::derive_report_shades` derives from the pane's ground and holds to
+  4.5:1 on it (in the built-in themes `#1B5D8C` in Light and `#9CC3DF` in
+  Dark). The question under the title, its speech bubble, a place, a link in
+  the text, the menu's bar for the current section and the links of a report
+  drawn as Markdown all wear it. The platform's link role, which no theme
+  owns and which is a brighter blue, is not used on the page (owner,
+  2026-11-24: "Can we have the softer blue for the question link too on
+  reports"). A theme change redraws the page shown.
+  `qt_agent_report_view` covers it in Light and Dark.
 - A turn sent from a prompt shows the prompt's name as the user's turn, with
   **Show prompt** to see what was sent (look review-report-v001: "All of
   this extra context from a prompt we select should be hidden").

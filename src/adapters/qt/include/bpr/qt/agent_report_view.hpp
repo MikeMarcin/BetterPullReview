@@ -278,6 +278,7 @@ namespace bpr::qt {
 
 	protected:
 		void resizeEvent(QResizeEvent* aEvent) override;
+		void changeEvent(QEvent* aEvent) override;
 		bool eventFilter(QObject* aObject, QEvent* aEvent) override;
 
 	private:
@@ -291,6 +292,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto code_height(int aSlot, int aWidth) const -> int;
 		void               locate_headings();
 		void               apply_colours();
+		void               show_byline(const QColor& aLink);
 		[[nodiscard]] auto shown_text() const -> QTextEdit*;
 		/// The top of section `aIndex`'s item in the page.
 		[[nodiscard]] auto heading_offset(int aIndex) const -> int;
@@ -348,16 +350,18 @@ namespace bpr::qt {
 		std::function<std::optional<QString>(const report_draft&)> RevisionSource;
 		std::function<bool(const report_draft&)>                   DraftOutdated;
 		std::function<void(const report_draft&)>                   DraftUpdate;
-		QLabel*                                                    Title      = nullptr;
-		QLabel*                                                    Byline     = nullptr;
-		QScrollArea*                                               Scroll     = nullptr;
-		markdown_body_view*                                        Body       = nullptr;
-		QToolButton*                                               MenuButton = nullptr;
-		QFrame*                                                    Popover    = nullptr;
-		QListWidget*                                               Sections   = nullptr;
-		std::function<void(const QString&)>                        LinkDispatch;
-		std::function<void(markdown_body_view&)>                   Dresser;
-		std::function<void(std::uint64_t)>                         ConversationDispatch;
+		QLabel*                                                    Title  = nullptr;
+		QLabel*                                                    Byline = nullptr;
+		/// The speech bubble before the question, in the question's colour.
+		QLabel*                                  QuestionIcon = nullptr;
+		QScrollArea*                             Scroll       = nullptr;
+		markdown_body_view*                      Body         = nullptr;
+		QToolButton*                             MenuButton   = nullptr;
+		QFrame*                                  Popover      = nullptr;
+		QListWidget*                             Sections     = nullptr;
+		std::function<void(const QString&)>      LinkDispatch;
+		std::function<void(markdown_body_view&)> Dresser;
+		std::function<void(std::uint64_t)>       ConversationDispatch;
 	};
 } // namespace bpr::qt
 
