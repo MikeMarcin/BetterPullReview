@@ -4008,8 +4008,18 @@ function(bpr_verify_app_source_tree app_source_root)
 	# core::follow_comparison decides before a turn starts. Test access
 	# reads the runtime's observed binding. Agent launch readiness only; no
 	# grant, provider, transport, mutation or publication path changes.
+	# RFC-BPR-0096 reseal (owner, 2026-11-24: "There doesn't appear to be an
+	# option anywhere to continue like it suggests"; continue-at-latest
+	# amendment): a pinned native conversation's stopped card continues it
+	# at its revision or starts a new session (choose_pinned_conversation),
+	# the window's selection follows a new conversation a run started
+	# (window_construction.cpp), and a reconcile choice rides the resent
+	# Agent tab turn once (choose_move_reconcile, window_agent_chat.cpp,
+	# window_agent_setup.cpp, window_composition.hpp). Local agent turns
+	# only; no grant, provider, transport, mutation or publication path
+	# changes; the full application and mutation-branch digests are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "86596718af54050884d107d77dfc51c211327e1196ca63d5b8539ee98384908e"
+        "475b7e5e567467ad62e82d087edbc8f6e6016f1945920bafa03eb2b97e39698d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
