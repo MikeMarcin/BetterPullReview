@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-2401"
+  ],
+  "reserve_for": "codex-update-channel",
+  "purpose": "",
+  "created": "2026-11-25T22:38:39.655914+00:00",
+  "base": "7facef0cec3ded621c6418fc6b4d9bc54ef770e9"
+}
