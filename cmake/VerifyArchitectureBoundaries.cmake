@@ -3590,9 +3590,39 @@ set(
     "https?://"
     "BPR_[A-Z0-9_]*TEST"
 )
+# RFC-BPR-0096, continue-at-latest amendment. Moving a retained agent workspace
+# to the latest head checks the new head out and names a refused rebase's
+# conflicting files with `diff --name-only --diff-filter=U`. Those two verbs stay
+# forbidden in the runner except as the first argument of `workspace_git`, which
+# runs Git in the retained workspace only (`-C <workspace>`) under
+# `workspace_git_arguments`: the private hooks path, every protocol refused,
+# `diff.external=` cleared, submodule recursion and LFS filters off. Each such
+# call is removed before the scan below, and any removal requires that
+# `workspace_git` still builds on those arguments. `merge`, `clone`, `remote` and
+# the rest are not carved out: the move does not run them.
+set(git_process_runner_scanned_contents "${git_process_runner_contents}")
+string(
+    REGEX REPLACE
+    "workspace_git\\([ \t\r\n]*[A-Za-z_][A-Za-z0-9_]*[ \t\r\n]*,[ \t\r\n]*\\{[ \t\r\n]*\"(checkout|diff)\""
+    "workspace_git(MOVE_WORKSPACE_VERB"
+    git_process_runner_scanned_contents
+    "${git_process_runner_scanned_contents}"
+)
+if(
+    NOT git_process_runner_scanned_contents STREQUAL git_process_runner_contents
+    AND NOT git_process_runner_contents
+        MATCHES "auto[ \t\r\n]+workspace_git\\([^)]*\\)[^{;]*\\{[ \t\r\n]*auto[ \t\r\n]+arguments[ \t\r\n]*=[ \t\r\n]*workspace_git_arguments\\([ \t\r\n]*aWorkspace[ \t\r\n]*,[ \t\r\n]*HooksRoot[ \t\r\n]*\\);"
+)
+    message(
+        FATAL_ERROR
+        "Forbidden installed-Git process surface: the workspace move's "
+        "checkout and diff run only through workspace_git built on "
+        "workspace_git_arguments(aWorkspace, HooksRoot)"
+    )
+endif()
 foreach(forbidden_git_process_pattern IN LISTS forbidden_git_process_patterns)
     if(
-        git_process_runner_contents
+        git_process_runner_scanned_contents
             MATCHES "${forbidden_git_process_pattern}"
     )
         message(
