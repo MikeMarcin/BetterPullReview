@@ -5654,6 +5654,30 @@ if(bpr_fixture_shell_environment)
     set_property(TEST application_tour_chat_queue_local_draft_public_path APPEND PROPERTY ENVIRONMENT "${bpr_fixture_shell_environment}")
 endif()
 
+# The right drawer of the composed window never pans sideways and never cuts a
+# control off (owner, attended review 2026-11-25: "This made the drawer have a
+# horizontal scroll which should have been disallowed by our tests."): the
+# desktop composition on returning-review-v1 with the Fixture agent, each state
+# of Comments, the Agent tab and the Tour tab's chat column at 280, 300, 340
+# and 420 pixels, at 100% and 200%. Looks of those surfaces are drawn by this
+# course (BPR_COMPOSED_DRAWER_RENDER_ROOT), natively with BPR_NATIVE_LOOK=1.
+bpr_add_executable(test_composed_drawer_fit_public_path composed_drawer_fit_public_path.cpp)
+if(APPLE)
+    target_sources(test_composed_drawer_fit_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
+target_link_libraries(test_composed_drawer_fit_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_composed_drawer_fit_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_composed_drawer_fit_public_path)
+bpr_enable_warnings(test_composed_drawer_fit_public_path)
+add_dependencies(test_composed_drawer_fit_public_path bpr_fixture_agent)
+foreach(bpr_composed_drawer_scale 1 2)
+    bpr_add_network_isolated_test(NAME application_composed_drawer_fit_scale_${bpr_composed_drawer_scale}00
+        WINDOWS_UNCONTAINED
+        COMMAND test_composed_drawer_fit_public_path "$<TARGET_FILE:bpr_fixture_agent>")
+    set_tests_properties(application_composed_drawer_fit_scale_${bpr_composed_drawer_scale}00 PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment};QT_SCALE_FACTOR=${bpr_composed_drawer_scale}" TIMEOUT 420 PASS_REGULAR_EXPRESSION "composed-drawer-fit:pass")
+endforeach()
+
 # [[BPR-2216]]. Opening a pull request from Home is responsive: its page in the
 # gesture's turn while GitHub is slow, Return and the Active review on Home
 # while it loads, and the loaded review keeps them.
