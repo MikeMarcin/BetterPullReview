@@ -12,6 +12,7 @@ class QFocusEvent;
 class QPainter;
 class QPixmap;
 class QRectF;
+class QString;
 
 namespace bpr::qt {
 	/// \brief Keeps keyboard focus visible without making a mouse click look selected.
@@ -86,6 +87,16 @@ namespace bpr::qt {
 	/// its leading padding, in the ink of `aSurface`. For a chip without an
 	/// icon whose words are a sentence (`quiet_push_button::set_word_wrap`).
 	void paint_wrapped_button_label(QPainter& aPainter, const QAbstractButton& aButton, QPalette::ColorRole aSurface = QPalette::Window);
+
+	/// \brief The width `aWords` take in the chip's font, as its own words
+	/// are measured: what a chip that may show shorter words needs for them.
+	[[nodiscard]] auto chip_words_width(const QAbstractButton& aButton, const QString& aWords) -> int;
+
+	/// \brief Draws `aWords` in place of the chip's own, centred inside its
+	/// padding, in the ink of `aSurface`. For a chip given less than its
+	/// words' width that has shorter ones to show
+	/// (`quiet_push_button::set_short_text`).
+	void paint_short_button_label(QPainter& aPainter, const QAbstractButton& aButton, const QString& aWords, QPalette::ColorRole aSurface = QPalette::Window);
 
 	/// \brief What a chip shows beside its words.
 	enum class button_mark : std::uint8_t {

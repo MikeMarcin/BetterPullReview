@@ -20,6 +20,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/private_review_panel.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -50,7 +51,10 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSpinBox>
+#include <QSplitter>
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QThread>
@@ -1107,7 +1111,7 @@ auto main(int argc, char** argv) -> int
 		// conversation whose checkout is retained moves it to the head under
 		// review on send, and the agent is told; work in the way is offered
 		// Rebase, Keep my changes on a branch and move, Ask the agent to
-		// reconcile, Continue at the old head and Start a new session. "a
+		// reconcile, Continue at the old head and New session. "a
 		// session in the same PR? yes single checkout": the pull request's
 		// other conversations on the checkout move with it, and "The other
 		// sessions, we dont wake them up and send them messages".
@@ -1205,6 +1209,76 @@ auto main(int argc, char** argv) -> int
 					+ " notice=" + latestNotice().toStdString() + " stop=" + panel->stop_reason_text().toStdString() + " output=" + panel->output_text().left(800).toStdString() + " status=" + panel->status_text().toStdString();
 			};
 			const auto starts = [&] { return evidence().Statistics.ProcessStarts; };
+			// Owner, attended review 2026-11-25, of the card of a session that
+			// read an earlier head: "surely we can find a way to fit both
+			// options on one line at the narrowest drawer. Also it being at
+			// the top of the transcript is weird since we auto scroll to the
+			// bottom." In the real window with the drawer dragged to its
+			// narrowest, 280 px: the card stands on the question field, under
+			// the thread and outside it, whole in view wherever the thread is
+			// scrolled, and its two choices share one line. Every way it does
+			// not, in words; the window is saved as \p aRender.
+			const auto cardOnTheField = [&](const char* const aRender) {
+				auto        found    = std::string{ };
+				auto* const splitter = window.central_splitter();
+				auto* const drawer   = window.conversations_drawer();
+				const auto  index    = splitter->indexOf(drawer);
+				const auto  drag     = [&](const int aWidth) {
+					for (auto round = 0; round < 3 && drawer->width() != aWidth; ++round) {
+						splitter->move_handle(index, splitter->handle(index)->x() + drawer->width() - aWidth);
+						for (auto pass = 0; pass < 4; ++pass) {
+							QCoreApplication::processEvents();
+						}
+					}
+					return drawer->width();
+				};
+				const auto  chosen = drawer->width();
+				const auto  got    = drag(280);
+				auto* const card   = tab->banner();
+				auto* const stay   = tab->banner_first_button();
+				auto* const fresh  = tab->banner_second_button();
+				auto* const thread = tab->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"));
+				const auto  in     = [&](const QWidget& aPart) { return QRect{ aPart.mapTo(tab, QPoint{ 0, 0 }), aPart.size() }; };
+				const auto  box    = [](const QRect& aRect) {
+					return std::to_string(aRect.left()) + "," + std::to_string(aRect.top()) + " " + std::to_string(aRect.width()) + "x" + std::to_string(aRect.height());
+				};
+				if (got != 280) {
+					found += " drawer=" + std::to_string(got);
+				}
+				if (thread == nullptr || !card->isVisible() || !stay->isVisibleTo(card) || !fresh->isVisibleTo(card)) {
+					return found + " the card and its two choices are not shown";
+				}
+				const auto place = in(*card);
+				const auto field = in(*window.side_chat()->composer());
+				if (!tab->banner_docked() || thread->isAncestorOf(card) || in(*thread).bottom() >= place.top() || place.bottom() >= field.top()) {
+					found += " not-on-the-field: thread " + box(in(*thread)) + " card " + box(place) + " field " + box(field);
+				}
+				for (const auto value : { thread->verticalScrollBar()->minimum(), thread->verticalScrollBar()->maximum() }) {
+					thread->verticalScrollBar()->setValue(value);
+					QCoreApplication::processEvents();
+					if (in(*card) != place || !tab->rect().contains(place) || card->visibleRegion().boundingRect() != card->rect()) {
+						found += " not-whole-in-view with the thread at " + std::to_string(value) + ": " + box(in(*card)) + " in " + box(tab->rect());
+					}
+				}
+				const auto one = in(*stay);
+				const auto two = in(*fresh);
+				if (one.top() != two.top() || one.height() != two.height() || one.right() >= two.left() || two.right() > place.right() || stay->hasHeightForWidth() || fresh->hasHeightForWidth()
+					|| one.height() != stay->sizeHint().height()) {
+					found += " not-one-line: \"" + stay->text().toStdString() + "\" " + box(one) + " \"" + fresh->text().toStdString() + "\" " + box(two) + " in " + box(place);
+				}
+#if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
+				// In these platforms' typefaces both choices keep their whole
+				// words; the shorter ones are for a wider typeface.
+				if (stay->shortened() || fresh->shortened()) {
+					found += " shortened: \"" + stay->text().toStdString() + "\" is " + std::to_string(stay->width()) + " of " + std::to_string(stay->sizeHint().width());
+				}
+#endif
+				if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / aRender).u16string()))) {
+					found += " render";
+				}
+				static_cast<void>(drag(chosen));
+				return found;
+			};
 
 			// At the first head: the first agent's conversation, a second
 			// agent's conversation on the same pull request checkout, and three
@@ -1293,9 +1367,9 @@ auto main(int argc, char** argv) -> int
 			const auto offeredUpFront = [&](const std::string& aId) {
 				return wait_until([&] {
 					return reread() && open(aId) && tab->state() == qt::agent_tab_state::head_moved && window.side_chat()->head_oid_text().left(7) == earlierHead
-						&& tab->banner_first_button()->isVisible() && tab->banner_first_button()->text() == QStringLiteral("Start a new session")
-						&& tab->banner_first_button()->isEnabled() && tab->banner_second_button()->isVisible()
-						&& tab->banner_second_button()->text() == QStringLiteral("Continue at ") + earlierHead;
+						&& tab->banner_first_button()->isVisible() && tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead
+						&& tab->banner_second_button()->isVisible() && tab->banner_second_button()->text() == QStringLiteral("New session")
+						&& tab->banner_second_button()->isEnabled();
 				});
 			};
 			const auto beforeChoice = starts();
@@ -1305,9 +1379,12 @@ auto main(int argc, char** argv) -> int
 			if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "native-pinned-up-front.png").u16string()))) {
 				return failLogged("pinned-up-front-render");
 			}
+			if (const auto faults = cardOnTheField("native-pinned-up-front-280.png"); !faults.empty()) {
+				return failLogged("pinned-up-front-card-on-the-field", faults);
+			}
 			// Owner, 2026-11-24, of a new session that changed nothing on the
 			// screen: "you click it and it does nothing which feels broken".
-			// Start a new session on the replay's card is History's New
+			// New session on the replay's card is History's New
 			// session: at once, and with nothing sent, the tab shows an empty
 			// unnamed session at the head under review, ticked in History; the
 			// replay stays there with its name and its turns.
@@ -1324,7 +1401,7 @@ auto main(int argc, char** argv) -> int
 				if (replayTurns == 0U || tab->session_title()->text() != replayName || tab->session_menu()->selected() != replay || !tab->new_session_action()->isEnabled()) {
 					return failLogged("pinned-replay-shown-before-new-session", said());
 				}
-				tab->banner_first_button()->click();
+				tab->banner_second_button()->click();
 				const auto switched = wait_until([&] {
 					const auto fresh = tab->session_menu()->selected();
 					return historyIn() && tab->state() == qt::agent_tab_state::idle && !tab->banner()->isVisible() && !fresh.empty() && fresh != replay
@@ -1372,12 +1449,18 @@ auto main(int argc, char** argv) -> int
 				const auto reconciles = tab->banner_reconcile_buttons();
 				return tab->state() == qt::agent_tab_state::stopped && panel->pinned_conversation().has_value() && reconciles[0]->isVisible() == aRebase && reconciles[1]->isVisible()
 					&& reconciles[2]->isVisible() && tab->banner_first_button()->isVisible() && tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead
-					&& tab->banner_second_button()->isVisible() && tab->banner_second_button()->text() == QStringLiteral("Start a new session")
+					&& tab->banner_second_button()->isVisible() && tab->banner_second_button()->text() == QStringLiteral("New session")
 					&& (!aRebase || reconciles[0]->text() == QStringLiteral("Rebase onto ") + currentHead);
 			};
+			// The refused turn, the thread's last, says why; the card under it
+			// says only what waits on the choice.
 			auto before = starts();
-			if (!send(QStringLiteral("verify-move-note with edits")) || starts() != before || !refusedWithAll(true) || !tab->banner_text().contains(QStringLiteral("uncommitted edits"))) {
+			if (!send(QStringLiteral("verify-move-note with edits")) || starts() != before || !refusedWithAll(true) || !latestAnswer().contains(QStringLiteral("uncommitted edits"))
+				|| tab->banner_text() != QStringLiteral("Your message is kept and is sent when you choose.")) {
 				return failLogged("pinned-edits-block", status());
+			}
+			if (const auto faults = cardOnTheField("native-pinned-reconcile-280.png"); !faults.empty()) {
+				return failLogged("pinned-reconcile-card-on-the-field", faults);
 			}
 			// Continue at the earlier head: answered there, nothing moved, the
 			// edit kept.
@@ -1385,7 +1468,7 @@ auto main(int argc, char** argv) -> int
 				|| !latestAnswer().contains(QStringLiteral("move-note=none")) || !std::filesystem::exists(checkout / "course-edit.txt")) {
 				return failLogged("pinned-edits-continue", status());
 			}
-			// Read again, the move is offered again; Start a new session asks at
+			// Read again, the move is offered again; New session asks at
 			// the current head instead, and the next question follows there.
 			if (!reread() || !open(seeded) || !send(QStringLiteral("verify-move-note with edits")) || !refusedWithAll(true)) {
 				return failLogged("pinned-edits-block-again", status());
@@ -1417,8 +1500,8 @@ auto main(int argc, char** argv) -> int
 				auto input = std::ifstream{ tracked };
 				return std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
 			};
-			if (!click(tab->banner_reconcile_buttons()[0]) || starts() != before || !refusedWithAll(false) || !tab->banner_text().contains(trackedName)
-				|| !tab->banner_text().contains(QStringLiteral("conflicts")) || !readTracked().ends_with(conflicting) || !std::filesystem::exists(checkout / "course-edit.txt")) {
+			if (!click(tab->banner_reconcile_buttons()[0]) || starts() != before || !refusedWithAll(false) || !latestAnswer().contains(trackedName)
+				|| !latestAnswer().contains(QStringLiteral("conflicts")) || !readTracked().ends_with(conflicting) || !std::filesystem::exists(checkout / "course-edit.txt")) {
 				return failLogged("pinned-rebase-conflict", status() + " file=" + trackedName.toStdString());
 			}
 			// Keep my changes on a branch and move: the work is on the saved
@@ -1460,7 +1543,7 @@ auto main(int argc, char** argv) -> int
 				if (!choose(first) || !offeredUpFront(aId)) {
 					return { };
 				}
-				tab->banner_second_button()->click();
+				tab->banner_first_button()->click();
 				if (!wait_until([&] { return tab->state() != qt::agent_tab_state::head_moved && tab->ask_button()->isEnabled(); })
 					|| !send(QStringLiteral("native source question")) || !latestIs(core::agent_turn_outcome::answered)
 					|| !latestAnswer().contains(QStringLiteral(" backend=")) || panel->pinned_conversation().has_value()

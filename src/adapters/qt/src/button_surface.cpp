@@ -59,13 +59,32 @@ namespace bpr::qt {
 			return aGround;
 		}
 
-		[[nodiscard]] auto words_size(const QAbstractButton& aButton) -> QSize
+		[[nodiscard]] auto words_size(const QAbstractButton& aButton, const QString& aWords) -> QSize
 		{
-			if (aButton.text().isEmpty()) {
+			if (aWords.isEmpty()) {
 				return { };
 			}
-			const auto words = QFontMetricsF{ aButton.font() }.size(Qt::TextShowMnemonic, aButton.text());
+			const auto words = QFontMetricsF{ aButton.font() }.size(Qt::TextShowMnemonic, aWords);
 			return { static_cast<int>(std::ceil(words.width())), static_cast<int>(std::ceil(words.height())) };
+		}
+
+		[[nodiscard]] auto words_size(const QAbstractButton& aButton) -> QSize { return words_size(aButton, aButton.text()); }
+
+		/// \brief One line of `aWords` from `aPlace`'s leading edge, in `aInk`.
+		void draw_words(QPainter& aPainter, const QAbstractButton& aButton, const QRect& aPlace, const QColor& aInk, const QString& aWords)
+		{
+			auto* const style  = aButton.style();
+			auto        option = QStyleOption{ };
+			option.initFrom(&aButton);
+			auto flags = static_cast<int>(Qt::AlignLeft | Qt::AlignVCenter | Qt::TextShowMnemonic | Qt::TextSingleLine);
+			if (style->styleHint(QStyle::SH_UnderlineShortcut, &option, &aButton) == 0) {
+				flags |= Qt::TextHideMnemonic;
+			}
+			auto words = aButton.palette();
+			for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
+				words.setColor(group, QPalette::WindowText, aInk);
+			}
+			style->drawItemText(&aPainter, QStyle::visualRect(aButton.layoutDirection(), aButton.rect(), aPlace), flags, words, true, aWords, QPalette::WindowText);
 		}
 	} // namespace
 
@@ -218,17 +237,25 @@ namespace bpr::qt {
 			}
 			place.setLeft(place.left() + aIconSize.width() + chip_icon_gap);
 		}
-		auto option = QStyleOption{ };
-		option.initFrom(&aButton);
-		auto flags = static_cast<int>(Qt::AlignLeft | Qt::AlignVCenter | Qt::TextShowMnemonic | Qt::TextSingleLine);
-		if (style->styleHint(QStyle::SH_UnderlineShortcut, &option, &aButton) == 0) {
-			flags |= Qt::TextHideMnemonic;
-		}
-		auto words = aButton.palette();
-		for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
-			words.setColor(group, QPalette::WindowText, ink);
-		}
-		style->drawItemText(&aPainter, QStyle::visualRect(aButton.layoutDirection(), aButton.rect(), place), flags, words, true, aButton.text(), QPalette::WindowText);
+		draw_words(aPainter, aButton, place, ink, aButton.text());
+		aPainter.restore();
+	}
+
+	auto chip_words_width(const QAbstractButton& aButton, const QString& aWords) -> int
+	{
+		return words_size(aButton, aWords).width();
+	}
+
+	void paint_short_button_label(QPainter& aPainter, const QAbstractButton& aButton, const QString& aWords, const QPalette::ColorRole aSurface)
+	{
+		aPainter.save();
+		const auto  colours = button_colours_on(aButton.palette(), aSurface);
+		const auto  content = aButton.rect().adjusted(chip_padding, 0, -chip_padding, 0);
+		const auto  extent  = words_size(aButton, aWords);
+		const auto& ink     = aButton.isEnabled() ? colours.Ink : colours.DisabledInk;
+		// Centred in the padding, as the chip's own words are.
+		const auto left = content.left() + std::max(0, (content.width() - extent.width()) / 2);
+		draw_words(aPainter, aButton, QRect{ left, content.top(), extent.width(), content.height() }, ink, aWords);
 		aPainter.restore();
 	}
 

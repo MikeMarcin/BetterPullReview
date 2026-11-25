@@ -30,6 +30,7 @@
 #include "bpr/qt/chat_history_menu.hpp"
 #include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/report_tally_view.hpp"
 
@@ -269,9 +270,9 @@ namespace bpr::qt {
 		idle,
 		/// An invocation runs: what it reads, and Stop.
 		working,
-		/// The session read an earlier head: Start a new session, which opens
-		/// an empty one at the current head at once as History's New session
-		/// does, or Continue at the head it read.
+		/// The session read an earlier head: Continue at the head it read, or
+		/// New session, which opens an empty one at the current head at once
+		/// as History's New session does.
 		head_moved,
 		/// The last invocation did not finish: what happened, the question
 		/// kept, Resend and Show the log.
@@ -421,9 +422,16 @@ namespace bpr::qt {
 		/// answers whether it took the choice; when it did, the tab resends
 		/// the kept message.
 		void set_pinned_conversation_dispatch(std::function<bool(core::agent_continuation)> aDispatch) { PinnedDispatch = std::move(aDispatch); }
-		/// \brief The stopped card's buttons, for courses and tests.
-		[[nodiscard]] auto banner_first_button() const noexcept -> QPushButton* { return BannerFirst; }
-		[[nodiscard]] auto banner_second_button() const noexcept -> QPushButton* { return BannerSecond; }
+		/// \brief The state card's two buttons, for courses and tests. On the
+		/// card of a session that read an earlier head, before a question and
+		/// after a refused one alike, the first is Continue at that head and
+		/// the second New session, on one line.
+		[[nodiscard]] auto banner_first_button() const noexcept -> quiet_push_button* { return BannerFirst; }
+		[[nodiscard]] auto banner_second_button() const noexcept -> quiet_push_button* { return BannerSecond; }
+		/// \brief Whether the state card stands on the question field, outside
+		/// the scrolled thread: it does while it asks which revision to go on
+		/// with. A report (working, finished, stopped) heads the thread.
+		[[nodiscard]] auto banner_docked() const noexcept -> bool { return BannerDocked; }
 		/// \brief RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24.
 		/// Where the stopped card's reconcile choices go when work stopped the
 		/// conversation's workspace from moving: Rebase onto the new head, Keep
@@ -915,6 +923,11 @@ namespace bpr::qt {
 		QString                            InlineCodeFile;
 		void                               follow_link(const QString& aLink);
 		void                               present_banner();
+		/// \brief Stands the state card on the question field (true) or at
+		/// the head of the thread.
+		void dock_banner(bool aDocked);
+		/// \brief The title of the card of a session that read \p aRead.
+		[[nodiscard]] static auto pinned_card_title(const QString& aRead) -> QString;
 
 		agent_launch_panel&   Launch;
 		side_chat_panel&      Chat;
@@ -929,8 +942,13 @@ namespace bpr::qt {
 		QWidget*              Banner       = nullptr;
 		QLabel*               BannerTitle  = nullptr;
 		QLabel*               BannerText   = nullptr;
-		QPushButton*          BannerFirst  = nullptr;
-		QPushButton*          BannerSecond = nullptr;
+		quiet_push_button*    BannerFirst  = nullptr;
+		quiet_push_button*    BannerSecond = nullptr;
+		/// The two columns the card stands in: the thread's, which it heads,
+		/// and the question field's, which it tops.
+		QVBoxLayout* BannerThread = nullptr;
+		QVBoxLayout* BannerDock   = nullptr;
+		bool         BannerDocked = false;
 		/// RFC-BPR-0096, owner continue-at-latest amendment. The reconcile
 		/// choices, on their own wrapping row above the first two.
 		QWidget*     BannerReconcile = nullptr;

@@ -72,6 +72,7 @@
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -82,6 +83,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QLabel>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollArea>
@@ -1038,9 +1040,10 @@ namespace {
 				found.push_back(QStringLiteral("%1 spans %2..%3 of the card's %4").arg(describe(*button)).arg(place.left()).arg(place.right() + 1).arg(card->width()));
 			}
 			// A button that wraps its words needs its longest word and the
-			// lines they take at its width; any other, its one line.
+			// lines they take at its width; one with shorter words to show,
+			// those; any other, its one line.
 			const auto wraps = button->hasHeightForWidth();
-			const auto needs = wraps ? QSize{ button->minimumSizeHint().width(), button->heightForWidth(button->width()) } : button->sizeHint();
+			const auto needs = wraps ? QSize{ button->minimumSizeHint().width(), button->heightForWidth(button->width()) } : QSize{ button->minimumSizeHint().width(), button->sizeHint().height() };
 			if (button->width() < needs.width() || button->height() < needs.height()) {
 				found.push_back(QStringLiteral("%1 is %2x%3, its words need %4x%5").arg(describe(*button)).arg(button->width()).arg(button->height()).arg(needs.width()).arg(needs.height()));
 			}
@@ -1053,10 +1056,100 @@ namespace {
 			}
 		}
 		for (const auto* const scroll : aTab.findChildren<QScrollArea*>()) {
-			if (scroll->isVisible() && scroll->widget() != nullptr && scroll->isAncestorOf(card) && scroll->widget()->width() > scroll->viewport()->width()) {
+			if (scroll->isVisible() && scroll->widget() != nullptr && scroll->widget()->width() > scroll->viewport()->width()) {
 				found.push_back(QStringLiteral("the conversation is %1 wide in a %2 px drawer column").arg(scroll->widget()->width()).arg(scroll->viewport()->width()));
 			}
 		}
+		return found;
+	}
+
+	/// \brief Every way the card fails to stand on the question field, in
+	/// view wherever the thread is scrolled, with its two choices on one
+	/// line. Owner, attended review 2026-11-25: "surely we can find a way to
+	/// fit both options on one line at the narrowest drawer. Also it being at
+	/// the top of the transcript is weird since we auto scroll to the
+	/// bottom."
+	[[nodiscard]] auto placement_faults(const qt::agent_tab_view& aTab, const QWidget& aComposer) -> QStringList
+	{
+		auto              found  = QStringList{ };
+		const auto* const card   = aTab.banner();
+		auto* const       thread = aTab.findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"));
+		expect(thread != nullptr, "the Agent tab's thread is a scroll area");
+		const auto in    = [&aTab](const QWidget& aPart) { return QRect{ aPart.mapTo(&aTab, QPoint{ 0, 0 }), aPart.size() }; };
+		const auto place = in(*card);
+		if (!aTab.banner_docked()) {
+			found.push_back(QStringLiteral("the card is not on the question field"));
+		}
+		for (const auto* parent = card->parentWidget(); parent != nullptr && parent != &aTab; parent = parent->parentWidget()) {
+			if (qobject_cast<const QAbstractScrollArea*>(parent) != nullptr) {
+				found.push_back(QStringLiteral("the card is inside %1, which scrolls it away").arg(describe(*parent)));
+			}
+		}
+		if (thread->isAncestorOf(card) || in(*thread).bottom() >= place.top()) {
+			found.push_back(QStringLiteral("the card (top %1) is not under the thread (bottom %2)").arg(place.top()).arg(in(*thread).bottom()));
+		}
+		if (const auto field = in(aComposer); place.bottom() >= field.top() || field.top() - place.bottom() > 40) {
+			found.push_back(QStringLiteral("the card (bottom %1) does not stand on the question field (top %2)").arg(place.bottom()).arg(field.top()));
+		}
+		// In view, whole, with the thread at its start and at its end.
+		auto* const bar = thread->verticalScrollBar();
+		for (const auto value : { bar->minimum(), bar->maximum() }) {
+			bar->setValue(value);
+			settle();
+			const auto now = in(*card);
+			if (now != place || !aTab.rect().contains(now) || card->visibleRegion().boundingRect() != card->rect()) {
+				found.push_back(QStringLiteral("the card is not whole in view with the thread scrolled to %1 of %2..%3 (%4,%5 %6x%7 in a tab of %8x%9)")
+									.arg(value)
+									.arg(bar->minimum())
+									.arg(bar->maximum())
+									.arg(now.left())
+									.arg(now.top())
+									.arg(now.width())
+									.arg(now.height())
+									.arg(aTab.width())
+									.arg(aTab.height()));
+			}
+		}
+		// The thread keeps room to be read above it.
+		if (thread->viewport()->height() < 120) {
+			found.push_back(QStringLiteral("the card leaves the thread %1 px").arg(thread->viewport()->height()));
+		}
+		// Its two choices: one line, the first then the second, each one
+		// line tall.
+		const auto* const first  = aTab.banner_first_button();
+		const auto* const second = aTab.banner_second_button();
+		if (!first->isVisibleTo(card) || !second->isVisibleTo(card)) {
+			found.push_back(QStringLiteral("the card does not show its two choices"));
+			return found;
+		}
+		const auto one = in(*first);
+		const auto two = in(*second);
+		if (one.top() != two.top() || one.height() != two.height() || one.right() >= two.left()) {
+			found.push_back(QStringLiteral("the two choices are not on one line: \"%1\" at %2,%3 %4x%5 and \"%6\" at %7,%8 %9x%10")
+								.arg(first->text())
+								.arg(one.left())
+								.arg(one.top())
+								.arg(one.width())
+								.arg(one.height())
+								.arg(second->text())
+								.arg(two.left())
+								.arg(two.top())
+								.arg(two.width())
+								.arg(two.height()));
+		}
+		for (const auto* const choice : { first, second }) {
+			if (choice->hasHeightForWidth() || choice->height() != choice->sizeHint().height()) {
+				found.push_back(QStringLiteral("%1 is not one line tall (%2, one line is %3)").arg(describe(*choice)).arg(choice->height()).arg(choice->sizeHint().height()));
+			}
+		}
+#if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
+		// In the typefaces these platforms draw the drawer in, the whole
+		// words fit the narrowest drawer; the shorter words are for a
+		// typeface that is wider.
+		if (first->shortened() || second->shortened()) {
+			found.push_back(QStringLiteral("a choice draws its shorter words: \"%1\" is %2 wide and needs %3").arg(first->text()).arg(first->width()).arg(first->sizeHint().width()));
+		}
+#endif
 		return found;
 	}
 
@@ -1069,9 +1162,11 @@ namespace {
 		const auto look   = !aLookRoot.isEmpty();
 		const auto folder = look ? QStringLiteral("%1/%2-%3").arg(aLookRoot, QGuiApplication::platformName(), QApplication::style()->name().toLower()) : QString{ };
 		expect(!look || QDir{ }.mkpath(folder), "the look's directory exists");
-		const auto tag      = qEnvironmentVariable("BPR_PINNED_CARD_RENDER_TAG", QStringLiteral("card"));
-		const auto scale    = QString::number(qRound(qApp->devicePixelRatio() * 100.0));
-		const auto earlier  = *core::parse_git_commit_oid("3333333333333333333333333333333333333333");
+		const auto tag   = qEnvironmentVariable("BPR_PINNED_CARD_RENDER_TAG", QStringLiteral("card"));
+		const auto scale = QString::number(qRound(qApp->devicePixelRatio() * 100.0));
+		// The head the session read is named by seven of the widest digits a
+		// revision can hold, so the two choices are measured at their widest.
+		const auto earlier  = *core::parse_git_commit_oid("9696969696969696969696969696969696969696");
 		const auto binding  = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
 		auto       pinned   = binding;
 		pinned.HeadOid      = earlier;
@@ -1126,8 +1221,8 @@ namespace {
 					window.agent_panel()->admit(identity);
 					settle();
 					auto result               = application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::private_storage_failure };
-					result.RefusalReason      = aWorkInTheWay ? "This conversation's workspace at 3333333 has uncommitted edits, so it was not moved to 2222222. No question was sent."
-															  : "This conversation is pinned to an earlier revision, 3333333. Continue at 3333333 to keep asking about that revision, or start a new session at 2222222. No question was sent.";
+					result.RefusalReason      = aWorkInTheWay ? "This conversation's workspace at 9696969 has uncommitted edits, so it was not moved to 2222222. No question was sent."
+															  : "This conversation is pinned to an earlier revision, 9696969. Continue at 9696969 to keep asking about that revision, or start a new session at 2222222. No question was sent.";
 					result.StandardError      = result.RefusalReason;
 					result.PinnedConversation = core::offer_pinned_conversation({ .Pinned = pinned, .Observed = binding, .Remembers = true });
 					if (aWorkInTheWay) {
@@ -1137,13 +1232,6 @@ namespace {
 					settle();
 				};
 				const auto judge = [&](const pinned_card aState, const char* const aName) {
-					// The card heads the thread: scrolled to it, as it is read.
-					for (auto* parent = tab->banner()->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
-						if (auto* const area = qobject_cast<QScrollArea*>(parent); area != nullptr) {
-							area->ensureWidgetVisible(tab->banner());
-							break;
-						}
-					}
 					settle();
 					const auto where   = std::string{ "the Agent tab's pinned-revision card, " } + aName + at;
 					const auto choices = tab->banner()->findChildren<QPushButton*>();
@@ -1160,24 +1248,56 @@ namespace {
 						// wrap, and never again in a code block that pans.
 						require_drawer(*drawer, where);
 					}
-					if (const auto faults = card_faults(*tab); !faults.isEmpty()) {
+					if (const auto faults = card_faults(*tab) + placement_faults(*tab, *chat->composer()); !faults.isEmpty()) {
 						failures.push_back(where + ": " + faults.join(QStringLiteral("; ")).toStdString());
 					}
+					// The same card in its three states: one title, the
+					// choices in one order, in the words RFC-BPR-0130 gives
+					// the card and History.
+					if (tab->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text() != QStringLiteral("This session read 9696969") || tab->banner_first_button()->text() != QStringLiteral("Continue at 9696969")
+						|| tab->banner_second_button()->text() != QStringLiteral("New session") || tab->banner_first_button()->toolTip().isEmpty() || tab->banner_second_button()->toolTip().isEmpty()) {
+						failures.push_back(where + ": the card says which head the session read, then Continue at it and New session: " + tab->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text().toStdString() + " / "
+										   + tab->banner_first_button()->text().toStdString() + " / " + tab->banner_second_button()->text().toStdString());
+					}
 				};
-				// A session with a turn, opened after the head moved.
+				// A session with turns enough to scroll in any typeface, opened
+				// after the head moved.
 				tab->set_session_title(QStringLiteral("#17 Keep review snapshots deterministic"));
 				tab->present_thread({ qt::agent_thread_turn{ .Question = QStringLiteral("What does this change do?"),
 															 .Answer   = QStringLiteral("It sorts the snapshot's files before hashing them, so two reads of one head give the same digest."),
+															 .Footer   = QStringLiteral("Answered") },
+									  qt::agent_thread_turn{ .Question = QStringLiteral("Which files does it touch?"),
+															 .Answer   = QStringLiteral("The snapshot reader and its tests. The reader sorts by path before it hashes; the tests read one head twice and compare the two digests, in both orders the "
+																						"file system may list the files in."),
+															 .Footer   = QStringLiteral("Answered") },
+									  qt::agent_thread_turn{ .Question = QStringLiteral("Is anything left unsorted?"),
+															 .Answer   = QStringLiteral("The submodule list keeps the order Git gives it, which is already stable for one head. Nothing else that reaches the digest is read in directory "
+																						"order, and the cache key is the digest itself."),
 															 .Footer   = QStringLiteral("Answered") } });
 				present(pinned);
 				judge(pinned_card::offered, "offered");
-				if (tab->banner_first_button()->text() != QStringLiteral("Start a new session") || tab->banner_second_button()->text() != QStringLiteral("Continue at 3333333")) {
-					failures.push_back("offered before a question, the card says Start a new session and Continue at the head it read" + at + ": " + tab->banner_first_button()->text().toStdString() + " / "
-									   + tab->banner_second_button()->text().toStdString());
-				}
 				present(binding);
 				stop(false);
 				judge(pinned_card::refused, "refused");
+				// The refused turn is the thread's last, just above the
+				// card: it says why, and the card does not say it again.
+				if (tab->banner_text() != QStringLiteral("Your message is kept and is sent when you choose.")) {
+					failures.push_back("after a refused question the card says only that the message is kept" + at + ": " + tab->banner_text().toStdString());
+				}
+				// Sent to the failure from elsewhere, the reader is shown the
+				// thread's end, where the refused turn is; the card is in
+				// view already.
+				if (auto* const bar = tab->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->verticalScrollBar(); bar->maximum() > bar->minimum()) {
+					bar->setValue(bar->minimum());
+					settle();
+					tab->reveal_run_failure();
+					settle();
+					if (bar->value() != bar->maximum()) {
+						failures.push_back("revealing a refused question shows the thread's end, where its turn says why" + at + ": " + std::to_string(bar->value()) + " of " + std::to_string(bar->maximum()));
+					}
+				} else if (width == 280U) {
+					failures.push_back("in the narrowest drawer the refused turn's thread is taller than its room, so its end can be shown" + at);
+				}
 				// Owner, attended review 2026-11-25: "This made the drawer
 				// have a horizontal scroll which should have been
 				// disallowed by our tests." The application refused the

@@ -645,10 +645,17 @@ namespace bpr::qt {
 		auto* const contentCol = new QVBoxLayout{ content };
 		contentCol->setContentsMargins(12, 8, 12, 12);
 		contentCol->setSpacing(10);
-		Banner = new rounded{ rounded::look::callout, content };
+		// The state's card. A report of what happened (it works, it finished,
+		// it stopped) heads the thread, here. A choice the next question waits
+		// on stands on the question field instead (`dock_banner`).
+		BannerThread = contentCol;
+		Banner       = new rounded{ rounded::look::callout, content };
 		Banner->setObjectName(QStringLiteral("agentStateBanner"));
 		auto* const bannerCol = new QVBoxLayout{ Banner };
-		bannerCol->setContentsMargins(12, 10, 12, 10);
+		// Its words start where the question field's do. The trailing inset
+		// is narrower, so that the two choices fit a 280 px drawer whole
+		// whatever seven characters name the revision.
+		bannerCol->setContentsMargins(12, 10, 8, 10);
 		bannerCol->setSpacing(4);
 		BannerTitle = new QLabel{ Banner };
 		BannerTitle->setObjectName(QStringLiteral("agentStateTitle"));
@@ -685,46 +692,48 @@ namespace bpr::qt {
 		// reconcile choices wrap on their own row, so the card never pans.
 		BannerReconcile        = new QWidget{ Banner };
 		auto* const reconciles = new detail::wrapping_row{ BannerReconcile };
-		BannerRebase           = new QPushButton{ BannerReconcile };
-		BannerRebase->setObjectName(QStringLiteral("agentStateRebase"));
-		// The macOS style lays a native button out by its bezel, which is
-		// smaller than the widget; in this row's own widget that left the
-		// button shorter than the style draws it, so it drew a square one.
-		BannerRebase->setAttribute(Qt::WA_LayoutUsesWidgetRect);
-		// A choice that is a sentence, or names an agent, takes a second line
-		// in a drawer narrower than its words; none is cut.
-		auto* const saveChoice = new quiet_push_button{ BannerReconcile };
-		saveChoice->setObjectName(QStringLiteral("agentStateSaveAndMove"));
-		saveChoice->setFlat(true);
-		saveChoice->set_word_wrap(true);
-		BannerSave            = saveChoice;
-		auto* const askChoice = new quiet_push_button{ BannerReconcile };
-		askChoice->setObjectName(QStringLiteral("agentStateAskToReconcile"));
-		askChoice->setFlat(true);
-		askChoice->set_word_wrap(true);
-		BannerAsk = askChoice;
-		reconciles->addWidget(BannerRebase);
-		reconciles->addWidget(BannerSave);
-		reconciles->addWidget(BannerAsk);
+		// Every choice on the card is the same chip: the three ways to carry
+		// the work, then the card's own two. A choice that is a sentence, or
+		// names an agent, takes a second line in a drawer narrower than its
+		// words; none is cut.
+		const auto reconcile = [&](const QString& aName, const bool aWraps) {
+			auto* const choice = new quiet_push_button{ BannerReconcile };
+			choice->setObjectName(aName);
+			choice->set_word_wrap(aWraps);
+			// A chip paints its whole rect, and is laid out by it.
+			choice->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+			reconciles->addWidget(choice);
+			return choice;
+		};
+		BannerRebase = reconcile(QStringLiteral("agentStateRebase"), false);
+		BannerSave   = reconcile(QStringLiteral("agentStateSaveAndMove"), true);
+		BannerAsk    = reconcile(QStringLiteral("agentStateAskToReconcile"), true);
 		connect(BannerRebase, &QPushButton::clicked, this, [this] { choose_reconcile(core::conversation_reconcile::rebase); });
 		connect(BannerSave, &QPushButton::clicked, this, [this] { choose_reconcile(core::conversation_reconcile::save_and_move); });
 		connect(BannerAsk, &QPushButton::clicked, this, [this] { choose_reconcile(core::conversation_reconcile::ask_agent); });
 		BannerReconcile->hide();
 		bannerCol->addWidget(BannerReconcile);
-		// The card's own choices wrap as the reconcile choices do (owner,
-		// attended review 2026-11-24, of "Continue against the old revision"
-		// cut off in a 300 px drawer): each keeps its words whole at every
-		// drawer width.
-		auto* const bannerRow = new detail::wrapping_row{ };
-		BannerFirst           = new QPushButton{ Banner };
+		// The card's own two choices stay on one line at every drawer width
+		// (owner, attended review 2026-11-25: "surely we can find a way to fit
+		// both options on one line at the narrowest drawer"). Both are chips,
+		// which keep six pixels round their words where the platform's push
+		// button keeps a bezel; the row never wraps, and where a typeface is
+		// too wide for both the first draws its shorter words
+		// (`set_short_text`) instead of being cut.
+		auto* const bannerRow = new QHBoxLayout{ };
+		bannerRow->setContentsMargins(0, 2, 0, 0);
+		bannerRow->setSpacing(6);
+		BannerFirst = new quiet_push_button{ Banner };
 		BannerFirst->setObjectName(QStringLiteral("agentStateFirst"));
-		auto* const second = new quiet_push_button{ Banner };
-		second->setObjectName(QStringLiteral("agentStateSecond"));
-		second->setFlat(true);
-		second->set_word_wrap(true);
-		BannerSecond = second;
-		bannerRow->addWidget(BannerFirst);
-		bannerRow->addWidget(BannerSecond);
+		BannerSecond = new quiet_push_button{ Banner };
+		BannerSecond->setObjectName(QStringLiteral("agentStateSecond"));
+		for (auto* const choice : { BannerFirst, BannerSecond }) {
+			// A chip paints its whole rect: laid out by a bezel it does not
+			// have, it is drawn over its neighbour under the macOS style.
+			choice->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+			bannerRow->addWidget(choice);
+		}
+		bannerRow->addStretch(1);
 		bannerCol->addLayout(bannerRow);
 		Log = new QLabel{ Banner };
 		Log->setObjectName(QStringLiteral("agentStateLog"));
@@ -882,6 +891,7 @@ namespace bpr::qt {
 		auto* const askCol = new QVBoxLayout{ ask };
 		askCol->setContentsMargins(10, 8, 10, 10);
 		askCol->setSpacing(6);
+		BannerDock = askCol;
 		// Owner look v003 ("This bottom menu area is a big mess") and the
 		// Claude Code and Codex composers: one rounded field. Any added
 		// context, the words, a thin rule, and one row: Context and
@@ -3834,13 +3844,18 @@ namespace bpr::qt {
 		}
 		auto* const callout = static_cast<rounded*>(Banner);
 		callout->Look       = State == agent_tab_state::stopped ? rounded::look::danger : rounded::look::callout;
+		auto docked         = false;
 		BannerFirst->disconnect();
 		BannerSecond->disconnect();
-		BannerFirst->setToolTip({ });
-		BannerSecond->setToolTip({ });
-		BannerFirst->setEnabled(true);
-		BannerFirst->show();
-		BannerSecond->show();
+		for (auto* const choice : { BannerFirst, BannerSecond }) {
+			choice->setToolTip({ });
+			choice->set_short_text({ });
+			choice->setEnabled(true);
+			choice->show();
+		}
+		// An action beside the first stays bare at rest; one of two choices
+		// is a chip like the other.
+		BannerSecond->setFlat(true);
 		BannerReconcile->hide();
 		BannerDismiss->setVisible(State == agent_tab_state::stopped);
 		Log->setVisible(LogShown && State == agent_tab_state::stopped);
@@ -3862,6 +3877,7 @@ namespace bpr::qt {
 																	   : tr("It found nothing to report. Ask a question below."));
 			BannerFirst->hide();
 			BannerSecond->hide();
+			dock_banner(false);
 			Banner->show();
 			Banner->update();
 			return;
@@ -3893,29 +3909,33 @@ namespace bpr::qt {
 		}
 		case agent_tab_state::head_moved: {
 			const auto read = Head->text();
-			BannerTitle->setText(tr("This session read %1").arg(read));
-			BannerText->setText(tr("The pull request has moved on. Its findings stay anchored to the head it read."));
+			docked          = true;
+			BannerTitle->setText(pinned_card_title(read));
+			BannerText->setText(tr("The pull request has moved on. Its findings stay at that head."));
+			// RFC-BPR-0130's words for the card, the same after a refused
+			// question and in the same order: the revision by its seven
+			// characters first, then History's own name for a new session.
+			BannerFirst->setText(read.isEmpty() ? tr("Continue at its head") : tr("Continue at %1").arg(read));
+			BannerFirst->set_short_text(tr("Continue"));
+			BannerFirst->setToolTip(read.isEmpty() ? tr("Keep this conversation and ask about the revision it read") : tr("Keep this conversation and ask about %1, the revision it read").arg(read));
+			// Neither choice starts a run here; a refused question's card
+			// before this one left them in the agent accent.
+			wear_ordinary_roles(*BannerFirst);
+			connect(BannerFirst, &QPushButton::clicked, Chat.continue_old_revision_action(), &QAction::trigger);
 			// Owner, 2026-11-24, of a new session that left the old transcript,
 			// title and History tick in place: "you click it and it does
-			// nothing which feels broken". The card's Start a new session is
+			// nothing which feels broken". The card's New session is
 			// History's New session, under core's one rule for it: offered
 			// while it can be chosen, greyed with core's reason while not. The
 			// host opens the empty session at the head under review at once.
 			HistoryItems->refresh();
 			const auto refused = HistoryItems->new_session_reason();
-			BannerFirst->setText(tr("Start a new session"));
-			BannerFirst->setEnabled(HistoryItems->new_session_action()->isEnabled());
-			BannerFirst->setToolTip(refused.isEmpty() ? tr("Keep this conversation in History and start an empty one at the current head. Nothing is sent until you ask.") : refused);
-			wear_ordinary_roles(*BannerFirst);
-			connect(BannerFirst, &QPushButton::clicked, Chat.new_session_action(), &QAction::trigger);
-			// RFC-BPR-0130's words for the card, the stopped card's too: the
-			// revision by its seven characters, short enough for any drawer.
-			BannerSecond->setText(read.isEmpty() ? tr("Continue at its head") : tr("Continue at %1").arg(read));
-			BannerSecond->setToolTip(read.isEmpty() ? tr("Keep this conversation and ask about the revision it read") : tr("Keep this conversation and ask about %1, the revision it read").arg(read));
-			// Neither choice starts a run here; a refused question's card
-			// before this one left the second in the agent accent.
+			BannerSecond->setText(tr("New session"));
+			BannerSecond->setFlat(false);
+			BannerSecond->setEnabled(HistoryItems->new_session_action()->isEnabled());
+			BannerSecond->setToolTip(refused.isEmpty() ? tr("Keep this conversation in History and start an empty one at the current head. Nothing is sent until you ask.") : refused);
 			wear_ordinary_roles(*BannerSecond);
-			connect(BannerSecond, &QPushButton::clicked, Chat.continue_old_revision_action(), &QAction::trigger);
+			connect(BannerSecond, &QPushButton::clicked, Chat.new_session_action(), &QAction::trigger);
 			break;
 		}
 		case agent_tab_state::stopped:
@@ -3944,16 +3964,26 @@ namespace bpr::qt {
 			// core decided and its reason names; each resends the message.
 			if (const auto& pinned = Launch.pinned_conversation(); pinned && pinned->Pinned && PinnedDispatch) {
 				const auto shortHead = QString::fromUtf8(core::canonical_hex(pinned->PinnedHead).view().substr(0U, 7U));
-				BannerText->setText(tr("%1 Your message is kept and is sent when you choose.").arg(Launch.stop_reason_text()));
+				// The same card as before a question, in the same place and
+				// with the same two choices in the same order. The refused
+				// turn, the thread's last and just above the card, says why
+				// in the core's words: the card says them only when no turn
+				// does, so the reason is not read twice a hand's width apart.
+				docked                = true;
+				const auto saidByTurn = !Turns.empty() && Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered;
+				BannerTitle->setText(pinned_card_title(shortHead));
+				BannerText->setText(saidByTurn ? tr("Your message is kept and is sent when you choose.") : tr("%1 Your message is kept and is sent when you choose.").arg(Launch.stop_reason_text()));
 				auto* const next = pinned->ContinueOffered ? BannerSecond : BannerFirst;
 				if (pinned->ContinueOffered) {
 					BannerFirst->setText(tr("Continue at %1").arg(shortHead));
+					BannerFirst->set_short_text(tr("Continue"));
 					BannerFirst->setToolTip(tr("Keep this conversation and ask about %1, the revision it read").arg(shortHead));
 					// [[BPR-2000]]. Each choice starts a run.
 					wear_agent_accent(*BannerFirst, palette());
 					connect(BannerFirst, &QPushButton::clicked, this, [this] { choose_pinned(core::agent_continuation::continue_against_old_revision); });
 				}
-				next->setText(tr("Start a new session"));
+				next->setText(tr("New session"));
+				next->setFlat(false);
 				next->setToolTip(tr("Start an empty conversation at the current head and send your message there"));
 				wear_agent_accent(*next, palette());
 				connect(next, &QPushButton::clicked, this, [this] { choose_pinned(core::agent_continuation::start_new_session); });
@@ -4009,8 +4039,29 @@ namespace bpr::qt {
 			});
 			break;
 		}
+		dock_banner(docked);
 		Banner->show();
 		Banner->update();
+	}
+
+	auto agent_tab_view::pinned_card_title(const QString& aRead) -> QString
+	{
+		return aRead.isEmpty() ? tr("This session read an earlier head") : tr("This session read %1").arg(aRead);
+	}
+
+	void agent_tab_view::dock_banner(const bool aDocked)
+	{
+		if (BannerDocked == aDocked) {
+			return;
+		}
+		// Owner, attended review 2026-11-25, of the card that asks which
+		// revision to go on with: "it being at the top of the transcript is
+		// weird since we auto scroll to the bottom." A choice the next
+		// question waits on stands on the question field, outside the
+		// scrolled thread, so it is in view wherever the thread is scrolled.
+		BannerDocked = aDocked;
+		(aDocked ? BannerThread : BannerDock)->removeWidget(Banner);
+		(aDocked ? BannerDock : BannerThread)->insertWidget(0, Banner);
 	}
 
 	auto agent_tab_view::banner_text() const -> QString { return BannerText != nullptr ? BannerText->text() : QString{ }; }
@@ -5038,7 +5089,14 @@ namespace bpr::qt {
 			return;
 		}
 		if (auto* const scroll = qobject_cast<QScrollArea*>(Viewport != nullptr ? Viewport->parentWidget() : nullptr); scroll != nullptr) {
-			scroll->ensureWidgetVisible(Banner);
+			if (BannerDocked) {
+				// A card on the question field is in view already. The turn
+				// that says why is the thread's last: the thread goes to its
+				// end, and follows from there.
+				stick_to_bottom::attach(*scroll).pin();
+			} else {
+				scroll->ensureWidgetVisible(Banner);
+			}
 		}
 		if (BannerFirst != nullptr && !BannerFirst->isHidden()) {
 			BannerFirst->setFocus(Qt::OtherFocusReason);

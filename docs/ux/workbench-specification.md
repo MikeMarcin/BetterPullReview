@@ -2847,10 +2847,21 @@ request. Nothing it says is published unless you make it a comment." and Set
 up an agent), setting up, working (whether its workspace is being made or the
 agent is running, the time it has taken, its latest line, and Stop), finished
 (how many findings, or that its answer is below, or that it found nothing),
-head moved (Start
-a new session or Continue on the old head) and stopped (what happened, the
-message kept, Resend and Show the log, whatever the cause; hidden once the
-latest turn says its cause is fixed since, or once that turn is deleted).
+head moved (which head the session read, then Continue at it or New session)
+and stopped (what happened, the message kept, Resend and Show the log,
+whatever the cause; hidden once the latest turn says its cause is fixed
+since, or once that turn is deleted).
+A report of what happened (working, finished, stopped) heads the thread. The
+card that asks which revision to go on with does not: it stands on the
+question field, under the thread and outside it, so it is in view wherever
+the thread is scrolled (the owner, 2026-11-25: "it being at the top of the
+transcript is weird since we auto scroll to the bottom"). It is the same
+card before a question and after a refused one: "This session read *rev*",
+one sentence, and Continue at *rev* and New session on one line at every
+drawer width, in that order. After a refused question the turn above it
+says why and the card says only that the message is kept and is sent on the
+choice; work in the way of the move adds Rebase onto *rev*, Keep my changes
+on a branch and move and Ask *agent* to reconcile above the two.
 A send asks the agent the pill shows, whatever agent the conversation used
 before; choosing another agent starts that agent's conversation
 ([[BPR-1817]]). The pill keeps the reviewer's choice ([[BPR-1823]], owner

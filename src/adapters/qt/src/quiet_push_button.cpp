@@ -41,11 +41,14 @@ namespace bpr::qt {
 	auto quiet_push_button::minimumSizeHint() const -> QSize
 	{
 		const auto hint = sizeHint();
-		if (!wraps()) {
-			return hint;
+		if (wraps()) {
+			// Its longest word, whole.
+			return QSize{ std::min(hint.width(), (2 * chip_padding) + chip_longest_word_width(*this)), hint.height() };
 		}
-		// Its longest word, whole.
-		return QSize{ std::min(hint.width(), (2 * chip_padding) + chip_longest_word_width(*this)), hint.height() };
+		if (shortens()) {
+			return QSize{ std::min(hint.width(), (2 * chip_padding) + chip_words_width(*this, ShortText)), hint.height() };
+		}
+		return hint;
 	}
 
 	void quiet_push_button::set_word_wrap(const bool aWrap)
@@ -53,12 +56,27 @@ namespace bpr::qt {
 		if (WordWrap == aWrap) {
 			return;
 		}
-		WordWrap    = aWrap;
+		WordWrap = aWrap;
+		apply_size_policy();
+	}
+
+	void quiet_push_button::set_short_text(const QString& aShort)
+	{
+		if (ShortText == aShort) {
+			return;
+		}
+		ShortText = aShort;
+		apply_size_policy();
+	}
+
+	void quiet_push_button::apply_size_policy()
+	{
 		auto policy = sizePolicy();
-		// It may be narrower than its one line, and then taller than it.
-		policy.setHorizontalPolicy(aWrap ? QSizePolicy::Preferred : QSizePolicy::Minimum);
-		policy.setVerticalPolicy(aWrap ? QSizePolicy::Minimum : QSizePolicy::Fixed);
-		policy.setHeightForWidth(aWrap);
+		// It may be narrower than its one line: then taller than it when it
+		// wraps, or showing its shorter words.
+		policy.setHorizontalPolicy(WordWrap || !ShortText.isEmpty() ? QSizePolicy::Preferred : QSizePolicy::Minimum);
+		policy.setVerticalPolicy(WordWrap ? QSizePolicy::Minimum : QSizePolicy::Fixed);
+		policy.setHeightForWidth(WordWrap);
 		setSizePolicy(policy);
 		updateGeometry();
 		update();
@@ -67,6 +85,16 @@ namespace bpr::qt {
 	auto quiet_push_button::wraps() const -> bool
 	{
 		return WordWrap && uses_chip() && icon().isNull();
+	}
+
+	auto quiet_push_button::shortens() const -> bool
+	{
+		return !ShortText.isEmpty() && !WordWrap && uses_chip() && icon().isNull();
+	}
+
+	auto quiet_push_button::shortened() const -> bool
+	{
+		return shortens() && width() < sizeHint().width();
 	}
 
 	auto quiet_push_button::hasHeightForWidth() const -> bool
@@ -110,6 +138,10 @@ namespace bpr::qt {
 		paint_button_surface(painter, *this, isChecked() || (!isCheckable() && !isFlat()), KeyboardFocus);
 		if (wraps() && width() < sizeHint().width()) {
 			paint_wrapped_button_label(painter, *this);
+			return;
+		}
+		if (shortened()) {
+			paint_short_button_label(painter, *this, ShortText);
 			return;
 		}
 		paint_button_label(painter, *this, iconSize(), !icon().isNull());

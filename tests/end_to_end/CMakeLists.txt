@@ -1652,6 +1652,12 @@ bpr_add_executable(
     test_better_pull_review_agent_invocation_composition_public_path
     agent_invocation_composition_public_path.cpp
 )
+if(APPLE)
+    # Renders for the owner's looks are native with BPR_NATIVE_LOOK=1: the
+    # native-pinned course saves the application's own window with the card of
+    # a session that read an earlier head.
+    target_sources(test_better_pull_review_agent_invocation_composition_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
+endif()
 target_link_libraries(
     test_better_pull_review_agent_invocation_composition_public_path
     PRIVATE
