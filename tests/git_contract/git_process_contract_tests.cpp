@@ -795,6 +795,10 @@ namespace {
 				}
 				return 0;
 			}
+			// The listing every workspace command is isolated by: no keys.
+			if (aArguments.contains("config") && aArguments.contains("--list")) {
+				return 0;
+			}
 			const auto input = std::string{ std::istreambuf_iterator<char>{ std::cin }, std::istreambuf_iterator<char>{ } };
 			if (!aArguments.contains("cat-file") || !aArguments.contains("--batch-check=%(objecttype)") || input != read_text(retainedProbe)) {
 				return 128;
@@ -5191,6 +5195,283 @@ namespace {
 			}
 		}
 	}
+
+	#if defined(Q_OS_UNIX)
+	/// RFC-BPR-0096. The agent can write its retained workspace's `.git/config`,
+	/// the files it includes, its hooks and its attributes. BetterPullReview's
+	/// own Git runs there to inspect, recover and move the workspace, outside
+	/// the agent's sandbox, so none of those may start a program: every key
+	/// that names one points at a script leaving its own sentinel, and after
+	/// seeding, inspect, a move with each reconcile, a crash recovery and
+	/// cleanup no sentinel exists and nothing is written outside the workspace.
+	/// The fixture's own Git, run last on the same workspace, does leave one.
+	auto run_workspace_git_isolation_contract() -> void
+	{
+		temporary_root root{ "git-workspace-isolation" };
+		const auto     cacheIsolation = root.Path / "cache";
+		require(std::filesystem::create_directory(cacheIsolation), "create the cache isolation");
+		std::filesystem::permissions(cacheIsolation, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		const auto registry = root.Path / "registry";
+		auto       adapter  = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+		const auto cache    = repository_path(cacheIsolation, '1');
+		initialize_repository(*adapter, cache, application::git_hash_algorithm::sha1);
+		const auto tree = [&](const std::vector<std::pair<std::string, std::string>>& aFiles) {
+			auto listing = std::string{ };
+			for (const auto& [name, text] : aFiles) {
+				listing += "100644 blob " + run_fixture_git(cache, { "hash-object", "-w", "--stdin" }, text) + "\t" + name + "\n";
+			}
+			return run_fixture_git(cache, { "mktree" }, listing);
+		};
+		// The pull request's own `.gitattributes` names drivers too; at
+		// seeding no configuration defines them.
+		const auto attributes = std::pair{ std::string{ ".gitattributes" }, std::string{ "*.inc filter=included diff=evil merge=evil\n" } };
+		const auto base       = run_fixture_git(cache, { "commit-tree", tree({ attributes, { "README.md", "base\n" }, { "a.txt", "a\n" }, { "x.proc", "base\n" }, { "y.inc", "base\n" } }) }, "base\n");
+		const auto old        = run_fixture_git(cache, { "commit-tree", tree({ attributes, { "README.md", "one\n" }, { "a.txt", "a\n" }, { "x.proc", "old\n" }, { "y.inc", "old\n" } }), "-p", base }, "old head\n");
+		// The new head is signed, as a commit made on GitHub is: listing it
+		// with `log.showSignature` would start `gpg.program`.
+		const auto signedHead = std::string{ "tree " } + tree({ attributes, { "README.md", "two\n" }, { "a.txt", "a\n" }, { "b.txt", "b\n" }, { "x.proc", "new\n" }, { "y.inc", "new\n" } }) + "\nparent " + old
+			+ "\nauthor Fixture <fixture@betterpullreview.invalid> 946684800 +0000\ncommitter Fixture <fixture@betterpullreview.invalid> 946684800 +0000\n"
+			  "gpgsig -----BEGIN PGP SIGNATURE-----\n \n -----END PGP SIGNATURE-----\n\nsigned new head\n";
+		const auto head = run_fixture_git(cache, { "hash-object", "-t", "commit", "-w", "--stdin" }, signedHead);
+		const auto oid  = [](const std::string& aHex) {
+			return core::git_commit_oid{ core::git_hash_algorithm::sha1, object<application::git_commit_id>(aHex, application::git_hash_algorithm::sha1).Digest };
+		};
+
+		// Every key that can name a program, its own script and sentinel.
+		const auto sentinels = root.Path / "sentinels";
+		const auto programs  = root.Path / "programs";
+		const auto elsewhere = root.Path / "elsewhere";
+		for (const auto& directory : { sentinels, programs, elsewhere }) {
+			require(std::filesystem::create_directory(directory), "create " + directory.filename().string());
+		}
+		const auto program = [&](const std::string& aName, const std::string_view aTail = "cat\n") {
+			const auto path = programs / aName;
+			write_text(path, "#!/bin/sh\n: > '" + (sentinels / aName).string() + "'\n" + std::string{ aTail });
+			std::filesystem::permissions(path, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+			return path.string();
+		};
+		const auto included = root.Path / "included-config";
+		write_text(included, "[filter \"included\"]\n\tclean = \"" + program("included-clean") + "\"\n\tsmudge = \"" + program("included-smudge") + "\"\n");
+		const auto agentHooks = root.Path / "agent-hooks";
+		require(std::filesystem::create_directory(agentHooks), "create the agent's hooks path");
+		const auto hookNames = std::vector<std::string>{ "pre-commit", "prepare-commit-msg", "commit-msg", "post-commit", "post-checkout", "post-rewrite", "pre-rebase", "reference-transaction", "post-index-change" };
+		for (const auto& name : hookNames) {
+			static_cast<void>(program("hooks-path-" + name, "exit 0\n"));
+			std::filesystem::copy_file(programs / ("hooks-path-" + name), agentHooks / name);
+			static_cast<void>(program("git-dir-" + name, "exit 0\n"));
+		}
+		const auto hostileConfig = std::string{ "[core]\n\tfsmonitor = \"" } + program("fsmonitor", "exit 1\n") + "\"\n\teditor = \"" + program("editor", "exit 0\n") + "\"\n\tpager = \""
+			+ program("pager") + "\"\n\taskPass = \"" + program("askpass", "exit 1\n") + "\"\n\tsshCommand = \"" + program("ssh", "exit 1\n") + "\"\n\talternateRefsCommand = \""
+			+ program("alternate-refs", "exit 0\n") + "\"\n\thooksPath = \"" + agentHooks.string() + "\"\n\tworktree = \"" + elsewhere.string() + "\"\n"
+			+ "[sequence]\n\teditor = \"" + program("sequence-editor", "exit 0\n") + "\"\n"
+			+ "[diff]\n\texternal = \"" + program("diff-external", "exit 0\n") + "\"\n"
+			+ "[diff \"evil\"]\n\ttextconv = \"" + program("textconv") + "\"\n\tcommand = \"" + program("diff-command", "exit 0\n") + "\"\n"
+			+ "[filter \"evil\"]\n\tclean = \"" + program("clean") + "\"\n\tsmudge = \"" + program("smudge") + "\"\n\trequired = true\n"
+			+ "[filter \"proc\"]\n\tprocess = \"" + program("process", "exit 1\n") + "\"\n"
+			+ "[merge \"evil\"]\n\tdriver = \"" + program("merge-driver", "exit 0\n") + " %O %A %B\"\n"
+			+ "[gpg]\n\tprogram = \"" + program("gpg", "exit 1\n") + "\"\n[gpg \"ssh\"]\n\tprogram = \"" + program("gpg-ssh", "exit 1\n") + "\"\n"
+			+ "[log]\n\tshowSignature = true\n[commit]\n\tgpgSign = true\n"
+			+ "[credential]\n\thelper = \"" + program("credential", "exit 1\n") + "\"\n"
+			+ "[rebase]\n\tbackend = apply\n\tupdateRefs = true\n[rerere]\n\tenabled = true\n\tautoUpdate = true\n[color]\n\tui = always\n"
+			+ "[include]\n\tpath = \"" + included.string() + "\"\n";
+
+		auto       session     = std::uint64_t{ 60U };
+		const auto authority   = workspace_authority();
+		const auto parent      = root.Path / "neighbourhood";
+		const auto materialize = [&] {
+			std::filesystem::create_directory(parent);
+			std::filesystem::permissions(parent, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+			auto made                                        = application::git_agent_workspace_request{ };
+			made.Repository                                  = cache;
+			made.Materialization.ApplicationSession          = core::application_session_id{ 1U };
+			made.Materialization.Authority                   = authority;
+			made.Materialization.Session.Id                  = core::agent_session_id{ session++ };
+			made.Materialization.Session.Profile             = core::external_terminal_profile_id;
+			made.Materialization.Session.Binding.Host        = authority.Host;
+			made.Materialization.Session.Binding.Repository  = authority.Repository;
+			made.Materialization.Session.Binding.PullRequest = authority.PullRequest;
+			made.Materialization.Session.Binding.BaseOid     = oid(base);
+			made.Materialization.Session.Binding.HeadOid     = oid(old);
+			made.Materialization.Session.Binding.LeftEpoch   = core::epoch_ordinal{ 1U };
+			made.Materialization.Session.Binding.RightEpoch  = core::epoch_ordinal{ 1U };
+			made.Materialization.ParentDirectory             = parent;
+			made.Materialization.RetainForSession            = true;
+			auto owned                                       = adapter->materialize_agent_workspace(made, { });
+			require(owned.has_value(), "a retained workspace is made at the old head");
+			return *owned;
+		};
+		const auto move = [&](const application::owned_agent_workspace& aWorkspace, const core::conversation_reconcile aReconcile, const std::string& aSaved = { }) {
+			auto request             = application::git_agent_workspace_move_request{ };
+			request.Move.Workspace   = aWorkspace;
+			request.Repository       = cache;
+			request.Move.Head        = oid(head);
+			request.Move.Base        = oid(base);
+			request.Move.Reconcile   = aReconcile;
+			request.Move.SavedBranch = aSaved;
+			return adapter->move_agent_workspace(request, { });
+		};
+		const auto path = [](const application::owned_agent_workspace& aWorkspace) { return std::filesystem::path{ aWorkspace.Workspace.Path }; };
+		const auto file = [&](const application::owned_agent_workspace& aWorkspace, const std::string& aName) { return read_text(path(aWorkspace) / aName); };
+		const auto edit = [&](const application::owned_agent_workspace& aWorkspace, const std::string& aName, const std::string& aText) { write_text(path(aWorkspace) / aName, aText); };
+		// HEAD as its file says, without a Git that would read the hostile configuration.
+		const auto at = [&](const application::owned_agent_workspace& aWorkspace) {
+			auto text = read_text(path(aWorkspace) / ".git" / "HEAD");
+			if (text.starts_with("ref: ")) {
+				text = read_text(path(aWorkspace) / ".git" / text.substr(5U, text.find('\n') - 5U));
+			}
+			return text.substr(0U, text.find('\n'));
+		};
+		const auto agentCommit = [&](const application::owned_agent_workspace& aWorkspace) {
+			edit(aWorkspace, "c.txt", "c\n");
+			static_cast<void>(run_clone_git(path(aWorkspace) / ".git", { "add", "c.txt" }));
+			static_cast<void>(run_clone_git(path(aWorkspace) / ".git", { "commit", "--quiet", "--message", "agent commit" }));
+		};
+		// The agent's configuration, hooks and attributes. Every tracked file
+		// is left older than the index records, so any Git refreshing the
+		// index runs the clean filter on it.
+		const auto hostile = [&](const application::owned_agent_workspace& aWorkspace) {
+			const auto git = path(aWorkspace) / ".git";
+			write_text(git / "config", read_text(git / "config") + hostileConfig);
+			std::filesystem::create_directories(git / "hooks");
+			std::filesystem::create_directories(git / "info");
+			for (const auto& name : hookNames) {
+				std::filesystem::copy_file(programs / ("git-dir-" + name), git / "hooks" / name, std::filesystem::copy_options::overwrite_existing);
+			}
+			write_text(git / "info" / "attributes", "* filter=evil diff=evil merge=evil\n*.proc filter=proc\n*.inc filter=included\n");
+			const auto stale = std::filesystem::file_time_type::clock::now() - std::chrono::hours{ 24 * 365 };
+			for (const auto& entry : std::filesystem::directory_iterator{ path(aWorkspace) }) {
+				if (entry.is_regular_file()) {
+					std::filesystem::last_write_time(entry.path(), stale);
+				}
+			}
+		};
+		const auto fired = [&] {
+			auto names = std::string{ };
+			for (const auto& entry : std::filesystem::directory_iterator{ sentinels }) {
+				names += entry.path().filename().string() + " ";
+			}
+			return names;
+		};
+		const auto untouched = [&](const std::string& aStep) {
+			const auto names = fired();
+			if (!names.empty()) {
+				std::cerr << "workspace-git-isolation:" << aStep << ":fired=" << names << '\n';
+			}
+			require(names.empty(), aStep + ": no program the agent configured runs");
+			require(std::filesystem::is_empty(elsewhere), aStep + ": nothing is written to the agent's core.worktree");
+		};
+
+		// Seeding: the pull request's attributes name drivers nobody defines.
+		auto seeded = materialize();
+		untouched("seeding");
+		require(file(seeded, "y.inc") == "old\n" && file(seeded, "x.proc") == "old\n", "the seeded files are the head's, unfiltered");
+
+		// Inspect, and a plain move the agent's edit stops: status and rev-parse run.
+		hostile(seeded);
+		require(adapter->inspect_agent_workspace(seeded, cache, { }).has_value(), "a hostile workspace is inspected");
+		untouched("inspect");
+		edit(seeded, "a.txt", "edited\n");
+		const auto stopped = move(seeded, core::conversation_reconcile::none);
+		require(stopped && !stopped->Moved && stopped->Observed == core::conversation_workspace_state::local_edits && at(seeded) == old, "the edit stops a plain move");
+		untouched("move without a reconcile");
+
+		// A clean move: checkout, smudge for every file it writes, and the
+		// signed history listed.
+		{
+			const auto owned = materialize();
+			hostile(owned);
+			const auto moved = move(owned, core::conversation_reconcile::none);
+			require(moved && moved->Moved && at(owned) == head && file(owned, "x.proc") == "new\n" && file(owned, "y.inc") == "new\n" && file(owned, "b.txt") == "b\n",
+					"a clean hostile workspace moves, its files unfiltered");
+			require(moved->History.Listed && moved->History.CommitCount == 1U && moved->History.Commits[0].second == "signed new head", "the signed head is listed");
+			untouched("clean move");
+		}
+		// Rebase: add, commit, rebase, log and reset carry the work over.
+		{
+			const auto owned = materialize();
+			agentCommit(owned);
+			hostile(owned);
+			edit(owned, "a.txt", "edited\n");
+			const auto moved = move(owned, core::conversation_reconcile::rebase);
+			require(moved && moved->Moved && moved->History.Rebased && file(owned, "a.txt") == "edited\n" && file(owned, "c.txt") == "c\n" && file(owned, "x.proc") == "new\n",
+					"a hostile workspace rebases");
+			untouched("rebase");
+		}
+		// A rebase whose merge the agent's driver would resolve: it conflicts,
+		// and the undo (abort, checkout, reset) runs.
+		{
+			const auto owned = materialize();
+			hostile(owned);
+			edit(owned, "README.md", "agent\n");
+			const auto refused = move(owned, core::conversation_reconcile::rebase);
+			require(refused && !refused->Moved && refused->History.Conflicts == std::vector<std::string>{ "README.md" }, "the merge driver does not resolve the conflict");
+			require(at(owned) == old && file(owned, "README.md") == "agent\n", "the conflicting rebase is undone");
+			untouched("conflicting rebase");
+		}
+		// Save and move, and ask the agent.
+		for (const auto reconcile : { core::conversation_reconcile::save_and_move, core::conversation_reconcile::ask_agent }) {
+			const auto owned = materialize();
+			agentCommit(owned);
+			hostile(owned);
+			edit(owned, "README.md", "agent\n");
+			const auto moved = move(owned, reconcile, "bpr/saved/" + std::to_string(owned.Session.value()) + "/" + old.substr(0U, 7U));
+			require(moved && moved->Moved && at(owned) == head && file(owned, "README.md") == "two\n", "the work is saved and the hostile workspace moves");
+			untouched(reconcile == core::conversation_reconcile::save_and_move ? "save and move" : "ask the agent");
+		}
+		// A crash before the journal line: the next inspect undoes the move.
+		{
+			const auto owned = materialize();
+			hostile(owned);
+			edit(owned, "a.txt", "edited\n");
+			workspace_crash_at = "move-after-target";
+			auto crashed       = false;
+			try {
+				static_cast<void>(move(owned, core::conversation_reconcile::rebase));
+			} catch (const simulated_workspace_crash&) {
+				crashed = true;
+			}
+			require(crashed, "the move reaches move-after-target");
+			adapter.reset();
+			adapter              = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
+			const auto recovered = adapter->inspect_agent_workspace(owned, cache, { });
+			require(recovered && at(owned) == old && file(owned, "a.txt") == "edited\n", "the crashed move is undone");
+			untouched("crash recovery");
+		}
+		// Cleanup.
+		{
+			const auto owned = materialize();
+			hostile(owned);
+			require(adapter->cleanup_agent_workspace(owned, { }).has_value() && !std::filesystem::exists(path(owned)), "a hostile workspace is cleaned up");
+			untouched("cleanup");
+		}
+		// A configured hook is outside the private hooks path: refused.
+		{
+			const auto owned = materialize();
+			const auto git   = path(owned) / ".git";
+			write_text(git / "config", read_text(git / "config") + "[hook \"lint\"]\n\tcommand = \"" + program("configured-hook", "exit 0\n") + "\"\n\tevent = post-checkout\n");
+			const auto refused = move(owned, core::conversation_reconcile::none);
+			require(!refused && refused.error().Code == application::git_process_failure::invalid_repository && at(owned) == old, "a configured hook refuses the move");
+			untouched("configured hook");
+		}
+
+		// The control: the fixture's own Git, which reads the workspace's
+		// configuration, runs the agent's programs in the same workspace. Its
+		// exit is not asserted: the failing process filter fails the checkout.
+		QProcess control;
+		control.setProgram(QString::fromStdString(BPR_TEST_GIT_EXECUTABLE));
+		control.setArguments({ QString::fromStdString("--git-dir=" + (path(seeded) / ".git").string()), QStringLiteral("checkout"), QStringLiteral("--quiet"), QStringLiteral("--force"),
+							   QStringLiteral("--detach"), QString::fromStdString(base) });
+		auto controlEnvironment = QProcessEnvironment::systemEnvironment();
+		controlEnvironment.insert("GIT_CONFIG_NOSYSTEM", "1");
+		controlEnvironment.insert("GIT_CONFIG_GLOBAL", QString::fromStdString((root.Path / "fixture-global-config").string()));
+		control.setProcessEnvironment(controlEnvironment);
+		control.setWorkingDirectory(QString::fromStdString(path(seeded).string()));
+		control.start();
+		require(control.waitForStarted(5000) && control.waitForFinished(120000), "the control Git finishes");
+		require(std::filesystem::exists(sentinels / "smudge") && std::filesystem::exists(sentinels / "fsmonitor") && std::filesystem::exists(sentinels / "process"),
+				"the hostile configuration runs its programs under a Git that reads it: " + fired());
+	}
+	#endif
 #endif
 
 	auto run_borrowed_history_workspace_contract(const bool aInventoryControl = false, const bool aRetained = false) -> void
@@ -5932,6 +6213,15 @@ try {
 		return 2;
 #endif
 	}
+	if (argc == 2 && std::string_view{ argv[1] } == "--workspace-git-isolation") {
+#if defined(BPR_AGENT_SUPERVISOR_EXECUTABLE) && defined(Q_OS_UNIX)
+		run_workspace_git_isolation_contract();
+		std::cout << "GIT_WORKSPACE_ISOLATION_OK\n";
+		return 0;
+#else
+		return 2;
+#endif
+	}
 	if (argc == 2 && std::string_view{ argv[1] } == "--native-retained-workspace") {
 #ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
 		run_borrowed_history_workspace_contract(false, true);
@@ -5966,6 +6256,9 @@ try {
 	run_borrowed_history_workspace_contract(false, true);
 	run_incomplete_clone_history_workspace_contract();
 	run_workspace_move_contract();
+	#if defined(Q_OS_UNIX)
+	run_workspace_git_isolation_contract();
+	#endif
 	run_linked_clone_checkout_contract();
 	#if defined(Q_OS_MACOS)
 	run_linked_clone_unicode_contract();

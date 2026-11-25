@@ -1042,6 +1042,23 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_operation_diagnosis_core_tests
 )
 
+# RFC-BPR-0096. The configuration BetterPullReview's Git runs with in an agent workspace.
+bpr_add_executable(
+    test_better_pull_review_workspace_git_isolation_core_tests
+    workspace_git_isolation_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_workspace_git_isolation_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_workspace_git_isolation_core_tests)
+bpr_enable_warnings(test_better_pull_review_workspace_git_isolation_core_tests)
+bpr_add_network_isolated_test(
+    NAME core_workspace_git_isolation
+    COMMAND test_better_pull_review_workspace_git_isolation_core_tests
+)
+
 bpr_add_executable(
     test_better_pull_review_core_setup_destination_tests
     setup_destination_tests.cpp

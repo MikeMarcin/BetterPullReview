@@ -3620,6 +3620,77 @@ if(
         "workspace_git_arguments(aWorkspace, HooksRoot)"
     )
 endif()
+
+# RFC-BPR-0096. The agent can write its retained workspace's `.git/config`,
+# includes, hooks and attributes, and BetterPullReview's own Git runs there
+# outside the agent's sandbox. That Git names its repository and work tree
+# (`--git-dir`, `--work-tree`) so `core.worktree` or a `gitdir:` file cannot
+# send it elsewhere; `workspace_git` runs every command under the command-scope
+# environment `workspace_git_environment` builds from Git's own listing of the
+# workspace's key names through the core's `plan_workspace_git_isolation`; and
+# from repairing a workspace to moving one, no Git starts any other way.
+set(workspace_git_isolation_failures "")
+if(
+    NOT git_process_runner_contents
+        MATCHES "auto[ \t\r\n]+workspace_git_arguments\\([^{]*\\{[^}]*\"--git-dir=\"[ \t\r\n]*\\+[ \t\r\n]*path_text\\(aWorkspace / \"\\.git\"\\),[^}]*\"--work-tree=\"[ \t\r\n]*\\+[ \t\r\n]*path_text\\(aWorkspace\\),"
+)
+    list(APPEND workspace_git_isolation_failures "workspace_git_arguments names --git-dir and --work-tree")
+endif()
+string(FIND "${git_process_runner_contents}" "auto workspace_git_environment(" workspace_git_environment_start)
+string(FIND "${git_process_runner_contents}" "auto workspace_git(const std::filesystem::path& aWorkspace" workspace_git_start)
+if(workspace_git_environment_start EQUAL -1 OR workspace_git_start EQUAL -1)
+    list(APPEND workspace_git_isolation_failures "workspace_git_environment and workspace_git exist")
+else()
+    math(EXPR workspace_git_environment_length "${workspace_git_start} - ${workspace_git_environment_start}")
+    string(SUBSTRING "${git_process_runner_contents}" ${workspace_git_environment_start} ${workspace_git_environment_length} workspace_git_environment_body)
+    string(SUBSTRING "${git_process_runner_contents}" ${workspace_git_start} 2400 workspace_git_body)
+    string(FIND "${workspace_git_body}" "aStop);\n\t\t\t}" workspace_git_end)
+    if(NOT workspace_git_end EQUAL -1)
+        string(SUBSTRING "${workspace_git_body}" 0 ${workspace_git_end} workspace_git_body)
+    endif()
+    foreach(
+        required_isolation
+        "append_arguments\\(listing, \"config\", \"--list\", \"--name-only\", \"--includes\", \"-z\"\\);"
+        "\\.Environment[ \t\r\n]*=[ \t\r\n]*command_scope_environment\\(core::fixed_workspace_git_overrides\\(\\)\\)"
+        "core::plan_workspace_git_isolation\\(listed->StandardOutput\\)"
+        "isolation\\.Refusal[ \t\r\n]*!=[ \t\r\n]*core::workspace_git_refusal::none"
+        "return[ \t\r\n]+command_scope_environment\\(isolation\\.Overrides\\);"
+    )
+        if(NOT workspace_git_environment_body MATCHES "${required_isolation}")
+            list(APPEND workspace_git_isolation_failures "workspace_git_environment: ${required_isolation}")
+        endif()
+    endforeach()
+    foreach(
+        required_isolation
+        "\\{[ \t\r\n]*auto[ \t\r\n]+arguments[ \t\r\n]*=[ \t\r\n]*workspace_git_arguments\\(aWorkspace, HooksRoot\\);[ \t\r\n]*auto[ \t\r\n]+environment[ \t\r\n]*=[ \t\r\n]*workspace_git_environment\\(aWorkspace, aStop\\);[ \t\r\n]*if[ \t\r\n]*\\(!environment\\)[ \t\r\n]*\\{[ \t\r\n]*return[ \t\r\n]+std::unexpected\\(environment\\.error\\(\\)\\);"
+        "\\.Environment[ \t\r\n]*=[ \t\r\n]*std::move\\(\\*environment\\)"
+    )
+        if(NOT workspace_git_body MATCHES "${required_isolation}")
+            list(APPEND workspace_git_isolation_failures "workspace_git: ${required_isolation}")
+        endif()
+    endforeach()
+endif()
+string(FIND "${git_process_runner_contents}" "auto repair_borrowed_workspace(" workspace_operations_start)
+string(FIND "${git_process_runner_contents}" "auto cleanup_agent_workspace(" workspace_operations_end)
+if(workspace_operations_start EQUAL -1 OR workspace_operations_end EQUAL -1 OR workspace_operations_end LESS workspace_operations_start)
+    list(APPEND workspace_git_isolation_failures "repair_borrowed_workspace precedes cleanup_agent_workspace")
+else()
+    math(EXPR workspace_operations_length "${workspace_operations_end} - ${workspace_operations_start}")
+    string(SUBSTRING "${git_process_runner_contents}" ${workspace_operations_start} ${workspace_operations_length} workspace_operations_body)
+    string(REGEX MATCHALL "workspace_git_arguments\\(" workspace_operations_arguments "${workspace_operations_body}")
+    list(LENGTH workspace_operations_arguments workspace_operations_argument_count)
+    if(NOT workspace_operations_argument_count EQUAL 2)
+        list(APPEND workspace_git_isolation_failures "from repair to move, only workspace_git_environment and workspace_git build workspace_git_arguments (found ${workspace_operations_argument_count})")
+    endif()
+endif()
+if(workspace_git_isolation_failures)
+    list(JOIN workspace_git_isolation_failures "; " workspace_git_isolation_failure_text)
+    message(
+        FATAL_ERROR
+        "Installed-Git workspace isolation is incomplete: "
+        "${workspace_git_isolation_failure_text}"
+    )
+endif()
 foreach(forbidden_git_process_pattern IN LISTS forbidden_git_process_patterns)
     if(
         git_process_runner_scanned_contents
