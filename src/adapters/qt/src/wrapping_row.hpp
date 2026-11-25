@@ -20,6 +20,12 @@ namespace bpr::qt::detail {
 	/// height it asks for at that width (a word-wrapped label wraps). The row
 	/// is never wider than the width it is given, unless one item cannot be
 	/// narrower than its own minimum.
+	///
+	/// A row of a part's quiet choices that ends in its one primary action
+	/// says so (`set_last_trails`): the last item then keeps the row's right
+	/// end, where a stop's own primary action stands. On one row the space
+	/// left over stands before it. Wrapped, it ends the last row, and goes on
+	/// a row of its own when it does not fit beside what is there.
 	class wrapping_row final : public QLayout
 	{
 	public:
@@ -28,6 +34,9 @@ namespace bpr::qt::detail {
 		wrapping_row(const wrapping_row&)                    = delete;
 		auto operator=(const wrapping_row&) -> wrapping_row& = delete;
 
+		/// \brief Whether the last item keeps the row's right end.
+		void               set_last_trails(bool aTrails);
+		[[nodiscard]] auto last_trails() const noexcept -> bool { return LastTrails; }
 		void               addItem(QLayoutItem* aItem) override;
 		[[nodiscard]] auto count() const -> int override;
 		[[nodiscard]] auto itemAt(int aIndex) const -> QLayoutItem* override;
@@ -47,6 +56,7 @@ namespace bpr::qt::detail {
 		QList<QLayoutItem*> Items;
 		int                 HorizontalSpacing;
 		int                 VerticalSpacing;
+		bool                LastTrails = false;
 	};
 } // namespace bpr::qt::detail
 

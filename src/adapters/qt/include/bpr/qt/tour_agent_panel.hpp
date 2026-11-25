@@ -95,17 +95,23 @@ namespace bpr::qt {
 		void set_dispatch(std::function<void()> aDraft, std::function<void()> aStop, decide_dispatch aDecide);
 		/// \brief [[BPR-1900]]. Move to nearest change on a stop off the change.
 		void set_relocate_dispatch(std::function<void(std::size_t)> aRelocate) { RelocateDispatch = std::move(aRelocate); }
-		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12. Ask more on a part Draft
-		/// Tour's fresh first draft proposed: the run whose answer the tour's
-		/// chat continues from.
-		void set_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aAskMore) { AskMoreDispatch = std::move(aAskMore); }
 		/// \brief [[BPR-1925]] v003, owner on v002: "I think this whole section
 		/// probably just goes away and we move the accept into the stops
 		/// directly". Each pending part of a proposal is offered to `aPlace`,
-		/// which puts its box (heading, text as it will read, Edit text,
-		/// Discard and Accept) in the tour, on the part it changes; a part it
-		/// does not place stays in this panel. `aBegin` is told first, each
-		/// time the proposal is laid out again, so the old places are cleared.
+		/// which puts its box (heading, text as it will read, and its
+		/// choices) in the tour, on the part it changes; a part it does not
+		/// place stays in this panel. `aBegin` is told first, each time the
+		/// proposal is laid out again, so the old places are cleared.
+		///
+		/// A part's choices are one row: a pencil that shows the text's
+		/// Markdown source to change, a trash that discards the part, and at
+		/// the right its one worded action (Add to tour, Accept, Remove,
+		/// Merge, Split, Reorder). The owner, 2026-11-25, of four worded
+		/// buttons cut to "dit tex" in a narrow drawer: "edit and discard
+		/// have pretty standard pencil and trash can glyphs in the app", and
+		/// of Ask more, which the same row held on a draft's stops: it "just
+		/// opens the whole tour chat, so that shouldn't even be on the draft
+		/// stops". The tour's own chat toggle opens that chat.
 		using proposal_placer = std::function<bool(std::size_t, const core::tour_proposal_item&, QWidget*)>;
 		void set_proposal_placer(std::function<void()> aBegin, proposal_placer aPlace)
 		{
@@ -149,10 +155,13 @@ namespace bpr::qt {
 		/// highlighter.
 		void set_code_style(const QFont& aFont, qreal aTabStopDistance, std::optional<markdown_code_theme> aTheme, std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
 		void apply_code_syntax(const application::markdown_code_syntax_publication& aSpans);
-		/// \brief [[BPR-1915]]. A pending item's rendered text, and its Edit
-		/// text button, which shows the Markdown source instead.
+		/// \brief [[BPR-1915]]. A pending item's rendered text, and its
+		/// pencil, checked while it shows the Markdown source instead: named
+		/// Edit text at rest and Show formatted while checked.
 		[[nodiscard]] auto proposal_reader(std::size_t aIndex) const -> markdown_body_view*;
-		[[nodiscard]] auto edit_button(std::size_t aIndex) const -> QPushButton*;
+		[[nodiscard]] auto edit_button(std::size_t aIndex) const -> QToolButton*;
+		/// \brief A pending item's trash: Discard.
+		[[nodiscard]] auto discard_button(std::size_t aIndex) const -> QToolButton*;
 		/// \brief [[BPR-1914]]. The words a turn's proposal is said in.
 		[[nodiscard]] static auto proposed_words(const core::tour_proposal_tally& aTally) -> QString;
 		/// \brief [[BPR-1937]]. A part of a revision the core refused, said
@@ -242,14 +251,14 @@ namespace bpr::qt {
 		decide_dispatch                                             DecideDispatch;
 		std::function<void(core::tour_stop_id, const std::string&)> OwnAcceptDispatch;
 		std::function<void(std::size_t)>                            RelocateDispatch;
-		std::function<void(core::tour_agent_run_id)>                AskMoreDispatch;
 		std::function<void()>                                       PlaceBegin;
 		proposal_placer                                             Place;
 		QPushButton*                                                AcceptAll = nullptr;
 		/// [[BPR-1925]] v003. Each pending part's box, wherever it was placed.
 		std::map<std::size_t, QPointer<QWidget>>                                    Boxes;
 		std::map<std::size_t, markdown_body_view*>                                  Readers;
-		std::map<std::size_t, QPushButton*>                                         EditButtons;
+		std::map<std::size_t, QToolButton*>                                         EditButtons;
+		std::map<std::size_t, QToolButton*>                                         DiscardButtons;
 		std::set<std::size_t>                                                       Editing;
 		QToolButton*                                                                ChatTour = nullptr;
 		std::function<void()>                                                       ChatDispatch;

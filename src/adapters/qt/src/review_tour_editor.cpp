@@ -19,6 +19,8 @@
 
 #include "conversation_glyphs.hpp"
 #include "waiting_panel.hpp"
+#include "wrapped_text_field.hpp"
+#include "wrapping_row.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractScrollArea>
@@ -2390,6 +2392,18 @@ namespace bpr::qt {
 			&& static_cast<QResizeEvent*>(aEvent)->size().width() != static_cast<QResizeEvent*>(aEvent)->oldSize().width()) {
 			QTimer::singleShot(0, this, [this] { place_stop_card_now(); });
 		}
+		// A part waiting on the open stop's card changed what it shows: its
+		// pencil opened its Markdown source, a taller field than its words.
+		// The card takes the height that asks for, or the field is cut at its
+		// foot by a card still as tall as the words were.
+		if (aEvent->type() == QEvent::LayoutRequest && !CardRefitPending && StopFields != nullptr && aWatched->parent() == StopFields
+			&& std::ranges::any_of(StopTextProposals, [aWatched](const auto& aEntry) { return aEntry.second == aWatched; })) {
+			CardRefitPending = true;
+			QTimer::singleShot(0, this, [this] {
+				CardRefitPending = false;
+				place_stop_card_now();
+			});
+		}
 		if (aEvent->type() == QEvent::InputMethod) {
 			// Preedit text is not committed text: another presentation must wait for it, not flush it.
 			if (static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty()) {
@@ -2492,7 +2506,6 @@ namespace bpr::qt {
 	void review_tour_editor::set_agent_failure_dispatch(std::function<void()> aDispatch) { AgentFailureDispatch = std::move(aDispatch); }
 	void review_tour_editor::set_tour_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aAskMore)
 	{
-		TourAgentPanel->set_ask_more_dispatch(aAskMore);
 		SideChat->set_ask_more_dispatch(std::move(aAskMore));
 	}
 
@@ -2869,6 +2882,7 @@ namespace bpr::qt {
 				return false;
 			}
 			aBox->hide();
+			aBox->installEventFilter(this);
 			StopTextProposals.emplace(aItem.StopId.value(), aBox);
 			return true;
 		}
@@ -2905,6 +2919,7 @@ namespace bpr::qt {
 				}
 			}
 			aBox->hide();
+			aBox->installEventFilter(this);
 			StopTextProposals.emplace(lead.value(), aBox);
 			StructureProposed = true;
 			return true;
@@ -3599,6 +3614,8 @@ namespace bpr::qt {
 		Body->setAttribute(Qt::WA_MacShowFocusRect, false);
 		Body->viewport()->setAutoFillBackground(false);
 		Body->document()->setDocumentMargin(0);
+		// Its words wrap at the card's width: nothing to pan to.
+		detail::hold_wrapped_text_still(*Body);
 		new calm_text_box{ *Body };
 		Body->installEventFilter(this);
 		fields->addWidget(Body);
@@ -3762,13 +3779,15 @@ namespace bpr::qt {
 		RemoveConfirm = new QWidget{ StopFields };
 		RemoveConfirm->setObjectName(QStringLiteral("tourStopRemoveConfirm"));
 		{
-			auto* const row = new QHBoxLayout{ RemoveConfirm };
-			row->setContentsMargins(0, 0, 0, 0);
-			row->setSpacing(8);
+			// The question, then Keep and Remove at the row's right end. In a
+			// card too narrow for all three the question keeps a line of its
+			// own: a box layout cut its last word instead.
+			auto* const row      = new detail::wrapping_row{ RemoveConfirm, 8, 6 };
 			auto* const question = new QLabel{ tr("Remove this stop?"), RemoveConfirm };
 			question->setObjectName(QStringLiteral("tourStopRemoveQuestion"));
 			question->setTextFormat(Qt::PlainText);
-			row->addWidget(question, 1);
+			question->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+			row->addWidget(question);
 			RemoveKeep = new quiet_push_button{ tr("Keep"), RemoveConfirm };
 			RemoveKeep->setObjectName(QStringLiteral("tourStopRemoveKeep"));
 			RemoveKeep->setAccessibleName(tr("Keep the stop"));
@@ -3778,6 +3797,11 @@ namespace bpr::qt {
 			RemoveYes->setAccessibleName(tr("Remove the stop"));
 			restyle_remove_confirm();
 			row->addWidget(RemoveYes);
+			// Each chip paints its whole rect, so it is laid out by it: by
+			// the macOS style's smaller bezel the row came out shorter than
+			// the chips, which were cut at their feet.
+			RemoveKeep->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+			RemoveYes->setAttribute(Qt::WA_LayoutUsesWidgetRect);
 			auto* const keepKey = new QShortcut{ shortcut_key(shortcut_command::tour_keep_stop), RemoveConfirm };
 			keepKey->setObjectName(QStringLiteral("tourStopRemoveKeepKey"));
 			keepKey->setContext(Qt::WidgetWithChildrenShortcut);

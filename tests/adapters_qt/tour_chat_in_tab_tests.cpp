@@ -238,7 +238,7 @@ namespace {
 			expect(shown.contains(words), "the Tour action " + words.toStdString() + " shows and is one of them, " + aWhen + ": " + shown.join(QStringLiteral(", ")).toStdString());
 		}
 		// No other quiet chip stands among the panel's card actions.
-		for (const auto* const name : { "tourProposalAccept", "tourProposalDiscard", "tourProposalEdit", "tourProposalAcceptAll", "tourSideChatAccept", "tourSideChatDiscard", "tourSideChatRevisionAcceptAll", "tourSideChatRevisionReview", "tourSideChatRevisionDiscard" }) {
+		for (const auto* const name : { "tourProposalAccept", "tourProposalAcceptAll", "tourSideChatAccept", "tourSideChatDiscard", "tourSideChatRevisionAcceptAll", "tourSideChatRevisionReview", "tourSideChatRevisionDiscard" }) {
 			for (auto* const button : aRoot.findChildren<QPushButton*>(QString::fromLatin1(name))) {
 				expect(button->property("bprTourAction").toBool(), std::string{ "a card action is a Tour action, " } + aWhen + ": " + name);
 			}
@@ -389,7 +389,7 @@ namespace {
 		expect(proposedStops != nullptr && proposedStops->isVisible() && frames.size() == 1, "the proposed stop is on the route, under its own");
 		auto* const stopAccept = editor->tour_agent()->accept_button(0);
 		expect(stopAccept != nullptr && frames.front()->isAncestorOf(stopAccept) && stopAccept->isVisible(), "its Accept is on it");
-		const auto* const stopDiscard = frames.front()->findChild<QPushButton*>(QStringLiteral("tourProposalDiscard"));
+		const auto* const stopDiscard = frames.front()->findChild<QToolButton*>(QStringLiteral("tourProposalDiscard"));
 		expect(stopDiscard != nullptr && stopAccept->x() > stopDiscard->x(), "Accept at the right, where Ready, next sits; Discard before it");
 		auto* const stopText = editor->tour_agent()->proposal_reader(0);
 		expect(stopText != nullptr && frames.front()->isAncestorOf(stopText), "its text reads on it");
@@ -406,7 +406,7 @@ namespace {
 			   "the proposed stop says Add to tour, Stop 1's own text Accept");
 		expect(editor->tour_agent()->accept_all_button()->isVisibleTo(editor) && editor->tour_agent()->accept_all_button()->text() == QStringLiteral("Apply all"), "a draft's two parts have one Apply all, on the panel's line");
 		expect_one_accept(window, *complete, "with a proposal on the stop");
-		expect_one_button_style(window, *complete, "with a proposal on the stop", { QStringLiteral("Accept"), QStringLiteral("Add to tour"), QStringLiteral("Apply all"), QStringLiteral("Discard") });
+		expect_one_button_style(window, *complete, "with a proposal on the stop", { QStringLiteral("Accept"), QStringLiteral("Add to tour"), QStringLiteral("Apply all") });
 		click(stopAccept);
 		expect(!decided.empty() && decided.back() == std::pair{ std::size_t{ 0U }, core::tour_proposal_decision::accepted }, "Accept on the proposed stop accepts it");
 		// [[BPR-2014]] AC03. Accept on Stop 1's own proposal accepts Stop 1,

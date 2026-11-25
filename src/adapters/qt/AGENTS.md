@@ -79,10 +79,65 @@ themes, rendering mechanics, and event translation.
   Tour tab's chat column, drag the drawer to 280, 300, 340 and 420 pixels in
   each state, and refuse a horizontal bar, sideways range, content wider than
   its viewport, a control outside the drawer, a button narrower than its
-  words, a chip drawn over another and a tool button the platform style
-  draws. A state a real run reaches (an activity line, a suggested prompt, a
-  refused question, a moved head) joins that course: a window nothing
-  composed never shows it.
+  words, a chip drawn over another, a button's face or a text field cut by
+  a part that holds it, and a tool button the platform style draws. A state a real run
+  reaches (an activity line, a suggested prompt, a refused question, a moved
+  head) joins that course: a window nothing composed never shows it.
+- A state is what the window shows between two gestures, not only where a
+  flow ends. A course that presses on to its destination judges and draws
+  only the destination: sweep the drawer after each gesture a person can stop
+  at (the draft running, its proposal waiting before Apply all, a text being
+  edited, a question asked before its answer, one part applied of two). The
+  owner, 2026-11-25, of the proposal Draft Tour leaves, its four buttons cut
+  to "dit tex" through several rounds of looks: "It still looks exactly the
+  same this must be an offscreen vs on screen render issue at this point if
+  we're this many iterations deep." It was not a render issue. The course
+  had pressed Apply all on its way to the route, so the state the owner sat
+  in was never measured or drawn, and every look showed a later one.
+- A composed render is the window on screen. Held against the owner's
+  screenshot of that proposal (the same state, a 280 pixel drawer, the
+  display's own scale), the course's render drawn off screen under
+  `BPR_NATIVE_LOOK=1` had every pixel equal but the drawer's one-pixel edge.
+  When a look and the owner's screen disagree, find the state, the width and
+  the scale the owner is at before suspecting the renderer, and hold the
+  render against their screenshot pixel for pixel before saying it matches.
+  Three things do differ, and the course settles each:
+  - Scale. `QT_SCALE_FACTOR` multiplies the display's own scale, so on a
+    Retina display a factor of 2 draws at 400%. Draw natively without it for
+    what the owner sees (200% there), and with 0.5 for a 100% display. A
+    render's name carries the scale it was really drawn at.
+  - The active window. The window a person looks at is the active one: the
+    selected tab reads selected and a default button wears its accent. The
+    platform never makes a window active that is kept off screen, so the
+    course tells Qt it is (`QApplication::setActiveWindow`) before it judges
+    or draws.
+  - The keyboard. A course presses buttons by program, which leaves the
+    keyboard where no pointer would; when that control is hidden or
+    disabled Qt hands the keyboard on as if Tab were pressed, and the next
+    button wears a focus ring no pointer-driven person sees. The course
+    takes the keyboard off its own leftovers (`leave_no_keyboard_behind`)
+    and leaves it where the window itself puts it (a question's safe
+    answer, a field opened to write in).
+- The application hands an agent only the environment names its profile
+  allows (`HOME`, `PATH`, the temporary folder), so a `BPR_FIXTURE_AGENT_*`
+  variable set in a composed course never reaches the Fixture agent. A state
+  that shows only while a turn runs is held open with a file: the course
+  runs its own copy of the agent and, while `hold-turns` stands beside that
+  copy, every turn waits (`course::hold_turns`, `release_turns`). A look is
+  then as long as it takes, at any scale, and the turn ends when the course
+  says so.
+- A row of a part's quiet choices that ends in its one worded action is a
+  `detail::wrapping_row` with `set_last_trails(true)`: the action keeps the
+  row's right end on one row and when the row wraps. Icon tools the app
+  already uses (the comments' pencil and trash) stand for Edit and Discard
+  there, each a `quiet_tool_button` with its name first in its tooltip and
+  as its accessible name; a choice that only opens another surface the
+  drawer already offers has no button of its own.
+- A `QPlainTextEdit` that wraps at its width can still be given a few pixels
+  of sideways range (Qt measures a block it lays out again as its widest
+  line and some room more), which shows a horizontal scroll bar under words
+  that all fit. A drawer's field of wrapped prose is passed to
+  `detail::hold_wrapped_text_still` (`src/wrapped_text_field.hpp`).
 - A chip that paints its whole rect (`quiet_push_button` with words) is laid
   out by that rect where chips stand side by side or one under another:
   `setAttribute(Qt::WA_LayoutUsesWidgetRect)`. The macOS style lays a push

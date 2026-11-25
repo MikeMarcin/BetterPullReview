@@ -195,8 +195,18 @@ not a list under the button. Each pending part waits in the tour on what it
 changes. A proposed stop sits on the route, after the tour's own, under a grey
 ring and rail that turn amber once it is accepted. A stop's new explanation
 sits on its card, where **Ready, next** is. A proposed Problem or Solution sits
-under the part's own text, with a "Proposed" pill on its step. Each has
-**Accept** at the right, with **Edit text** and **Discard** before it. One line
+under the part's own text, with a "Proposed" pill on its step. Each has its
+one worded action at the right (**Add to tour**, **Accept**, **Remove**,
+**Merge**, **Split**, **Reorder**), with a pencil and a trash before it: the
+pencil shows the text's Markdown source to change (Edit text, and Show
+formatted while it is down) and the trash discards the part. The owner,
+2026-11-25, of that row as four worded buttons cut off in a narrow drawer:
+"edit and discard have pretty standard pencil and trash can glyphs in the
+app"; and of Ask more, which a draft's stops also held: it "just opens the
+whole tour chat, so that shouldn't even be on the draft stops". The row is one
+line at the drawer's narrowest, and wraps before it would cut a button. A
+stop's card takes the height a part waiting on it asks for, so a source the
+pencil opens is whole. One line
 under the button counts them, with **Apply all** (for parts no chat card holds). **Ready, next** shows only
 when it can act: a read stop whose title, explanation and lines are confirmed
 and which is not yet Ready. Until the lines are confirmed (Show in code, then
@@ -422,7 +432,7 @@ already in the tour, which join the proposal under Draft Tour and change
 nothing until accepted. Since [[BPR-1915]] every built-in tour prompt asks for
 GitHub-flavoured Markdown that scans (short paragraphs, lists, inline code, no
 headings), and a proposed text shows rendered as the preview and GitHub show
-it, with **Edit text** for its source. See the
+it, with its pencil (Edit text) for its source. See the
 [RFC-BPR-0092 amendment](../rfcs/RFC-BPR-0092-agent-first-run-setup.md#amendment-bpr-1914-bpr-1915-2026-11-06-the-tour-conversation-and-formatted-drafts).
 
 The stop editor retains native explanation documents by stop ID, with a

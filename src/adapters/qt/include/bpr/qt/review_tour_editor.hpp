@@ -171,7 +171,9 @@ namespace bpr::qt {
 		/// proposed part's Accept, with the author's edit, or Discard.
 		void set_tour_session_dispatch(std::function<void()> aDraft, std::function<void()> aStop, std::function<void(std::size_t, core::tour_proposal_decision, const QString&)> aDecide, std::function<void(std::size_t)> aRelocate = { });
 		/// \brief [[BPR-2138]], RFC-BPR-0101 AC12. Ask more on a fresh answer
-		/// (Draft Tour's proposal, a part's Enhance suggestion), by its run.
+		/// in the tour's chat (a part's Enhance suggestion), by its run. A
+		/// part Draft Tour proposed has none (owner, 2026-11-25: it "just
+		/// opens the whole tour chat"); the tour's own chat toggle opens it.
 		void set_tour_ask_more_dispatch(std::function<void(core::tour_agent_run_id)> aAskMore);
 		/// \brief [[BPR-1900]]. The tour session and its proposal, as last
 		/// decided.
@@ -464,6 +466,9 @@ namespace bpr::qt {
 		/// [[BPR-1930]]. A stop's waiting parts (a new explanation, its
 		/// removal, a merge or a split it leads), shown on its card while open.
 		std::multimap<std::uint64_t, QPointer<QWidget>> StopTextProposals;
+		/// A part on the open stop's card asked for another height, and the
+		/// card's refit is posted.
+		bool CardRefitPending = false;
 		/// [[BPR-1930]]. The proposed order, above the route; each stop's mark
 		/// on the route: its kind and its pill's words.
 		QWidget*                                                    ProposedOrder = nullptr;

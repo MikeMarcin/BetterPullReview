@@ -12,7 +12,14 @@
 //
 // Scripting: `BPR_FIXTURE_AGENT_FAIL=crash|usage-limit` in its environment,
 // or `FIXTURE_CRASH` / `FIXTURE_USAGE_LIMIT` in the question. Pauses:
-// `BPR_FIXTURE_AGENT_PAUSE_MS` (default 350), 0 for none. As `claude` it keeps
+// `BPR_FIXTURE_AGENT_PAUSE_MS` (default 350), 0 for none. The application
+// hands an agent only the few environment names its profile allows (`HOME`,
+// `PATH`, the temporary folder), so none of these reaches an agent the
+// application starts: a course scripts that one by its question, or holds its
+// turn open with a file. While a file named `hold-turns` stands beside the
+// agent's own executable, every pause waits for it to go (two minutes at
+// most), so a course that has to look at a window while a turn runs ends the
+// turn itself, not on a guess at how long the look takes. As `claude` it keeps
 // its connection and can be steered ([[BPR-2153]]);
 // `BPR_FIXTURE_AGENT_STEERABLE=0` makes it the one-shot agent with no version,
 // and `FIXTURE_UNVERSIONED` in a question makes that turn name no version
@@ -22,7 +29,8 @@
 //
 // A tour chat's turn that asks for a change proposes one: an update of a stop
 // (Enhance, or Update this stop from this chat) a new explanation for that
-// stop, and "Drop stop N" in the whole tour's chat that removal. Any other
+// stop, and in the whole tour's chat "Drop stop N" that removal and "Rewrite
+// stop N" a new explanation for that stop (one turn may ask both). Any other
 // tour turn changes nothing.
 //
 // [[BPR-2370]]. A side chat round's answer says whether its working folder
@@ -91,12 +99,29 @@ namespace {
 		return result;
 	}
 
+	/// `hold-turns` beside this executable, when it was started by its full
+	/// path; empty otherwise. A course's own copy of the agent stands in a
+	/// folder the course owns, so only that course can hold it.
+	auto hold_file() -> std::filesystem::path&
+	{
+		static auto file = std::filesystem::path{ };
+		return file;
+	}
+
 	void pause()
 	{
 		const auto configured = environment("BPR_FIXTURE_AGENT_PAUSE_MS");
 		const auto millis     = configured.empty() ? 350 : std::atoi(configured.c_str());
 		if (millis > 0) {
 			std::this_thread::sleep_for(std::chrono::milliseconds{ millis });
+		}
+		// Held by a course: the turn goes on when the file is gone. Bounded,
+		// so nothing waits on a course that has itself gone.
+		if (const auto& held = hold_file(); !held.empty()) {
+			auto error = std::error_code{ };
+			for (int waited = 0; waited < 2400 && std::filesystem::exists(held, error); ++waited) {
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 50 });
+			}
 		}
 	}
 
@@ -338,6 +363,16 @@ namespace {
 		return found == std::string::npos ? 0 : leading_number(std::string_view{ question }.substr(found + marker.size()));
 	}
 
+	/// The stop the whole tour's chat is asked to rewrite ("Rewrite stop 1"),
+	/// or 0.
+	auto tour_rewritten_stop(const std::string& aRequest) -> int
+	{
+		const auto question = tour_question(aRequest);
+		const auto marker   = std::string_view{ "Rewrite stop " };
+		const auto found    = question.find(marker);
+		return found == std::string::npos ? 0 : leading_number(std::string_view{ question }.substr(found + marker.size()));
+	}
+
 	/// A review: the review skill asks every turn for findings it finds; only
 	/// a review is answered with them.
 	auto reviews(const std::string& aRequest) -> bool
@@ -426,13 +461,22 @@ namespace {
 		// as its own turn, in order; it changes nothing in the tour.
 		// A turn that asks for a change proposes one, so a look and a course
 		// see a proposal and its choices: "Drop stop 2" in the whole tour's
-		// chat proposes that removal, and an update of a stop (Enhance, or
-		// Update this stop from this chat) a new explanation for it.
+		// chat proposes that removal and "Rewrite stop 1" there a new
+		// explanation for that stop, which waits on the stop's own card;
+		// an update of a stop (Enhance, or Update this stop from this chat)
+		// proposes a new explanation for it in its chat.
 		if (holds(aRequest, "bpr.tour-revise.v2")) {
-			if (const auto dropped = tour_dropped_stop(aRequest); dropped > 0) {
-				return R"({"schema":"bpr.tour-revise.v2","reply":"Fixture agent: I propose taking stop )" + std::to_string(dropped)
-					+ R"( out of the tour. Nothing changes until you accept it; nothing was spent.","stops":[],"stop_texts":[],"remove_stops":[)" + std::to_string(dropped)
-					+ R"(],"merge_stops":[],"split_stops":[],"order":[],"focus":"","replace_waiting_stops":false})";
+			const auto dropped   = tour_dropped_stop(aRequest);
+			const auto rewritten = tour_rewritten_stop(aRequest);
+			if (dropped > 0 || rewritten > 0) {
+				const auto said  = rewritten > 0 && dropped > 0 ? "a new explanation for stop " + std::to_string(rewritten) + " and taking stop " + std::to_string(dropped) + " out of the tour"
+					: rewritten > 0                             ? "a new explanation for stop " + std::to_string(rewritten)
+																: "taking stop " + std::to_string(dropped) + " out of the tour";
+				const auto texts = rewritten > 0 ? R"({"stop":)" + std::to_string(rewritten)
+						+ R"(,"explanation":"Fixture rewrite: each view clears and draws its own scene between begin_frame() and present(), so two views in one frame never draw over each other."})"
+												 : std::string{ };
+				return R"({"schema":"bpr.tour-revise.v2","reply":"Fixture agent: I propose )" + said + R"(. Nothing changes until you accept it; nothing was spent.","stops":[],"stop_texts":[)" + texts
+					+ R"(],"remove_stops":[)" + (dropped > 0 ? std::to_string(dropped) : std::string{ }) + R"(],"merge_stops":[],"split_stops":[],"order":[],"focus":"","replace_waiting_stops":false})";
 			}
 			return R"({"schema":"bpr.tour-revise.v2","reply":")" + tour_reply(aRequest)
 				+ R"(","stops":[],"stop_texts":[],"remove_stops":[],"merge_stops":[],"split_stops":[],"order":[],"focus":"","replace_waiting_stops":false})";
@@ -1002,8 +1046,11 @@ auto main(int argc, char** argv) -> int
 	for (auto index = 1; index < argc; ++index) {
 		arguments.emplace_back(argv[index]);
 	}
-	const auto has   = [&arguments](const std::string_view aWord) { return std::ranges::find(arguments, aWord) != arguments.end(); };
-	const auto name  = argc > 0 ? std::filesystem::path{ argv[0] }.stem().string() : std::string{ };
+	const auto has  = [&arguments](const std::string_view aWord) { return std::ranges::find(arguments, aWord) != arguments.end(); };
+	const auto name = argc > 0 ? std::filesystem::path{ argv[0] }.stem().string() : std::string{ };
+	if (const auto self = argc > 0 ? std::filesystem::path{ argv[0] } : std::filesystem::path{ }; self.is_absolute()) {
+		hold_file() = self.parent_path() / "hold-turns";
+	}
 	const auto codex = name == "codex" || has("exec");
 	if (has("--version")) {
 		std::cout << (codex ? "codex-cli 0.0.0-fixture\n" : "2.1.314 (Claude Code)\n");

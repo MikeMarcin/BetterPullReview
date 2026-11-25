@@ -25,10 +25,25 @@
 ///   with the card of a transcript replay that read the earlier head and the
 ///   card of a question refused because its session's workspace was not
 ///   moved;
-/// - the Tour tab's route, and its chat column: about a stop with nothing
-///   asked yet, answered, a turn running over a pending list and a suggested
-///   rewrite of the stop; about the whole tour answered and with a proposed
-///   revision; and about a stop whose session read the earlier head.
+/// - the Tour tab with nothing drafted, while Draft Tour runs, with the
+///   draft's proposal waiting (each proposed stop with its choices, before
+///   any is applied), with a proposed text being edited, with Reset tour
+///   asked and done, and with one proposed stop added while the other waits;
+/// - the Tour tab's route, a stop being written and its removal asked, and
+///   its chat column: about a stop with nothing asked yet, answered, a turn
+///   running over a pending list, a suggested rewrite of the stop and that
+///   suggestion being edited; about the whole tour answered and with a
+///   proposed revision; that revision's parts waiting on the stops they
+///   change (a new explanation, read and edited, and a removal); and about a
+///   stop whose session read the earlier head.
+///
+/// A state is what the window shows between two gestures, not only where a
+/// flow ends. The owner, 2026-11-25, of the proposal Draft Tour leaves before
+/// Apply all, its buttons cut to "dit tex": "It still looks exactly the same
+/// this must be an offscreen vs on screen render issue". It was not: this
+/// course's render of that state, drawn off screen, is the window on screen
+/// to the pixel. The course had pressed Apply all on its way to the route, so
+/// that state was neither measured nor drawn.
 ///
 /// In each state the drawer is dragged by its handle to 280, 300, 340 and 420
 /// pixels. The chat column is the Tour tab's second: there the drawer is
@@ -42,7 +57,10 @@
 ///   scrolled content it belongs to;
 /// - no button is narrower than its words, and no label that does not wrap or
 ///   shorten its words is narrower than them;
-/// - no two buttons lie over one another.
+/// - no two buttons lie over one another;
+/// - no button's face and no text field is cut by a part that holds it: a
+///   row laid out shorter than its buttons, or a card still as tall as the
+///   words a field replaced, clips them where no scrolling brings them back.
 ///
 /// A code block is code: it keeps its lines and pans inside its own frame
 /// until its Wrap is pressed. The block itself is held to the rules above;
@@ -54,7 +72,9 @@
 /// `<tag>-<scheme>-<scale>-<state>-<width>.png` (`BPR_COMPOSED_DRAWER_RENDER_TAG`,
 /// else "drawer"), and the whole window at each state's narrowest width as
 /// `…-window.png`. Run under the native look (`BPR_NATIVE_LOOK=1`, Cocoa) the
-/// same binary draws what the application's own window draws.
+/// same binary draws what the application's own window draws: the window is
+/// told it is the active one, as the window a person looks at is, and run
+/// without `QT_SCALE_FACTOR` it draws at the display's own scale.
 /// `BPR_COMPOSED_DRAWER_REPORT`, when set, makes the run report every fault
 /// and finish, for a before-and-after record, instead of failing on them.
 ///
@@ -85,6 +105,7 @@
 #include <QComboBox>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QLabel>
@@ -240,7 +261,7 @@ namespace {
 	/// room round a bezel), so two such widgets may overlap where their faces
 	/// do not. A quiet chip paints its whole rect: laid out by a bezel it
 	/// does not have, it is drawn over its neighbour.
-	[[nodiscard]] auto face_in(const QWidget& aControl, const QWidget& aSurface) -> QRect
+	[[nodiscard]] auto face_of(const QWidget& aControl) -> QRect
 	{
 		auto              face  = aControl.rect();
 		const auto* const quiet = dynamic_cast<const qt::quiet_push_button*>(&aControl);
@@ -252,7 +273,29 @@ namespace {
 				face = item;
 			}
 		}
-		return face.translated(aControl.mapTo(&aSurface, QPoint{ 0, 0 }));
+		return face;
+	}
+
+	[[nodiscard]] auto face_in(const QWidget& aControl, const QWidget& aSurface) -> QRect
+	{
+		return face_of(aControl).translated(aControl.mapTo(&aSurface, QPoint{ 0, 0 }));
+	}
+
+	/// \brief The part between \p aControl and what scrolls it that cuts its
+	/// face, if one does. A viewport clips what can be scrolled back into
+	/// view; any other part that is smaller than what it holds cuts it for
+	/// good (a row given the height of a bezel its chips do not have).
+	[[nodiscard]] auto cut_by(const QWidget& aControl, const QWidget& aSurface) -> const QWidget*
+	{
+		for (const auto* part = aControl.parentWidget(); part != nullptr && part != &aSurface; part = part->parentWidget()) {
+			if (const auto* const area = qobject_cast<const QAbstractScrollArea*>(part->parentWidget()); area != nullptr && area->viewport() == part) {
+				return nullptr;
+			}
+			if (!part->rect().contains(face_of(aControl).translated(aControl.mapTo(part, QPoint{ 0, 0 })))) {
+				return part;
+			}
+		}
+		return nullptr;
 	}
 
 	/// \brief Every button and label \p aSurface shows that is cut off, too
@@ -298,6 +341,18 @@ namespace {
 				if (words && button->hasHeightForWidth() && button->height() < button->heightForWidth(button->width())) {
 					found.push_back(QStringLiteral("%1 is %2 tall, its words need %3").arg(describe(*button)).arg(button->height()).arg(button->heightForWidth(button->width())));
 				}
+				if (const auto* const part = cut_by(*button, aSurface); part != nullptr) {
+					const auto face = face_of(*button).translated(button->mapTo(part, QPoint{ 0, 0 }));
+					found.push_back(QStringLiteral("%1's face (%2,%3 %4x%5) is cut by %6, which is %7x%8")
+										.arg(describe(*button))
+										.arg(face.left())
+										.arg(face.top())
+										.arg(face.width())
+										.arg(face.height())
+										.arg(describe(*part))
+										.arg(part->width())
+										.arg(part->height()));
+				}
 				buttons.push_back(button);
 			}
 			// A label that neither wraps nor shortens its words (its size
@@ -305,6 +360,15 @@ namespace {
 			if (label != nullptr && !label->wordWrap() && !label->text().isEmpty() && label->pixmap().isNull() && label->sizePolicy().horizontalPolicy() != QSizePolicy::Ignored
 				&& label->width() < label->minimumSizeHint().width()) {
 				found.push_back(QStringLiteral("%1 is %2 wide, its words need %3").arg(describe(*label)).arg(label->width()).arg(label->minimumSizeHint().width()));
+			}
+		}
+		// A field of text is whole inside what holds it, too.
+		for (const auto* const field : aSurface.findChildren<QPlainTextEdit*>()) {
+			if (!field->isVisibleTo(&aSurface) || field->visibleRegion().isEmpty()) {
+				continue;
+			}
+			if (const auto* const part = cut_by(*field, aSurface); part != nullptr) {
+				found.push_back(QStringLiteral("%1 (%2x%3) is cut by %4, which is %5x%6").arg(describe(*field)).arg(field->width()).arg(field->height()).arg(describe(*part)).arg(part->width()).arg(part->height()));
 			}
 		}
 		for (std::size_t first = 0U; first < buttons.size(); ++first) {
@@ -372,6 +436,26 @@ namespace {
 		plain->show();
 		settle();
 		expect(!cut_off(surface).isEmpty(), "negative control: a plain tool button with an arrow, which the platform style draws, is caught");
+		plain->hide();
+		settle();
+		expect(cut_off(surface).isEmpty(), "and without it nothing is: " + cut_off(surface).join(QStringLiteral("; ")).toStdString());
+		auto* const row = new QWidget{ &surface };
+		row->setGeometry(10, 60, 280, 20);
+		auto* const chip = new qt::quiet_push_button{ QStringLiteral("Keep"), row };
+		chip->setGeometry(0, 0, 60, 30);
+		row->show();
+		settle();
+		expect(cut_off(surface).join(QStringLiteral("; ")).contains(QStringLiteral("is cut by")), "negative control: a chip taller than the row that holds it is caught");
+		chip->setGeometry(0, 0, 60, 20);
+		settle();
+		expect(cut_off(surface).isEmpty(), "and a chip its row holds whole is not: " + cut_off(surface).join(QStringLiteral("; ")).toStdString());
+		auto* const frame = new QWidget{ &surface };
+		frame->setGeometry(10, 90, 280, 40);
+		auto* const field = new QPlainTextEdit{ frame };
+		field->setGeometry(0, 0, 280, 70);
+		frame->show();
+		settle();
+		expect(cut_off(surface).join(QStringLiteral("; ")).contains(QStringLiteral("QPlainTextEdit")), "negative control: a text field taller than the frame that holds it is caught");
 	}
 
 	/// The course: one window of the composed application and what it found.
@@ -386,6 +470,19 @@ namespace {
 		/// The part of the drawer the state being judged is about, if it
 		/// could be scrolled out of view.
 		QPointer<QWidget> Shown;
+		/// While this file stands beside the course's own copy of the fixture
+		/// agent, the agent's turns wait.
+		QString HoldFile;
+
+		/// Holds the fixture agent's next turn open until `release_turns`: a
+		/// state that only shows while a turn runs is judged at every width
+		/// however long that takes.
+		void hold_turns() const
+		{
+			auto file = QFile{ HoldFile };
+			expect(file.open(QIODevice::WriteOnly), "the course holds the fixture agent's turn");
+		}
+		void release_turns() const { expect(!QFile::exists(HoldFile) || QFile::remove(HoldFile), "the course lets the fixture agent's turn go on"); }
 
 		[[nodiscard]] auto drawer() const -> QWidget* { return Window->conversations_drawer(); }
 		[[nodiscard]] auto chat() const -> qt::tour_side_chat* { return Window->tour_editor()->side_chat(); }
@@ -413,6 +510,16 @@ namespace {
 
 		void judge(const std::string& aState, const int aWidth, const bool aWindowToo)
 		{
+			// The window a person looks at is the active one: a default
+			// button wears its accent and a selection its strong colour. The
+			// platform never makes a window active that is kept off screen,
+			// so Qt is told it is.
+			if (!Window->isActiveWindow()) {
+				QT_WARNING_PUSH
+				QT_WARNING_DISABLE_DEPRECATED
+				QApplication::setActiveWindow(Window);
+				QT_WARNING_POP
+			}
 			settle();
 			// What the state is about, scrolled to as it is read.
 			if (Shown != nullptr) {
@@ -539,39 +646,116 @@ namespace {
 		}
 	}
 
-	/// Drafts the tour on the fixture agent and accepts it whole.
-	void draft_tour(qt::workbench_window& aWindow)
+	[[nodiscard]] auto tour_running(const qt::tour_agent_panel& aPanel) -> bool
 	{
-		aWindow.open_review_tour();
-		auto* const editor = aWindow.tour_editor();
+		return std::ranges::any_of(aPanel.session().Runs, [](const core::tour_agent_run& aRun) { return aRun.State == core::tour_agent_run_state::running; });
+	}
+
+	/// The button named \p aName that \p aRoot shows now: a part laid out
+	/// again leaves its old buttons hidden until they are deleted.
+	[[nodiscard]] auto shown_button(const QWidget& aRoot, const QString& aName) -> QAbstractButton*
+	{
+		for (auto* const button : aRoot.findChildren<QAbstractButton*>(aName)) {
+			if (button->isVisibleTo(&aRoot)) {
+				return button;
+			}
+		}
+		return nullptr;
+	}
+
+	/// Whether \p aRoot shows the field a proposed text's source is written in.
+	[[nodiscard]] auto shows_proposal_source(const QWidget& aRoot) -> bool
+	{
+		return std::ranges::any_of(aRoot.findChildren<QPlainTextEdit*>(QStringLiteral("tourProposalText")), [&aRoot](const QPlainTextEdit* aText) { return aText->isVisibleTo(&aRoot); });
+	}
+
+	/// Takes the keyboard off whatever the course's own gestures left it on.
+	///
+	/// \details The course presses buttons and fills fields by program. That
+	/// leaves the keyboard where no pointer would: in the Agent tab's composer
+	/// as the Tour tab opens, or on a tool the next state disables. Qt then
+	/// hands it to the next button as if Tab had been pressed, and that button
+	/// wears a keyboard focus ring no person driving with the pointer sees.
+	/// Where the window itself gives the keyboard to a control (a question's
+	/// safe answer, a field opened to write in) it is left there.
+	void leave_no_keyboard_behind()
+	{
+		if (auto* const held = QApplication::focusWidget(); held != nullptr) {
+			held->clearFocus();
+		}
+	}
+
+	/// Drafts the tour on the fixture agent and adds its two stops, judging
+	/// the Tour tab in each state a person passes on the way: nothing drafted,
+	/// the draft running, its proposal waiting, a proposed text being edited,
+	/// Reset tour asked and done, and one stop added while the other waits.
+	void draft_tour(course& aRun)
+	{
+		auto& window = *aRun.Window;
+		leave_no_keyboard_behind();
+		window.open_review_tour();
+		auto* const editor = window.tour_editor();
 		auto* const tour   = editor->tour_agent();
+		auto* const drawer = aRun.drawer();
+		const auto  shows  = [drawer](const QWidget* const aPart) { return aPart != nullptr && aPart->isVisibleTo(drawer); };
 		wait([&] { return editor->shown().Draft && !editor->shown().Loading && tour->draft_button()->isEnabled(); }, "the tour is ready to draft");
+		leave_no_keyboard_behind();
+		aRun.sweep_drawer("tour-empty");
+		// The draft, held open while the drawer is dragged through its widths.
+		aRun.hold_turns();
 		tour->draft_button()->click();
+		wait([&] { return tour_running(*tour) && tour->draft_button()->text() == QStringLiteral("Stop drafting"); }, "the draft runs");
+		aRun.sweep_drawer("tour-drafting");
+		expect(tour_running(*tour) && tour->draft_button()->text() == QStringLiteral("Stop drafting"), "the draft still ran while the drawer was dragged");
+		aRun.release_turns();
 		wait([&] {
 			const auto& runs = tour->session().Runs;
 			return !runs.empty() && runs.back().Request == core::tour_agent_request::draft_tour && runs.back().State != core::tour_agent_run_state::running;
 		},
 			 "the draft ends");
 		expect(tour->session().Runs.back().State == core::tour_agent_run_state::answered, "the fixture agent drafts the tour: " + tour->transcript_text().toStdString());
-		wait([&] { return tour->accept_all_button()->isVisible() || (editor->shown().Draft && editor->shown().Draft->Stops.size() >= 2U); }, "the draft is proposed");
-		if (tour->accept_all_button()->isVisible()) {
-			tour->accept_all_button()->click();
-		}
+		// The proposal, before any of it is applied: two proposed stops wait
+		// in the tour, each with its own choices, under Apply all.
+		const auto proposed = [&] {
+			return shows(tour->accept_all_button()) && shows(tour->accept_button(0U)) && shows(tour->accept_button(1U)) && shows(tour->edit_button(0U)) && shown_button(*drawer, QStringLiteral("tourProposalDiscard")) != nullptr;
+		};
+		wait(proposed, "the draft's two stops are proposed, each with its choices, under Apply all");
+		aRun.sweep_drawer("tour-proposal");
+		// Its text edited: the proposed explanation's Markdown in a field.
+		tour->edit_button(0U)->click();
+		wait([&] { return shows(tour->proposal_editor(0U)); }, "a proposed stop's text opens as its Markdown source");
+		aRun.sweep_drawer("tour-proposal-editing");
+		tour->edit_button(0U)->click();
+		wait([&] { return !shows(tour->proposal_editor(0U)); }, "and shows as it will read again");
+		// Reset tour asks first, and then offers its undo.
+		expect(tour->reset_button()->isEnabled(), "Reset tour is offered over a waiting proposal: " + tour->reset_button()->toolTip().toStdString());
+		tour->reset_button()->click();
+		wait([&] { return shows(tour->reset_confirm()) && shows(tour->reset_confirm_button()); }, "Reset tour asks first");
+		aRun.sweep_drawer("tour-reset-asked");
+		tour->reset_confirm_button()->click();
+		wait([&] { return shows(tour->reset_done()) && shows(tour->undo_reset_button()) && tour->accept_button(0U) == nullptr; }, "the tour is reset and Undo reset is offered");
+		aRun.sweep_drawer("tour-reset-done");
+		tour->undo_reset_button()->click();
+		wait(proposed, "Undo reset brings the proposal back");
+		// One proposed stop added: it is the tour's, and asks for its Accept,
+		// while the other still waits. Apply all is for two or more.
+		tour->accept_button(0U)->click();
+		wait([&] { return editor->shown().Draft && editor->shown().Draft->Stops.size() == 1U && !editor->shown().Saving && tour->accept_button(0U) == nullptr && shows(tour->accept_button(1U)); },
+			 "the first proposed stop is the tour's and the second still waits");
+		aRun.sweep_drawer("tour-proposal-one-added");
+		tour->accept_button(1U)->click();
 		wait([&] { return editor->shown().Draft && editor->shown().Draft->Stops.size() >= 2U && !editor->shown().Saving; }, "the draft's two stops are the tour's");
-	}
-
-	[[nodiscard]] auto tour_running(const qt::tour_agent_panel& aPanel) -> bool
-	{
-		return std::ranges::any_of(aPanel.session().Runs, [](const core::tour_agent_run& aRun) { return aRun.State == core::tour_agent_run_state::running; });
 	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArray{ "offscreen" });
-	// A slow turn of the fixture agent runs about eight seconds here: long
-	// enough to drag the drawer through its widths while it runs.
-	qputenv("BPR_FIXTURE_AGENT_SLOW_STEP_MS", "400");
+	// A slow turn of the fixture agent ("Take your time") runs about twenty
+	// seconds: long enough to drag the drawer through its widths while it
+	// runs. The application hands an agent only the environment names its
+	// profile allows, so the agent's own pace cannot be set from here; a turn
+	// that must outlast a look is held open instead (`course::hold_turns`).
 	QApplication qtApplication{ argc, argv };
 	if (argc < 2) {
 		std::cerr << "usage: composed_drawer_fit_public_path FIXTURE_AGENT\n";
@@ -594,14 +778,18 @@ auto main(int argc, char** argv) -> int
 	std::unique_ptr<app::profile_desktop> desktop;
 	try {
 		check_the_checks();
+		// Beside the course's own copy of the agent, in the course's own root.
+		run.HoldFile = data.path() + QStringLiteral("/fixture-agent-search/hold-turns");
 		if (const auto root = qEnvironmentVariable("BPR_COMPOSED_DRAWER_RENDER_ROOT"); !root.isEmpty()) {
 			run.RenderFolder = QStringLiteral("%1/%2-%3").arg(root, QGuiApplication::platformName(), QApplication::style()->name().toLower());
 			expect(QDir{ }.mkpath(run.RenderFolder), "the render folder exists");
 			const auto scheme = QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark ? QStringLiteral("dark") : QStringLiteral("light");
 			run.RenderPrefix  = QStringLiteral("%1-%2-%3-").arg(qEnvironmentVariable("BPR_COMPOSED_DRAWER_RENDER_TAG", QStringLiteral("drawer")), scheme).arg(qRound(qApp->devicePixelRatio() * 100.0));
 		}
-		auto options                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
-		options.ClaudeAgentExecutable = agent;
+		auto options = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
+		// The course's own copy, which it alone can hold: a file beside the
+		// built agent would hold every course that runs it.
+		options.ClaudeAgentExecutable = std::filesystem::path{ data.path().toStdString() } / "fixture-agent-search" / ("claude" + agent.extension().string());
 		options.ClaudeSearch          = search;
 		// As an owner's look runs: the Fixture agent is a saved agent entry.
 		options.FixtureAgentSession = true;
@@ -684,14 +872,26 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return quiet() && !tab->queue_list()->isVisible(); }, "the queued follow-ups go and are answered");
 
 		// ---- The Tour tab and its chat column --------------------------------
-		draft_tour(*window);
+		draft_tour(run);
 		window->tour_editor()->show_stops();
 		settle();
 		expect(window->tray_tabs()->currentIndex() == 1, "the Tour tab shows the route");
 		run.sweep_drawer("tour-route");
 		const auto stop  = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = editor->shown().Draft->Stops.front().Id };
 		const auto whole = core::tour_thread{ };
+		const auto shows = [&run](const QWidget* const aPart) { return aPart != nullptr && aPart->isVisibleTo(run.drawer()); };
 		editor->go_to_stop(stop.Stop);
+		// The stop written: its title and explanation in fields, with the
+		// card's tools; then Remove stop, which asks first.
+		editor->begin_stop_edit();
+		wait([&] { return editor->stop_view().Mode == core::tour_stop_view_mode::edit && shows(editor->stop_body()) && shows(editor->stop_remove_button()); }, "the pencil opens the stop's fields");
+		run.sweep_drawer("tour-stop-editing");
+		editor->stop_remove_button()->click();
+		wait([&] { return shown_button(*run.drawer(), QStringLiteral("tourStopRemoveKeep")) != nullptr && shown_button(*run.drawer(), QStringLiteral("tourStopRemoveYes")) != nullptr; }, "Remove stop asks first");
+		run.sweep_drawer("tour-stop-remove-asked");
+		shown_button(*run.drawer(), QStringLiteral("tourStopRemoveKeep"))->click();
+		editor->cancel_stop_edit();
+		wait([&] { return editor->stop_view().Mode != core::tour_stop_view_mode::edit && editor->shown().Draft->Stops.size() == 2U; }, "the stop is kept as it was");
 		editor->open_side_chat(stop);
 		wait([&] { return chat->isVisible() && chat->column_open(); }, "the stop's chat opens beside the tour");
 		run.sweep_chat("tour-stop-chat-new");
@@ -727,16 +927,64 @@ auto main(int argc, char** argv) -> int
 		expect(chat->can_update() && chat->request_update(), "Update this stop from this chat is asked");
 		wait([&] { return asked(stop) == 5 && !tour_running(*panel) && chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAccept")) != nullptr; }, "the update proposes the stop's new explanation");
 		run.sweep_chat("tour-stop-chat-suggestion");
+		// Edit text on the suggestion: its source in a field on the card.
+		expect(shown_button(*chat, QStringLiteral("tourSideChatEdit")) != nullptr, "the suggestion offers Edit text");
+		shown_button(*chat, QStringLiteral("tourSideChatEdit"))->click();
+		wait([&] {
+			const auto* const edit  = shown_button(*chat, QStringLiteral("tourSideChatEdit"));
+			const auto        texts = chat->findChildren<QPlainTextEdit*>(QStringLiteral("tourSideChatProposalText"));
+			return edit != nullptr && std::ranges::any_of(texts, [&](const QPlainTextEdit* aText) { return aText->isVisibleTo(chat); });
+		},
+			 "Edit text shows the suggestion's source");
+		run.sweep_chat("tour-stop-chat-suggestion-editing");
+		shown_button(*chat, QStringLiteral("tourSideChatEdit"))->click();
+		wait([&] {
+			const auto texts = chat->findChildren<QPlainTextEdit*>(QStringLiteral("tourSideChatProposalText"));
+			return shown_button(*chat, QStringLiteral("tourSideChatEdit")) != nullptr && std::ranges::none_of(texts, [&](const QPlainTextEdit* aText) { return aText->isVisibleTo(chat); });
+		},
+			 "and shows as it will read again");
 		// The whole tour's chat: an answer, then a proposed revision.
 		editor->open_side_chat(whole);
 		wait([&] { return chat->current() == std::optional{ whole }; }, "the whole tour's chat opens");
 		sends(QStringLiteral("Is the tour in a good order?"));
 		wait([&] { return asked(whole) == 1 && !tour_running(*panel); }, "the whole tour's question is answered");
 		run.sweep_chat("tour-whole-chat-answered");
-		sends(QStringLiteral("Drop stop 2"));
+		sends(QStringLiteral("Rewrite stop 1 and Drop stop 2"));
 		wait([&] { return asked(whole) == 2 && !tour_running(*panel); }, "the whole tour's revision is proposed");
 		settle();
 		run.sweep_chat("tour-whole-chat-revision");
+		// Review each: every part of the revision waits on the card of the
+		// stop it changes, with its own choices. Judged with the chat closed,
+		// where the card is at its narrowest.
+		expect(chat->revision_review() != nullptr && chat->revision_review()->isVisibleTo(chat), "the revision offers Review each");
+		chat->revision_review()->click();
+		const auto second  = editor->shown().Draft->Stops.back().Id;
+		const auto primary = [&](const QString& aWords) {
+			auto* const button = shown_button(*run.drawer(), QStringLiteral("tourProposalAccept"));
+			return button != nullptr && button->text() == aWords && shown_button(*run.drawer(), QStringLiteral("tourProposalDiscard")) != nullptr ? button : nullptr;
+		};
+		chat->close_button()->click();
+		wait([&] { return !chat->isVisibleTo(run.drawer()); }, "the chat closes");
+		// The first stop's new explanation, where the stop's own Accept was.
+		editor->go_to_stop(stop.Stop);
+		wait([&] { return primary(QStringLiteral("Accept")) != nullptr && shown_button(*run.drawer(), QStringLiteral("tourProposalEdit")) != nullptr; }, "the proposed explanation waits on its stop's card");
+		run.Shown = primary(QStringLiteral("Accept"));
+		run.sweep_drawer("tour-revision-text-on-stop");
+		shown_button(*run.drawer(), QStringLiteral("tourProposalEdit"))->click();
+		wait([&] { return shows_proposal_source(*run.drawer()); }, "the proposed explanation opens as its Markdown source on the card");
+		run.Shown = primary(QStringLiteral("Accept"));
+		run.sweep_drawer("tour-revision-text-editing-on-stop");
+		shown_button(*run.drawer(), QStringLiteral("tourProposalEdit"))->click();
+		wait([&] { return !shows_proposal_source(*run.drawer()); }, "and shows as it will read again");
+		// The second stop's removal.
+		editor->go_to_stop(second);
+		wait([&] { return primary(QStringLiteral("Remove")) != nullptr; }, "the proposed removal waits on its stop's card with Remove and Discard");
+		run.Shown = primary(QStringLiteral("Remove"));
+		run.sweep_drawer("tour-revision-removal-on-stop");
+		run.Shown = nullptr;
+		// The whole tour's chat again, as a person leaves it for the Agent tab.
+		editor->open_side_chat(whole);
+		wait([&] { return chat->isVisibleTo(run.drawer()) && chat->current() == std::optional{ whole }; }, "the whole tour's chat opens again");
 
 		// ---- After the pull request's head moves ----------------------------
 		window->open_agent_question();
@@ -799,6 +1047,10 @@ auto main(int argc, char** argv) -> int
 		// The tour's agent holds the pull request's checkout, so the move is
 		// refused and the stopped card offers the two ways on.
 		open(seeded);
+		// The replay's card goes as the session's own conversation comes in.
+		// A question sent while that card still shows is the replay's to
+		// answer, and is not sent: the course waits for the card to go.
+		static_cast<void>(e2e::wait_until_plain([&] { return tab->state() != qt::agent_tab_state::head_moved; }, std::chrono::milliseconds{ 10000 }));
 		ask(QStringLiteral("What changed in this push?"));
 		wait([&] { return quiet() && tab->state() == qt::agent_tab_state::stopped && tab->banner()->isVisible(); }, "the question is refused: the session's workspace was not moved");
 		expect(tab->banner_first_button()->isVisibleTo(tab->banner()) && tab->banner_second_button()->isVisibleTo(tab->banner()) && tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead
@@ -819,8 +1071,33 @@ auto main(int argc, char** argv) -> int
 			 "the stop's chat says its session read the earlier head");
 		run.sweep_chat("tour-stop-chat-head-moved");
 
-		const auto reached = std::vector<std::string>{ "comments", "agent-ready", "agent-answered", "agent-report", "agent-queue", "tour-route", "tour-stop-chat-new", "tour-stop-chat-answered",
-													   "tour-stop-chat-queue", "tour-stop-chat-suggestion", "tour-whole-chat-answered", "tour-whole-chat-revision", "agent-pinned-offered", "agent-pinned-refused",
+		const auto reached = std::vector<std::string>{ "comments",
+													   "agent-ready",
+													   "agent-answered",
+													   "agent-report",
+													   "agent-queue",
+													   "tour-empty",
+													   "tour-drafting",
+													   "tour-proposal",
+													   "tour-proposal-editing",
+													   "tour-reset-asked",
+													   "tour-reset-done",
+													   "tour-proposal-one-added",
+													   "tour-route",
+													   "tour-stop-editing",
+													   "tour-stop-remove-asked",
+													   "tour-stop-chat-new",
+													   "tour-stop-chat-answered",
+													   "tour-stop-chat-queue",
+													   "tour-stop-chat-suggestion",
+													   "tour-stop-chat-suggestion-editing",
+													   "tour-whole-chat-answered",
+													   "tour-whole-chat-revision",
+													   "tour-revision-text-on-stop",
+													   "tour-revision-text-editing-on-stop",
+													   "tour-revision-removal-on-stop",
+													   "agent-pinned-offered",
+													   "agent-pinned-refused",
 													   "tour-stop-chat-head-moved" };
 		expect(run.States == reached, "every state of the course is reached, in order (" + std::to_string(run.States.size()) + " of " + std::to_string(reached.size()) + ")");
 		for (const auto& fault : run.Faults) {

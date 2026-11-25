@@ -724,12 +724,20 @@ should have been disallowed by our tests."). `application_composed_drawer_fit_sc
 `_200` and, on macOS, `_cocoa` run the composed desktop with the Fixture agent
 through Comments, the Agent tab (ready, answered, a report, a running turn
 over its pending list, and after a push the card of a session that read the
-earlier head and the card of a refused question) and the Tour tab with its
-chat column (a stop's chat new, answered, queued and with a suggestion; the
-whole tour's chat with a revision; a chat whose session read the earlier
-head). In each the drawer is dragged to 280, 300, 340 and 420 pixels and the
-window made as narrow as it goes; nothing pans, nothing is cut off, no chip
-lies over another, and no tool button is left to the platform style to draw.
+earlier head and the card of a refused question), the Tour tab (nothing
+drafted, Draft Tour running, its proposal waiting before any of it is applied,
+a proposed text being edited, Reset tour asked and done, one proposed stop
+added while the other waits, the route, a stop being written and its removal
+asked, a revision's parts waiting on the stops they change) and its chat
+column (a stop's chat new, answered, queued, with a suggestion and with that
+suggestion being edited; the whole tour's chat with a revision; a chat whose
+session read the earlier head). A state is what the window shows between two
+gestures, not only where a flow ends: the proposal before Apply all was cut
+off for as long as the course pressed Apply all on its way past it. In each
+the drawer is dragged to 280, 300, 340 and 420 pixels and the window made as
+narrow as it goes; nothing pans, nothing is cut off, no chip lies over
+another, no part cuts the face of a button or a text field it holds, and no
+tool button is left to the platform style to draw.
 A code block is the one thing wider than its frame: code keeps its lines and
 scrolls inside the block until its **Wrap** is pressed. A question the
 application refuses before any agent runs is said once, in words that wrap,
