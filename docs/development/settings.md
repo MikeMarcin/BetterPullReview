@@ -259,6 +259,16 @@ replace it in **System**. Each request includes the current pull request and
 branch details independently of the saved text. The action uses your
 selected agent's existing Git access and permissions.
 
+**Reconcile after an update** controls what the agent is told when the pull
+request moved under an Agent tab conversation with your or the agent's work in
+its checkout, and you choose **Ask <agent> to reconcile**. The work is kept on
+a `bpr/saved/…` branch and the checkout moves to the new head first; the
+request then carries the note about the update (both heads, the saved branch,
+the pre-move ref and any conflicting files) followed by this text. The
+built-in text asks the agent to bring the work onto the new head without
+deleting the saved branch or pushing, and to report what it did. Add your own
+instructions or replace it; a reset returns the built-in text.
+
 **Review skill** is how the agent reviews: the `bpr-pr-review` skill, sent
 with every review request. Edit it and **Save**; your copy is kept through
 updates. When a newer built-in version ships you can **Compare**, **Use

@@ -994,7 +994,12 @@ namespace bpr::app {
 				if (const auto chosen = std::exchange(NativeReconcile, std::nullopt); chosen && chosen->second == invocation.Context.Binding) {
 					invocation.Reconcile = chosen->first;
 					if (chosen->first == core::conversation_reconcile::ask_agent) {
-						invocation.ReconcilePrompt = std::string{ application::default_reconcile_prompt() };
+						// The profile's own text, as Settings › Prompts keeps it.
+						auto hooks = core::writing_hook_settings{ };
+						if (Profile && Profile->WorkbenchPreferences && Profile->WorkbenchPreferences->accepted()) {
+							hooks = Profile->WorkbenchPreferences->accepted()->WritingHooks;
+						}
+						invocation.ReconcilePrompt = std::string{ application::effective_reconcile_prompt(hooks) };
 					}
 				}
 				// Any Agent tab turn may start a new conversation: a chosen new

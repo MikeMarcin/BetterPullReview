@@ -92,6 +92,8 @@ namespace bpr::app {
 		// [[BPR-2270]] The Comment labels Feature.
 		case core::writing_hook::comment_labels:            return "comment-labels";
 		case core::writing_hook::review_update_from_target: return "review-update-from-target";
+		// RFC-BPR-0096, owner continue-at-latest amendment.
+		case core::writing_hook::reconcile_move: return "reconcile-move";
 		}
 		return "outline";
 	}

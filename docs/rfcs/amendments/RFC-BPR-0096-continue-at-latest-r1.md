@@ -235,7 +235,7 @@ build differs from the design above:
 - **Bounded journal.** A move refuses (`invalid_repository`, "no room for
   another move") before changing anything when one more line would pass the
   record's 64 KiB bound. That bound allows about 50 moves. Compacting the
-  record is left for later.
+  record is left for later. (Built in slice 2c below: the bound is gone.)
 - **Crash course.** The `git_process_contract` build now also defines
   `BPR_WORKSPACE_OWNERSHIP_FAULT_INJECTION`. Its checkpoint hook throws at the
   named step. That leaves every file as a kill would, and the test then drops
@@ -314,7 +314,7 @@ check after `select`:
   (`resources/review-preparation/reconcile-move.md`, version
   `reconcile-move-v1`), shipped beside the other built-in prompts. It is not
   yet editable in Settings › Prompts: that needs its own settings column and
-  migration. The result's `ConversationMove` (from, to, commits, linearity,
+  migration (built in slice 2c below). The result's `ConversationMove` (from, to, commits, linearity,
   reconcile, saved branch) drives the transcript line "Updated to <sha> —
   <n> commits", "— history rewritten", followed by the reconcile done.
 - **One move behind.** An inspected workspace at a head other than the stored
@@ -383,3 +383,80 @@ messages". Slice 3 refused a move while another conversation held the tree
   question carries the note once; a never-used conversation moves silently;
   a replay continued at the old head then moves on a plain send; Rebase
   succeeds; Ask the agent puts the built-in prompt after the note.
+
+### Slice 2c, the editable reconcile prompt and compaction, as built (2026-11-25)
+
+- **Partial-history workspaces move.** A retained workspace whose history ends
+  at its head (`Shallow`) moved to `object_unavailable` until now. It moves
+  too:
+  - A workspace of only the pull request's files (a sparse review with no
+    clone) is given the new head's files. The epoch host reads them as
+    materialization does (`read_pull_request_files`, through the review's
+    lease, each checked against its blob) and passes them on the move
+    request (`agent_workspace_move_request::PullRequestFiles`). The cache
+    lends the new head's commit and trees; the files' blobs are written from
+    the bytes; the new head joins `.git/shallow`; the sparse patterns become
+    the new head's files, with the old patterns kept in
+    `.git/bpr-sparse-checkout.pre-move` until the move ends, so a rollback
+    or a crash before the journal line puts them back.
+  - A partial history on a complete review (the cache holds whole
+    snapshots) copies the new head's snapshot from the cache, its history
+    ending there.
+  - Git's checkout, commit and rebase verify every blob a tree names, which
+    such a workspace lacks by design (they print "invalid object" and
+    commit refuses). The move uses reads that do not: two-way
+    `read-tree -m -u` for the checkout, `write-tree --missing-ok` and
+    `commit-tree` for the WIP commit, a three-way `read-tree -m -u` for
+    Rebase (edits only; commits in such a workspace are kept on a branch
+    instead, and Rebase refuses with `invalid_request`), `ls-files
+    --unmerged` for the conflicting files, `reset --mixed` to uncommit the
+    carried edits, and `read-tree --reset -u` to put the workspace back.
+    Each such read may write Git's note to standard error; its exit status
+    decides (`process_request::AllowStandardError`). Edits a rebase carries
+    stay in view: their paths join the new patterns.
+  - The moved workspace keeps no base (as materialization keeps none for a
+    partial history), and its holes are the new head's
+    (`SparseMissingObjects`). The store writes them for every conversation on
+    the checkout in the move's revision. A conversation one move behind
+    resumes with the new head's holes listed again.
+  - The note gives the git commands rather than a commit list: a partial
+    history holds neither head's ancestry.
+  - All Git stays in `workspace_git` (BPR-2387), and the new verbs are none
+    the boundary rule (BPR-2386) forbids.
+- **Ask <agent> to reconcile is editable.** Its prompt is the writing hook
+  `reconcile_move` (purpose `agent.reconcile-move`, version
+  `reconcile-move-v1`), listed in Settings › Prompts under the Agent tab as
+  "Reconcile after an update", with the other built-in prompts
+  (RFC-BPR-0125): edit, save, reset, export and import. The settings
+  database gains its column at schema version 40; the prompt tables' check
+  widens to 17 in place. The composition sends the profile's text
+  (`effective_reconcile_prompt`).
+- **Journal compaction.** The 50-move bound is gone. A move whose line would
+  take the record past half its 64 KiB bound first rewrites it as its
+  retained lines, at the head it moved from last, and its last line
+  (`compact_workspace_lines`). The file keeps its identity, which the
+  conversation stores and a turn locks, so it is rewritten in place
+  (`journal_compact`), each step durable before the next: the compacted copy
+  is appended between two `%` marks, `%` replaces the first byte, the
+  compacted lines are written after it, `{` is written back, and the rest is
+  cut off. A reader resolves every intermediate file to the old lines or the
+  new (`resolve_journal_compaction`); an exclusive load (a move, startup
+  recovery, retained-workspace removal) makes the file so.
+- **Tests.** `git_process_contract --workspace-move`: a pull-request-files
+  workspace moves holding only the new head's files; edits are carried by a
+  rebase and stay in view; a crash at `move-after-patterns`,
+  `-checkout`, `-journal` and `-marker` recovers with the patterns of the
+  head it lands on; a partial history on a complete review moves; a record
+  filled to the old bound compacts and moves; a crash at each compaction
+  step (`compact-after-copy`, `-mark`, `-body`, `-lead`) reads as the head it
+  had and the next move or startup finishes or undoes it.
+  `epoch_application_host` (files passed only for a pull-request-files
+  workspace), `sqlite_agent_session_management` (holes for every
+  conversation), `sqlite_workbench_settings_storage` (version 39 migrates,
+  keeping each window's side chat width), `sqlite_agent_configuration_storage`
+  (the tables widen keeping IDs) and `application_writing_delivery`.
+- **Pinned course.** The composed course
+  (`application_agent_invocation_native_pinned_contract`) has no sparse
+  review fixture: a sparse review needs GitHub CLI's sparse reads, which the
+  public-path fixture does not serve. The partial-history move is covered by
+  the Git contract course and the epoch host's routing test.

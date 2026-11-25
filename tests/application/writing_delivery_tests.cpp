@@ -181,13 +181,26 @@ int main()
 		const auto purposes = std::array<std::string_view, core::writing_hook_count>{ "tour.outline", "tour.stop-comment", "review.feedback", "enhance.tour-stop", "enhance.writing", "review.suggested-comment",
 																					  "local.description", "local.discussion", "local.commit-message",
 																					  "review.latest-upload", "review.proposed-fix", "review.explain-file", "review.suggest-change", "local-draft.run-check",
-																					  "feature.writing-style", "feature.comment-labels", "review.update-from-target" };
+																					  "feature.writing-style", "feature.comment-labels", "review.update-from-target",
+																					  "agent.reconcile-move" };
 		for (std::size_t index = 0; index < core::writing_hook_count; ++index) {
 			const auto hook = static_cast<core::writing_hook>(index);
 			expect(application::writing_hook_purpose(hook) == purposes[index] && application::writing_hook_of_purpose(purposes[index]) == hook, "every prompt has one stable purpose ID, and the ID names it");
 			expect(application::default_writing_hook_digest(hook) == core::writing_digest(application::default_writing_hook(hook)), "the built-in digest is the default text's");
 		}
 		expect(!application::writing_hook_of_purpose("enhance.unknown") && !application::writing_hook_of_purpose(""), "an unrecognized purpose names no prompt");
+		// RFC-BPR-0096, continue-at-latest amendment: Ask <agent> to reconcile's
+		// prompt is the built-in until the profile changes it, as the others are.
+		{
+			auto hooks = core::writing_hook_settings{ };
+			expect(application::default_reconcile_prompt() == application::default_writing_hook(core::writing_hook::reconcile_move)
+					   && application::default_reconcile_prompt().starts_with("Before this question, BetterPullReview moved your working directory")
+					   && application::writing_hook_version_of(core::writing_hook::reconcile_move) == application::reconcile_move_version
+					   && application::effective_reconcile_prompt(hooks) == application::default_reconcile_prompt(),
+				   "the reconcile prompt ships as a built-in prompt with its version");
+			hooks.Overrides[static_cast<std::size_t>(core::writing_hook::reconcile_move)] = "Merge the saved branch and run the tests.";
+			expect(application::effective_reconcile_prompt(hooks) == "Merge the saved branch and run the tests.", "the profile's reconcile prompt is the one sent");
+		}
 		expect(application::writing_hook_of_purpose("enhance.comment") == core::writing_hook::enhance_writing && application::writing_hook_of_purpose("enhance.note") == core::writing_hook::enhance_writing,
 			   "the retired comment and note purposes name the Enhance writing prompt that replaced them");
 		// [[BPR-2059]] The suggested-comment format: its default, version and

@@ -75,7 +75,9 @@ namespace bpr::adapters::sqlite::detail {
 		/// forty-nine.
 		/// [[BPR-2326]]: version thirty-seven's placement of others' drafts,
 		/// fifty.
-		constexpr std::size_t MaximumTableColumns = 51U;
+		/// RFC-BPR-0096's continue-at-latest amendment: version forty's
+		/// reconcile prompt, fifty-two.
+		constexpr std::size_t MaximumTableColumns = 52U;
 
 		/// \brief Writes the layout table's definition under one name.
 		///
@@ -246,7 +248,10 @@ namespace bpr::adapters::sqlite::detail {
 				  // default, so a migrated row lists them there.
 				  "others_drafts INTEGER NOT NULL DEFAULT 0 CHECK(others_drafts BETWEEN 0 AND 1),"
 				  // [[BPR-2357]]. Schema version 39: the update-from-target prompt.
-				  "writing_update_from_target TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_update_from_target AS BLOB)) <= 8192)) STRICT";
+				  "writing_update_from_target TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_update_from_target AS BLOB)) <= 8192),"
+				  // RFC-BPR-0096, continue-at-latest amendment. Schema version 40:
+				  // Ask the agent to reconcile's prompt.
+				  "writing_reconcile_move TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_reconcile_move AS BLOB)) <= 8192)) STRICT";
 		}
 
 		static_assert(core::maximum_feedback_label_columns_text == 256U);
@@ -276,13 +281,14 @@ namespace bpr::adapters::sqlite::detail {
 				: aHook == static_cast<std::size_t>(core::writing_hook::writing_style)             ? 43
 				: aHook == static_cast<std::size_t>(core::writing_hook::comment_labels)            ? 44
 				: aHook == static_cast<std::size_t>(core::writing_hook::review_update_from_target) ? 49
+				: aHook == static_cast<std::size_t>(core::writing_hook::reconcile_move)            ? 50
 																								   : static_cast<int>(31 + aHook - static_cast<std::size_t>(core::writing_hook::enhance_stop));
 		}
 		/// \brief The retired column of the note's own Enhance prompt.
 		constexpr int retired_enhance_note_column = 33;
 		/// \brief [[BPR-2274]]. The retired columns of the tour's Problem and Solution prompts.
 		constexpr auto retired_brief_columns = std::array{ 15, 16 };
-		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 15U, "a new hook needs its own column");
+		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 16U, "a new hook needs its own column");
 		/// \brief Version twenty-seven folds the note's Enhance prompt into the
 		/// one Enhance writing prompt: a profile that changed only the note's
 		/// keeps that text for every surface, one that changed the comment's
@@ -480,6 +486,7 @@ namespace bpr::adapters::sqlite::detail {
 				: aVersion <= 35                       ? ",reading_threads"
 				: aVersion <= 36                       ? ",others_drafts"
 				: aVersion <= 38                       ? ",writing_update_from_target"
+				: aVersion <= 39                       ? ",writing_reconcile_move"
 													   : "";
 			if (!cut.empty()) {
 				sql.resize(sql.find(cut));
@@ -528,7 +535,7 @@ namespace bpr::adapters::sqlite::detail {
 					+ (aVersion >= 8 ? ",home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort" : "")
 					+ (aVersion >= 9 ? ",geometry_x,geometry_y,geometry_width,geometry_height,geometry_maximized" : "")
 					+ (aVersion >= 10 ? ",updates_line" : "") + (aVersion >= 15 ? ",summary_fraction" : "") + (aVersion >= 17 ? ",line_details_height" : "")
-					+ (aVersion >= 23 ? ",status_width,status_state" : "");
+					+ (aVersion >= 23 ? ",status_width,status_state" : "") + (aVersion >= 38 ? ",side_chat_width" : "");
 				statements.push_back("INSERT INTO window_layout(" + windowColumns + ") SELECT " + windowColumns + " FROM old_window_layout");
 				statements.emplace_back("DROP TABLE old_window_layout");
 			}
@@ -915,7 +922,9 @@ namespace bpr::adapters::sqlite::detail {
 			// [[BPR-2333]]: version thirty-eight adds a per-window column, so
 			// thirty-seven is rebuilt too.
 			// [[BPR-2357]]: version thirty-nine adds the update-from-target prompt.
-			if (*current < 0 || *current > 38) {
+			// RFC-BPR-0096: version forty adds the reconcile prompt, so
+			// thirty-nine is rebuilt too, keeping each window's side chat width.
+			if (*current < 0 || *current > 39) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -1268,8 +1277,8 @@ namespace bpr::adapters::sqlite::detail {
 			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review,"
 			"writing_enhance_stop, writing_enhance_draft, writing_enhance_note, writing_suggestion_format, writing_local_description, writing_local_discussion, writing_local_commit_message,"
 			"writing_review_latest_upload, writing_review_proposed_fix, writing_review_explain_file, writing_review_suggest_change, writing_local_run_check, writing_style, writing_label_convention,"
-			"reading_threads, reading_discuss, reading_reports, others_drafts, writing_update_from_target) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39, ?40, ?41, ?42, ?43, ?44, ?45, ?46, ?47, ?48, ?49, ?50) "
+			"reading_threads, reading_discuss, reading_reports, others_drafts, writing_update_from_target, writing_reconcile_move) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39, ?40, ?41, ?42, ?43, ?44, ?45, ?46, ?47, ?48, ?49, ?50, ?51) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -1296,7 +1305,7 @@ namespace bpr::adapters::sqlite::detail {
 			"writing_review_explain_file = excluded.writing_review_explain_file, writing_review_suggest_change = excluded.writing_review_suggest_change,"
 			"writing_local_run_check = excluded.writing_local_run_check, writing_style = excluded.writing_style, writing_label_convention = excluded.writing_label_convention,"
 			"reading_threads = excluded.reading_threads, reading_discuss = excluded.reading_discuss, reading_reports = excluded.reading_reports,"
-			"others_drafts = excluded.others_drafts, writing_update_from_target = excluded.writing_update_from_target");
+			"others_drafts = excluded.others_drafts, writing_update_from_target = excluded.writing_update_from_target, writing_reconcile_move = excluded.writing_reconcile_move");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -1652,7 +1661,7 @@ namespace bpr::adapters::sqlite::detail {
 			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review,"
 			"writing_enhance_stop, writing_enhance_draft, writing_enhance_note, writing_suggestion_format, writing_local_description, writing_local_discussion, writing_local_commit_message,"
 			"writing_review_latest_upload, writing_review_proposed_fix, writing_review_explain_file, writing_review_suggest_change, writing_local_run_check, writing_style, writing_label_convention,"
-			"reading_threads, reading_discuss, reading_reports, others_drafts, writing_update_from_target "
+			"reading_threads, reading_discuss, reading_reports, others_drafts, writing_update_from_target, writing_reconcile_move "
 			"FROM workbench_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());

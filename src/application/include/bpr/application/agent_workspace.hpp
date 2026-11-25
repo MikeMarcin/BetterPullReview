@@ -286,6 +286,10 @@ namespace bpr::application {
 		/// The branch under `refs/heads/` that `save_and_move` and `ask_agent`
 		/// keep the work on; it starts `bpr/saved/` and must not exist.
 		std::string SavedBranch;
+		/// A workspace of only the pull request's files (a sparse review with
+		/// no clone): the files at `Head`, which the review's host reads as
+		/// materialization does. Absent for every other workspace.
+		std::optional<git_workspace_files> PullRequestFiles;
 
 		auto operator<=>(const agent_workspace_move_request&) const = default;
 	};

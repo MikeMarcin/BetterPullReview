@@ -27,6 +27,7 @@ namespace bpr::application {
 		case core::writing_hook::local_run_check:           return local_run_check_hook_version;
 		case core::writing_hook::writing_style:             return writing_style_hook_version;
 		case core::writing_hook::review_update_from_target: return review_update_from_target_hook_version;
+		case core::writing_hook::reconcile_move:            return reconcile_move_version;
 		case core::writing_hook::comment_labels:            return comment_labels_hook_version;
 		case core::writing_hook::comment:                   return tour_stop_comment_hook_version;
 		case core::writing_hook::outline:                   return writing_hook_version;
@@ -57,6 +58,8 @@ namespace bpr::application {
 			// [[BPR-2270]]
 			"feature.comment-labels",
 			"review.update-from-target",
+			// RFC-BPR-0096, owner continue-at-latest amendment.
+			"agent.reconcile-move",
 		};
 	}
 	auto writing_hook_purpose(const core::writing_hook aHook) noexcept -> std::string_view
@@ -80,7 +83,12 @@ namespace bpr::application {
 	}
 	auto default_writing_hook_digest(const core::writing_hook aHook) -> std::array<std::uint8_t, 32> { return core::writing_digest(default_writing_hook(aHook)); }
 	auto writing_application_contract() -> std::string_view { return detail::WritingContract; }
-	auto default_reconcile_prompt() -> std::string_view { return detail::ReconcileMove; }
+	auto default_reconcile_prompt() -> std::string_view { return default_writing_hook(core::writing_hook::reconcile_move); }
+	auto effective_reconcile_prompt(const core::writing_hook_settings& aSettings) -> std::string_view
+	{
+		const auto text = effective_writing_hook(aSettings, core::writing_hook::reconcile_move);
+		return text.empty() ? default_reconcile_prompt() : text;
+	}
 	auto effective_writing_hook(const core::writing_hook_settings& aSettings, core::writing_hook aHook) -> std::string_view
 	{
 		const auto index = static_cast<std::size_t>(aHook);

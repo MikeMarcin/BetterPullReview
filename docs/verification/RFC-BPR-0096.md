@@ -907,3 +907,73 @@ The [BPR-1972 ledger](BPR-1972-large-native-workspaces.md) records its removal,
 above-former-limit successful first/follow-up turns and preserved ownership,
 materialization-failure, storage and cleanup contracts. No earlier failure or
 acceptance is rewritten as different evidence.
+
+## Owner continue-at-latest amendment — AC13, 2026-11-25
+
+[Amendment r1](../rfcs/amendments/RFC-BPR-0096-continue-at-latest-r1.md)
+added AC13. It was built in five slices across
+[BPR-2379](../issues/60-done/BPR-2379-pinned-sessions-continue-at-the-latest-head.md)
+(core decision and note, the Git adapter's move and crash recovery, the store,
+the host and the refusal card, one checkout for the pull request's sessions),
+[BPR-2386](../issues/60-done/BPR-2386-boundary-rule-admits-the-workspace-move.md)
+(the boundary rule admits the move's checkout and diff only in the retained
+workspace),
+[BPR-2387](../issues/60-done/BPR-2387-workspace-git-isolated-from-agent-config.md)
+(BetterPullReview's own Git in the workspace runs nothing the agent
+configured) and AC13_CARD (partial-history workspaces move, the reconcile
+prompt is editable, the ownership record compacts). The amendment records each
+slice as built.
+
+Each clause of AC13 and its evidence:
+
+- **Sending moves the workspace between turns and runs the turn there, in the
+  same native session and directory; the transcript shows the update line
+  and the agent's input begins with the move note.** BPR-2379's
+  `application_agent_invocation_host`
+  (`test_a_conversation_moves_to_the_latest_head`) and the composed course
+  `application_agent_invocation_native_pinned_contract` (fixture agents only):
+  the moved turn resumes the same handle in the same checkout, its input
+  begins with `conversation_move_note`, and the reply card says "Updated to
+  <new> — …". `core_agent_session` covers the decision and the note.
+- **No workspace moves during a turn or on refresh.** A turn holding the
+  record's lock shared makes the move `busy` with nothing changed
+  (`git_process_contract --workspace-move`); refresh calls no move (the host
+  moves only on send); an idle native connection is ended first and an
+  answering one keeps the checkout busy (BPR-2379 slice 4).
+- **Edits or agent commits stop the move with the five ways on; each is
+  recoverable from the pre-move ref; a conflicting rebase is restored and
+  named.** `git_process_contract --workspace-move` (edits, commits, both;
+  rebase clean and conflicting; save and move; ask the agent; the pre-move
+  ref holds the work), `qt_workbench_agent_send_refusal`
+  (`test_a_pinned_conversation_card_offers_what_it_names`) and the composed
+  course (every way on, Rebase not offered again after a conflict, Ask the
+  agent sends the reconcile prompt after the note on the moved workspace
+  with the saved branch present). Since AC13_CARD the reconcile prompt is a
+  built-in prompt edited in Settings › Prompts (`qt_settings_window`,
+  `application_writing_delivery`, `sqlite_workbench_settings_storage`,
+  `sqlite_agent_configuration_storage`), and the move covers partial-history
+  workspaces, a sparse review's pull-request-files workspace included
+  (`git_process_contract --workspace-move`, `application_epoch_host`).
+- **A crash at any step recovers to the old or the new head with journal,
+  marker and stored conversation in agreement (Git contract tests).**
+  `git_process_contract --workspace-move`: a crash at `move-after-wip`,
+  `-target`, `-checkout` (back) and `-journal`, `-marker` (forward); for a
+  pull-request-files workspace at `move-after-patterns`, `-checkout`,
+  `-journal` and `-marker`, the sparse patterns matching the head it lands
+  on; a conversation one move behind its journal resumes at the journal's
+  head and is told. The record has no move limit: a record filled to the
+  former 64 KiB bound compacts and moves, and a crash at each compaction step
+  reads at the head it had and is finished or undone by startup or the next
+  move.
+- **The pull request's other conversations on the moved checkout are rebound
+  in the same store revision without a turn or input; each says the move when
+  opened and its next question carries the note once.**
+  `sqlite_agent_session_management` (`move_a_conversation`: rebound in one
+  revision, `MovedFrom`, `SelectedMove`, `acknowledge_move`; the new head's
+  holes for every conversation on a partial checkout) and the composed course
+  (step 7 of BPR-2379's course).
+
+Evidence at AC13_CANDIDATE, macOS arm64, Debug: AC13_EVIDENCE
+
+AC13 holds. RFC-BPR-0096 stays Auto-Verified; no other criterion's evidence
+changes.

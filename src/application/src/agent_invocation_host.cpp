@@ -1106,10 +1106,10 @@ namespace bpr::application {
 					// "i want it to work like a normal claude code session where
 					// ... I git pull in another terminal in the same repo and
 					// continue chatting". A resumable conversation of this review
-					// whose complete workspace is retained moves it to the head
-					// under review, then the turn runs there.
+					// whose workspace is retained, complete or of partial history,
+					// moves it to the head under review, then the turn runs there.
 					const auto resumable = !selected->Handle.empty() || selected->Replay;
-					const auto movable   = pinned.Pinned && selected->Workspace && !selected->Workspace->Workspace.Shallow && selected->Workspace->Workspace.PinnedHead
+					const auto movable   = pinned.Pinned && selected->Workspace && selected->Workspace->Workspace.PinnedHead
 						&& *selected->Workspace->Workspace.PinnedHead == selected->Binding.HeadOid && selected->Binding.HeadOid != aInvocation->Identity.Session.Binding.HeadOid
 						&& core::decide_conversation_move({ .Pinned = selected->Binding, .Observed = aInvocation->Identity.Session.Binding, .Remembers = true, .Resumable = resumable }).Verdict
 							== core::conversation_move_verdict::move;
@@ -2198,12 +2198,12 @@ namespace bpr::application {
 								self->project_refuse("The previous question may have been sent before interruption. It was not resent. Choose New session or explicitly create Transcript replay.");
 							}
 							// RFC-BPR-0096, owner continue-at-latest amendment,
-							// 2026-11-24: a conversation whose complete workspace
+							// 2026-11-24: a conversation whose retained workspace
 							// a send moves to the head under review offers no
 							// choice first. The chat holds it at that head, and
 							// the move refuses with its ways back if work is in
 							// the way.
-							const auto follows = *outcome && aScope == "agent-tab" && (**outcome).Workspace && !(**outcome).Workspace->Workspace.Shallow
+							const auto follows = *outcome && aScope == "agent-tab" && (**outcome).Workspace
 								&& (**outcome).Binding.HeadOid != self->Binding->HeadOid
 								&& core::decide_conversation_move({ .Pinned = (**outcome).Binding, .Observed = *self->Binding, .Remembers = true, .Resumable = !(**outcome).Handle.empty() || (**outcome).Replay }).Verdict
 									== core::conversation_move_verdict::move;

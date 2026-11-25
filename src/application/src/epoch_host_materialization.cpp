@@ -1009,6 +1009,47 @@ namespace bpr::application {
 									: agent_workspace_failure::unavailable };
 	}
 
+	/// \brief RFC-BPR-0096, owner continue-at-latest amendment. The new head's
+	/// files for the move of a workspace that holds only the pull request's
+	/// files, or none when the review's cache is not sparse (a partial
+	/// history whose snapshots the cache holds whole).
+	auto epoch_application_host::implementation::move_pull_request_files(const std::shared_ptr<authority_effect_actor>& aActor, const agent_workspace_move_request& aMove,
+																		 const std::stop_token aStop) -> std::expected<std::optional<std::vector<git_workspace_file>>, agent_workspace_error>
+	{
+		const auto& workspace     = aMove.Workspace;
+		const auto  authorization = blob_authority{ .ApplicationSession = workspace.ApplicationSession, .Authority = workspace.Authority };
+		auto        context       = std::shared_ptr<authority_context>{ };
+		{
+			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+			context = aActor->BlobContext.lock();
+		}
+		if (!context || blob_authority_for(*context) != authorization) {
+			return std::unexpected{ agent_workspace_error{ agent_workspace_failure::stale, "The review changed while the agent's copy was being moved.\n" } };
+		}
+		const auto expected = git_cache_open_request{ .ApplicationSession = workspace.ApplicationSession, .Authority = workspace.Authority, .ObjectFormat = aMove.Head.algorithm() };
+		const auto sparse   = run_on_actor<bool>(
+			aActor, expected,
+			[aActor, context, head = aMove.Head](const std::stop_token aWorkStop) {
+				auto inputs = core::review_loading_trace{ };
+				return sparse_cache(*context, *aActor->Cache, head, inputs, aWorkStop);
+			},
+			aStop, Limits.WorkspaceWait);
+		if (!sparse || aStop.stop_requested()) {
+			return std::unexpected{ aStop.stop_requested() ? agent_workspace_failure::cancelled : agent_workspace_failure::unavailable };
+		}
+		if (!*sparse) {
+			return std::nullopt;
+		}
+		auto binding    = core::agent_revision_binding{ };
+		binding.BaseOid = aMove.Base;
+		binding.HeadOid = aMove.Head;
+		auto files      = read_pull_request_files(aActor, *context, expected, binding, aStop);
+		if (!files) {
+			return std::unexpected{ std::move(files.error()) };
+		}
+		return std::optional{ std::move(*files) };
+	}
+
 	auto epoch_application_host::implementation::cleanup_agent_workspace(
 		const owned_agent_workspace& aWorkspace,
 		const std::stop_token aStop, owned_agent_workspace* aInspected,
@@ -1018,7 +1059,7 @@ namespace bpr::application {
 		if ((aMove == nullptr) != (aMoved == nullptr)) {
 			return std::unexpected{ agent_workspace_failure::invalid_request };
 		}
-		const auto move    = aMove != nullptr ? std::optional{ *aMove } : std::nullopt;
+		auto       move    = aMove != nullptr ? std::optional{ *aMove } : std::nullopt;
 		const auto inspect = aInspected != nullptr || move.has_value();
 		if (!Consumer->active() || aWorkspace.ApplicationSession != WindowApplicationSession) {
 			return std::unexpected{ agent_workspace_failure::cleanup_failed };
@@ -1050,6 +1091,16 @@ namespace bpr::application {
 		}
 		if (!actor) {
 			return std::unexpected{ agent_workspace_failure::cleanup_failed };
+		}
+		// RFC-BPR-0096, owner continue-at-latest amendment: a workspace of only
+		// the pull request's files moves with the new head's files, read as
+		// materialization reads them ([[BPR-1873]]).
+		if (move && move->Workspace.Workspace.Shallow && !move->Workspace.Workspace.BorrowsHistory) {
+			auto files = move_pull_request_files(actor, *move, aStop);
+			if (!files) {
+				return std::unexpected{ std::move(files.error()) };
+			}
+			move->PullRequestFiles = std::move(*files);
 		}
 		auto waiter = std::shared_ptr<workspace_cleanup_waiter>{ };
 		try {
