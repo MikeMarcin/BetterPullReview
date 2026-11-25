@@ -604,7 +604,7 @@ namespace bpr::qt {
 
 	void agent_programs_panel::remove_workspaces()
 	{
-		// [[BPR-NNNN]], owner 2026-11-24: Remove… opens Settings › Storage &
+		// [[BPR-2377]], owner 2026-11-24: Remove… opens Settings › Storage &
 		// privacy › Clear local data with Agent workspaces checked, which asks.
 		if (!ShownWorkspaces || ShownWorkspaces->Count <= ShownWorkspaces->InUse) {
 			return;

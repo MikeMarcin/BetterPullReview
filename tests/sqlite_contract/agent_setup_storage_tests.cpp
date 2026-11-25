@@ -288,7 +288,7 @@ namespace {
 		{
 			tests::sqlite_contract::scratch_root root{ "agent-setup-build-63" };
 			const auto                           file = root.path() / "state/v1/agent-setup.sqlite3";
-			// [[BPR-NNNN]]. The turns now live in the conversations store.
+			// [[BPR-2377]]. The turns now live in the conversations store.
 			const auto turnsFile = root.path() / "state/v1/agent-sessions.sqlite3";
 			const auto seeded    = seed_profile(root.path(), true);
 			run_directly(file, "DROP TABLE prompt_macro_packs;", "build 63's agent setup is put back");
@@ -313,7 +313,7 @@ namespace {
 			tests::sqlite_contract::scratch_root root{ "agent-setup-part-migrated" };
 			const auto                           file   = root.path() / "state/v1/agent-setup.sqlite3";
 			const auto                           seeded = seed_profile(root.path(), true);
-			// [[BPR-NNNN]]. Its turns are in the conversations store now.
+			// [[BPR-2377]]. Its turns are in the conversations store now.
 			run_directly(root.path() / "state/v1/agent-sessions.sqlite3", std::string{ build_63_native_turns }, "its turns are put back");
 			run_directly(file, "DROP TABLE prompt_surface_lists; DROP TABLE prompt_repository_prompts; DROP TABLE prompt_macro_revision; DROP TABLE prompt_macro_packs;",
 						 "a part-migrated store is put back");
@@ -351,7 +351,7 @@ int main()
 try {
 	tests::sqlite_contract::scratch_root scratch{ "agent-setup" };
 	const auto                           path = scratch.path() / "state/v1/agent-setup.sqlite3";
-	// [[BPR-NNNN]]. The conversations keep their own store.
+	// [[BPR-2377]]. The conversations keep their own store.
 	const auto sessionsPath = scratch.path() / "state/v1/agent-sessions.sqlite3";
 	auto       store        = adapters::sqlite::make_agent_setup_store(scratch.path());
 	expect(!std::filesystem::exists(path), "construction writes nothing");

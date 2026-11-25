@@ -8,7 +8,7 @@
 #include <string_view>
 
 /// \file
-/// \brief [[BPR-NNNN]]. The rules for naming and deleting one of
+/// \brief [[BPR-2377]]. The rules for naming and deleting one of
 /// BetterPullReview's agent sessions (owner, 2026-11-24: "Our agent session
 /// management is weak. There's as far as I can tell no way to set a session
 /// name or delete a session.").

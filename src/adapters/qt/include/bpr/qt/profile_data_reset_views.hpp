@@ -22,7 +22,7 @@ class QPushButton;
 /// confirmation it asks, and the dialog a profile that cannot open shows.
 /// Presentation only: core decides what each category removes, what a
 /// selection implies and whether a request is admitted; the desktop
-/// performs it. [[BPR-NNNN]]: one checklist and one Clear replace a button
+/// performs it. [[BPR-2377]]: one checklist and one Clear replace a button
 /// per reset (owner, 2026-11-24).
 namespace bpr::qt {
 	/// \brief The words one confirmation says.
@@ -38,7 +38,7 @@ namespace bpr::qt {
 		QString Confirm;
 	};
 
-	/// \brief [[BPR-NNNN]]. One category's row in the Clear list.
+	/// \brief [[BPR-2377]]. One category's row in the Clear list.
 	struct profile_data_reset_category_words
 	{
 		QString Name;
@@ -48,14 +48,14 @@ namespace bpr::qt {
 		QStringList Removes;
 	};
 
-	/// \brief [[BPR-NNNN]]. The words for one category of the Clear list.
+	/// \brief [[BPR-2377]]. The words for one category of the Clear list.
 	[[nodiscard]] auto profile_data_reset_category_words_for(core::profile_data_reset aReset) -> profile_data_reset_category_words;
 
 	/// \brief The confirmation's words for `aReset` (with what it implies) on
 	/// the profile `aProfile`.
 	[[nodiscard]] auto profile_data_reset_wording_for(core::profile_data_reset_selection aReset, const QString& aProfile) -> profile_data_reset_wording;
 
-	/// \brief [[BPR-NNNN]]. The acknowledgement a destructive selection asks,
+	/// \brief [[BPR-2377]]. The acknowledgement a destructive selection asks,
 	/// naming what only this computer holds; empty for one that is not.
 	[[nodiscard]] auto profile_data_reset_acknowledgement(core::profile_data_reset_selection aReset) -> QString;
 
@@ -124,7 +124,7 @@ namespace bpr::qt {
 		void set_profile_label(const QString& aProfile);
 		/// \brief Says why a clear did not start, or clears with empty text.
 		void present_status(const QString& aStatus);
-		/// \brief [[BPR-NNNN]]. Shows a category's measured size ("3, 17.2 GB"),
+		/// \brief [[BPR-2377]]. Shows a category's measured size ("3, 17.2 GB"),
 		/// or hides it with empty text.
 		void               present_size(core::profile_data_reset aCategory, const QString& aSize);
 		[[nodiscard]] auto check_box(core::profile_data_reset aCategory) const noexcept -> QCheckBox*;

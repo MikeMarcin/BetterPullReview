@@ -1831,7 +1831,7 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "native-history-exact-memory-resume");
 			}
 		}
-		// [[BPR-NNNN]]. History › Sessions' rows through the real window, on
+		// [[BPR-2377]]. History › Sessions' rows through the real window, on
 		// the fixture agent's sessions: a name becomes the session's title in
 		// the rows and the tab's header; an empty name restores the default;
 		// the trash can asks first, removes BetterPullReview's record and
@@ -2039,7 +2039,7 @@ auto main(int argc, char** argv) -> int
 		if (!wait_until([&] { return programs->workspace_remove_button()->isEnabled(); }, extended_agent_budget)) {
 			return fail(*application, "wrapper-setup-kept-workspace", programs->workspace_usage_label()->text().toStdString());
 		}
-		// [[BPR-NNNN]]. Remove… now leads to Clear local data, which reopens
+		// [[BPR-2377]]. Remove… now leads to Clear local data, which reopens
 		// the profile; this course removes them in place instead.
 		app::detail::github_application_fixture_access::remove_idle_agent_workspaces(*application);
 		if (!wait_until([&] { return programs->workspace_usage_label()->text().startsWith(QStringLiteral("Retained agent workspaces: none.")); }, extended_agent_budget)) {

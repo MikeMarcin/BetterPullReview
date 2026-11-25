@@ -19,7 +19,7 @@ class QLineEdit;
 class QMenu;
 
 /// \file
-/// \brief [[BPR-NNNN]]. The session list of a chat's History menu: each
+/// \brief [[BPR-2377]]. The session list of a chat's History menu: each
 /// session a row with its title (open it), a pencil (rename it in place), a
 /// trash can (delete it after a question) and an i (its turns, revision and
 /// cost on hover), and Delete all sessions… beside it.

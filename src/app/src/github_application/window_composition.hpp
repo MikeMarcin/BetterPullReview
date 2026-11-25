@@ -3027,7 +3027,7 @@ namespace bpr::app {
 		void                                         edit_agent_session(const std::string& aId, std::optional<std::string> aName);
 		void                                         edit_tour_session(const std::string& aId, std::optional<std::string> aName);
 		void                                         open_clear_local_data(core::profile_data_reset aCategory);
-		/// \brief [[BPR-NNNN]]. The live sweep Settings' Remove… ran before it
+		/// \brief [[BPR-2377]]. The live sweep Settings' Remove… ran before it
 		/// led to Clear local data; a course seam only.
 		void               remove_idle_agent_workspaces();
 		void               observe_tour_native_history(const core::tour_thread&, std::optional<std::string> aChoice = std::nullopt);

@@ -1913,7 +1913,7 @@ namespace bpr::application {
 			} catch (...) { }
 		}
 
-		/// [[BPR-NNNN]]. Renames (\p aName set) or deletes one session of this
+		/// [[BPR-2377]]. Renames (\p aName set) or deletes one session of this
 		/// pull request's \p aScope on an effect worker, then shows the
 		/// history again. Decision lane only; answered there once.
 		/// The id that asks `edit_native` to delete every listed session.
@@ -1995,7 +1995,7 @@ namespace bpr::application {
 		std::function<void()> DeferredNativeChoice;
 		std::atomic_bool      HasDeferredNativeHistory = false;
 
-		/// [[BPR-NNNN]]. Removes a deleted session's own retained workspace;
+		/// [[BPR-2377]]. Removes a deleted session's own retained workspace;
 		/// none refuses such a deletion.
 		retained_workspace_files_port* RetainedFiles = nullptr;
 

@@ -91,7 +91,7 @@ namespace {
 	void test_admission()
 	{
 		expect(admit_profile_data_reset({ reset::caches }) == reason::none, "Clear caches needs no acknowledgement");
-		expect(admit_profile_data_reset({ reset::settings }) == reason::none, "Reset settings needs no acknowledgement: agent conversations are apart [[BPR-NNNN]]");
+		expect(admit_profile_data_reset({ reset::settings }) == reason::none, "Reset settings needs no acknowledgement: agent conversations are apart [[BPR-2377]]");
 		expect(admit_profile_data_reset({ reset::review_data }) == reason::invalid_selection, "Reset review data needs the acknowledgement");
 		expect(admit_profile_data_reset({ reset::everything, false, true }) == reason::invalid_selection, "a copy does not stand in for the acknowledgement");
 		expect(admit_profile_data_reset({ reset::review_data, true }) == reason::none, "acknowledged review data reset is admitted");
@@ -117,7 +117,7 @@ namespace {
 		expect(profile_data_reset_name(static_cast<reset>(0)).empty(), "an unknown reset has no name");
 	}
 
-	/// [[BPR-NNNN]]. The Clear list: several categories in one request.
+	/// [[BPR-2377]]. The Clear list: several categories in one request.
 	void test_selections()
 	{
 		using selection = profile_data_reset_selection;
@@ -149,7 +149,7 @@ namespace {
 			   "agent setup and agent workspaces remove no profile file; workspaces ask the acknowledgement");
 		expect(!profile_data_reset_restores_queue_display(selection{ reset::settings }.with(reset::saved_sources)), "Settings with Saved repositories removes the queue store instead");
 
-		// [[BPR-NNNN]], owner 2026-11-24 ("split sessions from settings").
+		// [[BPR-2377]], owner 2026-11-24 ("split sessions from settings").
 		const auto settings = plan_profile_data_reset(reset::settings);
 		expect(!settings.Selection.contains(reset::agent_sessions) && !settings.Selection.contains(reset::agent_workspaces), "Settings no longer takes agent sessions");
 		expect(settings.Implied == selection{ reset::agent_setup }, "Settings takes Agent setup, whose store it removes");

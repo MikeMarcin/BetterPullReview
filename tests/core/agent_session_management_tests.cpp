@@ -1,4 +1,4 @@
-// [[BPR-NNNN]]. Naming and deleting an agent session: the core's rules.
+// [[BPR-2377]]. Naming and deleting an agent session: the core's rules.
 #include "bpr/core/agent_session_management.hpp"
 
 #include <cstdlib>

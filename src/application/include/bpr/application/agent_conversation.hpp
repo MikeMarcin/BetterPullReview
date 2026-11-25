@@ -68,14 +68,14 @@ namespace bpr::application {
 		core::agent_revision_binding Binding;
 		/// What History shows: its name, else its first question, else "New session".
 		std::string Title;
-		/// [[BPR-NNNN]] The name the reviewer gave it; empty for none.
+		/// [[BPR-2377]] The name the reviewer gave it; empty for none.
 		std::string Name;
 		std::string Scope;
 		std::size_t Turns   = 0U;
 		bool        Pending = false;
 		bool        Replay  = false;
 		std::string ReplaySource;
-		/// [[BPR-NNNN]] What it has cost, once known, for its row's i.
+		/// [[BPR-2377]] What it has cost, once known, for its row's i.
 		std::optional<core::agent_cost> Cost = std::nullopt;
 	};
 	struct native_agent_history_projection

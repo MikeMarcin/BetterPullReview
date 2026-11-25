@@ -978,7 +978,7 @@ namespace bpr::app {
 		AgentWorkspaceSweepAfterHistory = AgentWorkspaceSweepAfterHistory || aChoice.has_value();
 		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice));
 	}
-	/// [[BPR-NNNN]]. Settings › Storage & privacy › Clear local data, with
+	/// [[BPR-2377]]. Settings › Storage & privacy › Clear local data, with
 	/// exactly `aCategory` checked: where Reset agents…, the workspaces'
 	/// Remove… and the unreadable agent setup's recovery lead.
 	void github_application::implementation::open_clear_local_data(const core::profile_data_reset aCategory)
@@ -999,7 +999,7 @@ namespace bpr::app {
 		}
 	}
 
-	/// [[BPR-NNNN]]. Renames (`aName` set) or deletes one of the selected
+	/// [[BPR-2377]]. Renames (`aName` set) or deletes one of the selected
 	/// agent's Agent-tab sessions on this pull request, and says what happened.
 	void github_application::implementation::edit_agent_session(const std::string& aId, std::optional<std::string> aName)
 	{
@@ -1921,7 +1921,7 @@ namespace bpr::app {
 				AgentSetup->load_catalog(entry->Id);
 			}
 		});
-		// [[BPR-NNNN]], owner 2026-11-24: Reset agents… is Clear local data's
+		// [[BPR-2377]], owner 2026-11-24: Reset agents… is Clear local data's
 		// Agent setup, which asks once and resets while the profile reopens
 		// (`app::run_profile_data_reset`); the setup then starts at Agent.
 		tab->set_reset_route([this] { open_clear_local_data(core::profile_data_reset::agent_setup); });
@@ -1931,7 +1931,7 @@ namespace bpr::app {
 			}
 		});
 		tab->set_native_history_dispatch([this](std::optional<std::string> aChoice) { observe_agent_native_history(std::move(aChoice)); });
-		// [[BPR-NNNN]]. History › Rename or delete sessions….
+		// [[BPR-2377]]. History › Rename or delete sessions….
 		tab->set_session_edit_dispatch([this](const std::string& aId, std::optional<std::string> aName) { edit_agent_session(aId, std::move(aName)); });
 		tab->set_clear_session_dispatch([this] {
 			if (!Closing && AgentConversation) {
@@ -2220,7 +2220,7 @@ namespace bpr::app {
 			// recovery is Storage & privacy's Troubleshooting ([[BPR-1602]]).
 			.OpenTroubleshooting =
 				[this] {
-					// [[BPR-NNNN]]. Clear local data, with Settings (whose store
+					// [[BPR-2377]]. Clear local data, with Settings (whose store
 					// could not be read) checked.
 					open_clear_local_data(core::profile_data_reset::settings);
 				},
@@ -2784,7 +2784,7 @@ namespace bpr::app {
 		usage.Bytes = summary->Bytes;
 		usage.InUse = summary->InUse;
 		Window->agent_programs()->present_workspace_usage(usage, Profile->RetainedWorkspacesSaid);
-		// [[BPR-NNNN]]. The same measure beside Clear local data's Agent
+		// [[BPR-2377]]. The same measure beside Clear local data's Agent
 		// sessions and workspaces.
 		if (auto* const clear = Window->profile_reset_panel_widget(); clear != nullptr) {
 			const auto size = QLocale{ }.formattedDataSize(static_cast<qint64>(summary->Bytes), 1, QLocale::DataSizeSIFormat);

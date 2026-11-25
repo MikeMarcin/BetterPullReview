@@ -65,7 +65,7 @@ namespace bpr::app {
 			}
 		}
 
-		/// [[BPR-NNNN]]. The retained workspaces' files, through their exact
+		/// [[BPR-2377]]. The retained workspaces' files, through their exact
 		/// ownership records; none where agents are not built in.
 		[[nodiscard]] auto retained_files(const std::filesystem::path& aRoot) -> std::unique_ptr<application::retained_workspace_files_port>
 		{
@@ -83,7 +83,7 @@ namespace bpr::app {
 			return std::filesystem::exists(aFile, present) && !present;
 		}
 
-		/// [[BPR-NNNN]]. Agent workspaces: every retained workspace the
+		/// [[BPR-2377]]. Agent workspaces: every retained workspace the
 		/// conversations name and no other process holds is removed through
 		/// its exact ownership record; the conversations stay (their next turn
 		/// makes a fresh one). The agents' own native session files are not
@@ -112,7 +112,7 @@ namespace bpr::app {
 			}
 		}
 
-		/// [[BPR-NNNN]]. Agent setup, the former Reset agents: an edited review
+		/// [[BPR-2377]]. Agent setup, the former Reset agents: an edited review
 		/// skill is saved to Downloads first, and which agent each pull
 		/// request was last asked with is forgotten (a new agent may reuse an
 		/// old one's id). Unless Settings removes the agent setup store
@@ -194,7 +194,7 @@ namespace bpr::app {
 				return report;
 			}
 		}
-		// [[BPR-NNNN]]. An earlier build's conversations move out of the agent
+		// [[BPR-2377]]. An earlier build's conversations move out of the agent
 		// setup store first, so neither store's removal takes the other's.
 		if (runs(plan, step::move_sessions) && store_present(adapters::sqlite::agent_setup_store_file(aRoot)) && !adapters::sqlite::prepare_agent_sessions_store(aRoot)) {
 			report.Outcome.Reason = core::release_maintenance_reason::io_failure;
@@ -252,7 +252,7 @@ namespace bpr::app {
 				return report;
 			}
 		}
-		// [[BPR-NNNN]]. The chats' queued follow-ups go with the sessions they
+		// [[BPR-2377]]. The chats' queued follow-ups go with the sessions they
 		// were waiting for; with Settings the store that keeps them is gone.
 		if (files.contains(core::profile_data_reset::agent_sessions) && !files.contains(core::profile_data_reset::settings) && !adapters::sqlite::clear_agent_queues(aRoot)) {
 			report.Outcome.Failed = report.Outcome.Failed.with(core::profile_data_reset::agent_sessions);

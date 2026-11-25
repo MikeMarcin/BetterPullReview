@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-1602]], [[BPR-NNNN]]. Settings › Storage & privacy › Clear
+/// \brief [[BPR-1602]], [[BPR-2377]]. Settings › Storage & privacy › Clear
 /// local data: a checkbox per category, what a checked one implies, one
 /// Clear… and one confirmation for the selection; its Removes and Keeps lists; the
 /// acknowledgement that gates a destructive reset; Cancel as the default; the
@@ -98,7 +98,7 @@ namespace {
 		expect(panel != nullptr && panel->title() == QStringLiteral("Clear local data"), "Storage & privacy has one Clear local data group");
 		auto* const page = window.settings()->page_widget(qt::settings_page::storage_and_privacy);
 		expect(page != nullptr && page->isAncestorOf(panel), "the group is on the Storage & privacy page");
-		// [[BPR-NNNN]]. A checkbox per category with one line saying exactly
+		// [[BPR-2377]]. A checkbox per category with one line saying exactly
 		// what it clears; nothing checked; Clear waits for a check.
 		for (const auto& [each, text] : { std::pair{ reset::caches, "Caches" }, std::pair{ reset::settings, "Settings" }, std::pair{ reset::agent_setup, "Agent setup" },
 										  std::pair{ reset::agent_sessions, "Agent sessions" }, std::pair{ reset::agent_workspaces, "Agent workspaces" },
@@ -120,7 +120,7 @@ namespace {
 		expect(panel->size_label(reset::agent_workspaces)->text() == QStringLiteral("3 workspaces, 17.2 GB") && panel->size_label(reset::agent_workspaces)->isVisibleTo(panel)
 				   && panel->check_box(reset::agent_workspaces)->accessibleName().contains(QStringLiteral("17.2 GB")),
 			   "the agent workspaces' size is shown beside them");
-		// [[BPR-NNNN]], owner: Settings and Agent sessions are independent.
+		// [[BPR-2377]], owner: Settings and Agent sessions are independent.
 		panel->check_box(reset::settings)->click();
 		expect(!panel->check_box(reset::agent_sessions)->isChecked() && panel->check_box(reset::agent_sessions)->isEnabled(), "Settings leaves Agent sessions alone");
 		expect(panel->check_box(reset::agent_setup)->isChecked() && !panel->check_box(reset::agent_setup)->isEnabled()
@@ -266,7 +266,7 @@ namespace {
 			expect(qt::profile_data_reset_notice(retained, { }).contains(QStringLiteral("could not be forgotten. Sign out in Accounts & hosts")), "connections that could not be forgotten are said");
 			expect(qt::profile_data_reset_notice({ each, reason::none, 40U }, { }) == QString::fromUtf8(lead) + QStringLiteral("."), "with nothing signed in the notice promises nothing about sign-in");
 		}
-		// [[BPR-NNNN]]. Several categories, and one that did not clear.
+		// [[BPR-2377]]. Several categories, and one that did not clear.
 		auto several = core::profile_data_reset_outcome{ core::profile_data_reset_selection{ reset::caches }.with(reset::review_data), reason::none, 9U };
 		expect(qt::profile_data_reset_notice(several, { }) == QStringLiteral("Cleared: Caches, Review data."), "a clear of several names each");
 		auto partial              = core::profile_data_reset_outcome{ core::profile_data_reset_selection{ reset::agent_sessions }.with(reset::agent_workspaces).with(reset::caches), reason::none, 3U };
@@ -345,7 +345,7 @@ namespace {
 			}
 			settle();
 			save_render(*window.settings(), QStringLiteral("page-storage-") + name);
-			// [[BPR-NNNN]]. Settings checked brings Agent sessions with it.
+			// [[BPR-2377]]. Settings checked brings Agent sessions with it.
 			window.profile_reset_panel_widget()->present_size(reset::agent_workspaces, QStringLiteral("3 workspaces, 17.2 GB"));
 			window.profile_reset_panel_widget()->set_checked(core::profile_data_reset_selection{ reset::caches }.with(reset::settings));
 			settle();

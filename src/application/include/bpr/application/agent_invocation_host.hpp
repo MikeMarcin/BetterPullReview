@@ -265,13 +265,13 @@ namespace bpr::application {
 		/// from: the next `restore_native` reads the store again rather than
 		/// keeping the history it last presented. Call on the decision lane.
 		void native_history_changed();
-		/// \brief [[BPR-NNNN]]. Answered once on the decision lane.
+		/// \brief [[BPR-2377]]. Answered once on the decision lane.
 		using session_edit_answer = std::function<void(const agent_session_edit_receipt&)>;
-		/// \brief [[BPR-NNNN]]. Names the session \p aId of \p aScope ("agent-tab",
+		/// \brief [[BPR-2377]]. Names the session \p aId of \p aScope ("agent-tab",
 		/// or a tour thread's) on this pull request with \p aName, tidied by
 		/// core; empty restores its default title. Allowed while a turn runs.
 		void rename_native_session(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::string aId, std::string aName, session_edit_answer aAnswer);
-		/// \brief [[BPR-NNNN]]. Deletes the session \p aId of \p aScope on this
+		/// \brief [[BPR-2377]]. Deletes the session \p aId of \p aScope on this
 		/// pull request: refused (`running`) while this host has a turn or an
 		/// admission in flight, or any turn holds a lease of its workspace or
 		/// of this pull request's workspace; removes its retained workspace
@@ -280,12 +280,12 @@ namespace bpr::application {
 		/// own native session files are never touched. On success the history
 		/// is shown again.
 		void delete_native_session(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::string aId, session_edit_answer aAnswer);
-		/// \brief [[BPR-NNNN]]. Delete all sessions…: every session History
+		/// \brief [[BPR-2377]]. Delete all sessions…: every session History
 		/// lists for this agent in \p aScope, each as `delete_native_session`
 		/// would; one running or whose workspace could not be removed safely
 		/// is kept and counted in the receipt.
 		void delete_all_native_sessions(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, session_edit_answer aAnswer);
-		/// \brief [[BPR-NNNN]]. What removes a deleted session's own retained
+		/// \brief [[BPR-2377]]. What removes a deleted session's own retained
 		/// workspace. Set once at composition; without one such a deletion is
 		/// refused and the session kept.
 		void set_retained_workspace_files(retained_workspace_files_port* aFiles);

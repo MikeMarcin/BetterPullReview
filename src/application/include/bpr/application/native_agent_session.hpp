@@ -61,7 +61,7 @@ namespace bpr::application {
 		bool Ended = false;
 	};
 
-	/// \brief [[BPR-NNNN]]. What the catalog holds about one conversation
+	/// \brief [[BPR-2377]]. What the catalog holds about one conversation
 	/// before it is deleted.
 	struct native_agent_session_removal
 	{
@@ -178,7 +178,7 @@ namespace bpr::application {
 			static_cast<void>(aWorkspace);
 			return false;
 		}
-		/// \brief [[BPR-NNNN]]. Gives the conversation \p aId in \p aScope the
+		/// \brief [[BPR-2377]]. Gives the conversation \p aId in \p aScope the
 		/// name \p aName (already tidied by `core::tidy_agent_session_name`);
 		/// an empty name removes it. Answers whether it was written.
 		[[nodiscard]] virtual auto rename(const std::string& aScope, const std::string& aId, const std::string& aName) -> bool
@@ -188,14 +188,14 @@ namespace bpr::application {
 			static_cast<void>(aName);
 			return false;
 		}
-		/// \brief [[BPR-NNNN]]. What deleting \p aId in \p aScope would touch.
+		/// \brief [[BPR-2377]]. What deleting \p aId in \p aScope would touch.
 		[[nodiscard]] virtual auto removal(const std::string& aScope, const std::string& aId) -> std::expected<native_agent_session_removal, native_agent_storage_failure>
 		{
 			static_cast<void>(aScope);
 			static_cast<void>(aId);
 			return std::unexpected(native_agent_storage_failure::unavailable);
 		}
-		/// \brief [[BPR-NNNN]]. Forgets the conversation \p aId in \p aScope:
+		/// \brief [[BPR-2377]]. Forgets the conversation \p aId in \p aScope:
 		/// its turns, name, cost, replay source and selection, in one
 		/// revision. A workspace key that led to it leads to another
 		/// conversation holding the same workspace, or to none. The
@@ -206,7 +206,7 @@ namespace bpr::application {
 			static_cast<void>(aId);
 			return false;
 		}
-		/// \brief [[BPR-NNNN]]. Forgets every conversation, native and
+		/// \brief [[BPR-2377]]. Forgets every conversation, native and
 		/// earlier, with its transcript, name, cost, selection, finding card
 		/// states and kept workspace records; agent setup stays. Answers
 		/// whether it was written.

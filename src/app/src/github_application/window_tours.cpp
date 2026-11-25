@@ -981,7 +981,7 @@ namespace bpr::app {
 		// [[BPR-2181]]. The tour session's retirement event releases the
 		// feedback queued for its draft.
 		TourSession->set_retired_observer([this] { tour_runtime_retired(); });
-		// [[BPR-NNNN]]. Tour chats are read-only and share the pull request's
+		// [[BPR-2377]]. Tour chats are read-only and share the pull request's
 		// workspace; a deleted one removes it only when nothing else uses it.
 		TourSession->set_retained_workspace_files(RetainedWorkspaceFiles.get());
 		TourProjection->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_tour_native_history(aView); };
@@ -1656,7 +1656,7 @@ namespace bpr::app {
 		TourHistoryKey = key;
 		TourSession->restore_native(*writing_agent(), tour_native_agent(), tour_native_scope(aThread), std::move(aChoice));
 	}
-	/// [[BPR-NNNN]]. Renames (`aName` set) or deletes one of the current tour
+	/// [[BPR-2377]]. Renames (`aName` set) or deletes one of the current tour
 	/// thread's sessions, through the same host calls as the Agent tab's.
 	void github_application::implementation::edit_tour_session(const std::string& aId, std::optional<std::string> aName)
 	{

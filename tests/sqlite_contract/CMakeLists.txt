@@ -707,7 +707,7 @@ bpr_enable_warnings(test_agent_setup_storage)
 bpr_add_network_isolated_test(NAME sqlite_agent_setup_storage WINDOWS_UNCONTAINED COMMAND test_agent_setup_storage)
 set_tests_properties(sqlite_agent_setup_storage PROPERTIES PASS_REGULAR_EXPRESSION "agent-setup-storage:pass" TIMEOUT 120)
 
-# [[BPR-NNNN]]. Renaming, deleting and clearing agent sessions over the
+# [[BPR-2377]]. Renaming, deleting and clearing agent sessions over the
 # real catalog.
 bpr_add_executable(test_agent_session_management agent_session_management_tests.cpp)
 target_link_libraries(test_agent_session_management PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)

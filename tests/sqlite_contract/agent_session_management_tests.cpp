@@ -1,4 +1,4 @@
-// [[BPR-NNNN]]. Renaming and deleting an agent session, and clearing them
+// [[BPR-2377]]. Renaming and deleting an agent session, and clearing them
 // all, through the application's effects over the real SQLite catalog. The
 // workspace files are a fake that records what it was asked to remove: no
 // folder is made, and no agent's own session file exists to be touched.
@@ -179,7 +179,7 @@ namespace {
 		const auto history = store->history(scope, "claude");
 		const auto records = store->retained_workspaces();
 		expect(history && history->Entries.empty() && records && records->empty(), "nothing is left in the catalog");
-		// [[BPR-NNNN]]. The chats' queued follow-ups go with the sessions.
+		// [[BPR-2377]]. The chats' queued follow-ups go with the sessions.
 		{
 			auto entry          = core::queued_entry{ };
 			entry.Id            = 1U;
@@ -195,7 +195,7 @@ namespace {
 		// An empty catalog clears without the files port.
 		expect(application::clear_agent_sessions(*store, nullptr, { }).Cleared, "nothing to remove clears at once");
 	}
-	/// [[BPR-NNNN]]. Delete all sessions…: each as one deletion; a running one
+	/// [[BPR-2377]]. Delete all sessions…: each as one deletion; a running one
 	/// is kept and counted.
 	void delete_all()
 	{
@@ -261,7 +261,7 @@ namespace {
 			+ scope + "','" + id + "');";
 	}
 
-	/// [[BPR-NNNN]] (owner, 2026-11-24: "split sessions from settings").
+	/// [[BPR-2377]] (owner, 2026-11-24: "split sessions from settings").
 	void move_out_of_agent_setup()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "agent-session-move" };

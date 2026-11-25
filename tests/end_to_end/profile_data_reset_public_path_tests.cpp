@@ -202,7 +202,7 @@ namespace {
 			shown->open_settings(qt::settings_page::storage_and_privacy);
 			auto* const panel = shown->profile_reset_panel_widget();
 			expect(panel != nullptr && panel->isVisibleTo(shown->settings()), "Clear local data is on Storage & privacy in the real Settings");
-			// [[BPR-NNNN]]. Check each category, as a person would, then Clear….
+			// [[BPR-2377]]. Check each category, as a person would, then Clear….
 			expect(panel->checked().empty() && !panel->clear_button()->isEnabled(), "nothing is checked when Settings opens");
 			for (const auto each : core::profile_data_reset_categories) {
 				if (aReset.contains(each) && panel->check_box(each)->isEnabled() && !panel->check_box(each)->isChecked()) {
@@ -405,7 +405,7 @@ try {
 		}
 		checkKeptLogs();
 	}
-	// [[BPR-NNNN]]. Agent sessions and workspaces alone: BetterPullReview's
+	// [[BPR-2377]]. Agent sessions and workspaces alone: BetterPullReview's
 	// conversations go from the agent setup store, which stays the same file
 	// with its agent setup; nothing else changes.
 	{

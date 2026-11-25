@@ -1765,7 +1765,7 @@ auto main(int argc, char** argv) -> int
 							&& std::filesystem::is_directory(std::filesystem::symlink_status(root / "workspace", error))
 							&& std::filesystem::is_directory(std::filesystem::symlink_status(root / "workspace" / ".git", error))
 							&& std::filesystem::is_regular_file(std::filesystem::symlink_status(root / "workspace" / ".git" / "bpr-owned-workspace", error));
-						// [[BPR-NNNN]]. The History menu's session rows.
+						// [[BPR-2377]]. The History menu's session rows.
 						auto* const rows           = window.agent_tab()->session_menu();
 						const auto  entries        = rows->ids().size();
 						const auto  open           = rows->selected();

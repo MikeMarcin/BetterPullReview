@@ -412,7 +412,7 @@ namespace bpr::qt {
 		}
 		if (core::profile_data_reset_destructive(Reset)) {
 			column->addSpacing(6);
-			// [[BPR-NNNN]]. The copy holds removed store files; agent
+			// [[BPR-2377]]. The copy holds removed store files; agent
 			// conversations cleared alone remove none, so none is offered.
 			if (core::profile_data_reset_copyable(Reset)) {
 				const auto [copyText, copyDetail] = copy_words();
@@ -506,7 +506,7 @@ namespace bpr::qt {
 	profile_reset_panel::profile_reset_panel(QWidget* const aParent)
 		: QGroupBox{ QStringLiteral("Clear local data"), aParent }
 	{
-		// [[BPR-NNNN]], owner amendment 2026-11-24: one checklist and one
+		// [[BPR-2377]], owner amendment 2026-11-24: one checklist and one
 		// Clear in place of a button per reset.
 		setObjectName(QStringLiteral("profileResetPanel"));
 		auto* const column = new QVBoxLayout{ this };

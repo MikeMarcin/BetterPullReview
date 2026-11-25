@@ -296,7 +296,7 @@ namespace bpr::adapters::sqlite {
 		/// \brief What one inventory covers. Its value is the journal's scope
 		/// field: 0 and 1 are the original clear and purge, so their journals
 		/// read as before; 11-15 are [[BPR-1602]]'s single resets, and
-		/// [[BPR-NNNN]]'s other selections of the Clear list are 256 plus the
+		/// [[BPR-2377]]'s other selections of the Clear list are 256 plus the
 		/// selection's bits.
 		enum class scope : std::uint64_t {
 			clear            = 0U,
@@ -307,7 +307,7 @@ namespace bpr::adapters::sqlite {
 			reset_everything = 14U,
 			/// [[BPR-1858]]
 			reset_connections = 15U,
-			/// [[BPR-NNNN]]
+			/// [[BPR-2377]]
 			reset_selection = 256U,
 		};
 		/// The legacy journal values of the five single resets.

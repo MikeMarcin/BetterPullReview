@@ -12,7 +12,7 @@
 #include <vector>
 
 /// \file
-/// \brief [[BPR-NNNN]]. Renaming and deleting one of BetterPullReview's agent
+/// \brief [[BPR-2377]]. Renaming and deleting one of BetterPullReview's agent
 /// sessions, and clearing them all, as blocking effects for an effect worker.
 /// \details Core decides (`bpr/core/agent_session_management.hpp`); these
 /// observe, take the turn leases and perform. Only BetterPullReview's own
@@ -36,7 +36,7 @@ namespace bpr::application {
 	[[nodiscard]] auto delete_agent_session(native_agent_session_store_port& aStore, retained_workspace_files_port* aFiles, const std::string& aScope, const std::string& aId,
 											const std::vector<std::string>& aLeaseKeys, bool aTurnActive, std::stop_token aStop) -> agent_session_edit_receipt;
 
-	/// \brief [[BPR-NNNN]]. Delete all sessions…: deletes each of \p aIds in
+	/// \brief [[BPR-2377]]. Delete all sessions…: deletes each of \p aIds in
 	/// \p aScope as `delete_agent_session` does, newest first. One that is
 	/// running or whose workspace could not be removed safely is kept and
 	/// counted; the rest go. `done` when any went or none was left to go.

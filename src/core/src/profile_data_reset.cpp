@@ -14,7 +14,7 @@ namespace bpr::core {
 			std::pair{ std::string_view{ "appearance-settings" }, area::settings },
 			std::pair{ std::string_view{ "workbench-settings" }, area::settings },
 			std::pair{ std::string_view{ "diagnostic-preferences" }, area::settings },
-			// [[BPR-NNNN]]. The agent setup; the conversations are apart.
+			// [[BPR-2377]]. The agent setup; the conversations are apart.
 			std::pair{ std::string_view{ "agent-setup" }, area::settings },
 			std::pair{ std::string_view{ "agent-sessions" }, area::agent_sessions },
 			std::pair{ std::string_view{ "window-restoration" }, area::settings },

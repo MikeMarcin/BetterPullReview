@@ -835,7 +835,7 @@ auto main(int argc, char** argv) -> int
 		expect(chat->session_button()->menu()->actions().contains(chat->new_session_action()) && chat->new_session_action()->text() == QStringLiteral("New session"), "New session is an item of the Session menu");
 		expect(chat->session_button()->geometry().top() > chat->composer_box()->geometry().bottom(), "the session line is under the composer");
 		render(*chat, prefix, "side-chat-foot");
-		// [[BPR-NNNN]]. The Session menu holds the same session rows as the
+		// [[BPR-2377]]. The Session menu holds the same session rows as the
 		// Agent tab's, and their edits reach the chat's dispatch for the thread.
 		{
 			auto edits = std::vector<std::pair<std::string, std::optional<std::string>>>{ };

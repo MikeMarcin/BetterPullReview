@@ -3995,14 +3995,14 @@ function(bpr_verify_app_source_tree app_source_root)
 	# window_composition.hpp); an edited draft is kept and Update draft
 	# offered. Local private drafts only; no grant, provider, transport,
 	# mutation or publication path changes.
-	# [[BPR-NNNN]] reseal: agent sessions are renamed and deleted through the
+	# [[BPR-2377]] reseal: agent sessions are renamed and deleted through the
 	# window's agent and tour hosts (window_agent_setup.cpp, window_tours.cpp),
 	# Clear local data's selection runs at profile start (profile_data_reset.cpp,
 	# main.cpp's comma list and recovery answer), and Reset agents… and the workspaces' Remove…
 	# open it. No grant, provider, transport, mutation or publication path
 	# changes; the full application and mutation-branch digests are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "RESEAL"
+        "49a72d825c1e4c557b8a1cc541855ca8981b1557f3f85dd32ea2ad64f9fa462c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -304,14 +304,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto current_index() const noexcept -> int { return Current; }
 		void               select(int aIndex);
 		void               set_history_dispatch(std::function<void(const core::tour_thread&, std::optional<std::string>)> aDispatch) { HistoryDispatch = std::move(aDispatch); }
-		/// \brief [[BPR-NNNN]]. Renames (`aName` set) or deletes a session of
+		/// \brief [[BPR-2377]]. Renames (`aName` set) or deletes a session of
 		/// the current thread on this pull request.
 		using session_edit_dispatch = std::function<void(const core::tour_thread&, const std::string& aId, std::optional<std::string> aName)>;
 		void set_session_edit_dispatch(session_edit_dispatch aDispatch) { SessionEditDispatch = std::move(aDispatch); }
-		/// \brief [[BPR-NNNN]]. The Session menu's rows (pencil, trash, i)
+		/// \brief [[BPR-2377]]. The Session menu's rows (pencil, trash, i)
 		/// (made on first use): the shared `agent_session_menu`.
 		auto session_rows() -> agent_session_menu&;
-		/// \brief [[BPR-NNNN]]. What the last rename or deletion did.
+		/// \brief [[BPR-2377]]. What the last rename or deletion did.
 		void present_session_edit(const QString& aStatus);
 		void present_native_history(const application::native_agent_history_projection&);
 		/// \brief Projects the core's revision choice without submitting a question.

@@ -2878,7 +2878,7 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "profile-data-reset-views-tests:pass"
 )
 
-# [[BPR-NNNN]]. The session rows of the Agent tab and tour chat History menus.
+# [[BPR-2377]]. The session rows of the Agent tab and tour chat History menus.
 bpr_add_executable(test_better_pull_review_qt_agent_session_menu_tests agent_session_menu_tests.cpp)
 target_link_libraries(test_better_pull_review_qt_agent_session_menu_tests PRIVATE BetterPullReview::AdapterQt)
 bpr_enable_hardening(test_better_pull_review_qt_agent_session_menu_tests)

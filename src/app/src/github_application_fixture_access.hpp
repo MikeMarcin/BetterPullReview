@@ -2383,7 +2383,7 @@ namespace bpr::app::detail {
 		/// seconds. Native history keeps its independent Agent effect queue.
 		[[nodiscard]] static auto hold_agent_conversation_effects(
 			github_application& aApplication) -> std::function<void()>;
-		/// \brief [[BPR-NNNN]]. Removes every retained agent workspace not in
+		/// \brief [[BPR-2377]]. Removes every retained agent workspace not in
 		/// use while the profile runs, as Settings' Remove did before it led
 		/// to Clear local data (which reopens the profile). For courses that
 		/// need a workspace gone mid-run.

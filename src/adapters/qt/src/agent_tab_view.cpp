@@ -541,7 +541,7 @@ namespace bpr::qt {
 		NativeHistoryMenu = historyMenu->addMenu(tr("Sessions"));
 		NativeHistoryMenu->setObjectName(QStringLiteral("nativeAgentSessions"));
 		connect(historyMenu, &QMenu::aboutToShow, this, [this] { if (NativeHistoryDispatch) { NativeHistoryDispatch(std::nullopt); } });
-		// [[BPR-NNNN]], owner 2026-11-24 (agent panel review): the Sessions
+		// [[BPR-2377]], owner 2026-11-24 (agent panel review): the Sessions
 		// rows carry a pencil, a trash can and an i; Delete all sits below.
 		SessionMenu = new agent_session_menu{ *this, this };
 		SessionMenu->set_dispatch({
@@ -2512,7 +2512,7 @@ namespace bpr::qt {
 				NativeHistoryDispatch("replay:" + id);
 			} });
 		NativeHistoryMenu->addSeparator();
-		// [[BPR-NNNN]]. One row per session (open, rename, delete, i), then
+		// [[BPR-2377]]. One row per session (open, rename, delete, i), then
 		// Delete all sessions…. The rows are the tab's, kept across clears.
 		NativeHistoryMenu->addAction(SessionMenu);
 		NativeHistoryMenu->addAction(SessionMenu->delete_all_action());
@@ -3565,7 +3565,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::show_session_title()
 	{
-		// [[BPR-NNNN]]. The open session's own name, when it has one.
+		// [[BPR-2377]]. The open session's own name, when it has one.
 		const auto entry = std::ranges::find(NativeHistoryView.Entries, NativeHistoryView.Selected, &application::native_agent_history_entry::Id);
 		const auto named = entry != NativeHistoryView.Entries.end() && !entry->Name.empty() && !NativeHistoryView.Selected.empty();
 		const auto title = named ? QString::fromStdString(entry->Name) : DefaultSessionTitle;

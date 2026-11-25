@@ -29,14 +29,14 @@ namespace bpr::adapters::sqlite {
 	/// \brief [[BPR-2254]]. Where that file is under `aRoot`, to name it when
 	/// it cannot be read. Opens nothing.
 	[[nodiscard]] auto agent_setup_store_file(const std::filesystem::path& aRoot) -> std::filesystem::path;
-	/// \brief [[BPR-NNNN]]. Where BetterPullReview's agent conversations are kept
+	/// \brief [[BPR-2377]]. Where BetterPullReview's agent conversations are kept
 	/// (`agent-sessions.sqlite3`), apart from the agent setup. Opens nothing.
 	[[nodiscard]] auto agent_sessions_store_file(const std::filesystem::path& aRoot) -> std::filesystem::path;
-	/// \brief [[BPR-NNNN]]. Opens the conversations store, which moves an
+	/// \brief [[BPR-2377]]. Opens the conversations store, which moves an
 	/// earlier build's conversation tables out of `agent-setup.sqlite3`
 	/// first (a stopped move finishes here). Answers whether it is ready.
 	[[nodiscard]] auto prepare_agent_sessions_store(const std::filesystem::path& aRoot) -> bool;
-	/// \brief [[BPR-NNNN]]. Forgets every chat's queued follow-ups (the
+	/// \brief [[BPR-2377]]. Forgets every chat's queued follow-ups (the
 	/// agent queues kept with the agent setup), as clearing Agent sessions
 	/// does; a profile with no agent setup store has none. Answers whether
 	/// none is left.

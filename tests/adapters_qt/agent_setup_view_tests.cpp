@@ -818,7 +818,7 @@ namespace {
 		programs.present_workspace_usage(qt::agent_programs_panel::workspace_usage{ .Count = 3U, .Bytes = 17'200'000'000ULL, .InUse = 1U });
 		expect(programs.workspace_usage_label()->text().startsWith(QStringLiteral("Retained agent workspaces: 3, 17.2 GB.")) && programs.workspace_usage_label()->text().contains(QStringLiteral("1 is in use")),
 			   "the line says how many and their total size, and how many are in use");
-		// [[BPR-NNNN]]. Remove… leads to Clear local data, which asks there.
+		// [[BPR-2377]]. Remove… leads to Clear local data, which asks there.
 		programs.workspace_remove_button()->click();
 		expect(saved.back() == "remove-workspaces" && programs.workspace_remove_button()->toolTip().contains(QStringLiteral("Clear local data")),
 			   "Remove… sends its intent, which opens Clear local data");

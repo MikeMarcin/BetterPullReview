@@ -30,7 +30,7 @@
 /// next launch opens at Sign in to GitHub. gh's own sign-in belongs to gh and
 /// the other tools that use it, and no reset touches it.
 ///
-/// [[BPR-NNNN]], owner amendment 2026-11-24 ("the clear in settings menu
+/// [[BPR-2377]], owner amendment 2026-11-24 ("the clear in settings menu
 /// would be better as check boxes rather than separate actions since I often
 /// want to clear several things at once but not everything"; "Clear/reset I
 /// mean... Same thing"). One request carries a selection of categories, each
@@ -58,25 +58,25 @@ namespace bpr::core {
 		everything  = 4U,
 		/// [[BPR-1858]] Signs out and forgets connections; keeps all other data.
 		connections = 5U,
-		/// [[BPR-NNNN]] BetterPullReview's agent conversations and the
+		/// [[BPR-2377]] BetterPullReview's agent conversations and the
 		/// retained workspaces they own.
 		agent_sessions = 6U,
-		/// [[BPR-NNNN]] Saved repositories and servers, observer rules and
+		/// [[BPR-2377]] Saved repositories and servers, observer rules and
 		/// Home's queue; before the Clear list only Reset everything removed them.
 		saved_sources = 7U,
-		/// [[BPR-NNNN]] Insights' lifetime statistics and history; before the
+		/// [[BPR-2377]] Insights' lifetime statistics and history; before the
 		/// Clear list only Reset everything removed them.
 		statistics = 8U,
-		/// [[BPR-NNNN]] The former Reset agents: every agent added, its model,
+		/// [[BPR-2377]] The former Reset agents: every agent added, its model,
 		/// effort and check, the clone folders and linked clones, and an edited
 		/// review skill (a copy goes to Downloads first); setup starts again.
 		agent_setup = 9U,
-		/// [[BPR-NNNN]] The former Settings › Agents › Remove…: every retained
+		/// [[BPR-2377]] The former Settings › Agents › Remove…: every retained
 		/// agent workspace not in use; the conversations stay.
 		agent_workspaces = 10U,
 	};
 
-	/// \brief [[BPR-NNNN]]. The categories one Clear asks for, as a set.
+	/// \brief [[BPR-2377]]. The categories one Clear asks for, as a set.
 	/// \details Converts from one reset, so a single category, or
 	/// `everything` (every category), is a selection. Unknown values select
 	/// nothing.
@@ -131,7 +131,7 @@ namespace bpr::core {
 		std::uint16_t Bits = 0U;
 	};
 
-	/// \brief [[BPR-NNNN]]. The categories of the Clear list, in its order.
+	/// \brief [[BPR-2377]]. The categories of the Clear list, in its order.
 	inline constexpr std::array<profile_data_reset, 9> profile_data_reset_categories{
 		profile_data_reset::caches,
 		profile_data_reset::settings,
@@ -144,7 +144,7 @@ namespace bpr::core {
 		profile_data_reset::connections,
 	};
 
-	/// \brief [[BPR-NNNN]]. One step of a Clear, in the order the host runs them.
+	/// \brief [[BPR-2377]]. One step of a Clear, in the order the host runs them.
 	enum class profile_data_reset_step : std::uint8_t {
 		/// Move an earlier build's conversations out of the agent setup store
 		/// into their own, so removing one never takes the other.
@@ -166,7 +166,7 @@ namespace bpr::core {
 		forget_connections,
 	};
 
-	/// \brief [[BPR-NNNN]]. What one confirmed selection does, decided before
+	/// \brief [[BPR-2377]]. What one confirmed selection does, decided before
 	/// anything runs.
 	struct profile_data_reset_plan
 	{
@@ -196,7 +196,7 @@ namespace bpr::core {
 		/// [[BPR-1858]] The device bindings that name this profile's vault
 		/// entries, removed with those entries by Connections.
 		connections,
-		/// [[BPR-NNNN]] BetterPullReview's agent conversations.
+		/// [[BPR-2377]] BetterPullReview's agent conversations.
 		agent_sessions,
 		/// Never removed by a reset: remembered connections (edited instead),
 		/// logs, shared and unknown data.
@@ -206,7 +206,7 @@ namespace bpr::core {
 	/// \brief One requested reset, as confirmed in its dialog.
 	struct profile_data_reset_request
 	{
-		/// [[BPR-NNNN]] Every checked category.
+		/// [[BPR-2377]] Every checked category.
 		profile_data_reset_selection Reset = profile_data_reset::caches;
 		/// The person ticked the acknowledgement that work existing only
 		/// here will be deleted.
@@ -237,10 +237,10 @@ namespace bpr::core {
 		/// [[BPR-1858]] The reset could not forget the remembered connections;
 		/// its stored sign-ins and other data were removed.
 		bool ConnectionsRetained = false;
-		/// [[BPR-NNNN]] The categories that did not clear while the others
+		/// [[BPR-2377]] The categories that did not clear while the others
 		/// did; `Reason` stays `none` for such a partial clear.
 		profile_data_reset_selection Failed = { };
-		/// [[BPR-NNNN]] Retained agent workspaces removed, and those left
+		/// [[BPR-2377]] Retained agent workspaces removed, and those left
 		/// because another process held one or its ownership did not verify.
 		std::uint32_t WorkspacesRemoved                                           = 0U;
 		std::uint32_t WorkspacesLeft                                              = 0U;
@@ -275,26 +275,26 @@ namespace bpr::core {
 	/// store it keeps.
 	[[nodiscard]] auto profile_data_reset_signs_out(profile_data_reset_selection aReset) noexcept -> bool;
 
-	/// \brief [[BPR-NNNN]]. Whether the selection removes any store or folder
+	/// \brief [[BPR-2377]]. Whether the selection removes any store or folder
 	/// of the profile, or a stored sign-in (every category but Agent setup and
 	/// Agent workspaces does).
 	[[nodiscard]] auto profile_data_reset_removes_files(profile_data_reset_selection aReset) noexcept -> bool;
 
-	/// \brief [[BPR-NNNN]]. Whether "Save a copy" can be offered: the
+	/// \brief [[BPR-2377]]. Whether "Save a copy" can be offered: the
 	/// selection is destructive and removes store files to copy.
 	[[nodiscard]] auto profile_data_reset_copyable(profile_data_reset_selection aReset) noexcept -> bool;
 
-	/// \brief [[BPR-NNNN]]. The categories \p aChosen implies and does not
+	/// \brief [[BPR-2377]]. The categories \p aChosen implies and does not
 	/// hold: Agent workspaces with Agent sessions (a conversation's workspace
 	/// goes with it), and Agent setup with Settings (Settings removes the
 	/// agent setup store).
 	[[nodiscard]] auto profile_data_reset_implied(profile_data_reset_selection aChosen) noexcept -> profile_data_reset_selection;
 
-	/// \brief [[BPR-NNNN]]. The plan for \p aChosen: its closed selection and
+	/// \brief [[BPR-2377]]. The plan for \p aChosen: its closed selection and
 	/// its steps in order.
 	[[nodiscard]] auto plan_profile_data_reset(profile_data_reset_selection aChosen) -> profile_data_reset_plan;
 
-	/// \brief [[BPR-NNNN]]. The categories that must not run after the agent
+	/// \brief [[BPR-2377]]. The categories that must not run after the agent
 	/// workspaces step left \p aWorkspacesLeft retained workspaces on disk:
 	/// Agent sessions and Agent workspaces, since the conversations store is
 	/// their only record. A catalog that could not be read at all holds
@@ -315,10 +315,10 @@ namespace bpr::core {
 	/// \brief The reset a command-line name selects, or none.
 	[[nodiscard]] auto profile_data_reset_from_name(std::string_view aName) noexcept -> std::optional<profile_data_reset>;
 
-	/// \brief [[BPR-NNNN]]. The selection a comma-separated list of names
+	/// \brief [[BPR-2377]]. The selection a comma-separated list of names
 	/// selects ("caches,agent-sessions"), or none when any name is unknown or
 	/// empty.
-	/// \brief [[BPR-NNNN]]. The command-line names of a selection, comma
+	/// \brief [[BPR-2377]]. The command-line names of a selection, comma
 	/// separated in the Clear list's order ("caches,agent-sessions");
 	/// "everything" for every category, empty for none.
 	[[nodiscard]] auto profile_data_reset_selection_names(profile_data_reset_selection aSelection) -> std::string;

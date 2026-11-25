@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-NNNN]], owner 2026-11-24 (agent panel review). The History
+/// \brief [[BPR-2377]], owner 2026-11-24 (agent panel review). The History
 /// menu's session rows: each session's title (open it), a pencil (rename in
 /// place; empty restores the default), a trash can (delete after a question
 /// that names what stays) and an i (turns, revision and cost on hover); Delete

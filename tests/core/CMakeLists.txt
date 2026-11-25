@@ -15,7 +15,7 @@ bpr_enable_hardening(test_profile_data_reset_core)
 bpr_enable_warnings(test_profile_data_reset_core)
 bpr_add_network_isolated_test(NAME core_profile_data_reset COMMAND test_profile_data_reset_core)
 
-# [[BPR-NNNN]]
+# [[BPR-2377]]
 bpr_add_executable(test_agent_session_management_core agent_session_management_tests.cpp)
 target_link_libraries(test_agent_session_management_core PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_agent_session_management_core)

@@ -684,7 +684,7 @@ namespace bpr::qt {
 			}
 			connect(replay, &QAction::triggered, this, [this, id = aView.Selected] {if (auto thread=current();thread && HistoryDispatch) {HistoryDispatch(*thread,"replay:"+id);} });
 			SessionMenu->addSeparator();
-			// [[BPR-NNNN]]. The same session rows as the Agent tab's: open,
+			// [[BPR-2377]]. The same session rows as the Agent tab's: open,
 			// rename, delete and i; then Delete all sessions….
 			SessionMenu->addAction(&session_rows());
 			SessionMenu->addAction(session_rows().delete_all_action());

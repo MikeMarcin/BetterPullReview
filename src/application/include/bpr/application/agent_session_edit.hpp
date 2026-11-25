@@ -4,7 +4,7 @@
 #include <cstdint>
 
 /// \file
-/// \brief [[BPR-NNNN]]. What renaming or deleting an agent session did: the
+/// \brief [[BPR-2377]]. What renaming or deleting an agent session did: the
 /// plain answer the host gives and the session list presents. No port, path
 /// or handle.
 namespace bpr::application {
@@ -34,7 +34,7 @@ namespace bpr::application {
 		bool WorkspaceRemoved = false;
 		/// The deleted session's workspace stays: another session uses it.
 		bool WorkspaceShared = false;
-		/// [[BPR-NNNN]] Delete all: how many went, and how many stayed
+		/// [[BPR-2377]] Delete all: how many went, and how many stayed
 		/// (running, or a workspace that could not be removed safely).
 		std::uint32_t Deleted                                                     = 0U;
 		std::uint32_t Kept                                                        = 0U;

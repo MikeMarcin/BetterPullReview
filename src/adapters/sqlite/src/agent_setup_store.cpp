@@ -45,7 +45,7 @@ namespace bpr::adapters::sqlite {
 		/// store at another's file fails at the identity check.
 		constexpr std::int64_t agent_setup_application_id = 0x42505259;
 		constexpr auto         agent_setup_file           = std::string_view{ "agent-setup.sqlite3" };
-		/// [[BPR-NNNN]]. BetterPullReview's agent conversations, apart from
+		/// [[BPR-2377]]. BetterPullReview's agent conversations, apart from
 		/// the agent setup, so Clear local data can clear either alone.
 		constexpr std::int64_t agent_sessions_application_id = 0x42505253;
 		constexpr auto         agent_sessions_file           = std::string_view{ "agent-sessions.sqlite3" };
@@ -628,7 +628,7 @@ namespace bpr::adapters::sqlite {
 			return result;
 		}
 
-		/// [[BPR-NNNN]] (owner, 2026-11-24: "split sessions from settings").
+		/// [[BPR-2377]] (owner, 2026-11-24: "split sessions from settings").
 		/// The tables of BetterPullReview's agent conversations, which live
 		/// in `agent-sessions.sqlite3`, apart from the agent setup, parents
 		/// first. Builds before kept them in `agent-setup.sqlite3`.
@@ -739,7 +739,7 @@ namespace bpr::adapters::sqlite {
 			return true;
 		}
 
-		/// [[BPR-NNNN]]. Moves the conversation tables an earlier build kept in
+		/// [[BPR-2377]]. Moves the conversation tables an earlier build kept in
 		/// `agent-setup.sqlite3` into `aSessions`, safe to stop at any point.
 		/// \details Stage 0: in one transaction of `aSessions`, its tables are
 		/// emptied (an attempt that stopped wrote nothing durable, but this
@@ -824,7 +824,7 @@ namespace bpr::adapters::sqlite {
 			return record(2);
 		}
 
-		/// [[BPR-NNNN]]. Opens `agent-sessions.sqlite3`, making its tables and
+		/// [[BPR-2377]]. Opens `agent-sessions.sqlite3`, making its tables and
 		/// moving an earlier build's out of the agent setup first.
 		[[nodiscard]] auto open_sessions(const std::filesystem::path& aRoot) -> std::unique_ptr<connection>
 		{
@@ -871,7 +871,7 @@ namespace bpr::adapters::sqlite {
 				// last figure for the session it resumes.
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_costs(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), total INTEGER NOT NULL CHECK(total >= 0), known INTEGER NOT NULL CHECK(known IN (0,1)), reported INTEGER CHECK(reported >= 0)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_selection(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
-				// [[BPR-NNNN]]. The name the reviewer gave a conversation; one
+				// [[BPR-2377]]. The name the reviewer gave a conversation; one
 				// with no row shows its first question.
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_session_names(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 120)) STRICT")
 				// [[BPR-2293]]. When each retained workspace was last used by a
@@ -3014,7 +3014,7 @@ namespace bpr::adapters::sqlite {
 			[[nodiscard]] auto forget_agents() -> bool override
 			{
 				try {
-					// [[BPR-NNNN]]. The choices live with the conversations; the
+					// [[BPR-2377]]. The choices live with the conversations; the
 					// scratch choices with the agent setup.
 					auto sessions = open_sessions(Root);
 					auto store    = open(Root);
