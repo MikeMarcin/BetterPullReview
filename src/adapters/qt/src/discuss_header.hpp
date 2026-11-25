@@ -17,10 +17,14 @@
 
 namespace bpr::qt {
 	/// \brief [[BPR-1337]]. How a Discuss header button is drawn. Beside the
-	/// code the filter buttons are the drawer's own icons (`native`, drawn as
-	/// the drawer's quiet icons, never by the platform style); in
-	/// Discuss they are chips in the language of Threads' bar.
+	/// code the filter buttons are the drawer's two icon toggles (`native`:
+	/// Discuss's chip at the drawer's size, never drawn by the platform
+	/// style); in Discuss they are chips in the language of Threads' bar.
 	enum class discuss_tool_shape : std::uint8_t {
+		/// An icon toggle on the drawer's ground, the side of the style's
+		/// icon tool: off, a hairline box around a dimmed glyph; on, the box
+		/// filled toward the accent inside an accent edge, the glyph in the
+		/// whole ink.
 		native,
 		/// A rounded chip: a glyph, its words or both, and a count.
 		chip,
@@ -59,8 +63,8 @@ namespace bpr::qt {
 
 	private:
 		void tell_toggle_state();
-		/// \brief The `native` face: the drawer's quiet icon when off, a soft
-		/// accent fill inside an accent edge when on.
+		/// \brief The `native` face: a hairline box around a dimmed glyph when
+		/// off, an accent-filled box around the glyph in the whole ink when on.
 		void paint_drawer_icon();
 		/// \brief Whether focus came from the keyboard, so the ring shows only
 		/// then: a click leaves no ring that reads as a choice.

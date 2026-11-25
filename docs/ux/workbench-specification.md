@@ -3231,7 +3231,19 @@ scope segments are one stop, as radio buttons are: the arrows choose. A focus
 ring shows on keyboard focus only. The availability line's ordinary count
 ("34 review threads available.") moves into the counts' tooltip. Any other
 availability line (threads unavailable, public preview) stays shown above the
-band. Beside the code nothing changes: the filters are the tab row's two icons.
+band. Beside the code the filters are the tab row's two icon toggles, drawn as
+Discuss's chips at the size of the row's icon tools (owner, 2026-11-24: "it's
+not obvious when its on or off still, there is a dimmed version for off from
+discuss look to that for inspiration"). Off is an empty hairline box around the
+glyph dimmed to 4:1 on the drawer. On fills the box toward the accent inside an
+accent edge held to 3:1, with the glyph in the whole ink; the same glyph on and
+off differs by at least 3:1 in each built-in theme. Under the pointer an off
+toggle shows a quiet grey face and the whole ink, never the accent. Keyboard
+focus draws the two-pixel ring on either state and a click draws none. A
+disabled filter is a bare glyph, as a disabled arrow is. Each tooltip ends with
+": on" or ": off", and accessibility reports the checked state. The boxes stand
+four pixels apart and clear of the Previous and Next comment arrows, which stay
+bare.
 
 ### The thread map
 
