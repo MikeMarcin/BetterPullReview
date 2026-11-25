@@ -69,6 +69,25 @@ themes, rendering mechanics, and event translation.
   every surface at the narrowest and a wide width for a horizontal bar,
   sideways range and content wider than its viewport; a new drawer tab or
   drawer state joins that course in the same change.
+- The right drawer is also held to that rule in the application's own
+  window (owner, 2026-11-25, of a card that passed the Qt course and still
+  panned: "This made the drawer have a horizontal scroll which should have
+  been disallowed by our tests."). `application_composed_drawer_fit_scale_100`,
+  `_200` and, on macOS, `_cocoa`
+  (`tests/end_to_end/composed_drawer_fit_public_path.cpp`) drive the desktop
+  composition with the Fixture agent through Comments, the Agent tab and the
+  Tour tab's chat column, drag the drawer to 280, 300, 340 and 420 pixels in
+  each state, and refuse a horizontal bar, sideways range, content wider than
+  its viewport, a control outside the drawer, a button narrower than its
+  words, a chip drawn over another and a tool button the platform style
+  draws. A state a real run reaches (an activity line, a suggested prompt, a
+  refused question, a moved head) joins that course: a window nothing
+  composed never shows it.
+- A chip that paints its whole rect (`quiet_push_button` with words) is laid
+  out by that rect where chips stand side by side or one under another:
+  `setAttribute(Qt::WA_LayoutUsesWidgetRect)`. The macOS style lays a push
+  button out by its bezel, which is smaller than the widget, so without it
+  each chip is drawn over the edge of its neighbour.
 - Custom delegates must retain native selection and focus painting, wrap
   remote literal text without elision, and derive colors and fonts from the
   current style option.
@@ -105,6 +124,14 @@ themes, rendering mechanics, and event translation.
   `tests/adapters_qt/github_conversation_panel_tests.cpp` is the pattern. A
   window kept off screen is never made active, so a look that shows keyboard
   focus tells Qt the window is active first.
+- A look of the right drawer (Comments, the Agent tab, the Tour tab and its
+  chat) is drawn by the composed course above, from the application's own
+  window with the Fixture agent: `BPR_COMPOSED_DRAWER_RENDER_ROOT`, under
+  `BPR_NATIVE_LOOK=1`. The owner, 2026-11-25, of a tour chat drawn as a
+  window of its own with canned turns: "No, doesnt look like your
+  screenshots." The real column sits beside the tour in a drawer a person
+  drags, and shows what only a run makes: its activity line, its prompts,
+  its notices.
 - On Windows every Qt test executable of `tests/adapters_qt` runs offscreen
   with the Windows fonts (`QT_QPA_FONTDIR` from `%WINDIR%` unless set) and
   Segoe UI 9 pt (`windows_fonts_startup.cpp`, [[BPR-2200]]). Without them

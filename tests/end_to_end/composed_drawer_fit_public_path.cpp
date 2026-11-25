@@ -281,7 +281,7 @@ namespace {
 				}
 			}
 			if (button != nullptr) {
-				const auto* const tool  = qobject_cast<const QToolButton*>(button);
+				const auto* const tool = qobject_cast<const QToolButton*>(button);
 				// A tool button that shows words or an arrow is one of the
 				// profile's own (a quiet chip, a disclosure): a plain one is
 				// the platform style's to draw, which under the macOS style
@@ -290,7 +290,7 @@ namespace {
 					&& dynamic_cast<const qt::quiet_tool_button*>(tool) == nullptr && dynamic_cast<const qt::disclosure_button*>(tool) == nullptr) {
 					found.push_back(QStringLiteral("%1 is drawn by the platform style, not as the profile's quiet chip").arg(describe(*tool)));
 				}
-				const auto        words = !button->text().isEmpty() && (tool == nullptr || tool->toolButtonStyle() != Qt::ToolButtonIconOnly);
+				const auto words = !button->text().isEmpty() && (tool == nullptr || tool->toolButtonStyle() != Qt::ToolButtonIconOnly);
 				// A button that wraps its words needs its longest word.
 				if (words && button->width() < button->minimumSizeHint().width()) {
 					found.push_back(QStringLiteral("%1 is %2 wide, its words need %3").arg(describe(*button)).arg(button->width()).arg(button->minimumSizeHint().width()));
@@ -613,7 +613,7 @@ auto main(int argc, char** argv) -> int
 		options.HiddenAttendedWindow             = true;
 		options.CaptureSystemNotificationDisplay = true;
 		auto terminal                            = false;
-		desktop                     = access::start_desktop(app::detail::github_public_path_fixture::returning_review_v1, std::move(options), [&](app::profile_desktop_startup_result aResult) {
+		desktop                                  = access::start_desktop(app::detail::github_public_path_fixture::returning_review_v1, std::move(options), [&](app::profile_desktop_startup_result aResult) {
 			terminal = true;
 			if (aResult) {
 				run.Owner = *aResult;
@@ -642,18 +642,18 @@ auto main(int argc, char** argv) -> int
 		auto* const panel  = editor->tour_agent();
 		const auto  quiet  = [&] { return access::agent_invocation_evidence(*run.Owner).Quiescent && tab->state() != qt::agent_tab_state::working; };
 		const auto  ask    = [&](const QString& aQuestion) {
-            const auto turns = tab->turn_count();
-            // A send before the window has lent the session the review's
-            // authority is refused and said; it is sent again.
-            auto asking = QElapsedTimer{ };
-            asking.start();
-            while (tab->turn_count() == turns && tab->state() != qt::agent_tab_state::working && asking.elapsed() < 30000) {
-                window->side_chat()->composer()->setPlainText(aQuestion);
-                QApplication::processEvents();
-                window->side_chat()->send_action()->trigger();
-                static_cast<void>(e2e::wait_until_plain([&] { return tab->turn_count() > turns || tab->state() == qt::agent_tab_state::working; }, std::chrono::milliseconds{ 1500 }));
-            }
-            expect(tab->turn_count() > turns || tab->state() == qt::agent_tab_state::working, "the question is sent: " + aQuestion.toStdString());
+			const auto turns = tab->turn_count();
+			// A send before the window has lent the session the review's
+			// authority is refused and said; it is sent again.
+			auto asking = QElapsedTimer{ };
+			asking.start();
+			while (tab->turn_count() == turns && tab->state() != qt::agent_tab_state::working && asking.elapsed() < 30000) {
+				window->side_chat()->composer()->setPlainText(aQuestion);
+				QApplication::processEvents();
+				window->side_chat()->send_action()->trigger();
+				static_cast<void>(e2e::wait_until_plain([&] { return tab->turn_count() > turns || tab->state() == qt::agent_tab_state::working; }, std::chrono::milliseconds{ 1500 }));
+			}
+			expect(tab->turn_count() > turns || tab->state() == qt::agent_tab_state::working, "the question is sent: " + aQuestion.toStdString());
 		};
 
 		// ---- Comments ------------------------------------------------------

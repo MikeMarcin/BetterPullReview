@@ -1155,10 +1155,10 @@ namespace {
 						expect(drawer->grab().save(QStringLiteral("%1/%2-%3-%4-%5-%6.png").arg(folder, tag, QString::fromLatin1(name), scale, QString::fromLatin1(aName)).arg(width), "PNG"), "the look is saved");
 					} else {
 						save(window, QStringLiteral("agent-pinned-card-%1-%2-%3").arg(QString::fromLatin1(aName), QString::fromLatin1(name)).arg(width));
-						// The refused turn under the card shows the agent's own
-						// words in a code block, which pans inside itself until
-						// its Wrap is pressed; the column is `card_faults`'.
-						require_whole(*drawer, where);
+						// The whole drawer, the refused turn under the card
+						// with it: the refusal is said once, in words that
+						// wrap, and never again in a code block that pans.
+						require_drawer(*drawer, where);
 					}
 					if (const auto faults = card_faults(*tab); !faults.isEmpty()) {
 						failures.push_back(where + ": " + faults.join(QStringLiteral("; ")).toStdString());
@@ -1178,6 +1178,14 @@ namespace {
 				present(binding);
 				stop(false);
 				judge(pinned_card::refused, "refused");
+				// Owner, attended review 2026-11-25: "This made the drawer
+				// have a horizontal scroll which should have been
+				// disallowed by our tests." The application refused the
+				// question before any agent ran: the turn says so once and
+				// does not show the same words again as what the agent wrote.
+				if (const auto said = tab->turn_answer(tab->turn_count() - 1U); said.contains(QStringLiteral("It wrote")) || !said.contains(QStringLiteral("No question was sent."))) {
+					failures.push_back("the refused turn says the refusal once, and not as what the agent wrote" + at + ": " + said.toStdString());
+				}
 				stop(true);
 				judge(pinned_card::reconcile, "reconcile");
 				// Offered again after a refused question: neither choice

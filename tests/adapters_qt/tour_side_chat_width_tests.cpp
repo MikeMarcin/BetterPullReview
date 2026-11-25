@@ -6,9 +6,14 @@
 /// column, no button is narrower than the words it shows, and none lies over
 /// another. The header is one row: what the chat is about, Show in code,
 /// History and Close, the subject ending in an ellipsis where it does not fit.
-/// \details With `BPR_TOUR_CHAT_RENDER_DIR` naming a folder, each state is
-/// saved there at each width before it is checked, as
-/// `<tag>-<state>-<width>.png` (`BPR_TOUR_CHAT_RENDER_TAG`, else "tour-chat").
+/// \details The chat is measured here as a window of its own, with canned
+/// sessions: layout evidence of the column alone. It draws no look. The owner,
+/// of renders this course once saved: "No, doesnt look like your
+/// screenshots." The application puts the chat in the Tour tab's second
+/// column, with the runs' own activity lines, the suggested prompts and the
+/// tour beside it; `application_composed_drawer_fit_*`
+/// (`tests/end_to_end/composed_drawer_fit_public_path.cpp`) measures and
+/// draws it there.
 #include "../support/review_tour_fixture.hpp"
 #include "bpr/core/agent_cost.hpp"
 #include "bpr/core/tour_agent_session.hpp"
@@ -132,16 +137,6 @@ namespace {
 		}
 	}
 
-	auto render_prefix() -> QString
-	{
-		const auto folder = qEnvironmentVariable("BPR_TOUR_CHAT_RENDER_DIR");
-		if (folder.isEmpty()) {
-			return { };
-		}
-		const auto tag = qEnvironmentVariable("BPR_TOUR_CHAT_RENDER_TAG");
-		return folder + QLatin1Char{ '/' } + (tag.isEmpty() ? QStringLiteral("tour-chat") : tag) + QLatin1Char{ '-' };
-	}
-
 	auto history() -> application::native_agent_history_projection
 	{
 		auto view     = application::native_agent_history_projection{ };
@@ -168,7 +163,6 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
-	const auto   prefix = render_prefix();
 
 	auto draft                = tests::review_tour_fixture();
 	draft.Stops.front().Title = "Clear the frame before each view presents";
@@ -291,9 +285,6 @@ auto main(int argc, char** argv) -> int
 		for (const auto width : { 300, 340, 420 }) {
 			chat->resize(width, 760);
 			settle();
-			if (!prefix.isEmpty()) {
-				expect(chat->grab().save(prefix + QString::fromLatin1(each.Name) + QLatin1Char{ '-' } + QString::number(width) + QStringLiteral(".png")), "render saved");
-			}
 			check_fit(*chat, each.Name);
 		}
 	}
@@ -306,9 +297,7 @@ auto main(int argc, char** argv) -> int
 	if (auto* const menu = chat->history_button() != nullptr ? chat->history_button()->menu() : nullptr; menu != nullptr) {
 		menu->popup(chat->mapToGlobal(QPoint{ 10, 40 }));
 		settle();
-		if (!prefix.isEmpty()) {
-			expect(menu->grab().save(prefix + QStringLiteral("history-menu.png")), "render saved");
-		}
+		expect(menu->isVisible() && menu->sizeHint().width() > 0, "the History menu opens");
 		menu->close();
 	} else {
 		expect(false, "the chat has a History menu");

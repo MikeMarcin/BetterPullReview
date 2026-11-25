@@ -168,6 +168,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # course's desktop and data root, registered on macOS.
     "application_composed_drawer_fit_scale_100": "unmeasured (registered on macOS)",
     "application_composed_drawer_fit_scale_200": "unmeasured (registered on macOS)",
+    "application_composed_drawer_fit_cocoa": "unmeasured (registered on macOS)",
     # [[BPR-1933]]. Native Limited interactive Windows Release, source
     # a30ed6f5b, 2026-11-08 UTC: the unchanged course passes normally. The
     # byte-identical image, argv, cwd and configured environment/modifications

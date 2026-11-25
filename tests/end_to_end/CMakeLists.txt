@@ -5661,6 +5661,11 @@ endif()
 # of Comments, the Agent tab and the Tour tab's chat column at 280, 300, 340
 # and 420 pixels, at 100% and 200%. Looks of those surfaces are drawn by this
 # course (BPR_COMPOSED_DRAWER_RENDER_ROOT), natively with BPR_NATIVE_LOOK=1.
+# On macOS the course also runs under cocoa: only the macOS style lays a push
+# button out by a bezel and draws a plain tool button as one, so only there
+# does a chip drawn over its neighbour show. Every window is kept off screen
+# (WA_DontShowOnScreen), the desktop has no menu bar item and a notification
+# is counted, not shown.
 bpr_add_executable(test_composed_drawer_fit_public_path composed_drawer_fit_public_path.cpp)
 if(APPLE)
     target_sources(test_composed_drawer_fit_public_path PRIVATE "${PROJECT_SOURCE_DIR}/tests/adapters_qt/native_look_startup.cpp")
@@ -5677,6 +5682,14 @@ foreach(bpr_composed_drawer_scale 1 2)
     set_tests_properties(application_composed_drawer_fit_scale_${bpr_composed_drawer_scale}00 PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment};QT_SCALE_FACTOR=${bpr_composed_drawer_scale}" TIMEOUT 420 PASS_REGULAR_EXPRESSION "composed-drawer-fit:pass")
 endforeach()
+if(APPLE)
+    bpr_add_network_isolated_test(NAME application_composed_drawer_fit_cocoa
+        WINDOWS_UNCONTAINED
+        COMMAND test_composed_drawer_fit_public_path "$<TARGET_FILE:bpr_fixture_agent>")
+    set_tests_properties(application_composed_drawer_fit_cocoa PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=cocoa;QT_MAC_DISABLE_FOREGROUND_APPLICATION_TRANSFORM=1;BPR_NATIVE_LOOK=1;BPR_NATIVE_LOOK_SCHEME=light"
+        TIMEOUT 420 PASS_REGULAR_EXPRESSION "composed-drawer-fit:pass")
+endif()
 
 # [[BPR-2216]]. Opening a pull request from Home is responsive: its page in the
 # gesture's turn while GitHub is slow, Return and the Active review on Home

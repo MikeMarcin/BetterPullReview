@@ -5,6 +5,7 @@
 
 #include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_run_status.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QApplication>
 #include <QKeyEvent>
@@ -128,6 +129,20 @@ auto main(int argc, char** argv) -> int
 		static_cast<void>(view.grab().save(folder + QStringLiteral("/agent-activity-quiet.png")));
 	}
 	expect(view.stop_button()->text() == QStringLiteral("Stop and keep what arrived") && view.keep_waiting_button()->text() == QStringLiteral("Keep waiting"), "both choices");
+	// In the narrowest drawer's column the two choices take a row each: side
+	// by side they are wider than it, and no drawer pans sideways.
+	{
+		const auto wide = view.size();
+		view.resize(220, view.heightForWidth(220) > 0 ? view.heightForWidth(220) : wide.height() + 60);
+		QApplication::processEvents();
+		const auto inside = [&view](const QPushButton* aButton) { return aButton->mapTo(&view, QPoint{ 0, 0 }).x() >= 0 && aButton->mapTo(&view, QPoint{ aButton->width(), 0 }).x() <= view.width(); };
+		expect(inside(view.stop_button()) && inside(view.keep_waiting_button()) && view.stop_button()->width() >= view.stop_button()->minimumSizeHint().width()
+				   && view.keep_waiting_button()->width() >= view.keep_waiting_button()->minimumSizeHint().width(),
+			   "both choices lie inside a 220 px column, whole");
+		expect(view.keep_waiting_button()->mapTo(&view, QPoint{ 0, 0 }).y() > view.stop_button()->mapTo(&view, QPoint{ 0, 0 }).y(), "Keep waiting wraps under Stop and keep what arrived");
+		view.resize(wide);
+		QApplication::processEvents();
+	}
 	view.keep_waiting_button()->click();
 	expect(!view.quiet_shown() && stopped == 0 && view.live(), "Keep waiting leaves the run untouched and puts the notice away");
 	now += 119'000;
@@ -149,6 +164,11 @@ auto main(int argc, char** argv) -> int
 	view.fold(turn, 423);
 	expect(!view.live() && !view.quiet_shown(), "no notice once it ended");
 	expect(view.summary_text() == QStringLiteral("Worked for 7 min: 3 helpers, 2 files read, 1 command"), "the folded line: " + view.summary_text().toStdString());
+	// The line is the profile's quiet chip with a chevron. A plain tool button
+	// with an arrow is the platform style's to draw: a grey bezel on macOS.
+	expect(dynamic_cast<qt::quiet_tool_button*>(view.summary_button()) != nullptr && view.summary_button()->autoRaise() && view.summary_button()->arrowType() == Qt::RightArrow,
+		   "the folded line is a quiet chip, bare until opened, with a chevron");
+	expect(view.summary_button()->width() <= view.width(), "the folded line is no wider than the turn");
 	expect(!view.rows_open(), "closed");
 	view.summary_button()->click();
 	expect(view.rows_open() && view.helper_rows() == 3, "it opens to the rows");
