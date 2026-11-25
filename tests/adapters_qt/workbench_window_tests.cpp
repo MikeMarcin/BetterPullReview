@@ -15552,14 +15552,14 @@ namespace {
 		auto* const scroll = agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"));
 		auto* const row    = agent->findChild<QWidget*>(QStringLiteral("agentContextRow"));
 		expect(said != nullptr && scroll != nullptr && row != nullptr && agent->findChild<QLabel*>(QStringLiteral("agentContinuationMode")) == nullptr, "the tab has its said line and no continuation heading");
-		const auto in_tab   = [agent](const QWidget& aPart) { return QRect{ aPart.mapTo(agent, QPoint{ 0, 0 }), aPart.size() }; };
-		const auto headless = [&] { return in_tab(*scroll).top() == in_tab(*row).bottom() + 1; };
+		const auto inTab    = [agent](const QWidget& aPart) { return QRect{ aPart.mapTo(agent, QPoint{ 0, 0 }), aPart.size() }; };
+		const auto headless = [&] { return inTab(*scroll).top() == inTab(*row).bottom() + 1; };
 		const auto ordinary = application::native_agent_history_projection{ };
 		agent->present_native_history(ordinary);
 		process_events();
 		expect(said->isHidden() && said->text().isEmpty(), "an ordinary session says nothing of how it goes on: " + said->text().toStdString());
-		expect(headless(), "and its transcript starts directly under the header's row: " + std::to_string(in_tab(*scroll).top()) + " under " + std::to_string(in_tab(*row).bottom()));
-		const auto shown_words = [&] {
+		expect(headless(), "and its transcript starts directly under the header's row: " + std::to_string(inTab(*scroll).top()) + " under " + std::to_string(inTab(*row).bottom()));
+		const auto shownWords = [&] {
 			auto words = QStringList{ };
 			for (const auto* const label : agent->findChildren<QLabel*>()) {
 				if (label->isVisibleTo(agent)) {
@@ -15572,12 +15572,12 @@ namespace {
 			agent->present_native_history(aView);
 			process_events();
 			expect(said->isVisible() && said->text() == aWords && said->toolTip() == aTip, "the session says how it goes on, naming the agent the tab asks: " + said->text().toStdString() + " / " + said->toolTip().toStdString());
-			expect(said->foregroundRole() == QPalette::PlaceholderText && in_tab(*said).top() > in_tab(*scroll).bottom() && in_tab(*said).bottom() < in_tab(*chat->composer()).top()
-					   && in_tab(*said).left() >= 8 && in_tab(*said).right() < agent->width() - 4,
+			expect(said->foregroundRole() == QPalette::PlaceholderText && inTab(*said).top() > inTab(*scroll).bottom() && inTab(*said).bottom() < inTab(*chat->composer()).top()
+					   && inTab(*said).left() >= 8 && inTab(*said).right() < agent->width() - 4,
 				   "as a quiet said on the question field, under the transcript and over the field");
 			expect(headless(), "and nothing stands between the header's row and the transcript");
 			for (const auto* const old : { "Native continuation", "Transcript replay", "KiB", "Replay " }) {
-				expect(!shown_words().contains(QString::fromLatin1(old)), std::string{ "no line of the tab says " } + old + ": " + shown_words().toStdString());
+				expect(!shownWords().contains(QString::fromLatin1(old)), std::string{ "no line of the tab says " } + old + ": " + shownWords().toStdString());
 			}
 		};
 		auto carried               = ordinary;
