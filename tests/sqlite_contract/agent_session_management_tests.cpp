@@ -303,6 +303,44 @@ namespace {
 		std::filesystem::remove(setup);
 		expect(store->history(scope, "claude")->Entries.size() == 1U && adapters::sqlite::prepare_agent_sessions_store(scratch.path()), "without the agent setup store the conversations stay");
 	}
+
+	/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24. A
+	/// conversation whose workspace moved records its new binding, marker and
+	/// key in one revision; one sharing its tree with another is refused.
+	void move_a_conversation()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "agent-session-move" };
+		auto                                 store  = adapters::sqlite::make_native_agent_session_store(scratch.path());
+		const auto                           own    = session(*store, "Own", "/synthetic-own-workspace", "own-authority:base:head");
+		const auto                           shared = session(*store, "Shared", "/synthetic-shared-workspace");
+		static_cast<void>(session(*store, "Also shared", "/synthetic-shared-workspace"));
+
+		auto       moved                      = *store->choose(scope, "claude", binding(), own);
+		const auto stale                      = moved;
+		moved.Binding.HeadOid                 = *core::parse_git_commit_oid(std::string(40U, '3'));
+		moved.Binding.RightEpoch              = core::epoch_ordinal{ 3 };
+		moved.Workspace->Workspace.PinnedHead = moved.Binding.HeadOid;
+		moved.Workspace->OwnershipMarker      = "moved-marker";
+		moved.WorkspaceKey                    = "own-authority:base:head3";
+		expect(store->move_conversation(moved), "the moved conversation is recorded");
+		const auto read = store->removal(scope, own);
+		expect(read && read->Workspace && read->Workspace->Workspace.PinnedHead == std::optional{ moved.Binding.HeadOid } && read->Workspace->OwnershipMarker == "moved-marker",
+			   "it reads back at the new head with the new marker");
+		auto asker        = application::native_agent_session{ };
+		asker.Binding     = moved.Binding;
+		const auto newKey = store->shared_workspace("own-authority:base:head3", asker);
+		const auto oldKey = store->shared_workspace("own-authority:base:head", application::native_agent_session{ });
+		expect(newKey && *newKey && (**newKey).Workspace.Path == "/synthetic-own-workspace" && oldKey && !*oldKey, "the new key leads to it and the old one does not");
+		auto again                            = stale;
+		again.Binding.HeadOid                 = moved.Binding.HeadOid;
+		again.Workspace->Workspace.PinnedHead = moved.Binding.HeadOid;
+		expect(!store->move_conversation(again), "a stale revision is refused");
+
+		auto holder                            = *store->choose(scope, "claude", binding(), shared);
+		holder.Binding.HeadOid                 = moved.Binding.HeadOid;
+		holder.Workspace->Workspace.PinnedHead = moved.Binding.HeadOid;
+		expect(!store->move_conversation(holder), "a tree another conversation holds is not moved");
+	}
 } // namespace
 
 int main()
@@ -312,6 +350,7 @@ try {
 	clear_all();
 	delete_all();
 	move_out_of_agent_setup();
+	move_a_conversation();
 	std::cout << "agent-session-management:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

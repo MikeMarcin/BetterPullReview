@@ -911,6 +911,16 @@ namespace bpr::application {
 		/// \returns [[BPR-2118]]. The workspace with the identities its journal records now.
 		[[nodiscard]] virtual auto inspect_agent_workspace(const owned_agent_workspace&, std::stop_token)
 			-> git_cache_result<owned_agent_workspace> { return std::unexpected(git_cache_failure::invalid_authority); }
+		/// \brief Moves the exact retained workspace to a new head through the
+		/// same serialized Git owner, taking the new objects from this cache
+		/// (RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24).
+		[[nodiscard]] virtual auto move_agent_workspace(const agent_workspace_move_request& aRequest, std::stop_token aStop)
+			-> git_cache_result<agent_workspace_move_result>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected(git_cache_failure::invalid_authority);
+		}
 		[[nodiscard]] virtual auto cleanup_agent_workspace(
 			const owned_agent_workspace& aWorkspace,
 			std::stop_token              aStop) -> git_cache_result<void>

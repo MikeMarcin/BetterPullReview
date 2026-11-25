@@ -6461,12 +6461,12 @@ namespace bpr::adapters::git {
 			{
 				using state          = core::conversation_workspace_state;
 				using reconcile      = core::conversation_reconcile;
-				const auto& stored   = aRequest.Workspace;
-				const auto  saving   = aRequest.Reconcile == reconcile::save_and_move || aRequest.Reconcile == reconcile::ask_agent;
+				const auto& stored   = aRequest.Move.Workspace;
+				const auto  saving   = aRequest.Move.Reconcile == reconcile::save_and_move || aRequest.Move.Reconcile == reconcile::ask_agent;
 				auto        boundary = process_boundary_lock{ IsolationRoot, aStop };
 				if (!boundary.valid() || !application::valid(stored) || !stored.LifetimeGuard || !WorkspaceRegistry || !stored.Workspace.PinnedHead
-					|| aRequest.Head.algorithm() != stored.Workspace.PinnedHead->algorithm() || aRequest.Base.algorithm() != aRequest.Head.algorithm()
-					|| aRequest.Head == *stored.Workspace.PinnedHead || (saving && !saved_branch_name(aRequest.SavedBranch))) {
+					|| aRequest.Move.Head.algorithm() != stored.Workspace.PinnedHead->algorithm() || aRequest.Move.Base.algorithm() != aRequest.Move.Head.algorithm()
+					|| aRequest.Move.Head == *stored.Workspace.PinnedHead || (saving && !saved_branch_name(aRequest.Move.SavedBranch))) {
 					return std::unexpected(git_process_failure::invalid_request);
 				}
 				// The first slice moves complete workspaces; a sparse one holds
@@ -6553,16 +6553,16 @@ namespace bpr::adapters::git {
 				const auto path  = std::filesystem::path{ stored.Workspace.Path };
 				const auto known = std::string{ core::canonical_hex(*stored.Workspace.PinnedHead).view() };
 				const auto old   = std::string{ core::canonical_hex(*inspected->Workspace.PinnedHead).view() };
-				const auto head  = std::string{ core::canonical_hex(aRequest.Head).view() };
-				const auto base  = std::string{ core::canonical_hex(aRequest.Base).view() };
+				const auto head  = std::string{ core::canonical_hex(aRequest.Move.Head).view() };
+				const auto base  = std::string{ core::canonical_hex(aRequest.Move.Base).view() };
 				if (owner->Record.Head != old) {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
 				const auto moved = [&] {
 					auto workspace                 = *inspected;
-					workspace.Workspace.PinnedHead = aRequest.Head;
+					workspace.Workspace.PinnedHead = aRequest.Move.Head;
 					workspace.OwnershipMarker      = workspace_marker(owner->Record, head);
-					workspace.RequiredBase         = aRequest.Base;
+					workspace.RequiredBase         = aRequest.Move.Base;
 					return workspace;
 				};
 				// A crash after the journal line and before the conversation was
@@ -6591,21 +6591,21 @@ namespace bpr::adapters::git {
 					: edits                           ? state::local_edits
 					: commits                         ? state::agent_commits
 													  : state::clean;
-				if (result.Observed != state::clean && aRequest.Reconcile == reconcile::none) {
+				if (result.Observed != state::clean && aRequest.Move.Reconcile == reconcile::none) {
 					return result;
 				}
 				const auto work   = result.Observed != state::clean;
-				const auto rebase = work && aRequest.Reconcile == reconcile::rebase;
+				const auto rebase = work && aRequest.Move.Reconcile == reconcile::rebase;
 				const auto save   = work && saving;
 				if (save) {
-					const auto existing = workspace_git(path, { "rev-parse", "--verify", "--quiet", "refs/heads/" + aRequest.SavedBranch }, aStop, true);
+					const auto existing = workspace_git(path, { "rev-parse", "--verify", "--quiet", "refs/heads/" + aRequest.Move.SavedBranch }, aStop, true);
 					if (!existing || existing->ExitCode != 1) {
 						return std::unexpected(existing ? git_process_error{ git_process_failure::invalid_request, "the saved branch already exists" } : existing.error());
 					}
 				}
 
 				// 3. The new head's and base's objects, from the review's cache.
-				const auto algorithm = aRequest.Head.algorithm() == core::git_hash_algorithm::sha1 ? git_hash_algorithm::sha1 : git_hash_algorithm::sha256;
+				const auto algorithm = aRequest.Move.Head.algorithm() == core::git_hash_algorithm::sha1 ? git_hash_algorithm::sha1 : git_hash_algorithm::sha256;
 				if (!valid_repository(aRequest.Repository, algorithm)) {
 					return std::unexpected(git_process_failure::object_unavailable);
 				}
@@ -6668,7 +6668,7 @@ namespace bpr::adapters::git {
 						workspace_checkpoint("move-after-wip");
 					}
 					if (!workspace_git(path, { "update-ref", preMove, "HEAD" }, aStop)
-						|| (save && !workspace_git(path, { "update-ref", "refs/heads/" + aRequest.SavedBranch, "HEAD", std::string(old.size(), '0') }, aStop))) {
+						|| (save && !workspace_git(path, { "update-ref", "refs/heads/" + aRequest.Move.SavedBranch, "HEAD", std::string(old.size(), '0') }, aStop))) {
 						return failed(git_process_failure::invalid_repository);
 					}
 				}
@@ -6732,7 +6732,7 @@ namespace bpr::adapters::git {
 				result.History         = workspace_move_history(path, known, head, aStop);
 				result.History.Rebased = rebase;
 				if (save) {
-					result.History.SavedBranch = aRequest.SavedBranch;
+					result.History.SavedBranch = aRequest.Move.SavedBranch;
 				}
 				if (work) {
 					result.History.PreMoveRef = preMove;

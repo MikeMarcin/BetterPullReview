@@ -239,3 +239,50 @@ build differs from the design above:
   `move-after-wip`, `-target`, `-checkout`, `-journal` and `-marker`.
 - **Busy.** A turn holding the record's lock shared (an agent running)
   returns "not moved" with `busy`, and nothing changes.
+
+### Slice 2b as built, and the plan for slice 3 (2026-11-24)
+
+Built (slice 2b):
+
+- **Shared types.** `agent_workspace_move_request` and `_result` live in
+  `agent_workspace.hpp`; the Git process request wraps the move with the
+  cache path. `saved_branch_name(session, old)` gives
+  `bpr/saved/<session>/<old short>`.
+- **Routing.** `agent_workspace_port::move_agent_workspace` goes through
+  `epoch_application_host`, which runs it on the review's actor job as
+  inspect does. `git_cache_port::move_agent_workspace` adds the installed
+  cache's authority and object-format checks.
+- **Store.** `native_agent_session_store_port::move_conversation` writes,
+  in one revision, the conversation's base, head and epochs, its marker and
+  identities, and the new pull request key. It drops the old key. It refuses
+  a stale revision, and a tree another conversation or a kept workspace
+  holds. `sqlite_agent_session_management` tests it.
+
+Plan for slice 3. Grounded in `agent_invocation_host::run`, at the pinned
+check after `select`:
+
+1. **Which conversations move.** Only a conversation of the same review that
+   is resumable (it has a runtime handle, or is a replay) and holds a
+   retained, non-sparse workspace whose head differs from the observed one.
+   Every other pinned conversation keeps today's refusal
+   (`offer_pinned_conversation`).
+2. **Leases and other holders.** Take the old binding's key lease and the
+   workspace path lease, beside the observed key's lease.
+   `NativeSessions->removal(scope, id).OtherHolders` must be 0; otherwise
+   the move is refused and offers a new session or Continue at <old>.
+3. **The move.** Call `Workspaces.move_agent_workspace` with the
+   request's reconcile (a new `agent_invocation_request` field, `none` on a
+   plain send) and `saved_branch_name`.
+   - Not moved: refuse through `decide_conversation_move` with the observed
+     state. The refusal carries the offered reconcile actions and any
+     conflicting files in `agent_run_result`.
+   - Moved: `move_conversation`, then run the turn. The supplement carries
+     `conversation_move_note` (prepended to the question), and the result
+     carries the move (from, to, commit count) for the transcript notice
+     "Updated to <sha> — <n> commits".
+4. **Inspect one move behind.** An inspected workspace at a head other than
+   the stored one takes the same `move_conversation` and note path.
+5. **Qt.** The refusal card offers Rebase onto <new>, Keep my changes on a
+   branch and move, Ask <agent> to reconcile, Continue at <old> and Start a
+   new session. Ask <agent> resends with the built-in reconcile prompt, kept
+   with the other built-in prompts (RFC-BPR-0125).

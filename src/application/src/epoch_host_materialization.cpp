@@ -1011,10 +1011,15 @@ namespace bpr::application {
 
 	auto epoch_application_host::implementation::cleanup_agent_workspace(
 		const owned_agent_workspace& aWorkspace,
-		const std::stop_token aStop, owned_agent_workspace* aInspected)
+		const std::stop_token aStop, owned_agent_workspace* aInspected,
+		const agent_workspace_move_request* aMove, agent_workspace_move_result* aMoved)
 		-> std::expected<void, agent_workspace_error>
 	{
-		const auto inspect = aInspected != nullptr;
+		if ((aMove == nullptr) != (aMoved == nullptr)) {
+			return std::unexpected{ agent_workspace_failure::invalid_request };
+		}
+		const auto move    = aMove != nullptr ? std::optional{ *aMove } : std::nullopt;
+		const auto inspect = aInspected != nullptr || move.has_value();
 		if (!Consumer->active() || aWorkspace.ApplicationSession != WindowApplicationSession) {
 			return std::unexpected{ agent_workspace_failure::cleanup_failed };
 		}
@@ -1071,9 +1076,10 @@ namespace bpr::application {
 		try {
 			enqueue_actor_work(
 				actor,
-				[this, actor, expected, aWorkspace, aStop, waiter, control, inspect] {
+				[this, actor, expected, aWorkspace, aStop, waiter, control, inspect, move] {
 					auto result    = std::expected<void, agent_workspace_error>{ };
 					auto inspected = std::optional<owned_agent_workspace>{ };
+					auto moved     = std::optional<agent_workspace_move_result>{ };
 					try {
 						auto forwardCallerStop = std::stop_callback{
 							aStop,
@@ -1090,7 +1096,14 @@ namespace bpr::application {
 							// [[BPR-2118]]. An inspection hands back the workspace
 							// with the identities its journal records now.
 							auto failure = std::optional<git_cache_error>{ };
-							if (inspect) {
+							if (move) {
+								auto done = actor->Cache->move_agent_workspace(*move, control->Stop.get_token());
+								if (done.has_value()) {
+									moved = std::move(*done);
+								} else {
+									failure = std::move(done.error());
+								}
+							} else if (inspect) {
 								auto checked = actor->Cache->inspect_agent_workspace(aWorkspace, control->Stop.get_token());
 								if (checked.has_value()) {
 									inspected = std::move(*checked);
@@ -1118,6 +1131,7 @@ namespace bpr::application {
 					auto waiterLock     = std::unique_lock{ waiter->Mutex };
 					waiter->Result      = std::move(result);
 					waiter->Inspected   = std::move(inspected);
+					waiter->Moved       = std::move(moved);
 					const auto reserved = retire_actor_job(control);
 					struct actor_exit_reservation final
 					{
@@ -1156,6 +1170,12 @@ namespace bpr::application {
 					return std::unexpected{ agent_workspace_failure::unavailable };
 				}
 				*aInspected = std::move(*waiter->Inspected);
+			}
+			if (aMoved != nullptr && waiter->Result->has_value()) {
+				if (!waiter->Moved) {
+					return std::unexpected{ agent_workspace_failure::unavailable };
+				}
+				*aMoved = std::move(*waiter->Moved);
 			}
 			return std::move(*waiter->Result);
 		}

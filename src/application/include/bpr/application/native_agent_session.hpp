@@ -148,6 +148,18 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto append(const std::string&, const agent_conversation_turn&) -> bool { return false; }
 		/// Updates the caller's revision on success; failure preserves its prior identity.
 		[[nodiscard]] virtual auto store(native_agent_session& aSession) -> bool = 0;
+		/// \brief Records that \p aSession's workspace moved (RFC-BPR-0096,
+		/// owner continue-at-latest amendment, 2026-11-24): its `Binding` (base,
+		/// head and epochs), its `Workspace`'s marker and identities, and the
+		/// pull request key `WorkspaceKey` that leads to it now, in one
+		/// revision. The old key no longer leads to it. Refused when the
+		/// revision changed, or when another conversation or a kept workspace
+		/// holds the same tree. Updates the caller's revision on success.
+		[[nodiscard]] virtual auto move_conversation(native_agent_session& aSession) -> bool
+		{
+			static_cast<void>(aSession);
+			return false;
+		}
 		/// \brief [[BPR-2293]]. Every retained workspace a conversation holds,
 		/// each once.
 		[[nodiscard]] virtual auto retained_workspaces() -> std::expected<std::vector<retained_workspace_record>, native_agent_storage_failure>

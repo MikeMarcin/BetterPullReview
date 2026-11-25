@@ -5001,14 +5001,14 @@ namespace {
 		};
 		const auto move = [&](const application::owned_agent_workspace& aWorkspace, const std::string& aHead, const core::conversation_reconcile aReconcile = core::conversation_reconcile::none,
 							  const std::string& aSaved = { }) {
-			auto request        = application::git_agent_workspace_move_request{ };
-			request.Workspace   = aWorkspace;
-			request.Repository  = cache;
-			request.Head        = oid(aHead);
-			request.Base        = oid(base);
-			request.Reconcile   = aReconcile;
-			request.SavedBranch = aSaved;
-			auto result         = adapter->move_agent_workspace(request, { });
+			auto request             = application::git_agent_workspace_move_request{ };
+			request.Move.Workspace   = aWorkspace;
+			request.Repository       = cache;
+			request.Move.Head        = oid(aHead);
+			request.Move.Base        = oid(base);
+			request.Move.Reconcile   = aReconcile;
+			request.Move.SavedBranch = aSaved;
+			auto result              = adapter->move_agent_workspace(request, { });
 			if (!result) {
 				std::cerr << "workspace-move:failure=" << static_cast<unsigned>(result.error().Code) << ":detail=" << result.error().Detail << '\n';
 			}

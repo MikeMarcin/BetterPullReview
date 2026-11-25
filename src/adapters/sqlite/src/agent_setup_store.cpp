@@ -2609,6 +2609,72 @@ namespace bpr::adapters::sqlite {
 				sqlite3_bind_int64(used->Value, 2, std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
 				return sqlite3_step(used->Value) == SQLITE_DONE && detail::execute(db, "COMMIT").has_value();
 			}
+			/// RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24.
+			auto move_conversation(application::native_agent_session& aSession) -> bool override
+			{
+				if (aSession.Id.size() != 32U || aSession.Revision == 0U || !aSession.Workspace || aSession.Workspace->Workspace.Path.empty()
+					|| aSession.Workspace->Workspace.Path.size() > 4096U || aSession.WorkspaceKey.size() > 4096U || !aSession.Workspace->LifetimeGuard
+					|| aSession.Workspace->Workspace.PinnedHead != std::optional{ aSession.Binding.HeadOid }) {
+					return false;
+				}
+				const auto& workspace  = *aSession.Workspace;
+				auto        connection = open_sessions(Root);
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
+					return false;
+				}
+				auto* const db = connection->Database.get();
+				// Another conversation, or a kept workspace, on the same tree
+				// would find it moved underneath it.
+				auto others = detail::prepare(db, "SELECT (SELECT count(*) FROM native_agent_sessions WHERE workspace=?1 AND id<>?2)+(SELECT count(*) FROM native_agent_kept_workspaces WHERE workspace=?1)");
+				if (!others) {
+					return false;
+				}
+				bind_text(others->Value, 1, workspace.Workspace.Path);
+				bind_text(others->Value, 2, aSession.Id);
+				if (sqlite3_step(others->Value) != SQLITE_ROW || sqlite3_column_int64(others->Value, 0) != 0) {
+					return false;
+				}
+				auto row = detail::prepare(db, "UPDATE native_agent_sessions SET base=?1,head=?2,left_epoch=?3,right_epoch=?4,marker=?5,directory=?6,guard_identity=?7,revision=revision+1 WHERE id=?8 AND revision=?9 AND workspace=?10");
+				if (!row) {
+					return false;
+				}
+				bind_text(row->Value, 1, std::string{ core::canonical_hex(aSession.Binding.BaseOid).view() });
+				bind_text(row->Value, 2, std::string{ core::canonical_hex(aSession.Binding.HeadOid).view() });
+				sqlite3_bind_int64(row->Value, 3, static_cast<sqlite3_int64>(aSession.Binding.LeftEpoch.value()));
+				sqlite3_bind_int64(row->Value, 4, static_cast<sqlite3_int64>(aSession.Binding.RightEpoch.value()));
+				bind_text(row->Value, 5, workspace.OwnershipMarker);
+				sqlite3_bind_blob(row->Value, 6, workspace.DirectoryIdentity.Opaque.data(), 32, SQLITE_TRANSIENT);
+				sqlite3_bind_blob(row->Value, 7, workspace.LifetimeGuard->FileIdentity.data(), 32, SQLITE_TRANSIENT);
+				bind_text(row->Value, 8, aSession.Id);
+				sqlite3_bind_int64(row->Value, 9, static_cast<sqlite3_int64>(aSession.Revision));
+				bind_text(row->Value, 10, workspace.Workspace.Path);
+				if (sqlite3_step(row->Value) != SQLITE_DONE || sqlite3_changes(db) != 1) {
+					return false;
+				}
+				// The shared-workspace map: the old key goes, the new one leads
+				// here unless another conversation's tree is already there.
+				auto unmapped = detail::prepare(db, "DELETE FROM native_agent_workspaces WHERE conversation=?1");
+				auto mapped   = detail::prepare(db, "INSERT INTO native_agent_workspaces(scope,conversation) VALUES(?1,?2) ON CONFLICT(scope) DO NOTHING");
+				if (!unmapped || !mapped) {
+					return false;
+				}
+				bind_text(unmapped->Value, 1, aSession.Id);
+				if (sqlite3_step(unmapped->Value) != SQLITE_DONE) {
+					return false;
+				}
+				if (!aSession.WorkspaceKey.empty()) {
+					bind_text(mapped->Value, 1, aSession.WorkspaceKey);
+					bind_text(mapped->Value, 2, aSession.Id);
+					if (sqlite3_step(mapped->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				if (!detail::execute(db, "COMMIT")) {
+					return false;
+				}
+				++aSession.Revision;
+				return true;
+			}
 			auto forget_workspace(const application::owned_agent_workspace& aWorkspace) -> bool override
 			{
 				if (aWorkspace.Workspace.Path.empty() || aWorkspace.Workspace.Path.size() > 4096U) {

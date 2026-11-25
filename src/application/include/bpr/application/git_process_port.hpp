@@ -242,42 +242,17 @@ namespace bpr::application {
 		auto operator<=>(const git_agent_workspace_request&) const = default;
 	};
 
-	/// \brief Moves a retained conversation's workspace to a new head between
-	/// turns (RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24:
-	/// "like git pull in another terminal").
+	/// \brief A move of a retained workspace (RFC-BPR-0096, owner
+	/// continue-at-latest amendment, 2026-11-24), with the review's cache the
+	/// new head's and base's objects come from, read only.
 	struct git_agent_workspace_move_request
 	{
-		/// The retained workspace as the conversation stores it.
-		owned_agent_workspace Workspace;
-		/// The review's cache, read only: the new head's and base's objects
-		/// come from it.
+		agent_workspace_move_request Move;
 		std::filesystem::path        Repository;
-		core::git_commit_oid         Head;
-		core::git_commit_oid         Base;
-		core::conversation_reconcile Reconcile = core::conversation_reconcile::none;
-		/// The branch under `refs/heads/` that `save_and_move` and `ask_agent`
-		/// keep the work on; it starts `bpr/saved/` and must not exist.
-		std::string SavedBranch;
 
 		auto operator<=>(const git_agent_workspace_move_request&) const = default;
 	};
-
-	/// \brief What one move did.
-	///
-	/// \details Not moved: `Observed` says what stopped it (edits or agent
-	/// commits with no reconcile, a busy workspace), or `History.Conflicts`
-	/// names the files a rebase stopped on, after the workspace was put back
-	/// as it was. Moved: `Workspace` is the reattached workspace at the new
-	/// head, and `History` what lies between the two heads.
-	struct git_agent_workspace_move_result
-	{
-		bool                               Moved = false;
-		owned_agent_workspace              Workspace;
-		core::conversation_workspace_state Observed = core::conversation_workspace_state::clean;
-		core::conversation_move_history    History;
-
-		auto operator<=>(const git_agent_workspace_move_result&) const = default;
-	};
+	using git_agent_workspace_move_result = agent_workspace_move_result;
 
 	/// \brief Describes one exact, bounded blob materialization request.
 	struct git_blob_request
