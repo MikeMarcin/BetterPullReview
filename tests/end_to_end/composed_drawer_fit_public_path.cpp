@@ -23,11 +23,12 @@
 /// - the Agent tab ready, answered, with a review's report, with a turn
 ///   running over a pending list, and, after the pull request's head moves,
 ///   with the card of a transcript replay that read the earlier head and the
-///   card of a question refused because work is in the way of the move;
-/// - the Tour tab's route, and its chat column about a stop: nothing asked
-///   yet, answered, a turn running over a pending list, a suggested rewrite
-///   of the stop, the whole tour's chat, and a chat whose session read the
-///   earlier head.
+///   card of a question refused because its session's workspace was not
+///   moved;
+/// - the Tour tab's route, and its chat column: about a stop with nothing
+///   asked yet, answered, a turn running over a pending list and a suggested
+///   rewrite of the stop; about the whole tour answered and with a proposed
+///   revision; and about a stop whose session read the earlier head.
 ///
 /// In each state the drawer is dragged by its handle to 280, 300, 340 and 420
 /// pixels. The chat column is the Tour tab's second: there the drawer is
@@ -64,7 +65,10 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_pending_list.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
@@ -87,6 +91,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -101,7 +106,6 @@
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -136,6 +140,9 @@ namespace {
 		auto elapsed = QElapsedTimer{ };
 		elapsed.start();
 		while (elapsed.elapsed() < aMilliseconds) {
+			// A widget a refresh replaced is gone, as it is under the
+			// application's own event loop.
+			QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 			QApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
 			QApplication::processEvents(QEventLoop::AllEvents, 10);
 		}
@@ -228,13 +235,17 @@ namespace {
 		return &aSurface;
 	}
 
-	/// \brief Where a control is drawn in \p aSurface. A native push button's
-	/// widget is larger than its face, so two such widgets may overlap where
-	/// their faces do not.
+	/// \brief Where a control is drawn in \p aSurface. A push button the
+	/// platform style draws is larger than its face (the macOS style keeps
+	/// room round a bezel), so two such widgets may overlap where their faces
+	/// do not. A quiet chip paints its whole rect: laid out by a bezel it
+	/// does not have, it is drawn over its neighbour.
 	[[nodiscard]] auto face_in(const QWidget& aControl, const QWidget& aSurface) -> QRect
 	{
-		auto face = aControl.rect();
-		if (const auto* const push = qobject_cast<const QPushButton*>(&aControl); push != nullptr) {
+		auto              face  = aControl.rect();
+		const auto* const quiet = dynamic_cast<const qt::quiet_push_button*>(&aControl);
+		const auto        chip  = quiet != nullptr && !quiet->text().isEmpty() && !quiet->isDefault() && quiet->menu() == nullptr;
+		if (const auto* const push = qobject_cast<const QPushButton*>(&aControl); push != nullptr && !chip) {
 			auto option = QStyleOptionButton{ };
 			option.initFrom(push);
 			if (const auto item = push->style()->subElementRect(QStyle::SE_PushButtonLayoutItem, &option, push); item.isValid()) {
@@ -271,6 +282,14 @@ namespace {
 			}
 			if (button != nullptr) {
 				const auto* const tool  = qobject_cast<const QToolButton*>(button);
+				// A tool button that shows words or an arrow is one of the
+				// profile's own (a quiet chip, a disclosure): a plain one is
+				// the platform style's to draw, which under the macOS style
+				// is a bezel in the system's grey whatever the profile.
+				if (tool != nullptr && (tool->arrowType() != Qt::NoArrow || (!tool->text().isEmpty() && tool->toolButtonStyle() != Qt::ToolButtonIconOnly))
+					&& dynamic_cast<const qt::quiet_tool_button*>(tool) == nullptr && dynamic_cast<const qt::disclosure_button*>(tool) == nullptr) {
+					found.push_back(QStringLiteral("%1 is drawn by the platform style, not as the profile's quiet chip").arg(describe(*tool)));
+				}
 				const auto        words = !button->text().isEmpty() && (tool == nullptr || tool->toolButtonStyle() != Qt::ToolButtonIconOnly);
 				// A button that wraps its words needs its longest word.
 				if (words && button->width() < button->minimumSizeHint().width()) {
@@ -301,7 +320,8 @@ namespace {
 					return face_in(aButton, aSurface).intersected(aButton.visibleRegion().boundingRect().translated(aButton.mapTo(&aSurface, QPoint{ 0, 0 })));
 				};
 				if (shown(*one).intersects(shown(*two))) {
-					found.push_back(QStringLiteral("%1 lies over %2").arg(describe(*one), describe(*two)));
+					const auto box = [](const QRect& aRect) { return QStringLiteral("(%1,%2 %3x%4)").arg(aRect.left()).arg(aRect.top()).arg(aRect.width()).arg(aRect.height()); };
+					found.push_back(QStringLiteral("%1 %2 lies over %3 %4").arg(describe(*one), box(shown(*one)), describe(*two), box(shown(*two))));
 				}
 			}
 		}
@@ -344,6 +364,14 @@ namespace {
 		over->setGeometry(10, 160, 280, 30);
 		settle();
 		expect(cut_off(surface).isEmpty(), "and the same parts with room fit: " + cut_off(surface).join(QStringLiteral("; ")).toStdString());
+		auto* const plain = new QToolButton{ &surface };
+		plain->setText(QStringLiteral("Worked for 4 s"));
+		plain->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+		plain->setArrowType(Qt::RightArrow);
+		plain->setGeometry(10, 60, 200, 30);
+		plain->show();
+		settle();
+		expect(!cut_off(surface).isEmpty(), "negative control: a plain tool button with an arrow, which the platform style draws, is caught");
 	}
 
 	/// The course: one window of the composed application and what it found.
@@ -355,6 +383,9 @@ namespace {
 		QString                  RenderPrefix;
 		std::vector<std::string> Faults;
 		std::vector<std::string> States;
+		/// The part of the drawer the state being judged is about, if it
+		/// could be scrolled out of view.
+		QPointer<QWidget> Shown;
 
 		[[nodiscard]] auto drawer() const -> QWidget* { return Window->conversations_drawer(); }
 		[[nodiscard]] auto chat() const -> qt::tour_side_chat* { return Window->tour_editor()->side_chat(); }
@@ -383,6 +414,16 @@ namespace {
 		void judge(const std::string& aState, const int aWidth, const bool aWindowToo)
 		{
 			settle();
+			// What the state is about, scrolled to as it is read.
+			if (Shown != nullptr) {
+				for (auto* parent = Shown->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+					if (auto* const area = qobject_cast<QScrollArea*>(parent); area != nullptr) {
+						area->ensureWidgetVisible(Shown, 0, 12);
+						break;
+					}
+				}
+				settle();
+			}
 			const auto name = QString::fromStdString(aState) + QLatin1Char{ '-' } + QString::number(aWidth);
 			render(*drawer(), name);
 			if (aWindowToo) {
@@ -675,8 +716,8 @@ auto main(int argc, char** argv) -> int
 		expect(tour_running(*panel), "the stop's slow turn still ran while the column was dragged");
 		chat->composer()->clear();
 		wait([&] { return asked(stop) == 4 && !tour_running(*panel); }, "the stop's queued follow-ups go and are answered");
-		// Enhance: the stop's explanation rewritten, offered as a suggestion
-		// with its choices.
+		// Update this stop from this chat: the stop's explanation rewritten,
+		// offered as a suggestion with its choices.
 		const auto free = [&] {
 			chat->composer()->setPlainText(QStringLiteral("x"));
 			wait([&] { return chat->send_button()->accessibleName() == QStringLiteral("Send") && chat->send_button()->isEnabled(); }, "the tour agent is free");
@@ -686,10 +727,6 @@ auto main(int argc, char** argv) -> int
 		expect(chat->can_update() && chat->request_update(), "Update this stop from this chat is asked");
 		wait([&] { return asked(stop) == 5 && !tour_running(*panel) && chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAccept")) != nullptr; }, "the update proposes the stop's new explanation");
 		run.sweep_chat("tour-stop-chat-suggestion");
-		free();
-		expect(chat->enhance(stop, std::nullopt), "Enhance is sent for the stop");
-		settle_for(6000);
-		run.sweep_chat("tour-stop-enhanced");
 		// The whole tour's chat: an answer, then a proposed revision.
 		editor->open_side_chat(whole);
 		wait([&] { return chat->current() == std::optional{ whole }; }, "the whole tour's chat opens");
@@ -756,28 +793,19 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return tab->state() == qt::agent_tab_state::head_moved && tab->banner()->isVisible() && tab->banner_first_button()->isVisible() && tab->banner_second_button()->isVisible(); },
 			 "the replay that read the earlier head offers its card");
 		expect(tab->banner_second_button()->text() == QStringLiteral("Continue at ") + earlierHead, "the card offers to continue at the head it read: " + tab->banner_second_button()->text().toStdString());
+		run.Shown = tab->banner();
 		run.sweep_drawer("agent-pinned-offered");
-		// The session with a checkout follows the head; work in its checkout
-		// is in the way of the move, and the question is refused with the
-		// ways on.
+		// The session with a checkout follows the head on its next question.
+		// The tour's agent holds the pull request's checkout, so the move is
+		// refused and the stopped card offers the two ways on.
 		open(seeded);
-		{
-			auto written = 0;
-			auto error   = std::error_code{ };
-			for (auto item = std::filesystem::recursive_directory_iterator{ access::agent_invocation_evidence(*run.Owner).WorkspaceRoot, error }; !error && item != std::filesystem::recursive_directory_iterator{ }; item.increment(error)) {
-				if (item->path().filename() == ".git") {
-					item.disable_recursion_pending();
-					auto output = std::ofstream{ item->path().parent_path() / "course-edit.txt", std::ios::trunc };
-					output << "the reviewer's own notes\n";
-					written += output ? 1 : 0;
-				}
-			}
-			expect(written > 0, "the session's checkout takes the reviewer's own file");
-		}
 		ask(QStringLiteral("What changed in this push?"));
-		wait([&] { return quiet() && tab->state() == qt::agent_tab_state::stopped && tab->banner()->isVisible(); }, "the question is refused: work is in the way of the move");
-		expect(std::ranges::count_if(tab->banner_reconcile_buttons(), [&](const QPushButton* aButton) { return aButton->isVisibleTo(tab->banner()); }) >= 2, "the card offers the ways to reconcile: " + tab->banner_text().toStdString());
-		run.sweep_drawer("agent-pinned-reconcile");
+		wait([&] { return quiet() && tab->state() == qt::agent_tab_state::stopped && tab->banner()->isVisible(); }, "the question is refused: the session's workspace was not moved");
+		expect(tab->banner_first_button()->isVisibleTo(tab->banner()) && tab->banner_second_button()->isVisibleTo(tab->banner()) && tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead
+				   && tab->banner_second_button()->text() == QStringLiteral("Start a new session"),
+			   "the stopped card offers to continue at the earlier head or start a new session: " + tab->banner_text().toStdString());
+		run.sweep_drawer("agent-pinned-refused");
+		run.Shown = nullptr;
 		// The stop's chat, whose session read the earlier head.
 		window->open_review_tour();
 		editor->go_to_stop(stop.Stop);
@@ -791,6 +819,10 @@ auto main(int argc, char** argv) -> int
 			 "the stop's chat says its session read the earlier head");
 		run.sweep_chat("tour-stop-chat-head-moved");
 
+		const auto reached = std::vector<std::string>{ "comments", "agent-ready", "agent-answered", "agent-report", "agent-queue", "tour-route", "tour-stop-chat-new", "tour-stop-chat-answered",
+													   "tour-stop-chat-queue", "tour-stop-chat-suggestion", "tour-whole-chat-answered", "tour-whole-chat-revision", "agent-pinned-offered", "agent-pinned-refused",
+													   "tour-stop-chat-head-moved" };
+		expect(run.States == reached, "every state of the course is reached, in order (" + std::to_string(run.States.size()) + " of " + std::to_string(reached.size()) + ")");
 		for (const auto& fault : run.Faults) {
 			std::cerr << "FAULT: " << fault << '\n';
 		}
