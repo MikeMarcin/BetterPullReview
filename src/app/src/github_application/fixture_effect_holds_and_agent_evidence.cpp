@@ -261,6 +261,17 @@ namespace bpr::app {
 	#endif
 	}
 
+	void detail::github_application_fixture_access::remove_idle_agent_workspaces(github_application& aApplication)
+	{
+	#if defined(BPR_AGENT_INTEGRATIONS)
+		if (auto* const implementation = aApplication.Implementation.get(); implementation != nullptr) {
+			implementation->remove_idle_agent_workspaces();
+		}
+	#else
+		static_cast<void>(aApplication);
+	#endif
+	}
+
 	auto detail::github_application_fixture_access::hold_agent_conversation_effects(
 		github_application& aApplication) -> std::function<void()>
 	{

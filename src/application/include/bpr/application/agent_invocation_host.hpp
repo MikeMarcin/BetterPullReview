@@ -3,7 +3,9 @@
 
 #include "bpr/application/agent_finding_delivery.hpp"
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/agent_session_edit.hpp"
 #include "bpr/application/agent_workspace.hpp"
+#include "bpr/application/agent_workspace_expiry.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/native_agent_session.hpp"
 #include "bpr/application/port.hpp"
@@ -263,6 +265,30 @@ namespace bpr::application {
 		/// from: the next `restore_native` reads the store again rather than
 		/// keeping the history it last presented. Call on the decision lane.
 		void native_history_changed();
+		/// \brief [[BPR-2377]]. Answered once on the decision lane.
+		using session_edit_answer = std::function<void(const agent_session_edit_receipt&)>;
+		/// \brief [[BPR-2377]]. Names the session \p aId of \p aScope ("agent-tab",
+		/// or a tour thread's) on this pull request with \p aName, tidied by
+		/// core; empty restores its default title. Allowed while a turn runs.
+		void rename_native_session(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::string aId, std::string aName, session_edit_answer aAnswer);
+		/// \brief [[BPR-2377]]. Deletes the session \p aId of \p aScope on this
+		/// pull request: refused (`running`) while this host has a turn or an
+		/// admission in flight, or any turn holds a lease of its workspace or
+		/// of this pull request's workspace; removes its retained workspace
+		/// when no other session uses it (refused, changing nothing, when that
+		/// removal fails); then forgets its record and transcript. The agent's
+		/// own native session files are never touched. On success the history
+		/// is shown again.
+		void delete_native_session(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::string aId, session_edit_answer aAnswer);
+		/// \brief [[BPR-2377]]. Delete all sessions…: every session History
+		/// lists for this agent in \p aScope, each as `delete_native_session`
+		/// would; one running or whose workspace could not be removed safely
+		/// is kept and counted in the receipt.
+		void delete_all_native_sessions(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, session_edit_answer aAnswer);
+		/// \brief [[BPR-2377]]. What removes a deleted session's own retained
+		/// workspace. Set once at composition; without one such a deletion is
+		/// refused and the session kept.
+		void set_retained_workspace_files(retained_workspace_files_port* aFiles);
 		void clear();
 		void dispatch(agent_invocation_request aRequest);
 		void cancel();

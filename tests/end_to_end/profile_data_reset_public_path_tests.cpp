@@ -8,6 +8,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../sqlite_contract/platform_test_support.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
@@ -191,7 +192,7 @@ namespace {
 
 		/// Confirms `aReset` in the real Settings and waits for the profile to
 		/// reopen on a new runtime with the reset's notice.
-		void reset_from_settings(const reset aReset, const QString& aNotice)
+		void reset_from_settings(const core::profile_data_reset_selection aReset, const QString& aNotice)
 		{
 			const auto  beforeAddress = reinterpret_cast<std::uintptr_t>(runtime());
 			const auto  beforeContext = runtime()->windows().front();
@@ -200,35 +201,52 @@ namespace {
 			const auto retiredWindow = QPointer<qt::workbench_window>{ shown };
 			shown->open_settings(qt::settings_page::storage_and_privacy);
 			auto* const panel = shown->profile_reset_panel_widget();
-			expect(panel != nullptr && panel->isVisibleTo(shown->settings()), "Troubleshooting is on Storage & privacy in the real Settings");
-			panel->button(aReset)->click();
+			expect(panel != nullptr && panel->isVisibleTo(shown->settings()), "Clear local data is on Storage & privacy in the real Settings");
+			// [[BPR-2377]]. Check each category, as a person would, then Clear….
+			expect(panel->checked().empty() && !panel->clear_button()->isEnabled(), "nothing is checked when Settings opens");
+			for (const auto each : core::profile_data_reset_categories) {
+				if (aReset.contains(each) && panel->check_box(each)->isEnabled() && !panel->check_box(each)->isChecked()) {
+					panel->check_box(each)->click();
+				}
+			}
+			expect(panel->checked() == core::plan_profile_data_reset(aReset).Selection, "the boxes hold the selection and what it implies");
+			panel->clear_button()->click();
 			QApplication::processEvents();
 			qt::profile_reset_confirmation* question = nullptr;
 			for (auto* dialog : QApplication::topLevelWidgets()) {
 				for (auto* candidate : dialog->findChildren<QDialog*>(QStringLiteral("profileResetConfirmation"))) {
-					if (auto* typed = dynamic_cast<qt::profile_reset_confirmation*>(candidate); typed && typed->isVisible() && typed->reset() == aReset) {
+					if (auto* typed = dynamic_cast<qt::profile_reset_confirmation*>(candidate); typed && typed->isVisible() && core::plan_profile_data_reset(typed->reset()).Selection == core::plan_profile_data_reset(aReset).Selection) {
 						question = typed;
 					}
 				}
-				if (auto* typed = dynamic_cast<qt::profile_reset_confirmation*>(dialog); typed && typed->isVisible() && typed->reset() == aReset) {
+				if (auto* typed = dynamic_cast<qt::profile_reset_confirmation*>(dialog); typed && typed->isVisible() && core::plan_profile_data_reset(typed->reset()).Selection == core::plan_profile_data_reset(aReset).Selection) {
 					question = typed;
 				}
 			}
 			expect(question != nullptr, "the row asks its confirmation");
-			if (question->acknowledge_box() != nullptr) {
+			if (question->copy_box() != nullptr) {
 				question->copy_box()->setChecked(false);
+			}
+			if (question->acknowledge_box() != nullptr) {
 				question->acknowledge_box()->setChecked(true);
 			}
 			question->confirm_button()->click();
-			until([&] {
-				auto* const now      = runtime();
-				auto* const reopened = window();
-				// An allocator may reuse the destroyed runtime's address. Its
-				// retired QObject and public window authority identify lifetimes.
-				return retiredWindow.isNull() && now != nullptr && !now->windows().empty() && now->windows().front() != beforeContext
-					&& reopened != nullptr && reopened->statusBar()->currentMessage().startsWith(aNotice);
-			},
-				  "the profile reopens on a new runtime and says what was reset", 60000);
+			auto said = QString{ };
+			try {
+				until([&] {
+					auto* const now      = runtime();
+					auto* const reopened = window();
+					said                 = reopened != nullptr ? reopened->statusBar()->currentMessage() : QString{ };
+					// An allocator may reuse the destroyed runtime's address. Its
+					// retired QObject and public window authority identify lifetimes.
+					return retiredWindow.isNull() && now != nullptr && !now->windows().empty() && now->windows().front() != beforeContext
+						&& reopened != nullptr && said.startsWith(aNotice);
+				},
+					  "the profile reopens on a new runtime and says what was reset", 60000);
+			} catch (...) {
+				std::cerr << "PROFILE_RESET_NOTICE:expected=" << aNotice.toStdString() << ":said=" << said.toStdString() << '\n';
+				throw;
+			}
 			std::cout << "PROFILE_RESET_LIFETIME:retired-window;fresh-context;runtime-address-reused="
 					  << (reinterpret_cast<std::uintptr_t>(runtime()) == beforeAddress) << '\n';
 		}
@@ -316,6 +334,8 @@ try {
 		}
 		expect(run.runtime() == before && question->isVisible(), "an unacknowledged Reset everything does nothing");
 		question->reject();
+		// Asking for everything checked every box; a person unchecks them.
+		shown->profile_reset_panel_widget()->select_all_button()->click();
 	}
 
 	const auto logs = log_files(root);
@@ -333,7 +353,7 @@ try {
 #if !defined(_WIN32)
 		const auto held = hold_removed_stores(root, settings);
 #endif
-		run.reset_from_settings(reset::settings, QStringLiteral("Settings reset"));
+		run.reset_from_settings(reset::settings, QStringLiteral("Cleared: Settings, Agent setup."));
 		for (const auto& [store, before] : settings) {
 #if !defined(_WIN32)
 			expect(!before || held.at(store).unlinked(), "Reset settings unlinks the retained original store");
@@ -373,7 +393,7 @@ try {
 #if !defined(_WIN32)
 		const auto held = hold_removed_stores(root, review);
 #endif
-		run.reset_from_settings(reset::review_data, QStringLiteral("Review data reset"));
+		run.reset_from_settings(reset::review_data, QStringLiteral("Cleared: Review data."));
 		for (const auto& [store, before] : review) {
 #if !defined(_WIN32)
 			expect(!before || held.at(store).unlinked(), "Reset review data unlinks the retained original store");
@@ -382,6 +402,50 @@ try {
 		}
 		for (const auto& [store, before] : kept) {
 			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) == before, "Reset review data keeps saved sources and sign-in");
+		}
+		checkKeptLogs();
+	}
+	// [[BPR-2377]]. Agent sessions and workspaces alone: BetterPullReview's
+	// conversations go from the agent setup store, which stays the same file
+	// with its agent setup; nothing else changes.
+	{
+		const auto agentStore = root / "state/v1/agent-setup.sqlite3";
+		auto       binding    = core::agent_revision_binding{ };
+		binding.Host          = core::git_host_id{ 1 };
+		binding.Repository    = core::repository_id{ 2 };
+		binding.PullRequest   = core::pull_request_id{ 3 };
+		binding.BaseOid       = *core::parse_git_commit_oid(std::string(40U, '1'));
+		binding.HeadOid       = *core::parse_git_commit_oid(std::string(40U, '2'));
+		const auto scope      = std::string{ "course:agent-a:agent-tab" };
+		{
+			auto       natives = adapters::sqlite::make_native_agent_session_store(root);
+			const auto made    = natives->choose(scope, "claude", binding, "");
+			expect(made && natives->append(made->Id, { "A question kept by the course", "An answer", "Answered" }) && natives->rename(scope, made->Id, "Course session"),
+				   "a named agent session is kept before the clear");
+		}
+		const auto agentIdentity = identity(agentStore);
+		const auto other         = identities(root, [] { auto all = review_stores(); all.merge(cache_stores()); all.merge(kept_stores()); return all; }());
+		run.reset_from_settings(reset::agent_sessions, QStringLiteral("Cleared: Agent sessions, Agent workspaces."));
+		const auto history = adapters::sqlite::make_native_agent_session_store(root)->history(scope, "claude");
+		expect(history && history->Entries.empty() && history->Turns.empty(), "the agent session and its transcript are gone");
+		expect(agentIdentity && identity(agentStore) == agentIdentity, "the agent setup store stays the same file");
+		for (const auto& [store, before] : other) {
+			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) == before, "clearing agent sessions keeps every other store as the same file");
+		}
+		checkKeptLogs();
+	}
+	// Two categories at once, under one confirmation: caches and review data go
+	// together, the rest stays.
+	{
+		static_cast<void>(review_store(root));
+		const auto removed = identities(root, [] { auto all = review_stores(); all.merge(cache_stores()); return all; }());
+		const auto kept    = identities(root, [] { auto all = settings_stores(); all.merge(kept_stores()); return all; }());
+		run.reset_from_settings(core::profile_data_reset_selection{ reset::caches }.with(reset::review_data), QStringLiteral("Cleared: Caches, Review data."));
+		for (const auto& [store, before] : removed) {
+			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) != before, "the two checked categories were both removed");
+		}
+		for (const auto& [store, before] : kept) {
+			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) == before, "the unchecked ones stay the same files");
 		}
 		checkKeptLogs();
 	}
@@ -420,7 +484,7 @@ try {
 		run.Desktop.reset();
 	}
 	expect(e2e::remove_course_root(temporary), "course root removed");
-	std::cout << "profile-data-reset-public-path:pass settings caches review-data unacknowledged-refused logs-kept sign-in-stores-kept startup-recovery\n";
+	std::cout << "profile-data-reset-public-path:pass settings caches review-data agent-sessions caches+review-data unacknowledged-refused logs-kept sign-in-stores-kept startup-recovery\n";
 	return EXIT_SUCCESS;
 } catch (...) {
 	return bpr::tests::failing_exit();

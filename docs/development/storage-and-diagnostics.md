@@ -63,23 +63,62 @@ records are retained in anonymized diagnostic export too. A screen saying that
 publication is unavailable does not by itself establish a server, credential or
 qualification cause.
 
-## Reset this profile's local data
+## Clear this profile's local data
 
-The resets in **Settings > Storage & privacy > Troubleshooting** change
-nothing on GitHub. **Reset connections** signs this profile out and stops it
-using GitHub CLI, keeping notes, drafts, settings, saved repositories and
-caches; **Reset everything** does that too and removes the rest. Both delete
-the sign-ins this profile saved in the system's credential store and open at
-**Sign in to GitHub**; the app connects through gh again only when you choose
-**Use GitHub CLI**. Neither signs you out of GitHub CLI itself, which other
-tools use (`gh auth logout` does that). No reset is an uninstall, and none
-touches shared registry or updater state.
+**Settings > Storage & privacy > Clear local data** lists each kind of local
+data with a checkbox and one line saying exactly what it holds. Check any
+number, choose **Clear…**, and confirm once; the profile's windows close, the
+checked data goes, and Home reopens with what was cleared, naming any kind
+that could not be. Nothing on GitHub changes. **Check all** is the former
+**Reset everything**.
+
+| Checkbox | Clears |
+|---|---|
+| Caches | Repository data downloaded from GitHub, images, Home's summaries and agent context snapshots. They download again. |
+| Settings | Every choice in Settings, agent setup and prompts, notifications, filters and window layout (`agent-setup.sqlite3` among them). Agent conversations are kept. Includes Agent setup. |
+| Agent setup | The former **Reset agents…**: every agent you added with its model, effort and check, the clone folders and linked clones, and an edited review skill (a copy goes to Downloads first). Setup starts again; prompts and conversations stay. |
+| Agent sessions | BetterPullReview's agent sessions (transcripts, names, costs, finding card states) in `agent-sessions.sqlite3`, and the follow-ups queued to send next. Includes Agent workspaces. |
+| Agent workspaces | The former workspace **Remove…**: every retained agent workspace not in use, with its measured size beside the box. Conversations stay and make a fresh one when they next ask. |
+| Review data | Read and seen marks, private notes, unsent comments and reviews, tours and Review Cycles. |
+| Saved repositories and servers | Saved repositories and servers, observer rules and Home's queue. |
+| Insights statistics | Insights' lifetime statistics and history. |
+| Connections | Sign-ins made in this app and their saved tokens, and this profile's GitHub CLI connection. |
+
+**Reset agents…** (Settings › Agents and the Agent tab's History), the
+workspaces' **Remove…** and the unreadable agent setup's recovery open this
+list with their box checked.
+
+Agent conversations live in their own store since this change; the first
+start of a newer build moves an earlier build's out of `agent-setup.sqlite3`,
+in two steps that each finish or leave nothing changed, so a stop part-way
+finishes at the next start. Agent workspaces are removed first, through their
+exact ownership records, while the conversations that name them still exist.
+One another app holds, or whose ownership cannot be verified, stays, and so
+do the conversations that record it; the notice says so. No category touches
+Claude Code's or Codex's own session files under their home folders: they
+belong to those tools.
+
+**Connections** signs this profile out and opens at **Sign in to GitHub**; the
+app connects through gh again only when you choose **Use GitHub CLI**. It
+never signs you out of GitHub CLI itself, which other tools use (`gh auth
+logout` does that). Nothing here is an uninstall, and nothing touches shared
+registry or updater state, diagnostic logs or other profiles.
 
 > [!WARNING]
-> **Clear caches** loses earlier pushes that GitHub dropped after a
-> force-push. **Reset review data** and **Reset everything** delete notes and
-> unsent comments that exist only here; leave **Save a copy … in Downloads**
-> ticked to keep a copy.
+> **Caches** loses earlier pushes that GitHub dropped after a force-push.
+> **Review data**, **Agent sessions**, **Agent workspaces** (changes an agent
+> made there and did not publish), **Saved repositories and servers** and
+> **Insights statistics** delete data that exists only here and ask you to
+> acknowledge that first; leave **Save a copy … in Downloads** ticked to keep
+> a copy of the removed store files.
+
+Agent sessions can also be renamed or deleted one at a time in the Agent
+tab's and a tour chat's session list: each session's row has a pencil
+(rename in place; an empty name shows its first question again), a trash can
+(delete, after a question) and an i (its turns, revision and cost), and
+**Delete all sessions…** sits below the rows. Deleting one removes its
+transcript and name, and its retained workspace when no other session of the
+pull request uses it; it is refused while a turn runs on it.
 
 If a profile cannot open, BetterPullReview offers **Clear caches and try
 again**. If it crashes before it can ask, start it with

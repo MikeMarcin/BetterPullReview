@@ -986,6 +986,9 @@ namespace bpr::app {
 				AgentEffects,
 				DecisionLane,
 				*AgentProjections, PrivateReview.get(), NativeAgentSessions.get(), DiagnosticLog.get());
+			// [[BPR-2377]]. A deleted session's own workspace is removed the
+			// way the expiry sweep removes one.
+			AgentHost->set_retained_workspace_files(RetainedWorkspaceFiles.get());
 			// [[BPR-2007]], RFC-BPR-0104. Scratch folders sit beside the
 			// profile's data. Claude cannot match a rule to a quoted path, so a
 			// root whose path has a space (macOS's "Application Support") moves
@@ -1722,6 +1725,12 @@ namespace bpr::app {
 		Window->tour_editor()->side_chat()->set_continuation_dispatch([this](const core::tour_thread& aThread) {
 			if (!local_tour_shown()) {
 				choose_tour_continuation(aThread);
+			}
+		});
+		// [[BPR-2377]]. History › Rename or delete sessions… in the tour chat.
+		Window->tour_editor()->side_chat()->set_session_edit_dispatch([this](const core::tour_thread&, const std::string& aId, std::optional<std::string> aName) {
+			if (!local_tour_shown()) {
+				edit_tour_session(aId, std::move(aName));
 			}
 		});
 		Window->tour_editor()->side_chat()->set_history_dispatch([this](const core::tour_thread& aThread, std::optional<std::string> aChoice) {

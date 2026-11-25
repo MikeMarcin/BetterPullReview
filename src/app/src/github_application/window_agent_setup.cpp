@@ -978,6 +978,55 @@ namespace bpr::app {
 		AgentWorkspaceSweepAfterHistory = AgentWorkspaceSweepAfterHistory || aChoice.has_value();
 		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice));
 	}
+	/// [[BPR-2377]]. Settings › Storage & privacy › Clear local data, with
+	/// exactly `aCategory` checked: where Reset agents…, the workspaces'
+	/// Remove… and the unreadable agent setup's recovery lead.
+	void github_application::implementation::open_clear_local_data(const core::profile_data_reset aCategory)
+	{
+		if (Closing || Window == nullptr) {
+			return;
+		}
+		Window->open_settings(qt::settings_page::storage_and_privacy);
+		if (auto* const clear = Window->profile_reset_panel_widget(); clear != nullptr) {
+			clear->set_checked(aCategory);
+		}
+	}
+
+	void github_application::implementation::remove_idle_agent_workspaces()
+	{
+		if (!Closing) {
+			Profile->sweep_agent_workspaces(application::retained_workspace_sweep::remove_all, true);
+		}
+	}
+
+	/// [[BPR-2377]]. Renames (`aName` set) or deletes one of the selected
+	/// agent's Agent-tab sessions on this pull request, and says what happened.
+	void github_application::implementation::edit_agent_session(const std::string& aId, std::optional<std::string> aName)
+	{
+		if (Closing || !Window || !AgentSetup || !AgentHost || !Window->agent_panel()->selected_profile()) {
+			return;
+		}
+		const auto  profile     = *Window->agent_panel()->selected_profile();
+		const auto  preferences = AgentSetup->projection().Preferences;
+		const auto* entry       = core::entry_of_profile(preferences.Agents, profile);
+		if (!entry) {
+			return;
+		}
+		const auto renaming = aName.has_value();
+		auto       answer   = [this, renaming](const application::agent_session_edit_receipt& aReceipt) {
+			if (!Closing && Window) {
+				Window->agent_tab()->present_session_edit(qt::agent_session_edit_words(aReceipt, renaming));
+			}
+		};
+		if (renaming) {
+			AgentHost->rename_native_session(profile, entry->Identity, "agent-tab", aId, std::move(*aName), std::move(answer));
+		} else if (aId.empty()) {
+			AgentHost->delete_all_native_sessions(profile, entry->Identity, "agent-tab", std::move(answer));
+		} else {
+			AgentHost->delete_native_session(profile, entry->Identity, "agent-tab", aId, std::move(answer));
+		}
+	}
+
 	void github_application::implementation::present_agent_native_history(const application::native_agent_history_projection& aView)
 	{
 		if (Closing || !Window) {
@@ -1872,48 +1921,18 @@ namespace bpr::app {
 				AgentSetup->load_catalog(entry->Id);
 			}
 		});
-		tab->set_reset_dispatch([this] {
-			if (Closing || !AgentSetup) {
-				return;
-			}
-			PendingTargetUpdate.reset();
-			AgentSetupWorkspaceStop.request_stop();
-			++AgentSetupWorkspaceGeneration;
-			// [[BPR-1769]]. The old preferences are migration inputs, not
-			// a second agent list. Reset clears them durably as well.
-			static_cast<void>(Profile->WorkbenchPreferences->apply_claude_wrapper({ }));
-			static_cast<void>(Profile->WorkbenchPreferences->apply_claude_model({ }));
-			AgentSetup->reset();
-			// [[BPR-1823]]. No choice outlives Reset: a new agent may
-			// reuse an old one's id.
-			Window->agent_panel()->forget_choice();
-			// The fresh setup looks for agents again, as Set up did.
-			AgentSetup->restart();
-			// A new agent's id may be an old one's: no pull request opens
-			// on the agent it was last asked with. Its turns stay.
-			if (AgentConversation) {
-				AgentConversation->forget_agent_choices();
-			}
-			if (CloneLinks) {
-				const auto links = CloneLinks->projection().Links;
-				for (const auto& link : links) {
-					CloneLinks->forget(link);
-				}
-				CloneLinks->set_clone_folders({ });
-			}
-			if (ReviewSkill) {
-				const auto skill = ReviewSkill->projection();
-				if (skill.Source != core::review_skill_source::built_in || skill.CopyBaseVersion) {
-					ReviewSkill->use_built_in(true);
-				}
-			}
-		});
+		// [[BPR-2377]], owner 2026-11-24: Reset agents… is Clear local data's
+		// Agent setup, which asks once and resets while the profile reopens
+		// (`app::run_profile_data_reset`); the setup then starts at Agent.
+		tab->set_reset_route([this] { open_clear_local_data(core::profile_data_reset::agent_setup); });
 		tab->set_suggestions_observer([this](const bool aShown) {
 			if (!Closing && AgentSetup) {
 				AgentSetup->set_suggestions_hidden(!aShown);
 			}
 		});
 		tab->set_native_history_dispatch([this](std::optional<std::string> aChoice) { observe_agent_native_history(std::move(aChoice)); });
+		// [[BPR-2377]]. History › Rename or delete sessions….
+		tab->set_session_edit_dispatch([this](const std::string& aId, std::optional<std::string> aName) { edit_agent_session(aId, std::move(aName)); });
 		tab->set_clear_session_dispatch([this] {
 			if (!Closing && AgentConversation) {
 				observe_agent_native_history(std::string{ });
@@ -2178,7 +2197,7 @@ namespace bpr::app {
 				return taken; },
 			.RemoveWorkspaces   = [this] {
 				if (!Closing) {
-					Profile->sweep_agent_workspaces(application::retained_workspace_sweep::remove_all, true);
+					open_clear_local_data(core::profile_data_reset::agent_workspaces);
 				} },
 			.SetProgram =
 				[this](const core::setup_agent aAgent, std::string aPath) {
@@ -2201,9 +2220,9 @@ namespace bpr::app {
 			// recovery is Storage & privacy's Troubleshooting ([[BPR-1602]]).
 			.OpenTroubleshooting =
 				[this] {
-					if (!Closing && Window != nullptr) {
-						Window->open_settings(qt::settings_page::storage_and_privacy);
-					}
+					// [[BPR-2377]]. Clear local data, with Settings (whose store
+					// could not be read) checked.
+					open_clear_local_data(core::profile_data_reset::settings);
 				},
 		});
 		Window->clone_folders()->set_dispatch(qt::clone_folders_panel::dispatch{
@@ -2765,6 +2784,14 @@ namespace bpr::app {
 		usage.Bytes = summary->Bytes;
 		usage.InUse = summary->InUse;
 		Window->agent_programs()->present_workspace_usage(usage, Profile->RetainedWorkspacesSaid);
+		// [[BPR-2377]]. The same measure beside Clear local data's Agent
+		// sessions and workspaces.
+		if (auto* const clear = Window->profile_reset_panel_widget(); clear != nullptr) {
+			const auto size = QLocale{ }.formattedDataSize(static_cast<qint64>(summary->Bytes), 1, QLocale::DataSizeSIFormat);
+			clear->present_size(core::profile_data_reset::agent_workspaces,
+								summary->Count == 0U ? QStringLiteral("no workspaces") : summary->Count == 1U ? QStringLiteral("1 workspace, %1").arg(size)
+																											  : QStringLiteral("%1 workspaces, %2").arg(summary->Count).arg(size));
+		}
 	}
 
 	void github_application::implementation::present_scratch_usage(const QString& aSaid)

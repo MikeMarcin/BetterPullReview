@@ -266,9 +266,9 @@ namespace bpr::qt {
 			UnreadableText->setTextInteractionFlags(Qt::TextSelectableByMouse);
 			notice->addWidget(UnreadableText);
 			auto* const actions = new QHBoxLayout{ };
-			Troubleshooting     = new quiet_push_button{ tr("Open Troubleshooting…"), Unreadable };
+			Troubleshooting     = new quiet_push_button{ tr("Open Clear local data…"), Unreadable };
 			Troubleshooting->setObjectName(QStringLiteral("settingsAgentsTroubleshooting"));
-			Troubleshooting->setToolTip(tr("Open Settings › Storage & privacy, where Reset settings starts the agent settings over."));
+			Troubleshooting->setToolTip(tr("Open Settings › Storage & privacy › Clear local data with Settings checked, which starts the agent settings over."));
 			connect(Troubleshooting, &QPushButton::clicked, this, [this] {
 				if (Dispatch.OpenTroubleshooting) {
 					Dispatch.OpenTroubleshooting();
@@ -512,7 +512,7 @@ namespace bpr::qt {
 		WorkspaceRemove = new quiet_push_button{ tr("Remove…"), this };
 		WorkspaceRemove->setObjectName(QStringLiteral("settingsWorkspaceRemove"));
 		WorkspaceRemove->setAccessibleName(tr("Remove agent workspaces"));
-		WorkspaceRemove->setToolTip(tr("Remove every retained agent workspace now, except one a question is using. The conversations stay; each makes a fresh workspace when it next asks."));
+		WorkspaceRemove->setToolTip(tr("Open Clear local data with Agent workspaces checked: every retained agent workspace not in use goes; the sessions stay."));
 		workspaceRow->addWidget(WorkspaceRemove);
 		column->addLayout(workspaceRow);
 		connect(WorkspaceCap, &QSpinBox::editingFinished, this, [this] { send_workspace_policy(); });
@@ -532,7 +532,7 @@ namespace bpr::qt {
 		resetRow->addWidget(resetSays, 1);
 		auto* const reset = new quiet_push_button{ tr("Reset agents…"), this };
 		reset->setObjectName(QStringLiteral("settingsResetAgents"));
-		reset->setToolTip(tr("Remove every agent and its settings, the clone folders and linked clones, and the edited review skill, then set up again"));
+		reset->setToolTip(tr("Open Clear local data with Agent setup checked: every agent and its settings, the clone folders and linked clones and the edited review skill go, then setup starts again."));
 		connect(reset, &QPushButton::clicked, this, [this] {
 			if (Dispatch.Reset) {
 				Dispatch.Reset();
@@ -604,24 +604,14 @@ namespace bpr::qt {
 
 	void agent_programs_panel::remove_workspaces()
 	{
-		if (!ShownWorkspaces || ShownWorkspaces->Count <= ShownWorkspaces->InUse || (WorkspaceQuestion && WorkspaceQuestion->isVisible())) {
+		// [[BPR-2377]], owner 2026-11-24: Remove… opens Settings › Storage &
+		// privacy › Clear local data with Agent workspaces checked, which asks.
+		if (!ShownWorkspaces || ShownWorkspaces->Count <= ShownWorkspaces->InUse) {
 			return;
 		}
-		const auto removable = ShownWorkspaces->Count - ShownWorkspaces->InUse;
-		const auto size      = QLocale{ }.formattedDataSize(static_cast<qint64>(ShownWorkspaces->Bytes), 1, QLocale::DataSizeSIFormat);
-		auto*      question  = new destructive_question(*this, QStringLiteral("removeAgentWorkspaces"),
-														removable == 1U ? tr("Remove 1 agent workspace?") : tr("Remove %1 agent workspaces?").arg(removable),
-														tr("The workspaces hold %1. Changes an agent made in them and did not publish are lost; the conversations stay and each makes a fresh workspace when it next asks. A workspace a question is using now is kept. This cannot be undone.").arg(size),
-														tr("Remove workspaces"));
-		connect(question, &QDialog::finished, question, &QObject::deleteLater);
-		WorkspaceQuestion = question;
-		connect(question, &QDialog::accepted, this, [this] {
-			if (Dispatch.RemoveWorkspaces) {
-				WorkspaceRemove->setEnabled(false);
-				Dispatch.RemoveWorkspaces();
-			}
-		});
-		question->open();
+		if (Dispatch.RemoveWorkspaces) {
+			Dispatch.RemoveWorkspaces();
+		}
 	}
 
 	void agent_programs_panel::ask_remove()
@@ -781,7 +771,7 @@ namespace bpr::qt {
 		if (unreadable) {
 			UnreadableText->setText(tr("BetterPullReview couldn't open %1, so your agents can't be shown and nothing you change here can be saved. "
 									   "Nothing in the file was changed. Quit BetterPullReview and open it again to try once more. "
-									   "If the file still can't be read, Reset settings in Storage & privacy › Troubleshooting starts the agent settings over.")
+									   "If the file still can't be read, clearing Settings in Storage & privacy › Clear local data starts the agent settings over.")
 										.arg(QDir::toNativeSeparators(UnreadableFile)));
 			Unreadable->setAccessibleName(tr("Your saved agents couldn't be read"));
 			Unreadable->setAccessibleDescription(UnreadableText->text());

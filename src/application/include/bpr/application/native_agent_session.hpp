@@ -61,6 +61,22 @@ namespace bpr::application {
 		bool Ended = false;
 	};
 
+	/// \brief [[BPR-2377]]. What the catalog holds about one conversation
+	/// before it is deleted.
+	struct native_agent_session_removal
+	{
+		/// It is in the catalog under the scope asked about.
+		bool Found = false;
+		/// Its retained workspace, if it holds one.
+		std::optional<owned_agent_workspace> Workspace;
+		/// The pull request workspace keys (`agent_workspace_key`) that lead
+		/// to it; a turn on it holds one of their leases.
+		std::vector<std::string> Keys;
+		/// Other conversations, and the pull request's kept workspace, that
+		/// hold the same retained workspace.
+		std::size_t OtherHolders = 0U;
+	};
+
 	/// \brief [[BPR-2293]]. The turn lease that guards one retained workspace by
 	/// its path, beside its pull request key: a workspace kept before its key
 	/// was recorded is still guarded.
@@ -162,6 +178,39 @@ namespace bpr::application {
 			static_cast<void>(aWorkspace);
 			return false;
 		}
+		/// \brief [[BPR-2377]]. Gives the conversation \p aId in \p aScope the
+		/// name \p aName (already tidied by `core::tidy_agent_session_name`);
+		/// an empty name removes it. Answers whether it was written.
+		[[nodiscard]] virtual auto rename(const std::string& aScope, const std::string& aId, const std::string& aName) -> bool
+		{
+			static_cast<void>(aScope);
+			static_cast<void>(aId);
+			static_cast<void>(aName);
+			return false;
+		}
+		/// \brief [[BPR-2377]]. What deleting \p aId in \p aScope would touch.
+		[[nodiscard]] virtual auto removal(const std::string& aScope, const std::string& aId) -> std::expected<native_agent_session_removal, native_agent_storage_failure>
+		{
+			static_cast<void>(aScope);
+			static_cast<void>(aId);
+			return std::unexpected(native_agent_storage_failure::unavailable);
+		}
+		/// \brief [[BPR-2377]]. Forgets the conversation \p aId in \p aScope:
+		/// its turns, name, cost, replay source and selection, in one
+		/// revision. A workspace key that led to it leads to another
+		/// conversation holding the same workspace, or to none. The
+		/// workspace's files are the caller's. Answers whether it was written.
+		[[nodiscard]] virtual auto erase(const std::string& aScope, const std::string& aId) -> bool
+		{
+			static_cast<void>(aScope);
+			static_cast<void>(aId);
+			return false;
+		}
+		/// \brief [[BPR-2377]]. Forgets every conversation, native and
+		/// earlier, with its transcript, name, cost, selection, finding card
+		/// states and kept workspace records; agent setup stays. Answers
+		/// whether it was written.
+		[[nodiscard]] virtual auto erase_all() -> bool { return false; }
 
 	private:
 		std::mutex                                                  WorkspaceLocksMutex;

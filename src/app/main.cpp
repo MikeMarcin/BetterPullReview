@@ -1557,7 +1557,7 @@ namespace {
 			static_cast<void>(dialog.exec());
 		}
 		const auto request = dialog.request();
-		QTextStream{ stdout } << "PROFILE_RECOVERY_CHOICE:" << (request ? QString::fromUtf8(bpr::core::profile_data_reset_name(request->Reset)) : QStringLiteral("quit")) << '\n';
+		QTextStream{ stdout } << "PROFILE_RECOVERY_CHOICE:" << (request ? QString::fromStdString(bpr::core::profile_data_reset_selection_names(request->Reset)) : QStringLiteral("quit")) << '\n';
 		return request;
 	}
 
@@ -13552,7 +13552,7 @@ auto main(int argc, char** argv) -> int
 		// recovery dialog, runs once before the profile's stores open.
 		auto dataReset = std::optional<bpr::core::profile_data_reset_request>{ };
 		if (const auto scope = launch.value("--reset-profile-data-scope")) {
-			if (const auto named = bpr::core::profile_data_reset_from_name(*scope)) {
+			if (const auto named = bpr::core::profile_data_reset_selection_from_names(*scope)) {
 				dataReset = bpr::core::profile_data_reset_request{ *named, true, launch.has("--reset-profile-data-copy") };
 			}
 		}

@@ -92,6 +92,7 @@ add_library(
         src/release_update.cpp
         src/release_maintenance.cpp
         src/profile_data_reset.cpp
+        src/agent_session_management.cpp
         src/view_filter_memory.cpp
         src/pull_request_activity.cpp
         src/agent_chat_scope.cpp

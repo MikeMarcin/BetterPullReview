@@ -15,21 +15,58 @@
 #include <QIcon>
 #include <QLabel>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QStyle>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <utility>
 
 namespace bpr::qt {
 	namespace {
 		using reset = core::profile_data_reset;
 
-		/// In the order Troubleshooting lists them; Reset everything is last.
-		constexpr std::array resets{ reset::caches, reset::settings, reset::review_data, reset::connections, reset::everything };
-
-		[[nodiscard]] auto index_of(const reset aReset) -> std::size_t
+		/// A category's place in the Clear list; past its end for `everything`.
+		[[nodiscard]] auto category_index(const reset aReset) noexcept -> std::size_t
 		{
-			return static_cast<std::size_t>(aReset) - 1U;
+			const auto* const found = std::ranges::find(core::profile_data_reset_categories, aReset);
+			return static_cast<std::size_t>(found - core::profile_data_reset_categories.begin());
+		}
+
+		/// The object-name stem of a category's controls.
+		[[nodiscard]] auto object_key(const reset aReset) -> QString
+		{
+			switch (aReset) {
+			case reset::caches:
+				return QStringLiteral("Caches");
+			case reset::settings:
+				return QStringLiteral("Settings");
+			case reset::review_data:
+				return QStringLiteral("ReviewData");
+			case reset::connections:
+				return QStringLiteral("Connections");
+			case reset::agent_sessions:
+				return QStringLiteral("AgentSessions");
+			case reset::saved_sources:
+				return QStringLiteral("SavedSources");
+			case reset::statistics:
+				return QStringLiteral("Statistics");
+			case reset::agent_setup:
+				return QStringLiteral("AgentSetup");
+			case reset::agent_workspaces:
+				return QStringLiteral("AgentWorkspaces");
+			case reset::everything:
+				break;
+			}
+			return QStringLiteral("Everything");
+		}
+
+		/// Why `aImplied` is checked and locked: the checked category that
+		/// takes it.
+		[[nodiscard]] auto implied_by(const reset aImplied) -> QString
+		{
+			return aImplied == reset::agent_workspaces ? QStringLiteral("Included with Agent sessions: a session’s workspace goes with it.")
+													   : QStringLiteral("Included with Settings, which removes the agent setup.");
 		}
 
 		[[nodiscard]] auto quoted(const QString& aProfile) -> QString
@@ -110,59 +147,126 @@ namespace bpr::qt {
 		}
 	}
 
-	auto profile_data_reset_wording_for(const core::profile_data_reset aReset, const QString& aProfile) -> profile_data_reset_wording
+	auto profile_data_reset_category_words_for(const core::profile_data_reset aReset) -> profile_data_reset_category_words
 	{
-		const auto name = quoted(aProfile);
 		switch (aReset) {
 		case reset::caches:
-			return { QStringLiteral("Clear caches for %1?").arg(name),
-					 QStringLiteral("This profile’s windows close, its caches are removed, and Home reopens. Nothing you wrote is affected."),
+			return { QStringLiteral("Caches"),
+					 QStringLiteral("Repository data downloaded from GitHub, images, Home’s summaries and context snapshots kept for agents. They download again when needed."),
 					 { QStringLiteral("Repository data downloaded from GitHub"), QStringLiteral("Images in descriptions and comments"),
-					   QStringLiteral("Pull request summaries on Home"), QStringLiteral("Context snapshots kept for agents") },
-					 { QStringLiteral("Notes, drafts and read marks"), QStringLiteral("Settings"), QStringLiteral("Sign-in"), QStringLiteral("Diagnostic logs") },
-					 QStringLiteral("Earlier pushes of a pull request that was force-pushed may no longer be on GitHub. Comparisons with those pushes can’t be rebuilt."),
-					 QStringLiteral("Clear caches") };
+					   QStringLiteral("Pull request summaries on Home"), QStringLiteral("Context snapshots kept for agents") } };
 		case reset::settings:
-			return { QStringLiteral("Reset settings for %1?").arg(name),
-					 QStringLiteral("This profile’s windows close, every choice in Settings returns to its default, and Home reopens."),
-					 { QStringLiteral("Every choice in Settings"), QStringLiteral("Home’s queue filters and sort"), QStringLiteral("Notification choices"),
-					   QStringLiteral("Window layout and which windows reopen") },
-					 { QStringLiteral("Saved repositories and servers"), QStringLiteral("Observer rules"), QStringLiteral("Review data and caches"),
-					   QStringLiteral("Sign-in"), QStringLiteral("Diagnostic logs") },
-					 { },
-					 QStringLiteral("Reset settings") };
+			return { QStringLiteral("Settings"),
+					 QStringLiteral("Every choice in Settings, agent setup and prompts, notifications, filters and window layout. Agent sessions are kept."),
+					 { QStringLiteral("Every choice in Settings"), QStringLiteral("Agents you added, their models and checks, and your prompts"),
+					   QStringLiteral("Home’s queue filters and sort"), QStringLiteral("Notification choices"), QStringLiteral("Window layout and which windows reopen") } };
+		case reset::agent_setup:
+			return { QStringLiteral("Agent setup"),
+					 QStringLiteral("Every agent you added with its model, effort and check, the clone folders and linked clones, and your edited review skill (a copy goes to Downloads). Setup starts again; prompts and agent sessions stay."),
+					 { QStringLiteral("Agents you added, their models, efforts and checks"), QStringLiteral("Clone folders and linked clones"),
+					   QStringLiteral("Your edited review skill, after a copy to Downloads") } };
+		case reset::agent_sessions:
+			return { QStringLiteral("Agent sessions"),
+					 QStringLiteral("BetterPullReview’s agent sessions with their transcripts, names and costs, the follow-ups queued for them, and the workspaces they keep. Claude Code’s and Codex’s own session files stay."),
+					 { QStringLiteral("Agent sessions: transcripts, names, costs and finding cards"), QStringLiteral("Follow-up messages queued to send next") } };
+		case reset::agent_workspaces:
+			return { QStringLiteral("Agent workspaces"),
+					 QStringLiteral("Retained agent workspaces not in use, with any changes an agent made there and did not publish. Sessions stay and make a fresh one when they next ask."),
+					 { QStringLiteral("Retained agent workspaces, except one another app holds") } };
 		case reset::review_data:
-			return { QStringLiteral("Reset review data for %1?").arg(name),
-					 QStringLiteral("This deletes review work that exists only on this computer. Comments and reviews already posted stay on GitHub."),
+			return { QStringLiteral("Review data"),
+					 QStringLiteral("Read and seen marks, private notes, unsent comments and reviews, tours and Review Cycles."),
 					 { QStringLiteral("Read and seen marks"), QStringLiteral("Private notes and their threads"), QStringLiteral("Unsent comments, replies and reviews"),
-					   QStringLiteral("Review tours"), QStringLiteral("Review Cycles and their rounds") },
-					 { QStringLiteral("Everything posted on GitHub"), QStringLiteral("Settings and caches"), QStringLiteral("Sign-in"),
-					   QStringLiteral("Diagnostic logs"), QStringLiteral("Files you saved or exported") },
-					 { },
-					 QStringLiteral("Reset review data") };
+					   QStringLiteral("Review tours"), QStringLiteral("Review Cycles and their rounds") } };
+		case reset::saved_sources:
+			return { QStringLiteral("Saved repositories and servers"),
+					 QStringLiteral("The repositories and servers you saved, observer rules and Home’s queue."),
+					 { QStringLiteral("Saved repositories and servers"), QStringLiteral("Observer rules"), QStringLiteral("Home’s queue") } };
+		case reset::statistics:
+			return { QStringLiteral("Insights statistics"),
+					 QStringLiteral("Insights’ lifetime statistics and history."),
+					 { QStringLiteral("Insights statistics and history") } };
 		case reset::connections:
-			// [[BPR-1858]]. Signing out loses nothing that exists only here, so
-			// it asks no acknowledgement and offers no copy.
-			return { QStringLiteral("Reset connections for %1?").arg(name),
-					 QStringLiteral("This profile signs out of GitHub and stops using GitHub CLI, then reopens at Sign in to GitHub. It doesn’t sign you out of GitHub CLI itself."),
+			return { QStringLiteral("Connections"),
+					 QStringLiteral("Sign-ins made in this app and their saved tokens, and this profile’s GitHub CLI connection. Signs you out; GitHub CLI itself stays signed in."),
 					 { QStringLiteral("Sign-ins made in this app, and their saved tokens"), QStringLiteral("This profile’s GitHub CLI connection"),
-					   QStringLiteral("Which account each server uses") },
-					 { QStringLiteral("GitHub CLI’s own sign-in, which other tools use"), QStringLiteral("Notes, drafts and read marks"),
-					   QStringLiteral("Settings, saved repositories and servers"), QStringLiteral("Caches"), QStringLiteral("Diagnostic logs") },
-					 { },
-					 QStringLiteral("Reset connections") };
+					   QStringLiteral("Which account each server uses") } };
 		case reset::everything:
 			break;
 		}
-		return { QStringLiteral("Reset everything for %1?").arg(name),
-				 QStringLiteral("This profile starts again as on first launch: it signs out and stops using GitHub CLI. It doesn’t sign you out of GitHub CLI itself, and nothing on GitHub changes."),
-				 { QStringLiteral("Caches: repository data, images, summaries"), QStringLiteral("Settings: every choice, saved repositories and servers, observer rules, filters, notifications, agent setup"),
-				   QStringLiteral("Review data: read marks, notes, unsent comments, tours, Review Cycles"), QStringLiteral("Insights statistics and history"),
-				   QStringLiteral("Connections: sign-ins made in this app and their saved tokens, this profile’s GitHub CLI connection") },
-				 { QStringLiteral("GitHub CLI’s own sign-in, which other tools use"),
-				   QStringLiteral("Everything posted on GitHub"), QStringLiteral("Diagnostic logs"), QStringLiteral("Other profiles"), QStringLiteral("Your Git checkouts and exported files") },
-				 { },
-				 QStringLiteral("Reset everything") };
+		return { QStringLiteral("Everything"), QStringLiteral("Every category above, as on first launch."), { } };
+	}
+
+	auto profile_data_reset_wording_for(const core::profile_data_reset_selection aReset, const QString& aProfile) -> profile_data_reset_wording
+	{
+		const auto name  = quoted(aProfile);
+		const auto plan  = core::plan_profile_data_reset(aReset);
+		auto       words = profile_data_reset_wording{ };
+		const auto many  = std::ranges::count_if(core::profile_data_reset_categories, [&](const auto aEach) { return plan.Selection.contains(aEach); }) > 1;
+		for (const auto each : core::profile_data_reset_categories) {
+			const auto category = profile_data_reset_category_words_for(each);
+			if (!plan.Selection.contains(each)) {
+				words.Keeps.push_back(category.Name);
+				continue;
+			}
+			for (const auto& item : category.Removes) {
+				words.Removes.push_back(many ? QStringLiteral("%1: %2").arg(category.Name, item.at(0).toLower() + item.mid(1)) : item);
+			}
+		}
+		words.Keeps.append({ QStringLiteral("Everything posted on GitHub"), QStringLiteral("GitHub CLI’s own sign-in, which other tools use"),
+							 QStringLiteral("Claude Code’s and Codex’s own session files"), QStringLiteral("Your Git checkouts and exported files"),
+							 QStringLiteral("Diagnostic logs"), QStringLiteral("Other profiles") });
+		const auto single = plan.Selection.single();
+		const auto action = single == reset::everything ? QStringLiteral("Reset everything")
+			: single                                    ? QStringLiteral("Clear %1").arg(profile_data_reset_category_words_for(*single).Name.toLower())
+														: QStringLiteral("Clear");
+		words.Confirm     = action;
+		words.Title       = single == reset::everything ? QStringLiteral("Reset everything for %1?").arg(name)
+			: single                                    ? QStringLiteral("Clear %1 for %2?").arg(profile_data_reset_category_words_for(*single).Name.toLower(), name)
+														: QStringLiteral("Clear the checked data for %1?").arg(name);
+		auto lead         = QStringLiteral("This profile’s windows close, the data below is removed, and Home reopens.");
+		for (const auto each : core::profile_data_reset_categories) {
+			if (plan.Implied.contains(each)) {
+				lead += QStringLiteral(" ") + implied_by(each);
+			}
+		}
+		if (core::profile_data_reset_signs_out(plan.Selection)) {
+			lead += QStringLiteral(" It signs you out of GitHub here; it doesn’t sign you out of GitHub CLI itself.");
+		}
+		if (core::profile_data_reset_destructive(plan.Selection)) {
+			lead += QStringLiteral(" Some of it exists only on this computer. Nothing on GitHub changes.");
+		}
+		words.Lead = lead;
+		if (plan.Selection.contains(reset::caches)) {
+			words.Note = QStringLiteral("Earlier pushes of a pull request that was force-pushed may no longer be on GitHub. Comparisons with those pushes can’t be rebuilt.");
+		}
+		return words;
+	}
+
+	auto profile_data_reset_acknowledgement(const core::profile_data_reset_selection aReset) -> QString
+	{
+		const auto plan  = core::plan_profile_data_reset(aReset);
+		auto       parts = QStringList{ };
+		if (plan.Selection.contains(reset::review_data)) {
+			parts << QStringLiteral("my private notes and unsent comments");
+		}
+		if (plan.Selection.contains(reset::agent_sessions)) {
+			parts << QStringLiteral("my agent sessions");
+		}
+		if (plan.Selection.contains(reset::agent_workspaces)) {
+			parts << QStringLiteral("unpublished changes in agent workspaces");
+		}
+		if (plan.Selection.contains(reset::saved_sources)) {
+			parts << QStringLiteral("my saved repositories");
+		}
+		if (plan.Selection.contains(reset::statistics)) {
+			parts << QStringLiteral("my Insights history");
+		}
+		if (parts.isEmpty()) {
+			return { };
+		}
+		const auto last = parts.takeLast();
+		return QStringLiteral("I understand %1 will be deleted").arg(parts.isEmpty() ? last : parts.join(QStringLiteral(", ")) + QStringLiteral(" and ") + last);
 	}
 
 	auto profile_data_reset_notice(const core::profile_data_reset_outcome& aOutcome, const QString& aCopyFolder) -> QString
@@ -171,36 +275,59 @@ namespace bpr::qt {
 		if (aOutcome.Reason != core::release_maintenance_reason::none) {
 			return QStringLiteral("%1 did not run: %2. Nothing was removed.").arg(action, refusal(aOutcome.Reason));
 		}
-		auto notice = QString{ };
-		switch (aOutcome.Reset) {
-		case reset::caches:
+		const auto cleared = aOutcome.Reset.without(aOutcome.Failed);
+		auto       notice  = QString{ };
+		if (cleared == core::profile_data_reset_selection{ reset::caches }) {
 			notice = QStringLiteral("Caches cleared. They download again as you open pull requests.");
-			break;
-		case reset::settings:
-			notice = aOutcome.QueueDisplayRestored
-				? QStringLiteral("Settings reset to their defaults.")
-				: QStringLiteral("Settings reset to their defaults, except Home’s queue filters, which could not be saved; Reset everything clears them.");
-			break;
-		case reset::review_data:
-			notice = QStringLiteral("Review data reset.");
-			break;
-		case reset::connections:
-		case reset::everything:  {
-			const auto lead = aOutcome.Reset == reset::connections ? QStringLiteral("Connections reset") : QStringLiteral("This profile was reset");
-			notice          = aOutcome.ConnectionsRetained
-				? QStringLiteral("%1, but its remembered connections could not be forgotten. Sign out in Accounts & hosts.").arg(lead)
-				: aOutcome.SignedOut ? QStringLiteral("%1 and signed out. GitHub CLI itself is still signed in; choose Sign in or Use GitHub CLI to connect again.").arg(lead)
-									 : QStringLiteral("%1.").arg(lead);
-			break;
+		} else if (cleared == core::profile_data_reset_selection::all()) {
+			notice = QStringLiteral("This profile was reset");
+		} else if (!cleared.empty()) {
+			auto names = QStringList{ };
+			for (const auto each : core::profile_data_reset_categories) {
+				if (cleared.contains(each)) {
+					names << profile_data_reset_category_words_for(each).Name;
+				}
+			}
+			notice = QStringLiteral("Cleared: %1").arg(names.join(QStringLiteral(", ")));
 		}
+		if (core::profile_data_reset_signs_out(cleared)) {
+			notice += aOutcome.ConnectionsRetained
+				? QStringLiteral(", but its remembered connections could not be forgotten. Sign out in Accounts & hosts.")
+				: aOutcome.SignedOut ? QStringLiteral(" and signed out. GitHub CLI itself is still signed in; choose Sign in or Use GitHub CLI to connect again.")
+									 : QStringLiteral(".");
+		} else if (!notice.isEmpty() && !notice.endsWith(QLatin1Char{ '.' })) {
+			notice += QStringLiteral(".");
+		}
+		if (cleared.contains(reset::agent_workspaces) && aOutcome.WorkspacesRemoved != 0U) {
+			notice += aOutcome.WorkspacesRemoved == 1U ? QStringLiteral(" 1 agent workspace was removed.") : QStringLiteral(" %1 agent workspaces were removed.").arg(aOutcome.WorkspacesRemoved);
+		}
+		if (cleared.contains(reset::settings) && !aOutcome.QueueDisplayRestored) {
+			notice += QStringLiteral(" Home’s queue filters could not be saved; clear Saved repositories and servers to remove them.");
+		}
+		if (!aOutcome.Failed.empty()) {
+			auto names = QStringList{ };
+			for (const auto each : core::profile_data_reset_categories) {
+				if (aOutcome.Failed.contains(each)) {
+					names << profile_data_reset_category_words_for(each).Name;
+				}
+			}
+			notice += QStringLiteral(" Not cleared: %1.").arg(names.join(QStringLiteral(", ")));
+			if (aOutcome.Failed.contains(reset::agent_workspaces)) {
+				notice += aOutcome.WorkspacesLeft == 0U
+					? QStringLiteral(" The agent sessions could not be read.")
+					: QStringLiteral(" %1 agent workspace(s) are in use by another app or could not be verified, so they and the sessions that record them were kept.").arg(aOutcome.WorkspacesLeft);
+			}
+			if (aOutcome.Failed.contains(reset::agent_setup)) {
+				notice += QStringLiteral(" The agent setup could not be reset; if the review skill copy could not be saved to Downloads, nothing of it was changed.");
+			}
 		}
 		if (aOutcome.Copied && !aCopyFolder.isEmpty()) {
 			notice += QStringLiteral(" A copy of the removed data is in “%1”.").arg(aCopyFolder);
 		}
-		return notice;
+		return notice.trimmed();
 	}
 
-	profile_reset_confirmation::profile_reset_confirmation(QWidget* const aParent, const core::profile_data_reset aReset, const QString& aProfile)
+	profile_reset_confirmation::profile_reset_confirmation(QWidget* const aParent, const core::profile_data_reset_selection aReset, const QString& aProfile)
 		: QDialog{ aParent }
 		, Reset{ aReset }
 		, Words{ profile_data_reset_wording_for(aReset, aProfile) }
@@ -285,10 +412,14 @@ namespace bpr::qt {
 		}
 		if (core::profile_data_reset_destructive(Reset)) {
 			column->addSpacing(6);
-			const auto [copyText, copyDetail] = copy_words();
-			Copy                              = option(this, column, copyText, copyDetail, QStringLiteral("profileResetCopy"), true);
-			column->addSpacing(2);
-			Acknowledge = option(this, column, QStringLiteral("I understand my private notes and unsent comments will be deleted"), { }, QStringLiteral("profileResetAcknowledge"), false);
+			// [[BPR-2377]]. The copy holds removed store files; agent
+			// conversations cleared alone remove none, so none is offered.
+			if (core::profile_data_reset_copyable(Reset)) {
+				const auto [copyText, copyDetail] = copy_words();
+				Copy                              = option(this, column, copyText, copyDetail, QStringLiteral("profileResetCopy"), true);
+				column->addSpacing(2);
+			}
+			Acknowledge = option(this, column, profile_data_reset_acknowledgement(Reset), { }, QStringLiteral("profileResetAcknowledge"), false);
 			connect(Acknowledge, &QCheckBox::toggled, this, [this] { refresh_confirm(); });
 		}
 
@@ -322,7 +453,7 @@ namespace bpr::qt {
 	{
 		return { Reset, Acknowledge != nullptr && Acknowledge->isChecked(), Copy != nullptr && Copy->isChecked() };
 	}
-	auto profile_reset_confirmation::reset() const noexcept -> core::profile_data_reset { return Reset; }
+	auto profile_reset_confirmation::reset() const noexcept -> core::profile_data_reset_selection { return Reset; }
 	auto profile_reset_confirmation::wording() const noexcept -> const profile_data_reset_wording& { return Words; }
 	auto profile_reset_confirmation::confirm_button() const noexcept -> QPushButton* { return Confirm; }
 	auto profile_reset_confirmation::cancel_button() const noexcept -> QPushButton* { return Cancel; }
@@ -373,55 +504,107 @@ namespace bpr::qt {
 	}
 
 	profile_reset_panel::profile_reset_panel(QWidget* const aParent)
-		: QGroupBox{ QStringLiteral("Troubleshooting"), aParent }
+		: QGroupBox{ QStringLiteral("Clear local data"), aParent }
 	{
+		// [[BPR-2377]], owner amendment 2026-11-24: one checklist and one
+		// Clear in place of a button per reset.
 		setObjectName(QStringLiteral("profileResetPanel"));
 		auto* const column = new QVBoxLayout{ this };
-		auto* const lead   = new QLabel{ QStringLiteral("Each reset reopens this profile’s windows. Reset connections and Reset everything sign you out."), this };
+		column->setSpacing(4);
+		auto* const lead = new QLabel{ QStringLiteral("Check what to clear, then Clear. It asks first, closes this profile’s windows and reopens Home. Nothing on GitHub changes."), this };
 		lead->setObjectName(QStringLiteral("profileResetLead"));
 		lead->setWordWrap(true);
 		lead->setForegroundRole(QPalette::PlaceholderText);
 		column->addWidget(lead);
-		auto* const grid = new QGridLayout;
-		grid->setHorizontalSpacing(12);
-		grid->setVerticalSpacing(6);
-		const std::array rows{
-			std::pair{ QStringLiteral("Clear caches"), QStringLiteral("Downloaded data. It downloads again when needed.") },
-			std::pair{ QStringLiteral("Reset settings"), QStringLiteral("Every choice in Settings returns to its default.") },
-			std::pair{ QStringLiteral("Reset review data"), QStringLiteral("Read marks, notes, drafts, tours and Review Cycles.") },
-			std::pair{ QStringLiteral("Reset everything"), QStringLiteral("All of the above, as on first launch.") },
-			std::pair{ QStringLiteral("Reset connections"), QStringLiteral("Signs out and stops using GitHub CLI. Keeps the rest.") },
-		};
-		const std::array names{ QStringLiteral("Caches"), QStringLiteral("Settings"), QStringLiteral("ReviewData"), QStringLiteral("Everything"), QStringLiteral("Connections") };
-		for (auto position = 0; const auto each : resets) {
-			const auto  row   = position++;
-			const auto& words = rows[index_of(each)];
-			auto* const name  = new QLabel{ words.first, this };
-			name->setObjectName(QStringLiteral("profileReset%1Name").arg(names[index_of(each)]));
-			auto* const line = new QLabel{ words.second, this };
-			line->setObjectName(QStringLiteral("profileReset%1Line").arg(names[index_of(each)]));
+		column->addSpacing(6);
+		for (const auto each : core::profile_data_reset_categories) {
+			const auto  words = profile_data_reset_category_words_for(each);
+			const auto  key   = object_key(each);
+			auto* const row   = new QHBoxLayout;
+			row->setSpacing(8);
+			auto* const box = new QCheckBox{ words.Name, this };
+			box->setObjectName(QStringLiteral("profileReset%1").arg(key));
+			box->setAccessibleDescription(words.Line);
+			row->addWidget(box, 1);
+			auto* const size = new QLabel{ this };
+			size->setObjectName(QStringLiteral("profileReset%1Size").arg(key));
+			size->setForegroundRole(QPalette::PlaceholderText);
+			size->hide();
+			row->addWidget(size, 0, Qt::AlignRight);
+			column->addLayout(row);
+			auto* const line = new QLabel{ words.Line, this };
+			line->setObjectName(QStringLiteral("profileReset%1Line").arg(key));
 			line->setWordWrap(true);
 			line->setForegroundRole(QPalette::PlaceholderText);
-			auto* const button = new QPushButton{ words.first + QStringLiteral("…"), this };
-			button->setObjectName(QStringLiteral("profileReset%1").arg(names[index_of(each)]));
-			button->setAccessibleName(words.first);
-			button->setAccessibleDescription(words.second);
-			button->setAutoDefault(false);
-			name->setBuddy(button);
-			Buttons[index_of(each)] = button;
-			grid->addWidget(name, row, 0);
-			grid->addWidget(line, row, 1);
-			grid->addWidget(button, row, 2, Qt::AlignRight);
-			connect(button, &QPushButton::clicked, this, [this, each] { static_cast<void>(ask(each)); });
+			auto font = line->font();
+			font.setPointSizeF(font.pointSizeF() * 0.92);
+			line->setFont(font);
+			line->setContentsMargins(box->style()->pixelMetric(QStyle::PM_IndicatorWidth) + 6, 0, 0, 4);
+			column->addWidget(line);
+			const auto index = category_index(each);
+			Boxes[index]     = box;
+			Sizes[index]     = size;
+			Lines[index]     = line;
+			connect(box, &QCheckBox::toggled, this, [this, index](const bool aOn) {
+				Own[index] = aOn;
+				refresh();
+			});
 		}
-		grid->setColumnMinimumWidth(0, 170);
-		grid->setColumnStretch(1, 1);
-		column->addLayout(grid);
+		auto* const buttons = new QHBoxLayout;
+		buttons->setContentsMargins(0, 8, 0, 0);
+		SelectAll = new quiet_push_button{ QStringLiteral("Check all"), this };
+		SelectAll->setObjectName(QStringLiteral("profileResetSelectAll"));
+		SelectAll->setAutoDefault(false);
+		connect(SelectAll, &QPushButton::clicked, this, [this] {
+			const auto all = checked() == core::profile_data_reset_selection::all();
+			set_checked(all ? core::profile_data_reset_selection{ } : core::profile_data_reset_selection::all());
+		});
+		buttons->addWidget(SelectAll);
+		buttons->addStretch(1);
+		Clear = new question_button{ QStringLiteral("Clear…"), question_button_role::destructive, this };
+		Clear->setObjectName(QStringLiteral("profileResetClear"));
+		Clear->setAutoDefault(false);
+		connect(Clear, &QPushButton::clicked, this, [this] { static_cast<void>(ask(chosen())); });
+		buttons->addWidget(Clear);
+		column->addLayout(buttons);
 		Status = new QLabel{ this };
 		Status->setObjectName(QStringLiteral("profileResetStatus"));
 		Status->setWordWrap(true);
 		Status->hide();
 		column->addWidget(Status);
+		refresh();
+	}
+
+	auto profile_reset_panel::chosen() const -> core::profile_data_reset_selection
+	{
+		auto selection = core::profile_data_reset_selection{ };
+		for (const auto each : core::profile_data_reset_categories) {
+			if (Own[category_index(each)]) {
+				selection = selection.with(each);
+			}
+		}
+		return selection;
+	}
+
+	void profile_reset_panel::refresh()
+	{
+		// What the person checked, and what that implies shown checked and
+		// locked, with why. Unchecking Settings gives the box its own choice back.
+		const auto implied = core::profile_data_reset_implied(chosen());
+		for (const auto each : core::profile_data_reset_categories) {
+			const auto           index = category_index(each);
+			auto* const          box   = Boxes[index];
+			const auto           held  = implied.contains(each);
+			const QSignalBlocker quiet{ box };
+			box->setEnabled(!held);
+			box->setChecked(held || Own[index]);
+			const auto words = profile_data_reset_category_words_for(each);
+			Lines[index]->setText(held ? implied_by(each) + QStringLiteral(" ") + words.Line : words.Line);
+		}
+		const auto any = !checked().empty();
+		Clear->setEnabled(any);
+		Clear->setToolTip(any ? QString{ } : QStringLiteral("Check what to clear first"));
+		SelectAll->setText(chosen() == core::profile_data_reset_selection::all() ? QStringLiteral("Uncheck all") : QStringLiteral("Check all"));
 	}
 
 	void profile_reset_panel::set_dispatch(dispatch aDispatch)
@@ -456,10 +639,49 @@ namespace bpr::qt {
 		Status->setVisible(!aStatus.isEmpty());
 	}
 
-	auto profile_reset_panel::button(const core::profile_data_reset aReset) const noexcept -> QPushButton*
+	void profile_reset_panel::present_size(const core::profile_data_reset aCategory, const QString& aSize)
 	{
-		const auto index = static_cast<std::size_t>(aReset) - 1U;
-		return index < Buttons.size() ? Buttons[index] : nullptr;
+		if (const auto index = category_index(aCategory); index < Sizes.size()) {
+			Sizes[index]->setText(aSize);
+			Sizes[index]->setVisible(!aSize.isEmpty());
+			Boxes[index]->setAccessibleName(aSize.isEmpty() ? profile_data_reset_category_words_for(aCategory).Name
+															: QStringLiteral("%1, %2").arg(profile_data_reset_category_words_for(aCategory).Name, aSize));
+		}
+	}
+
+	auto profile_reset_panel::check_box(const core::profile_data_reset aCategory) const noexcept -> QCheckBox*
+	{
+		const auto index = category_index(aCategory);
+		return index < Boxes.size() ? Boxes[index] : nullptr;
+	}
+
+	auto profile_reset_panel::size_label(const core::profile_data_reset aCategory) const noexcept -> QLabel*
+	{
+		const auto index = category_index(aCategory);
+		return index < Sizes.size() ? Sizes[index] : nullptr;
+	}
+
+	auto profile_reset_panel::clear_button() const noexcept -> QPushButton* { return Clear; }
+
+	auto profile_reset_panel::select_all_button() const noexcept -> QPushButton* { return SelectAll; }
+
+	auto profile_reset_panel::checked() const -> core::profile_data_reset_selection
+	{
+		auto selection = core::profile_data_reset_selection{ };
+		for (const auto each : core::profile_data_reset_categories) {
+			if (Boxes[category_index(each)]->isChecked()) {
+				selection = selection.with(each);
+			}
+		}
+		return selection;
+	}
+
+	void profile_reset_panel::set_checked(const core::profile_data_reset_selection aSelection)
+	{
+		for (const auto each : core::profile_data_reset_categories) {
+			Own[category_index(each)] = aSelection.contains(each);
+		}
+		refresh();
 	}
 
 	auto profile_reset_panel::status_label() const noexcept -> QLabel*
@@ -467,8 +689,15 @@ namespace bpr::qt {
 		return Status;
 	}
 
-	auto profile_reset_panel::ask(const core::profile_data_reset aReset) -> profile_reset_confirmation*
+	auto profile_reset_panel::ask(const core::profile_data_reset_selection aReset) -> profile_reset_confirmation*
 	{
+		// An entry point that names one category shows it checked here too.
+		if (chosen() != aReset && checked() != aReset) {
+			set_checked(aReset);
+		}
+		if (aReset.empty()) {
+			return nullptr;
+		}
 		auto* const question = new profile_reset_confirmation{ window(), aReset, Profile };
 		connect(question, &QDialog::accepted, this, [this, question] {
 			present_status({ });
@@ -507,9 +736,9 @@ namespace bpr::qt {
 		column->addWidget(heading);
 		const auto lines = aCause.isEmpty()
 			? QStringList{ QStringLiteral("BetterPullReview started with --reset-profile-data, so nothing in this profile has opened yet."),
-						   QStringLiteral("Clear caches first. If that does not help, reset everything: you stay signed in and can keep a copy of your data.") }
+						   QStringLiteral("Clear caches first. If that does not help, reset everything: it signs you out, and you can keep a copy of your data.") }
 			: QStringList{ QStringLiteral("BetterPullReview couldn’t read this profile’s local data. A crash or a full disk can damage it."),
-						   QStringLiteral("Try clearing caches first. If the profile still doesn’t open, reset everything: you stay signed in and can keep a copy of your data.") };
+						   QStringLiteral("Try clearing caches first. If the profile still doesn’t open, reset everything: it signs you out, and you can keep a copy of your data.") };
 		for (const auto& line : lines) {
 			auto* const words = new QLabel{ line, this };
 			words->setObjectName(QStringLiteral("profileRecoveryText"));

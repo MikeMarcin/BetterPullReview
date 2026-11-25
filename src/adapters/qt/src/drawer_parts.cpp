@@ -433,6 +433,45 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 10.0 * unit, 17.0 * unit }, QPointF{ 19.0 * unit, 7.0 * unit });
 			},
 									  ink, disabled);
+		case drawer_glyph::rename:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 13.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter.setBrush(Qt::NoBrush);
+				const auto unit = aSide / 24.0;
+				// A pencil lying from the lower left: its body, its tip.
+				const QPointF body[]{ { 15.5 * unit, 5.0 * unit }, { 19.0 * unit, 8.5 * unit }, { 9.0 * unit, 18.5 * unit }, { 5.5 * unit, 15.0 * unit } };
+				aPainter.drawPolygon(body, 4);
+				aPainter.drawLine(QPointF{ 5.5 * unit, 15.0 * unit }, QPointF{ 4.5 * unit, 19.5 * unit });
+				aPainter.drawLine(QPointF{ 4.5 * unit, 19.5 * unit }, QPointF{ 9.0 * unit, 18.5 * unit });
+			},
+									  ink, disabled);
+		case drawer_glyph::trash:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 13.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter.setBrush(Qt::NoBrush);
+				const auto unit = aSide / 24.0;
+				// A lid with its handle, then the can narrowing to its foot.
+				aPainter.drawLine(QPointF{ 5.0 * unit, 7.0 * unit }, QPointF{ 19.0 * unit, 7.0 * unit });
+				aPainter.drawLine(QPointF{ 10.0 * unit, 7.0 * unit }, QPointF{ 10.5 * unit, 4.5 * unit });
+				aPainter.drawLine(QPointF{ 10.5 * unit, 4.5 * unit }, QPointF{ 13.5 * unit, 4.5 * unit });
+				aPainter.drawLine(QPointF{ 13.5 * unit, 4.5 * unit }, QPointF{ 14.0 * unit, 7.0 * unit });
+				const QPointF can[]{ { 6.5 * unit, 7.0 * unit }, { 7.5 * unit, 19.5 * unit }, { 16.5 * unit, 19.5 * unit }, { 17.5 * unit, 7.0 * unit } };
+				aPainter.drawPolyline(can, 4);
+				aPainter.drawLine(QPointF{ 10.5 * unit, 10.5 * unit }, QPointF{ 10.5 * unit, 16.5 * unit });
+				aPainter.drawLine(QPointF{ 13.5 * unit, 10.5 * unit }, QPointF{ 13.5 * unit, 16.5 * unit });
+			},
+									  ink, disabled);
+		case drawer_glyph::info:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 13.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter.setBrush(Qt::NoBrush);
+				const auto unit = aSide / 24.0;
+				aPainter.drawEllipse(QPointF{ 12.0 * unit, 12.0 * unit }, 8.0 * unit, 8.0 * unit);
+				aPainter.drawLine(QPointF{ 12.0 * unit, 11.0 * unit }, QPointF{ 12.0 * unit, 16.0 * unit });
+				aPainter.setBrush(aInk);
+				aPainter.drawEllipse(QPointF{ 12.0 * unit, 8.0 * unit }, 0.6 * unit, 0.6 * unit);
+			},
+									  ink, disabled);
 		}
 		return { };
 	}

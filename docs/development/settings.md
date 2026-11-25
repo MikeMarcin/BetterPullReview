@@ -137,11 +137,15 @@ disclosure. A custom agent's passed check says **Program check passed**
 rather than signed in. **Use BetterPullReview's files for now** (or **This
 pull request only, for now**, when the review holds only the pull request's
 files) retries immediately without a clone; it may still need the same head
-download. **Reset agents…** (here, and in the Agent tab's History menu) asks
-first, then removes every agent and its settings, the clone folders and
-linked clones, and an edited review skill (saved to Downloads first),
-forgets which agent each pull request was last asked with, clears the legacy
-wrapper/model migration fields, and starts the setup again; notes, drafts and agent conversations stay (owner look v006). See the [workbench specification](../ux/workbench-specification.md).
+download. **Reset agents…** (here, and in the Agent tab's History menu)
+opens Storage & privacy › Clear local data with **Agent setup** checked
+(owner, 2026-11-24); confirming there removes every agent and its settings,
+the clone folders and linked clones, and an edited review skill (saved to
+Downloads first), forgets which agent each pull request was last asked with,
+clears the legacy wrapper/model migration fields, and the setup starts again
+when the profile reopens; notes, drafts and agent conversations stay (owner
+look v006). The retained workspaces' **Remove…** likewise opens it with
+**Agent workspaces** checked. See the [workbench specification](../ux/workbench-specification.md).
 
 Under **Agents**:
 
@@ -320,9 +324,12 @@ what an agent receives and may do.
 ## Storage & privacy
 
 > [!WARNING]
-> **Reset review data** and **Reset everything** delete private notes and
-> unsent comments; a copy goes to Downloads unless you untick it. Uninstalling
-> the app keeps your data and stored sign-ins, so sign out first.
+> **Clear local data** clears every checked kind of data at once, after one
+> confirmation. Review data, Agent sessions, Agent workspaces, Saved
+> repositories and servers and Insights statistics delete data that exists
+> only here; a copy of removed store files
+> goes to Downloads unless you untick it. Uninstalling the app keeps your data
+> and stored sign-ins, so sign out first.
 
 See [Storage, diagnostics and removal](storage-and-diagnostics.md) for what
-each reset and purge removes.
+each checkbox and purge removes.

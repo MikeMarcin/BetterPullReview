@@ -661,6 +661,8 @@ namespace bpr::qt {
 			Sessions->setAccessibleName(Sessions->text());
 			SessionMenu->addAction(NewSession);
 			SessionMenu->addSeparator();
+			session_rows().present(aView);
+			session_rows().set_running(Running);
 			// A notice only when this is not a native continuation.
 			ContinuationMode->setVisible(aView.Replay || !aView.NativeSupported);
 			ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool memory is absent; PR files and Git are shared.") : aView.NativeSupported ? tr("Native continuation")
@@ -682,15 +684,10 @@ namespace bpr::qt {
 			}
 			connect(replay, &QAction::triggered, this, [this, id = aView.Selected] {if (auto thread=current();thread && HistoryDispatch) {HistoryDispatch(*thread,"replay:"+id);} });
 			SessionMenu->addSeparator();
-			for (const auto& entry : aView.Entries) {
-				auto* item = SessionMenu->addAction(tr("%1: %2 (%3 turns)").arg(entry.Replay ? tr("Transcript replay") : tr("Native"), QString::fromStdString(entry.Title).simplified().left(72)).arg(entry.Turns));
-				item->setData(QString::fromStdString(entry.Id));
-				item->setProperty("turns", QVariant::fromValue<qulonglong>(entry.Turns));
-				item->setCheckable(true);
-				item->setChecked(entry.Id == aView.Selected);
-				item->setEnabled(!Running);
-				connect(item, &QAction::triggered, this, [this, id = entry.Id] { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,id); } });
-			}
+			// [[BPR-2377]]. The same session rows as the Agent tab's: open,
+			// rename, delete and i; then Delete all sessions….
+			SessionMenu->addAction(&session_rows());
+			SessionMenu->addAction(session_rows().delete_all_action());
 			if (!aView.OtherChats.empty()) {
 				auto* retained = SessionMenu->addMenu(tr("Other tour chats and detached history"));
 				for (const auto& entry : aView.OtherChats) {
@@ -700,6 +697,30 @@ namespace bpr::qt {
 			}
 		}
 		refresh_actions();
+	}
+
+	auto tour_side_chat::session_rows() -> agent_session_menu&
+	{
+		if (SessionRows == nullptr) {
+			SessionRows     = new agent_session_menu{ *this, this };
+			const auto edit = [this](const std::string& aId, std::optional<std::string> aName) {
+				if (auto thread = current(); thread && SessionEditDispatch) {
+					SessionEditDispatch(*thread, aId, std::move(aName));
+				}
+			};
+			SessionRows->set_dispatch({
+				.Open      = [this](const std::string& aId) { if (auto thread = current(); thread && HistoryDispatch) { HistoryDispatch(*thread, aId); } },
+				.Rename    = [edit](const std::string& aId, std::string aName) { edit(aId, std::move(aName)); },
+				.Delete    = [edit](const std::string& aId) { edit(aId, std::nullopt); },
+				.DeleteAll = [edit] { edit({ }, std::nullopt); },
+			});
+		}
+		return *SessionRows;
+	}
+
+	void tour_side_chat::present_session_edit(const QString& aStatus)
+	{
+		session_rows().present_status(aStatus);
 	}
 
 	void tour_side_chat::present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, const core::git_commit_oid aObservedHead, const bool aContinued)
@@ -1156,6 +1177,9 @@ namespace bpr::qt {
 
 	void tour_side_chat::refresh_actions()
 	{
+		if (SessionRows != nullptr) {
+			SessionRows->set_running(Running);
+		}
 		const auto thread = current();
 		const auto blank  = Composer->toPlainText().trimmed().isEmpty();
 		const auto active = thread && (!Draft || core::active_tour_thread(*Draft, *thread));

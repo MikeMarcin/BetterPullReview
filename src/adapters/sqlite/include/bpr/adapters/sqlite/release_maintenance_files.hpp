@@ -44,7 +44,7 @@ namespace bpr::adapters::sqlite {
 		/// file; a failed copy removes the folder and nothing else. No
 		/// credential is read or deleted. Returns the number of exact files and
 		/// folders removed.
-		auto reset(core::profile_data_reset aReset, const std::optional<std::filesystem::path>& aCopy, std::stop_token aStop)
+		auto reset(core::profile_data_reset_selection aReset, const std::optional<std::filesystem::path>& aCopy, std::stop_token aStop)
 			-> std::expected<std::uint32_t, core::release_maintenance_reason>;
 		/// \brief Replays only a durable exact-root inventory; changed/unknown objects remain untouched.
 		/// \details Run after producer/store quiescence and before admitting a new maintenance host.

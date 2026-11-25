@@ -18,12 +18,14 @@ class QLabel;
 class QPushButton;
 
 /// \file
-/// \brief [[BPR-1602]]. Settings › Storage & privacy › Troubleshooting, the
-/// confirmation each reset asks, and the dialog a profile that cannot open
-/// shows. Presentation only: core decides what a reset removes and whether a
-/// request is admitted; the desktop performs it.
+/// \brief [[BPR-1602]]. Settings › Storage & privacy's Clear local data, the
+/// confirmation it asks, and the dialog a profile that cannot open shows.
+/// Presentation only: core decides what each category removes, what a
+/// selection implies and whether a request is admitted; the desktop
+/// performs it. [[BPR-2377]]: one checklist and one Clear replace a button
+/// per reset (owner, 2026-11-24).
 namespace bpr::qt {
-	/// \brief The words one reset's confirmation says.
+	/// \brief The words one confirmation says.
 	struct profile_data_reset_wording
 	{
 		QString     Title;
@@ -36,31 +38,51 @@ namespace bpr::qt {
 		QString Confirm;
 	};
 
-	/// \brief The confirmation's words for `aReset` on the profile `aProfile`.
-	[[nodiscard]] auto profile_data_reset_wording_for(core::profile_data_reset aReset, const QString& aProfile) -> profile_data_reset_wording;
+	/// \brief [[BPR-2377]]. One category's row in the Clear list.
+	struct profile_data_reset_category_words
+	{
+		QString Name;
+		/// The one line under its checkbox: exactly what it clears.
+		QString Line;
+		/// What its confirmation lists as removed.
+		QStringList Removes;
+	};
 
-	/// \brief The status line a reopened window shows for what a reset did.
+	/// \brief [[BPR-2377]]. The words for one category of the Clear list.
+	[[nodiscard]] auto profile_data_reset_category_words_for(core::profile_data_reset aReset) -> profile_data_reset_category_words;
+
+	/// \brief The confirmation's words for `aReset` (with what it implies) on
+	/// the profile `aProfile`.
+	[[nodiscard]] auto profile_data_reset_wording_for(core::profile_data_reset_selection aReset, const QString& aProfile) -> profile_data_reset_wording;
+
+	/// \brief [[BPR-2377]]. The acknowledgement a destructive selection asks,
+	/// naming what only this computer holds; empty for one that is not.
+	[[nodiscard]] auto profile_data_reset_acknowledgement(core::profile_data_reset_selection aReset) -> QString;
+
+	/// \brief The status line a reopened window shows for what a clear did,
+	/// naming each category that did not clear.
 	/// \param aCopyFolder The copy folder's own name, or empty.
 	[[nodiscard]] auto profile_data_reset_notice(const core::profile_data_reset_outcome& aOutcome, const QString& aCopyFolder) -> QString;
 
-	/// \brief Asks before one reset, listing what it removes and keeps.
+	/// \brief Asks before one clear, listing what it removes and keeps.
 	/// \details Window modal, deleted on close, Cancel the default and Esc.
-	/// A destructive reset adds "Save a copy…" (on) and the acknowledgement,
-	/// and its button is enabled only once that is ticked. Children are named
-	/// `profileResetConfirm`, `profileResetCancel`, `profileResetCopy` and
-	/// `profileResetAcknowledge`.
+	/// A destructive selection adds the acknowledgement, and "Save a copy…"
+	/// (on) when it removes store files; its button is enabled only once the
+	/// acknowledgement is ticked. Children are named `profileResetConfirm`,
+	/// `profileResetCancel`, `profileResetCopy` and `profileResetAcknowledge`.
 	class profile_reset_confirmation final : public QDialog
 	{
 	public:
-		profile_reset_confirmation(QWidget* aParent, core::profile_data_reset aReset, const QString& aProfile);
+		profile_reset_confirmation(QWidget* aParent, core::profile_data_reset_selection aReset, const QString& aProfile);
 		/// \brief The request this dialog's state confirms.
 		[[nodiscard]] auto request() const -> core::profile_data_reset_request;
-		[[nodiscard]] auto reset() const noexcept -> core::profile_data_reset;
+		[[nodiscard]] auto reset() const noexcept -> core::profile_data_reset_selection;
 		[[nodiscard]] auto wording() const noexcept -> const profile_data_reset_wording&;
 		[[nodiscard]] auto confirm_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto cancel_button() const noexcept -> QPushButton*;
-		/// \brief Null for a reset that is not destructive.
+		/// \brief Null for a selection with no store files to copy.
 		[[nodiscard]] auto copy_box() const noexcept -> QCheckBox*;
+		/// \brief Null for a selection that is not destructive.
 		[[nodiscard]] auto acknowledge_box() const noexcept -> QCheckBox*;
 
 	protected:
@@ -70,23 +92,28 @@ namespace bpr::qt {
 		void refresh_colours();
 		void refresh_confirm();
 
-		core::profile_data_reset   Reset;
-		profile_data_reset_wording Words;
-		QLabel*                    RemovesHeading = nullptr;
-		QLabel*                    KeepsHeading   = nullptr;
-		QList<QLabel*>             RemovesMarks;
-		QList<QLabel*>             KeepsMarks;
-		QWidget*                   Ledger      = nullptr;
-		QCheckBox*                 Copy        = nullptr;
-		QCheckBox*                 Acknowledge = nullptr;
-		QPushButton*               Confirm     = nullptr;
-		QPushButton*               Cancel      = nullptr;
+		core::profile_data_reset_selection Reset;
+		profile_data_reset_wording         Words;
+		QLabel*                            RemovesHeading = nullptr;
+		QLabel*                            KeepsHeading   = nullptr;
+		QList<QLabel*>                     RemovesMarks;
+		QList<QLabel*>                     KeepsMarks;
+		QWidget*                           Ledger      = nullptr;
+		QCheckBox*                         Copy        = nullptr;
+		QCheckBox*                         Acknowledge = nullptr;
+		QPushButton*                       Confirm     = nullptr;
+		QPushButton*                       Cancel      = nullptr;
 	};
 
-	/// \brief The Troubleshooting group on Settings › Storage & privacy.
-	/// \details Five rows, each a name, one short line and a button that asks
-	/// its confirmation. A confirmed request goes to the dispatch; nothing
-	/// here removes anything.
+	/// \brief Clear local data on Settings › Storage & privacy.
+	/// \details A checkbox per category in core's order, each with one line
+	/// saying exactly what it clears and its size where one is known; none
+	/// checked at first. A category the checked ones imply shows checked and
+	/// locked with why. One Clear…, enabled once something is checked, asks
+	/// one confirmation for the whole selection; a confirmed request goes to
+	/// the dispatch. Nothing here removes anything. Children are named
+	/// `profileReset<Category>` (the box), `…Line`, `…Size`,
+	/// `profileResetClear` and `profileResetSelectAll`.
 	class profile_reset_panel final : public QGroupBox
 	{
 	public:
@@ -95,19 +122,40 @@ namespace bpr::qt {
 		void set_dispatch(dispatch aDispatch);
 		void set_saved_update_drafts_action(QAction& aAction);
 		void set_profile_label(const QString& aProfile);
-		/// \brief Says why a reset did not start, or clears with empty text.
-		void               present_status(const QString& aStatus);
-		[[nodiscard]] auto button(core::profile_data_reset aReset) const noexcept -> QPushButton*;
+		/// \brief Says why a clear did not start, or clears with empty text.
+		void present_status(const QString& aStatus);
+		/// \brief [[BPR-2377]]. Shows a category's measured size ("3, 17.2 GB"),
+		/// or hides it with empty text.
+		void               present_size(core::profile_data_reset aCategory, const QString& aSize);
+		[[nodiscard]] auto check_box(core::profile_data_reset aCategory) const noexcept -> QCheckBox*;
+		[[nodiscard]] auto size_label(core::profile_data_reset aCategory) const noexcept -> QLabel*;
+		[[nodiscard]] auto clear_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto select_all_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
-		/// \brief Opens `aReset`'s confirmation, as its button does, and
-		/// returns it.
-		auto ask(core::profile_data_reset aReset) -> profile_reset_confirmation*;
+		/// \brief What is checked, implied categories included.
+		[[nodiscard]] auto checked() const -> core::profile_data_reset_selection;
+		/// \brief Checks exactly `aSelection` (and what it implies).
+		void set_checked(core::profile_data_reset_selection aSelection);
+		/// \brief Checks `aReset` and opens its confirmation, as Clear… does,
+		/// and returns it; none for an empty selection. An entry point that
+		/// names one category opens here with it checked.
+		auto ask(core::profile_data_reset_selection aReset) -> profile_reset_confirmation*;
 
 	private:
-		dispatch                    Dispatch;
-		QString                     Profile;
-		std::array<QPushButton*, 5> Buttons{ };
-		QLabel*                     Status = nullptr;
+		[[nodiscard]] auto chosen() const -> core::profile_data_reset_selection;
+		void               refresh();
+
+		static constexpr auto category_count = core::profile_data_reset_categories.size();
+		dispatch              Dispatch;
+		QString               Profile;
+		/// What the person checked, before what that implies.
+		std::array<bool, category_count>       Own{ };
+		std::array<QCheckBox*, category_count> Boxes{ };
+		std::array<QLabel*, category_count>    Sizes{ };
+		std::array<QLabel*, category_count>    Lines{ };
+		QPushButton*                           Clear     = nullptr;
+		QPushButton*                           SelectAll = nullptr;
+		QLabel*                                Status    = nullptr;
 	};
 
 	/// \brief What the person chose when a profile could not open.

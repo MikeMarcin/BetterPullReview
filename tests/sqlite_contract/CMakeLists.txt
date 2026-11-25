@@ -707,6 +707,18 @@ bpr_enable_warnings(test_agent_setup_storage)
 bpr_add_network_isolated_test(NAME sqlite_agent_setup_storage WINDOWS_UNCONTAINED COMMAND test_agent_setup_storage)
 set_tests_properties(sqlite_agent_setup_storage PROPERTIES PASS_REGULAR_EXPRESSION "agent-setup-storage:pass" TIMEOUT 120)
 
+# [[BPR-2377]]. Renaming, deleting and clearing agent sessions over the
+# real catalog.
+bpr_add_executable(test_agent_session_management agent_session_management_tests.cpp)
+target_link_libraries(test_agent_session_management PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
+bpr_enable_hardening(test_agent_session_management)
+if(WIN32)
+    target_link_libraries(test_agent_session_management PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_agent_session_management)
+bpr_add_network_isolated_test(NAME sqlite_agent_session_management COMMAND test_agent_session_management)
+set_tests_properties(sqlite_agent_session_management PROPERTIES PASS_REGULAR_EXPRESSION "agent-session-management:pass" TIMEOUT 120)
+
 # [[BPR-1844]]. The remembered view filters' own store.
 bpr_add_executable(test_view_filter_memory_store view_filter_memory_store_tests.cpp)
 target_link_libraries(test_view_filter_memory_store PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
