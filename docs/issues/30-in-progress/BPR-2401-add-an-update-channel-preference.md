@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2401"
 title: "Choose whether to receive prerelease updates"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-2395"]
 ---
