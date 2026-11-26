@@ -4024,9 +4024,12 @@ namespace {
 			expect(cards->open_thread_id() == "review-thread:t200" && replyText->textCursor().position() > start,
 				   "in a post's text Down moves the reading caret, not to another thread");
 			tab(replyText);
-			expect(replyText->hasFocus() && replyText->textCursor().charFormat().anchorHref() == QStringLiteral("https://example.invalid/margins")
+			// The keyboard's link is a state of its own, drawn as a focus ring:
+			// none of its words are selected (the Return below follows it to
+			// its address).
+			expect(replyText->hasFocus() && reply->keyboard_link() == QStringLiteral("the margins page") && !replyText->textCursor().hasSelection()
 					   && qt::anchored_tooltip() != nullptr && qt::anchored_tooltip()->isVisible(),
-				   "Tab in the post reaches its link and says where it goes");
+				   "Tab in the post reaches its link, selects none of its words, and says where it goes");
 			auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 			QApplication::sendEvent(replyText, &enter);
 			QApplication::processEvents();
