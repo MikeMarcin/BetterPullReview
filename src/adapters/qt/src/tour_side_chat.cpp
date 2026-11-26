@@ -1,6 +1,5 @@
 #include "bpr/qt/tour_side_chat.hpp"
 
-#include "composer_parts.hpp"
 #include "conversation_glyphs.hpp"
 #include "pull_request_overview_support.hpp"
 #include "side_chat_parts.hpp"
@@ -68,40 +67,6 @@ namespace bpr::qt {
 		}
 		using side_chat::bubble_frame;
 		using side_chat::proposal_frame;
-		using side_chat::send_keys;
-	}
-
-	/// [[BPR-1995]]. The composer's field: the passage chip and the words in
-	/// one box, drawn as a text field is, its ring the keyboard's focus.
-	void composer_field::paintEvent(QPaintEvent* /*aEvent*/)
-	{
-		auto painter = QPainter{ this };
-		painter.setRenderHint(QPainter::Antialiasing, true);
-		const auto focused = Focused;
-		const auto box     = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
-		painter.setBrush(palette().color(QPalette::Active, QPalette::Base));
-		painter.setPen(QPen{ focused ? palette().color(QPalette::Active, QPalette::Highlight) : mixed(palette().color(QPalette::Active, QPalette::Base), palette().color(QPalette::Active, QPalette::WindowText), 0.25), focused ? 1.5 : 1.0 });
-		painter.drawRoundedRect(box, 6.0, 6.0);
-	}
-	bool composer_field::eventFilter(QObject* aWatched, QEvent* aEvent)
-	{
-		if (aEvent->type() == QEvent::FocusIn || aEvent->type() == QEvent::FocusOut) {
-			Focused = aEvent->type() == QEvent::FocusIn;
-			update();
-		}
-		return QWidget::eventFilter(aWatched, aEvent);
-	}
-	/// The attached passage: a quiet pill inside the field.
-	void passage_chip::paintEvent(QPaintEvent* /*aEvent*/)
-	{
-		auto painter = QPainter{ this };
-		painter.setRenderHint(QPainter::Antialiasing, true);
-		const auto ground = palette().color(QPalette::Active, QPalette::Base);
-		const auto accent = agent_accent(palette());
-		const auto box    = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
-		painter.setPen(QPen{ mixed(ground, accent, 0.35), 1.0 });
-		painter.setBrush(mixed(ground, accent, 0.08));
-		painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
 	}
 
 	auto side_chat_icon(const QPalette& aPalette) -> QIcon
@@ -399,11 +364,8 @@ namespace bpr::qt {
 		// "The send button on both the side chats (report and tour) should be
 		// positioned more like the agent tab"): the Agent tab's composer, its
 		// insets, its rule and Send at the right end of the row under it.
-		Field = new composer_field{ this };
-		Field->setObjectName(QStringLiteral("tourSideChatField"));
-		auto* const fieldColumn = new QVBoxLayout{ Field };
-		composer::set_field_margins(*fieldColumn);
-		fieldColumn->setSpacing(4);
+		// RFC-BPR-0130 stage 2: the one composer every chat places.
+		Field                  = new chat_composer{ { .Field = QStringLiteral("tourSideChatField"), .Text = QStringLiteral("tourSideChatComposer"), .Send = QStringLiteral("tourSideChatSend"), .Stop = QStringLiteral("tourSideChatStop") }, this };
 		PassageRow             = new passage_chip{ Field };
 		auto* const passageRow = new QHBoxLayout{ PassageRow };
 		passageRow->setContentsMargins(8, 1, 2, 1);
@@ -422,41 +384,29 @@ namespace bpr::qt {
 		ClearPassage->setAccessibleName(tr("Ask without this passage"));
 		passageRow->addWidget(PassageLine, 1);
 		passageRow->addWidget(ClearPassage, 0);
-		fieldColumn->addWidget(PassageRow);
-		Composer = new QPlainTextEdit{ Field };
-		Composer->setObjectName(QStringLiteral("tourSideChatComposer"));
+		Field->chips()->addWidget(PassageRow);
+		Composer = Field->text();
 		Composer->setAccessibleName(tr("Message to the tour agent"));
-		Composer->setTabChangesFocus(true);
-		Composer->setFrameShape(QFrame::NoFrame);
-		Composer->viewport()->setAutoFillBackground(false);
-		Composer->setAttribute(Qt::WA_MacShowFocusRect, false);
-		Composer->document()->setDocumentMargin(4);
-		Composer->setFixedHeight(3 * Composer->fontMetrics().lineSpacing() + 12);
-		Composer->installEventFilter(new send_keys{ Composer, [this](const bool aOpposite) {
-													   Opposite = aOpposite;
-													   send(Composer->toPlainText().trimmed(), false);
-													   Opposite = false;
-												   } });
-		Composer->installEventFilter(Field);
-		fieldColumn->addWidget(Composer);
-		// [[BPR-1916]]. `/name` completion; installed after Return's filter,
-		// so Return chooses a row while the list is open.
-		SkillCompletion     = new skill_completer{ Composer };
-		auto* const sendRow = composer::add_send_row(*Field, *fieldColumn);
-		sendRow->addStretch(1);
-		Send = composer::make_send_button(*Field, QStringLiteral("tourSideChatSend"));
-		Send->setFocusPolicy(Qt::TabFocus);
+		// [[BPR-1916]]. `/name` completion, the composer's own.
+		SkillCompletion = Field->skills();
+		Send            = Field->send_button();
 		// RFC-BPR-0126: Stop stays reachable while Send queues, beside it.
-		StopRun = new quiet_push_button{ Field };
-		StopRun->setObjectName(QStringLiteral("tourSideChatStop"));
-		StopRun->setFocusPolicy(Qt::TabFocus);
-		StopRun->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-		StopRun->setText(tr("Stop"));
-		StopRun->setAccessibleName(tr("Stop"));
+		StopRun = Field->stop_button();
 		StopRun->setToolTip(tr("Stop the tour agent; nothing in the tour changes. Queued messages wait, paused."));
-		StopRun->hide();
-		sendRow->addWidget(StopRun);
-		sendRow->addWidget(Send);
+		Field->set_dispatch({
+			.Send =
+				[this](const bool aOpposite) {
+					Opposite = aOpposite;
+					send(Composer->toPlainText().trimmed(), false);
+					Opposite = false;
+				},
+			.Stop =
+				[this] {
+					if (Mine && StopDispatch) {
+						StopDispatch();
+					}
+				},
+		});
 		column->addWidget(Field);
 
 		// Under the composer: Plan a check… for a local draft's whole-change
@@ -475,20 +425,6 @@ namespace bpr::qt {
 		sessionRow->addWidget(PlanCheck);
 		column->addLayout(sessionRow);
 
-		connect(StopRun, &QPushButton::clicked, this, [this] {
-			if (Mine && StopDispatch) {
-				StopDispatch();
-			}
-		});
-		connect(Send, &QPushButton::clicked, this, [this] {
-			if (Mine && (Composer->toPlainText().trimmed().isEmpty() || !follow_up())) {
-				if (StopDispatch) {
-					StopDispatch();
-				}
-				return;
-			}
-			send(Composer->toPlainText().trimmed(), false);
-		});
 		connect(PlanCheck, &QPushButton::clicked, this, [this] {
 			if (Checks.Plan && CheckAvailable && !Running) {
 				const auto words = Composer->toPlainText().trimmed();
@@ -1212,30 +1148,18 @@ namespace bpr::qt {
 		// RFC-BPR-0126 ([[BPR-2154]]). While the tour agent runs, or this
 		// part's queue holds messages, words typed here are a follow-up:
 		// Send is Queue (or Steer, by the setting), and Stop stands beside it.
-		const auto following = !blank && follow_up().has_value();
-		const auto stopping  = Mine && !following;
+		// The one rule (`core::decide_chat_send`), the composer draws it.
+		const auto controls  = core::decide_chat_send({ .Running = Mine, .FollowsUp = follow_up().has_value(), .Typed = !blank, .SteerFirst = FollowUpSteer });
+		const auto following = controls.Send == core::chat_send_face::queue || controls.Send == core::chat_send_face::steer;
+		const auto stopping  = controls.Send == core::chat_send_face::stop;
 		const auto other     = QStringLiteral("%1Return").arg(QKeySequence{ Qt::ControlModifier }.toString(QKeySequence::NativeText));
-		Send->setText(stopping ? tr("Stop") : following ? (FollowUpSteer ? tr("Steer") : tr("Queue"))
-														: QString{ });
+		Field->present(controls);
 		Send->setToolTip(!Ready          ? Why
 							 : stopping  ? tr("Stop the tour agent; nothing in the tour changes.")
 							 : following ? (FollowUpSteer ? tr("Steer (Return) · Queue (%1)").arg(other) : tr("Queue (Return) · Steer (%1)").arg(other))
 										 : tr("Send (Return). Shift+Return starts a new line."));
-		Send->setAccessibleName(stopping ? tr("Stop") : following ? (FollowUpSteer ? tr("Steer") : tr("Queue"))
-																  : tr("Send"));
-		StopRun->setVisible(Mine && following);
-		wear_ordinary_roles(*StopRun);
-		StopRun->setIcon(drawer_icon(drawer_glyph::close, StopRun->palette()));
 		ContinueOld->setEnabled(active && HostIdle && !Running && !HistoryLoading && Ready);
 		Send->setEnabled(active && !HistoryLoading && Ready && thread.has_value() && (stopping || (following && !RevisionChoiceRequired) || ((HostIdle || takes_feedback()) && !RevisionChoiceRequired && (!Running || takes_feedback()) && !blank)));
-		// [[BPR-2000]]. Send starts a run and wears the accent; while this
-		// chat's run is going it is Stop, in the ordinary roles.
-		if (stopping) {
-			wear_ordinary_roles(*Send);
-		} else {
-			wear_agent_accent(*Send, palette());
-		}
-		Send->setIcon(drawer_icon(stopping ? drawer_glyph::close : drawer_glyph::send, Send->palette()));
 		const auto part = part_words();
 		for (auto* const resend : Resends) {
 			if (resend) {

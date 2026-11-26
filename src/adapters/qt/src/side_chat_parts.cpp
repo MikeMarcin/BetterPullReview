@@ -2,7 +2,6 @@
 
 #include "bpr/qt/agent_feature.hpp"
 
-#include <QKeyEvent>
 #include <QLabel>
 #include <QLayoutItem>
 #include <QLinearGradient>
@@ -11,7 +10,6 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
-#include <utility>
 
 namespace bpr::qt::side_chat {
 	auto mixed(const QColor& aFrom, const QColor& aTo, const double aAmount) -> QColor
@@ -81,26 +79,6 @@ namespace bpr::qt::side_chat {
 			}
 			label->setMinimumWidth(std::min(widest + 2, most - 24));
 		}
-	}
-
-	send_keys::send_keys(QObject* aParent, std::function<void(bool aOpposite)> aSend)
-		: QObject{ aParent }
-		, Send{ std::move(aSend) }
-	{
-	}
-
-	bool send_keys::eventFilter(QObject* aWatched, QEvent* aEvent)
-	{
-		if (aEvent->type() == QEvent::KeyPress) {
-			const auto* key = static_cast<QKeyEvent*>(aEvent);
-			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !(key->modifiers() & Qt::ShiftModifier)) {
-				// RFC-BPR-0126: Cmd+Return (Ctrl+Return off macOS) is the
-				// other follow-up for this one message.
-				Send((key->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) != 0);
-				return true;
-			}
-		}
-		return QObject::eventFilter(aWatched, aEvent);
 	}
 
 	void bubble_frame::paintEvent(QPaintEvent* /*aEvent*/)

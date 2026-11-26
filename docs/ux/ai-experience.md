@@ -213,7 +213,9 @@ queue, and closing a window neither pauses nor hands it over.
 - **Queue or Steer.** Settings › Agents & context › Follow-up behaviour
   chooses which one Send does while the turn runs or messages wait (default
   Queue); Cmd+Return (Ctrl+Return off macOS) does the other for one message.
-  Stop stays beside Send. Queue keeps the message in BPR and sends it as its
+  Stop stays beside Send while words typed would follow the turn; with the
+  field empty, Send itself is Stop (RFC-BPR-0130 stage 2: one rule, the same
+  in the Agent tab and every tour chat). Queue keeps the message in BPR and sends it as its
   own turn once the current run has really ended. Steer writes it into the
   running turn on the kept agent connection (Claude after its current tool
   call, never "now"; Codex App Server `turn/steer`); where the run cannot

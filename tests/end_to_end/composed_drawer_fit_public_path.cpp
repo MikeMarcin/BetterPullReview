@@ -51,6 +51,9 @@
 /// of a stop's chat after its Enhance, starts from that answer, and the chat
 /// says so until it is asked (the Fixture agent's reply says it was given the
 /// answer). A suggestion in a tour chat offers a pencil, a trash and Accept.
+/// Words typed while the Agent tab's or a stop's turn runs make the one
+/// composer's Send Queue (or Steer) with Stop beside it, and with the field
+/// emptied the Agent tab's Send is Stop (RFC-BPR-0130 stage 2).
 ///
 /// A state is what the window shows between two gestures, not only where a
 /// flow ends. The owner, 2026-11-25, of the proposal Draft Tour leaves before
@@ -135,6 +138,7 @@
 #include "bpr/qt/agent_session_menu.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/chat_composer.hpp"
 #include "bpr/qt/chat_header_view.hpp"
 #include "bpr/qt/chat_history_menu.hpp"
 #include "bpr/qt/disclosure_button.hpp"
@@ -843,6 +847,25 @@ namespace {
 		check_the_header();
 	}
 
+	/// RFC-BPR-0130 stage 2: \p aSend is a Send of the one composer
+	/// (`chat_composer`) that queues or steers, with its Stop, named
+	/// \p aStop, standing beside it in the same row.
+	[[nodiscard]] auto composes_the_one_way(const QPushButton& aSend, const QString& aStop) -> bool
+	{
+		const auto* const composer = dynamic_cast<const qt::chat_composer*>(aSend.parentWidget());
+		const auto*       stop     = composer != nullptr ? composer->findChild<QPushButton*>(aStop) : nullptr;
+		return composer != nullptr && composer->send_button() == &aSend && stop == composer->stop_button() && (aSend.text() == QStringLiteral("Queue") || aSend.text() == QStringLiteral("Steer"))
+			&& stop->isVisibleTo(composer) && stop->geometry().right() < aSend.geometry().left();
+	}
+
+	/// RFC-BPR-0130 stage 2: \p aSend says Stop, and no Stop stands beside it.
+	[[nodiscard]] auto stops_in_place(const QPushButton& aSend, const QString& aStop) -> bool
+	{
+		const auto* const composer = dynamic_cast<const qt::chat_composer*>(aSend.parentWidget());
+		const auto*       stop     = composer != nullptr ? composer->findChild<QPushButton*>(aStop) : nullptr;
+		return composer != nullptr && aSend.text() == QStringLiteral("Stop") && stop != nullptr && !stop->isVisibleTo(composer);
+	}
+
 	/// The course: one window of the composed application and what it found.
 	struct course
 	{
@@ -1363,9 +1386,17 @@ auto main(int argc, char** argv) -> int
 		press_return(*window->side_chat()->composer(), QStringLiteral("And is src/engine/shaders/post/a-rather-long-directory-name/bloom.frag still read?"));
 		wait([&] { return tab->queue_list()->isVisible(); }, "two follow-ups wait in the Agent tab's pending list");
 		window->side_chat()->composer()->setPlainText(QStringLiteral("One more, typed while it runs"));
+		settle();
+		// RFC-BPR-0130 stage 2 (AC05): the one rule. Words typed while the
+		// turn runs would follow it, so Send queues or steers and Stop stands
+		// beside it; with the field empty, Send is Stop.
+		expect(composes_the_one_way(*tab->ask_button(), QStringLiteral("agentStop")), "the Agent tab's Send queues or steers words typed while its turn runs, with Stop beside it");
 		run.sweep_drawer("agent-queue");
 		expect(tab->state() == qt::agent_tab_state::working, "the slow turn still ran while the drawer was dragged");
 		window->side_chat()->composer()->clear();
+		settle();
+		expect(!tab->queue_list()->isVisible() || tab->state() != qt::agent_tab_state::working || stops_in_place(*tab->ask_button(), QStringLiteral("agentStop")),
+			   "with nothing typed while the turn runs, the Agent tab's Send is Stop");
 		wait([&] { return quiet() && !tab->queue_list()->isVisible(); }, "the queued follow-ups go and are answered");
 		// A run that stops for a reason of its own: the agent's process ends
 		// before it answers. Its report stands on the question field, under
@@ -1438,6 +1469,8 @@ auto main(int argc, char** argv) -> int
 		press_return(*chat->composer(), QStringLiteral("Third: anything else?"));
 		wait([&] { return chat->pending_list()->isVisible(); }, "two follow-ups wait in the stop's pending list");
 		chat->composer()->setPlainText(QStringLiteral("Fourth, typed while it runs"));
+		settle();
+		expect(composes_the_one_way(*chat->send_button(), QStringLiteral("tourSideChatStop")), "the tour chat's Send queues or steers words typed while its turn runs, with Stop beside it");
 		run.sweep_chat("tour-stop-chat-queue");
 		expect(tour_running(*panel), "the stop's slow turn still ran while the column was dragged");
 		chat->composer()->clear();

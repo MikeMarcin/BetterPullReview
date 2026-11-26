@@ -3,6 +3,7 @@
 
 #include "bpr/core/agent_follow_up.hpp"
 #include "bpr/core/skill_references.hpp"
+#include "bpr/qt/chat_composer.hpp"
 #include "bpr/qt/chat_header_view.hpp"
 
 #include <QElapsedTimer>
@@ -188,7 +189,7 @@ namespace bpr::qt {
 		QVBoxLayout*                              Turns     = nullptr;
 		QLabel*                                   ItemQuote = nullptr;
 		QLabel*                                   Status    = nullptr;
-		QWidget*                                  Field     = nullptr;
+		chat_composer*                            Field     = nullptr;
 		QLabel*                                   Chip      = nullptr;
 		QString                                   ChipWords;
 		QPlainTextEdit*                           Composer      = nullptr;

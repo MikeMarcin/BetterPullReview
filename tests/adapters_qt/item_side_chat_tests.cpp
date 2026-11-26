@@ -275,7 +275,7 @@ namespace {
 		const auto itemImage = item->grab().toImage();
 		expect(!tourImage.isNull() && !itemImage.isNull() && tourImage.pixelColor(0, 200) == itemImage.pixelColor(0, 200) && tourImage.pixelColor(0, 200) != page.palette().color(QPalette::Window),
 			   "both chats draw the same seam, in the agent's accent, at their left edge");
-		expect(dynamic_cast<qt::composer_field*>(tour->composer()->parentWidget()) != nullptr && dynamic_cast<qt::composer_field*>(item->composer()->parentWidget()) != nullptr, "both compose in the tour's composer field");
+		expect(dynamic_cast<qt::chat_composer*>(tour->composer()->parentWidget()) != nullptr && dynamic_cast<qt::chat_composer*>(item->composer()->parentWidget()) != nullptr, "both compose in the one composer (RFC-BPR-0130 stage 2)");
 	}
 
 	void test_a_report_finding_offers_ask_follow_up()

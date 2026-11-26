@@ -1,6 +1,5 @@
 #include "bpr/qt/item_side_chat.hpp"
 
-#include "composer_parts.hpp"
 #include "side_chat_parts.hpp"
 
 #include "bpr/qt/resize_handle_cursor.hpp"
@@ -330,11 +329,8 @@ namespace bpr::qt {
 		// both the side chats (report and tour) should be positioned more
 		// like the agent tab"): the Agent tab's composer, its insets, its
 		// rule and Send at the right end of the row under it.
-		Field = new composer_field{ this };
-		Field->setObjectName(QStringLiteral("itemSideChatField"));
-		auto* const fieldColumn = new QVBoxLayout{ Field };
-		composer::set_field_margins(*fieldColumn);
-		fieldColumn->setSpacing(4);
+		// RFC-BPR-0130 stage 2: the one composer every chat places.
+		Field               = new chat_composer{ { .Field = QStringLiteral("itemSideChatField"), .Text = QStringLiteral("itemSideChatComposer"), .Send = QStringLiteral("itemSideChatSend"), .Stop = QStringLiteral("itemSideChatStop") }, this };
 		auto* const chip    = new passage_chip{ Field };
 		auto* const chipRow = new QHBoxLayout{ chip };
 		chipRow->setContentsMargins(8, 1, 8, 1);
@@ -344,31 +340,26 @@ namespace bpr::qt {
 		Chip->setTextFormat(Qt::PlainText);
 		Chip->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		chipRow->addWidget(Chip, 1);
-		fieldColumn->addWidget(chip);
-		Composer = new QPlainTextEdit{ Field };
-		Composer->setObjectName(QStringLiteral("itemSideChatComposer"));
+		Field->chips()->addWidget(chip);
+		Composer = Field->text();
 		Composer->setAccessibleName(tr("Message to the agent"));
-		Composer->setTabChangesFocus(true);
-		Composer->setFrameShape(QFrame::NoFrame);
-		Composer->viewport()->setAutoFillBackground(false);
-		Composer->setAttribute(Qt::WA_MacShowFocusRect, false);
-		Composer->document()->setDocumentMargin(4);
-		Composer->setFixedHeight(3 * Composer->fontMetrics().lineSpacing() + 12);
-		Composer->installEventFilter(new side_chat::send_keys{ Composer, [this](const bool /*aOpposite*/) {
-																  if (!Running) {
-																	  send();
-																  }
-															  } });
-		Composer->installEventFilter(Field);
-		// Install after the send filter so Return chooses a skill while the list is open.
-		SkillCompletion = new skill_completer{ Composer };
-		fieldColumn->addWidget(Composer);
-		auto* const sendRow = composer::add_send_row(*Field, *fieldColumn);
-		sendRow->addStretch(1);
-		Send = composer::make_send_button(*Field, QStringLiteral("itemSideChatSend"));
-		Send->setFocusPolicy(Qt::TabFocus);
-		Send->setToolTip(tr("Send the question to the agent. Nothing is posted."));
-		sendRow->addWidget(Send);
+		SkillCompletion = Field->skills();
+		Send            = Field->send_button();
+		// One round at a time, and no follow-ups: Send is Stop while it runs.
+		Field->set_dispatch({
+			.Send =
+				[this](const bool /*aOpposite*/) {
+					if (!Running) {
+						send();
+					}
+				},
+			.Stop =
+				[this] {
+					if (Intents.Stop) {
+						Intents.Stop();
+					}
+				},
+		});
 		column->addWidget(Field);
 		// The one thing the chat can apply, where the tour's chat keeps its
 		// session line: it asks for the text, which shows in the chat first.
@@ -382,15 +373,6 @@ namespace bpr::qt {
 		footer->addStretch(1);
 		column->addLayout(footer);
 
-		connect(Send, &QPushButton::clicked, this, [this] {
-			if (Running) {
-				if (Intents.Stop) {
-					Intents.Stop();
-				}
-				return;
-			}
-			send();
-		});
 		connect(ApplyButton, &QPushButton::clicked, this, [this] {
 			const auto offers = Shown ? core::follow_up_offers(Shown->Subject) : std::vector<core::follow_up_apply>{ };
 			if (!Running && !offers.empty() && Intents.Propose) {
@@ -542,9 +524,9 @@ namespace bpr::qt {
 			ApplyButton->setAccessibleDescription(tip);
 		}
 		ApplyButton->setEnabled(!Running);
-		// As the Agent tab's: the arrow, or Stop in words while it answers.
-		Send->setText(Running ? tr("Stop") : QString{ });
-		Send->setAccessibleName(Running ? tr("Stop") : tr("Send"));
+		// The one rule (`core::decide_chat_send`): an item's chat takes no
+		// follow-ups, so Send is Stop while its round runs.
+		Field->present(core::decide_chat_send({ .Running = Running }));
 		Send->setToolTip(Running ? tr("Stop the agent's answer") : tr("Send the question to the agent. Nothing is posted."));
 		show_status(aFailure.isEmpty() ? item_chat_refusal_words(aState.Refused) : aFailure);
 		restyle();
@@ -815,17 +797,11 @@ namespace bpr::qt {
 		QTimer::singleShot(0, this, [this] { fit(); });
 	}
 
-	/// Send and the apply action start runs and wear the Agent accent; while
-	/// a run goes Send is Stop, in the ordinary roles.
+	/// The apply action starts runs and wears the Agent accent; the composer
+	/// draws Send and Stop itself.
 	void item_side_chat::restyle()
 	{
 		Header->repaint_glyphs();
-		if (Running) {
-			wear_ordinary_roles(*Send);
-		} else {
-			wear_agent_accent(*Send, palette());
-		}
-		Send->setIcon(Running ? QIcon{ } : drawer_icon(drawer_glyph::send, Send->palette()));
 		wear_agent_accent(*ApplyButton, palette());
 		update();
 	}

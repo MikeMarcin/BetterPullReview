@@ -161,6 +161,13 @@ themes, rendering mechanics, and event translation.
   a header row of its own, shows or hides a tool of the row, or adds a button
   to it (New session is History's first item). A session's cost and the
   revision it reads are in History, never on the chat's face.
+- A chat with an agent places the one composer, `chat_composer`
+  (RFC-BPR-0130 stage 2): the field, its chips above the words, the words,
+  the chat's tools and Send, with Return, Shift+Return, Command+Return, the
+  input method and the skill list handled there and nowhere else. Send and
+  Stop are drawn from `core::decide_chat_send`; a chat enables Send and says
+  in its tooltip what it does, and does not restyle, retitle or add a Stop of
+  its own.
 - A card the next question waits on, or that reports the turn at the thread's
   end, stands on the question field (`agent_tab_view::dock_banner`), not at
   the head of a thread that keeps itself at its end: the card that asks which

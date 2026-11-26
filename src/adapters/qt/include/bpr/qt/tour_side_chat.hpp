@@ -14,6 +14,7 @@
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_session_menu.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
+#include "bpr/qt/chat_composer.hpp"
 #include "bpr/qt/chat_header_view.hpp"
 #include "bpr/qt/chat_history_menu.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -121,30 +122,6 @@ namespace bpr::qt {
 	private:
 		QString     Part;
 		std::size_t Turns = 0U;
-	};
-
-	/// \brief [[BPR-1995]]. The side chat's composer field: the attached
-	/// passage as a chip above the words, in one box drawn as a text field.
-	class composer_field final : public QWidget
-	{
-	public:
-		using QWidget::QWidget;
-
-	protected:
-		void paintEvent(QPaintEvent* aEvent) override;
-		bool eventFilter(QObject* aWatched, QEvent* aEvent) override;
-
-	private:
-		bool Focused = false;
-	};
-	/// \brief [[BPR-1995]]. The passage a question quotes, as a chip.
-	class passage_chip final : public QWidget
-	{
-	public:
-		using QWidget::QWidget;
-
-	protected:
-		void paintEvent(QPaintEvent* aEvent) override;
 	};
 
 	/// \brief [[BPR-1914]] v003, [[BPR-1925]]. Side chats with the tour
@@ -562,7 +539,7 @@ namespace bpr::qt {
 		QScrollArea*                                                                Scroll             = nullptr;
 		QVBoxLayout*                                                                Turns              = nullptr;
 		QWidget*                                                                    Notice             = nullptr;
-		QWidget*                                                                    Field              = nullptr;
+		chat_composer*                                                              Field              = nullptr;
 		QWidget*                                                                    RevisionCard       = nullptr;
 		QLabel*                                                                     RevisionOperations = nullptr;
 		QLabel*                                                                     RevisionState      = nullptr;

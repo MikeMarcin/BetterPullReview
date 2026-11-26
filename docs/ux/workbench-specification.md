@@ -740,7 +740,8 @@ the code, answered, at each width its column can have. It also holds those state
 cards say: the prompts wait while the revision card does, New session shows
 the empty session before the kept message runs in it, and the first question
 after a draft or an Enhance starts from that answer, which the Fixture agent's
-reply confirms. A state is what the window shows between two
+reply confirms, and words typed while a turn runs make the one composer's Send
+Queue or Steer with Stop beside it, in the Agent tab and a stop's chat alike. A state is what the window shows between two
 gestures, not only where a flow ends: the proposal before Apply all was cut
 off for as long as the course pressed Apply all on its way past it. In each
 the drawer is dragged to 280, 300, 340 and 420 pixels and the window made as

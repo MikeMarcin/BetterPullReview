@@ -32,7 +32,6 @@
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
 #include "bpr/qt/transcript_edge.hpp"
-#include "composer_parts.hpp"
 #include "conversation_glyphs.hpp"
 #include "pull_request_overview_support.hpp"
 #include "side_chat_parts.hpp"
@@ -919,13 +918,14 @@ namespace bpr::qt {
 		// context, the words, a thin rule, and one row: Context and
 		// Suggestions as icons and what the agent may read on the left; the
 		// agent · model · effort pill and Send on the right.
-		auto* const field    = new rounded{ rounded::look::field, ask };
+		// RFC-BPR-0130 stage 2: the one composer every chat places, here
+		// around the side chat panel's words until the tab holds no
+		// borrowed control (stage 5).
+		auto* const composer = Chat.composer();
+		Borrowed.emplace_back(composer, composer->parentWidget());
+		auto* const field    = new chat_composer{ { .Field = QStringLiteral("agentQuestionField"), .Text = { }, .Send = QStringLiteral("agentAsk"), .Stop = QStringLiteral("agentStop") }, ask, composer };
 		Field                = field;
-		auto* const fieldCol = new QVBoxLayout{ field };
-		// [[BPR-2337]]. The insets, the rule and the send row every agent
-		// composer shares (`composer_parts.hpp`).
-		composer::set_field_margins(*fieldCol);
-		fieldCol->setSpacing(4);
+		auto* const fieldCol = field->chips();
 		field->installEventFilter(this);
 		Chips = chip_label(field, QStringLiteral("agentContextChips"));
 		Chips->setForegroundRole(QPalette::PlaceholderText);
@@ -1004,32 +1004,28 @@ namespace bpr::qt {
 		attachedRow->addWidget(MacroChip);
 		attachedRow->addStretch(1);
 		fieldCol->addLayout(attachedRow);
-		auto* const composer = Chat.composer();
-		Borrowed.emplace_back(composer, composer->parentWidget());
-		composer->setParent(field);
-		composer->setFrameShape(QFrame::NoFrame);
 		composer->setPlaceholderText(tr("Ask about this pull request…"));
 		composer->setToolTip(send_tip());
-		// [[BPR-1916]]. `/name` completion of the person's own skills.
-		SkillCompletion = new skill_completer{ composer };
+		// [[BPR-1916]]. `/name` completion of the person's own skills, the
+		// composer's own.
+		SkillCompletion = field->skills();
 		// RFC-BPR-0125 (Q2). An emptied field holds no suggested prompt.
 		connect(composer, &QPlainTextEdit::textChanged, this, [this] {
 			if (DraftedMacro && Chat.composer()->toPlainText().trimmed().isEmpty()) {
 				DraftedMacro.reset();
 				present_macro_chip();
 			}
+			// Words typed while a turn runs would follow it: Send says how.
+			present_send();
 		});
-		composer->setMaximumHeight(90);
-		composer->viewport()->setAutoFillBackground(false);
-		fieldCol->addWidget(composer);
 		Notice = new QLabel{ field };
 		Notice->setObjectName(QStringLiteral("agentComposerNotice"));
 		Notice->setWordWrap(true);
 		Notice->setForegroundRole(QPalette::PlaceholderText);
 		Notice->hide();
-		fieldCol->addWidget(Notice);
-		auto* const askRow = composer::add_send_row(*field, *fieldCol);
-		AskRow             = askRow;
+		field->under_text()->addWidget(Notice);
+		auto* const askRow = field->tools();
+		AskRow             = field->send_row();
 		// [[BPR-2002]]. Attaches the lines selected in the code again, after
 		// the chip's close button detached them.
 		Context = make_drawer_tool(field, drawer_icon(drawer_glyph::plus, palette()), tr("Attach the lines selected in the code"), QStringLiteral("agentAddContext"));
@@ -1056,7 +1052,6 @@ namespace bpr::qt {
 		askRow->addWidget(SuggestionsMenu);
 		// [[BPR-2002]], RFC-BPR-0102: no scope list. It bounded nothing; the
 		// lines chip is the one thing that differs between questions.
-		askRow->addStretch(1);
 		// Owner decision (c) and amendment 2026-10-23: the agent, model and
 		// effort as a pill in the field. [[BPR-1924]]: a row of its own under
 		// the tools when the field is too narrow for it whole.
@@ -1084,19 +1079,20 @@ namespace bpr::qt {
 		// picker left the drawers for the pull request window's footer, one
 		// choice for the Agent tab, the tour chat, Enhance and Draft the tour.
 		// The tab borrows the footer's picker for /model and /effort.
-		Ask = composer::make_send_button(*field, QStringLiteral("agentAsk"));
+		Ask = field->send_button();
 		Ask->setToolTip(send_tip());
-		// Send, or Stop while the agent works: one place, always in reach.
-		connect(Ask, &QPushButton::clicked, this, [this] {
-			if (State == agent_tab_state::working) {
-				Launch.cancel_action()->trigger();
-				return;
-			}
-			this->ask();
+		// Send, or Stop while the agent works (`core::decide_chat_send`):
+		// Return and Send ask; Command+Return asks the other way, so a slash
+		// command is read the same way from either.
+		field->set_dispatch({
+			.Send =
+				[this](const bool aOpposite) {
+					Opposite = aOpposite;
+					this->ask();
+					Opposite = false;
+				},
+			.Stop = [this] { Launch.cancel_action()->trigger(); },
 		});
-		// Return with Command or Control asks from the field, as Send does,
-		// so a slash command is read the same way from either.
-		composer->installEventFilter(this);
 		// What was asked is read when it is sent, by Send or by the keyboard.
 		connect(Chat.send_action(), &QAction::triggered, this, [this] {
 			PendingQuestion   = Chat.composer()->toPlainText().trimmed();
@@ -1112,11 +1108,10 @@ namespace bpr::qt {
 			// decided now, while what it was asked on is on screen.
 			PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
 		});
-		askRow->addWidget(Ask);
 		PickerRow = new QHBoxLayout{ };
 		PickerRow->setSpacing(0);
 		PickerRow->addStretch(1);
-		fieldCol->addLayout(PickerRow);
+		field->under_row()->addLayout(PickerRow);
 		// [[BPR-1817]]. Why the last send produced no turn, said directly
 		// above the field it came from, in the danger look the stopped
 		// banner uses, until the reviewer sends again or closes it.
@@ -1377,29 +1372,7 @@ namespace bpr::qt {
 		// The added context, above the words, only when there is some.
 		Chips->setText(Chat.chips_text());
 		Chips->setVisible(Chat.chip_count() > 0U);
-		// Send, or Stop while the agent works.
-		// [[BPR-2000]], RFC-BPR-0101. Send starts a run and wears the agent
-		// accent; Stop ends spending and wears the ordinary roles.
-		if (State == agent_tab_state::working) {
-			wear_ordinary_roles(*Ask);
-			Ask->setIcon({ });
-			Ask->setText(tr("Stop"));
-			Ask->setAccessibleName(tr("Stop"));
-			Ask->setToolTip(tr("Stop the agent"));
-			Ask->setEnabled(Launch.cancel_action()->isEnabled());
-		} else {
-			wear_agent_accent(*Ask, palette());
-			Ask->setText({ });
-			Ask->setIcon(drawer_icon(drawer_glyph::send, Ask->palette()));
-			Ask->setAccessibleName(tr("Send"));
-			// [[BPR-1817]]. A Send that cannot be pressed says why.
-			const auto blocked = send_blocked();
-			Ask->setToolTip(blocked == core::agent_send_refusal::none
-								? send_tip()
-								: send_refusal_words(blocked, agent_name()));
-			Ask->setAccessibleDescription(blocked == core::agent_send_refusal::none ? QString{ } : Ask->toolTip());
-			Ask->setEnabled(Chat.send_action()->isEnabled() && !Ask->property("conversationLoading").toBool());
-		}
+		present_send();
 		present_banner();
 		rebuild_findings();
 		Thread->setVisible(!Turns.empty());
@@ -2941,6 +2914,47 @@ namespace bpr::qt {
 		send->setToolTip(words);
 		send->setText(!following ? tr("Send") : FollowUpSteer ? tr("Steer")
 															  : tr("Queue"));
+		present_send();
+	}
+
+	void agent_tab_view::present_send()
+	{
+		if (Field == nullptr || Ask == nullptr) {
+			return;
+		}
+		// RFC-BPR-0130 stage 2. The one Send and Stop rule of every chat:
+		// Send is Stop while a turn runs and nothing typed could follow it;
+		// words that would follow it make Send Queue or Steer, with Stop
+		// beside. [[BPR-2000]], RFC-BPR-0101: Send wears the agent's accent,
+		// Stop the ordinary roles (the composer draws both).
+		const auto working  = State == agent_tab_state::working;
+		const auto follows  = FollowUp && core::decide_follow_up({ .TurnShown = working, .QueueHolds = QueueOccupied }) != core::follow_up::send;
+		const auto controls = core::decide_chat_send({ .Running = working, .FollowsUp = follows, .Typed = !Chat.composer()->toPlainText().trimmed().isEmpty(), .SteerFirst = FollowUpSteer });
+		const auto loading  = Ask->property("conversationLoading").toBool();
+		Field->present(controls);
+		switch (controls.Send) {
+		case core::chat_send_face::stop:
+			Ask->setToolTip(tr("Stop the agent"));
+			Ask->setAccessibleDescription({ });
+			Ask->setEnabled(Launch.cancel_action()->isEnabled());
+			break;
+		case core::chat_send_face::queue:
+		case core::chat_send_face::steer:
+			Ask->setToolTip(Chat.send_action()->toolTip());
+			Ask->setAccessibleDescription({ });
+			Ask->setEnabled(!loading);
+			break;
+		case core::chat_send_face::send: {
+			// [[BPR-1817]]. A Send that cannot be pressed says why.
+			const auto blocked = send_blocked();
+			Ask->setToolTip(blocked == core::agent_send_refusal::none ? send_tip() : send_refusal_words(blocked, agent_name()));
+			Ask->setAccessibleDescription(blocked == core::agent_send_refusal::none ? QString{ } : Ask->toolTip());
+			Ask->setEnabled(Chat.send_action()->isEnabled() && !loading);
+			break;
+		}
+		}
+		Field->stop_button()->setToolTip(tr("Stop the agent. Queued messages wait, paused."));
+		Field->stop_button()->setEnabled(Launch.cancel_action()->isEnabled());
 	}
 
 	auto agent_tab_view::send_released(const QString& aText) -> release_outcome
@@ -5572,7 +5586,7 @@ namespace bpr::qt {
 		const auto available = Field->width() - margins.left() - margins.right();
 		auto       needed    = 0;
 		auto       count     = 0;
-		for (auto* const widget : { static_cast<QWidget*>(Context), static_cast<QWidget*>(SuggestionsMenu), static_cast<QWidget*>(Chat.scope_selector()), static_cast<QWidget*>(RunSettings), static_cast<QWidget*>(Ask) }) {
+		for (auto* const widget : { static_cast<QWidget*>(Context), static_cast<QWidget*>(SuggestionsMenu), static_cast<QWidget*>(Chat.scope_selector()), static_cast<QWidget*>(RunSettings), static_cast<QWidget*>(Field->stop_button()), static_cast<QWidget*>(Ask) }) {
 			if (widget != nullptr && widget->isVisibleTo(Field)) {
 				// Match the public layout contract: a preferred width must
 				// include native minimum hints and explicit min/max bounds.
@@ -5593,7 +5607,7 @@ namespace bpr::qt {
 			PickerRow->insertWidget(0, RunSettings);
 		} else {
 			PickerRow->removeWidget(RunSettings);
-			AskRow->insertWidget(AskRow->indexOf(Ask), RunSettings);
+			AskRow->insertWidget(AskRow->indexOf(Field->stop_button()), RunSettings);
 		}
 	}
 
@@ -5663,33 +5677,6 @@ namespace bpr::qt {
 
 	auto agent_tab_view::eventFilter(QObject* aWatched, QEvent* aEvent) -> bool
 	{
-		// [[BPR-1999]], RFC-BPR-0101. Return sends and Shift+Return starts a
-		// new line, as the tour side chat does; Ctrl or Cmd with Return also
-		// sends. Not while an input method composes, not in an empty field,
-		// and not while the skill completion's list takes Return.
-		if (aWatched == Chat.composer() && aEvent->type() == QEvent::InputMethod) {
-			Composing = !static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty();
-		}
-		if (aEvent->type() == QEvent::KeyPress && aWatched == Chat.composer()) {
-			const auto* const key       = static_cast<QKeyEvent*>(aEvent);
-			const auto        modifiers = key->modifiers() & ~Qt::KeypadModifier;
-			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !modifiers.testFlag(Qt::ShiftModifier) && !modifiers.testFlag(Qt::AltModifier)) {
-				if (Composing || (SkillCompletion != nullptr && SkillCompletion->popup() != nullptr && SkillCompletion->popup()->isVisible())) {
-					return false;
-				}
-				// Plain Return in an empty field does nothing; Ctrl or Cmd
-				// with Return asks, as before, and is told why nothing went.
-				if (Chat.composer()->toPlainText().trimmed().isEmpty() && !modifiers.testAnyFlags(Qt::ControlModifier | Qt::MetaModifier)) {
-					return true;
-				}
-				// Cmd+Return (Ctrl+Return off macOS): the other follow-up for
-				// this one message.
-				Opposite = modifiers.testAnyFlags(Qt::ControlModifier | Qt::MetaModifier);
-				ask();
-				Opposite = false;
-				return true;
-			}
-		}
 		// The log wraps again at the card's new width.
 		if (aEvent->type() == QEvent::Resize && aWatched == Log) {
 			fit_log();
@@ -5791,15 +5778,10 @@ namespace bpr::qt {
 				kept.Copy->setIcon(copyIcon);
 			}
 		}
-		// The send arrow, in the accent; while working the button says Stop
-		// instead, in the ordinary roles.
-		if (Ask->text().isEmpty()) {
-			wear_agent_accent(*Ask, palette());
-			// The prompt turns' glyphs follow the palette too.
-			for (auto* const glyph : findChildren<QLabel*>(QStringLiteral("agentTurnPromptGlyph"))) {
-				glyph->setPixmap(agent_glyph(palette()).pixmap(QSize{ 14, 14 }));
-			}
-			Ask->setIcon(drawer_icon(drawer_glyph::send, Ask->palette()));
+		// The prompt turns' glyphs follow the palette; the composer draws
+		// Send and Stop itself.
+		for (auto* const glyph : findChildren<QLabel*>(QStringLiteral("agentTurnPromptGlyph"))) {
+			glyph->setPixmap(agent_glyph(palette()).pixmap(QSize{ 14, 14 }));
 		}
 		for (const auto& kept : Turns) {
 			if (kept.Recovery != nullptr && kept.RecoveryKind == core::agent_turn_recovery::resend) {

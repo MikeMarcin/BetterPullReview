@@ -323,8 +323,9 @@ next is the copyable record of every chat.
 
 Since [[BPR-2322]] (owner, 2026-11-20: "make it use something akin to the side chat from the
 tour onto the report tab") the tour's chat is built from parts it shares with the side chat about
-one review item (`side_chat_parts.hpp`: the seam, the author's bubble, a proposal's frame, Return
-to send and how bubbles fit the column, with the public `composer_field` and `passage_chip`).
+one review item (`side_chat_parts.hpp`: the seam, the author's bubble, a proposal's frame and how
+bubbles fit the column). Their composer is `qt::chat_composer` (RFC-BPR-0130 stage 2), the one
+the Agent tab places too, with its `passage_chip`.
 `qt::item_side_chat` is that second chat: a column beside the report or the code, opened by Ask
 follow-up on a report's finding or a finding card and by Ask about this on the draft composer or a
 thread. It replaced [[BPR-2286]]'s follow-up window. Its conversation is not a tour session: each
@@ -354,8 +355,15 @@ kept, its own tab shows it again, and closing its tab closes it. Opened where no
 tab its opening brings up is its own. In the same review ("The send button on both the side chats
 (report and tour) should be positioned more like the agent tab") both side chats took the Agent
 tab's composer row (`composer_parts.hpp`: the field's insets, a thin rule under the words, and Send,
-the default button with the send arrow, ending the row under it), which the Agent tab builds from
-the same parts.
+the default button with the send arrow, ending the row under it). Since RFC-BPR-0130 stage 2 the
+three chats place one composer widget, `qt::chat_composer`, built from those parts: the field,
+what the chat attaches above the words, the words (at most about four lines tall), the chat's
+tools and Send. Return sends, Shift+Return starts a line, Command+Return (Control+Return off
+macOS) sends the other way, plain Return in an empty field does nothing and Return is the input
+method's while it composes. Send and Stop follow one rule, `core::decide_chat_send`: Send becomes
+Stop while a turn runs and nothing typed could follow it, and words that would follow it make Send
+Queue or Steer with Stop beside it. An item's chat takes no follow-ups, so its Send is Stop while
+its round runs.
 
 Since [[BPR-2376]] (owner, 2026-11-24: an accepted update's new code suggestion was not in the
 finding's Suggested change or its draft) a finding's updated suggested comment is the one source of

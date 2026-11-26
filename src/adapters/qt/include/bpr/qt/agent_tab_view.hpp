@@ -27,6 +27,7 @@
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_session_menu.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
+#include "bpr/qt/chat_composer.hpp"
 #include "bpr/qt/chat_header_view.hpp"
 #include "bpr/qt/chat_history_menu.hpp"
 #include "bpr/qt/explain_file_card.hpp"
@@ -1208,7 +1209,7 @@ namespace bpr::qt {
 		void                               fit_run_settings();
 		QLabel*                            SessionTitle = nullptr;
 		QWidget*                           EmptyIntro   = nullptr;
-		QWidget*                           Field        = nullptr;
+		chat_composer*                     Field        = nullptr;
 		std::optional<QFont>               CodeFont;
 		std::optional<markdown_code_theme> CodeTheme;
 		/// [[BPR-2236]]. The theme's three tones, once one reached the tab.
@@ -1310,7 +1311,6 @@ namespace bpr::qt {
 		std::function<void(const QString&)>                  EndedObserver;
 		std::function<void(std::optional<core::agent_cost>)> CostObserver;
 		/// [[BPR-1999]]. An input method is composing in the question field.
-		bool                                                                       Composing = false;
 		[[nodiscard]] auto                                                         send_tip() const -> QString;
 		std::optional<std::pair<QString, std::pair<std::uint32_t, std::uint32_t>>> LinesSeen;
 		bool                                                                       LinesDetached = false;
@@ -1358,8 +1358,10 @@ namespace bpr::qt {
 		bool                                         Releasing     = false;
 		release_outcome                              Released      = release_outcome::refused;
 		void                                         refresh_send_label();
-		std::optional<core::returning_operation>     SendingReturning;
-		std::optional<core::returning_operation>     PendingReturning;
+		/// \brief RFC-BPR-0130 stage 2. Send and Stop, as `core::decide_chat_send` decides.
+		void                                     present_send();
+		std::optional<core::returning_operation> SendingReturning;
+		std::optional<core::returning_operation> PendingReturning;
 		/// RFC-BPR-0117. The file Explain this file is being sent for, the
 		/// one a sent question was for, and who is told of its turns.
 		QString                                           SendingExplain;
