@@ -172,7 +172,9 @@ themes, rendering mechanics, and event translation.
   `chat_transcript_view` (RFC-BPR-0130 stage 3), from a
   `core::chat_transcript` its projector makes (`core::project_follow_up`
   for an item's chat, `core::project_tour_thread` for a tour part's, the
-  whole tour's and a local draft's discussion). The view changes only the turns
+  whole tour's and a local draft's discussion, `core::project_agent_thread`
+  for the Agent tab, which keeps its cards: `chat_transcript_look::card`,
+  open question 1's default). The view changes only the turns
   `core::chat_transcript_delta` names, so a reply that grows never draws the
   other turns again; a chat does not rebuild its column. What a chat hangs on
   a turn (a proposal, a card) is an attachment its factory makes. A turn's

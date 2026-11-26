@@ -1,5 +1,7 @@
 #include "bpr/qt/agent_tab_view.hpp"
 
+#include "agent_card_frame.hpp"
+
 #include "bpr/core/agent_report.hpp"
 #include "bpr/qt/agent_pending_list.hpp"
 #include "bpr/qt/agent_steered_words.hpp"
@@ -100,9 +102,8 @@
 
 namespace bpr::qt {
 	namespace {
-		/// A reply card's side margins; its answer is this much narrower.
-		constexpr auto reply_left_margin  = 12;
-		constexpr auto reply_right_margin = 10;
+		using agent_card::reply_left_margin;
+		using agent_card::reply_right_margin;
 		/// Over a report's attachment row where it follows the answer, and
 		/// over its summary where that stands first: the donut and its
 		/// legend read on from the answer, so they stand nearer to it than
@@ -132,78 +133,9 @@ namespace bpr::qt {
 			return static_cast<int>(QString::fromUtf8(aExpansion.Text.data(), static_cast<qsizetype>(at)).size());
 		}
 
-		[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, const qreal aShare) -> QColor
-		{
-			const auto keep = 1.0 - aShare;
-			return QColor::fromRgbF(static_cast<float>(aFrom.redF() * keep + aTo.redF() * aShare), static_cast<float>(aFrom.greenF() * keep + aTo.greenF() * aShare),
-									static_cast<float>(aFrom.blueF() * keep + aTo.blueF() * aShare));
-		}
-
-		[[nodiscard]] auto dark(const QPalette& aPalette) -> bool
-		{
-			return aPalette.color(QPalette::Window).lightness() < 128;
-		}
-
-		/// \brief A frame that draws a rounded card in the palette: the
-		/// banner's callout, a finding's card, the question's field.
-		class rounded final : public QWidget
-		{
-		public:
-			enum class look : std::uint8_t {
-				card,
-				callout,
-				danger,
-				field,
-				ready,
-			};
-			rounded(const look aLook, QWidget* aParent)
-				: QWidget{ aParent }
-				, Look{ aLook }
-			{
-			}
-			look Look;
-			/// The severity's edge, on a finding's card.
-			QColor Edge;
-			bool   Selected = false;
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto ink    = palette().color(QPalette::Active, QPalette::WindowText);
-				const auto base   = palette().color(QPalette::Active, QPalette::Base);
-				const auto window = palette().color(QPalette::Active, QPalette::Window);
-				const auto box    = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
-				auto       fill   = base;
-				auto       line   = mixed(base, ink, 0.16);
-				if (Look == look::callout) {
-					fill = mixed(window, palette().color(QPalette::Active, QPalette::Highlight), 0.10);
-					line = mixed(window, palette().color(QPalette::Active, QPalette::Highlight), 0.30);
-				} else if (Look == look::ready) {
-					const auto green = dark(palette()) ? QColor{ 0x3F, 0xB9, 0x50 } : QColor{ 0x1A, 0x7F, 0x37 };
-					fill             = mixed(window, green, 0.10);
-					line             = mixed(window, green, 0.35);
-				} else if (Look == look::danger) {
-					const auto red = dark(palette()) ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E };
-					fill           = mixed(window, red, 0.10);
-					line           = mixed(window, red, 0.35);
-				}
-				if (Selected) {
-					line = dark(palette()) ? QColor{ 0xE3, 0xB3, 0x41 } : QColor{ 0xC3, 0x8A, 0x10 };
-				}
-				painter.setPen(QPen{ line, 1.0 });
-				painter.setBrush(fill);
-				painter.drawRoundedRect(box, 8.0, 8.0);
-				if (Edge.isValid()) {
-					painter.setPen(Qt::NoPen);
-					painter.setBrush(Edge);
-					painter.drawRoundedRect(QRectF{ box.left(), box.top() + 6.0, 3.0, box.height() - 12.0 }, 1.5, 1.5);
-				}
-			}
-
-		private:
-		};
+		using agent_card::dark;
+		using agent_card::mixed;
+		using agent_card::rounded;
 
 		/// \brief [[BPR-2059]]. A finding's file and lines, shortened in the
 		/// middle when the card is narrow so the severity and kind beside it
@@ -633,23 +565,93 @@ namespace bpr::qt {
 		auto* const talk = new QVBoxLayout{ Conversation };
 		talk->setContentsMargins(0, 0, 0, 0);
 		talk->setSpacing(0);
-		auto* const scroll = new QScrollArea{ Conversation };
-		scroll->setObjectName(QStringLiteral("agentConversationScroll"));
-		scroll->setWidgetResizable(true);
-		scroll->setFrameShape(QFrame::NoFrame);
-		scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		// RFC-BPR-0130 stage 5. The one transcript, in the Agent tab's card
+		// look: the state's card, the ready card and the empty line lead it;
+		// the turns; then the replies, the findings, the suggested prompts
+		// and the queue. It keeps itself at its end and edged at its top.
+		Transcript = new chat_transcript_view{ chat_transcript_view::names{
+												   .Scroll        = QStringLiteral("agentConversationScroll"),
+												   .Bubble        = QStringLiteral("agentTurnQuestion"),
+												   .Question      = QStringLiteral("agentTurnQuestionText"),
+												   .Steered       = QStringLiteral("agentTurnSteered"),
+												   .Reply         = QStringLiteral("agentTurnAnswer"),
+												   .Failure       = { },
+												   .Ending        = QStringLiteral("agentTurnFooter"),
+												   .CopyReply     = QStringLiteral("agentTurnCopy"),
+												   .Resend        = { },
+												   .Delete        = QStringLiteral("agentTurnDelete"),
+												   .QuestionNote  = { },
+												   .Activity      = QStringLiteral("agentTurnActivity"),
+												   .Turns         = QStringLiteral("agentThread"),
+												   .Turn          = QStringLiteral("agentTurn"),
+												   .AskedTime     = QStringLiteral("agentTurnAskedTime"),
+												   .SteeredColumn = QStringLiteral("agentTurnSteeredMessages"),
+												   .Card          = QStringLiteral("agentTurnReply"),
+												   .Recovery      = QStringLiteral("agentTurnRecovery"),
+												   .AnsweredTime  = QStringLiteral("agentTurnAnsweredTime"),
+											   },
+											   Conversation, chat_transcript_look::card };
+		Transcript->set_parts({
+			// Owner decision (a): the answer reads as the agent wrote it, its
+			// code coloured as comments' are; a reference the answer makes a
+			// link opens its file at its line; any other link does nothing.
+			.DressReader    = [this](markdown_body_view& aReader) {
+				aReader.set_link_dispatch([this](const std::string& aLink) { follow_link(QString::fromStdString(aLink)); });
+				dress_answer(aReader); },
+			.MakeAttachment = nullptr,
+			.Act            = [this](const std::string& aTurn, const chat_turn_gesture aGesture) { act_on_turn(aTurn, aGesture); },
+			.DressBubble =
+				[this](const core::chat_turn& aTurn, QWidget& aBubble, QVBoxLayout& aColumn, QLabel& aQuestion) {
+					if (auto* const kept = record_of(aTurn.Id); kept != nullptr) {
+						dress_question(*kept, aBubble, aColumn, aQuestion);
+					}
+				},
+			.ReplyBody =
+				[this](const core::chat_turn& aTurn) {
+					auto* const kept = record_of(aTurn.Id);
+					return kept != nullptr ? kept->Body.toStdString() : aTurn.Reply;
+				},
+			.Stop =
+				[this] {
+					if (auto* const stop = Launch.cancel_action(); stop != nullptr && stop->isEnabled()) {
+						stop->trigger();
+					}
+				},
+			.ReplyIdentity =
+				[this](const core::chat_turn& aTurn) {
+					auto* const kept = record_of(aTurn.Id);
+					return kept != nullptr && !kept->BodyKey.empty() ? kept->BodyKey : aTurn.Id;
+				},
+			.DressCard =
+				[this](const core::chat_turn& aTurn, const chat_transcript_view::card_slots& aSlots) {
+					if (auto* const kept = record_of(aTurn.Id); kept != nullptr) {
+						dress_card(*kept, aSlots);
+					}
+				},
+			.DressFoot =
+				[this](const core::chat_turn& aTurn, QWidget& aCard, QHBoxLayout& aActions) {
+					if (auto* const kept = record_of(aTurn.Id); kept != nullptr) {
+						dress_foot(*kept, aCard, aActions);
+					}
+				},
+			.DressEnding =
+				[this](const core::chat_turn& aTurn, agent_run_status_line& aEnding) {
+					if (const auto* const kept = record_of(aTurn.Id); kept != nullptr) {
+						aEnding.setToolTip(kept->LineTip);
+					}
+				},
+		});
 		// The cards fit the drawer's width, not the other way round.
-		Viewport = scroll->viewport();
+		Viewport = Transcript->viewport();
 		Viewport->installEventFilter(this);
-		auto* const content    = new QWidget{ scroll };
-		auto* const contentCol = new QVBoxLayout{ content };
-		contentCol->setContentsMargins(12, 8, 12, 12);
-		contentCol->setSpacing(10);
+		auto* const content = Transcript->widget();
+		auto* const lead    = Transcript->lead();
+		auto* const trail   = Transcript->trail();
 		// The state's card. A report of a run working or finished heads the
 		// thread, here. A choice the next question waits on, and the report
 		// of a run that stopped, stand on the question field instead
 		// (`dock_banner`).
-		BannerThread = contentCol;
+		BannerThread = lead;
 		Banner       = new rounded{ rounded::look::callout, content };
 		Banner->setObjectName(QStringLiteral("agentStateBanner"));
 		auto* const bannerCol = new QVBoxLayout{ Banner };
@@ -760,7 +762,7 @@ namespace bpr::qt {
 		logCol->addWidget(Log);
 		LogBox->hide();
 		bannerCol->addWidget(LogBox);
-		contentCol->addWidget(Banner);
+		lead->addWidget(Banner);
 		// [[BPR-1753]]. The ready line once setup finishes, and what
 		// the agent gets with each question.
 		ReadyCard = new rounded{ rounded::look::ready, content };
@@ -811,7 +813,7 @@ namespace bpr::qt {
 			ReadyGets->setVisible(aOpen);
 		});
 		ReadyCard->hide();
-		contentCol->addWidget(ReadyCard);
+		lead->addWidget(ReadyCard);
 		// Owner look v003: with nothing asked, an icon and a line, as the
 		// agent drawers show it; the suggested prompts wait above the field.
 		EmptyIntro              = new QWidget{ content };
@@ -832,15 +834,9 @@ namespace bpr::qt {
 		introText->setForegroundRole(QPalette::PlaceholderText);
 		introColumn->addWidget(introText);
 		EmptyIntro->hide();
-		contentCol->addWidget(EmptyIntro);
-		// The thread: each question and its answer, oldest first.
-		Thread = new QWidget{ content };
-		Thread->setObjectName(QStringLiteral("agentThread"));
-		ThreadColumn = new QVBoxLayout{ Thread };
-		ThreadColumn->setContentsMargins(0, 0, 0, 0);
-		ThreadColumn->setSpacing(10);
-		Thread->hide();
-		contentCol->addWidget(Thread);
+		lead->addWidget(EmptyIntro);
+		// The thread, each question and its answer oldest first, is the
+		// transcript's own; what follows it is its trail.
 		auto* const replies = Chat.replies_list();
 		Borrowed.emplace_back(replies, replies->parentWidget());
 		replies->setParent(content);
@@ -848,13 +844,13 @@ namespace bpr::qt {
 		replies->setWordWrap(true);
 		replies->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
 		replies->viewport()->setAutoFillBackground(false);
-		contentCol->addWidget(replies);
+		trail->addWidget(replies);
 		replies->hide();
 		Cards      = new QWidget{ content };
 		CardColumn = new QVBoxLayout{ Cards };
 		CardColumn->setContentsMargins(0, 0, 0, 0);
 		CardColumn->setSpacing(8);
-		contentCol->addWidget(Cards);
+		trail->addWidget(Cards);
 		// Owner decision (a) 2026-10-23: suggested prompts, each sent as
 		// written. Owner look v005 ("I want the suggestions to draw more like
 		// they're in the chat window rather than attached to the bottom pane.
@@ -863,7 +859,7 @@ namespace bpr::qt {
 		// [[BPR-1934]]. One component, which the tour chats show too.
 		Suggestions = new agent_suggestion_list{ tr("Ask about this pull request, or try:"), content };
 		Suggestions->set_choose_dispatch([this](const QString& aKey, const bool aEditFirst) { choose_prompt(aKey, aEditFirst); });
-		contentCol->addWidget(Suggestions);
+		trail->addWidget(Suggestions);
 		// RFC-BPR-0128 with RFC-BPR-0126's queue (owner, 2026-11-14: "a plain
 		// click queues it"). What waits its turn, in words.
 		QueueNote = new QLabel{ content };
@@ -871,13 +867,13 @@ namespace bpr::qt {
 		QueueNote->setWordWrap(true);
 		QueueNote->setTextFormat(Qt::PlainText);
 		QueueNote->hide();
-		contentCol->addWidget(QueueNote);
+		trail->addWidget(QueueNote);
 		// RFC-BPR-0126 ([[BPR-2151]]). The session's waiting messages, each
 		// with Edit (a typed one, held while edited), Remove and Move up and
 		// down, and Pause or Resume for the queue.
 		QueueList = new agent_pending_list{ content };
 		QueueList->setObjectName(QStringLiteral("agentQueueList"));
-		contentCol->addWidget(QueueList);
+		trail->addWidget(QueueList);
 		// [[BPR-1847]], owner 2026-11-03: "doesn't make sense to show
 		// suggested prompts before the wizard completes." While the setup
 		// is unfinished and not on screen, its way in stands where they would.
@@ -897,15 +893,8 @@ namespace bpr::qt {
 		connect(finish, &QPushButton::clicked, this, [this] { open_setup(); });
 		setupRow->addWidget(finish, 0, Qt::AlignTop);
 		SetupPrompt->hide();
-		contentCol->addWidget(SetupPrompt);
-		contentCol->addStretch(1);
-		scroll->setWidget(content);
-		// [[BPR-2296]]. At its end, the conversation stays there as it grows.
-		stick_to_bottom::attach(*scroll);
-		// A turn cut at the top goes on under a drawn edge, not under the
-		// header's words.
-		transcript_edge::attach(*scroll);
-		talk->addWidget(scroll, 1);
+		trail->addWidget(SetupPrompt);
+		talk->addWidget(Transcript, 1);
 
 		// The question field: the words, its context chips, Context and Ask.
 		auto* const ask = new QWidget{ Conversation };
@@ -1376,7 +1365,6 @@ namespace bpr::qt {
 		present_send();
 		present_banner();
 		rebuild_findings();
-		Thread->setVisible(!Turns.empty());
 		EmptyIntro->setVisible(Turns.empty() && (State == agent_tab_state::idle || State == agent_tab_state::stopped) && !ReadyCard->isVisible());
 		refresh_history();
 		// Claude's effort list is fetched when the tab can show it.
@@ -1465,9 +1453,9 @@ namespace bpr::qt {
 		PendingReview  = false;
 		FindingsAtTurn = FindingsPresented;
 		next.AskedAt   = QDateTime::currentDateTime();
-		add_turn_widgets(next);
+		next.Serial    = NextSerial++;
 		Turns.push_back(std::move(next));
-		Thread->show();
+		present_transcript();
 		if (!Turns.back().Explain.isEmpty()) {
 			auto status  = agent_run_status{ };
 			status.Agent = Launch.profile_selector()->currentText();
@@ -1476,32 +1464,79 @@ namespace bpr::qt {
 		}
 	}
 
-	void agent_tab_view::add_turn_widgets(turn& aTurn)
+	auto agent_tab_view::entries() const -> std::vector<core::agent_thread_entry>
 	{
-		if (aTurn.Serial == 0U) {
-			aTurn.Serial = NextSerial++;
+		auto made = std::vector<core::agent_thread_entry>{ };
+		made.reserve(Turns.size());
+		// [[BPR-1876]]. Where the setup's two checks stand now; none without
+		// a setup, so no cause is ever taken as cleared.
+		const auto* const setup = SetupView != nullptr ? &SetupView->projection() : nullptr;
+		for (const auto& kept : Turns) {
+			auto entry     = core::agent_thread_entry{ };
+			entry.Serial   = kept.Serial;
+			entry.Question = kept.Question.toStdString();
+			entry.Steered  = kept.Steered;
+			entry.Answer   = kept.AnswerText.toStdString();
+			entry.Done     = kept.Done;
+			entry.Outcome  = kept.Outcome;
+			entry.Line     = kept.Line.toStdString();
+			entry.Activity = kept.Ran;
+			if (setup != nullptr && kept.CauseRechecked) {
+				switch (core::agent_turn_cause_of(kept.Outcome)) {
+				case core::agent_turn_cause::none:            break;
+				case core::agent_turn_cause::agent_check:     entry.CausePassedSince = setup->State.AgentCheck.State == core::setup_check_state::passed; break;
+				case core::agent_turn_cause::workspace_check: entry.CausePassedSince = setup->State.WorkspaceCheck.State == core::setup_check_state::passed; break;
+				}
+			}
+			made.push_back(std::move(entry));
 		}
-		auto* const box = new QWidget{ Thread };
-		box->setObjectName(QStringLiteral("agentTurn"));
-		auto* const column = new QVBoxLayout{ box };
-		column->setContentsMargins(0, 0, 0, 0);
-		column->setSpacing(4);
-		// Owner look v003 and the agent drawers: the question in an outlined
-		// bubble, its time right-aligned above it.
-		auto* const askedTime = new QLabel{ box };
-		askedTime->setObjectName(QStringLiteral("agentTurnAskedTime"));
-		askedTime->setForegroundRole(QPalette::PlaceholderText);
-		askedTime->setAlignment(Qt::AlignRight);
-		column->addWidget(askedTime);
-		show_time(*askedTime, aTurn.AskedAt);
-		auto* const asked = new rounded{ rounded::look::field, box };
-		asked->setObjectName(QStringLiteral("agentTurnQuestion"));
-		auto* const askedColumn = new QVBoxLayout{ asked };
-		askedColumn->setContentsMargins(10, 6, 10, 6);
+		return made;
+	}
+
+	void agent_tab_view::present_transcript()
+	{
+		if (Transcript == nullptr) {
+			return;
+		}
+		const auto pinned = Launch.pinned_conversation();
+		Transcript->present(core::project_agent_thread(entries(), { .Working = State == agent_tab_state::working, .RevisionChoice = pinned && pinned->Pinned && PinnedDispatch }));
+	}
+
+	auto agent_tab_view::record_of(const std::string& aId) -> turn*
+	{
+		const auto found = std::ranges::find_if(Turns, [&aId](const turn& aTurn) { return aId == "agent-turn-" + std::to_string(aTurn.Serial); });
+		return found == Turns.end() ? nullptr : &*found;
+	}
+
+	auto agent_tab_view::place_of(const turn& aTurn) const -> std::size_t { return static_cast<std::size_t>(&aTurn - Turns.data()); }
+
+	auto agent_tab_view::reader_of(const turn& aTurn) const -> markdown_body_view*
+	{
+		const auto at = place_of(aTurn);
+		return Transcript != nullptr && at < Turns.size() ? Transcript->reply(at) : nullptr;
+	}
+
+	void agent_tab_view::act_on_turn(const std::string& aId, const chat_turn_gesture aGesture)
+	{
+		auto* const kept = record_of(aId);
+		if (kept == nullptr) {
+			return;
+		}
+		switch (aGesture) {
+		case chat_turn_gesture::resend:
+		case chat_turn_gesture::agent_settings: recover(*kept); return;
+		case chat_turn_gesture::remove:         delete_turn(place_of(*kept)); return;
+		}
+	}
+
+	void agent_tab_view::dress_question(turn& aTurn, QWidget& aBubble, QVBoxLayout& aColumn, QLabel& aQuestion)
+	{
+		auto* const asked = &aBubble;
 		// [[BPR-1773]], owner look 2026-10-27 ("I don't even understand what
 		// the question I asked was"). A question about a conversation names
 		// it first, in the question's own colour and a heavier weight, so the
 		// bubble reads "About <conversation>: <question>".
+		auto at = aColumn.indexOf(&aQuestion);
 		if (aTurn.About) {
 			auto* const about = new QLabel{ tr("About %1").arg(aTurn.About->Text), asked };
 			about->setObjectName(QStringLiteral("agentTurnAbout"));
@@ -1511,7 +1546,7 @@ namespace bpr::qt {
 			strong.setWeight(QFont::DemiBold);
 			about->setFont(strong);
 			about->setToolTip(aTurn.About->Detail);
-			askedColumn->addWidget(about);
+			aColumn.insertWidget(at++, about);
 		}
 		// RFC-BPR-0125 (AC07). A suggested prompt's turn shows what was sent
 		// under the prompt's name, in the weight About uses.
@@ -1540,14 +1575,11 @@ namespace bpr::qt {
 			glyph->setToolTip(tr("Sent from a prompt"));
 			nameRow->addWidget(glyph, 0, Qt::AlignVCenter);
 			nameRow->addWidget(name, 1);
-			askedColumn->addLayout(nameRow);
+			aColumn.insertLayout(at, nameRow);
 		}
 		const auto spoken = aTurn.Name.isEmpty() ? aTurn.Question : tr("%1: %2").arg(aTurn.Name, aTurn.Question);
 		asked->setAccessibleName(aTurn.About ? tr("About %1: %2").arg(aTurn.About->Text, spoken) : spoken);
-		auto* const question = new QLabel{ asked };
-		question->setObjectName(QStringLiteral("agentTurnQuestionText"));
-		question->setWordWrap(true);
-		question->setOpenExternalLinks(false);
+		auto* const question = &aQuestion;
 		// Owner look v004: a file and line the question names is a link to it.
 		connect(question, &QLabel::linkActivated, this, [this](const QString& aLink) { follow_link(aLink); });
 		aTurn.QuestionLabel = question;
@@ -1582,33 +1614,22 @@ namespace bpr::qt {
 			italic.setItalic(true);
 			question->setFont(italic);
 		}
-		askedColumn->addWidget(question);
 		if (aTurn.ShowAll != nullptr && nameRow != nullptr) {
 			nameRow->addWidget(aTurn.ShowAll, 0, Qt::AlignRight | Qt::AlignTop);
 		} else if (aTurn.ShowAll != nullptr) {
-			askedColumn->addWidget(aTurn.ShowAll, 0, Qt::AlignLeft);
+			aColumn.addWidget(aTurn.ShowAll, 0, Qt::AlignLeft);
 		}
-		column->addWidget(asked);
-		// [[BPR-2153]], look steer-v001 (owner: "I would have expected to see
-		// Two show up as something I had sent"). What the reviewer steered
-		// into the turn shows as their own messages, after the question and
-		// before the reply the agent wrote after taking it.
-		auto* const steered = new QWidget{ box };
-		steered->setObjectName(QStringLiteral("agentTurnSteeredMessages"));
-		auto* const steeredColumn = new QVBoxLayout{ steered };
-		steeredColumn->setContentsMargins(0, 0, 0, 0);
-		steeredColumn->setSpacing(4);
-		steered->hide();
-		column->addWidget(steered);
-		aTurn.SteeredBox = steered;
-		// Owner look v003 ("the response contained in something we could
-		// copy"): the reply in its own card, its footer as the agent apps
-		// have it: Copy and its one keep action, then who answered and when.
-		auto* const reply = new rounded{ rounded::look::card, box };
-		reply->setObjectName(QStringLiteral("agentTurnReply"));
-		auto* const replyColumn = new QVBoxLayout{ reply };
-		replyColumn->setContentsMargins(reply_left_margin, 8, reply_right_margin, 6);
-		replyColumn->setSpacing(6);
+		aTurn.Asked = asked;
+	}
+
+	void agent_tab_view::dress_card(turn& aTurn, const chat_transcript_view::card_slots& aSlots)
+	{
+		auto* const reply  = aSlots.Card;
+		auto* const before = aSlots.BeforeReply;
+		auto* const after  = aSlots.AfterReply;
+		aTurn.AskedTime    = aSlots.AskedTime;
+		aTurn.AnsweredTime = aSlots.AnsweredTime;
+		show_time(*aSlots.AskedTime, aTurn.AskedAt);
 		// [[BPR-1876]]. Over an error whose cause has cleared since: that it
 		// is fixed, ahead of the old cause, which then reads as history.
 		auto* const fixedNote = new QLabel{ reply };
@@ -1616,7 +1637,7 @@ namespace bpr::qt {
 		fixedNote->setTextFormat(Qt::RichText);
 		fixedNote->setWordWrap(true);
 		fixedNote->hide();
-		replyColumn->addWidget(fixedNote);
+		before->addWidget(fixedNote);
 		aTurn.FixedNote = fixedNote;
 		// RFC-BPR-0096, owner continue-at-latest amendment: "maybe drop a
 		// notice in the transcript that it happened". One quiet line over the
@@ -1626,30 +1647,15 @@ namespace bpr::qt {
 		moveNotice->setForegroundRole(QPalette::PlaceholderText);
 		moveNotice->setWordWrap(true);
 		moveNotice->hide();
-		replyColumn->addWidget(moveNotice);
+		before->addWidget(moveNotice);
 		aTurn.MoveNotice = moveNotice;
-		// Owner decision (a): the answer reads as the agent wrote it, its
-		// Markdown rendered in place, its code coloured as comments' are;
-		// links and images do nothing.
-		auto* const answer = new markdown_body_view{ reply };
-		answer->setObjectName(QStringLiteral("agentTurnAnswer"));
-		answer->set_in_place(true);
-		// [[BPR-1944]]. Its code blocks are boxes as wide as the chat, with
-		// Wrap and Copy; a long line scrolls inside its box.
-		answer->set_code_block_tools(true);
-		answer->set_height_observer([this, answer] { fit_answer(*answer); });
-		// A reference the answer makes a link opens its file at its line;
-		// any other link does nothing.
-		answer->set_link_dispatch([this](const std::string& aLink) { follow_link(QString::fromStdString(aLink)); });
-		dress_answer(*answer);
-		answer->hide();
 		// RFC-BPR-0116 ([[BPR-2074]]). Was this addressed?'s lead word, said
 		// as the agent's claim above its answer; nothing follows from it.
 		auto* const claim = new QLabel{ reply };
 		claim->setObjectName(QStringLiteral("agentTurnClaim"));
 		claim->setForegroundRole(QPalette::PlaceholderText);
 		claim->hide();
-		replyColumn->addWidget(claim);
+		before->addWidget(claim);
 		aTurn.Claim = claim;
 		// [[BPR-2236]]. A report's verdict, over its summary, as the page
 		// shows it.
@@ -1657,9 +1663,8 @@ namespace bpr::qt {
 		verdict->setObjectName(QStringLiteral("agentTurnReportVerdict"));
 		verdict->setTextFormat(Qt::RichText);
 		verdict->hide();
-		replyColumn->addWidget(verdict);
+		before->addWidget(verdict);
 		aTurn.Verdict = verdict;
-		replyColumn->addWidget(answer);
 		// RFC-BPR-0128 ([[BPR-2166]]) as the owner chose it on 2026-11-14
 		// (docs/design/report-card-v4, round 1's C, Attachment): the reply
 		// card is the only surface. The report's summary shows as the answer
@@ -1700,7 +1705,7 @@ namespace bpr::qt {
 			});
 			cardColumn->addWidget(row);
 			card->hide();
-			replyColumn->addWidget(card);
+			after->addWidget(card);
 			aTurn.ReportCard  = card;
 			aTurn.ReportTitle = row->title();
 			aTurn.ReportMeta  = row->meta();
@@ -1742,7 +1747,7 @@ namespace bpr::qt {
 		draftAllSaid->addWidget(draftAllUndo, 0, Qt::AlignTop);
 		draftAllColumn->addLayout(draftAllSaid);
 		draftAllRow->hide();
-		replyColumn->addWidget(draftAllRow);
+		after->addWidget(draftAllRow);
 		aTurn.DraftAllRow   = draftAllRow;
 		aTurn.DraftAll      = draftAll;
 		aTurn.DraftAllState = draftAllState;
@@ -1760,28 +1765,13 @@ namespace bpr::qt {
 		// Owner decision 2026-10-23: the turn's findings, as cards, under its answer.
 		auto* const cards = new QVBoxLayout{ };
 		cards->setSpacing(8);
-		replyColumn->addLayout(cards);
-		// While the agent works, and how it ended: one quiet line, the one
-		// the tour chats' turns show too ([[BPR-1941]]).
-		auto* const footer = new agent_run_status_line{ reply };
-		footer->setObjectName(QStringLiteral("agentTurnFooter"));
-		replyColumn->addWidget(footer);
-		// [[BPR-2005]], RFC-BPR-0103. Under the line: its helpers, the quiet
-		// notice, and after the turn the folded line.
-		auto* const activity = new agent_activity_view{ reply };
-		activity->setObjectName(QStringLiteral("agentTurnActivity"));
-		activity->set_stop([this] {
-			if (auto* const stop = Launch.cancel_action(); stop != nullptr && stop->isEnabled()) {
-				stop->trigger();
-			}
-		});
-		replyColumn->addWidget(activity);
-		auto* const footerRow = new QHBoxLayout{ };
-		footerRow->setSpacing(2);
-		auto* const copy = make_drawer_tool(reply, drawer_icon(drawer_glyph::copy, palette()), tr("Copy the response as Markdown"), QStringLiteral("agentTurnCopy"));
-		copy->set_surface(QPalette::Base);
-		copy->hide();
-		footerRow->addWidget(copy);
+		after->addLayout(cards);
+		aTurn.CardColumn = cards;
+	}
+
+	void agent_tab_view::dress_foot(turn& aTurn, QWidget& aCard, QHBoxLayout& aActions)
+	{
+		auto* const reply = &aCard;
 		// RFC-BPR-0127. One keep action: Keep local where no thread or line
 		// takes a draft (`core::decide_keep`), else Draft comment below. Keep
 		// local keeps the whole reply, or the part selected in it, as a Local
@@ -1791,7 +1781,7 @@ namespace bpr::qt {
 		save->setFlat(true);
 		save->setToolTip(tr("Keep this reply, or the part of it you selected, as a local comment on the pull request. Only on this computer."));
 		save->hide();
-		footerRow->addWidget(save);
+		aActions.addWidget(save);
 		// [[BPR-1773]], owner look 2026-10-27 ("let you turn anything into a
 		// note or draft comment directly"). Draft comment, in Keep local's
 		// place and style: the whole reply, or the part selected, as a
@@ -1809,15 +1799,17 @@ namespace bpr::qt {
 		draft->setFlat(false);
 		draft->setIcon(conversation_icon(conversation_glyph::edit, palette()));
 		draft->hide();
-		footerRow->addWidget(draft);
+		aActions.addWidget(draft);
 		// [[BPR-2138]], RFC-BPR-0116. Ask more on a returning question's
 		// fresh answer: the next question here opens with it.
 		auto* const askMore = new quiet_push_button{ tr("Ask more"), reply };
 		askMore->setObjectName(QStringLiteral("agentTurnAskMore"));
 		askMore->setFlat(true);
 		askMore->hide();
-		footerRow->addWidget(askMore);
-		aTurn.AskMore = askMore;
+		aActions.addWidget(askMore);
+		aTurn.AskMore  = askMore;
+		aTurn.SaveNote = save;
+		aTurn.Draft    = draft;
 		connect(askMore, &QPushButton::clicked, this, [this, askMore] {
 			for (const auto& kept : Turns) {
 				if (kept.AskMore == askMore) {
@@ -1826,60 +1818,6 @@ namespace bpr::qt {
 					}
 					Chat.composer()->setPlaceholderText(tr("Ask more about this answer…"));
 					Chat.composer()->setFocus(Qt::OtherFocusReason);
-					return;
-				}
-			}
-		});
-		// [[BPR-1847]]. An error's one way back, in place of the keep
-		// action, which an error never offers.
-		auto* const recovery = new quiet_push_button{ reply };
-		recovery->setObjectName(QStringLiteral("agentTurnRecovery"));
-		recovery->setFlat(true);
-		recovery->hide();
-		footerRow->addWidget(recovery);
-		// [[BPR-1876]], owner look v001: "We should also be able to delete a
-		// message that was never sent to the agent instead of just resend."
-		// [[BPR-1880]]: on every error; its tooltip is set with its actions.
-		auto* const remove = new quiet_push_button{ tr("Delete"), reply };
-		remove->setObjectName(QStringLiteral("agentTurnDelete"));
-		remove->setFlat(true);
-		remove->hide();
-		footerRow->addWidget(remove);
-		footerRow->addStretch(1);
-		auto* const answeredTime = new QLabel{ reply };
-		answeredTime->setObjectName(QStringLiteral("agentTurnAnsweredTime"));
-		answeredTime->setForegroundRole(QPalette::PlaceholderText);
-		answeredTime->hide();
-		footerRow->addWidget(answeredTime);
-		replyColumn->addLayout(footerRow);
-		column->addWidget(reply);
-		ThreadColumn->addWidget(box);
-		aTurn.Widget       = box;
-		aTurn.Answer       = answer;
-		aTurn.Footer       = footer;
-		aTurn.Activity     = activity;
-		aTurn.SaveNote     = save;
-		aTurn.CardColumn   = cards;
-		aTurn.Copy         = copy;
-		aTurn.AskedTime    = askedTime;
-		aTurn.AnsweredTime = answeredTime;
-		aTurn.Draft        = draft;
-		aTurn.Asked        = asked;
-		aTurn.Reply        = reply;
-		aTurn.Recovery     = recovery;
-		aTurn.Delete       = remove;
-		connect(recovery, &QPushButton::clicked, this, [this, recovery] {
-			for (const auto& kept : Turns) {
-				if (kept.Recovery == recovery) {
-					recover(kept);
-					return;
-				}
-			}
-		});
-		connect(remove, &QPushButton::clicked, this, [this, remove] {
-			for (auto index = std::size_t{ 0U }; index < Turns.size(); ++index) {
-				if (Turns[index].Delete == remove) {
-					delete_turn(index);
 					return;
 				}
 			}
@@ -1901,7 +1839,7 @@ namespace bpr::qt {
 					return;
 				}
 				auto       text     = kept.AnswerText;
-				const auto selected = kept.Answer != nullptr ? kept.Answer->rendered_view()->textCursor().selectedText() : QString{ };
+				const auto selected = reader_of(kept) != nullptr ? reader_of(kept)->rendered_view()->textCursor().selectedText() : QString{ };
 				if (!selected.trimmed().isEmpty()) {
 					text = selected;
 					text.replace(QChar::ParagraphSeparator, QLatin1Char{ '\n' });
@@ -1939,14 +1877,6 @@ namespace bpr::qt {
 				return;
 			}
 		});
-		connect(copy, &QToolButton::clicked, this, [this, copy] {
-			for (const auto& kept : Turns) {
-				if (kept.Copy == copy) {
-					QGuiApplication::clipboard()->setText(kept.AnswerText);
-					copy->setToolTip(tr("Copied"));
-				}
-			}
-		});
 		connect(save, &QPushButton::clicked, this, [this, save] {
 			for (auto& kept : Turns) {
 				if (kept.SaveNote != save) {
@@ -1963,7 +1893,7 @@ namespace bpr::qt {
 					return;
 				}
 				auto       text     = kept.AnswerText;
-				const auto selected = kept.Answer != nullptr ? kept.Answer->rendered_view()->textCursor().selectedText() : QString{ };
+				const auto selected = reader_of(kept) != nullptr ? reader_of(kept)->rendered_view()->textCursor().selectedText() : QString{ };
 				if (!selected.trimmed().isEmpty()) {
 					text = selected;
 					text.replace(QChar::ParagraphSeparator, QLatin1Char{ '\n' });
@@ -2005,9 +1935,10 @@ namespace bpr::qt {
 
 	void agent_tab_view::set_answer(turn& aTurn, const QString& aText)
 	{
-		if (aTurn.Answer == nullptr || (aText == aTurn.AnswerText && aTurn.Answer->isHidden() == aText.isEmpty())) {
+		if (aTurn.AnswerSet && aText == aTurn.AnswerText && aTurn.BodyEmpty == aText.isEmpty()) {
 			return;
 		}
+		aTurn.AnswerSet  = true;
 		aTurn.AnswerText = aText;
 		aTurn.FindingsBlock.clear();
 		// The findings block is for the cards; the reply shows without it.
@@ -2079,9 +2010,6 @@ namespace bpr::qt {
 
 	void agent_tab_view::show_answer(turn& aTurn)
 	{
-		if (aTurn.Answer == nullptr) {
-			return;
-		}
 		// RFC-BPR-0128 ([[BPR-2166]]), Q7. A report by its shape: the card
 		// stands in the answer's place; the answer stays the turn's text.
 		const auto answer = aTurn.AnswerText.toStdString();
@@ -2133,52 +2061,18 @@ namespace bpr::qt {
 		// [[BPR-1998]]: the core's one recogniser, for every agent reply.
 		// A report shows its summary here, rendered (defect 3); the whole
 		// report is its tab.
-		const auto body  = report ? summary : aTurn.AnswerText;
-		const auto shown = LineNavigate && LineResolve ? agent_markdown_with_reference_links(body, LineResolve(), aTurn.ContextFile) : body;
-		aTurn.Answer->set_body(shown.toStdString(), "agent-turn-" + std::to_string(aTurn.Serial) + (report ? "-summary" : ""));
-		aTurn.Answer->setVisible(!body.isEmpty());
-		fit_answer(*aTurn.Answer);
-		if (const auto at = turn_of(aTurn.Serial)) {
+		const auto body = report ? summary : aTurn.AnswerText;
+		// RFC-BPR-0130 stage 5. The transcript's reader shows it, under the
+		// turn's identity, as tall as it reads.
+		aTurn.Body        = LineNavigate && LineResolve ? agent_markdown_with_reference_links(body, LineResolve(), aTurn.ContextFile) : body;
+		aTurn.BodyKey     = "agent-turn-" + std::to_string(aTurn.Serial) + (report ? "-summary" : "");
+		aTurn.BodyEmpty   = body.isEmpty();
+		const auto serial = aTurn.Serial;
+		present_transcript();
+		if (const auto at = turn_of(serial)) {
+			Transcript->refresh_reply(*at);
 			place_report_findings(*at);
 		}
-	}
-
-	void agent_tab_view::show_steered(turn& aTurn)
-	{
-		if (aTurn.SteeredBox == nullptr) {
-			return;
-		}
-		auto* const column = qobject_cast<QVBoxLayout*>(aTurn.SteeredBox->layout());
-		while (column != nullptr && column->count() > 0) {
-			auto* const item = column->takeAt(0);
-			if (auto* const widget = item->widget(); widget != nullptr) {
-				widget->hide();
-				widget->deleteLater();
-			}
-			delete item;
-		}
-		for (const auto& message : aTurn.Steered) {
-			auto* const bubble = new rounded{ rounded::look::field, aTurn.SteeredBox };
-			bubble->setObjectName(QStringLiteral("agentTurnSteered"));
-			auto* const bubbleColumn = new QVBoxLayout{ bubble };
-			bubbleColumn->setContentsMargins(10, 6, 10, 6);
-			bubbleColumn->setSpacing(2);
-			const auto  state = agent_steered_state_words(message);
-			auto* const label = new QLabel{ state, bubble };
-			label->setObjectName(QStringLiteral("agentTurnSteeredState"));
-			label->setForegroundRole(QPalette::PlaceholderText);
-			label->setWordWrap(true);
-			bubbleColumn->addWidget(label);
-			auto* const text = new QLabel{ QString::fromStdString(message.Text), bubble };
-			text->setObjectName(QStringLiteral("agentTurnSteeredText"));
-			text->setTextFormat(Qt::PlainText);
-			text->setWordWrap(true);
-			text->setTextInteractionFlags(Qt::TextSelectableByMouse);
-			bubbleColumn->addWidget(text);
-			bubble->setAccessibleName(agent_steered_accessible_name(message));
-			column->addWidget(bubble);
-		}
-		aTurn.SteeredBox->setVisible(!aTurn.Steered.empty());
 	}
 
 	void agent_tab_view::show_question(turn& aTurn)
@@ -2311,37 +2205,23 @@ namespace bpr::qt {
 		}
 		InlineCodeFile = aFileName;
 		for (const auto& kept : Turns) {
-			if (kept.Answer != nullptr) {
-				kept.Answer->set_inline_code_selector(InlineCodeFile.toStdString());
+			if (auto* const reader = reader_of(kept); reader != nullptr) {
+				reader->set_inline_code_selector(InlineCodeFile.toStdString());
 			}
 		}
 	}
 
 	auto agent_tab_view::turn_question_label(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].QuestionLabel.data() : nullptr; }
 
-	auto agent_tab_view::turn_answer_view(const std::size_t aTurn) const -> markdown_body_view* { return aTurn < Turns.size() ? Turns[aTurn].Answer.data() : nullptr; }
-
-	void agent_tab_view::fit_answer(markdown_body_view& aAnswer) const
-	{
-		// The answer is the viewport less the conversation's margins and its
-		// reply card's. Owner look v004: measured without the card's, an
-		// answer was given the height of a wider one and lost its last line.
-		constexpr auto margins = 12 + 12 + reply_left_margin + reply_right_margin;
-		const auto     width   = Viewport == nullptr ? aAnswer.width() : Viewport->width() - margins;
-		aAnswer.setFixedHeight(aAnswer.isHidden() ? 0 : aAnswer.heightForWidth(std::max(1, width)));
-	}
+	auto agent_tab_view::turn_answer_view(const std::size_t aTurn) const -> markdown_body_view* { return aTurn < Turns.size() ? Transcript->reply(aTurn) : nullptr; }
 
 	void agent_tab_view::present_thread(const std::vector<agent_thread_turn>& aTurns)
 	{
 		// Owner report 2026-11-10. A turn shown again gets its cards back.
 		retain_turn_cards();
-		for (auto& kept : Turns) {
-			if (kept.Widget != nullptr) {
-				kept.Widget->hide();
-				ThreadColumn->removeWidget(kept.Widget);
-				kept.Widget->deleteLater();
-			}
-		}
+		// The thread is drawn again from what was kept: every turn's widgets
+		// go, with its cards.
+		Transcript->present(core::chat_transcript{ });
 		// [[BPR-2184]] (review N5). A turn drawn again in its place keeps its
 		// identity and ending, so a report keyed by it still finds it.
 		auto before = std::vector<std::tuple<QString, std::uint64_t, QString>>{ };
@@ -2375,15 +2255,17 @@ namespace bpr::qt {
 			next.AnsweredAt = shown.AnsweredAt;
 			next.Outcome    = shown.Outcome;
 			next.Steered    = shown.Steered;
-			add_turn_widgets(next);
-			show_steered(next);
+			next.Line       = footer;
+			if (next.Serial == 0U) {
+				next.Serial = NextSerial++;
+			}
 			// [[BPR-1860]]. Kept before its answer is shown: the code host
 			// answers a text it has seen from its cache inside the ask, and
 			// `apply_code_syntax` hands spans only to the turns kept here.
 			Turns.push_back(std::move(next));
 			auto& kept = Turns.back();
+			present_transcript();
 			set_answer(kept, shown.Answer);
-			kept.Footer->setText(footer);
 			// [[BPR-2005]]. A turn this window saw end keeps its line and its
 			// folded block when the thread is drawn again.
 			// The same question in the same order: the latest such turn not
@@ -2398,14 +2280,12 @@ namespace bpr::qt {
 			}
 			if (seen != EndedTurns.end()) {
 				if (!worded) {
-					kept.Footer->setText(seen->Footer);
+					kept.Line = seen->Footer;
 				}
 				if (!seen->Ending.isEmpty()) {
 					set_answer(kept, seen->Ending);
 				}
-				if (kept.Activity != nullptr) {
-					kept.Activity->fold(seen->Activity, seen->Seconds);
-				}
+				kept.Ran = core::chat_activity{ .Activity = seen->Activity, .Seconds = seen->Seconds };
 			}
 			settle_reply_footer(kept);
 			// The cards this view still holds are the freshest; otherwise
@@ -2457,7 +2337,7 @@ namespace bpr::qt {
 				.Note  = restored.State == agent_finding_card_state::noted || restored.State == agent_finding_card_state::drafted ? restored.Note : 0U,
 				.Turn  = aTurn,
 			});
-			auto* const widget = make_card(CardEntries.back(), Turns[aTurn].Widget);
+			auto* const widget = make_card(CardEntries.back(), Transcript->turn_widget(aTurn));
 			Turns[aTurn].CardColumn->addWidget(widget);
 		}
 		place_report_findings(aTurn);
@@ -2513,7 +2393,7 @@ namespace bpr::qt {
 		for (auto& card : cards) {
 			card.Turn = aTurn;
 			CardEntries.push_back(std::move(card));
-			auto* const widget = make_card(CardEntries.back(), Turns[aTurn].Widget);
+			auto* const widget = make_card(CardEntries.back(), Transcript->turn_widget(aTurn));
 			Turns[aTurn].CardColumn->addWidget(widget);
 		}
 		place_report_findings(aTurn);
@@ -2544,7 +2424,7 @@ namespace bpr::qt {
 								   .Name       = kept.Name,
 								   .Edited     = kept.Edited,
 								   .Answer     = answer,
-								   .Footer     = kept.Footer != nullptr ? kept.Footer->text() : QString{ },
+								   .Footer     = kept.Line,
 								   .AskedAt    = kept.AskedAt,
 								   .AnsweredAt = kept.AnsweredAt,
 								   .Outcome    = kept.Outcome,
@@ -3121,12 +3001,10 @@ namespace bpr::qt {
 
 	void agent_tab_view::reveal_turn(const std::size_t aTurn)
 	{
-		if (aTurn >= Turns.size() || Turns[aTurn].Widget == nullptr) {
+		if (aTurn >= Turns.size() || Transcript->turn_widget(aTurn) == nullptr) {
 			return;
 		}
-		if (auto* const scroll = qobject_cast<QScrollArea*>(Viewport != nullptr ? Viewport->parentWidget() : nullptr); scroll != nullptr) {
-			scroll->ensureWidgetVisible(Turns[aTurn].Widget, 0, 12);
-		}
+		Transcript->ensureWidgetVisible(Transcript->turn_widget(aTurn), 0, 12);
 	}
 
 	void agent_tab_view::publish_explain(const std::size_t aTurn, std::optional<agent_run_status> aRunning, const QString& aEnding, const bool aAnswered, const qint64 aSeconds)
@@ -3317,7 +3195,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::update_turn()
 	{
-		if (Turns.empty() || Turns.back().Done || Turns.back().Answer == nullptr || Turns.back().Footer == nullptr) {
+		if (Turns.empty() || Turns.back().Done) {
 			return;
 		}
 		auto& current = Turns.back();
@@ -3325,7 +3203,7 @@ namespace bpr::qt {
 		// turn events said them, and how each ended.
 		if (current.Steered != Launch.steered()) {
 			current.Steered = Launch.steered();
-			show_steered(current);
+			present_transcript();
 		}
 		const auto agent   = Launch.profile_selector()->currentText();
 		const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
@@ -3336,7 +3214,7 @@ namespace bpr::qt {
 			auto status  = agent_run_status{ };
 			status.Agent = agent;
 			status.Stage = Launch.workspace_checking() ? agent_run_stage::checking : agent_run_stage::preparing;
-			current.Footer->present(status, Started);
+			Transcript->present_live(status, Started);
 			if (RunObserver) {
 				RunObserver(status, Started);
 			}
@@ -3359,11 +3237,8 @@ namespace bpr::qt {
 			if (Launch.activity_reported()) {
 				status.Activity          = Launch.activity();
 				status.ActivityStartedMs = Launch.activity_started_ms();
-				if (current.Activity != nullptr) {
-					current.Activity->present(agent_short_name(agent), Launch.activity(), Launch.activity_started_ms());
-				}
 			}
-			current.Footer->present(status, Started);
+			Transcript->present_live(status, Started);
 			if (RunObserver) {
 				RunObserver(status, Started);
 			}
@@ -3390,9 +3265,7 @@ namespace bpr::qt {
 		current.Outcome       = application::turn_outcome(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start));
 		const auto stopReason = Launch.stop_reason_text();
 		// [[BPR-2005]]. The block folds under the answer.
-		if (current.Activity != nullptr) {
-			current.Activity->fold(Launch.activity(), seconds);
-		}
+		current.Ran           = core::chat_activity{ .Activity = Launch.activity(), .Seconds = seconds };
 		const auto kept       = Launch.kept_text().trimmed();
 		const auto unfinished = Launch.last_failure() == application::agent_protocol_failure::helpers_unfinished;
 		if (succeeded && !Launch.failed_writes().empty()) {
@@ -3485,9 +3358,9 @@ namespace bpr::qt {
 		} else if (cost) {
 			present_session_cost(SessionTotal.value_or(0U) + *cost);
 		}
-		current.Footer->settle(footer, succeeded);
-		current.Footer->setToolTip(detail);
-		current.Ending = parts.front();
+		current.Line    = footer;
+		current.LineTip = detail;
+		current.Ending  = parts.front();
 		// [[BPR-2051]]. The window's footer says how it ended, for a moment,
 		// after where it started: "answered in 1:12 · $0.41 · 2 findings".
 		// RFC-BPR-0126: a settled turn may release the next queued input.
@@ -3530,10 +3403,6 @@ namespace bpr::qt {
 
 	void agent_tab_view::settle_reply_footer(turn& aTurn)
 	{
-		// Stopped reads as the agent drawers' Interrupted: in italics.
-		if (aTurn.Footer != nullptr) {
-			aTurn.Footer->settle(aTurn.Footer->text(), aTurn.Outcome == core::agent_turn_outcome::answered);
-		}
 		if (aTurn.AnsweredTime != nullptr) {
 			show_time(*aTurn.AnsweredTime, aTurn.AnsweredAt);
 		}
@@ -3542,7 +3411,6 @@ namespace bpr::qt {
 
 	void agent_tab_view::present_turn_actions()
 	{
-		const auto working = State == agent_tab_state::working;
 		// [[BPR-1876]]. Where the setup's two checks stand now; none without
 		// a setup, so no cause is ever taken as cleared.
 		const auto* const setup      = SetupView != nullptr ? &SetupView->projection() : nullptr;
@@ -3557,54 +3425,36 @@ namespace bpr::qt {
 			}
 			return std::nullopt;
 		};
-		for (auto index = std::size_t{ 0U }; index < Turns.size(); ++index) {
+		// A pass counts as made since the turn ended only once its check was
+		// seen not passed after it: a pass from before the failure says
+		// nothing about it.
+		for (auto& kept : Turns) {
+			if (const auto check = checkState(core::agent_turn_cause_of(kept.Outcome)); kept.Done && check && *check != core::setup_check_state::passed) {
+				kept.CauseRechecked = true;
+			}
+		}
+		// [[BPR-1847]], owner 2026-11-03: "Agent wizard errors shouldn't get
+		// the save as note and draft comment treatment." The core decides
+		// from how each turn ended (`core::project_agent_thread`); the
+		// transcript draws its card, Copy, recovery and Delete, and the tab
+		// its own parts of it.
+		present_transcript();
+		const auto& shown = Transcript->shown().Turns;
+		for (auto index = std::size_t{ 0U }; index < Turns.size() && index < shown.size(); ++index) {
 			auto& kept = Turns[index];
 			if (!kept.Done) {
 				continue;
 			}
-			// A pass counts as made since the turn ended only once its check
-			// was seen not passed after it: a pass from before the failure
-			// says nothing about it.
-			const auto cause = core::agent_turn_cause_of(kept.Outcome);
-			const auto check = checkState(cause);
-			if (check && *check != core::setup_check_state::passed) {
-				kept.CauseRechecked = true;
-			}
-			const auto latest = index + 1U == Turns.size();
-			// [[BPR-1847]], owner 2026-11-03: "Agent wizard errors shouldn't
-			// get the save as note and draft comment treatment." The core
-			// decides from how the turn ended; this presents it.
-			const auto actions = core::decide_agent_turn_actions({
-				.Outcome          = kept.Outcome,
-				.HasText          = !kept.AnswerText.isEmpty(),
-				.Latest           = latest,
-				.Working          = working,
-				.CausePassedSince = kept.CauseRechecked && check == std::optional{ core::setup_check_state::passed },
-				.RevisionChoice   = latest && Launch.pinned_conversation() && Launch.pinned_conversation()->Pinned && PinnedDispatch,
-			});
-			if (auto* const card = static_cast<rounded*>(kept.Reply.data()); card != nullptr) {
-				// A fixed error is no longer drawn as one that holds now.
-				const auto look        = actions.Error && !actions.FixedSince ? rounded::look::danger : rounded::look::card;
-				const auto description = !actions.Error ? QString{ } : actions.FixedSince ? tr("Error, fixed since")
-																						  : tr("Error");
-				if (card->Look != look || card->accessibleDescription() != description) {
-					card->Look = look;
-					card->setAccessibleDescription(description);
-					card->update();
-				}
-			}
+			const auto& actions = shown[index].Actions;
+			const auto  latest  = index + 1U == Turns.size();
 			if (kept.FixedNote != nullptr) {
 				if (actions.FixedSince) {
 					const auto [glyph, colour] = setup_check_mark(core::setup_check_state::passed, palette());
-					const auto what            = cause == core::agent_turn_cause::workspace_check ? tr("Fixed since: the workspace check passed.") : tr("Fixed since: %1 passed its check.").arg(agent_name().toHtmlEscaped());
+					const auto what            = core::agent_turn_cause_of(kept.Outcome) == core::agent_turn_cause::workspace_check ? tr("Fixed since: the workspace check passed.") : tr("Fixed since: %1 passed its check.").arg(agent_name().toHtmlEscaped());
 					const auto next            = actions.Recovery == core::agent_turn_recovery::resend ? QStringLiteral(" ") + tr("Resend to try it now.") : QString{ };
 					kept.FixedNote->setText(QStringLiteral("<span style=\"color:%1\">%2</span>&nbsp; <b>%3</b>%4").arg(colour.name(), glyph, what, next.toHtmlEscaped()));
 				}
 				kept.FixedNote->setVisible(actions.FixedSince);
-			}
-			if (kept.Copy != nullptr) {
-				kept.Copy->setVisible(actions.Copy);
-				kept.Copy->setToolTip(actions.Error ? tr("Copy the error and what the agent wrote") : tr("Copy the response as Markdown"));
 			}
 			// RFC-BPR-0127. One keep action: Keep local where the host found
 			// no thread or line to take a draft (or none was decided).
@@ -3614,31 +3464,6 @@ namespace bpr::qt {
 				kept.AskMore->setVisible((kept.Returning.has_value() || !kept.Explain.isEmpty() || !kept.SuggestChange.isEmpty()) && actions.Keep);
 			}
 			kept.RecoveryKind = actions.Recovery;
-			if (kept.Recovery != nullptr) {
-				switch (actions.Recovery) {
-				case core::agent_turn_recovery::none: break;
-				case core::agent_turn_recovery::resend:
-					kept.Recovery->setText(tr("Resend"));
-					kept.Recovery->setToolTip(tr("Send this message to the agent again"));
-					// [[BPR-2000]]. Resend starts a run.
-					wear_agent_accent(*kept.Recovery, palette());
-					break;
-				case core::agent_turn_recovery::agent_settings:
-					kept.Recovery->setText(tr("Agent settings…"));
-					kept.Recovery->setToolTip(tr("Check the agent's program and the form it answers in"));
-					wear_ordinary_roles(*kept.Recovery);
-					break;
-				}
-				kept.Recovery->setVisible(actions.Recovery != core::agent_turn_recovery::none);
-			}
-			if (kept.Delete != nullptr) {
-				// [[BPR-1880]]. A message the agent received is forgotten once
-				// deleted: no agent session is resumed, and the next message
-				// carries the kept thread without it.
-				kept.Delete->setToolTip(core::agent_turn_never_sent(kept.Outcome) ? tr("Remove this message from the conversation. It never reached the agent.")
-																				  : tr("Remove this message from the conversation. The agent won't be sent it again, so it won't remember it."));
-				kept.Delete->setVisible(actions.Delete);
-			}
 			if (latest && LatestFixedSince != actions.FixedSince) {
 				LatestFixedSince = actions.FixedSince;
 				present_banner();
@@ -3698,12 +3523,9 @@ namespace bpr::qt {
 			return;
 		}
 		const auto latest = aTurn + 1U == Turns.size();
-		if (auto* const widget = Turns[aTurn].Widget.data(); widget != nullptr) {
-			widget->hide();
-			ThreadColumn->removeWidget(widget);
-			widget->deleteLater();
-		}
 		Turns.erase(Turns.begin() + static_cast<std::ptrdiff_t>(aTurn));
+		// Its widgets leave the transcript; every other turn keeps its own.
+		present_transcript();
 		// The cards under later turns follow them down one place.
 		std::erase_if(CardEntries, [aTurn](const card_entry& aEntry) { return aEntry.Turn == std::optional{ aTurn }; });
 		for (auto& entry : CardEntries) {
@@ -3733,7 +3555,7 @@ namespace bpr::qt {
 		}
 	}
 
-	auto agent_tab_view::turn_copy_button(const std::size_t aTurn) const -> QToolButton* { return aTurn < Turns.size() ? Turns[aTurn].Copy.data() : nullptr; }
+	auto agent_tab_view::turn_copy_button(const std::size_t aTurn) const -> QToolButton* { return aTurn < Turns.size() ? Transcript->copy_reply(aTurn) : nullptr; }
 
 	auto agent_tab_view::turn_time(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].AnsweredTime.data() : nullptr; }
 
@@ -3781,7 +3603,7 @@ namespace bpr::qt {
 			}
 			// How it ended, as its footer says it: who answered and in how
 			// long, or why there was no answer.
-			if (const auto ending = kept.Footer != nullptr ? kept.Footer->text().trimmed() : QString{ }; !ending.isEmpty()) {
+			if (const auto ending = kept.Line.trimmed(); !ending.isEmpty()) {
 				lines << QStringLiteral("**%1**").arg(ending) << QString{ };
 			}
 			if (!kept.AnswerText.trimmed().isEmpty()) {
@@ -3826,9 +3648,9 @@ namespace bpr::qt {
 	{
 		CodeDispatch = std::move(aDispatch);
 		for (const auto& kept : Turns) {
-			if (kept.Answer != nullptr) {
-				kept.Answer->set_code_syntax_dispatch(CodeDispatch);
-				kept.Answer->request_code_syntax();
+			if (auto* const reader = reader_of(kept); reader != nullptr) {
+				reader->set_code_syntax_dispatch(CodeDispatch);
+				reader->request_code_syntax();
 			}
 		}
 	}
@@ -3836,8 +3658,8 @@ namespace bpr::qt {
 	void agent_tab_view::apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)
 	{
 		for (const auto& kept : Turns) {
-			if (kept.Answer != nullptr) {
-				kept.Answer->apply_code_syntax(aSpans);
+			if (auto* const reader = reader_of(kept); reader != nullptr) {
+				reader->apply_code_syntax(aSpans);
 			}
 		}
 	}
@@ -3848,8 +3670,8 @@ namespace bpr::qt {
 		CodeTheme = markdown_code_theme{ .Colors = code_role_colors_of(aProfile.palette()), .Variant = aProfile.variant() };
 		Tones     = tone_colours_of(aProfile);
 		for (const auto& kept : Turns) {
-			if (kept.Answer != nullptr) {
-				dress_answer(*kept.Answer);
+			if (auto* const reader = reader_of(kept); reader != nullptr) {
+				dress_answer(*reader);
 			}
 			show_verdict(kept);
 			if (kept.Tally != nullptr) {
@@ -3926,12 +3748,12 @@ namespace bpr::qt {
 
 	auto agent_tab_view::turn_activity(const std::size_t aTurn) const -> agent_activity_view*
 	{
-		return aTurn < Turns.size() ? Turns[aTurn].Activity.data() : nullptr;
+		return aTurn < Turns.size() ? Transcript->activity(aTurn) : nullptr;
 	}
 
 	auto agent_tab_view::turn_footer(const std::size_t aTurn) const -> QString
 	{
-		return aTurn < Turns.size() && Turns[aTurn].Footer != nullptr ? Turns[aTurn].Footer->text() : QString{ };
+		return aTurn < Turns.size() && Transcript->ending(aTurn) != nullptr ? Transcript->ending(aTurn)->text() : QString{ };
 	}
 
 	auto agent_tab_view::stopped_for_good() const noexcept -> bool { return Launch.stopped_for_good(); }
@@ -4473,11 +4295,11 @@ namespace bpr::qt {
 
 	auto agent_tab_view::turn_note_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].SaveNote.data() : nullptr; }
 
-	auto agent_tab_view::turn_recovery_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Recovery.data() : nullptr; }
+	auto agent_tab_view::turn_recovery_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Transcript->recovery(aTurn) : nullptr; }
 
-	auto agent_tab_view::turn_delete_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Delete.data() : nullptr; }
+	auto agent_tab_view::turn_delete_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Transcript->remove(aTurn) : nullptr; }
 
-	auto agent_tab_view::turn_reply(const std::size_t aTurn) const -> QWidget* { return aTurn < Turns.size() ? Turns[aTurn].Reply.data() : nullptr; }
+	auto agent_tab_view::turn_reply(const std::size_t aTurn) const -> QWidget* { return aTurn < Turns.size() ? Transcript->card(aTurn) : nullptr; }
 
 	auto agent_tab_view::turn_outcome(const std::size_t aTurn) const -> std::optional<core::agent_turn_outcome>
 	{
@@ -4602,7 +4424,7 @@ namespace bpr::qt {
 				.Turn     = aTurn,
 			};
 			CardEntries.push_back(std::move(entry));
-			auto* const card = make_card(CardEntries.back(), Turns[aTurn].Widget);
+			auto* const card = make_card(CardEntries.back(), Transcript->turn_widget(aTurn));
 			Turns[aTurn].CardColumn->addWidget(card);
 		}
 		place_report_findings(aTurn);
@@ -5699,14 +5521,6 @@ namespace bpr::qt {
 			}
 			return false;
 		}
-		if (aEvent->type() == QEvent::Resize && aWatched == Viewport) {
-			for (const auto& kept : Turns) {
-				if (kept.Answer != nullptr) {
-					fit_answer(*kept.Answer);
-				}
-			}
-			return false;
-		}
 		if (aEvent->type() == QEvent::MouseButtonRelease && aWatched->objectName() == QStringLiteral("agentFindingCard")) {
 			const auto id    = static_cast<std::uint64_t>(aWatched->property("agentFindingCard").toULongLong());
 			const auto found = std::ranges::find(CardEntries, id, &card_entry::Id);
@@ -5777,21 +5591,11 @@ namespace bpr::qt {
 		if (auto* const introIcon = EmptyIntro->findChild<QLabel*>(QStringLiteral("agentEmptyIcon"))) {
 			introIcon->setPixmap(drawer_icon(drawer_glyph::agent, palette()).pixmap(32, 32));
 		}
-		const auto copyIcon = drawer_icon(drawer_glyph::copy, palette());
-		for (const auto& kept : Turns) {
-			if (kept.Copy != nullptr) {
-				kept.Copy->setIcon(copyIcon);
-			}
-		}
 		// The prompt turns' glyphs follow the palette; the composer draws
-		// Send and Stop itself.
+		// Send and Stop itself, and the transcript each turn's Copy and
+		// recovery.
 		for (auto* const glyph : findChildren<QLabel*>(QStringLiteral("agentTurnPromptGlyph"))) {
 			glyph->setPixmap(agent_glyph(palette()).pixmap(QSize{ 14, 14 }));
-		}
-		for (const auto& kept : Turns) {
-			if (kept.Recovery != nullptr && kept.RecoveryKind == core::agent_turn_recovery::resend) {
-				wear_agent_accent(*kept.Recovery, palette());
-			}
 		}
 		fit_run_settings();
 	}

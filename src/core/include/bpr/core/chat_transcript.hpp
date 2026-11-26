@@ -47,6 +47,10 @@ namespace bpr::core {
 		/// The findings the turn delivered (the Agent tab's review turns);
 		/// zero says nothing.
 		std::size_t Findings = 0U;
+		/// The line as its chat kept it, which then stands for the facts
+		/// above: a stored conversation keeps a turn's line and not what it
+		/// was made from. Empty: the line is worded from the facts.
+		std::string Said;
 
 		auto operator==(const chat_ending&) const -> bool = default;
 	};
@@ -64,7 +68,8 @@ namespace bpr::core {
 	/// \brief The one ending line of every chat: how it ended, then what it
 	/// cost and the findings it delivered, joined by " · "; a line of one part
 	/// ends in a full stop. "Claude answered in 0:42 · $0.14",
-	/// "Codex answered in 1:03."
+	/// "Codex answered in 1:03." A line the chat kept (`chat_ending::Said`)
+	/// is said as it was kept.
 	[[nodiscard]] auto chat_ending_words(const chat_ending& aEnding) -> std::string;
 
 	/// \brief An item's proposal waiting in its side chat, with Use and
@@ -309,6 +314,55 @@ namespace bpr::core {
 	/// nothing, and each part a part's turn proposed. A whole tour's feedback
 	/// waiting for its draft is the last turn, with when it goes.
 	[[nodiscard]] auto project_tour_thread(const tour_agent_session& aSession, const tour_thread& aThread, const tour_thread_facts& aFacts) -> chat_transcript;
+
+	/// \brief One turn of the Agent tab's conversation about the pull
+	/// request, as the tab keeps it (RFC-BPR-0130 stage 5).
+	struct agent_thread_entry
+	{
+		/// The turn's identity in its tab; its report and its code colours
+		/// are keyed by it.
+		std::uint64_t Serial = 0U;
+		/// The message as sent; a review's turn says it was a review.
+		std::string Question;
+		/// What the reviewer steered into it while it ran.
+		std::vector<agent_steered_message> Steered;
+		/// The answer as the tab keeps it (without its findings block), or
+		/// what went wrong; it grows while the turn runs.
+		std::string Answer;
+		/// The turn's run ended.
+		bool Done = false;
+		/// How it ended, once it did.
+		agent_turn_outcome Outcome = agent_turn_outcome::answered;
+		/// Its ending line as it was said when it ended, or as the stored
+		/// conversation kept it.
+		std::string Line;
+		/// What its runtime reported it doing, where this window saw it end.
+		std::optional<chat_activity> Activity;
+		/// The check its error names was seen failing after it ended and has
+		/// passed since (`agent_turn_facts::CausePassedSince`).
+		bool CausePassedSince = false;
+
+		auto operator==(const agent_thread_entry&) const -> bool = default;
+	};
+
+	/// \brief What the Agent tab knows besides its turns.
+	struct agent_thread_facts
+	{
+		/// A run is going: no ended turn offers a recovery or Delete.
+		bool Working = false;
+		/// The pinned-revision card asks which revision to go on with, so the
+		/// latest error's recovery is that card's.
+		bool RevisionChoice = false;
+	};
+
+	/// \brief The pull request's conversation in the Agent tab as a
+	/// transcript: a turn each entry, identity `agent-turn-<serial>`; the
+	/// question, the steered messages and the answer; a turn not yet done
+	/// is running; an ended turn's line as it was said and the actions it
+	/// offers (`decide_agent_turn_actions`: Copy, the keep action, the latest
+	/// error's one recovery and Delete while nothing runs); and what its run
+	/// did, where it is known.
+	[[nodiscard]] auto project_agent_thread(const std::vector<agent_thread_entry>& aEntries, const agent_thread_facts& aFacts) -> chat_transcript;
 }
 
 #endif

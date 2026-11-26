@@ -2,10 +2,12 @@
 // ending line (RFC-BPR-0130 stage 3).
 #include "bpr/core/chat_transcript.hpp"
 
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr::core;
@@ -268,6 +270,56 @@ namespace {
 		const auto running = project_tour_thread(session, stop, facts);
 		expect(running.Turns.back().Running && !running.Turns.back().Ending && running.Turns.back().Attachments.empty(), "a running run is a running turn");
 	}
+
+	[[nodiscard]] auto entry(const std::uint64_t aSerial, const std::string_view aQuestion, const std::string_view aAnswer, const bool aDone) -> agent_thread_entry
+	{
+		auto made     = agent_thread_entry{ };
+		made.Serial   = aSerial;
+		made.Question = std::string{ aQuestion };
+		made.Answer   = std::string{ aAnswer };
+		made.Done     = aDone;
+		made.Line     = aDone ? "Claude answered in 0:42 · $0.41 · 2 findings" : "";
+		return made;
+	}
+
+	void test_the_agent_tab_projects_its_turns()
+	{
+		// RFC-BPR-0130 stage 5. A turn each entry, by its serial.
+		auto       entries = std::vector<agent_thread_entry>{ entry(3U, "Review this pull request", "Two findings.", true), entry(7U, "Why?", "Bec", false) };
+		const auto first   = project_agent_thread(entries, { });
+		expect(first.Turns.size() == 2U && first.Turns[0].Id == "agent-turn-3" && first.Turns[1].Id == "agent-turn-7", "a turn each entry, its identity the serial");
+		expect(first.Turns[0].Ending && chat_ending_words(*first.Turns[0].Ending) == "Claude answered in 0:42 · $0.41 · 2 findings", "an ended turn's line is said as it was kept");
+		expect(first.Turns[0].Actions.Copy && first.Turns[0].Actions.Keep && !first.Turns[0].Actions.Error, "an answer offers Copy and its keep action");
+		expect(first.Turns[1].Running && !first.Turns[1].Ending && first.Turns[1].Actions == agent_turn_actions{ }, "the turn not done runs, with no line and no actions");
+
+		// The answer grows: one change, naming the running turn.
+		entries[1].Answer = "Because";
+		const auto grown  = project_agent_thread(entries, { });
+		const auto delta  = chat_transcript_delta(first, grown);
+		expect(delta.size() == 1U && delta[0].Kind == kind::reply_grew && delta[0].Turn == "agent-turn-7", "a growing answer names its turn alone");
+
+		// It ends in an error: Copy, the recovery and Delete while nothing runs.
+		entries[1].Done     = true;
+		entries[1].Outcome  = agent_turn_outcome::exited_with_error;
+		entries[1].Line     = "Stopped after 0:03.";
+		entries[1].Activity = chat_activity{ .Activity = { }, .Seconds = 3 };
+		const auto  failed  = project_agent_thread(entries, { });
+		const auto& error   = failed.Turns[1];
+		expect(error.Ending && error.Ending->Outcome == agent_turn_outcome::exited_with_error && chat_ending_words(*error.Ending) == "Stopped after 0:03.", "the error's outcome and its line");
+		expect(error.Actions.Error && error.Actions.Recovery == agent_turn_recovery::resend && error.Actions.Delete && !error.Actions.Keep, "the latest error offers Resend and Delete");
+		expect(error.Activity && error.Activity->Seconds == 3, "what its run did");
+		const auto settled = chat_transcript_delta(grown, failed);
+		expect(settled.size() == 1U && settled[0].Kind == kind::settled && settled[0].Turn == "agent-turn-7", "the turn that ended settles alone");
+		const auto busy = project_agent_thread(entries, { .Working = true });
+		expect(busy.Turns[1].Actions.Recovery == agent_turn_recovery::none && !busy.Turns[1].Actions.Delete, "while a run goes no recovery or Delete is offered");
+		const auto pinned = project_agent_thread(entries, { .RevisionChoice = true });
+		expect(pinned.Turns[1].Actions.Recovery == agent_turn_recovery::none, "the pinned-revision card holds the latest error's way back");
+
+		// An earlier turn deleted: one removal.
+		entries.erase(entries.begin());
+		const auto removed = chat_transcript_delta(failed, project_agent_thread(entries, { }));
+		expect(removed.size() == 1U && removed[0].Kind == kind::removed && removed[0].Turn == "agent-turn-3", "a deleted turn is one removal");
+	}
 }
 
 auto main() -> int
@@ -278,6 +330,7 @@ auto main() -> int
 	test_turns_come_and_go();
 	test_the_item_chat_projects_its_rounds();
 	test_the_tour_chat_projects_its_runs();
+	test_the_agent_tab_projects_its_turns();
 	std::cout << "chat-transcript-tests:pass\n";
 	return EXIT_SUCCESS;
 }
