@@ -165,21 +165,27 @@ auto main(int aArgumentCount, char** aArguments) -> int
 	settle();
 	expect(!row->show_button()->isVisibleTo(&host) && !row->place()->isVisibleTo(&host) && row->history_tool()->isVisibleTo(&host) && row->close_tool()->isVisibleTo(&host), "the whole tour's row: its name, History, close");
 
-	// An item's chat and a local draft's discussion keep no sessions: Copy
-	// conversation is the row's own tool.
-	for (const auto kind : { core::chat_kind::review_item, core::chat_kind::local_draft_discussion }) {
-		host.resize(300, 200);
-		row->present(core::plan_chat_header({ .Kind = kind, .Subject = "Suggested comment", .Place = "agent_queue_host.cpp, lines 212 to 218", .CanShow = true, .Cost = core::agent_cost{ 140'000'000U } }));
-		settle();
-		const auto where = std::string{ kind == core::chat_kind::review_item ? "an item's chat" : "a local draft's discussion" };
-		expect(row->copy_tool()->isVisibleTo(&host) && !row->history_tool()->isVisibleTo(&host) && row->close_tool()->isVisibleTo(&host) && row->show_button()->isVisibleTo(&host), where + ": Show, Copy conversation, close and no History");
-		expect(row->copy_tool()->accessibleName() == QStringLiteral("Copy conversation") && row->copy_tool()->toolTip() == QStringLiteral("Copy this conversation as text. This conversation has cost $0.14 so far."),
-			   where + ": Copy says what the conversation has cost, where a session's row would: " + row->copy_tool()->toolTip().toStdString());
-		expect(row->show_button()->text() == QStringLiteral("Show"), where + ": Show in the narrowest column");
-		expect_fits(*row, where + " at 300");
-		row->copy_tool()->click();
-	}
-	expect(copies == 2, "Copy conversation reaches the chat");
+	// An item's chat keeps sessions and offers Copy from History.
+	host.resize(300, 200);
+	row->present(core::plan_chat_header({ .Kind = core::chat_kind::review_item, .Subject = "Suggested comment", .Place = "agent_queue_host.cpp, lines 212 to 218", .CanShow = true }));
+	settle();
+	expect(row->history_tool()->isVisibleTo(&host) && !row->copy_tool()->isVisibleTo(&host) && row->close_tool()->isVisibleTo(&host) && row->show_button()->isVisibleTo(&host),
+		   "an item's chat shows Show, History and close");
+	expect(row->history_tool()->toolTip() == QStringLiteral("History: this chat's sessions, and New session"), "item History names its sessions and New session");
+	expect(row->show_button()->text() == QStringLiteral("Show"), "the item chat says Show in the narrowest column");
+	expect_fits(*row, "an item's chat at 300");
+
+	// A local draft's discussion is one conversation, with Copy in the row.
+	row->present(core::plan_chat_header({ .Kind = core::chat_kind::local_draft_discussion, .Subject = "Suggested comment", .Place = "agent_queue_host.cpp, lines 212 to 218", .CanShow = true, .Cost = core::agent_cost{ 140'000'000U } }));
+	settle();
+	expect(row->copy_tool()->isVisibleTo(&host) && !row->history_tool()->isVisibleTo(&host) && row->close_tool()->isVisibleTo(&host) && row->show_button()->isVisibleTo(&host),
+		   "a local draft's discussion shows Show, Copy conversation and close");
+	expect(row->copy_tool()->accessibleName() == QStringLiteral("Copy conversation") && row->copy_tool()->toolTip() == QStringLiteral("Copy this conversation as text. This conversation has cost $0.14 so far."),
+		   "Copy says what the local draft's discussion has cost");
+	expect(row->show_button()->text() == QStringLiteral("Show"), "the local draft discussion says Show in the narrowest column");
+	expect_fits(*row, "a local draft's discussion at 300");
+	row->copy_tool()->click();
+	expect(copies == 1, "Copy conversation reaches the local draft's discussion");
 
 	if (const auto root = qEnvironmentVariable("BPR_CHAT_HEADER_RENDER_DIR"); !root.isEmpty()) {
 		host.resize(300, 120);
