@@ -353,6 +353,142 @@ namespace {
 		settle();
 		expect(view->turn_count() == 1U && widgets_of(*view, 0U) == first, "the deleted turn leaves alone");
 	}
+
+	/// The tab stops after \p aFrom, as Qt's focus order has them, up to \p aCount.
+	[[nodiscard]] auto tab_stops_after(QWidget& aFrom, const std::size_t aCount) -> std::vector<QWidget*>
+	{
+		auto stops = std::vector<QWidget*>{ };
+		for (auto* next = aFrom.nextInFocusChain(); next != nullptr && next != &aFrom && stops.size() < aCount; next = next->nextInFocusChain()) {
+			if ((next->focusPolicy() & Qt::TabFocus) != 0 && next->isVisible() && next->isEnabled()) {
+				stops.push_back(next);
+			}
+		}
+		return stops;
+	}
+
+	[[nodiscard]] auto top_in(const QWidget& aCard, const QWidget& aWidget) -> int { return aWidget.mapTo(&aCard, QPoint{ }).y(); }
+
+	/// RFC-BPR-0130 stage 5. The Agent tab's verdict, report, Draft all and
+	/// cards are attachments: the verdict over the reply after the chat's own
+	/// parts there, the rest under it before the ending line; an attachment
+	/// made after its turn is reached by Tab where it stands; an equal one is
+	/// kept and one that changed is made again alone.
+	void test_the_card_look_hangs_attachments()
+	{
+		auto window = QWidget{ };
+		auto named  = names();
+		named.Turns = QStringLiteral("testTurns");
+		named.Card  = QStringLiteral("testCard");
+		auto* view  = new qt::chat_transcript_view{ named, &window, qt::chat_transcript_look::card };
+		auto  made  = std::vector<std::string>{ };
+		view->set_parts({
+			.DressReader = { },
+			.MakeAttachment =
+				[&made](const core::chat_turn& aTurn, const core::chat_attachment& aAttachment, QWidget* aHolder) -> QWidget* {
+				made.push_back(aTurn.Id + ":" + aAttachment.Key);
+				if (const auto* const verdict = std::get_if<core::chat_agent_verdict>(&aAttachment.Payload); verdict != nullptr) {
+					auto* const label = new QLabel{ QString::fromStdString(verdict->Word), aHolder };
+					label->setObjectName(QStringLiteral("testVerdict"));
+					return label;
+				}
+				if (const auto* const report = std::get_if<core::chat_agent_report>(&aAttachment.Payload); report != nullptr) {
+					auto* const row = new QPushButton{ QString::fromStdString(report->Title), aHolder };
+					row->setObjectName(QStringLiteral("testReport"));
+					row->setFocusPolicy(Qt::StrongFocus);
+					return row;
+				}
+				if (const auto* const findings = std::get_if<core::chat_agent_findings>(&aAttachment.Payload); findings != nullptr) {
+					auto* const holder = new QWidget{ aHolder };
+					holder->setObjectName(QStringLiteral("testFindings"));
+					auto* const column = new QVBoxLayout{ holder };
+					column->setContentsMargins(0, 0, 0, 0);
+					for (const auto card : findings->Cards) {
+						auto* const button = new QPushButton{ QStringLiteral("Card %1").arg(card), holder };
+						button->setFocusPolicy(Qt::StrongFocus);
+						column->addWidget(button);
+					}
+					return holder;
+				}
+				return nullptr;
+			},
+			.Act           = { },
+			.DressBubble   = { },
+			.ReplyBody     = { },
+			.Stop          = { },
+			.ReplyIdentity = { },
+			.DressCard =
+				[](const core::chat_turn& /*aTurn*/, const qt::chat_transcript_view::card_slots& aSlots) {
+					auto* const over = new QLabel{ QStringLiteral("Over the reply"), aSlots.Card };
+					over->setObjectName(QStringLiteral("testOver"));
+					aSlots.BeforeReply->addWidget(over);
+				},
+			.DressFoot   = { },
+			.DressEnding = { },
+		});
+		window.resize(360, 900);
+		view->resize(360, 900);
+		window.show();
+
+		// A turn running holds nothing; it ends a report with two cards.
+		auto entries        = std::vector<core::agent_thread_entry>(1U);
+		entries[0].Serial   = 1U;
+		entries[0].Question = "Review this pull request";
+		entries[0].Answer   = "Two findings.";
+		view->present(core::project_agent_thread(entries, { .Working = true }));
+		settle();
+		expect(made.empty() && view->attachment(0U, "report") == nullptr, "a running turn holds nothing");
+		entries[0].Done    = true;
+		entries[0].Line    = "Claude answered in 0:42";
+		entries[0].Report  = core::chat_agent_report{ .Title = "Review", .Sections = 2U };
+		entries[0].Verdict = core::chat_agent_verdict{ .Word = "Needs changes", .Tone = core::report_tone::open };
+		entries[0].Cards   = { 11U, 12U };
+		view->present(core::project_agent_thread(entries, { }));
+		settle();
+		expect(made == std::vector<std::string>{ "agent-turn-1:verdict", "agent-turn-1:report", "agent-turn-1:draft-all", "agent-turn-1:findings" }, "the factory makes each attachment once: " + std::to_string(made.size()));
+		auto* const card     = view->card(0U);
+		auto* const verdict  = view->attachment(0U, "verdict");
+		auto* const report   = view->attachment(0U, "report");
+		auto* const findings = view->attachment(0U, "findings");
+		auto* const over     = card->findChild<QLabel*>(QStringLiteral("testOver"));
+		expect(verdict != nullptr && report != nullptr && findings != nullptr && over != nullptr && verdict->isVisibleTo(&window) && report->isVisibleTo(&window), "the verdict, the report and the cards are drawn");
+		const auto reader = top_in(*card, *view->reply(0U));
+		expect(top_in(*card, *over) < top_in(*card, *verdict) && top_in(*card, *verdict) < reader, "the verdict stands over the reply, after the chat's own part there");
+		expect(reader < top_in(*card, *report) && top_in(*card, *report) < top_in(*card, *findings) && top_in(*card, *findings) < top_in(*card, *view->ending(0U)), "the report and the cards stand under the reply, before the ending line");
+		// Made after the turn, they are still reached where they stand: the
+		// report, its cards, then Copy.
+		const auto stops = tab_stops_after(*report, 3U);
+		const auto cards = findings->findChildren<QPushButton*>();
+		auto       said  = std::string{ };
+		for (auto* const stop : stops) {
+			said += " " + (stop->objectName().isEmpty() ? std::string{ stop->metaObject()->className() } : stop->objectName().toStdString());
+		}
+		expect(cards.size() == 2 && stops.size() == 3U && stops[0] == cards[0] && stops[1] == cards[1] && stops[2] == view->copy_reply(0U), "Tab goes from the report through its cards to Copy:" + said);
+
+		// A card more: the cards are made again, the rest kept.
+		made.clear();
+		entries[0].Cards.push_back(13U);
+		view->present(core::project_agent_thread(entries, { }));
+		settle();
+		expect(made == std::vector<std::string>{ "agent-turn-1:findings" } && view->attachment(0U, "report") == report && view->attachment(0U, "verdict") == verdict, "a changed attachment is made again alone");
+		expect(view->attachment(0U, "findings") != findings && view->attachment(0U, "findings")->findChildren<QPushButton*>().size() == 3, "the cards as they now stand");
+
+		// The verdict is gone: its widget goes, the others stay.
+		entries[0].Verdict.reset();
+		view->present(core::project_agent_thread(entries, { }));
+		settle();
+		expect(view->attachment(0U, "verdict") == nullptr && view->attachment(0U, "report") == report, "an attachment the turn no longer holds goes alone");
+
+		// A turn that holds its attachments when it is first drawn makes them
+		// with its own parts, in reading order.
+		auto second   = entries[0];
+		second.Serial = 2U;
+		second.Cards  = { };
+		entries.push_back(second);
+		view->present(core::project_agent_thread(entries, { }));
+		settle();
+		auto* const early = view->attachment(1U, "report");
+		expect(early != nullptr && early->isVisibleTo(&window) && tab_stops_after(*early, 1U) == std::vector<QWidget*>{ view->copy_reply(1U) }, "a report made with its turn is reached before Copy");
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -363,6 +499,7 @@ auto main(int argc, char** argv) -> int
 	test_the_item_chat_keeps_its_earlier_rounds();
 	test_the_tour_chat_keeps_its_other_turns();
 	test_the_card_look_keeps_every_other_turn();
+	test_the_card_look_hangs_attachments();
 	std::cout << "chat-transcript-view-tests:pass\n";
 	return EXIT_SUCCESS;
 }

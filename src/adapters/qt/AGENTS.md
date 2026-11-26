@@ -177,7 +177,13 @@ themes, rendering mechanics, and event translation.
   open question 1's default). The view changes only the turns
   `core::chat_transcript_delta` names, so a reply that grows never draws the
   other turns again; a chat does not rebuild its column. What a chat hangs on
-  a turn (a proposal, a card) is an attachment its factory makes. A turn's
+  a turn (a proposal, a card) is an attachment its projector names and its
+  factory makes: the Agent tab's verdict over the reply, and its report row,
+  Draft all and finding cards under it, too. An attachment widget stands in
+  its turn's layout itself, so one whose parts are all hidden hides as well
+  (shown, a holder of hidden cards still takes the column's spacing); one
+  made after
+  its turn is reached by Tab where it stands. A turn's
   ending line is `core::chat_ending_words` in every chat: who, how long,
   what it cost.
 - A card the next question waits on, or that reports the turn at the thread's

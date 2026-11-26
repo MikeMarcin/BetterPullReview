@@ -320,6 +320,55 @@ namespace {
 		const auto removed = chat_transcript_delta(failed, project_agent_thread(entries, { }));
 		expect(removed.size() == 1U && removed[0].Kind == kind::removed && removed[0].Turn == "agent-turn-3", "a deleted turn is one removal");
 	}
+
+	[[nodiscard]] auto keys_of(const chat_turn& aTurn) -> std::vector<std::string>
+	{
+		auto keys = std::vector<std::string>{ };
+		for (const auto& attachment : aTurn.Attachments) {
+			keys.push_back(attachment.Key);
+		}
+		return keys;
+	}
+
+	void test_the_agent_tab_hangs_its_parts_on_a_turn()
+	{
+		// RFC-BPR-0130 stage 5. A plain answer holds nothing.
+		auto       entries = std::vector<agent_thread_entry>{ entry(3U, "Review this pull request", "Two findings.", true), entry(4U, "Why?", "Because.", true) };
+		const auto plain   = project_agent_thread(entries, { });
+		expect(plain.Turns[0].Attachments.empty() && plain.Turns[1].Attachments.empty(), "an answer that is no report and brought no cards holds nothing");
+
+		// A report with its verdict and cards: the verdict over the reply, then
+		// under it the report's row, Draft all and the cards, in that order.
+		entries[0].Report  = chat_agent_report{ .Title = "Review of the change", .Sections = 3U };
+		entries[0].Verdict = chat_agent_verdict{ .Word = "Needs changes", .Tone = report_tone::open };
+		entries[0].Cards   = { 11U, 12U };
+		const auto  report = project_agent_thread(entries, { });
+		const auto& held   = report.Turns[0];
+		expect(keys_of(held) == std::vector<std::string>{ "verdict", "report", "draft-all", "findings" }, "the verdict, the report, Draft all and the cards, in order");
+		expect(held.Attachments[0].Place == chat_attachment_place::before_reply && held.Attachments[1].Place == chat_attachment_place::after_reply && held.Attachments[2].Place == chat_attachment_place::after_reply
+				   && held.Attachments[3].Place == chat_attachment_place::after_reply,
+			   "the verdict stands over the reply and the rest under it");
+		const auto* const verdict = std::get_if<chat_agent_verdict>(&held.Attachments[0].Payload);
+		const auto* const row     = std::get_if<chat_agent_report>(&held.Attachments[1].Payload);
+		const auto* const cards   = std::get_if<chat_agent_findings>(&held.Attachments[3].Payload);
+		expect(verdict != nullptr && verdict->Word == "Needs changes" && verdict->Tone == report_tone::open, "the verdict as the report gives it");
+		expect(row != nullptr && row->Title == "Review of the change" && row->Sections == 3U, "the report's row names it and counts its sections");
+		expect(cards != nullptr && cards->Cards == std::vector<std::uint64_t>{ 11U, 12U }, "the cards by their identity, in order");
+		expect(keys_of(report.Turns[1]).empty(), "the other turn holds nothing");
+		const auto hung = chat_transcript_delta(plain, report);
+		expect(hung.size() == 1U && hung[0].Kind == kind::changed && hung[0].Turn == "agent-turn-3", "hanging parts on a turn changes that turn alone");
+
+		// A card more: the cards change, nothing else does.
+		entries[0].Cards.push_back(13U);
+		const auto        more = project_agent_thread(entries, { });
+		const auto* const s    = std::get_if<chat_agent_findings>(&more.Turns[0].Attachments[3].Payload);
+		expect(s != nullptr && s->Cards.size() == 3U && more.Turns[0].Attachments[2] == report.Turns[0].Attachments[2] && more.Turns[0].Attachments[1] == report.Turns[0].Attachments[1], "a card more changes the cards alone");
+
+		// Cards without a report: Draft all and the cards, no row or verdict.
+		entries[0].Report.reset();
+		entries[0].Verdict.reset();
+		expect(keys_of(project_agent_thread(entries, { }).Turns[0]) == std::vector<std::string>{ "draft-all", "findings" }, "cards without a report hang Draft all and the cards alone");
+	}
 }
 
 auto main() -> int
@@ -331,6 +380,7 @@ auto main() -> int
 	test_the_item_chat_projects_its_rounds();
 	test_the_tour_chat_projects_its_runs();
 	test_the_agent_tab_projects_its_turns();
+	test_the_agent_tab_hangs_its_parts_on_a_turn();
 	std::cout << "chat-transcript-tests:pass\n";
 	return EXIT_SUCCESS;
 }

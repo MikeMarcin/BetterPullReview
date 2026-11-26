@@ -4,6 +4,7 @@
 #include "bpr/core/agent_activity.hpp"
 #include "bpr/core/agent_cost.hpp"
 #include "bpr/core/agent_follow_up.hpp"
+#include "bpr/core/agent_report.hpp"
 #include "bpr/core/agent_steering.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/tour_agent_session.hpp"
@@ -148,12 +149,53 @@ namespace bpr::core {
 		auto operator==(const chat_tour_proposal&) const -> bool = default;
 	};
 
+	/// \brief The Agent tab: a report's verdict, over the summary its reply
+	/// shows (RFC-BPR-0130 stage 5).
+	struct chat_agent_verdict
+	{
+		/// The verdict as the report words it ("Needs changes").
+		std::string Word;
+		report_tone Tone = report_tone::neutral;
+
+		auto operator==(const chat_agent_verdict&) const -> bool = default;
+	};
+
+	/// \brief The Agent tab: the report a long answer is, as the one row
+	/// under its summary that opens it.
+	struct chat_agent_report
+	{
+		/// What the row names it (`report_card::Title`).
+		std::string Title;
+		/// Its sections, without the title.
+		std::size_t Sections = 0U;
+
+		auto operator==(const chat_agent_report&) const -> bool = default;
+	};
+
+	/// \brief The Agent tab: Draft all over a turn's finding cards. What it
+	/// offers and what its last press did are the tab's, as its cards change.
+	struct chat_agent_draft_all
+	{
+		auto operator==(const chat_agent_draft_all&) const -> bool = default;
+	};
+
+	/// \brief The Agent tab: the findings a turn delivered, as cards, by the
+	/// tab's identity of each card, in order.
+	struct chat_agent_findings
+	{
+		std::vector<std::uint64_t> Cards;
+
+		auto operator==(const chat_agent_findings&) const -> bool = default;
+	};
+
 	/// \brief Where an attachment stands in its turn.
 	enum class chat_attachment_place : std::uint8_t {
 		/// After the ending line and what the run did.
 		after_ending,
 		/// Under the reply, before the ending line: what the reply is.
 		after_reply,
+		/// Over the reply: how the reply reads (a report's verdict).
+		before_reply,
 	};
 
 	/// \brief Something a chat's own projector hangs on a turn, drawn by the
@@ -161,9 +203,9 @@ namespace bpr::core {
 	struct chat_attachment
 	{
 		/// Its identity within its turn.
-		std::string                                                                                                                                             Key;
-		std::variant<chat_follow_up_proposal, chat_tour_check, chat_tour_focus, chat_tour_revision, chat_tour_refused, chat_tour_unchanged, chat_tour_proposal> Payload;
-		chat_attachment_place                                                                                                                                   Place = chat_attachment_place::after_ending;
+		std::string                                                                                                                                                                                                                               Key;
+		std::variant<chat_follow_up_proposal, chat_tour_check, chat_tour_focus, chat_tour_revision, chat_tour_refused, chat_tour_unchanged, chat_tour_proposal, chat_agent_verdict, chat_agent_report, chat_agent_draft_all, chat_agent_findings> Payload;
+		chat_attachment_place                                                                                                                                                                                                                     Place = chat_attachment_place::after_ending;
 
 		auto operator==(const chat_attachment&) const -> bool = default;
 	};
@@ -341,6 +383,12 @@ namespace bpr::core {
 		/// The check its error names was seen failing after it ended and has
 		/// passed since (`agent_turn_facts::CausePassedSince`).
 		bool CausePassedSince = false;
+		/// The report its answer is, and the verdict that report gives, where
+		/// the tab shows its answer as a report.
+		std::optional<chat_agent_report>  Report;
+		std::optional<chat_agent_verdict> Verdict;
+		/// Its finding cards, by the tab's identity of each, in order.
+		std::vector<std::uint64_t> Cards;
 
 		auto operator==(const agent_thread_entry&) const -> bool = default;
 	};
@@ -360,8 +408,10 @@ namespace bpr::core {
 	/// question, the steered messages and the answer; a turn not yet done
 	/// is running; an ended turn's line as it was said and the actions it
 	/// offers (`decide_agent_turn_actions`: Copy, the keep action, the latest
-	/// error's one recovery and Delete while nothing runs); and what its run
-	/// did, where it is known.
+	/// error's one recovery and Delete while nothing runs); what its run did,
+	/// where it is known; and as attachments the report's verdict over the
+	/// reply (`verdict`), then under it the report's row (`report`), and while
+	/// the turn has cards Draft all (`draft-all`) and the cards (`findings`).
 	[[nodiscard]] auto project_agent_thread(const std::vector<agent_thread_entry>& aEntries, const agent_thread_facts& aFacts) -> chat_transcript;
 }
 
