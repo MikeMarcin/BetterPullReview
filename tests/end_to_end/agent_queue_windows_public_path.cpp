@@ -158,21 +158,23 @@ namespace {
 
 	auto press_in(qt::workbench_window& aWindow, const QString& aName, const QString& aLabel = { }) -> bool
 	{
-		auto* const list = aWindow.agent_tab()->queue_list();
-		auto* const card = aLabel.isEmpty() ? nullptr : card_of(aWindow, aLabel);
-		auto* const in   = card != nullptr ? card : static_cast<QWidget*>(list);
-		if (!aLabel.isEmpty() && card == nullptr) {
+		auto* const  list   = aWindow.agent_tab()->queue_list();
+		QPushButton* button = nullptr;
+		// The rebuilt row can enter the widget tree before Qt shows its
+		// controls. Press only the current, visible button.
+		if (!e2e::wait_until_plain([&] {
+				auto* const in = aLabel.isEmpty() ? static_cast<QWidget*>(list) : card_of(aWindow, aLabel);
+				if (in != nullptr) {
+					const auto buttons = in->findChildren<QPushButton*>(aName);
+					const auto shown   = std::ranges::find_if(buttons, [list](const QPushButton* aButton) { return aButton->isVisibleTo(list) && aButton->isEnabled(); });
+					button             = shown == buttons.end() ? nullptr : *shown;
+				}
+				return button != nullptr;
+			},
+								   e2e::default_queue_budget)) {
+			std::cerr << "agent-queue-windows: " << aName.toStdString() << " is unavailable\n";
 			return false;
 		}
-		// A row the list rebuilt waits for deletion beside its replacement:
-		// the shown one is pressed.
-		const auto buttons = in->findChildren<QPushButton*>(aName);
-		const auto shown   = std::ranges::find_if(buttons, [list](const QPushButton* aButton) { return aButton->isVisibleTo(list); });
-		if (shown == buttons.end()) {
-			std::cerr << "agent-queue-windows: " << buttons.size() << " " << aName.toStdString() << " buttons, none shown\n";
-			return false;
-		}
-		auto* const button = *shown;
 		button->click();
 		QApplication::processEvents();
 		return true;
@@ -612,7 +614,13 @@ auto main(int argc, char** argv) -> int
 			static_cast<void>(first->agent_tab()->grab().save(root + QStringLiteral("/first-window.png")));
 			static_cast<void>(second->agent_tab()->grab().save(root + QStringLiteral("/second-window.png")));
 		}
-		auto* const field = second->agent_tab()->queue_list()->findChild<QLineEdit*>(QStringLiteral("agentQueueEditField"));
+		auto* const editingList = second->agent_tab()->queue_list();
+		QLineEdit*  field       = nullptr;
+		wait([&] {
+			field = editingList->findChild<QLineEdit*>(QStringLiteral("agentQueueEditField"));
+			return field != nullptr && field->isVisibleTo(editingList);
+		},
+			 "the editor is shown in the second window");
 		expect(field != nullptr && field->text() == QStringLiteral("First follow-up"), "edited in place in the second window");
 		field->setText(QStringLiteral("First follow-up, edited"));
 		expect(press_in(*second, QStringLiteral("agentQueueSave")), "Save in the second window");
