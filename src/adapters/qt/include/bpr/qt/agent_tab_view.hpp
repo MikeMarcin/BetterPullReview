@@ -13,6 +13,7 @@
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_draft_all.hpp"
 #include "bpr/core/agent_finding.hpp"
+#include "bpr/core/agent_live_turn.hpp"
 #include "bpr/core/agent_question.hpp"
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/agent_turn.hpp"
@@ -1083,11 +1084,12 @@ namespace bpr::qt {
 			/// [[BPR-2005]]. What its run did, where this window saw it end.
 			std::optional<core::chat_activity> Ran;
 			QPointer<QPushButton>              SaveNote;
-			QPointer<QVBoxLayout>              CardColumn;
-			QPointer<QLabel>                   AskedTime;
-			QPointer<QLabel>                   AnsweredTime;
-			QDateTime                          AskedAt;
-			QDateTime                          AnsweredAt;
+			/// The attachment its finding cards stand in.
+			QPointer<QWidget> Findings;
+			QPointer<QLabel>  AskedTime;
+			QPointer<QLabel>  AnsweredTime;
+			QDateTime         AskedAt;
+			QDateTime         AnsweredAt;
 			/// Names the answer's body, so its code is coloured as its own; the
 			/// turn's stable identity, which its report is keyed by.
 			std::uint64_t Serial = 0U;
@@ -1126,11 +1128,15 @@ namespace bpr::qt {
 			std::string       VerdictWord;
 			core::report_tone VerdictTone = core::report_tone::neutral;
 			/// RFC-BPR-0128 ([[BPR-2166]]). A long answer is a report card
-			/// here, opened as a file tab.
-			QPointer<QWidget>     ReportCard;
-			QPointer<QLabel>      ReportTitle;
-			QPointer<QLabel>      ReportMeta;
-			QPointer<QPushButton> ReportOpen;
+			/// here, opened as a file tab: what its row names it, its
+			/// sections and the summary's counts.
+			QString                          ReportTitleText;
+			std::size_t                      ReportSections = 0U;
+			std::vector<core::dressed_count> ReportTally;
+			QPointer<QWidget>                ReportCard;
+			QPointer<QLabel>                 ReportTitle;
+			QPointer<QLabel>                 ReportMeta;
+			QPointer<QPushButton>            ReportOpen;
 			/// [[BPR-2331]]. The report's summary over its attachment, and
 			/// whether the attachment shows.
 			QPointer<report_tally_view> Tally;
@@ -1203,14 +1209,28 @@ namespace bpr::qt {
 		[[nodiscard]] auto reader_of(const turn& aTurn) const -> markdown_body_view*;
 		/// The Agent tab's own parts of a turn, made with it by the
 		/// transcript: the question's words, what it was about and the prompt
-		/// it was sent from; the notes over the answer, the report, Draft all
-		/// and the finding cards under it; the keep action and Ask more.
+		/// it was sent from; the notes over the answer; the keep action and
+		/// Ask more.
 		void dress_question(turn& aTurn, QWidget& aBubble, QVBoxLayout& aColumn, QLabel& aQuestion);
 		void dress_card(turn& aTurn, const chat_transcript_view::card_slots& aSlots);
 		void dress_foot(turn& aTurn, QWidget& aCard, QHBoxLayout& aActions);
-		void act_on_turn(const std::string& aId, chat_turn_gesture aGesture);
-		void set_answer(turn& aTurn, const QString& aText);
-		void settle_reply_footer(turn& aTurn);
+		/// RFC-BPR-0130 stage 5. What the tab hangs on a turn, as the
+		/// projector says it holds it (the verdict over the reply; the
+		/// report's row, Draft all and the finding cards under it), made by
+		/// the transcript when it does. The cards are made from their records,
+		/// as they stand, each time the turn's cards change.
+		[[nodiscard]] auto make_attachment(turn& aTurn, const core::chat_attachment& aAttachment, QWidget* aParent) -> QWidget*;
+		[[nodiscard]] auto make_report_row(turn& aTurn, const core::chat_agent_report& aReport, QWidget* aParent) -> QWidget*;
+		[[nodiscard]] auto make_draft_all(turn& aTurn, QWidget* aParent) -> QWidget*;
+		[[nodiscard]] auto make_turn_cards(turn& aTurn, const core::chat_agent_findings& aFindings, QWidget* aParent) -> QWidget*;
+		/// The turn's card holder shows while any of its cards does: hidden
+		/// cards alone would still take the card's spacing.
+		static void show_turn_cards(const turn& aTurn);
+		/// The report the tab shows open, whose row reads selected.
+		std::optional<std::uint64_t> OpenReport;
+		void                         act_on_turn(const std::string& aId, chat_turn_gesture aGesture);
+		void                         set_answer(turn& aTurn, const QString& aText);
+		void                         settle_reply_footer(turn& aTurn);
 		/// [[BPR-1847]]. Each ended turn's actions, as the core decides them.
 		void present_turn_actions();
 		void recover(const turn& aTurn);
@@ -1285,7 +1305,13 @@ namespace bpr::qt {
 		/// [[BPR-1773]]. The conversation chip shown when it was sent.
 		std::optional<agent_conversation_chip>   PendingAbout;
 		std::optional<agent_answer_draft_target> PendingDraftTarget;
-		int                                      LastPhase = 0;
+		/// RFC-BPR-0130 stage 5. The running turn as the core folds what the
+		/// run is seen doing (`core::reduce_agent_live_turn`): its phase as
+		/// last seen when the run reported progress, which says when a turn
+		/// begins and ends.
+		core::agent_live_turn Live;
+		/// What the run is seen doing now, as the core reads it.
+		[[nodiscard]] auto observe_run() const -> core::agent_live_observation;
 		/// How many times findings were presented, and the count when the
 		/// running turn began: a turn names only the findings it brought.
 		std::uint64_t FindingsPresented = 0U;

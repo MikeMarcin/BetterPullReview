@@ -35,6 +35,52 @@ namespace bpr::qt {
 	using side_chat::small;
 	using side_chat::words;
 
+	namespace {
+		/// An attachment a turn holds and the widget its chat's factory made
+		/// for it.
+		struct made_attachment
+		{
+			std::string           Key;
+			core::chat_attachment Value;
+			QPointer<QWidget>     Widget;
+		};
+
+		/// Puts \p aMoved, and what it holds, just before \p aBefore in their
+		/// window's focus order. A widget joins the end of that order when it
+		/// is made, so an attachment made after its turn would otherwise be
+		/// reached after the turn's foot. Qt moves one widget at a time and
+		/// orders only widgets that take focus, so each of them takes it for as
+		/// long as this lasts.
+		void focus_before(QWidget& aMoved, QWidget& aBefore)
+		{
+			auto* const previous = aBefore.previousInFocusChain();
+			if (previous == nullptr || previous == &aMoved || aMoved.isAncestorOf(previous) || previous->window() != aMoved.window()) {
+				return;
+			}
+			auto moved = std::vector<QWidget*>{ &aMoved };
+			for (auto* next = aMoved.nextInFocusChain(); next != nullptr && next != &aMoved && aMoved.isAncestorOf(next); next = next->nextInFocusChain()) {
+				moved.push_back(next);
+			}
+			auto policies = std::vector<Qt::FocusPolicy>{ };
+			policies.reserve(moved.size());
+			for (auto* const widget : moved) {
+				policies.push_back(widget->focusPolicy());
+				widget->setFocusPolicy(Qt::TabFocus);
+			}
+			const auto prior = previous->focusPolicy();
+			previous->setFocusPolicy(Qt::TabFocus);
+			auto* after = previous;
+			for (auto* const widget : moved) {
+				QWidget::setTabOrder(after, widget);
+				after = widget;
+			}
+			previous->setFocusPolicy(prior);
+			for (std::size_t index = 0U; index < moved.size(); ++index) {
+				moved[index]->setFocusPolicy(policies[index]);
+			}
+		}
+	}
+
 	/// One turn, in either look: each part is changed in place when the turn
 	/// changes.
 	class chat_transcript_view::any_turn_view : public QWidget
@@ -287,13 +333,6 @@ namespace bpr::qt {
 			Activity = made;
 		}
 
-		struct made_attachment
-		{
-			std::string           Key;
-			core::chat_attachment Value;
-			QPointer<QWidget>     Widget;
-		};
-
 		[[nodiscard]] auto answered() const -> bool { return Turn.Ending && Turn.Ending->Outcome == core::agent_turn_outcome::answered; }
 
 		void act(const chat_turn_gesture aGesture) const
@@ -410,7 +449,7 @@ namespace bpr::qt {
 					Made.erase(found);
 					continue;
 				}
-				auto* const holder = attachment.Place == core::chat_attachment_place::after_reply ? ReplyAttachments : Attachments;
+				auto* const holder = attachment.Place != core::chat_attachment_place::after_ending ? ReplyAttachments : Attachments;
 				auto* const widget = Owner.Parts.MakeAttachment ? Owner.Parts.MakeAttachment(Turn, attachment, holder) : nullptr;
 				kept.push_back({ .Key = attachment.Key, .Value = attachment, .Widget = widget });
 			}
@@ -430,7 +469,7 @@ namespace bpr::qt {
 				if (widget == nullptr) {
 					continue;
 				}
-				const auto  underReply = each.Value.Place == core::chat_attachment_place::after_reply;
+				const auto  underReply = each.Value.Place != core::chat_attachment_place::after_ending;
 				auto* const layout     = underReply ? ReplyHeld : Held;
 				auto&       at         = placed[underReply ? 1U : 0U];
 				if (layout->indexOf(widget) != at) {
@@ -491,6 +530,7 @@ namespace bpr::qt {
 			const auto settled = !first && Turn.Running && !aTurn.Running;
 			const auto steered = first || aTurn.Steered != Turn.Steered;
 			const auto changed = first || settled || aTurn.Activity != Turn.Activity;
+			const auto held    = !first && aTurn.Attachments != Turn.Attachments;
 			Turn               = aTurn;
 			if (first) {
 				make();
@@ -498,6 +538,9 @@ namespace bpr::qt {
 			}
 			if (steered) {
 				present_steered();
+			}
+			if (held) {
+				present_attachments();
 			}
 			refresh_reply();
 			present_ending();
@@ -533,7 +576,17 @@ namespace bpr::qt {
 		}
 
 		void enable_resend(const bool aEnabled) override { static_cast<void>(aEnabled); }
-		void remake(const std::string& aKey) override { static_cast<void>(aKey); }
+
+		void remake(const std::string& aKey) override
+		{
+			const auto found = std::ranges::find(Made, aKey, &made_attachment::Key);
+			if (found == Made.end()) {
+				return;
+			}
+			forget(*found);
+			Made.erase(found);
+			present_attachments();
+		}
 
 		void refresh_reply() override
 		{
@@ -575,8 +628,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto activity() const noexcept -> agent_activity_view* override { return Activity; }
 		[[nodiscard]] auto attachment(const std::string& aKey) const -> QWidget* override
 		{
-			static_cast<void>(aKey);
-			return nullptr;
+			const auto found = std::ranges::find(Made, aKey, &made_attachment::Key);
+			return found == Made.end() ? nullptr : found->Widget.data();
 		}
 		[[nodiscard]] auto card() const noexcept -> QWidget* override { return Card; }
 		[[nodiscard]] auto recovery() const noexcept -> QPushButton* override { return Recovery; }
@@ -651,6 +704,14 @@ namespace bpr::qt {
 			if (Owner.Parts.DressCard) {
 				Owner.Parts.DressCard(Turn, card_slots{ .Card = card, .BeforeReply = before, .AfterReply = after, .AskedTime = askedTime, .AnsweredTime = answeredTime });
 			}
+			// What the chat hangs on the turn stands after its own parts over
+			// and under the reply; what it holds already is made here, where
+			// it is read.
+			BeforeHeld    = before;
+			AfterHeld     = after;
+			BeforeDressed = before->count();
+			AfterDressed  = after->count();
+			present_attachments();
 			// While the agent works, and how it ended: the one line.
 			Ending = new agent_run_status_line{ card };
 			Ending->setObjectName(names.Ending);
@@ -665,6 +726,7 @@ namespace bpr::qt {
 				}
 			});
 			replyColumn->addWidget(Activity);
+			EndingHeld       = held_column(*replyColumn);
 			auto* const foot = new QHBoxLayout{ };
 			foot->setSpacing(2);
 			auto* const copy = make_drawer_tool(card, drawer_icon(drawer_glyph::copy, palette()), tr("Copy the response as Markdown"), names.CopyReply);
@@ -712,6 +774,7 @@ namespace bpr::qt {
 					Owner.Parts.Act(Turn.Id, chat_turn_gesture::remove);
 				}
 			});
+			Finished = true;
 		}
 
 		/// A column in the card for the chat's own parts, spaced as the card.
@@ -722,6 +785,85 @@ namespace bpr::qt {
 			held->setSpacing(aCard.spacing());
 			aCard.addLayout(held);
 			return held;
+		}
+
+		/// The column an attachment stands in, and how many of the chat's own
+		/// parts stand there before the attachments.
+		[[nodiscard]] auto column_of(const core::chat_attachment_place aPlace) const -> std::pair<QVBoxLayout*, int>
+		{
+			switch (aPlace) {
+			case core::chat_attachment_place::before_reply: return { BeforeHeld, BeforeDressed };
+			case core::chat_attachment_place::after_reply:  return { AfterHeld, AfterDressed };
+			case core::chat_attachment_place::after_ending: return { EndingHeld, 0 };
+			}
+			return { AfterHeld, AfterDressed };
+		}
+
+		void forget(made_attachment& aGone) const
+		{
+			if (!aGone.Widget) {
+				return;
+			}
+			for (auto* const column : { BeforeHeld, AfterHeld, EndingHeld }) {
+				if (column != nullptr) {
+					column->removeWidget(aGone.Widget);
+				}
+			}
+			aGone.Widget->hide();
+			aGone.Widget->deleteLater();
+		}
+
+		/// Makes the widget of each attachment the turn holds that differs
+		/// from the one made for it, lets go of those it no longer holds, and
+		/// stands the rest in the turn's order in their places. The chat's
+		/// factory makes the widgets; the turn's own parts are untouched.
+		void present_attachments()
+		{
+			auto kept  = std::vector<made_attachment>{ };
+			auto fresh = std::vector<std::pair<QWidget*, core::chat_attachment_place>>{ };
+			for (const auto& attachment : Turn.Attachments) {
+				const auto found = std::ranges::find(Made, attachment.Key, &made_attachment::Key);
+				if (found != Made.end() && found->Value == attachment) {
+					kept.push_back(std::move(*found));
+					Made.erase(found);
+					continue;
+				}
+				auto* const widget = Owner.Parts.MakeAttachment ? Owner.Parts.MakeAttachment(Turn, attachment, Card) : nullptr;
+				kept.push_back({ .Key = attachment.Key, .Value = attachment, .Widget = widget });
+				if (widget != nullptr) {
+					fresh.emplace_back(widget, attachment.Place);
+				}
+			}
+			for (auto& gone : Made) {
+				forget(gone);
+			}
+			Made        = std::move(kept);
+			auto placed = std::array<int, 3>{ 0, 0, 0 };
+			for (const auto& each : Made) {
+				auto* const widget = each.Widget.data();
+				if (widget == nullptr) {
+					continue;
+				}
+				const auto [column, dressed] = column_of(each.Value.Place);
+				auto& at                     = placed[static_cast<std::size_t>(each.Value.Place)];
+				if (column->indexOf(widget) != dressed + at) {
+					column->removeWidget(widget);
+					column->insertWidget(dressed + at, widget);
+				}
+				++at;
+			}
+			// One made after the turn is read where it stands: over the reply
+			// before the reply, under it before the ending line, after what
+			// the run did before the foot.
+			if (Finished) {
+				for (const auto& [widget, place] : fresh) {
+					auto* const next = place == core::chat_attachment_place::before_reply ? static_cast<QWidget*>(Reader)
+						: place == core::chat_attachment_place::after_reply               ? static_cast<QWidget*>(Ending)
+																						  : static_cast<QWidget*>(Copy);
+					focus_before(*widget, *next);
+				}
+			}
+			Owner.fit_soon();
 		}
 
 		void present_steered()
@@ -821,6 +963,16 @@ namespace bpr::qt {
 		bool                   Shown         = false;
 		std::string            ShownBody;
 		std::string            ShownIdentity;
+		/// The columns the chat's attachments stand in, and how many of its
+		/// own parts come first in each.
+		QVBoxLayout*                 BeforeHeld    = nullptr;
+		QVBoxLayout*                 AfterHeld     = nullptr;
+		QVBoxLayout*                 EndingHeld    = nullptr;
+		int                          BeforeDressed = 0;
+		int                          AfterDressed  = 0;
+		std::vector<made_attachment> Made;
+		/// The turn's own parts are all made.
+		bool Finished = false;
 	};
 
 	chat_transcript_view::chat_transcript_view(const names& aNames, QWidget* aParent, const chat_transcript_look aLook)

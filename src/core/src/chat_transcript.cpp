@@ -224,6 +224,18 @@ namespace bpr::core {
 					.RevisionChoice   = latest && aFacts.RevisionChoice,
 				});
 			}
+			// What the tab hangs on the reply: over it the verdict, under it
+			// the report's row, then Draft all and the cards it drafts.
+			if (entry.Verdict) {
+				turn.Attachments.push_back({ .Key = "verdict", .Payload = *entry.Verdict, .Place = chat_attachment_place::before_reply });
+			}
+			if (entry.Report) {
+				turn.Attachments.push_back({ .Key = "report", .Payload = *entry.Report, .Place = chat_attachment_place::after_reply });
+			}
+			if (!entry.Cards.empty()) {
+				turn.Attachments.push_back({ .Key = "draft-all", .Payload = chat_agent_draft_all{ }, .Place = chat_attachment_place::after_reply });
+				turn.Attachments.push_back({ .Key = "findings", .Payload = chat_agent_findings{ .Cards = entry.Cards }, .Place = chat_attachment_place::after_reply });
+			}
 			transcript.Turns.push_back(std::move(turn));
 		}
 		return transcript;

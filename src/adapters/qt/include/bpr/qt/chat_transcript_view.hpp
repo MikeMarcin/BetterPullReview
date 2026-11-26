@@ -55,7 +55,12 @@ namespace bpr::qt {
 		side_chat,
 		/// The Agent tab's: the question in an outlined field under the time
 		/// it was asked, the reply in a card with its ending line, what its
-		/// run did and its actions at the card's foot.
+		/// run did and its actions at the card's foot. A turn's attachments
+		/// stand in its card, after the chat's own parts in their place: over
+		/// the reply, under it before the ending line, or after what the run
+		/// did. One made after its turn is reached by Tab where it stands.
+		/// (The side chats' look has no place over the reply and draws such an
+		/// attachment under it.)
 		card,
 	};
 
