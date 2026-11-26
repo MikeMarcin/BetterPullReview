@@ -1668,21 +1668,23 @@ auto main(int argc, char** argv) -> int
 			   "the suggested prompts wait on the card's choice and say so: " + (tab->suggestion_buttons().empty() ? std::string{ "none shown" } : tab->suggestion_buttons().front()->toolTip().toStdString()));
 		run.Shown = tab->banner();
 		run.sweep_drawer("agent-pinned-offered");
-		// The session with a checkout follows the head on its next question.
-		// The tour's agent holds the pull request's checkout, so the move is
-		// refused and the stopped card offers the two ways on.
+		// The saved session can require a choice as soon as it opens. If it
+		// can attempt to follow the head, the tour's checkout blocks the
+		// move and the stopped card offers the same choices.
 		open(seeded);
-		// The replay's card goes as the session's own conversation comes in.
-		// A question sent while that card still shows is the replay's to
-		// answer, and is not sent: the course waits for the card to go.
-		static_cast<void>(e2e::wait_until_plain([&] { return tab->state() != qt::agent_tab_state::head_moved; }, std::chrono::milliseconds{ 10000 }));
-		ask(QStringLiteral("What changed in this push?"));
-		wait([&] { return quiet() && tab->state() == qt::agent_tab_state::stopped && tab->banner()->isVisible(); }, "the question is refused: the session's workspace was not moved");
+		const auto canTryMove = e2e::wait_until_plain([&] { return tab->state() != qt::agent_tab_state::head_moved; }, std::chrono::milliseconds{ 10000 });
+		const auto question   = QStringLiteral("What changed in this push?");
+		if (canTryMove) {
+			ask(question);
+			wait([&] { return quiet() && tab->state() == qt::agent_tab_state::stopped && tab->banner()->isVisible(); }, "the question is refused: the session's workspace was not moved");
+		}
+		const auto waitingState = canTryMove ? qt::agent_tab_state::stopped : qt::agent_tab_state::head_moved;
+		expect(tab->state() == waitingState && tab->banner()->isVisible(), "the saved session waits on its revision choice");
 		expect(tab->banner_first_button()->isVisibleTo(tab->banner()) && tab->banner_second_button()->isVisibleTo(tab->banner()) && tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead
 				   && tab->banner_second_button()->text() == QStringLiteral("New session"),
 			   "the stopped card offers to continue at the earlier head or a new session: " + tab->banner_text().toStdString());
 		// The refused turn names those two by the words on the card's chips.
-		{
+		if (canTryMove) {
 			const auto said = tab->turn_answer(tab->turn_count() - 1U);
 			expect(said.contains(QStringLiteral(" Choose Continue at %1 or New session. No question was sent.").arg(earlierHead)) && !said.contains(QStringLiteral("tart a new session")),
 				   "the refused turn names the card's two choices as the card does: " + said.toStdString());
@@ -1699,9 +1701,10 @@ auto main(int argc, char** argv) -> int
 		{
 			const auto turns = tab->turn_count();
 			window->agent_tab()->question_editor()->setPlainText(QStringLiteral("And is the shader still read?"));
-			tab->ask_button()->click();
+			QKeyEvent press{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+			QApplication::sendEvent(tab->question_editor(), &press);
 			settle_for(400);
-			expect(tab->turn_count() == turns && tab->state() == qt::agent_tab_state::stopped && tab->send_refusal_text() == QStringLiteral("Not sent. The pull request has moved on. Choose Continue or New session, then send.")
+			expect(tab->turn_count() == turns && tab->state() == waitingState && tab->send_refusal_text() == QStringLiteral("Not sent. The pull request has moved on. Choose Continue or New session, then send.")
 					   && window->agent_tab()->question_editor()->toPlainText() == QStringLiteral("And is the shader still read?"),
 				   "a question typed while the card waits is not sent and stays in the field: " + tab->send_refusal_text().toStdString());
 			run.sweep_drawer("agent-pinned-refused-typed");
@@ -1715,8 +1718,13 @@ auto main(int argc, char** argv) -> int
 			expect(refusedTurns > 1U, "the refused session has a transcript to leave behind");
 			run.hold_turns();
 			tab->banner_second_button()->click();
+			if (!canTryMove) {
+				wait([&] { return historyIn() && tab->state() == qt::agent_tab_state::idle && tab->turn_count() == 0U; }, "the revision choice opens an empty session");
+				expect(tab->ask_button()->isEnabled(), "the empty session can send at the current head");
+				ask(question);
+			}
 			wait([&] { return tab->state() == qt::agent_tab_state::working && tab->turn_count() == 1U; }, "New session sends the kept message");
-			expect(tab->turn_question(0U) == QStringLiteral("What changed in this push?"), "the new session's first turn is the kept message: " + tab->turn_question(0U).toStdString());
+			expect(tab->turn_question(0U) == question, "the new session's first turn is the question: " + tab->turn_question(0U).toStdString());
 			expect(tab->session_menu()->selected() != seeded && !tab->session_menu()->selected().empty(), "History's tick is on the new session");
 			expect(!window->side_chat()->head_oid_text().contains(earlierHead), "the new session reads the head under review: " + window->side_chat()->head_oid_text().toStdString());
 			expect(!tab->banner()->isVisibleTo(run.drawer()), "and the card that asked is gone");

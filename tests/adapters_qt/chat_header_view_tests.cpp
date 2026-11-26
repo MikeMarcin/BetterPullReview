@@ -178,6 +178,7 @@ auto main(int aArgumentCount, char** aArguments) -> int
 	expect_fits(*row, "an item's chat at 300");
 
 	// A local draft's discussion is one conversation, with Copy in the row.
+	host.resize(240, 200);
 	row->present(core::plan_chat_header({ .Kind = core::chat_kind::local_draft_discussion, .Subject = "Suggested comment", .Place = "agent_queue_host.cpp, lines 212 to 218", .CanShow = true, .Cost = core::agent_cost{ 140'000'000U } }));
 	settle();
 	expect(row->copy_tool()->isVisibleTo(&host) && !row->history_tool()->isVisibleTo(&host) && row->close_tool()->isVisibleTo(&host) && row->show_button()->isVisibleTo(&host),
@@ -185,7 +186,7 @@ auto main(int aArgumentCount, char** aArguments) -> int
 	expect(row->copy_tool()->accessibleName() == QStringLiteral("Copy conversation") && row->copy_tool()->toolTip() == QStringLiteral("Copy this conversation as text. This conversation has cost $0.14 so far."),
 		   "Copy says what the local draft's discussion has cost");
 	expect(row->show_button()->text() == QStringLiteral("Show"), "the local draft discussion says Show in the narrowest column");
-	expect_fits(*row, "a local draft's discussion at 300");
+	expect_fits(*row, "a local draft's discussion with the compact Show label");
 	row->copy_tool()->click();
 	expect(copies == 1, "Copy conversation reaches the local draft's discussion");
 
