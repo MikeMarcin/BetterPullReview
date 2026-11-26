@@ -9,10 +9,13 @@
 /// suggested comment; a thread's Ask menu offers Ask about this. Nothing here
 /// runs an agent or writes anywhere.
 #include "bpr/core/agent_report.hpp"
+#include "bpr/core/chat_notice.hpp"
+#include "bpr/core/epoch_model.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/item_side_chat.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/report_page.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
 
@@ -34,6 +37,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -114,8 +118,8 @@ namespace {
 		expect(chat->isVisible() && chat->column_open() && chat->composer()->hasFocus(), "opening shows the column with the keyboard in its composer");
 		expect(chat->subject_text() == QStringLiteral("Suggested comment at renderer.cpp:12–13"), "the chat names the item and its place: " + chat->subject_text().toStdString());
 		// RFC-BPR-0130, header A: the one row every chat with an agent wears.
-		// An item's chat keeps no sessions, so core gives it Copy
-		// conversation where the other chats have History.
+		// Stage 7: an item's chat keeps sessions, so core gives it History
+		// (with Copy conversation in it) as it gives a tour part's chat.
 		{
 			auto* const row     = chat->header();
 			auto* const subject = row->subject();
@@ -124,18 +128,19 @@ namespace {
 					   && place->text() == QStringLiteral("renderer.cpp, lines 12 to 13") && place->isVisibleTo(chat),
 				   "the row says the kind of item, and under it its place: " + subject->text().toStdString() + " / " + place->text().toStdString());
 			expect(subject->toolTip() == QStringLiteral("A zero height still reaches the swap chain.") && subject->accessibleName() == QStringLiteral("Suggested comment"), "the finding's claim is the subject's tooltip: " + subject->toolTip().toStdString());
-			expect(row->header().Tool == core::chat_header_tool::copy_conversation && row->header().Show == core::chat_show::place && row->header().Close
-					   && row->header().Offered == std::vector{ core::chat_header_action::show, core::chat_header_action::copy_conversation, core::chat_header_action::close },
-				   "core's header for an item: Show, Copy conversation, Close");
-			expect(chat->show_button()->isVisibleTo(chat) && chat->show_button()->text() == QStringLiteral("Show") && chat->copy_chat_button()->isVisibleTo(chat) && chat->close_button()->isVisibleTo(chat)
-					   && !row->history_tool()->isVisibleTo(chat) && row->history_tool()->menu() == nullptr,
-				   "the row shows Show, Copy conversation and close, and no History");
-			expect(chat->copy_chat_button()->accessibleName() == QStringLiteral("Copy conversation") && chat->copy_chat_button()->toolTip() == QStringLiteral("Copy this conversation as text"), "Copy is named as History's item is");
+			expect(row->header().Tool == core::chat_header_tool::history && row->header().Show == core::chat_show::place && row->header().Close
+					   && row->header().Offered
+						   == std::vector{ core::chat_header_action::show, core::chat_header_action::history, core::chat_header_action::new_session, core::chat_header_action::delete_all_sessions,
+										   core::chat_header_action::copy_conversation, core::chat_header_action::close },
+				   "core's header for an item: Show, History with New session, Delete all and Copy conversation, Close");
+			expect(chat->show_button()->isVisibleTo(chat) && chat->show_button()->text() == QStringLiteral("Show") && chat->history_button()->isVisibleTo(chat) && chat->close_button()->isVisibleTo(chat)
+					   && !chat->copy_chat_button()->isVisibleTo(chat) && chat->history_button() == row->history_tool(),
+				   "the row shows Show, History and close; Copy conversation is History's");
 			expect(chat->findChild<QWidget*>(QStringLiteral("itemSideChatGlyph")) == nullptr && chat->findChild<QAbstractButton*>(QStringLiteral("itemSideChatNewSession")) == nullptr,
 				   "no agent glyph before the subject, and no New session button");
-			expect(subject->geometry().right() < chat->show_button()->geometry().left() && chat->show_button()->geometry().right() < chat->copy_chat_button()->geometry().left()
-					   && chat->copy_chat_button()->geometry().right() < chat->close_button()->geometry().left() && row->geometry().bottom() < chat->findChild<QWidget*>(QStringLiteral("itemSideChatScroll"))->geometry().top(),
-				   "one row: the subject, Show, Copy conversation, close");
+			expect(subject->geometry().right() < chat->show_button()->geometry().left() && chat->show_button()->geometry().right() < chat->history_button()->geometry().left()
+					   && chat->history_button()->geometry().right() < chat->close_button()->geometry().left() && row->geometry().bottom() < chat->findChild<QWidget*>(QStringLiteral("itemSideChatScroll"))->geometry().top(),
+				   "one row: the subject, Show, History, close");
 		}
 		expect(chat->item_text() == QStringLiteral("issue (blocking): clamp both."), "the item is quoted at the chat's top");
 		expect(chat->chip_text() == QStringLiteral("issue (blocking): clamp both."), "the composer carries the item as its chip");
@@ -199,8 +204,9 @@ namespace {
 		chat->present(state, QStringLiteral("Fixture agent"), QStringLiteral("The agent did not answer (timeout)."));
 		expect(chat->status_text() == QStringLiteral("The agent did not answer (timeout)."), "a run's failure is said as the host said it");
 
-		// Copy chat: the item and the turns as text.
-		chat->copy_chat_button()->click();
+		// Copy conversation, History's: the item and the turns as text.
+		expect(chat->history_menu()->copy_action() != nullptr && chat->history_menu()->copy_action()->isEnabled(), "History offers Copy conversation once there are turns");
+		chat->history_menu()->copy_action()->trigger();
 		const auto copied = QGuiApplication::clipboard()->text();
 		expect(copied.contains(QStringLiteral("Suggested comment at renderer.cpp:12–13")) && copied.contains(QStringLiteral("**You:** Why is this blocking?")) && copied.contains(QStringLiteral("It asserts on **minimise**.")), "Copy chat copies the chat: " + copied.toStdString());
 
@@ -509,6 +515,89 @@ namespace {
 		expect(chat->width() == 1000, "a wider page shows the stored width again");
 		page.hide();
 	}
+
+	/// RFC-BPR-0130 stage 7 (owner, 2026-11-25: "sure seems like they should
+	/// right"). The item's chat keeps sessions: History is the one menu, New
+	/// session first and a row each, its gestures leave as intents, and a
+	/// session read at an earlier head asks on the pinned-revision card.
+	void test_the_item_chat_keeps_sessions()
+	{
+		auto page        = QWidget{ };
+		auto chat        = new qt::item_side_chat{ &page };
+		auto done        = pressed{ };
+		auto read        = std::vector<std::optional<std::string>>{ };
+		auto edit        = std::vector<std::pair<std::string, std::optional<std::string>>>{ };
+		auto kept        = 0;
+		auto send        = intents(done);
+		send.History     = [&read](std::optional<std::string> aChoice) { read.push_back(std::move(aChoice)); };
+		send.EditSession = [&edit](const std::string& aId, std::optional<std::string> aName) { edit.emplace_back(aId, std::move(aName)); };
+		send.Continue    = [&kept] { ++kept; };
+		chat->set_intents(std::move(send));
+		page.resize(420, 640);
+		chat->resize(400, 620);
+		page.show();
+		auto state = core::open_follow_up(suggestion());
+		static_cast<void>(core::restore_follow_up(state, { { .Question = "Is it blocking?", .Answer = "Yes." } }));
+		chat->present(state, QStringLiteral("Fixture agent"), { });
+		chat->set_column_open(true);
+		QApplication::processEvents();
+
+		const auto head = core::parse_git_commit_oid("3f9c2ab111111111111111111111111111111111").value_or(core::git_commit_oid{ });
+		auto       view = application::native_agent_history_projection{ };
+		view.Scope      = "item:finding:7:0";
+		view.Selected   = "s2";
+		view.Entries    = {
+			{ .Id = "s2", .Binding = { .HeadOid = head }, .Title = "Is it blocking?", .Name = "Blocking", .Scope = view.Scope, .Turns = 1U, .Cost = core::agent_cost{ 140'000'000U } },
+			{ .Id = "s1", .Binding = { .HeadOid = head }, .Title = "Why clamp?", .Scope = view.Scope, .Turns = 3U },
+		};
+		chat->present_native_history(view);
+		QApplication::processEvents();
+		auto* const menu = chat->history_menu();
+		expect(menu != nullptr && chat->history_button()->menu() == menu->menu(), "History opens the one History menu");
+		using item = core::chat_history_item;
+		expect(menu->plan().Items
+				   == std::vector{ item::new_session, item::separator, item::sessions, item::separator, item::carry_over, item::delete_all, item::separator, item::copy_conversation, item::separator, item::revision_read },
+			   "New session first, the sessions, Delete all, Copy conversation, the revision read last");
+		expect(menu->rows()->ids() == std::vector<std::string>{ "s2", "s1" } && menu->rows()->selected() == "s2" && menu->rows()->turns("s1") == 3U, "a row each, the open one marked");
+		expect(chat->new_session_action()->isEnabled(), "New session can be chosen: the open session has a round");
+		expect(menu->revision_action()->text() == QStringLiteral("Reads the pull request at 3f9c2ab"), "the last line names the revision read: " + menu->revision_action()->text().toStdString());
+		expect(chat->header()->header().SessionName == "Blocking" && chat->header()->header().Title == "Suggested comment", "the row keeps naming the item; the session's name is History's");
+		expect(chat->session_notice_text().isEmpty(), "an ordinary session says nothing of how it goes on");
+
+		chat->new_session_action()->trigger();
+		menu->rows()->open("s1");
+		menu->carry_over_action()->trigger();
+		expect(read.size() == 3U && read[0U] == std::optional{ std::string{ } } && read[1U] == std::optional{ std::string{ "s1" } } && read[2U] == std::optional{ std::string{ "replay:s2" } },
+			   "New session, a row and carry over leave as History's intents");
+		menu->rows()->rename("s1", QStringLiteral("Clamp"));
+		expect(edit.size() == 1U && edit.front().first == "s1" && edit.front().second == std::optional{ std::string{ "Clamp" } }, "rename leaves as an intent");
+
+		view.Replay = true;
+		chat->present_native_history(view);
+		expect(chat->session_notice_text().startsWith(QStringLiteral("Carried over from a saved transcript. Fixture agent has")), "a carried-over session says so, naming the agent: " + chat->session_notice_text().toStdString());
+		view.Replay = false;
+		chat->present_native_history(view);
+
+		// The pull request moved on: the card asks, and nothing is sent first.
+		auto offer                    = core::agent_continuation_offer{ };
+		offer.Required                = true;
+		offer.ContinueAgainst.HeadOid = head;
+		chat->present_revision_continuation(offer, false);
+		QApplication::processEvents();
+		auto* const card = chat->head_moved_card();
+		expect(card != nullptr && card->isVisibleTo(chat) && card->notice() == core::plan_moved_head_notice({ .Read = std::string{ core::canonical_hex(head).view() } }),
+			   "the pinned-revision card, in the words every chat says it with");
+		chat->composer()->setPlainText(QStringLiteral("And the width?"));
+		chat->send_button()->click();
+		expect(done.Asked.empty() && !chat->send_button()->isEnabled() && !chat->apply_button()->isEnabled(), "while it asks, nothing is sent");
+		card->button_for(core::chat_notice_action::continue_at)->click();
+		expect(kept == 1, "Continue leaves as an intent");
+		chat->present_revision_continuation(offer, true);
+		expect(!card->isVisibleTo(chat) && chat->send_button()->isEnabled(), "once Continue is chosen the card has been answered");
+		chat->send_button()->click();
+		expect(done.Asked == std::vector{ QStringLiteral("And the width?") }, "and the question goes");
+		page.hide();
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -523,6 +612,7 @@ auto main(int argc, char** argv) -> int
 	test_a_suggested_comment_does_not_restate_its_suggested_change();
 	test_a_threads_ask_menu_offers_ask_about_this();
 	test_the_column_opens_narrow_and_resizes_and_remembers();
+	test_the_item_chat_keeps_sessions();
 	std::cout << "item-side-chat-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -103,6 +103,13 @@ namespace bpr::application {
 		std::optional<std::pair<core::git_commit_oid, core::git_commit_oid>> SelectedMove;
 	};
 
+	/// \brief RFC-BPR-0130 stage 7. The native scope of the side chat about
+	/// one review item: `item:` and the window's key for the item.
+	[[nodiscard]] inline auto item_chat_native_scope(const std::string_view aKey) -> std::string { return "item:" + std::string{ aKey }; }
+	/// \brief Whether a native scope's conversations run with read-only
+	/// tools: a tour part's chat (`tour:`) and an item's chat (`item:`).
+	[[nodiscard]] constexpr auto read_only_native_scope(const std::string_view aScope) noexcept -> bool { return aScope.starts_with("tour:") || aScope.starts_with("item:"); }
+
 	/// The most turns one pull request keeps; older ones go first.
 	inline constexpr std::size_t maximum_conversation_turns = 50U;
 	/// The longest question, answer or ending one turn keeps.

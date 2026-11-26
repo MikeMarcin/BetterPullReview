@@ -38,7 +38,10 @@ namespace bpr::core {
 		// Groups, a separator between each two that hold something.
 		// What the kind of chat offers at all is the header's
 		// (`chat_actions_offered`); what it offers now is this plan's.
-		const auto offered = chat_actions_offered(aFacts.Kind == chat_history_kind::agent_tab ? chat_kind::agent_tab : chat_kind::whole_tour);
+		const auto kind    = aFacts.Kind == chat_history_kind::agent_tab ? chat_kind::agent_tab
+			: aFacts.Kind == chat_history_kind::review_item              ? chat_kind::review_item
+																		 : chat_kind::whole_tour;
+		const auto offered = chat_actions_offered(kind);
 		const auto offers  = [&offered](const chat_header_action aAction) { return std::ranges::find(offered, aAction) != offered.end(); };
 		auto       others  = std::vector<item>{ };
 		if (offers(chat_header_action::other_tour_chats) && aFacts.OtherChats != 0U) {

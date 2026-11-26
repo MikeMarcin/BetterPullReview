@@ -126,6 +126,155 @@ namespace bpr::app {
 				start_follow_up_round();
 			}
 		});
+		// RFC-BPR-0130 stage 7. An item's chat keeps its sessions as a tour
+		// part's chat does: read-only, in the pull request's shared
+		// workspace, which a deleted session removes only when nothing else
+		// uses it.
+		FollowUpSession->set_retained_workspace_files(RetainedWorkspaceFiles.get());
+		FollowUpProjection->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_follow_up_history(aView); };
+		FollowUpProjection->NativeSession = [this](const core::agent_session& aSession) {
+			if (!Closing && Window != nullptr) {
+				FollowUpNativeSession = aSession;
+				present_follow_up_continuation();
+			}
+		};
+	}
+
+	auto github_application::implementation::follow_up_scope() const -> std::string
+	{
+		if (FollowUp == nullptr || !FollowUp->projection().Open || tour_native_agent().empty()) {
+			return { };
+		}
+		return application::item_chat_native_scope(FollowUp->projection().Open->Subject.Key);
+	}
+
+	void github_application::implementation::observe_follow_up_history(std::optional<std::string> aChoice)
+	{
+		const auto scope = follow_up_scope();
+		if (Closing || Window == nullptr || !FollowUpSession || !writing_agent() || scope.empty()) {
+			return;
+		}
+		if (aChoice) {
+			// The chosen session's rounds become the chat's; a Continue chosen
+			// on the last one's card does not carry over to it.
+			FollowUpAdopt = true;
+			FollowUpContinuation.reset();
+			FollowUpNativeSession.reset();
+		}
+		FollowUpAgent = tour_native_agent();
+		FollowUpSession->restore_native(*writing_agent(), FollowUpAgent, scope, std::move(aChoice));
+	}
+
+	void github_application::implementation::observe_follow_up_agent()
+	{
+		const auto* const open = FollowUp != nullptr && FollowUp->projection().Open ? &*FollowUp->projection().Open : nullptr;
+		// Told on every setup and revision change: only another agent counts.
+		if (Closing || open == nullptr || open->Phase != core::follow_up_phase::idle || follow_up_scope().empty() || FollowUpAgent.empty() || FollowUpAgent == tour_native_agent()) {
+			return;
+		}
+		FollowUpAdopt = true;
+		FollowUpNativeSession.reset();
+		FollowUpContinuation.reset();
+		observe_follow_up_history();
+	}
+
+	/// RFC-BPR-0130 stage 7. The open item's sessions: History's rows, the
+	/// open session's notice, and, when the chat was opened or a session
+	/// chosen, that session's rounds as the chat's.
+	void github_application::implementation::present_follow_up_history(const application::native_agent_history_projection& aView)
+	{
+		if (Closing || Window == nullptr || aView.ReadOnly || aView.Scope != follow_up_scope()) {
+			return;
+		}
+		Window->item_side_chat()->present_native_history(aView);
+		if (aView.Loading) {
+			return;
+		}
+		// Another session open: its own binding and card, once the store names it.
+		if (FollowUpHistory.Scope != aView.Scope || FollowUpHistory.Selected != aView.Selected) {
+			FollowUpContinuation.reset();
+			FollowUpNativeSession.reset();
+		}
+		FollowUpHistory = aView;
+		if (!aView.Failure.empty()) {
+			FollowUpAdopt = false;
+			Window->item_side_chat()->show_status(QString::fromStdString(aView.Failure));
+			return;
+		}
+		if (std::exchange(FollowUpAdopt, false) && FollowUp != nullptr) {
+			auto rounds = std::vector<core::follow_up_round>{ };
+			for (const auto& turn : aView.Turns) {
+				if (turn.Outcome == core::agent_turn_outcome::answered) {
+					rounds.push_back({ .Question = turn.Asked, .Answer = turn.Answered });
+				}
+			}
+			static_cast<void>(FollowUp->restore(std::move(rounds)));
+		}
+		present_follow_up_continuation();
+	}
+
+	/// RFC-BPR-0130 stage 7. Renames (`aName` set) or deletes one of the open
+	/// item's sessions, through the host calls the other chats use.
+	void github_application::implementation::edit_follow_up_session(const std::string& aId, std::optional<std::string> aName)
+	{
+		const auto scope = follow_up_scope();
+		if (Closing || Window == nullptr || !FollowUpSession || !writing_agent() || scope.empty()) {
+			return;
+		}
+		const auto renaming = aName.has_value();
+		auto       answer   = [this, renaming](const application::agent_session_edit_receipt& aReceipt) {
+			if (!Closing && Window != nullptr) {
+				Window->item_side_chat()->present_session_edit(qt::agent_session_edit_words(aReceipt, renaming));
+			}
+		};
+		// A deleted open session leaves the chat for the one History opens next.
+		if (!renaming && (aId.empty() || aId == FollowUpHistory.Selected)) {
+			FollowUpAdopt = true;
+		}
+		if (renaming) {
+			FollowUpSession->rename_native_session(*writing_agent(), tour_native_agent(), scope, aId, std::move(*aName), std::move(answer));
+		} else if (aId.empty()) {
+			FollowUpSession->delete_all_native_sessions(*writing_agent(), tour_native_agent(), scope, std::move(answer));
+		} else {
+			FollowUpSession->delete_native_session(*writing_agent(), tour_native_agent(), scope, aId, std::move(answer));
+		}
+	}
+
+	auto github_application::implementation::continued_follow_up_session() const -> std::optional<core::agent_session>
+	{
+		if (FollowUpContinuation && FollowUpContinuation->Scope == follow_up_scope() && FollowUpContinuation->Conversation == FollowUpHistory.Selected && FollowUpNativeSession
+			&& FollowUpContinuation->Session == *FollowUpNativeSession && tour_observed_binding() == std::optional{ FollowUpContinuation->Observed }) {
+			return FollowUpNativeSession;
+		}
+		return std::nullopt;
+	}
+
+	/// Continue on the pinned-revision card: the open session goes on at the
+	/// revision it read.
+	void github_application::implementation::choose_follow_up_continuation()
+	{
+		const auto observed = tour_observed_binding();
+		const auto running  = FollowUp != nullptr && FollowUp->projection().Open && FollowUp->projection().Open->Phase != core::follow_up_phase::idle;
+		if (!Closing && !running && FollowUpNativeSession && !FollowUpHistory.Selected.empty() && observed) {
+			const auto offer = core::offer_agent_continuations(*FollowUpNativeSession, *observed);
+			if (offer.Required && offer.Status.Staleness != core::agent_session_staleness::different_review) {
+				FollowUpContinuation = follow_up_continuation{ follow_up_scope(), FollowUpHistory.Selected, *FollowUpNativeSession, *observed };
+			}
+		}
+		present_follow_up_continuation();
+	}
+
+	void github_application::implementation::present_follow_up_continuation()
+	{
+		if (Closing || Window == nullptr) {
+			return;
+		}
+		const auto observed = tour_observed_binding();
+		if (FollowUpContinuation && observed != std::optional{ FollowUpContinuation->Observed }) {
+			FollowUpContinuation.reset();
+		}
+		const auto offer = FollowUpNativeSession && observed ? std::optional{ core::offer_agent_continuations(*FollowUpNativeSession, *observed) } : std::nullopt;
+		Window->item_side_chat()->present_revision_continuation(offer, continued_follow_up_session().has_value());
 	}
 
 	void github_application::implementation::answer_follow_up_round(std::expected<std::string, std::string> aAnswer)
@@ -165,8 +314,14 @@ namespace bpr::app {
 			launched.Skills.Inline = aAgent.Skills;
 			prompt += application::inline_skill_directive();
 		}
-		FollowUpRound = follow_up_round{ .Answer = std::move(aAnswer), .Stop = nullptr, .Start = [this, profile = core::agent_profile_id{ aAgent.Profile }, message = std::move(prompt), launch = std::move(launched)] {
-											return dispatch_agent_invocation(profile, { }, { }, false, message, std::nullopt, core::agent_entry_point::ask_about_selection, { }, true, launch);
+		// RFC-BPR-0130 stage 7. A round of an item's chat is a turn of the
+		// session its History opened, continued at the revision it read when
+		// the reviewer chose that on its card.
+		launched.NativeScope    = aAgent.Session;
+		launched.NativeQuestion = aAgent.Asked;
+		const auto continued    = aAgent.Session.empty() ? std::nullopt : continued_follow_up_session();
+		FollowUpRound           = follow_up_round{ .Answer = std::move(aAnswer), .Stop = nullptr, .Start = [this, profile = core::agent_profile_id{ aAgent.Profile }, message = std::move(prompt), launch = std::move(launched), continued] {
+											return dispatch_agent_invocation(profile, { }, { }, false, message, continued, core::agent_entry_point::ask_about_selection, { }, true, launch);
 										} };
 		// Stop ends the run, or the round still waiting for the session; its
 		// ending answers the round as stopped.
@@ -197,6 +352,20 @@ namespace bpr::app {
 
 	void github_application::implementation::follow_up_round_finished(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult)
 	{
+		// RFC-BPR-0130 stage 7. The session's turns and cost changed (and a
+		// new session got its name); a session read at an earlier head was
+		// refused with its card's choices.
+		if (!Closing && Window != nullptr && !FollowUpHistory.Scope.empty()) {
+			if (aResult.PinnedSession) {
+				FollowUpNativeSession = *aResult.PinnedSession;
+			}
+			QTimer::singleShot(0, Window.get(), [this, alive = std::weak_ptr<const int>{ WindowLifetime }] {
+				if (!alive.expired() && !Closing) {
+					observe_follow_up_history();
+					present_follow_up_continuation();
+				}
+			});
+		}
 		if (aResult.Outcome == application::agent_run_outcome::success && !aResult.AssistantItems.empty()) {
 			// The answer is the run's last message; what it said while it
 			// read is its working, as a tour part's chat keeps it.
@@ -253,22 +422,25 @@ namespace bpr::app {
 			}
 		});
 		Window->item_side_chat()->set_intents({
-			.Ask     = [this](const QString& aQuestion) { ask_follow_up(aQuestion); },
-			.Propose = [this](const core::follow_up_apply aApply) { propose_follow_up(aApply); },
-			.Use     = [this](const std::uint64_t aProposal) { use_follow_up(aProposal); },
-			.Discard = [this](const std::uint64_t aProposal) { static_cast<void>(FollowUp != nullptr && FollowUp->discard(aProposal)); },
-			.Stop    = [this] {
+			.Ask         = [this](const QString& aQuestion) { ask_follow_up(aQuestion); },
+			.Propose     = [this](const core::follow_up_apply aApply) { propose_follow_up(aApply); },
+			.Use         = [this](const std::uint64_t aProposal) { use_follow_up(aProposal); },
+			.Discard     = [this](const std::uint64_t aProposal) { static_cast<void>(FollowUp != nullptr && FollowUp->discard(aProposal)); },
+			.Stop        = [this] {
 				if (FollowUp != nullptr) {
 					FollowUp->stop();
 				} },
-			.Closed  = [this] {
+			.Closed      = [this] {
 				if (FollowUp != nullptr && !Closing) {
 					FollowUp->close();
 				} },
-			.Reveal  = [this](const core::follow_up_subject& aSubject) {
+			.Reveal      = [this](const core::follow_up_subject& aSubject) {
 				if (!Closing && Window != nullptr && !aSubject.Path.empty() && aSubject.First != 0U) {
 					static_cast<void>(Window->go_to_file_line(QString::fromStdString(aSubject.Path), aSubject.First, false, aSubject.Last));
 				} },
+			.History     = [this](std::optional<std::string> aChoice) { observe_follow_up_history(std::move(aChoice)); },
+			.EditSession = [this](const std::string& aId, std::optional<std::string> aName) { edit_follow_up_session(aId, std::move(aName)); },
+			.Continue    = [this] { choose_follow_up_continuation(); },
 		});
 		Window->conversation_panel()->cards()->set_ask_about_dispatch([this](const std::string& aIdentity, const QString& aText) { follow_up_conversation(aIdentity, aText); });
 	}
@@ -334,6 +506,20 @@ namespace bpr::app {
 		if (!FollowUp->open(std::move(aSubject))) {
 			return;
 		}
+		// RFC-BPR-0130 stage 7. The item's sessions are read; a chat that has
+		// shown nothing yet this window shows its open session's rounds.
+		if (const auto scope = follow_up_scope(); !scope.empty() && FollowUpSession) {
+			const auto& open = *FollowUp->projection().Open;
+			if (scope != FollowUpHistory.Scope) {
+				// Another item's sessions: read afresh, never taken for these.
+				FollowUpHistory = application::native_agent_history_projection{ };
+				FollowUpNativeSession.reset();
+				FollowUpContinuation.reset();
+				FollowUpSession->native_history_changed();
+			}
+			FollowUpAdopt = open.Rounds.empty() && open.Phase == core::follow_up_phase::idle && !open.InSession;
+			observe_follow_up_history();
+		}
 		auto* const chat = Window->item_side_chat();
 		chat->set_column_open(true);
 		if (!chat->isVisible() && !path.isEmpty() && first != 0U) {
@@ -366,6 +552,8 @@ namespace bpr::app {
 			.Profile      = profile->value(),
 			.Instructions = std::string{ core::follow_up_instructions },
 			.WritingStyle = application::writing_style_for(prefs->WritingHooks, true),
+			// RFC-BPR-0130 stage 7: the open item's session.
+			.Session = follow_up_scope(),
 		};
 		if (AgentSetup) {
 			if (const auto* const entry = core::entry_of_profile(AgentSetup->projection().Preferences.Agents, *profile); entry != nullptr) {

@@ -1,12 +1,15 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_ITEM_SIDE_CHAT_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_ITEM_SIDE_CHAT_HPP
 
+#include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/core/agent_follow_up.hpp"
+#include "bpr/core/agent_session.hpp"
 #include "bpr/core/chat_transcript.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/qt/chat_composer.hpp"
 #include "bpr/qt/chat_header_view.hpp"
+#include "bpr/qt/chat_history_menu.hpp"
 #include "bpr/qt/chat_notice_view.hpp"
 
 #include <QElapsedTimer>
@@ -22,6 +25,7 @@
 #include <string>
 #include <vector>
 
+class QAction;
 class QLabel;
 class QPlainTextEdit;
 class QPushButton;
@@ -41,10 +45,14 @@ class QToolButton;
 /// from `core::project_follow_up`, the proposal as the turn's attachment.
 ///
 /// \details It replaces [[BPR-2286]]'s follow-up window. Its conversation is
-/// `core::follow_up_state`, held by `application::follow_up_host`: one chat a
-/// item, each round a fresh run, and the one thing it can apply (Update
-/// suggested comment, Update draft or Draft reply) used only on Use. It runs
-/// nothing and writes nothing: each press leaves as an intent.
+/// `core::follow_up_state`, held by `application::follow_up_host`, and the one
+/// thing it can apply (Update suggested comment, Update draft or Draft reply)
+/// is used only on Use. RFC-BPR-0130 stage 7 (owner, 2026-11-25: "sure seems
+/// like they should right"): its rounds are a session of the agent's own,
+/// and the header's History holds the item's sessions as a tour part's chat
+/// holds its own (New session first, a row each with rename, delete and its
+/// turns and cost, Delete all sessions…, Copy conversation, the revision
+/// read). It runs nothing and writes nothing: each press leaves as an intent.
 namespace bpr::qt {
 	class markdown_body_view;
 	class agent_run_status_line;
@@ -63,6 +71,15 @@ namespace bpr::qt {
 		std::function<void()> Closed;
 		/// Show: the item's place in the code.
 		std::function<void(const core::follow_up_subject&)> Reveal;
+		/// RFC-BPR-0130 stage 7. History: read the item's sessions again
+		/// (none), or open one: an id, an empty one for New session, `replay:`
+		/// and an id to carry it over.
+		std::function<void(std::optional<std::string> aChoice)> History;
+		/// Renames (`aName` set) or deletes the session `aId`; an empty id
+		/// deletes every session listed.
+		std::function<void(const std::string& aId, std::optional<std::string> aName)> EditSession;
+		/// Continue at the revision the open session read, on its card.
+		std::function<void()> Continue;
 	};
 
 	/// \brief The words for one apply action: "Update suggested comment",
@@ -91,6 +108,15 @@ namespace bpr::qt {
 		void present(const core::follow_up_state& aState, const QString& aAgent, const QString& aFailure);
 		/// \brief Says what came of a Use (or why it was not used).
 		void show_status(const QString& aText);
+		/// \brief RFC-BPR-0130 stage 7. The item's sessions as the host read
+		/// them, for History and the open session's notice.
+		void present_native_history(const application::native_agent_history_projection& aView);
+		/// \brief What the last rename or deletion did, or empty.
+		void present_session_edit(const QString& aStatus);
+		/// \brief The open session against the head under review: `aOffer`
+		/// requires a choice when the session read an earlier one, which the
+		/// pinned-revision card asks until `aContinued`.
+		void present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, bool aContinued);
 		/// \brief Opens the column with the keyboard in its composer, or
 		/// closes it; closed, every item's chat is kept by the host.
 		void               set_column_open(bool aOpen);
@@ -143,6 +169,18 @@ namespace bpr::qt {
 		[[nodiscard]] auto proposal_text() const -> QString;
 		[[nodiscard]] auto close_button() const noexcept -> QToolButton* { return ClosePane; }
 		[[nodiscard]] auto copy_chat_button() const noexcept -> QToolButton* { return CopyChat; }
+		/// \brief RFC-BPR-0130 stage 7. History, in the header row; its
+		/// `loading` property is true while the sessions are read.
+		[[nodiscard]] auto history_button() const noexcept -> QToolButton* { return HistoryTool; }
+		[[nodiscard]] auto history_menu() const noexcept -> chat_history_menu* { return HistoryMenu; }
+		/// \brief New session, History's first item.
+		[[nodiscard]] auto new_session_action() const noexcept -> QAction*;
+		/// \brief The pinned-revision card, shown while the open session read
+		/// an earlier head and no choice is made.
+		[[nodiscard]] auto head_moved_card() const noexcept -> chat_notice_view* { return HeadMovedCard; }
+		/// \brief What the open session's notice says (carried over, or one
+		/// the agent cannot pick up); empty for an ordinary session.
+		[[nodiscard]] auto session_notice_text() const -> QString;
 		[[nodiscard]] auto show_button() const noexcept -> QPushButton* { return ShowItem; }
 		[[nodiscard]] auto status_text() const -> QString;
 		/// \brief What the chat is about and where, in one phrase, as Copy
@@ -176,6 +214,9 @@ namespace bpr::qt {
 
 	private:
 		void               send();
+		void               present_header();
+		void               present_composer();
+		void               present_head_moved_card();
 		void               present_lead();
 		void               restyle();
 		void               fit_chip();
@@ -193,21 +234,38 @@ namespace bpr::qt {
 		QElapsedTimer                            Clock;
 		std::vector<std::optional<std::int64_t>> Seconds;
 		chat_header_view*                        Header      = nullptr;
-		QPushButton*                             ShowItem    = nullptr;
-		QToolButton*                             CopyChat    = nullptr;
-		QToolButton*                             ClosePane   = nullptr;
-		chat_transcript_view*                    Transcript  = nullptr;
-		QLabel*                                  ItemHeading = nullptr;
-		QLabel*                                  ItemQuote   = nullptr;
-		QLabel*                                  Invite      = nullptr;
-		QLabel*                                  Status      = nullptr;
-		chat_notice_view*                        StatusLine  = nullptr;
-		chat_composer*                           Field       = nullptr;
-		QLabel*                                  Chip        = nullptr;
-		QString                                  ChipWords;
-		QPlainTextEdit*                          Composer    = nullptr;
-		QPushButton*                             Send        = nullptr;
-		QPushButton*                             ApplyButton = nullptr;
+		chat_history_menu*                       HistoryMenu = nullptr;
+		QToolButton*                             HistoryTool = nullptr;
+		/// The open session's notice line (carried over, cannot continue) and
+		/// the pinned-revision card.
+		chat_notice_view* SessionLine   = nullptr;
+		chat_notice_view* HeadMovedCard = nullptr;
+		/// What History last read, and what it says of the open session.
+		bool        HistoryLoading = false;
+		bool        CarriedOver    = false;
+		bool        CannotContinue = false;
+		std::string OpenSessionName;
+		std::string OpenSessionRevision;
+		/// The open session read an earlier head (whether or not Continue was
+		/// chosen), and a choice is still asked; the head it read.
+		bool                  RevisionStale          = false;
+		bool                  RevisionChoiceRequired = false;
+		std::string           RevisionRead;
+		QPushButton*          ShowItem    = nullptr;
+		QToolButton*          CopyChat    = nullptr;
+		QToolButton*          ClosePane   = nullptr;
+		chat_transcript_view* Transcript  = nullptr;
+		QLabel*               ItemHeading = nullptr;
+		QLabel*               ItemQuote   = nullptr;
+		QLabel*               Invite      = nullptr;
+		QLabel*               Status      = nullptr;
+		chat_notice_view*     StatusLine  = nullptr;
+		chat_composer*        Field       = nullptr;
+		QLabel*               Chip        = nullptr;
+		QString               ChipWords;
+		QPlainTextEdit*       Composer    = nullptr;
+		QPushButton*          Send        = nullptr;
+		QPushButton*          ApplyButton = nullptr;
 		/// The proposal's card while one waits; the transcript owns it.
 		QPointer<QWidget>                                                           ProposalCard;
 		QPointer<QLabel>                                                            ProposalText;

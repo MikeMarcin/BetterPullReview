@@ -2158,7 +2158,7 @@ namespace bpr::application {
 			const auto generation      = ++self->NativeRestoreGeneration;
 			const auto observed        = *self->Binding;
 			const auto nativeSupported = profile->Protocol != core::agent_protocol::external_terminal;
-			const auto configuration   = std::to_string(static_cast<unsigned>(profile->Protocol)) + ":" + aAgentIdentity + (aScope.starts_with("tour:") ? ":read-only" : "");
+			const auto configuration   = std::to_string(static_cast<unsigned>(profile->Protocol)) + ":" + aAgentIdentity + (read_only_native_scope(aScope) ? ":read-only" : "");
 			++self->Probes;
 			try {
 				if (!aChoice || !aChoice->starts_with("view:")) {
@@ -2192,7 +2192,7 @@ namespace bpr::application {
 							auto view               = savedHistory ? std::move(*savedHistory) : native_agent_history_projection{ };
 							view.Scope              = aScope;
 							view.NativeSupported    = nativeSupported;
-							const auto replay       = prose_replay(view, aScope.starts_with("tour:"));
+							const auto replay       = prose_replay(view, read_only_native_scope(aScope));
 							view.ReplayTurnsOmitted = replay.Omitted;
 							view.ReplayTextCutBytes = replay.CutBytes;
 							if (!outcome || !savedHistory) {
@@ -2321,7 +2321,7 @@ namespace bpr::application {
 			// configuration in the scope.
 			auto configuration = std::string{ };
 			if (const auto profile = std::ranges::find(Profiles, aProfile, &core::agent_profile::Id); profile != Profiles.end()) {
-				configuration = std::to_string(static_cast<unsigned>(profile->Protocol)) + ":" + aAgentIdentity + (aScope.starts_with("tour:") ? ":read-only" : "");
+				configuration = std::to_string(static_cast<unsigned>(profile->Protocol)) + ":" + aAgentIdentity + (read_only_native_scope(aScope) ? ":read-only" : "");
 			}
 			++Probes;
 			try {

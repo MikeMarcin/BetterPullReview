@@ -107,6 +107,15 @@ namespace {
 				   == std::vector{ item::new_session, item::separator, item::sessions, item::separator, item::carry_over, item::delete_all, item::separator, item::other_chats, item::copy_conversation, item::separator,
 								   item::revision_read },
 			   "the tour chat's History: the same, with the other parts' chats and without the Agent tab's own items");
+		// RFC-BPR-0130 stage 7: the item's chat keeps sessions in the same
+		// menu, with no other chats and none of the Agent tab's own items.
+		auto itemChat       = agent;
+		itemChat.Kind       = chat_history_kind::review_item;
+		const auto itemMenu = plan_chat_history(itemChat);
+		expect(itemMenu.Items
+				   == std::vector{ item::new_session, item::separator, item::sessions, item::separator, item::carry_over, item::delete_all, item::separator, item::copy_conversation, item::separator, item::revision_read },
+			   "the item chat's History: New session first, the sessions, Delete all, Copy conversation, the revision read last");
+		expect(itemMenu.NewSession == new_session_refusal::none && itemMenu.CarryOver && itemMenu.Copy, "its actions can be chosen");
 		tour.OtherChats    = 0U;
 		tour.RevisionKnown = false;
 		const auto bare    = plan_chat_history(tour).Items;

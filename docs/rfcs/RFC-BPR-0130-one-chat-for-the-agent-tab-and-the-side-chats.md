@@ -369,3 +369,28 @@ until the owner answered it on 2026-11-25.
 - **AC07:** `agent_tab_view` holds no control owned by another widget and no state of a running turn; the turn's state comes from a core reducer covered without Qt.
 - **AC08:** A send refusal, a stopped run, a moved head and a carried-over conversation are each shown by the one notice, with the same words, in every chat that can reach that state.
 - **AC09:** The owner accepts the header and its menu on a frozen tests-on build that opens on a pull request with a tour, a report and at least two agent sessions, run with the Fixture agent.
+
+## Evidence ledger (implementation, 2026-11-26)
+
+Stages 1 to 7 have landed (BPR-2384, BPR-2400, BPR-2404, BPR-2405,
+BPR-2406, BPR-2407, BPR-2409, BPR-2410, BPR-2411, BPR-2412, BPR-2413 and the
+stage 7 card). Each criterion an agent can check holds on the evidence
+below; AC09 is the owner's look and waits for the final attended review. The
+implementation is done; the RFC closes when AC09 is accepted.
+
+| Criterion | Holds | Evidence |
+|---|---|---|
+| AC01 | Yes | BPR-2404 AC1 (`core_chat_header`, `qt_chat_header_view`, the three chats' Qt courses); stage 7 gives the item chat History, where it now keeps sessions (`core_chat_header`, `qt_item_side_chat`, the composed course's item chat). No row holds New session (`header_faults` in `application_composed_drawer_fit_*`). |
+| AC02 | Yes | BPR-2384 and BPR-2404 AC2 (`qt_chat_history_menu`, the session rows of BPR-2377); stage 7 adds the item chat's History (`core_chat_history`, `qt_item_side_chat`: New session first, a row each, Delete all, Copy conversation, the revision read). |
+| AC03 | Yes | BPR-2400 and BPR-2404 AC3 (`core_chat_header`'s words, `qt_chat_history_menu` naming two agents); the composed course refuses the replaced words on every label, button and menu item. |
+| AC04 | Yes | BPR-2404 AC4; `qt_drawer_surfaces_fit_scale_100/125/200` and `application_composed_drawer_fit_scale_100`, `_200`, `_cocoa`, the item chat's column at each width it can have. |
+| AC05 | Yes | BPR-2405 (`core_chat_send`, `qt_chat_composer`, the side chats' Send courses). |
+| AC06 | Yes | BPR-2406 AC3 (item chat), BPR-2407 AC1 (tour chat), BPR-2409 AC1 (Agent tab): the other turns' widgets are the same objects while a reply grows. |
+| AC07 | Yes | BPR-2411 (the live-turn reducer covered without Qt) and BPR-2412 AC1 (`qt_workbench_window_scale_*`: the tab holds and reads no panel's control). |
+| AC08 | Yes | BPR-2413 AC1 and AC2 (`core_chat_notice`, `qt_tour_side_chat`, `qt_item_side_chat`); stage 7 lets the item chat reach a carried-over session and a moved head, said by the same notice line and pinned-revision card (`qt_item_side_chat`). |
+| AC09 | Pending | The owner's look on a frozen tests-on build (Fixture agent) on a pull request with a tour, a report and at least two agent sessions. |
+
+Not in any criterion and left after stage 7: the item chat takes no queued
+follow-up while a round runs (Send is Stop, as stages 2 to 6 left it), and
+`side_chat_panel` still builds the hidden controls the window maps the Agent
+tab's intents to. Both are named in the stage 7 card.

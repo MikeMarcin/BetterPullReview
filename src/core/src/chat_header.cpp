@@ -20,10 +20,13 @@ namespace bpr::core {
 			return { action::show, action::history, action::new_session, action::delete_all_sessions, action::other_tour_chats, action::copy_conversation, action::close };
 		case chat_kind::whole_tour:
 			return { action::history, action::new_session, action::delete_all_sessions, action::other_tour_chats, action::copy_conversation, action::close };
-		case chat_kind::local_draft_discussion:
 		case chat_kind::review_item:
-			// One conversation, each round a fresh run: Copy is the header's
-			// own tool, and there is no History to hold it.
+			// RFC-BPR-0130 stage 7: an item's chat keeps sessions, so Copy
+			// is History's, as in a tour part's chat; no other parts' chats.
+			return { action::show, action::history, action::new_session, action::delete_all_sessions, action::copy_conversation, action::close };
+		case chat_kind::local_draft_discussion:
+			// One conversation: Copy is the header's own tool, and there is
+			// no History to hold it.
 			return { action::show, action::copy_conversation, action::close };
 		}
 		return { };

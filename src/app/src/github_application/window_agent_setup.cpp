@@ -1144,6 +1144,7 @@ namespace bpr::app {
 			if (Window && Window->tour_editor()->side_chat()->current()) {
 				observe_tour_native_history(*Window->tour_editor()->side_chat()->current());
 			}
+			observe_follow_up_agent();
 			if (AgentHost && AgentSetup && Window && Window->agent_panel()->selected_profile()) {
 				const auto profile     = *Window->agent_panel()->selected_profile();
 				const auto preferences = AgentSetup->projection().Preferences;

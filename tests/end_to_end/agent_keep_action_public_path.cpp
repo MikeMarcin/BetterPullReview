@@ -285,7 +285,10 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return draftText().contains(QStringLiteral("Consider moving the reset into `begin_request` instead")); }, "the card's draft holds its suggested comment: " + draftText().toStdString());
 			const auto propose = [&](const std::string& aStep) {
 				askAbout->click();
-				wait([&] { return followUp->isVisible() && followUp->subject_text().startsWith(QStringLiteral("Suggested comment at renderer.cpp:1")); }, aStep + ": the side chat about the card's finding opens: " + followUp->subject_text().toStdString());
+				// RFC-BPR-0130 stage 7: the item's sessions are read before
+				// anything is sent.
+				wait([&] { return followUp->isVisible() && followUp->subject_text().startsWith(QStringLiteral("Suggested comment at renderer.cpp:1")) && !followUp->history_button()->property("loading").toBool(); },
+					 aStep + ": the side chat about the card's finding opens: " + followUp->subject_text().toStdString());
 				expect(followUp->apply_button()->isVisible() && followUp->apply_button()->text() == QStringLiteral("Update suggested comment"), aStep + ": it offers Update suggested comment; it offers " + followUp->apply_button()->text().toStdString());
 				followUp->apply_button()->click();
 				if (!e2e::wait_until_plain([&] { return !followUp->proposal_text().isEmpty() && !followUp->running(); }, e2e::extended_agent_budget)) {

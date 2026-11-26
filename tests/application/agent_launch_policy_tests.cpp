@@ -80,7 +80,7 @@ namespace {
 			{ path::local_commit_message, fresh },
 			{ path::agent_check, fresh },
 			{ path::assistance_first_answer, fresh },
-			{ path::follow_up, fresh },
+			{ path::follow_up, resume },
 			{ path::agent_tab, resume },
 			{ path::tour_side_chat, resume },
 			{ path::tour_conversation, resume },
@@ -213,7 +213,7 @@ namespace {
 		const auto granted = checked(application::build_agent_launch(claude, supplement(), reader(), { .Grant = grant, .PullRequestCheckout = { "/tmp/bpr-checkout" }, .SystemInstructions = rule }),
 									 { .UserSettingsOnly = true }, "a granted Agent tab run in a pull request's checkout");
 		expect(has(granted.Arguments, "Write(//tmp/bpr-scratch/run-1/**)") && has(granted.Arguments, "Edit(//tmp/bpr-scratch/run-1/**)"), "a scoped write is granted by its Edit rule, the Write rule beside it");
-		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .Grant = scratch, .Path = core::agent_run_path::follow_up }), { .McpOff = true }, "a fresh granted run"));
+		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .Grant = scratch, .Path = core::agent_run_path::assistance_first_answer }), { .McpOff = true }, "a fresh granted run"));
 		static_cast<void>(checked(application::build_agent_launch(claude, supplement(), reader(), { .McpServers = core::agent_mcp_servers::own }), { }, "an Agent tab run with the agent's own MCP servers"));
 	}
 

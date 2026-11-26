@@ -1,6 +1,7 @@
 #include "bpr/core/agent_follow_up.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <utility>
 
 namespace bpr::core {
@@ -127,6 +128,10 @@ namespace bpr::core {
 			return text;
 		}
 
+		/// The earlier rounds a message carries: none when the agent's own
+		/// session holds them.
+		[[nodiscard]] auto earlier(const follow_up_state& aState) -> std::string { return aState.InSession ? std::string{ } : transcript(aState.Rounds); }
+
 		[[nodiscard]] auto instruction(const follow_up_apply aApply) -> std::string_view
 		{
 			switch (aApply) {
@@ -245,6 +250,22 @@ namespace bpr::core {
 		return true;
 	}
 
+	auto restore_follow_up(follow_up_state& aState, std::vector<follow_up_round> aRounds) -> follow_up_refusal
+	{
+		if (aState.Phase != follow_up_phase::idle) {
+			return follow_up_refusal::busy;
+		}
+		// A session longer than one chat keeps shows its latest rounds.
+		if (aRounds.size() > maximum_follow_up_rounds) {
+			aRounds.erase(aRounds.begin(), aRounds.end() - static_cast<std::ptrdiff_t>(maximum_follow_up_rounds));
+		}
+		aState.Rounds    = std::move(aRounds);
+		aState.Proposal  = std::nullopt;
+		aState.Refused   = follow_up_refusal::none;
+		aState.InSession = true;
+		return follow_up_refusal::none;
+	}
+
 	auto ask_follow_up(follow_up_state& aState, const std::string_view aQuestion) -> follow_up_step
 	{
 		if (aState.Phase != follow_up_phase::idle) {
@@ -260,7 +281,7 @@ namespace bpr::core {
 		const auto id          = begin(aState);
 		aState.Phase           = follow_up_phase::asking;
 		aState.PendingQuestion = std::string{ question };
-		auto message           = item(aState.Subject) + transcript(aState.Rounds);
+		auto message           = item(aState.Subject) + earlier(aState);
 		message += "\nThe reviewer asks:\n" + std::string{ question } + "\n\nAnswer the reviewer directly and briefly. Do not write the whole comment again unless asked; nothing is posted from this answer.\n";
 		return { .Refusal = follow_up_refusal::none, .Request = follow_up_request{ .Id = id, .Message = std::move(message) } };
 	}
@@ -278,7 +299,7 @@ namespace bpr::core {
 		aState.Phase        = follow_up_phase::proposing;
 		aState.PendingApply = aApply;
 		aState.PendingBase  = std::move(aBase);
-		auto message        = item(aState.Subject) + transcript(aState.Rounds);
+		auto message        = item(aState.Subject) + earlier(aState);
 		message += "\nbpr.follow-up." + std::string{ stable_name(aApply) } + "\n" + std::string{ instruction(aApply) } + "\n";
 		return { .Refusal = follow_up_refusal::none, .Request = follow_up_request{ .Id = id, .Message = std::move(message) } };
 	}

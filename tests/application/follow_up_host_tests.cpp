@@ -249,6 +249,32 @@ auto main() -> int
 		decided.drain();
 		expect(shown.back().RunFailure == "The side chat is still answering another item." && shown.back().Open->Phase == core::follow_up_phase::idle && launched.is_quiescent(), "a refused round says why and ends");
 
+		// RFC-BPR-0130 stage 7. The item chat's History chose a session: its
+		// rounds are the chat's, the failure goes, and the next round names
+		// the session and what it asked, and carries none of the rounds.
+		refuse     = false;
+		auto named = std::vector<std::string>{ };
+		launched.set_launcher([&](const application::follow_up_agent& aAgent, const std::string& aMessage, const std::stop_token aStop, application::follow_up_answer aAnswer) {
+			named.push_back(aAgent.Session + "|" + aAgent.Asked);
+			messages.push_back(aMessage);
+			tokens.push_back(aStop);
+			pending.push_back(std::move(aAnswer));
+		});
+		expect(launched.restore({ { .Question = "Is it read?", .Answer = "Yes." } }) == core::follow_up_refusal::none && shown.back().Open->Rounds.size() == 1U && shown.back().Open->InSession && shown.back().RunFailure.empty(),
+			   "a chosen session's rounds are the chat's, and the last failure goes");
+		auto inSession    = skilled;
+		inSession.Session = "item:finding:9";
+		static_cast<void>(launched.ask(inSession, "And the width?"));
+		expect(named.back() == "item:finding:9|And the width?" && messages.back().find("Reviewer: Is it read?") == std::string::npos, "the round names its session and question, and carries no earlier round");
+		expect(launched.restore({ }) == core::follow_up_refusal::busy, "no session is chosen while a round runs");
+		pending.back()(std::string{ "Both." });
+		decided.drain();
+		static_cast<void>(launched.propose(inSession, core::follow_up_apply::update_suggestion, "issue: the loop runs twice."));
+		expect(named.back() == "item:finding:9|Update suggested comment", "a proposal is asked as its action's words");
+		pending.back()(std::string{ "issue: it runs once per branch." });
+		decided.drain();
+		expect(launched.restore({ }) == core::follow_up_refusal::none && shown.back().Open->Rounds.empty() && !shown.back().Open->Proposal, "New session empties the chat");
+
 		// Shutdown: an answer after it is dropped.
 		refuse = false;
 		static_cast<void>(launched.ask(skilled, "Last?"));

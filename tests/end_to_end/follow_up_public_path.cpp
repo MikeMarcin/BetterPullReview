@@ -143,9 +143,20 @@ namespace {
 		static_cast<void>(aWidget.grab().save(root + QLatin1Char('/') + aName + QStringLiteral(".png")));
 	}
 
+	/// RFC-BPR-0130 stage 7. The item's sessions are read before anything is
+	/// sent: an item opened reads them, and Send waits for it as a tour part's
+	/// chat does.
+	void wait_for_sessions(const qt::item_side_chat& aFollowUp)
+	{
+		if (!e2e::wait_until_plain([&] { return !aFollowUp.history_button()->property("loading").toBool(); }, e2e::extended_agent_budget)) {
+			throw std::runtime_error{ "the item chat's sessions are read" };
+		}
+	}
+
 	/// Asks `aQuestion` in the side chat and waits for its answer.
 	void ask(qt::item_side_chat& aFollowUp, const QString& aQuestion)
 	{
+		wait_for_sessions(aFollowUp);
 		const auto before = aFollowUp.answers().size();
 		aFollowUp.composer()->setPlainText(aQuestion);
 		aFollowUp.send_button()->click();
@@ -172,6 +183,7 @@ namespace {
 
 	void ask_with_skill(qt::item_side_chat& aFollowUp)
 	{
+		wait_for_sessions(aFollowUp);
 		auto& composer = *aFollowUp.composer();
 		expect(composer.hasFocus(), "Ask follow-up focuses the item chat's composer");
 		auto* completion = static_cast<qt::skill_completer*>(nullptr);
@@ -219,6 +231,7 @@ namespace {
 	void propose(qt::item_side_chat& aFollowUp, const QString& aAction)
 	{
 		expect(aFollowUp.apply_button()->isVisible() && aFollowUp.apply_button()->text() == aAction, "the follow-up offers " + aAction.toStdString() + "; it offers " + aFollowUp.apply_button()->text().toStdString());
+		wait_for_sessions(aFollowUp);
 		aFollowUp.apply_button()->click();
 		if (!e2e::wait_until_plain([&] { return !aFollowUp.proposal_text().isEmpty() && !aFollowUp.running(); }, e2e::extended_agent_budget)) {
 			throw std::runtime_error{ aAction.toStdString() + " proposes a text; it says: " + aFollowUp.status_text().toStdString() };
@@ -407,7 +420,15 @@ auto main(int argc, char** argv) -> int
 		expect(!followUp->item_text().isEmpty(), "it quotes the finding");
 		ask_with_skill(*followUp);
 		ask(*followUp, QStringLiteral("Can it be softer?"));
-		expect(followUp->answers().back().startsWith(QStringLiteral("Fixture follow-up: I read the item and 1 earlier rounds.")), "the second round carried the first: " + followUp->answers().back().toStdString());
+		// RFC-BPR-0130 stage 7: the second round continues the session the
+		// first began, so its message carries no earlier round, and History
+		// keeps both rounds as that session's turns.
+		expect(followUp->answers().back().startsWith(QStringLiteral("Fixture follow-up: I read the item and 0 earlier rounds.")), "the second round continues the session: " + followUp->answers().back().toStdString());
+		wait([&] {
+			const auto* const rows = followUp->history_menu()->rows();
+			return rows->ids().size() == 1U && rows->turns(rows->selected()) == 2U;
+		},
+			 "History keeps the item's one session with its two rounds");
 		expect(!followUp->answers().back().contains(QStringLiteral("Item-chat skill guidance received.")), "a later question does not carry the earlier question's skill guidance");
 		// [[BPR-2370]]. The report's side chat reads the code: both its
 		// rounds, the one with a skill too, ran in the pull request's
@@ -451,6 +472,22 @@ auto main(int argc, char** argv) -> int
 		expect(!followUp->isVisible(), "Close closes the chat");
 		expect(report->press(issue.Outline, qt::report_link::ask), "Ask follow-up is pressed on the report again");
 		wait([&] { return followUp->isVisible() && followUp->answers().size() == 2; }, "the same chat, its two rounds");
+		// RFC-BPR-0130 stage 7 (owner, 2026-11-25: "sure seems like they
+		// should right"). New session keeps this one in History and empties
+		// the chat; opening the first from History shows its rounds again.
+		{
+			wait_for_sessions(*followUp);
+			auto* const rows  = followUp->history_menu()->rows();
+			const auto  first = rows->selected();
+			expect(followUp->new_session_action()->isEnabled(), "New session can be chosen in an item's chat with rounds");
+			followUp->new_session_action()->trigger();
+			wait([&] { return followUp->answers().isEmpty() && rows->ids().size() == 2U && rows->selected() != first; }, "New session empties the chat and keeps the first in History");
+			ask(*followUp, QStringLiteral("Is the clamp tested?"));
+			wait([&] { return rows->turns(rows->selected()) == 1U; }, "the new session keeps its own round");
+			rows->open(first);
+			wait([&] { return rows->selected() == first && !followUp->history_button()->property("loading").toBool() && followUp->answers().size() == 3; },
+				 "opening the first session from History shows its rounds again, its proposal's too");
+		}
 		expect(window.report_shown() && report->isVisible() && followUp->mapTo(&window, QPoint{ 0, 0 }).x() >= report->mapTo(&window, QPoint{ report->width(), 0 }).x() && onlyTheWindow(),
 			   "the chat stands beside the report, in the window");
 		render(window, QStringLiteral("side-chat-report"));

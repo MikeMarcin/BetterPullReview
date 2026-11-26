@@ -160,7 +160,12 @@ themes, rendering mechanics, and event translation.
   none, and Close. Which of them a chat has is core's decision; no chat builds
   a header row of its own, shows or hides a tool of the row, or adds a button
   to it (New session is History's first item). A session's cost and the
-  revision it reads are in History, never on the chat's face.
+  revision it reads are in History, never on the chat's face. The Agent tab,
+  a tour part's chat and the side chat about one review item keep sessions
+  (the item's since stage 7, under its own native scope,
+  `application::item_chat_native_scope`); a local draft's discussion keeps
+  none. Every chat that keeps sessions builds History from the one
+  `chat_history_menu`.
 - A chat with an agent places the one composer, `chat_composer`
   (RFC-BPR-0130 stage 2): the field, its chips above the words, the words,
   the chat's tools and Send, with Return, Shift+Return, Command+Return, the

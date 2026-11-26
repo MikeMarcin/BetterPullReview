@@ -21,11 +21,13 @@
 /// draft the reviewer is writing, or a review thread. The core holds the
 /// conversation's state, decides each round's message and identity, reads a
 /// proposal from an answer and decides whether a proposal may be applied.
-/// Each round is one fresh, tool-free run that carries the item and the
-/// rounds so far, so the conversation never depends on an agent's own
-/// session. Nothing here posts anything: an applied proposal replaces a
-/// suggestion, or puts text in a composer, and only the reviewer publishes.
-/// Pure.
+/// Each round is one run that carries the item. RFC-BPR-0130 stage 7 (owner,
+/// 2026-11-25: "sure seems like they should right") makes the rounds a
+/// session of the agent's own, kept in the item chat's History, so a round
+/// continues that session instead of carrying the rounds so far
+/// (`follow_up_state::InSession`). Nothing here posts anything: an applied
+/// proposal replaces a suggestion, or puts text in a composer, and only the
+/// reviewer publishes. Pure.
 namespace bpr::core {
 	/// \brief What a follow-up is about.
 	enum class follow_up_subject_kind : std::uint8_t {
@@ -199,6 +201,12 @@ namespace bpr::core {
 		/// Proposals used.
 		std::uint64_t Applied = 0U;
 		std::uint64_t NextId  = 1U;
+		/// RFC-BPR-0130 stage 7. The rounds are a session of the agent's own,
+		/// which each round continues (or carries over from its saved
+		/// transcript): a message carries the item and the question, never
+		/// the earlier rounds again. Off, each round is a fresh run that
+		/// carries them.
+		bool InSession = false;
 
 		auto operator==(const follow_up_state&) const -> bool = default;
 	};
@@ -228,6 +236,13 @@ namespace bpr::core {
 	/// now. The rounds and any proposal stay; a subject with another key is
 	/// ignored. \returns Whether it was taken.
 	auto refresh_follow_up(follow_up_state& aState, follow_up_subject aSubject) -> bool;
+
+	/// \brief RFC-BPR-0130 stage 7. The open session of the item's chat is
+	/// now the one whose rounds are `aRounds` (none for a new session): the
+	/// conversation shows them, a proposal and the last refusal go, and every
+	/// later message continues that session (`follow_up_state::InSession`).
+	/// \returns `busy` while a run is going (and nothing changes), else none.
+	auto restore_follow_up(follow_up_state& aState, std::vector<follow_up_round> aRounds) -> follow_up_refusal;
 
 	/// \brief Asks one question in the conversation.
 	[[nodiscard]] auto ask_follow_up(follow_up_state& aState, std::string_view aQuestion) -> follow_up_step;

@@ -43,10 +43,13 @@ namespace {
 		expect(!whole.offers(action::show) && whole.Show == chat_show::none && whole.Tool == chat_header_tool::history && whole.Close, "the whole tour has no one place to show");
 		expect(whole.offers(action::other_tour_chats) && whole.offers(action::new_session), "and the same History");
 
+		// RFC-BPR-0130 stage 7 (owner, 2026-11-25: "sure seems like they
+		// should right"): an item's chat keeps sessions.
 		const auto item = header_of(chat_kind::review_item);
-		expect(item.Offered == std::vector{ action::show, action::copy_conversation, action::close }, "an item's chat: Show, Copy conversation, Close");
-		expect(item.Tool == chat_header_tool::copy_conversation && item.Show == chat_show::place && item.Close, "Copy is its header's own tool: a chat with one extra action shows it as its icon");
-		expect(!item.offers(action::history) && !item.offers(action::new_session) && !item.offers(action::delete_all_sessions), "it keeps no sessions, so it offers no History");
+		expect(item.Offered == std::vector{ action::show, action::history, action::new_session, action::delete_all_sessions, action::copy_conversation, action::close },
+			   "an item's chat: Show, History with New session, Delete all sessions and Copy conversation, Close");
+		expect(item.Tool == chat_header_tool::history && item.Show == chat_show::place && item.Close, "its row: Show, History, Close");
+		expect(!item.offers(action::other_tour_chats) && !item.offers(action::show_every_run), "it reads no other chats and no run list");
 
 		const auto local = header_of(chat_kind::local_draft_discussion);
 		expect(local.Tool == chat_header_tool::copy_conversation && local.Show == chat_show::in_code && local.Close && !local.offers(action::history),
@@ -77,11 +80,17 @@ namespace {
 		row       = plan_chat_header(part);
 		expect(row.Title == part.Subject && row.Place == part.Place && row.TitleNote.empty() && row.SessionName == "Named", "a side chat's row keeps saying which part it stands beside, whatever its session is named");
 
-		auto item = chat_header_facts{ .Kind = chat_kind::review_item, .Subject = "Suggested comment", .Place = "queue.cpp, lines 212 to 218", .CanShow = true, .SessionName = "ignored", .RevisionRead = "3f9c2ab1" };
+		auto item = chat_header_facts{ .Kind = chat_kind::review_item, .Subject = "Suggested comment", .Place = "queue.cpp, lines 212 to 218", .CanShow = true, .SessionName = "Named", .RevisionRead = "3f9c2ab1" };
 		row       = plan_chat_header(item);
+		expect(row.Title == item.Subject && row.Place == item.Place && row.SessionName == "Named" && row.RevisionRead == "3f9c2ab" && row.ToolNote.empty(),
+			   "an item's chat keeps saying which item it is about, whatever its session is named, and History says the revision read");
+		auto local = chat_header_facts{ .Kind = chat_kind::local_draft_discussion, .Subject = "Discussion", .SessionName = "ignored", .RevisionRead = "3f9c2ab1" };
+		row        = plan_chat_header(local);
 		expect(row.SessionName.empty() && row.RevisionRead.empty() && row.ToolNote.empty(), "a chat that keeps no sessions names none and says no revision");
+		local.Cost = agent_cost{ 20'000'000U };
+		expect(plan_chat_header(local).ToolNote == "This conversation has cost $0.02 so far.", "what it has cost is said by its Copy tool, where a session's row would say it");
 		item.Cost = agent_cost{ 20'000'000U };
-		expect(plan_chat_header(item).ToolNote == "This conversation has cost $0.02 so far.", "what it has cost is said by its Copy tool, where a session's row would say it");
+		expect(plan_chat_header(item).ToolNote.empty(), "an item's chat says a session's cost in its row of History, not on its face");
 		facts.Cost = agent_cost{ 20'000'000U };
 		expect(plan_chat_header(facts).ToolNote.empty(), "a chat with sessions says a session's cost in its row of History, not on its face");
 	}
