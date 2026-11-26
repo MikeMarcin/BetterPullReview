@@ -224,20 +224,20 @@ namespace {
 	{
 		const auto rule    = std::string{ "Canary rule: end every reply with the single word PINEAPPLE." };
 		const auto claude  = profile(core::agent_protocol::claude_stream_json);
-		const auto inline_ = application::build_agent_launch(claude, supplement(), reader(), { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = rule });
-		expect(inline_ && index_of(inline_->Arguments, "--append-system-prompt") + 1U < inline_->Arguments.size()
-				   && inline_->Arguments[index_of(inline_->Arguments, "--append-system-prompt") + 1U] == rule,
+		const auto inlined = application::build_agent_launch(claude, supplement(), reader(), { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = rule });
+		expect(inlined && index_of(inlined->Arguments, "--append-system-prompt") + 1U < inlined->Arguments.size()
+				   && inlined->Arguments[index_of(inlined->Arguments, "--append-system-prompt") + 1U] == rule,
 			   "Claude takes the instructions as one inline --append-system-prompt argument");
-		expect(inline_ && index_of(inline_->Arguments, "-p") < index_of(inline_->Arguments, "--append-system-prompt"), "-p comes first, the system prompt after it");
-		expect(inline_ && !has(inline_->Arguments, "--append-system-prompt-file"), "never the -file form, which the corporate wrapper drops");
-		expect(inline_ && inline_->Input.find("PINEAPPLE") == std::string::npos && inline_->InstructionsRoute == application::agent_instructions_route::system_prompt,
+		expect(inlined && index_of(inlined->Arguments, "-p") < index_of(inlined->Arguments, "--append-system-prompt"), "-p comes first, the system prompt after it");
+		expect(inlined && !has(inlined->Arguments, "--append-system-prompt-file"), "never the -file form, which the corporate wrapper drops");
+		expect(inlined && inlined->Input.find("PINEAPPLE") == std::string::npos && inlined->InstructionsRoute == application::agent_instructions_route::system_prompt,
 			   "the message carries only the run's material");
 		const auto pasted = application::build_agent_launch(claude, supplement(), reader(),
 															{ .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = rule, .Instructions = core::agent_instruction_delivery::message });
 		expect(pasted && !has(pasted->Arguments, "--append-system-prompt") && pasted->Input.find("PINEAPPLE") != std::string::npos && pasted->InstructionsRoute == application::agent_instructions_route::pasted,
 			   "the agent's switch pastes the instructions into the message");
-		const auto long_ = application::build_agent_launch(claude, supplement(), reader(), { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = std::string(core::maximum_system_prompt_argument_bytes, 'x') });
-		expect(long_ && !has(long_->Arguments, "--append-system-prompt") && long_->InstructionsRoute == application::agent_instructions_route::pasted, "instructions past the Windows bound are pasted");
+		const auto overlong = application::build_agent_launch(claude, supplement(), reader(), { .WritingOnly = true, .Path = core::agent_run_path::enhance_writing, .SystemInstructions = std::string(core::maximum_system_prompt_argument_bytes, 'x') });
+		expect(overlong && !has(overlong->Arguments, "--append-system-prompt") && overlong->InstructionsRoute == application::agent_instructions_route::pasted, "instructions past the Windows bound are pasted");
 		const auto exec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), supplement(), reader(), { .ReadOnlyTools = true, .Path = core::agent_run_path::tour_field_draft, .SystemInstructions = rule });
 		expect(exec && std::ranges::any_of(exec->Arguments, [](const std::string& aArgument) { return aArgument.starts_with("developer_instructions=\"Canary rule"); }) && exec->Input.find("PINEAPPLE") == std::string::npos,
 			   "Codex exec takes the instructions as developer_instructions");

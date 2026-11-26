@@ -122,10 +122,10 @@ namespace bpr::application {
 
 	auto repository_skill_documents(const std::span<const repository_skill_file> aFiles, const core::git_commit_oid& aCommit) -> std::vector<skill_document>
 	{
-		const auto short_commit = std::string{ core::canonical_hex(aCommit).view().substr(0U, 7U) };
-		auto       documents    = std::vector<skill_document>{ };
+		const auto shortCommit = std::string{ core::canonical_hex(aCommit).view().substr(0U, 7U) };
+		auto       documents   = std::vector<skill_document>{ };
 		for (const auto& file : aFiles) {
-			auto document = skill_document_of(file.Text, file.Folder, core::skill_source::repository, "this pull request's repository, " + file.Root + " at base " + short_commit, file.Supporting);
+			auto document = skill_document_of(file.Text, file.Folder, core::skill_source::repository, "this pull request's repository, " + file.Root + " at base " + shortCommit, file.Supporting);
 			if (document) {
 				documents.push_back(std::move(*document));
 			}

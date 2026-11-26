@@ -115,7 +115,7 @@ namespace bpr::application {
 		if (host.Closing) {
 			return;
 		}
-		host.Waiting.push_back([weak = std::weak_ptr{ Implementation }] {
+		host.Waiting.emplace_back([weak = std::weak_ptr{ Implementation }] {
 			const auto self = weak.lock();
 			if (!self) {
 				return;
@@ -139,7 +139,7 @@ namespace bpr::application {
 		if (host.Closing) {
 			return;
 		}
-		host.Waiting.push_back([weak = std::weak_ptr{ Implementation }, differences = std::move(aDifferences), aFrom, settled = std::move(aSettled)]() mutable {
+		host.Waiting.emplace_back([weak = std::weak_ptr{ Implementation }, differences = std::move(aDifferences), aFrom, settled = std::move(aSettled)]() mutable {
 			const auto self = weak.lock();
 			if (!self) {
 				return;

@@ -1387,17 +1387,17 @@ namespace bpr::application {
 			}
 			return core::valid_cached_discussion(messages, aReviews) ? std::optional{ std::move(messages) } : std::nullopt;
 		}
-		static auto prepare_cached_overview(core::cached_review_key aKey, const github_pull_request_snapshot& snapshot)
+		static auto prepare_cached_overview(core::cached_review_key aKey, const github_pull_request_snapshot& aSnapshot)
 			-> std::optional<core::cached_review_overview>
 		{
 			// [[BPR-1560]]. The source reader uses GitHub's merge base; when
 			// the read supplied none, there is no new comparison to retain.
-			if (snapshot.MergeBaseAvailability != github_merge_base_availability::available
-				|| snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size()) > 1000000) {
+			if (aSnapshot.MergeBaseAvailability != github_merge_base_availability::available
+				|| aSnapshot.PullRequest.ReportedCommitCount.value_or(aSnapshot.Commits.size()) > 1000000) {
 				return std::nullopt;
 			}
 			auto retained = core::cached_review_overview{
-				.Key = std::move(aKey), .Repository = snapshot.Repository.Repository, .PullRequest = snapshot.PullRequest.PullRequest, .BaseOid = std::string{ comparison_base_text(snapshot) }, .HeadOid = std::string{ snapshot.PullRequest.HeadOid.value() }, .Title = snapshot.PullRequest.Title, .Body = snapshot.PullRequest.Body, .AuthorLogin = snapshot.PullRequest.Author ? snapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(snapshot.Files.size()), .Commits = static_cast<std::uint32_t>(snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size())), .State = static_cast<std::uint8_t>(snapshot.PullRequest.State), .Draft = snapshot.PullRequest.Draft, .FileCatalogue = retain_file_catalogue(snapshot), .ReviewThreads = retain_threads(snapshot), .GeneralComments = retain_discussion(snapshot, false), .ReviewSummaries = retain_discussion(snapshot, true)
+				.Key = std::move(aKey), .Repository = aSnapshot.Repository.Repository, .PullRequest = aSnapshot.PullRequest.PullRequest, .BaseOid = std::string{ comparison_base_text(aSnapshot) }, .HeadOid = std::string{ aSnapshot.PullRequest.HeadOid.value() }, .Title = aSnapshot.PullRequest.Title, .Body = aSnapshot.PullRequest.Body, .AuthorLogin = aSnapshot.PullRequest.Author ? aSnapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = aSnapshot.PullRequest.BaseRef, .HeadRef = aSnapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(aSnapshot.Files.size()), .Commits = static_cast<std::uint32_t>(aSnapshot.PullRequest.ReportedCommitCount.value_or(aSnapshot.Commits.size())), .State = static_cast<std::uint8_t>(aSnapshot.PullRequest.State), .Draft = aSnapshot.PullRequest.Draft, .FileCatalogue = retain_file_catalogue(aSnapshot), .ReviewThreads = retain_threads(aSnapshot), .GeneralComments = retain_discussion(aSnapshot, false), .ReviewSummaries = retain_discussion(aSnapshot, true)
 			};
 			return core::valid(retained) ? std::optional{ std::move(retained) } : std::nullopt;
 		}

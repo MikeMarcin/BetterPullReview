@@ -625,6 +625,7 @@ namespace {
 		expect(application::staged_stop_list(std::vector<std::size_t>{ 4U }) == "stop 4" && application::staged_stop_list(std::vector<std::size_t>{ 4U, 8U }) == "stops 4 and 8" && application::staged_stop_list(std::vector<std::size_t>{ 1U, 2U, 3U, 5U, 9U }) == "stops 1 to 3, 5 and 9", "stop numbers in words");
 		plan.Compatibility = true;
 		plan.Description   = application::staged_description_edit{ };
+		// NOLINTNEXTLINE(bugprone-suspicious-missing-comma): the literal is split so its escape ends.
 		expect(application::staged_publication_stages(plan) == std::vector<std::string>{ "Stop 1, \xE2\x80\x9C"
 																						 "First\xE2\x80\x9D, as a conversation comment",
 																						 "Stop 2, \xE2\x80\x9CSecond\xE2\x80\x9D, as a conversation comment", "The tour's index comment", "Links for stop 1", "Links for stop 2", "The description link" },

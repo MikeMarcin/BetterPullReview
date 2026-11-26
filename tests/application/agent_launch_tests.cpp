@@ -1758,7 +1758,7 @@ namespace {
 		const auto outcome = [](const bool aDenied) {
 			return R"({"type":"user","session_id":"s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tb","content":"done","is_error":)" + std::string{ aDenied ? "true" : "false" } + "}]}}\n";
 		};
-		const auto tools_of = [](const std::vector<application::agent_protocol_event>& aEvents) {
+		const auto toolsOf = [](const std::vector<application::agent_protocol_event>& aEvents) {
 			auto named = std::vector<std::string>{ };
 			for (const auto& event : aEvents) {
 				if (event.Kind == application::agent_protocol_event_kind::tool_activity) {
@@ -1767,14 +1767,14 @@ namespace {
 			}
 			return named;
 		};
-		const auto ran_count = [](const std::vector<application::agent_protocol_event>& aEvents) {
+		const auto ranCount = [](const std::vector<application::agent_protocol_event>& aEvents) {
 			return std::ranges::count(aEvents, application::agent_protocol_event_kind::outside_list_ran, &application::agent_protocol_event::Kind);
 		};
 		{
 			auto       held = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
 			const auto read = held.push(init + bash("touch made.txt") + outcome(true) + answer);
 			expect(read.has_value() && held.finish().has_value(), "AC2 a write Claude denied lets the run answer");
-			expect(read && tools_of(*read) == std::vector<std::string>{ "(not run, outside the read-only list) touch made.txt" } && ran_count(*read) == 0, "the transcript says it was not run");
+			expect(read && toolsOf(*read) == std::vector<std::string>{ "(not run, outside the read-only list) touch made.txt" } && ranCount(*read) == 0, "the transcript says it was not run");
 		}
 		{
 			// AC1. The owner's probe on Claude Code 2.1.314: `awk` ran without
@@ -1782,7 +1782,7 @@ namespace {
 			auto       probe = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
 			const auto read  = probe.push(init + bash("awk 'NR<3' notes.txt") + outcome(false) + answer);
 			expect(read.has_value() && probe.finish().has_value(), "AC1 a command Claude ran outside the list does not end the run");
-			expect(read && tools_of(*read) == std::vector<std::string>{ "(ran, outside the read-only list) awk 'NR<3' notes.txt" } && ran_count(*read) == 1, "it is named as run outside the list, and counted");
+			expect(read && toolsOf(*read) == std::vector<std::string>{ "(ran, outside the read-only list) awk 'NR<3' notes.txt" } && ranCount(*read) == 1, "it is named as run outside the list, and counted");
 			expect(read && std::ranges::any_of(*read, [](const application::agent_protocol_event& aEvent) { return aEvent.Kind == application::agent_protocol_event_kind::output && aEvent.Text == "done"; }), "and the run answers");
 			const auto noted = application::tour_transcript_of({ { "Bash", "(ran, outside the read-only list) awk 'NR<3' /w/notes.txt" } }, "/w");
 			expect(noted == std::vector<core::tour_transcript_entry>{ { core::tour_transcript_kind::read, "awk 'NR<3' notes.txt", core::tour_transcript_note::ran_outside_list } }, "the transcript keeps its usual kind and the note");
@@ -1793,7 +1793,7 @@ namespace {
 			auto       wrote = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
 			const auto read  = wrote.push(init + bash("touch made.txt") + outcome(false) + bash("rm -rf src") + R"({"type":"user","session_id":"s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tb","content":"done"}]}})" + "\n" + answer);
 			expect(read.has_value() && wrote.finish().has_value(), "a write that ran, and a result that does not say it was denied, are reported, not refused");
-			expect(read && tools_of(*read) == std::vector<std::string>{ "(ran, outside the read-only list) touch made.txt", "(ran, outside the read-only list) rm -rf src" } && ran_count(*read) == 2, "both are named as run outside the list");
+			expect(read && toolsOf(*read) == std::vector<std::string>{ "(ran, outside the read-only list) touch made.txt", "(ran, outside the read-only list) rm -rf src" } && ranCount(*read) == 2, "both are named as run outside the list");
 		}
 		{
 			auto chained = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
@@ -2069,7 +2069,7 @@ namespace {
 			read.Items          = decoder.assistant_items();
 			return read;
 		};
-		const auto private_content = [](const read_back& aRead) {
+		const auto privateContent = [](const read_back& aRead) {
 			return aRead.Texts.find("PRIVATE_") != std::string::npos
 				|| std::ranges::any_of(aRead.Items, [](const std::string& aItem) { return aItem.find("PRIVATE_") != std::string::npos; });
 		};
@@ -2079,7 +2079,7 @@ namespace {
 		expect(hidden.Finished && hidden.Items == std::vector<std::string>{ "written" } && hidden.Thinking == 1U, "AC1: a redacted_thinking block before the text finishes with that text only");
 		const auto mixed = readOf(true, init + R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"thinking","thinking":"PRIVATE_THINKING_CANARY"},{"type":"text","text":"written"}]}})" + "\n" + result);
 		expect(mixed.Finished && mixed.Items == std::vector<std::string>{ "written" } && mixed.Thinking == 1U, "AC1: thinking and text in one frame keep only the text");
-		expect(!private_content(thought) && !private_content(hidden) && !private_content(mixed), "AC3: no event and no answer item carries thinking content");
+		expect(!privateContent(thought) && !privateContent(hidden) && !privateContent(mixed), "AC3: no event and no answer item carries thinking content");
 		const auto onlyThinking = readOf(true, init + thinking + result);
 		expect(!onlyThinking.Finished && onlyThinking.Failure == application::agent_protocol_failure::malformed_frame && onlyThinking.Items.empty(),
 			   "a writing run whose answer holds only thinking still fails");
@@ -2094,7 +2094,7 @@ namespace {
 		}
 
 		const auto chat = readOf(false, init + thinking + text + result);
-		expect(chat.Finished && chat.Items == std::vector<std::string>{ "written" } && chat.Thinking == 0U && !private_content(chat), "AC4: agent chat reads the same stream as before and reports nothing");
+		expect(chat.Finished && chat.Items == std::vector<std::string>{ "written" } && chat.Thinking == 0U && !privateContent(chat), "AC4: agent chat reads the same stream as before and reports nothing");
 	}
 
 	/// [[BPR-1827]]. What Claude Code 2.1.310 writes for a turn that reads

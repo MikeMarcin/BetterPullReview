@@ -117,22 +117,22 @@ namespace {
 
 	struct profile
 	{
-		memory_store store;
-		runner       agents;
-		held         writes;
-		held         decisions;
+		memory_store Store;
+		runner       Agents;
+		held         Writes;
+		held         Decisions;
 
 		[[nodiscard]] auto host() -> application::agent_queue_host
 		{
-			agents.Store = &store;
-			return application::agent_queue_host{ { .Store = &store, .Runner = &agents, .Effects = &writes, .DecisionLane = &decisions } };
+			Agents.Store = &Store;
+			return application::agent_queue_host{ { .Store = &Store, .Runner = &Agents, .Effects = &Writes, .DecisionLane = &Decisions } };
 		}
 		/// The store's write runs, then its verdict reaches the decision lane.
 		void settle()
 		{
-			while (!writes.Tasks.empty() || !decisions.Tasks.empty()) {
-				writes.run();
-				decisions.run();
+			while (!Writes.Tasks.empty() || !Decisions.Tasks.empty()) {
+				Writes.run();
+				Decisions.run();
 			}
 		}
 	};
@@ -149,24 +149,24 @@ namespace {
 		auto world = profile{ };
 		auto host  = world.host();
 		static_cast<void>(host.enqueue("s", typed("one")));
-		expect(world.agents.Ran.empty() && front(host, "s").State == core::queued_state::sending && front(host, "s").Claim && front(host, "s").Claim->Conversation == 77U,
+		expect(world.Agents.Ran.empty() && front(host, "s").State == core::queued_state::sending && front(host, "s").Claim && front(host, "s").Claim->Conversation == 77U,
 			   "claimed and bound to its conversation; nothing is written while its claim is stored");
 		static_cast<void>(host.enqueue("s", typed("two")));
-		expect(world.agents.Ran.empty() && host.queue("s")->Entries.back().State == core::queued_state::queued, "the claimed entry is no longer eligible: the next waits");
+		expect(world.Agents.Ran.empty() && host.queue("s")->Entries.back().State == core::queued_state::queued, "the claimed entry is no longer eligible: the next waits");
 		world.settle();
-		expect(world.agents.Ran == std::vector<std::string>{ "one" }, "once stored, its turn starts, once");
-		const auto& atStart = world.agents.StoredAtStart.front().Entries;
+		expect(world.Agents.Ran == std::vector<std::string>{ "one" }, "once stored, its turn starts, once");
+		const auto& atStart = world.Agents.StoredAtStart.front().Entries;
 		expect(!atStart.empty() && atStart.front().State == core::queued_state::sending && atStart.front().Input.Text == "one", "the store held it as Sending before the turn started");
-		expect(world.store.Kept["s"].Entries.front().Claim && world.store.Kept["s"].Entries.front().Claim->Run == 1U, "its receipt, the run it was admitted as, is stored");
-		world.agents.States["s"] = core::queue_agent::idle;
+		expect(world.Store.Kept["s"].Entries.front().Claim && world.Store.Kept["s"].Entries.front().Claim->Run == 1U, "its receipt, the run it was admitted as, is stored");
+		world.Agents.States["s"] = core::queue_agent::idle;
 		host.retired("s", core::queued_finish::went);
 		world.settle();
-		expect(world.agents.Ran == std::vector<std::string>{ "one", "two" } && world.agents.StoredAtStart.back().Entries.size() == 1U,
+		expect(world.Agents.Ran == std::vector<std::string>{ "one", "two" } && world.Agents.StoredAtStart.back().Entries.size() == 1U,
 			   "the settled entry was stored gone before the next turn started");
 		host.retired("s", core::queued_finish::went);
 		host.retired("s", core::queued_finish::went);
 		world.settle();
-		expect(world.agents.Ran.size() == 2U && host.queue("s")->Entries.empty(), "a repeated retirement settles nothing twice and starts nothing");
+		expect(world.Agents.Ran.size() == 2U && host.queue("s")->Entries.empty(), "a repeated retirement settles nothing twice and starts nothing");
 	}
 
 	void test_a_crash_after_the_claim_is_uncertain_and_never_resent()
@@ -177,10 +177,10 @@ namespace {
 			static_cast<void>(host.enqueue("s", typed("claimed")));
 			static_cast<void>(host.enqueue("s", typed("waits")));
 			// The claim is stored; the app dies before its verdict comes back.
-			world.writes.run();
-			world.writes.run();
-			world.decisions.Tasks.clear();
-			expect(world.agents.Ran.empty(), "nothing was written to the agent");
+			world.Writes.run();
+			world.Writes.run();
+			world.Decisions.Tasks.clear();
+			expect(world.Agents.Ran.empty(), "nothing was written to the agent");
 		}
 		auto host = world.host();
 		host.load();
@@ -190,39 +190,39 @@ namespace {
 		const auto restored = front(host, "s");
 		expect(restored.State == core::queued_state::delivery_unknown && restored.Claim && restored.Claim->Conversation == 77U && restored.Input.Text == "claimed",
 			   "restored as Delivery unknown, with its text and what it was bound to");
-		expect(host.queue("s")->Paused == core::queue_pause::restarted && world.agents.Ran.empty(), "the queue opens paused; nothing is sent");
-		expect(host.resume("s") == core::queue_refusal::not_editable && world.agents.Ran.empty(), "Resume cannot pass an uncertain message: it is never resent");
+		expect(host.queue("s")->Paused == core::queue_pause::restarted && world.Agents.Ran.empty(), "the queue opens paused; nothing is sent");
+		expect(host.resume("s") == core::queue_refusal::not_editable && world.Agents.Ran.empty(), "Resume cannot pass an uncertain message: it is never resent");
 		expect(host.discard("s", restored.Id) == core::queue_refusal::none, "only the reviewer discards it");
 		expect(host.resume("s") == core::queue_refusal::none, "then the queue resumes");
 		world.settle();
-		expect(world.agents.Ran == std::vector<std::string>{ "waits" }, "and only the message that waited goes");
+		expect(world.Agents.Ran == std::vector<std::string>{ "waits" }, "and only the message that waited goes");
 	}
 
 	void test_a_refused_claim_or_a_stop_while_it_is_stored_writes_nothing()
 	{
 		auto world               = profile{ };
 		auto host                = world.host();
-		world.agents.States["s"] = core::queue_agent::busy;
+		world.Agents.States["s"] = core::queue_agent::busy;
 		static_cast<void>(host.enqueue("s", typed("first")));
 		static_cast<void>(host.enqueue("s", typed("second")));
 		world.settle();
-		world.store.Refuses      = true;
-		world.agents.States["s"] = core::queue_agent::idle;
+		world.Store.Refuses      = true;
+		world.Agents.States["s"] = core::queue_agent::idle;
 		host.agent_changed("s");
 		world.settle();
-		expect(world.agents.Ran.empty() && front(host, "s").Input.Text == "first" && front(host, "s").State == core::queued_state::queued && !front(host, "s").Claim,
+		expect(world.Agents.Ran.empty() && front(host, "s").Input.Text == "first" && front(host, "s").State == core::queued_state::queued && !front(host, "s").Claim,
 			   "a claim the store refused writes nothing; it stays unsent, first");
 		expect(host.queue("s")->Paused == core::queue_pause::failed, "and the queue pauses rather than retrying");
-		world.store.Refuses = false;
+		world.Store.Refuses = false;
 		expect(host.resume("s") == core::queue_refusal::none, "Resume");
 		host.pause_all(core::queue_pause::stopped);
 		world.settle();
-		expect(world.agents.Ran.empty() && front(host, "s").State == core::queued_state::queued && host.queue("s")->Paused == core::queue_pause::stopped,
+		expect(world.Agents.Ran.empty() && front(host, "s").State == core::queued_state::queued && host.queue("s")->Paused == core::queue_pause::stopped,
 			   "Stop all while the claim was stored: nothing starts, it is unsent and first");
 		expect(host.resume("s") == core::queue_refusal::none, "Resume again");
 		host.pause("s", core::queue_pause::reviewer);
 		world.settle();
-		expect(world.agents.Ran == std::vector<std::string>{ "first" } && host.queue("s")->Entries.back().State == core::queued_state::queued,
+		expect(world.Agents.Ran == std::vector<std::string>{ "first" } && host.queue("s")->Entries.back().State == core::queued_state::queued,
 			   "Pause queue stops what comes after the message shown Sending, not that message");
 	}
 
@@ -230,8 +230,8 @@ namespace {
 	{
 		auto world               = profile{ };
 		auto host                = world.host();
-		world.agents.States["s"] = core::queue_agent::busy;
-		world.agents.Running     = 5U;
+		world.Agents.States["s"] = core::queue_agent::busy;
+		world.Agents.Running     = 5U;
 		for (const auto* const text : { "taken", "not taken", "unnamed", "waits" }) {
 			static_cast<void>(host.enqueue("s", typed(text)));
 		}
@@ -244,23 +244,23 @@ namespace {
 		for (std::size_t index = 0U; index < 3U; ++index) {
 			expect(host.steer("s", ids[index], std::nullopt, [&told](const application::agent_queue_steer_result& aResult) { told.push_back(aResult); }) == core::queue_refusal::none, "Steer pressed");
 		}
-		expect(world.agents.Steered.empty() && told.empty(), "nothing is offered to the turn while the claims are stored");
+		expect(world.Agents.Steered.empty() && told.empty(), "nothing is offered to the turn while the claims are stored");
 		expect(host.steer("s", ids[0]) == core::queue_refusal::not_editable, "a claimed correction cannot be steered twice");
 		world.settle();
-		expect(world.agents.Steered.size() == 3U && told.size() == 3U && told.front().Sent, "once stored, each is handed to the turn, once");
-		expect(world.agents.StoredAtStart.front().Entries.front().State == core::queued_state::sending && world.agents.StoredAtStart.front().Entries.front().Claim->Route == core::queued_route::steer
-				   && world.agents.StoredAtStart.front().Entries.front().Claim->Run == 5U,
+		expect(world.Agents.Steered.size() == 3U && told.size() == 3U && told.front().Sent, "once stored, each is handed to the turn, once");
+		expect(world.Agents.StoredAtStart.front().Entries.front().State == core::queued_state::sending && world.Agents.StoredAtStart.front().Entries.front().Claim->Route == core::queued_route::steer
+				   && world.Agents.StoredAtStart.front().Entries.front().Claim->Run == 5U,
 			   "the store held it Sending, bound to the running turn's run, before it was offered");
 		host.steer_answered("s", ids[0], true, "uuid-taken");
 		host.steer_answered("s", ids[1], true, "uuid-not-taken");
 		host.steer_answered("s", ids[2], true, "uuid-unnamed");
 		host.steer_answered("s", ids[0], true, "uuid-other");
 		world.settle();
-		expect(world.store.Kept["s"].Entries[0].State == core::queued_state::sent && world.store.Kept["s"].Entries[0].Claim->Receipt == "uuid-taken", "the receipt is stored; a second answer changes nothing");
+		expect(world.Store.Kept["s"].Entries[0].State == core::queued_state::sent && world.Store.Kept["s"].Entries[0].Claim->Receipt == "uuid-taken", "the receipt is stored; a second answer changes nothing");
 
 		// A crash now: written corrections are uncertain, identifiable by their receipts.
 		{
-			auto crashed = core::agent_queue{ world.store.Kept["s"] };
+			auto crashed = core::agent_queue{ world.Store.Kept["s"] };
 			core::restore(crashed);
 			expect(crashed.Entries[0].State == core::queued_state::delivery_unknown && crashed.Entries[0].Claim->Receipt == "uuid-taken" && crashed.Paused == core::queue_pause::restarted,
 				   "after a crash a sent correction is Delivery unknown with its receipt");
@@ -272,22 +272,22 @@ namespace {
 		const auto* queue       = host.queue("s");
 		const auto  firstUnsent = std::ranges::find(queue->Entries, core::queued_state::queued, &core::queued_entry::State);
 		expect(queue->Entries.size() == 3U && firstUnsent != queue->Entries.end() && firstUnsent->Id == ids[1], "taken leaves; not taken goes back first among the unsent, with its identity");
-		const auto state_of = [&host](const std::uint64_t aId) { return std::ranges::find(host.queue("s")->Entries, aId, &core::queued_entry::Id)->State; };
-		expect(state_of(ids[2]) == core::queued_state::delivery_unknown && queue->Paused == core::queue_pause::delivery_unknown,
+		const auto stateOf = [&host](const std::uint64_t aId) { return std::ranges::find(host.queue("s")->Entries, aId, &core::queued_entry::Id)->State; };
+		expect(stateOf(ids[2]) == core::queued_state::delivery_unknown && queue->Paused == core::queue_pause::delivery_unknown,
 			   "written and never named by the run's end: Delivery unknown, and the queue pauses");
-		world.agents.States["s"] = core::queue_agent::idle;
+		world.Agents.States["s"] = core::queue_agent::idle;
 		host.agent_changed("s");
 		world.settle();
-		expect(world.agents.Ran.empty(), "nothing goes on past the uncertain correction");
+		expect(world.Agents.Ran.empty(), "nothing goes on past the uncertain correction");
 		host.steer_answered("s", ids[2], false, { });
-		expect(state_of(ids[2]) == core::queued_state::delivery_unknown, "a late answer for a settled record changes nothing");
+		expect(stateOf(ids[2]) == core::queued_state::delivery_unknown, "a late answer for a settled record changes nothing");
 	}
 
 	void test_an_unwritten_correction_goes_back_with_its_identity()
 	{
 		auto world               = profile{ };
 		auto host                = world.host();
-		world.agents.States["s"] = core::queue_agent::busy;
+		world.Agents.States["s"] = core::queue_agent::busy;
 		static_cast<void>(host.enqueue("s", typed("a")));
 		static_cast<void>(host.enqueue("s", typed("b")));
 		world.settle();
@@ -325,10 +325,10 @@ namespace {
 		static_cast<void>(host.enqueue("s", typed("lost in a crash of the agent")));
 		static_cast<void>(host.enqueue("s", typed("next")));
 		world.settle();
-		world.agents.States["s"] = core::queue_agent::idle;
+		world.Agents.States["s"] = core::queue_agent::idle;
 		host.retired("s", core::queued_finish::unknown);
 		world.settle();
-		expect(front(host, "s").State == core::queued_state::delivery_unknown && front(host, "s").Claim && host.queue("s")->Paused == core::queue_pause::delivery_unknown && world.agents.Ran.size() == 1U,
+		expect(front(host, "s").State == core::queued_state::delivery_unknown && front(host, "s").Claim && host.queue("s")->Paused == core::queue_pause::delivery_unknown && world.Agents.Ran.size() == 1U,
 			   "kept as Delivery unknown with its claim; the queue pauses; nothing is resent");
 	}
 
