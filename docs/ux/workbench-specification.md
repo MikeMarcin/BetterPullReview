@@ -2796,6 +2796,15 @@ to go on above and never reads as covered by the header (the owner,
 that heading: "partly hidden under the Native continuation line"). The blank
 room a transcript keeps over its first turn is not a turn, and a transcript at
 its start draws no line.
+Every chat ends a settled turn with one line in the same words (RFC-BPR-0130
+stage 3, `core::chat_ending_words`): who answered, how long it took and what
+it cost, "Claude answered in 0:42 · $0.14", or "Codex answered in 1:03." when
+no cost was reported; a run that ended without an answer says "Stopped after
+0:12". The agent is named short ("Claude Code" is "Claude"). An item's side
+chat draws its conversation in the one transcript (`qt::chat_transcript_view`),
+which changes only the turns that changed: a new question, an answer and a
+proposal never draw the earlier rounds again, and its replies' code is
+coloured as the other chats' is.
 Below it the conversation is a thread ([[BPR-1753]], owner looks v002
 and v003): each turn is what was asked, in an outlined bubble with its time
 right-aligned above it, then the agent's reply in its own card: the answer

@@ -6,15 +6,12 @@
 
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_status.hpp"
-#include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/chat_transcript_view.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
-#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/skill_completer.hpp"
-#include "bpr/qt/stick_to_bottom.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
-#include "bpr/qt/transcript_edge.hpp"
 
 #include <QAccessible>
 #include <QClipboard>
@@ -26,7 +23,6 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QResizeEvent>
-#include <QScrollArea>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -181,15 +177,7 @@ namespace bpr::qt {
 		}
 	} // namespace
 
-	auto item_chat_apply_words(const core::follow_up_apply aApply) -> QString
-	{
-		switch (aApply) {
-		case core::follow_up_apply::update_suggestion: return QObject::tr("Update suggested comment");
-		case core::follow_up_apply::update_draft:      return QObject::tr("Update draft");
-		case core::follow_up_apply::draft_reply:       return QObject::tr("Draft reply");
-		}
-		return { };
-	}
+	auto item_chat_apply_words(const core::follow_up_apply aApply) -> QString { return QString::fromStdString(core::follow_up_apply_words(aApply)); }
 
 	auto item_chat_refusal_words(const core::follow_up_refusal aRefusal) -> QString
 	{
@@ -299,25 +287,57 @@ namespace bpr::qt {
 		ClosePane = Header->close_tool();
 		column->addWidget(Header);
 
-		// The chat.
-		Scroll = new QScrollArea{ this };
-		Scroll->setObjectName(QStringLiteral("itemSideChatScroll"));
-		Scroll->setWidgetResizable(true);
-		Scroll->setFrameShape(QFrame::NoFrame);
-		Scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		Scroll->setFocusPolicy(Qt::NoFocus);
-		auto* const body = new QWidget{ Scroll };
-		Turns            = new QVBoxLayout{ body };
-		Turns->setContentsMargins(0, 6, 6, 6);
-		Turns->setSpacing(12);
-		Scroll->setWidget(body);
-		Scroll->viewport()->installEventFilter(this);
-		// [[BPR-2296]]. At its end, the chat stays there as it grows.
-		stick_to_bottom::attach(*Scroll);
-		// A turn cut at the top goes on under a drawn edge, as in the Agent
-		// tab and the tour's chat.
-		transcript_edge::attach(*Scroll);
-		column->addWidget(Scroll, 1);
+		// The chat (RFC-BPR-0130 stage 3): the one transcript, the item it is
+		// about quoted at its top, each round a turn, a proposal its own turn's
+		// attachment.
+		Transcript = new chat_transcript_view{ {
+												   .Scroll       = QStringLiteral("itemSideChatScroll"),
+												   .Bubble       = QStringLiteral("itemSideChatBubble"),
+												   .Question     = QStringLiteral("itemSideChatQuestion"),
+												   .Steered      = QStringLiteral("itemSideChatSteered"),
+												   .Reply        = QStringLiteral("itemSideChatReply"),
+												   .Failure      = QStringLiteral("itemSideChatFailure"),
+												   .Ending       = QStringLiteral("itemSideChatEnding"),
+												   .CopyReply    = QStringLiteral("itemSideChatCopyReply"),
+												   .Resend       = QStringLiteral("itemSideChatResend"),
+												   .Delete       = QStringLiteral("itemSideChatDelete"),
+												   .QuestionNote = QStringLiteral("itemSideChatQuestionNote"),
+												   .Activity     = QStringLiteral("itemSideChatActivity"),
+											   },
+											   this };
+		Transcript->set_parts({
+			.DressReader =
+				[this](markdown_body_view& aReader) {
+					if (CodeDispatch) {
+						aReader.set_code_syntax_dispatch(CodeDispatch);
+					}
+				},
+			.MakeAttachment =
+				[this](const core::chat_turn& /*aTurn*/, const core::chat_attachment& aAttachment, QWidget* aHolder) -> QWidget* {
+				const auto* const proposal = std::get_if<core::chat_follow_up_proposal>(&aAttachment.Payload);
+				return proposal != nullptr ? make_proposal(*proposal, aHolder) : nullptr;
+			},
+			.Act = { },
+		});
+		auto* const item   = new QWidget{ Transcript->widget() };
+		auto* const inItem = new QVBoxLayout{ item };
+		item->setObjectName(QStringLiteral("itemSideChatItem"));
+		inItem->setContentsMargins(0, 0, 0, 0);
+		inItem->setSpacing(2);
+		ItemHeading = quiet(small(words({ }, item)));
+		inItem->addWidget(ItemHeading);
+		ItemQuote = words({ }, item);
+		ItemQuote->setObjectName(QStringLiteral("itemSideChatItemText"));
+		auto italic = ItemQuote->font();
+		italic.setItalic(true);
+		ItemQuote->setFont(italic);
+		inItem->addWidget(ItemQuote);
+		Transcript->lead()->addWidget(item);
+		Invite = quiet(small(words({ }, Transcript->widget())));
+		Invite->setObjectName(QStringLiteral("itemSideChatEmpty"));
+		Transcript->lead()->addWidget(Invite);
+		Transcript->viewport()->installEventFilter(this);
+		column->addWidget(Transcript, 1);
 
 		// Under the transcript: a notice only when there is something to say,
 		// the composer with the item as its chip, then the apply action.
@@ -381,7 +401,7 @@ namespace bpr::qt {
 		});
 		ResizeHandle = new side_chat_width_handle{ *this };
 		hide();
-		rebuild();
+		present_lead();
 		restyle();
 	}
 
@@ -437,6 +457,22 @@ namespace bpr::qt {
 
 	void item_side_chat::present_skills(std::vector<core::skill_entry> aSkills) { SkillCompletion->present(std::move(aSkills)); }
 
+	void item_side_chat::set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
+	{
+		CodeDispatch = std::move(aDispatch);
+		for (auto* const reader : Transcript->readers()) {
+			reader->set_code_syntax_dispatch(CodeDispatch);
+			reader->request_code_syntax();
+		}
+	}
+
+	void item_side_chat::apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)
+	{
+		for (auto* const reader : Transcript->readers()) {
+			reader->apply_code_syntax(aSpans);
+		}
+	}
+
 	void item_side_chat::set_column_open(const bool aOpen)
 	{
 		const auto was = ColumnOpen;
@@ -476,7 +512,8 @@ namespace bpr::qt {
 		}
 		if (!Running && wasRunning && Clock.isValid()) {
 			if (aState.Rounds.size() > (Shown ? Shown->Rounds.size() : 0U)) {
-				Seconds[aState.Rounds.size() - 1U] = Clock.elapsed() / 1000;
+				Seconds.resize(aState.Rounds.size());
+				Seconds.back() = Clock.elapsed() / 1000;
 			}
 			Clock.invalidate();
 		}
@@ -498,22 +535,22 @@ namespace bpr::qt {
 		Chip->setText(ChipWords);
 		Chip->setToolTip(item_words(aState.Subject));
 		Composer->setPlaceholderText(placeholder_words(aState.Subject.Kind));
-		// [[BPR-2296]]. Drawn again, the chat holds its height until the new
-		// turns are laid out, so a reader scrolled up keeps their place.
-		auto* const body = Scroll->widget();
-		body->setMinimumHeight(body->height());
-		rebuild();
-		QTimer::singleShot(0, this, [this] {
-			fit();
-			Scroll->widget()->setMinimumHeight(0);
-		});
+		present_lead();
 		// [[BPR-2296]]. Another item's chat opens at its end; at its end, the
 		// chat follows what arrives, and one scrolled up stays put.
-		auto& follow = stick_to_bottom::attach(*Scroll);
 		if (another) {
-			follow.pin();
+			Transcript->pin();
 		}
-		follow.set_turn_running(Running);
+		// RFC-BPR-0130 stage 3. Only the turns that changed are drawn again.
+		Transcript->present_live(agent_run_status{ .Agent = Agent.isEmpty() ? tr("The agent") : Agent }, Clock);
+		Transcript->present(core::project_follow_up(aState, { .Agent = Agent.toStdString(), .Seconds = Seconds }));
+		if (!aState.Proposal) {
+			// The card goes with its turn, later; it is no longer the one shown.
+			ProposalCard  = nullptr;
+			ProposalText  = nullptr;
+			UseButton     = nullptr;
+			DiscardButton = nullptr;
+		}
 		const auto offers = core::follow_up_offers(aState.Subject);
 		ApplyButton->setVisible(!offers.empty());
 		if (!offers.empty()) {
@@ -530,9 +567,20 @@ namespace bpr::qt {
 		Send->setToolTip(Running ? tr("Stop the agent's answer") : tr("Send the question to the agent. Nothing is posted."));
 		show_status(aFailure.isEmpty() ? item_chat_refusal_words(aState.Refused) : aFailure);
 		restyle();
-		if (UseButton != nullptr && !proposalWas) {
+		QTimer::singleShot(0, this, [this] { fit_chip(); });
+		if (UseButton && !proposalWas) {
 			UseButton->setFocus(Qt::OtherFocusReason);
 		}
+	}
+
+	void item_side_chat::present_lead()
+	{
+		const auto quoted = Shown ? item_words(Shown->Subject) : QString{ };
+		ItemHeading->setText(Shown ? item_heading(Shown->Subject.Kind) : QString{ });
+		ItemQuote->setText(quoted.isEmpty() ? tr("(empty)") : quoted);
+		ItemQuote->parentWidget()->setVisible(Shown.has_value());
+		Invite->setText(Shown ? invite_words(Shown->Subject) : QString{ });
+		Invite->setVisible(Shown && Shown->Rounds.empty() && !Running);
 	}
 
 	void item_side_chat::show_status(const QString& aText)
@@ -552,15 +600,17 @@ namespace bpr::qt {
 
 	auto item_side_chat::subject_text() const -> QString { return Shown ? item_chat_subject_words(Shown->Subject) : QString{ }; }
 
-	auto item_side_chat::item_text() const -> QString { return ItemQuote != nullptr ? ItemQuote->text() : QString{ }; }
+	auto item_side_chat::item_text() const -> QString { return Shown ? ItemQuote->text() : QString{ }; }
 
 	auto item_side_chat::chip_text() const -> QString { return ChipWords; }
 
 	auto item_side_chat::questions() const -> QStringList
 	{
 		auto shown = QStringList{ };
-		for (auto* const label : Asked) {
-			shown << label->text();
+		for (std::size_t turn = 0U; turn < Transcript->turn_count(); ++turn) {
+			if (const auto* const asked = Transcript->question(turn); asked != nullptr) {
+				shown << asked->text();
+			}
 		}
 		return shown;
 	}
@@ -568,13 +618,16 @@ namespace bpr::qt {
 	auto item_side_chat::answers() const -> QStringList
 	{
 		auto shown = QStringList{ };
-		for (auto* const reply : Replies) {
-			shown << QString::fromStdString(reply->original_body());
+		for (std::size_t turn = 0U; turn < Transcript->turn_count(); ++turn) {
+			if (const auto* const reply = Transcript->reply(turn); reply != nullptr) {
+				shown << QString::fromStdString(reply->original_body());
+			}
 		}
 		return shown;
 	}
 
-	auto item_side_chat::status_line(const std::size_t aRound) const -> agent_run_status_line* { return aRound < Endings.size() ? Endings[aRound] : nullptr; }
+	// The rounds are the transcript's first turns.
+	auto item_side_chat::status_line(const std::size_t aRound) const -> agent_run_status_line* { return Shown && aRound < Shown->Rounds.size() ? Transcript->ending(aRound) : nullptr; }
 
 	auto item_side_chat::chat_text() const -> QString
 	{
@@ -604,197 +657,64 @@ namespace bpr::qt {
 			Composer->clear();
 			// The reviewer's own question takes the chat to its end, as the
 			// tour's chat does.
-			stick_to_bottom::attach(*Scroll).pin();
+			Transcript->pin();
 			Intents.Ask(text);
 		}
 	}
 
-	auto item_side_chat::reader(QWidget* aParent, const std::string& aBody, const std::string& aIdentity) -> markdown_body_view*
+	auto item_side_chat::make_proposal(const core::chat_follow_up_proposal& aProposal, QWidget* aParent) -> QWidget*
 	{
-		auto* const view = new markdown_body_view{ aParent };
-		view->set_in_place(true);
-		// [[BPR-1944]], as the tour's chat: a reply's code is a box as wide
-		// as the chat, with Wrap and Copy.
-		view->set_code_block_tools(true);
-		view->setFocusPolicy(Qt::NoFocus);
-		view->set_height_observer([this] { QTimer::singleShot(0, this, [this] { fit(); }); });
-		Readers.emplace_back(view);
-		view->set_body(aBody, aIdentity);
-		// As tall as it reads now, so a chat drawn again keeps its height
-		// and a reader scrolled up keeps their place.
-		const auto available = std::max(160, Scroll->viewport()->width() - Turns->contentsMargins().left() - Turns->contentsMargins().right());
-		view->setFixedHeight(view->heightForWidth(std::max(120, available)));
-		return view;
-	}
-
-	void item_side_chat::rebuild()
-	{
-		side_chat::clear(Turns);
-		Bubbles.clear();
-		Asked.clear();
-		Replies.clear();
-		Endings.clear();
-		ItemQuote     = nullptr;
-		ProposalCard  = nullptr;
-		ProposalText  = nullptr;
-		UseButton     = nullptr;
-		DiscardButton = nullptr;
-		Readers.erase(std::remove_if(Readers.begin(), Readers.end(), [](const QPointer<markdown_body_view>& aView) { return aView.isNull(); }), Readers.end());
-		if (!Shown) {
-			return;
-		}
-		auto* const body  = Scroll->widget();
-		const auto& state = *Shown;
-		const auto  agent = Agent.isEmpty() ? tr("The agent") : agent_short_name(Agent);
-
-		// The item the chat is about, quoted at its top.
-		auto* const item   = new QWidget{ body };
-		auto* const inItem = new QVBoxLayout{ item };
-		item->setObjectName(QStringLiteral("itemSideChatItem"));
-		inItem->setContentsMargins(0, 0, 0, 0);
-		inItem->setSpacing(2);
-		inItem->addWidget(quiet(small(words(item_heading(state.Subject.Kind), item))));
-		const auto quoted = item_words(state.Subject);
-		ItemQuote         = words(quoted.isEmpty() ? tr("(empty)") : quoted, item);
-		ItemQuote->setObjectName(QStringLiteral("itemSideChatItemText"));
-		auto italic = ItemQuote->font();
-		italic.setItalic(true);
-		ItemQuote->setFont(italic);
-		inItem->addWidget(ItemQuote);
-		Turns->addWidget(item);
-		if (state.Rounds.empty() && !Running) {
-			auto* const empty = quiet(small(words(invite_words(state.Subject), body)));
-			empty->setObjectName(QStringLiteral("itemSideChatEmpty"));
-			Turns->addWidget(empty);
-		}
-
-		// The reviewer's words on the right.
-		const auto mine = [&](const QString& aText) {
-			auto* const row    = new QHBoxLayout{ };
-			auto* const bubble = new side_chat::bubble_frame{ body };
-			bubble->setObjectName(QStringLiteral("itemSideChatBubble"));
-			auto* const inside = new QVBoxLayout{ bubble };
-			inside->setContentsMargins(12, 8, 12, 8);
-			auto* const asked = words(aText, bubble);
-			asked->setObjectName(QStringLiteral("itemSideChatQuestion"));
-			inside->addWidget(asked);
-			row->addStretch(1);
-			row->addWidget(bubble);
-			Turns->addLayout(row);
-			Bubbles.push_back(bubble);
-			return asked;
-		};
-		// A running request's live line, as the Agent tab's turns say it.
-		const auto live = [&] {
-			auto* const ending = new agent_run_status_line{ body };
-			ending->setObjectName(QStringLiteral("itemSideChatEnding"));
-			small(ending);
-			ending->present(agent_run_status{ .Agent = Agent.isEmpty() ? tr("The agent") : Agent }, Clock);
-			Turns->addWidget(ending);
-		};
-
-		for (std::size_t index = 0U; index < state.Rounds.size(); ++index) {
-			const auto& round = state.Rounds[index];
-			Asked.push_back(mine(QString::fromStdString(round.Question)));
-			// The agent's answer on the left: the reply, then its ending
-			// line with Copy.
-			auto* const answer = new QWidget{ body };
-			auto* const lines  = new QVBoxLayout{ answer };
-			lines->setContentsMargins(0, 0, 0, 0);
-			lines->setSpacing(4);
-			auto* const said = reader(answer, round.Answer, "item-side-chat:" + state.Subject.Key + ":" + std::to_string(index));
-			said->setObjectName(QStringLiteral("itemSideChatReply"));
-			lines->addWidget(said);
-			Replies.push_back(said);
-			auto* const row = new QHBoxLayout{ };
-			row->setContentsMargins(0, 0, 0, 0);
-			row->setSpacing(2);
-			auto* const ending = new agent_run_status_line{ answer };
-			ending->setObjectName(QStringLiteral("itemSideChatEnding"));
-			small(ending);
-			const auto seconds = Seconds.find(index);
-			ending->settle(seconds != Seconds.end() ? agent_run_answered_words(agent, seconds->second) + QStringLiteral(".") : tr("%1 answered.").arg(agent), true);
-			Endings.push_back(ending);
-			row->addWidget(ending, 1, Qt::AlignVCenter);
-			auto* const copy = new quiet_tool_button{ answer };
-			copy->set_tinted(true);
-			copy->setObjectName(QStringLiteral("itemSideChatCopyReply"));
-			copy->setAutoRaise(true);
-			copy->setToolTip(tr("Copy this reply"));
-			copy->setAccessibleName(tr("Copy reply"));
-			copy->setIcon(drawer_icon(drawer_glyph::copy, palette()));
-			connect(copy, &QToolButton::clicked, this, [text = QString::fromStdString(round.Answer)] {
-				if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
-					clipboard->setText(text);
-				}
-			});
-			row->addWidget(copy);
-			lines->addLayout(row);
-			Turns->addWidget(answer);
-		}
-		if (state.Phase == core::follow_up_phase::asking) {
-			Asked.push_back(mine(QString::fromStdString(state.PendingQuestion)));
-			live();
-		} else if (state.Phase == core::follow_up_phase::proposing) {
-			Asked.push_back(mine(item_chat_apply_words(state.PendingApply.value_or(core::follow_up_apply::update_suggestion))));
-			live();
-		}
-
 		// A proposal waits in the chat beside what it replaces, as the tour's
 		// chat shows a part's proposal; nothing changes until Use.
-		if (state.Proposal) {
-			const auto& proposal = *state.Proposal;
-			auto* const card     = new side_chat::proposal_frame{ body };
-			card->setObjectName(QStringLiteral("itemSideChatProposal"));
-			auto* const lines = new QVBoxLayout{ card };
-			lines->setContentsMargins(12, 8, 8, 8);
-			lines->setSpacing(4);
-			auto* const title = small(words(proposal_words(proposal.Apply), card));
-			auto        heavy = title->font();
-			heavy.setWeight(QFont::DemiBold);
-			title->setFont(heavy);
-			apply_agent_accent(*title, palette());
-			lines->addWidget(title);
-			const auto before = QString::fromStdString(proposal.Base).trimmed();
-			const auto said   = proposal.Apply == core::follow_up_apply::draft_reply ? (before.isEmpty() ? QString{ } : tr("Goes after what the reply composer holds:\n%1").arg(before)) : tr("Replaces:\n%1").arg(before);
-			if (!said.isEmpty()) {
-				auto* const replaced = quiet(small(words(said, card)));
-				replaced->setObjectName(QStringLiteral("itemSideChatProposalBefore"));
-				lines->addWidget(replaced);
-			}
-			ProposalText = words(QString::fromStdString(proposal.Text), card);
-			ProposalText->setObjectName(QStringLiteral("itemSideChatProposalText"));
-			lines->addWidget(ProposalText);
-			auto* const buttons = new QHBoxLayout{ };
-			buttons->setSpacing(6);
-			const auto reply = proposal.Apply == core::follow_up_apply::draft_reply;
-			UseButton        = make_tour_action(reply ? tr("Put in reply") : tr("Use this"), card);
-			UseButton->setObjectName(QStringLiteral("itemSideChatUse"));
-			UseButton->setToolTip(reply ? tr("Puts the reply in the conversation's reply composer. Nothing is posted.") : tr("Replaces the text with the proposal. Nothing is posted."));
-			UseButton->setAccessibleDescription(UseButton->toolTip());
-			UseButton->setEnabled(!Running);
-			DiscardButton = make_tour_action(tr("Discard"), card);
-			DiscardButton->setObjectName(QStringLiteral("itemSideChatDiscard"));
-			DiscardButton->setToolTip(tr("Drops the proposal. Nothing changes."));
-			buttons->addWidget(UseButton);
-			buttons->addWidget(DiscardButton);
-			buttons->addStretch(1);
-			lines->addLayout(buttons);
-			connect(UseButton, &QPushButton::clicked, this, [this, id = proposal.Id] {
-				if (Intents.Use) {
-					Intents.Use(id);
-				}
-			});
-			connect(DiscardButton, &QPushButton::clicked, this, [this, id = proposal.Id] {
-				if (Intents.Discard) {
-					Intents.Discard(id);
-				}
-			});
-			Turns->addWidget(card);
-			ProposalCard = card;
+		const auto& proposal = aProposal.Proposal;
+		auto* const card     = new side_chat::proposal_frame{ aParent };
+		card->setObjectName(QStringLiteral("itemSideChatProposal"));
+		auto* const lines = new QVBoxLayout{ card };
+		lines->setContentsMargins(12, 8, 8, 8);
+		lines->setSpacing(4);
+		auto* const title = small(words(proposal_words(proposal.Apply), card));
+		auto        heavy = title->font();
+		heavy.setWeight(QFont::DemiBold);
+		title->setFont(heavy);
+		apply_agent_accent(*title, palette());
+		lines->addWidget(title);
+		const auto before = QString::fromStdString(proposal.Base).trimmed();
+		const auto said   = proposal.Apply == core::follow_up_apply::draft_reply ? (before.isEmpty() ? QString{ } : tr("Goes after what the reply composer holds:\n%1").arg(before)) : tr("Replaces:\n%1").arg(before);
+		if (!said.isEmpty()) {
+			auto* const replaced = quiet(small(words(said, card)));
+			replaced->setObjectName(QStringLiteral("itemSideChatProposalBefore"));
+			lines->addWidget(replaced);
 		}
-		Turns->addStretch(1);
-		QTimer::singleShot(0, this, [this] { fit(); });
+		ProposalText = words(QString::fromStdString(proposal.Text), card);
+		ProposalText->setObjectName(QStringLiteral("itemSideChatProposalText"));
+		lines->addWidget(ProposalText);
+		auto* const buttons = new QHBoxLayout{ };
+		buttons->setSpacing(6);
+		const auto reply = proposal.Apply == core::follow_up_apply::draft_reply;
+		UseButton        = make_tour_action(reply ? tr("Put in reply") : tr("Use this"), card);
+		UseButton->setObjectName(QStringLiteral("itemSideChatUse"));
+		UseButton->setToolTip(reply ? tr("Puts the reply in the conversation's reply composer. Nothing is posted.") : tr("Replaces the text with the proposal. Nothing is posted."));
+		UseButton->setAccessibleDescription(UseButton->toolTip());
+		UseButton->setEnabled(aProposal.Usable);
+		DiscardButton = make_tour_action(tr("Discard"), card);
+		DiscardButton->setObjectName(QStringLiteral("itemSideChatDiscard"));
+		DiscardButton->setToolTip(tr("Drops the proposal. Nothing changes."));
+		buttons->addWidget(UseButton);
+		buttons->addWidget(DiscardButton);
+		buttons->addStretch(1);
+		lines->addLayout(buttons);
+		connect(UseButton, &QPushButton::clicked, this, [this, id = proposal.Id] {
+			if (Intents.Use) {
+				Intents.Use(id);
+			}
+		});
+		connect(DiscardButton, &QPushButton::clicked, this, [this, id = proposal.Id] {
+			if (Intents.Discard) {
+				Intents.Discard(id);
+			}
+		});
+		ProposalCard = card;
+		return card;
 	}
 
 	/// The apply action starts runs and wears the Agent accent; the composer
@@ -806,22 +726,7 @@ namespace bpr::qt {
 		update();
 	}
 
-	void item_side_chat::fit()
-	{
-		const auto available = std::max(160, Scroll->viewport()->width() - Turns->contentsMargins().left() - Turns->contentsMargins().right());
-		for (auto* const bubble : Bubbles) {
-			side_chat::fit_bubble(*bubble, available);
-		}
-		for (const auto& each : Readers) {
-			if (each && !each->isHidden()) {
-				const auto height = each->heightForWidth(std::max(120, available));
-				if (each->height() != height || each->minimumHeight() != height) {
-					each->setFixedHeight(height);
-				}
-			}
-		}
-		Chip->setText(Chip->fontMetrics().elidedText(ChipWords, Qt::ElideRight, std::max(40, Chip->width())));
-	}
+	void item_side_chat::fit_chip() { Chip->setText(Chip->fontMetrics().elidedText(ChipWords, Qt::ElideRight, std::max(40, Chip->width()))); }
 
 	void item_side_chat::paintEvent(QPaintEvent* /*aEvent*/) { side_chat::paint_seam(*this); }
 
@@ -845,8 +750,8 @@ namespace bpr::qt {
 		if (aEvent->type() == QEvent::Resize && aWatched == Page) {
 			updateGeometry();
 		}
-		if (aEvent->type() == QEvent::Resize && aWatched == Scroll->viewport()) {
-			QTimer::singleShot(0, this, [this] { fit(); });
+		if (aEvent->type() == QEvent::Resize && aWatched == Transcript->viewport()) {
+			QTimer::singleShot(0, this, [this] { fit_chip(); });
 		}
 		return QWidget::eventFilter(aWatched, aEvent);
 	}

@@ -1,5 +1,7 @@
 #include "bpr/qt/agent_run_status.hpp"
 
+#include "bpr/core/chat_transcript.hpp"
+
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
@@ -142,14 +144,9 @@ namespace bpr::qt {
 		return parts.isEmpty() ? took : took + QStringLiteral(": ") + parts.join(QStringLiteral(", "));
 	}
 
-	auto agent_elapsed_words(const qint64 aSeconds) -> QString
-	{
-		const auto seconds = aSeconds < 0 ? qint64{ 0 } : aSeconds;
-		if (seconds >= 3600) {
-			return QStringLiteral("%1:%2:%3").arg(seconds / 3600).arg(seconds / 60 % 60, 2, 10, QLatin1Char{ '0' }).arg(seconds % 60, 2, 10, QLatin1Char{ '0' });
-		}
-		return QStringLiteral("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char{ '0' });
-	}
+	// RFC-BPR-0130 stage 3. The time and the ending line are core's, one for
+	// every chat.
+	auto agent_elapsed_words(const qint64 aSeconds) -> QString { return QString::fromStdString(core::chat_elapsed_words(aSeconds)); }
 
 	auto agent_run_status_words(const agent_run_status& aStatus, const qint64 aSeconds) -> QString
 	{
@@ -200,18 +197,16 @@ namespace bpr::qt {
 
 	auto agent_turn_ending_words(const QString& aAgent, const bool aAnswered, const std::optional<qint64> aSeconds) -> QString
 	{
-		if (aAnswered) {
-			return aSeconds ? agent_run_answered_words(agent_short_name(aAgent), *aSeconds) : QObject::tr("%1 answered").arg(agent_short_name(aAgent));
-		}
-		return aSeconds ? agent_run_stopped_words(*aSeconds) : QObject::tr("Stopped");
+		return agent_turn_ending_words(aAgent, aAnswered ? core::agent_turn_outcome::answered : core::agent_turn_outcome::stopped, aSeconds);
 	}
 
 	auto agent_turn_ending_words(const QString& aAgent, const core::agent_turn_outcome aOutcome, const std::optional<qint64> aSeconds) -> QString
 	{
-		if (aOutcome == core::agent_turn_outcome::closed_with_app) {
-			return aSeconds ? QObject::tr("Stopped when the app closed, after %1").arg(agent_elapsed_words(*aSeconds)) : QObject::tr("Stopped when the app closed");
-		}
-		return agent_turn_ending_words(aAgent, aOutcome == core::agent_turn_outcome::answered, aSeconds);
+		auto ending    = core::chat_ending{ };
+		ending.Agent   = aAgent.toStdString();
+		ending.Outcome = aOutcome;
+		ending.Seconds = aSeconds;
+		return QString::fromStdString(core::chat_ending_first_words(ending));
 	}
 
 	agent_run_status_line::agent_run_status_line(QWidget* aParent)

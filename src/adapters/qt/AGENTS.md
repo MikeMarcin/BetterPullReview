@@ -168,6 +168,16 @@ themes, rendering mechanics, and event translation.
   Stop are drawn from `core::decide_chat_send`; a chat enables Send and says
   in its tooltip what it does, and does not restyle, retitle or add a Stop of
   its own.
+- A chat with an agent draws its conversation in the one transcript,
+  `chat_transcript_view` (RFC-BPR-0130 stage 3), from a
+  `core::chat_transcript` its projector makes (`core::project_follow_up`
+  for an item's chat, `core::project_tour_thread` for a tour part's, the
+  whole tour's and a local draft's discussion). The view changes only the turns
+  `core::chat_transcript_delta` names, so a reply that grows never draws the
+  other turns again; a chat does not rebuild its column. What a chat hangs on
+  a turn (a proposal, a card) is an attachment its factory makes. A turn's
+  ending line is `core::chat_ending_words` in every chat: who, how long,
+  what it cost.
 - A card the next question waits on, or that reports the turn at the thread's
   end, stands on the question field (`agent_tab_view::dock_banner`), not at
   the head of a thread that keeps itself at its end: the card that asks which

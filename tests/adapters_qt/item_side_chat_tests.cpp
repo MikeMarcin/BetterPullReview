@@ -142,7 +142,7 @@ namespace {
 		expect(chat->apply_button()->isVisibleTo(chat) && chat->apply_button()->text() == QStringLiteral("Update suggested comment"), "a suggestion offers Update suggested comment");
 		expect(qt::agent_run_control(*chat->send_button()) && qt::agent_run_control(*chat->apply_button()), "Send and the apply action start runs: the Agent accent");
 		expect(chat->proposal_card() == nullptr && chat->questions().isEmpty(), "no turns and no proposal yet");
-		expect(shown<QLabel>(*chat, QStringLiteral("itemSideChatEmpty")) != nullptr, "an empty chat invites a question");
+		expect(shown<QLabel>(*chat, QStringLiteral("itemSideChatEmpty")) != nullptr && shown<QLabel>(*chat, QStringLiteral("itemSideChatEmpty"))->isVisibleTo(chat), "an empty chat invites a question");
 		chat->show_button()->click();
 		expect(done.Revealed.size() == 1U && done.Revealed.front().Key == "finding:7:0", "Show asks for the item's place");
 
@@ -172,7 +172,7 @@ namespace {
 		QApplication::processEvents();
 		expect(!chat->running() && chat->answers() == QStringList{ QStringLiteral("It asserts on **minimise**.") }, "the answer is the agent's turn, as Markdown");
 		expect(chat->status_line(0U) != nullptr && !chat->status_line(0U)->live() && chat->status_line(0U)->text().startsWith(QStringLiteral("Fixture agent answered")), "the answer ends with who answered: " + (chat->status_line(0U) != nullptr ? chat->status_line(0U)->text().toStdString() : std::string{ }));
-		expect(shown<QLabel>(*chat, QStringLiteral("itemSideChatEmpty")) == nullptr, "a chat with turns no longer invites");
+		expect(!shown<QLabel>(*chat, QStringLiteral("itemSideChatEmpty"))->isVisibleTo(chat), "a chat with turns no longer invites");
 
 		// Update: the proposal in the chat beside what it replaces; nothing
 		// changes until Use.

@@ -13,6 +13,7 @@
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_queue.hpp"
 #include "bpr/core/chat_header.hpp"
+#include "bpr/core/chat_transcript.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/hex.hpp"
@@ -3462,11 +3463,15 @@ namespace bpr::qt {
 		if (delivered) {
 			parts << (findings == 1U ? tr("1 finding") : tr("%1 findings").arg(findings));
 		}
-		auto footer = parts.join(QStringLiteral(" · "));
-		if (parts.size() == 1) {
-			footer += QLatin1Char{ '.' };
-		}
-		auto detail = tip.join(QStringLiteral(" · ")) + QLatin1Char{ '.' };
+		// RFC-BPR-0130 stage 3. The one ending line of every chat.
+		auto said         = core::chat_ending{ };
+		said.Agent        = agent.toStdString();
+		said.Outcome      = succeeded ? core::agent_turn_outcome::answered : core::agent_turn_outcome::stopped;
+		said.Seconds      = seconds;
+		said.Cost         = cost;
+		said.Findings     = delivered ? findings : 0U;
+		const auto footer = QString::fromStdString(core::chat_ending_words(said));
+		auto       detail = tip.join(QStringLiteral(" · ")) + QLatin1Char{ '.' };
 		if (succeeded && Launch.pull_request_files_only()) {
 			detail += QLatin1Char{ ' ' } + tr("It saw only this pull request's files.");
 		}

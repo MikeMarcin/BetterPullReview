@@ -10,6 +10,7 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/identity_avatar_pictures.hpp"
+#include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -626,6 +627,9 @@ namespace bpr::qt {
 		}
 		if (TourEditor != nullptr) {
 			TourEditor->apply_code_syntax(aSpans);
+		}
+		if (ItemSideChat != nullptr) {
+			ItemSideChat->apply_code_syntax(aSpans);
 		}
 	}
 

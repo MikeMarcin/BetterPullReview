@@ -4,6 +4,7 @@
 #include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/core/agent_turn.hpp"
+#include "bpr/core/chat_transcript.hpp"
 #include "bpr/core/prompt_macro.hpp"
 #include "bpr/core/quick_ask.hpp"
 #include "bpr/core/review_tour.hpp"
@@ -17,6 +18,7 @@
 #include "bpr/qt/chat_composer.hpp"
 #include "bpr/qt/chat_header_view.hpp"
 #include "bpr/qt/chat_history_menu.hpp"
+#include "bpr/qt/chat_transcript_view.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 
@@ -41,7 +43,6 @@ class QMenu;
 class QPainter;
 class QPlainTextEdit;
 class QPushButton;
-class QScrollArea;
 class QHBoxLayout;
 class QAction;
 
@@ -261,7 +262,7 @@ namespace bpr::qt {
 		void offer_selection(const core::tour_thread& aThread, std::optional<core::tour_passage> aSelected);
 		/// \brief [[BPR-1930]]. Feedback kept until the draft proposes, shown
 		/// in the tour's chat while it waits.
-		[[nodiscard]] auto waiting_feedback() const noexcept -> QWidget* { return WaitingBubble; }
+		[[nodiscard]] auto waiting_feedback() const -> QWidget*;
 		/// \brief [[BPR-1937]]. The newest whole-tour turn's refused parts, each
 		/// with why, when it had any.
 		[[nodiscard]] auto refused_line() const noexcept -> QLabel* { return RefusedLine; }
@@ -395,7 +396,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto passage_line() const noexcept -> QLabel* { return PassageLine; }
 		[[nodiscard]] auto passage() const -> std::optional<core::tour_passage>;
 		/// \brief How many turns the open chat shows.
-		[[nodiscard]] auto turn_count() const noexcept -> std::size_t { return Bubbles.size(); }
+		[[nodiscard]] auto turn_count() const -> std::size_t;
+		/// \brief RFC-BPR-0130 stage 4. The one transcript the turns are drawn in.
+		[[nodiscard]] auto transcript() const noexcept -> chat_transcript_view* { return Transcript; }
 		/// \brief Turn `aTurn`'s bubble, its reply (none when it has no
 		/// answer), its ending line ([[BPR-1941]]: live while it runs) and Copy.
 		[[nodiscard]] auto bubble(std::size_t aTurn) const -> QWidget*;
@@ -408,7 +411,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto delete_button(std::size_t aTurn) const -> QPushButton*;
 		/// \brief [[BPR-1941]]. The whole tour's chat's line while Draft Tour
 		/// runs; otherwise none.
-		[[nodiscard]] auto draft_status_line() const noexcept -> agent_run_status_line* { return DraftLine; }
+		[[nodiscard]] auto draft_status_line() const -> agent_run_status_line* { return DraftBlock->isHidden() ? nullptr : DraftLine; }
 		/// \brief Proposal item `aIndex`'s Accept and rendered text, while it is
 		/// pending and shown in the open chat.
 		[[nodiscard]] auto accept_button(std::size_t aIndex) const -> QPushButton*;
@@ -453,8 +456,21 @@ namespace bpr::qt {
 		tour_carried_answer Carried        = tour_carried_answer::none;
 		QLabel*             CarriedAnswer  = nullptr;
 		bool                HistoryLoading = false;
-		void                rebuild();
-		void                changed();
+		/// RFC-BPR-0130 stage 4. Draws the open chat: its transcript, which
+		/// changes only the turns that changed, and the chat's own items.
+		void               present_thread();
+		[[nodiscard]] auto thread_facts() const -> core::tour_thread_facts;
+		[[nodiscard]] auto run_of(const std::string& aTurn) const -> const core::tour_agent_run*;
+		[[nodiscard]] auto reply_body(const core::chat_turn& aTurn) const -> std::string;
+		void               dress_code(markdown_body_view& aView, const std::string& aInlineSelector) const;
+		void               dress_reply(markdown_body_view& aReader);
+		void               dress_bubble(const core::chat_turn& aTurn, QWidget& aBubble, QVBoxLayout& aAbove, QLabel& aQuestion);
+		void               act(const std::string& aTurn, chat_turn_gesture aGesture);
+		[[nodiscard]] auto make_attachment(const core::chat_turn& aTurn, const core::chat_attachment& aAttachment, QWidget* aHolder) -> QWidget*;
+		[[nodiscard]] auto make_focus_line(const core::chat_tour_focus& aFocus, QWidget* aHolder) -> QWidget*;
+		[[nodiscard]] auto make_revision_card(const core::chat_tour_revision& aRevision, QWidget* aHolder) -> QWidget*;
+		[[nodiscard]] auto make_proposal_card(const core::chat_turn& aTurn, const core::chat_tour_proposal& aProposed, QWidget* aHolder) -> QWidget*;
+		void               changed();
 		/// [[BPR-1914]] v004. The file inline code in a chat is coloured as:
 		/// a stop's own file, or the language most of the tour's stops are in.
 		[[nodiscard]] auto inline_selector() const -> std::string;
@@ -512,12 +528,11 @@ namespace bpr::qt {
 		std::map<std::size_t, core::tour_passage>                                   Passages;
 		std::map<std::size_t, QString>                                              Edited;
 		std::set<std::size_t>                                                       Editing;
-		bool                                                                        Running       = false;
-		bool                                                                        Drafting      = false;
-		QWidget*                                                                    WaitingBubble = nullptr;
-		QLabel*                                                                     RefusedLine   = nullptr;
-		QLabel*                                                                     UnchangedLine = nullptr;
-		QLabel*                                                                     FocusLine     = nullptr;
+		bool                                                                        Running  = false;
+		bool                                                                        Drafting = false;
+		QPointer<QLabel>                                                            RefusedLine;
+		QPointer<QLabel>                                                            UnchangedLine;
+		QPointer<QLabel>                                                            FocusLine;
 		std::function<void(core::tour_agent_run_id)>                                FocusUndoDispatch;
 		[[nodiscard]] auto                                                          takes_feedback() const -> bool;
 		bool                                                                        Mine          = false;
@@ -530,22 +545,23 @@ namespace bpr::qt {
 		qreal                                                                       TabStop = 0.0;
 		std::optional<markdown_code_theme>                                          CodeTheme;
 		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
-		int                                                                         Current            = -1;
-		QToolButton*                                                                CopyChat           = nullptr;
-		QToolButton*                                                                ClosePane          = nullptr;
-		QLabel*                                                                     Subject            = nullptr;
-		QLabel*                                                                     Quote              = nullptr;
-		QPushButton*                                                                ShowPart           = nullptr;
-		QScrollArea*                                                                Scroll             = nullptr;
-		QVBoxLayout*                                                                Turns              = nullptr;
-		QWidget*                                                                    Notice             = nullptr;
-		chat_composer*                                                              Field              = nullptr;
-		QWidget*                                                                    RevisionCard       = nullptr;
-		QLabel*                                                                     RevisionOperations = nullptr;
-		QLabel*                                                                     RevisionState      = nullptr;
-		QPushButton*                                                                RevisionAcceptAll  = nullptr;
-		QPushButton*                                                                RevisionReview     = nullptr;
-		QPushButton*                                                                RevisionDiscard    = nullptr;
+		int                                                                         Current    = -1;
+		QToolButton*                                                                CopyChat   = nullptr;
+		QToolButton*                                                                ClosePane  = nullptr;
+		QLabel*                                                                     Subject    = nullptr;
+		QLabel*                                                                     Quote      = nullptr;
+		QPushButton*                                                                ShowPart   = nullptr;
+		chat_transcript_view*                                                       Transcript = nullptr;
+		QLabel*                                                                     Empty      = nullptr;
+		QWidget*                                                                    DraftBlock = nullptr;
+		QWidget*                                                                    Notice     = nullptr;
+		chat_composer*                                                              Field      = nullptr;
+		QPointer<QWidget>                                                           RevisionCard;
+		QPointer<QLabel>                                                            RevisionOperations;
+		QPointer<QLabel>                                                            RevisionState;
+		QPointer<QPushButton>                                                       RevisionAcceptAll;
+		QPointer<QPushButton>                                                       RevisionReview;
+		QPointer<QPushButton>                                                       RevisionDiscard;
 		std::function<void(core::tour_agent_run_id)>                                ReviewDispatch;
 		/// The update turn's words for the open chat's part.
 		[[nodiscard]] auto update_question() const -> QString;
@@ -572,33 +588,21 @@ namespace bpr::qt {
 		bool                                                            FollowUpSteer = false;
 		bool                                                            Opposite      = false;
 		/// Whether a message typed now is a follow-up, and which.
-		[[nodiscard]] auto    follow_up() const -> std::optional<bool>;
-		void                  show_queue();
-		skill_completer*      SkillCompletion = nullptr;
-		std::vector<QWidget*> Bubbles;
-		/// [[BPR-2154]]. The author's steered messages, after their turn's question.
-		std::vector<QWidget*>                                                 SteeredBubbles;
-		std::vector<markdown_body_view*>                                      Replies;
-		std::vector<agent_run_status_line*>                                   Endings;
-		std::vector<agent_activity_view*>                                     ActivityViews;
+		[[nodiscard]] auto                                                    follow_up() const -> std::optional<bool>;
+		void                                                                  show_queue();
+		skill_completer*                                                      SkillCompletion = nullptr;
 		std::map<std::uint64_t, std::pair<core::agent_turn_activity, qint64>> RunActivity;
-		QPointer<agent_activity_view>                                         LiveActivity;
-		std::vector<QToolButton*>                                             Copies;
-		std::vector<QPushButton*>                                             Resends;
-		std::vector<QPushButton*>                                             Deletes;
 		/// [[BPR-1941]]. The running request: what it does, its clock, the
 		/// lines saying it, and the agent each turn ran with.
-		std::optional<agent_run_status>              Live;
-		QElapsedTimer                                LiveClock;
-		QPointer<agent_run_status_line>              LiveLine;
-		agent_run_status_line*                       DraftLine = nullptr;
-		std::map<std::uint64_t, QString>             RunAgents;
-		std::function<void(core::tour_agent_run_id)> DeleteDispatch;
-		std::vector<QPointer<markdown_body_view>>    Readers;
-		std::map<std::size_t, QPushButton*>          Accepts;
-		std::map<std::size_t, markdown_body_view*>   ProposalReaders;
-		std::vector<QPointer<QWidget>>               Accented;
-		prompt_source                                PromptSource;
+		std::optional<agent_run_status>                     Live;
+		QElapsedTimer                                       LiveClock;
+		agent_run_status_line*                              DraftLine = nullptr;
+		std::map<std::uint64_t, QString>                    RunAgents;
+		std::function<void(core::tour_agent_run_id)>        DeleteDispatch;
+		std::map<std::size_t, QPointer<QPushButton>>        Accepts;
+		std::map<std::size_t, QPointer<markdown_body_view>> ProposalReaders;
+		std::vector<QPointer<QWidget>>                      Accented;
+		prompt_source                                       PromptSource;
 		/// The offers shown now, chips then More, and while a suggested prompt
 		/// is sent as offered, the only text its skills are read from.
 		std::vector<core::prompt_offer> Offered;
