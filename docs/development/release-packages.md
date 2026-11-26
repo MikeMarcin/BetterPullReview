@@ -16,8 +16,12 @@ may work but are untested; the packages do not refuse them. Qualification on
 the tested environments is itself incomplete; see
 [Known limitations](#known-limitations).
 
-Linux runs on X11 or XWayland, not native Wayland. Install Git 2.39+ yourself;
-optional GitHub CLI support is macOS-only and needs `gh` 2.96+ and Git 2.49+.
+Linux runs on X11 or XWayland, not native Wayland. Install Git 2.39+ yourself.
+Optional GitHub CLI access is offered on macOS, Windows and Linux and needs
+`gh` 2.96+ and Git 2.49+. On Windows and Linux, `gh`'s file writes are not
+confined as they are on macOS, and full diffs through GitHub CLI are not
+available; the app's own sign-in gives full diffs on every platform. On Linux,
+`gh` also needs the session bus socket in `XDG_RUNTIME_DIR`.
 
 Numbered candidates show `VERSION (build N)` in Help > About and copied version
 information. Their download and corresponding-source names include
