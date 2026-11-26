@@ -3,6 +3,8 @@
 
 #include "bpr/qt/quiet_push_button.hpp"
 
+#include "button_surface.hpp"
+
 #include <QAction>
 #include <QEvent>
 #include <QKeyEvent>
@@ -11,6 +13,7 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -42,7 +45,6 @@ namespace bpr::qt {
 			return aPrompt.Finish ? agent_suggestion_list::tr("Click to put it in the question field.") : agent_suggestion_list::tr("Click to send. Shift-click to edit before sending.");
 		}
 
-		auto shortened(const QPushButton& aButton, const QString& aLabel) -> QString { return aButton.fontMetrics().elidedText(aLabel, Qt::ElideMiddle, chip_text_width); }
 	} // namespace
 
 	agent_suggestion_list::agent_suggestion_list(const QString& aLead, QWidget* aParent)
@@ -50,6 +52,8 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("agentSuggestions"));
 		Column = new QVBoxLayout{ this };
+		// The parent decides the width before the chips fit their labels.
+		Column->setSizeConstraint(QLayout::SetNoConstraint);
 		Column->setContentsMargins(0, 2, 0, 0);
 		Column->setSpacing(6);
 		Lead = new QLabel{ aLead, this };
@@ -82,7 +86,8 @@ namespace bpr::qt {
 
 	void agent_suggestion_list::dress(QPushButton& aButton, const agent_suggestion& aPrompt) const
 	{
-		const auto shown = shortened(aButton, aPrompt.Label);
+		const auto room  = contentsRect().width() - (2 * chip_padding);
+		const auto shown = aButton.fontMetrics().elidedText(aPrompt.Label, Qt::ElideMiddle, std::clamp(room, 1, chip_text_width));
 		const auto waits = !Usable && !WhyNot.isEmpty();
 		aButton.setText(shown);
 		// A chip that cannot be pressed says what to do first, not what a
@@ -93,6 +98,30 @@ namespace bpr::qt {
 		aButton.setProperty("agentPrompt", aPrompt.Label);
 		aButton.setProperty("agentPromptKey", aPrompt.Key);
 		aButton.setProperty("agentPromptExpansion", aPrompt.Expansion);
+	}
+
+	auto agent_suggestion_list::minimumSizeHint() const -> QSize
+	{
+		auto hint = QWidget::minimumSizeHint();
+		hint.setWidth(0);
+		return hint;
+	}
+
+	void agent_suggestion_list::resizeEvent(QResizeEvent* const aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		if (aEvent->oldSize().width() != aEvent->size().width()) {
+			fit_chips();
+		}
+	}
+
+	void agent_suggestion_list::fit_chips()
+	{
+		for (std::size_t index = 0U; index < Buttons.size(); ++index) {
+			if (Buttons[index] != nullptr) {
+				dress(*Buttons[index], Chips[index]);
+			}
+		}
 	}
 
 	void agent_suggestion_list::present(std::vector<agent_suggestion> aChips, std::vector<agent_suggestion> aMore)
@@ -197,6 +226,9 @@ namespace bpr::qt {
 	void agent_suggestion_list::changeEvent(QEvent* const aEvent)
 	{
 		QWidget::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::FontChange) {
+			fit_chips();
+		}
 		if (aEvent->type() == QEvent::PaletteChange) {
 			for (const auto& button : Buttons) {
 				if (button != nullptr) {
