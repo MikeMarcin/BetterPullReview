@@ -31,8 +31,8 @@ namespace bpr::qt {
 		/// A category's place in the Clear list; past its end for `everything`.
 		[[nodiscard]] auto category_index(const reset aReset) noexcept -> std::size_t
 		{
-			const auto* const found = std::ranges::find(core::profile_data_reset_categories, aReset);
-			return static_cast<std::size_t>(found - core::profile_data_reset_categories.begin());
+			return static_cast<std::size_t>(
+				std::ranges::find(core::profile_data_reset_categories, aReset) - core::profile_data_reset_categories.begin());
 		}
 
 		/// The object-name stem of a category's controls.
