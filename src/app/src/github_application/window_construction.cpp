@@ -1028,7 +1028,9 @@ namespace bpr::app {
 			// reserved range, which no private run may name; the chat keeps
 			// its own session for that conversation.
 			AgentProjections->NativeSession = [this](const core::agent_session& aSession) {
-				if (!Closing && ChatHost) {
+				// A Continue choice that stands for this conversation is not
+				// retargeted by the session its history restored.
+				if (!Closing && ChatHost && !ChatHost->keeps_continuation(AgentNativeHistory.Selected)) {
 					auto session = aSession;
 					if (session.Id.value() >= (std::uint64_t{ 1U } << 63U) && ChatHost->session()) {
 						session.Id = ChatHost->session()->Id;
@@ -1042,7 +1044,7 @@ namespace bpr::app {
 			// pinned conversation's revision, so the tab offers Start a new
 			// session or Continue at that revision before anything is sent.
 			AgentProjections->NativePinned = [this](const core::agent_profile_id aAgent, const core::agent_revision_binding& aBinding) {
-				if (!Closing && ChatHost && ChatHost->session()) {
+				if (!Closing && ChatHost && ChatHost->session() && !ChatHost->keeps_continuation(AgentNativeHistory.Selected)) {
 					auto pinned    = *ChatHost->session();
 					pinned.Profile = aAgent;
 					pinned.Binding = aBinding;

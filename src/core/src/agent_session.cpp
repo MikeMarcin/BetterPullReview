@@ -127,6 +127,21 @@ namespace bpr::core {
 		offer.ContinueOffered   = thisReview;
 		return offer;
 	}
+
+	auto stable_name(const conversation_reload aReload) noexcept -> std::string_view
+	{
+		switch (aReload) {
+		case conversation_reload::start_at_observed: return "start_at_observed";
+		case conversation_reload::keep_continuation: return "keep_continuation";
+		}
+		return { };
+	}
+
+	auto decide_conversation_reload(const conversation_reload_facts& aFacts) noexcept -> conversation_reload
+	{
+		const auto same = aFacts.Selected == aFacts.ContinuedConversation;
+		return aFacts.Continued && !aFacts.ChosenAnew && same ? conversation_reload::keep_continuation : conversation_reload::start_at_observed;
+	}
 	auto stable_name(const conversation_workspace_state aState) noexcept -> std::string_view
 	{
 		switch (aState) {

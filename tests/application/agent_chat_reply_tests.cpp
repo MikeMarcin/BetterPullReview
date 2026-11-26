@@ -116,5 +116,51 @@ int main()
 		chat.choose_agent(core::agent_profile_id{ 999U });
 		expect(send("Again?").Send == core::agent_send_refusal::agent_unknown, "an agent the host does not have is named as unknown");
 	}
+	// Continue at <old>, then a history reload nobody asked for (a file
+	// opened): the choice stands and the next turn runs at the old revision.
+	// History's pick or New session, another conversation, or the head
+	// moving again starts at the revision under review, as before.
+	{
+		auto                                 turns = std::vector<application::agent_chat_turn_request>{ };
+		auto                                 codex = core::agent_profile{ .Id = core::codex_jsonl_profile_id, .DisplayName = "Codex", .Executable = "codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Workspace = core::agent_workspace_policy::disposable_review_workspace };
+		projection                           port;
+		const auto                           policies = std::vector{ core::agent_host_policy{ .Host = binding.Host, .Allowed = { codex.Id } } };
+		application::agent_chat_session_host chat{ { codex }, policies, codex.Id, [&turns](const application::agent_chat_turn_request& aTurn) {
+													  turns.push_back(aTurn);
+													  return true;
+												  },
+												   { },
+												   port };
+		auto moved               = binding;
+		moved.HeadOid            = *core::parse_git_commit_oid("3333333333333333333333333333333333333333");
+		const auto pr            = core::agent_chat_scope{ .Kind = core::agent_chat_scope_kind::pull_request };
+		const auto continueAtOld = [&](std::string aConversation) {
+			chat.clear();
+			chat.observe(binding);
+			chat.observe(moved);
+			const auto old    = *chat.session();
+			const auto chosen = chat.choose({ .Session = old.Id, .Choice = core::agent_continuation::continue_against_old_revision, .OfferedBinding = old.Binding, .Conversation = std::move(aConversation) });
+			expect(chosen.Refusal == application::agent_chat_refusal::none && chat.session()->Binding == binding, "Continue at <old> keeps the session at the old revision");
+		};
+		continueAtOld("kept");
+		expect(chat.keeps_continuation("kept") && !chat.keeps_continuation("other"), "the choice stands for the conversation it was made in only");
+		expect(chat.reload_conversation("kept", false) == core::conversation_reload::keep_continuation, "a reload of the continued conversation keeps the choice");
+		expect(chat.session()->Binding == binding && chat.projection() && !chat.projection()->Continuations.Required, "the reload neither moves the session nor asks again");
+		const auto sent = chat.send({ .Session = chat.session()->Id, .Action = core::agent_action_intent{ core::agent_entry_point::run_ai_review }, .Scope = pr, .Text = "And now?" });
+		expect(sent.sent() && turns.size() == 1U && turns.back().Session.Binding == binding, "the next turn runs at the revision the reviewer chose");
+
+		continueAtOld("kept");
+		expect(chat.reload_conversation("kept", true) == core::conversation_reload::start_at_observed && chat.session()->Binding == moved && !chat.keeps_continuation("kept"),
+			   "History's pick or New session starts at the revision under review");
+		continueAtOld("kept");
+		expect(chat.reload_conversation("new", false) == core::conversation_reload::start_at_observed && chat.session()->Binding == moved,
+			   "another conversation's history starts at the revision under review");
+		continueAtOld("kept");
+		auto again    = moved;
+		again.HeadOid = *core::parse_git_commit_oid("4444444444444444444444444444444444444444");
+		chat.observe(again);
+		expect(!chat.keeps_continuation("kept") && chat.reload_conversation("kept", false) == core::conversation_reload::start_at_observed && chat.session()->Binding == again,
+			   "a choice answered one head move and not the next");
+	}
 	std::cout << "agent-chat-reply-tests:pass\n";
 }

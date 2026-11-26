@@ -881,6 +881,19 @@ namespace bpr::app {
 		return true;
 	}
 
+	auto detail::github_application_fixture_access::replay_agent_history_load(github_application& aApplication) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->ChatHost == nullptr) {
+			return false;
+		}
+		auto view    = implementation->AgentNativeHistory;
+		view.Loading = false;
+		view.Failure.clear();
+		implementation->present_agent_native_history(view);
+		return true;
+	}
+
 	auto detail::github_application_fixture_access::
 		dispatch_side_chat_private_context(
 			github_application&          aApplication,

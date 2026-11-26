@@ -215,7 +215,17 @@ namespace bpr::app {
 			if (FollowUpSession) {
 				FollowUpSession->clear();
 			}
-			clear_side_chat();
+			// Entering Review reads the comparison again. That is a reload
+			// the reviewer did not choose, of the review still open, so a
+			// Continue choice standing for its conversation is kept, as a
+			// history reload keeps it (`core::decide_conversation_reload`);
+			// the chat is observed again when the comparison lands, and a
+			// different comparison asks again.
+			const auto sameReview = state.Authority && AgentReview && state.Authority->Host == AgentReview->Host
+				&& state.Authority->Repository == AgentReview->Repository && state.Authority->PullRequest == AgentReview->PullRequest;
+			if (!sameReview || ChatHost == nullptr || !ChatHost->keeps_continuation(AgentNativeHistory.Selected)) {
+				clear_side_chat();
+			}
 			Window->clear_dif_context();
 			return;
 		}
@@ -352,7 +362,7 @@ namespace bpr::app {
 			// composed from that revision, never retargeted.
 			ChatHost->admitted(pinned, true);
 			const auto chosen = ChatHost->choose(application::agent_chat_continuation_choice{
-				.Session = pinned.Id, .Choice = aChoice, .OfferedBinding = pinned.Binding });
+				.Session = pinned.Id, .Choice = aChoice, .OfferedBinding = pinned.Binding, .Conversation = AgentNativeHistory.Selected });
 			return chosen.Refusal == application::agent_chat_refusal::none;
 		}
 		if (!offer->NewSessionOffered) {
@@ -1759,7 +1769,7 @@ namespace bpr::app {
 		const auto& choice
 			= std::get<qt::choose_chat_continuation_intent>(aIntent);
 		const auto outcome = ChatHost->choose(application::agent_chat_continuation_choice{
-			.Session = choice.Session, .Choice = choice.Choice, .OfferedBinding = choice.OfferedBinding });
+			.Session = choice.Session, .Choice = choice.Choice, .OfferedBinding = choice.OfferedBinding, .Conversation = AgentNativeHistory.Selected });
 		if (outcome.Started && choice.Choice == core::agent_continuation::start_new_session) {
 			NativeFreshAtCurrentRevision = outcome.Started;
 			// Owner, 2026-11-24, of the pinned-revision card: "you click it and

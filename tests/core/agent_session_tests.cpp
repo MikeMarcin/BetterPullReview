@@ -353,6 +353,27 @@ namespace {
 		const auto unlisted = core::conversation_move_note(commit(2U), commit(9U), core::conversation_move_history{ .Linear = true, .Listed = false });
 		expect(unlisted.find("git diff --stat") != std::string::npos && unlisted.find("Commits between") == std::string::npos, "unlisted history gives the commands");
 	}
+	/// A Continue at <old> survives the history reloads the reviewer did not
+	/// ask for, and only those.
+	void test_a_reload_keeps_a_continue_choice()
+	{
+		using reload     = core::conversation_reload;
+		const auto keeps = core::conversation_reload_facts{ .Continued = true, .ContinuedConversation = "kept", .Selected = "kept", .ChosenAnew = false };
+		expect(core::decide_conversation_reload(keeps) == reload::keep_continuation, "a reload of the continued conversation keeps the choice");
+		expect(core::decide_conversation_reload(keeps) == core::decide_conversation_reload(keeps), "equal facts, equal decision");
+		auto chosen       = keeps;
+		chosen.ChosenAnew = true;
+		expect(core::decide_conversation_reload(chosen) == reload::start_at_observed, "History's pick or New session starts at the observed revision");
+		auto other     = keeps;
+		other.Selected = "new";
+		expect(core::decide_conversation_reload(other) == reload::start_at_observed, "another conversation does not inherit the choice");
+		auto none      = keeps;
+		none.Continued = false;
+		expect(core::decide_conversation_reload(none) == reload::start_at_observed, "with nothing continued a reload starts at the observed revision");
+		expect(core::decide_conversation_reload({ }) == reload::start_at_observed, "the empty facts continue nothing");
+		expect(core::stable_name(reload::keep_continuation) == "keep_continuation" && core::stable_name(reload::start_at_observed) == "start_at_observed",
+			   "each verdict has a stable name");
+	}
 } // namespace
 
 auto main() -> int
@@ -365,6 +386,7 @@ auto main() -> int
 	test_a_pinned_conversation_offers_what_it_names();
 	test_a_conversation_moves_or_says_why_not();
 	test_the_move_note_says_what_happened();
+	test_a_reload_keeps_a_continue_choice();
 	std::cout << "agent-session-tests:pass\n";
 	return EXIT_SUCCESS;
 }

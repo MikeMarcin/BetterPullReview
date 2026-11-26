@@ -2661,6 +2661,14 @@ namespace bpr::app::detail {
 		/// that must refuse it. It composes nothing and decides nothing.
 		[[nodiscard]] static auto dispatch_side_chat_send(
 			github_application& aApplication, std::string aText) -> bool;
+		/// \brief Presents the selected conversation's saved history again,
+		/// finished, as the composed window does when a native agent's history
+		/// is read again (a file opened in Review, a turn finished).
+		///
+		/// \details The fixture agent keeps no native history, so its courses
+		/// never see that reload; this replays the one the window last held
+		/// through the window's own presentation. It decides nothing.
+		[[nodiscard]] static auto replay_agent_history_load(github_application& aApplication) -> bool;
 		/// \brief Hands one private-context opt-in to the composed dispatch.
 		[[nodiscard]] static auto dispatch_side_chat_private_context(
 			github_application&    aApplication,
