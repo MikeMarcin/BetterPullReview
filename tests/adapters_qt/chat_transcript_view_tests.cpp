@@ -209,7 +209,11 @@ namespace {
 		expect(widgets_of(*view, 0U) == first && view->last_delta().size() == 1U, "a new question appends one turn and keeps the first");
 		static_cast<void>(core::settle_follow_up(state, state.Pending, std::string{ "Then it clamps." }));
 		chat->present(state, QStringLiteral("Codex"), { });
-		expect(widgets_of(*view, 0U) == first && view->last_delta() == core::chat_delta{ { .Kind = core::chat_change_kind::settled, .Turn = "finding:7:0/round/1", .Index = 1U } }, "its answer settles that turn alone");
+		auto expected          = core::chat_delta(1);
+		expected.front().Kind  = core::chat_change_kind::settled;
+		expected.front().Turn  = "finding:7:0/round/1";
+		expected.front().Index = 1U;
+		expect(widgets_of(*view, 0U) == first && view->last_delta() == expected, "its answer settles that turn alone");
 	}
 }
 

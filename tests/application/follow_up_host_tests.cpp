@@ -260,7 +260,10 @@ auto main() -> int
 			tokens.push_back(aStop);
 			pending.push_back(std::move(aAnswer));
 		});
-		expect(launched.restore({ { .Question = "Is it read?", .Answer = "Yes." } }) == core::follow_up_refusal::none && shown.back().Open->Rounds.size() == 1U && shown.back().Open->InSession && shown.back().RunFailure.empty(),
+		auto restoredRounds             = std::vector<core::follow_up_round>(1);
+		restoredRounds.front().Question = "Is it read?";
+		restoredRounds.front().Answer   = "Yes.";
+		expect(launched.restore(std::move(restoredRounds)) == core::follow_up_refusal::none && shown.back().Open->Rounds.size() == 1U && shown.back().Open->InSession && shown.back().RunFailure.empty(),
 			   "a chosen session's rounds are the chat's, and the last failure goes");
 		auto inSession    = skilled;
 		inSession.Session = "item:finding:9";
