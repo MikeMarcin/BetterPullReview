@@ -86,7 +86,7 @@ auto main(int argc, char** argv) -> int
 	}
 	std::unique_ptr<app::github_application> application;
 	try {
-		auto options                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+		auto options                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 		options.FixtureAgentSession = true;
 		options.EditsDescription    = true;
 		options.RepeatReadSessions  = true;

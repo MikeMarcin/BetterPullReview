@@ -278,7 +278,7 @@ try {
 	changes->unstaged()->setCurrentItem(item_of(*changes->unstaged(), QStringLiteral("tests/net/endpoint_test.cpp")));
 	settle(s.Lanes);
 	expect(window.local_comparison() && window.local_comparison()->Path == "tests/net/endpoint_test.cpp" && viewer->current_result(), "Local Changes' file is in the same viewer");
-	const auto change_action = [&](const std::size_t aBand, const QString& aName) -> QAction* {
+	const auto changeAction = [&](const std::size_t aBand, const QString& aName) -> QAction* {
 		const auto& bands = page->local_projection().File->Bands;
 		if (aBand >= bands.size() || !viewer->select_conversation_line(core::diff_side::right, bands[aBand].Shown.RightBegin)) {
 			return nullptr;
@@ -291,17 +291,17 @@ try {
 		}
 		return nullptr;
 	};
-	expect(page->local_projection().File->Bands.size() == 2U && change_action(0U, QStringLiteral("localStageChangeAction")) != nullptr
-			   && change_action(1U, QStringLiteral("localStageChangeAction")) != nullptr,
+	expect(page->local_projection().File->Bands.size() == 2U && changeAction(0U, QStringLiteral("localStageChangeAction")) != nullptr
+			   && changeAction(1U, QStringLiteral("localStageChangeAction")) != nullptr,
 		   "two changes, each with Stage Change on the code's menu");
 	capture(window, QStringLiteral("local-changes-uncommitted"));
-	change_action(0U, QStringLiteral("localStageChangeAction"))->trigger();
+	changeAction(0U, QStringLiteral("localStageChangeAction"))->trigger();
 	settle(s.Lanes);
 	const auto cached = git->output(worktree, { "diff", "--cached", "-U0", "--", "tests/net/endpoint_test.cpp" }, scratch / "cached.txt");
 	expect(cached.find("0080") != std::string::npos && cached.find("rejects what atoi") == std::string::npos, "Stage Change staged exactly the first change");
 	expect(tree_paths(*changes->staged()).contains(QStringLiteral("tests/net/endpoint_test.cpp")) && tree_paths(*changes->unstaged()).contains(QStringLiteral("tests/net/endpoint_test.cpp")),
 		   "a partly staged file is in both lists");
-	expect(change_action(0U, QStringLiteral("localUnstageChangeAction")) != nullptr, "the staged change offers Unstage Change");
+	expect(changeAction(0U, QStringLiteral("localUnstageChangeAction")) != nullptr, "the staged change offers Unstage Change");
 	capture(window, QStringLiteral("local-changes-staged-change"));
 
 	// The agent fills the commit: one fresh, tool-free run of the footer's agent.

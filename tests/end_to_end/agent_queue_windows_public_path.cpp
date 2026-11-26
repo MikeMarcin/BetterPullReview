@@ -228,7 +228,7 @@ auto main(int argc, char** argv) -> int
 		// The same profile data each time the desktop starts: a restart reads
 		// what the last run left on disk.
 		const auto start = [&] {
-			auto options = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+			auto options = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 			// The loading course is at the next push, where a second window's
 			// read takes the repository's cache while the first window's run ends.
 			options.EpochPhase            = loading ? app::detail::github_epoch_fixture_phase::reuse : app::detail::github_epoch_fixture_phase::single;

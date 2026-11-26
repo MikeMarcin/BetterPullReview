@@ -112,7 +112,8 @@ namespace {
 	void pause()
 	{
 		const auto configured = environment("BPR_FIXTURE_AGENT_PAUSE_MS");
-		const auto millis     = configured.empty() ? 350 : std::atoi(configured.c_str());
+		// NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion): an unreadable pause is none.
+		const auto millis = configured.empty() ? 350 : std::atoi(configured.c_str());
 		if (millis > 0) {
 			std::this_thread::sleep_for(std::chrono::milliseconds{ millis });
 		}
@@ -147,7 +148,8 @@ namespace {
 	void slow_step()
 	{
 		const auto configured = environment("BPR_FIXTURE_AGENT_SLOW_STEP_MS");
-		const auto millis     = configured.empty() ? 1000 : std::atoi(configured.c_str());
+		// NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion): an unreadable pause is none.
+		const auto millis = configured.empty() ? 1000 : std::atoi(configured.c_str());
 		if (millis > 0) {
 			std::this_thread::sleep_for(std::chrono::milliseconds{ millis });
 		}
@@ -527,6 +529,7 @@ namespace {
 					const auto path     = value(found, ".path");
 					const auto line     = value(found, ".line");
 					const auto claim    = index % claims.size();
+					// NOLINTNEXTLINE(performance-inefficient-string-concatenation): a fixture report's lines.
 					items[claim] += std::string{ "### " } + headings[index % headings.size()] + "\n\n`" + path + ":" + line + "`\n\n" + reasons[claim] + "\n\n";
 					if (claim == 2U) {
 						items[claim] += "```cpp\nValue = aValue;\nif (Value > Maximum) { notify_overflow(); }\n```\n\n";

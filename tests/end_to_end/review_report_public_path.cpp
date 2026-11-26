@@ -160,7 +160,7 @@ auto main(int argc, char** argv) -> int
 	}
 	std::unique_ptr<app::github_application> application;
 	try {
-		auto options                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+		auto options                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 		options.FixtureAgentSession = true;
 		auto terminal               = false;
 		auto startup                = access::start(app::detail::github_public_path_fixture::nested_folders_v1, std::move(options), [&](auto aResult) {
@@ -478,7 +478,7 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-2231]] AC-a. After a restart the report and the cards still
 		// say what was drafted and kept.
 		{
-			auto again                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+			auto again                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 			again.FixtureAgentSession = true;
 			auto restarted            = false;
 			auto second               = access::start(app::detail::github_public_path_fixture::nested_folders_v1, std::move(again), [&](auto aResult) {

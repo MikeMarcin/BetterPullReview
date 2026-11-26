@@ -209,9 +209,9 @@ try {
 			QApplication::processEvents();
 		}
 	};
-	const auto name_of = [&](const QModelIndex& aFile) { return aFile.data(Qt::DisplayRole).toString(); };
+	const auto nameOf  = [&](const QModelIndex& aFile) { return aFile.data(Qt::DisplayRole).toString(); };
 	const auto waiting = [&](const QModelIndex& aFile) {
-		return !surface->idle() && veil->busy() && veil->words().Loading.contains(name_of(aFile));
+		return !surface->idle() && veil->busy() && veil->words().Loading.contains(nameOf(aFile));
 	};
 
 	// The first choice names itself.
@@ -223,7 +223,7 @@ try {
 
 	// A second choice replaces it.
 	choose(files[1]);
-	const auto secondNamed = waiting(files[1]) && !veil->words().Loading.contains(name_of(files[0]));
+	const auto secondNamed = waiting(files[1]) && !veil->words().Loading.contains(nameOf(files[0]));
 	std::cout << "file-open-while-loading:second-choice idle=" << surface->idle() << " loading=\"" << veil->words().Loading.toStdString() << "\"\n";
 	expect(measureOnly || secondNamed, "a second choice replaces the first on the loading plate");
 	const auto chosen = now_ms();
@@ -253,7 +253,7 @@ try {
 		expect(!surface->idle(), "a file that cannot open says why, not No file open");
 		expect(failure.startsWith(QStringLiteral("No exact comparison is ready for this file.")) && failure != QStringLiteral("No exact comparison is ready for this file."),
 			   "the failure names its reason");
-		expect(surface->waiting_path().endsWith(name_of(files[1])), "the failure stands in the chosen file's place");
+		expect(surface->waiting_path().endsWith(nameOf(files[1])), "the failure stands in the chosen file's place");
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "the course drains");
 		desktop.reset();
@@ -288,7 +288,7 @@ try {
 	std::cout << "file-open-while-loading:priority rounds-before-opened=" << work.PreparationsStartedBeforeOpenedFile
 			  << " preempted=" << work.PreparationsPreempted << '\n';
 	expect(measureOnly || work.PreparationsStartedBeforeOpenedFile == 0U, "no preparation round went ahead of the chosen file");
-	expect(measureOnly || !veil->busy() || veil->words().Loading != QStringLiteral("Loading %1…").arg(name_of(files[1])), "nothing waits once it shows");
+	expect(measureOnly || !veil->busy() || veil->words().Loading != QStringLiteral("Loading %1…").arg(nameOf(files[1])), "nothing waits once it shows");
 	std::cout << "file-open-while-loading:timing clone-ms=" << hold << " open-to-shown=" << (shown - opened)
 			  << " chosen-to-shown=" << (shown - chosen) << " clone-answered-to-shown=" << (shown - released)
 			  << " clone-answered-to-epoch-ready=" << (ready.value_or(shown) - released)

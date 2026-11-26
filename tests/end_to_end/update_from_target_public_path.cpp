@@ -57,7 +57,7 @@ namespace {
 		QTemporaryDir directory;
 		const auto    root = e2e::private_data_root(directory);
 		expect(root.has_value(), "private cold fixture root");
-		auto options                      = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *root };
+		auto options                      = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = root };
 		options.FixtureAgentSession       = true;
 		options.InlineDrawerMergeConflict = aPress == cold_press::status;
 		auto application                  = std::unique_ptr<app::github_application>{ };
@@ -172,7 +172,7 @@ namespace {
 		expect(root.has_value(), "private fixture root");
 		auto server                 = std::make_shared<app::detail::review_submission_fixture_state>();
 		server->MergeAssessment     = R"({"data":{"repository":{"id":"R_stacked-merge-base","pullRequest":{"id":"PR_1572","headRefOid":"d160ec81ebe09b21894732b84f4f7ce3aea82258","baseRefOid":"67b31e41c9867713d769174f7d631fbddfc05a6e","baseRefName":"feature-a","mergeStateStatus":"DIRTY","reviewDecision":null,"autoMergeRequest":null}}}})";
-		auto options                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *root };
+		auto options                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = root };
 		options.FixtureAgentSession = true;
 		if (!aViewerAuthors) {
 			options.PullRequestAuthor = application::github_actor_record{ .Actor = application::github_actor_id{ "U_fixture-fork" }, .Login = "fixture-fork" };

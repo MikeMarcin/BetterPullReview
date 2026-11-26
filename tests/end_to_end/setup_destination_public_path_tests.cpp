@@ -828,7 +828,7 @@ namespace {
 		const auto first = github_application_fixture_access::evidence(*owner);
 		expect(accounted(first), "every first-run body or controlled-avatar fetch is attributed");
 		auto unknown = first;
-		unknown.AvatarImageFetchReferences.push_back(std::string(64U, '0'));
+		unknown.AvatarImageFetchReferences.emplace_back(64U, '0');
 		++unknown.AvatarImageFetches;
 		++unknown.ImageFetchesTotal;
 		expect(!accounted(unknown), "an unknown fetch cannot hide among allowed avatars");

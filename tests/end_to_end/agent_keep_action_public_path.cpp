@@ -145,7 +145,7 @@ auto main(int argc, char** argv) -> int
 	}
 	std::unique_ptr<app::github_application> application;
 	try {
-		auto options                 = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+		auto options                 = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 		options.CodexAgentExecutable = stub;
 		options.CodexSearch          = app::detail::claude_search_environment{ .PathVariable = stub.parent_path().string() };
 		auto terminal                = false;
@@ -372,6 +372,7 @@ auto main(int argc, char** argv) -> int
 						}
 					}
 					expect(scroll->horizontalScrollBar()->maximum() == 0 && !scroll->horizontalScrollBar()->isVisible() && scroll->widget()->width() <= scroll->viewport()->width(),
+						   // NOLINTNEXTLINE(performance-inefficient-string-concatenation): a check's message.
 						   "the Agent tab has no sideways range" + at + ": its content is " + std::to_string(scroll->widget()->width()) + " wide in a " + std::to_string(scroll->viewport()->width()) + " px viewport (" + past + ")");
 					for (const auto* const button : { update, askAbout }) {
 						const auto left = button->mapTo(placed, QPoint{ 0, 0 }).x();

@@ -288,7 +288,7 @@ namespace {
 		};
 		const auto [configuration, original] = seed();
 
-		const auto read_original = [&] {
+		const auto readOriginal = [&] {
 			const auto ledger = adapters::sqlite::make_private_review_store(configuration);
 			expect(ledger.has_value(), "original review ledger still opens after shutdown");
 			const auto records = (*ledger)->list_drafts();
@@ -364,7 +364,7 @@ namespace {
 		start();
 		expect(!visible_recovery() && !menu()->isVisible(), "discarded rows never open another launch");
 		quit();
-		const auto retained = read_original();
+		const auto retained = readOriginal();
 		expect(retained.Binding == original.Binding && retained.Draft == original.Draft, "recovery discard left the original review data unchanged");
 	}
 

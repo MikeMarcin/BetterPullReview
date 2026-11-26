@@ -321,7 +321,7 @@ namespace {
 		auto                                     terminal = false;
 		auto                                     startup  = app::detail::github_application_fixture_access::start(
 			app::detail::github_public_path_fixture::nested_folders_v1,
-			{ .ApplicationDataRoot = *root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
+			{ .ApplicationDataRoot = root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
 			[&](auto aResult) {
 				terminal = true;
 				if (aResult) {
@@ -373,7 +373,8 @@ namespace {
 			aSend();
 			if (!e2e::wait_until_plain([&] { return tab->turn_count() == before + 1U || tab->send_refusal() != core::agent_send_refusal::none; }, minutes(1))
 				|| tab->send_refusal() != core::agent_send_refusal::none) {
-				std::cout << "live-claude " << aStep << ": not started refusal=\"" << tab->send_refusal_text().toStdString() << "\" panel=\"" << panel->status_text().toStdString() << "\" state=" << static_cast<int>(tab->state()) << std::endl;
+				std::cout << "live-claude " << aStep << ": not started refusal=\"" << tab->send_refusal_text().toStdString() << "\" panel=\"" << panel->status_text().toStdString() << "\" state=" << static_cast<int>(tab->state()) << '\n'
+						  << std::flush;
 				return false;
 			}
 			const auto done = e2e::wait_until_plain(
@@ -383,7 +384,8 @@ namespace {
 				minutes(10));
 			costs.push_back(panel->last_turn_cost());
 			std::cout << "live-claude " << aStep << ": outcome=" << (tab->turn_outcome(before) ? core::stable_name(*tab->turn_outcome(before)) : std::string_view{ "none" }) << " footer=\"" << tab->turn_footer(before).toStdString()
-					  << "\" reported=" << panel->last_reported_cost().toStdString() << " session=\"" << (tab->session_cost() ? core::agent_cost_words(*tab->session_cost()) : std::string{ }) << "\"" << std::endl;
+					  << "\" reported=" << panel->last_reported_cost().toStdString() << " session=\"" << (tab->session_cost() ? core::agent_cost_words(*tab->session_cost()) : std::string{ }) << "\"" << '\n'
+					  << std::flush;
 			return done && tab->turn_outcome(before) == core::agent_turn_outcome::answered;
 		};
 		if (!answer([&] { tab->send_prompt(QStringLiteral("Review this pull request")); }, "review")) {
@@ -465,7 +467,7 @@ namespace {
 		auto                                     terminal = false;
 		auto                                     startup  = app::detail::github_application_fixture_access::start(
 			aFlagMove ? app::detail::github_public_path_fixture::flag_move_v1 : app::detail::github_public_path_fixture::nested_folders_v1,
-			{ .ApplicationDataRoot = *root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
+			{ .ApplicationDataRoot = root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
 			[&](auto aResult) {
 				terminal = true;
 				if (aResult) {
@@ -511,7 +513,8 @@ namespace {
 		if (!e2e::wait_until_plain([&] { return editor->shown().Draft && editor->shown().Draft->Stops.size() >= 3U && !editor->shown().Saving; }, minutes(1))) {
 			return fail(*application, "live-tour-accepted", std::to_string(editor->shown().Draft ? editor->shown().Draft->Stops.size() : 0U));
 		}
-		std::cout << "live-tour-requests fixture: stops=" << editor->shown().Draft->Stops.size() << " model=" << aModel << std::endl;
+		std::cout << "live-tour-requests fixture: stops=" << editor->shown().Draft->Stops.size() << " model=" << aModel << '\n'
+				  << std::flush;
 		// [[BPR-1996]], RFC-BPR-0100 AC08. The drafted tour of the flag-move
 		// pull request, written out whole for the owner to judge.
 		if (aFlagMove) {
@@ -528,7 +531,8 @@ namespace {
 				}
 				text += "\n\n" + stop.Body + "\n";
 			}
-			std::cout << text << std::endl;
+			std::cout << text << '\n'
+					  << std::flush;
 			if (qEnvironmentVariableIsSet("BPR_LIVE_TOUR_DRAFT_OUT")) {
 				auto out = std::ofstream{ qEnvironmentVariable("BPR_LIVE_TOUR_DRAFT_OUT").toStdString() };
 				out << text;
@@ -564,7 +568,8 @@ namespace {
 			const auto        card = run != nullptr && chat->revision_card() != nullptr && chat->revision_discard() != nullptr;
 			std::cout << "live-tour-requests \"" << request.toStdString() << "\": state=" << (run ? static_cast<int>(run->State) : -1) << " card=" << card
 					  << " parts=\"" << (chat->revision_operations() ? chat->revision_operations()->text().replace(QLatin1Char('\n'), QStringLiteral(" | ")).toStdString() : std::string{ }) << "\""
-					  << " refused=" << (run ? run->Proposed.Refused.size() : 0U) << " link=" << (chat->unchanged_line() != nullptr) << " reply=\"" << (run ? QString::fromStdString(run->Reply).left(200).replace(QLatin1Char('\n'), QLatin1Char(' ')).toStdString() : std::string{ }) << "\"" << std::endl;
+					  << " refused=" << (run ? run->Proposed.Refused.size() : 0U) << " link=" << (chat->unchanged_line() != nullptr) << " reply=\"" << (run ? QString::fromStdString(run->Reply).left(200).replace(QLatin1Char('\n'), QLatin1Char(' ')).toStdString() : std::string{ }) << "\"" << '\n'
+					  << std::flush;
 			if (card) {
 				++carded;
 				chat->revision_discard()->click();
@@ -612,7 +617,7 @@ namespace {
 		auto                                     terminal = false;
 		auto                                     startup  = app::detail::github_application_fixture_access::start(
 			app::detail::github_public_path_fixture::nested_folders_v1,
-			{ .ApplicationDataRoot = *root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
+			{ .ApplicationDataRoot = root, .ClaudeAgentExecutable = std::filesystem::path{ aClaude } },
 			[&](auto aResult) {
 				terminal = true;
 				if (aResult) {
@@ -1320,7 +1325,7 @@ auto main(int argc, char** argv) -> int
 			const auto evidence = app::detail::github_application_fixture_access::agent_chat_evidence(*application);
 			const auto text     = evidence.Projection && !evidence.Projection->Replies.empty() ? evidence.Projection->Replies.back().Text : std::string{ };
 			const auto at       = text.find("BPR_SUBJECT_2002");
-			const auto subject  = at == std::string::npos ? std::string{ "absent" } : text.substr(at, text.find(" end", at) - at);
+			auto       subject  = at == std::string::npos ? std::string{ "absent" } : text.substr(at, text.find(" end", at) - at);
 			std::cout << "agent-chat-subject " << aStep << ": " << subject << " entry=" << (evidence.LastTurn && evidence.LastTurn->Question ? core::stable_name(evidence.LastTurn->Question->EntryPoint) : std::string_view{ "none" }) << '\n';
 			return subject;
 		};

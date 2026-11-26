@@ -388,7 +388,7 @@ try {
 	QWidget elsewhere;
 	elsewhere.resize(200, 100);
 	elsewhere.show();
-	const auto come_back = [&] {
+	const auto comeBack = [&] {
 		elsewhere.activateWindow();
 		wait_for([&] { return !window->isActiveWindow(); }, "another window comes in front");
 		window->activateWindow();
@@ -403,11 +403,11 @@ try {
 	}
 	expect(!window->composing(), "the reviewer is reading, not writing");
 	const auto beforeReturn = delay->RefreshesSeen.load();
-	come_back();
+	comeBack();
 	expect(!access::reread_owed(*owner) && delay->RefreshesSeen.load() == beforeReturn, "coming back to a current pull request reads nothing");
 	// Five minutes later by discovery's clock, it reads it again by itself.
 	clockOffset->store(static_cast<std::int64_t>(core::refresh_return_seconds) + 1);
-	come_back();
+	comeBack();
 	wait_for([&] { return delay->RefreshesSeen.load() == beforeReturn + 1U && !access::reread_owed(*owner) && window->pull_request_refresh().Phase == core::refresh_phase::updated; },
 			 "coming back to an aged pull request reads it again", 20'000);
 	expect(window->pull_request_refresh().Trigger == core::refresh_trigger::automatic, "as the application's own update");
@@ -415,7 +415,7 @@ try {
 	wait_for([&] { return selected() == chosen; }, "and the same file chosen", 20'000);
 	const auto returned = take_reads(*delay);
 	std::cout << "open-pull-request-activity:return-reread reads=" << returned.Count << returned.Words << '\n';
-	come_back();
+	comeBack();
 	expect(delay->RefreshesSeen.load() == beforeReturn + 1U, "and once read, coming back again reads nothing");
 	elsewhere.hide();
 

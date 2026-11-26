@@ -657,9 +657,11 @@ namespace {
 			   "\n";
 		for (auto index = 0; index < 12; ++index) {
 			const auto number = std::to_string(index);
+			// NOLINTBEGIN(performance-inefficient-string-concatenation): a fixture's transcript lines.
 			out += R"({"type":"assistant","message":{"id":"msg_t)" + number + R"(","type":"message","role":"assistant","model":"claude-sonnet-5-5","content":[{"type":"tool_use","id":"toolu_fixture_)" + number
 				+ R"(","name":"Read","input":{"file_path":"/fixture/workspace/source.cpp"}}]},"parent_tool_use_id":null,"session_id":"canary-session","uuid":"t)" + number + "\"}\n";
 			out += R"({"type":"system","subtype":"task_summary","summary":"Reading","session_id":"canary-session","uuid":"s)" + number + "\"}\n";
+			// NOLINTEND(performance-inefficient-string-concatenation)
 			out += claude_tool_result(index, 48U * 1024U);
 		}
 		if (aStopsEarly) {
@@ -828,7 +830,8 @@ namespace {
 				const auto current  = hasFact("\"observed_head\":\"" + head + "\"");
 				const auto readOnly = protocol == protocol::codex_app_server && line.find("\"sandboxPolicy\":{\"type\":\"readOnly\",\"networkAccess\":false}") != std::string::npos;
 				const auto valid    = pinned && readOnly && hasFact(stale ? "\"head_changed\":true" : "\"head_changed\":false") && (stale ? !current : current);
-				answer              = (valid ? (stale ? "stale-native-validated head=" : "current-native-validated head=") + head : "native-revision-context-failed") + std::string{ " process=" } + process;
+				// NOLINTNEXTLINE(performance-inefficient-string-concatenation): the fixture's one reply.
+				answer = (valid ? (stale ? "stale-native-validated head=" : "current-native-validated head=") + head : "native-revision-context-failed") + std::string{ " process=" } + process;
 			}
 			// RFC-BPR-0096, owner continue-at-latest amendment. What the turn
 			// after a move told the agent, and where its checkout is: the
@@ -875,6 +878,7 @@ namespace {
 			const auto instructions = argument_after(aCount, aArguments, "--append-system-prompt");
 			const auto asked        = [&line, &instructions](const std::string_view aSchema) { return line.find(aSchema) != std::string::npos || instructions.find(aSchema) != std::string::npos; };
 			if (asked("bpr.tour-ask.v2") || asked("bpr.tour-revise.v2")) {
+				// NOLINTNEXTLINE(performance-inefficient-string-concatenation): the fixture's one reply.
 				answer = json_escape("{\"schema\":\"bpr.tour-ask.v2\",\"reply\":\"" + answer + "\",\"stops\":[],\"stop_texts\":[]}");
 				if (line.find("update-source-explanation") != std::string::npos) {
 					answer = json_escape("{\"schema\":\"bpr.tour-ask.v2\",\"reply\":\"Proposed an explanation update.\",\"stops\":[],\"stop_texts\":[{\"stop\":1,\"explanation\":\"Source-preserving update from fixture.\"}]}");

@@ -314,7 +314,7 @@ auto main(int argc, char** argv) -> int
 	app::github_application*              owner = nullptr;
 	std::unique_ptr<app::profile_desktop> desktop;
 	try {
-		auto options                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+		auto options                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 		options.ClaudeAgentExecutable = agent;
 		options.ClaudeSearch          = search;
 		// As an owner's look runs: the Fixture agent is a saved agent entry,
