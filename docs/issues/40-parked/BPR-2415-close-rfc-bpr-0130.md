@@ -3,6 +3,7 @@ schema: "implement-rfc.card.v1"
 id: "BPR-2415"
 title: "RFC-BPR-0130 closeout: every criterion an agent can check holds with its evidence on the RFC's ledger; AC09, the owner's look, waits for the final attended review"
 status: "Parked"
+parked_on: "human-review"
 rfcs: ["RFC-BPR-0130"]
 depends_on: ["BPR-2404", "BPR-2405", "BPR-2406", "BPR-2407", "BPR-2409", "BPR-2410", "BPR-2411", "BPR-2412", "BPR-2413", "BPR-2414"]
 priority: "P2"
