@@ -99,5 +99,8 @@
       "docs/rfcs/assets/*.LIVE_IMPORT.md"
     ]
   },
-  "sequencing": "dependency"
+  "sequencing": "dependency",
+  "allocation": {
+    "history_limit": 5000
+  }
 }
