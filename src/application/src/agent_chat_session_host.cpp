@@ -204,6 +204,33 @@ namespace bpr::application {
 		present_state();
 	}
 
+	auto agent_chat_session_host::decide_reload(const std::string_view aSelected, const bool aChosenAnew) const -> core::conversation_reload
+	{
+		// A choice stands while the revision it answered is still the one
+		// observed; `observe` clears it when that moves.
+		const auto continued = Chosen == core::agent_continuation::continue_against_old_revision && Session && Observed && Session->Binding != *Observed;
+		return core::decide_conversation_reload({
+			.Continued             = continued,
+			.ContinuedConversation = ContinuedConversation,
+			.Selected              = std::string{ aSelected },
+			.ChosenAnew            = aChosenAnew,
+		});
+	}
+
+	auto agent_chat_session_host::keeps_continuation(const std::string_view aSelected) const -> bool
+	{
+		return decide_reload(aSelected, false) == core::conversation_reload::keep_continuation;
+	}
+
+	auto agent_chat_session_host::reload_conversation(const std::string_view aSelected, const bool aChosenAnew) -> core::conversation_reload
+	{
+		const auto reload = decide_reload(aSelected, aChosenAnew);
+		if (reload == core::conversation_reload::start_at_observed) {
+			reset_conversation();
+		}
+		return reload;
+	}
+
 	void agent_chat_session_host::clear()
 	{
 		Replies.clear();
@@ -434,8 +461,9 @@ namespace bpr::application {
 			return refuse(aChoice.Session, agent_chat_refusal::binding_mismatch);
 		}
 		++Statistics.Continuations;
-		Chosen       = aChoice.Choice;
-		auto outcome = agent_chat_outcome{
+		Chosen                = aChoice.Choice;
+		ContinuedConversation = aChoice.Conversation;
+		auto outcome          = agent_chat_outcome{
 			.Session   = aChoice.Session,
 			.Refusal   = agent_chat_refusal::none,
 			.Staleness = offer.Status.Staleness,

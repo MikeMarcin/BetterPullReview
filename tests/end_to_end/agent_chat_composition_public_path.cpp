@@ -1890,6 +1890,20 @@ auto main(int argc, char** argv) -> int
 	const auto keptFrozen = snapshot_alignment_record(std::filesystem::path{
 		finding.McpLaunch.has_value() ? finding.McpLaunch->WorkingDirectory
 									  : std::string{ } });
+	// The anchored course asks its continued question in the Agent tab
+	// about lines in Review, as a reviewer does, so it enters Review now:
+	// before the head moves, so the comparison Review reads is settled
+	// before the reviewer chooses to continue.
+	if (anchored) {
+		window.choose_modality(qt::review_modality::review);
+		auto reviewing = wait_terms{ };
+		if (!wait_until_reporting(reviewing, [&](wait_terms& aTerms) {
+				QApplication::processEvents();
+				return aTerms.require("comparison", surface->current_result() != nullptr && !window.showing_overview())
+					&& aTerms.require("quiescent", app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent); }, extended_agent_budget)) {
+			return fail(*application, "anchored-review", reviewing.render());
+		}
+	}
 	if (continuing) {
 		window.github_refresh_action()->trigger();
 	} else if (!app::detail::github_application_fixture_access::
@@ -2098,12 +2112,48 @@ auto main(int argc, char** argv) -> int
 				*application, "continued-selection", continuedSelection.render());
 		}
 
-		// The continued question, through the session's own panel with the
-		// question it was asked as: the contract is the host's, not the Agent
-		// tab's (which decides a question's subject afresh at each send).
-		chat->composer()->setPlainText(QString::fromUtf8(
-			continued_message.data(),
-			static_cast<qsizetype>(continued_message.size())));
+		// The continued question. The anchored course asks it as a reviewer
+		// does, in the Agent tab, about the selected lines. The continued
+		// course asks through the session's own panel with the question it
+		// was asked as: that contract is the host's.
+		const auto message = QString::fromUtf8(continued_message.data(), static_cast<qsizetype>(continued_message.size()));
+		if (anchored) {
+			// Opening a file in Review reads a native agent's session history
+			// again. The fixture agent keeps none, so the window's own
+			// presentation of that finished load is replayed here.
+			if (!app::detail::github_application_fixture_access::replay_agent_history_load(*application)) {
+				return fail(*application, "anchored-history-reload");
+			}
+			QApplication::processEvents();
+			// The tab's lines chip carries the selection.
+			auto* const tab = window.agent_tab();
+			window.tray_tabs()->setCurrentIndex(2);
+			auto reviewing = wait_terms{ };
+			if (!wait_until_reporting(reviewing, [&](wait_terms& aTerms) {
+					QApplication::processEvents();
+					return aTerms.require("comparison", surface->current_result() != nullptr && !window.showing_overview()); }, extended_agent_budget) || !e2e::select_right_side_of_change(*surface)) {
+				return fail(*application, "anchored-lines-selection", reviewing.render());
+			}
+			tab->refresh_suggestions();
+			QApplication::processEvents();
+			if (!tab->lines_attached()) {
+				tab->attach_lines();
+				QApplication::processEvents();
+			}
+			if (!tab->lines_attached() || tab->lines_chip()->isHidden()) {
+				return fail(*application, "anchored-lines-chip", tab->lines_chip_text().toStdString());
+			}
+			auto offered = wait_terms{ };
+			if (!wait_until_reporting(offered, [&](wait_terms& aTerms) {
+					QApplication::processEvents();
+					aTerms.note_identifier("agent", panel->profile_selector()->currentText().toStdString());
+					return aTerms.require("jsonl-kept", jsonlKept()); }, extended_agent_budget)) {
+				return fail(*application, "anchored-agent-offered", offered.render());
+			}
+			tab->question_editor()->setPlainText(message);
+		} else {
+			chat->composer()->setPlainText(message);
+		}
 		QApplication::processEvents();
 		const auto beforeContinuedSend = app::detail::
 			github_application_fixture_access::agent_finding_evidence(
@@ -2111,7 +2161,25 @@ auto main(int argc, char** argv) -> int
 		if (!jsonlKept()) {
 			return fail(*application, "continued-agent-choice-kept", panel->profile_selector()->currentText().toStdString());
 		}
-		chat->send_action()->trigger();
+		if (anchored) {
+			// Opening the file in Review read the session's history again.
+			// The Continue choice survived it: the chat still holds the
+			// session the reviewer kept, asks nothing, and the tab's Send is
+			// offered. Before the fix that reload moved the session to the
+			// head on screen and the turn ran there.
+			auto* const tab  = window.agent_tab();
+			const auto  held = app::detail::github_application_fixture_access::agent_chat_evidence(*application);
+			if (!held.Projection || held.Projection->Continuations.Required || !held.Session || held.Session->Id != keptSessionId || held.Session->Binding != keptBinding
+				|| !tab->ask_button()->isEnabled()) {
+				return fail(*application, "anchored-continue-kept",
+							"required=" + std::to_string(held.Projection && held.Projection->Continuations.Required) + " kept="
+								+ std::to_string(held.Session && held.Session->Binding == keptBinding) + " send=" + std::to_string(tab->ask_button()->isEnabled())
+								+ " banner=" + tab->banner_text().toStdString());
+			}
+			tab->ask_button()->click();
+		} else {
+			chat->send_action()->trigger();
+		}
 		QApplication::processEvents();
 
 		// The composition half, checked before the answer rather than after

@@ -3372,6 +3372,10 @@ namespace bpr::app {
 		/// [[BPR-2293]]. A history choice is pending: once it lands, the
 		/// conversation it replaced may have ended, and its workspace expires.
 		bool AgentWorkspaceSweepAfterHistory = false;
+		/// The reviewer chose a conversation (History's pick or New
+		/// session) and its history has not landed yet: that load starts at
+		/// the revision under review even over a Continue choice.
+		bool AgentHistoryChosenAnew = false;
 		/// [[BPR-2008]]. Asks the build question: true allows, false
 		/// declines, none closed it. A course answers it itself.
 		std::function<std::optional<bool>()>                AskBuildQuestion;

@@ -253,6 +253,47 @@ namespace bpr::core {
 	/// review cannot answer about this one).
 	[[nodiscard]] auto offer_pinned_conversation(const pinned_conversation_facts& aFacts) noexcept
 		-> pinned_conversation_offer;
+
+	/// \brief What one finished load of a conversation's saved history
+	/// leaves the chat holding.
+	enum class conversation_reload : std::uint8_t {
+		/// The chat's session is held at the revision under review.
+		start_at_observed,
+		/// The reviewer's Continue at <old> stands: the chat keeps the
+		/// session at the revision it was continued at.
+		keep_continuation,
+	};
+
+	[[nodiscard]] auto stable_name(conversation_reload aReload) noexcept -> std::string_view;
+
+	/// \brief The facts one history reload is decided from.
+	struct conversation_reload_facts
+	{
+		/// The reviewer chose `continue_against_old_revision`, and the
+		/// revision under review has not moved since.
+		bool Continued = false;
+		/// The saved conversation shown when they chose it.
+		std::string ContinuedConversation;
+		/// The saved conversation the reload selected.
+		std::string Selected;
+		/// The reload answers the reviewer's own choice of a conversation:
+		/// History's pick, or New session.
+		bool ChosenAnew = false;
+
+		auto operator<=>(const conversation_reload_facts&) const = default;
+	};
+
+	/// \brief Whether a reload of saved history keeps a Continue choice.
+	///
+	/// \details History is read again for reasons that are not the
+	/// reviewer's choice (a file opened, a turn finished, the agent menu
+	/// refreshed). Such a reload of the conversation the reviewer chose to
+	/// continue keeps that choice, so the next turn still runs at the
+	/// revision they chose. A reload the reviewer asked for, of another
+	/// conversation or of a new one, starts at the observed revision, as
+	/// does every reload when nothing was continued.
+	[[nodiscard]] auto decide_conversation_reload(const conversation_reload_facts& aFacts) noexcept
+		-> conversation_reload;
 	/// \brief What the host observed of a conversation's workspace before a
 	/// move (RFC-BPR-0096, owner continue-at-latest amendment, 2026-11-24).
 	enum class conversation_workspace_state : std::uint8_t {

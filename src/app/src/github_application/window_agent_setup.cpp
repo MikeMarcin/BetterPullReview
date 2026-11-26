@@ -1010,6 +1010,7 @@ namespace bpr::app {
 			return;
 		}
 		AgentWorkspaceSweepAfterHistory = AgentWorkspaceSweepAfterHistory || aChoice.has_value();
+		AgentHistoryChosenAnew          = AgentHistoryChosenAnew || aChoice.has_value();
 		AgentHost->restore_native(profile, entry->Identity, "agent-tab", std::move(aChoice));
 	}
 	/// History › New session, and New session on the card of a session
@@ -1094,6 +1095,7 @@ namespace bpr::app {
 		if (aView.Loading) {
 			return;
 		}
+		const auto chosenAnew = std::exchange(AgentHistoryChosenAnew, false);
 		if (!aView.Failure.empty()) {
 			present_agent_refusal("session history", aView.Failure);
 			// The session that asked is still the one shown: its card comes
@@ -1103,8 +1105,12 @@ namespace bpr::app {
 			}
 			return;
 		}
+		// The core decides what the reload keeps: a reload of the
+		// conversation the reviewer chose to continue at its own revision
+		// (a file opened, a turn finished) keeps that choice, so the next
+		// turn still runs there; any other starts at the head under review.
 		if (ChatHost) {
-			ChatHost->reset_conversation();
+			static_cast<void>(ChatHost->reload_conversation(aView.Selected, chosenAnew));
 		}
 		LatestAgentSession.reset();
 		NativeFreshAtCurrentRevision.reset();

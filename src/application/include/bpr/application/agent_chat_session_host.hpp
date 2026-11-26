@@ -65,6 +65,10 @@ namespace bpr::application {
 		core::agent_session_id       Session;
 		core::agent_continuation     Choice = core::agent_continuation::start_new_session;
 		core::agent_revision_binding OfferedBinding;
+		/// The saved conversation shown when the reviewer chose, or empty.
+		/// A Continue choice is kept through reloads of this conversation
+		/// (`reload_conversation`).
+		std::string Conversation;
 
 		auto operator<=>(const agent_chat_continuation_choice&) const = default;
 	};
@@ -367,6 +371,19 @@ namespace bpr::application {
 		void admitted(const core::agent_session& aSession, bool aKeepContext = false);
 		/// Starts the selected conversation view at the observed revision, retaining current context choices.
 		void reset_conversation();
+		/// \brief A finished load of saved history, for the conversation
+		/// `aSelected`.
+		///
+		/// \details `core::decide_conversation_reload` decides. A reload of
+		/// the conversation the reviewer chose to continue at its own
+		/// revision keeps that choice and changes nothing; any other reload,
+		/// and one the reviewer asked for (`aChosenAnew`: History's pick or
+		/// New session), is `reset_conversation`.
+		auto reload_conversation(std::string_view aSelected, bool aChosenAnew) -> core::conversation_reload;
+		/// \brief Whether a Continue choice stands for the conversation
+		/// `aSelected`, so a session restored with its history must not
+		/// retarget the chat.
+		[[nodiscard]] auto keeps_continuation(std::string_view aSelected) const -> bool;
 
 		/// \brief [[BPR-1817]]. The agent the reviewer chose in the composer's
 		/// agent menu, read at the send gesture.
@@ -434,6 +451,9 @@ namespace bpr::application {
 			-> agent_chat_outcome;
 		void present_state();
 
+		/// \brief `core::decide_conversation_reload` asked of this chat.
+		[[nodiscard]] auto decide_reload(std::string_view aSelected, bool aChosenAnew) const -> core::conversation_reload;
+
 		/// \brief Where a chat starts before the reviewer narrows it.
 		///
 		/// \details The pull request the session is already bound to, which
@@ -464,6 +484,9 @@ namespace bpr::application {
 		/// outlived the revision it answered would be an answer to a question
 		/// nobody asked twice.
 		std::optional<core::agent_continuation> Chosen;
+		/// The saved conversation a `continue_against_old_revision` choice
+		/// was made for; read only while that choice stands.
+		std::string ContinuedConversation;
 		/// Whether a dispatched turn is still waiting for its delivery.
 		std::vector<agent_chat_reply> Replies;
 		std::uint64_t                 NextReply     = 1U;
