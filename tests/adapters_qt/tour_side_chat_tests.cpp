@@ -832,9 +832,18 @@ auto main(int argc, char** argv) -> int
 		};
 		// [[BPR-2337]]. Send is inside the composer's field, as the Agent tab's.
 		expect(chat->send_button()->parentWidget() == chat->composer_box(), "Send is in the composer's field");
-		expect(under() == QStringList{ QStringLiteral("tourSideChatField"), QStringLiteral("tourSideChatSessionCost") },
-			   "AC01 under the transcript only the composer and what the session cost: " + under().join(QLatin1Char(',')).toStdString());
-		expect(chat->session_cost_line()->text() == QStringLiteral("$0.04 this session"), "the session's cost under the composer: " + chat->session_cost_line()->text().toStdString());
+		// RFC-BPR-0130: what the session cost is not on the chat's face. Its
+		// row of History says it; nothing stands under the composer.
+		expect(under() == QStringList{ QStringLiteral("tourSideChatField") }, "AC01 under the transcript only the composer: " + under().join(QLatin1Char(',')).toStdString());
+		expect(chat->findChild<QLabel*>(QStringLiteral("tourSideChatSessionCost")) == nullptr && chat->header()->header().ToolNote.empty(), "no cost line under the composer, and a chat with sessions says no cost in its header");
+		// A chat that keeps no sessions (a local draft's discussion) has no
+		// row of History to say it: its header's Copy conversation does.
+		chat->set_sessions_offered(false);
+		settle();
+		expect(chat->copy_chat_button()->toolTip() == QStringLiteral("Copy this conversation as text. This conversation has cost $0.04 so far.") && under() == QStringList{ QStringLiteral("tourSideChatField") },
+			   "a chat without sessions says its cost from Copy conversation, and still nothing under the composer: " + chat->copy_chat_button()->toolTip().toStdString());
+		chat->set_sessions_offered(true);
+		settle();
 		// RFC-BPR-0130, header A (owner, attended review 2026-11-24: "It looks
 		// like tour built a different session selector from agent too for no
 		// reason."). The sessions are the header's History, the Agent tab's
@@ -842,9 +851,15 @@ auto main(int argc, char** argv) -> int
 		{
 			auto* const history = chat->history_button();
 			expect(chat->findChild<QToolButton*>(QStringLiteral("tourChatSession")) == nullptr && history->objectName() == QStringLiteral("tourChatHistory") && history->isVisibleTo(chat), "the chat has History and no Session button of its own");
-			expect(history->geometry().bottom() < chat->findChild<QWidget*>(QStringLiteral("tourSideChatScroll"))->geometry().top() && history->geometry().right() < chat->close_button()->geometry().left()
+			auto* const row = chat->header();
+			expect(history->parentWidget() == row && chat->close_button()->parentWidget() == row && chat->show_button()->parentWidget() == row && chat->subject()->parentWidget() == row,
+				   "the header's parts are the shared row's own");
+			expect(row->geometry().bottom() < chat->findChild<QWidget*>(QStringLiteral("tourSideChatScroll"))->geometry().top() && history->geometry().right() < chat->close_button()->geometry().left()
 					   && chat->show_button()->geometry().right() < history->geometry().left() && chat->subject()->geometry().right() < chat->show_button()->geometry().left(),
 				   "the header is one row: the part, Show in code, History, close");
+			expect(row->header().Tool == core::chat_header_tool::history && row->header().offers(core::chat_header_action::other_tour_chats) && !row->header().offers(core::chat_header_action::show_every_run)
+					   && chat->findChild<QWidget*>(QStringLiteral("tourSideChatGlyph")) == nullptr,
+				   "core's header for a tour part: History with the other parts' chats, and no agent glyph before the subject");
 			expect(history->menu() == chat->history_menu()->menu() && history->menu()->actions().front() == chat->new_session_action() && chat->new_session_action()->text() == QStringLiteral("New session"),
 				   "New session is History's first item");
 			// The open session "older" has saved no turn, but the chat shows
@@ -940,6 +955,8 @@ auto main(int argc, char** argv) -> int
 			chat->set_sessions_offered(false);
 			settle();
 			expect(!chat->history_button()->isVisibleTo(chat) && chat->copy_chat_button()->isVisibleTo(chat), "a chat that keeps no sessions shows Copy conversation where History was");
+			expect(chat->copy_chat_button()->accessibleName() == QStringLiteral("Copy conversation") && chat->copy_chat_button()->toolTip().startsWith(QStringLiteral("Copy this conversation as text")),
+				   "named as History's item is: " + chat->copy_chat_button()->toolTip().toStdString());
 			chat->set_sessions_offered(true);
 			settle();
 			expect(chat->history_button()->isVisibleTo(chat) && !chat->copy_chat_button()->isVisibleTo(chat), "and History again when it keeps them");

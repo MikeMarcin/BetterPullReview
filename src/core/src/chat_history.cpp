@@ -1,5 +1,8 @@
 #include "bpr/core/chat_history.hpp"
 
+#include "bpr/core/chat_header.hpp"
+
+#include <algorithm>
 #include <array>
 
 namespace bpr::core {
@@ -33,14 +36,18 @@ namespace bpr::core {
 		plan.CarryOver  = aFacts.AgentReady && !aFacts.Closed && !aFacts.Loading && !aFacts.Running && !aFacts.Busy;
 		plan.Copy       = aFacts.ShownTurns != 0U;
 		// Groups, a separator between each two that hold something.
-		auto others = std::vector<item>{ };
-		if (aFacts.Kind == chat_history_kind::tour_side_chat) {
-			if (aFacts.OtherChats != 0U) {
-				others.push_back(item::other_chats);
-			}
-			// The Agent tab copies each reply; it has no copy of the whole thread.
+		// What the kind of chat offers at all is the header's
+		// (`chat_actions_offered`); what it offers now is this plan's.
+		const auto offered = chat_actions_offered(aFacts.Kind == chat_history_kind::agent_tab ? chat_kind::agent_tab : chat_kind::whole_tour);
+		const auto offers  = [&offered](const chat_header_action aAction) { return std::ranges::find(offered, aAction) != offered.end(); };
+		auto       others  = std::vector<item>{ };
+		if (offers(chat_header_action::other_tour_chats) && aFacts.OtherChats != 0U) {
+			others.push_back(item::other_chats);
+		}
+		if (offers(chat_header_action::copy_conversation)) {
 			others.push_back(item::copy_conversation);
-		} else if (aFacts.EveryRun) {
+		}
+		if (offers(chat_header_action::show_every_run) && aFacts.EveryRun) {
 			others.push_back(item::show_every_run);
 		}
 		const auto groups = std::array{

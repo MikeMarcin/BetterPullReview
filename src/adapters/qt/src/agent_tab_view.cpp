@@ -12,8 +12,10 @@
 #include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_queue.hpp"
+#include "bpr/core/chat_header.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/core/feedback_convention.hpp"
+#include "bpr/core/hex.hpp"
 #include "bpr/core/local_comment.hpp"
 #include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/review_preparation.hpp"
@@ -540,44 +542,40 @@ namespace bpr::qt {
 		column->setContentsMargins(0, 0, 0, 0);
 		column->setSpacing(0);
 
-		// The context row: the agent, the head it reads, its scope, History.
-		auto* const context = new QWidget{ this };
-		context->setObjectName(QStringLiteral("agentContextRow"));
-		auto* const row = new QHBoxLayout{ context };
-		row->setContentsMargins(10, 8, 8, 8);
-		row->setSpacing(5);
-		auto* const profiles = Launch.profile_selector();
-		Borrowed.emplace_back(profiles, profiles->parentWidget());
-		profiles->setParent(context);
-		profiles->setToolTip(tr("The agent this tab asks"));
-		profiles->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-		row->addWidget(profiles);
+		// The header (RFC-BPR-0130, header A as the owner amended it): the
+		// one row every chat with an agent wears. Here it is the pull
+		// request's title, ending in an ellipsis where it does not fit, and
+		// History, whose first item is New session (owner, 2026-11-24: "move
+		// new session into that menu as the top item so it doesn't take up
+		// extra space on the drawer"). The revision the session reads is
+		// History's last line and, when the head has moved, the card on the
+		// question field; no chip says it while there is nothing to say.
+		Header = new chat_header_view{ {
+										   .Row     = QStringLiteral("agentContextRow"),
+										   .Subject = QStringLiteral("agentSessionTitle"),
+										   .Place   = QStringLiteral("agentSessionPlace"),
+										   .Show    = QStringLiteral("agentSessionShow"),
+										   .History = QStringLiteral("agentHistory"),
+										   .Copy    = QStringLiteral("agentCopyConversation"),
+										   .Close   = QStringLiteral("agentCloseChat"),
+									   },
+									   this };
+		Header->row()->setContentsMargins(10, 8, 8, 8);
+		Header->row()->setSpacing(5);
+		SessionTitle = Header->subject();
+		History      = Header->history_tool();
 		// Owner amendment 2026-10-23: the agent is switched from the chip in
 		// the question field; the selector stays the one choice, unseen.
+		auto* const profiles = Launch.profile_selector();
+		Borrowed.emplace_back(profiles, profiles->parentWidget());
+		profiles->setParent(Header);
+		profiles->setToolTip(tr("The agent this tab asks"));
+		profiles->setSizeAdjustPolicy(QComboBox::AdjustToContents);
 		profiles->hide();
-		// Owner look v003 and the VS Code agent drawers: the session's title,
-		// then History. RFC-BPR-0130, header A: the title ends in an ellipsis
-		// where it does not fit, and New session is History's first item
-		// (owner, 2026-11-24: "move new session into that menu as the top
-		// item so it doesn't take up extra space on the drawer").
-		SessionTitle = new eliding_heading{ tr("Agent"), context };
-		SessionTitle->setObjectName(QStringLiteral("agentSessionTitle"));
-		SessionTitle->setTextFormat(Qt::PlainText);
-		SessionTitle->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		auto titleFont = SessionTitle->font();
-		titleFont.setWeight(QFont::DemiBold);
-		SessionTitle->setFont(titleFont);
-		row->addWidget(SessionTitle, 1);
-		Head = chip_label(context, QStringLiteral("agentHeadChip"));
-		Head->setToolTip(tr("The head the session reads"));
-		Head->setForegroundRole(QPalette::PlaceholderText);
-		row->addWidget(Head);
-		History = make_drawer_tool(context, drawer_icon(drawer_glyph::history, palette()), tr("History: this chat's sessions, New session and every run"), QStringLiteral("agentHistory"));
-		History->setAccessibleName(tr("History"));
 		// [[BPR-2377]], RFC-BPR-0130. The one History menu, the tour chat's
 		// too: New session, a row a session (pencil, trash can, i), carrying
-		// the open one over, Delete all sessions…, Show every run…, Reset
-		// agents…, the revision read.
+		// the open one over, Delete all sessions…, Copy conversation, Show
+		// every run…, Reset agents…, the revision read.
 		HistoryItems = new chat_history_menu{ core::chat_history_kind::agent_tab, *this, *History, QStringLiteral("agent") };
 		HistoryMenu  = HistoryItems->menu();
 		SessionMenu  = HistoryItems->rows();
@@ -588,7 +586,7 @@ namespace bpr::qt {
 			.CarryOver        = [this](const std::string& aId) { if (NativeHistoryDispatch) { NativeHistoryDispatch("replay:" + aId); } },
 			.ViewOther        = { },
 			.Edit             = [this](const std::string& aId, std::optional<std::string> aName) { if (SessionEditDispatch) { SessionEditDispatch(aId, std::move(aName)); } },
-			.CopyConversation = { },
+			.CopyConversation = [this] { copy_chat(); },
 			.ShowEveryRun     = [this] { show_history(true); },
 			.ResetAgents      = [this] { reset_agents(); },
 		});
@@ -606,8 +604,8 @@ namespace bpr::qt {
 				.Agent       = agent_name(),
 			};
 		});
-		row->addWidget(History);
-		column->addWidget(context);
+		column->addWidget(Header);
+		show_session_title();
 		// The header is that one row (RFC-BPR-0130, header A): nothing is
 		// said between it and the transcript. The "Native continuation"
 		// heading that stood here is gone, as the owner accepted and then
@@ -1167,19 +1165,6 @@ namespace bpr::qt {
 		// whole PR thing is way too long ... needs to be a tooltip"), in the
 		// field's tooltip, which its chips and buttons override with their own.
 		field->setToolTip(tr("The agent can read the whole pull request; attached lines only tell it where you are looking."));
-		// [[BPR-1999]]. The session's cost, when the agent reported any, on
-		// one line at the right under the composer.
-		SessionCostLine = new QLabel{ ask };
-		SessionCostLine->setObjectName(QStringLiteral("agentSessionCost"));
-		SessionCostLine->setTextFormat(Qt::PlainText);
-		SessionCostLine->setForegroundRole(QPalette::PlaceholderText);
-		SessionCostLine->setToolTip(tr("What the agent reported this session has cost. It restarts at New session."));
-		SessionCostLine->hide();
-		auto* const underRow = new QHBoxLayout{ };
-		underRow->setContentsMargins(0, 0, 0, 0);
-		underRow->addStretch(1);
-		underRow->addWidget(SessionCostLine, 0, Qt::AlignTop | Qt::AlignRight);
-		askCol->addLayout(underRow);
 		talk->addWidget(ask);
 		Pages->addWidget(Conversation);
 
@@ -1388,15 +1373,7 @@ namespace bpr::qt {
 			Pages->setCurrentWidget(setting ? static_cast<QWidget*>(SetupView) : State == agent_tab_state::not_set_up ? static_cast<QWidget*>(Empty)
 																													  : Conversation);
 		}
-		// The head the session reads, short; its state in the tooltip.
-		auto head = Chat.head_oid_text().trimmed();
-		if (head.contains(QLatin1Char{ ':' })) {
-			head = head.section(QLatin1Char{ ':' }, -1).trimmed();
-		}
-		Head->setText(head.left(7));
-		Head->setVisible(!head.isEmpty() && head != QStringLiteral("—"));
 		refresh_send_label();
-		Head->setToolTip(tr("The head the session reads. %1").arg(Chat.session_state_text()));
 		// The added context, above the words, only when there is some.
 		Chips->setText(Chat.chips_text());
 		Chips->setVisible(Chat.chip_count() > 0U);
@@ -2481,11 +2458,6 @@ namespace bpr::qt {
 		if (CostObserver) {
 			CostObserver(aTotal);
 		}
-		if (SessionCostLine == nullptr) {
-			return;
-		}
-		SessionCostLine->setText(aTotal ? tr("%1 this session").arg(QString::fromStdString(core::agent_cost_words(*aTotal))) : QString{ });
-		SessionCostLine->setVisible(aTotal.has_value());
 	}
 
 	auto agent_tab_view::send_tip() const -> QString
@@ -3282,7 +3254,7 @@ namespace bpr::qt {
 			// [[BPR-2219]]. A turn sent under a name (a review prompt, whose
 			// question is its whole body) is said by that name.
 			.Question  = turn.Name.isEmpty() ? turn.Question : turn.Name,
-			.Byline    = { .Ending = turn.Ending, .When = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt), .Head = Head != nullptr ? Head->text() : QString{ } },
+			.Byline    = { .Ending = turn.Ending, .When = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt), .Head = read_revision() },
 			.Suggested = std::move(suggested),
 			.Cards     = std::move(cards),
 			.Answer    = turn.AnswerText.trimmed(),
@@ -3754,12 +3726,57 @@ namespace bpr::qt {
 
 	void agent_tab_view::show_session_title()
 	{
-		// [[BPR-2377]]. The open session's own name, when it has one.
+		// [[BPR-2377]]. The open session's own name, when it has one; core
+		// decides what the row then says and which tools it holds.
 		const auto entry = std::ranges::find(NativeHistoryView.Entries, NativeHistoryView.Selected, &application::native_agent_history_entry::Id);
-		const auto named = entry != NativeHistoryView.Entries.end() && !entry->Name.empty() && !NativeHistoryView.Selected.empty();
-		const auto title = named ? QString::fromStdString(entry->Name) : DefaultSessionTitle;
-		// The whole title is its tooltip whenever the row shortens it.
-		static_cast<eliding_heading*>(SessionTitle)->present(title.isEmpty() ? tr("Agent") : title, named ? tr("%1, in %2").arg(title, DefaultSessionTitle) : QString{ });
+		const auto open  = entry != NativeHistoryView.Entries.end() && !NativeHistoryView.Selected.empty();
+		Header->present(core::plan_chat_header({
+			.Kind         = core::chat_kind::agent_tab,
+			.Subject      = (DefaultSessionTitle.isEmpty() ? tr("Agent") : DefaultSessionTitle).toStdString(),
+			.Place        = { },
+			.CanShow      = false,
+			.About        = { },
+			.SessionName  = open ? entry->Name : std::string{ },
+			.RevisionRead = open && entry->Binding.HeadOid != decltype(entry->Binding.HeadOid){ } ? std::string{ core::canonical_hex(entry->Binding.HeadOid).view() } : std::string{ },
+			.Cost         = std::nullopt,
+		}));
+	}
+
+	auto agent_tab_view::read_revision() const -> QString
+	{
+		// The head the session reads, as every chat writes a revision.
+		auto head = Chat.head_oid_text().trimmed();
+		if (head.contains(QLatin1Char{ ':' })) {
+			head = head.section(QLatin1Char{ ':' }, -1).trimmed();
+		}
+		return head == QStringLiteral("—") ? QString{ } : QString::fromStdString(core::chat_revision_words(head.toStdString()));
+	}
+
+	auto agent_tab_view::chat_text() const -> QString
+	{
+		auto lines = QStringList{ tr("## Agent chat: %1").arg(DefaultSessionTitle.isEmpty() ? tr("Agent") : DefaultSessionTitle), QString{ } };
+		for (const auto& kept : Turns) {
+			lines << tr("**You:** %1").arg(kept.Question) << QString{ };
+			if (!kept.Done) {
+				continue;
+			}
+			// How it ended, as its footer says it: who answered and in how
+			// long, or why there was no answer.
+			if (const auto ending = kept.Footer != nullptr ? kept.Footer->text().trimmed() : QString{ }; !ending.isEmpty()) {
+				lines << QStringLiteral("**%1**").arg(ending) << QString{ };
+			}
+			if (!kept.AnswerText.trimmed().isEmpty()) {
+				lines << kept.AnswerText << QString{ };
+			}
+		}
+		return lines.join(QLatin1Char('\n'));
+	}
+
+	void agent_tab_view::copy_chat() const
+	{
+		if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
+			clipboard->setText(chat_text());
+		}
 	}
 
 	void agent_tab_view::set_session_edit_dispatch(session_edit_dispatch aDispatch)
@@ -3974,7 +3991,7 @@ namespace bpr::qt {
 			break;
 		}
 		case agent_tab_state::head_moved: {
-			const auto read = Head->text();
+			const auto read = read_revision();
 			docked          = true;
 			BannerTitle->setText(pinned_card_title(read));
 			BannerText->setText(tr("The pull request has moved on. Its findings stay at that head."));
@@ -4170,7 +4187,7 @@ namespace bpr::qt {
 	{
 		// The card's own choices, by the words on its chips.
 		if (State == agent_tab_state::head_moved) {
-			const auto read = Head->text();
+			const auto read = read_revision();
 			return read.isEmpty() ? tr("Choose Continue or New session first.") : tr("Choose Continue at %1 or New session first.").arg(read);
 		}
 		const auto& pinned = Launch.pinned_conversation();
@@ -5760,7 +5777,7 @@ namespace bpr::qt {
 		// [[BPR-1773]], owner look 2026-10-27 ("The copy to clipboard icon is
 		// nearly unseeable on dark mode"). A glyph is painted in the ink of
 		// the palette it was made with, so a theme change paints each again.
-		History->setIcon(drawer_icon(drawer_glyph::history, palette()));
+		Header->repaint_glyphs();
 		ConversationClose->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		LinesClose->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		Context->setIcon(drawer_icon(drawer_glyph::plus, palette()));

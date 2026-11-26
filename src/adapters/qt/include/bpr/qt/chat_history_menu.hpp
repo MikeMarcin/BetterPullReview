@@ -102,17 +102,19 @@ namespace bpr::qt {
 		[[nodiscard]] auto plan() const noexcept -> const core::chat_history_plan& { return Plan; }
 
 		/// \name A conversation carried over, in RFC-BPR-0130's accepted words
-		/// \details The same in every chat, with the chosen agent's display
-		/// name where `aAgent` is given and "The agent" where none is known;
-		/// no sentence names an agent of its own. They replace "Transcript
-		/// replay", "Native continuation unavailable" and the replay's limits
-		/// in kibibytes, which stay in the diagnostic log.
+		/// \details Core's sentences (`core::chat_session_notice` and its
+		/// neighbours), the same in every chat, with the chosen agent's
+		/// display name where `aAgent` is given and "The agent" where none is
+		/// known; no sentence names an agent of its own.
 		/// \{
 		/// \brief The notice of a session that was carried over from a saved
 		/// transcript.
 		[[nodiscard]] static auto carried_over_words(const QString& aAgent) -> QString;
 		/// \brief The notice of a session the chosen agent cannot go on with.
 		[[nodiscard]] static auto cannot_continue_words(const QString& aAgent) -> QString;
+		/// \brief The notice on the question field for how a session goes
+		/// on: one of the two above, or nothing for the ordinary way.
+		[[nodiscard]] static auto session_notice_words(bool aCarriedOver, bool aNativeSupported, const QString& aAgent) -> QString;
 		/// \brief The menu item that carries the open session over.
 		[[nodiscard]] static auto carry_over_words(const QString& aAgent) -> QString;
 		/// \brief What carrying over leaves out, and what it left out of this

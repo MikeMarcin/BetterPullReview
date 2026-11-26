@@ -735,7 +735,8 @@ asked, a revision's parts waiting on the stops they change) and its chat
 column (a stop's chat new, answered, queued, with a suggestion, with that
 suggestion being edited and after the stop's Enhance; the whole tour's chat as
 its toggle opens it after Draft Tour, answered and with a revision; a chat
-whose session read the earlier head). It also holds those states to what their
+whose session read the earlier head), and the side chat about a finding beside
+the code, answered, at each width its column can have. It also holds those states to what their
 cards say: the prompts wait while the revision card does, New session shows
 the empty session before the kept message runs in it, and the first question
 after a draft or an Enhance starts from that answer, which the Fixture agent's
@@ -748,9 +749,12 @@ another, no part cuts the face of a button or a text field it holds, and no
 tool button is left to the platform style to draw. Nothing lies over what a
 scroll area scrolls; a chat's transcript with a turn cut at its top draws its
 edge there, and one with none cut draws none; nothing stands between the Agent
-tab's header row and its transcript; and no label, button or menu item says
+tab's header row and its transcript; no label, button or menu item says
 "Native continuation", "Transcript replay", "Native:" or "Private history and
-runs".
+runs"; and every chat wears the one header row (RFC-BPR-0130): its title on
+one line, cut with an ellipsis and whole in its tooltip, every part inside the
+row, no New session button in it, and no revision chip, cost line under a
+composer or agent glyph left over.
 A code block is the one thing wider than its frame: code keeps its lines and
 scrolls inside the block until its **Wrap** is pressed. A question the
 application refuses before any agent runs is said once, in words that wrap,
@@ -2740,15 +2744,31 @@ comment's card offers Make draft (or Make draft on line N), Copy text, Delete
 need no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
 follows Tour, its spark beside its name. Its header (owner look v003, after the
 agent drawers' convention) is the session's title, the pull request's number
-and title, ending in an ellipsis where the row is narrow, the head its session
-reads, and one icon, History (RFC-BPR-0130, header A). History's first item is
+and title, ending in an ellipsis where the row is narrow, and one icon,
+History (RFC-BPR-0130, header A). It is the one header row every chat with an
+agent wears (`qt::chat_header_view`, drawn from `core::plan_chat_header`):
+what the chat is about on one line, its place under it where it has one, then
+Show, History where the chat keeps sessions or Copy conversation where it
+keeps none, and Close where the column closes. The tour's side chat shows the
+part and its place, Show in code, History and close; the side chat about one
+review item shows the kind of item ("Suggested comment") and its file and
+lines, Show, Copy conversation and close, with the finding's claim in the
+subject's tooltip; a local draft's discussion, which keeps no sessions, shows
+Copy conversation where History would be. No row holds a New session button,
+a revision chip or the agent's glyph. The revision a session reads is
+History's last line and, when the head has moved, the card on the question
+field. What a session has cost is said by its row of History (its **i**), and
+the window's footer keeps the pull request's total; no cost line stands under
+a composer, and a chat without sessions says its cost in its Copy
+conversation tooltip. History's first item is
 New session, which keeps the conversation and opens an empty one; when that
 would change nothing (the open session is new, a turn runs, no agent is set
 up) it is greyed and says why under its name. Then the sessions, one row each
 (open, rename, delete, about; the open one ticked; lit under the pointer and
 the arrow keys as the menu's items are), Carry this conversation over to
-*agent* (the agent the tab asks, by its name), Delete all sessions…, Show every
-run…, Reset agents… and, last, the revision the open session reads. The tour's
+*agent* (the agent the tab asks, by its name), Delete all sessions…, Copy
+conversation (the whole thread as text), Show every run…, Reset agents… and,
+last, the revision the open session reads. The tour's
 side chat opens the same menu, and tells core the same thing of a session that
 read an earlier head: it is never the new session, so New session is offered
 there even in a chat nothing was asked in, where it had stayed greyed under a

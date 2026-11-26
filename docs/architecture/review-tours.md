@@ -298,7 +298,10 @@ parts wait marked grey) and **Discard**, drawn from the one proposal so deciding
 settles the other. Under the transcript sit only a notice when something is not as usual (a
 session carried over from a saved transcript, one the agent cannot pick up, a moved head with
 Continue old revision; the first two in RFC-BPR-0130's accepted words, naming the agent), the
-composer with an attached passage as a chip inside its field, and what the session cost. The
+composer with an attached passage as a chip inside its field. What a session cost is said by its
+row of History, not on the chat's face (RFC-BPR-0130); a local draft's discussion, which keeps no
+sessions, says it in its Copy conversation tooltip. The header is `qt::chat_header_view`, the row
+the Agent tab and an item's side chat wear too, drawn from `core::plan_chat_header`. The
 sessions are the header's **History** (RFC-BPR-0130, header A): `qt::chat_history_menu`, the one
 menu the Agent tab's header opens too, built from `core::plan_chat_history`, which decides its
 items and whether New session can be chosen (`core::decide_new_session`); refused, New session is

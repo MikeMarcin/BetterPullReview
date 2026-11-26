@@ -14,6 +14,7 @@
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_session_menu.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
+#include "bpr/qt/chat_header_view.hpp"
 #include "bpr/qt/chat_history_menu.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
@@ -410,7 +411,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto show_button() const noexcept -> QPushButton* { return ShowPart; }
 		[[nodiscard]] auto subject() const noexcept -> QLabel* { return Subject; }
 		/// \brief [[BPR-1999]]. The open chat's session cost line.
-		[[nodiscard]] auto session_cost_line() const noexcept -> QLabel* { return SessionCostLine; }
+		/// \brief RFC-BPR-0130. The one header row every chat wears: here the
+		/// part and its place, Show in code, History (Copy conversation in a
+		/// chat that keeps no sessions) and close.
+		[[nodiscard]] auto header() const noexcept -> chat_header_view* { return Header; }
 		[[nodiscard]] auto passage_line() const noexcept -> QLabel* { return PassageLine; }
 		[[nodiscard]] auto passage() const -> std::optional<core::tour_passage>;
 		/// \brief How many turns the open chat shows.
@@ -443,7 +447,6 @@ namespace bpr::qt {
 		/// [[BPR-1925]]. The seam with the tour: a line of the agent's accent
 		/// down the column's left edge, and the faintest wash beside it.
 		void paintEvent(QPaintEvent* aEvent) override;
-		void resizeEvent(QResizeEvent* aEvent) override;
 
 	private:
 		std::function<void(const core::tour_thread&, std::optional<std::string>)> HistoryDispatch;
@@ -455,11 +458,15 @@ namespace bpr::qt {
 		bool                                                                      CarriedOver    = false;
 		bool                                                                      CannotContinue = false;
 		void                                                                      present_session_notice();
-		QString                                                                   ShowWords;
-		std::function<void(const core::tour_thread&)>                             ContinuationDispatch;
-		QToolButton*                                                              ContinueOld            = nullptr;
-		QLabel*                                                                   RevisionStatus         = nullptr;
-		bool                                                                      RevisionChoiceRequired = false;
+		chat_header_view*                                                         Header = nullptr;
+		/// The open session's name and the revision it reads, as History
+		/// was last told; empty for none.
+		std::string                                   OpenSessionName;
+		std::string                                   OpenSessionRevision;
+		std::function<void(const core::tour_thread&)> ContinuationDispatch;
+		QToolButton*                                  ContinueOld            = nullptr;
+		QLabel*                                       RevisionStatus         = nullptr;
+		bool                                          RevisionChoiceRequired = false;
 		/// The open session reads a revision other than the one under review,
 		/// whether or not Continue old revision was chosen: History's New
 		/// session opens one at the head under review, so core offers it even
@@ -478,7 +485,6 @@ namespace bpr::qt {
 		/// code is anchored to; empty for the whole tour's chat.
 		[[nodiscard]] auto code_context() const -> std::string;
 		void               refresh_header();
-		void               fit_header();
 		void               copy_chat() const;
 		void               refresh_actions();
 		void               show_passage();
@@ -505,7 +511,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto live_status() const -> agent_run_status;
 		[[nodiscard]] auto agent_of(core::tour_agent_run_id aRun) const -> QString;
 
-		QLabel*                                                                     SessionCostLine = nullptr;
 		agent_reference_files_source                                                ReferenceFiles;
 		agent_reference_navigation                                                  ReferenceNavigate;
 		agent_reference_chooser                                                     ReferenceChoose;

@@ -88,15 +88,16 @@ auto main(int argc, char** argv) -> int
 	owner.show();
 
 	// The Agent tab's menu.
-	auto  button   = QToolButton{ &owner };
-	auto* agent    = new qt::chat_history_menu{ core::chat_history_kind::agent_tab, owner, button, QStringLiteral("agent") };
-	auto  started  = 0;
-	auto  opened   = std::vector<std::string>{ };
-	auto  carried  = std::vector<std::string>{ };
-	auto  edits    = std::vector<std::pair<std::string, std::optional<std::string>>>{ };
-	auto  everyRun = 0;
-	auto  resets   = 0;
-	auto  shows    = 0;
+	auto  button      = QToolButton{ &owner };
+	auto* agent       = new qt::chat_history_menu{ core::chat_history_kind::agent_tab, owner, button, QStringLiteral("agent") };
+	auto  started     = 0;
+	auto  opened      = std::vector<std::string>{ };
+	auto  carried     = std::vector<std::string>{ };
+	auto  edits       = std::vector<std::pair<std::string, std::optional<std::string>>>{ };
+	auto  everyRun    = 0;
+	auto  resets      = 0;
+	auto  shows       = 0;
+	auto  agentCopies = 0;
 	agent->set_dispatch({
 		.AboutToShow      = [&shows] { ++shows; },
 		.NewSession       = [&started] { ++started; },
@@ -104,7 +105,7 @@ auto main(int argc, char** argv) -> int
 		.CarryOver        = [&carried](const std::string& aId) { carried.push_back(aId); },
 		.ViewOther        = { },
 		.Edit             = [&edits](const std::string& aId, std::optional<std::string> aName) { edits.emplace_back(aId, std::move(aName)); },
-		.CopyConversation = { },
+		.CopyConversation = [&agentCopies] { ++agentCopies; },
 		.ShowEveryRun     = [&everyRun] { ++everyRun; },
 		.ResetAgents      = [&resets] { ++resets; },
 	});
@@ -118,8 +119,13 @@ auto main(int argc, char** argv) -> int
 	expect(button.menu() == menu && button.popupMode() == QToolButton::InstantPopup && menu->objectName() == QStringLiteral("agentHistoryMenu"), "the menu is its button's, opened at once");
 	expect(names(*menu)
 			   == QStringList{ QStringLiteral("agentNewSession"), QStringLiteral("-"), QStringLiteral("agentSessionRows"), QStringLiteral("-"), QStringLiteral("agentCarryOver"), QStringLiteral("agentSessionDeleteAll"),
-							   QStringLiteral("-"), QStringLiteral("agentShowEveryRun"), QStringLiteral("-"), QStringLiteral("agentResetAgentsAction"), QStringLiteral("-"), QStringLiteral("agentRevisionRead") },
-		   "New session first, the sessions, Delete all sessions…, Show every run…, Reset agents…, the revision read last: " + names(*menu).join(QLatin1Char{ '|' }).toStdString());
+							   QStringLiteral("-"), QStringLiteral("agentCopyChat"), QStringLiteral("agentShowEveryRun"), QStringLiteral("-"), QStringLiteral("agentResetAgentsAction"), QStringLiteral("-"),
+							   QStringLiteral("agentRevisionRead") },
+		   "New session first, the sessions, Delete all sessions…, Copy conversation, Show every run…, Reset agents…, the revision read last: " + names(*menu).join(QLatin1Char{ '|' }).toStdString());
+	expect(agent->copy_action()->text() == QStringLiteral("Copy conversation") && agent->copy_action()->isEnabled() && agent->revision_action()->text().startsWith(QStringLiteral("Reads the pull request at ")),
+		   "RFC-BPR-0130's names: Copy conversation, and the revision read as History's last line: " + agent->revision_action()->text().toStdString());
+	agent->copy_action()->trigger();
+	expect(agentCopies == 1, "the Agent tab's whole conversation is copied from History");
 	expect(menu->findChild<QMenu*>(QStringLiteral("nativeAgentSessions")) == nullptr, "the sessions are the menu's own rows, not a level down");
 	expect(agent->revision_action()->text() == QStringLiteral("Reads the pull request at 2222222") && !agent->revision_action()->isEnabled(), "the last line names the revision read and is never chosen");
 
@@ -254,7 +260,7 @@ auto main(int argc, char** argv) -> int
 	expect(everyRun == 1 && resets == 1, "Show every run… and Reset agents… reach the chat");
 	state.ResetAgents = false;
 	agent->set_state(state);
-	expect(!names(*menu).contains(QStringLiteral("agentResetAgentsAction")) && !names(*menu).contains(QStringLiteral("agentCopyChat")), "no setup to reset: no Reset agents…; the Agent tab has no copy of the whole chat");
+	expect(!names(*menu).contains(QStringLiteral("agentResetAgentsAction")) && names(*menu).contains(QStringLiteral("agentCopyChat")), "no setup to reset: no Reset agents…; Copy conversation stays");
 
 	// The tour's side chat: the same menu, with the other parts' chats and
 	// Copy conversation, and without the Agent tab's own items.
@@ -285,7 +291,7 @@ auto main(int argc, char** argv) -> int
 	tour->present(partHistory);
 	expect(names(*tour->menu())
 			   == QStringList{ QStringLiteral("tourChatNewSession"), QStringLiteral("-"), QStringLiteral("agentSessionRows"), QStringLiteral("-"), QStringLiteral("tourChatCarryOver"), QStringLiteral("agentSessionDeleteAll"),
-							   QStringLiteral("-"), QStringLiteral("Other tour chats and detached history"), QStringLiteral("tourChatCopyChat"), QStringLiteral("-"), QStringLiteral("tourChatRevisionRead") },
+							   QStringLiteral("-"), QStringLiteral("Chats about other parts of the tour"), QStringLiteral("tourChatCopyChat"), QStringLiteral("-"), QStringLiteral("tourChatRevisionRead") },
 		   "the tour chat's History is the same menu with its own two items: " + names(*tour->menu()).join(QLatin1Char{ '|' }).toStdString());
 	auto* const others = tour->menu()->findChild<QMenu*>(QStringLiteral("tourChatOtherChats"));
 	expect(others != nullptr && others->actions().size() == 1 && others->actions().front()->text() == QStringLiteral("Stop ID 7: Why this stop?"), "another part's chat is named by its part");

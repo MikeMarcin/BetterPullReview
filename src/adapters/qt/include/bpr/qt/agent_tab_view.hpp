@@ -27,6 +27,7 @@
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_session_menu.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
+#include "bpr/qt/chat_header_view.hpp"
 #include "bpr/qt/chat_history_menu.hpp"
 #include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -402,15 +403,16 @@ namespace bpr::qt {
 		/// observer with the whole thread, so the host keeps it.
 		void present_thread(const std::vector<agent_thread_turn>& aTurns);
 		/// \brief [[BPR-1999]], RFC-BPR-0101. The session's total, as kept
-		/// with its history (none: not known), under the composer as "$2.37
-		/// this session". A new thread starts with none; each turn that
-		/// reports a cost adds to it.
+		/// with its history (none: not known). A new thread starts with none;
+		/// each turn that reports a cost adds to it. RFC-BPR-0130: it is not
+		/// on the chat's face. A session's cost is said by its row of History
+		/// (the row's i), and the window's footer keeps the pull request's
+		/// total, which this feeds.
 		void present_session_cost(std::optional<core::agent_cost> aTotal);
 		/// \brief [[BPR-2051]]. The window's footer hears the tab's run as it
 		/// moves, how it ended, and the session's total.
 		void               set_footer_observers(agent_tab_run_observer aRun, std::function<void(const QString&)> aEnded, std::function<void(std::optional<core::agent_cost>)> aCost);
 		[[nodiscard]] auto session_cost() const noexcept -> std::optional<core::agent_cost> { return SessionTotal; }
-		[[nodiscard]] auto session_cost_line() const noexcept -> QLabel* { return SessionCostLine; }
 		void               set_thread_observer(std::function<void(std::vector<agent_thread_turn>)> aObserver);
 		[[nodiscard]] auto thread_turns() const -> std::vector<agent_thread_turn>;
 		/// \brief New session: tells the host, which keeps the conversation in
@@ -849,7 +851,12 @@ namespace bpr::qt {
 		void reveal_run_failure();
 		/// \brief What a run that ended without an answer amounts to, in words.
 		[[nodiscard]] static auto run_failure_words(application::agent_run_outcome aOutcome, const QString& aAgent) -> QString;
-		[[nodiscard]] auto        head_chip() const noexcept -> QLabel* { return Head; }
+		/// \brief RFC-BPR-0130. The one header row every chat wears: here the
+		/// pull request's title (or the open session's own name) and History.
+		[[nodiscard]] auto header() const noexcept -> chat_header_view* { return Header; }
+		/// \brief The whole conversation as text, as History's Copy
+		/// conversation puts it on the clipboard.
+		[[nodiscard]] auto chat_text() const -> QString;
 
 	protected:
 		void showEvent(QShowEvent* aEvent) override;
@@ -859,13 +866,18 @@ namespace bpr::qt {
 	private:
 		std::function<void(std::optional<std::string>)> NativeHistoryDispatch;
 		/// [[BPR-2377]]
-		session_edit_dispatch                        SessionEditDispatch;
-		agent_session_menu*                          SessionMenu  = nullptr;
-		chat_history_menu*                           HistoryItems = nullptr;
-		void                                         refresh_history();
-		void                                         present_session_notice();
-		QString                                      DefaultSessionTitle;
-		void                                         show_session_title();
+		session_edit_dispatch SessionEditDispatch;
+		agent_session_menu*   SessionMenu  = nullptr;
+		chat_history_menu*    HistoryItems = nullptr;
+		void                  refresh_history();
+		void                  present_session_notice();
+		QString               DefaultSessionTitle;
+		void                  show_session_title();
+		void                  copy_chat() const;
+		/// The revision the open session reads, seven characters; empty
+		/// while it is not known.
+		[[nodiscard]] auto                           read_revision() const -> QString;
+		chat_header_view*                            Header = nullptr;
 		application::native_agent_history_projection NativeHistoryView;
 		QLabel*                                      SessionNotice     = nullptr;
 		QLabel*                                      ConversationMoved = nullptr;
@@ -1009,7 +1021,6 @@ namespace bpr::qt {
 		QWidget*                                   Cards         = nullptr;
 		QWidget*                                   Viewport      = nullptr;
 		QVBoxLayout*                               CardColumn    = nullptr;
-		QLabel*                                    Head          = nullptr;
 		QToolButton*                               History       = nullptr;
 		QMenu*                                     HistoryMenu   = nullptr;
 		agent_setup_view*                          SetupView     = nullptr;
@@ -1293,8 +1304,7 @@ namespace bpr::qt {
 		QWidget*     LinesChip  = nullptr;
 		QLabel*      LinesText  = nullptr;
 		QToolButton* LinesClose = nullptr;
-		/// [[BPR-1999]]. The session's cost under the composer.
-		QLabel*                                              SessionCostLine = nullptr;
+		/// [[BPR-1999]]. What the open session has cost, for the footer.
 		std::optional<core::agent_cost>                      SessionTotal;
 		agent_tab_run_observer                               RunObserver;
 		std::function<void(const QString&)>                  EndedObserver;

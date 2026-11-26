@@ -211,6 +211,33 @@ namespace bpr::qt {
 		return { };
 	}
 
+	namespace {
+		/// The header's first line: what kind of item the chat is about.
+		[[nodiscard]] auto subject_kind_words(const core::follow_up_subject_kind aKind) -> QString
+		{
+			switch (aKind) {
+			case core::follow_up_subject_kind::suggested_comment: return QObject::tr("Suggested comment");
+			case core::follow_up_subject_kind::draft:             return QObject::tr("Your draft");
+			case core::follow_up_subject_kind::thread:            return QObject::tr("Conversation");
+			}
+			return { };
+		}
+
+		/// The header's second line: the item's file and lines, as the
+		/// tour's chat writes a stop's.
+		[[nodiscard]] auto subject_place_words(const core::follow_up_subject& aSubject) -> QString
+		{
+			if (aSubject.Path.empty()) {
+				return QObject::tr("The pull request");
+			}
+			const auto file = QString::fromStdString(aSubject.Path).section(QLatin1Char{ '/' }, -1);
+			if (aSubject.First == 0U) {
+				return QString{ file };
+			}
+			return aSubject.Last <= aSubject.First ? QObject::tr("%1, line %2").arg(file).arg(aSubject.First) : QObject::tr("%1, lines %2 to %3").arg(file).arg(aSubject.First).arg(aSubject.Last);
+		}
+	}
+
 	auto item_chat_subject_words(const core::follow_up_subject& aSubject) -> QString
 	{
 		switch (aSubject.Kind) {
@@ -237,50 +264,41 @@ namespace bpr::qt {
 		column->setContentsMargins(10, 8, 10, 10);
 		column->setSpacing(6);
 
-		// The title row, as the tour's chat has it: the agent's glyph, what
-		// the chat is about and where, Show, Copy chat and close.
-		auto* const top = new QHBoxLayout{ };
-		top->setSpacing(4);
-		Glyph = new QLabel{ this };
-		Glyph->setObjectName(QStringLiteral("itemSideChatGlyph"));
-		top->addWidget(Glyph, 0, Qt::AlignTop);
-		auto* const aboutText = new QVBoxLayout{ };
-		aboutText->setSpacing(1);
-		Subject = new QLabel{ this };
-		Subject->setObjectName(QStringLiteral("itemSideChatSubject"));
-		Subject->setTextFormat(Qt::PlainText);
-		Subject->setWordWrap(true);
-		auto heavy = Subject->font();
-		heavy.setWeight(QFont::DemiBold);
-		Subject->setFont(heavy);
-		Quote = quiet(small(words({ }, this)));
-		Quote->setObjectName(QStringLiteral("itemSideChatQuote"));
-		aboutText->addWidget(Subject);
-		aboutText->addWidget(Quote);
-		top->addLayout(aboutText, 1);
-		ShowItem = new quiet_push_button{ tr("Show"), this };
-		ShowItem->setObjectName(QStringLiteral("itemSideChatShow"));
-		ShowItem->setFlat(true);
-		ShowItem->setFocusPolicy(Qt::TabFocus);
-		ShowItem->setToolTip(tr("Show the item's place in the code"));
-		top->addWidget(ShowItem, 0, Qt::AlignTop);
-		auto* const copyChat = new quiet_tool_button{ this };
-		copyChat->set_tinted(true);
-		CopyChat = copyChat;
-		CopyChat->setObjectName(QStringLiteral("itemSideChatCopy"));
-		CopyChat->setAutoRaise(true);
-		CopyChat->setToolTip(tr("Copy this chat as text"));
-		CopyChat->setAccessibleName(tr("Copy chat"));
-		auto* const closePane = new quiet_tool_button{ this };
-		closePane->set_tinted(true);
-		ClosePane = closePane;
-		ClosePane->setObjectName(QStringLiteral("itemSideChatClose"));
-		ClosePane->setAutoRaise(true);
-		ClosePane->setToolTip(tr("Close the chat. It is kept; asking about the item again opens it."));
-		ClosePane->setAccessibleName(tr("Close the chat"));
-		top->addWidget(CopyChat, 0, Qt::AlignTop);
-		top->addWidget(ClosePane, 0, Qt::AlignTop);
-		column->addLayout(top);
+		// The header (RFC-BPR-0130, header A): the one row every chat with
+		// an agent wears. Here it is the kind of item and its place, Show,
+		// Copy conversation and close. An item's chat keeps no sessions, so
+		// core gives it Copy where the other chats have History; the agent's
+		// glyph that stood before the subject is gone (the seam down the
+		// column's edge says whose column it is).
+		Header = new chat_header_view{ {
+										   .Row     = QStringLiteral("itemSideChatHeader"),
+										   .Subject = QStringLiteral("itemSideChatSubject"),
+										   .Place   = QStringLiteral("itemSideChatQuote"),
+										   .Show    = QStringLiteral("itemSideChatShow"),
+										   .History = QStringLiteral("itemSideChatHistory"),
+										   .Copy    = QStringLiteral("itemSideChatCopy"),
+										   .Close   = QStringLiteral("itemSideChatClose"),
+									   },
+									   this };
+		Header->set_tips({
+			.Show  = tr("Show the item's place in the code"),
+			.Close = tr("Close the chat. It is kept; asking about the item again opens it."),
+		});
+		Header->set_dispatch({
+			.Show             = [this] {
+				if (Shown && Intents.Reveal) {
+					Intents.Reveal(Shown->Subject);
+				} },
+			.CopyConversation = [this] {
+				if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
+					clipboard->setText(chat_text());
+				} },
+			.Close            = [this] { set_column_open(false); },
+		});
+		ShowItem  = Header->show_button();
+		CopyChat  = Header->copy_tool();
+		ClosePane = Header->close_tool();
+		column->addWidget(Header);
 
 		// The chat.
 		Scroll = new QScrollArea{ this };
@@ -364,17 +382,6 @@ namespace bpr::qt {
 		footer->addStretch(1);
 		column->addLayout(footer);
 
-		connect(CopyChat, &QToolButton::clicked, this, [this] {
-			if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
-				clipboard->setText(chat_text());
-			}
-		});
-		connect(ClosePane, &QToolButton::clicked, this, [this] { set_column_open(false); });
-		connect(ShowItem, &QPushButton::clicked, this, [this] {
-			if (Shown && Intents.Reveal) {
-				Intents.Reveal(Shown->Subject);
-			}
-		});
 		connect(Send, &QPushButton::clicked, this, [this] {
 			if (Running) {
 				if (Intents.Stop) {
@@ -494,10 +501,17 @@ namespace bpr::qt {
 		const auto proposalWas = !another && Shown && Shown->Proposal.has_value() && aState.Proposal && Shown->Proposal->Id == aState.Proposal->Id;
 		Agent                  = aAgent;
 		Shown                  = aState;
-		Subject->setText(item_chat_subject_words(aState.Subject));
-		Quote->setText(QString::fromStdString(aState.Subject.Title));
-		Quote->setVisible(!aState.Subject.Title.empty());
-		ShowItem->setVisible(!aState.Subject.Path.empty() && aState.Subject.First != 0U);
+		// What the row says is this chat's; what it holds is core's.
+		Header->present(core::plan_chat_header({
+			.Kind         = core::chat_kind::review_item,
+			.Subject      = subject_kind_words(aState.Subject.Kind).toStdString(),
+			.Place        = subject_place_words(aState.Subject).toStdString(),
+			.CanShow      = !aState.Subject.Path.empty() && aState.Subject.First != 0U,
+			.About        = aState.Subject.Title,
+			.SessionName  = { },
+			.RevisionRead = { },
+			.Cost         = std::nullopt,
+		}));
 		ChipWords = item_words(aState.Subject).simplified();
 		Chip->setText(ChipWords);
 		Chip->setToolTip(item_words(aState.Subject));
@@ -554,7 +568,7 @@ namespace bpr::qt {
 
 	auto item_side_chat::status_text() const -> QString { return Status->text(); }
 
-	auto item_side_chat::subject_text() const -> QString { return Subject->text(); }
+	auto item_side_chat::subject_text() const -> QString { return Shown ? item_chat_subject_words(Shown->Subject) : QString{ }; }
 
 	auto item_side_chat::item_text() const -> QString { return ItemQuote != nullptr ? ItemQuote->text() : QString{ }; }
 
@@ -805,12 +819,7 @@ namespace bpr::qt {
 	/// a run goes Send is Stop, in the ordinary roles.
 	void item_side_chat::restyle()
 	{
-		auto accented = palette();
-		accented.setColor(QPalette::Active, QPalette::ButtonText, agent_accent(palette()));
-		const auto side = Glyph->fontMetrics().height();
-		Glyph->setPixmap(side_chat_icon(accented).pixmap(QSize{ side, side }, devicePixelRatioF()));
-		CopyChat->setIcon(drawer_icon(drawer_glyph::copy, palette()));
-		ClosePane->setIcon(drawer_icon(drawer_glyph::close, palette()));
+		Header->repaint_glyphs();
 		if (Running) {
 			wear_ordinary_roles(*Send);
 		} else {

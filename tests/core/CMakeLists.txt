@@ -29,6 +29,13 @@ bpr_enable_hardening(test_chat_history_core)
 bpr_enable_warnings(test_chat_history_core)
 bpr_add_network_isolated_test(NAME core_chat_history COMMAND test_chat_history_core)
 
+# RFC-BPR-0130. The one header row of a chat with an agent, and its words.
+bpr_add_executable(test_chat_header_core chat_header_tests.cpp)
+target_link_libraries(test_chat_header_core PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_chat_header_core)
+bpr_enable_warnings(test_chat_header_core)
+bpr_add_network_isolated_test(NAME core_chat_header COMMAND test_chat_header_core)
+
 bpr_add_executable(test_release_update_core release_update_tests.cpp)
 target_link_libraries(test_release_update_core PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_release_update_core)

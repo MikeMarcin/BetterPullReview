@@ -2,6 +2,7 @@
 
 #include "menu_row.hpp"
 
+#include "bpr/core/chat_header.hpp"
 #include "bpr/core/hex.hpp"
 
 #include <QAction>
@@ -182,11 +183,11 @@ namespace bpr::qt {
 				Dispatch.CarryOver(History.Selected);
 			}
 		});
-		Others = new QMenu{ tr("Other tour chats and detached history"), Menu };
+		Others = new QMenu{ tr("Chats about other parts of the tour"), Menu };
 		Others->setObjectName(aPrefix + QStringLiteral("OtherChats"));
-		Copy = new QAction{ tr("Copy chat"), this };
+		Copy = new QAction{ tr("Copy conversation"), this };
 		Copy->setObjectName(aPrefix + QStringLiteral("CopyChat"));
-		Copy->setToolTip(tr("Copy this chat as text"));
+		Copy->setToolTip(tr("Copy this conversation as text"));
 		connect(Copy, &QAction::triggered, this, [this] { if (Dispatch.CopyConversation) { Dispatch.CopyConversation(); } });
 		EveryRun = new QAction{ tr("Show every run…"), this };
 		EveryRun->setObjectName(aPrefix + QStringLiteral("ShowEveryRun"));
@@ -266,35 +267,27 @@ namespace bpr::qt {
 		};
 	}
 
+	// The sentences are core's (`chat_header.hpp`), one set for every chat.
 	auto chat_history_menu::carried_over_words(const QString& aAgent) -> QString
 	{
-		return tr("Carried over from a saved transcript. %1 has the questions and answers, not what the earlier agent read.").arg(aAgent.isEmpty() ? tr("The agent") : aAgent);
+		return QString::fromStdString(core::chat_session_notice(core::chat_continuation::carried_over, aAgent.toStdString()));
 	}
 
 	auto chat_history_menu::cannot_continue_words(const QString& aAgent) -> QString
 	{
-		// The owner accepted "Start a new session, or carry the transcript
-		// over."; the action has since been named New session everywhere.
-		return tr("%1 can't pick up this conversation where it stopped. Choose New session, or carry the transcript over.").arg(aAgent.isEmpty() ? tr("The agent") : aAgent);
+		return QString::fromStdString(core::chat_session_notice(core::chat_continuation::cannot_continue, aAgent.toStdString()));
 	}
 
-	auto chat_history_menu::carry_over_words(const QString& aAgent) -> QString
+	auto chat_history_menu::session_notice_words(const bool aCarriedOver, const bool aNativeSupported, const QString& aAgent) -> QString
 	{
-		return aAgent.isEmpty() ? tr("Carry this conversation over to the chosen agent") : tr("Carry this conversation over to %1").arg(aAgent);
+		return QString::fromStdString(core::chat_session_notice(core::chat_continuation_of(aCarriedOver, aNativeSupported), aAgent.toStdString()));
 	}
+
+	auto chat_history_menu::carry_over_words(const QString& aAgent) -> QString { return QString::fromStdString(core::chat_carry_over_words(aAgent.toStdString())); }
 
 	auto chat_history_menu::carry_over_tip(const std::size_t aTurnsLeftOut, const bool aTextCut) -> QString
 	{
-		auto words = tr("Long conversations are shortened: the oldest turns are left out.");
-		if (aTurnsLeftOut == 1U) {
-			words += tr(" This one left out 1 older turn.");
-		} else if (aTurnsLeftOut > 1U) {
-			words += tr(" This one left out %1 older turns.").arg(aTurnsLeftOut);
-		}
-		if (aTextCut) {
-			words += tr(" Some of its longest text was cut.");
-		}
-		return words;
+		return QString::fromStdString(core::chat_carry_over_tip(aTurnsLeftOut, aTextCut));
 	}
 
 	void chat_history_menu::refresh()
@@ -312,8 +305,7 @@ namespace bpr::qt {
 		CarryOver->setToolTip(carry_over_tip(History.Replay ? History.ReplayTurnsOmitted : 0U, History.Replay && History.ReplayTextCutBytes > 0U));
 		Copy->setEnabled(Plan.Copy);
 		if (const auto open = std::ranges::find(History.Entries, History.Selected, &application::native_agent_history_entry::Id); open != History.Entries.end()) {
-			const auto head = QString::fromStdString(std::string{ core::canonical_hex(open->Binding.HeadOid).view() }).left(7);
-			Revision->setText(tr("Reads the pull request at %1").arg(head));
+			Revision->setText(QString::fromStdString(core::chat_revision_read_words(core::canonical_hex(open->Binding.HeadOid).view())));
 		}
 		Others->clear();
 		for (const auto& entry : History.OtherChats) {

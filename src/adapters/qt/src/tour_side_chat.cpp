@@ -10,6 +10,7 @@
 
 #include "bpr/core/agent_queue.hpp"
 #include "bpr/core/agent_turn.hpp"
+#include "bpr/core/chat_header.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/drawer_parts.hpp"
@@ -237,42 +238,44 @@ namespace bpr::qt {
 		// sidechat is so decoupled from the tour when it's really about the
 		// tour". The chat is the Tour tab's second column, beside the part it
 		// is about, which is marked in the tour; the part's own glyph chooses
-		// the chat, so there are no tabs. RFC-BPR-0130, header A: one row,
-		// the part and its place, Show in code, History and close. The part
+		// the chat, so there are no tabs. RFC-BPR-0130, header A: the one
+		// row every chat with an agent wears (`chat_header_view`). Here it is
+		// the part and its place, Show in code, History and close; the part
 		// and its place each keep one line and end in an ellipsis where the
 		// column is narrow (owner, attended review 2026-11-24: "Those buttons
 		// are unreadable and thats not even the narrowest width").
-		auto* const top = new QHBoxLayout{ };
-		top->setSpacing(4);
-		auto* const aboutText = new QVBoxLayout{ };
-		aboutText->setSpacing(1);
-		Subject = new eliding_heading{ this };
-		Subject->setObjectName(QStringLiteral("tourSideChatSubject"));
-		Subject->setTextFormat(Qt::PlainText);
-		Subject->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		auto heavy = Subject->font();
-		heavy.setWeight(QFont::DemiBold);
-		Subject->setFont(heavy);
-		Quote = new eliding_heading{ this };
-		Quote->setTextFormat(Qt::PlainText);
-		Quote->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		quiet(small(Quote));
-		Quote->setObjectName(QStringLiteral("tourSideChatQuote"));
-		aboutText->addWidget(Subject);
-		aboutText->addWidget(Quote);
-		top->addLayout(aboutText, 1);
-		ShowPart = new quiet_push_button{ tr("Show"), this };
-		ShowPart->setObjectName(QStringLiteral("tourSideChatShow"));
-		ShowPart->setFlat(true);
-		ShowPart->setFocusPolicy(Qt::TabFocus);
-		ShowPart->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-		top->addWidget(ShowPart, 0, Qt::AlignTop);
+		Header = new chat_header_view{ {
+										   .Row     = QStringLiteral("tourSideChatHeader"),
+										   .Subject = QStringLiteral("tourSideChatSubject"),
+										   .Place   = QStringLiteral("tourSideChatQuote"),
+										   .Show    = QStringLiteral("tourSideChatShow"),
+										   .History = QStringLiteral("tourChatHistory"),
+										   .Copy    = QStringLiteral("tourSideChatCopy"),
+										   .Close   = QStringLiteral("tourSideChatClose"),
+									   },
+									   this };
+		Header->set_tips({
+			.Show  = tr("Open the stop in the Tour tab and show its lines in the code"),
+			.Close = tr("Close the chat. Every part's chat is kept; its glyph in the tour opens it again."),
+		});
+		Header->set_dispatch({
+			.Show             = [this] {
+				if (const auto thread = current(); thread && RevealDispatch) {
+					RevealDispatch(*thread);
+				} },
+			.CopyConversation = [this] { copy_chat(); },
+			.Close            = [this] { set_column_open(false); },
+		});
+		Subject     = Header->subject();
+		Quote       = Header->place();
+		ShowPart    = Header->show_button();
+		HistoryTool = Header->history_tool();
+		CopyChat    = Header->copy_tool();
+		ClosePane   = Header->close_tool();
 		// The one History menu, the Agent tab's too (owner, the same review:
 		// "It looks like tour built a different session selector from agent
 		// too for no reason."): New session first, the sessions, Delete all,
 		// the other parts' chats, Copy conversation, the revision read.
-		HistoryTool = make_drawer_tool(this, drawer_icon(drawer_glyph::history, palette()), tr("History: this chat's sessions, and New session"), QStringLiteral("tourChatHistory"));
-		HistoryTool->setAccessibleName(tr("History"));
 		HistoryMenu = new chat_history_menu{ core::chat_history_kind::tour_side_chat, *this, *HistoryTool, QStringLiteral("tourChat") };
 		HistoryMenu->carry_over_action()->setObjectName(QStringLiteral("tourCarryOver"));
 		const auto choose = [this](std::optional<std::string> aChoice) {
@@ -314,18 +317,8 @@ namespace bpr::qt {
 			};
 		});
 		// A chat that keeps no sessions (a local draft's discussion) has no
-		// History; its header copies the conversation instead.
-		CopyChat = make_drawer_tool(this, drawer_icon(drawer_glyph::copy, palette()), tr("Copy this chat as text"), QStringLiteral("tourSideChatCopy"));
-		CopyChat->setFocusPolicy(Qt::TabFocus);
-		CopyChat->setAccessibleName(tr("Copy chat"));
-		CopyChat->hide();
-		ClosePane = make_drawer_tool(this, drawer_icon(drawer_glyph::close, palette()), tr("Close the chat. Every part's chat is kept; its glyph in the tour opens it again."), QStringLiteral("tourSideChatClose"));
-		ClosePane->setFocusPolicy(Qt::TabFocus);
-		ClosePane->setAccessibleName(tr("Close the chat"));
-		top->addWidget(HistoryTool, 0, Qt::AlignTop);
-		top->addWidget(CopyChat, 0, Qt::AlignTop);
-		top->addWidget(ClosePane, 0, Qt::AlignTop);
-		column->addLayout(top);
+		// History; core gives its header Copy conversation instead.
+		column->addWidget(Header);
 
 		// The chat.
 		Scroll = new QScrollArea{ this };
@@ -467,19 +460,11 @@ namespace bpr::qt {
 		column->addWidget(Field);
 
 		// Under the composer: Plan a check… for a local draft's whole-change
-		// conversation, and what the session cost. A row that wraps, so
-		// neither is cut in the narrowest column.
+		// conversation. RFC-BPR-0130: what a session cost is not on the
+		// chat's face; its row of History says it, and a chat that keeps no
+		// sessions says it from its header's Copy tool.
 		auto* const sessionRow = new detail::wrapping_row{ nullptr, 6, 4 };
 		sessionRow->setContentsMargins(0, 0, 0, 0);
-		// [[BPR-1999]]. What this chat's session has cost, when the agent
-		// reported any.
-		SessionCostLine = small(new QLabel{ this });
-		SessionCostLine->setObjectName(QStringLiteral("tourSideChatSessionCost"));
-		SessionCostLine->setTextFormat(Qt::PlainText);
-		SessionCostLine->setForegroundRole(QPalette::PlaceholderText);
-		SessionCostLine->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-		SessionCostLine->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-		SessionCostLine->setToolTip(tr("What the agent reported this session has cost. It restarts at New session."));
 		// RFC-BPR-0120. A local draft's whole-change conversation plans a
 		// check: the composer's words, or none for the agent to choose.
 		PlanCheck = new quiet_push_button{ tr("Plan a check…"), this };
@@ -488,16 +473,8 @@ namespace bpr::qt {
 		PlanCheck->setFocusPolicy(Qt::TabFocus);
 		PlanCheck->hide();
 		sessionRow->addWidget(PlanCheck);
-		sessionRow->addWidget(SessionCostLine);
 		column->addLayout(sessionRow);
 
-		connect(CopyChat, &QToolButton::clicked, this, [this] { copy_chat(); });
-		connect(ClosePane, &QToolButton::clicked, this, [this] { set_column_open(false); });
-		connect(ShowPart, &QPushButton::clicked, this, [this] {
-			if (const auto thread = current(); thread && RevealDispatch) {
-				RevealDispatch(*thread);
-			}
-		});
 		connect(StopRun, &QPushButton::clicked, this, [this] {
 			if (Mine && StopDispatch) {
 				StopDispatch();
@@ -729,6 +706,12 @@ namespace bpr::qt {
 			}
 			SessionNotice->setToolTip(tip);
 			present_session_notice();
+		}
+		if (!aView.Loading) {
+			const auto open     = std::ranges::find(aView.Entries, aView.Selected, &application::native_agent_history_entry::Id);
+			const auto found    = !aView.Selected.empty() && open != aView.Entries.end();
+			OpenSessionName     = found ? open->Name : std::string{ };
+			OpenSessionRevision = found && open->Binding.HeadOid != decltype(open->Binding.HeadOid){ } ? std::string{ core::canonical_hex(open->Binding.HeadOid).view() } : std::string{ };
 		}
 		// [[BPR-2377]], RFC-BPR-0130. The sessions, in the one History menu.
 		HistoryMenu->present(aView);
@@ -1035,9 +1018,7 @@ namespace bpr::qt {
 		} else {
 			wear_agent_accent(*Send, aGround);
 		}
-		HistoryTool->setIcon(drawer_icon(drawer_glyph::history, palette()));
-		CopyChat->setIcon(drawer_icon(drawer_glyph::copy, palette()));
-		ClosePane->setIcon(drawer_icon(drawer_glyph::close, palette()));
+		Header->repaint_glyphs();
 		ClearPassage->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		// [[BPR-2000]]. Send starts a run and wears the accent; while this
 		// chat's run is going it is Stop, in the ordinary roles.
@@ -1146,35 +1127,28 @@ namespace bpr::qt {
 
 	void tour_side_chat::refresh_header()
 	{
-		const auto thread = current();
-		auto       place  = QString{ };
-		const auto about  = [this, &place](const QString& aSubject) {
-			static_cast<eliding_heading*>(Subject)->present(aSubject, QString{ });
-			static_cast<eliding_heading*>(Quote)->present(place, QString{ });
-			Quote->setVisible(!place.isEmpty());
-			fit_header();
-		};
-		// Core's choice of the header's one conversation tool.
-		const auto tool = core::chat_header_tool_for(SessionsOffered);
-		HistoryTool->setVisible(tool == core::chat_header_tool::history);
-		CopyChat->setVisible(tool == core::chat_header_tool::copy_conversation);
-		ShowPart->setVisible(thread.has_value() && thread->Kind != core::tour_thread_kind::tour);
-		if (!thread) {
-			about(QString{ });
-			return;
+		// What the row says is this chat's; what it holds is core's.
+		const auto thread  = current();
+		auto       facts   = core::chat_header_facts{ };
+		facts.Kind         = !SessionsOffered ? core::chat_kind::local_draft_discussion : thread && thread->Kind == core::tour_thread_kind::stop ? core::chat_kind::tour_part
+																																				 : core::chat_kind::whole_tour;
+		facts.SessionName  = OpenSessionName;
+		facts.RevisionRead = OpenSessionRevision;
+		if (thread) {
+			// A chat that keeps no sessions has no row of History to say what
+			// it has cost.
+			facts.Cost = SessionsOffered ? std::nullopt : core::tour_thread_cost(Session, *thread);
 		}
-		switch (thread->Kind) {
-		case core::tour_thread_kind::tour:
-			ShowWords = tr("Show");
-			about(tr("The whole tour"));
-			return;
-		case core::tour_thread_kind::stop: {
+		if (thread && thread->Kind == core::tour_thread_kind::tour) {
+			facts.Subject = tr("The whole tour").toStdString();
+		} else if (thread) {
 			const core::tour_stop* stop = nullptr;
 			if (Draft) {
 				if (const auto found = std::ranges::find(Draft->Stops, thread->Stop, &core::tour_stop::Id); found != Draft->Stops.end()) {
 					stop = &*found;
 				}
 			}
+			auto place = QString{ };
 			if (stop != nullptr) {
 				if (const auto& source = stop->Mapped ? stop->Mapped : stop->Original; source) {
 					place = source->First.Line == source->Last.Line ? tr("%1, line %2").arg(QString::fromStdString(source->Path)).arg(source->First.Line + 1U)
@@ -1184,40 +1158,11 @@ namespace bpr::qt {
 					place = tr("%1, lines %2 to %3").arg(QString::fromStdString(stop->Destination->Path)).arg(stop->Destination->FirstLine + 1U).arg(stop->Destination->LastLine + 1U);
 				}
 			}
-			ShowWords = tr("Show in code");
-			ShowPart->setToolTip(tr("Open the stop in the Tour tab and show its lines in the code"));
-			about(stop != nullptr ? tr("%1, %2").arg(name_of(*thread), QString::fromStdString(stop->Title)) : tr("A stop"));
-			return;
+			facts.Subject = (stop != nullptr ? tr("%1, %2").arg(name_of(*thread), QString::fromStdString(stop->Title)) : tr("A stop")).toStdString();
+			facts.Place   = place.toStdString();
+			facts.CanShow = true;
 		}
-		}
-	}
-
-	void tour_side_chat::fit_header()
-	{
-		// Show in code is said whole while the part beside it keeps room for
-		// its number and a few words; in a narrower column it is Show, with
-		// the whole of it in its tooltip. Nothing in the row is ever cut.
-		ShowPart->setText(ShowWords);
-		if (ShowPart->isHidden() || ShowWords == tr("Show")) {
-			return;
-		}
-		auto tools = ShowPart->sizeHint().width();
-		for (const auto* const tool : { static_cast<const QWidget*>(HistoryTool), static_cast<const QWidget*>(CopyChat), static_cast<const QWidget*>(ClosePane) }) {
-			if (!tool->isHidden()) {
-				tools += tool->sizeHint().width() + 4;
-			}
-		}
-		const auto margins = layout()->contentsMargins();
-		const auto room    = width() - margins.left() - margins.right() - tools - 4;
-		if (room < Subject->fontMetrics().horizontalAdvance(QStringLiteral("Stop 00, a few words…"))) {
-			ShowPart->setText(tr("Show"));
-		}
-	}
-
-	void tour_side_chat::resizeEvent(QResizeEvent* const aEvent)
-	{
-		QWidget::resizeEvent(aEvent);
-		fit_header();
+		Header->present(core::plan_chat_header(facts));
 	}
 
 	void tour_side_chat::show_passage()
@@ -1322,9 +1267,7 @@ namespace bpr::qt {
 										 : thread->Kind == core::tour_thread_kind::tour ? tr("Ask about the tour, or say how to change it: fewer stops, merge two, focus on a part")
 																						: tr("Ask about %1").arg(part));
 		Composer->setEnabled(thread.has_value());
-		const auto spent = thread ? core::tour_thread_cost(Session, *thread) : std::nullopt;
-		SessionCostLine->setText(spent ? tr("%1 this session").arg(QString::fromStdString(core::agent_cost_words(*spent))) : QString{ });
-		SessionCostLine->setVisible(spent.has_value());
+		refresh_header();
 		refresh_prompts();
 	}
 

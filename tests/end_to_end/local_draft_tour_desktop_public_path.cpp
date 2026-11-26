@@ -343,8 +343,10 @@ try {
 		std::cout << "CHAT " << chat_of(*tour).toStdString() << '\n';
 		expect(chat_of(*tour).contains(QStringLiteral("What could break?")) && chat_of(*tour).contains(QStringLiteral("The join can block")),
 			   "AC08: the side chat shows the turn and its answer");
-		std::cout << "COST " << tour->side_chat()->session_cost_line()->text().toStdString() << '\n';
-		expect(tour->side_chat()->session_cost_line()->text().contains(QStringLiteral("$0.02")), "AC08: the session's cost");
+		// RFC-BPR-0130: a discussion keeps no sessions, so its header's Copy
+		// conversation says what it has cost, where a session's row would.
+		std::cout << "COST " << tour->side_chat()->copy_chat_button()->toolTip().toStdString() << '\n';
+		expect(tour->side_chat()->copy_chat_button()->isVisibleTo(tour->side_chat()) && tour->side_chat()->copy_chat_button()->toolTip().contains(QStringLiteral("$0.02")), "AC08: the session's cost");
 		expect(prep.Conversations[0].Handle == "session-1", "[[BPR-2138]] the session the agent kept is recorded with the conversation");
 		{
 			const auto keep = s.Answer;

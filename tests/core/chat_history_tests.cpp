@@ -95,9 +95,9 @@ namespace {
 		agent.RevisionKnown = true;
 		const auto tab      = plan_chat_history(agent);
 		expect(tab.Items
-				   == std::vector{ item::new_session, item::separator, item::sessions, item::separator, item::carry_over, item::delete_all, item::separator, item::show_every_run, item::separator, item::reset_agents,
-								   item::separator, item::revision_read },
-			   "the Agent tab's History: New session first, the sessions, Delete all, Show every run, Reset agents, the revision read last");
+				   == std::vector{ item::new_session, item::separator, item::sessions, item::separator, item::carry_over, item::delete_all, item::separator, item::copy_conversation, item::show_every_run, item::separator,
+								   item::reset_agents, item::separator, item::revision_read },
+			   "the Agent tab's History: New session first, the sessions, Delete all, Copy conversation, Show every run, Reset agents, the revision read last");
 		expect(tab.NewSession == new_session_refusal::none && tab.CarryOver && tab.Copy, "its actions can be chosen");
 
 		auto tour       = agent;
@@ -115,15 +115,14 @@ namespace {
 		auto plain          = chat_history_facts{ };
 		plain.SavedTurns    = 1U;
 		const auto shortest = plan_chat_history(plain).Items;
-		expect(shortest == std::vector{ item::new_session, item::separator, item::sessions, item::separator, item::carry_over, item::delete_all }, "a group with nothing in it leaves no separator behind");
+		expect(shortest == std::vector{ item::new_session, item::separator, item::sessions, item::separator, item::carry_over, item::delete_all, item::separator, item::copy_conversation },
+			   "a group with nothing in it leaves no separator behind");
 
 		const auto empty = chat_history_facts{ };
 		expect(!plan_chat_history(empty).Copy && plan_chat_history(empty).NewSession == new_session_refusal::already_new, "an empty chat has nothing to copy and is the new session");
 		auto running    = agent;
 		running.Running = true;
 		expect(!plan_chat_history(running).CarryOver && plan_chat_history(running).Copy, "a running turn holds carry over back; the conversation can still be copied");
-
-		expect(chat_header_tool_for(true) == chat_header_tool::history && chat_header_tool_for(false) == chat_header_tool::copy_conversation, "History where the chat keeps sessions, Copy where it keeps none");
 	}
 }
 

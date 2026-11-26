@@ -84,7 +84,10 @@ themes, rendering mechanics, and event translation.
   refuses a label or button drawn over what a scroll area scrolls, anything
   between the Agent tab's header row and its transcript, and the words
   RFC-BPR-0130 replaced ("Native continuation", "Transcript replay",
-  "Native:", "Private history and runs") on any label, button or menu item.
+  "Native:", "Private history and runs") on any label, button or menu item,
+  and a chat whose header is not the one `chat_header_view` row or that
+  still shows a control the header replaced. It opens the side chat about a
+  finding as well and judges that column at each width it can have.
   A state a real run
   reaches (an activity line, a suggested prompt, a refused question, a moved
   head) joins that course: a window nothing composed never shows it.
@@ -150,6 +153,14 @@ themes, rendering mechanics, and event translation.
   first turn that is whole. What a chat says of its session (carried over,
   cannot be picked up) is a quiet notice on the question field, never a line
   between the header and the transcript.
+- A chat with an agent wears the one header row, `chat_header_view`, drawn
+  from `core::plan_chat_header` (RFC-BPR-0130, header A): what the chat is
+  about on one line that ends in an ellipsis, its place under it, then Show,
+  History where the chat keeps sessions or Copy conversation where it keeps
+  none, and Close. Which of them a chat has is core's decision; no chat builds
+  a header row of its own, shows or hides a tool of the row, or adds a button
+  to it (New session is History's first item). A session's cost and the
+  revision it reads are in History, never on the chat's face.
 - A card the next question waits on, or that reports the turn at the thread's
   end, stands on the question field (`agent_tab_view::dock_banner`), not at
   the head of a thread that keeps itself at its end: the card that asks which
