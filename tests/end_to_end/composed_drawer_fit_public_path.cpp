@@ -1672,17 +1672,46 @@ auto main(int argc, char** argv) -> int
 		// can attempt to follow the head, the tour's checkout blocks the
 		// move and the stopped card offers the same choices.
 		open(seeded);
-		const auto canTryMove = e2e::wait_until_plain([&] { return tab->state() != qt::agent_tab_state::head_moved; }, std::chrono::milliseconds{ 10000 });
-		const auto question   = QStringLiteral("What changed in this push?");
-		if (canTryMove) {
-			ask(question);
-			wait([&] { return quiet() && tab->state() == qt::agent_tab_state::stopped && tab->banner()->isVisible(); }, "the question is refused: the session's workspace was not moved");
+		const auto question        = QStringLiteral("What changed in this push?");
+		const auto turnsBeforeMove = tab->turn_count();
+		auto       sendAttempt     = QElapsedTimer{ };
+		const auto choiceShown     = [&] {
+			return tab->banner()->isVisible() && tab->banner_first_button()->isVisible() && tab->banner_second_button()->isVisible()
+				&& tab->banner_second_button()->text() == QStringLiteral("New session");
+		};
+		// Reopening History finishes before the revision projection necessarily
+		// settles. During that interval a click can leave the question in the
+		// field and the card can appear on the next projection.
+		wait([&] {
+			if (tab->state() == qt::agent_tab_state::head_moved) {
+				return choiceShown();
+			}
+			if (tab->turn_count() > turnsBeforeMove) {
+				return quiet() && tab->state() == qt::agent_tab_state::stopped && choiceShown();
+			}
+			if (tab->state() != qt::agent_tab_state::working && tab->ask_button()->isEnabled() && (!sendAttempt.isValid() || sendAttempt.elapsed() >= 500)) {
+				sendAttempt.start();
+				if (tab->question_editor()->toPlainText() != question) {
+					tab->question_editor()->setPlainText(question);
+				}
+				tab->ask_button()->click();
+			}
+			return false;
+		},
+			 "the saved session offers a revision choice before sending or after the workspace move is refused");
+		const auto waitingState = tab->state();
+		const auto canTryMove   = waitingState == qt::agent_tab_state::stopped;
+		auto       continueHead = earlierHead;
+		if (!canTryMove) {
+			const auto projection = access::agent_chat_evidence(*run.Owner).Projection;
+			expect(projection && projection->Continuations.Required, "the selected chat requires a revision choice");
+			// Reopening the native session can keep the new head but still
+			// require a choice because the comparison epochs changed.
+			const auto head = core::canonical_hex(projection->Session.Binding.HeadOid);
+			continueHead    = QString::fromLatin1(head.view().data(), 7);
 		}
-		const auto waitingState = canTryMove ? qt::agent_tab_state::stopped : qt::agent_tab_state::head_moved;
-		expect(tab->state() == waitingState && tab->banner()->isVisible(), "the saved session waits on its revision choice");
-		expect(tab->banner_first_button()->isVisibleTo(tab->banner()) && tab->banner_second_button()->isVisibleTo(tab->banner()) && tab->banner_first_button()->text() == QStringLiteral("Continue at ") + earlierHead
-				   && tab->banner_second_button()->text() == QStringLiteral("New session"),
-			   "the stopped card offers to continue at the earlier head or a new session: " + tab->banner_text().toStdString());
+		expect(tab->banner_first_button()->text() == QStringLiteral("Continue at ") + continueHead && tab->banner_second_button()->isEnabled(),
+			   "the saved session can continue at the head it read or open a new session: " + tab->banner_first_button()->text().toStdString());
 		// The refused turn names those two by the words on the card's chips.
 		if (canTryMove) {
 			const auto said = tab->turn_answer(tab->turn_count() - 1U);
@@ -1693,7 +1722,7 @@ auto main(int argc, char** argv) -> int
 		// one before it said that it was carried over.
 		expect(mode()->isHidden() && mode()->text().isEmpty(), "the refused session, which was not carried over, has no notice: " + mode()->text().toStdString());
 		// The card waits here too, so the prompts do.
-		expect(promptsWait(QStringLiteral("Choose Continue at %1 or New session first.").arg(earlierHead)),
+		expect(promptsWait(QStringLiteral("Choose Continue at %1 or New session first.").arg(continueHead)),
 			   "after a refused question the suggested prompts wait on the card's choice too: " + (tab->suggestion_buttons().empty() ? std::string{ "none shown" } : tab->suggestion_buttons().front()->toolTip().toStdString()));
 		run.sweep_drawer("agent-pinned-refused");
 		// And a question typed meanwhile is not sent: it stays in the field,
