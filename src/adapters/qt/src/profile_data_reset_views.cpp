@@ -733,9 +733,9 @@ namespace bpr::qt {
 	auto profile_reset_panel::chosen() const -> core::profile_data_reset_selection
 	{
 		auto selection = core::profile_data_reset_selection{ };
-		for (const auto each : core::profile_data_reset_categories) {
-			if (Own[category_index(each)]) {
-				selection = selection.with(each);
+		for (std::size_t index = 0; index < Own.size(); ++index) {
+			if (Own[index]) {
+				selection = selection.with(core::profile_data_reset_categories[index]);
 			}
 		}
 		return selection;
@@ -749,10 +749,10 @@ namespace bpr::qt {
 		// the person checked it too, so Settings always shows what it takes;
 		// unchecking Settings gives the box its own choice back.
 		const auto own = chosen();
-		for (const auto each : core::profile_data_reset_categories) {
-			const auto  index = category_index(each);
-			auto* const box   = Boxes[index];
-			const auto  held  = core::profile_data_reset_implied(own.without(each)).contains(each);
+		for (std::size_t index = 0; index < Boxes.size(); ++index) {
+			const auto  each = core::profile_data_reset_categories[index];
+			auto* const box  = Boxes[index];
+			const auto  held = core::profile_data_reset_implied(own.without(each)).contains(each);
 			{
 				const QSignalBlocker quiet{ box };
 				box->setEnabled(!held);
@@ -839,9 +839,9 @@ namespace bpr::qt {
 	auto profile_reset_panel::checked() const -> core::profile_data_reset_selection
 	{
 		auto selection = core::profile_data_reset_selection{ };
-		for (const auto each : core::profile_data_reset_categories) {
-			if (Boxes[category_index(each)]->isChecked()) {
-				selection = selection.with(each);
+		for (std::size_t index = 0; index < Boxes.size(); ++index) {
+			if (Boxes[index]->isChecked()) {
+				selection = selection.with(core::profile_data_reset_categories[index]);
 			}
 		}
 		return selection;
@@ -849,8 +849,8 @@ namespace bpr::qt {
 
 	void profile_reset_panel::set_checked(const core::profile_data_reset_selection aSelection)
 	{
-		for (const auto each : core::profile_data_reset_categories) {
-			Own[category_index(each)] = aSelection.contains(each);
+		for (std::size_t index = 0; index < Own.size(); ++index) {
+			Own[index] = aSelection.contains(core::profile_data_reset_categories[index]);
 		}
 		refresh();
 	}
