@@ -43,7 +43,8 @@ before installing the DEB with your package manager.
 
 Install Git 2.39+ for pull-request history and comparisons. Optional GitHub CLI
 access requires `gh` 2.96+ and Git 2.49+. On Windows and Linux, `gh`'s file
-writes are not confined as they are on macOS.
+writes are not confined as they are on macOS, and full diffs through GitHub CLI
+are not available; the app's own sign-in gives full diffs everywhere.
 The [package guide](docs/development/release-packages.md) covers archive installs,
 system dependencies and signature checks. Windows and Linux use manual updates;
 eligible signed macOS installations can use **Check for Updates…**.
