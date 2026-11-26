@@ -16,6 +16,7 @@
 #include "bpr/qt/report_page.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
@@ -111,10 +112,33 @@ namespace {
 		chat->set_column_open(true);
 		QApplication::processEvents();
 		expect(chat->isVisible() && chat->column_open() && chat->composer()->hasFocus(), "opening shows the column with the keyboard in its composer");
-		expect(chat->subject_text() == QStringLiteral("Suggested comment at renderer.cpp:12–13"), "the title names the item and its place: " + chat->subject_text().toStdString());
+		expect(chat->subject_text() == QStringLiteral("Suggested comment at renderer.cpp:12–13"), "the chat names the item and its place: " + chat->subject_text().toStdString());
+		// RFC-BPR-0130, header A: the one row every chat with an agent wears.
+		// An item's chat keeps no sessions, so core gives it Copy
+		// conversation where the other chats have History.
+		{
+			auto* const row     = chat->header();
+			auto* const subject = row->subject();
+			auto* const place   = row->place();
+			expect(subject->objectName() == QStringLiteral("itemSideChatSubject") && subject->text() == QStringLiteral("Suggested comment") && place->objectName() == QStringLiteral("itemSideChatQuote")
+					   && place->text() == QStringLiteral("renderer.cpp, lines 12 to 13") && place->isVisibleTo(chat),
+				   "the row says the kind of item, and under it its place: " + subject->text().toStdString() + " / " + place->text().toStdString());
+			expect(subject->toolTip() == QStringLiteral("A zero height still reaches the swap chain.") && subject->accessibleName() == QStringLiteral("Suggested comment"), "the finding's claim is the subject's tooltip: " + subject->toolTip().toStdString());
+			expect(row->header().Tool == core::chat_header_tool::copy_conversation && row->header().Show == core::chat_show::place && row->header().Close
+					   && row->header().Offered == std::vector{ core::chat_header_action::show, core::chat_header_action::copy_conversation, core::chat_header_action::close },
+				   "core's header for an item: Show, Copy conversation, Close");
+			expect(chat->show_button()->isVisibleTo(chat) && chat->show_button()->text() == QStringLiteral("Show") && chat->copy_chat_button()->isVisibleTo(chat) && chat->close_button()->isVisibleTo(chat)
+					   && !row->history_tool()->isVisibleTo(chat) && row->history_tool()->menu() == nullptr,
+				   "the row shows Show, Copy conversation and close, and no History");
+			expect(chat->copy_chat_button()->accessibleName() == QStringLiteral("Copy conversation") && chat->copy_chat_button()->toolTip() == QStringLiteral("Copy this conversation as text"), "Copy is named as History's item is");
+			expect(chat->findChild<QWidget*>(QStringLiteral("itemSideChatGlyph")) == nullptr && chat->findChild<QAbstractButton*>(QStringLiteral("itemSideChatNewSession")) == nullptr,
+				   "no agent glyph before the subject, and no New session button");
+			expect(subject->geometry().right() < chat->show_button()->geometry().left() && chat->show_button()->geometry().right() < chat->copy_chat_button()->geometry().left()
+					   && chat->copy_chat_button()->geometry().right() < chat->close_button()->geometry().left() && row->geometry().bottom() < chat->findChild<QWidget*>(QStringLiteral("itemSideChatScroll"))->geometry().top(),
+				   "one row: the subject, Show, Copy conversation, close");
+		}
 		expect(chat->item_text() == QStringLiteral("issue (blocking): clamp both."), "the item is quoted at the chat's top");
 		expect(chat->chip_text() == QStringLiteral("issue (blocking): clamp both."), "the composer carries the item as its chip");
-		expect(chat->findChild<QLabel*>(QStringLiteral("itemSideChatQuote"))->text() == QStringLiteral("A zero height still reaches the swap chain."), "under the title, the finding's claim");
 		expect(chat->apply_button()->isVisibleTo(chat) && chat->apply_button()->text() == QStringLiteral("Update suggested comment"), "a suggestion offers Update suggested comment");
 		expect(qt::agent_run_control(*chat->send_button()) && qt::agent_run_control(*chat->apply_button()), "Send and the apply action start runs: the Agent accent");
 		expect(chat->proposal_card() == nullptr && chat->questions().isEmpty(), "no turns and no proposal yet");
@@ -251,7 +275,7 @@ namespace {
 		const auto itemImage = item->grab().toImage();
 		expect(!tourImage.isNull() && !itemImage.isNull() && tourImage.pixelColor(0, 200) == itemImage.pixelColor(0, 200) && tourImage.pixelColor(0, 200) != page.palette().color(QPalette::Window),
 			   "both chats draw the same seam, in the agent's accent, at their left edge");
-		expect(dynamic_cast<qt::composer_field*>(tour->composer()->parentWidget()) != nullptr && dynamic_cast<qt::composer_field*>(item->composer()->parentWidget()) != nullptr, "both compose in the tour's composer field");
+		expect(dynamic_cast<qt::chat_composer*>(tour->composer()->parentWidget()) != nullptr && dynamic_cast<qt::chat_composer*>(item->composer()->parentWidget()) != nullptr, "both compose in the one composer (RFC-BPR-0130 stage 2)");
 	}
 
 	void test_a_report_finding_offers_ask_follow_up()

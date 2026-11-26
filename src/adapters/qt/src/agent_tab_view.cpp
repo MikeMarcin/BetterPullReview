@@ -12,8 +12,10 @@
 #include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_queue.hpp"
+#include "bpr/core/chat_header.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/core/feedback_convention.hpp"
+#include "bpr/core/hex.hpp"
 #include "bpr/core/local_comment.hpp"
 #include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/review_preparation.hpp"
@@ -30,7 +32,6 @@
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/stick_to_bottom.hpp"
 #include "bpr/qt/transcript_edge.hpp"
-#include "composer_parts.hpp"
 #include "conversation_glyphs.hpp"
 #include "pull_request_overview_support.hpp"
 #include "side_chat_parts.hpp"
@@ -540,44 +541,40 @@ namespace bpr::qt {
 		column->setContentsMargins(0, 0, 0, 0);
 		column->setSpacing(0);
 
-		// The context row: the agent, the head it reads, its scope, History.
-		auto* const context = new QWidget{ this };
-		context->setObjectName(QStringLiteral("agentContextRow"));
-		auto* const row = new QHBoxLayout{ context };
-		row->setContentsMargins(10, 8, 8, 8);
-		row->setSpacing(5);
-		auto* const profiles = Launch.profile_selector();
-		Borrowed.emplace_back(profiles, profiles->parentWidget());
-		profiles->setParent(context);
-		profiles->setToolTip(tr("The agent this tab asks"));
-		profiles->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-		row->addWidget(profiles);
+		// The header (RFC-BPR-0130, header A as the owner amended it): the
+		// one row every chat with an agent wears. Here it is the pull
+		// request's title, ending in an ellipsis where it does not fit, and
+		// History, whose first item is New session (owner, 2026-11-24: "move
+		// new session into that menu as the top item so it doesn't take up
+		// extra space on the drawer"). The revision the session reads is
+		// History's last line and, when the head has moved, the card on the
+		// question field; no chip says it while there is nothing to say.
+		Header = new chat_header_view{ {
+										   .Row     = QStringLiteral("agentContextRow"),
+										   .Subject = QStringLiteral("agentSessionTitle"),
+										   .Place   = QStringLiteral("agentSessionPlace"),
+										   .Show    = QStringLiteral("agentSessionShow"),
+										   .History = QStringLiteral("agentHistory"),
+										   .Copy    = QStringLiteral("agentCopyConversation"),
+										   .Close   = QStringLiteral("agentCloseChat"),
+									   },
+									   this };
+		Header->row()->setContentsMargins(10, 8, 8, 8);
+		Header->row()->setSpacing(5);
+		SessionTitle = Header->subject();
+		History      = Header->history_tool();
 		// Owner amendment 2026-10-23: the agent is switched from the chip in
 		// the question field; the selector stays the one choice, unseen.
+		auto* const profiles = Launch.profile_selector();
+		Borrowed.emplace_back(profiles, profiles->parentWidget());
+		profiles->setParent(Header);
+		profiles->setToolTip(tr("The agent this tab asks"));
+		profiles->setSizeAdjustPolicy(QComboBox::AdjustToContents);
 		profiles->hide();
-		// Owner look v003 and the VS Code agent drawers: the session's title,
-		// then History. RFC-BPR-0130, header A: the title ends in an ellipsis
-		// where it does not fit, and New session is History's first item
-		// (owner, 2026-11-24: "move new session into that menu as the top
-		// item so it doesn't take up extra space on the drawer").
-		SessionTitle = new eliding_heading{ tr("Agent"), context };
-		SessionTitle->setObjectName(QStringLiteral("agentSessionTitle"));
-		SessionTitle->setTextFormat(Qt::PlainText);
-		SessionTitle->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		auto titleFont = SessionTitle->font();
-		titleFont.setWeight(QFont::DemiBold);
-		SessionTitle->setFont(titleFont);
-		row->addWidget(SessionTitle, 1);
-		Head = chip_label(context, QStringLiteral("agentHeadChip"));
-		Head->setToolTip(tr("The head the session reads"));
-		Head->setForegroundRole(QPalette::PlaceholderText);
-		row->addWidget(Head);
-		History = make_drawer_tool(context, drawer_icon(drawer_glyph::history, palette()), tr("History: this chat's sessions, New session and every run"), QStringLiteral("agentHistory"));
-		History->setAccessibleName(tr("History"));
 		// [[BPR-2377]], RFC-BPR-0130. The one History menu, the tour chat's
 		// too: New session, a row a session (pencil, trash can, i), carrying
-		// the open one over, Delete all sessions…, Show every run…, Reset
-		// agents…, the revision read.
+		// the open one over, Delete all sessions…, Copy conversation, Show
+		// every run…, Reset agents…, the revision read.
 		HistoryItems = new chat_history_menu{ core::chat_history_kind::agent_tab, *this, *History, QStringLiteral("agent") };
 		HistoryMenu  = HistoryItems->menu();
 		SessionMenu  = HistoryItems->rows();
@@ -588,7 +585,7 @@ namespace bpr::qt {
 			.CarryOver        = [this](const std::string& aId) { if (NativeHistoryDispatch) { NativeHistoryDispatch("replay:" + aId); } },
 			.ViewOther        = { },
 			.Edit             = [this](const std::string& aId, std::optional<std::string> aName) { if (SessionEditDispatch) { SessionEditDispatch(aId, std::move(aName)); } },
-			.CopyConversation = { },
+			.CopyConversation = [this] { copy_chat(); },
 			.ShowEveryRun     = [this] { show_history(true); },
 			.ResetAgents      = [this] { reset_agents(); },
 		});
@@ -606,8 +603,8 @@ namespace bpr::qt {
 				.Agent       = agent_name(),
 			};
 		});
-		row->addWidget(History);
-		column->addWidget(context);
+		column->addWidget(Header);
+		show_session_title();
 		// The header is that one row (RFC-BPR-0130, header A): nothing is
 		// said between it and the transcript. The "Native continuation"
 		// heading that stood here is gone, as the owner accepted and then
@@ -921,13 +918,14 @@ namespace bpr::qt {
 		// context, the words, a thin rule, and one row: Context and
 		// Suggestions as icons and what the agent may read on the left; the
 		// agent · model · effort pill and Send on the right.
-		auto* const field    = new rounded{ rounded::look::field, ask };
+		// RFC-BPR-0130 stage 2: the one composer every chat places, here
+		// around the side chat panel's words until the tab holds no
+		// borrowed control (stage 5).
+		auto* const composer = Chat.composer();
+		Borrowed.emplace_back(composer, composer->parentWidget());
+		auto* const field    = new chat_composer{ { .Field = QStringLiteral("agentQuestionField"), .Text = { }, .Send = QStringLiteral("agentAsk"), .Stop = QStringLiteral("agentStop") }, ask, composer };
 		Field                = field;
-		auto* const fieldCol = new QVBoxLayout{ field };
-		// [[BPR-2337]]. The insets, the rule and the send row every agent
-		// composer shares (`composer_parts.hpp`).
-		composer::set_field_margins(*fieldCol);
-		fieldCol->setSpacing(4);
+		auto* const fieldCol = field->chips();
 		field->installEventFilter(this);
 		Chips = chip_label(field, QStringLiteral("agentContextChips"));
 		Chips->setForegroundRole(QPalette::PlaceholderText);
@@ -1006,32 +1004,28 @@ namespace bpr::qt {
 		attachedRow->addWidget(MacroChip);
 		attachedRow->addStretch(1);
 		fieldCol->addLayout(attachedRow);
-		auto* const composer = Chat.composer();
-		Borrowed.emplace_back(composer, composer->parentWidget());
-		composer->setParent(field);
-		composer->setFrameShape(QFrame::NoFrame);
 		composer->setPlaceholderText(tr("Ask about this pull request…"));
 		composer->setToolTip(send_tip());
-		// [[BPR-1916]]. `/name` completion of the person's own skills.
-		SkillCompletion = new skill_completer{ composer };
+		// [[BPR-1916]]. `/name` completion of the person's own skills, the
+		// composer's own.
+		SkillCompletion = field->skills();
 		// RFC-BPR-0125 (Q2). An emptied field holds no suggested prompt.
 		connect(composer, &QPlainTextEdit::textChanged, this, [this] {
 			if (DraftedMacro && Chat.composer()->toPlainText().trimmed().isEmpty()) {
 				DraftedMacro.reset();
 				present_macro_chip();
 			}
+			// Words typed while a turn runs would follow it: Send says how.
+			present_send();
 		});
-		composer->setMaximumHeight(90);
-		composer->viewport()->setAutoFillBackground(false);
-		fieldCol->addWidget(composer);
 		Notice = new QLabel{ field };
 		Notice->setObjectName(QStringLiteral("agentComposerNotice"));
 		Notice->setWordWrap(true);
 		Notice->setForegroundRole(QPalette::PlaceholderText);
 		Notice->hide();
-		fieldCol->addWidget(Notice);
-		auto* const askRow = composer::add_send_row(*field, *fieldCol);
-		AskRow             = askRow;
+		field->under_text()->addWidget(Notice);
+		auto* const askRow = field->tools();
+		AskRow             = field->send_row();
 		// [[BPR-2002]]. Attaches the lines selected in the code again, after
 		// the chip's close button detached them.
 		Context = make_drawer_tool(field, drawer_icon(drawer_glyph::plus, palette()), tr("Attach the lines selected in the code"), QStringLiteral("agentAddContext"));
@@ -1058,7 +1052,6 @@ namespace bpr::qt {
 		askRow->addWidget(SuggestionsMenu);
 		// [[BPR-2002]], RFC-BPR-0102: no scope list. It bounded nothing; the
 		// lines chip is the one thing that differs between questions.
-		askRow->addStretch(1);
 		// Owner decision (c) and amendment 2026-10-23: the agent, model and
 		// effort as a pill in the field. [[BPR-1924]]: a row of its own under
 		// the tools when the field is too narrow for it whole.
@@ -1086,19 +1079,20 @@ namespace bpr::qt {
 		// picker left the drawers for the pull request window's footer, one
 		// choice for the Agent tab, the tour chat, Enhance and Draft the tour.
 		// The tab borrows the footer's picker for /model and /effort.
-		Ask = composer::make_send_button(*field, QStringLiteral("agentAsk"));
+		Ask = field->send_button();
 		Ask->setToolTip(send_tip());
-		// Send, or Stop while the agent works: one place, always in reach.
-		connect(Ask, &QPushButton::clicked, this, [this] {
-			if (State == agent_tab_state::working) {
-				Launch.cancel_action()->trigger();
-				return;
-			}
-			this->ask();
+		// Send, or Stop while the agent works (`core::decide_chat_send`):
+		// Return and Send ask; Command+Return asks the other way, so a slash
+		// command is read the same way from either.
+		field->set_dispatch({
+			.Send =
+				[this](const bool aOpposite) {
+					Opposite = aOpposite;
+					this->ask();
+					Opposite = false;
+				},
+			.Stop = [this] { Launch.cancel_action()->trigger(); },
 		});
-		// Return with Command or Control asks from the field, as Send does,
-		// so a slash command is read the same way from either.
-		composer->installEventFilter(this);
 		// What was asked is read when it is sent, by Send or by the keyboard.
 		connect(Chat.send_action(), &QAction::triggered, this, [this] {
 			PendingQuestion   = Chat.composer()->toPlainText().trimmed();
@@ -1114,11 +1108,10 @@ namespace bpr::qt {
 			// decided now, while what it was asked on is on screen.
 			PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
 		});
-		askRow->addWidget(Ask);
 		PickerRow = new QHBoxLayout{ };
 		PickerRow->setSpacing(0);
 		PickerRow->addStretch(1);
-		fieldCol->addLayout(PickerRow);
+		field->under_row()->addLayout(PickerRow);
 		// [[BPR-1817]]. Why the last send produced no turn, said directly
 		// above the field it came from, in the danger look the stopped
 		// banner uses, until the reviewer sends again or closes it.
@@ -1167,19 +1160,6 @@ namespace bpr::qt {
 		// whole PR thing is way too long ... needs to be a tooltip"), in the
 		// field's tooltip, which its chips and buttons override with their own.
 		field->setToolTip(tr("The agent can read the whole pull request; attached lines only tell it where you are looking."));
-		// [[BPR-1999]]. The session's cost, when the agent reported any, on
-		// one line at the right under the composer.
-		SessionCostLine = new QLabel{ ask };
-		SessionCostLine->setObjectName(QStringLiteral("agentSessionCost"));
-		SessionCostLine->setTextFormat(Qt::PlainText);
-		SessionCostLine->setForegroundRole(QPalette::PlaceholderText);
-		SessionCostLine->setToolTip(tr("What the agent reported this session has cost. It restarts at New session."));
-		SessionCostLine->hide();
-		auto* const underRow = new QHBoxLayout{ };
-		underRow->setContentsMargins(0, 0, 0, 0);
-		underRow->addStretch(1);
-		underRow->addWidget(SessionCostLine, 0, Qt::AlignTop | Qt::AlignRight);
-		askCol->addLayout(underRow);
 		talk->addWidget(ask);
 		Pages->addWidget(Conversation);
 
@@ -1388,41 +1368,11 @@ namespace bpr::qt {
 			Pages->setCurrentWidget(setting ? static_cast<QWidget*>(SetupView) : State == agent_tab_state::not_set_up ? static_cast<QWidget*>(Empty)
 																													  : Conversation);
 		}
-		// The head the session reads, short; its state in the tooltip.
-		auto head = Chat.head_oid_text().trimmed();
-		if (head.contains(QLatin1Char{ ':' })) {
-			head = head.section(QLatin1Char{ ':' }, -1).trimmed();
-		}
-		Head->setText(head.left(7));
-		Head->setVisible(!head.isEmpty() && head != QStringLiteral("—"));
 		refresh_send_label();
-		Head->setToolTip(tr("The head the session reads. %1").arg(Chat.session_state_text()));
 		// The added context, above the words, only when there is some.
 		Chips->setText(Chat.chips_text());
 		Chips->setVisible(Chat.chip_count() > 0U);
-		// Send, or Stop while the agent works.
-		// [[BPR-2000]], RFC-BPR-0101. Send starts a run and wears the agent
-		// accent; Stop ends spending and wears the ordinary roles.
-		if (State == agent_tab_state::working) {
-			wear_ordinary_roles(*Ask);
-			Ask->setIcon({ });
-			Ask->setText(tr("Stop"));
-			Ask->setAccessibleName(tr("Stop"));
-			Ask->setToolTip(tr("Stop the agent"));
-			Ask->setEnabled(Launch.cancel_action()->isEnabled());
-		} else {
-			wear_agent_accent(*Ask, palette());
-			Ask->setText({ });
-			Ask->setIcon(drawer_icon(drawer_glyph::send, Ask->palette()));
-			Ask->setAccessibleName(tr("Send"));
-			// [[BPR-1817]]. A Send that cannot be pressed says why.
-			const auto blocked = send_blocked();
-			Ask->setToolTip(blocked == core::agent_send_refusal::none
-								? send_tip()
-								: send_refusal_words(blocked, agent_name()));
-			Ask->setAccessibleDescription(blocked == core::agent_send_refusal::none ? QString{ } : Ask->toolTip());
-			Ask->setEnabled(Chat.send_action()->isEnabled() && !Ask->property("conversationLoading").toBool());
-		}
+		present_send();
 		present_banner();
 		rebuild_findings();
 		Thread->setVisible(!Turns.empty());
@@ -2481,11 +2431,6 @@ namespace bpr::qt {
 		if (CostObserver) {
 			CostObserver(aTotal);
 		}
-		if (SessionCostLine == nullptr) {
-			return;
-		}
-		SessionCostLine->setText(aTotal ? tr("%1 this session").arg(QString::fromStdString(core::agent_cost_words(*aTotal))) : QString{ });
-		SessionCostLine->setVisible(aTotal.has_value());
 	}
 
 	auto agent_tab_view::send_tip() const -> QString
@@ -2969,6 +2914,47 @@ namespace bpr::qt {
 		send->setToolTip(words);
 		send->setText(!following ? tr("Send") : FollowUpSteer ? tr("Steer")
 															  : tr("Queue"));
+		present_send();
+	}
+
+	void agent_tab_view::present_send()
+	{
+		if (Field == nullptr || Ask == nullptr) {
+			return;
+		}
+		// RFC-BPR-0130 stage 2. The one Send and Stop rule of every chat:
+		// Send is Stop while a turn runs and nothing typed could follow it;
+		// words that would follow it make Send Queue or Steer, with Stop
+		// beside. [[BPR-2000]], RFC-BPR-0101: Send wears the agent's accent,
+		// Stop the ordinary roles (the composer draws both).
+		const auto working  = State == agent_tab_state::working;
+		const auto follows  = FollowUp && core::decide_follow_up({ .TurnShown = working, .QueueHolds = QueueOccupied }) != core::follow_up::send;
+		const auto controls = core::decide_chat_send({ .Running = working, .FollowsUp = follows, .Typed = !Chat.composer()->toPlainText().trimmed().isEmpty(), .SteerFirst = FollowUpSteer });
+		const auto loading  = Ask->property("conversationLoading").toBool();
+		Field->present(controls);
+		switch (controls.Send) {
+		case core::chat_send_face::stop:
+			Ask->setToolTip(tr("Stop the agent"));
+			Ask->setAccessibleDescription({ });
+			Ask->setEnabled(Launch.cancel_action()->isEnabled());
+			break;
+		case core::chat_send_face::queue:
+		case core::chat_send_face::steer:
+			Ask->setToolTip(Chat.send_action()->toolTip());
+			Ask->setAccessibleDescription({ });
+			Ask->setEnabled(!loading);
+			break;
+		case core::chat_send_face::send: {
+			// [[BPR-1817]]. A Send that cannot be pressed says why.
+			const auto blocked = send_blocked();
+			Ask->setToolTip(blocked == core::agent_send_refusal::none ? send_tip() : send_refusal_words(blocked, agent_name()));
+			Ask->setAccessibleDescription(blocked == core::agent_send_refusal::none ? QString{ } : Ask->toolTip());
+			Ask->setEnabled(Chat.send_action()->isEnabled() && !loading);
+			break;
+		}
+		}
+		Field->stop_button()->setToolTip(tr("Stop the agent. Queued messages wait, paused."));
+		Field->stop_button()->setEnabled(Launch.cancel_action()->isEnabled());
 	}
 
 	auto agent_tab_view::send_released(const QString& aText) -> release_outcome
@@ -3282,7 +3268,7 @@ namespace bpr::qt {
 			// [[BPR-2219]]. A turn sent under a name (a review prompt, whose
 			// question is its whole body) is said by that name.
 			.Question  = turn.Name.isEmpty() ? turn.Question : turn.Name,
-			.Byline    = { .Ending = turn.Ending, .When = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt), .Head = Head != nullptr ? Head->text() : QString{ } },
+			.Byline    = { .Ending = turn.Ending, .When = relative_time(turn.AnsweredAt.isValid() ? turn.AnsweredAt : turn.AskedAt), .Head = read_revision() },
 			.Suggested = std::move(suggested),
 			.Cards     = std::move(cards),
 			.Answer    = turn.AnswerText.trimmed(),
@@ -3754,12 +3740,57 @@ namespace bpr::qt {
 
 	void agent_tab_view::show_session_title()
 	{
-		// [[BPR-2377]]. The open session's own name, when it has one.
+		// [[BPR-2377]]. The open session's own name, when it has one; core
+		// decides what the row then says and which tools it holds.
 		const auto entry = std::ranges::find(NativeHistoryView.Entries, NativeHistoryView.Selected, &application::native_agent_history_entry::Id);
-		const auto named = entry != NativeHistoryView.Entries.end() && !entry->Name.empty() && !NativeHistoryView.Selected.empty();
-		const auto title = named ? QString::fromStdString(entry->Name) : DefaultSessionTitle;
-		// The whole title is its tooltip whenever the row shortens it.
-		static_cast<eliding_heading*>(SessionTitle)->present(title.isEmpty() ? tr("Agent") : title, named ? tr("%1, in %2").arg(title, DefaultSessionTitle) : QString{ });
+		const auto open  = entry != NativeHistoryView.Entries.end() && !NativeHistoryView.Selected.empty();
+		Header->present(core::plan_chat_header({
+			.Kind         = core::chat_kind::agent_tab,
+			.Subject      = (DefaultSessionTitle.isEmpty() ? tr("Agent") : DefaultSessionTitle).toStdString(),
+			.Place        = { },
+			.CanShow      = false,
+			.About        = { },
+			.SessionName  = open ? entry->Name : std::string{ },
+			.RevisionRead = open && entry->Binding.HeadOid != decltype(entry->Binding.HeadOid){ } ? std::string{ core::canonical_hex(entry->Binding.HeadOid).view() } : std::string{ },
+			.Cost         = std::nullopt,
+		}));
+	}
+
+	auto agent_tab_view::read_revision() const -> QString
+	{
+		// The head the session reads, as every chat writes a revision.
+		auto head = Chat.head_oid_text().trimmed();
+		if (head.contains(QLatin1Char{ ':' })) {
+			head = head.section(QLatin1Char{ ':' }, -1).trimmed();
+		}
+		return head == QStringLiteral("—") ? QString{ } : QString::fromStdString(core::chat_revision_words(head.toStdString()));
+	}
+
+	auto agent_tab_view::chat_text() const -> QString
+	{
+		auto lines = QStringList{ tr("## Agent chat: %1").arg(DefaultSessionTitle.isEmpty() ? tr("Agent") : DefaultSessionTitle), QString{ } };
+		for (const auto& kept : Turns) {
+			lines << tr("**You:** %1").arg(kept.Question) << QString{ };
+			if (!kept.Done) {
+				continue;
+			}
+			// How it ended, as its footer says it: who answered and in how
+			// long, or why there was no answer.
+			if (const auto ending = kept.Footer != nullptr ? kept.Footer->text().trimmed() : QString{ }; !ending.isEmpty()) {
+				lines << QStringLiteral("**%1**").arg(ending) << QString{ };
+			}
+			if (!kept.AnswerText.trimmed().isEmpty()) {
+				lines << kept.AnswerText << QString{ };
+			}
+		}
+		return lines.join(QLatin1Char('\n'));
+	}
+
+	void agent_tab_view::copy_chat() const
+	{
+		if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
+			clipboard->setText(chat_text());
+		}
 	}
 
 	void agent_tab_view::set_session_edit_dispatch(session_edit_dispatch aDispatch)
@@ -3974,7 +4005,7 @@ namespace bpr::qt {
 			break;
 		}
 		case agent_tab_state::head_moved: {
-			const auto read = Head->text();
+			const auto read = read_revision();
 			docked          = true;
 			BannerTitle->setText(pinned_card_title(read));
 			BannerText->setText(tr("The pull request has moved on. Its findings stay at that head."));
@@ -4170,7 +4201,7 @@ namespace bpr::qt {
 	{
 		// The card's own choices, by the words on its chips.
 		if (State == agent_tab_state::head_moved) {
-			const auto read = Head->text();
+			const auto read = read_revision();
 			return read.isEmpty() ? tr("Choose Continue or New session first.") : tr("Choose Continue at %1 or New session first.").arg(read);
 		}
 		const auto& pinned = Launch.pinned_conversation();
@@ -5555,7 +5586,7 @@ namespace bpr::qt {
 		const auto available = Field->width() - margins.left() - margins.right();
 		auto       needed    = 0;
 		auto       count     = 0;
-		for (auto* const widget : { static_cast<QWidget*>(Context), static_cast<QWidget*>(SuggestionsMenu), static_cast<QWidget*>(Chat.scope_selector()), static_cast<QWidget*>(RunSettings), static_cast<QWidget*>(Ask) }) {
+		for (auto* const widget : { static_cast<QWidget*>(Context), static_cast<QWidget*>(SuggestionsMenu), static_cast<QWidget*>(Chat.scope_selector()), static_cast<QWidget*>(RunSettings), static_cast<QWidget*>(Field->stop_button()), static_cast<QWidget*>(Ask) }) {
 			if (widget != nullptr && widget->isVisibleTo(Field)) {
 				// Match the public layout contract: a preferred width must
 				// include native minimum hints and explicit min/max bounds.
@@ -5576,7 +5607,7 @@ namespace bpr::qt {
 			PickerRow->insertWidget(0, RunSettings);
 		} else {
 			PickerRow->removeWidget(RunSettings);
-			AskRow->insertWidget(AskRow->indexOf(Ask), RunSettings);
+			AskRow->insertWidget(AskRow->indexOf(Field->stop_button()), RunSettings);
 		}
 	}
 
@@ -5646,33 +5677,6 @@ namespace bpr::qt {
 
 	auto agent_tab_view::eventFilter(QObject* aWatched, QEvent* aEvent) -> bool
 	{
-		// [[BPR-1999]], RFC-BPR-0101. Return sends and Shift+Return starts a
-		// new line, as the tour side chat does; Ctrl or Cmd with Return also
-		// sends. Not while an input method composes, not in an empty field,
-		// and not while the skill completion's list takes Return.
-		if (aWatched == Chat.composer() && aEvent->type() == QEvent::InputMethod) {
-			Composing = !static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty();
-		}
-		if (aEvent->type() == QEvent::KeyPress && aWatched == Chat.composer()) {
-			const auto* const key       = static_cast<QKeyEvent*>(aEvent);
-			const auto        modifiers = key->modifiers() & ~Qt::KeypadModifier;
-			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !modifiers.testFlag(Qt::ShiftModifier) && !modifiers.testFlag(Qt::AltModifier)) {
-				if (Composing || (SkillCompletion != nullptr && SkillCompletion->popup() != nullptr && SkillCompletion->popup()->isVisible())) {
-					return false;
-				}
-				// Plain Return in an empty field does nothing; Ctrl or Cmd
-				// with Return asks, as before, and is told why nothing went.
-				if (Chat.composer()->toPlainText().trimmed().isEmpty() && !modifiers.testAnyFlags(Qt::ControlModifier | Qt::MetaModifier)) {
-					return true;
-				}
-				// Cmd+Return (Ctrl+Return off macOS): the other follow-up for
-				// this one message.
-				Opposite = modifiers.testAnyFlags(Qt::ControlModifier | Qt::MetaModifier);
-				ask();
-				Opposite = false;
-				return true;
-			}
-		}
 		// The log wraps again at the card's new width.
 		if (aEvent->type() == QEvent::Resize && aWatched == Log) {
 			fit_log();
@@ -5760,7 +5764,7 @@ namespace bpr::qt {
 		// [[BPR-1773]], owner look 2026-10-27 ("The copy to clipboard icon is
 		// nearly unseeable on dark mode"). A glyph is painted in the ink of
 		// the palette it was made with, so a theme change paints each again.
-		History->setIcon(drawer_icon(drawer_glyph::history, palette()));
+		Header->repaint_glyphs();
 		ConversationClose->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		LinesClose->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		Context->setIcon(drawer_icon(drawer_glyph::plus, palette()));
@@ -5774,15 +5778,10 @@ namespace bpr::qt {
 				kept.Copy->setIcon(copyIcon);
 			}
 		}
-		// The send arrow, in the accent; while working the button says Stop
-		// instead, in the ordinary roles.
-		if (Ask->text().isEmpty()) {
-			wear_agent_accent(*Ask, palette());
-			// The prompt turns' glyphs follow the palette too.
-			for (auto* const glyph : findChildren<QLabel*>(QStringLiteral("agentTurnPromptGlyph"))) {
-				glyph->setPixmap(agent_glyph(palette()).pixmap(QSize{ 14, 14 }));
-			}
-			Ask->setIcon(drawer_icon(drawer_glyph::send, Ask->palette()));
+		// The prompt turns' glyphs follow the palette; the composer draws
+		// Send and Stop itself.
+		for (auto* const glyph : findChildren<QLabel*>(QStringLiteral("agentTurnPromptGlyph"))) {
+			glyph->setPixmap(agent_glyph(palette()).pixmap(QSize{ 14, 14 }));
 		}
 		for (const auto& kept : Turns) {
 			if (kept.Recovery != nullptr && kept.RecoveryKind == core::agent_turn_recovery::resend) {

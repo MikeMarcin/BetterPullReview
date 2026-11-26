@@ -3,6 +3,8 @@
 
 #include "bpr/core/agent_follow_up.hpp"
 #include "bpr/core/skill_references.hpp"
+#include "bpr/qt/chat_composer.hpp"
+#include "bpr/qt/chat_header_view.hpp"
 
 #include <QElapsedTimer>
 #include <QPointer>
@@ -135,8 +137,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto copy_chat_button() const noexcept -> QToolButton* { return CopyChat; }
 		[[nodiscard]] auto show_button() const noexcept -> QPushButton* { return ShowItem; }
 		[[nodiscard]] auto status_text() const -> QString;
-		/// \brief The chat's title: what it is about and where.
+		/// \brief What the chat is about and where, in one phrase, as Copy
+		/// conversation heads its text ("Suggested comment at queue.cpp:12").
 		[[nodiscard]] auto subject_text() const -> QString;
+		/// \brief RFC-BPR-0130. The one header row every chat wears: here the
+		/// kind of item and its place, Show, Copy conversation and close.
+		[[nodiscard]] auto header() const noexcept -> chat_header_view* { return Header; }
 		/// \brief The item as the chat quotes it at its top.
 		[[nodiscard]] auto item_text() const -> QString;
 		/// \brief The item's chip in the composer.
@@ -175,9 +181,7 @@ namespace bpr::qt {
 		/// The running request's clock, and each answered round's time.
 		QElapsedTimer                             Clock;
 		std::map<std::size_t, qint64>             Seconds;
-		QLabel*                                   Glyph     = nullptr;
-		QLabel*                                   Subject   = nullptr;
-		QLabel*                                   Quote     = nullptr;
+		chat_header_view*                         Header    = nullptr;
 		QPushButton*                              ShowItem  = nullptr;
 		QToolButton*                              CopyChat  = nullptr;
 		QToolButton*                              ClosePane = nullptr;
@@ -185,7 +189,7 @@ namespace bpr::qt {
 		QVBoxLayout*                              Turns     = nullptr;
 		QLabel*                                   ItemQuote = nullptr;
 		QLabel*                                   Status    = nullptr;
-		QWidget*                                  Field     = nullptr;
+		chat_composer*                            Field     = nullptr;
 		QLabel*                                   Chip      = nullptr;
 		QString                                   ChipWords;
 		QPlainTextEdit*                           Composer      = nullptr;

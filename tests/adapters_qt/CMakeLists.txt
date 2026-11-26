@@ -2964,6 +2964,19 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "chat-history-menu-tests:pass"
 )
 
+# RFC-BPR-0130. The one header row every chat with an agent wears.
+bpr_add_executable(test_better_pull_review_qt_chat_header_view_tests chat_header_view_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_chat_header_view_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_chat_header_view_tests)
+bpr_enable_warnings(test_better_pull_review_qt_chat_header_view_tests)
+bpr_add_network_isolated_test(NAME qt_chat_header_view COMMAND test_better_pull_review_qt_chat_header_view_tests)
+set_tests_properties(
+    qt_chat_header_view
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "chat-header-view-tests:pass"
+)
+
 # RFC-BPR-0087: push semantics and production secondary/choice surfaces.
 bpr_add_executable(test_better_pull_review_qt_quiet_buttons_tests quiet_buttons_tests.cpp)
 target_link_libraries(test_better_pull_review_qt_quiet_buttons_tests PRIVATE BetterPullReview::AdapterQt)
@@ -3259,4 +3272,17 @@ set_tests_properties(
         ENVIRONMENT "${bpr_qt_github_common_environment}"
         PASS_REGULAR_EXPRESSION "popup-palette-tests:pass"
         TIMEOUT 120
+)
+
+# RFC-BPR-0130 stage 2. The one composer every chat with an agent places.
+bpr_add_executable(test_better_pull_review_qt_chat_composer_tests chat_composer_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_chat_composer_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_chat_composer_tests)
+bpr_enable_warnings(test_better_pull_review_qt_chat_composer_tests)
+bpr_add_network_isolated_test(NAME qt_chat_composer COMMAND test_better_pull_review_qt_chat_composer_tests)
+set_tests_properties(
+    qt_chat_composer
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "chat-composer-tests:pass"
 )

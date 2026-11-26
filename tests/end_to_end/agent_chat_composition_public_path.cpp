@@ -358,7 +358,7 @@ namespace {
 				minutes(10));
 			costs.push_back(panel->last_turn_cost());
 			std::cout << "live-claude " << aStep << ": outcome=" << (tab->turn_outcome(before) ? core::stable_name(*tab->turn_outcome(before)) : std::string_view{ "none" }) << " footer=\"" << tab->turn_footer(before).toStdString()
-					  << "\" reported=" << panel->last_reported_cost().toStdString() << " session=\"" << tab->session_cost_line()->text().toStdString() << "\"" << std::endl;
+					  << "\" reported=" << panel->last_reported_cost().toStdString() << " session=\"" << (tab->session_cost() ? core::agent_cost_words(*tab->session_cost()) : std::string{ }) << "\"" << std::endl;
 			return done && tab->turn_outcome(before) == core::agent_turn_outcome::answered;
 		};
 		if (!answer([&] { tab->send_prompt(QStringLiteral("Review this pull request")); }, "review")) {
@@ -398,7 +398,7 @@ namespace {
 		for (const auto& cost : costs) {
 			std::cout << (cost ? std::to_string(*cost) : std::string{ "none" }) << ' ';
 		}
-		std::cout << "sum=" << sum << " session-total=" << (tab->session_cost() ? std::to_string(*tab->session_cost()) : std::string{ "none" }) << " session-line=\"" << tab->session_cost_line()->text().toStdString() << "\"\n";
+		std::cout << "sum=" << sum << " session-total=" << (tab->session_cost() ? std::to_string(*tab->session_cost()) : std::string{ "none" }) << " session-words=\"" << (tab->session_cost() ? core::agent_cost_words(*tab->session_cost()) : std::string{ }) << "\"\n";
 		const auto passed = every && tab->session_cost() == sum && named.size() >= 2;
 		if (!shutdown(*application)) {
 			return EXIT_FAILURE;

@@ -15190,9 +15190,12 @@ namespace {
 		key(Qt::ControlModifier);
 		expect(sends.size() == 2U && sends.back().Text == "again", "Ctrl or Cmd with Return also sends");
 
-		// Cost: a turn's footer says it after the duration; the session line
-		// adds the turns up, or says the conversation's own total.
-		const auto turn = [&window, &composer, &key](const std::uint64_t aId, std::optional<core::agent_cost> aTurn, std::optional<core::agent_cost> aSession) {
+		// Cost: a turn's footer says it after the duration; the session's
+		// total adds the turns up, or is the conversation's own. RFC-BPR-0130:
+		// the total is not on the chat's face (its row of History and the
+		// window's footer say it), so no line stands under the composer.
+		const auto spent = [agent] { return agent->session_cost() ? QString::fromStdString(core::agent_cost_words(*agent->session_cost())) : QString{ }; };
+		const auto turn  = [&window, &composer, &key](const std::uint64_t aId, std::optional<core::agent_cost> aTurn, std::optional<core::agent_cost> aSession) {
 			composer->setPlainText(QStringLiteral("cost %1").arg(aId));
 			key(Qt::NoModifier);
 			auto identity                 = application::agent_invocation_projection_identity{ };
@@ -15205,22 +15208,22 @@ namespace {
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success, .TurnCost = aTurn, .SessionCost = aSession });
 			process_events();
 		};
-		expect(!agent->session_cost_line()->isVisible(), "no cost line before any turn reported one");
+		expect(!agent->session_cost().has_value() && agent->findChild<QLabel*>(QStringLiteral("agentSessionCost")) == nullptr && agent->findChild<QLabel*>(QStringLiteral("agentHeadChip")) == nullptr,
+			   "no total before any turn reported one; the header holds no revision chip and the composer no cost line");
 		turn(21U, core::parse_agent_cost("0.4123567"), core::parse_agent_cost("0.4123567"));
 		const auto last = [agent] { return agent->turn_footer(agent->turn_count() - 1U); };
 		expect(last().contains(QStringLiteral(" answered in ")) && last().endsWith(QStringLiteral(" · $0.41")), "a turn's footer gives its cost after its duration: " + last().toStdString());
-		expect(agent->session_cost_line()->isVisible() && agent->session_cost_line()->text() == QStringLiteral("$0.41 this session"), "and the session line the conversation's total");
+		expect(spent() == QStringLiteral("$0.41"), "and the session's total is the conversation's: " + spent().toStdString());
 		turn(22U, core::parse_agent_cost("0.004"), std::nullopt);
-		expect(last().endsWith(QStringLiteral(" · < $0.01")) && agent->session_cost_line()->text() == QStringLiteral("$0.42 this session"),
-			   "a turn under half a cent says so; the session adds it up: " + agent->session_cost_line()->text().toStdString());
+		expect(last().endsWith(QStringLiteral(" · < $0.01")) && spent() == QStringLiteral("$0.42"), "a turn under half a cent says so; the session adds it up: " + spent().toStdString());
 		// [[BPR-2038]], owner look on RFC-BPR-0101 AC08: "one line for both
 		// turn and session status lines at this default width".
 		{
 			const auto  footers = agent->conversation_thread()->findChildren<QLabel*>(QStringLiteral("agentTurnFooter"));
 			auto* const footer  = footers.isEmpty() ? nullptr : footers.back();
 			const auto  oneLine = [](const QLabel* aLabel) { return aLabel != nullptr && aLabel->fontMetrics().horizontalAdvance(aLabel->text()) <= aLabel->contentsRect().width() && aLabel->height() < 2 * aLabel->fontMetrics().lineSpacing(); };
-			expect(oneLine(footer) && oneLine(agent->session_cost_line()) && agent->findChild<QLabel*>(QStringLiteral("agentReadsLine")) == nullptr,
-				   "the turn's footer and the session line each take one line, with no line beside the session's: " + (footer != nullptr ? footer->text().toStdString() + " in " + std::to_string(footer->contentsRect().width()) : std::string{ "no footer" }));
+			expect(oneLine(footer) && agent->findChild<QLabel*>(QStringLiteral("agentSessionCost")) == nullptr && agent->findChild<QLabel*>(QStringLiteral("agentReadsLine")) == nullptr,
+				   "the turn's footer takes one line, and no line stands under the composer: " + (footer != nullptr ? footer->text().toStdString() + " in " + std::to_string(footer->contentsRect().width()) : std::string{ "no footer" }));
 			expect(footer != nullptr && footer->toolTip().startsWith(QStringLiteral("Fixture agent answered in ")) && footer->toolTip().contains(QStringLiteral(" · < $0.01.")), "the tooltip keeps the whole sentence: " + (footer != nullptr ? footer->toolTip().toStdString() : std::string{ }));
 			expect(qt::agent_short_name(QStringLiteral("Claude Code")) == QStringLiteral("Claude") && qt::agent_short_name(QStringLiteral("Codex")) == QStringLiteral("Codex") && qt::agent_short_name(QStringLiteral(" Code")) == QStringLiteral(" Code"),
 				   "a turn names Claude Code as Claude and every other agent as it is called");
@@ -15229,13 +15232,13 @@ namespace {
 			}
 		}
 		turn(23U, core::parse_agent_cost("12"), core::parse_agent_cost("12.5"));
-		expect(last().endsWith(QStringLiteral(" · $12.00")) && agent->session_cost_line()->text() == QStringLiteral("$12.50 this session"), "the conversation's own total is said when known");
+		expect(last().endsWith(QStringLiteral(" · $12.00")) && spent() == QStringLiteral("$12.50"), "the conversation's own total is kept when known");
 		turn(24U, std::nullopt, std::nullopt);
-		expect(!last().contains(QLatin1Char{ '$' }) && last().endsWith(QLatin1Char{ '.' }) && agent->session_cost_line()->text() == QStringLiteral("$12.50 this session"),
+		expect(!last().contains(QLatin1Char{ '$' }) && last().endsWith(QLatin1Char{ '.' }) && spent() == QStringLiteral("$12.50"),
 			   "a run with no reported cost shows none, and $0.00 is not invented");
 		agent->present_thread({ });
 		process_events();
-		expect(!agent->session_cost_line()->isVisible() && !agent->session_cost().has_value(), "a new session restarts without a total");
+		expect(!agent->session_cost().has_value(), "a new session restarts without a total");
 		window.hide();
 	}
 

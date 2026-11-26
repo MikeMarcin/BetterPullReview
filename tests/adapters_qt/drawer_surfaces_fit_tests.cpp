@@ -1260,6 +1260,27 @@ namespace {
 										   + tab->banner_first_button()->text().toStdString() + " / " + tab->banner_second_button()->text().toStdString());
 					}
 				};
+				// RFC-BPR-0130, AC04. The header is one row in every theme at
+				// every width: a pull request's title too long for it ends in
+				// an ellipsis, keeps one line and is whole in its tooltip, and
+				// every part of the row lies inside the row and the drawer.
+				{
+					const auto long_title = QStringLiteral("#2368 Queued prompt rows leave the pending list once their turn begins, at every drawer width");
+					tab->set_session_title(long_title);
+					settle();
+					const auto* const row     = tab->header();
+					const auto* const subject = row->subject();
+					const auto        inside  = drawer->rect().contains(QRect{ row->mapTo(drawer, QPoint{ 0, 0 }), row->size() });
+					if (!row->isVisibleTo(drawer) || !inside || (width < 760U && !row->title_cut()) || (row->title_cut() && (!row->shown_title().endsWith(QChar{ 0x2026 }) || subject->toolTip() != long_title))
+						|| (!row->title_cut() && row->shown_title() != long_title) || subject->height() >= 2 * subject->fontMetrics().lineSpacing() || !row->history_tool()->isVisibleTo(drawer)) {
+						failures.push_back("the header is one row with History, its long title cut with an ellipsis and whole in its tooltip" + at + ": \"" + row->shown_title().toStdString() + "\"");
+					}
+					for (const auto* const part : row->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+						if (part->isVisibleTo(row) && !row->rect().contains(part->geometry())) {
+							failures.push_back("the header's " + part->objectName().toStdString() + " lies inside its row" + at);
+						}
+					}
+				}
 				// A session with turns enough to scroll in any typeface, opened
 				// after the head moved.
 				tab->set_session_title(QStringLiteral("#17 Keep review snapshots deterministic"));

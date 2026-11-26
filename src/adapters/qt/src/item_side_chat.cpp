@@ -1,6 +1,5 @@
 #include "bpr/qt/item_side_chat.hpp"
 
-#include "composer_parts.hpp"
 #include "side_chat_parts.hpp"
 
 #include "bpr/qt/resize_handle_cursor.hpp"
@@ -211,6 +210,33 @@ namespace bpr::qt {
 		return { };
 	}
 
+	namespace {
+		/// The header's first line: what kind of item the chat is about.
+		[[nodiscard]] auto subject_kind_words(const core::follow_up_subject_kind aKind) -> QString
+		{
+			switch (aKind) {
+			case core::follow_up_subject_kind::suggested_comment: return QObject::tr("Suggested comment");
+			case core::follow_up_subject_kind::draft:             return QObject::tr("Your draft");
+			case core::follow_up_subject_kind::thread:            return QObject::tr("Conversation");
+			}
+			return { };
+		}
+
+		/// The header's second line: the item's file and lines, as the
+		/// tour's chat writes a stop's.
+		[[nodiscard]] auto subject_place_words(const core::follow_up_subject& aSubject) -> QString
+		{
+			if (aSubject.Path.empty()) {
+				return QObject::tr("The pull request");
+			}
+			const auto file = QString::fromStdString(aSubject.Path).section(QLatin1Char{ '/' }, -1);
+			if (aSubject.First == 0U) {
+				return QString{ file };
+			}
+			return aSubject.Last <= aSubject.First ? QObject::tr("%1, line %2").arg(file).arg(aSubject.First) : QObject::tr("%1, lines %2 to %3").arg(file).arg(aSubject.First).arg(aSubject.Last);
+		}
+	}
+
 	auto item_chat_subject_words(const core::follow_up_subject& aSubject) -> QString
 	{
 		switch (aSubject.Kind) {
@@ -237,50 +263,41 @@ namespace bpr::qt {
 		column->setContentsMargins(10, 8, 10, 10);
 		column->setSpacing(6);
 
-		// The title row, as the tour's chat has it: the agent's glyph, what
-		// the chat is about and where, Show, Copy chat and close.
-		auto* const top = new QHBoxLayout{ };
-		top->setSpacing(4);
-		Glyph = new QLabel{ this };
-		Glyph->setObjectName(QStringLiteral("itemSideChatGlyph"));
-		top->addWidget(Glyph, 0, Qt::AlignTop);
-		auto* const aboutText = new QVBoxLayout{ };
-		aboutText->setSpacing(1);
-		Subject = new QLabel{ this };
-		Subject->setObjectName(QStringLiteral("itemSideChatSubject"));
-		Subject->setTextFormat(Qt::PlainText);
-		Subject->setWordWrap(true);
-		auto heavy = Subject->font();
-		heavy.setWeight(QFont::DemiBold);
-		Subject->setFont(heavy);
-		Quote = quiet(small(words({ }, this)));
-		Quote->setObjectName(QStringLiteral("itemSideChatQuote"));
-		aboutText->addWidget(Subject);
-		aboutText->addWidget(Quote);
-		top->addLayout(aboutText, 1);
-		ShowItem = new quiet_push_button{ tr("Show"), this };
-		ShowItem->setObjectName(QStringLiteral("itemSideChatShow"));
-		ShowItem->setFlat(true);
-		ShowItem->setFocusPolicy(Qt::TabFocus);
-		ShowItem->setToolTip(tr("Show the item's place in the code"));
-		top->addWidget(ShowItem, 0, Qt::AlignTop);
-		auto* const copyChat = new quiet_tool_button{ this };
-		copyChat->set_tinted(true);
-		CopyChat = copyChat;
-		CopyChat->setObjectName(QStringLiteral("itemSideChatCopy"));
-		CopyChat->setAutoRaise(true);
-		CopyChat->setToolTip(tr("Copy this chat as text"));
-		CopyChat->setAccessibleName(tr("Copy chat"));
-		auto* const closePane = new quiet_tool_button{ this };
-		closePane->set_tinted(true);
-		ClosePane = closePane;
-		ClosePane->setObjectName(QStringLiteral("itemSideChatClose"));
-		ClosePane->setAutoRaise(true);
-		ClosePane->setToolTip(tr("Close the chat. It is kept; asking about the item again opens it."));
-		ClosePane->setAccessibleName(tr("Close the chat"));
-		top->addWidget(CopyChat, 0, Qt::AlignTop);
-		top->addWidget(ClosePane, 0, Qt::AlignTop);
-		column->addLayout(top);
+		// The header (RFC-BPR-0130, header A): the one row every chat with
+		// an agent wears. Here it is the kind of item and its place, Show,
+		// Copy conversation and close. An item's chat keeps no sessions, so
+		// core gives it Copy where the other chats have History; the agent's
+		// glyph that stood before the subject is gone (the seam down the
+		// column's edge says whose column it is).
+		Header = new chat_header_view{ {
+										   .Row     = QStringLiteral("itemSideChatHeader"),
+										   .Subject = QStringLiteral("itemSideChatSubject"),
+										   .Place   = QStringLiteral("itemSideChatQuote"),
+										   .Show    = QStringLiteral("itemSideChatShow"),
+										   .History = QStringLiteral("itemSideChatHistory"),
+										   .Copy    = QStringLiteral("itemSideChatCopy"),
+										   .Close   = QStringLiteral("itemSideChatClose"),
+									   },
+									   this };
+		Header->set_tips({
+			.Show  = tr("Show the item's place in the code"),
+			.Close = tr("Close the chat. It is kept; asking about the item again opens it."),
+		});
+		Header->set_dispatch({
+			.Show             = [this] {
+				if (Shown && Intents.Reveal) {
+					Intents.Reveal(Shown->Subject);
+				} },
+			.CopyConversation = [this] {
+				if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
+					clipboard->setText(chat_text());
+				} },
+			.Close            = [this] { set_column_open(false); },
+		});
+		ShowItem  = Header->show_button();
+		CopyChat  = Header->copy_tool();
+		ClosePane = Header->close_tool();
+		column->addWidget(Header);
 
 		// The chat.
 		Scroll = new QScrollArea{ this };
@@ -312,11 +329,8 @@ namespace bpr::qt {
 		// both the side chats (report and tour) should be positioned more
 		// like the agent tab"): the Agent tab's composer, its insets, its
 		// rule and Send at the right end of the row under it.
-		Field = new composer_field{ this };
-		Field->setObjectName(QStringLiteral("itemSideChatField"));
-		auto* const fieldColumn = new QVBoxLayout{ Field };
-		composer::set_field_margins(*fieldColumn);
-		fieldColumn->setSpacing(4);
+		// RFC-BPR-0130 stage 2: the one composer every chat places.
+		Field               = new chat_composer{ { .Field = QStringLiteral("itemSideChatField"), .Text = QStringLiteral("itemSideChatComposer"), .Send = QStringLiteral("itemSideChatSend"), .Stop = QStringLiteral("itemSideChatStop") }, this };
 		auto* const chip    = new passage_chip{ Field };
 		auto* const chipRow = new QHBoxLayout{ chip };
 		chipRow->setContentsMargins(8, 1, 8, 1);
@@ -326,31 +340,26 @@ namespace bpr::qt {
 		Chip->setTextFormat(Qt::PlainText);
 		Chip->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		chipRow->addWidget(Chip, 1);
-		fieldColumn->addWidget(chip);
-		Composer = new QPlainTextEdit{ Field };
-		Composer->setObjectName(QStringLiteral("itemSideChatComposer"));
+		Field->chips()->addWidget(chip);
+		Composer = Field->text();
 		Composer->setAccessibleName(tr("Message to the agent"));
-		Composer->setTabChangesFocus(true);
-		Composer->setFrameShape(QFrame::NoFrame);
-		Composer->viewport()->setAutoFillBackground(false);
-		Composer->setAttribute(Qt::WA_MacShowFocusRect, false);
-		Composer->document()->setDocumentMargin(4);
-		Composer->setFixedHeight(3 * Composer->fontMetrics().lineSpacing() + 12);
-		Composer->installEventFilter(new side_chat::send_keys{ Composer, [this](const bool /*aOpposite*/) {
-																  if (!Running) {
-																	  send();
-																  }
-															  } });
-		Composer->installEventFilter(Field);
-		// Install after the send filter so Return chooses a skill while the list is open.
-		SkillCompletion = new skill_completer{ Composer };
-		fieldColumn->addWidget(Composer);
-		auto* const sendRow = composer::add_send_row(*Field, *fieldColumn);
-		sendRow->addStretch(1);
-		Send = composer::make_send_button(*Field, QStringLiteral("itemSideChatSend"));
-		Send->setFocusPolicy(Qt::TabFocus);
-		Send->setToolTip(tr("Send the question to the agent. Nothing is posted."));
-		sendRow->addWidget(Send);
+		SkillCompletion = Field->skills();
+		Send            = Field->send_button();
+		// One round at a time, and no follow-ups: Send is Stop while it runs.
+		Field->set_dispatch({
+			.Send =
+				[this](const bool /*aOpposite*/) {
+					if (!Running) {
+						send();
+					}
+				},
+			.Stop =
+				[this] {
+					if (Intents.Stop) {
+						Intents.Stop();
+					}
+				},
+		});
 		column->addWidget(Field);
 		// The one thing the chat can apply, where the tour's chat keeps its
 		// session line: it asks for the text, which shows in the chat first.
@@ -364,26 +373,6 @@ namespace bpr::qt {
 		footer->addStretch(1);
 		column->addLayout(footer);
 
-		connect(CopyChat, &QToolButton::clicked, this, [this] {
-			if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
-				clipboard->setText(chat_text());
-			}
-		});
-		connect(ClosePane, &QToolButton::clicked, this, [this] { set_column_open(false); });
-		connect(ShowItem, &QPushButton::clicked, this, [this] {
-			if (Shown && Intents.Reveal) {
-				Intents.Reveal(Shown->Subject);
-			}
-		});
-		connect(Send, &QPushButton::clicked, this, [this] {
-			if (Running) {
-				if (Intents.Stop) {
-					Intents.Stop();
-				}
-				return;
-			}
-			send();
-		});
 		connect(ApplyButton, &QPushButton::clicked, this, [this] {
 			const auto offers = Shown ? core::follow_up_offers(Shown->Subject) : std::vector<core::follow_up_apply>{ };
 			if (!Running && !offers.empty() && Intents.Propose) {
@@ -494,10 +483,17 @@ namespace bpr::qt {
 		const auto proposalWas = !another && Shown && Shown->Proposal.has_value() && aState.Proposal && Shown->Proposal->Id == aState.Proposal->Id;
 		Agent                  = aAgent;
 		Shown                  = aState;
-		Subject->setText(item_chat_subject_words(aState.Subject));
-		Quote->setText(QString::fromStdString(aState.Subject.Title));
-		Quote->setVisible(!aState.Subject.Title.empty());
-		ShowItem->setVisible(!aState.Subject.Path.empty() && aState.Subject.First != 0U);
+		// What the row says is this chat's; what it holds is core's.
+		Header->present(core::plan_chat_header({
+			.Kind         = core::chat_kind::review_item,
+			.Subject      = subject_kind_words(aState.Subject.Kind).toStdString(),
+			.Place        = subject_place_words(aState.Subject).toStdString(),
+			.CanShow      = !aState.Subject.Path.empty() && aState.Subject.First != 0U,
+			.About        = aState.Subject.Title,
+			.SessionName  = { },
+			.RevisionRead = { },
+			.Cost         = std::nullopt,
+		}));
 		ChipWords = item_words(aState.Subject).simplified();
 		Chip->setText(ChipWords);
 		Chip->setToolTip(item_words(aState.Subject));
@@ -528,9 +524,9 @@ namespace bpr::qt {
 			ApplyButton->setAccessibleDescription(tip);
 		}
 		ApplyButton->setEnabled(!Running);
-		// As the Agent tab's: the arrow, or Stop in words while it answers.
-		Send->setText(Running ? tr("Stop") : QString{ });
-		Send->setAccessibleName(Running ? tr("Stop") : tr("Send"));
+		// The one rule (`core::decide_chat_send`): an item's chat takes no
+		// follow-ups, so Send is Stop while its round runs.
+		Field->present(core::decide_chat_send({ .Running = Running }));
 		Send->setToolTip(Running ? tr("Stop the agent's answer") : tr("Send the question to the agent. Nothing is posted."));
 		show_status(aFailure.isEmpty() ? item_chat_refusal_words(aState.Refused) : aFailure);
 		restyle();
@@ -554,7 +550,7 @@ namespace bpr::qt {
 
 	auto item_side_chat::status_text() const -> QString { return Status->text(); }
 
-	auto item_side_chat::subject_text() const -> QString { return Subject->text(); }
+	auto item_side_chat::subject_text() const -> QString { return Shown ? item_chat_subject_words(Shown->Subject) : QString{ }; }
 
 	auto item_side_chat::item_text() const -> QString { return ItemQuote != nullptr ? ItemQuote->text() : QString{ }; }
 
@@ -801,22 +797,11 @@ namespace bpr::qt {
 		QTimer::singleShot(0, this, [this] { fit(); });
 	}
 
-	/// Send and the apply action start runs and wear the Agent accent; while
-	/// a run goes Send is Stop, in the ordinary roles.
+	/// The apply action starts runs and wears the Agent accent; the composer
+	/// draws Send and Stop itself.
 	void item_side_chat::restyle()
 	{
-		auto accented = palette();
-		accented.setColor(QPalette::Active, QPalette::ButtonText, agent_accent(palette()));
-		const auto side = Glyph->fontMetrics().height();
-		Glyph->setPixmap(side_chat_icon(accented).pixmap(QSize{ side, side }, devicePixelRatioF()));
-		CopyChat->setIcon(drawer_icon(drawer_glyph::copy, palette()));
-		ClosePane->setIcon(drawer_icon(drawer_glyph::close, palette()));
-		if (Running) {
-			wear_ordinary_roles(*Send);
-		} else {
-			wear_agent_accent(*Send, palette());
-		}
-		Send->setIcon(Running ? QIcon{ } : drawer_icon(drawer_glyph::send, Send->palette()));
+		Header->repaint_glyphs();
 		wear_agent_accent(*ApplyButton, palette());
 		update();
 	}

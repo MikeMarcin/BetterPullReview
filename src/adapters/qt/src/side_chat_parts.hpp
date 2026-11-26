@@ -2,11 +2,8 @@
 #define BPR_SRC_ADAPTERS_QT_SRC_SIDE_CHAT_PARTS_HPP
 
 #include <QColor>
-#include <QObject>
 #include <QString>
 #include <QWidget>
-
-#include <functional>
 
 class QLabel;
 class QVBoxLayout;
@@ -14,10 +11,11 @@ class QVBoxLayout;
 /// \file
 /// \brief [[BPR-2322]]. The parts every side chat is built from, as the Tour
 /// tab's side chat ([[BPR-1925]], [[BPR-1995]]) first drew them: the seam down
-/// the column's left edge, the author's bubble, a proposal's frame, Return to
-/// send, and how bubbles and replies fit the column's width. The tour's chat
-/// and the side chat about one review item (`item_side_chat`) both use these,
-/// so the two read as one interface.
+/// the column's left edge, the author's bubble, a proposal's frame, and how
+/// bubbles and replies fit the column's width. Return to send is the one
+/// composer's (`chat_composer`). The tour's chat and the side chat about one
+/// review item (`item_side_chat`) both use these, so the two read as one
+/// interface.
 namespace bpr::qt::side_chat {
 	/// \brief `aFrom` moved `aAmount` of the way to `aTo`.
 	[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, double aAmount) -> QColor;
@@ -35,20 +33,6 @@ namespace bpr::qt::side_chat {
 	/// \brief A short bubble keeps to one line, a long one wraps; at most
 	/// four fifths of `aAvailable`.
 	void fit_bubble(QWidget& aBubble, int aAvailable);
-
-	/// \brief Return sends; Shift+Return starts a new line. `aSend` is told
-	/// whether Cmd+Return (Ctrl+Return off macOS) was pressed.
-	class send_keys final : public QObject
-	{
-	public:
-		send_keys(QObject* aParent, std::function<void(bool aOpposite)> aSend);
-
-	protected:
-		bool eventFilter(QObject* aWatched, QEvent* aEvent) override;
-
-	private:
-		std::function<void(bool)> Send;
-	};
 
 	/// \brief The author's words: a quiet rounded bubble, right-aligned.
 	class bubble_frame final : public QWidget

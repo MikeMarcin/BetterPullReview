@@ -77,6 +77,8 @@ add_library(
         src/agent_tab_view.cpp
         src/agent_session_menu.cpp
         src/chat_history_menu.cpp
+        src/chat_header_view.cpp
+        src/chat_composer.cpp
         src/menu_row.cpp
         src/agent_pending_list.cpp
         src/agent_steered_words.cpp

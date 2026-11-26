@@ -51,6 +51,9 @@
 /// of a stop's chat after its Enhance, starts from that answer, and the chat
 /// says so until it is asked (the Fixture agent's reply says it was given the
 /// answer). A suggestion in a tour chat offers a pencil, a trash and Accept.
+/// Words typed while the Agent tab's or a stop's turn runs make the one
+/// composer's Send Queue (or Steer) with Stop beside it, and with the field
+/// emptied the Agent tab's Send is Stop (RFC-BPR-0130 stage 2).
 ///
 /// A state is what the window shows between two gestures, not only where a
 /// flow ends. The owner, 2026-11-25, of the proposal Draft Tour leaves before
@@ -61,7 +64,9 @@
 /// that state was neither measured nor drawn.
 ///
 /// Finding cards no report holds join it: an answer that is not a review brings
-/// them under it in the Agent tab, open and then one dismissed.
+/// them under it in the Agent tab, open and then one dismissed. The first
+/// one's Ask follow-up opens the side chat about that finding, the column
+/// beside the code, which is answered and then given each width it can have.
 ///
 /// In each state the drawer is dragged by its handle to 280, 300, 340 and 420
 /// pixels. The chat column is the Tour tab's second: there the drawer is
@@ -91,7 +96,11 @@
 ///   or cannot be picked up) is a notice on the question field;
 /// - no label, button or menu item says the words RFC-BPR-0130 replaced:
 ///   "Native continuation", "Transcript replay", "Native:", "Private history
-///   and runs".
+///   and runs";
+/// - every chat wears RFC-BPR-0130's one header row (`chat_header_view`):
+///   its title on one line, cut with an ellipsis and whole in its tooltip,
+///   every part of the row inside it, no New session button in it, and no
+///   revision chip, cost line under a composer or agent glyph left over.
 ///
 /// Owner, attended review 2026-11-25, of a question refused after a push, in
 /// a 280 pixel drawer: its first line was "partly hidden under the Native
@@ -129,9 +138,12 @@
 #include "bpr/qt/agent_session_menu.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/chat_composer.hpp"
+#include "bpr/qt/chat_header_view.hpp"
 #include "bpr/qt/chat_history_menu.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
@@ -175,6 +187,7 @@
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QToolButton>
+#include <QVBoxLayout>
 
 #include <algorithm>
 #include <cstdlib>
@@ -581,6 +594,104 @@ namespace {
 		return found;
 	}
 
+	/// \brief Every way a chat \p aSurface shows breaks RFC-BPR-0130's one
+	/// header (AC01, AC04): a chat whose header row is not the shared one, a
+	/// control the header replaced still shown (the revision chip, the cost
+	/// line under a composer, the agent's glyph before a side chat's subject,
+	/// the New session button), a title on more than one line or cut without
+	/// its ellipsis and its whole self in its tooltip, a part of the row
+	/// outside it, and a row that holds a New session button.
+	[[nodiscard]] auto header_faults(const QWidget& aSurface) -> QStringList
+	{
+		auto found = QStringList{ };
+		for (const auto* const name : { "agentContextRow", "tourSideChatHeader", "itemSideChatHeader" }) {
+			for (const auto* const row : aSurface.findChildren<QWidget*>(QString::fromLatin1(name))) {
+				if (row->isVisibleTo(&aSurface) && dynamic_cast<const qt::chat_header_view*>(row) == nullptr) {
+					found.push_back(QStringLiteral("%1 is a header row of its own, not the one every chat wears").arg(describe(*row)));
+				}
+			}
+		}
+		for (const auto* const name : { "agentHeadChip", "agentSessionCost", "tourSideChatSessionCost", "itemSideChatGlyph", "tourSideChatGlyph", "agentClearSession" }) {
+			for (const auto* const gone : aSurface.findChildren<QWidget*>(QString::fromLatin1(name))) {
+				if (gone->isVisibleTo(&aSurface)) {
+					found.push_back(QStringLiteral("%1 is shown, which the one header replaced").arg(describe(*gone)));
+				}
+			}
+		}
+		for (const auto* const child : aSurface.findChildren<QWidget*>()) {
+			const auto* const row = dynamic_cast<const qt::chat_header_view*>(child);
+			if (row == nullptr || !row->isVisibleTo(&aSurface)) {
+				continue;
+			}
+			const auto        title   = QString::fromStdString(row->header().Title);
+			const auto* const subject = row->subject();
+			if (subject->height() >= 2 * subject->fontMetrics().lineSpacing()) {
+				found.push_back(QStringLiteral("%1's title takes %2 px, more than one line").arg(describe(*row)).arg(subject->height()));
+			}
+			if (row->title_cut() && (!row->shown_title().endsWith(QChar{ 0x2026 }) || !subject->toolTip().contains(title))) {
+				found.push_back(QStringLiteral("%1's title is cut to \"%2\" without its ellipsis or its whole self in its tooltip").arg(describe(*row), row->shown_title()));
+			} else if (!row->title_cut() && row->shown_title() != title) {
+				found.push_back(QStringLiteral("%1 says \"%2\" for its title \"%3\"").arg(describe(*row), row->shown_title(), title));
+			}
+			for (const auto* const part : row->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+				if (part->isVisibleTo(row) && !row->rect().contains(part->geometry())) {
+					found.push_back(QStringLiteral("%1 lies outside its header row %2").arg(describe(*part), describe(*row)));
+				}
+			}
+			for (const auto* const button : row->findChildren<QAbstractButton*>()) {
+				if (button->isVisibleTo(row) && (button->text().contains(QStringLiteral("New session")) || button->accessibleName().contains(QStringLiteral("New session")) || button->toolTip().startsWith(QStringLiteral("New session")))) {
+					found.push_back(QStringLiteral("%1 holds a New session button, %2: New session is History's first item").arg(describe(*row), describe(*button)));
+				}
+			}
+		}
+		return found;
+	}
+
+	/// \brief `header_faults` fails on what it claims to catch.
+	void check_the_header()
+	{
+		QWidget surface;
+		surface.resize(300, 200);
+		auto* const column = new QVBoxLayout{ &surface };
+		auto* const row    = new qt::chat_header_view{ { .Row     = QStringLiteral("tourSideChatHeader"),
+														 .Subject = QStringLiteral("tourSideChatSubject"),
+														 .Place   = QStringLiteral("tourSideChatQuote"),
+														 .Show    = QStringLiteral("tourSideChatShow"),
+														 .History = QStringLiteral("tourChatHistory"),
+														 .Copy    = QStringLiteral("tourSideChatCopy"),
+														 .Close   = QStringLiteral("tourSideChatClose") },
+													   &surface };
+		column->addWidget(row);
+		column->addStretch(1);
+		const auto title = std::string{ "Stop 2, The claim is stored before the row is removed from the queue and its pending list" };
+		row->present(core::plan_chat_header({ .Kind = core::chat_kind::tour_part, .Subject = title, .Place = "src/application/src/agent_queue_host.cpp, lines 212 to 218", .CanShow = true }));
+		surface.setAttribute(Qt::WA_DontShowOnScreen);
+		surface.show();
+		settle();
+		const auto said = [&surface] { return header_faults(surface).join(QStringLiteral("; ")); };
+		expect(row->title_cut() && said().isEmpty(), "a part's header with its title cut short, its ellipsis and its tooltip, is no fault: " + said().toStdString());
+		auto* const fresh = new QToolButton{ row };
+		fresh->setText(QStringLiteral("New session"));
+		row->row()->addWidget(fresh);
+		settle();
+		expect(said().contains(QStringLiteral("holds a New session button")), "negative control: a New session button in a header row is caught: " + said().toStdString());
+		delete fresh;
+		auto* const cost = new QLabel{ QStringLiteral("$0.14 this session"), &surface };
+		cost->setObjectName(QStringLiteral("tourSideChatSessionCost"));
+		column->addWidget(cost);
+		settle();
+		expect(said().contains(QStringLiteral("which the one header replaced")), "negative control: a cost line under the composer is caught: " + said().toStdString());
+		delete cost;
+		auto* const own = new QWidget{ &surface };
+		own->setObjectName(QStringLiteral("itemSideChatHeader"));
+		column->addWidget(own);
+		settle();
+		expect(said().contains(QStringLiteral("is a header row of its own")), "negative control: a chat with a header row of its own is caught: " + said().toStdString());
+		delete own;
+		settle();
+		expect(said().isEmpty(), "and without them nothing is: " + said().toStdString());
+	}
+
 	/// \brief `covered_from_above` fails on what it claims to catch.
 	void check_what_covers()
 	{
@@ -733,6 +844,26 @@ namespace {
 		settle();
 		expect(cut_off(surface).join(QStringLiteral("; ")).contains(QStringLiteral("QPlainTextEdit")), "negative control: a text field taller than the frame that holds it is caught");
 		check_what_covers();
+		check_the_header();
+	}
+
+	/// RFC-BPR-0130 stage 2: \p aSend is a Send of the one composer
+	/// (`chat_composer`) that queues or steers, with its Stop, named
+	/// \p aStop, standing beside it in the same row.
+	[[nodiscard]] auto composes_the_one_way(const QPushButton& aSend, const QString& aStop) -> bool
+	{
+		const auto* const composer = dynamic_cast<const qt::chat_composer*>(aSend.parentWidget());
+		const auto*       stop     = composer != nullptr ? composer->findChild<QPushButton*>(aStop) : nullptr;
+		return composer != nullptr && composer->send_button() == &aSend && stop == composer->stop_button() && (aSend.text() == QStringLiteral("Queue") || aSend.text() == QStringLiteral("Steer"))
+			&& stop->isVisibleTo(composer) && stop->geometry().right() < aSend.geometry().left();
+	}
+
+	/// RFC-BPR-0130 stage 2: \p aSend says Stop, and no Stop stands beside it.
+	[[nodiscard]] auto stops_in_place(const QPushButton& aSend, const QString& aStop) -> bool
+	{
+		const auto* const composer = dynamic_cast<const qt::chat_composer*>(aSend.parentWidget());
+		const auto*       stop     = composer != nullptr ? composer->findChild<QPushButton*>(aStop) : nullptr;
+		return composer != nullptr && aSend.text() == QStringLiteral("Stop") && stop != nullptr && !stop->isVisibleTo(composer);
 	}
 
 	/// The course: one window of the composed application and what it found.
@@ -788,7 +919,11 @@ namespace {
 			}
 		}
 
-		void judge(const std::string& aState, const int aWidth, const bool aWindowToo)
+		void judge(const std::string& aState, const int aWidth, const bool aWindowToo) { judge_surface(*drawer(), aState, aWidth, aWindowToo); }
+
+		/// Judges \p aSurface, the drawer or a column beside the code, as the
+		/// state shows it at \p aWidth.
+		void judge_surface(QWidget& aSurface, const std::string& aState, const int aWidth, const bool aWindowToo)
 		{
 			// The window a person looks at is the active one: a default
 			// button wears its accent and a selection its strong colour. The
@@ -812,22 +947,25 @@ namespace {
 				settle();
 			}
 			const auto name = QString::fromStdString(aState) + QLatin1Char{ '-' } + QString::number(aWidth);
-			render(*drawer(), name);
+			render(aSurface, name);
 			if (aWindowToo) {
 				render(*Window, name + QStringLiteral("-window"));
 			}
-			const auto where = aState + " at " + std::to_string(aWidth) + " (drawer " + std::to_string(drawer()->width()) + ")";
-			if (const auto panning = pans_sideways(*drawer()); !panning.isEmpty()) {
+			const auto where = aState + " at " + std::to_string(aWidth) + " (" + (&aSurface == drawer() ? "drawer " : "column ") + std::to_string(aSurface.width()) + ")";
+			if (const auto panning = pans_sideways(aSurface); !panning.isEmpty()) {
 				Faults.push_back(where + ": pans sideways: " + panning.join(QStringLiteral("; ")).toStdString());
 			}
-			if (const auto cut = cut_off(*drawer()); !cut.isEmpty()) {
+			if (const auto cut = cut_off(aSurface); !cut.isEmpty()) {
 				Faults.push_back(where + ": cut off: " + cut.join(QStringLiteral("; ")).toStdString());
 			}
-			if (const auto covered = covered_from_above(*drawer(), &EdgesDrawn); !covered.isEmpty()) {
+			if (const auto covered = covered_from_above(aSurface, &EdgesDrawn); !covered.isEmpty()) {
 				Faults.push_back(where + ": covered from above: " + covered.join(QStringLiteral("; ")).toStdString());
 			}
-			if (const auto old = internal_words(*drawer()); !old.isEmpty()) {
+			if (const auto old = internal_words(aSurface); !old.isEmpty()) {
 				Faults.push_back(where + ": internal words: " + old.join(QStringLiteral("; ")).toStdString());
+			}
+			if (const auto header = header_faults(aSurface); !header.isEmpty()) {
+				Faults.push_back(where + ": header: " + header.join(QStringLiteral("; ")).toStdString());
 			}
 		}
 
@@ -856,6 +994,35 @@ namespace {
 			}
 			drag_drawer(280);
 			judge_in_the_narrowest_window(aState);
+		}
+
+		/// A state of the side chat about one review item, the column beside
+		/// the code: the column given each width it can have, its narrowest
+		/// first, then the window as narrow as it goes.
+		void sweep_item_chat(const std::string& aState)
+		{
+			States.push_back(aState);
+			auto* const chat = Window->item_side_chat();
+			expect(chat != nullptr && chat->isVisible(), aState + ": the item's chat is open beside the code");
+			auto judged = std::vector<int>{ };
+			for (const auto width : { qt::item_side_chat::minimum_column_width, 280, 300, 340, 420 }) {
+				chat->resize_to(width);
+				settle();
+				const auto got = chat->width();
+				if (std::ranges::find(judged, got) != judged.end()) {
+					continue;
+				}
+				judged.push_back(got);
+				judge_surface(*chat, aState, got, judged.size() == 1U);
+			}
+			chat->reset_width();
+			settle();
+			const auto size = Window->size();
+			Window->resize(std::max(Window->minimumWidth(), Window->minimumSizeHint().width()), size.height());
+			settle();
+			judge_surface(*chat, aState + "-narrowest-window", chat->width(), true);
+			Window->resize(size);
+			settle();
 		}
 
 		/// A state of the Tour tab's chat column: the drawer as narrow as it
@@ -1190,6 +1357,27 @@ auto main(int argc, char** argv) -> int
 			run.sweep_drawer("agent-finding-card-dismissed");
 			run.Shown = nullptr;
 			leave_no_keyboard_behind();
+			// RFC-BPR-0130. The side chat about one item, beside the code: a
+			// finding's Ask follow-up opens it. It wears the one header (the
+			// kind of item and its place, Show, Copy conversation, close) and
+			// keeps no sessions, so it has no History.
+			auto* const follow = tab->turn_cards(turn).front()->findChild<QPushButton*>(QStringLiteral("agentFindingFollowUp"));
+			expect(follow != nullptr && follow->isEnabled(), "the first finding offers Ask follow-up");
+			follow->click();
+			auto* const item = window->item_side_chat();
+			wait([&] { return item != nullptr && item->isVisible(); }, "the finding's side chat opens beside the code");
+			const auto answers = item->answers().size();
+			item->composer()->setPlainText(QStringLiteral("Is this worth a comment on the pull request?"));
+			item->send_button()->click();
+			wait([&] { return item->answers().size() > answers && !item->running(); }, "the finding's side chat is answered");
+			const auto* const history = item->findChild<QToolButton*>(QStringLiteral("itemSideChatHistory"));
+			expect(item->copy_chat_button()->isVisibleTo(item) && (history == nullptr || !history->isVisibleTo(item)) && item->close_button()->isVisibleTo(item),
+				   "the item's chat has Copy conversation and close in its header, and no History");
+			leave_no_keyboard_behind();
+			run.sweep_item_chat("item-chat-answered");
+			item->close_button()->click();
+			wait([&] { return !item->isVisible(); }, "the item's chat closes from its header");
+			leave_no_keyboard_behind();
 		}
 		ask(QStringLiteral("Take your time and read the renderer."));
 		wait([&] { return tab->state() == qt::agent_tab_state::working; }, "the slow turn runs");
@@ -1198,9 +1386,17 @@ auto main(int argc, char** argv) -> int
 		press_return(*window->side_chat()->composer(), QStringLiteral("And is src/engine/shaders/post/a-rather-long-directory-name/bloom.frag still read?"));
 		wait([&] { return tab->queue_list()->isVisible(); }, "two follow-ups wait in the Agent tab's pending list");
 		window->side_chat()->composer()->setPlainText(QStringLiteral("One more, typed while it runs"));
+		settle();
+		// RFC-BPR-0130 stage 2 (AC05): the one rule. Words typed while the
+		// turn runs would follow it, so Send queues or steers and Stop stands
+		// beside it; with the field empty, Send is Stop.
+		expect(composes_the_one_way(*tab->ask_button(), QStringLiteral("agentStop")), "the Agent tab's Send queues or steers words typed while its turn runs, with Stop beside it");
 		run.sweep_drawer("agent-queue");
 		expect(tab->state() == qt::agent_tab_state::working, "the slow turn still ran while the drawer was dragged");
 		window->side_chat()->composer()->clear();
+		settle();
+		expect(!tab->queue_list()->isVisible() || tab->state() != qt::agent_tab_state::working || stops_in_place(*tab->ask_button(), QStringLiteral("agentStop")),
+			   "with nothing typed while the turn runs, the Agent tab's Send is Stop");
 		wait([&] { return quiet() && !tab->queue_list()->isVisible(); }, "the queued follow-ups go and are answered");
 		// A run that stops for a reason of its own: the agent's process ends
 		// before it answers. Its report stands on the question field, under
@@ -1273,6 +1469,8 @@ auto main(int argc, char** argv) -> int
 		press_return(*chat->composer(), QStringLiteral("Third: anything else?"));
 		wait([&] { return chat->pending_list()->isVisible(); }, "two follow-ups wait in the stop's pending list");
 		chat->composer()->setPlainText(QStringLiteral("Fourth, typed while it runs"));
+		settle();
+		expect(composes_the_one_way(*chat->send_button(), QStringLiteral("tourSideChatStop")), "the tour chat's Send queues or steers words typed while its turn runs, with Stop beside it");
 		run.sweep_chat("tour-stop-chat-queue");
 		expect(tour_running(*panel), "the stop's slow turn still ran while the column was dragged");
 		chat->composer()->clear();
@@ -1541,6 +1739,7 @@ auto main(int argc, char** argv) -> int
 													   "agent-report",
 													   "agent-finding-cards-open",
 													   "agent-finding-card-dismissed",
+													   "item-chat-answered",
 													   "agent-queue",
 													   "agent-stopped",
 													   "agent-stopped-log",

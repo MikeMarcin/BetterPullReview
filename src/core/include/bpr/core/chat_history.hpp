@@ -54,8 +54,8 @@ namespace bpr::core {
 		delete_all,
 		/// Chats about the tour's other parts, to read.
 		other_chats,
-		/// The whole conversation as text, where the chat's header has no
-		/// Copy of its own (the tour's side chat).
+		/// The whole conversation as text, in a chat whose header has no Copy
+		/// of its own: one that keeps sessions (`core::plan_chat_header`).
 		copy_conversation,
 		/// Every run of the pull request's agents, in place of the chat.
 		show_every_run,
@@ -125,17 +125,6 @@ namespace bpr::core {
 
 	/// \brief The History menu for what the chat observed.
 	[[nodiscard]] auto plan_chat_history(const chat_history_facts& aFacts) -> chat_history_plan;
-
-	/// \brief The one tool a chat's header shows for its conversation: History
-	/// where the chat keeps sessions, Copy conversation where it keeps none.
-	enum class chat_header_tool : std::uint8_t {
-		history,
-		copy_conversation,
-	};
-	[[nodiscard]] constexpr auto chat_header_tool_for(const bool aKeepsSessions) noexcept -> chat_header_tool
-	{
-		return aKeepsSessions ? chat_header_tool::history : chat_header_tool::copy_conversation;
-	}
 }
 
 #endif
