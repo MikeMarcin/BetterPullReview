@@ -33,6 +33,7 @@
 #include "bpr/qt/chat_composer.hpp"
 #include "bpr/qt/chat_header_view.hpp"
 #include "bpr/qt/chat_history_menu.hpp"
+#include "bpr/qt/chat_notice_view.hpp"
 #include "bpr/qt/chat_transcript_view.hpp"
 #include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -901,6 +902,7 @@ namespace bpr::qt {
 		chat_header_view*                            Header = nullptr;
 		application::native_agent_history_projection NativeHistoryView;
 		QLabel*                                      SessionNotice     = nullptr;
+		chat_notice_view*                            SessionLine       = nullptr;
 		QLabel*                                      ConversationMoved = nullptr;
 		/// Paints each glyph again in the current palette's ink.
 		void repaint_glyphs();
@@ -1008,8 +1010,6 @@ namespace bpr::qt {
 		/// \brief Stands the state card on the question field (true) or at
 		/// the head of the thread.
 		void dock_banner(bool aDocked);
-		/// \brief The title of the card of a session that read \p aRead.
-		[[nodiscard]] static auto pinned_card_title(const QString& aRead) -> QString;
 
 		/// RFC-BPR-0130 stage 5 (AC07). What the window last handed the tab,
 		/// and where its gestures go.
@@ -1036,7 +1036,7 @@ namespace bpr::qt {
 		drawer_empty_state*   Empty        = nullptr;
 		QWidget*              Conversation = nullptr;
 		QWidget*              HistoryPage  = nullptr;
-		QWidget*              Banner       = nullptr;
+		chat_notice_view*     Banner       = nullptr;
 		QLabel*               BannerTitle  = nullptr;
 		QLabel*               BannerText   = nullptr;
 		quiet_push_button*    BannerFirst  = nullptr;
@@ -1068,7 +1068,7 @@ namespace bpr::qt {
 		QHBoxLayout* PickerRow = nullptr;
 		QLabel*      Notice    = nullptr;
 		/// [[BPR-1817]]. The refusal beside the composer.
-		QWidget*                 Refusal      = nullptr;
+		chat_notice_view*        Refusal      = nullptr;
 		QLabel*                  RefusalText  = nullptr;
 		core::agent_send_refusal ShownRefusal = core::agent_send_refusal::none;
 		std::uint64_t            RefusalsSeen = 0U;
@@ -1294,6 +1294,8 @@ namespace bpr::qt {
 		/// Takes one pinned conversation choice: Continue resends the kept
 		/// message; New session keeps it for the session the host opens.
 		void choose_pinned(core::agent_continuation aChoice);
+		/// RFC-BPR-0130 stage 6. A choice pressed on the state's card.
+		void choose_on_banner(core::chat_notice_action aAction);
 		void choose_reconcile(core::conversation_reconcile aChoice);
 		/// What the stopped card's New session keeps while the host opens the
 		/// new session: the refused turn's message, or that it was a review.

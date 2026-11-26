@@ -87,10 +87,9 @@ namespace bpr::core {
 		/// The open session continues from a saved transcript.
 		bool CarriedOver = false;
 		/// The open session is pinned to a revision other than the one under
-		/// review: the Agent tab's pinned-revision card asks which to go on
-		/// with, or the tour's side chat says the head changed (and goes on
-		/// saying which revision it reads once Continue old revision is
-		/// chosen).
+		/// review: the pinned-revision card asks which to go on with, in the
+		/// Agent tab and the tour's side chat alike, and History's last line
+		/// names the revision once Continue is chosen.
 		bool Pinned = false;
 		/// Chats about other parts of the tour.
 		std::size_t OtherChats = 0U;

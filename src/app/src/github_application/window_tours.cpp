@@ -1280,7 +1280,7 @@ namespace bpr::app {
 		const auto session        = TourNativeSessions.find(key);
 		const auto observed       = tour_observed_binding();
 		if (conversational && !continued && session != TourNativeSessions.end() && observed && core::offer_agent_continuations(session->second, *observed).Required) {
-			Window->tour_editor()->show_writing_notice(QStringLiteral("This chat reads an earlier revision. Choose New session or Continue old revision before asking."));
+			Window->tour_editor()->show_writing_notice(QStringLiteral("This chat reads an earlier revision. Choose Continue or New session on its card before asking."));
 			present_tour_continuation();
 			return false;
 		}

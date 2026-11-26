@@ -18,6 +18,7 @@
 #include "bpr/qt/chat_composer.hpp"
 #include "bpr/qt/chat_header_view.hpp"
 #include "bpr/qt/chat_history_menu.hpp"
+#include "bpr/qt/chat_notice_view.hpp"
 #include "bpr/qt/chat_transcript_view.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
@@ -336,6 +337,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1995]]. The notice above the composer: shown only for a
 		/// transcript replay, native continuation unavailable or a moved head.
 		[[nodiscard]] auto notice() const noexcept -> QWidget* { return Notice; }
+		/// \brief RFC-BPR-0130 stage 6. The pinned-revision card over the
+		/// question field: Continue at the revision read, and New session.
+		[[nodiscard]] auto head_moved_card() const noexcept -> chat_notice_view* { return HeadMovedCard; }
 		[[nodiscard]] auto composer_box() const noexcept -> QWidget* { return Field; }
 
 		/// \brief [[BPR-1925]]. Whether the column is open (it shows while the
@@ -444,11 +448,15 @@ namespace bpr::qt {
 		std::string                                   OpenSessionName;
 		std::string                                   OpenSessionRevision;
 		std::function<void(const core::tour_thread&)> ContinuationDispatch;
-		QToolButton*                                  ContinueOld            = nullptr;
-		QLabel*                                       RevisionStatus         = nullptr;
-		bool                                          RevisionChoiceRequired = false;
+		/// RFC-BPR-0130 stage 6. The pinned-revision card, the Agent tab's,
+		/// while the open session reads a revision the pull request moved
+		/// on from and no choice was made; the revision it reads, in full.
+		chat_notice_view* HeadMovedCard = nullptr;
+		std::string       RevisionRead;
+		void              present_head_moved_card();
+		bool              RevisionChoiceRequired = false;
 		/// The open session reads a revision other than the one under review,
-		/// whether or not Continue old revision was chosen: History's New
+		/// whether or not Continue was chosen on its card: History's New
 		/// session opens one at the head under review, so core offers it even
 		/// in a chat nothing was asked in.
 		bool RevisionStale = false;
@@ -539,6 +547,7 @@ namespace bpr::qt {
 		bool                                                                        Ready         = true;
 		bool                                                                        HostIdle      = true;
 		QLabel*                                                                     SessionNotice = nullptr;
+		chat_notice_view*                                                           SessionLine   = nullptr;
 		QString                                                                     Why;
 		std::size_t                                                                 Shown = 0U;
 		QFont                                                                       CodeFont;

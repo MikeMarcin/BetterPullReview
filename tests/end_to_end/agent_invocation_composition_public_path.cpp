@@ -2141,7 +2141,7 @@ auto main(int argc, char** argv) -> int
 					return fail(*application, "tour-native-head-moved");
 				}
 				QMetaObject::invokeMethod(chat->history_button()->menu(), "aboutToShow");
-				if (!wait_until([&] { const auto* action = chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision")); return action && action->isVisible() && action->isEnabled() && !chat->history_button()->property("loading").toBool(); })) {
+				if (!wait_until([&] { const auto* action = chat->head_moved_card()->button_for(core::chat_notice_action::continue_at); return action && action->isVisible() && action->isEnabled() && !chat->history_button()->property("loading").toBool(); })) {
 					return fail(*application, "tour-old-revision-action");
 				}
 				const auto beforeChoice = app::detail::github_application_fixture_access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
@@ -2151,7 +2151,7 @@ auto main(int argc, char** argv) -> int
 				if (chat->send_button()->isEnabled()) {
 					return fail(*application, "tour-stale-send-needs-choice");
 				}
-				chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision"))->click();
+				chat->head_moved_card()->button_for(core::chat_notice_action::continue_at)->click();
 				if (!chat->send_button()->isEnabled() || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations != beforeChoice) {
 					return fail(*application, "tour-old-choice-no-inference");
 				}
@@ -2181,7 +2181,7 @@ auto main(int argc, char** argv) -> int
 					return fail(*application, "tour-current-native-distinct-process");
 				}
 				chat->session_rows().open(oldId.toStdString());
-				if (!wait_until([&] { const auto* action = chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision")); return action && action->isVisible() && !chat->history_button()->property("loading").toBool(); }) || chat->send_button()->isEnabled()) {
+				if (!wait_until([&] { const auto* action = chat->head_moved_card()->button_for(core::chat_notice_action::continue_at); return action && action->isVisible() && !chat->history_button()->property("loading").toBool(); }) || chat->send_button()->isEnabled()) {
 					return fail(*application, "tour-history-rechecks-old-choice");
 				}
 			}

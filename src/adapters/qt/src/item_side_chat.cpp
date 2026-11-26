@@ -341,10 +341,11 @@ namespace bpr::qt {
 
 		// Under the transcript: a notice only when there is something to say,
 		// the composer with the item as its chip, then the apply action.
-		Status = quiet(small(words({ }, this)));
-		Status->setObjectName(QStringLiteral("itemSideChatStatus"));
-		Status->hide();
-		column->addWidget(Status);
+		// RFC-BPR-0130 stage 6: the one notice every chat draws, as its line.
+		StatusLine = new chat_notice_view{ core::chat_notice_form::line, { .Notice = QStringLiteral("itemSideChatStatusLine"), .Words = QStringLiteral("itemSideChatStatus") }, this };
+		Status     = StatusLine->words_label();
+		Status->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		column->addWidget(StatusLine);
 		// [[BPR-2337]] (owner, attended review b64bbc23: "The send button on
 		// both the side chats (report and tour) should be positioned more
 		// like the agent tab"): the Agent tab's composer, its insets, its
@@ -585,8 +586,7 @@ namespace bpr::qt {
 
 	void item_side_chat::show_status(const QString& aText)
 	{
-		Status->setText(aText);
-		Status->setVisible(!aText.isEmpty());
+		StatusLine->present(core::plan_said_notice(aText.toStdString()));
 		if (!aText.isEmpty() && isVisible()) {
 			auto event = QAccessibleAnnouncementEvent{ Status, aText };
 			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);

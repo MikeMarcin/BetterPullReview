@@ -638,44 +638,27 @@ namespace bpr::qt {
 		// of a run that stopped, stand on the question field instead
 		// (`dock_banner`).
 		BannerThread = lead;
-		Banner       = new rounded{ rounded::look::callout, content };
-		Banner->setObjectName(QStringLiteral("agentStateBanner"));
-		auto* const bannerCol = new QVBoxLayout{ Banner };
-		// Its words start where the question field's do. The trailing inset
-		// is narrower, so that the two choices fit a 280 px drawer whole
-		// whatever seven characters name the revision.
-		bannerCol->setContentsMargins(12, 10, 8, 10);
-		bannerCol->setSpacing(4);
-		BannerTitle = new QLabel{ Banner };
-		BannerTitle->setObjectName(QStringLiteral("agentStateTitle"));
+		// RFC-BPR-0130 stage 6: the one notice card every chat draws.
+		Banner        = new chat_notice_view{ core::chat_notice_form::card,
+											  { .Notice  = QStringLiteral("agentStateBanner"),
+												.Title   = QStringLiteral("agentStateTitle"),
+												.Words   = QStringLiteral("agentStateText"),
+												.Dismiss = QStringLiteral("agentStateDismiss"),
+												.First   = QStringLiteral("agentStateFirst"),
+												.Second  = QStringLiteral("agentStateSecond") },
+											  content };
+		BannerTitle   = Banner->title_label();
+		BannerText    = Banner->words_label();
+		BannerDismiss = Banner->dismiss_button();
+		BannerFirst   = Banner->choice_button(0U);
+		BannerSecond  = Banner->choice_button(1U);
+		Banner->set_dispatch({ .Chose = [this](const core::chat_notice_action aAction) { choose_on_banner(aAction); },
+							   .Dismissed =
+								   [this] {
+									   StoppedDismissed = true;
+									   present_banner();
+								   } });
 		auto bold = BannerTitle->font();
-		bold.setWeight(QFont::DemiBold);
-		BannerTitle->setFont(bold);
-		BannerTitle->setWordWrap(true);
-		// [[BPR-2295]] (owner, 2026-11-19: "The little x in the top right
-		// that the agent is ready box has is good enough"). A stop is
-		// dismissed with the ready box's own close; the kept message stays.
-		auto* const bannerTop = new QHBoxLayout{ };
-		bannerTop->addWidget(BannerTitle, 1);
-		BannerDismiss = new quiet_tool_button{ Banner };
-		BannerDismiss->setObjectName(QStringLiteral("agentStateDismiss"));
-		BannerDismiss->setAutoRaise(true);
-		BannerDismiss->setText(QString{ QChar{ 0x2715 } });
-		BannerDismiss->setAccessibleName(tr("Dismiss"));
-		BannerDismiss->setToolTip(tr("Dismiss"));
-		BannerDismiss->setFocusPolicy(Qt::StrongFocus);
-		BannerDismiss->hide();
-		connect(BannerDismiss, &QToolButton::clicked, this, [this] {
-			StoppedDismissed = true;
-			present_banner();
-		});
-		bannerTop->addWidget(BannerDismiss, 0, Qt::AlignTop);
-		bannerCol->addLayout(bannerTop);
-		BannerText = new QLabel{ Banner };
-		BannerText->setObjectName(QStringLiteral("agentStateText"));
-		BannerText->setWordWrap(true);
-		BannerText->setForegroundRole(QPalette::PlaceholderText);
-		bannerCol->addWidget(BannerText);
 		// RFC-BPR-0096, owner continue-at-latest amendment: "a few
 		// non-agentic options and then a system prompt to just fix it". The
 		// reconcile choices wrap on their own row, so the card never pans.
@@ -701,29 +684,7 @@ namespace bpr::qt {
 		connect(BannerSave, &QPushButton::clicked, this, [this] { choose_reconcile(core::conversation_reconcile::save_and_move); });
 		connect(BannerAsk, &QPushButton::clicked, this, [this] { choose_reconcile(core::conversation_reconcile::ask_agent); });
 		BannerReconcile->hide();
-		bannerCol->addWidget(BannerReconcile);
-		// The card's own two choices stay on one line at every drawer width
-		// (owner, attended review 2026-11-25: "surely we can find a way to fit
-		// both options on one line at the narrowest drawer"). Both are chips,
-		// which keep six pixels round their words where the platform's push
-		// button keeps a bezel; the row never wraps, and where a typeface is
-		// too wide for both the first draws its shorter words
-		// (`set_short_text`) instead of being cut.
-		auto* const bannerRow = new QHBoxLayout{ };
-		bannerRow->setContentsMargins(0, 2, 0, 0);
-		bannerRow->setSpacing(6);
-		BannerFirst = new quiet_push_button{ Banner };
-		BannerFirst->setObjectName(QStringLiteral("agentStateFirst"));
-		BannerSecond = new quiet_push_button{ Banner };
-		BannerSecond->setObjectName(QStringLiteral("agentStateSecond"));
-		for (auto* const choice : { BannerFirst, BannerSecond }) {
-			// A chip paints its whole rect: laid out by a bezel it does not
-			// have, it is drawn over its neighbour under the macOS style.
-			choice->setAttribute(Qt::WA_LayoutUsesWidgetRect);
-			bannerRow->addWidget(choice);
-		}
-		bannerRow->addStretch(1);
-		bannerCol->addLayout(bannerRow);
+		Banner->add_above_choices(BannerReconcile);
 		// What the stopped run wrote. It can be twenty lines of the agent's
 		// errors, and the card stands on the question field: the log is as
 		// tall as its lines up to `stopped_log_lines` and scrolls inside the
@@ -747,7 +708,7 @@ namespace bpr::qt {
 		Log->installEventFilter(this);
 		logCol->addWidget(Log);
 		LogBox->hide();
-		bannerCol->addWidget(LogBox);
+		Banner->add_below_choices(LogBox);
 		lead->addWidget(Banner);
 		// [[BPR-1753]]. The ready line once setup finishes, and what
 		// the agent gets with each question.
@@ -1066,34 +1027,20 @@ namespace bpr::qt {
 		// [[BPR-1817]]. Why the last send produced no turn, said directly
 		// above the field it came from, in the danger look the stopped
 		// banner uses, until the reviewer sends again or closes it.
-		auto* const refusal = new rounded{ rounded::look::danger, ask };
-		Refusal             = refusal;
-		refusal->setObjectName(QStringLiteral("agentSendRefusal"));
-		auto* const refusalRow = new QHBoxLayout{ refusal };
-		refusalRow->setContentsMargins(10, 6, 2, 6);
-		refusalRow->setSpacing(4);
-		RefusalText = new QLabel{ refusal };
-		RefusalText->setObjectName(QStringLiteral("agentSendRefusalText"));
-		RefusalText->setTextFormat(Qt::PlainText);
-		RefusalText->setWordWrap(true);
-		RefusalText->setTextInteractionFlags(Qt::TextSelectableByMouse);
-		refusalRow->addWidget(RefusalText, 1);
-		auto* const refusalClose = make_drawer_tool(refusal, drawer_icon(drawer_glyph::close, palette()), tr("Dismiss"), QStringLiteral("agentSendRefusalClose"));
-		connect(refusalClose, &QToolButton::clicked, this, [this] { hide_send_refusal(); });
-		refusalRow->addWidget(refusalClose, 0, Qt::AlignTop);
-		refusal->hide();
+		Refusal     = new chat_notice_view{ core::chat_notice_form::strip,
+											{ .Notice = QStringLiteral("agentSendRefusal"), .Words = QStringLiteral("agentSendRefusalText"), .Dismiss = QStringLiteral("agentSendRefusalClose") },
+											ask };
+		RefusalText = Refusal->words_label();
+		Refusal->set_dispatch({ .Dismissed = [this] { hide_send_refusal(); } });
 		// The session's notices, as the tour's chat places its own: under the
 		// transcript and over the field, said only when there is something to
 		// say, in the quiet ink. RFC-BPR-0130: "That a conversation was
 		// carried over, or cannot be continued by the chosen agent: a
 		// notice, only then." The card that asks which revision to go on
 		// with stands under them, on the field (`dock_banner`).
-		SessionNotice = side_chat::quiet(side_chat::small(new QLabel{ ask }));
-		SessionNotice->setObjectName(QStringLiteral("agentSessionNotice"));
-		SessionNotice->setWordWrap(true);
-		SessionNotice->setTextFormat(Qt::PlainText);
-		SessionNotice->hide();
-		askCol->addWidget(SessionNotice);
+		SessionLine   = new chat_notice_view{ core::chat_notice_form::line, { .Notice = QStringLiteral("agentSessionNoticeLine"), .Words = QStringLiteral("agentSessionNotice") }, ask };
+		SessionNotice = SessionLine->words_label();
+		askCol->addWidget(SessionLine);
 		// RFC-BPR-0096, owner continue-at-latest amendment (owner, 2026-11-24:
 		// "a session in the same PR? yes single checkout"). A conversation
 		// whose shared checkout another one's turn moved says so when opened;
@@ -1104,7 +1051,7 @@ namespace bpr::qt {
 		ConversationMoved->setTextFormat(Qt::PlainText);
 		ConversationMoved->hide();
 		askCol->addWidget(ConversationMoved);
-		askCol->addWidget(refusal);
+		askCol->addWidget(Refusal);
 		askCol->addWidget(field);
 		// [[BPR-2002]]. What is true about what the agent reads, said once:
 		// [[BPR-2038]], owner look on RFC-BPR-0101 AC08 ("this agent can read
@@ -2600,11 +2547,7 @@ namespace bpr::qt {
 		// RFC-BPR-0130's accepted words, naming the agent the tab asks now. A
 		// session that goes on in the ordinary way says nothing, and the line
 		// is then empty as well as hidden.
-		const auto& view  = NativeHistoryView;
-		const auto  words = view.Replay ? chat_history_menu::carried_over_words(agent_name()) : view.NativeSupported ? QString{ }
-																													 : chat_history_menu::cannot_continue_words(agent_name());
-		SessionNotice->setText(words);
-		SessionNotice->setVisible(!words.isEmpty());
+		const auto& view = NativeHistoryView;
 		// [[BPR-2059]], owner 2026-11-10: a carried-over conversation's counts
 		// are a diagnostic, not words for the reviewer. They stay on the line
 		// for diagnostics and tests, and its tooltip says what was left out
@@ -2615,7 +2558,7 @@ namespace bpr::qt {
 		if (view.Replay && !view.ReplaySource.empty()) {
 			tip += tr(" Source history: %1").arg(QString::fromStdString(view.ReplaySource));
 		}
-		SessionNotice->setToolTip(tip);
+		SessionLine->present(core::plan_session_notice(core::chat_continuation_of(view.Replay, view.NativeSupported), agent_name().toStdString(), tip.toStdString()));
 	}
 
 	void agent_tab_view::present_native_history(const application::native_agent_history_projection& aView)
@@ -3897,48 +3840,27 @@ namespace bpr::qt {
 		if (!alive()) {
 			return;
 		}
-		auto* const callout = static_cast<rounded*>(Banner);
-		callout->Look       = State == agent_tab_state::stopped ? rounded::look::danger : rounded::look::callout;
-		auto docked         = false;
-		BannerFirst->disconnect();
-		BannerSecond->disconnect();
-		for (auto* const choice : { BannerFirst, BannerSecond }) {
-			choice->setToolTip({ });
-			choice->set_short_text({ });
-			choice->setEnabled(true);
-			choice->show();
-		}
-		// An action beside the first stays bare at rest; one of two choices
-		// is a chip like the other.
-		BannerSecond->setFlat(true);
 		BannerReconcile->hide();
-		BannerDismiss->setVisible(State == agent_tab_state::stopped);
 		// Only the report of a run that stopped for a reason of its own shows
 		// what the run wrote.
 		auto logShown = false;
+		auto docked   = false;
+		auto notice   = core::chat_notice{ };
 		switch (State) {
 		case agent_tab_state::not_set_up:
-		case agent_tab_state::setting_up:
-			Banner->hide();
-			return;
-		case agent_tab_state::idle: {
+		case agent_tab_state::setting_up: Banner->hide(); return;
+		case agent_tab_state::idle:       {
 			if (!Finished || !Turns.empty()) {
 				Banner->hide();
 				return;
 			}
-			callout->Look    = rounded::look::ready;
+			// The tab's own report of its run, in its own words.
 			const auto count = (FindingsShown ? FindingsShown->Findings.size() : 0U);
-			BannerTitle->setText(tr("%1 finished").arg(Run.Agent));
-			BannerText->setText(count > 0U                                       ? (count == 1U ? tr("1 finding below. Draft a comment from it, or ask a follow-up.") : tr("%1 findings below. Draft a comment from one, or ask a follow-up.").arg(count))
-									: (ChatShown && !ChatShown->Replies.empty()) ? tr("Its answer is below. Ask a follow-up in the question field.")
-																				 : tr("It found nothing to report. Ask a question below."));
-			BannerFirst->hide();
-			BannerSecond->hide();
-			LogBox->hide();
-			dock_banner(false);
-			Banner->show();
-			Banner->update();
-			return;
+			const auto words = count > 0U                    ? (count == 1U ? tr("1 finding below. Draft a comment from it, or ask a follow-up.") : tr("%1 findings below. Draft a comment from one, or ask a follow-up.").arg(count))
+				: (ChatShown && !ChatShown->Replies.empty()) ? tr("Its answer is below. Ask a follow-up in the question field.")
+															 : tr("It found nothing to report. Ask a question below.");
+			notice           = { .Form = core::chat_notice_form::card, .Tone = core::chat_notice_tone::ready, .Title = tr("%1 finished").arg(Run.Agent).toStdString(), .Words = words.toStdString() };
+			break;
 		}
 		case agent_tab_state::working: {
 			// Owner look v003: the turn's own quiet line says it works, and
@@ -3947,7 +3869,6 @@ namespace bpr::qt {
 				Banner->hide();
 				return;
 			}
-			BannerTitle->setText(tr("%1 is working").arg(Run.Agent));
 			const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
 			const auto elapsed = agent_elapsed_words(seconds);
 			auto       line    = Run.Phase == agent_tab_run_phase::running
@@ -3957,59 +3878,34 @@ namespace bpr::qt {
 			if (!latest.isEmpty()) {
 				line += QStringLiteral("\n") + tr("Latest: %1").arg(latest.left(160));
 			}
-			BannerText->setText(line);
-			BannerFirst->setText(tr("Stop"));
-			wear_ordinary_roles(*BannerFirst);
-			BannerFirst->show();
-			connect(BannerFirst, &QPushButton::clicked, this, [this] { stop_run(); });
-			BannerSecond->hide();
+			notice = {
+				.Form    = core::chat_notice_form::card,
+				.Tone    = core::chat_notice_tone::callout,
+				.Title   = tr("%1 is working").arg(Run.Agent).toStdString(),
+				.Words   = line.toStdString(),
+				.Choices = { { .Action = core::chat_notice_action::stop, .Words = tr("Stop").toStdString() } },
+			};
 			break;
 		}
 		case agent_tab_state::head_moved: {
-			const auto read = read_revision();
-			docked          = true;
-			BannerTitle->setText(pinned_card_title(read));
-			BannerText->setText(tr("The pull request has moved on. Its findings stay at that head."));
-			// RFC-BPR-0130's words for the card, the same after a refused
-			// question and in the same order: the revision by its seven
-			// characters first, then History's own name for a new session.
-			BannerFirst->setText(read.isEmpty() ? tr("Continue at its head") : tr("Continue at %1").arg(read));
-			BannerFirst->set_short_text(tr("Continue"));
-			BannerFirst->setToolTip(read.isEmpty() ? tr("Keep this conversation and ask about the revision it read") : tr("Keep this conversation and ask about %1, the revision it read").arg(read));
-			// Neither choice starts a run here; a refused question's card
-			// before this one left them in the agent accent.
-			wear_ordinary_roles(*BannerFirst);
-			connect(BannerFirst, &QPushButton::clicked, this, [this] { choose_continuation(core::agent_continuation::continue_against_old_revision); });
-			// Owner, 2026-11-24, of a new session that left the old transcript,
-			// title and History tick in place: "you click it and it does
-			// nothing which feels broken". The card's New session is
-			// History's New session, under core's one rule for it: offered
-			// while it can be chosen, greyed with core's reason while not. The
-			// host opens the empty session at the head under review at once.
+			docked = true;
+			// RFC-BPR-0130 stage 6: the pinned-revision card every chat
+			// draws, in core's words. Owner, 2026-11-24, of a new session
+			// that left the old transcript, title and History tick in place:
+			// "you click it and it does nothing which feels broken". The
+			// card's New session is History's, under core's one rule for it:
+			// offered while it can be chosen, greyed with core's reason while
+			// not. The host opens the empty session at the head under review
+			// at once.
 			HistoryItems->refresh();
-			const auto refused = HistoryItems->new_session_reason();
-			BannerSecond->setText(tr("New session"));
-			BannerSecond->setFlat(false);
-			BannerSecond->setEnabled(HistoryItems->new_session_action()->isEnabled());
-			BannerSecond->setToolTip(refused.isEmpty() ? tr("Keep this conversation in History and start an empty one at the current head. Nothing is sent until you ask.") : refused);
-			wear_ordinary_roles(*BannerSecond);
-			connect(BannerSecond, &QPushButton::clicked, this, [this] { choose_continuation(core::agent_continuation::start_new_session); });
+			notice = core::plan_moved_head_notice({
+				.Read              = read_revision().toStdString(),
+				.NewSessionRefused = HistoryItems->new_session_reason().toStdString(),
+				.KeepsFindings     = true,
+			});
 			break;
 		}
 		case agent_tab_state::stopped: {
-			BannerTitle->setText(tr("%1 stopped before answering").arg(Run.Agent));
-			// [[BPR-1738]]. A stop with a reason says it and what to do;
-			// the log keeps the raw text.
-			// [[BPR-1817]]. Said in words, never as the outcome's stable name.
-			// The card stands on the question field, directly under the
-			// stopped turn, which is the thread's last and says why: the card
-			// says the reason only when no turn does, as the card of a
-			// refused question does, so it is not read twice a hand's width
-			// apart.
-			const auto reason     = Run.StopReason.isEmpty() ? run_failure_words(Run.Outcome.value_or(application::agent_run_outcome::failed_to_start), Run.Agent)
-															 : Run.StopReason;
-			const auto saidByTurn = !Turns.empty() && Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered;
-			BannerText->setText(saidByTurn ? tr("Your message is kept.") : tr("%1 Your message is kept.").arg(reason));
 			// [[BPR-1876]]. The latest turn says its cause is fixed since:
 			// a banner still saying it stopped would read as how things stand.
 			// [[BPR-1876]]. Nor once the stopped run's turn is deleted.
@@ -4017,42 +3913,32 @@ namespace bpr::qt {
 				Banner->hide();
 				return;
 			}
-			// [[BPR-1876]], superseding [[BPR-1753]]'s Check again here: an
-			// Ask that ended for a setup reason is resent too, and the new run
-			// starts the agent and makes its workspace, which is the check. A
-			// Check again that re-ran only the setup check left this banner
-			// up, and the owner read it as the check failing.
+			// [[BPR-1738]], [[BPR-1817]]. A stop with a reason says it and
+			// what to do, in words; the log keeps the raw text. The card
+			// stands on the question field, directly under the stopped turn,
+			// which is the thread's last and says why: the card says the
+			// reason only when no turn does, so it is not read twice a hand's
+			// width apart.
+			const auto reason     = Run.StopReason.isEmpty() ? run_failure_words(Run.Outcome.value_or(application::agent_run_outcome::failed_to_start), Run.Agent)
+															 : Run.StopReason;
+			const auto saidByTurn = !Turns.empty() && Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered;
+			// Owner, 2026-11-25, of the card that asks which revision to go
+			// on with: "it being at the top of the transcript is weird since
+			// we auto scroll to the bottom." The same holds for a run that
+			// stopped: it stands on the question field, with its log bounded
+			// so that the field and its choices stay in view.
+			docked = true;
 			// Owner, 2026-11-24: "There doesn't appear to be an option
 			// anywhere to continue like it suggests". A conversation pinned
 			// to another revision offers, here, exactly the ways back the
 			// core decided and its reason names; each resends the message.
 			if (const auto& pinned = Run.Pinned; pinned && pinned->Pinned && PinnedDispatch) {
-				const auto shortHead = QString::fromUtf8(core::canonical_hex(pinned->PinnedHead).view().substr(0U, 7U));
-				// The same card as before a question, in the same place and
-				// with the same two choices in the same order. The refused
-				// turn, the thread's last and just above the card, says why
-				// in the core's words: the card says them only when no turn
-				// does, so the reason is not read twice a hand's width apart.
-				docked = true;
-				BannerTitle->setText(pinned_card_title(shortHead));
-				BannerText->setText(saidByTurn ? tr("Your message is kept and is sent when you choose.") : tr("%1 Your message is kept and is sent when you choose.").arg(Run.StopReason));
-				auto* const next = pinned->ContinueOffered ? BannerSecond : BannerFirst;
-				if (pinned->ContinueOffered) {
-					BannerFirst->setText(tr("Continue at %1").arg(shortHead));
-					BannerFirst->set_short_text(tr("Continue"));
-					BannerFirst->setToolTip(tr("Keep this conversation and ask about %1, the revision it read").arg(shortHead));
-					// [[BPR-2000]]. Each choice starts a run.
-					wear_agent_accent(*BannerFirst, palette());
-					connect(BannerFirst, &QPushButton::clicked, this, [this] { choose_pinned(core::agent_continuation::continue_against_old_revision); });
-				}
-				next->setText(tr("New session"));
-				next->setFlat(false);
-				next->setToolTip(tr("Keep this conversation in History, start an empty one at the current head and send your message there"));
-				wear_agent_accent(*next, palette());
-				connect(next, &QPushButton::clicked, this, [this] { choose_pinned(core::agent_continuation::start_new_session); });
-				if (!pinned->ContinueOffered) {
-					BannerSecond->hide();
-				}
+				notice = core::plan_moved_head_notice({
+					.Read            = std::string{ core::canonical_hex(pinned->PinnedHead).view() },
+					.Asked           = true,
+					.Reason          = saidByTurn ? std::string{ } : Run.StopReason.toStdString(),
+					.ContinueOffered = pinned->ContinueOffered,
+				});
 				// RFC-BPR-0096, owner continue-at-latest amendment. Work in
 				// the way of the move: the ways to carry it come first.
 				if (const auto& move = Run.MoveRefusal; move && ReconcileDispatch && (move->RebaseOffered || move->SaveAndMoveOffered || move->AskAgentOffered)) {
@@ -4075,39 +3961,15 @@ namespace bpr::qt {
 				}
 				break;
 			}
-			// Owner, 2026-11-25, of the card that asks which revision to go
-			// on with: "it being at the top of the transcript is weird since
-			// we auto scroll to the bottom." The same holds for a run that
-			// stopped: its turn is the thread's last, the thread keeps itself
-			// there, and a report at the thread's head was a screen or more
-			// above it. It stands on the question field, with its log bounded
-			// so that the field and both choices stay in view.
-			docked = true;
-			BannerFirst->setText(tr("Resend"));
-			BannerFirst->setToolTip(tr("Send your message to the agent again"));
-			// [[BPR-2000]]. Resend starts a run.
-			wear_agent_accent(*BannerFirst, palette());
-			// Owner, 2026-11-24. Resend sends the kept message again, as the
-			// stopped turn's own Resend does; with no such turn it starts
-			// the run the launch gesture would.
-			connect(BannerFirst, &QPushButton::clicked, this, [this] {
-				if (!Turns.empty() && Turns.back().Done && Turns.back().RecoveryKind == core::agent_turn_recovery::resend) {
-					recover(Turns.back());
-				} else {
-					start_review();
-				}
-			});
-			// [[BPR-2295]]. A stop that would stop the same way again is not
-			// offered a Resend as its fix; the reason says what would change it.
-			if (Run.StoppedForGood) {
-				BannerFirst->hide();
-			}
-			BannerSecond->setText(LogShown ? tr("Hide the log") : tr("Show the log"));
-			BannerSecond->setToolTip(LogShown ? tr("Fold what the agent wrote") : tr("Show what the agent wrote before it stopped"));
-			wear_ordinary_roles(*BannerSecond);
-			connect(BannerSecond, &QPushButton::clicked, this, [this] {
-				LogShown = !LogShown;
-				present_banner();
+			// [[BPR-1876]], superseding [[BPR-1753]]'s Check again here: an
+			// Ask that ended for a setup reason is resent too. [[BPR-2295]]. A
+			// stop that would stop the same way again is not offered a Resend
+			// as its fix; the reason says what would change it.
+			notice = core::plan_stopped_notice({
+				.Agent         = Run.Agent.toStdString(),
+				.Reason        = saidByTurn ? std::string{ } : reason.toStdString(),
+				.ResendOffered = !Run.StoppedForGood,
+				.LogShown      = LogShown,
 			});
 			if (LogShown) {
 				const auto wrote = Run.Output.isEmpty() ? tr("The agent wrote nothing.") : Run.Output;
@@ -4119,11 +3981,45 @@ namespace bpr::qt {
 			break;
 		}
 		}
+		Banner->present(notice);
+		if (State == agent_tab_state::head_moved) {
+			BannerSecond->setEnabled(HistoryItems->new_session_action()->isEnabled());
+		}
 		LogBox->setVisible(logShown);
 		dock_banner(docked);
 		Banner->show();
-		Banner->update();
 		fit_log();
+	}
+
+	void agent_tab_view::choose_on_banner(const core::chat_notice_action aAction)
+	{
+		switch (aAction) {
+		case core::chat_notice_action::continue_at:
+		case core::chat_notice_action::new_session: {
+			const auto choice = aAction == core::chat_notice_action::continue_at ? core::agent_continuation::continue_against_old_revision : core::agent_continuation::start_new_session;
+			if (State == agent_tab_state::head_moved) {
+				choose_continuation(choice);
+			} else {
+				choose_pinned(choice);
+			}
+			return;
+		}
+		case core::chat_notice_action::resend:
+			// Owner, 2026-11-24. Resend sends the kept message again, as the
+			// stopped turn's own Resend does; with no such turn it starts
+			// the run the launch gesture would.
+			if (!Turns.empty() && Turns.back().Done && Turns.back().RecoveryKind == core::agent_turn_recovery::resend) {
+				recover(Turns.back());
+			} else {
+				start_review();
+			}
+			return;
+		case core::chat_notice_action::toggle_log:
+			LogShown = !LogShown;
+			present_banner();
+			return;
+		case core::chat_notice_action::stop: stop_run(); return;
+		}
 	}
 
 	void agent_tab_view::fit_log()
@@ -4162,8 +4058,7 @@ namespace bpr::qt {
 	{
 		// The card's own choices, by the words on its chips.
 		if (State == agent_tab_state::head_moved) {
-			const auto read = read_revision();
-			return read.isEmpty() ? tr("Choose Continue or New session first.") : tr("Choose Continue at %1 or New session first.").arg(read);
+			return QString::fromStdString(core::chat_moved_head_wait_words(read_revision().toStdString()));
 		}
 		const auto& pinned = Run.Pinned;
 		if (!pinned) {
@@ -4172,12 +4067,7 @@ namespace bpr::qt {
 		if (const auto& move = Run.MoveRefusal; move && ReconcileDispatch && (move->RebaseOffered || move->SaveAndMoveOffered || move->AskAgentOffered)) {
 			return tr("Choose how to go on, on the card over the question field, first.");
 		}
-		return pinned->ContinueOffered ? tr("Choose Continue at %1 or New session first.").arg(QString::fromUtf8(core::canonical_hex(pinned->PinnedHead).view().substr(0U, 7U))) : tr("Choose New session first.");
-	}
-
-	auto agent_tab_view::pinned_card_title(const QString& aRead) -> QString
-	{
-		return aRead.isEmpty() ? tr("This session read an earlier head") : tr("This session read %1").arg(aRead);
+		return QString::fromStdString(core::chat_moved_head_wait_words(core::canonical_hex(pinned->PinnedHead).view(), pinned->ContinueOffered));
 	}
 
 	void agent_tab_view::dock_banner(const bool aDocked)
@@ -5488,12 +5378,10 @@ namespace bpr::qt {
 				detail.clear();
 			}
 		}
-		auto text = tr("Not sent. %1").arg(send_refusal_words(aRefusal, agent_name()));
-		if (!detail.isEmpty()) {
-			// The host's words, with its stable names made readable.
-			detail.replace(QLatin1Char{ '_' }, QLatin1Char{ ' ' });
-			text += QStringLiteral(" ") + tr("(%1)").arg(detail);
-		}
+		// The host's words, with its stable names made readable.
+		detail.replace(QLatin1Char{ '_' }, QLatin1Char{ ' ' });
+		const auto notice = core::plan_send_refused_notice(send_refusal_words(aRefusal, agent_name()).toStdString(), detail.toStdString());
+		const auto text   = QString::fromStdString(notice.Words);
 		if (!explained.isEmpty() && ExplainObserver) {
 			ExplainObserver(explain_file_progress{ .Path = explained, .Turn = Turns.size(), .Ending = text, .Answered = false });
 		}
@@ -5501,10 +5389,8 @@ namespace bpr::qt {
 			SuggestObserver(suggest_change_turn{ .Turn = Turns.size(), .Ended = true, .Answered = false, .Ending = text });
 		}
 		ShownRefusal = aRefusal;
-		RefusalText->setText(text);
+		Refusal->present(notice);
 		RefusalText->setAccessibleName(text);
-		Refusal->show();
-		Refusal->update();
 		auto alert = QAccessibleEvent{ RefusalText, QAccessible::Alert };
 		QAccessible::updateAccessibility(&alert);
 	}
