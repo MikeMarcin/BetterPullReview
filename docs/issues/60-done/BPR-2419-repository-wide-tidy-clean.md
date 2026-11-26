@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"chore","mandate_revision":"v0-5-0-prerelease-targets-r1","revision":"e4595ef66","reservation":"docs/issues/_reservations/.json","origin":"coordinator, 2026-11-26: a stable build; coding-tidy failed on many files predating recent work","acceptance":["AC1","AC2","AC3","AC4"]}
+metadata: {"kind":"chore","mandate_revision":"v0-5-0-prerelease-targets-r1","revision":"e4595ef66","reservation":"docs/issues/_reservations/BPR-2419--BPR-2419--90fbf931e68c.json","origin":"coordinator, 2026-11-26: a stable build; coding-tidy failed on many files predating recent work","acceptance":["AC1","AC2","AC3","AC4"]}
 ---
 
 # BPR-2419: coding-tidy passes across the tree
