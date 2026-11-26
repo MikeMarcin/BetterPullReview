@@ -4137,8 +4137,15 @@ function(bpr_verify_app_source_tree app_source_root)
 	# (agent_chat_session_host::awaits_continuation). Local session state only;
 	# no grant, provider, transport, mutation or publication path changes;
 	# full application and mutation-branch digests are unchanged.
+	# [[BPR-2419]] coordinator reseal at the merge: behaviour-preserving
+	# clang-tidy fixes in main.cpp, review_agent_stack.cpp,
+	# window_explain_file.cpp, profile_desktop.cpp and
+	# release_update_desktop.cpp (local renames, moves, emplace_back, one
+	# narrowly scoped NOLINT). No grant, provider, transport, mutation or
+	# publication path changes; full application and mutation-branch digests
+	# are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "594e09e4bd7a29b754dfc89df7a7b6d348ed071f381860323ab62e5d72a9dc35"
+        "ea5706b4d7a86ba9dbf6699ce6d61bbff741ca45646b3e65acd25a017959936a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
