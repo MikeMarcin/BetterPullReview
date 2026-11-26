@@ -195,6 +195,16 @@ themes, rendering mechanics, and event translation.
   `question_editor()` and presses `ask_button()`, never the hidden side chat
   panel's words and Send, which no longer reach the tab. Its running turn is
   `core::reduce_agent_live_turn`'s.
+- A chat with an agent says a send refused, a run stopped before answering,
+  a moved head and a carried-over conversation (or one the agent cannot pick
+  up) with the one notice, `chat_notice_view`, drawn from a
+  `core::chat_notice` its planner makes (`plan_send_refused_notice`,
+  `plan_stopped_notice`, `plan_moved_head_notice`, `plan_session_notice`;
+  RFC-BPR-0130 stage 6, AC08). The moved head is the pinned-revision card in
+  every chat that keeps sessions, with Continue at the revision read and New
+  session in that order; a suggested prompt waits on it with
+  `core::chat_moved_head_wait_words`. A chat does not word one of these
+  states itself, nor build a line or card of its own for it.
 - A card the next question waits on, or that reports the turn at the thread's
   end, stands on the question field (`agent_tab_view::dock_banner`), not at
   the head of a thread that keeps itself at its end: the card that asks which

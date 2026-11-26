@@ -1735,10 +1735,15 @@ auto main(int argc, char** argv) -> int
 		wait([&] { return chat->isVisible() && chat->current() == std::optional{ stop }; }, "the stop's chat opens after the head moved");
 		QMetaObject::invokeMethod(chat->history_button()->menu(), "aboutToShow");
 		wait([&] {
-			const auto* const old = chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision"));
+			const auto* const old = chat->head_moved_card()->button_for(core::chat_notice_action::continue_at);
 			return old != nullptr && old->isVisibleTo(chat) && !chat->history_button()->property("loading").toBool();
 		},
 			 "the stop's chat says its session read the earlier head");
+		// RFC-BPR-0130 stage 6 (AC08): the Agent tab's pinned-revision card,
+		// in its words, where the tour chat said "Head changed. …".
+		expect(chat->head_moved_card()->title_label()->text() == QStringLiteral("This session read %1").arg(earlierHead) && chat->head_moved_card()->choice_button(0U)->text() == QStringLiteral("Continue at %1").arg(earlierHead)
+				   && chat->head_moved_card()->choice_button(1U)->text() == QStringLiteral("New session") && chat->head_moved_card()->choice_button(1U)->isEnabled(),
+			   "the stop's chat shows the pinned-revision card: " + chat->head_moved_card()->title_label()->text().toStdString());
 		expect(chat->new_session_action()->isEnabled(), "History offers New session in a chat that read the earlier head");
 		run.sweep_chat("tour-stop-chat-head-moved");
 

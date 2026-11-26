@@ -80,6 +80,7 @@ add_library(
         src/chat_header_view.cpp
         src/chat_transcript_view.cpp
         src/chat_composer.cpp
+        src/chat_notice_view.cpp
         src/menu_row.cpp
         src/agent_pending_list.cpp
         src/agent_steered_words.cpp

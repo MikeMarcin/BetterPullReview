@@ -356,24 +356,20 @@ namespace bpr::qt {
 		noticeBox->setContentsMargins(0, 0, 0, 0);
 		noticeBox->setSpacing(2);
 		Notice->setObjectName(QStringLiteral("tourSideChatNotice"));
-		SessionNotice = quiet(small(new QLabel{ Notice }));
-		SessionNotice->setObjectName(QStringLiteral("tourSessionNotice"));
-		SessionNotice->setWordWrap(true);
-		SessionNotice->setTextFormat(Qt::PlainText);
-		SessionNotice->hide();
-		noticeBox->addWidget(SessionNotice);
-		RevisionStatus = quiet(small(new QLabel{ Notice }));
-		RevisionStatus->setObjectName(QStringLiteral("tourRevisionStatus"));
-		RevisionStatus->setTextFormat(Qt::PlainText);
-		RevisionStatus->setWordWrap(true);
-		RevisionStatus->hide();
-		noticeBox->addWidget(RevisionStatus);
-		ContinueOld = new quiet_tool_button{ Notice };
-		ContinueOld->setObjectName(QStringLiteral("tourContinueOldRevision"));
-		ContinueOld->setText(tr("Continue old revision"));
-		ContinueOld->setToolTip(tr("Keep this chat's saved revision and workspace. No question is sent until you press Send."));
-		ContinueOld->hide();
-		noticeBox->addWidget(ContinueOld, 0, Qt::AlignLeft);
+		SessionLine   = new chat_notice_view{ core::chat_notice_form::line, { .Notice = QStringLiteral("tourSessionNoticeLine"), .Words = QStringLiteral("tourSessionNotice") }, Notice };
+		SessionNotice = SessionLine->words_label();
+		noticeBox->addWidget(SessionLine);
+		// RFC-BPR-0130 stage 6: the moved head is the pinned-revision card
+		// every chat draws, with its two choices in the same order.
+		HeadMovedCard = new chat_notice_view{ core::chat_notice_form::card,
+											  { .Notice  = QStringLiteral("tourHeadMovedCard"),
+												.Title   = QStringLiteral("tourHeadMovedTitle"),
+												.Words   = QStringLiteral("tourHeadMovedText"),
+												.Dismiss = QStringLiteral("tourHeadMovedDismiss"),
+												.First   = QStringLiteral("tourHeadMovedFirst"),
+												.Second  = QStringLiteral("tourHeadMovedSecond") },
+											  Notice };
+		noticeBox->addWidget(HeadMovedCard);
 		// What the next question starts from besides the chat's own turns.
 		CarriedAnswer = quiet(small(new QLabel{ Notice }));
 		CarriedAnswer->setObjectName(QStringLiteral("tourCarriedAnswer"));
@@ -383,13 +379,21 @@ namespace bpr::qt {
 		noticeBox->addWidget(CarriedAnswer);
 		Notice->hide();
 		column->addWidget(Notice);
-		connect(ContinueOld, &QToolButton::clicked, this, [this] {
-			if (!Running && !HistoryLoading && RevisionChoiceRequired && ContinuationDispatch) {
+		HeadMovedCard->set_dispatch({ .Chose = [this](const core::chat_notice_action aAction) {
+			if (Running || HistoryLoading || !RevisionChoiceRequired) {
+				return;
+			}
+			if (aAction == core::chat_notice_action::new_session) {
+				// History's own New session.
+				if (auto* const fresh = HistoryMenu->new_session_action(); fresh != nullptr && fresh->isEnabled()) {
+					fresh->trigger();
+				}
+			} else if (aAction == core::chat_notice_action::continue_at && ContinuationDispatch) {
 				if (const auto thread = current()) {
 					ContinuationDispatch(*thread);
 				}
 			}
-		});
+		} });
 
 		// RFC-BPR-0126 ([[BPR-2154]]). The part's waiting messages, as the
 		// Agent tab shows its own, above the composer they were typed in.
@@ -637,10 +641,8 @@ namespace bpr::qt {
 	{
 		// RFC-BPR-0130's accepted words, the Agent tab's too; a session that
 		// goes on in the ordinary way says nothing.
-		const auto words = CarriedOver ? chat_history_menu::carried_over_words(AgentName) : CannotContinue ? chat_history_menu::cannot_continue_words(AgentName)
-																										   : QString{ };
-		SessionNotice->setText(words);
-		SessionNotice->setVisible(!words.isEmpty());
+		const auto tip = SessionNotice->toolTip();
+		SessionLine->present(core::plan_session_notice(core::chat_continuation_of(CarriedOver, !CannotContinue), AgentName.toStdString(), tip.toStdString()));
 	}
 
 	void tour_side_chat::present_native_history(const application::native_agent_history_projection& aView)
@@ -715,18 +717,35 @@ namespace bpr::qt {
 		HistoryMenu->present_status(aStatus);
 	}
 
-	void tour_side_chat::present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, const core::git_commit_oid aObservedHead, const bool aContinued)
+	void tour_side_chat::present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, const core::git_commit_oid /*aObservedHead*/, const bool aContinued)
 	{
 		const auto stale       = aOffer && aOffer->Required;
 		RevisionStale          = stale;
 		RevisionChoiceRequired = stale && !aContinued;
-		ContinueOld->setVisible(RevisionChoiceRequired);
-		RevisionStatus->setVisible(stale);
-		if (stale) {
-			RevisionStatus->setText((aContinued ? tr("Continuing saved revision %1. Current head: %2.") : tr("Head changed. This chat reads %1; current head: %2. Choose New session in History or Continue old revision."))
-										.arg(QString::fromStdString(std::string{ core::canonical_hex(aOffer->ContinueAgainst.HeadOid).view() }).left(12), QString::fromStdString(std::string{ core::canonical_hex(aObservedHead).view() }).left(12)));
-		}
+		// Once Continue is chosen the session goes on at the revision it
+		// read, which History's last line names; the card has been answered.
+		RevisionRead = stale && aOffer->ContinueAgainst.HeadOid != core::git_commit_oid{ } ? std::string{ core::canonical_hex(aOffer->ContinueAgainst.HeadOid).view() } : std::string{ };
 		refresh_actions();
+	}
+
+	void tour_side_chat::present_head_moved_card()
+	{
+		if (HeadMovedCard == nullptr) {
+			return;
+		}
+		if (!RevisionChoiceRequired) {
+			HeadMovedCard->clear();
+			return;
+		}
+		// RFC-BPR-0130 stage 6 (AC08): the Agent tab's card, in its words.
+		// The card's New session is History's, offered while History offers
+		// it and greyed with History's reason while not.
+		auto* const fresh = HistoryMenu->new_session_action();
+		auto        why   = HistoryMenu->new_session_reason();
+		if (why.isEmpty() && fresh != nullptr && !fresh->isEnabled()) {
+			why = tr("Wait until the sessions are read.");
+		}
+		HeadMovedCard->present(core::plan_moved_head_notice({ .Read = RevisionRead, .NewSessionRefused = why.toStdString() }));
 	}
 
 	void tour_side_chat::set_draft(std::shared_ptr<const core::review_tour> aDraft)
@@ -1189,7 +1208,11 @@ namespace bpr::qt {
 							 : stopping  ? tr("Stop the tour agent; nothing in the tour changes.")
 							 : following ? (FollowUpSteer ? tr("Steer (Return) · Queue (%1)").arg(other) : tr("Queue (Return) · Steer (%1)").arg(other))
 										 : tr("Send (Return). Shift+Return starts a new line."));
-		ContinueOld->setEnabled(active && HostIdle && !Running && !HistoryLoading && Ready);
+		// The card follows History's New session and the chat's state.
+		present_head_moved_card();
+		if (auto* const keep = HeadMovedCard != nullptr ? HeadMovedCard->button_for(core::chat_notice_action::continue_at) : nullptr; keep != nullptr) {
+			keep->setEnabled(active && HostIdle && !Running && !HistoryLoading && Ready);
+		}
 		Send->setEnabled(active && !HistoryLoading && Ready && thread.has_value() && (stopping || (following && !RevisionChoiceRequired) || ((HostIdle || takes_feedback()) && !RevisionChoiceRequired && (!Running || takes_feedback()) && !blank)));
 		const auto part = part_words();
 		Transcript->set_resend_enabled(HostIdle && !HistoryLoading && Ready && !Running);
@@ -1210,7 +1233,7 @@ namespace bpr::qt {
 		CarriedAnswer->setToolTip(!carries ? QString{ } : Carried == tour_carried_answer::draft ? tr("Draft Tour ran outside this chat. What it proposed goes to the agent with your next question here, so the chat goes on from it.")
 																								: tr("Enhance ran outside this chat. Its suggestion goes to the agent with your next question here, so the chat goes on from it."));
 		CarriedAnswer->setVisible(carries);
-		Notice->setVisible(!SessionNotice->isHidden() || !RevisionStatus->isHidden() || !CarriedAnswer->isHidden());
+		Notice->setVisible(!SessionLine->isHidden() || !HeadMovedCard->isHidden() || !CarriedAnswer->isHidden());
 		refresh_unchanged_line();
 		// [[BPR-1930]]. The tour's chat is for feedback on its shape too.
 		Composer->setPlaceholderText(!thread                                            ? QString{ }
@@ -1306,7 +1329,7 @@ namespace bpr::qt {
 		Suggestions->lead()->setVisible(thread && core::thread_runs(Session, *thread).empty());
 		Suggestions->setVisible(Ready && any);
 		const auto block = prompt_block();
-		Suggestions->set_usable(block == core::agent_suggestion_block::none, block == core::agent_suggestion_block::revision_choice ? tr("Choose New session in History or Continue old revision first.") : QString{ });
+		Suggestions->set_usable(block == core::agent_suggestion_block::none, block == core::agent_suggestion_block::revision_choice ? QString::fromStdString(core::chat_moved_head_wait_words(RevisionRead)) : QString{ });
 	}
 
 	void tour_side_chat::send(const QString& aQuestion, const bool aUpdate, std::optional<core::tour_passage> aUpdatePassage)

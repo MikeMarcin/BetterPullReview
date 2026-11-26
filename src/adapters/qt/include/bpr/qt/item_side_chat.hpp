@@ -7,6 +7,7 @@
 #include "bpr/core/skill_references.hpp"
 #include "bpr/qt/chat_composer.hpp"
 #include "bpr/qt/chat_header_view.hpp"
+#include "bpr/qt/chat_notice_view.hpp"
 
 #include <QElapsedTimer>
 #include <QPointer>
@@ -200,6 +201,7 @@ namespace bpr::qt {
 		QLabel*                                  ItemQuote   = nullptr;
 		QLabel*                                  Invite      = nullptr;
 		QLabel*                                  Status      = nullptr;
+		chat_notice_view*                        StatusLine  = nullptr;
 		chat_composer*                           Field       = nullptr;
 		QLabel*                                  Chip        = nullptr;
 		QString                                  ChipWords;

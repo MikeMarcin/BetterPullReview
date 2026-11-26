@@ -423,7 +423,7 @@ auto main(int argc, char** argv) -> int
 	expect(asked.size() == 1U && chat->composer()->toPlainText() == QStringLiteral("Follow up after retirement") && chat->reply(0)->original_body() == retainedReply,
 		   "retirement withholds Return without replacing final text or the next question");
 	chat->present_revision_continuation(revisionChoice, { }, false);
-	auto* const continueOld = chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision"));
+	auto* const continueOld = chat->head_moved_card()->button_for(core::chat_notice_action::continue_at);
 	expect(continueOld && !continueOld->isEnabled(), "retirement withholds continuation of the saved revision");
 	editor.set_tour_host_idle(true);
 	expect(continueOld->isEnabled(), "the idle host permits the existing revision choice");
@@ -915,7 +915,7 @@ auto main(int argc, char** argv) -> int
 			earlier.Required = true;
 			chat->present_revision_continuation(earlier, { }, false);
 			settle();
-			expect(chat->turn_count() == 0U && chat->findChild<QLabel*>(QStringLiteral("tourRevisionStatus"))->isVisibleTo(chat) && chat->new_session_action()->isEnabled() && chat->history_menu()->new_session_reason().isEmpty(),
+			expect(chat->turn_count() == 0U && chat->head_moved_card()->isVisibleTo(chat) && chat->new_session_action()->isEnabled() && chat->history_menu()->new_session_reason().isEmpty(),
 				   "a chat nothing was asked in, whose session read an earlier head, offers New session: " + chat->history_menu()->new_session_reason().toStdString());
 			expect(chat->history_menu()->plan().NewSession == core::new_session_refusal::none, "as core decides for a pinned session");
 			// While the chat asks which revision to go on with, Send is refused;
@@ -928,7 +928,7 @@ auto main(int argc, char** argv) -> int
 				expect(!chat->send_button()->isEnabled(), "Send waits on the revision choice");
 				chat->composer()->clear();
 				expect(std::ranges::all_of(prompts(), [](const QPushButton* aPrompt) {
-						   return !aPrompt->isEnabled() && aPrompt->toolTip() == QStringLiteral("Choose New session in History or Continue old revision first.") && aPrompt->accessibleDescription() == aPrompt->toolTip() && !aPrompt->accessibleName().isEmpty();
+						   return !aPrompt->isEnabled() && aPrompt->toolTip() == QStringLiteral("Choose Continue or New session first.") && aPrompt->accessibleDescription() == aPrompt->toolTip() && !aPrompt->accessibleName().isEmpty();
 					   }),
 					   "each suggested prompt is greyed and says what to choose first: " + prompts().front()->toolTip().toStdString());
 				const auto sent = asked.size();
@@ -937,7 +937,7 @@ auto main(int argc, char** argv) -> int
 				// Continue old revision chosen: the choice is made, and they send again.
 				chat->present_revision_continuation(earlier, { }, true);
 				settle();
-				expect(std::ranges::all_of(prompts(), [](const QPushButton* aPrompt) { return aPrompt->isEnabled() && aPrompt->toolTip() != QStringLiteral("Choose New session in History or Continue old revision first.") && !aPrompt->toolTip().isEmpty(); }),
+				expect(std::ranges::all_of(prompts(), [](const QPushButton* aPrompt) { return aPrompt->isEnabled() && aPrompt->toolTip() != QStringLiteral("Choose Continue or New session first.") && !aPrompt->toolTip().isEmpty(); }),
 					   "once the revision is chosen the prompts can be pressed and say what they send again");
 				chat->present_revision_continuation(earlier, { }, false);
 				settle();
@@ -973,7 +973,7 @@ auto main(int argc, char** argv) -> int
 		chat->present_native_history(view);
 		settle();
 		auto* const carried = chat->findChild<QLabel*>(QStringLiteral("tourSessionNotice"));
-		expect(chat->notice()->isVisibleTo(chat) && carried != nullptr && carried->isVisibleTo(chat) && !chat->findChild<QLabel*>(QStringLiteral("tourRevisionStatus"))->isVisibleTo(chat),
+		expect(chat->notice()->isVisibleTo(chat) && carried != nullptr && carried->isVisibleTo(chat) && !chat->head_moved_card()->isVisibleTo(chat),
 			   "AC01 a replay adds its one notice");
 		// RFC-BPR-0130's accepted words, naming the agent the chat asks: no
 		// "Transcript replay", no "Native continuation", no kibibytes.
@@ -1006,9 +1006,30 @@ auto main(int argc, char** argv) -> int
 		moved.Required = true;
 		chat->present_revision_continuation(moved, { }, false);
 		settle();
-		expect(chat->notice()->isVisibleTo(chat) && !carried->isVisibleTo(chat) && carried->text().isEmpty() && chat->findChild<QLabel*>(QStringLiteral("tourRevisionStatus"))->isVisibleTo(chat)
-				   && chat->findChild<QToolButton*>(QStringLiteral("tourContinueOldRevision"))->isVisibleTo(chat),
-			   "AC01 a moved head adds its one notice, with Continue old revision");
+		expect(chat->notice()->isVisibleTo(chat) && !carried->isVisibleTo(chat) && carried->text().isEmpty() && chat->head_moved_card()->isVisibleTo(chat)
+				   && chat->head_moved_card()->title_label()->text() == QStringLiteral("This session read an earlier head")
+				   && chat->head_moved_card()->words_label()->text() == QStringLiteral("The pull request has moved on.")
+				   && chat->head_moved_card()->choice_button(0U)->text() == QStringLiteral("Continue at its head") && chat->head_moved_card()->choice_button(0U)->isVisibleTo(chat)
+				   && chat->head_moved_card()->choice_button(1U)->text() == QStringLiteral("New session") && chat->head_moved_card()->choice_button(1U)->isVisibleTo(chat),
+			   "AC08 a moved head is the pinned-revision card, the Agent tab's, with Continue and New session");
+		// The same card in the Agent tab's words, for the revision it read.
+		{
+			auto read                    = core::agent_continuation_offer{ };
+			read.Required                = true;
+			read.ContinueAgainst.HeadOid = *core::parse_git_commit_oid("b20cb4434282aa0000000000000000000000000a");
+			chat->present_revision_continuation(read, { }, false);
+			settle();
+			const auto expected = core::plan_moved_head_notice({ .Read = "b20cb4434282aa0000000000000000000000000a" });
+			expect(chat->head_moved_card()->notice() == expected && chat->head_moved_card()->title_label()->text() == QStringLiteral("This session read b20cb44")
+					   && chat->head_moved_card()->choice_button(0U)->text() == QStringLiteral("Continue at b20cb44"),
+				   "the card names the revision by its seven characters: " + chat->head_moved_card()->title_label()->text().toStdString());
+			const auto labels = chat->findChildren<QLabel*>();
+			expect(std::ranges::none_of(labels, [](const QLabel* aLabel) { return aLabel->text().contains(QStringLiteral("Head changed")); }), "no line says Head changed");
+			render(*chat, prefix, "side-chat-head-moved-card");
+			chat->present_revision_continuation(read, { }, true);
+			settle();
+			expect(!chat->head_moved_card()->isVisibleTo(chat), "once Continue is chosen the card has been answered");
+		}
 		chat->present_revision_continuation(std::nullopt, { }, false);
 		settle();
 		expect(!chat->notice()->isVisibleTo(chat), "and it goes with the cause");
