@@ -57,6 +57,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QFile>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -217,7 +218,8 @@ auto main(int argc, char** argv) -> int
 		std::cerr << "private data root refused\n";
 		return EXIT_FAILURE;
 	}
-	auto search = e2e::stub_claude_search(std::filesystem::path{ data.path().toStdString() } / "stub-claude-search", stub);
+	const auto searchFolder = std::filesystem::path{ data.path().toStdString() } / "stub-claude-search";
+	auto       search       = e2e::stub_claude_search(searchFolder, stub);
 	if (!search) {
 		std::cerr << "stub claude search refused\n";
 		return EXIT_FAILURE;
@@ -232,7 +234,7 @@ auto main(int argc, char** argv) -> int
 			// The loading course is at the next push, where a second window's
 			// read takes the repository's cache while the first window's run ends.
 			options.EpochPhase            = loading ? app::detail::github_epoch_fixture_phase::reuse : app::detail::github_epoch_fixture_phase::single;
-			options.ClaudeAgentExecutable = stub;
+			options.ClaudeAgentExecutable = mode.empty() ? searchFolder / ("claude" + stub.extension().string()) : stub;
 			options.ClaudeSearch          = search;
 			// The second window reads the pull request again.
 			options.RepeatReadSessions = true;
@@ -576,10 +578,17 @@ auto main(int argc, char** argv) -> int
 		};
 		const auto path = QStringLiteral("src/engine/renderer.cpp");
 		wait([&] { return first->go_to_file_line(path, 12U, false) && first->active_document_path() == path; }, "the file opens");
+		// Keep the fixture's first answer pending until the test pauses the queue.
+		const auto holdPath = QString::fromStdString((searchFolder / "hold-turns").string());
+		{
+			QFile hold{ holdPath };
+			expect(hold.open(QIODevice::WriteOnly), "the course holds its fixture agent");
+		}
 		quick("agent-tab.explain-file", "file");
 		quick("agent-tab.explain-file", "file");
 		wait([&] { return first->agent_tab()->queue_list()->isVisible(); }, "a waiting message shows in the first window's pending list");
 		expect(press_in(*first, QStringLiteral("agentQueuePauseResume")), "Pause queue in the first window");
+		expect(QFile::remove(holdPath), "the fixture agent can finish the first answer");
 		if (!e2e::wait_until_plain(idle, e2e::extended_agent_budget)) {
 			throw std::runtime_error{ "the running ask finishes: " + first->agent_panel()->status_text().toStdString() + " / " + rows_of(*first).join(QLatin1Char('|')).toStdString() };
 		}
