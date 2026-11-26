@@ -45,7 +45,8 @@ namespace bpr::app {
 		// The process chain, as a window composes its own: the Claude wrapper,
 		// the located Codex and plain-text programs, the reviewer's added
 		// agents, and each run's diagnostic line.
-		self.Launcher                         = std::make_unique<adapters::agent::agent_process_launcher>();
+		self.Launcher = std::make_unique<adapters::agent::agent_process_launcher>();
+		// NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores): a testing build puts the probe in front.
 		application::agent_process_port* base = self.Launcher.get();
 	#if defined(BPR_BUILD_TESTING)
 		self.Probe = std::make_unique<composition_agent_process_launcher_probe>(*self.Launcher);

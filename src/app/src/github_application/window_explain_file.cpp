@@ -138,7 +138,7 @@ namespace bpr::app {
 				refuse_explain_file(read->Path, QStringLiteral("Not sent. This file's code can't be read here."));
 				return;
 			}
-			const auto as_span = [](const std::optional<std::string>& aSide) -> std::optional<std::span<const std::uint8_t>> {
+			const auto asSpan = [](const std::optional<std::string>& aSide) -> std::optional<std::span<const std::uint8_t>> {
 				return aSide ? std::optional{ std::span<const std::uint8_t>{ reinterpret_cast<const std::uint8_t*>(aSide->data()), aSide->size() } } : std::nullopt;
 			};
 			auto change = std::string{ };
@@ -146,8 +146,8 @@ namespace bpr::app {
 				change = "File " + read->Path + " is too large to compare here\n";
 			} else {
 				const auto options = core::diff_options{ };
-				const auto left    = as_span(read->Base);
-				const auto right   = as_span(read->Head);
+				const auto left    = asSpan(read->Base);
+				const auto right   = asSpan(read->Head);
 				if (const auto mkey = core::returning_comparison(read->Path, left, right, options); mkey && LineMatcher) {
 					auto       matching = application::diff_line_matching{ *LineMatcher };
 					const auto outcome  = core::compute_material_diff({ .Key = *mkey, .Options = options, .LeftBytes = left, .RightBytes = right, .Limits = core::diff_compute_limits{ } }, matching);

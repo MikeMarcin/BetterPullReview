@@ -7206,10 +7206,10 @@ namespace {
 			auto&       window = aApplication.window();
 			auto* const editor = window.tour_editor();
 			// [[BPR-2051]]. Setup is the window footer's state now.
-			const auto footer_asks_setup = [&window] { return window.agent_footer_widget() != nullptr && window.agent_footer_widget()->settings_button()->isVisibleTo(window.agent_footer_widget()) && !window.agent_footer_widget()->picker()->attention().isEmpty(); };
-			const auto root              = qEnvironmentVariable("BPR_ATTENDED_TOUR_RENDER");
-			const auto theme             = qEnvironmentVariable("BPR_ATTENDED_TOUR_THEME") == QStringLiteral("dark") ? QStringLiteral("-dark") : QStringLiteral("-light");
-			const auto draw              = [&window, &root, &theme](const QString& aName) {
+			const auto footerAsksSetup = [&window] { return window.agent_footer_widget() != nullptr && window.agent_footer_widget()->settings_button()->isVisibleTo(window.agent_footer_widget()) && !window.agent_footer_widget()->picker()->attention().isEmpty(); };
+			const auto root            = qEnvironmentVariable("BPR_ATTENDED_TOUR_RENDER");
+			const auto theme           = qEnvironmentVariable("BPR_ATTENDED_TOUR_THEME") == QStringLiteral("dark") ? QStringLiteral("-dark") : QStringLiteral("-light");
+			const auto draw            = [&window, &root, &theme](const QString& aName) {
 				if (!root.isEmpty()) {
 					QCoreApplication::processEvents();
 					static_cast<void>(window.grab().save(root + QStringLiteral("/") + aName + theme + QStringLiteral(".png"), "PNG"));
@@ -7280,10 +7280,10 @@ namespace {
 				}
 				if (editor->agent_readiness() == bpr::qt::agent_setup_readiness::ready) {
 					draw(QStringLiteral("app-tour-set-up"));
-					done(footer_asks_setup() ? QStringLiteral("ATTENDED_TOUR_FAILED:setup-call-after-setup") : QStringLiteral("ATTENDED_TOUR_AGENT_READY"));
+					done(footerAsksSetup() ? QStringLiteral("ATTENDED_TOUR_FAILED:setup-call-after-setup") : QStringLiteral("ATTENDED_TOUR_AGENT_READY"));
 					return;
 				}
-				if (!footer_asks_setup()) {
+				if (!footerAsksSetup()) {
 					done(QStringLiteral("ATTENDED_TOUR_FAILED:no-setup-call"));
 					return;
 				}
@@ -8174,7 +8174,7 @@ namespace {
 					}
 					return;
 				}
-				const auto press_row = [&window](bpr::qt::ask_menu_button* aButton, const QString& aRow) {
+				const auto pressRow = [&window](bpr::qt::ask_menu_button* aButton, const QString& aRow) {
 					return [&window, aButton, aRow]() {
 						static_cast<void>(window);
 						aButton->refresh_menu();
@@ -8186,7 +8186,7 @@ namespace {
 						return true;
 					};
 				};
-				const auto rows_of = [](const QMenu& aMenu) {
+				const auto rowsOf = [](const QMenu& aMenu) {
 					auto rows = std::vector<std::pair<QString, std::size_t>>{ };
 					for (auto* const action : aMenu.actions()) {
 						if (action->objectName().startsWith(QStringLiteral("quickAsk_")) && action->isEnabled()) {
@@ -8203,20 +8203,20 @@ namespace {
 				file->refresh_menu();
 				// The look's own path first.
 				const auto changed = QStringLiteral("quickAsk_agent-tab.what-changed_pull-request");
-				state->Steps.push_back({ .Name = QStringLiteral("review bar: What changed since my review"), .Press = press_row(review, changed) });
-				for (const auto& [row, each] : rows_of(*review->menu())) {
+				state->Steps.push_back({ .Name = QStringLiteral("review bar: What changed since my review"), .Press = pressRow(review, changed) });
+				for (const auto& [row, each] : rowsOf(*review->menu())) {
 					if (row != changed) {
-						state->Steps.push_back({ .Name = QStringLiteral("review bar: ") + row, .Press = press_row(review, row), .Turns = each });
+						state->Steps.push_back({ .Name = QStringLiteral("review bar: ") + row, .Press = pressRow(review, row), .Turns = each });
 					}
 				}
-				for (const auto& [row, each] : rows_of(*file->menu())) {
-					state->Steps.push_back({ .Name = QStringLiteral("file: ") + row, .Press = press_row(file, row), .Turns = each });
+				for (const auto& [row, each] : rowsOf(*file->menu())) {
+					state->Steps.push_back({ .Name = QStringLiteral("file: ") + row, .Press = pressRow(file, row), .Turns = each });
 				}
 				auto thread   = window.ask_request(bpr::core::quick_ask_anchor::thread);
 				thread.Thread = QStringLiteral("review-thread:PRRT_cc_2");
 				QMenu threadMenu;
 				window.fill_quick_ask(threadMenu, thread);
-				for (const auto& [row, each] : rows_of(threadMenu)) {
+				for (const auto& [row, each] : rowsOf(threadMenu)) {
 					state->Steps.push_back({ .Name = QStringLiteral("thread: ") + row, .Press = [&window, thread, row]() {
 												QMenu menu;
 												window.fill_quick_ask(menu, thread);
@@ -8246,8 +8246,8 @@ namespace {
 				};
 				state->Steps.push_back({ .Name = QStringLiteral("typed with the line chip"), .Press = typed(QStringLiteral("What does this line do?")) });
 				state->Steps.push_back({ .Name = QStringLiteral("typed again in the same conversation"), .Press = typed(QStringLiteral("And why was it changed?")) });
-				state->Steps.push_back({ .Name = QStringLiteral("two queued at once"), .Press = [press_row, review, file]() {
-											return press_row(review, QStringLiteral("quickAsk_agent-tab.what-could-break_pull-request"))() && press_row(file, QStringLiteral("quickAsk_agent-tab.explain-file_file"))();
+				state->Steps.push_back({ .Name = QStringLiteral("two queued at once"), .Press = [pressRow, review, file]() {
+											return pressRow(review, QStringLiteral("quickAsk_agent-tab.what-could-break_pull-request"))() && pressRow(file, QStringLiteral("quickAsk_agent-tab.explain-file_file"))();
 										},
 										 .Turns = 2U });
 				state->Planned = true;
