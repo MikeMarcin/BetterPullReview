@@ -150,9 +150,11 @@ auto main(int aArgumentCount, char** aArguments) -> int
 		expect(row->subject()->height() < 2 * row->subject()->fontMetrics().lineSpacing() && row->place()->height() < 2 * row->place()->fontMetrics().lineSpacing(), where + ": the part and its place keep one line each");
 		expect(row->place()->toolTip() == QString::fromStdString(part.Place), where + ": a place cut short is whole in its tooltip");
 	}
-	host.resize(300, 200);
+	// At 300 the full label can still fit with the native Windows font.
+	host.resize(240, 200);
 	settle();
-	expect(row->show_button()->text() == QStringLiteral("Show"), "in the narrowest column Show in code reads Show: " + row->show_button()->text().toStdString());
+	expect(row->show_button()->text() == QStringLiteral("Show"), "where the full label would crowd the subject, Show in code reads Show: " + row->show_button()->text().toStdString());
+	expect_fits(*row, "the tour part's compact Show label");
 	host.resize(520, 200);
 	settle();
 	expect(row->show_button()->text() == QStringLiteral("Show in code"), "and is said whole where the part beside it keeps its room");
