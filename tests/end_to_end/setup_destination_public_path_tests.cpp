@@ -1491,6 +1491,11 @@ namespace {
 			if (word.Where.startsWith(QStringLiteral("QWidget tourSessionTranscript ("))) {
 				text.remove(QStringLiteral("Tour conversation"));
 			}
+			// The History menu's carry-over (Agent tab and tour side chat)
+			// moves an agent chat to another agent, not a review thread.
+			if (word.Where.startsWith(QStringLiteral("QAction agentCarryOver (")) || word.Where.startsWith(QStringLiteral("QAction tourCarryOver ("))) {
+				text.remove(QStringLiteral("Carry this conversation over to"));
+			}
 			if (text.contains(QStringLiteral("conversation"), Qt::CaseInsensitive)) {
 				found.insert(word.Where + QStringLiteral(": ") + word.Text);
 			}

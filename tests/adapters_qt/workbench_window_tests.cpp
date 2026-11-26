@@ -18,6 +18,7 @@
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/bundled_code_font.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/conversation_finder.hpp"
@@ -7299,6 +7300,15 @@ namespace {
 	{
 		qt::workbench_window window;
 		window.resize(1'280, 852);
+		// The comparison wears the bundled code font at the profile's size, as
+		// the application gives it. The head pane's edit sets its rows in that
+		// font; on a proportional face (Qt's offscreen default) it falls back
+		// to a fixed one whose rows are a pixel shorter.
+		expect(qt::register_bundled_code_font(), "the bundled code font registers, as the application registers it");
+		auto profile = qt::appearance_profile{ qt::default_appearance_settings() };
+		profile.apply_to(window);
+		profile.apply_comparison_code_font_to(*window.comparison_surface());
+		window.comparison_surface()->adopt_appearance(profile);
 		window.show();
 		process_events();
 		window.activateWindow();
@@ -7534,14 +7544,22 @@ namespace {
 				QApplication::processEvents();
 			}
 		};
-		// The edit's rows are the head pane's: same pitch, and a row above the
-		// range meets its own.
+		// The edit's rows are the head pane's: same pitch, and every row above
+		// the range meets its own, however far it is from the pane's top row.
 		const auto editTop = [&window, head](const std::uint64_t aRow) {
 			return static_cast<qreal>(head->viewport()->mapTo(window.comparison_surface(), QPoint{ 0, qRound(head->cell_rectangle({ aRow, 0U }).top()) }).y());
 		};
 		const auto headTop = [&window](const std::uint32_t aLine) { return static_cast<qreal>(window.comparison_surface()->line_rect(core::diff_side::right, aLine).top()); };
-		expect(std::abs(head->line_height() - window.comparison_surface()->line_rect(core::diff_side::right, 5U).height()) <= 1.0 && std::abs(editTop(5U) - headTop(5U)) <= 1.0,
-			   "the edit keeps the head pane's row pitch, and line 6, above the range, stays where it was");
+		{
+			auto rows  = std::string{ };
+			auto meets = true;
+			for (auto line = 0U; line < 12U; ++line) {
+				meets = meets && std::abs(editTop(line) - headTop(line)) <= 1.0;
+				rows += ' ' + std::to_string(qRound(editTop(line))) + '/' + std::to_string(qRound(headTop(line)));
+			}
+			expect(std::abs(head->line_height() - window.comparison_surface()->line_rect(core::diff_side::right, 5U).height()) < 0.5 && meets,
+				   "the edit keeps the head pane's row pitch, and lines 1 to 12, above the range, stay where they were (edit/head:" + rows + ")");
+		}
 		// Enter grows the range by a row; once the range is above the top, the
 		// rows below meet their head rows one row further down the edit.
 		type(Qt::Key_Return, QString{ });
