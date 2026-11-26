@@ -5,6 +5,7 @@
 #include "bpr/qt/chat_transcript_view.hpp"
 #include "bpr/qt/item_side_chat.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 
 #include <QApplication>
 #include <QClipboard>
@@ -210,12 +211,71 @@ namespace {
 	}
 }
 
+namespace {
+	[[nodiscard]] auto ask_run(const std::uint64_t aId, const core::tour_thread& aThread, const core::tour_agent_run_state aState, const std::string& aQuestion, const std::string& aReply) -> core::tour_agent_run
+	{
+		auto run     = core::tour_agent_run{ };
+		run.Id       = core::tour_agent_run_id{ aId };
+		run.Request  = core::tour_agent_request::ask;
+		run.Thread   = aThread;
+		run.State    = aState;
+		run.Question = aQuestion;
+		run.Reply    = aReply;
+		return run;
+	}
+
+	/// RFC-BPR-0130 stage 4 (AC06 for the tour side chat): a turn that
+	/// settles, and a proposal decided, change their own turn alone.
+	void test_the_tour_chat_keeps_its_other_turns()
+	{
+		const auto stop    = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 4U } };
+		auto       session = core::tour_agent_session{ };
+		session.Runs.push_back(ask_run(1U, stop, core::tour_agent_run_state::answered, "What does this mean?", "It clamps."));
+		session.Runs.push_back(ask_run(2U, stop, core::tour_agent_run_state::running, "And the width?", ""));
+		auto  page = QWidget{ };
+		auto* chat = new qt::tour_side_chat{ &page };
+		page.resize(420, 640);
+		chat->resize(420, 640);
+		page.show();
+		chat->open(stop);
+		chat->present(session, std::nullopt, nullptr);
+		settle();
+		auto* const view  = chat->transcript();
+		const auto  first = widgets_of(*view, 0U);
+		expect(chat->turn_count() == 2U && first.Reply != nullptr && view->ending(1U) != nullptr && view->ending(1U)->live(), "the tour chat draws its runs in the one transcript");
+
+		session.Runs[1].State   = core::tour_agent_run_state::answered;
+		session.Runs[1].Reply   = "Clamp both sides.";
+		session.Runs[1].Seconds = 3U;
+		auto proposal           = core::tour_proposal{ };
+		proposal.Run            = core::tour_agent_run_id{ 2U };
+		auto item               = core::tour_proposal_item{ };
+		item.Part               = core::tour_proposal_part::stop_text;
+		item.Text               = "Clamps the height and the width.";
+		item.Run                = core::tour_agent_run_id{ 2U };
+		proposal.Items.push_back(item);
+		session.Runs[1].Proposed.StopTexts = 1U;
+		chat->present(session, proposal, nullptr);
+		settle();
+		expect(widgets_of(*view, 0U) == first, "a turn that settles with a proposal keeps the other turn's widgets");
+		expect(view->last_delta() == core::chat_delta{ { .Kind = core::chat_change_kind::settled, .Turn = "tour-run:2", .Index = 1U } }, "one change, naming the settled turn");
+		expect(chat->accept_button(0U) != nullptr && view->ending(1U)->text() == QStringLiteral("The tour agent answered in 0:03."), "its proposal waits with Accept, under the one ending line");
+		auto* const settledReply = view->reply(1U);
+
+		proposal.Items[0].Decision = core::tour_proposal_decision::accepted;
+		chat->present(session, proposal, nullptr);
+		settle();
+		expect(widgets_of(*view, 0U) == first && view->reply(1U) == settledReply && chat->accept_button(0U) == nullptr, "deciding the proposal changes its card alone");
+	}
+}
+
 auto main(int argc, char** argv) -> int
 {
 	qputenv("QT_QPA_PLATFORM", qEnvironmentVariableIsSet("QT_QPA_PLATFORM") ? qgetenv("QT_QPA_PLATFORM") : QByteArray{ "offscreen" });
 	QApplication application{ argc, argv };
 	test_a_growing_reply_keeps_every_other_turn();
 	test_the_item_chat_keeps_its_earlier_rounds();
+	test_the_tour_chat_keeps_its_other_turns();
 	std::cout << "chat-transcript-view-tests:pass\n";
 	return EXIT_SUCCESS;
 }

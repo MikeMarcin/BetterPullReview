@@ -291,16 +291,18 @@ namespace bpr::qt {
 		// about quoted at its top, each round a turn, a proposal its own turn's
 		// attachment.
 		Transcript = new chat_transcript_view{ {
-												   .Scroll    = QStringLiteral("itemSideChatScroll"),
-												   .Bubble    = QStringLiteral("itemSideChatBubble"),
-												   .Question  = QStringLiteral("itemSideChatQuestion"),
-												   .Steered   = QStringLiteral("itemSideChatSteered"),
-												   .Reply     = QStringLiteral("itemSideChatReply"),
-												   .Failure   = QStringLiteral("itemSideChatFailure"),
-												   .Ending    = QStringLiteral("itemSideChatEnding"),
-												   .CopyReply = QStringLiteral("itemSideChatCopyReply"),
-												   .Resend    = QStringLiteral("itemSideChatResend"),
-												   .Delete    = QStringLiteral("itemSideChatDelete"),
+												   .Scroll       = QStringLiteral("itemSideChatScroll"),
+												   .Bubble       = QStringLiteral("itemSideChatBubble"),
+												   .Question     = QStringLiteral("itemSideChatQuestion"),
+												   .Steered      = QStringLiteral("itemSideChatSteered"),
+												   .Reply        = QStringLiteral("itemSideChatReply"),
+												   .Failure      = QStringLiteral("itemSideChatFailure"),
+												   .Ending       = QStringLiteral("itemSideChatEnding"),
+												   .CopyReply    = QStringLiteral("itemSideChatCopyReply"),
+												   .Resend       = QStringLiteral("itemSideChatResend"),
+												   .Delete       = QStringLiteral("itemSideChatDelete"),
+												   .QuestionNote = QStringLiteral("itemSideChatQuestionNote"),
+												   .Activity     = QStringLiteral("itemSideChatActivity"),
 											   },
 											   this };
 		Transcript->set_parts({

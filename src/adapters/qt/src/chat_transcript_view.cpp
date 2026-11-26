@@ -23,6 +23,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <unordered_map>
 #include <utility>
 
@@ -56,9 +57,19 @@ namespace bpr::qt {
 			auto* const inside = new QVBoxLayout{ Bubble };
 			inside->setContentsMargins(12, 8, 12, 8);
 			inside->setSpacing(3);
+			// What the chat puts above the words (a quoted passage, the prompt
+			// the question was sent from).
+			Above = new QVBoxLayout{ };
+			Above->setContentsMargins(0, 0, 0, 0);
+			Above->setSpacing(3);
+			inside->addLayout(Above);
 			Question = words({ }, Bubble);
 			Question->setObjectName(names.Question);
 			inside->addWidget(Question);
+			Note = quiet(small(words({ }, Bubble)));
+			Note->setObjectName(names.QuestionNote);
+			Note->hide();
+			inside->addWidget(Note);
 			mineRow->addWidget(Bubble);
 			outer->addWidget(BubbleRow);
 
@@ -74,6 +85,13 @@ namespace bpr::qt {
 			Column = new QVBoxLayout{ Answer };
 			Column->setContentsMargins(0, 0, 0, 0);
 			Column->setSpacing(4);
+			// What the reply is (a local draft's check card), under it.
+			ReplyAttachments = new QWidget{ Answer };
+			ReplyHeld        = new QVBoxLayout{ ReplyAttachments };
+			ReplyHeld->setContentsMargins(0, 0, 0, 0);
+			ReplyHeld->setSpacing(4);
+			ReplyAttachments->hide();
+			Column->addWidget(ReplyAttachments);
 			Failure = words({ }, Answer);
 			Failure->setObjectName(names.Failure);
 			Column->addWidget(Failure);
@@ -104,6 +122,9 @@ namespace bpr::qt {
 			Delete->setToolTip(tr("Remove this message from the chat. Later questions are asked without it."));
 			endings->addWidget(Delete);
 			Column->addWidget(EndingRow);
+			// [[BPR-2005]], RFC-BPR-0103. What the run is doing while it runs,
+			// and its folded line once it ended; hidden while it says nothing.
+			make_activity();
 			Attachments = new QWidget{ Answer };
 			Held        = new QVBoxLayout{ Attachments };
 			Held->setContentsMargins(0, 0, 0, 0);
@@ -113,9 +134,10 @@ namespace bpr::qt {
 
 			connect(Copy, &QToolButton::clicked, this, [this] {
 				if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
-					clipboard->setText(QString::fromStdString(answered() ? Turn.Reply : Turn.Failure));
+					clipboard->setText(QString::fromStdString(answered() ? Turn.Reply : (Turn.FailureDetail.empty() ? Turn.Failure : Turn.FailureDetail)));
 				}
 			});
+			Resend->setEnabled(Owner.ResendEnabled);
 			connect(Resend, &QPushButton::clicked, this, [this] { act(chat_turn_gesture::resend); });
 			connect(Delete, &QPushButton::clicked, this, [this] { act(chat_turn_gesture::remove); });
 			restyle();
@@ -123,11 +145,19 @@ namespace bpr::qt {
 
 		void present(const core::chat_turn& aTurn)
 		{
-			const auto first = !Presented;
-			Presented        = true;
+			const auto first   = !Presented;
+			const auto settled = !first && Turn.Running && !aTurn.Running;
+			Presented          = true;
 			if (first || aTurn.Question != Turn.Question) {
 				Question->setText(QString::fromStdString(aTurn.Question));
+				side_chat::clear(Above);
+				Question->show();
+				if (Owner.Parts.DressBubble && !aTurn.Question.empty()) {
+					Owner.Parts.DressBubble(aTurn, *Bubble, *Above, *Question);
+				}
 			}
+			Note->setText(QString::fromStdString(aTurn.QuestionNote));
+			Note->setVisible(!aTurn.QuestionNote.empty());
 			BubbleRow->setVisible(!aTurn.Question.empty());
 			if (first || aTurn.Steered != Turn.Steered) {
 				present_steered(aTurn.Steered);
@@ -136,18 +166,31 @@ namespace bpr::qt {
 			Failure->setText(QString::fromStdString(aTurn.Failure));
 			Failure->setVisible(!aTurn.Failure.empty());
 			const auto attachmentsChanged = first || aTurn.Attachments != Turn.Attachments;
+			const auto activityChanged    = first || settled || aTurn.Activity != Turn.Activity;
 			Turn                          = aTurn;
 			present_ending();
+			if (settled) {
+				// The live block's rows and its clock end with the run.
+				make_activity();
+			}
+			if (activityChanged && Turn.Activity && !Turn.Running) {
+				Activity->fold(Turn.Activity->Activity, Turn.Activity->Seconds);
+			}
 			if (attachmentsChanged) {
 				present_attachments();
 			}
-			Answer->setVisible(!Reply.isNull() || !Turn.Failure.empty() || !EndingRow->isHidden() || !Turn.Attachments.empty());
+			Answer->setVisible(!Reply.isNull() || !Turn.Failure.empty() || !EndingRow->isHidden() || !Turn.Attachments.empty() || Turn.Activity.has_value() || Turn.Running);
 		}
 
 		void present_live()
 		{
-			if (Turn.Running) {
-				Ending->present(Owner.Live.value_or(agent_run_status{ .Agent = tr("The agent") }), Owner.LiveClock);
+			if (!Turn.Running) {
+				return;
+			}
+			const auto status = Owner.Live.value_or(agent_run_status{ .Agent = tr("The agent") });
+			Ending->present(status, Owner.LiveClock);
+			if (status.Activity) {
+				Activity->present(agent_short_name(status.Agent), *status.Activity, status.ActivityStartedMs);
 			}
 		}
 
@@ -155,6 +198,24 @@ namespace bpr::qt {
 		{
 			Copy->setIcon(drawer_icon(drawer_glyph::copy, palette()));
 			wear_agent_accent(*Resend, palette());
+		}
+
+		void enable_resend(const bool aEnabled) { Resend->setEnabled(aEnabled); }
+
+		void remake(const std::string& aKey)
+		{
+			const auto found = std::ranges::find(Made, aKey, &made_attachment::Key);
+			if (found == Made.end()) {
+				return;
+			}
+			if (found->Widget) {
+				ReplyHeld->removeWidget(found->Widget);
+				Held->removeWidget(found->Widget);
+				found->Widget->hide();
+				found->Widget->deleteLater();
+			}
+			Made.erase(found);
+			present_attachments();
 		}
 
 		[[nodiscard]] auto turn() const noexcept -> const core::chat_turn& { return Turn; }
@@ -165,22 +226,34 @@ namespace bpr::qt {
 		[[nodiscard]] auto copy() const noexcept -> QToolButton* { return Copy->isHidden() || EndingRow->isHidden() ? nullptr : Copy; }
 		[[nodiscard]] auto resend() const noexcept -> QPushButton* { return Resend->isHidden() || EndingRow->isHidden() ? nullptr : Resend; }
 		[[nodiscard]] auto remove() const noexcept -> QPushButton* { return Delete->isHidden() || EndingRow->isHidden() ? nullptr : Delete; }
+		[[nodiscard]] auto activity() const noexcept -> agent_activity_view* { return Activity; }
 		[[nodiscard]] auto attachment(const std::string& aKey) const -> QWidget*
 		{
 			const auto found = std::ranges::find(Made, aKey, &made_attachment::Key);
 			return found == Made.end() ? nullptr : found->Widget.data();
 		}
-		[[nodiscard]] auto bubbles() const -> std::vector<QWidget*>
-		{
-			auto all = std::vector<QWidget*>{ };
-			if (!BubbleRow->isHidden()) {
-				all.push_back(Bubble);
-			}
-			all.insert(all.end(), SteeredBubbles.begin(), SteeredBubbles.end());
-			return all;
-		}
 
 	private:
+		/// A new activity block, in the old one's place.
+		void make_activity()
+		{
+			auto* const made = new agent_activity_view{ Answer };
+			made->setObjectName(Owner.Names.Activity);
+			made->set_stop([owner = QPointer<chat_transcript_view>{ &Owner }] {
+				if (owner && owner->Parts.Stop) {
+					owner->Parts.Stop();
+				}
+			});
+			if (Activity != nullptr) {
+				Column->replaceWidget(Activity, made);
+				Activity->hide();
+				Activity->deleteLater();
+			} else {
+				Column->addWidget(made);
+			}
+			Activity = made;
+		}
+
 		struct made_attachment
 		{
 			std::string           Key;
@@ -238,7 +311,7 @@ namespace bpr::qt {
 			}
 			if (Reply) {
 				if (aTurn.Reply != Turn.Reply) {
-					Reply->set_body(aTurn.Reply, identity(aTurn));
+					Reply->set_body(body_of(aTurn), identity(aTurn));
 					Owner.fit_soon();
 				}
 				return;
@@ -258,7 +331,7 @@ namespace bpr::qt {
 					owner->fit_soon();
 				}
 			});
-			view->set_body(aTurn.Reply, identity(aTurn));
+			view->set_body(body_of(aTurn), identity(aTurn));
 			// As tall as it reads now, so the transcript keeps its height and
 			// a reader scrolled up keeps their place.
 			view->setFixedHeight(view->heightForWidth(std::max(120, Owner.available_width())));
@@ -266,6 +339,7 @@ namespace bpr::qt {
 			Reply = view;
 		}
 
+		[[nodiscard]] auto body_of(const core::chat_turn& aTurn) const -> std::string { return Owner.Parts.ReplyBody ? Owner.Parts.ReplyBody(aTurn) : aTurn.Reply; }
 		[[nodiscard]] auto identity(const core::chat_turn& aTurn) const -> std::string { return Owner.Names.Reply.toStdString() + ":" + aTurn.Id; }
 
 		void present_ending()
@@ -303,25 +377,37 @@ namespace bpr::qt {
 					Made.erase(found);
 					continue;
 				}
-				auto* const widget = Owner.Parts.MakeAttachment ? Owner.Parts.MakeAttachment(Turn, attachment, Attachments) : nullptr;
+				auto* const holder = attachment.Place == core::chat_attachment_place::after_reply ? ReplyAttachments : Attachments;
+				auto* const widget = Owner.Parts.MakeAttachment ? Owner.Parts.MakeAttachment(Turn, attachment, holder) : nullptr;
 				kept.push_back({ .Key = attachment.Key, .Value = attachment, .Widget = widget });
 			}
 			// What is no longer held goes; the rest stands in the turn's order.
 			for (auto& gone : Made) {
 				if (gone.Widget) {
+					ReplyHeld->removeWidget(gone.Widget);
 					Held->removeWidget(gone.Widget);
 					gone.Widget->hide();
 					gone.Widget->deleteLater();
 				}
 			}
-			Made = std::move(kept);
-			for (std::size_t index = 0U; index < Made.size(); ++index) {
-				if (auto* const widget = Made[index].Widget.data(); widget != nullptr && Held->indexOf(widget) != static_cast<int>(index)) {
-					Held->removeWidget(widget);
-					Held->insertWidget(static_cast<int>(index), widget);
+			Made        = std::move(kept);
+			auto placed = std::array<int, 2>{ 0, 0 };
+			for (const auto& each : Made) {
+				auto* const widget = each.Widget.data();
+				if (widget == nullptr) {
+					continue;
 				}
+				const auto  underReply = each.Value.Place == core::chat_attachment_place::after_reply;
+				auto* const layout     = underReply ? ReplyHeld : Held;
+				auto&       at         = placed[underReply ? 1U : 0U];
+				if (layout->indexOf(widget) != at) {
+					layout->removeWidget(widget);
+					layout->insertWidget(at, widget);
+				}
+				++at;
 			}
-			Attachments->setVisible(!Made.empty());
+			Attachments->setVisible(placed[0] > 0);
+			ReplyAttachments->setVisible(placed[1] > 0);
 			Owner.fit_soon();
 		}
 
@@ -336,14 +422,19 @@ namespace bpr::qt {
 		QWidget*                     Answer = nullptr;
 		QVBoxLayout*                 Column = nullptr;
 		QPointer<markdown_body_view> Reply;
-		QLabel*                      Failure     = nullptr;
-		QWidget*                     EndingRow   = nullptr;
-		agent_run_status_line*       Ending      = nullptr;
-		QToolButton*                 Copy        = nullptr;
-		QPushButton*                 Resend      = nullptr;
-		QPushButton*                 Delete      = nullptr;
-		QWidget*                     Attachments = nullptr;
-		QVBoxLayout*                 Held        = nullptr;
+		QLabel*                      Failure          = nullptr;
+		QWidget*                     EndingRow        = nullptr;
+		agent_run_status_line*       Ending           = nullptr;
+		QToolButton*                 Copy             = nullptr;
+		QPushButton*                 Resend           = nullptr;
+		QPushButton*                 Delete           = nullptr;
+		QWidget*                     Attachments      = nullptr;
+		QVBoxLayout*                 Held             = nullptr;
+		QWidget*                     ReplyAttachments = nullptr;
+		QVBoxLayout*                 ReplyHeld        = nullptr;
+		QVBoxLayout*                 Above            = nullptr;
+		QLabel*                      Note             = nullptr;
+		agent_activity_view*         Activity         = nullptr;
 		std::vector<made_attachment> Made;
 	};
 
@@ -486,6 +577,27 @@ namespace bpr::qt {
 		return view != nullptr ? view->remove() : nullptr;
 	}
 
+	auto chat_transcript_view::activity(const std::size_t aTurn) const -> agent_activity_view*
+	{
+		const auto* const view = view_of(aTurn);
+		return view != nullptr ? view->activity() : nullptr;
+	}
+
+	void chat_transcript_view::remake_attachments(const std::string& aKey)
+	{
+		for (auto* const view : Views) {
+			view->remake(aKey);
+		}
+	}
+
+	void chat_transcript_view::set_resend_enabled(const bool aEnabled)
+	{
+		ResendEnabled = aEnabled;
+		for (auto* const view : Views) {
+			view->enable_resend(aEnabled);
+		}
+	}
+
 	auto chat_transcript_view::attachment(const std::size_t aTurn, const std::string& aKey) const -> QWidget*
 	{
 		const auto* const view = view_of(aTurn);
@@ -528,8 +640,9 @@ namespace bpr::qt {
 		// Each rendered text as tall as it reads at the chat's width; the
 		// reviewer's bubbles at most four fifths of it.
 		const auto available = available_width();
-		for (auto* const view : Views) {
-			for (auto* const each : view->bubbles()) {
+		// Every bubble the column holds: the turns', and the chat's own.
+		for (auto* const each : widget()->findChildren<QWidget*>()) {
+			if (dynamic_cast<side_chat::bubble_frame*>(each) != nullptr && !each->isHidden()) {
 				side_chat::fit_bubble(*each, available);
 			}
 		}

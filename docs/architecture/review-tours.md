@@ -325,7 +325,14 @@ Since [[BPR-2322]] (owner, 2026-11-20: "make it use something akin to the side c
 tour onto the report tab") the tour's chat is built from parts it shares with the side chat about
 one review item (`side_chat_parts.hpp`: the seam, the author's bubble, a proposal's frame and how
 bubbles fit the column). Their composer is `qt::chat_composer` (RFC-BPR-0130 stage 2), the one
-the Agent tab places too, with its `passage_chip`.
+the Agent tab places too, with its `passage_chip`. Their conversation is drawn by the one
+transcript, `qt::chat_transcript_view` (RFC-BPR-0130 stages 3 and 4): a part's runs become a
+`core::chat_transcript` (`core::project_tour_thread`, a turn each run, identity the run's), and
+the view changes only the turns `core::chat_transcript_delta` names, so a run that settles or a
+proposal decided never draws the other turns again. A local draft's check card, the focus a turn
+set, the whole tour's revision card, the refused parts, the way to ask for the change under an
+answer that changed nothing, and each part a part's turn proposed are that turn's attachments;
+the whole tour's feedback waiting for its draft is its last turn, with when it goes.
 `qt::item_side_chat` is that second chat: a column beside the report or the code, opened by Ask
 follow-up on a report's finding or a finding card and by Ask about this on the draft composer or a
 thread. It replaced [[BPR-2286]]'s follow-up window. Its conversation is not a tour session: each

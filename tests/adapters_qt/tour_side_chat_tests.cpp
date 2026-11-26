@@ -61,7 +61,9 @@ namespace {
 			std::exit(EXIT_FAILURE);
 		}
 	}
-	void settle()
+	/// `aPart`'s rectangle in the chat's own coordinates, whatever holds it.
+	[[nodiscard]] auto in_chat(const QWidget& aChat, const QWidget& aPart) -> QRect { return { aPart.mapTo(&aChat, QPoint{ 0, 0 }), aPart.size() }; }
+	void               settle()
 	{
 		for (int round = 0; round < 6; ++round) {
 			QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
@@ -437,9 +439,9 @@ auto main(int argc, char** argv) -> int
 	expect(chat->turn_count() == 1U && chat->bubble(0) != nullptr && chat->bubble(0)->findChild<QLabel*>(QStringLiteral("tourSideChatQuestion"))->text() == QStringLiteral("What does this mean?"), "the author's words are a bubble");
 	expect(offered() == QStringList{ QStringLiteral("Explain the selected block") } && !chat->suggestions()->lead()->isVisibleTo(chat),
 		   "AC1 the stop's prompts go once the chat has a turn; Explain the selected block stays while text is selected");
-	expect(chat->bubble(0)->geometry().right() > chat->reply(0)->geometry().left() + chat->reply(0)->width() / 2, "on the right, the reply on the left");
+	expect(in_chat(*chat, *chat->bubble(0)).right() > in_chat(*chat, *chat->reply(0)).left() + chat->reply(0)->width() / 2, "on the right, the reply on the left");
 	expect(!chat->status_line(0)->live() && chat->status_line(0)->text() == QStringLiteral("Claude answered in 0:07.") && !chat->status_line(0)->font().italic(), "AC2 its ending says who answered and how long it took, in the one ending line of every chat: " + chat->status_line(0)->text().toStdString());
-	expect(chat->status_line(0)->geometry().top() >= chat->reply(0)->geometry().bottom(), "under the reply");
+	expect(in_chat(*chat, *chat->status_line(0)).top() >= in_chat(*chat, *chat->reply(0)).bottom(), "under the reply");
 	expect(chat->activity_view(0) != nullptr && chat->activity_view(0)->summary_text() == QStringLiteral("Worked for 2 min: 1 helper, 1 file read"), "AC08 the block folds under the ended turn: " + (chat->activity_view(0) != nullptr ? chat->activity_view(0)->summary_text().toStdString() : std::string{ }));
 	expect(chat->resend_button(0) == nullptr && chat->delete_button(0) == nullptr, "an answer offers no Resend or Delete");
 	auto* const clipboard = QGuiApplication::clipboard();

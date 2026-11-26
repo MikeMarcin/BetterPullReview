@@ -60,6 +60,8 @@ namespace bpr::qt {
 			QString CopyReply;
 			QString Resend;
 			QString Delete;
+			QString QuestionNote;
+			QString Activity;
 		};
 		/// \brief The chat's part in drawing a turn.
 		struct parts
@@ -71,6 +73,15 @@ namespace bpr::qt {
 			std::function<QWidget*(const core::chat_turn& aTurn, const core::chat_attachment& aAttachment, QWidget* aParent)> MakeAttachment;
 			/// A press on a turn's action.
 			std::function<void(const std::string& aTurn, chat_turn_gesture aGesture)> Act;
+			/// Dresses a new bubble, or one whose question changed, above its
+			/// words (what the question quotes, the prompt it was sent from);
+			/// `aAbove` is empty each time. Null for none.
+			std::function<void(const core::chat_turn& aTurn, QWidget& aBubble, QVBoxLayout& aAbove, QLabel& aQuestion)> DressBubble;
+			/// The body a reply is shown with (its references as links); null
+			/// shows the reply as written.
+			std::function<std::string(const core::chat_turn& aTurn)> ReplyBody;
+			/// Stop, from a running turn's quiet notice.
+			std::function<void()> Stop;
 		};
 
 		chat_transcript_view(const names& aNames, QWidget* aParent);
@@ -104,12 +115,19 @@ namespace bpr::qt {
 		[[nodiscard]] auto copy_reply(std::size_t aTurn) const -> QToolButton*;
 		[[nodiscard]] auto resend(std::size_t aTurn) const -> QPushButton*;
 		[[nodiscard]] auto remove(std::size_t aTurn) const -> QPushButton*;
+		[[nodiscard]] auto activity(std::size_t aTurn) const -> agent_activity_view*;
 		/// \brief The widget the factory made for attachment `aKey` of a turn.
 		[[nodiscard]] auto attachment(std::size_t aTurn, const std::string& aKey) const -> QWidget*;
 		/// \brief Every reader of the transcript, for the chat's code colours.
 		[[nodiscard]] auto readers() const -> std::vector<markdown_body_view*>;
 
 		/// \brief Takes the transcript to its end and keeps it there.
+		/// \brief Whether Resend takes a press now (nothing runs, the chat is
+		/// ready).
+		void set_resend_enabled(bool aEnabled);
+		/// \brief Makes every attachment `aKey` again, as its turn holds it: its
+		/// own controls go back to what the chat says (a grant declined).
+		void remake_attachments(const std::string& aKey);
 		void pin();
 		/// \brief Lays bubbles and readers out for the width the column has.
 		void fit();
@@ -135,7 +153,8 @@ namespace bpr::qt {
 		std::vector<turn_view*>         Views;
 		std::optional<agent_run_status> Live;
 		QElapsedTimer                   LiveClock;
-		bool                            FitQueued = false;
+		bool                            FitQueued     = false;
+		bool                            ResendEnabled = true;
 	};
 }
 

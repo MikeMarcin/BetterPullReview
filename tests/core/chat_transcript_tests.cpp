@@ -176,6 +176,98 @@ namespace {
 		static_cast<void>(ask_follow_up(next, "Why?"));
 		expect(project_follow_up(next, facts).Turns[0].Id != discarded.Turns[0].Id && other.Turns.empty(), "another item's chat shares no turn with this one");
 	}
+
+	[[nodiscard]] auto tour_run(const std::uint64_t aId, const tour_thread& aThread, const tour_agent_run_state aState, const std::string_view aQuestion, const std::string_view aReply) -> tour_agent_run
+	{
+		auto run     = tour_agent_run{ };
+		run.Id       = tour_agent_run_id{ aId };
+		run.Request  = tour_agent_request::ask;
+		run.Thread   = aThread;
+		run.State    = aState;
+		run.Question = std::string{ aQuestion };
+		run.Reply    = std::string{ aReply };
+		return run;
+	}
+
+	void test_the_tour_chat_projects_its_runs()
+	{
+		const auto stop    = tour_thread{ .Kind = tour_thread_kind::stop, .Stop = tour_stop_id{ 4U } };
+		const auto tour    = tour_thread{ .Kind = tour_thread_kind::tour, .Stop = tour_stop_id{ } };
+		auto       session = tour_agent_session{ };
+		session.Runs.push_back(tour_run(1U, stop, tour_agent_run_state::answered, "What does this mean?", "It clamps."));
+		session.Runs.back().Seconds = 7U;
+		session.Runs.back().Cost    = 140'000'000ULL;
+		session.Runs.push_back(tour_run(2U, tour, tour_agent_run_state::answered, "Fewer stops", "Merged two."));
+		auto failed = tour_run(3U, stop, tour_agent_run_state::failed, "And then?", "");
+		failed.Entries.push_back({ .Kind = tour_transcript_kind::ended, .Text = "  exit 1: no workspace\nmore detail  ", .Note = tour_transcript_note::none });
+		session.Runs.push_back(failed);
+
+		auto facts    = tour_thread_facts{ };
+		facts.Agents  = { { 1U, "Claude Code" } };
+		facts.Deletes = true;
+		facts.Activity.emplace(1U, chat_activity{ .Activity = agent_turn_activity{ }, .Seconds = 7 });
+		const auto part = project_tour_thread(session, stop, facts);
+		expect(part.Turns.size() == 2U && part.Turns[0].Id == "tour-run:1" && part.Turns[1].Id == "tour-run:3", "a part's chat holds its own runs, identity the run's");
+		expect(part.Turns[0].Reply == "It clamps." && part.Turns[0].Ending && chat_ending_words(*part.Turns[0].Ending) == "Claude answered in 0:07 · $0.14", "an answer and the one ending line");
+		expect(part.Turns[0].Actions.Copy && part.Turns[0].Actions.Recovery == agent_turn_recovery::none && part.Turns[0].Activity && part.Turns[0].Activity->Seconds == 7, "Copy, and what the run did");
+		expect(part.Turns[0].Attachments.empty(), "an answer that is not the newest offers no update line");
+		const auto& why = part.Turns[1];
+		expect(why.Reply.empty() && why.Failure == "Didn't finish: exit 1: no workspace" && why.FailureDetail == "exit 1: no workspace\nmore detail", "a run that did not finish says why, and Copy takes its words");
+		expect(why.Ending && chat_ending_words(*why.Ending) == "Stopped." && why.Ending->Agent == "The tour agent", "it ended as stopped, by the tour agent when none is known");
+		expect(why.Actions.Recovery == agent_turn_recovery::resend && why.Actions.Delete, "the newest failure offers Resend and Delete");
+		facts.Deletes   = false;
+		facts.Running   = true;
+		const auto busy = project_tour_thread(session, stop, facts);
+		expect(busy.Turns[1].Actions.Recovery == agent_turn_recovery::none && !busy.Turns[1].Actions.Delete, "while a run goes, or without a Delete dispatch, neither");
+
+		// The newest answer that changed nothing offers the update.
+		session.Runs.pop_back();
+		facts.Running       = false;
+		const auto answered = project_tour_thread(session, stop, facts);
+		expect(answered.Turns.size() == 1U && answered.Turns[0].Attachments.size() == 1U && answered.Turns[0].Attachments[0].Key == "unchanged", "the newest answer that changed nothing hangs the update line");
+
+		// A part's proposal hangs on the turn that proposed it.
+		auto proposal = tour_proposal{ };
+		proposal.Run  = tour_agent_run_id{ 1U };
+		auto item     = tour_proposal_item{ };
+		item.Part     = tour_proposal_part::stop_text;
+		item.Text     = "A clearer explanation.";
+		item.Run      = tour_agent_run_id{ 1U };
+		proposal.Items.push_back(item);
+		session.Runs[0].Proposed.StopTexts = 1U;
+		facts.Proposal                     = proposal;
+		const auto proposed                = project_tour_thread(session, stop, facts);
+		expect(proposed.Turns[0].Attachments.size() == 1U && proposed.Turns[0].Attachments[0].Key == "proposal:0" && std::get<chat_tour_proposal>(proposed.Turns[0].Attachments[0].Payload).Item.Text == "A clearer explanation.", "each part the turn proposed is its attachment");
+		facts.Proposal->Items[0].Decision = tour_proposal_decision::accepted;
+		expect(chat_transcript_delta(proposed, project_tour_thread(session, stop, facts)) == chat_delta{ { .Kind = chat_change_kind::changed, .Turn = "tour-run:1", .Index = 0U } }, "deciding it changes that turn alone");
+
+		// The whole tour: the revision, the parts refused, the focus, and the
+		// feedback waiting for the draft as its last turn.
+		session.Runs[1].Proposed.Merges = 1U;
+		session.Runs[1].Proposed.Refused.push_back({ .Kind = tour_revision_kind::merge, .Stops = { 2U, 9U }, .Reason = tour_revision_refusal::not_in_tour });
+		session.Runs[1].FocusSet = "the renderer";
+		session.Focus            = "the renderer";
+		auto merge               = tour_proposal_item{ };
+		merge.Part               = tour_proposal_part::merge_stops;
+		merge.Run                = tour_agent_run_id{ 2U };
+		facts.Proposal->Items.push_back(merge);
+		session.Waiting  = "Keep the order.";
+		const auto whole = project_tour_thread(session, tour, facts);
+		expect(whole.Turns.size() == 2U && whole.Turns[1].Id == "tour-waiting" && whole.Turns[1].Question == "Keep the order." && whole.Turns[1].QuestionNote == "Sent when the draft is ready, to revise it." && !whole.Turns[1].Ending, "the feedback waiting is the last turn, with when it goes");
+		const auto& shape = whole.Turns[0].Attachments;
+		expect(shape.size() == 3U && shape[0].Key == "focus" && shape[1].Key == "revision" && shape[2].Key == "refused", "the focus, the revision and the parts refused, in that order");
+		expect(std::get<chat_tour_focus>(shape[0].Payload).Undoable && std::get<chat_tour_revision>(shape[1].Payload).Items == std::vector<std::size_t>{ 1U }, "the focus can be undone; the revision names its own parts");
+
+		// A local draft's check is what its reply is.
+		session.Runs[0].Check = local_check{ };
+		const auto checked    = project_tour_thread(session, stop, facts);
+		expect(checked.Turns[0].Attachments.front().Key == "check" && checked.Turns[0].Attachments.front().Place == chat_attachment_place::after_reply, "a check card stands under its reply");
+
+		// A running run is a running turn.
+		session.Runs.push_back(tour_run(5U, stop, tour_agent_run_state::running, "Still there?", ""));
+		const auto running = project_tour_thread(session, stop, facts);
+		expect(running.Turns.back().Running && !running.Turns.back().Ending && running.Turns.back().Attachments.empty(), "a running run is a running turn");
+	}
 }
 
 auto main() -> int
@@ -185,6 +277,7 @@ auto main() -> int
 	test_a_growing_reply_names_its_turn();
 	test_turns_come_and_go();
 	test_the_item_chat_projects_its_rounds();
+	test_the_tour_chat_projects_its_runs();
 	std::cout << "chat-transcript-tests:pass\n";
 	return EXIT_SUCCESS;
 }

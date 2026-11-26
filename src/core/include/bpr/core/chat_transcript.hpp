@@ -6,9 +6,11 @@
 #include "bpr/core/agent_follow_up.hpp"
 #include "bpr/core/agent_steering.hpp"
 #include "bpr/core/agent_turn.hpp"
+#include "bpr/core/tour_agent_session.hpp"
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -76,15 +78,98 @@ namespace bpr::core {
 		auto operator==(const chat_follow_up_proposal&) const -> bool = default;
 	};
 
+	/// \brief A local draft's check plan or report, under the reply that
+	/// carries it (RFC-BPR-0120).
+	struct chat_tour_check
+	{
+		tour_agent_run_id Run;
+		local_check       Check;
+		/// Why the plan's Run is unavailable; empty when it is available.
+		std::string   Blocked;
+		std::uint64_t Latest = 0U;
+		/// The draft's grants, as the card offers them.
+		bool Scratch = false;
+		bool Builds  = false;
+
+		auto operator==(const chat_tour_check&) const -> bool = default;
+	};
+
+	/// \brief The focus a whole tour's turn set, and whether it can be undone.
+	struct chat_tour_focus
+	{
+		tour_agent_run_id Run;
+		std::string       Focus;
+		bool              Undone   = false;
+		bool              Undoable = false;
+
+		auto operator==(const chat_tour_focus&) const -> bool = default;
+	};
+
+	/// \brief A whole tour's revision waiting in the tour: which of the
+	/// proposal's parts this turn proposed, and how each is decided.
+	struct chat_tour_revision
+	{
+		tour_agent_run_id                   Run;
+		std::vector<std::size_t>            Items;
+		std::vector<tour_proposal_decision> Decisions;
+
+		auto operator==(const chat_tour_revision&) const -> bool = default;
+	};
+
+	/// \brief The parts of a whole tour's revision the core refused, and why.
+	struct chat_tour_refused
+	{
+		std::vector<tour_refused_part> Parts;
+
+		auto operator==(const chat_tour_refused&) const -> bool = default;
+	};
+
+	/// \brief Under the newest answer that changed nothing: the way to ask for
+	/// the change itself.
+	struct chat_tour_unchanged
+	{
+		tour_agent_run_id Run;
+
+		auto operator==(const chat_tour_unchanged&) const -> bool = default;
+	};
+
+	/// \brief One part a tour part's turn proposed, decided in its chat.
+	struct chat_tour_proposal
+	{
+		/// Its place in the proposal, which Accept and Discard name.
+		std::size_t        Index = 0U;
+		tour_proposal_item Item;
+
+		auto operator==(const chat_tour_proposal&) const -> bool = default;
+	};
+
+	/// \brief Where an attachment stands in its turn.
+	enum class chat_attachment_place : std::uint8_t {
+		/// After the ending line and what the run did.
+		after_ending,
+		/// Under the reply, before the ending line: what the reply is.
+		after_reply,
+	};
+
 	/// \brief Something a chat's own projector hangs on a turn, drawn by the
 	/// widget the chat registers for its kind.
 	struct chat_attachment
 	{
 		/// Its identity within its turn.
-		std::string                           Key;
-		std::variant<chat_follow_up_proposal> Payload;
+		std::string                                                                                                                                             Key;
+		std::variant<chat_follow_up_proposal, chat_tour_check, chat_tour_focus, chat_tour_revision, chat_tour_refused, chat_tour_unchanged, chat_tour_proposal> Payload;
+		chat_attachment_place                                                                                                                                   Place = chat_attachment_place::after_ending;
 
 		auto operator==(const chat_attachment&) const -> bool = default;
+	};
+
+	/// \brief What a turn's run did, folded once it ended.
+	struct chat_activity
+	{
+		agent_turn_activity Activity;
+		std::int64_t        Seconds = 0;
+
+		auto operator==(const chat_activity&) const -> bool = default;
 	};
 
 	/// \brief One turn of a conversation.
@@ -96,6 +181,9 @@ namespace bpr::core {
 		/// The reviewer's words; empty for a turn that shows only what it
 		/// holds (a proposal waiting after its run).
 		std::string Question;
+		/// A quiet line under the question in its bubble: when it goes (a
+		/// whole tour's feedback waiting for its draft). Empty for none.
+		std::string QuestionNote;
 		/// What the reviewer steered into the turn while it ran.
 		std::vector<agent_steered_message> Steered;
 		/// The agent's reply, as Markdown; empty while none has come.
@@ -105,11 +193,15 @@ namespace bpr::core {
 		/// How it ended; none while it runs and for a turn with no ending
 		/// line.
 		std::optional<chat_ending> Ending;
-		/// Why it ended without an answer, in the run's words; empty for
+		/// Why it ended without an answer, as the turn says it; empty for
 		/// none.
 		std::string Failure;
-		/// What its runtime reported it doing.
-		std::optional<agent_turn_activity> Activity;
+		/// What Copy takes from a turn without an answer: the run's own words
+		/// in full. Empty: `Failure`.
+		std::string FailureDetail;
+		/// What its runtime reported it doing, once the run ended (a running
+		/// turn's activity is live, the chat's to present).
+		std::optional<chat_activity> Activity;
 		/// What the ended turn offers under its reply.
 		agent_turn_actions           Actions;
 		std::vector<chat_attachment> Attachments;
@@ -185,6 +277,38 @@ namespace bpr::core {
 	/// is. Identities carry the item's key, so another item's chat shares no
 	/// turn with this one.
 	[[nodiscard]] auto project_follow_up(const follow_up_state& aState, const follow_up_thread_facts& aFacts) -> chat_transcript;
+
+	/// \brief What the tour's side chat knows besides the session.
+	struct tour_thread_facts
+	{
+		/// The proposal waiting, whose parts a turn may hang.
+		std::optional<tour_proposal> Proposal;
+		/// A run of the tour session is going: no ended turn offers a
+		/// recovery while it does.
+		bool Running = false;
+		/// The agent that answered each run, by run, where it is known.
+		std::map<std::uint64_t, std::string> Agents;
+		/// What each ended run did, by run, as its runtime reported it.
+		std::map<std::uint64_t, chat_activity> Activity;
+		/// Delete is offered on a turn that ended without an answer.
+		bool Deletes = false;
+		/// The local draft's grants, for its check cards.
+		bool CheckScratch = false;
+		bool CheckBuilds  = false;
+	};
+
+	/// \brief The name a tour run is said by when no agent is known.
+	inline constexpr std::string_view tour_chat_default_agent = "The tour agent";
+
+	/// \brief One part's (or the whole tour's) conversation as a transcript:
+	/// a turn each of its runs, identity the run's; a reply, or why it did not
+	/// finish, and the one ending line; the ended turn's actions
+	/// (`decide_agent_turn_actions`); and as attachments a local draft's check
+	/// card, the focus a turn set, the revision it proposed, the parts refused,
+	/// the way to ask for the change under the newest answer that changed
+	/// nothing, and each part a part's turn proposed. A whole tour's feedback
+	/// waiting for its draft is the last turn, with when it goes.
+	[[nodiscard]] auto project_tour_thread(const tour_agent_session& aSession, const tour_thread& aThread, const tour_thread_facts& aFacts) -> chat_transcript;
 }
 
 #endif
