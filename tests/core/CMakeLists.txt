@@ -51,6 +51,14 @@ bpr_enable_hardening(test_chat_transcript_core)
 bpr_enable_warnings(test_chat_transcript_core)
 bpr_add_network_isolated_test(NAME core_chat_transcript COMMAND test_chat_transcript_core)
 
+# RFC-BPR-0130 stage 5. The Agent tab's running turn, folded from what the
+# host observes of its run, and what an ended turn's answer is made of.
+bpr_add_executable(test_agent_live_turn_core agent_live_turn_tests.cpp)
+target_link_libraries(test_agent_live_turn_core PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_agent_live_turn_core)
+bpr_enable_warnings(test_agent_live_turn_core)
+bpr_add_network_isolated_test(NAME core_agent_live_turn COMMAND test_agent_live_turn_core)
+
 bpr_add_executable(test_release_update_core release_update_tests.cpp)
 target_link_libraries(test_release_update_core PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_release_update_core)

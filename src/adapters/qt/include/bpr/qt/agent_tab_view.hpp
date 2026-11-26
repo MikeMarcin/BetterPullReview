@@ -13,6 +13,7 @@
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_draft_all.hpp"
 #include "bpr/core/agent_finding.hpp"
+#include "bpr/core/agent_live_turn.hpp"
 #include "bpr/core/agent_question.hpp"
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/agent_turn.hpp"
@@ -1304,7 +1305,13 @@ namespace bpr::qt {
 		/// [[BPR-1773]]. The conversation chip shown when it was sent.
 		std::optional<agent_conversation_chip>   PendingAbout;
 		std::optional<agent_answer_draft_target> PendingDraftTarget;
-		int                                      LastPhase = 0;
+		/// RFC-BPR-0130 stage 5. The running turn as the core folds what the
+		/// run is seen doing (`core::reduce_agent_live_turn`): its phase as
+		/// last seen when the run reported progress, which says when a turn
+		/// begins and ends.
+		core::agent_live_turn Live;
+		/// What the run is seen doing now, as the core reads it.
+		[[nodiscard]] auto observe_run() const -> core::agent_live_observation;
 		/// How many times findings were presented, and the count when the
 		/// running turn began: a turn names only the findings it brought.
 		std::uint64_t FindingsPresented = 0U;

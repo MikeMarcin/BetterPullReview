@@ -1387,12 +1387,14 @@ namespace bpr::qt {
 		if (!panels_alive()) {
 			return;
 		}
-		const auto phase = static_cast<int>(Launch.current_phase());
-		if (phase != LastPhase) {
-			if (LastPhase == static_cast<int>(agent_launch_panel::phase::idle) && phase == static_cast<int>(agent_launch_panel::phase::preparing)) {
+		// RFC-BPR-0130 stage 5. The core folds what the run is seen doing and
+		// says when a turn begins.
+		const auto step = core::reduce_agent_live_turn(Live, observe_run());
+		Live            = step.Turn;
+		if (step.PhaseChanged) {
+			if (step.Began) {
 				begin_turn();
 			}
-			LastPhase = phase;
 			// A phase change renders now, through refresh, and owes nothing.
 			AnswerPending = false;
 			refresh();
@@ -1415,6 +1417,27 @@ namespace bpr::qt {
 				refuse_send(core::agent_send_refusal::launch_refused, Launch.last_refusal());
 			}
 		}
+	}
+
+	auto agent_tab_view::observe_run() const -> core::agent_live_observation
+	{
+		auto seen = core::agent_live_observation{ };
+		switch (Launch.current_phase()) {
+		case agent_launch_panel::phase::idle:      seen.Phase = core::agent_live_phase::idle; break;
+		case agent_launch_panel::phase::preparing: seen.Phase = core::agent_live_phase::preparing; break;
+		case agent_launch_panel::phase::running:   seen.Phase = core::agent_live_phase::running; break;
+		}
+		seen.WorkspaceChecking = Launch.workspace_checking();
+		seen.Written           = Launch.output_text().trimmed().toStdString();
+		seen.LatestLine        = Launch.latest_output_line().toStdString();
+		seen.Steered           = Launch.steered();
+		seen.Cost              = Launch.running_turn_cost();
+		if (Launch.activity_reported()) {
+			seen.Activity          = Launch.activity();
+			seen.ActivityStartedMs = Launch.activity_started_ms();
+		}
+		seen.FilesOnly = Launch.pull_request_files_only();
+		return seen;
 	}
 
 	void agent_tab_view::begin_turn()
@@ -3278,44 +3301,39 @@ namespace bpr::qt {
 			return;
 		}
 		auto& current = Turns.back();
+		// RFC-BPR-0130 stage 5. The running turn as the core folds what its
+		// run is seen doing now. (Whether a turn began or ended is the fold
+		// `progress` keeps.)
+		const auto live = core::reduce_agent_live_turn(Live, observe_run()).Turn;
 		// [[BPR-2153]]. The running turn's steered messages, as its run's
 		// turn events said them, and how each ended.
-		if (current.Steered != Launch.steered()) {
-			current.Steered = Launch.steered();
+		if (live.Phase != core::agent_live_phase::idle && current.Steered != live.Steered) {
+			current.Steered = live.Steered;
 			present_transcript();
 		}
 		const auto agent   = Launch.profile_selector()->currentText();
 		const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
-		const auto written = Launch.output_text().trimmed();
-		switch (Launch.current_phase()) {
-		case agent_launch_panel::phase::preparing: {
-			set_answer(current, written);
-			auto status  = agent_run_status{ };
-			status.Agent = agent;
-			status.Stage = Launch.workspace_checking() ? agent_run_stage::checking : agent_run_stage::preparing;
-			Transcript->present_live(status, Started);
-			if (RunObserver) {
-				RunObserver(status, Started);
-			}
-			if (!current.Explain.isEmpty()) {
-				publish_explain(Turns.size() - 1U, status, { }, false, seconds);
-			}
-			return;
-		}
-		case agent_launch_panel::phase::running: {
+		const auto written = QString::fromStdString(live.Answer);
+		if (live.Phase != core::agent_live_phase::idle) {
 			set_answer(current, written);
 			// [[BPR-1941]]. The words the tour chats' running turns say too.
-			auto status      = agent_run_status{ };
-			status.Agent     = agent;
-			status.Stage     = written.isEmpty() ? agent_run_stage::thinking : agent_run_stage::writing;
-			status.Latest    = written.isEmpty() ? Launch.latest_output_line() : QString{ };
-			status.FilesOnly = Launch.pull_request_files_only();
-			// [[BPR-2252]]. What the turn has cost so far, once the agent said.
-			status.Cost = Launch.running_turn_cost();
-			// [[BPR-2005]]. What the runtime says it is doing, when it says.
-			if (Launch.activity_reported()) {
-				status.Activity          = Launch.activity();
-				status.ActivityStartedMs = Launch.activity_started_ms();
+			auto status  = agent_run_status{ };
+			status.Agent = agent;
+			switch (live.Stage) {
+			case core::agent_live_stage::preparing: status.Stage = agent_run_stage::preparing; break;
+			case core::agent_live_stage::checking:  status.Stage = agent_run_stage::checking; break;
+			case core::agent_live_stage::thinking:  status.Stage = agent_run_stage::thinking; break;
+			case core::agent_live_stage::writing:   status.Stage = agent_run_stage::writing; break;
+			}
+			if (live.Phase == core::agent_live_phase::running) {
+				status.Latest    = QString::fromStdString(live.Latest);
+				status.FilesOnly = live.FilesOnly;
+				// [[BPR-2252]]. What the turn has cost so far, once the agent
+				// said.
+				status.Cost = live.Cost;
+				// [[BPR-2005]]. What the runtime says it is doing, when it says.
+				status.Activity          = live.Activity;
+				status.ActivityStartedMs = live.ActivityStartedMs;
 			}
 			Transcript->present_live(status, Started);
 			if (RunObserver) {
@@ -3325,9 +3343,6 @@ namespace bpr::qt {
 				publish_explain(Turns.size() - 1U, status, { }, false, seconds);
 			}
 			return;
-		}
-		case agent_launch_panel::phase::idle:
-			break;
 		}
 		// The request ended: say what came of it.
 		current.Done = true;
@@ -3347,7 +3362,15 @@ namespace bpr::qt {
 		current.Ran           = core::chat_activity{ .Activity = Launch.activity(), .Seconds = seconds };
 		const auto kept       = Launch.kept_text().trimmed();
 		const auto unfinished = Launch.last_failure() == application::agent_protocol_failure::helpers_unfinished;
-		if (succeeded && !Launch.failed_writes().empty()) {
+		// RFC-BPR-0130 stage 5. What the answer is made of is the core's.
+		auto facts              = core::agent_live_end_facts{ };
+		facts.Outcome           = current.Outcome;
+		facts.Written           = written.toStdString();
+		facts.Kept              = kept.toStdString();
+		facts.HelpersUnfinished = unfinished;
+		facts.FailedWrites      = Launch.failed_writes();
+		const auto end          = core::decide_agent_live_end(facts);
+		if (end == core::agent_live_end::writes_failed) {
 			// [[BPR-2305]]. Every file change failed: the turn says so with
 			// the paths, never as a normal answer that implies it wrote them.
 			auto paths = QStringList{ };
@@ -3357,9 +3380,9 @@ namespace bpr::qt {
 			const auto more   = Launch.failed_write_count() > static_cast<std::uint32_t>(paths.size()) ? tr(" and %1 more").arg(Launch.failed_write_count() - static_cast<std::uint32_t>(paths.size())) : QString{ };
 			const auto ending = tr("%1 changed files, but every change failed, so nothing was written: %2%3.").arg(agent_short_name(agent), paths.join(QStringLiteral(", ")), more);
 			set_answer(current, (written.isEmpty() ? QString{ } : written + QStringLiteral("\n\n")) + QStringLiteral("*") + ending + QStringLiteral("*"));
-		} else if (succeeded) {
-			set_answer(current, written.isEmpty() ? tr("%1 finished without writing an answer.").arg(agent) : written);
-		} else if (unfinished || (Launch.last_outcome() == application::agent_run_outcome::cancelled && !kept.isEmpty())) {
+		} else if (end == core::agent_live_end::answered || end == core::agent_live_end::answered_silently) {
+			set_answer(current, end == core::agent_live_end::answered_silently ? tr("%1 finished without writing an answer.").arg(agent) : written);
+		} else if (end == core::agent_live_end::kept_on_helpers || end == core::agent_live_end::kept_on_stop) {
 			// [[BPR-2004]], RFC-BPR-0103. Stopped, or the runtime ended under
 			// its helpers: what arrived is kept, and the ending is said
 			// under it, never as an answer that promises more.
@@ -3367,8 +3390,8 @@ namespace bpr::qt {
 			for (const auto& name : Launch.unfinished_helpers()) {
 				names << (name.empty() ? tr("a helper") : QStringLiteral("“%1”").arg(QString::fromStdString(name)));
 			}
-			const auto ending = unfinished ? (names.size() == 1 ? tr("%1 stopped before its remaining helper finished").arg(agent_short_name(agent)) : tr("%1 stopped before its %2 remaining helpers finished").arg(agent_short_name(agent)).arg(names.size())) + (names.isEmpty() ? QString{ } : QStringLiteral(": ") + names.join(QStringLiteral(", "))) + QStringLiteral(". ") + tr("What arrived is kept.")
-										   : tr("Stopped. What arrived is kept.");
+			const auto ending = end == core::agent_live_end::kept_on_helpers ? (names.size() == 1 ? tr("%1 stopped before its remaining helper finished").arg(agent_short_name(agent)) : tr("%1 stopped before its %2 remaining helpers finished").arg(agent_short_name(agent)).arg(names.size())) + (names.isEmpty() ? QString{ } : QStringLiteral(": ") + names.join(QStringLiteral(", "))) + QStringLiteral(". ") + tr("What arrived is kept.")
+																			 : tr("Stopped. What arrived is kept.");
 			set_answer(current, (kept.isEmpty() ? QString{ } : kept + QStringLiteral("\n\n")) + QStringLiteral("*") + ending + QStringLiteral("*"));
 		} else {
 			// [[BPR-1817]]. A run that ended without an answer is an error
