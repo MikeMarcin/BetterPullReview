@@ -619,8 +619,8 @@ namespace bpr::adapters::sqlite {
 				if (*narrow == 0) {
 					continue;
 				}
-				if (!detail::execute(db, "BEGIN IMMEDIATE") || !detail::execute(db, "ALTER TABLE " + name + " RENAME TO narrow_" + name)
-					|| !detail::execute(db, "CREATE TABLE " + name + "(" + std::string{ columns } + ") STRICT") || !detail::execute(db, "INSERT INTO " + name + " SELECT * FROM narrow_" + name)
+				if (!detail::execute(db, "BEGIN IMMEDIATE") || !detail::execute(db, std::string{ "ALTER TABLE " }.append(name).append(" RENAME TO narrow_").append(name))
+					|| !detail::execute(db, "CREATE TABLE " + name + "(" + std::string{ columns } + ") STRICT") || !detail::execute(db, std::string{ "INSERT INTO " }.append(name).append(" SELECT * FROM narrow_").append(name))
 					|| !detail::execute(db, "DROP TABLE narrow_" + name) || !detail::execute(db, "COMMIT")) {
 					static_cast<void>(detail::execute(db, "ROLLBACK"));
 					return { };

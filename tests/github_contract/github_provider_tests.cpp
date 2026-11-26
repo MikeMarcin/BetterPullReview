@@ -2199,6 +2199,7 @@ namespace {
 					expect(position != std::string::npos, "the recorded pull request reports its commits");
 					response.Body.replace(position, 12U, R"("commits": 2)");
 				} else if (aWire.Wire.Operation == read_operation::list_pull_request_commits) {
+					// NOLINTNEXTLINE(performance-inefficient-string-concatenation): a fixture body.
 					response.Body.insert(response.Body.find('{'), R"({"sha":")" + merge + R"(","node_id":"C_fixture_merge","commit":{"message":"Merge branch 'main' into feature"},"author":{"node_id":"U_fixture_author","login":"octo-author"},"parents":[{"sha":")" + firstParent + R"("},{"sha":")" + secondParent + R"("}]},)");
 				}
 				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };

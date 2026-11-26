@@ -11,7 +11,7 @@ int main()
 	using tests::expect;
 	namespace fs = std::filesystem;
 	tests::sqlite_contract::scratch_root scratch{ "git-insights" };
-	const auto                           root   = scratch.path();
+	const auto&                          root   = scratch.path();
 	const auto                           first  = root / "repositories/v1" / (std::string(64, 'a') + ".git");
 	const auto                           second = root / "repositories/v1" / (std::string(64, 'b') + ".git");
 	for (const auto& repository : { first, second }) {

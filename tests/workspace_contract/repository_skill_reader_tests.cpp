@@ -81,9 +81,9 @@ auto main(int argc, char** argv) -> int
 
 	const auto texts    = std::array<std::string_view, 1>{ "Write as /team-voice and /team-writing say; /head-only too." };
 	const auto guidance = application::resolve_skill_guidance(library, texts);
-	const auto inline_  = application::inline_skills(library, guidance);
+	const auto inlined  = application::inline_skills(library, guidance);
 	auto       received = std::string{ };
-	for (const auto& skill : inline_) {
+	for (const auto& skill : inlined) {
 		received += skill.Text;
 	}
 	expect(received.find("BASE_GUIDANCE") != std::string::npos && received.find("WRITING_AT_BASE") != std::string::npos, "the run receives the base side's guidance");
