@@ -161,6 +161,8 @@ namespace bpr::qt {
 		NewItem->setObjectName(aPrefix + QStringLiteral("NewSession"));
 		if (aKind == core::chat_history_kind::tour_side_chat) {
 			NewItem->setToolTip(tr("Keep this chat in History and start an empty one. Accepted tour work stays. What was sent earlier stays in the old chat."));
+		} else if (aKind == core::chat_history_kind::review_item) {
+			NewItem->setToolTip(tr("Keep this chat in History and start an empty one about the same item. What it changed stays changed."));
 		}
 		connect(NewItem, &QAction::triggered, this, [this] {
 			// Core's word, asked again as it is pressed.

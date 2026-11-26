@@ -20,8 +20,9 @@
 /// \brief [[BPR-2286]]. Ask follow-up and Ask about this: the host of the
 /// follow-ups a window holds, one a review item, each a `core::follow_up_state`.
 ///
-/// \details Each round is one fresh run of the agent the window's picker
-/// names; its answer comes back on the decision lane and the core settles it.
+/// \details Each round is one run of the agent the window's picker names (a
+/// turn of the item chat's session where the window keeps one, RFC-BPR-0130
+/// stage 7); its answer comes back on the decision lane and the core settles it.
 /// A round runs either through a blocking runner on the agent lane, or
 /// ([[BPR-2370]], owner: "How am I supposed to ask serious follow-ups if it
 /// cant read the workspace?") through a launcher that answers later, which the
@@ -43,6 +44,12 @@ namespace bpr::application {
 		std::string WritingStyle;
 		/// The bounded inline guidance named in this turn's question.
 		std::vector<core::supplement_skill> Skills;
+		/// RFC-BPR-0130 stage 7. The item chat's session the round continues
+		/// (the window's name for it); empty: a fresh run.
+		std::string Session;
+		/// What the session records as asked: the question, or the apply
+		/// action's words for a proposal. The host fills it.
+		std::string Asked;
 	};
 
 	/// \brief Runs one round; blocking, on the agent lane, stoppable. The
@@ -97,6 +104,10 @@ namespace bpr::application {
 		/// \brief Asks for the text `aApply` would put in place; `aBase` is
 		/// that place's text now.
 		auto propose(follow_up_agent aAgent, core::follow_up_apply aApply, std::string aBase) -> core::follow_up_refusal;
+		/// \brief RFC-BPR-0130 stage 7. The open follow-up's session is now
+		/// the one whose rounds are `aRounds` (none: a new session), as its
+		/// History chose or read it. Refused (`busy`) while its run goes.
+		auto restore(std::vector<core::follow_up_round> aRounds) -> core::follow_up_refusal;
 		/// \brief Use: the core's decision over the text the proposal replaces
 		/// as it is now. Nothing is put anywhere here.
 		auto apply(std::uint64_t aProposal, std::string_view aCurrent) -> core::follow_up_application;

@@ -20,6 +20,8 @@ namespace bpr::core {
 	enum class chat_history_kind : std::uint8_t {
 		agent_tab,
 		tour_side_chat,
+		/// RFC-BPR-0130 stage 7. The side chat about one review item.
+		review_item,
 	};
 
 	/// \brief Why New session cannot be chosen now.

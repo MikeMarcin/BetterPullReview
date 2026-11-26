@@ -1369,20 +1369,23 @@ auto main(int argc, char** argv) -> int
 			leave_no_keyboard_behind();
 			// RFC-BPR-0130. The side chat about one item, beside the code: a
 			// finding's Ask follow-up opens it. It wears the one header (the
-			// kind of item and its place, Show, Copy conversation, close) and
-			// keeps no sessions, so it has no History.
+			// kind of item and its place, Show, History, close).
 			auto* const follow = tab->turn_cards(turn).front()->findChild<QPushButton*>(QStringLiteral("agentFindingFollowUp"));
 			expect(follow != nullptr && follow->isEnabled(), "the first finding offers Ask follow-up");
 			follow->click();
 			auto* const item = window->item_side_chat();
-			wait([&] { return item != nullptr && item->isVisible(); }, "the finding's side chat opens beside the code");
+			wait([&] { return item != nullptr && item->isVisible() && !item->history_button()->property("loading").toBool(); }, "the finding's side chat opens beside the code and reads its sessions");
 			const auto answers = item->answers().size();
 			item->composer()->setPlainText(QStringLiteral("Is this worth a comment on the pull request?"));
 			item->send_button()->click();
 			wait([&] { return item->answers().size() > answers && !item->running(); }, "the finding's side chat is answered");
-			const auto* const history = item->findChild<QToolButton*>(QStringLiteral("itemSideChatHistory"));
-			expect(item->copy_chat_button()->isVisibleTo(item) && (history == nullptr || !history->isVisibleTo(item)) && item->close_button()->isVisibleTo(item),
-				   "the item's chat has Copy conversation and close in its header, and no History");
+			// RFC-BPR-0130 stage 7: it keeps sessions, so its header has
+			// History (Copy conversation is History's), and the round it was
+			// asked is its session's first turn there.
+			expect(item->history_button()->isVisibleTo(item) && !item->copy_chat_button()->isVisibleTo(item) && item->close_button()->isVisibleTo(item),
+				   "the item's chat has History and close in its header, and no Copy of its own");
+			wait([&] { return item->history_menu()->rows()->ids().size() == 1U && item->history_menu()->rows()->turns(item->history_menu()->rows()->selected()) == 1U; },
+				 "the item's chat keeps its round as its session's turn, in History");
 			leave_no_keyboard_behind();
 			run.sweep_item_chat("item-chat-answered");
 			item->close_button()->click();

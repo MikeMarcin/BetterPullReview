@@ -967,11 +967,13 @@ namespace bpr::app {
 			if (!aTour.NativeScope.empty() && AgentSetup) {
 				const auto preferences = AgentSetup->projection().Preferences;
 				if (const auto* entry = core::entry_of_profile(preferences.Agents, aProfile); entry) {
+					// RFC-BPR-0130 stage 7: an item's chat keeps its own History.
+					const auto& history             = aTour.FollowUp ? FollowUpHistory : TourHistory;
 					invocation.NativeAgentIdentity  = entry->Identity;
 					invocation.NativeScope          = aTour.NativeScope;
 					invocation.NativeQuestion       = aTour.NativeQuestion;
-					invocation.TranscriptReplay     = TourHistory.Scope == aTour.NativeScope && TourHistory.Replay;
-					invocation.SelectedConversation = TourHistory.Scope == aTour.NativeScope ? TourHistory.Selected : std::string{ };
+					invocation.TranscriptReplay     = history.Scope == aTour.NativeScope && history.Replay;
+					invocation.SelectedConversation = history.Scope == aTour.NativeScope ? history.Selected : std::string{ };
 				}
 			}
 			session->dispatch(std::move(invocation));

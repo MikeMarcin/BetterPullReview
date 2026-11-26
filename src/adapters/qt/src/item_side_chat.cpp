@@ -4,6 +4,9 @@
 
 #include "bpr/qt/resize_handle_cursor.hpp"
 
+#include "bpr/core/chat_header.hpp"
+#include "bpr/core/chat_notice.hpp"
+#include "bpr/core/epoch_model.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/chat_transcript_view.hpp"
@@ -14,6 +17,7 @@
 #include "bpr/qt/tour_side_chat.hpp"
 
 #include <QAccessible>
+#include <QAction>
 #include <QClipboard>
 #include <QEvent>
 #include <QGuiApplication>
@@ -186,7 +190,7 @@ namespace bpr::qt {
 		case core::follow_up_refusal::busy:            return QObject::tr("The agent is still answering. Wait for it, or press Stop.");
 		case core::follow_up_refusal::empty_question:  return QObject::tr("Write a question first.");
 		case core::follow_up_refusal::not_offered:     return QObject::tr("That cannot be applied to this item.");
-		case core::follow_up_refusal::too_many_rounds: return QObject::tr("This chat is as long as one item's chat keeps. Apply what it settled, or start again from the item.");
+		case core::follow_up_refusal::too_many_rounds: return QObject::tr("This session is as long as one item's chat keeps. Apply what it settled, or choose New session in History.");
 		case core::follow_up_refusal::stale:           return QObject::tr("That proposal is no longer the one shown. Nothing changed.");
 		case core::follow_up_refusal::no_proposal:     return QObject::tr("There is no proposal to use.");
 		case core::follow_up_refusal::empty_answer:    return QObject::tr("The agent answered nothing. Nothing changed.");
@@ -253,10 +257,11 @@ namespace bpr::qt {
 
 		// The header (RFC-BPR-0130, header A): the one row every chat with
 		// an agent wears. Here it is the kind of item and its place, Show,
-		// Copy conversation and close. An item's chat keeps no sessions, so
-		// core gives it Copy where the other chats have History; the agent's
-		// glyph that stood before the subject is gone (the seam down the
-		// column's edge says whose column it is).
+		// History and close. Stage 7 (owner, 2026-11-25: "sure seems like
+		// they should right"): an item's chat keeps sessions, so core gives
+		// it History, with Copy conversation in it, as a tour part's chat has;
+		// the agent's glyph that stood before the subject is gone (the seam
+		// down the column's edge says whose column it is).
 		Header = new chat_header_view{ {
 										   .Row     = QStringLiteral("itemSideChatHeader"),
 										   .Subject = QStringLiteral("itemSideChatSubject"),
@@ -282,10 +287,52 @@ namespace bpr::qt {
 				} },
 			.Close            = [this] { set_column_open(false); },
 		});
-		ShowItem  = Header->show_button();
-		CopyChat  = Header->copy_tool();
-		ClosePane = Header->close_tool();
+		ShowItem    = Header->show_button();
+		CopyChat    = Header->copy_tool();
+		ClosePane   = Header->close_tool();
+		HistoryTool = Header->history_tool();
 		column->addWidget(Header);
+		// The one History menu, the Agent tab's and the tour chat's: New
+		// session first, the item's sessions (rename, delete, and their turns
+		// and cost under the i), Delete all sessions…, Copy conversation and
+		// the revision read.
+		HistoryMenu        = new chat_history_menu{ core::chat_history_kind::review_item, *this, *HistoryTool, QStringLiteral("itemChat") };
+		const auto history = [this](std::optional<std::string> aChoice) {
+			if (Shown && Intents.History) {
+				Intents.History(std::move(aChoice));
+			}
+		};
+		HistoryMenu->set_dispatch({
+			.AboutToShow      = [history] { history(std::nullopt); },
+			.NewSession       = [history] { history(std::string{ }); },
+			.Open             = [history](const std::string& aId) { history(aId); },
+			.CarryOver        = [history](const std::string& aId) { history("replay:" + aId); },
+			.ViewOther        = { },
+			.Edit             = [this](const std::string& aId, std::optional<std::string> aName) {
+                if (Shown && Intents.EditSession) {
+                    Intents.EditSession(aId, std::move(aName));
+                } },
+			.CopyConversation = [this] {
+                if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
+                    clipboard->setText(chat_text());
+                } },
+			.ShowEveryRun     = { },
+			.ResetAgents      = { },
+		});
+		// What History offers is core's, from what this chat is doing when asked.
+		HistoryMenu->set_state_source([this] {
+			return chat_history_menu::chat_state{
+				.AgentReady  = Shown.has_value() && !Agent.isEmpty(),
+				.Closed      = !Shown.has_value(),
+				.Running     = Running,
+				.Busy        = false,
+				.ShownTurns  = Shown ? Shown->Rounds.size() : 0U,
+				.Pinned      = RevisionStale,
+				.EveryRun    = false,
+				.ResetAgents = false,
+				.Agent       = Agent,
+			};
+		});
 
 		// The chat (RFC-BPR-0130 stage 3): the one transcript, the item it is
 		// about quoted at its top, each round a turn, a proposal its own turn's
@@ -341,7 +388,33 @@ namespace bpr::qt {
 
 		// Under the transcript: a notice only when there is something to say,
 		// the composer with the item as its chip, then the apply action.
-		// RFC-BPR-0130 stage 6: the one notice every chat draws, as its line.
+		// RFC-BPR-0130 stage 6: the one notice every chat draws. Stage 7: the
+		// open session's line (carried over, or one the agent cannot pick
+		// up) and the pinned-revision card, as a tour part's chat has them.
+		SessionLine = new chat_notice_view{ core::chat_notice_form::line, { .Notice = QStringLiteral("itemSessionNoticeLine"), .Words = QStringLiteral("itemSessionNotice") }, this };
+		column->addWidget(SessionLine);
+		HeadMovedCard = new chat_notice_view{ core::chat_notice_form::card,
+											  { .Notice  = QStringLiteral("itemHeadMovedCard"),
+												.Title   = QStringLiteral("itemHeadMovedTitle"),
+												.Words   = QStringLiteral("itemHeadMovedText"),
+												.Dismiss = QStringLiteral("itemHeadMovedDismiss"),
+												.First   = QStringLiteral("itemHeadMovedFirst"),
+												.Second  = QStringLiteral("itemHeadMovedSecond") },
+											  this };
+		column->addWidget(HeadMovedCard);
+		HeadMovedCard->set_dispatch({ .Chose = [this](const core::chat_notice_action aAction) {
+			if (Running || HistoryLoading || !RevisionChoiceRequired) {
+				return;
+			}
+			if (aAction == core::chat_notice_action::new_session) {
+				// History's own New session.
+				if (auto* const fresh = HistoryMenu->new_session_action(); fresh != nullptr && fresh->isEnabled()) {
+					fresh->trigger();
+				}
+			} else if (aAction == core::chat_notice_action::continue_at && Intents.Continue) {
+				Intents.Continue();
+			}
+		} });
 		StatusLine = new chat_notice_view{ core::chat_notice_form::line, { .Notice = QStringLiteral("itemSideChatStatusLine"), .Words = QStringLiteral("itemSideChatStatus") }, this };
 		Status     = StatusLine->words_label();
 		Status->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -521,17 +594,7 @@ namespace bpr::qt {
 		const auto proposalWas = !another && Shown && Shown->Proposal.has_value() && aState.Proposal && Shown->Proposal->Id == aState.Proposal->Id;
 		Agent                  = aAgent;
 		Shown                  = aState;
-		// What the row says is this chat's; what it holds is core's.
-		Header->present(core::plan_chat_header({
-			.Kind         = core::chat_kind::review_item,
-			.Subject      = subject_kind_words(aState.Subject.Kind).toStdString(),
-			.Place        = subject_place_words(aState.Subject).toStdString(),
-			.CanShow      = !aState.Subject.Path.empty() && aState.Subject.First != 0U,
-			.About        = aState.Subject.Title,
-			.SessionName  = { },
-			.RevisionRead = { },
-			.Cost         = std::nullopt,
-		}));
+		present_header();
 		ChipWords = item_words(aState.Subject).simplified();
 		Chip->setText(ChipWords);
 		Chip->setToolTip(item_words(aState.Subject));
@@ -561,11 +624,9 @@ namespace bpr::qt {
 			ApplyButton->setToolTip(tip);
 			ApplyButton->setAccessibleDescription(tip);
 		}
-		ApplyButton->setEnabled(!Running);
-		// The one rule (`core::decide_chat_send`): an item's chat takes no
-		// follow-ups, so Send is Stop while its round runs.
-		Field->present(core::decide_chat_send({ .Running = Running }));
-		Send->setToolTip(Running ? tr("Stop the agent's answer") : tr("Send the question to the agent. Nothing is posted."));
+		present_composer();
+		HistoryMenu->refresh();
+		present_head_moved_card();
 		show_status(aFailure.isEmpty() ? item_chat_refusal_words(aState.Refused) : aFailure);
 		restyle();
 		QTimer::singleShot(0, this, [this] { fit_chip(); });
@@ -573,6 +634,102 @@ namespace bpr::qt {
 			UseButton->setFocus(Qt::OtherFocusReason);
 		}
 	}
+
+	void item_side_chat::present_header()
+	{
+		if (!Shown) {
+			return;
+		}
+		// What the row says is this chat's; what it holds is core's. The
+		// session's name and the revision it read are History's.
+		Header->present(core::plan_chat_header({
+			.Kind         = core::chat_kind::review_item,
+			.Subject      = subject_kind_words(Shown->Subject.Kind).toStdString(),
+			.Place        = subject_place_words(Shown->Subject).toStdString(),
+			.CanShow      = !Shown->Subject.Path.empty() && Shown->Subject.First != 0U,
+			.About        = Shown->Subject.Title,
+			.SessionName  = OpenSessionName,
+			.RevisionRead = RevisionRead.empty() ? OpenSessionRevision : RevisionRead,
+			.Cost         = std::nullopt,
+		}));
+	}
+
+	void item_side_chat::present_composer()
+	{
+		const auto held = HistoryLoading || RevisionChoiceRequired;
+		ApplyButton->setEnabled(!Running && !held);
+		// The one rule (`core::decide_chat_send`): an item's chat takes no
+		// follow-ups, so Send is Stop while its round runs. While History is
+		// read, or the pinned-revision card asks, nothing is sent.
+		Field->present(core::decide_chat_send({ .Running = Running }));
+		Send->setEnabled(Running || !held);
+		Send->setToolTip(Running                      ? tr("Stop the agent's answer")
+							 : RevisionChoiceRequired ? QString::fromStdString(core::chat_moved_head_wait_words(RevisionRead))
+							 : HistoryLoading         ? tr("Wait until the sessions are read.")
+													  : tr("Send the question to the agent. Nothing is posted."));
+	}
+
+	void item_side_chat::present_native_history(const application::native_agent_history_projection& aView)
+	{
+		if (aView.ReadOnly) {
+			return;
+		}
+		HistoryLoading = aView.Loading;
+		HistoryTool->setProperty("loading", aView.Loading);
+		if (!aView.Loading) {
+			// A notice only when the session does not go on in the ordinary
+			// way, in the words every chat says it with.
+			CarriedOver    = aView.Replay;
+			CannotContinue = !aView.Replay && !aView.NativeSupported;
+			auto tip       = aView.Replay ? chat_history_menu::carry_over_tip(aView.ReplayTurnsOmitted, aView.ReplayTextCutBytes > 0U) : QString{ };
+			SessionLine->present(core::plan_session_notice(core::chat_continuation_of(CarriedOver, !CannotContinue), Agent.toStdString(), tip.toStdString()));
+			const auto open     = std::ranges::find(aView.Entries, aView.Selected, &application::native_agent_history_entry::Id);
+			const auto found    = !aView.Selected.empty() && open != aView.Entries.end();
+			OpenSessionName     = found ? open->Name : std::string{ };
+			OpenSessionRevision = found && open->Binding.HeadOid != core::git_commit_oid{ } ? std::string{ core::canonical_hex(open->Binding.HeadOid).view() } : std::string{ };
+		}
+		HistoryMenu->present(aView);
+		present_header();
+		present_composer();
+		present_head_moved_card();
+	}
+
+	void item_side_chat::present_session_edit(const QString& aStatus) { HistoryMenu->present_status(aStatus); }
+
+	void item_side_chat::present_revision_continuation(std::optional<core::agent_continuation_offer> aOffer, const bool aContinued)
+	{
+		const auto stale       = aOffer && aOffer->Required;
+		RevisionStale          = stale;
+		RevisionChoiceRequired = stale && !aContinued;
+		// Once Continue is chosen the session goes on at the revision it
+		// read, which History's last line names; the card has been answered.
+		RevisionRead = stale && aOffer->ContinueAgainst.HeadOid != core::git_commit_oid{ } ? std::string{ core::canonical_hex(aOffer->ContinueAgainst.HeadOid).view() } : std::string{ };
+		HistoryMenu->refresh();
+		present_header();
+		present_composer();
+		present_head_moved_card();
+	}
+
+	void item_side_chat::present_head_moved_card()
+	{
+		if (!RevisionChoiceRequired) {
+			HeadMovedCard->clear();
+			return;
+		}
+		// RFC-BPR-0130 stage 6 (AC08): the card every chat draws, in its
+		// words. Its New session is History's, offered while History offers
+		// it and greyed with History's reason while not.
+		auto* const fresh = HistoryMenu->new_session_action();
+		auto        why   = HistoryMenu->new_session_reason();
+		if (why.isEmpty() && fresh != nullptr && !fresh->isEnabled()) {
+			why = tr("Wait until the sessions are read.");
+		}
+		HeadMovedCard->present(core::plan_moved_head_notice({ .Read = RevisionRead, .NewSessionRefused = why.toStdString() }));
+	}
+
+	auto item_side_chat::new_session_action() const noexcept -> QAction* { return HistoryMenu->new_session_action(); }
+
+	auto item_side_chat::session_notice_text() const -> QString { return SessionLine->words_label()->text(); }
 
 	void item_side_chat::present_lead()
 	{
@@ -651,6 +808,15 @@ namespace bpr::qt {
 		const auto text = Composer->toPlainText().trimmed();
 		if (text.isEmpty()) {
 			show_status(item_chat_refusal_words(core::follow_up_refusal::empty_question));
+			return;
+		}
+		// The pinned-revision card asks first; the sessions are read first.
+		if (RevisionChoiceRequired) {
+			show_status(QString::fromStdString(core::chat_moved_head_wait_words(RevisionRead)));
+			return;
+		}
+		if (HistoryLoading) {
+			show_status(tr("Wait until the sessions are read."));
 			return;
 		}
 		if (Intents.Ask) {

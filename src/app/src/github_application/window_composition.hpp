@@ -3014,6 +3014,45 @@ namespace bpr::app {
 		void answer_follow_up_round(std::expected<std::string, std::string> aAnswer);
 		/// \brief Starts the round waiting, if any.
 		void start_follow_up_round();
+		/// \name RFC-BPR-0130 stage 7: the item chat's sessions
+		/// \details Each item's chat keeps its sessions in the native store
+		/// under its own scope (`application::item_chat_native_scope`), as a
+		/// tour part's chat does: History lists them, a round continues the
+		/// one chosen, and a session read at an earlier head asks Continue or
+		/// New session on the pinned-revision card.
+		/// \{
+		/// The open item's scope; empty while none is open or no agent is set up.
+		[[nodiscard]] auto follow_up_scope() const -> std::string;
+		/// Reads the open item's sessions again, or opens `aChoice` (an id, a
+		/// new session for an empty one, `replay:` and an id to carry over).
+		void observe_follow_up_history(std::optional<std::string> aChoice = std::nullopt);
+		void present_follow_up_history(const application::native_agent_history_projection& aView);
+		/// The agent chosen changed: the open item's chat shows that agent's
+		/// sessions, and its open one's rounds.
+		void               observe_follow_up_agent();
+		void               edit_follow_up_session(const std::string& aId, std::optional<std::string> aName);
+		void               choose_follow_up_continuation();
+		void               present_follow_up_continuation();
+		[[nodiscard]] auto continued_follow_up_session() const -> std::optional<core::agent_session>;
+		/// The sessions of the open item's scope as last read.
+		application::native_agent_history_projection FollowUpHistory;
+		/// The chat shows the rounds of the session History reads next: an
+		/// item opened, or a session chosen.
+		bool FollowUpAdopt = false;
+		/// The agent whose sessions History last read.
+		std::string FollowUpAgent;
+		/// The open session's own binding, once the store names it, and the
+		/// Continue the reviewer chose on its card for the head observed.
+		std::optional<core::agent_session> FollowUpNativeSession;
+		struct follow_up_continuation
+		{
+			std::string                  Scope;
+			std::string                  Conversation;
+			core::agent_session          Session;
+			core::agent_revision_binding Observed;
+		};
+		std::optional<follow_up_continuation> FollowUpContinuation;
+		/// \}
 		/// [[BPR-2040]]. An editor-context observation, destroyed before its
 		/// host. It observes retirement; it never changes run or effect policy.
 		std::unique_ptr<QTimer>                   TourIdleObservation;

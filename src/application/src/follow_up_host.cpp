@@ -1,6 +1,7 @@
 #include "bpr/application/follow_up_host.hpp"
 
 #include "bpr/application/operation_diagnostics.hpp"
+#include "bpr/core/chat_transcript.hpp"
 
 #include <atomic>
 #include <map>
@@ -185,6 +186,7 @@ namespace bpr::application {
 		auto trace = core::side_chat_trace{ .Item = state->Subject.Kind, .Round = static_cast<std::uint32_t>(state->Rounds.size() + 1U), .QuestionChars = core::character_count(aQuestion) };
 		auto step  = core::ask_follow_up(*state, aQuestion);
 		if (step.Request) {
+			aAgent.Asked = state->PendingQuestion;
 			self.run(self.Open, std::move(aAgent), std::move(*step.Request), trace);
 		} else {
 			trace.Refusal = step.Refusal;
@@ -204,6 +206,7 @@ namespace bpr::application {
 		auto trace = core::side_chat_trace{ .Item = state->Subject.Kind, .Round = static_cast<std::uint32_t>(state->Rounds.size()), .Apply = aApply, .BeforeChars = core::character_count(aBase) };
 		auto step  = core::propose_follow_up(*state, aApply, std::move(aBase));
 		if (step.Request) {
+			aAgent.Asked = core::follow_up_apply_words(aApply);
 			self.run(self.Open, std::move(aAgent), std::move(*step.Request), trace);
 		} else {
 			trace.Refusal = step.Refusal;
@@ -211,6 +214,21 @@ namespace bpr::application {
 		}
 		self.publish();
 		return step.Refusal;
+	}
+
+	auto follow_up_host::restore(std::vector<core::follow_up_round> aRounds) -> core::follow_up_refusal
+	{
+		auto&       self  = *Implementation;
+		auto* const state = self.open_state();
+		if (self.Stopped || state == nullptr) {
+			return core::follow_up_refusal::failed;
+		}
+		const auto refusal = core::restore_follow_up(*state, std::move(aRounds));
+		if (refusal == core::follow_up_refusal::none) {
+			self.Failures.erase(self.Open);
+			self.publish();
+		}
+		return refusal;
 	}
 
 	auto follow_up_host::apply(const std::uint64_t aProposal, const std::string_view aCurrent) -> core::follow_up_application

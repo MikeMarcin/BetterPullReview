@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -180,6 +181,32 @@ namespace {
 		step = core::propose_follow_up(state, follow_up_apply::update_suggestion, state.Subject.Text);
 		expect(core::settle_follow_up(state, step.Request->Id, std::string{ "  " }) == follow_up_refusal::empty_answer, "an empty one too");
 	}
+
+	/// RFC-BPR-0130 stage 7. The item chat's rounds are a session of the
+	/// agent's own: choosing one shows its rounds, and each later message
+	/// continues it instead of carrying them again.
+	void test_a_session_holds_the_rounds()
+	{
+		auto state = core::open_follow_up(suggestion());
+		expect(!state.InSession, "a follow-up starts as fresh runs");
+		auto asked = core::ask_follow_up(state, "Why?");
+		expect(core::restore_follow_up(state, { }) == follow_up_refusal::busy && !state.InSession && state.Phase == follow_up_phase::asking, "a session is not chosen while a run is going");
+		expect(core::settle_follow_up(state, asked.Request->Id, std::string{ "Because." }) == follow_up_refusal::none, "the run settles");
+		const auto saved = std::vector<core::follow_up_round>{ { .Question = "Is it blocking?", .Answer = "Yes." }, { .Question = "Why?", .Answer = "It asserts." } };
+		expect(core::restore_follow_up(state, saved) == follow_up_refusal::none && state.InSession && state.Rounds == saved && state.Refused == follow_up_refusal::none, "the chosen session's rounds are the conversation");
+		const auto next = core::ask_follow_up(state, "And the width?");
+		expect(next.Request && contains(next.Request->Message, "The reviewer asks:\nAnd the width?\n") && contains(next.Request->Message, "issue (blocking): clamp both."), "a message still carries the item and the question");
+		expect(!contains(next.Request->Message, "Earlier in this conversation") && !contains(next.Request->Message, "Reviewer: Is it blocking?"), "and not the rounds the session holds");
+		expect(core::settle_follow_up(state, next.Request->Id, std::string{ "Both." }) == follow_up_refusal::none && state.Rounds.size() == 3U, "the round joins the session's");
+		const auto proposed = core::propose_follow_up(state, follow_up_apply::update_suggestion, "issue (blocking): clamp both.");
+		expect(proposed.Request && !contains(proposed.Request->Message, "Reviewer: ") && contains(proposed.Request->Message, "bpr.follow-up.update-suggestion"), "a proposal continues the session too");
+		expect(core::settle_follow_up(state, proposed.Request->Id, std::string{ "issue (blocking): clamp the height too." }) == follow_up_refusal::none && state.Proposal, "its proposal waits");
+		expect(core::restore_follow_up(state, { }) == follow_up_refusal::none && state.Rounds.empty() && !state.Proposal && state.InSession, "a new session empties the chat and lets the proposal go");
+		auto longest            = std::vector<core::follow_up_round>(core::maximum_follow_up_rounds + 3U, core::follow_up_round{ .Question = "Q", .Answer = "A" });
+		longest.back().Question = "Last";
+		expect(core::restore_follow_up(state, longest) == follow_up_refusal::none && state.Rounds.size() == core::maximum_follow_up_rounds && state.Rounds.back().Question == "Last",
+			   "a session longer than one chat keeps shows its latest rounds");
+	}
 } // namespace
 
 auto main() -> int
@@ -190,6 +217,7 @@ auto main() -> int
 	test_update_suggestion_is_seen_then_used();
 	test_update_draft_and_draft_reply();
 	test_refresh_and_proposals_are_read();
+	test_a_session_holds_the_rounds();
 	std::cout << "agent-follow-up-core-tests:pass\n";
 	return EXIT_SUCCESS;
 }

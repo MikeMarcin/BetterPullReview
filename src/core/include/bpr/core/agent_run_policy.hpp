@@ -65,7 +65,8 @@ namespace bpr::core {
 		/// An address-feedback run.
 		address_feedback_run,
 		/// [[BPR-2286]]. One round of a follow-up about a finding, a draft or
-		/// a thread: fresh, its earlier rounds carried in its message.
+		/// a thread. RFC-BPR-0130 stage 7: a turn of the item chat's session,
+		/// which resumes as a tour part's chat does.
 		follow_up,
 	};
 	inline constexpr std::size_t agent_run_path_count = 16U;
@@ -87,8 +88,8 @@ namespace bpr::core {
 		case agent_run_path::local_commit_message:
 		case agent_run_path::agent_check:
 		case agent_run_path::assistance_first_answer:
-		case agent_run_path::follow_up:
 			return agent_session_mode::fresh;
+		case agent_run_path::follow_up:
 		case agent_run_path::agent_tab:
 		case agent_run_path::tour_side_chat:
 		case agent_run_path::tour_conversation:

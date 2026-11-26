@@ -35,6 +35,8 @@ namespace bpr::core {
 		/// and no sessions.
 		local_draft_discussion,
 		/// A finding's suggested comment, a draft or a thread of the report.
+		/// RFC-BPR-0130 stage 7 (owner, 2026-11-25: "sure seems like they
+		/// should right"): it keeps sessions, as a tour part's chat does.
 		review_item,
 	};
 
@@ -75,7 +77,7 @@ namespace bpr::core {
 	/// \brief Whether a chat of `aKind` keeps sessions.
 	[[nodiscard]] constexpr auto chat_keeps_sessions(const chat_kind aKind) noexcept -> bool
 	{
-		return aKind == chat_kind::agent_tab || aKind == chat_kind::tour_part || aKind == chat_kind::whole_tour;
+		return aKind != chat_kind::local_draft_discussion;
 	}
 
 	/// \brief Everything a chat of `aKind` can offer from its header row and
