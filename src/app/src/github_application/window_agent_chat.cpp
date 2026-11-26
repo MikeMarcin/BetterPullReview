@@ -220,10 +220,14 @@ namespace bpr::app {
 			// Continue choice standing for its conversation is kept, as a
 			// history reload keeps it (`core::decide_conversation_reload`);
 			// the chat is observed again when the comparison lands, and a
-			// different comparison asks again.
+			// different comparison asks again. A session still waiting for
+			// that answer (the head moved, or a choice made was asked again
+			// when the comparison moved) is kept the same way: clearing it
+			// started a fresh session at the head under review, and the
+			// question the card asked went unanswered.
 			const auto sameReview = state.Authority && AgentReview && state.Authority->Host == AgentReview->Host
 				&& state.Authority->Repository == AgentReview->Repository && state.Authority->PullRequest == AgentReview->PullRequest;
-			if (!sameReview || ChatHost == nullptr || !ChatHost->keeps_continuation(AgentNativeHistory.Selected)) {
+			if (!sameReview || ChatHost == nullptr || !(ChatHost->keeps_continuation(AgentNativeHistory.Selected) || ChatHost->awaits_continuation())) {
 				clear_side_chat();
 			}
 			Window->clear_dif_context();

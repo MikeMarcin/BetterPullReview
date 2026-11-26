@@ -222,6 +222,11 @@ namespace bpr::application {
 		return decide_reload(aSelected, false) == core::conversation_reload::keep_continuation;
 	}
 
+	auto agent_chat_session_host::awaits_continuation() const -> bool
+	{
+		return Session && Observed && !Chosen && core::offer_agent_continuations(*Session, *Observed).Required;
+	}
+
 	auto agent_chat_session_host::reload_conversation(const std::string_view aSelected, const bool aChosenAnew) -> core::conversation_reload
 	{
 		const auto reload = decide_reload(aSelected, aChosenAnew);

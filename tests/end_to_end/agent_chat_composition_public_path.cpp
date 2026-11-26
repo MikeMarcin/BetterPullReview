@@ -13,10 +13,13 @@
 /// the frame the agent was handed - counted by the agent itself and echoed
 /// back. **stale**: after the head moves, a send against the session the chat
 /// is still holding is refused by the core's own verdict and the refusal is
-/// named on screen; choosing `start_new_session` then starts exactly one
+/// named on screen; choosing `start_new_session` on the Agent tab's card
+/// then starts exactly one
 /// session and starts no process. **continued**: from the same stale state,
-/// choosing `continue_against_old_revision` starts no session at all, and the
-/// next send produces one turn under the session the chat kept - still bound
+/// choosing `continue_against_old_revision` on the Agent tab's card starts no
+/// session at all; entering Review after the comparison moved keeps that
+/// session and asks again, and the next send produces one turn under the
+/// session the chat kept - still bound
 /// to the revision it was asked about, which the revision under review has
 /// moved away from, and composed from that revision: the binding the MCP
 /// helper is pinned to, the binding record the frozen snapshot carries on
@@ -267,6 +270,28 @@ namespace {
 } // namespace
 
 namespace {
+	/// \brief Presses one choice of the Agent tab's pinned-revision card, as
+	/// a reviewer does: the tab shown, the card asking, the choice in view.
+	/// \return Empty once pressed; otherwise what stood in the way.
+	[[nodiscard]] auto press_tab_card(qt::workbench_window& aWindow, const core::agent_continuation aChoice) -> std::string
+	{
+		aWindow.tray_tabs()->setCurrentIndex(2);
+		QApplication::processEvents();
+		auto* const tab    = aWindow.agent_tab();
+		const auto  goOn   = aChoice == core::agent_continuation::continue_against_old_revision;
+		auto* const choice = goOn ? tab->banner_first_button() : tab->banner_second_button();
+		const auto  words  = choice->text();
+		if (tab->state() != qt::agent_tab_state::head_moved || !choice->isVisibleTo(tab) || !choice->isEnabled()
+			|| (goOn ? !words.startsWith(QStringLiteral("Continue at ")) : words != QStringLiteral("New session"))) {
+			const auto* const setup = tab->setup_view();
+			return "state=" + std::to_string(static_cast<int>(tab->state())) + " shown=" + std::to_string(choice->isVisibleTo(tab)) + " enabled=" + std::to_string(choice->isEnabled())
+				+ " words=" + words.toStdString() + " setup=" + (setup != nullptr && setup->needed() ? setup->step_text().left(80).toStdString() : std::string{ "none" });
+		}
+		choice->click();
+		QApplication::processEvents();
+		return { };
+	}
+
 	/// \brief The opt-in installed-Claude course; see `main`.
 	[[nodiscard]] auto live_claude_course(const char* const aClaude) -> int
 	{
@@ -1125,7 +1150,9 @@ auto main(int argc, char** argv) -> int
 	// about the comparison the window settled on, and is answered.
 	const auto headMoveSend = course == "head-move-send";
 	// The two courses that take `continue_against_old_revision` to a further
-	// turn. They differ in when that turn is sent, and in nothing else.
+	// turn. They differ in when that turn is sent, and in when Review is
+	// entered: the anchored course before the head moves, the continued
+	// course after the reviewer chose to continue.
 	const auto continuing
 		= course == "continued" || course == "anchored-continuation";
 	const auto anchored = course == "anchored-continuation";
@@ -1973,13 +2000,20 @@ auto main(int argc, char** argv) -> int
 		const auto beforeContinueInvocation = app::detail::
 			github_application_fixture_access::agent_invocation_evidence(
 				*application);
-		if (
-			chat->continue_old_revision_action() == nullptr
-			|| !chat->continue_old_revision_action()->isEnabled()) {
-			return fail(*application, "continue-old-revision-action");
+		if (anchored) {
+			// Review is open in this course, and Review reads the clone link
+			// the agent setup waits on: the setup, which cannot see the
+			// fixture agent this course composes ("No agent found on this
+			// computer"), then stands in the Agent tab in place of the
+			// conversation and its card. The choice is the side chat's.
+			if (chat->continue_old_revision_action() == nullptr || !chat->continue_old_revision_action()->isEnabled()) {
+				return fail(*application, "continue-old-revision-action");
+			}
+			chat->continue_old_revision_action()->trigger();
+			QApplication::processEvents();
+		} else if (const auto why = press_tab_card(window, core::agent_continuation::continue_against_old_revision); !why.empty()) {
+			return fail(*application, "continue-old-revision-card", why);
 		}
-		chat->continue_old_revision_action()->trigger();
-		QApplication::processEvents();
 		const auto afterContinue = app::detail::
 			github_application_fixture_access::agent_chat_evidence(*application);
 		const auto afterContinueInvocation = app::detail::
@@ -2013,6 +2047,47 @@ auto main(int argc, char** argv) -> int
 			&& chat->send_action()->isEnabled();
 		const auto keptSessionId = afterContinue.Session->Id;
 		const auto keptBinding   = afterContinue.Session->Binding;
+		// The continued course enters Review only now, after the head moved
+		// and the reviewer chose to continue, and once the comparison has
+		// moved too, which asks again. Entering Review reads the comparison
+		// again; the chat, still waiting for that answer, is kept and asks,
+		// and the reviewer gives the same answer. Before, the re-read
+		// cleared the chat, and a fresh session at the head under review
+		// took the place of the one the reviewer kept, asking nothing.
+		if (!anchored) {
+			auto lateReview = wait_terms{ };
+			if (!wait_until_reporting(lateReview, [&](wait_terms& aTerms) {
+					QApplication::processEvents();
+					const auto now = app::detail::github_application_fixture_access::agent_chat_evidence(*application);
+					return aTerms.require("comparison-moved", now.Observed && (now.Observed->LeftEpoch != keptBinding.LeftEpoch || now.Observed->RightEpoch != keptBinding.RightEpoch)); }, extended_agent_budget)) {
+				return fail(*application, "late-review-comparison", lateReview.render());
+			}
+			window.choose_modality(qt::review_modality::review);
+			if (!wait_until_reporting(lateReview, [&](wait_terms& aTerms) {
+					QApplication::processEvents();
+					return aTerms.require("comparison", surface->current_result() != nullptr && !window.showing_overview())
+						&& aTerms.require("quiescent", app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent); }, extended_agent_budget)) {
+				return fail(*application, "late-review", lateReview.render());
+			}
+			const auto reviewed = app::detail::github_application_fixture_access::agent_chat_evidence(*application);
+			if (!reviewed.Session || reviewed.Session->Id != keptSessionId || reviewed.Session->Binding != keptBinding || !reviewed.Projection || !reviewed.Projection->Continuations.Required) {
+				return fail(*application, "late-review-kept",
+							"kept=" + std::to_string(reviewed.Session && reviewed.Session->Id == keptSessionId && reviewed.Session->Binding == keptBinding)
+								+ " asked=" + std::to_string(reviewed.Projection && reviewed.Projection->Continuations.Required));
+			}
+			// Review reads the clone link the agent setup waits on, and the
+			// setup, which cannot see the fixture agent this course composes
+			// ("No agent found on this computer"), then stands in the Agent
+			// tab in place of its card: the answer is the side chat's.
+			if (chat->continue_old_revision_action() == nullptr || !chat->continue_old_revision_action()->isEnabled()) {
+				return fail(*application, "late-review-continue");
+			}
+			chat->continue_old_revision_action()->trigger();
+			QApplication::processEvents();
+			if (!chat->send_action()->isEnabled()) {
+				return fail(*application, "late-review-answered");
+			}
+		}
 
 		// The anchored course sends only once the accepted comparison is the
 		// new pair. Until then the pair the kept session names is the pair on
@@ -2158,6 +2233,9 @@ auto main(int argc, char** argv) -> int
 		const auto beforeContinuedSend = app::detail::
 			github_application_fixture_access::agent_finding_evidence(
 				*application);
+		// Counted on the runtime the turn runs on: a comparison read again
+		// (entering Review) replaces it, and its count starts again.
+		const auto startsBeforeContinued = app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts;
 		if (!jsonlKept()) {
 			return fail(*application, "continued-agent-choice-kept", panel->profile_selector()->currentText().toStdString());
 		}
@@ -2296,7 +2374,7 @@ auto main(int argc, char** argv) -> int
 		auto continuedAnswer = wait_terms{ };
 		if (!wait_until_reporting(
 				continuedAnswer,
-				[&application](wait_terms& aTerms) {
+				[&application, startsBeforeContinued](wait_terms& aTerms) {
 					const auto invocationNow = app::detail::
 						github_application_fixture_access::agent_invocation_evidence(
 							*application);
@@ -2315,7 +2393,7 @@ auto main(int argc, char** argv) -> int
 					return aTerms.require(
 							   "second-run-quiescent",
 							   invocationNow.Quiescent
-								   && invocationNow.Statistics.ProcessStarts == 2U)
+								   && invocationNow.Statistics.ProcessStarts == startsBeforeContinued + 1U)
 						&& aTerms.require(
 							"second-reply-delivered",
 							chatNow.Statistics.Replies == 2U);
@@ -2412,13 +2490,10 @@ auto main(int argc, char** argv) -> int
 	const auto beforeChoiceInvocation
 		= app::detail::github_application_fixture_access::agent_invocation_evidence(
 			*application);
-	if (
-		chat->new_session_action() == nullptr
-		|| !chat->new_session_action()->isEnabled()) {
-		return fail(*application, "continuation-action");
+	// Chosen on the Agent tab's pinned-revision card.
+	if (const auto why = press_tab_card(window, core::agent_continuation::start_new_session); !why.empty()) {
+		return fail(*application, "continuation-card", why);
 	}
-	chat->new_session_action()->trigger();
-	QApplication::processEvents();
 	const auto afterChoice
 		= app::detail::github_application_fixture_access::agent_chat_evidence(
 			*application);

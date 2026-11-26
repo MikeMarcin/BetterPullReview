@@ -384,6 +384,10 @@ namespace bpr::application {
 		/// `aSelected`, so a session restored with its history must not
 		/// retarget the chat.
 		[[nodiscard]] auto keeps_continuation(std::string_view aSelected) const -> bool;
+		/// \brief Whether the session reads a revision other than the one
+		/// observed and the reviewer has not yet chosen how to go on: the
+		/// core's offer requires an answer and none was given.
+		[[nodiscard]] auto awaits_continuation() const -> bool;
 
 		/// \brief [[BPR-1817]]. The agent the reviewer chose in the composer's
 		/// agent menu, read at the send gesture.

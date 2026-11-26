@@ -15395,6 +15395,50 @@ namespace {
 			.PrivateContext = { .Session = session.Id },
 		});
 		process_events();
+		// A session that read an earlier head: the tab's own card asks, and
+		// each of its two choices leaves the tab as the chat's continuation
+		// intent, for the session shown and the revision it read.
+		{
+			auto answers = std::vector<qt::choose_chat_continuation_intent>{ };
+			chat->set_dispatch([&answers](qt::side_chat_intent aIntent) {
+				if (const auto* const answer = std::get_if<qt::choose_chat_continuation_intent>(&aIntent)) {
+					answers.push_back(*answer);
+				}
+			});
+			auto read       = binding;
+			read.HeadOid    = earlier;
+			const auto past = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile.Id, .Binding = read };
+			const auto show = [&](const core::agent_session& aSession) {
+				chat->present(qt::side_chat_projection{
+					.Session        = aSession,
+					.Continuations  = core::offer_agent_continuations(aSession, binding),
+					.Chat           = { .Scope = { .Kind = core::agent_chat_scope_kind::pull_request } },
+					.PrivateContext = { .Session = aSession.Id },
+				});
+				process_events();
+			};
+			show(past);
+			expect(agent->state() == qt::agent_tab_state::head_moved && agent->banner_first_button()->isVisibleTo(agent) && agent->banner_first_button()->text() == QStringLiteral("Continue at 3333333")
+					   && agent->banner_second_button()->isVisibleTo(agent) && agent->banner_second_button()->text() == QStringLiteral("New session"),
+				   "a session that read an earlier head shows the tab's card, Continue at that head and New session: " + agent->banner_first_button()->text().toStdString());
+			agent->banner_first_button()->click();
+			process_events();
+			expect(answers.size() == 1U && answers.back().Session == past.Id && answers.back().Choice == core::agent_continuation::continue_against_old_revision && answers.back().OfferedBinding == read,
+				   "the card's Continue leaves the tab as the chat's Continue at the revision read");
+			show(past);
+			expect(agent->banner_second_button()->isEnabled(), "New session can be chosen: " + agent->banner_second_button()->toolTip().toStdString());
+			agent->banner_second_button()->click();
+			process_events();
+			expect(answers.size() == 2U && answers.back().Session == past.Id && answers.back().Choice == core::agent_continuation::start_new_session,
+				   "the card's New session leaves the tab as the chat's New session");
+			chat->set_dispatch([&sends](qt::side_chat_intent aIntent) {
+				if (const auto* const send = std::get_if<qt::send_chat_message_intent>(&aIntent)) {
+					sends.push_back(*send);
+				}
+			});
+			show(session);
+			expect(agent->state() != qt::agent_tab_state::head_moved, "a session at the head under review asks nothing");
+		}
 		auto chosen = std::vector<core::agent_continuation>{ };
 		auto take   = true;
 		agent->set_pinned_conversation_dispatch([&](const core::agent_continuation aChoice) {
