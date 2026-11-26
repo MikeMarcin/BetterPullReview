@@ -161,6 +161,26 @@ int main()
 		chat.observe(again);
 		expect(!chat.keeps_continuation("kept") && chat.reload_conversation("kept", false) == core::conversation_reload::start_at_observed && chat.session()->Binding == again,
 			   "a choice answered one head move and not the next");
+
+		// A session still waiting for its answer: the head moved and nothing
+		// was chosen, or a choice was asked again when the comparison moved.
+		chat.clear();
+		chat.observe(binding);
+		expect(!chat.awaits_continuation(), "a session at the revision under review waits for nothing");
+		chat.observe(moved);
+		expect(chat.awaits_continuation(), "a session that read an earlier head waits for its answer");
+		continueAtOld("kept");
+		expect(!chat.awaits_continuation(), "answered, it waits no more");
+		auto epochs       = moved;
+		epochs.LeftEpoch  = core::epoch_ordinal{ binding.LeftEpoch.value() + 1 };
+		epochs.RightEpoch = core::epoch_ordinal{ binding.RightEpoch.value() + 1 };
+		chat.observe(epochs);
+		expect(chat.awaits_continuation() && !chat.keeps_continuation("kept") && chat.session()->Binding == binding,
+			   "a comparison that moved after the answer asks again, and the session still reads the revision it read");
+		const auto past = *chat.session();
+		expect(chat.choose({ .Session = past.Id, .Choice = core::agent_continuation::start_new_session, .OfferedBinding = past.Binding }).Refusal == application::agent_chat_refusal::none
+				   && !chat.awaits_continuation(),
+			   "New session answers it");
 	}
 	std::cout << "agent-chat-reply-tests:pass\n";
 }
