@@ -96,6 +96,7 @@ auto main() -> int
 		const auto plain = plain_terminal_text(whole);
 		for (auto at = std::size_t{ 0U }; at <= whole.size(); ++at) {
 			const auto two = streamed({ whole.substr(0U, at), whole.substr(at) });
+			// NOLINTNEXTLINE(performance-inefficient-string-concatenation): a check's message.
 			expect(two == plain, "a stream split at byte " + std::to_string(at) + " of \"" + plain + "\" reads as the whole: got \"" + two + "\"");
 			const auto first = plain_terminal_chunk({ }, whole.substr(0U, at));
 			expect(first.Text.find('\x1b') == std::string::npos && plain.starts_with(first.Text), "the text before the split shows nothing of a sequence it splits");

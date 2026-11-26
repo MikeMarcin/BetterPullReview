@@ -180,7 +180,7 @@ namespace {
 		expect(!parse_patch_head_hunks("@@ -1,2 +x,3 @@"), "a header it cannot read is refused");
 		expect(parse_patch_head_hunks("") == std::optional{ std::vector<tour_line_span>{ } }, "no hunks is an empty list");
 
-		const auto file = tour_anchor_file{ .Path = "src/a.cpp", .OnHead = true, .HeadLines = 60U, .Hunks = *hunks };
+		const auto file = tour_anchor_file{ .Path = "src/a.cpp", .OnHead = true, .HeadLines = 60U, .Hunks = hunks };
 		expect(place_tour_stop({ "src/a.cpp", 3U, 5U, "", "" }, file) == tour_stop_placement::on_change, "(a) wholly inside a hunk is on the change");
 		expect(place_tour_stop({ "src/a.cpp", 21U, 26U, "", "" }, file) == tour_stop_placement::on_change, "a whole hunk is on the change");
 		expect(place_tour_stop({ "src/a.cpp", 12U, 12U, "", "" }, file) == tour_stop_placement::near_change, "(b) one line off the change still publishes");

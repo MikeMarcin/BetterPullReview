@@ -649,7 +649,7 @@ namespace bpr::core {
 		auto blocks  = std::vector<dressed_block>{ };
 		// Where the blocks being read go: the summary, a section's intro, or
 		// an item's body.
-		const auto place_blocks = [&report](std::vector<dressed_block>& aBlocks) {
+		const auto placeBlocks = [&report](std::vector<dressed_block>& aBlocks) {
 			if (report.Sections.empty()) {
 				for (const auto& block : aBlocks) {
 					auto text = std::string_view{ block.Text };
@@ -691,9 +691,9 @@ namespace bpr::core {
 			}
 			aBlocks.clear();
 		};
-		auto       paragraph     = std::string{ };
-		auto       kind          = dressed_block_kind::paragraph;
-		const auto end_paragraph = [&] {
+		auto       paragraph    = std::string{ };
+		auto       kind         = dressed_block_kind::paragraph;
+		const auto endParagraph = [&] {
 			if (!paragraph.empty()) {
 				blocks.push_back({ .Kind = kind, .Text = std::move(paragraph) });
 				paragraph.clear();
@@ -704,7 +704,7 @@ namespace bpr::core {
 			const auto line = lines[at];
 			const auto bare = strip(line);
 			if (const auto info = fence_info(line)) {
-				end_paragraph();
+				endParagraph();
 				auto code = dressed_block{ .Kind = *info == "suggestion" ? dressed_block_kind::suggestion : dressed_block_kind::code, .Language = *info };
 				for (++at; at < lines.size() && !(fence_info(lines[at]) && fence_info(lines[at])->empty()); ++at) {
 					code.Lines.emplace_back(lines[at]);
@@ -713,8 +713,8 @@ namespace bpr::core {
 				continue;
 			}
 			if (const auto found = heading(line); found && sectionLevel != 0U && found->first <= sectionLevel + 1U) {
-				end_paragraph();
-				place_blocks(blocks);
+				endParagraph();
+				placeBlocks(blocks);
 				++outline;
 				if (found->first == sectionLevel) {
 					report.Sections.push_back({ .Name = found->second, .Tone = report_tone_of(found->second), .Outline = outline });
@@ -739,16 +739,16 @@ namespace bpr::core {
 			if (const auto deeper = heading(line)) {
 				// A deeper heading counts in the menu; it reads as a line.
 				++outline;
-				end_paragraph();
+				endParagraph();
 				blocks.push_back({ .Text = "**" + deeper->second + "**" });
 				continue;
 			}
 			if (bare.empty()) {
-				end_paragraph();
+				endParagraph();
 				continue;
 			}
 			if (bare.starts_with("- ") || bare.starts_with("* ")) {
-				end_paragraph();
+				endParagraph();
 				if (blocks.empty() || blocks.back().Kind != dressed_block_kind::rows) {
 					blocks.push_back({ .Kind = dressed_block_kind::rows });
 				}
@@ -761,14 +761,14 @@ namespace bpr::core {
 			}
 			if (bare.starts_with('>')) {
 				if (kind != dressed_block_kind::quote) {
-					end_paragraph();
+					endParagraph();
 					kind = dressed_block_kind::quote;
 				}
 				paragraph += (paragraph.empty() ? "" : " ") + std::string{ strip(bare.substr(1U)) };
 				continue;
 			}
 			if (kind == dressed_block_kind::quote) {
-				end_paragraph();
+				endParagraph();
 			}
 			if (paragraph.empty() && bare.starts_with("**Check:**")) {
 				kind      = dressed_block_kind::check;
@@ -777,8 +777,8 @@ namespace bpr::core {
 			}
 			paragraph += (paragraph.empty() ? "" : "\n") + std::string{ bare };
 		}
-		end_paragraph();
-		place_blocks(blocks);
+		endParagraph();
+		placeBlocks(blocks);
 		// Code is numbered from the item's place, or from the first row's
 		// with lines; a suggestion replaces the lines the item names, read
 		// from the code above it where that code holds them.
@@ -889,9 +889,9 @@ namespace bpr::core {
 			}
 			for (auto at = line.find("# "); at != std::string_view::npos; at = line.find("# ", at + 1U)) {
 				// Glued to the end of a sentence, outside a code span.
-				const auto before_mark = at == 0U ? ' ' : line[at - 1U];
-				const auto in_code     = std::ranges::count(line.substr(0U, at), '`') % 2 != 0;
-				if (at != 0U && !in_code && std::string_view{ ".!?:)" }.find(before_mark) != std::string_view::npos && !trimmed(line.substr(at + 2U)).empty()) {
+				const auto beforeMark = at == 0U ? ' ' : line[at - 1U];
+				const auto inCode     = std::ranges::count(line.substr(0U, at), '`') % 2 != 0;
+				if (at != 0U && !inCode && std::string_view{ ".!?:)" }.find(beforeMark) != std::string_view::npos && !trimmed(line.substr(at + 2U)).empty()) {
 					glued = static_cast<std::size_t>(line.data() - aAnswer.data()) + at;
 					break;
 				}

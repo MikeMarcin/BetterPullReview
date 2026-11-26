@@ -81,12 +81,12 @@ namespace {
 
 	void test_a_long_title_is_shortened_at_a_word()
 	{
-		const auto long_title = std::string_view{ "Add the Flow Control panel to the review workbench and keep its state per window" };
-		const auto shortened  = core::shorten_window_title_text(long_title, core::maximum_window_title_pull_request_characters);
+		const auto longTitle = std::string_view{ "Add the Flow Control panel to the review workbench and keep its state per window" };
+		const auto shortened = core::shorten_window_title_text(longTitle, core::maximum_window_title_pull_request_characters);
 		expect_equal(shortened, "Add the Flow Control panel to the review\xE2\x80\xA6", "cut at the last word that fits, with an ellipsis");
 		expect(characters(shortened) <= core::maximum_window_title_pull_request_characters, "never longer than the limit");
 		expect_equal(
-			core::window_title({ .PullRequest = pull(long_title), .Profile = "Default", .Profiles = 1U }),
+			core::window_title({ .PullRequest = pull(longTitle), .Profile = "Default", .Profiles = 1U }),
 			"#188875 Add the Flow Control panel to the review\xE2\x80\xA6 \xE2\x80\x94 MikeMarcin/BPR-Test",
 			"the repository survives a long title");
 

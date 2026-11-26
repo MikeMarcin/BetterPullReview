@@ -101,6 +101,7 @@ int main(int aCount, char** aArguments)
 		std::set_terminate([] { std::cerr << "native SHA-256 failure refused\n"; std::_Exit(EXIT_SUCCESS); });
 		auto stream = sha256_stream{ };
 		if (failure == "duplicate") {
+			// NOLINTNEXTLINE(performance-unnecessary-copy-initialization): the copy is the duplication under test.
 			auto copy = stream;
 			(void)copy;
 		} else if (failure == "update") {

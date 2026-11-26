@@ -90,11 +90,11 @@ namespace {
 		const auto note = core::explain_note_text("Claude", "It renders.\n\n", core::maximum_note_bytes);
 		expect(note == "Agent: Claude explained this file.\n\nIt renders.", "the note says it is the agent's explanation");
 		expect(core::explain_note_text("Claude", " \n", core::maximum_note_bytes).empty(), "no answer, no note");
-		auto long_answer = std::string{ };
-		while (long_answer.size() <= core::maximum_note_bytes) {
-			long_answer += "One more line of the explanation.\n";
+		auto longAnswer = std::string{ };
+		while (longAnswer.size() <= core::maximum_note_bytes) {
+			longAnswer += "One more line of the explanation.\n";
 		}
-		const auto cut = core::explain_note_text("Codex", long_answer, core::maximum_note_bytes);
+		const auto cut = core::explain_note_text("Codex", longAnswer, core::maximum_note_bytes);
 		expect(cut.size() <= core::maximum_note_bytes && cut.starts_with("Agent: Codex explained this file.") && cut.ends_with("\n…"), "a long answer is cut and says so");
 	}
 } // namespace

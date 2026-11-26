@@ -142,14 +142,14 @@ int main()
 	copy.update(bytes("copy"));
 	assigned.update(bytes("assigned"));
 	prefix.update(bytes("original"));
-	const auto with_tail = [&](const std::string_view aTail) {
+	const auto withTail = [&](const std::string_view aTail) {
 		auto material = std::vector<std::uint8_t>{ large.begin(), large.begin() + 67 };
 		material.insert(material.end(), aTail.begin(), aTail.end());
 		return sha256(material);
 	};
-	expect(copy.finish() == with_tail("copy"), "copy retains an independent prefix");
-	expect(assigned.finish() == with_tail("assigned"), "assignment replaces an independent prefix");
-	expect(prefix.finish() == with_tail("original"), "copy operations preserve the original");
+	expect(copy.finish() == withTail("copy"), "copy retains an independent prefix");
+	expect(assigned.finish() == withTail("assigned"), "assignment replaces an independent prefix");
+	expect(prefix.finish() == withTail("original"), "copy operations preserve the original");
 	auto moveSource = sha256_stream{ };
 	moveSource.update(bytes("a"));
 	auto moved        = std::move(moveSource);

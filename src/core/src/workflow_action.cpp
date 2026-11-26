@@ -1116,6 +1116,7 @@ namespace bpr::core {
 				status.Gap = check_gap::never_run;
 			} else if (record->State == workflow_action_state::handed_off || record->State == workflow_action_state::awaiting_input) {
 				status.Gap = check_gap::pending;
+				// NOLINTNEXTLINE(bugprone-branch-clone): an unreported run and an unmet finding are both a finding, at different places in the gap order.
 			} else if (record->State != workflow_action_state::reported) {
 				status.Gap = check_gap::finding;
 			} else if (latest == nullptr || record->Candidate != latest->Ordinal) {

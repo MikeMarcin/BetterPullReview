@@ -207,23 +207,23 @@ namespace {
 	/// and the comment it starts from.
 	void test_review_answer_verdict_and_findings()
 	{
-		const auto report_text = std::string{ "# Review of #21\n\n**Verdict:** Needs changes.\n\nOne thing must be fixed before this merges.\n\n## Must fix\n\n### issue (blocking): A zero height still asserts\n\n`src/engine/renderer.cpp:12-13`\n\n"
-											  "The height is not clamped.\n\nA minimised window reports zero.\n\n```cpp\nconst auto width = std::max(aSize.Width, 1);\nTarget.resize(extent{ width, aSize.Height });\n```\n\n"
-											  "```suggestion\nconst auto height = std::max(aSize.Height, 1);\nTarget.resize(extent{ width, height });\n```\n\n"
-											  "## Worth a look\n\n### question: Is the pass a placeholder?\n\n`src/engine/shaders/post/tonemap.frag:5`\n\nIt writes the scene straight through.\n\n"
-											  "### nitpick: The README still names the old folder\n\n`README.md`\n\nIt says `render/`.\n\n### thought: The pass order is implicit\n\nNothing names it.\n\n"
-											  "## Good\n\n### praise: The frame bracket is easy to read\n\n`src/engine/renderer.cpp:3-7`\n\nBegin, draw, present.\n\n## Not reviewed\n\n- `docs/api/reference.md` Prose only.\n" };
-		const auto answer      = "I'll start with the brief and the diff.\n\nNow the callers of `resize`.\n\n```sh\n# not a title\ngit diff\n```\n\nI have what I need; here is the review.\n\n" + report_text;
-		const auto read        = read_report_answer(answer);
-		expect(read.Report == report_text && read.Notes.starts_with("I'll start with the brief") && read.Notes.ends_with("here is the review."), "what the agent said while it worked is cut at the report's title: " + read.Notes);
-		expect(read_report_answer(report_text) == report_answer{ .Notes = { }, .Report = report_text }, "an answer that opens with its report is the report");
+		const auto reportText = std::string{ "# Review of #21\n\n**Verdict:** Needs changes.\n\nOne thing must be fixed before this merges.\n\n## Must fix\n\n### issue (blocking): A zero height still asserts\n\n`src/engine/renderer.cpp:12-13`\n\n"
+											 "The height is not clamped.\n\nA minimised window reports zero.\n\n```cpp\nconst auto width = std::max(aSize.Width, 1);\nTarget.resize(extent{ width, aSize.Height });\n```\n\n"
+											 "```suggestion\nconst auto height = std::max(aSize.Height, 1);\nTarget.resize(extent{ width, height });\n```\n\n"
+											 "## Worth a look\n\n### question: Is the pass a placeholder?\n\n`src/engine/shaders/post/tonemap.frag:5`\n\nIt writes the scene straight through.\n\n"
+											 "### nitpick: The README still names the old folder\n\n`README.md`\n\nIt says `render/`.\n\n### thought: The pass order is implicit\n\nNothing names it.\n\n"
+											 "## Good\n\n### praise: The frame bracket is easy to read\n\n`src/engine/renderer.cpp:3-7`\n\nBegin, draw, present.\n\n## Not reviewed\n\n- `docs/api/reference.md` Prose only.\n" };
+		const auto answer     = "I'll start with the brief and the diff.\n\nNow the callers of `resize`.\n\n```sh\n# not a title\ngit diff\n```\n\nI have what I need; here is the review.\n\n" + reportText;
+		const auto read       = read_report_answer(answer);
+		expect(read.Report == reportText && read.Notes.starts_with("I'll start with the brief") && read.Notes.ends_with("here is the review."), "what the agent said while it worked is cut at the report's title: " + read.Notes);
+		expect(read_report_answer(reportText) == report_answer{ .Notes = { }, .Report = reportText }, "an answer that opens with its report is the report");
 		expect(read_report_answer("Looked around.\n\n# Only a title\n\nNo sections.").Notes.empty() && read_report_answer("No headings at all.").Report == "No headings at all.", "no title a section follows: the answer is the report");
 		expect(read_report_answer("Working.\n\n## Likely\n\nx\n\n## Possible\n\ny").Notes.empty(), "a report that has no level-one title keeps everything: its summary may stand there");
 		expect(read_report_answer(answer) == read, "deterministic");
 		// Look review-report-v002, as the owner saw it: the agent's text
 		// blocks joined with nothing between them, the title mid-line.
-		const auto glued = read_report_answer("I'll start with the brief and the diff, then read the files the change touches.The resize is the change that matters.I have what I need. Now I'll write up the review." + report_text);
-		expect(glued.Report == report_text && glued.Notes.ends_with("Now I'll write up the review.") && dress_report(glued.Report).Title == "Review of #21" && report_card_of(glued.Report).Title == "Review of #21",
+		const auto glued = read_report_answer("I'll start with the brief and the diff, then read the files the change touches.The resize is the change that matters.I have what I need. Now I'll write up the review." + reportText);
+		expect(glued.Report == reportText && glued.Notes.ends_with("Now I'll write up the review.") && dress_report(glued.Report).Title == "Review of #21" && report_card_of(glued.Report).Title == "Review of #21",
 			   "a title glued to the end of the agent's last note is still the report's start: " + glued.Notes);
 		expect(read_report_answer("See issue # 5 and C# code.\n\nNothing more.").Notes.empty() && read_report_answer("Use `x# y` here.\n\n## A\n\nb").Notes.empty()
 				   && read_report_answer("Written in C# for speed.\n\n## A\n\nb").Notes.empty() && read_report_answer("It ends `here.# x` so.\n\n## A\n\nb").Notes.empty(),

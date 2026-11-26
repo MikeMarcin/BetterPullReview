@@ -120,9 +120,9 @@ namespace {
 		expect(select_release_update(installed, stable, 100U).Reason == reason::current, "older cohort never downgrades");
 		expect(select_release_update(installed, stable).Reason == reason::current, "unknown installed cohort cannot order equal versions");
 		expect(select_release_update({ 0U, 5U, 4U }, stable, 95U).Reason == reason::current, "cohort cannot supersede a newer marketing version");
-		const auto marketing_upgrade = select_release_update({ 0U, 5U, 2U }, stable, 100U);
-		expect(marketing_upgrade.Candidate && marketing_upgrade.Candidate->BuildNumber == 0U
-				   && marketing_upgrade.Candidate->Asset == stable.Assets.front().Id,
+		const auto marketingUpgrade = select_release_update({ 0U, 5U, 2U }, stable, 100U);
+		expect(marketingUpgrade.Candidate && marketingUpgrade.Candidate->BuildNumber == 0U
+				   && marketingUpgrade.Candidate->Asset == stable.Assets.front().Id,
 			   "ordinary marketing upgrade still uses the exact compatibility ZIP");
 
 		stable.Prerelease = true;

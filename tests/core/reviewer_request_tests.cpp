@@ -67,8 +67,8 @@ namespace {
 	{
 		expect(core::normalize_reviewer_query("  @Sam \n") == "Sam", "spaces and one @ go");
 		expect(core::normalize_reviewer_query("   ").empty(), "blank is the empty query");
-		auto       long_text = std::string(63U, 'a') + "\xC3\xA9" + "zz";
-		const auto cut       = core::normalize_reviewer_query(long_text);
+		auto       longText = std::string(63U, 'a') + "\xC3\xA9" + "zz";
+		const auto cut      = core::normalize_reviewer_query(longText);
 		expect(cut == std::string(63U, 'a'), "a two-byte character over the limit is dropped whole");
 		expect(core::normalize_reviewer_query(std::string(80U, 'b')).size() == core::maximum_reviewer_query_bytes, "plain text is cut at the limit");
 	}

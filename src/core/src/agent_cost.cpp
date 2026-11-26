@@ -56,11 +56,11 @@ namespace bpr::core {
 			return result;
 		}
 		if (!aContinued || (aLedger.Reported && *aReported < *aLedger.Reported)) {
-			result.Turn = *aReported;
+			result.Turn = aReported;
 		} else if (aLedger.Reported) {
 			result.Turn = *aReported - *aLedger.Reported;
 		}
-		result.Ledger.Reported = *aReported;
+		result.Ledger.Reported = aReported;
 		if (result.Turn) {
 			result.Ledger.Total += *result.Turn;
 			result.Ledger.Known = true;
