@@ -4131,8 +4131,14 @@ function(bpr_verify_app_source_tree app_source_root)
 	# fixture access gains replay_agent_history_load. Local session state only;
 	# no grant, provider, transport, mutation or publication path changes;
 	# full application and mutation-branch digests are unchanged.
+	# [[BPR-2418]] coordinator reseal at the merge: refresh_agent_authority
+	# (window_agent_chat.cpp) keeps a chat that still awaits its Continue
+	# answer across a comparison re-read for the same review
+	# (agent_chat_session_host::awaits_continuation). Local session state only;
+	# no grant, provider, transport, mutation or publication path changes;
+	# full application and mutation-branch digests are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "1ef0fa403bdaca9df41a2f775120107958a28e65c0628d309ee726730724836d"
+        "594e09e4bd7a29b754dfc89df7a7b6d348ed071f381860323ab62e5d72a9dc35"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
