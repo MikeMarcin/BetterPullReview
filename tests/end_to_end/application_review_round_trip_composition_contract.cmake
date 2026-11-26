@@ -4112,8 +4112,17 @@ function(bpr_verify_app_source_tree app_source_root)
 	# 6). Wording and presentation only; no grant, provider, transport,
 	# mutation or publication path changes; full application and
 	# mutation-branch digests are unchanged.
+	# [[BPR-2414]] coordinator reseal at the merge: the item side chat keeps
+	# sessions (RFC-BPR-0130 stage 7). window_follow_up.cpp and
+	# window_agent_chat.cpp route an item round through the session runner as a
+	# resumed run, read its sessions for the item chat's History, and pass the
+	# pinned fact; window_composition.hpp holds the item chat's session host;
+	# window_agent_setup.cpp gains one line in observe_conversation_agent.
+	# Local agent sessions and presentation only; no grant, provider,
+	# transport, mutation or publication path changes; full application and
+	# mutation-branch digests are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "7e361a8cf266149c29543082663a9af3c6cd82996ecee08bc6c263e511400234"
+        "5074b3d1176abca7db71f7c6e2babca094c1099b6fe50c113939453354e90c05"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

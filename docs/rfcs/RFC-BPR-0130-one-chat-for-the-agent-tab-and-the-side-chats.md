@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0130"
 title: "One chat for the Agent tab and the side chats, under one header"
-status: "Proposed"
+status: "In Progress"
 metadata: {"origin":"owner request 2026-11-24 (verbatim below)","inspected_revision":"f84075042","inspected_lane":"worktree-agent-af351d74dc278d83f, main at f84075042","attended_review":{"session":"3cd822672efb50572b10ab10747889ba","state":"~/.mask/attended-review-sessions/bpr-agent-panel-shared-chat-20261124","status":"handed back 2026-11-24; three verdicts recorded; host stopped","design_copy":"design/ inside the state directory: the Phase 1 draft and its renders"},"mandate":"owner, 2026-11-24, attended review: header A as amended in the owner's note, the replacement words with the agent's name substituted, and one chat component in the listed stages; four questions remain open (see Open owner questions)","cards":"drafted, not allocated"}
 depends_on: ["RFC-BPR-0085", "RFC-BPR-0100", "RFC-BPR-0101", "RFC-BPR-0126", "RFC-BPR-0128"]
 ---
