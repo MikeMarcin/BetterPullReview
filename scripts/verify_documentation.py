@@ -684,6 +684,51 @@ def verify_links(root: Path) -> None:
                 fail(f"broken relative link in {path}: {target}")
 
 
+RELEASE_REPOSITORY_URL = "https://github.com/MikeMarcin/BetterPullReview"
+PINNED_RELEASE_LINK_RE = re.compile(
+    r"github\.com/MikeMarcin/BetterPullReview/releases/(?!latest(?:[/)#?\s]|$))[^\s)]*"
+)
+RELEASE_VERSION_RE = re.compile(r"(?<![\w.])v?\d+\.\d+\.\d+(?:-build\.\d+)?(?![\w.])")
+INSTALL_HEADING_RE = re.compile(r"^## Install[ \t]*$", re.M)
+NEXT_SECTION_RE = re.compile(r"^## ", re.M)
+
+
+def verify_readme_install_tracks_latest(root: Path) -> None:
+    """README sends new users to the latest stable release, whatever it is.
+
+    The Install section pointed at 0.4.2 for three releases after 0.5.0 had
+    shipped a security fix (owner, 2026-11-26: "Let's make sure it just points
+    to the latest stable release always"). Release asset names carry the
+    version and build, so README links the `releases/latest` page, which GitHub
+    resolves to the newest release that is not a prerelease, and names no
+    release version. Any README link to one exact release is refused, and the
+    Install section may name no `X.Y.Z` version at all; minimum OS and tool
+    versions there are written `X.Y`.
+    """
+    path = root / "README.md"
+    text = path.read_text(encoding="utf-8")
+    for match in PINNED_RELEASE_LINK_RE.finditer(text):
+        line = text.count("\n", 0, match.start()) + 1
+        fail(
+            f"{path}:{line} links one release ({match.group(0)}); link "
+            f"{RELEASE_REPOSITORY_URL}/releases/latest so README follows the latest stable release"
+        )
+    heading = INSTALL_HEADING_RE.search(text)
+    if heading is None:
+        fail(f"{path} has no '## Install' section to check for a pinned release")
+    following = NEXT_SECTION_RE.search(text, heading.end())
+    section = text[heading.end() : following.start() if following else len(text)]
+    if f"{RELEASE_REPOSITORY_URL}/releases/latest" not in section:
+        fail(f"{path} Install section must link {RELEASE_REPOSITORY_URL}/releases/latest")
+    version = RELEASE_VERSION_RE.search(section)
+    if version:
+        line = text.count("\n", 0, heading.end() + version.start()) + 1
+        fail(
+            f"{path}:{line} Install section names version {version.group(0)}; "
+            "describe the latest release without a version so it cannot go stale"
+        )
+
+
 def verify_github_actions_not_selected(root: Path) -> None:
     workflow_root = root / ".github/workflows"
     if not workflow_root.exists():
@@ -798,6 +843,7 @@ def main() -> int:
     verify_pending_packet_manifests(root)
     verify_links(root)
     verify_no_conflict_markers(root)
+    verify_readme_install_tracks_latest(root)
     verify_github_actions_not_selected(root)
     verify_shared_skill_pointers(root)
 

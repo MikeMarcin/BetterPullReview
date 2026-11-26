@@ -300,6 +300,12 @@ Inspect existing tag/release state read-only before retrying; do not retag,
 overwrite immutable source or retry an uncertain mutation. On partial failure,
 report which tag, push, release and assets actually exist.
 
+README's Install section links `releases/latest` and names no version, so a
+stable release needs no README edit; GitHub's Latest excludes prereleases, so
+README never offers a numbered candidate. `scripts/verify_documentation.py`
+refuses a README link to one release or a version in Install. Asset names carry
+`VERSION-build.N`, so README cannot use `releases/latest/download/` links.
+
 Verify URL, peeled tag commit, draft/prerelease/Latest state, exact selected
 assets and the selected repository visibility. Download uploaded products and compare SHA-256
 with final producer bytes; verify source binding and native trust again on the

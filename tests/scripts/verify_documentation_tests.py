@@ -43,6 +43,7 @@ from scripts.verify_documentation import (  # noqa: E402
     verify_operator_packet_records,
     verify_pending_packet_manifests,
     verify_no_conflict_markers,
+    verify_readme_install_tracks_latest,
     verify_rejected_work,
     verify_rfc_index,
     verify_shared_skill_pointers,
@@ -107,6 +108,63 @@ class ConflictMarkerTests(unittest.TestCase):
         self.card.write_text("text\n||||||| parent of abc\nmore\n", encoding="utf-8")
         with self.assertRaises(SystemExit):
             verify_no_conflict_markers(self.root)
+
+
+class ReadmeInstallTests(unittest.TestCase):
+    LATEST = "https://github.com/MikeMarcin/BetterPullReview/releases/latest"
+
+    def setUp(self) -> None:
+        self.temporary = ContainedTemporaryDirectory()
+        self.root = Path(self.temporary.name)
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def write(self, install: str, rest: str = "") -> None:
+        (self.root / "README.md").write_text(
+            f"# Title\n\n## Install\n\n{install}\n\n## Quick start\n\n{rest}\n",
+            encoding="utf-8",
+        )
+
+    def refuses(self) -> None:
+        with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+            verify_readme_install_tracks_latest(self.root)
+
+    def test_latest_link_with_minimum_versions_passes(self) -> None:
+        self.write(
+            f"Get the [latest release]({self.LATEST}). macOS 14.4+, Git 2.39+, Ubuntu 26.04.\n"
+            f"[DMG]({self.LATEST}/download/BetterPullReview-macos-universal.dmg)",
+            "Review Cycles were removed in 0.5.0.",
+        )
+        verify_readme_install_tracks_latest(self.root)
+
+    def test_a_download_pinned_to_one_release_is_refused(self) -> None:
+        self.write(
+            f"[latest]({self.LATEST}) "
+            "[DMG](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.2/x.dmg)"
+        )
+        self.refuses()
+
+    def test_a_release_tag_link_outside_install_is_refused(self) -> None:
+        self.write(
+            f"[latest]({self.LATEST})",
+            "[notes](https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.5.3#x)",
+        )
+        self.refuses()
+
+    def test_a_version_named_in_install_is_refused(self) -> None:
+        for version in ("0.5.3", "v0.4.2", "0.5.3-build.99"):
+            with self.subTest(version=version):
+                self.write(f"The [latest release]({self.LATEST}) is **{version}**.")
+                self.refuses()
+
+    def test_install_must_link_latest(self) -> None:
+        self.write("Download from the releases page.")
+        self.refuses()
+
+    def test_missing_install_section_is_refused(self) -> None:
+        (self.root / "README.md").write_text("# Title\n", encoding="utf-8")
+        self.refuses()
 
 
 class RfcIndexTests(unittest.TestCase):

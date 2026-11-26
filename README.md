@@ -21,21 +21,24 @@ Read diffs, keep local comments, and follow changes across review rounds.
 
 ## Install
 
-The [latest release](https://github.com/MikeMarcin/BetterPullReview/releases/latest)
-is **0.4.2**. Downloads and corresponding source are publicly available.
+Download the installer for your system from the
+[latest release](https://github.com/MikeMarcin/BetterPullReview/releases/latest):
+the download table at the top of its notes links each one, and every file is
+also listed under **Assets**. Downloads and corresponding source are publicly
+available.
 
 | Platform | Installer |
 |---|---|
-| macOS 14.4+ · Apple Silicon and Intel | [Download DMG](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.2/BetterPullReview-0.4.2-build.60-macos-universal.dmg) |
-| Windows · x64 | [Download MSI](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.2/BetterPullReview-0.4.2-build.60-windows-x64.msi) |
-| Ubuntu 26.04 · x64 | [Download DEB](https://github.com/MikeMarcin/BetterPullReview/releases/download/0.4.2/BetterPullReview-0.4.2-build.60-linux-ubuntu-26.04-x64.deb) |
+| macOS 14.4+ · Apple Silicon and Intel | `BetterPullReview-…-macos-universal.dmg` |
+| Windows · x64 | `BetterPullReview-…-windows-x64.msi` |
+| Ubuntu 26.04 · x64 | `BetterPullReview-…-linux-ubuntu-26.04-x64.deb` |
 
 Tested on Windows 11 and Ubuntu 26.04 (WSL2). Other Windows and Linux versions
 may work but are untested.
 
 On macOS, open the DMG and copy the app to `~/Applications`. On Windows, run
-the per-machine MSI installer. On Ubuntu, follow the release's
-[signature verification steps](https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.2#linux-signature-verification)
+the per-machine MSI installer. On Ubuntu, follow the
+[signature verification steps](docs/development/release-packages.md#check-signatures)
 before installing the DEB with your package manager.
 
 Install Git 2.39+ for pull-request history and comparisons. Optional GitHub CLI
@@ -46,11 +49,11 @@ system dependencies and signature checks. Windows and Linux use manual updates;
 eligible signed macOS installations can use **Check for Updates…**.
 
 > [!WARNING]
-> 0.4.2 is a stable release, but native installation, authentication, vault,
+> Releases are stable, but native installation, authentication, vault,
 > accessibility, removal, crash-privacy and vulnerability qualification remain
 > incomplete.
-> The [release notes](https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.2#verification-and-limitations)
-> record the evidence, gaps and accepted release exceptions.
+> [Known limitations](docs/development/release-packages.md#known-limitations)
+> records the gaps.
 
 ## Quick start
 
