@@ -564,7 +564,7 @@ namespace bpr::qt {
 			&& (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange)) {
 			apply_strip_width();
 		}
-		if (aWatched == HomeDraftsList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
+		if (HomeDraftsList != nullptr && aWatched == HomeDraftsList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
 			const auto* const key = static_cast<QKeyEvent*>(aEvent);
 			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier)) {
 				resume_home_draft(HomeDraftsList->currentRow());
@@ -1657,6 +1657,7 @@ namespace bpr::qt {
 		const auto  repositories = discovery.Repositories == 1U ? QStringLiteral("1 saved repository") : QStringLiteral("%1 saved repositories").arg(discovery.Repositories);
 		if (restoring) {
 			PendingPanes.HomeList->present(core::pending_activity::loading, rows, false, { .Loading = QStringLiteral("Loading my pull requests…") });
+			// NOLINTNEXTLINE(bugprone-branch-clone): listed rows during a refresh are ready before the empty list's wait below.
 		} else if (finding && rows) {
 			// [[BPR-2216]]. Listed rows stay readable and the status bar says
 			// Home refreshes; the list's foot does not say it again.

@@ -153,7 +153,7 @@ auto main(int argc, char** argv) -> int
 	}
 	std::unique_ptr<app::github_application> application;
 	try {
-		auto options                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+		auto options                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 		options.EpochPhase            = app::detail::github_epoch_fixture_phase::reuse;
 		options.ClaudeAgentExecutable = stub;
 		options.ClaudeSearch          = search;

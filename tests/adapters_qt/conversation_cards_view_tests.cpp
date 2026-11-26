@@ -5058,8 +5058,7 @@ namespace {
 		editing_view(view);
 		auto saves = std::vector<qt::comment_edit_save>{ };
 		view.set_comment_edit_dispatch([&saves](const qt::comment_edit_save& aSave) { saves.push_back(aSave); });
-		auto* mine   = post_named(view, QStringLiteral("review-comment:C2"));
-		auto* theirs = post_named(view, QStringLiteral("review-comment:C1"));
+		auto* mine = post_named(view, QStringLiteral("review-comment:C2"));
 		expect(mine != nullptr && mine->findChild<QWidget*>(QStringLiteral("threadPostEdit"))->isHidden() && !view.begin_comment_edit("review-comment:C2"),
 			   "without the composition's offer no post offers Edit");
 		auto* menu = edit_menu_of(mine);
@@ -5067,9 +5066,9 @@ namespace {
 		delete menu;
 		view.set_comment_edit_offered(true);
 		QApplication::processEvents();
-		mine             = post_named(view, QStringLiteral("review-comment:C2"));
-		theirs           = post_named(view, QStringLiteral("review-comment:C1"));
-		auto* const edit = mine->findChild<QAbstractButton*>(QStringLiteral("threadPostEdit"));
+		mine               = post_named(view, QStringLiteral("review-comment:C2"));
+		auto*       theirs = post_named(view, QStringLiteral("review-comment:C1"));
+		auto* const edit   = mine->findChild<QAbstractButton*>(QStringLiteral("threadPostEdit"));
 		expect(edit != nullptr && !edit->isHidden() && edit->focusPolicy() == Qt::StrongFocus && edit->accessibleName() == QStringLiteral("Edit your comment"),
 			   "my reply offers Edit among its tools, focusable and named");
 		expect(theirs->findChild<QWidget*>(QStringLiteral("threadPostEdit"))->isHidden() && !view.comment_editable("review-comment:C1") && !view.begin_comment_edit("review-comment:C1"),

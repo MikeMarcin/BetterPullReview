@@ -71,8 +71,8 @@ namespace bpr::core {
 		if (aFacts.Authored) {
 			return std::nullopt;
 		}
-		const auto review = aFacts.ReviewedHead.empty() ? std::nullopt : std::optional{ returning_point{ .Head = aFacts.ReviewedHead, .Basis = returning_basis::review } };
-		const auto seen   = aFacts.SeenHead.empty() ? std::nullopt : std::optional{ returning_point{ .Head = aFacts.SeenHead, .Basis = returning_basis::seen } };
+		auto review = aFacts.ReviewedHead.empty() ? std::nullopt : std::optional{ returning_point{ .Head = aFacts.ReviewedHead, .Basis = returning_basis::review } };
+		auto seen   = aFacts.SeenHead.empty() ? std::nullopt : std::optional{ returning_point{ .Head = aFacts.SeenHead, .Basis = returning_basis::seen } };
 		if (!review || !seen) {
 			return review ? review : seen;
 		}
@@ -231,7 +231,7 @@ namespace bpr::core {
 	{
 		const auto from   = aDiff.Alignment.Key.LeftPresent ? "a/" + std::string{ aPath } : std::string{ "/dev/null" };
 		const auto to     = aDiff.Alignment.Key.RightPresent ? "b/" + std::string{ aPath } : std::string{ "/dev/null" };
-		const auto binary = "Binary file " + std::string{ aPath } + " changed\n";
+		auto       binary = "Binary file " + std::string{ aPath } + " changed\n";
 		if (aDiff.Alignment.Content != diff_content_state::text || (aDiff.Alignment.Key.LeftPresent && !aDiff.LeftDocument)
 			|| (aDiff.Alignment.Key.RightPresent && !aDiff.RightDocument)) {
 			return binary;

@@ -855,8 +855,10 @@ try {
 		QString Path = QDir::temp().filePath(QStringLiteral("bpr-agent-report-view-%1").arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
 		scratch_folder() { static_cast<void>(QDir{ }.mkpath(Path)); }
 		~scratch_folder() { static_cast<void>(QDir{ Path }.removeRecursively()); }
+		// NOLINTNEXTLINE(readability-identifier-naming): QTemporaryDir's name, which this folder stands in for.
 		[[nodiscard]] auto isValid() const -> bool { return QDir{ Path }.exists(); }
 		[[nodiscard]] auto path() const -> const QString& { return Path; }
+		// NOLINTNEXTLINE(readability-identifier-naming): QTemporaryDir's name, which this folder stands in for.
 		[[nodiscard]] auto filePath(const QString& aName) const -> QString { return QDir{ Path }.filePath(aName); }
 	} folder;
 	expect(folder.isValid(), "a scratch folder");

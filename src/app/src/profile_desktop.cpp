@@ -60,6 +60,7 @@ namespace bpr::app {
 				(*rows)[index].Draft = std::move(copies[index]);
 			}
 			std::vector<recovery_id> ids;
+			ids.reserve(matches.size());
 			for (const auto index : matches) {
 				ids.push_back((*rows)[index].Id);
 			}

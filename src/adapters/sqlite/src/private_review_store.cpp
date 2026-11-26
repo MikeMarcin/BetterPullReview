@@ -690,7 +690,11 @@ namespace bpr::adapters::sqlite::detail {
 			const auto armed     = InterruptLocalCommentMigration.exchange(0U, std::memory_order_relaxed);
 			auto       remaining = armed;
 			const auto step      = [&remaining] {
-				if (remaining != 0U && --remaining == 0U) {
+				if (remaining == 0U) {
+					return;
+				}
+				--remaining;
+				if (remaining == 0U) {
 					refuse(error::busy);
 				}
 			};
@@ -1128,7 +1132,8 @@ namespace bpr::adapters::sqlite::detail {
 			if (idEnd == std::string_view::npos) {
 				return false;
 			}
-			std::uint64_t id            = 0;
+			std::uint64_t id = 0;
+			// NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage): from_chars reads only [data, data + idEnd).
 			const auto [end, errorCode] = std::from_chars(key.data(), key.data() + idEnd, id);
 			if (errorCode != std::errc{ } || end != key.data() + idEnd || id == 0 || id > maximum_private_identity) {
 				return false;

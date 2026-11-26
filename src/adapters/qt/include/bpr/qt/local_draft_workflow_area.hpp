@@ -69,7 +69,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto chooser() const noexcept -> QComboBox* { return Chooser; }
 		[[nodiscard]] auto summary() const noexcept -> QLabel* { return Summary; }
 		[[nodiscard]] auto headline() const noexcept -> QLabel* { return Headline; }
-		[[nodiscard]] auto actions() const noexcept -> QWidget* { return Actions; }
+		[[nodiscard]] auto action_rows() const noexcept -> QWidget* { return Actions; }
 		[[nodiscard]] auto built_in_publisher() const noexcept -> QRadioButton* { return BuiltIn; }
 		[[nodiscard]] auto external_publisher() const noexcept -> QRadioButton* { return External; }
 		/// \brief The core's checklist last presented.

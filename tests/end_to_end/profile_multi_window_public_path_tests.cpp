@@ -1001,7 +1001,7 @@ try {
 	select_file(*owner, *windowC);
 	wait_for([&] { return windowB->review_editor()->shown_receipt() && windowB->review_editor()->shown_receipt()->Read == core::file_read_state::seen; }, "surviving PR18 accepts its receipt toggle");
 	// The comparison precedes its own asynchronous receipt and private records.
-	const auto replacement_ready = [&](const auto& aComparison, const auto& aReceipt, const auto& aOverview) {
+	const auto replacementReady = [&](const auto& aComparison, const auto& aReceipt, const auto& aOverview) {
 		return aComparison && aComparison->Alignment.Key.PullRequest == snapshotA->PullRequest.PullRequest
 			&& aReceipt && aReceipt->File == aComparison->Alignment.Key.File
 			&& aReceipt->Material == core::file_material(aComparison->Alignment.Key)
@@ -1010,26 +1010,26 @@ try {
 			&& aOverview->Progress.PrivateNotes == 2U;
 	};
 	wait_for([&] {
-		return replacement_ready(windowC->comparison_surface()->current_result(), windowC->review_editor()->shown_receipt(), windowC->overview_page()->projection());
+		return replacementReady(windowC->comparison_surface()->current_result(), windowC->review_editor()->shown_receipt(), windowC->overview_page()->projection());
 	},
 			 "replacement PR17 accepts its own exact receipt and private notes");
 	// Controls use the actual accepted PR17 projection and retained PR18 material.
 	const auto acceptedReplacement = windowC->comparison_surface()->current_result();
 	const auto acceptedReceipt     = windowC->review_editor()->shown_receipt();
 	const auto acceptedOverview    = windowC->overview_page()->projection();
-	expect(!replacement_ready(receiptComparisonC, acceptedReceipt, acceptedOverview), "a retained PR18 comparison cannot satisfy PR17 readiness");
+	expect(!replacementReady(receiptComparisonC, acceptedReceipt, acceptedOverview), "a retained PR18 comparison cannot satisfy PR17 readiness");
 	auto missingReceipt = acceptedReceipt;
 	missingReceipt.reset();
-	expect(!replacement_ready(acceptedReplacement, missingReceipt, acceptedOverview), "an incomplete own receipt reload is not ready even with both notes");
+	expect(!replacementReady(acceptedReplacement, missingReceipt, acceptedOverview), "an incomplete own receipt reload is not ready even with both notes");
 	auto wrongMaterial      = acceptedReceipt;
 	wrongMaterial->Material = core::file_material(receiptComparisonC->Alignment.Key);
-	expect(!replacement_ready(acceptedReplacement, wrongMaterial, acceptedOverview), "a Read receipt for PR18 material is refused despite matching note count");
+	expect(!replacementReady(acceptedReplacement, wrongMaterial, acceptedOverview), "a Read receipt for PR18 material is refused despite matching note count");
 	auto wrongNotes    = acceptedOverview;
 	wrongNotes->Number = snapshotB->PullRequest.Number;
-	expect(!replacement_ready(acceptedReplacement, acceptedReceipt, wrongNotes), "two notes projected for PR18 cannot satisfy PR17 readiness");
+	expect(!replacementReady(acceptedReplacement, acceptedReceipt, wrongNotes), "two notes projected for PR18 cannot satisfy PR17 readiness");
 	auto missingNotes                   = acceptedOverview;
 	missingNotes->Progress.PrivateNotes = 0U;
-	expect(!replacement_ready(acceptedReplacement, acceptedReceipt, missingNotes), "the own private-note reload must have answered before readiness");
+	expect(!replacementReady(acceptedReplacement, acceptedReceipt, missingNotes), "the own private-note reload must have answered before readiness");
 	expect(windowC->comparison_surface()->current_result()->Alignment.Key.PullRequest == snapshotA->PullRequest.PullRequest
 			   && windowC->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()->Read == core::file_read_state::read
 			   && windowC->overview_page()->projection() && windowC->overview_page()->projection()->Progress.PrivateNotes == 2U,

@@ -80,6 +80,7 @@ namespace {
 		settle();
 	}
 
+	// NOLINTNEXTLINE(bugprone-throwing-static-initialization): the test's fixture text; failing to allocate it ends the test.
 	const auto review = std::string{ "# Review of #21\n\n**Verdict:** Needs changes\n\nOne thing must be fixed before this merges.\n\n"
 									 "## Must fix\n\n### issue (blocking): A zero height still asserts\n\n`src/engine/renderer.cpp:12-13`\n\nThe height is not clamped.\n\n"
 									 "## Worth a look\n\n### suggestion (non-blocking): Say where the engine moved\n\n`README.md`\n\nIt still points at `render/`.\n" };

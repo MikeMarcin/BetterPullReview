@@ -773,18 +773,18 @@ auto main(int argc, char** argv) -> int
 		auto*                       undo  = panel->findChild<QPushButton*>("writingHookUndo");
 		core::writing_hook_settings settings;
 		panel->set_dispatch([&](core::writing_hook aSelected, std::string aInstructions) { settings.Overrides[static_cast<std::size_t>(aSelected)] = std::move(aInstructions); ++settings.Revision; panel->present(settings); return true; }, [](core::writing_hook) { });
-		const auto row_marker = [list](const int aRow) { return list->item(aRow)->data(Qt::UserRole + 3).toString(); };
-		expect(badge->text() == "Built-in" && !save->isEnabled() && !reset->isEnabled() && row_marker(1).isEmpty(), "a built-in prompt says so and has nothing to save or reset");
+		const auto rowMarker = [list](const int aRow) { return list->item(aRow)->data(Qt::UserRole + 3).toString(); };
+		expect(badge->text() == "Built-in" && !save->isEnabled() && !reset->isEnabled() && rowMarker(1).isEmpty(), "a built-in prompt says so and has nothing to save or reset");
 		const auto builtIn = text->toPlainText();
 		text->setPlainText(builtIn + "\nUse /fixture-technical-writer.");
 		// [[BPR-2179]]: in the Prompts library a system prompt saves as it is
 		// typed; until it does, it says so.
-		expect(save->isEnabled() && row_marker(1) == "Unsaved" && (state->text().startsWith("Unsaved") || state->text() == QStringLiteral("Saving\u2026")), "an edit is marked unsaved, in the list too");
+		expect(save->isEnabled() && rowMarker(1) == "Unsaved" && (state->text().startsWith("Unsaved") || state->text() == QStringLiteral("Saving\u2026")), "an edit is marked unsaved, in the list too");
 		panel->select_hook(core::writing_hook::comment);
 		panel->select_hook(core::writing_hook::outline);
 		expect(text->toPlainText().endsWith("Use /fixture-technical-writer.") && panel->unsaved_count() == 1U, "moving to another prompt keeps the unsaved edit");
 		save->click();
-		expect(badge->text() == "Changed from built-in" && row_marker(1) == "Changed" && !save->isEnabled() && reset->isEnabled() && panel->unsaved_count() == 0U, "a saved change is marked changed");
+		expect(badge->text() == "Changed from built-in" && rowMarker(1) == "Changed" && !save->isEnabled() && reset->isEnabled() && panel->unsaved_count() == 0U, "a saved change is marked changed");
 		auto library = application::make_skill_library(
 			{ *application::skill_document_of("---\nname: fixture-technical-writer\ndescription: Short paragraphs.\n---\nFIXTURE_WRITER_GUIDANCE\n", "fixture-technical-writer", core::skill_source::personal, "~/.claude/skills", { }) },
 			{ *application::skill_document_of("---\nname: fixture-technical-writer\ndescription: The team's.\n---\nTEAM\n", "fixture-technical-writer", core::skill_source::repository, ".claude/skills at base 1a2b3c4", { }) });

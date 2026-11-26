@@ -143,12 +143,12 @@ namespace {
 
 	/// Back in Review, the remembered tabs are on the strip in their order
 	/// with the remembered tab active, and the comparison shows its file.
-	void expect_returned(app::github_application& aApplication, qt::workbench_window& window, const std::vector<std::string>& aStrip, const char* aShown, const char* aWhen)
+	void expect_returned(app::github_application& aApplication, qt::workbench_window& aWindow, const std::vector<std::string>& aStrip, const char* aShown, const char* aWhen)
 	{
-		window.choose_modality(qt::review_modality::review);
-		wait_for([&] { return strip_names(window) == aStrip && access::reopened_tabs(aApplication).ShownPath == aShown; },
+		aWindow.choose_modality(qt::review_modality::review);
+		wait_for([&] { return strip_names(aWindow) == aStrip && access::reopened_tabs(aApplication).ShownPath == aShown; },
 				 std::string{ "in Review the tabs are back in order with the same tab active, and its file is shown: " } + aWhen,
-				 [&] { report(aApplication, window, aWhen); });
+				 [&] { report(aApplication, aWindow, aWhen); });
 	}
 
 	/// [[BPR-2324]]. A pull request opened again, by the bar, brings back the

@@ -1512,7 +1512,7 @@ namespace bpr::qt {
 	auto prompts_page::new_prompt() -> std::string
 	{
 		// [[BPR-2185]] (review N2): the host mints the identity.
-		const auto id = Identities ? Identities() : std::string{ };
+		auto id = Identities ? Identities() : std::string{ };
 		if (!applied(core::add_prompt(Editor, id, tr("New prompt").toStdString()))) {
 			return { };
 		}
@@ -1531,7 +1531,7 @@ namespace bpr::qt {
 		if (original == nullptr) {
 			return std::nullopt;
 		}
-		const auto id   = Identities ? Identities() : std::string{ };
+		auto       id   = Identities ? Identities() : std::string{ };
 		const auto name = tr("%1 copy").arg(QString::fromStdString(original->Body.Name)).toStdString();
 		if (!applied(core::duplicate_prompt(Editor, aId, id, name))) {
 			return std::nullopt;
@@ -1574,19 +1574,19 @@ namespace bpr::qt {
 		// the list, the next row or else the one before.
 		auto neighbour = std::optional<std::string>{ };
 		if (Selected && *Selected == aId) {
-			const auto prompt_at = [this](const int aRow) -> std::optional<std::string> {
+			const auto promptAt = [this](const int aRow) -> std::optional<std::string> {
 				const auto id = LibraryList->item(aRow)->data(id_role);
 				return id.isValid() ? std::optional{ id.toString().toStdString() } : std::nullopt;
 			};
 			auto row = -1;
 			for (int at = 0; at < LibraryList->count() && row < 0; ++at) {
-				row = prompt_at(at) == aId ? at : -1;
+				row = promptAt(at) == aId ? at : -1;
 			}
 			for (int at = row + 1; row >= 0 && at < LibraryList->count() && !neighbour; ++at) {
-				neighbour = prompt_at(at);
+				neighbour = promptAt(at);
 			}
 			for (int at = row - 1; at >= 0 && !neighbour; --at) {
-				neighbour = prompt_at(at);
+				neighbour = promptAt(at);
 			}
 		}
 		const auto outcome = core::delete_prompt(Editor, aId);

@@ -2158,7 +2158,7 @@ namespace bpr::qt {
 			statusBar()->showMessage(tr("That comment's file is not in this pull request now."), 6000);
 			return;
 		}
-		PendingNoteOpen = *local;
+		PendingNoteOpen = local;
 		choose_home(false);
 		choose_modality(review_modality::review);
 		if (Dispatch) {

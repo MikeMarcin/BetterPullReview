@@ -246,7 +246,7 @@ auto main(int argc, char** argv) -> int
 	}
 	std::unique_ptr<app::github_application> application;
 	try {
-		auto options                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+		auto options                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 		options.EpochPhase            = app::detail::github_epoch_fixture_phase::reuse;
 		options.ClaudeAgentExecutable = course == "tour-queue" ? searchFolder / ("claude" + stub.extension().string()) : stub;
 		options.ClaudeSearch          = search;
@@ -837,7 +837,7 @@ auto main(int argc, char** argv) -> int
 			shutdown(*application);
 			application.reset();
 			// Both survive the reset and a restart.
-			auto again                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+			auto again                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 			again.DataReset             = *requested;
 			again.EpochPhase            = app::detail::github_epoch_fixture_phase::reuse;
 			again.ClaudeAgentExecutable = stub;
@@ -914,7 +914,7 @@ auto main(int argc, char** argv) -> int
 				sqlite3_close(db);
 				expect(broken, "the store's prompts are made unreadable");
 			}
-			auto third                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+			auto third                  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 			third.EpochPhase            = app::detail::github_epoch_fixture_phase::reuse;
 			third.ClaudeAgentExecutable = stub;
 			third.ClaudeSearch          = search;

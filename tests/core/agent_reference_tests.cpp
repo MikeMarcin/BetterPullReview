@@ -29,7 +29,9 @@ namespace {
 		bool             Before = false;
 	};
 
+	// NOLINTBEGIN(bugprone-throwing-static-initialization): fixture values; a failure to build them ends the test.
 	const auto files = core::agent_reference_files{ .Changed = { "src/engine/renderer.cpp", "src/engine/frame_pool.cpp", "src/a/util.hpp", "src/b/util.hpp" } };
+	// NOLINTEND(bugprone-throwing-static-initialization)
 
 	void test_every_listed_form_is_recognised()
 	{

@@ -2932,7 +2932,7 @@ namespace bpr::qt {
 		auto       previous  = std::string{ };
 		auto       cursor    = std::size_t{ 0U };
 		auto       filePath  = QString{ };
-		const auto row_rect  = [&columnLeft, &width](const int aTop) { return QRect{ columnLeft, aTop, width, path_row_height }; };
+		const auto rowRect   = [&columnLeft, &width](const int aTop) { return QRect{ columnLeft, aTop, width, path_row_height }; };
 		for (std::size_t at = 0U; at < TimelineRows.size(); ++at) {
 			const auto& row = TimelineRows[at];
 			if (row.Kind == core::timeline_row_kind::file) {
@@ -2943,7 +2943,7 @@ namespace bpr::qt {
 				// The New rule stands over the file whose first thread is the
 				// first not yet read.
 				if (PullRequestComments && at + 1U < TimelineRows.size() && TimelineRows[at + 1U].Id == NewConversationBoundary) {
-					TimelineLines.push_back(timeline_line{ .Kind = timeline_line::kind::fresh, .Rect = row_rect(top) });
+					TimelineLines.push_back(timeline_line{ .Kind = timeline_line::kind::fresh, .Rect = rowRect(top) });
 					top += path_row_height;
 				}
 				TimelineLines.push_back(timeline_line{
@@ -2953,7 +2953,7 @@ namespace bpr::qt {
 					.Folded = row.Members.size(),
 					.Fold   = row.Fold,
 					.Open   = row.Open,
-					.Rect   = row_rect(top),
+					.Rect   = rowRect(top),
 				});
 				bottom = top + path_row_height;
 				if (!row.Review.empty() && row.Review == previous && bundle.has_value()) {
@@ -2980,7 +2980,7 @@ namespace bpr::qt {
 					.Folded = row.Members.size(),
 					.Fold   = row.Fold,
 					.Open   = row.Open,
-					.Rect   = row_rect(top),
+					.Rect   = rowRect(top),
 				});
 				bottom = top + path_row_height;
 				bundle.reset();
@@ -2993,7 +2993,7 @@ namespace bpr::qt {
 			if (row.Kind != core::timeline_row_kind::comment) {
 				auto top = bottom + (first ? 0 : unitGap);
 				if (PullRequestComments && row.Kind == core::timeline_row_kind::bundle && at + 1U < TimelineRows.size() && TimelineRows[at + 1U].Id == NewConversationBoundary) {
-					TimelineLines.push_back(timeline_line{ .Kind = timeline_line::kind::fresh, .Rect = row_rect(top) });
+					TimelineLines.push_back(timeline_line{ .Kind = timeline_line::kind::fresh, .Rect = rowRect(top) });
 					top += path_row_height;
 				}
 				// [[BPR-2171]]. When the review's own comment comes first, it
@@ -3008,7 +3008,7 @@ namespace bpr::qt {
 					.Verdict = verdict(row.Verdict),
 					.When    = when_of(row.CreatedAt),
 					.Merged  = merged,
-					.Rect    = merged ? QRect{ columnLeft, top, width, 0 } : row_rect(top),
+					.Rect    = merged ? QRect{ columnLeft, top, width, 0 } : rowRect(top),
 				});
 				bottom    = merged ? top - note_gap : top + path_row_height;
 				bundle    = row.Kind == core::timeline_row_kind::bundle ? std::optional{ TimelineLines.size() - 1U } : std::nullopt;
@@ -3037,7 +3037,7 @@ namespace bpr::qt {
 									 : sameUnit        ? note_gap
 													   : unitGap);
 			if (PullRequestComments && card.Id == NewConversationBoundary && !afterHead) {
-				TimelineLines.push_back(timeline_line{ .Kind = timeline_line::kind::fresh, .Rect = row_rect(top) });
+				TimelineLines.push_back(timeline_line{ .Kind = timeline_line::kind::fresh, .Rect = rowRect(top) });
 				top += path_row_height;
 			}
 			card.Rect.moveTop(top);

@@ -182,7 +182,7 @@ auto main(int argc, char** argv) -> int
 	claude.Effort          = "high";
 	// [[BPR-2007]], [[BPR-2008]], RFC-BPR-0104 as amended. Claude with its
 	// scratch folder on and builds off; Codex allowed to build here.
-	const auto present_grant = [](qt::agent_run_settings& aSettings, const core::agent_grant_facts& aFacts) {
+	const auto presentGrant = [](qt::agent_run_settings& aSettings, const core::agent_grant_facts& aFacts) {
 		const auto grant          = core::resolve_agent_grant(aFacts);
 		aSettings.GrantApplies    = grant.Applies;
 		aSettings.ScratchText     = QString::fromStdString(core::agent_scratch_toggle_text(grant));
@@ -195,13 +195,13 @@ auto main(int argc, char** argv) -> int
 		aSettings.ScratchOpenable = core::scratch_granted(grant);
 		aSettings.ModelHint       = QStringLiteral("Or type /model NAME in the Agent tab's question field.");
 	};
-	present_grant(claude, { .Program = core::agent_program::claude });
+	presentGrant(claude, { .Program = core::agent_program::claude });
 	auto codex    = claude;
 	codex.Profile = 2U;
 	codex.Agent   = QStringLiteral("Codex");
 	codex.Model.clear();
 	codex.Effort.clear();
-	present_grant(codex, { .Program = core::agent_program::codex, .Builds = true, .BuildAnswer = true });
+	presentGrant(codex, { .Program = core::agent_program::codex, .Builds = true, .BuildAnswer = true });
 	source->present({ claude, codex });
 	panel.profile_selector()->setCurrentIndex(panel.profile_selector()->findData(QVariant::fromValue<qulonglong>(1U)));
 	if (argc > 1 && std::string_view{ argv[1] } == "--look") {
@@ -456,7 +456,7 @@ auto main(int argc, char** argv) -> int
 		find("agentRunSettingsBuilds")->trigger();
 		expect(toggled == "1:off;1:build;", "checking Allow build and run tests turns builds on for this pull request and agent");
 	}
-	present_grant(claude, { .Program = core::agent_program::claude, .ScratchChoice = false });
+	presentGrant(claude, { .Program = core::agent_program::claude, .ScratchChoice = false });
 	source->present({ claude, codex });
 	settle();
 	{
@@ -465,21 +465,21 @@ auto main(int argc, char** argv) -> int
 	}
 	// Review finding 4: a full folder is named full; a grant the launch will
 	// not carry reads unavailable, never on.
-	present_grant(claude, { .Program = core::agent_program::claude, .ScratchFull = true });
+	presentGrant(claude, { .Program = core::agent_program::claude, .ScratchFull = true });
 	source->present({ claude, codex });
 	settle();
 	{
 		emit picker->menu()->aboutToShow();
 		expect(find("agentRunSettingsScratch")->text() == QStringLiteral("Use scratch folder (full)") && find("agentRunSettingsScratch")->toolTip().contains(QStringLiteral("256 MiB")), "full: named full, with its limit");
 	}
-	present_grant(claude, { .Program = core::agent_program::claude, .ScratchPlace = false });
+	presentGrant(claude, { .Program = core::agent_program::claude, .ScratchPlace = false });
 	source->present({ claude, codex });
 	settle();
 	{
 		emit picker->menu()->aboutToShow();
 		expect(!find("agentRunSettingsScratch")->isChecked() && !find("agentRunSettingsScratch")->isEnabled(), "no place for a folder: unchecked and unavailable");
 	}
-	present_grant(claude, { .Program = core::agent_program::claude });
+	presentGrant(claude, { .Program = core::agent_program::claude });
 	source->present({ claude, codex });
 	settle();
 

@@ -2621,8 +2621,8 @@ namespace bpr::adapters::github::detail {
 			answer({ });
 			return;
 		}
-		const auto job      = *jobResult;
-		auto       delivery = make_delivery(std::move(aDone));
+		const auto& job      = *jobResult;
+		auto        delivery = make_delivery(std::move(aDone));
 		try {
 			state->Effects->post([state, job, profile, account, request = std::move(aRequest), delivery]() mutable {
 				auto counts = std::vector<std::pair<std::string, std::uint64_t>>{ };

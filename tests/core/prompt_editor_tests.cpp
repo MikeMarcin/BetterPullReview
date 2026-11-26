@@ -272,7 +272,7 @@ namespace {
 	{
 		auto macro = prompt_macro{ .Id = "own.p", .Body = { .Name = "", .Template = "x" } };
 		auto lists = prompt_surfaces{ };
-		lists.Lists.at(static_cast<std::size_t>(prompt_surface::pull_request_chips)).push_back("own.p");
+		lists.Lists.at(static_cast<std::size_t>(prompt_surface::pull_request_chips)).emplace_back("own.p");
 		const auto problems = prompt_placement_problems(macro, lists);
 		expect(problems.size() == 1U && problems.front().Problem == prompt_problem::no_name && problems.front().Surface == prompt_surface::pull_request_chips, "a placed prompt's blocking problem, by surface");
 	}

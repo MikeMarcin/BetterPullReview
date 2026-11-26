@@ -90,8 +90,8 @@ auto main(int argc, char** argv) -> int
 	std::unique_ptr<app::github_application> application;
 	try {
 		// One profile's data, kept across a restart.
-		const auto open_review = [&] {
-			auto options                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+		const auto openReview = [&] {
+			auto options                = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 			options.FixtureAgentSession = true;
 			auto terminal               = false;
 			auto startup                = access::start(app::detail::github_public_path_fixture::nested_folders_v1, std::move(options), [&](auto aResult) {
@@ -121,10 +121,10 @@ auto main(int argc, char** argv) -> int
 			opened.open_agent_question();
 			wait([&] { return opened.agent_tab()->setup_readiness() == qt::agent_setup_readiness::ready; }, "the fixture agent is set up");
 		};
-		open_review();
-		auto&      window        = application->window();
-		auto*      tab           = window.agent_tab();
-		const auto steered_shown = [&tab] {
+		openReview();
+		auto&      window       = application->window();
+		auto*      tab          = window.agent_tab();
+		const auto steeredShown = [&tab] {
 			auto shown = QStringList{ };
 			for (auto* const label : tab->findChildren<QLabel*>(QStringLiteral("agentTurnSteeredText"))) {
 				if (label->isVisibleTo(tab)) {
@@ -183,7 +183,7 @@ auto main(int argc, char** argv) -> int
 			// as something I had sent"): the steered message is the
 			// reviewer's own, once, in the turn, after the question and before
 			// the reply, marked steered after the step it followed.
-			expect(steered_shown() == QStringList{ QStringLiteral("Look at the swap chain instead.") }, "the steered message shows once: " + steered_shown().join(QLatin1Char('|')).toStdString());
+			expect(steeredShown() == QStringList{ QStringLiteral("Look at the swap chain instead.") }, "the steered message shows once: " + steeredShown().join(QLatin1Char('|')).toStdString());
 			const auto* const bubble   = tab->findChild<QWidget*>(QStringLiteral("agentTurnSteered"));
 			const auto* const state    = tab->findChild<QLabel*>(QStringLiteral("agentTurnSteeredState"));
 			const auto        turnsBox = tab->findChildren<QWidget*>(QStringLiteral("agentTurn"));
@@ -199,10 +199,10 @@ auto main(int argc, char** argv) -> int
 			application->begin_shutdown();
 			wait([&] { return application->status().ShutdownComplete; }, "shutdown before the restart");
 			application.reset();
-			open_review();
+			openReview();
 			tab = application->window().agent_tab();
-			wait([&] { return tab->turn_count() >= 1U && !steered_shown().isEmpty(); }, "the reopened conversation shows its steered message");
-			expect(steered_shown() == QStringList{ QStringLiteral("Look at the swap chain instead.") }, "after a restart, once: " + steered_shown().join(QLatin1Char('|')).toStdString());
+			wait([&] { return tab->turn_count() >= 1U && !steeredShown().isEmpty(); }, "the reopened conversation shows its steered message");
+			expect(steeredShown() == QStringList{ QStringLiteral("Look at the swap chain instead.") }, "after a restart, once: " + steeredShown().join(QLatin1Char('|')).toStdString());
 		} else {
 			// Queued while the turn runs, then the waiting message's Steer.
 			press_return(*tab->question_editor(), QStringLiteral("Look at the swap chain instead."));

@@ -148,7 +148,7 @@ try {
 	render(QStringLiteral("discuss-2560x1440"), 2560, 1440);
 	expect(cards->column().second == readingWidth, "the column stays the Reading width on a wide window");
 	// The reviews, their previews and the bot reports, further down.
-	const auto scroll_to = [&](const std::string& aId) {
+	const auto scrollTo = [&](const std::string& aId) {
 		const auto found = std::ranges::find(cards->cards(), aId, &qt::thread_card::Id);
 		expect(found != cards->cards().end(), "the card to scroll to is listed");
 		cards->verticalScrollBar()->setValue(std::max(0, found->Rect.top() - 140));
@@ -156,7 +156,7 @@ try {
 	for (const auto& [w, h] : { std::pair{ 1280, 800 }, std::pair{ 1728, 1117 }, std::pair{ 2560, 1440 } }) {
 		window.resize(w, h);
 		settle();
-		scroll_to("review:busy-review-jiayin");
+		scrollTo("review:busy-review-jiayin");
 		render(QStringLiteral("discuss-reviews-%1x%2").arg(w).arg(h), w, h);
 	}
 	cards->verticalScrollBar()->setValue(0);
@@ -173,7 +173,7 @@ try {
 	expect(cards->thread_count() == threads && cards->unresolved_count() == unresolved, "folding changes no count");
 	window.resize(1280, 800);
 	settle();
-	scroll_to("review:busy-review-jiayin");
+	scrollTo("review:busy-review-jiayin");
 	render(QStringLiteral("discuss-fold-bots-1280x800"), 1280, 800);
 
 	// Mark as bot: renovate-helper is a person to GitHub; marked, it folds.

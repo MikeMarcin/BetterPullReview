@@ -415,12 +415,12 @@ namespace {
 		auto                                 store  = open(config);
 		auto                                 ledger = make_review_ledger_store(config.Ledger);
 		expect(ledger.has_value(), "the ledger facade opens");
-		const auto index     = private_review_fixture::index();
-		auto       binding   = private_review_fixture::binding();
-		binding.Scope        = store->frontier()->Scope;
-		binding.Comparison   = index.diff().Alignment.Digest;
-		const auto anchor    = source_line_ref{ *binding.Comparison, diff_side::right, 1 };
-		const auto put_draft = [&](std::string aBody) {
+		const auto index    = private_review_fixture::index();
+		auto       binding  = private_review_fixture::binding();
+		binding.Scope       = store->frontier()->Scope;
+		binding.Comparison  = index.diff().Alignment.Digest;
+		const auto anchor   = source_line_ref{ *binding.Comparison, diff_side::right, 1 };
+		const auto putDraft = [&](std::string aBody) {
 			const auto next            = store->frontier()->NextIdentity;
 			auto       draft           = private_draft_record{ binding, { { review_draft_id{ next }, anchor, std::move(aBody), review_draft_state::drafting, { } }, 1, { }, std::nullopt } };
 			auto       write           = private_store_write{ };
@@ -436,7 +436,7 @@ namespace {
 
 		// Keep local: the draft goes, a Local comment with its text and the
 		// draft's identity comes; a stale revision moves nothing.
-		const auto first = put_draft("Height is not clamped here.");
+		const auto first = putDraft("Height is not clamped here.");
 		expect(keep(first, 2).error() == private_store_failure::conflict && store->load_draft(first.Draft.Draft.Id).has_value(), "a stale revision keeps nothing local and leaves the draft");
 		auto kept = keep(first, 1);
 		expect(kept.has_value() && kept->Id.value() == first.Draft.Draft.Id.value() && kept->Body == first.Draft.Draft.Body && kept->Revision.value() > 0U, "Keep local takes the draft's identity and text");
@@ -447,12 +447,12 @@ namespace {
 
 		// A second draft whose identity a Local comment already holds takes the next free one.
 		expect((*ledger)->store_local_comment({ .Id = local_comment_id{ store->frontier()->NextIdentity }, .Body = "taken" }).has_value(), "a Local comment holds the next draft identity");
-		const auto second = put_draft("Second thought.");
+		const auto second = putDraft("Second thought.");
 		auto       moved  = keep(second, 1);
 		expect(moved.has_value() && moved->Id.value() != second.Draft.Draft.Id.value() && moved->Id.value() > second.Draft.Draft.Id.value(), "a taken identity moves the comment to the next free one");
 
 		// A published draft cannot be kept local.
-		const auto third              = put_draft("Already sent.");
+		const auto third              = putDraft("Already sent.");
 		auto       published          = third;
 		published.Draft.Revision      = 2;
 		published.Draft.Draft.State   = review_draft_state::published;
@@ -479,7 +479,7 @@ namespace {
 		// [[BPR-2183]]. Save as Local with changed words is one transaction:
 		// changed words without Reworded move nothing; with it the comment
 		// has the new words and the draft ends, in the same commit.
-		const auto fourth   = put_draft("Draft words.");
+		const auto fourth   = putDraft("Draft words.");
 		auto       reworded = private_keep_local{ .Draft = fourth.Draft.Draft.Id, .ExpectedRevision = 1, .Comment = { .Attachment = local_comment_attachment{ file, *binding.Comparison, note_line_anchor{ diff_side::right, 1, std::nullopt } }, .Body = "Changed words." } };
 		expect(store->keep_local(reworded).error() == private_store_failure::conflict && store->load_draft(fourth.Draft.Draft.Id)->Draft.Revision == 1U, "other words without Reworded keep nothing local");
 		reworded.Reworded = true;

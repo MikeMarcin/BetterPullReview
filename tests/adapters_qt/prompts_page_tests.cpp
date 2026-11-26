@@ -305,8 +305,8 @@ namespace {
 		if (filter == nullptr || restore == nullptr || create == nullptr || segment == nullptr || segment0 == nullptr) {
 			return;
 		}
-		const auto box      = [&page](const QWidget* aWidget) { return QRect{ aWidget->mapTo(&page, QPoint{ 0, 0 }), aWidget->size() }; };
-		const auto same_row = [&box](const QWidget* aOne, const QWidget* aOther) {
+		const auto box     = [&page](const QWidget* aWidget) { return QRect{ aWidget->mapTo(&page, QPoint{ 0, 0 }), aWidget->size() }; };
+		const auto sameRow = [&box](const QWidget* aOne, const QWidget* aOther) {
 			return box(aOne).center().y() >= box(aOther).top() && box(aOne).center().y() <= box(aOther).bottom();
 		};
 		for (const auto width : { 1180, 900, 700, 500 }) {
@@ -318,7 +318,7 @@ namespace {
 			for (const auto* const widget : { static_cast<const QWidget*>(filter), static_cast<const QWidget*>(restore), static_cast<const QWidget*>(create), static_cast<const QWidget*>(segment), static_cast<const QWidget*>(segment0) }) {
 				expect(box(widget).left() >= 0 && box(widget).right() < right && widget->width() >= widget->minimumSizeHint().width(), here + widget->objectName().toStdString() + " fits unclipped");
 			}
-			expect(same_row(restore, filter) && same_row(create, filter), here + "New prompt and Restore built-ins are on the filter's row");
+			expect(sameRow(restore, filter) && sameRow(create, filter), here + "New prompt and Restore built-ins are on the filter's row");
 			expect(box(restore).left() > box(filter).right() && box(create).left() > box(restore).right(), here + "at its right, Restore then New prompt");
 			expect(box(create).right() >= right - 24, here + "New prompt ends the row");
 			expect(filter->width() >= 120, here + "the filter keeps a usable width: " + std::to_string(filter->width()));
@@ -328,7 +328,7 @@ namespace {
 		render(aHarness, QStringLiteral("13-tools-narrowest"));
 		aHarness.Scroll.resize(1180, 840);
 		settle();
-		expect(same_row(segment0, filter), "as drawn the filter choices share its row");
+		expect(sameRow(segment0, filter), "as drawn the filter choices share its row");
 		render(aHarness, QStringLiteral("14-tools-wide"));
 	}
 

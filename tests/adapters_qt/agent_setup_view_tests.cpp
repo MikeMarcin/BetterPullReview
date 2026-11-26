@@ -1108,7 +1108,7 @@ namespace {
 	/// arguments and after a reorder, a removal and an addition.
 	void test_add_argument_stays_below_the_rows()
 	{
-		const auto clear_of_rows = [](qt::agent_entry_dialog& aDialog, const char* aWhen) {
+		const auto clearOfRows = [](qt::agent_entry_dialog& aDialog, const char* aWhen) {
 			QApplication::processEvents();
 			auto* const editor = aDialog.arguments();
 			auto* const list   = editor->list();
@@ -1130,16 +1130,16 @@ namespace {
 			}
 			auto dialog = qt::agent_entry_dialog{ core::agent_entry{ .Name = "Work", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/claude", .Arguments = arguments } };
 			dialog.show();
-			clear_of_rows(dialog, "when the dialog opens");
+			clearOfRows(dialog, "when the dialog opens");
 			if (count >= 2U) {
 				dialog.arguments()->list()->setCurrentRow(1);
 				key_on(*dialog.arguments()->list(), Qt::Key_Up, Qt::AltModifier);
-				clear_of_rows(dialog, "after a reorder");
+				clearOfRows(dialog, "after a reorder");
 				dialog.arguments()->trash(0)->click();
-				clear_of_rows(dialog, "after a removal");
+				clearOfRows(dialog, "after a removal");
 			}
 			dialog.arguments()->add_button()->click();
-			clear_of_rows(dialog, "while a new row is edited");
+			clearOfRows(dialog, "while a new row is edited");
 			dialog.hide();
 		}
 	}

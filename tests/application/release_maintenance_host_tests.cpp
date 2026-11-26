@@ -713,7 +713,7 @@ namespace {
 		const auto hash          = std::string(64U, 'a');
 		const auto configuration = std::string(64U, 'b');
 		for (const auto suffix : { "54", "0", "10000", "054", "54-PRIVATE" }) {
-			const auto                                   identity = "0.4.1-" + hash + "-build." + suffix + "-" + configuration + "-Release";
+			const auto                                   identity = std::string{ "0.4.1-" }.append(hash).append("-build.").append(suffix).append("-").append(configuration).append("-Release");
 			const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, identity };
 			const auto                                   document = application::prepare_diagnostic_export(structured_line(1U), core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 			expect(document.has_value(), "a numbered export prepares under the same redaction policy");

@@ -38,7 +38,7 @@ namespace bpr::adapters::sqlite::detail::testing {
 	// (mapping, path and line tables) and stamps schema 11, so the older
 	// fixtures can be built from a current ledger. False on any failure.
 	/// \brief Rebuilds the schema 11 note shape from a current ledger.
-	[[nodiscard]] auto restore_schema_11_notes(sqlite3* aDatabase) noexcept -> bool;
+	[[nodiscard]] auto restore_schema_11_notes(sqlite3* aHandle) noexcept -> bool;
 
 	enum class epoch_journal_stage : std::uint8_t {
 		receiving,

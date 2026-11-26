@@ -38,7 +38,7 @@ namespace {
 			QApplication::processEvents();
 		}
 	}
-	void QTest_wait(const int aMilliseconds)
+	void qtest_wait(const int aMilliseconds)
 	{
 		auto timer = QElapsedTimer{ };
 		timer.start();
@@ -54,7 +54,7 @@ namespace {
 		QApplication::sendEvent(aWidget, &press);
 		QApplication::sendEvent(aWidget, &release);
 		settle();
-		QTest_wait(150);
+		qtest_wait(150);
 		settle();
 	}
 }
@@ -117,7 +117,7 @@ auto main(int argc, char** argv) -> int
 	// The open stop's own control: the pencil. [[BPR-2013]]: Show in code
 	// is gone; arriving at a stop shows its code.
 	// Settled past the hold, a scroll the person makes stands.
-	QTest_wait(700);
+	qtest_wait(700);
 	bar->setValue(0);
 	settle();
 	expect(bar->value() == 0, "after the hold the person's own scroll stands");

@@ -81,23 +81,23 @@ namespace bpr::qt {
 			// [[BPR-2184]] (review N6): the quieter inks, the rules and the link
 			// are core's, derived from the paper and ink and held to the
 			// contrast floor there.
-			const auto to_core = [](const QColor& aColour) {
+			const auto toCore = [](const QColor& aColour) {
 				return core::appearance_color{ .Red = static_cast<std::uint8_t>(aColour.red()), .Green = static_cast<std::uint8_t>(aColour.green()), .Blue = static_cast<std::uint8_t>(aColour.blue()), .Alpha = 255U };
 			};
-			const auto to_qt                                              = [](const core::appearance_color aColour) { return QColor{ aColour.Red, aColour.Green, aColour.Blue }; };
+			const auto toQt                                               = [](const core::appearance_color aColour) { return QColor{ aColour.Red, aColour.Green, aColour.Blue }; };
 			auto       roles                                              = core::appearance_palette{ };
-			roles[core::index_of(core::appearance_role::code_background)] = to_core(aColours.Paper);
-			roles[core::index_of(core::appearance_role::syntax_normal)]   = to_core(aColours.Ink);
+			roles[core::index_of(core::appearance_role::code_background)] = toCore(aColours.Paper);
+			roles[core::index_of(core::appearance_role::syntax_normal)]   = toCore(aColours.Ink);
 			const auto shades                                             = core::derive_report_shades(roles);
 			const auto dark                                               = aColours.Paper.lightness() < 128;
 			return palette{
 				.Roles   = aColours,
 				.Ink     = aColours.Ink.name(),
-				.Dim     = to_qt(shades.Dim).name(),
-				.Faint   = to_qt(shades.Faint).name(),
-				.Line    = to_qt(shades.Line).name(),
-				.Strong  = to_qt(shades.Strong).name(),
-				.Link    = to_qt(shades.Link).name(),
+				.Dim     = toQt(shades.Dim).name(),
+				.Faint   = toQt(shades.Faint).name(),
+				.Line    = toQt(shades.Line).name(),
+				.Strong  = toQt(shades.Strong).name(),
+				.Link    = toQt(shades.Link).name(),
 				.Wash    = aColours.CodeWash.name(),
 				.Removed = mixed(aColours.Tones.Open, aColours.CodeWash, dark ? 0.80 : 0.86).name(),
 				.Added   = mixed(aColours.Tones.Done, aColours.CodeWash, dark ? 0.80 : 0.86).name(),

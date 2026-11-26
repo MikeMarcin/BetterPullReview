@@ -449,17 +449,17 @@ namespace bpr::qt {
 		// [[BPR-2051]]. Setup missing: an outline and the words in the failed
 		// check's colour, so the colour is never the only sign (the words
 		// say what is missing).
-		auto words_ink = ink;
+		auto wordsInk = ink;
 		if (!Attention.isEmpty()) {
 			// Owner note "Why is it red?": an agent not yet checked needs a
 			// step, not a repair; the quiet ink says so, and only a failed
 			// check takes the failed check's colour.
-			words_ink = AttentionFailed ? setup_failed_colour(palette()) : mixed(base, ink, 0.72);
+			wordsInk = AttentionFailed ? setup_failed_colour(palette()) : mixed(base, ink, 0.72);
 			painter.setBrush(Qt::NoBrush);
-			painter.setPen(QPen{ words_ink, 1.0, AttentionFailed ? Qt::SolidLine : Qt::DashLine });
+			painter.setPen(QPen{ wordsInk, 1.0, AttentionFailed ? Qt::SolidLine : Qt::DashLine });
 			painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
 		}
-		painter.setPen(words_ink);
+		painter.setPen(wordsInk);
 		const auto words = rect().adjusted(text_left, 0, -(chrome_width - text_left), 0);
 		painter.drawText(words, Qt::AlignVCenter | Qt::AlignLeft, fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, words.width())));
 	}

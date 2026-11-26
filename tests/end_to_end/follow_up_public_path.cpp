@@ -194,9 +194,9 @@ namespace {
 			}
 		}
 		expect(completion != nullptr, "the item chat's composer has a skill picker");
-		const auto question    = QStringLiteral("I don't follow. Why is this blocking? ");
-		const auto prefix      = QStringLiteral("/fixture-item");
-		const auto type_prefix = [&] {
+		const auto question   = QStringLiteral("I don't follow. Why is this blocking? ");
+		const auto prefix     = QStringLiteral("/fixture-item");
+		const auto typePrefix = [&] {
 			composer.setPlainText(question);
 			composer.moveCursor(QTextCursor::End);
 			for (const auto letter : prefix) {
@@ -208,14 +208,14 @@ namespace {
 			QStringLiteral("/fixture-item-style (Personal, ~/.agents/skills)"),
 		};
 		const auto selected = question + QStringLiteral("/fixture-item-style ");
-		type_prefix();
+		typePrefix();
 		wait([&] { return completion->rows() == rows; }, "the slash prefix shows both discovered fixture skills and their source");
 		render(*completion->popup(), QStringLiteral("side-chat-skill-popup"));
 		composer_key(composer, Qt::Key_Down);
 		composer_key(composer, Qt::Key_Tab, QStringLiteral("\t"));
 		expect(composer.toPlainText() == selected && composer.hasFocus() && completion->popup()->isHidden(), "Tab inserts the highlighted skill and leaves the composer focused");
 
-		type_prefix();
+		typePrefix();
 		composer_key(composer, Qt::Key_Down);
 		composer_key(composer, Qt::Key_Return, QStringLiteral("\r"));
 		expect(composer.toPlainText() == selected && !aFollowUp.running() && aFollowUp.questions().isEmpty(), "Return chooses the skill without sending");
@@ -251,7 +251,7 @@ auto main(int argc, char** argv) -> int
 	}
 	std::unique_ptr<app::github_application> application;
 	try {
-		auto       options   = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = *dataRoot };
+		auto       options   = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot };
 		const auto skillHome = QDir{ data.filePath(QStringLiteral("fixture-skill-home")) };
 		write_skill(skillHome, QStringLiteral("fixture-item-decoy"), QByteArray{ "FIXTURE_UNUSED_ITEM_CHAT_GUIDANCE" });
 		write_skill(skillHome, QStringLiteral("fixture-item-style"), QByteArray{ "FIXTURE_SELECTED_ITEM_CHAT_GUIDANCE" });

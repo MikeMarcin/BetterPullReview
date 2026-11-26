@@ -340,10 +340,10 @@ namespace {
 	/// messages, full commit IDs.
 	void the_selected_commits_keep_their_bounds()
 	{
-		auto changes = core::returning_changes{ .Text = "Commit 2222222: Fix\n", .FilesShown = 1U };
-		auto long_   = std::string(core::maximum_selected_commit_message_bytes + 10U, 'm');
-		long_.replace(core::maximum_selected_commit_message_bytes - 1U, 2U, "\xC3\xA9");
-		const auto material = core::bound_selected_commits({ { .Oid = commit('2'), .Headline = "Fix\nsecond line", .Message = long_ }, { .Oid = commit('3'), .Headline = "Merge", .MergesBase = true } }, changes);
+		auto changes  = core::returning_changes{ .Text = "Commit 2222222: Fix\n", .FilesShown = 1U };
+		auto overlong = std::string(core::maximum_selected_commit_message_bytes + 10U, 'm');
+		overlong.replace(core::maximum_selected_commit_message_bytes - 1U, 2U, "\xC3\xA9");
+		const auto material = core::bound_selected_commits({ { .Oid = commit('2'), .Headline = "Fix\nsecond line", .Message = overlong }, { .Oid = commit('3'), .Headline = "Merge", .MergesBase = true } }, changes);
 		expect(material && core::valid(*material), "a selection within bounds is material");
 		expect(material->Commits[0].Headline == "Fix" && material->Commits[0].Message.size() == core::maximum_selected_commit_message_bytes - 1U && material->Commits[1].MergesBase,
 			   "a headline is one line and a message is cut at a character's boundary");

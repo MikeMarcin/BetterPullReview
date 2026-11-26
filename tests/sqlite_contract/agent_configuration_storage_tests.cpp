@@ -144,40 +144,40 @@ int main()
 try {
 	tests::sqlite_contract::scratch_root scratch{ "agent-configuration" };
 	tests::sqlite_contract::scratch_root second{ "agent-configuration-recipient" };
-	const auto                           sender    = scratch.path();
-	const auto                           recipient = second.path();
+	const auto&                          sender    = scratch.path();
+	const auto&                          recipient = second.path();
 
 	// The sender: a custom agent with relaxed checks, builds and scratch off,
 	// Claude Code, and two edited prompts.
-	auto sender_agents            = application::agent_setup_preferences{ };
-	sender_agents.AgentsMoved     = true;
-	sender_agents.RunLimitMinutes = 30U;
-	sender_agents.Chosen          = core::setup_agent::claude_code;
-	auto work                     = core::agent_entry{ .Id = 1U, .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/Users/sender/bin/work-claude" };
-	work.Arguments                = { "--profile", "work" };
-	work.Model                    = "opus";
-	work.StrictRunChecks          = false;
-	work.BuildsAndTests           = true;
-	work.ScratchStarts            = false;
-	work.Identity                 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-	auto claude                   = core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { });
-	claude.Id                     = 2U;
-	claude.Identity               = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-	sender_agents.Agents          = { work, claude };
-	sender_agents.PreferredAgent  = 2U;
-	expect(adapters::sqlite::make_agent_setup_store(sender)->store(sender_agents), "the sender's agents are stored");
+	auto senderAgents            = application::agent_setup_preferences{ };
+	senderAgents.AgentsMoved     = true;
+	senderAgents.RunLimitMinutes = 30U;
+	senderAgents.Chosen          = core::setup_agent::claude_code;
+	auto work                    = core::agent_entry{ .Id = 1U, .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/Users/sender/bin/work-claude" };
+	work.Arguments               = { "--profile", "work" };
+	work.Model                   = "opus";
+	work.StrictRunChecks         = false;
+	work.BuildsAndTests          = true;
+	work.ScratchStarts           = false;
+	work.Identity                = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+	auto claude                  = core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { });
+	claude.Id                    = 2U;
+	claude.Identity              = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+	senderAgents.Agents          = { work, claude };
+	senderAgents.PreferredAgent  = 2U;
+	expect(adapters::sqlite::make_agent_setup_store(sender)->store(senderAgents), "the sender's agents are stored");
 	store_hook(sender, core::writing_hook::comment, "State the problem in two sentences. /team-style");
-	const auto sender_store = adapters::sqlite::make_agent_configuration_store(sender);
-	expect(sender_store->record_written_against(core::writing_hook::comment, "State the problem in two sentences. /team-style", application::writing_hook_version), "provenance");
+	const auto senderStore = adapters::sqlite::make_agent_configuration_store(sender);
+	expect(senderStore->record_written_against(core::writing_hook::comment, "State the problem in two sentences. /team-style", application::writing_hook_version), "provenance");
 	store_hook(sender, core::writing_hook::enhance_writing, "Make it kind.");
 
-	auto sender_snapshot = sender_store->load();
-	expect(sender_snapshot.has_value(), "the sender's snapshot reads");
-	expect(sender_snapshot->WrittenAgainst[1] == std::string{ application::writing_hook_version } && !sender_snapshot->WrittenAgainst[4],
+	auto senderSnapshot = senderStore->load();
+	expect(senderSnapshot.has_value(), "the sender's snapshot reads");
+	expect(senderSnapshot->WrittenAgainst[1] == std::string{ application::writing_hook_version } && !senderSnapshot->WrittenAgainst[4],
 		   "the store says which built-in an override was written against, and nothing for one it never recorded");
 	const auto agents  = std::vector<std::uint32_t>{ 1U, 2U };
 	const auto prompts = std::vector<application::exported_prompt>{ { .Purpose = "tour.stop-comment" }, { .Purpose = "enhance.writing" }, { .Purpose = "review.feedback", .BuiltIn = true }, { .Purpose = "review.skill", .BuiltIn = true } };
-	const auto bytes   = application::export_agent_configuration(*sender_snapshot, agents, prompts, "Team", "BetterPullReview test");
+	const auto bytes   = application::export_agent_configuration(*senderSnapshot, agents, prompts, "Team", "BetterPullReview test");
 	expect(bytes.has_value(), "the export encodes");
 	// AC02: nothing of the sender's machine.
 	expect(bytes->find("/Users/sender") == std::string::npos && bytes->find("aaaaaaaa") == std::string::npos && bytes->find("run_limit") == std::string::npos
@@ -271,13 +271,13 @@ try {
 
 	// A crash after the hooks were written and before the agents were: the
 	// journal undoes the hooks at the next start.
-	const auto before_crash = hooks_of(recipient);
+	const auto beforeCrash = hooks_of(recipient);
 	{
 		auto* db = static_cast<sqlite3*>(nullptr);
 		expect(sqlite3_open((recipient / "state/v1/agent-setup.sqlite3").string().c_str(), &db) == SQLITE_OK, "the file opens");
 		for (std::size_t index = 0U; index < core::writing_hook_count; ++index) {
-			const auto sql = "INSERT INTO configuration_import_journal VALUES(" + std::to_string(index) + "," + std::to_string(before_crash.Revision + 1U) + ",'"
-				+ (index == 1U ? std::string{ "Before the import." } : before_crash.Overrides[index]) + "')";
+			const auto sql = "INSERT INTO configuration_import_journal VALUES(" + std::to_string(index) + "," + std::to_string(beforeCrash.Revision + 1U) + ",'"
+				+ (index == 1U ? std::string{ "Before the import." } : beforeCrash.Overrides[index]) + "')";
 			expect(sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "a journal row");
 		}
 		sqlite3_close(db);
@@ -300,75 +300,75 @@ try {
 	// others: an edited one and a shipped one export with their versions and
 	// are recognized on import.
 	store_hook(sender, core::writing_hook::local_discussion, "Answer in two sentences, then propose.");
-	const auto local_snapshot = sender_store->load();
-	expect(local_snapshot.has_value(), "the sender's snapshot reads again");
-	const auto local_prompts = std::vector<application::exported_prompt>{ { .Purpose = "local.discussion" }, { .Purpose = "local.description", .BuiltIn = true } };
-	const auto local_bytes   = application::export_agent_configuration(*local_snapshot, { }, local_prompts, "Local", "BetterPullReview test");
-	expect(local_bytes && local_bytes->find("local-description-v2") != std::string::npos && local_bytes->find("Answer in two sentences, then propose.") != std::string::npos,
+	const auto localSnapshot = senderStore->load();
+	expect(localSnapshot.has_value(), "the sender's snapshot reads again");
+	const auto localPrompts = std::vector<application::exported_prompt>{ { .Purpose = "local.discussion" }, { .Purpose = "local.description", .BuiltIn = true } };
+	const auto localBytes   = application::export_agent_configuration(*localSnapshot, { }, localPrompts, "Local", "BetterPullReview test");
+	expect(localBytes && localBytes->find("local-description-v2") != std::string::npos && localBytes->find("Answer in two sentences, then propose.") != std::string::npos,
 		   "both export, the shipped one with its version");
-	const auto local_decoded = core::decode_agent_configuration(*local_bytes, application::local_prompts(*store->load()));
-	expect(local_decoded && local_decoded->Prompts.size() == 2U && !local_decoded->Prompts[0].Problem && !local_decoded->Prompts[1].Problem,
+	const auto localDecoded = core::decode_agent_configuration(*localBytes, application::local_prompts(*store->load()));
+	expect(localDecoded && localDecoded->Prompts.size() == 2U && !localDecoded->Prompts[0].Problem && !localDecoded->Prompts[1].Problem,
 		   "this version recognizes both purposes on import");
 
 	// [[BPR-2264]]. The Writing style Feature exports under its purpose ID
 	// with its text as written (here naming a skill), and an import applies
 	// it to the recipient's profile, where every request then sends it.
 	store_hook(sender, core::writing_hook::writing_style, "Follow my house-style skill.");
-	const auto style_snapshot = sender_store->load();
-	const auto style_prompts  = std::vector<application::exported_prompt>{ { .Purpose = "feature.writing-style" } };
-	const auto style_bytes    = application::export_agent_configuration(*style_snapshot, { }, style_prompts, "Style", "BetterPullReview test");
-	expect(style_bytes && style_bytes->find("feature.writing-style") != std::string::npos && style_bytes->find("Follow my house-style skill.") != std::string::npos,
+	const auto styleSnapshot = senderStore->load();
+	const auto stylePrompts  = std::vector<application::exported_prompt>{ { .Purpose = "feature.writing-style" } };
+	const auto styleBytes    = application::export_agent_configuration(*styleSnapshot, { }, stylePrompts, "Style", "BetterPullReview test");
+	expect(styleBytes && styleBytes->find("feature.writing-style") != std::string::npos && styleBytes->find("Follow my house-style skill.") != std::string::npos,
 		   "the Writing style exports under its purpose ID with its text as written");
-	auto style_written = false;
-	host.write(file, *style_bytes, [&style_written](const bool aWritten) { style_written = aWritten; });
+	auto styleWritten = false;
+	host.write(file, *styleBytes, [&styleWritten](const bool aWritten) { styleWritten = aWritten; });
 	effects.drain();
 	decision.drain();
-	auto style_preview = std::optional<application::agent_configuration_preview>{ };
-	host.read(file, [&style_preview](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) {
+	auto stylePreview = std::optional<application::agent_configuration_preview>{ };
+	host.read(file, [&stylePreview](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) {
 		if (aPreview) {
-			style_preview = std::move(*aPreview);
+			stylePreview = std::move(*aPreview);
 		}
 	});
 	effects.drain();
 	decision.drain();
-	expect(style_written && style_preview && style_preview->File.Prompts.size() == 1U && !style_preview->File.Prompts[0].Problem, "this version recognizes the Feature on import");
-	auto style_outcome = std::optional<application::agent_configuration_host::applied>{ };
-	host.apply(*style_preview, { }, { 0U }, [&style_outcome](application::agent_configuration_host::applied aApplied) { style_outcome = std::move(aApplied); });
+	expect(styleWritten && stylePreview && stylePreview->File.Prompts.size() == 1U && !stylePreview->File.Prompts[0].Problem, "this version recognizes the Feature on import");
+	auto styleOutcome = std::optional<application::agent_configuration_host::applied>{ };
+	host.apply(*stylePreview, { }, { 0U }, [&styleOutcome](application::agent_configuration_host::applied aApplied) { styleOutcome = std::move(aApplied); });
 	effects.drain();
 	decision.drain();
-	const auto style_hooks = hooks_of(recipient);
-	expect(style_outcome && style_outcome->has_value() && style_hooks.Overrides[static_cast<std::size_t>(core::writing_hook::writing_style)] == "Follow my house-style skill."
-			   && application::writing_style_for(style_hooks, true).ends_with("Follow my house-style skill."),
+	const auto styleHooks = hooks_of(recipient);
+	expect(styleOutcome && styleOutcome->has_value() && styleHooks.Overrides[static_cast<std::size_t>(core::writing_hook::writing_style)] == "Follow my house-style skill."
+			   && application::writing_style_for(styleHooks, true).ends_with("Follow my house-style skill."),
 		   "the import applies the override, and it is what a request sends");
 
 	// [[BPR-2270]]. Comment labels exports under its own purpose ID, and a
 	// blank override (the person's plain comments) travels as blank: the
 	// recipient then sends no label guidance.
 	store_hook(sender, core::writing_hook::comment_labels, std::string{ core::blank_feature_override });
-	const auto labels_snapshot = sender_store->load();
-	const auto labels_prompts  = std::vector<application::exported_prompt>{ { .Purpose = "feature.comment-labels" } };
-	const auto labels_bytes    = application::export_agent_configuration(*labels_snapshot, { }, labels_prompts, "Labels", "BetterPullReview test");
-	expect(labels_bytes && labels_bytes->find("feature.comment-labels") != std::string::npos, "Comment labels exports under its purpose ID");
-	auto labels_written = false;
-	host.write(file, *labels_bytes, [&labels_written](const bool aWritten) { labels_written = aWritten; });
+	const auto labelsSnapshot = senderStore->load();
+	const auto labelsPrompts  = std::vector<application::exported_prompt>{ { .Purpose = "feature.comment-labels" } };
+	const auto labelsBytes    = application::export_agent_configuration(*labelsSnapshot, { }, labelsPrompts, "Labels", "BetterPullReview test");
+	expect(labelsBytes && labelsBytes->find("feature.comment-labels") != std::string::npos, "Comment labels exports under its purpose ID");
+	auto labelsWritten = false;
+	host.write(file, *labelsBytes, [&labelsWritten](const bool aWritten) { labelsWritten = aWritten; });
 	effects.drain();
 	decision.drain();
-	auto labels_preview = std::optional<application::agent_configuration_preview>{ };
-	host.read(file, [&labels_preview](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) {
+	auto labelsPreview = std::optional<application::agent_configuration_preview>{ };
+	host.read(file, [&labelsPreview](std::expected<application::agent_configuration_preview, application::agent_configuration_read_error> aPreview) {
 		if (aPreview) {
-			labels_preview = std::move(*aPreview);
+			labelsPreview = std::move(*aPreview);
 		}
 	});
 	effects.drain();
 	decision.drain();
-	expect(labels_written && labels_preview && labels_preview->File.Prompts.size() == 1U && !labels_preview->File.Prompts[0].Problem, "this version recognizes Comment labels on import");
-	auto labels_outcome = std::optional<application::agent_configuration_host::applied>{ };
-	host.apply(*labels_preview, { }, { 0U }, [&labels_outcome](application::agent_configuration_host::applied aApplied) { labels_outcome = std::move(aApplied); });
+	expect(labelsWritten && labelsPreview && labelsPreview->File.Prompts.size() == 1U && !labelsPreview->File.Prompts[0].Problem, "this version recognizes Comment labels on import");
+	auto labelsOutcome = std::optional<application::agent_configuration_host::applied>{ };
+	host.apply(*labelsPreview, { }, { 0U }, [&labelsOutcome](application::agent_configuration_host::applied aApplied) { labelsOutcome = std::move(aApplied); });
 	effects.drain();
 	decision.drain();
-	const auto labels_hooks = hooks_of(recipient);
-	expect(labels_outcome && labels_outcome->has_value() && labels_hooks.Overrides[static_cast<std::size_t>(core::writing_hook::comment_labels)] == core::blank_feature_override
-			   && application::comment_labels_instructions(labels_hooks).empty(),
+	const auto labelsHooks = hooks_of(recipient);
+	expect(labelsOutcome && labelsOutcome->has_value() && labelsHooks.Overrides[static_cast<std::size_t>(core::writing_hook::comment_labels)] == core::blank_feature_override
+			   && application::comment_labels_instructions(labelsHooks).empty(),
 		   "the blank override arrives blank, and the recipient sends no label guidance");
 
 	// RFC-BPR-0110: a store an earlier build made checks hooks 0 to 7; the
@@ -450,7 +450,7 @@ try {
 
 	host.shutdown();
 	expect(host.is_quiescent(), "quiescent after shutdown");
-	review_settings_travel(sender, recipient, *sender_snapshot);
+	review_settings_travel(sender, recipient, *senderSnapshot);
 	std::cout << "agent-configuration-storage:pass\n";
 	return EXIT_SUCCESS;
 } catch (const std::exception& aError) {

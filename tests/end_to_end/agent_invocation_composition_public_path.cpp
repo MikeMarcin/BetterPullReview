@@ -2338,6 +2338,7 @@ auto main(int argc, char** argv) -> int
 			if (native_fixture_field(fresh, "backend=").empty()
 				|| native_fixture_field(fresh, "backend=") == native_fixture_field(followup, "backend=")
 				|| native_fixture_field(fresh, "memory=") == native_fixture_field(followup, "memory=")) {
+				// NOLINTNEXTLINE(performance-inefficient-string-concatenation): a failure's message.
 				return fail(*application, "native-new-generation-isolated-memory", "fresh=" + fresh + " original=" + followup + " visible=" + window.agent_tab()->turn_answer(0U).toStdString());
 			}
 			QMetaObject::invokeMethod(window.agent_tab()->history_button()->menu(), "aboutToShow");

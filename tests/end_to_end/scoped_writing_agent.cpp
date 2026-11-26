@@ -48,6 +48,7 @@ namespace {
 		}
 		return r;
 	}
+	// NOLINTNEXTLINE(bugprone-throwing-static-initialization): fixed settings text; a failure to build it ends the helper.
 	const std::string writing_settings = R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})";
 	auto              read_only_restrictions() -> const std::vector<std::string>&
 	{

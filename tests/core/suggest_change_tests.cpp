@@ -49,7 +49,9 @@ namespace {
 		return "{\"first_line\": " + std::to_string(aFirst) + ", \"last_line\": " + std::to_string(aLast) + ", \"current\": " + quoted(aCurrent) + ", \"replacement\": " + quoted(aReplacement) + "}";
 	}
 
+	// NOLINTBEGIN(bugprone-throwing-static-initialization): fixture values; a failure to build them ends the test.
 	const auto head_text = std::string{ "int f(int* p)\n{\n\treturn *p;\n}\n\nint g() { return 1; }\n" };
+	// NOLINTEND(bugprone-throwing-static-initialization)
 
 	/// AC01. The press is the comment workshop's seventh operation, about
 	/// the draft's lines, whatever else is attached.

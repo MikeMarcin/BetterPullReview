@@ -32,8 +32,10 @@ namespace {
 		return file_comparison_digest{ bytes };
 	}
 
+	// NOLINTBEGIN(bugprone-throwing-static-initialization): fixture values; a failure to build them ends the test.
 	const auto head    = *parse_git_commit_oid("1111111111111111111111111111111111111111");
 	const auto earlier = *parse_git_commit_oid("2222222222222222222222222222222222222222");
+	// NOLINTEND(bugprone-throwing-static-initialization)
 
 	[[nodiscard]] auto saved(const std::uint64_t aId, const std::uint8_t aComparison, const std::uint32_t aLine, std::string aBody) -> revisioned_review_draft
 	{
@@ -52,9 +54,11 @@ namespace {
 		return aDraft;
 	}
 
+	// NOLINTBEGIN(bugprone-throwing-static-initialization): fixture values; a failure to build them ends the test.
 	const auto shown   = std::vector<std::pair<file_comparison_digest, std::string>>{ { digest(9), "src/old.cpp" } };
 	const auto threads = std::vector<std::pair<std::string, std::string>>{ { "T1", "src/reply.cpp" } };
 	const auto facts   = draft_roster_facts{ .Head = head, .Shown = shown, .Threads = threads };
+	// NOLINTEND(bugprone-throwing-static-initialization)
 
 	void test_standing_place_and_order()
 	{
@@ -102,11 +106,11 @@ namespace {
 		const auto roster  = project_draft_roster(drafts, facts);
 		const auto outside = drafts_outside_review(roster);
 		expect(outside.size() == 4U, "every draft the review does not carry is noted");
-		const auto entry_of = [&outside](const std::uint64_t aId) -> draft_roster_entry { return *std::ranges::find(outside, review_draft_id{ aId }, &draft_roster_entry::Id); };
-		expect(entry_of(1).Refusal == draft_add_refusal::none && entry_of(1).Mark == std::optional{ review_pending_mark{ .Path = "src/b.cpp", .Head = head, .Submission = { } } }, "a reviewable draft is marked at its place and the head");
-		expect(entry_of(3).Refusal == draft_add_refusal::not_at_head && !entry_of(3).Mark, "a draft no review can take at its line is not marked");
-		expect(entry_of(4).Refusal == draft_add_refusal::place_unknown, "a draft without a place must be opened");
-		expect(entry_of(5).Refusal == draft_add_refusal::reply, "a reply is never added");
+		const auto entryOf = [&outside](const std::uint64_t aId) -> draft_roster_entry { return *std::ranges::find(outside, review_draft_id{ aId }, &draft_roster_entry::Id); };
+		expect(entryOf(1).Refusal == draft_add_refusal::none && entryOf(1).Mark == std::optional{ review_pending_mark{ .Path = "src/b.cpp", .Head = head, .Submission = { } } }, "a reviewable draft is marked at its place and the head");
+		expect(entryOf(3).Refusal == draft_add_refusal::not_at_head && !entryOf(3).Mark, "a draft no review can take at its line is not marked");
+		expect(entryOf(4).Refusal == draft_add_refusal::place_unknown, "a draft without a place must be opened");
+		expect(entryOf(5).Refusal == draft_add_refusal::reply, "a reply is never added");
 
 		auto moved = facts;
 		moved.Head = earlier;

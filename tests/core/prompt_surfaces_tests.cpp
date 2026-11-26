@@ -116,7 +116,7 @@ namespace {
 
 		// A placement naming a prompt the library no longer has is dropped.
 		auto gone = changes;
-		gone.front().Ids.push_back("own.deleted");
+		gone.front().Ids.emplace_back("own.deleted");
 		const auto dropped = merge_prompt_surfaces(library, gone);
 		expect(std::ranges::find(at(dropped, gone.front().Surface), std::string{ "own.deleted" }) == at(dropped, gone.front().Surface).end(), "an unknown prompt is not placed");
 

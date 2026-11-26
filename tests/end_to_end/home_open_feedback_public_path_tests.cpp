@@ -447,7 +447,8 @@ try {
 				  << (discovery().Status.State == application::queue_discovery_state::refreshing) << " submitted=" << discovery().Statistics.Submitted - before.Submitted
 				  << " answered=" << discovery().Statistics.Answered - before.Answered << " preempted=" << discovery().Statistics.Preempted - before.Preempted << '\n';
 		expect(!cancelledSeen && delay->Cancelled.load() == cancelledBefore, "the open was never cancelled");
-		expect(opening.elapsed() < static_cast<qint64>(4U * delay_ms + 1000U), "without waiting for the refresh's retained read");
+		const auto openBound = 4U * delay_ms + 1000U;
+		expect(opening.elapsed() < static_cast<qint64>(openBound), "without waiting for the refresh's retained read");
 		delay->Milliseconds         = 0U;
 		delay->RetainedMilliseconds = 0U;
 		wait_for([&] { return discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; }, "Home's refresh finishes", { }, 30000);

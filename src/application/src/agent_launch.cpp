@@ -1849,7 +1849,7 @@ namespace bpr::application {
 						// paragraph of the one answer.
 						auto said = *text;
 						if (aHelpers.SeparateNext && !said.empty()) {
-							said                  = "\n\n" + said;
+							said.insert(0U, "\n\n");
 							aHelpers.SeparateNext = false;
 						}
 						events.push_back({

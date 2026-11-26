@@ -2470,6 +2470,7 @@ namespace {
 	{
 		auto requests = std::string{ };
 		for (const auto& login : aRequested) {
+			// NOLINTNEXTLINE(performance-inefficient-string-concatenation): a fixture body, built once per reviewer.
 			requests += std::string{ requests.empty() ? "" : "," } + R"({"requestedReviewer":{"__typename":"User","id":"U_)" + login + R"(","login":")" + login + R"("}})";
 		}
 		return std::string{ R"("id":")" } + (aDesignated ? "PR_kwDOTyvof879G6NV" : "PR_kwDOTyvof879Gzzz")

@@ -132,6 +132,7 @@ namespace bpr::app {
 		auto dispatch(bool aSettings) -> application::release_update_dispatch
 		{
 			const auto weak = weak_from_this();
+			// NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): the dispatch holds each function by value.
 			return {
 				[weak](core::release_update_intent aIntent) { if (auto self = weak.lock(); self && self->Service && !self->Closing) { self->Service->dispatch(std::move(aIntent)); } },
 				[weak](bool aEnabled) { if (auto self = weak.lock(); self && self->Service) { self->Service->set_automatic_checks(aEnabled); } },
