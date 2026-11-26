@@ -869,6 +869,6 @@ Written 2026-11-16 from the owner's grill-rfc interview after [[BPR-2219]]. A pr
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0130](RFC-BPR-0130-one-chat-for-the-agent-tab-and-the-side-chats.md) | One chat for the Agent tab and the side chats, under one header | In Progress | RFC-BPR-0085, RFC-BPR-0100, RFC-BPR-0101, RFC-BPR-0126, RFC-BPR-0128 |
+| [RFC-BPR-0130](RFC-BPR-0130-one-chat-for-the-agent-tab-and-the-side-chats.md) | One chat for the Agent tab and the side chats, under one header | Auto-Verified | RFC-BPR-0085, RFC-BPR-0100, RFC-BPR-0101, RFC-BPR-0126, RFC-BPR-0128 |
 
 Written 2026-11-24 from the owner's request to clean up the top controls of the agent chats and to stop implementing each chat change two or three times. The Agent tab, the tour side chat, the report item side chat and a local draft's discussion become one chat component: one header, one transcript, one notice, one composer, with each chat's own extras as attachments. The owner chose the header in an attended review the same day (one row; New session first in the History menu; rename, delete and an info tooltip on each session row), accepted the replacement words with the agent's name substituted, and accepted the direction. The ID is provisional until the coordinator allocates it; no card is allocated. Four owner questions are open, and only the last stage waits on one.

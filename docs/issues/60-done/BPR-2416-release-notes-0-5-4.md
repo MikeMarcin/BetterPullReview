@@ -65,3 +65,7 @@ exposure arrived with BPR-2379 (575a992ea), which no published tag contains.
   coordinator asked for every owner-visible change. Cut candidates, least
   noticeable first: the inline-code colour, the findings chart position, the
   proposed tour stop row, the filter toggle look.
+
+## Owner decisions
+
+Attended review f0a507b14d225bfb0789f62ff457e814, 2026-11-26: release notes wording accepted; version stays 0.5.4; keep all 21 entries (no trim).

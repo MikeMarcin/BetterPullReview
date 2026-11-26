@@ -2,8 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-2415"
 title: "RFC-BPR-0130 closeout: every criterion an agent can check holds with its evidence on the RFC's ledger; AC09, the owner's look, waits for the final attended review"
-status: "Parked"
-parked_on: "human-review"
+status: "Done"
 rfcs: ["RFC-BPR-0130"]
 depends_on: ["BPR-2404", "BPR-2405", "BPR-2406", "BPR-2407", "BPR-2409", "BPR-2410", "BPR-2411", "BPR-2412", "BPR-2413", "BPR-2414"]
 priority: "P2"
@@ -60,3 +59,7 @@ index row saying so.
 ## Verification
 
 - `python3 scripts/verify_documentation.py --root .`: DOCUMENTATION_OK.
+
+## Owner acceptance (AC09)
+
+Accepted by the owner in attended review f0a507b14d225bfb0789f62ff457e814, 2026-11-26, frozen at 520729adc: questions 07 (item chat History), 08 (one composer), 11 (Agent tab header and History), 12 (tour chat header), 13 (one transcript) and 21 (tour head-moved card) all accepted.
