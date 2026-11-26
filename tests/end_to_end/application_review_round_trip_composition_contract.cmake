@@ -4107,8 +4107,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# presentation only; no grant, provider, transport, mutation or
 	# publication path changes; full application and mutation-branch digests
 	# are unchanged.
+	# [[BPR-2413]] coordinator reseal at the merge: window_tours.cpp's tour
+	# writing notice now goes through the one chat notice (RFC-BPR-0130 stage
+	# 6). Wording and presentation only; no grant, provider, transport,
+	# mutation or publication path changes; full application and
+	# mutation-branch digests are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "b2722ceab134e5bab3ba93350d3f0af64841acc172aca25938fbc67c99936ff5"
+        "7e361a8cf266149c29543082663a9af3c6cd82996ecee08bc6c263e511400234"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
