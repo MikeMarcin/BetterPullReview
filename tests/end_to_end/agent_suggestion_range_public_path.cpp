@@ -149,7 +149,7 @@ auto main(int argc, char** argv) -> int
 		const auto turn = tab->turn_count();
 		wait([&] {
 			if (tab->turn_count() == turn && tab->state() != qt::agent_tab_state::working) {
-				window.side_chat()->composer()->setPlainText(QStringLiteral("suggestion-range probe: review resize"));
+				window.agent_tab()->question_editor()->setPlainText(QStringLiteral("suggestion-range probe: review resize"));
 				tab->ask_button()->click();
 			}
 			return tab->turn_count() == turn + 1U;

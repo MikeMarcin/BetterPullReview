@@ -527,7 +527,7 @@ auto main(int argc, char** argv) -> int
 			QApplication::processEvents();
 			wait([&] { return list()->isVisible(); }, "a waiting message shows in the pending list");
 			expect(pressIn(QStringLiteral("agentQueuePauseResume")), "Pause queue");
-			auto* const composer      = access::side_chat_panel(*application)->composer();
+			auto* const composer      = tab->question_editor();
 			const auto  typeAndReturn = [&](const QString& aText, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier) {
 				composer->setPlainText(aText);
 				QKeyEvent press{ QEvent::KeyPress, Qt::Key_Return, aModifiers };
@@ -535,7 +535,10 @@ auto main(int argc, char** argv) -> int
 				QApplication::processEvents();
 			};
 			wait([&] { return tab->state() != qt::agent_tab_state::working && access::agent_invocation_evidence(*application).Quiescent; }, "the running ask finishes");
-			expect(access::side_chat_panel(*application)->send_action()->text() == QStringLiteral("Queue"), "with messages waiting, Send says Queue: " + access::side_chat_panel(*application)->send_action()->text().toStdString());
+			composer->setPlainText(QStringLiteral("A follow-up"));
+			QApplication::processEvents();
+			expect(tab->ask_button()->text() == QStringLiteral("Queue"), "with messages waiting, Send says Queue: " + tab->ask_button()->text().toStdString());
+			composer->clear();
 			typeAndReturn(QStringLiteral("First follow-up"));
 			typeAndReturn(QStringLiteral("Second follow-up"));
 			expect(composer->toPlainText().isEmpty() && rowsOf().contains(QStringLiteral("First follow-up")) && rowsOf().contains(QStringLiteral("Second follow-up")),
@@ -1107,7 +1110,7 @@ auto main(int argc, char** argv) -> int
 					   + std::to_string(window.tour_editor() != nullptr && window.tour_editor()->isVisible()) + " report " + std::to_string(window.report_shown()) + " shown " + std::to_string(report->isVisible()));
 			window.open_agent_question();
 			QApplication::processEvents();
-			auto* const typed = access::side_chat_panel(*application)->composer();
+			auto* const typed = window.agent_tab()->question_editor();
 			typed->setPlainText(QStringLiteral("About this report"));
 			expect(typed->isEnabled() && typed->toPlainText() == QStringLiteral("About this report") && window.report_shown(), "the Agent tab's field takes input beside the report");
 			typed->clear();

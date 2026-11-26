@@ -9,6 +9,7 @@
 #include <QWidget>
 
 #include "bpr/application/agent_conversation.hpp"
+#include "bpr/application/agent_finding_delivery.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_draft_all.hpp"
@@ -28,6 +29,7 @@
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_session_menu.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
+#include "bpr/qt/agent_tab_run.hpp"
 #include "bpr/qt/chat_composer.hpp"
 #include "bpr/qt/chat_header_view.hpp"
 #include "bpr/qt/chat_history_menu.hpp"
@@ -37,6 +39,7 @@
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/report_tally_view.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
 
 #include <array>
 #include <cstddef>
@@ -63,13 +66,10 @@ class QVBoxLayout;
 
 namespace bpr::qt {
 	class skill_completer;
-	class agent_launch_panel;
 	class agent_setup_view;
 	class drawer_empty_state;
-	class finding_queue_view;
 	class markdown_body_view;
 	class appearance_profile;
-	class side_chat_panel;
 
 	/// \brief What a card says once it was acted on.
 	enum class agent_finding_card_state : std::uint8_t {
@@ -291,18 +291,44 @@ namespace bpr::qt {
 	/// \brief [[BPR-1594]]. RFC-BPR-0085 D5: the Agent tab, the right drawer's
 	/// fourth. A context row (the agent, the head it reads, its scope, and
 	/// History), the conversation with its finding cards, and the question
-	/// field with its context chips. It presents the existing agent panels'
-	/// controls, moved into this layout; every gesture is theirs, so the
-	/// agent's authority and every intent are unchanged.
+	/// field with its context chips. RFC-BPR-0130 stage 5 (AC07): its
+	/// controls are its own; it presents the run, the session's chat and the
+	/// findings the window hands it, and each gesture is an intent the window
+	/// maps to the host it already reached, so the agent's authority is
+	/// unchanged.
 	class agent_tab_view final : public QWidget
 	{
 	public:
-		agent_tab_view(agent_launch_panel& aLaunch, side_chat_panel& aChat, finding_queue_view& aFindings, QWidget& aHistory, QWidget* aParent = nullptr);
-		/// \brief Gives the borrowed controls back to the panels that own them.
+		/// \brief RFC-BPR-0130 stage 5 (AC07). The tab holds no other widget's
+		/// control and reads none: the window hands it its run
+		/// (`present_run`), its session's chat (`present_chat`) and the
+		/// findings delivered (`present_findings`), and maps its gestures
+		/// (`set_intents`). `aRunSettings` is the one agent, model and effort
+		/// choice the footer's picker shows.
+		explicit agent_tab_view(std::shared_ptr<agent_run_settings_source> aRunSettings, QWidget* aParent = nullptr);
 		~agent_tab_view() override;
 		agent_tab_view(const agent_tab_view&)                    = delete;
 		auto operator=(const agent_tab_view&) -> agent_tab_view& = delete;
 
+		/// \brief The run as its presenter says it now, and what moved it: a
+		/// run that progressed is followed as it goes; any other change is
+		/// presented again, and a quiet one only kept for what reads it next.
+		void               present_run(agent_tab_run aRun, agent_tab_run_change aChange);
+		[[nodiscard]] auto run() const noexcept -> const agent_tab_run& { return Run; }
+		/// \brief The session's chat as the host projects it: its session,
+		/// whether its moved head waits on a choice, its added context and
+		/// its replies.
+		void present_chat(const side_chat_projection& aChat);
+		/// \brief The findings the host delivered, which the turn's cards are
+		/// made of.
+		void present_findings(const application::agent_finding_delivery& aDelivery);
+		/// \brief Where the tab's gestures go.
+		void set_intents(agent_tab_intents aIntents);
+		/// \brief The private history Show every run… shows, with the way
+		/// back to the conversation. The tab owns it from then on.
+		void adopt_every_run(QWidget& aRuns);
+		/// \brief The question field's words.
+		[[nodiscard]] auto question_editor() const noexcept -> QPlainTextEdit* { return Composer; }
 		/// \brief Set up an agent: Settings › Agents.
 		void set_setup_dispatch(std::function<void()> aDispatch);
 		/// \brief [[BPR-1753]], RFC-BPR-0092. Shows `aSetup` in place
@@ -332,23 +358,15 @@ namespace bpr::qt {
 		/// \brief The model and effort each agent runs with, and where a change
 		/// goes. Owner decision (c) 2026-10-23 ("A chip in the message box like
 		/// VS Code"): the chip in the question field shows the chosen agent's.
-		void               present_run_settings(std::vector<agent_run_settings> aSettings);
-		void               set_run_settings_dispatch(agent_run_settings_dispatch aDispatch);
-		[[nodiscard]] auto run_settings_button() const noexcept -> QToolButton* { return RunSettings; }
-		/// \brief [[BPR-2051]]. The window's footer holds the one picker; the
-		/// tab opens it for a bare /model or /effort and reads its words.
-		void adopt_run_settings_button(agent_run_settings_picker* aPicker);
-		/// \brief [[BPR-1924]]. The picker has its own row under the field's
-		/// tools, because the one row cannot hold it whole.
-		[[nodiscard]] auto run_settings_wrapped() const noexcept -> bool { return RunSettingsWrapped; }
+		void present_run_settings(std::vector<agent_run_settings> aSettings);
+		void set_run_settings_dispatch(agent_run_settings_dispatch aDispatch);
 		/// \brief [[BPR-1878]]. What the agent picker shows, for another
 		/// picker (the Tour tab's) that is the same choice.
 		[[nodiscard]] auto run_settings_source() const noexcept -> const std::shared_ptr<agent_run_settings_source>& { return RunSettingsSource; }
 		/// \brief `/model NAME`, `/effort LEVEL` (or `default`), and `/model`
 		/// or `/effort` alone to open the control. Answers whether the text
 		/// was such a command, which is then not sent to the agent.
-		auto               run_slash_command(const QString& aText) -> bool;
-		[[nodiscard]] auto run_settings_text() const -> QString;
+		auto run_slash_command(const QString& aText) -> bool;
 		/// \brief Owner look v003. The session's title in the header (the
 		/// pull request's), a reply's Copy and its time, and the answers' code
 		/// coloured as comments' code is (the shared Markdown code host).
@@ -993,10 +1011,25 @@ namespace bpr::qt {
 		/// \brief The title of the card of a session that read \p aRead.
 		[[nodiscard]] static auto pinned_card_title(const QString& aRead) -> QString;
 
-		agent_launch_panel&   Launch;
-		side_chat_panel&      Chat;
-		finding_queue_view&   Findings;
-		QWidget&              HistoryPanel;
+		/// RFC-BPR-0130 stage 5 (AC07). What the window last handed the tab,
+		/// and where its gestures go.
+		agent_tab_run                                      Run;
+		std::optional<side_chat_projection>                ChatShown;
+		std::optional<application::agent_finding_delivery> FindingsShown;
+		agent_tab_intents                                  Intents;
+		/// The question field's words, and what Send says while a turn runs.
+		QPlainTextEdit* Composer = nullptr;
+		QString         SendWords;
+		QVBoxLayout*    EveryRun = nullptr;
+		/// What the session's chat says, as its own panel said it.
+		[[nodiscard]] auto    chat_sendable() const -> bool;
+		[[nodiscard]] auto    continuation_required() const -> bool;
+		[[nodiscard]] auto    chat_head_text() const -> QString;
+		void                  start_review();
+		void                  stop_run();
+		void                  send_question(const QString& aText);
+		void                  choose_continuation(core::agent_continuation aChoice);
+		void                  act_on_finding(std::size_t aOrdinal, finding_queue_action aAction);
 		std::function<void()> Setup;
 		agent_tab_state       State        = agent_tab_state::not_set_up;
 		QStackedWidget*       Pages        = nullptr;
@@ -1030,12 +1063,10 @@ namespace bpr::qt {
 		std::function<void()>                      FirstShown;
 		agent_run_settings_dispatch                RunSettingsDispatch;
 		std::shared_ptr<agent_run_settings_source> RunSettingsSource;
-		agent_run_settings_picker*                 RunSettings = nullptr;
 		/// [[BPR-1924]]. The field's tool row, and the row the picker wraps to.
-		QHBoxLayout* AskRow             = nullptr;
-		QHBoxLayout* PickerRow          = nullptr;
-		bool         RunSettingsWrapped = false;
-		QLabel*      Notice             = nullptr;
+		QHBoxLayout* AskRow    = nullptr;
+		QHBoxLayout* PickerRow = nullptr;
+		QLabel*      Notice    = nullptr;
 		/// [[BPR-1817]]. The refusal beside the composer.
 		QWidget*                 Refusal      = nullptr;
 		QLabel*                  RefusalText  = nullptr;
@@ -1243,7 +1274,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto                 suggestions_verdict() const -> core::agent_suggestions_verdict;
 		void                               refresh_times();
 		void                               dress_answer(markdown_body_view& aAnswer) const;
-		void                               fit_run_settings();
 		QLabel*                            SessionTitle = nullptr;
 		QWidget*                           EmptyIntro   = nullptr;
 		chat_composer*                     Field        = nullptr;
@@ -1433,26 +1463,9 @@ namespace bpr::qt {
 		bool LatestFixedSince = false;
 		/// [[BPR-1876]]. The stopped run's turn was deleted, so its banner
 		/// stands down until the next run.
-		bool StoppedDismissed = false;
-		/// The panels' controls this tab shows, and where each came from.
-		std::vector<std::pair<QPointer<QWidget>, QPointer<QWidget>>> Borrowed;
-		/// The panels may go first when the window closes.
-		QPointer<QObject>  LaunchAlive;
-		QPointer<QObject>  ChatAlive;
-		QPointer<QObject>  FindingsAlive;
-		bool               Dying = false;
-		[[nodiscard]] auto panels_alive() const noexcept -> bool
-		{
-			if (Dying || LaunchAlive == nullptr || ChatAlive == nullptr || FindingsAlive == nullptr) {
-				return false;
-			}
-			for (const auto& [widget, owner] : Borrowed) {
-				if (widget == nullptr) {
-					return false;
-				}
-			}
-			return true;
-		}
+		bool               StoppedDismissed = false;
+		bool               Dying            = false;
+		[[nodiscard]] auto alive() const noexcept -> bool { return !Dying; }
 	};
 } // namespace bpr::qt
 

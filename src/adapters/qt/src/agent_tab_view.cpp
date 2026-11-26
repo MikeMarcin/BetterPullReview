@@ -22,7 +22,6 @@
 #include "bpr/core/local_comment.hpp"
 #include "bpr/core/prompt_surfaces.hpp"
 #include "bpr/core/review_preparation.hpp"
-#include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -110,9 +109,6 @@ namespace bpr::qt {
 		/// the bordered row does.
 		constexpr auto report_row_gap     = 9;
 		constexpr auto report_summary_gap = 5;
-		/// [[BPR-1924]]. The least room kept between the scope menu and the
-		/// agent picker when they share the tool row.
-		constexpr auto run_settings_gap = 12;
 		/// RFC-BPR-0125 (AC07). A sent question longer than this many lines
 		/// folds behind Show all.
 		constexpr qsizetype folded_question_lines = 6;
@@ -458,15 +454,9 @@ namespace bpr::qt {
 		return aModel.trimmed();
 	}
 
-	agent_tab_view::agent_tab_view(agent_launch_panel& aLaunch, side_chat_panel& aChat, finding_queue_view& aFindings, QWidget& aHistory, QWidget* aParent)
+	agent_tab_view::agent_tab_view(std::shared_ptr<agent_run_settings_source> aRunSettings, QWidget* aParent)
 		: QWidget{ aParent }
-		, Launch{ aLaunch }
-		, Chat{ aChat }
-		, Findings{ aFindings }
-		, HistoryPanel{ aHistory }
-		, LaunchAlive{ static_cast<QWidget*>(&aLaunch) }
-		, ChatAlive{ static_cast<QWidget*>(&aChat) }
-		, FindingsAlive{ static_cast<QWidget*>(&aFindings) }
+		, RunSettingsSource{ std::move(aRunSettings) }
 	{
 		setObjectName(QStringLiteral("agentTab"));
 		setAccessibleName(tr("Agent"));
@@ -496,14 +486,6 @@ namespace bpr::qt {
 		Header->row()->setSpacing(5);
 		SessionTitle = Header->subject();
 		History      = Header->history_tool();
-		// Owner amendment 2026-10-23: the agent is switched from the chip in
-		// the question field; the selector stays the one choice, unseen.
-		auto* const profiles = Launch.profile_selector();
-		Borrowed.emplace_back(profiles, profiles->parentWidget());
-		profiles->setParent(Header);
-		profiles->setToolTip(tr("The agent this tab asks"));
-		profiles->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-		profiles->hide();
 		// [[BPR-2377]], RFC-BPR-0130. The one History menu, the tour chat's
 		// too: New session, a row a session (pencil, trash can, i), carrying
 		// the open one over, Delete all sessions…, Copy conversation, Show
@@ -525,7 +507,7 @@ namespace bpr::qt {
 		// What History offers is core's, from what the tab is doing when asked.
 		HistoryItems->set_state_source([this] {
 			return chat_history_menu::chat_state{
-				.AgentReady  = panels_alive() && State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up,
+				.AgentReady  = alive() && State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up,
 				.Closed      = false,
 				.Running     = State == agent_tab_state::working,
 				.Busy        = false,
@@ -617,8 +599,8 @@ namespace bpr::qt {
 				},
 			.Stop =
 				[this] {
-					if (auto* const stop = Launch.cancel_action(); stop != nullptr && stop->isEnabled()) {
-						stop->trigger();
+					if (Run.Stoppable) {
+						stop_run();
 					}
 				},
 			.ReplyIdentity =
@@ -841,15 +823,6 @@ namespace bpr::qt {
 		lead->addWidget(EmptyIntro);
 		// The thread, each question and its answer oldest first, is the
 		// transcript's own; what follows it is its trail.
-		auto* const replies = Chat.replies_list();
-		Borrowed.emplace_back(replies, replies->parentWidget());
-		replies->setParent(content);
-		replies->setFrameShape(QFrame::NoFrame);
-		replies->setWordWrap(true);
-		replies->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
-		replies->viewport()->setAutoFillBackground(false);
-		trail->addWidget(replies);
-		replies->hide();
 		Cards      = new QWidget{ content };
 		CardColumn = new QVBoxLayout{ Cards };
 		CardColumn->setContentsMargins(0, 0, 0, 0);
@@ -912,13 +885,13 @@ namespace bpr::qt {
 		// context, the words, a thin rule, and one row: Context and
 		// Suggestions as icons and what the agent may read on the left; the
 		// agent · model · effort pill and Send on the right.
-		// RFC-BPR-0130 stage 2: the one composer every chat places, here
-		// around the side chat panel's words until the tab holds no
-		// borrowed control (stage 5).
-		auto* const composer = Chat.composer();
-		Borrowed.emplace_back(composer, composer->parentWidget());
-		auto* const field    = new chat_composer{ { .Field = QStringLiteral("agentQuestionField"), .Text = { }, .Send = QStringLiteral("agentAsk"), .Stop = QStringLiteral("agentStop") }, ask, composer };
+		// RFC-BPR-0130 stage 2: the one composer every chat places, its
+		// words the tab's own (stage 5).
+		auto* const field    = new chat_composer{ { .Field = QStringLiteral("agentQuestionField"), .Text = QStringLiteral("agentQuestionText"), .Send = QStringLiteral("agentAsk"), .Stop = QStringLiteral("agentStop") }, ask };
 		Field                = field;
+		Composer             = field->text();
+		auto* const composer = Composer;
+		composer->setAccessibleName(tr("Message to the agent"));
 		auto* const fieldCol = field->chips();
 		field->installEventFilter(this);
 		Chips = chip_label(field, QStringLiteral("agentContextChips"));
@@ -987,7 +960,7 @@ namespace bpr::qt {
 		connect(MacroClose, &QToolButton::clicked, this, [this] {
 			DraftedMacro.reset();
 			present_macro_chip();
-			Chat.composer()->setFocus(Qt::OtherFocusReason);
+			Composer->setFocus(Qt::OtherFocusReason);
 		});
 		macroRow->addWidget(MacroClose, 0, Qt::AlignTop);
 		MacroChip->hide();
@@ -1005,7 +978,7 @@ namespace bpr::qt {
 		SkillCompletion = field->skills();
 		// RFC-BPR-0125 (Q2). An emptied field holds no suggested prompt.
 		connect(composer, &QPlainTextEdit::textChanged, this, [this] {
-			if (DraftedMacro && Chat.composer()->toPlainText().trimmed().isEmpty()) {
+			if (DraftedMacro && Composer->toPlainText().trimmed().isEmpty()) {
 				DraftedMacro.reset();
 				present_macro_chip();
 			}
@@ -1050,7 +1023,6 @@ namespace bpr::qt {
 		// effort as a pill in the field. [[BPR-1924]]: a row of its own under
 		// the tools when the field is too narrow for it whole.
 		// [[BPR-1878]]: one source behind this pill and the Tour tab's.
-		RunSettingsSource           = std::make_shared<agent_run_settings_source>(Launch);
 		RunSettingsSource->Choose   = [this](const std::uint64_t aProfile) { return choose_agent(aProfile); };
 		RunSettingsSource->Dispatch = [this](const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
 			return RunSettingsDispatch && RunSettingsDispatch(aProfile, std::move(aModel), std::move(aEffort));
@@ -1072,7 +1044,7 @@ namespace bpr::qt {
 		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): the
 		// picker left the drawers for the pull request window's footer, one
 		// choice for the Agent tab, the tour chat, Enhance and Draft the tour.
-		// The tab borrows the footer's picker for /model and /effort.
+		// A bare /model or /effort opens that picker (`agent_tab_intents::OpenRunSettings`).
 		Ask = field->send_button();
 		Ask->setToolTip(send_tip());
 		// Send, or Stop while the agent works (`core::decide_chat_send`):
@@ -1085,22 +1057,7 @@ namespace bpr::qt {
 					this->ask();
 					Opposite = false;
 				},
-			.Stop = [this] { Launch.cancel_action()->trigger(); },
-		});
-		// What was asked is read when it is sent, by Send or by the keyboard.
-		connect(Chat.send_action(), &QAction::triggered, this, [this] {
-			PendingQuestion   = Chat.composer()->toPlainText().trimmed();
-			PendingName       = SendingMacro && SendingMacro->Name != *PendingQuestion ? SendingMacro->Name : QString{ };
-			PendingEdited     = !PendingName.isEmpty() && !core::prompt_sent_unedited(PendingQuestion->toStdString(), SendingMacro->Expansion.toStdString());
-			PendingReview     = false;
-			PendingKeepsField = KeepingDraft;
-			PendingAbout      = ConversationShown;
-			PendingReturning  = SendingReturning;
-			PendingExplain    = SendingExplain;
-			PendingSuggest    = SendingSuggest;
-			// [[BPR-1773]]. Where its answer's Draft comment would go is
-			// decided now, while what it was asked on is on screen.
-			PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
+			.Stop = [this] { stop_run(); },
 		});
 		PickerRow = new QHBoxLayout{ };
 		PickerRow->setSpacing(0);
@@ -1166,32 +1123,9 @@ namespace bpr::qt {
 		back->setFlat(true);
 		connect(back, &QPushButton::clicked, this, [this] { show_history(false); });
 		histCol->addWidget(back, 0, Qt::AlignLeft);
-		Borrowed.emplace_back(&HistoryPanel, HistoryPanel.parentWidget());
-		HistoryPanel.setParent(HistoryPage);
-		histCol->addWidget(&HistoryPanel, 1);
-		HistoryPanel.show();
+		EveryRun = histCol;
 		Pages->addWidget(HistoryPage);
 
-		// What the panels say moves this tab: their lists and actions.
-		const auto again = [this] { refresh(); };
-		connect(Findings.findings_list()->model(), &QAbstractItemModel::modelReset, this, [this] { ++FindingsPresented; });
-		connect(Findings.findings_list()->model(), &QAbstractItemModel::rowsInserted, this, [this] { ++FindingsPresented; });
-		connect(Findings.findings_list()->model(), &QAbstractItemModel::modelReset, this, again);
-		connect(Findings.findings_list()->model(), &QAbstractItemModel::rowsInserted, this, again);
-		connect(Findings.findings_list()->model(), &QAbstractItemModel::rowsRemoved, this, again);
-		connect(Chat.replies_list()->model(), &QAbstractItemModel::rowsInserted, this, again);
-		connect(Chat.replies_list()->model(), &QAbstractItemModel::modelReset, this, again);
-		for (auto* const action : { Launch.start_action(), Launch.cancel_action(), Chat.continue_old_revision_action(), Chat.new_session_action(), Chat.send_action() }) {
-			connect(action, &QAction::changed, this, again);
-		}
-		connect(profiles, &QComboBox::currentIndexChanged, this, again);
-		// Another agent is another question: what refused the last one may
-		// not refuse this one.
-		connect(profiles, &QComboBox::currentIndexChanged, this, [this] { hide_send_refusal(); });
-		// [[BPR-1753]], owner look v001 ("no indication anything
-		// happened"). The working line follows the request as it moves, with
-		// the time it has taken, so a long run never looks like nothing.
-		Launch.add_progress_observer([this] { progress(); });
 		// The turns' times read as near words; a minute refreshes them.
 		auto* const minutes = new QTimer{ this };
 		minutes->setInterval(60'000);
@@ -1207,7 +1141,7 @@ namespace bpr::qt {
 		AnswerPacer->setSingleShot(true);
 		AnswerPacer->setInterval(100);
 		connect(AnswerPacer, &QTimer::timeout, this, [this] {
-			if (AnswerPending && panels_alive()) {
+			if (AnswerPending && alive()) {
 				AnswerPending = false;
 				update_turn();
 				AnswerPacer->start();
@@ -1229,13 +1163,116 @@ namespace bpr::qt {
 			RunSettingsSource->ToggleScratch = { };
 			RunSettingsSource->OpenScratch   = { };
 		}
-		// The panels hold these controls by pointer and outlive this tab; the
-		// tab never deletes what it only shows.
-		for (auto& [widget, owner] : Borrowed) {
-			if (widget != nullptr && owner != nullptr) {
-				widget->hide();
-				widget->setParent(owner);
-			}
+	}
+
+	void agent_tab_view::present_run(agent_tab_run aRun, const agent_tab_run_change aChange)
+	{
+		Run = std::move(aRun);
+		switch (aChange) {
+		case agent_tab_run_change::quiet: return;
+		// [[BPR-1753]], owner look v001 ("no indication anything
+		// happened"). The working line follows the request as it moves, with
+		// the time it has taken, so a long run never looks like nothing.
+		case agent_tab_run_change::progressed: progress(); return;
+		case agent_tab_run_change::actions:    refresh(); return;
+		case agent_tab_run_change::agent:
+			refresh();
+			// Another agent is another question: what refused the last one
+			// may not refuse this one.
+			hide_send_refusal();
+			return;
+		}
+	}
+
+	void agent_tab_view::present_chat(const side_chat_projection& aChat)
+	{
+		// What the session's chat says moves the tab when its replies, or
+		// whether it may be sent to or waits on a choice, change.
+		const auto before  = std::pair{ chat_sendable(), continuation_required() };
+		const auto replies = !ChatShown || ChatShown->Session.Id != aChat.Session.Id || ChatShown->Replies != aChat.Replies;
+		ChatShown          = aChat;
+		if (replies || before != std::pair{ chat_sendable(), continuation_required() }) {
+			refresh();
+		}
+	}
+
+	void agent_tab_view::present_findings(const application::agent_finding_delivery& aDelivery)
+	{
+		FindingsShown = aDelivery;
+		++FindingsPresented;
+		refresh();
+	}
+
+	void agent_tab_view::set_intents(agent_tab_intents aIntents) { Intents = std::move(aIntents); }
+
+	void agent_tab_view::adopt_every_run(QWidget& aRuns)
+	{
+		aRuns.setParent(HistoryPage);
+		EveryRun->addWidget(&aRuns, 1);
+		aRuns.show();
+	}
+
+	auto agent_tab_view::chat_sendable() const -> bool { return ChatShown && !ChatShown->Continuations.Required; }
+
+	auto agent_tab_view::continuation_required() const -> bool { return ChatShown && ChatShown->Continuations.Required && !ChatShown->Continuations.Choices.empty(); }
+
+	auto agent_tab_view::chat_head_text() const -> QString
+	{
+		if (!ChatShown) {
+			return { };
+		}
+		const auto head = core::canonical_hex(ChatShown->Session.Binding.HeadOid);
+		return QString::fromUtf8(head.view().data(), static_cast<qsizetype>(head.view().size()));
+	}
+
+	void agent_tab_view::start_review()
+	{
+		if (Run.Startable && Intents.Start) {
+			Intents.Start();
+		}
+	}
+
+	void agent_tab_view::stop_run()
+	{
+		if (Run.Stoppable && Intents.Stop) {
+			Intents.Stop();
+		}
+	}
+
+	void agent_tab_view::send_question(const QString& aText)
+	{
+		if (!chat_sendable()) {
+			return;
+		}
+		if (Intents.Send) {
+			Intents.Send({ .Text = aText, .Question = LastQuestion, .SkillText = SendingMacro ? SendingMacro->SkillText : std::nullopt });
+		}
+		// What was asked is read once it is sent, by Send or by the keyboard.
+		PendingQuestion   = aText.trimmed();
+		PendingName       = SendingMacro && SendingMacro->Name != *PendingQuestion ? SendingMacro->Name : QString{ };
+		PendingEdited     = !PendingName.isEmpty() && !core::prompt_sent_unedited(PendingQuestion->toStdString(), SendingMacro->Expansion.toStdString());
+		PendingReview     = false;
+		PendingKeepsField = KeepingDraft;
+		PendingAbout      = ConversationShown;
+		PendingReturning  = SendingReturning;
+		PendingExplain    = SendingExplain;
+		PendingSuggest    = SendingSuggest;
+		// [[BPR-1773]]. Where its answer's Draft comment would go is
+		// decided now, while what it was asked on is on screen.
+		PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
+	}
+
+	void agent_tab_view::choose_continuation(const core::agent_continuation aChoice)
+	{
+		if (continuation_required() && std::ranges::contains(ChatShown->Continuations.Choices, aChoice) && Intents.Continue) {
+			Intents.Continue(aChoice);
+		}
+	}
+
+	void agent_tab_view::act_on_finding(const std::size_t aOrdinal, const finding_queue_action aAction)
+	{
+		if (Intents.Finding) {
+			Intents.Finding(aOrdinal, aAction);
 		}
 	}
 
@@ -1270,12 +1307,12 @@ namespace bpr::qt {
 
 	void agent_tab_view::focus_question()
 	{
-		if (!panels_alive()) {
+		if (!alive()) {
 			return;
 		}
 		show_history(false);
-		if (Chat.composer()->isVisible()) {
-			Chat.composer()->setFocus(Qt::OtherFocusReason);
+		if (Composer->isVisible()) {
+			Composer->setFocus(Qt::OtherFocusReason);
 		}
 	}
 
@@ -1315,7 +1352,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::refresh()
 	{
-		if (!panels_alive()) {
+		if (!alive()) {
 			return;
 		}
 		for (const auto& entry : CardEntries) {
@@ -1323,11 +1360,11 @@ namespace bpr::qt {
 		}
 		// The agent the tab asks may have changed: the notice names it.
 		present_session_notice();
-		const auto setUp      = Launch.offered_count() > 0U;
-		const auto running    = Launch.cancel_action()->isEnabled();
-		const auto status     = Launch.status_text();
+		const auto setUp      = Run.Offered > 0U;
+		const auto running    = Run.Stoppable;
+		const auto status     = Run.Status;
 		const auto failed     = status.startsWith(QStringLiteral("Finished:")) && !status.contains(QStringLiteral("success"));
-		const auto moved      = !Chat.offered_continuations().empty();
+		const auto moved      = continuation_required();
 		const auto setting    = SetupView != nullptr && SetupView->needed();
 		const auto wasWorking = State == agent_tab_state::working;
 		State                 = setting ? agent_tab_state::setting_up
@@ -1348,7 +1385,7 @@ namespace bpr::qt {
 				hide_send_refusal();
 			}
 			// A request that just ended says so, whatever it found.
-			Finished = Launch.last_outcome() == application::agent_run_outcome::success;
+			Finished = Run.Outcome == application::agent_run_outcome::success;
 		}
 		if (State == agent_tab_state::working) {
 			Finished = false;
@@ -1364,8 +1401,8 @@ namespace bpr::qt {
 		}
 		refresh_send_label();
 		// The added context, above the words, only when there is some.
-		Chips->setText(Chat.chips_text());
-		Chips->setVisible(Chat.chip_count() > 0U);
+		Chips->setText(side_chat_chips_words(ChatShown));
+		Chips->setVisible((ChatShown ? ChatShown->Chips.size() : 0U) > 0U);
 		present_send();
 		present_banner();
 		rebuild_findings();
@@ -1384,7 +1421,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::progress()
 	{
-		if (!panels_alive()) {
+		if (!alive()) {
 			return;
 		}
 		// RFC-BPR-0130 stage 5. The core folds what the run is seen doing and
@@ -1411,10 +1448,10 @@ namespace bpr::qt {
 		// turn began, is said beside the composer rather than only on the
 		// hidden launch panel. A refusal for some other surface's request is
 		// not this composer's.
-		if (Launch.refusal_count() != RefusalsSeen) {
-			RefusalsSeen = Launch.refusal_count();
+		if (Run.Refusals != RefusalsSeen) {
+			RefusalsSeen = Run.Refusals;
 			if (PendingQuestion || PendingReview) {
-				refuse_send(core::agent_send_refusal::launch_refused, Launch.last_refusal());
+				refuse_send(core::agent_send_refusal::launch_refused, Run.LastRefusal);
 			}
 		}
 	}
@@ -1422,21 +1459,21 @@ namespace bpr::qt {
 	auto agent_tab_view::observe_run() const -> core::agent_live_observation
 	{
 		auto seen = core::agent_live_observation{ };
-		switch (Launch.current_phase()) {
-		case agent_launch_panel::phase::idle:      seen.Phase = core::agent_live_phase::idle; break;
-		case agent_launch_panel::phase::preparing: seen.Phase = core::agent_live_phase::preparing; break;
-		case agent_launch_panel::phase::running:   seen.Phase = core::agent_live_phase::running; break;
+		switch (Run.Phase) {
+		case agent_tab_run_phase::idle:      seen.Phase = core::agent_live_phase::idle; break;
+		case agent_tab_run_phase::preparing: seen.Phase = core::agent_live_phase::preparing; break;
+		case agent_tab_run_phase::running:   seen.Phase = core::agent_live_phase::running; break;
 		}
-		seen.WorkspaceChecking = Launch.workspace_checking();
-		seen.Written           = Launch.output_text().trimmed().toStdString();
-		seen.LatestLine        = Launch.latest_output_line().toStdString();
-		seen.Steered           = Launch.steered();
-		seen.Cost              = Launch.running_turn_cost();
-		if (Launch.activity_reported()) {
-			seen.Activity          = Launch.activity();
-			seen.ActivityStartedMs = Launch.activity_started_ms();
+		seen.WorkspaceChecking = Run.WorkspaceChecking;
+		seen.Written           = Run.Output.trimmed().toStdString();
+		seen.LatestLine        = Run.LatestLine.toStdString();
+		seen.Steered           = Run.Steered;
+		seen.Cost              = Run.RunningCost;
+		if (Run.ActivityReported) {
+			seen.Activity          = Run.Activity;
+			seen.ActivityStartedMs = Run.ActivityStartedMs;
 		}
-		seen.FilesOnly = Launch.pull_request_files_only();
+		seen.FilesOnly = Run.FilesOnly;
 		return seen;
 	}
 
@@ -1465,7 +1502,7 @@ namespace bpr::qt {
 			// Sent: the field is ready for the next question, unless it
 			// holds what the reviewer typed before a suggestion was sent.
 			if (!PendingKeepsField) {
-				Chat.composer()->clear();
+				Composer->clear();
 			}
 		}
 		PendingKeepsField = false;
@@ -1485,7 +1522,7 @@ namespace bpr::qt {
 		present_transcript();
 		if (!Turns.back().Explain.isEmpty()) {
 			auto status  = agent_run_status{ };
-			status.Agent = Launch.profile_selector()->currentText();
+			status.Agent = Run.Agent;
 			status.Stage = agent_run_stage::preparing;
 			publish_explain(Turns.size() - 1U, status, { }, false, 0);
 		}
@@ -1537,7 +1574,7 @@ namespace bpr::qt {
 		if (Transcript == nullptr) {
 			return;
 		}
-		const auto pinned = Launch.pinned_conversation();
+		const auto pinned = Run.Pinned;
 		Transcript->present(core::project_agent_thread(entries(), { .Working = State == agent_tab_state::working, .RevisionChoice = pinned && pinned->Pinned && PinnedDispatch }));
 	}
 
@@ -1923,8 +1960,8 @@ namespace bpr::qt {
 					if (AskMoreDispatch) {
 						AskMoreDispatch(kept.Question, kept.AnswerText);
 					}
-					Chat.composer()->setPlaceholderText(tr("Ask more about this answer…"));
-					Chat.composer()->setFocus(Qt::OtherFocusReason);
+					Composer->setPlaceholderText(tr("Ask more about this answer…"));
+					Composer->setFocus(Qt::OtherFocusReason);
 					return;
 				}
 			}
@@ -2267,7 +2304,7 @@ namespace bpr::qt {
 			ResetRoute();
 			return;
 		}
-		if (!panels_alive() || State == agent_tab_state::working || !ResetDispatch) {
+		if (!alive() || State == agent_tab_state::working || !ResetDispatch) {
 			return;
 		}
 		const auto confirmed = ResetConfirm ? ResetConfirm()
@@ -2337,7 +2374,7 @@ namespace bpr::qt {
 			// one no window saw end) is said as the live turn said it.
 			const auto worded = shown.Footer.contains(QLatin1Char{ ' ' });
 			const auto ending = worded ? shown.Footer.section(QStringLiteral(" · "), 0, 0)
-									   : agent_turn_ending_words(Launch.profile_selector()->currentText(), shown.Outcome, shown.Seconds);
+									   : agent_turn_ending_words(Run.Agent, shown.Outcome, shown.Seconds);
 			const auto footer = worded ? shown.Footer : ending + QLatin1Char{ '.' };
 			if (const auto at = Turns.size(); at < before.size() && std::get<0>(before[at]) == shown.Question) {
 				next.Serial = std::get<1>(before[at]);
@@ -2539,7 +2576,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::clear_session()
 	{
-		if (!panels_alive() || State == agent_tab_state::working) {
+		if (!alive() || State == agent_tab_state::working) {
 			return;
 		}
 		if (ClearDispatch) {
@@ -2649,7 +2686,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::choose_prompt(const QString& aPrompt, const bool aEditFirst)
 	{
-		if (!panels_alive()) {
+		if (!alive()) {
 			return;
 		}
 		// RFC-BPR-0116. A returning suggestion asks its own question.
@@ -2682,7 +2719,7 @@ namespace bpr::qt {
 
 	auto agent_tab_view::send_decided_prompt(const core::prompt_offer& aOffer) -> release_outcome
 	{
-		if (!panels_alive()) {
+		if (!alive()) {
 			return release_outcome::refused;
 		}
 		Released = release_outcome::refused;
@@ -2694,12 +2731,12 @@ namespace bpr::qt {
 	{
 		const auto offer    = aChosen;
 		const auto text     = QString::fromStdString(offer.Expansion.Text);
-		auto*      composer = Chat.composer();
+		auto*      composer = Composer;
 		const auto draft    = composer->toPlainText();
 		const auto press    = core::decide_agent_suggestion_press({
 			.EditFirst = aEditFirst || offer.finish(),
 			.DraftHeld = !draft.trimmed().isEmpty(),
-			.Usable    = core::decide_agent_suggestion_use({ .Sendable = Chat.send_action()->isEnabled() && State != agent_tab_state::working, .RevisionChoice = revision_choice_waits() }) == core::agent_suggestion_block::none,
+			.Usable    = core::decide_agent_suggestion_use({ .Sendable = chat_sendable() && State != agent_tab_state::working, .RevisionChoice = revision_choice_waits() }) == core::agent_suggestion_block::none,
 		});
 		auto       carried  = macro_send{
 			.Key       = QString::fromStdString(offer.Id),
@@ -2783,7 +2820,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::refresh_suggestions()
 	{
-		if (!panels_alive() || Suggestions == nullptr) {
+		if (!alive() || Suggestions == nullptr) {
 			return;
 		}
 		const auto context = current_suggestion_context();
@@ -2816,7 +2853,7 @@ namespace bpr::qt {
 		// A prompt is a question sent by a press, held to what a typed one
 		// is: while the card asks which revision to go on with it waits, and
 		// says what to choose first. The core decides.
-		const auto block = core::decide_agent_suggestion_use({ .Sendable = Chat.send_action()->isEnabled() && State != agent_tab_state::working, .RevisionChoice = revision_choice_waits() });
+		const auto block = core::decide_agent_suggestion_use({ .Sendable = chat_sendable() && State != agent_tab_state::working, .RevisionChoice = revision_choice_waits() });
 		Suggestions->present(std::move(chips), std::move(more));
 		Suggestions->set_usable(block == core::agent_suggestion_block::none, block == core::agent_suggestion_block::revision_choice ? revision_choice_words() : QString{ });
 		const auto conversing = State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up;
@@ -2847,14 +2884,14 @@ namespace bpr::qt {
 
 	void agent_tab_view::draft_prompt(const QString& aPrompt) { choose_prompt(aPrompt, true); }
 
-	auto agent_tab_view::ready_to_send() const -> bool { return State != agent_tab_state::working && Chat.send_action() != nullptr && Chat.send_action()->isEnabled(); }
+	auto agent_tab_view::ready_to_send() const -> bool { return State != agent_tab_state::working && chat_sendable(); }
 
 	void agent_tab_view::return_unqueued(const QString& aText, const QString& aWhy)
 	{
-		if (!panels_alive()) {
+		if (!alive()) {
 			return;
 		}
-		const auto typed = Chat.composer()->toPlainText();
+		const auto typed = Composer->toPlainText();
 		draft_text(typed.trimmed().isEmpty() ? aText : aText + QStringLiteral("\n\n") + typed);
 		Notice->setText(aWhy);
 		Notice->show();
@@ -2862,10 +2899,10 @@ namespace bpr::qt {
 
 	void agent_tab_view::draft_text(const QString& aText)
 	{
-		if (!panels_alive()) {
+		if (!alive()) {
 			return;
 		}
-		auto* const composer = Chat.composer();
+		auto* const composer = Composer;
 		composer->setPlainText(aText);
 		auto cursor = composer->textCursor();
 		cursor.movePosition(QTextCursor::End);
@@ -2882,18 +2919,12 @@ namespace bpr::qt {
 	/// While a turn runs or messages wait, Send says what Return will do.
 	void agent_tab_view::refresh_send_label()
 	{
-		auto* const send = Chat.send_action();
-		if (send == nullptr) {
-			return;
-		}
 		const auto following = FollowUp && core::decide_follow_up({ .TurnShown = State == agent_tab_state::working, .QueueHolds = QueueOccupied }) != core::follow_up::send;
 		const auto other     = QStringLiteral("%1Return").arg(QKeySequence{ Qt::ControlModifier }.toString(QKeySequence::NativeText));
 		const auto words     = !following ? tr("Send")
 			: FollowUpSteer               ? tr("Steer (Return) · Queue (%1)").arg(other)
 										  : tr("Queue (Return) · Steer (%1)").arg(other);
-		send->setToolTip(words);
-		send->setText(!following ? tr("Send") : FollowUpSteer ? tr("Steer")
-															  : tr("Queue"));
+		SendWords            = words;
 		present_send();
 	}
 
@@ -2909,18 +2940,18 @@ namespace bpr::qt {
 		// Stop the ordinary roles (the composer draws both).
 		const auto working  = State == agent_tab_state::working;
 		const auto follows  = FollowUp && core::decide_follow_up({ .TurnShown = working, .QueueHolds = QueueOccupied }) != core::follow_up::send;
-		const auto controls = core::decide_chat_send({ .Running = working, .FollowsUp = follows, .Typed = !Chat.composer()->toPlainText().trimmed().isEmpty(), .SteerFirst = FollowUpSteer });
+		const auto controls = core::decide_chat_send({ .Running = working, .FollowsUp = follows, .Typed = !Composer->toPlainText().trimmed().isEmpty(), .SteerFirst = FollowUpSteer });
 		const auto loading  = Ask->property("conversationLoading").toBool();
 		Field->present(controls);
 		switch (controls.Send) {
 		case core::chat_send_face::stop:
 			Ask->setToolTip(tr("Stop the agent"));
 			Ask->setAccessibleDescription({ });
-			Ask->setEnabled(Launch.cancel_action()->isEnabled());
+			Ask->setEnabled(Run.Stoppable);
 			break;
 		case core::chat_send_face::queue:
 		case core::chat_send_face::steer:
-			Ask->setToolTip(Chat.send_action()->toolTip());
+			Ask->setToolTip(SendWords);
 			Ask->setAccessibleDescription({ });
 			Ask->setEnabled(!loading);
 			break;
@@ -2929,20 +2960,20 @@ namespace bpr::qt {
 			const auto blocked = send_blocked();
 			Ask->setToolTip(blocked == core::agent_send_refusal::none ? send_tip() : send_refusal_words(blocked, agent_name()));
 			Ask->setAccessibleDescription(blocked == core::agent_send_refusal::none ? QString{ } : Ask->toolTip());
-			Ask->setEnabled(Chat.send_action()->isEnabled() && !loading);
+			Ask->setEnabled(chat_sendable() && !loading);
 			break;
 		}
 		}
 		Field->stop_button()->setToolTip(tr("Stop the agent. Queued messages wait, paused."));
-		Field->stop_button()->setEnabled(Launch.cancel_action()->isEnabled());
+		Field->stop_button()->setEnabled(Run.Stoppable);
 	}
 
 	auto agent_tab_view::send_released(const QString& aText) -> release_outcome
 	{
-		if (!panels_alive()) {
+		if (!alive()) {
 			return release_outcome::refused;
 		}
-		auto* const composer = Chat.composer();
+		auto* const composer = Composer;
 		const auto  draft    = composer->toPlainText();
 		composer->setPlainText(aText);
 		KeepingDraft = !draft.trimmed().isEmpty();
@@ -3024,10 +3055,10 @@ namespace bpr::qt {
 
 	void agent_tab_view::ask_returning(const core::returning_operation aOperation, const std::size_t aThreads)
 	{
-		if (!panels_alive() || State == agent_tab_state::working || !Chat.send_action()->isEnabled()) {
+		if (!alive() || State == agent_tab_state::working || !chat_sendable()) {
 			return;
 		}
-		auto* const composer = Chat.composer();
+		auto* const composer = Composer;
 		const auto  draft    = composer->toPlainText();
 		composer->setPlainText(aOperation == core::returning_operation::latest_upload           ? tr("What changed since my review")
 								   : aOperation == core::returning_operation::addressed_threads ? tr("Was this addressed? (%1 threads)").arg(aThreads)
@@ -3045,13 +3076,13 @@ namespace bpr::qt {
 
 	auto agent_tab_view::ask_explain_file(const QString& aPath) -> QString
 	{
-		if (!panels_alive() || aPath.isEmpty()) {
+		if (!alive() || aPath.isEmpty()) {
 			return tr("Not sent.");
 		}
 		if (State == agent_tab_state::working) {
 			return tr("Not sent. The agent is answering another question.");
 		}
-		auto* const composer = Chat.composer();
+		auto* const composer = Composer;
 		const auto  draft    = composer->toPlainText();
 		composer->setPlainText(tr("Explain %1").arg(aPath));
 		// Sent alone, as a suggestion is; what the reviewer had typed stays.
@@ -3072,13 +3103,13 @@ namespace bpr::qt {
 
 	auto agent_tab_view::ask_suggest_change(const QString& aPath, const std::uint32_t aFirst, const std::uint32_t aLast) -> QString
 	{
-		if (!panels_alive() || aPath.isEmpty()) {
+		if (!alive() || aPath.isEmpty()) {
 			return tr("Not sent.");
 		}
 		if (State == agent_tab_state::working) {
 			return tr("Not sent. The agent is answering another question.");
 		}
-		auto* const composer = Chat.composer();
+		auto* const composer = Composer;
 		const auto  draft    = composer->toPlainText();
 		composer->setPlainText(aFirst == aLast ? tr("Suggest the change on line %1 of %2").arg(aLast + 1U).arg(aPath)
 											   : tr("Suggest the change on lines %1–%2 of %3").arg(aFirst + 1U).arg(aLast + 1U).arg(aPath));
@@ -3113,11 +3144,11 @@ namespace bpr::qt {
 		}
 		const auto& kept     = Turns[aTurn];
 		auto        progress = explain_file_progress{ .Path = kept.Explain, .Turn = aTurn, .Running = std::move(aRunning), .Started = Started, .Seconds = aSeconds, .AnswerText = kept.AnswerText, .Ending = aEnding, .Answered = aAnswered };
-		if (Launch.activity_reported()) {
-			progress.Activity = Launch.activity();
+		if (Run.ActivityReported) {
+			progress.Activity = Run.Activity;
 			if (progress.Running) {
-				progress.Running->Activity          = Launch.activity();
-				progress.Running->ActivityStartedMs = Launch.activity_started_ms();
+				progress.Running->Activity          = Run.Activity;
+				progress.Running->ActivityStartedMs = Run.ActivityStartedMs;
 			}
 		}
 		progress.Answer = LineNavigate && LineResolve ? agent_markdown_with_reference_links(kept.AnswerText, LineResolve(), kept.ContextFile) : kept.AnswerText;
@@ -3311,7 +3342,7 @@ namespace bpr::qt {
 			current.Steered = live.Steered;
 			present_transcript();
 		}
-		const auto agent   = Launch.profile_selector()->currentText();
+		const auto agent   = Run.Agent;
 		const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
 		const auto written = QString::fromStdString(live.Answer);
 		if (live.Phase != core::agent_live_phase::idle) {
@@ -3346,7 +3377,7 @@ namespace bpr::qt {
 		}
 		// The request ended: say what came of it.
 		current.Done = true;
-		if (const auto& moved = Launch.last_move(); moved && current.MoveNotice != nullptr) {
+		if (const auto& moved = Run.Move; moved && current.MoveNotice != nullptr) {
 			current.MoveNotice->setText(move_notice_words(*moved));
 			current.MoveNotice->setToolTip(tr("This conversation's workspace moved from %1 to %2 before this question; the agent was told.")
 											   .arg(QString::fromUtf8(core::canonical_hex(moved->From).view()), QString::fromUtf8(core::canonical_hex(moved->To).view())));
@@ -3354,30 +3385,30 @@ namespace bpr::qt {
 			// The turn told the agent; the opened conversation's line is said.
 			ConversationMoved->hide();
 		}
-		const auto findings   = Findings.finding_count();
-		const auto succeeded  = Launch.last_outcome() == application::agent_run_outcome::success;
-		current.Outcome       = application::turn_outcome(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start));
-		const auto stopReason = Launch.stop_reason_text();
+		const auto findings   = (FindingsShown ? FindingsShown->Findings.size() : 0U);
+		const auto succeeded  = Run.Outcome == application::agent_run_outcome::success;
+		current.Outcome       = application::turn_outcome(Run.Outcome.value_or(application::agent_run_outcome::failed_to_start));
+		const auto stopReason = Run.StopReason;
 		// [[BPR-2005]]. The block folds under the answer.
-		current.Ran           = core::chat_activity{ .Activity = Launch.activity(), .Seconds = seconds };
-		const auto kept       = Launch.kept_text().trimmed();
-		const auto unfinished = Launch.last_failure() == application::agent_protocol_failure::helpers_unfinished;
+		current.Ran           = core::chat_activity{ .Activity = Run.Activity, .Seconds = seconds };
+		const auto kept       = Run.Kept.trimmed();
+		const auto unfinished = Run.Failure == application::agent_protocol_failure::helpers_unfinished;
 		// RFC-BPR-0130 stage 5. What the answer is made of is the core's.
 		auto facts              = core::agent_live_end_facts{ };
 		facts.Outcome           = current.Outcome;
 		facts.Written           = written.toStdString();
 		facts.Kept              = kept.toStdString();
 		facts.HelpersUnfinished = unfinished;
-		facts.FailedWrites      = Launch.failed_writes();
+		facts.FailedWrites      = Run.FailedWrites;
 		const auto end          = core::decide_agent_live_end(facts);
 		if (end == core::agent_live_end::writes_failed) {
 			// [[BPR-2305]]. Every file change failed: the turn says so with
 			// the paths, never as a normal answer that implies it wrote them.
 			auto paths = QStringList{ };
-			for (const auto& path : Launch.failed_writes()) {
+			for (const auto& path : Run.FailedWrites) {
 				paths << QStringLiteral("“%1”").arg(QString::fromStdString(path));
 			}
-			const auto more   = Launch.failed_write_count() > static_cast<std::uint32_t>(paths.size()) ? tr(" and %1 more").arg(Launch.failed_write_count() - static_cast<std::uint32_t>(paths.size())) : QString{ };
+			const auto more   = Run.FailedWriteCount > static_cast<std::uint32_t>(paths.size()) ? tr(" and %1 more").arg(Run.FailedWriteCount - static_cast<std::uint32_t>(paths.size())) : QString{ };
 			const auto ending = tr("%1 changed files, but every change failed, so nothing was written: %2%3.").arg(agent_short_name(agent), paths.join(QStringLiteral(", ")), more);
 			set_answer(current, (written.isEmpty() ? QString{ } : written + QStringLiteral("\n\n")) + QStringLiteral("*") + ending + QStringLiteral("*"));
 		} else if (end == core::agent_live_end::answered || end == core::agent_live_end::answered_silently) {
@@ -3387,7 +3418,7 @@ namespace bpr::qt {
 			// its helpers: what arrived is kept, and the ending is said
 			// under it, never as an answer that promises more.
 			auto names = QStringList{ };
-			for (const auto& name : Launch.unfinished_helpers()) {
+			for (const auto& name : Run.UnfinishedHelpers) {
 				names << (name.empty() ? tr("a helper") : QStringLiteral("“%1”").arg(QString::fromStdString(name)));
 			}
 			const auto ending = end == core::agent_live_end::kept_on_helpers ? (names.size() == 1 ? tr("%1 stopped before its remaining helper finished").arg(agent_short_name(agent)) : tr("%1 stopped before its %2 remaining helpers finished").arg(agent_short_name(agent)).arg(names.size())) + (names.isEmpty() ? QString{ } : QStringLiteral(": ") + names.join(QStringLiteral(", "))) + QStringLiteral(". ") + tr("What arrived is kept.")
@@ -3397,11 +3428,11 @@ namespace bpr::qt {
 			// [[BPR-1817]]. A run that ended without an answer is an error
 			// entry in the thread: what happened in words, then the tail of
 			// what the agent wrote to its error stream.
-			auto answer = stopReason.isEmpty() ? run_failure_words(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start), agent) : stopReason;
+			auto answer = stopReason.isEmpty() ? run_failure_words(Run.Outcome.value_or(application::agent_run_outcome::failed_to_start), agent) : stopReason;
 			// A question the application refused before any agent ran has
 			// only the refusal for output: it is said once, above, and not
 			// again as what the agent wrote, in a code block that pans.
-			if (auto said = Launch.output_text().trimmed(); !said.isEmpty() && said != answer.trimmed() && Launch.last_outcome() != application::agent_run_outcome::cancelled) {
+			if (auto said = Run.Output.trimmed(); !said.isEmpty() && said != answer.trimmed() && Run.Outcome != application::agent_run_outcome::cancelled) {
 				// The last lines, which say why; the log keeps all of it.
 				auto lines = said.split(QLatin1Char{ '\n' });
 				if (lines.size() > 12) {
@@ -3414,9 +3445,9 @@ namespace bpr::qt {
 			set_answer(current, answer);
 		}
 		auto ran = agent;
-		if (const auto reported = Launch.last_reported_model(); succeeded && !reported.isEmpty()) {
+		if (const auto reported = Run.ReportedModel; succeeded && !reported.isEmpty()) {
 			ran = tr("%1 (%2)").arg(agent, agent_model_display_name(reported));
-			if (const auto profile = Launch.selected_profile()) {
+			if (const auto profile = Run.Profile) {
 				RunSettingsSource->report_model(profile->value(), reported);
 			}
 		}
@@ -3426,7 +3457,7 @@ namespace bpr::qt {
 		// for both turn and session status lines at this default width".
 		// The line names the agent short and counts the findings; the model
 		// and what the agent could see are in its tooltip.
-		const auto cost      = Launch.last_turn_cost();
+		const auto cost      = Run.TurnCost;
 		const auto spent     = cost ? QString::fromStdString(core::agent_cost_words(*cost)) : QString{ };
 		const auto delivered = succeeded && findings > 0U && FindingsPresented != FindingsAtTurn;
 		auto       parts     = QStringList{ agent_turn_ending_words(agent, succeeded, seconds) };
@@ -3447,7 +3478,7 @@ namespace bpr::qt {
 		said.Findings     = delivered ? findings : 0U;
 		const auto footer = QString::fromStdString(core::chat_ending_words(said));
 		auto       detail = tip.join(QStringLiteral(" · ")) + QLatin1Char{ '.' };
-		if (succeeded && Launch.pull_request_files_only()) {
+		if (succeeded && Run.FilesOnly) {
 			detail += QLatin1Char{ ' ' } + tr("It saw only this pull request's files.");
 		}
 		if (delivered) {
@@ -3455,7 +3486,7 @@ namespace bpr::qt {
 		}
 		// The session's total: the conversation's own, when kept with it,
 		// else this thread's turns added up.
-		if (const auto total = Launch.last_session_cost()) {
+		if (const auto total = Run.SessionCost) {
 			present_session_cost(total);
 		} else if (cost) {
 			present_session_cost(SessionTotal.value_or(0U) + *cost);
@@ -3474,7 +3505,7 @@ namespace bpr::qt {
 			ending.front() = succeeded ? tr("answered in %1").arg(agent_elapsed_words(seconds)) : tr("stopped after %1").arg(agent_elapsed_words(seconds));
 			EndedObserver(ending.join(QStringLiteral(" · ")));
 		}
-		EndedTurns.push_back({ .Question = current.Question, .Ending = succeeded ? QString{ } : current.AnswerText, .Footer = footer, .Activity = Launch.activity(), .Seconds = seconds });
+		EndedTurns.push_back({ .Question = current.Question, .Ending = succeeded ? QString{ } : current.AnswerText, .Footer = footer, .Activity = Run.Activity, .Seconds = seconds });
 		if (EndedTurns.size() > 32U) {
 			EndedTurns.erase(EndedTurns.begin());
 		}
@@ -3579,7 +3610,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::recover(const turn& aTurn)
 	{
-		if (!panels_alive() || State == agent_tab_state::working) {
+		if (!alive() || State == agent_tab_state::working) {
 			return;
 		}
 		switch (aTurn.RecoveryKind) {
@@ -3598,12 +3629,12 @@ namespace bpr::qt {
 	void agent_tab_view::resend(const turn& aTurn)
 	{
 		if (aTurn.Review) {
-			Launch.start_action()->trigger();
-		} else if (Chat.send_action()->isEnabled()) {
+			start_review();
+		} else if (chat_sendable()) {
 			// The question as it was asked, not a suggestion looked up by
 			// its words: a typed question is offered by no list. What the
 			// reviewer is typing is put back after it.
-			auto* const composer = Chat.composer();
+			auto* const composer = Composer;
 			const auto  draft    = composer->toPlainText();
 			const auto  kept     = !draft.trimmed().isEmpty();
 			composer->setPlainText(aTurn.Question);
@@ -3621,7 +3652,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::delete_turn(const std::size_t aTurn)
 	{
-		if (!panels_alive() || aTurn >= Turns.size() || State == agent_tab_state::working || !Turns[aTurn].Done || Turns[aTurn].Outcome == core::agent_turn_outcome::answered) {
+		if (!alive() || aTurn >= Turns.size() || State == agent_tab_state::working || !Turns[aTurn].Done || Turns[aTurn].Outcome == core::agent_turn_outcome::answered) {
 			return;
 		}
 		const auto latest = aTurn + 1U == Turns.size();
@@ -3689,7 +3720,7 @@ namespace bpr::qt {
 	auto agent_tab_view::read_revision() const -> QString
 	{
 		// The head the session reads, as every chat writes a revision.
-		auto head = Chat.head_oid_text().trimmed();
+		auto head = chat_head_text().trimmed();
 		if (head.contains(QLatin1Char{ ':' })) {
 			head = head.section(QLatin1Char{ ':' }, -1).trimmed();
 		}
@@ -3859,11 +3890,11 @@ namespace bpr::qt {
 		return aTurn < Turns.size() && Transcript->ending(aTurn) != nullptr ? Transcript->ending(aTurn)->text() : QString{ };
 	}
 
-	auto agent_tab_view::stopped_for_good() const noexcept -> bool { return Launch.stopped_for_good(); }
+	auto agent_tab_view::stopped_for_good() const noexcept -> bool { return Run.StoppedForGood; }
 
 	void agent_tab_view::present_banner()
 	{
-		if (!panels_alive()) {
+		if (!alive()) {
 			return;
 		}
 		auto* const callout = static_cast<rounded*>(Banner);
@@ -3896,11 +3927,11 @@ namespace bpr::qt {
 				return;
 			}
 			callout->Look    = rounded::look::ready;
-			const auto count = Findings.finding_count();
-			BannerTitle->setText(tr("%1 finished").arg(Launch.profile_selector()->currentText()));
-			BannerText->setText(count > 0U                             ? (count == 1U ? tr("1 finding below. Draft a comment from it, or ask a follow-up.") : tr("%1 findings below. Draft a comment from one, or ask a follow-up.").arg(count))
-									: Chat.replies_list()->count() > 0 ? tr("Its answer is below. Ask a follow-up in the question field.")
-																	   : tr("It found nothing to report. Ask a question below."));
+			const auto count = (FindingsShown ? FindingsShown->Findings.size() : 0U);
+			BannerTitle->setText(tr("%1 finished").arg(Run.Agent));
+			BannerText->setText(count > 0U                                       ? (count == 1U ? tr("1 finding below. Draft a comment from it, or ask a follow-up.") : tr("%1 findings below. Draft a comment from one, or ask a follow-up.").arg(count))
+									: (ChatShown && !ChatShown->Replies.empty()) ? tr("Its answer is below. Ask a follow-up in the question field.")
+																				 : tr("It found nothing to report. Ask a question below."));
 			BannerFirst->hide();
 			BannerSecond->hide();
 			LogBox->hide();
@@ -3916,13 +3947,13 @@ namespace bpr::qt {
 				Banner->hide();
 				return;
 			}
-			BannerTitle->setText(tr("%1 is working").arg(Launch.profile_selector()->currentText()));
+			BannerTitle->setText(tr("%1 is working").arg(Run.Agent));
 			const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
 			const auto elapsed = agent_elapsed_words(seconds);
-			auto       line    = Launch.current_phase() == agent_launch_panel::phase::running
+			auto       line    = Run.Phase == agent_tab_run_phase::running
 				? tr("Running, %1. The answer and any findings appear here when it finishes.").arg(elapsed)
 				: tr("Making the agent's workspace at the head, %1.").arg(elapsed);
-			const auto latest  = Launch.latest_output_line();
+			const auto latest  = Run.LatestLine;
 			if (!latest.isEmpty()) {
 				line += QStringLiteral("\n") + tr("Latest: %1").arg(latest.left(160));
 			}
@@ -3930,7 +3961,7 @@ namespace bpr::qt {
 			BannerFirst->setText(tr("Stop"));
 			wear_ordinary_roles(*BannerFirst);
 			BannerFirst->show();
-			connect(BannerFirst, &QPushButton::clicked, Launch.cancel_action(), &QAction::trigger);
+			connect(BannerFirst, &QPushButton::clicked, this, [this] { stop_run(); });
 			BannerSecond->hide();
 			break;
 		}
@@ -3948,7 +3979,7 @@ namespace bpr::qt {
 			// Neither choice starts a run here; a refused question's card
 			// before this one left them in the agent accent.
 			wear_ordinary_roles(*BannerFirst);
-			connect(BannerFirst, &QPushButton::clicked, Chat.continue_old_revision_action(), &QAction::trigger);
+			connect(BannerFirst, &QPushButton::clicked, this, [this] { choose_continuation(core::agent_continuation::continue_against_old_revision); });
 			// Owner, 2026-11-24, of a new session that left the old transcript,
 			// title and History tick in place: "you click it and it does
 			// nothing which feels broken". The card's New session is
@@ -3962,11 +3993,11 @@ namespace bpr::qt {
 			BannerSecond->setEnabled(HistoryItems->new_session_action()->isEnabled());
 			BannerSecond->setToolTip(refused.isEmpty() ? tr("Keep this conversation in History and start an empty one at the current head. Nothing is sent until you ask.") : refused);
 			wear_ordinary_roles(*BannerSecond);
-			connect(BannerSecond, &QPushButton::clicked, Chat.new_session_action(), &QAction::trigger);
+			connect(BannerSecond, &QPushButton::clicked, this, [this] { choose_continuation(core::agent_continuation::start_new_session); });
 			break;
 		}
 		case agent_tab_state::stopped: {
-			BannerTitle->setText(tr("%1 stopped before answering").arg(Launch.profile_selector()->currentText()));
+			BannerTitle->setText(tr("%1 stopped before answering").arg(Run.Agent));
 			// [[BPR-1738]]. A stop with a reason says it and what to do;
 			// the log keeps the raw text.
 			// [[BPR-1817]]. Said in words, never as the outcome's stable name.
@@ -3975,8 +4006,8 @@ namespace bpr::qt {
 			// says the reason only when no turn does, as the card of a
 			// refused question does, so it is not read twice a hand's width
 			// apart.
-			const auto reason     = Launch.stop_reason_text().isEmpty() ? run_failure_words(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start), Launch.profile_selector()->currentText())
-																		: Launch.stop_reason_text();
+			const auto reason     = Run.StopReason.isEmpty() ? run_failure_words(Run.Outcome.value_or(application::agent_run_outcome::failed_to_start), Run.Agent)
+															 : Run.StopReason;
 			const auto saidByTurn = !Turns.empty() && Turns.back().Done && Turns.back().Outcome != core::agent_turn_outcome::answered;
 			BannerText->setText(saidByTurn ? tr("Your message is kept.") : tr("%1 Your message is kept.").arg(reason));
 			// [[BPR-1876]]. The latest turn says its cause is fixed since:
@@ -3995,7 +4026,7 @@ namespace bpr::qt {
 			// anywhere to continue like it suggests". A conversation pinned
 			// to another revision offers, here, exactly the ways back the
 			// core decided and its reason names; each resends the message.
-			if (const auto& pinned = Launch.pinned_conversation(); pinned && pinned->Pinned && PinnedDispatch) {
+			if (const auto& pinned = Run.Pinned; pinned && pinned->Pinned && PinnedDispatch) {
 				const auto shortHead = QString::fromUtf8(core::canonical_hex(pinned->PinnedHead).view().substr(0U, 7U));
 				// The same card as before a question, in the same place and
 				// with the same two choices in the same order. The refused
@@ -4004,7 +4035,7 @@ namespace bpr::qt {
 				// does, so the reason is not read twice a hand's width apart.
 				docked = true;
 				BannerTitle->setText(pinned_card_title(shortHead));
-				BannerText->setText(saidByTurn ? tr("Your message is kept and is sent when you choose.") : tr("%1 Your message is kept and is sent when you choose.").arg(Launch.stop_reason_text()));
+				BannerText->setText(saidByTurn ? tr("Your message is kept and is sent when you choose.") : tr("%1 Your message is kept and is sent when you choose.").arg(Run.StopReason));
 				auto* const next = pinned->ContinueOffered ? BannerSecond : BannerFirst;
 				if (pinned->ContinueOffered) {
 					BannerFirst->setText(tr("Continue at %1").arg(shortHead));
@@ -4024,9 +4055,9 @@ namespace bpr::qt {
 				}
 				// RFC-BPR-0096, owner continue-at-latest amendment. Work in
 				// the way of the move: the ways to carry it come first.
-				if (const auto& move = Launch.move_refusal(); move && ReconcileDispatch && (move->RebaseOffered || move->SaveAndMoveOffered || move->AskAgentOffered)) {
+				if (const auto& move = Run.MoveRefusal; move && ReconcileDispatch && (move->RebaseOffered || move->SaveAndMoveOffered || move->AskAgentOffered)) {
 					const auto observed = QString::fromUtf8(core::canonical_hex(pinned->ObservedHead).view().substr(0U, 7U));
-					const auto name     = agent_short_name(Launch.profile_selector()->currentText());
+					const auto name     = agent_short_name(Run.Agent);
 					BannerRebase->setText(tr("Rebase onto %1").arg(observed));
 					BannerRebase->setToolTip(tr("Replay this conversation's commits and edits onto %1; on a conflict nothing changes").arg(observed));
 					BannerSave->setText(tr("Keep my changes on a branch and move"));
@@ -4063,12 +4094,12 @@ namespace bpr::qt {
 				if (!Turns.empty() && Turns.back().Done && Turns.back().RecoveryKind == core::agent_turn_recovery::resend) {
 					recover(Turns.back());
 				} else {
-					Launch.start_action()->trigger();
+					start_review();
 				}
 			});
 			// [[BPR-2295]]. A stop that would stop the same way again is not
 			// offered a Resend as its fix; the reason says what would change it.
-			if (Launch.stopped_for_good()) {
+			if (Run.StoppedForGood) {
 				BannerFirst->hide();
 			}
 			BannerSecond->setText(LogShown ? tr("Hide the log") : tr("Show the log"));
@@ -4079,7 +4110,7 @@ namespace bpr::qt {
 				present_banner();
 			});
 			if (LogShown) {
-				const auto wrote = Launch.output_text().isEmpty() ? tr("The agent wrote nothing.") : Launch.output_text();
+				const auto wrote = Run.Output.isEmpty() ? tr("The agent wrote nothing.") : Run.Output;
 				if (Log->toPlainText() != wrote) {
 					Log->setPlainText(wrote);
 				}
@@ -4116,14 +4147,14 @@ namespace bpr::qt {
 
 	auto agent_tab_view::revision_choice_waits() const -> bool
 	{
-		if (ChoosingRevision || !panels_alive()) {
+		if (ChoosingRevision || !alive()) {
 			return false;
 		}
 		if (State == agent_tab_state::head_moved) {
 			return true;
 		}
 		// The card of a refused question, while it shows.
-		const auto& pinned = Launch.pinned_conversation();
+		const auto& pinned = Run.Pinned;
 		return State == agent_tab_state::stopped && !LatestFixedSince && !StoppedDismissed && pinned && pinned->Pinned && PinnedDispatch;
 	}
 
@@ -4134,11 +4165,11 @@ namespace bpr::qt {
 			const auto read = read_revision();
 			return read.isEmpty() ? tr("Choose Continue or New session first.") : tr("Choose Continue at %1 or New session first.").arg(read);
 		}
-		const auto& pinned = Launch.pinned_conversation();
+		const auto& pinned = Run.Pinned;
 		if (!pinned) {
 			return { };
 		}
-		if (const auto& move = Launch.move_refusal(); move && ReconcileDispatch && (move->RebaseOffered || move->SaveAndMoveOffered || move->AskAgentOffered)) {
+		if (const auto& move = Run.MoveRefusal; move && ReconcileDispatch && (move->RebaseOffered || move->SaveAndMoveOffered || move->AskAgentOffered)) {
 			return tr("Choose how to go on, on the card over the question field, first.");
 		}
 		return pinned->ContinueOffered ? tr("Choose Continue at %1 or New session first.").arg(QString::fromUtf8(core::canonical_hex(pinned->PinnedHead).view().substr(0U, 7U))) : tr("Choose New session first.");
@@ -4169,10 +4200,10 @@ namespace bpr::qt {
 
 	void agent_tab_view::choose_pinned(const core::agent_continuation aChoice)
 	{
-		if (!panels_alive() || State != agent_tab_state::stopped || Turns.empty() || !PinnedDispatch) {
+		if (!alive() || State != agent_tab_state::stopped || Turns.empty() || !PinnedDispatch) {
 			return;
 		}
-		const auto& pinned = Launch.pinned_conversation();
+		const auto& pinned = Run.Pinned;
 		if (!pinned || !pinned->Pinned
 			|| (aChoice == core::agent_continuation::continue_against_old_revision ? !pinned->ContinueOffered : !pinned->NewSessionOffered)) {
 			return;
@@ -4214,18 +4245,18 @@ namespace bpr::qt {
 	void agent_tab_view::send_kept_message()
 	{
 		const auto kept = std::exchange(KeptForNewSession, std::nullopt);
-		if (!panels_alive() || !kept) {
+		if (!alive() || !kept) {
 			return;
 		}
 		if (kept->Review) {
-			Launch.start_action()->trigger();
+			start_review();
 			return;
 		}
 		// As a turn's Resend sends it, with one difference: the turn that
 		// held the message went with the session left behind, so a message
 		// that cannot leave must stay in the field. What the reviewer was
 		// typing is put back after it either way.
-		auto* const composer = Chat.composer();
+		auto* const composer = Composer;
 		const auto  draft    = composer->toPlainText();
 		const auto  held     = !draft.trimmed().isEmpty();
 		composer->setPlainText(kept->Question);
@@ -4245,7 +4276,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::abandon_kept_message()
 	{
-		if (!panels_alive() || !KeptForNewSession) {
+		if (!alive() || !KeptForNewSession) {
 			return;
 		}
 		KeptForNewSession.reset();
@@ -4256,10 +4287,10 @@ namespace bpr::qt {
 
 	void agent_tab_view::choose_reconcile(const core::conversation_reconcile aChoice)
 	{
-		if (!panels_alive() || State != agent_tab_state::stopped || Turns.empty() || !ReconcileDispatch) {
+		if (!alive() || State != agent_tab_state::stopped || Turns.empty() || !ReconcileDispatch) {
 			return;
 		}
-		const auto& move = Launch.move_refusal();
+		const auto& move = Run.MoveRefusal;
 		using reconcile  = core::conversation_reconcile;
 		if (!move
 			|| !(aChoice == reconcile::rebase              ? move->RebaseOffered
@@ -4321,7 +4352,7 @@ namespace bpr::qt {
 		ConversationChip->setVisible(ConversationShown.has_value());
 		ConversationText->setText(ConversationShown ? ConversationShown->Text : QString{ });
 		ConversationChip->setToolTip(ConversationShown ? ConversationShown->Detail : QString{ });
-		Chat.composer()->setPlaceholderText(ConversationShown ? tr("Ask about this conversation…") : tr("Ask about this pull request…"));
+		Composer->setPlaceholderText(ConversationShown ? tr("Ask about this conversation…") : tr("Ask about this pull request…"));
 		refresh_suggestions();
 	}
 
@@ -4472,7 +4503,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::rebuild_findings()
 	{
-		if (!panels_alive()) {
+		if (!alive()) {
 			return;
 		}
 		// The cards no turn brought: a delivery shown before any turn, or one
@@ -4490,7 +4521,7 @@ namespace bpr::qt {
 			}
 			entry = CardEntries.erase(entry);
 		}
-		const auto* const delivery = Findings.shown_delivery();
+		const auto* const delivery = (FindingsShown ? &*FindingsShown : nullptr);
 		if (delivery == nullptr || ClaimedSession == std::optional{ delivery->Session.value() }) {
 			Cards->hide();
 			return;
@@ -4511,7 +4542,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::claim_findings(const std::size_t aTurn)
 	{
-		const auto* const delivery = Findings.shown_delivery();
+		const auto* const delivery = (FindingsShown ? &*FindingsShown : nullptr);
 		if (delivery == nullptr || aTurn >= Turns.size() || delivery->Findings.empty()) {
 			return;
 		}
@@ -5061,7 +5092,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::draft_all(const std::size_t aTurn)
 	{
-		if (aTurn >= Turns.size() || !DraftAllDispatch || Turns[aTurn].DraftAllBusy || !panels_alive()) {
+		if (aTurn >= Turns.size() || !DraftAllDispatch || Turns[aTurn].DraftAllBusy || !alive()) {
 			return;
 		}
 		auto indices = std::vector<std::size_t>{ };
@@ -5160,7 +5191,7 @@ namespace bpr::qt {
 	void agent_tab_view::act_on_card(const std::uint64_t aCard, const agent_finding_card_action aAction)
 	{
 		const auto found = std::ranges::find(CardEntries, aCard, &card_entry::Id);
-		if (found == CardEntries.end() || !panels_alive()) {
+		if (found == CardEntries.end() || !alive()) {
 			return;
 		}
 		auto& entry = *found;
@@ -5180,17 +5211,14 @@ namespace bpr::qt {
 			return;
 		}
 		// Without a host the queue's own actions are asked, as before.
-		const auto* const delivery = Findings.shown_delivery();
+		const auto* const delivery = (FindingsShown ? &*FindingsShown : nullptr);
 		if (delivery == nullptr || delivery->Session.value() != entry.Session) {
 			return;
 		}
-		Findings.select(entry.Ordinal);
 		const auto queued = aAction == agent_finding_card_action::draft_comment ? finding_queue_action::convert_to_draft_comment
 			: aAction == agent_finding_card_action::keep_local                  ? finding_queue_action::keep_local
 																				: finding_queue_action::dismiss;
-		if (auto* const action = Findings.action(queued); action != nullptr) {
-			action->trigger();
-		}
+		act_on_finding(entry.Ordinal, queued);
 		entry.State = aAction == agent_finding_card_action::draft_comment ? agent_finding_card_state::drafted
 			: aAction == agent_finding_card_action::keep_local            ? agent_finding_card_state::noted
 																		  : agent_finding_card_state::dismissed;
@@ -5199,10 +5227,10 @@ namespace bpr::qt {
 
 	void agent_tab_view::ask()
 	{
-		if (!panels_alive()) {
+		if (!alive()) {
 			return;
 		}
-		const auto text = Chat.composer()->toPlainText().trimmed();
+		const auto text = Composer->toPlainText().trimmed();
 		// RFC-BPR-0125 (AC09). A suggested prompt sent as offered is never
 		// read as `/model` or `/effort`: it is sent as text.
 		const auto direct = SendingMacro && SendingMacro->SkillText;
@@ -5218,7 +5246,7 @@ namespace bpr::qt {
 		const auto followUp = core::decide_follow_up({ .TurnShown = State == agent_tab_state::working, .QueueHolds = QueueOccupied, .Empty = text.isEmpty(), .SteerByDefault = FollowUpSteer, .Opposite = Opposite });
 		if (typed && FollowUp && followUp != core::follow_up::send) {
 			if (FollowUp(text, followUp == core::follow_up::steer)) {
-				Chat.composer()->clear();
+				Composer->clear();
 				return;
 			}
 		}
@@ -5226,7 +5254,7 @@ namespace bpr::qt {
 		hide_send_refusal();
 		// [[BPR-1817]]. Asked of the core before anything is sent: a send
 		// it refuses here is said here, never dropped by a disabled action.
-		RefusalsSeen = Launch.refusal_count();
+		RefusalsSeen = Run.Refusals;
 		if (const auto refused = core::decide_agent_send(send_facts(text.isEmpty())); refused != core::agent_send_refusal::none) {
 			refuse_send(refused);
 			return;
@@ -5260,11 +5288,8 @@ namespace bpr::qt {
 			// request rather than refused after the press.
 			LastQuestion = core::decide_agent_question(core::agent_question_facts{ .ConversationAttached = facts.ConversationAttached });
 		}
-		Chat.set_question(LastQuestion);
-		Chat.set_skill_text(SendingMacro ? SendingMacro->SkillText : std::nullopt);
 		Released = release_outcome::sent;
-		Chat.send_action()->trigger();
-		Chat.set_skill_text(std::nullopt);
+		send_question(Composer->toPlainText());
 		if (drafted) {
 			SendingMacro.reset();
 		}
@@ -5296,7 +5321,7 @@ namespace bpr::qt {
 		LinesChip->setVisible(shown);
 		Context->setEnabled(LinesSeen.has_value() && LinesDetached && !ConversationShown);
 		if (!ConversationShown) {
-			Chat.composer()->setPlaceholderText(shown ? tr("Ask about these lines…") : tr("Ask about this pull request…"));
+			Composer->setPlaceholderText(shown ? tr("Ask about these lines…") : tr("Ask about this pull request…"));
 		}
 	}
 
@@ -5312,15 +5337,15 @@ namespace bpr::qt {
 
 	auto agent_tab_view::send_facts(const bool aMessageEmpty) const -> core::agent_send_facts
 	{
-		const auto required = !Chat.offered_continuations().empty();
+		const auto required = continuation_required();
 		return {
-			.ReviewOpen = Chat.send_action()->isEnabled() || required,
+			.ReviewOpen = chat_sendable() || required,
 			// After a refused question the card asks the same thing as
 			// before one: the choice comes first there too, and a question
 			// typed meanwhile stays in the field.
 			.ContinuationRequired = required || revision_choice_waits(),
-			.AgentChosen          = Launch.selected_profile().has_value(),
-			.AgentUnavailable     = !Launch.unavailable_agent_name().isEmpty(),
+			.AgentChosen          = Run.Profile.has_value(),
+			.AgentUnavailable     = !Run.UnavailableAgent.isEmpty(),
 			.MessageEmpty         = aMessageEmpty,
 			.InFlight             = State == agent_tab_state::working,
 		};
@@ -5328,8 +5353,8 @@ namespace bpr::qt {
 
 	auto agent_tab_view::agent_name() const -> QString
 	{
-		const auto unavailable = Launch.unavailable_agent_name();
-		return unavailable.isEmpty() ? Launch.profile_selector()->currentText() : unavailable;
+		const auto unavailable = Run.UnavailableAgent;
+		return unavailable.isEmpty() ? Run.Agent : unavailable;
 	}
 
 	auto agent_tab_view::send_blocked() const -> core::agent_send_refusal
@@ -5342,7 +5367,7 @@ namespace bpr::qt {
 	void agent_tab_view::reveal_run_failure()
 	{
 		refresh();
-		if (!panels_alive() || Banner == nullptr || Banner->isHidden()) {
+		if (!alive() || Banner == nullptr || Banner->isHidden()) {
 			return;
 		}
 		if (auto* const scroll = qobject_cast<QScrollArea*>(Viewport != nullptr ? Viewport->parentWidget() : nullptr); scroll != nullptr) {
@@ -5442,7 +5467,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::refuse_send(core::agent_send_refusal aRefusal, const QString& aDetail)
 	{
-		if (!panels_alive() || aRefusal == core::agent_send_refusal::none) {
+		if (!alive() || aRefusal == core::agent_send_refusal::none) {
 			return;
 		}
 		// RFC-BPR-0117. An Explain this file refused says so on its card.
@@ -5500,64 +5525,16 @@ namespace bpr::qt {
 
 	auto agent_tab_view::current_run_settings() const -> const agent_run_settings* { return RunSettingsSource->current(); }
 
-	auto agent_tab_view::run_settings_text() const -> QString { return RunSettings != nullptr ? RunSettings->full_text() : QString{ }; }
-
-	void agent_tab_view::adopt_run_settings_button(agent_run_settings_picker* aPicker) { RunSettings = aPicker; }
-
-	void agent_tab_view::fit_run_settings()
-	{
-		// [[BPR-1924]], owner look on BPR-1914 v004 ("maybe the picker needs
-		// to wrap to a 2nd row on the agent tab if the drawer is narrow"). The
-		// picker stays beside Send while the row holds every control at its
-		// whole width with a gap to spare; otherwise it takes a row of its own
-		// under the tools, left-aligned, with its whole words. The choice
-		// depends only on the field's width and the controls' own sizes, never
-		// on where the picker is now, so moving it cannot flip it back.
-		if (Field == nullptr || RunSettings == nullptr || RunSettings->parentWidget() != Field || AskRow == nullptr || Field->width() <= 0) {
-			return;
-		}
-		const auto margins   = Field->layout()->contentsMargins();
-		const auto available = Field->width() - margins.left() - margins.right();
-		auto       needed    = 0;
-		auto       count     = 0;
-		for (auto* const widget : { static_cast<QWidget*>(Context), static_cast<QWidget*>(SuggestionsMenu), static_cast<QWidget*>(Chat.scope_selector()), static_cast<QWidget*>(RunSettings), static_cast<QWidget*>(Field->stop_button()), static_cast<QWidget*>(Ask) }) {
-			if (widget != nullptr && widget->isVisibleTo(Field)) {
-				// Match the public layout contract: a preferred width must
-				// include native minimum hints and explicit min/max bounds.
-				needed += QWidgetItem{ widget }.sizeHint().width();
-				++count;
-			}
-		}
-		// The scope-to-picker gap includes its ordinary layout spacing.
-		const auto rowSpacing = AskRow->spacing();
-		needed += rowSpacing * std::max(0, count - 1) + std::max(0, run_settings_gap - rowSpacing);
-		const auto wrap = RunSettings->isVisibleTo(Field) && needed > available;
-		if (wrap == RunSettingsWrapped) {
-			return;
-		}
-		RunSettingsWrapped = wrap;
-		if (wrap) {
-			AskRow->removeWidget(RunSettings);
-			PickerRow->insertWidget(0, RunSettings);
-		} else {
-			PickerRow->removeWidget(RunSettings);
-			AskRow->insertWidget(AskRow->indexOf(Field->stop_button()), RunSettings);
-		}
-	}
-
 	void agent_tab_view::present_run_settings_button() { RunSettingsSource->refresh(); }
 
 	auto agent_tab_view::choose_agent(const std::uint64_t aProfile) -> bool
 	{
-		if (!panels_alive() || State == agent_tab_state::working) {
+		if (!alive() || State == agent_tab_state::working) {
 			return false;
 		}
-		auto* const selector = Launch.profile_selector();
-		const auto  index    = selector->findData(QVariant::fromValue<qulonglong>(aProfile));
-		if (index < 0) {
+		if (!Intents.ChooseAgent || !Intents.ChooseAgent(aProfile)) {
 			return false;
 		}
-		selector->setCurrentIndex(index);
 		present_run_settings_button();
 		return true;
 	}
@@ -5580,8 +5557,8 @@ namespace bpr::qt {
 			return true;
 		}
 		if (words.size() < 2) {
-			if (RunSettings != nullptr) {
-				RunSettings->showMenu();
+			if (Intents.OpenRunSettings) {
+				Intents.OpenRunSettings();
 			}
 			Notice->setText(isModel ? tr("Choose a model, or type /model NAME.") : tr("Choose an effort, or type /effort LEVEL."));
 			return true;
@@ -5603,7 +5580,7 @@ namespace bpr::qt {
 																																								  }())));
 			return true;
 		}
-		Chat.composer()->clear();
+		Composer->clear();
 		Notice->setText(isModel ? (value.empty() ? tr("The next question runs on the agent's own model.") : tr("The next question runs on %1.").arg(QString::fromStdString(value)))
 								: (value.empty() ? tr("The next question runs at the agent's own effort.") : tr("The next question runs at %1 effort.").arg(QString::fromStdString(value))));
 		return true;
@@ -5618,7 +5595,6 @@ namespace bpr::qt {
 		// A resize, or a control in the field changing its size (the
 		// picker's words, the scope's, the picker shown or hidden).
 		if ((aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::LayoutRequest) && aWatched == Field) {
-			fit_run_settings();
 			return false;
 		}
 		// [[BPR-2059]]. A card's Markdown text takes the height its new width needs.
@@ -5632,11 +5608,8 @@ namespace bpr::qt {
 			const auto id    = static_cast<std::uint64_t>(aWatched->property("agentFindingCard").toULongLong());
 			const auto found = std::ranges::find(CardEntries, id, &card_entry::Id);
 			// Its lines are shown while its delivery is the one the queue holds.
-			if (const auto* const delivery = Findings.shown_delivery(); found != CardEntries.end() && delivery != nullptr && delivery->Session.value() == found->Session) {
-				Findings.select(found->Ordinal);
-				if (auto* const action = Findings.action(finding_queue_action::open_evidence); action != nullptr) {
-					action->trigger();
-				}
+			if (const auto* const delivery = (FindingsShown ? &*FindingsShown : nullptr); found != CardEntries.end() && delivery != nullptr && delivery->Session.value() == found->Session) {
+				act_on_finding(found->Ordinal, finding_queue_action::open_evidence);
 			}
 			for (const auto& entry : CardEntries) {
 				if (entry.Widget != nullptr) {
@@ -5704,6 +5677,5 @@ namespace bpr::qt {
 		for (auto* const glyph : findChildren<QLabel*>(QStringLiteral("agentTurnPromptGlyph"))) {
 			glyph->setPixmap(agent_glyph(palette()).pixmap(QSize{ 14, 14 }));
 		}
-		fit_run_settings();
 	}
 } // namespace bpr::qt

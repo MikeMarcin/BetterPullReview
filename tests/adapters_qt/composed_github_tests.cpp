@@ -6220,10 +6220,10 @@ namespace {
 		agent->refresh();
 		QApplication::processEvents();
 		expect(agent->state() == qt::agent_tab_state::idle && agent->ask_button()->isVisible()
-				   && window.side_chat()->composer()->isVisible()
-				   && agent->isAncestorOf(window.side_chat()->composer())
-				   && agent->isAncestorOf(window.agent_panel()->profile_selector()),
-			   "the Agent tab presents the borrowed profile and question controls");
+				   && window.agent_tab()->question_editor()->isVisible()
+				   && agent->isAncestorOf(window.agent_tab()->question_editor())
+				   && !agent->isAncestorOf(window.agent_panel()->profile_selector()),
+			   "the Agent tab presents its own question field and holds no panel's control");
 
 		// The workshop a promotion opens is the retained draft editor's own, on
 		// its dedicated in-window page. There is no second editor or top-level window.
@@ -6328,7 +6328,7 @@ namespace {
 		const auto sizes = window.central_splitter()->sizes();
 		expect(!drawer->isVisible() && !drawer->rail()->isVisible() && !drawer->controls_shown()
 				   && sizes.size() == 4 && sizes[3] == 0
-				   && !agent->isVisible() && !window.side_chat()->composer()->isVisible(),
+				   && !agent->isVisible() && !window.agent_tab()->question_editor()->isVisible(),
 			   "with the drawer controls hidden a collapsed drawer occupies zero "
 			   "width in the splitter and both placed agent surfaces go with it");
 		rightEdge(QStringLiteral("drawer-controls-hidden"));
@@ -6344,7 +6344,7 @@ namespace {
 				&& drawer->width() == qt::workbench_drawer_rail::width_pixels
 				&& heading != nullptr && !heading->isVisible()
 				&& !drawer->collapse_button()->isVisible()
-				&& !agent->isVisible() && !window.side_chat()->composer()->isVisible(),
+				&& !agent->isVisible() && !window.agent_tab()->question_editor()->isVisible(),
 			"collapsing the drawer to its rail hides both placed agent surfaces "
 			"with it, and nothing of the heading row stays above the rail");
 		rightEdge(QStringLiteral("drawer-controls-rail"));
@@ -6352,7 +6352,7 @@ namespace {
 		QApplication::processEvents();
 		expect(
 			drawer->isVisible() && agent->isVisible()
-				&& window.side_chat()->composer()->isVisible(),
+				&& window.agent_tab()->question_editor()->isVisible(),
 			"reopening the drawer restores both placed agent surfaces");
 	}
 	/// \brief Whether a layout, or a row nested inside it, manages a widget.
@@ -6493,13 +6493,13 @@ namespace {
 				   std::string{ "the Agent control is within the drawer width: " } + control_name(control));
 		}
 		// [[BPR-1753]], owner amendment 2026-10-23: the agent is chosen
-		// from the chip in the question field, so the borrowed selector is not shown.
-		for (auto* const control : { static_cast<QWidget*>(window.side_chat()->composer()), static_cast<QWidget*>(agent->ask_button()) }) {
+		// from the chip in the question field, so the launch panel's selector is not shown.
+		for (auto* const control : { static_cast<QWidget*>(window.agent_tab()->question_editor()), static_cast<QWidget*>(agent->ask_button()) }) {
 			expect(control->isVisible() && agent->isAncestorOf(control)
 					   && std::ranges::find(controls, control) != controls.end(),
 				   "the width sweep includes the question field and Ask");
 		}
-		expect(agent->isAncestorOf(window.agent_panel()->profile_selector()) && !window.agent_panel()->profile_selector()->isVisible(), "the borrowed selector stays the one choice, unseen");
+		expect(!agent->isAncestorOf(window.agent_panel()->profile_selector()) && !window.agent_panel()->profile_selector()->isVisible(), "the selector stays the launch panel's one choice, unseen and not the tab's");
 		const auto offered = [drawer](const QString& aName) -> QToolButton* {
 			for (auto* const button : drawer->findChildren<QToolButton*>()) {
 				if (button->defaultAction() != nullptr && button->defaultAction()->objectName() == aName) {

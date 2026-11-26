@@ -179,7 +179,7 @@ auto main(int argc, char** argv) -> int
 			const auto before = tab->turn_count();
 			wait([&] {
 				if (tab->turn_count() == before && tab->state() != qt::agent_tab_state::working) {
-					window.side_chat()->composer()->setPlainText(aQuestion);
+					window.agent_tab()->question_editor()->setPlainText(aQuestion);
 					tab->ask_button()->click();
 				}
 				return tab->turn_count() == before + 1U;
@@ -520,7 +520,7 @@ auto main(int argc, char** argv) -> int
 			draftOptIn->setChecked(drafts);
 			QApplication::processEvents();
 			const auto turns = access::agent_chat_evidence(*application).Turns + access::agent_chat_evidence(*application).RefusalsPresented;
-			window.side_chat()->composer()->setPlainText(QStringLiteral("AC12 opt-in probe"));
+			window.agent_tab()->question_editor()->setPlainText(QStringLiteral("AC12 opt-in probe"));
 			tab->ask_button()->click();
 			wait([&] { QApplication::processEvents(); const auto evidence = access::agent_chat_evidence(*application); return evidence.LastTurn && evidence.Turns + evidence.RefusalsPresented > turns && access::agent_invocation_evidence(*application).Quiescent && tab->state() != qt::agent_tab_state::working; },
 				 "the probe is asked");

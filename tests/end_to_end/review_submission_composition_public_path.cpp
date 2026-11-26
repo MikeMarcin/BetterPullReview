@@ -520,7 +520,7 @@ auto main(int argc, char** argv) -> int
 				auto* const agent       = window.agent_tab();
 				auto* const legacyPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
 				expect(window.tray_tabs()->accessibleTabName(2) == QStringLiteral("Agent") && agent != nullptr && agent->isVisible()
-						   && agent->isAncestorOf(window.side_chat()->composer()) && legacyPages != nullptr && !legacyPages->isVisible() && !cards->isVisible(),
+						   && agent->isAncestorOf(window.agent_tab()->question_editor()) && legacyPages != nullptr && !legacyPages->isVisible() && !cards->isVisible(),
 					   "the accepted Agent tab owns the question field; legacy nested pages and Comments are hidden");
 #if defined(BPR_AGENT_INTEGRATIONS)
 				// [[BPR-1753]], RFC-BPR-0092 AC01. Shown for the first time on
@@ -530,7 +530,7 @@ auto main(int argc, char** argv) -> int
 				wait([&] { return agent->state() == qt::agent_tab_state::setting_up && agent->setup_view() != nullptr && agent->setup_view()->isVisible(); },
 					 "the first look at the Agent tab shows the setup in place of the conversation");
 				expect(agent->setup_view()->open_step() == core::setup_step::agent && agent->setup_view()->step_text().contains(QStringLiteral("No agent found on this computer"))
-						   && !window.side_chat()->composer()->isVisible(),
+						   && !window.agent_tab()->question_editor()->isVisible(),
 					   "the setup's Agent step says no agent was found, and the question field is not offered yet");
 #endif
 				window.tray_tabs()->setCurrentIndex(0);

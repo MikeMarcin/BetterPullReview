@@ -598,6 +598,7 @@ namespace {
 					 shown,
 					 question,
 					 skillText,
+					 presentationObserver,
 					 replies, replyBody, promote, promotionAvailable, promotionReason,
 					 provider,
 					 gitHost,
@@ -638,6 +639,9 @@ namespace {
 		static_assert(std::is_same_v<decltype(question), const std::optional<core::agent_question>>);
 		// RFC-BPR-0125. Text a suggested prompt's skills are read from.
 		static_assert(std::is_same_v<decltype(skillText), const std::optional<std::string>>);
+		// RFC-BPR-0130 stage 5 (AC07). Who else presents the session (the
+		// Agent tab), told each projection; it reaches nothing.
+		static_assert(std::is_same_v<decltype(presentationObserver), const std::function<void(const qt::side_chat_projection&)>>);
 		static_assert(std::is_same_v<decltype(replies), QListWidget* const>);
 		static_assert(std::is_same_v<decltype(replyBody), QPlainTextEdit* const>);
 		static_assert(std::is_same_v<decltype(promote), QAction* const>);

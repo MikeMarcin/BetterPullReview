@@ -170,8 +170,7 @@ auto main(int argc, char** argv) -> int
 			   "the setup and its Check name the fixture agent: " + window.agent_setup()->ready_title().toStdString());
 
 		// A question: the fixture agent answers, and no real program ran.
-		auto* const chat  = access::side_chat_panel(*application);
-		const auto  turns = tab->turn_count();
+		const auto turns = tab->turn_count();
 		// [[BPR-2153]], BPR-2181: the fixture agent is a saved entry, so the
 		// turn runs on the session's runtime, which takes it once the window
 		// has lent it the review's authority; a send before that is refused
@@ -179,9 +178,9 @@ auto main(int argc, char** argv) -> int
 		auto asking = QElapsedTimer{ };
 		asking.start();
 		while (tab->turn_count() == turns && tab->state() != qt::agent_tab_state::working && asking.elapsed() < 30000) {
-			chat->composer()->setPlainText(QStringLiteral("What does this change do?"));
+			tab->question_editor()->setPlainText(QStringLiteral("What does this change do?"));
 			QApplication::processEvents();
-			chat->send_action()->trigger();
+			tab->ask_button()->click();
 			static_cast<void>(e2e::wait_until_plain([&] { return tab->state() == qt::agent_tab_state::working || tab->turn_count() > turns; }, std::chrono::milliseconds{ 1500 }));
 		}
 		wait([&] { return tab->turn_count() > turns && tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("fixture agent")) && access::agent_invocation_evidence(*application).Quiescent; },

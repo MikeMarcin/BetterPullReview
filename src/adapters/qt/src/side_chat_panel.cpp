@@ -234,23 +234,7 @@ namespace bpr::qt {
 			tr("Continue against the old revision"),
 			QStringLiteral("sideChatContinueOldRevision"));
 
-		connect(Members.Send, &QAction::triggered, this, [this]() {
-			if (!Members.Shown.has_value() || !Members.Dispatch) {
-				return;
-			}
-			++Members.Statistics.SendIntents;
-			// The message leaves; nothing here moves. The transcript is a
-			// projection, so a sent turn appears when the core accepts it.
-			Members.Dispatch(send_chat_message_intent{
-				.Session = Members.Shown->Session.Id,
-				.Action  = core::agent_action_intent{
-					Members.Question ? Members.Question->EntryPoint : Members.Shown->EntryPoint },
-				.Scope     = Members.Shown->Chat.Scope,
-				.Text      = Members.Composer->toPlainText().toStdString(),
-				.Question  = Members.Question,
-				.SkillText = Members.SkillText,
-			});
-		});
+		connect(Members.Send, &QAction::triggered, this, [this]() { send(Members.Composer->toPlainText(), Members.Question, Members.SkillText); });
 		connect(Members.AddContext, &QAction::triggered, this, [this]() {
 			if (!Members.Shown.has_value() || !Members.Dispatch) {
 				return;
@@ -364,17 +348,7 @@ namespace bpr::qt {
 							 aProjection.Chat.WidenedFrom->Kind)));
 		}
 		Members.Scope->setText(scope);
-		auto chips = QString{ };
-		for (const auto& chip : aProjection.Chips) {
-			if (!chips.isEmpty()) {
-				chips += QStringLiteral(" · ");
-			}
-			chips += QStringLiteral("%1: %2")
-						 .arg(text(core::stable_name(chip.Scope)))
-						 .arg(QString::fromStdString(chip.Label));
-		}
-		Members.Chips->setText(
-			chips.isEmpty() ? QStringLiteral("No added context") : chips);
+		Members.Chips->setText(side_chat_chips_words(aProjection));
 		Members.PrivateContext->setText(
 			QStringLiteral("notes %1, drafts %2")
 				.arg(
@@ -402,7 +376,48 @@ namespace bpr::qt {
 		Members.DraftOptIn->setChecked(aProjection.PrivateContext.Drafts);
 		Members.Applying = false;
 		refresh_enablement();
+		if (Members.PresentationObserver) {
+			Members.PresentationObserver(aProjection);
+		}
 	}
+
+	auto side_chat_chips_words(const std::optional<side_chat_projection>& aProjection) -> QString
+	{
+		if (!aProjection) {
+			return { };
+		}
+		auto chips = QString{ };
+		for (const auto& chip : aProjection->Chips) {
+			if (!chips.isEmpty()) {
+				chips += QStringLiteral(" · ");
+			}
+			chips += QStringLiteral("%1: %2")
+						 .arg(text(core::stable_name(chip.Scope)))
+						 .arg(QString::fromStdString(chip.Label));
+		}
+		return chips.isEmpty() ? QStringLiteral("No added context") : chips;
+	}
+
+	void side_chat_panel::send(const QString& aText, std::optional<core::agent_question> aQuestion, std::optional<std::string> aSkillText)
+	{
+		if (!Members.Shown.has_value() || !Members.Dispatch) {
+			return;
+		}
+		++Members.Statistics.SendIntents;
+		// The message leaves; nothing here moves. The transcript is a
+		// projection, so a sent turn appears when the core accepts it.
+		Members.Dispatch(send_chat_message_intent{
+			.Session = Members.Shown->Session.Id,
+			.Action  = core::agent_action_intent{
+				aQuestion ? aQuestion->EntryPoint : Members.Shown->EntryPoint },
+			.Scope     = Members.Shown->Chat.Scope,
+			.Text      = aText.toStdString(),
+			.Question  = std::move(aQuestion),
+			.SkillText = std::move(aSkillText),
+		});
+	}
+
+	void side_chat_panel::set_presentation_observer(std::function<void(const side_chat_projection&)> aObserver) { Members.PresentationObserver = std::move(aObserver); }
 
 	void side_chat_panel::observe(const core::agent_observation aObservation)
 	{

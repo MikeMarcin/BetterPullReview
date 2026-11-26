@@ -1285,16 +1285,26 @@ auto main(int argc, char** argv) -> int
 		const auto  ask    = [&](const QString& aQuestion) {
 			const auto turns = tab->turn_count();
 			// A send before the window has lent the session the review's
-			// authority is refused and said; it is sent again.
-			auto asking = QElapsedTimer{ };
+			// authority is refused and said; it is sent again. A refusal
+			// puts the keyboard in the field, which is the course's own
+			// leftover: a person's question is sent once.
+			const auto held   = QPointer<QWidget>{ QApplication::focusWidget() };
+			auto       asking = QElapsedTimer{ };
 			asking.start();
 			while (tab->turn_count() == turns && tab->state() != qt::agent_tab_state::working && asking.elapsed() < 30000) {
-				window->side_chat()->composer()->setPlainText(aQuestion);
+				window->agent_tab()->question_editor()->setPlainText(aQuestion);
 				QApplication::processEvents();
-				window->side_chat()->send_action()->trigger();
+				window->agent_tab()->ask_button()->click();
 				static_cast<void>(e2e::wait_until_plain([&] { return tab->turn_count() > turns || tab->state() == qt::agent_tab_state::working; }, std::chrono::milliseconds{ 1500 }));
 			}
 			expect(tab->turn_count() > turns || tab->state() == qt::agent_tab_state::working, "the question is sent: " + aQuestion.toStdString());
+			if (QApplication::focusWidget() != held) {
+				if (held != nullptr) {
+					held->setFocus(Qt::OtherFocusReason);
+				} else {
+					leave_no_keyboard_behind();
+				}
+			}
 		};
 
 		// ---- Comments ------------------------------------------------------
@@ -1382,10 +1392,10 @@ auto main(int argc, char** argv) -> int
 		ask(QStringLiteral("Take your time and read the renderer."));
 		wait([&] { return tab->state() == qt::agent_tab_state::working; }, "the slow turn runs");
 		const auto longWords = QStringLiteral("Explain why the renderer clamps the resize before the next frame and whether the shaders under src/engine/shaders/post still compile");
-		press_return(*window->side_chat()->composer(), longWords);
-		press_return(*window->side_chat()->composer(), QStringLiteral("And is src/engine/shaders/post/a-rather-long-directory-name/bloom.frag still read?"));
+		press_return(*window->agent_tab()->question_editor(), longWords);
+		press_return(*window->agent_tab()->question_editor(), QStringLiteral("And is src/engine/shaders/post/a-rather-long-directory-name/bloom.frag still read?"));
 		wait([&] { return tab->queue_list()->isVisible(); }, "two follow-ups wait in the Agent tab's pending list");
-		window->side_chat()->composer()->setPlainText(QStringLiteral("One more, typed while it runs"));
+		window->agent_tab()->question_editor()->setPlainText(QStringLiteral("One more, typed while it runs"));
 		settle();
 		// RFC-BPR-0130 stage 2 (AC05): the one rule. Words typed while the
 		// turn runs would follow it, so Send queues or steers and Stop stands
@@ -1393,7 +1403,7 @@ auto main(int argc, char** argv) -> int
 		expect(composes_the_one_way(*tab->ask_button(), QStringLiteral("agentStop")), "the Agent tab's Send queues or steers words typed while its turn runs, with Stop beside it");
 		run.sweep_drawer("agent-queue");
 		expect(tab->state() == qt::agent_tab_state::working, "the slow turn still ran while the drawer was dragged");
-		window->side_chat()->composer()->clear();
+		window->agent_tab()->question_editor()->clear();
 		settle();
 		expect(!tab->queue_list()->isVisible() || tab->state() != qt::agent_tab_state::working || stops_in_place(*tab->ask_button(), QStringLiteral("agentStop")),
 			   "with nothing typed while the turn runs, the Agent tab's Send is Stop");
@@ -1685,14 +1695,14 @@ auto main(int argc, char** argv) -> int
 		// which says why.
 		{
 			const auto turns = tab->turn_count();
-			window->side_chat()->composer()->setPlainText(QStringLiteral("And is the shader still read?"));
+			window->agent_tab()->question_editor()->setPlainText(QStringLiteral("And is the shader still read?"));
 			tab->ask_button()->click();
 			settle_for(400);
 			expect(tab->turn_count() == turns && tab->state() == qt::agent_tab_state::stopped && tab->send_refusal_text() == QStringLiteral("Not sent. The pull request has moved on. Choose Continue or New session, then send.")
-					   && window->side_chat()->composer()->toPlainText() == QStringLiteral("And is the shader still read?"),
+					   && window->agent_tab()->question_editor()->toPlainText() == QStringLiteral("And is the shader still read?"),
 				   "a question typed while the card waits is not sent and stays in the field: " + tab->send_refusal_text().toStdString());
 			run.sweep_drawer("agent-pinned-refused-typed");
-			window->side_chat()->composer()->clear();
+			window->agent_tab()->question_editor()->clear();
 		}
 		// New session on the card: an empty session at the head under review,
 		// shown at once, and the kept message sent there. Not the old

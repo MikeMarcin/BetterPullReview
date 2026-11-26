@@ -578,6 +578,7 @@ namespace {
 		const auto& [applying,
 					 statistics,
 					 dispatch,
+					 presentationObserver,
 					 shown,
 					 selected,
 					 findings,
@@ -599,6 +600,9 @@ namespace {
 			std::is_same_v<
 				decltype(dispatch),
 				const qt::finding_queue_intent_dispatch>);
+		// RFC-BPR-0130 stage 5 (AC07). Who else presents the delivery (the
+		// Agent tab), told each one; it reaches nothing.
+		static_assert(std::is_same_v<decltype(presentationObserver), const std::function<void(const application::agent_finding_delivery&)>>);
 		static_assert(
 			std::is_same_v<
 				decltype(shown),

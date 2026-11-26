@@ -1154,7 +1154,7 @@ auto main(int argc, char** argv) -> int
 				return wait_until([&] { return evidence().Quiescent && tab->turn_count() > turns && tab->state() != qt::agent_tab_state::working; }, extended_agent_budget);
 			};
 			const auto send = [&](const QString& aQuestion) {
-				window.side_chat()->composer()->setPlainText(aQuestion);
+				window.agent_tab()->question_editor()->setPlainText(aQuestion);
 				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
 					return false;
 				}
@@ -1249,7 +1249,7 @@ auto main(int argc, char** argv) -> int
 					return found + " the card and its two choices are not shown";
 				}
 				const auto place = in(*card);
-				const auto field = in(*window.side_chat()->composer());
+				const auto field = in(*window.agent_tab()->question_editor());
 				if (!tab->banner_docked() || thread->isAncestorOf(card) || in(*thread).bottom() >= place.top() || place.bottom() >= field.top()) {
 					found += " not-on-the-field: thread " + box(in(*thread)) + " card " + box(place) + " field " + box(field);
 				}
@@ -1616,7 +1616,7 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "replay-history-ready");
 			}
 			const auto send = [&](const QString& aQuestion) {
-				window.side_chat()->composer()->setPlainText(aQuestion);
+				window.agent_tab()->question_editor()->setPlainText(aQuestion);
 				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
 					return false;
 				}
@@ -1688,7 +1688,7 @@ auto main(int argc, char** argv) -> int
 					std::filesystem::rename(held, marker, markerError);
 					return !markerError;
 				};
-				window.side_chat()->composer()->setPlainText(QStringLiteral("failed request must not be replayed"));
+				window.agent_tab()->question_editor()->setPlainText(QStringLiteral("failed request must not be replayed"));
 				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
 					const auto restored = restoreMarker();
 					return fail(*application, restored ? "missing-native-send-ready" : "missing-native-marker-restore", markerError.message());
@@ -1761,7 +1761,7 @@ auto main(int argc, char** argv) -> int
 					return fail(*application, "nonresuming-independent-history-ready", mode->text().toStdString());
 				}
 				const auto before = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
-				window.side_chat()->composer()->setPlainText(QStringLiteral("unsupported native question"));
+				window.agent_tab()->question_editor()->setPlainText(QStringLiteral("unsupported native question"));
 				if (!tab->ask_button()->property("conversationLoading").toBool() || tab->ask_button()->isEnabled()
 					|| app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts) {
 					held.release();
@@ -2236,7 +2236,7 @@ auto main(int argc, char** argv) -> int
 			}
 			// The ordinary Agent-tab launch action traverses the production
 			// profile/authority/private-run/workspace/process composition.
-			window.side_chat()->composer()->setPlainText(QStringLiteral("Review this pull request"));
+			window.agent_tab()->question_editor()->setPlainText(QStringLiteral("Review this pull request"));
 			if (!wait_until([&] { return window.agent_tab()->ask_button()->isVisible() && window.agent_tab()->ask_button()->isEnabled(); })) {
 				return fail(*application, "native-launch-ready", panel->status_text().toStdString());
 			}
@@ -2269,7 +2269,7 @@ auto main(int argc, char** argv) -> int
 				const auto count = window.agent_tab()->turn_count();
 				return fail(*application, "native-visible-first-answer", "entry=" + std::to_string(entryId) + " count=" + std::to_string(count) + " expected=" + first + " actual=" + (count ? window.agent_tab()->turn_answer(count - 1U).toStdString() : "none"));
 			}
-			window.side_chat()->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+			window.agent_tab()->question_editor()->setPlainText(QStringLiteral("remember-tool-observation"));
 			if (!window.agent_tab()->ask_button()->isEnabled()) {
 				return fail(*application, "native-followup-ready");
 			}
@@ -2329,7 +2329,7 @@ auto main(int argc, char** argv) -> int
 			if (!wait_until([&] { return window.agent_tab()->ask_button()->isEnabled(); }) || window.agent_tab()->session_menu()->ids().size() != retained) {
 				return fail(*application, "native-empty-generation-reused");
 			}
-			window.side_chat()->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+			window.agent_tab()->question_editor()->setPlainText(QStringLiteral("remember-tool-observation"));
 			window.agent_tab()->ask_button()->click();
 			if (!wait_until([&] { return window.agent_tab()->turn_count() == 1U && window.agent_tab()->turn_outcome(0U) == core::agent_turn_outcome::answered && window.agent_tab()->turn_answer(0U).contains(QStringLiteral("memory=")) && window.agent_tab()->ask_button()->isEnabled(); }, extended_agent_budget)) {
 				return fail(*application, "native-new-generation-answer");
@@ -2353,7 +2353,7 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "native-history-does-not-infer");
 			}
 			const auto beforeResume = window.agent_tab()->turn_count();
-			window.side_chat()->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+			window.agent_tab()->question_editor()->setPlainText(QStringLiteral("remember-tool-observation"));
 			window.agent_tab()->ask_button()->click();
 			if (!wait_until([&] { return window.agent_tab()->turn_count() > beforeResume && window.agent_tab()->turn_outcome(window.agent_tab()->turn_count() - 1U) == core::agent_turn_outcome::answered && window.agent_tab()->turn_answer(window.agent_tab()->turn_count() - 1U).contains(QStringLiteral("memory=")) && window.agent_tab()->ask_button()->isEnabled() && app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts == previousStarts + 4U; }, extended_agent_budget)
 				|| !verify_native_fixture_identity(window.agent_tab()->turn_answer(window.agent_tab()->turn_count() - 1U).toStdString(), QStringLiteral("agent:%1").arg(entryId), true, dataRoot.parent_path())) {

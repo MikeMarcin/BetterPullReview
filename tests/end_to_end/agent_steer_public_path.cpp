@@ -137,17 +137,16 @@ auto main(int argc, char** argv) -> int
 		// A slow turn: the fixture agent reads a file a second for twenty.
 		// Unavailable: that turn's agent names no version, as an older Claude
 		// Code might, so it can't be steered.
-		auto* const chat  = access::side_chat_panel(*application);
-		const auto  turns = tab->turn_count();
+		const auto turns = tab->turn_count();
 		// BPR-2181: the turn runs on the session's runtime, which takes it once
 		// the window has lent it the review's authority; a send before that
 		// is refused and said, and is sent again here.
 		auto asking = QElapsedTimer{ };
 		asking.start();
 		while (tab->state() != qt::agent_tab_state::working && asking.elapsed() < 30000) {
-			chat->composer()->setPlainText(unavailable ? QStringLiteral("Take your time and read the renderer. FIXTURE_UNVERSIONED") : QStringLiteral("Take your time and read the renderer."));
+			tab->question_editor()->setPlainText(unavailable ? QStringLiteral("Take your time and read the renderer. FIXTURE_UNVERSIONED") : QStringLiteral("Take your time and read the renderer."));
 			QApplication::processEvents();
-			chat->send_action()->trigger();
+			tab->ask_button()->click();
 			static_cast<void>(e2e::wait_until_plain([tab] { return tab->state() == qt::agent_tab_state::working; }, std::chrono::milliseconds{ 1500 }));
 		}
 		wait([tab] { return tab->state() == qt::agent_tab_state::working; }, "the turn runs");
@@ -158,7 +157,7 @@ auto main(int argc, char** argv) -> int
 		if (!unavailable) {
 			// Follow-up behaviour: Steer. Return sends the follow-up into the run.
 			tab->set_follow_up_steer(true);
-			press_return(*chat->composer(), QStringLiteral("Look at the swap chain instead."));
+			press_return(*tab->question_editor(), QStringLiteral("Look at the swap chain instead."));
 			wait([&] { return window.agent_panel()->refusal_count() > refusals; }, "the panel says what became of the follow-up");
 			expect(window.agent_panel()->last_refusal().startsWith(QStringLiteral("Steered into the running turn")), "it was steered: " + window.agent_panel()->last_refusal().toStdString());
 			// RFC-BPR-0126 AC08 ([[BPR-2152]]): until the run's end settles it,
@@ -206,7 +205,7 @@ auto main(int argc, char** argv) -> int
 			expect(steered_shown() == QStringList{ QStringLiteral("Look at the swap chain instead.") }, "after a restart, once: " + steered_shown().join(QLatin1Char('|')).toStdString());
 		} else {
 			// Queued while the turn runs, then the waiting message's Steer.
-			press_return(*chat->composer(), QStringLiteral("Look at the swap chain instead."));
+			press_return(*tab->question_editor(), QStringLiteral("Look at the swap chain instead."));
 			auto* steer = static_cast<QPushButton*>(nullptr);
 			wait([&] {
 				steer = tab->findChild<QPushButton*>(QStringLiteral("agentQueueSteer"));

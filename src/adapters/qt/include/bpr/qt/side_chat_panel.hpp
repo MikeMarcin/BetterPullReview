@@ -196,7 +196,8 @@ namespace bpr::qt {
 		/// [[BPR-2002]]. The question the next Send asks, decided by the core.
 		std::optional<core::agent_question> Question;
 		/// RFC-BPR-0125. What the next Send reads skills from, if not its text.
-		std::optional<std::string> SkillText;
+		std::optional<std::string>                       SkillText;
+		std::function<void(const side_chat_projection&)> PresentationObserver;
 
 		QListWidget*    Replies            = nullptr;
 		QPlainTextEdit* ReplyBody          = nullptr;
@@ -222,6 +223,10 @@ namespace bpr::qt {
 		QAction*        NewSession          = nullptr;
 		QAction*        ContinueOldRevision = nullptr;
 	};
+
+	/// \brief What a session's added context reads ("No added context"),
+	/// empty before any session is presented.
+	[[nodiscard]] auto side_chat_chips_words(const std::optional<side_chat_projection>& aProjection) -> QString;
 
 	/// \brief Shows what a reviewer needs to know before typing to an agent.
 	///
@@ -260,6 +265,13 @@ namespace bpr::qt {
 
 		/// \brief Adopts one accepted projection, and starts nothing.
 		void present(const side_chat_projection& aProjection);
+		/// \brief RFC-BPR-0130 stage 5 (AC07). Told each projection once it is
+		/// presented, so the Agent tab presents the same session without
+		/// reading this panel.
+		void set_presentation_observer(std::function<void(const side_chat_projection&)> aObserver);
+		/// \brief Sends `aText` to the shown session, asked as `aQuestion`
+		/// with `aSkillText`, as Send does with the composer's words.
+		void send(const QString& aText, std::optional<core::agent_question> aQuestion, std::optional<std::string> aSkillText);
 
 		/// \brief Notes that something happened, and asks the agent nothing.
 		void observe(core::agent_observation aObservation);
