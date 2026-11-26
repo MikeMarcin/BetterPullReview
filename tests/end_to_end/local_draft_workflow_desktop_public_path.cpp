@@ -123,7 +123,7 @@ namespace {
 
 	[[nodiscard]] auto button(qt::local_draft_workflow_area& aArea, const std::string& aAction, const char* aName) -> QPushButton*
 	{
-		auto* const group = aArea.actions()->findChild<QWidget*>(QStringLiteral("localDraftWorkflowAction_") + QString::fromStdString(aAction));
+		auto* const group = aArea.action_rows()->findChild<QWidget*>(QStringLiteral("localDraftWorkflowAction_") + QString::fromStdString(aAction));
 		expect(group != nullptr, "the action's group: " + aAction);
 		auto* const found = group->findChild<QPushButton*>(QString::fromLatin1(aName));
 		expect(found != nullptr, std::string{ "the button " } + aName + " on " + aAction);
@@ -364,8 +364,8 @@ try {
 		   "AC07: origin and the unmet required check are shown");
 	{
 		// [[BPR-2196]]. One row per step: a ring before it runs, and the required check marked.
-		auto* const template_row = area->actions()->findChild<QWidget*>(QStringLiteral("localDraftWorkflowAction_template"));
-		expect(template_row != nullptr && template_row->property("bprMark").toString() == QStringLiteral("not_yet") && template_row->findChild<QLabel*>(QStringLiteral("localDraftWorkflowRequired")) != nullptr,
+		auto* const templateRow = area->action_rows()->findChild<QWidget*>(QStringLiteral("localDraftWorkflowAction_template"));
+		expect(templateRow != nullptr && templateRow->property("bprMark").toString() == QStringLiteral("not_yet") && templateRow->findChild<QLabel*>(QStringLiteral("localDraftWorkflowRequired")) != nullptr,
 			   "the required check is a row, not run yet");
 	}
 
@@ -411,7 +411,7 @@ try {
 		   "AC04: the review marker only the upstream tool writes leaves the check unmet");
 
 	// The author answers; only the asking action runs again.
-	auto* const answer = area->actions()->findChild<QLineEdit*>(QStringLiteral("localDraftWorkflowAnswer"));
+	auto* const answer = area->action_rows()->findChild<QLineEdit*>(QStringLiteral("localDraftWorkflowAnswer"));
 	expect(answer != nullptr, "the answer field");
 	answer->setText(QStringLiteral("ENG-42"));
 	button(*area, "context", "localDraftWorkflowContinue")->click();
@@ -440,9 +440,9 @@ try {
 	expect(!page->projection().Workflow.Checks[0].Gap, "the repeated check is met, as reported");
 	{
 		// AC09, [[BPR-2196]]: what a companion returns is outlined Reported, never filled.
-		auto* const template_row = area->actions()->findChild<QWidget*>(QStringLiteral("localDraftWorkflowAction_template"));
-		expect(template_row != nullptr && template_row->property("bprMark").toString() == QStringLiteral("reported")
-				   && template_row->findChild<QLabel*>(QStringLiteral("localDraftWorkflowState"))->text() == QStringLiteral("Reported"),
+		auto* const templateRow = area->action_rows()->findChild<QWidget*>(QStringLiteral("localDraftWorkflowAction_template"));
+		expect(templateRow != nullptr && templateRow->property("bprMark").toString() == QStringLiteral("reported")
+				   && templateRow->findChild<QLabel*>(QStringLiteral("localDraftWorkflowState"))->text() == QStringLiteral("Reported"),
 			   "a companion's met check reads Reported, outlined");
 		for (const auto& row : area->checklist().Rows) {
 			expect(row.Runner != core::checklist_runner::companion || row.Mark != core::checklist_mark::observed, "no companion row is drawn as seen by BetterPullReview");
@@ -555,8 +555,8 @@ try {
 
 	// The unrelated draft never saw any of it.
 	{
-		auto       drafts_store   = adapters::sqlite::open_local_draft_store(profileRoot.path());
-		const auto unrelatedDraft = drafts_store->find(other).value();
+		auto       draftsStore    = adapters::sqlite::open_local_draft_store(profileRoot.path());
+		const auto unrelatedDraft = draftsStore->find(other).value();
 		expect(!unrelatedDraft.Workflow && unrelatedDraft.Preparation.Description.Body == "Searches return two.\n", "AC01: the unrelated draft does not depend on the workflow");
 	}
 

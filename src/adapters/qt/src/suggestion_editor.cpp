@@ -695,7 +695,8 @@ namespace bpr::qt {
 			aPainter.fillRect(rect, mark->Colour);
 			return;
 		}
-		for (auto y = rect.top(); y < rect.bottom(); y += 4.0) {
+		for (auto dash = 0; rect.top() + (4.0 * dash) < rect.bottom(); ++dash) {
+			const auto y = rect.top() + (4.0 * dash);
 			aPainter.fillRect(QRectF{ rect.left(), y, rect.width(), std::min(2.0, rect.bottom() - y) }, mark->Colour);
 		}
 	}

@@ -827,7 +827,9 @@ namespace {
 			clip.Sha256 = digest;
 		}
 		int loads = 0;
-		expect(!dif_cache::create(clips, [&](std::size_t) { ++loads; return bytes; }) && loads == 9, "full decoded source above24MiB refuses even when retained interiors would fit");
+		// NOLINTNEXTLINE(performance-no-automatic-move): every load returns the same bytes.
+		const auto created = dif_cache::create(clips, [&](std::size_t) { ++loads; return bytes; });
+		expect(!created && loads == 9, "full decoded source above24MiB refuses even when retained interiors would fit");
 
 		fixture transient;
 		auto&   large = transient.Clips[1];

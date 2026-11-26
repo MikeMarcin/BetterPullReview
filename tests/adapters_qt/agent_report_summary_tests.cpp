@@ -287,8 +287,10 @@ namespace {
 			for (const auto* const row : rows) {
 				const auto differs = changed(drawn, row->geometry());
 				if (row == &aLit) {
+					// NOLINTNEXTLINE(performance-inefficient-string-concatenation): a check's message.
 					expect(differs > 0, aWhere + ", " + row->count().Word + ": the row shows it is " + aState);
 				} else {
+					// NOLINTNEXTLINE(performance-inefficient-string-concatenation): a check's message.
 					expect(differs == 0, aWhere + ", " + row->count().Word + ": " + std::to_string(differs) + " pixels of the row change while " + aLit.count().Word + " is " + aState);
 				}
 			}
@@ -443,15 +445,15 @@ namespace {
 			qt::hide_anchored_tooltip();
 		}
 		// A press on a slice opens the report at it; on the hole, nothing.
-		const auto press_at = [&](const QPointF aAt) {
+		const auto pressAt = [&](const QPointF aAt) {
 			auto press = QMouseEvent{ QEvent::MouseButtonPress, aAt, pie->mapToGlobal(aAt), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 			auto lift  = QMouseEvent{ QEvent::MouseButtonRelease, aAt, pie->mapToGlobal(aAt), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
 			QApplication::sendEvent(pie, &press);
 			QApplication::sendEvent(pie, &lift);
 		};
-		press_at(pie->slice_middle(0U));
-		press_at(pie->centre());
-		press_at(pie->slice_middle(1U));
+		pressAt(pie->slice_middle(0U));
+		pressAt(pie->centre());
+		pressAt(pie->slice_middle(1U));
 		expect(opened == std::vector<std::uint32_t>{ 2U, 9U }, "a press on a slice opens the report at its first item, a press in the hole does nothing");
 	}
 

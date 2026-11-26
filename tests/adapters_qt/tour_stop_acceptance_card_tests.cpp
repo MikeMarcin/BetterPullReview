@@ -77,8 +77,10 @@ namespace {
 		settle();
 	}
 
+	// NOLINTBEGIN(bugprone-throwing-static-initialization): fixed fixture revisions; a failure ends the test.
 	const auto before = *core::parse_git_commit_oid("1111111111111111111111111111111111111111");
 	const auto after  = *core::parse_git_commit_oid("2222222222222222222222222222222222222222");
+	// NOLINTEND(bugprone-throwing-static-initialization)
 
 	[[nodiscard]] auto written(const std::uint64_t aId, std::string aTitle, std::string aBody, const std::uint32_t aFirst) -> core::tour_stop
 	{

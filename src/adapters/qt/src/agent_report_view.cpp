@@ -835,6 +835,7 @@ namespace bpr::qt {
 		const auto shown = dressed_shown();
 		if (!Dress.Sections.empty()) {
 			const auto top = Scroll->verticalScrollBar()->value();
+			// NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage): the constructor makes Dressed before any event can reach the view.
 			Dressed->document()->setDefaultFont(font());
 			auto collected = std::vector<report_code_slot>{ };
 			// The keyboard's link is kept through the render where the page
@@ -1089,7 +1090,7 @@ namespace bpr::qt {
 	auto agent_report_view::keep_state(const std::uint32_t aOutline) const -> report_keep_state
 	{
 		const auto kept  = Keeps.find(Document.Turn);
-		const auto local = [&]() -> report_keep_state {
+		auto       local = [&]() -> report_keep_state {
 			if (kept == Keeps.end()) {
 				return { };
 			}
@@ -1284,7 +1285,7 @@ namespace bpr::qt {
 		if (aOutcome.Refused > 0U) {
 			reasons << (aOutcome.Refused == 1U ? tr("1 could not be drafted; its finding says why") : tr("%1 could not be drafted; their findings say why").arg(aOutcome.Refused));
 		}
-		const auto drafted = aOutcome.Drafted == 0U ? tr("Nothing drafted.") : tr("Drafted %1.").arg(counted(aOutcome.Drafted, tr("private draft"), tr("private drafts")));
+		auto drafted = aOutcome.Drafted == 0U ? tr("Nothing drafted.") : tr("Drafted %1.").arg(counted(aOutcome.Drafted, tr("private draft"), tr("private drafts")));
 		if (reasons.isEmpty()) {
 			return drafted;
 		}

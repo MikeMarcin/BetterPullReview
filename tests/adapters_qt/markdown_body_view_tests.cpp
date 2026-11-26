@@ -595,8 +595,8 @@ Final content: Ω 日本語 😀
 		reader->set_in_place(true);
 		reader->set_code_block_tools(true);
 		holder.show();
-		const auto long_line = std::string(365, 'x') + " // the end of a 400 character line";
-		const auto body      = "Two blocks:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n\nThen:\n\n```\n" + long_line + "\n```\n\nDone.\n";
+		const auto longLine = std::string(365, 'x') + " // the end of a 400 character line";
+		const auto body     = "Two blocks:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n\nThen:\n\n```\n" + longLine + "\n```\n\nDone.\n";
 		reader->set_body(body, "agent-answer:1");
 		constexpr auto column = 460;
 		const auto     place  = [&] {
@@ -633,11 +633,11 @@ Final content: Ω 日本語 😀
 		expect(page->horizontalScrollBar()->maximum() == 0 && page->document()->idealWidth() <= column + 0.5, "AC7 the reader has no horizontal scroll range: " + std::to_string(page->document()->idealWidth()));
 		expect(reader->width() == column && reader->heightForWidth(column) == reader->height(), "AC7 the message keeps the column's width");
 		expect(page->height() >= plain->geometry().bottom(), "the reader's height holds the boxes");
-		expect(page->document()->toPlainText().contains(QString::fromStdString(long_line)), "the lines stay in the document, hidden");
+		expect(page->document()->toPlainText().contains(QString::fromStdString(longLine)), "the lines stay in the document, hidden");
 		capture(*reader, QStringLiteral("code-block-tools"));
 		// AC2. Copy takes exactly the code.
 		tool(plain, "markdownCodeBlockCopy")->click();
-		expect(QApplication::clipboard()->text() == QString::fromStdString(long_line), "AC2 Copy puts exactly the block's code on the clipboard");
+		expect(QApplication::clipboard()->text() == QString::fromStdString(longLine), "AC2 Copy puts exactly the block's code on the clipboard");
 		expect(tool(plain, "markdownCodeBlockCopy")->toolTip() == QStringLiteral("Copied"), "and says it copied");
 		tool(code, "markdownCodeBlockCopy")->click();
 		expect(QApplication::clipboard()->text() == QStringLiteral("auto lock = std::scoped_lock{ Mutex };\nreturn *Table;"), "AC2 no fence, no language, no trailing newline");
@@ -648,7 +648,7 @@ Final content: Ω 日本語 😀
 		page->setTextCursor(selected);
 		page->copy();
 		const auto copied = QApplication::clipboard()->text();
-		expect(!copied.contains(QChar::ObjectReplacementCharacter) && copied.contains(QStringLiteral("scoped_lock")) && copied.contains(QString::fromStdString(long_line)), "partial selection keeps code without layout placeholders");
+		expect(!copied.contains(QChar::ObjectReplacementCharacter) && copied.contains(QStringLiteral("scoped_lock")) && copied.contains(QString::fromStdString(longLine)), "partial selection keeps code without layout placeholders");
 		// AC3. Wrap toggles that block only.
 		const auto codeHeight  = code->height();
 		const auto plainHeight = plain->height();

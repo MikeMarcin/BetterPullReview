@@ -195,7 +195,7 @@ namespace bpr::qt {
 			switch (aRunner) {
 			case core::checklist_runner::agent:            return QStringLiteral("✦");
 			case core::checklist_runner::companion:        return QStringLiteral("⌨");
-			case core::checklist_runner::betterpullreview: return QString{ };
+			case core::checklist_runner::betterpullreview:
 			case core::checklist_runner::author:           return QString{ };
 			}
 			return { };

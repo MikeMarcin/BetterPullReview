@@ -1265,14 +1265,14 @@ namespace {
 				// an ellipsis, keeps one line and is whole in its tooltip, and
 				// every part of the row lies inside the row and the drawer.
 				{
-					const auto long_title = QStringLiteral("#2368 Queued prompt rows leave the pending list once their turn begins, at every drawer width");
-					tab->set_session_title(long_title);
+					const auto longTitle = QStringLiteral("#2368 Queued prompt rows leave the pending list once their turn begins, at every drawer width");
+					tab->set_session_title(longTitle);
 					settle();
 					const auto* const row     = tab->header();
 					const auto* const subject = row->subject();
 					const auto        inside  = drawer->rect().contains(QRect{ row->mapTo(drawer, QPoint{ 0, 0 }), row->size() });
-					if (!row->isVisibleTo(drawer) || !inside || (width < 760U && !row->title_cut()) || (row->title_cut() && (!row->shown_title().endsWith(QChar{ 0x2026 }) || subject->toolTip() != long_title))
-						|| (!row->title_cut() && row->shown_title() != long_title) || subject->height() >= 2 * subject->fontMetrics().lineSpacing() || !row->history_tool()->isVisibleTo(drawer)) {
+					if (!row->isVisibleTo(drawer) || !inside || (width < 760U && !row->title_cut()) || (row->title_cut() && (!row->shown_title().endsWith(QChar{ 0x2026 }) || subject->toolTip() != longTitle))
+						|| (!row->title_cut() && row->shown_title() != longTitle) || subject->height() >= 2 * subject->fontMetrics().lineSpacing() || !row->history_tool()->isVisibleTo(drawer)) {
 						failures.push_back("the header is one row with History, its long title cut with an ellipsis and whole in its tooltip" + at + ": \"" + row->shown_title().toStdString() + "\"");
 					}
 					for (const auto* const part : row->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {

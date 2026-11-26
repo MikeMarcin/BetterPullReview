@@ -247,8 +247,8 @@ auto main(int argc, char** argv) -> int
 	bar->setValue(std::min(bar->maximum(), 420));
 	settle();
 	const auto before = bar->value();
-	card              = card_of(*editor);
-	auto* ring        = editor->stop_collapse_button();
+	static_cast<void>(card_of(*editor));
+	auto* ring = editor->stop_collapse_button();
 	expect(ring != nullptr && ring->isVisible() && !ring->accessibleName().isEmpty(), "the card's number is a named button");
 	click(ring, ring->rect().center());
 	expect(editor->stop_collapsed() && card_of(*editor) == nullptr && editor->selected_stop()->Id == core::tour_stop_id{ 2 }, "a click on the number collapses the card; the stop stays current");

@@ -2672,6 +2672,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::press_offer(const core::prompt_offer& aChosen, const bool aEditFirst)
 	{
+		// NOLINTNEXTLINE(performance-unnecessary-copy-initialization): aChosen can point into Offered, which ask() rebuilds.
 		const auto offer    = aChosen;
 		const auto text     = QString::fromStdString(offer.Expansion.Text);
 		auto*      composer = Composer;
