@@ -10,6 +10,7 @@
 #include "bpr/core/agent_queue.hpp"
 #include "bpr/core/agent_turn.hpp"
 #include "bpr/core/chat_header.hpp"
+#include "bpr/core/chat_transcript.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/ask_menu.hpp"
 #include "bpr/qt/drawer_parts.hpp"
@@ -1833,12 +1834,16 @@ namespace bpr::qt {
 					.Working = Running,
 				});
 				const auto agent    = agent_of(run->Id);
-				// [[BPR-1999]], RFC-BPR-0101. The turn's cost after its time,
-				// as the Agent tab says it.
-				const auto spent = run->Cost ? QStringLiteral(" · ") + QString::fromStdString(core::agent_cost_words(*run->Cost)) : QStringLiteral(".");
-				ending->settle(answered ? (run->Seconds ? agent_run_answered_words(agent, *run->Seconds) + spent : (run->Cost ? tr("%1 answered").arg(agent) + spent : tr("%1 answered.").arg(agent)))
-										: (run->Seconds ? agent_run_stopped_words(*run->Seconds) + spent : (run->Cost ? tr("Stopped") + spent : tr("Stopped."))),
-							   answered);
+				// RFC-BPR-0130 stage 3. The one ending line of every chat:
+				// who, how long, what it cost.
+				auto finish    = core::chat_ending{ };
+				finish.Agent   = agent.toStdString();
+				finish.Outcome = outcome;
+				if (run->Seconds) {
+					finish.Seconds = static_cast<std::int64_t>(*run->Seconds);
+				}
+				finish.Cost = run->Cost;
+				ending->settle(QString::fromStdString(core::chat_ending_words(finish)), answered);
 				// One row in the narrow column: the ending, then its actions.
 				auto* const row = new QHBoxLayout{ };
 				row->setContentsMargins(0, 0, 0, 0);

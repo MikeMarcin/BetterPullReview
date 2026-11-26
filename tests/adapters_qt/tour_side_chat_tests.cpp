@@ -438,7 +438,7 @@ auto main(int argc, char** argv) -> int
 	expect(offered() == QStringList{ QStringLiteral("Explain the selected block") } && !chat->suggestions()->lead()->isVisibleTo(chat),
 		   "AC1 the stop's prompts go once the chat has a turn; Explain the selected block stays while text is selected");
 	expect(chat->bubble(0)->geometry().right() > chat->reply(0)->geometry().left() + chat->reply(0)->width() / 2, "on the right, the reply on the left");
-	expect(!chat->status_line(0)->live() && chat->status_line(0)->text() == QStringLiteral("Claude Code answered in 0:07.") && !chat->status_line(0)->font().italic(), "AC2 its ending says who answered and how long it took, as the Agent tab's does: " + chat->status_line(0)->text().toStdString());
+	expect(!chat->status_line(0)->live() && chat->status_line(0)->text() == QStringLiteral("Claude answered in 0:07.") && !chat->status_line(0)->font().italic(), "AC2 its ending says who answered and how long it took, in the one ending line of every chat: " + chat->status_line(0)->text().toStdString());
 	expect(chat->status_line(0)->geometry().top() >= chat->reply(0)->geometry().bottom(), "under the reply");
 	expect(chat->activity_view(0) != nullptr && chat->activity_view(0)->summary_text() == QStringLiteral("Worked for 2 min: 1 helper, 1 file read"), "AC08 the block folds under the ended turn: " + (chat->activity_view(0) != nullptr ? chat->activity_view(0)->summary_text().toStdString() : std::string{ }));
 	expect(chat->resend_button(0) == nullptr && chat->delete_button(0) == nullptr, "an answer offers no Resend or Delete");

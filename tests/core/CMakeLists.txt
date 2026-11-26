@@ -43,6 +43,14 @@ bpr_enable_hardening(test_chat_send_core)
 bpr_enable_warnings(test_chat_send_core)
 bpr_add_network_isolated_test(NAME core_chat_send COMMAND test_chat_send_core)
 
+# RFC-BPR-0130 stage 3. A chat's conversation as one value, its delta and the
+# one ending line.
+bpr_add_executable(test_chat_transcript_core chat_transcript_tests.cpp)
+target_link_libraries(test_chat_transcript_core PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_chat_transcript_core)
+bpr_enable_warnings(test_chat_transcript_core)
+bpr_add_network_isolated_test(NAME core_chat_transcript COMMAND test_chat_transcript_core)
+
 bpr_add_executable(test_release_update_core release_update_tests.cpp)
 target_link_libraries(test_release_update_core PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_release_update_core)

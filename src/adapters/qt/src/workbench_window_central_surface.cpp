@@ -520,6 +520,13 @@ namespace bpr::qt {
 		besideChat->addLayout(documentColumn, 1);
 		ItemSideChat = new qt::item_side_chat{ ComparisonPage };
 		besideChat->addWidget(ItemSideChat, 0);
+		// RFC-BPR-0130 stage 3. The item's replies colour their code as the
+		// other chats' do, through the window's one highlighter.
+		ItemSideChat->set_code_syntax_dispatch([this](std::vector<application::markdown_code_syntax_request> aRequests) {
+			if (MarkdownCodeDispatch) {
+				MarkdownCodeDispatch(std::move(aRequests));
+			}
+		});
 		// [[BPR-2337]]. Opened, the chat belongs to the tab it opened in;
 		// closed, to none.
 		ItemSideChat->set_open_observer([this](const bool aOpen) {

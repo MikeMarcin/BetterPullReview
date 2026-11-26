@@ -1,7 +1,9 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_ITEM_SIDE_CHAT_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_ITEM_SIDE_CHAT_HPP
 
+#include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/core/agent_follow_up.hpp"
+#include "bpr/core/chat_transcript.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/qt/chat_composer.hpp"
 #include "bpr/qt/chat_header_view.hpp"
@@ -15,7 +17,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -23,9 +24,7 @@
 class QLabel;
 class QPlainTextEdit;
 class QPushButton;
-class QScrollArea;
 class QToolButton;
-class QVBoxLayout;
 
 /// \file
 /// \brief [[BPR-2322]] (owner, 2026-11-20: "I think we should instead make it
@@ -35,8 +34,10 @@ class QVBoxLayout;
 /// from the Tour tab's side chat parts (`side_chat_parts.hpp`) and wearing its
 /// look: the seam, the item at the top with Copy chat and Close, the
 /// reviewer's words in bubbles on the right, the agent's replies as Markdown
-/// on the left with the Agent tab's ending line, a proposal in the chat beside
-/// what it replaces, and the composer with the item as its chip.
+/// on the left with the one ending line, a proposal in the chat beside what it
+/// replaces, and the composer with the item as its chip. RFC-BPR-0130 stage 3:
+/// its conversation is drawn by the one transcript (`chat_transcript_view`)
+/// from `core::project_follow_up`, the proposal as the turn's attachment.
 ///
 /// \details It replaces [[BPR-2286]]'s follow-up window. Its conversation is
 /// `core::follow_up_state`, held by `application::follow_up_host`: one chat a
@@ -46,6 +47,7 @@ class QVBoxLayout;
 namespace bpr::qt {
 	class markdown_body_view;
 	class agent_run_status_line;
+	class chat_transcript_view;
 	class skill_completer;
 
 	/// \brief What a press asks for.
@@ -77,6 +79,11 @@ namespace bpr::qt {
 
 		void set_intents(item_side_chat_intents aIntents);
 		void present_skills(std::vector<core::skill_entry> aSkills);
+		/// \brief The replies' code is coloured as the other chats' is: their
+		/// code asks the window's highlighter through `aDispatch`, which
+		/// answers by `apply_code_syntax`.
+		void set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
+		void apply_code_syntax(const application::markdown_code_syntax_publication& aSpans);
 		/// \brief Shows `aState`: the item, its rounds, a run going, a
 		/// proposal, why the last step did nothing (`aFailure` when a run
 		/// failed). `aAgent` names the agent in the ending lines.
@@ -147,6 +154,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto item_text() const -> QString;
 		/// \brief The item's chip in the composer.
 		[[nodiscard]] auto chip_text() const -> QString;
+		/// \brief The one transcript the chat's turns are drawn in.
+		[[nodiscard]] auto transcript() const noexcept -> chat_transcript_view* { return Transcript; }
 		/// \brief The reviewer's questions and the agent's answers shown, in order.
 		[[nodiscard]] auto questions() const -> QStringList;
 		[[nodiscard]] auto answers() const -> QStringList;
@@ -166,10 +175,10 @@ namespace bpr::qt {
 
 	private:
 		void               send();
-		void               rebuild();
+		void               present_lead();
 		void               restyle();
-		void               fit();
-		[[nodiscard]] auto reader(QWidget* aParent, const std::string& aBody, const std::string& aIdentity) -> markdown_body_view*;
+		void               fit_chip();
+		[[nodiscard]] auto make_proposal(const core::chat_follow_up_proposal& aProposal, QWidget* aParent) -> QWidget*;
 
 		item_side_chat_intents               Intents;
 		std::optional<core::follow_up_state> Shown;
@@ -178,33 +187,32 @@ namespace bpr::qt {
 		bool                                 ColumnOpen = false;
 		bool                                 TabShown   = true;
 		std::function<void(bool aOpen)>      OpenObserver;
-		/// The running request's clock, and each answered round's time.
-		QElapsedTimer                             Clock;
-		std::map<std::size_t, qint64>             Seconds;
-		chat_header_view*                         Header    = nullptr;
-		QPushButton*                              ShowItem  = nullptr;
-		QToolButton*                              CopyChat  = nullptr;
-		QToolButton*                              ClosePane = nullptr;
-		QScrollArea*                              Scroll    = nullptr;
-		QVBoxLayout*                              Turns     = nullptr;
-		QLabel*                                   ItemQuote = nullptr;
-		QLabel*                                   Status    = nullptr;
-		chat_composer*                            Field     = nullptr;
-		QLabel*                                   Chip      = nullptr;
-		QString                                   ChipWords;
-		QPlainTextEdit*                           Composer      = nullptr;
-		QPushButton*                              Send          = nullptr;
-		QPushButton*                              ApplyButton   = nullptr;
-		QWidget*                                  ProposalCard  = nullptr;
-		QLabel*                                   ProposalText  = nullptr;
-		QPushButton*                              UseButton     = nullptr;
-		QPushButton*                              DiscardButton = nullptr;
-		std::vector<QWidget*>                     Bubbles;
-		std::vector<QLabel*>                      Asked;
-		std::vector<markdown_body_view*>          Replies;
-		std::vector<agent_run_status_line*>       Endings;
-		std::vector<QPointer<markdown_body_view>> Readers;
-		QWidget*                                  ResizeHandle = nullptr;
+		/// The running request's clock, and each answered round's time: how
+		/// long a run took is what this column saw of it.
+		QElapsedTimer                            Clock;
+		std::vector<std::optional<std::int64_t>> Seconds;
+		chat_header_view*                        Header      = nullptr;
+		QPushButton*                             ShowItem    = nullptr;
+		QToolButton*                             CopyChat    = nullptr;
+		QToolButton*                             ClosePane   = nullptr;
+		chat_transcript_view*                    Transcript  = nullptr;
+		QLabel*                                  ItemHeading = nullptr;
+		QLabel*                                  ItemQuote   = nullptr;
+		QLabel*                                  Invite      = nullptr;
+		QLabel*                                  Status      = nullptr;
+		chat_composer*                           Field       = nullptr;
+		QLabel*                                  Chip        = nullptr;
+		QString                                  ChipWords;
+		QPlainTextEdit*                          Composer    = nullptr;
+		QPushButton*                             Send        = nullptr;
+		QPushButton*                             ApplyButton = nullptr;
+		/// The proposal's card while one waits; the transcript owns it.
+		QPointer<QWidget>                                                           ProposalCard;
+		QPointer<QLabel>                                                            ProposalText;
+		QPointer<QPushButton>                                                       UseButton;
+		QPointer<QPushButton>                                                       DiscardButton;
+		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
+		QWidget*                                                                    ResizeHandle = nullptr;
 		/// The page the column stands beside, whose width bounds it.
 		QPointer<QWidget>                                 Page;
 		std::optional<std::uint32_t>                      PreferredWidth;

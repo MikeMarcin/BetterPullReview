@@ -96,6 +96,7 @@ add_library(
         src/agent_session_management.cpp
         src/chat_history.cpp
         src/chat_header.cpp
+        src/chat_transcript.cpp
         src/view_filter_memory.cpp
         src/pull_request_activity.cpp
         src/agent_chat_scope.cpp
