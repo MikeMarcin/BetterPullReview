@@ -84,6 +84,9 @@ namespace bpr::core {
 
 	auto chat_ending_words(const chat_ending& aEnding) -> std::string
 	{
+		if (!aEnding.Said.empty()) {
+			return aEnding.Said;
+		}
 		auto line  = chat_ending_first_words(aEnding);
 		auto parts = std::size_t{ 1U };
 		if (aEnding.Cost) {
@@ -191,6 +194,36 @@ namespace bpr::core {
 			auto turn = chat_turn{ };
 			turn.Id   = proposal(aState.Proposal->Id);
 			turn.Attachments.push_back({ .Key = "proposal", .Payload = chat_follow_up_proposal{ .Proposal = *aState.Proposal, .Usable = aState.Phase == follow_up_phase::idle } });
+			transcript.Turns.push_back(std::move(turn));
+		}
+		return transcript;
+	}
+
+	auto project_agent_thread(const std::vector<agent_thread_entry>& aEntries, const agent_thread_facts& aFacts) -> chat_transcript
+	{
+		auto transcript = chat_transcript{ };
+		transcript.Turns.reserve(aEntries.size());
+		for (std::size_t index = 0U; index < aEntries.size(); ++index) {
+			const auto& entry = aEntries[index];
+			auto        turn  = chat_turn{ };
+			turn.Id           = "agent-turn-" + std::to_string(entry.Serial);
+			turn.Question     = entry.Question;
+			turn.Steered      = entry.Steered;
+			turn.Reply        = entry.Answer;
+			turn.Running      = !entry.Done;
+			if (entry.Done) {
+				turn.Ending       = chat_ending{ .Outcome = entry.Outcome, .Said = entry.Line };
+				turn.Activity     = entry.Activity;
+				const auto latest = index + 1U == aEntries.size();
+				turn.Actions      = decide_agent_turn_actions({
+					.Outcome          = entry.Outcome,
+					.HasText          = !entry.Answer.empty(),
+					.Latest           = latest,
+					.Working          = aFacts.Working,
+					.CausePassedSince = entry.CausePassedSince,
+					.RevisionChoice   = latest && aFacts.RevisionChoice,
+				});
+			}
 			transcript.Turns.push_back(std::move(turn));
 		}
 		return transcript;

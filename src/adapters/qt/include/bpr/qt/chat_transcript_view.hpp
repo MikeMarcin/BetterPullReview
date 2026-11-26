@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+class QHBoxLayout;
 class QLabel;
 class QPushButton;
 class QToolButton;
@@ -42,6 +43,20 @@ namespace bpr::qt {
 	enum class chat_turn_gesture : std::uint8_t {
 		resend,
 		remove,
+		/// An unreadable answer's way back: the agent's settings.
+		agent_settings,
+	};
+
+	/// \brief How a turn is drawn (RFC-BPR-0130, open question 1: each chat
+	/// keeps its look).
+	enum class chat_transcript_look : std::uint8_t {
+		/// The side chats': the reviewer's words in a bubble on the right, the
+		/// reply as it reads on the left, the ending line under it.
+		side_chat,
+		/// The Agent tab's: the question in an outlined field under the time
+		/// it was asked, the reply in a card with its ending line, what its
+		/// run did and its actions at the card's foot.
+		card,
 	};
 
 	class chat_transcript_view final : public QScrollArea
@@ -62,6 +77,29 @@ namespace bpr::qt {
 			QString Delete;
 			QString QuestionNote;
 			QString Activity;
+			/// The card look's own parts: the turns' column, a turn, the time
+			/// it was asked, the steered messages' column, the reply's card,
+			/// the recovery and the time it was answered.
+			QString Turns;
+			QString Turn;
+			QString AskedTime;
+			QString SteeredColumn;
+			QString Card;
+			QString Recovery;
+			QString AnsweredTime;
+		};
+		/// \brief Where the card look lets a chat put its own parts of a
+		/// turn, made once with the turn.
+		struct card_slots
+		{
+			/// The reply's card.
+			QWidget* Card = nullptr;
+			/// Over the reply, and under it before the ending line.
+			QVBoxLayout* BeforeReply = nullptr;
+			QVBoxLayout* AfterReply  = nullptr;
+			/// When it was asked and answered: the chat's to say.
+			QLabel* AskedTime    = nullptr;
+			QLabel* AnsweredTime = nullptr;
 		};
 		/// \brief The chat's part in drawing a turn.
 		struct parts
@@ -82,9 +120,20 @@ namespace bpr::qt {
 			std::function<std::string(const core::chat_turn& aTurn)> ReplyBody;
 			/// Stop, from a running turn's quiet notice.
 			std::function<void()> Stop;
+			/// The identity a reply's reader is shown under (what its code
+			/// colours are keyed by); null: the turn's own.
+			std::function<std::string(const core::chat_turn& aTurn)> ReplyIdentity;
+			/// The card look: the chat's own parts of a turn, once, as it is
+			/// made.
+			std::function<void(const core::chat_turn& aTurn, const card_slots& aSlots)> DressCard;
+			/// The card look: the chat's own actions in a turn's foot, after
+			/// Copy and before the recovery, once, as it is made.
+			std::function<void(const core::chat_turn& aTurn, QWidget& aCard, QHBoxLayout& aActions)> DressFoot;
+			/// Dresses a settled ending line (its tooltip); null for none.
+			std::function<void(const core::chat_turn& aTurn, agent_run_status_line& aEnding)> DressEnding;
 		};
 
-		chat_transcript_view(const names& aNames, QWidget* aParent);
+		chat_transcript_view(const names& aNames, QWidget* aParent, chat_transcript_look aLook = chat_transcript_look::side_chat);
 		~chat_transcript_view() override;
 		chat_transcript_view(const chat_transcript_view&)                    = delete;
 		auto operator=(const chat_transcript_view&) -> chat_transcript_view& = delete;
@@ -94,6 +143,8 @@ namespace bpr::qt {
 		/// and under them.
 		[[nodiscard]] auto lead() const noexcept -> QVBoxLayout* { return Lead; }
 		[[nodiscard]] auto trail() const noexcept -> QVBoxLayout* { return Trail; }
+		/// \brief The card look's column of turns; null in the side chats'.
+		[[nodiscard]] auto turns_column() const noexcept -> QWidget* { return TurnsHolder; }
 
 		/// \brief Draws `aTranscript`, changing only the turns that differ
 		/// from the one shown.
@@ -116,6 +167,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto resend(std::size_t aTurn) const -> QPushButton*;
 		[[nodiscard]] auto remove(std::size_t aTurn) const -> QPushButton*;
 		[[nodiscard]] auto activity(std::size_t aTurn) const -> agent_activity_view*;
+		/// \brief The card look's reply card and its recovery.
+		[[nodiscard]] auto card(std::size_t aTurn) const -> QWidget*;
+		[[nodiscard]] auto recovery(std::size_t aTurn) const -> QPushButton*;
+		/// \brief The turn named `aId`, in order; none past the turns.
+		[[nodiscard]] auto index_of(const std::string& aId) const -> std::optional<std::size_t>;
+		/// \brief Sets a turn's reader again from what the chat now shows for
+		/// it (`parts::ReplyBody`), where that differs from what it shows.
+		void refresh_reply(std::size_t aTurn);
 		/// \brief The widget the factory made for attachment `aKey` of a turn.
 		[[nodiscard]] auto attachment(std::size_t aTurn, const std::string& aKey) const -> QWidget*;
 		/// \brief Every reader of the transcript, for the chat's code colours.
@@ -138,11 +197,14 @@ namespace bpr::qt {
 
 	private:
 		class turn_view;
+		class card_turn_view;
+		class any_turn_view;
 
-		[[nodiscard]] auto view_of(std::size_t aTurn) const -> turn_view*;
+		[[nodiscard]] auto view_of(std::size_t aTurn) const -> any_turn_view*;
 		[[nodiscard]] auto available_width() const -> int;
 		void               fit_soon();
 
+		chat_transcript_look            Look;
 		names                           Names;
 		parts                           Parts;
 		QVBoxLayout*                    Lead  = nullptr;
@@ -150,7 +212,8 @@ namespace bpr::qt {
 		QVBoxLayout*                    Trail = nullptr;
 		core::chat_transcript           Shown;
 		core::chat_delta                LastDelta;
-		std::vector<turn_view*>         Views;
+		QWidget*                        TurnsHolder = nullptr;
+		std::vector<any_turn_view*>     Views;
 		std::optional<agent_run_status> Live;
 		QElapsedTimer                   LiveClock;
 		bool                            FitQueued     = false;

@@ -1,5 +1,6 @@
-// RFC-BPR-0130 stage 3 (AC06). The one transcript changes only the turns a
-// delta names: while a reply grows, every other turn keeps its widgets.
+// RFC-BPR-0130 stages 3 to 5 (AC06). The one transcript changes only the
+// turns a delta names: while a reply grows, every other turn keeps its
+// widgets, in the side chats' look and in the Agent tab's.
 #include "bpr/core/chat_transcript.hpp"
 #include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/chat_transcript_view.hpp"
@@ -10,6 +11,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QGuiApplication>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QToolButton>
@@ -267,6 +269,90 @@ namespace {
 		settle();
 		expect(widgets_of(*view, 0U) == first && view->reply(1U) == settledReply && chat->accept_button(0U) == nullptr, "deciding the proposal changes its card alone");
 	}
+
+	/// RFC-BPR-0130 stage 5. The Agent tab's card look: the same rule, its
+	/// own parts made once with each turn, and what an ended turn offers drawn
+	/// from what the projector decided.
+	void test_the_card_look_keeps_every_other_turn()
+	{
+		auto window   = QWidget{ };
+		auto named    = names();
+		named.Turns   = QStringLiteral("testTurns");
+		named.Card    = QStringLiteral("testCard");
+		auto* view    = new qt::chat_transcript_view{ named, &window, qt::chat_transcript_look::card };
+		auto  dressed = std::vector<std::string>{ };
+		auto  footed  = std::vector<std::string>{ };
+		auto  acted   = std::vector<std::pair<std::string, qt::chat_turn_gesture>>{ };
+		view->set_parts({
+			.DressReader    = { },
+			.MakeAttachment = nullptr,
+			.Act            = [&acted](const std::string& aTurn, const qt::chat_turn_gesture aGesture) { acted.emplace_back(aTurn, aGesture); },
+			.DressBubble    = { },
+			.ReplyBody      = { },
+			.Stop           = { },
+			.ReplyIdentity  = { },
+			.DressCard =
+				[&dressed](const core::chat_turn& aTurn, const qt::chat_transcript_view::card_slots& aSlots) {
+					dressed.push_back(aTurn.Id);
+					aSlots.AfterReply->addWidget(new QLabel{ QStringLiteral("Under the reply"), aSlots.Card });
+				},
+			.DressFoot   = [&footed](const core::chat_turn& aTurn, QWidget& /*aCard*/, QHBoxLayout& /*aActions*/) { footed.push_back(aTurn.Id); },
+			.DressEnding = { },
+		});
+		window.resize(360, 600);
+		view->resize(360, 600);
+		window.show();
+		expect(view->turns_column() != nullptr && view->turns_column()->isHidden(), "the turns' column waits for a turn");
+
+		auto entries        = std::vector<core::agent_thread_entry>(2U);
+		entries[0].Serial   = 1U;
+		entries[0].Question = "Review this pull request";
+		entries[0].Answer   = "Two findings.";
+		entries[0].Done     = true;
+		entries[0].Line     = "Claude answered in 0:42 · 2 findings";
+		entries[1].Serial   = 2U;
+		entries[1].Question = "Why?";
+		view->present(core::project_agent_thread(entries, { .Working = true }));
+		view->present_live(qt::agent_run_status{ .Agent = QStringLiteral("Claude Code") }, QElapsedTimer{ });
+		settle();
+		expect(!view->turns_column()->isHidden() && view->turn_count() == 2U, "both turns in the turns' column");
+		expect(view->ending(0U) != nullptr && view->ending(0U)->text() == QStringLiteral("Claude answered in 0:42 · 2 findings"), "the line as it was kept");
+		expect(view->copy_reply(0U) != nullptr && view->copy_reply(0U)->isVisibleTo(&window), "an answer offers Copy");
+		expect(view->ending(1U) != nullptr && view->ending(1U)->live(), "the running turn's line is live");
+		const auto first = widgets_of(*view, 0U);
+
+		// The answer grows: one change, and every other turn keeps its widgets.
+		entries[1].Answer = "Bec";
+		view->present(core::project_agent_thread(entries, { .Working = true }));
+		const auto growing = widgets_of(*view, 1U);
+		expect(growing.Reply != nullptr && growing.Reply->isVisibleTo(&window) && growing.Reply->original_body() == "Bec", "the reader shows the answer as it comes");
+		entries[1].Answer = "Because it clamps.";
+		view->present(core::project_agent_thread(entries, { .Working = true }));
+		settle();
+		expect(view->last_delta() == core::chat_delta{ { .Kind = core::chat_change_kind::reply_grew, .Turn = "agent-turn-2", .Index = 1U } }, "one change, naming the turn");
+		expect(widgets_of(*view, 0U) == first && widgets_of(*view, 1U) == growing, "the same objects, the growing turn's reader its own");
+		expect(dressed == std::vector<std::string>{ "agent-turn-1", "agent-turn-2" } && footed == dressed, "the chat's own parts are made once a turn");
+
+		// It ends in an error: the card says so, with Resend and Delete.
+		entries[1].Done    = true;
+		entries[1].Outcome = core::agent_turn_outcome::exited_with_error;
+		entries[1].Line    = "Stopped after 0:03.";
+		view->present(core::project_agent_thread(entries, { }));
+		settle();
+		expect(widgets_of(*view, 0U) == first && view->reply(1U) == growing.Reply, "settling changes its own turn alone");
+		expect(view->card(1U) != nullptr && view->card(1U)->accessibleDescription() == QStringLiteral("Error"), "an error's card says it is one");
+		expect(view->recovery(1U) != nullptr && view->recovery(1U)->isVisibleTo(&window) && view->recovery(1U)->text() == QStringLiteral("Resend"), "the latest error offers Resend");
+		expect(view->remove(1U) != nullptr && view->remove(1U)->isVisibleTo(&window), "and Delete");
+		view->recovery(1U)->click();
+		view->remove(1U)->click();
+		expect(acted == std::vector<std::pair<std::string, qt::chat_turn_gesture>>{ { "agent-turn-2", qt::chat_turn_gesture::resend }, { "agent-turn-2", qt::chat_turn_gesture::remove } }, "each press names its turn");
+
+		// Deleted: one removal; the kept turn keeps its widgets.
+		entries.pop_back();
+		view->present(core::project_agent_thread(entries, { }));
+		settle();
+		expect(view->turn_count() == 1U && widgets_of(*view, 0U) == first, "the deleted turn leaves alone");
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -276,6 +362,7 @@ auto main(int argc, char** argv) -> int
 	test_a_growing_reply_keeps_every_other_turn();
 	test_the_item_chat_keeps_its_earlier_rounds();
 	test_the_tour_chat_keeps_its_other_turns();
+	test_the_card_look_keeps_every_other_turn();
 	std::cout << "chat-transcript-view-tests:pass\n";
 	return EXIT_SUCCESS;
 }

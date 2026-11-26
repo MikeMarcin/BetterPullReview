@@ -30,6 +30,7 @@
 #include "bpr/qt/chat_composer.hpp"
 #include "bpr/qt/chat_header_view.hpp"
 #include "bpr/qt/chat_history_menu.hpp"
+#include "bpr/qt/chat_transcript_view.hpp"
 #include "bpr/qt/explain_file_card.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
@@ -387,7 +388,7 @@ namespace bpr::qt {
 		/// thread?"). The conversation's turns, oldest first: what was asked
 		/// (or "Review this pull request"), the agent's answer as it streams,
 		/// and how the turn ended.
-		[[nodiscard]] auto conversation_thread() const noexcept -> QWidget* { return Thread; }
+		[[nodiscard]] auto conversation_thread() const noexcept -> QWidget* { return Transcript != nullptr ? Transcript->turns_column() : nullptr; }
 		[[nodiscard]] auto turn_count() const noexcept -> std::size_t { return Turns.size(); }
 		/// \brief RFC-BPR-0128. The facts the suggested prompts read now, for
 		/// the Ask menus.
@@ -510,7 +511,7 @@ namespace bpr::qt {
 		/// edit before sending. The core decides which.
 		void choose_prompt(const QString& aPrompt, bool aEditFirst);
 		/// \brief A press on one decided offer.
-		void press_offer(const core::prompt_offer& aOffer, bool aEditFirst);
+		void press_offer(const core::prompt_offer& aChosen, bool aEditFirst);
 		/// \brief Reads the panels again and redraws.
 		void refresh();
 		/// \brief The question field takes the keyboard.
@@ -1057,27 +1058,36 @@ namespace bpr::qt {
 			QPointer<QPushButton> ShowAll;
 			bool                  Unfolded = false;
 			/// [[BPR-2237]]. The prompt's text was changed before sending.
-			bool              Edited = false;
-			bool              Review = false;
-			bool              Done   = false;
-			QPointer<QWidget> Widget;
+			bool Edited = false;
+			bool Review = false;
+			bool Done   = false;
+			/// RFC-BPR-0130 stage 5. The turn is drawn by the one transcript
+			/// (`chat_transcript_view`, the card look) from
+			/// `core::project_agent_thread`: its bubble, reader, ending line,
+			/// activity, Copy, recovery and Delete are the view's. What the
+			/// reader shows (the answer with its references as links, or a
+			/// report's summary), under which identity, and whether that was
+			/// empty.
+			QString     Body;
+			std::string BodyKey;
+			bool        BodyEmpty = true;
+			bool        AnswerSet = false;
 			/// The answer as written, shown as Markdown.
-			QPointer<markdown_body_view> Answer;
-			QString                      AnswerText;
+			QString AnswerText;
 			/// The findings block's JSON as the agent wrote it, when the
 			/// answer ended with a complete one: what its cards came from.
-			std::string                     FindingsBlock;
-			QPointer<agent_run_status_line> Footer;
-			/// [[BPR-2005]]. Its helpers and the quiet notice while it runs;
-			/// the folded line after.
-			QPointer<agent_activity_view> Activity;
-			QPointer<QPushButton>         SaveNote;
-			QPointer<QVBoxLayout>         CardColumn;
-			QPointer<QToolButton>         Copy;
-			QPointer<QLabel>              AskedTime;
-			QPointer<QLabel>              AnsweredTime;
-			QDateTime                     AskedAt;
-			QDateTime                     AnsweredAt;
+			std::string FindingsBlock;
+			/// Its ending line as it was said, and the line's tooltip.
+			QString Line;
+			QString LineTip;
+			/// [[BPR-2005]]. What its run did, where this window saw it end.
+			std::optional<core::chat_activity> Ran;
+			QPointer<QPushButton>              SaveNote;
+			QPointer<QVBoxLayout>              CardColumn;
+			QPointer<QLabel>                   AskedTime;
+			QPointer<QLabel>                   AnsweredTime;
+			QDateTime                          AskedAt;
+			QDateTime                          AnsweredAt;
 			/// Names the answer's body, so its code is coloured as its own; the
 			/// turn's stable identity, which its report is keyed by.
 			std::uint64_t Serial = 0U;
@@ -1089,7 +1099,6 @@ namespace bpr::qt {
 			QPointer<QLabel> QuestionLabel;
 			/// [[BPR-2153]]. The reviewer's steered messages and where they show.
 			std::vector<application::agent_steered_message> Steered;
-			QPointer<QWidget>                               SteeredBox;
 			/// The one file the question names, which a bare "line 34" in the
 			/// answer is in.
 			QString ContextFile;
@@ -1128,11 +1137,9 @@ namespace bpr::qt {
 			bool                        ReportShown = false;
 			QPointer<QPushButton>       AskMore;
 			QPointer<QWidget>           Asked;
-			/// [[BPR-1847]]. How it ended, its reply card, and the one way
-			/// back an error offers.
-			core::agent_turn_outcome  Outcome = core::agent_turn_outcome::answered;
-			QPointer<QWidget>         Reply;
-			QPointer<QPushButton>     Recovery;
+			/// [[BPR-1847]]. How it ended, and the one way back an error
+			/// offers, as the projector decided it.
+			core::agent_turn_outcome  Outcome      = core::agent_turn_outcome::answered;
 			core::agent_turn_recovery RecoveryKind = core::agent_turn_recovery::none;
 			/// [[BPR-1876]]. The check its cause names was seen not passed
 			/// (running, failed or not run) after it ended, so a pass now is
@@ -1142,9 +1149,6 @@ namespace bpr::qt {
 			/// RFC-BPR-0096, owner continue-at-latest amendment: "maybe drop a
 			/// notice in the transcript that it happened".
 			QPointer<QLabel> MoveNotice;
-			/// [[BPR-1876]], [[BPR-1880]]. Delete: an error turn leaves the
-			/// thread.
-			QPointer<QPushButton> Delete;
 			/// [[BPR-2061]]. Draft all over its cards, what the last press
 			/// did, and the Undo of that batch.
 			QPointer<QWidget>          DraftAllRow;
@@ -1181,17 +1185,30 @@ namespace bpr::qt {
 		std::vector<ended_turn> EndedTurns;
 		/// The question and the answer as shown, their references links.
 		void show_question(turn& aTurn);
-		/// [[BPR-2153]]. The turn's steered messages, each as the reviewer's
-		/// message, marked steered, with its state when the agent never took it.
-		void show_steered(turn& aTurn);
 		void show_answer(turn& aTurn);
 		/// RFC-BPR-0127, owner look v006. Shows the answer's Draft, struck
 		/// where nothing takes a draft, or Go to draft once drafted.
-		void         present_keep(turn& aTurn);
-		QWidget*     Thread       = nullptr;
-		QVBoxLayout* ThreadColumn = nullptr;
-		/// Each turn's widgets, made for a new or restored turn.
-		auto add_turn_widgets(turn& aTurn) -> void;
+		void present_keep(turn& aTurn);
+		/// RFC-BPR-0130 stage 5. The conversation, drawn by the one
+		/// transcript in the card look.
+		chat_transcript_view* Transcript = nullptr;
+		/// The turns as the core's projector reads them.
+		[[nodiscard]] auto entries() const -> std::vector<core::agent_thread_entry>;
+		/// Draws the thread as it stands: only the turns that changed.
+		void present_transcript();
+		/// The turn a transcript identity names, and its place.
+		[[nodiscard]] auto record_of(const std::string& aId) -> turn*;
+		[[nodiscard]] auto place_of(const turn& aTurn) const -> std::size_t;
+		/// The reader the transcript shows a turn's answer in.
+		[[nodiscard]] auto reader_of(const turn& aTurn) const -> markdown_body_view*;
+		/// The Agent tab's own parts of a turn, made with it by the
+		/// transcript: the question's words, what it was about and the prompt
+		/// it was sent from; the notes over the answer, the report, Draft all
+		/// and the finding cards under it; the keep action and Ask more.
+		void dress_question(turn& aTurn, QWidget& aBubble, QVBoxLayout& aColumn, QLabel& aQuestion);
+		void dress_card(turn& aTurn, const chat_transcript_view::card_slots& aSlots);
+		void dress_foot(turn& aTurn, QWidget& aCard, QHBoxLayout& aActions);
+		void act_on_turn(const std::string& aId, chat_turn_gesture aGesture);
 		void set_answer(turn& aTurn, const QString& aText);
 		void settle_reply_footer(turn& aTurn);
 		/// [[BPR-1847]]. Each ended turn's actions, as the core decides them.
@@ -1220,12 +1237,10 @@ namespace bpr::qt {
 		void                                                                        colour_card(const card_entry& aEntry) const;
 		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
 		std::uint64_t                                                               NextSerial = 1U;
-		/// The answer is as tall as its text at the thread's width.
-		void                                                fit_answer(markdown_body_view& aAnswer) const;
-		std::function<void(std::vector<agent_thread_turn>)> ThreadObserver;
-		std::function<void()>                               ClearDispatch;
-		std::function<bool(core::agent_continuation)>       PinnedDispatch;
-		std::function<bool(core::conversation_reconcile)>   ReconcileDispatch;
+		std::function<void(std::vector<agent_thread_turn>)>                         ThreadObserver;
+		std::function<void()>                                                       ClearDispatch;
+		std::function<bool(core::agent_continuation)>                               PinnedDispatch;
+		std::function<bool(core::conversation_reconcile)>                           ReconcileDispatch;
 		/// Takes one pinned conversation choice: Continue resends the kept
 		/// message; New session keeps it for the session the host opens.
 		void choose_pinned(core::agent_continuation aChoice);

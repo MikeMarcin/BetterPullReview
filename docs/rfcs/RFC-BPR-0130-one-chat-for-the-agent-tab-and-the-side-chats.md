@@ -11,8 +11,9 @@ depends_on: ["RFC-BPR-0085", "RFC-BPR-0100", "RFC-BPR-0101", "RFC-BPR-0126", "RF
 Every observation below was read at `f84075042`; the line numbers are that
 revision's, to within a few lines. The owner chose the header, accepted the
 words and accepted the direction in an attended review on 2026-11-24
-([Owner answers](#owner-answers-2026-11-24)). Four questions are still open
-and say which scope waits on them.
+([Owner answers](#owner-answers-2026-11-24)). The owner answered question 4
+on 2026-11-25 (an item's side chat gains sessions); the other open
+questions are built as their defaults.
 
 ## Problem and grounded current behavior
 
@@ -285,7 +286,7 @@ tests passing.
 | 4 | The tour side chat adopts it; proposal and revision cards become attachments. | No |
 | 5 | The Agent tab adopts it; finding cards, report card, verdict and Draft all become attachments; the live turn's reducer moves to core; `agent_tab_view` stops borrowing controls. | No (see open question 1) |
 | 6 | `chat_notice` for the refusal strip, the banner, the pinned-revision card, the tour's notice and the item's status line. | One notice style |
-| 7 | An item's chat runs on the session runner; `side_chat_panel`'s hidden controls are deleted. | Waits on open question 4 |
+| 7 | An item's chat runs on the session runner; `side_chat_panel`'s hidden controls are deleted. | Yes: History, sessions and Stop in the item's chat (open question 4, answered 2026-11-25) |
 
 ### Work in flight this RFC builds on
 
@@ -333,7 +334,8 @@ from the missing words (open question 5).
 
 ## Open owner questions
 
-Each is built as its default until answered. Only question 4 holds scope back.
+Each is built as its default until answered. Question 4 held stage 7 back
+until the owner answered it on 2026-11-25.
 
 1. **The transcript's look.** The Agent tab draws questions and replies as
    cards; the side chats draw a bubble and a plain reply. Should the Agent tab
@@ -348,6 +350,11 @@ Each is built as its default until answered. Only question 4 holds scope back.
 4. **Sessions for an item's chat.** Should the side chat about one item gain
    sessions, cost and Stop by running on the session runner, or stay one
    conversation an item? Stage 7 does not start until this is answered.
+   **Answered 2026-11-25** (the owner, relayed by the RFC's coordinator,
+   verbatim): "sure seems like they should right". An item's side chat gains
+   sessions: History with New session and the session rows, a session's cost
+   in its row's tooltip, and Stop. Stage 7 is unparked and runs after
+   stage 6.
 5. **The rest of the header note.** The owner's note on the header stops at
    "And then ". What followed?
 
