@@ -4121,8 +4121,18 @@ function(bpr_verify_app_source_tree app_source_root)
 	# Local agent sessions and presentation only; no grant, provider,
 	# transport, mutation or publication path changes; full application and
 	# mutation-branch digests are unchanged.
+	# [[BPR-2417]] coordinator reseal at the merge: a Continue at <old> choice
+	# survives reloads the reviewer did not ask for. window_agent_setup.cpp's
+	# present_agent_native_history, its NativeSession/NativePinned restore and
+	# refresh_agent_authority ask the chat host (core
+	# decide_conversation_reload) before resetting or clearing;
+	# window_agent_chat.cpp and window_composition.hpp pass the selected saved
+	# conversation and mark History picks/New session as chosen anew; the
+	# fixture access gains replay_agent_history_load. Local session state only;
+	# no grant, provider, transport, mutation or publication path changes;
+	# full application and mutation-branch digests are unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "5074b3d1176abca7db71f7c6e2babca094c1099b6fe50c113939453354e90c05"
+        "1ef0fa403bdaca9df41a2f775120107958a28e65c0628d309ee726730724836d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
