@@ -3,6 +3,7 @@
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
+#include "bpr/qt/agent_footer.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
@@ -46,6 +47,7 @@
 #include <QChar>
 #include <QClipboard>
 #include <QColor>
+#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QElapsedTimer>
@@ -128,6 +130,53 @@
 
 namespace bpr::qt {
 	namespace {
+		/// \brief RFC-BPR-0130 stage 5 (AC07). The Agent tab's run, as the
+		/// launch panel was told it: the tab reads no panel.
+		[[nodiscard]] auto agent_tab_run_of(const agent_launch_panel& aLaunch) -> agent_tab_run
+		{
+			auto run = agent_tab_run{ };
+			// Owner amendment 2026-10-23: the agent is switched from the chip
+			// in the question field; the selector stays the one choice, unseen.
+			run.Agent            = aLaunch.profile_selector()->currentText();
+			run.Profile          = aLaunch.selected_profile();
+			run.UnavailableAgent = aLaunch.unavailable_agent_name();
+			run.Offered          = aLaunch.offered_count();
+			run.Startable        = aLaunch.start_action()->isEnabled();
+			run.Stoppable        = aLaunch.cancel_action()->isEnabled();
+			run.Status           = aLaunch.status_text();
+			switch (aLaunch.current_phase()) {
+			case agent_launch_panel::phase::idle:      run.Phase = agent_tab_run_phase::idle; break;
+			case agent_launch_panel::phase::preparing: run.Phase = agent_tab_run_phase::preparing; break;
+			case agent_launch_panel::phase::running:   run.Phase = agent_tab_run_phase::running; break;
+			}
+			run.WorkspaceChecking = aLaunch.workspace_checking();
+			run.Output            = aLaunch.output_text();
+			run.LatestLine        = aLaunch.latest_output_line();
+			run.Steered           = aLaunch.steered();
+			run.RunningCost       = aLaunch.running_turn_cost();
+			run.Activity          = aLaunch.activity();
+			run.ActivityStartedMs = aLaunch.activity_started_ms();
+			run.ActivityReported  = aLaunch.activity_reported();
+			run.FilesOnly         = aLaunch.pull_request_files_only();
+			run.Outcome           = aLaunch.last_outcome();
+			run.StopReason        = aLaunch.stop_reason_text();
+			run.Kept              = aLaunch.kept_text();
+			run.Failure           = aLaunch.last_failure();
+			run.UnfinishedHelpers = aLaunch.unfinished_helpers();
+			run.FailedWrites      = aLaunch.failed_writes();
+			run.FailedWriteCount  = aLaunch.failed_write_count();
+			run.ReportedModel     = aLaunch.last_reported_model();
+			run.TurnCost          = aLaunch.last_turn_cost();
+			run.SessionCost       = aLaunch.last_session_cost();
+			run.Pinned            = aLaunch.pinned_conversation();
+			run.MoveRefusal       = aLaunch.move_refusal();
+			run.Move              = aLaunch.last_move();
+			run.StoppedForGood    = aLaunch.stopped_for_good();
+			run.Refusals          = aLaunch.refusal_count();
+			run.LastRefusal       = aLaunch.last_refusal();
+			return run;
+		}
+
 		class inline_comments_tab final : public QWidget
 		{
 		public:
@@ -1682,13 +1731,62 @@ namespace bpr::qt {
 		privateTabs->setAccessibleName(tr("Private history and agent tools"));
 		PrivateReview = new private_review_panel{ agentPage };
 		ReviewSubmissionEditor->set_saved_comments_reveal([this] { PrivateReview->show_saved_comments(); });
-		privateTabs->addTab(makeTabColumn(PrivateReview, QStringLiteral("privateHistoryScroll")), tr("Private history"));
+		auto* const everyRun = makeTabColumn(PrivateReview, QStringLiteral("privateHistoryScroll"));
 		privateTabs->addTab(ConversationScroll, tr("Agent tools"));
 		agentPageLayout->addWidget(privateTabs, 1);
-		// [[BPR-1594]]. RFC-BPR-0085 D5: the Agent tab presents the agent's
-		// panels, moved into one layout; the private history is its History.
-		// The panels' own column stays, unseen, for every control not moved.
-		AgentTab = new agent_tab_view{ *AgentPanel, *SideChat, *FindingQueue, *privateTabs->widget(0), agentPage };
+		// [[BPR-1594]]. RFC-BPR-0085 D5: the Agent tab, its private history
+		// the run list History's Show every run… opens. RFC-BPR-0130 stage 5
+		// (AC07): it holds no panel's control and reads none. The window
+		// hands it what the launch panel, the session's chat and the finding
+		// queue are told, and maps its gestures to them; their own column
+		// stays, unseen.
+		AgentTab = new agent_tab_view{ std::make_shared<agent_run_settings_source>(*AgentPanel), agentPage };
+		AgentTab->adopt_every_run(*everyRun);
+		AgentTab->set_intents({
+			.Start           = [this] { AgentPanel->start_action()->trigger(); },
+			.Stop            = [this] { AgentPanel->cancel_action()->trigger(); },
+			.ChooseAgent     = [this](const std::uint64_t aProfile) {
+				auto* const selector = AgentPanel->profile_selector();
+				const auto  index    = selector->findData(QVariant::fromValue<qulonglong>(aProfile));
+				if (index < 0) {
+					return false;
+				}
+				selector->setCurrentIndex(index);
+				return true; },
+			.Send            = [this](const agent_tab_send& aSend) { SideChat->send(aSend.Text, aSend.Question, aSend.SkillText); },
+			.Continue        = [this](const core::agent_continuation aChoice) { (aChoice == core::agent_continuation::start_new_session ? SideChat->new_session_action() : SideChat->continue_old_revision_action())->trigger(); },
+			.Finding         = [this](const std::size_t aOrdinal, const finding_queue_action aAction) {
+				FindingQueue->select(aOrdinal);
+				if (auto* const action = FindingQueue->action(aAction); action != nullptr) {
+					action->trigger();
+				} },
+			.OpenRunSettings = [this] {
+				if (AgentFooter != nullptr) {
+					AgentFooter->picker()->showMenu();
+				} },
+		});
+		const auto handRun = [this](const agent_tab_run_change aChange) {
+			if (AgentTab != nullptr) {
+				AgentTab->present_run(agent_tab_run_of(*AgentPanel), aChange);
+			}
+		};
+		AgentPanel->add_change_observer([handRun] { handRun(agent_tab_run_change::quiet); });
+		AgentPanel->add_progress_observer([handRun] { handRun(agent_tab_run_change::progressed); });
+		for (auto* const action : { AgentPanel->start_action(), AgentPanel->cancel_action() }) {
+			connect(action, &QAction::changed, AgentTab, [handRun] { handRun(agent_tab_run_change::actions); });
+		}
+		connect(AgentPanel->profile_selector(), &QComboBox::currentIndexChanged, AgentTab, [handRun] { handRun(agent_tab_run_change::agent); });
+		SideChat->set_presentation_observer([this](const side_chat_projection& aChat) {
+			if (AgentTab != nullptr) {
+				AgentTab->present_chat(aChat);
+			}
+		});
+		FindingQueue->set_presentation_observer([this](const application::agent_finding_delivery& aDelivery) {
+			if (AgentTab != nullptr) {
+				AgentTab->present_findings(aDelivery);
+			}
+		});
+		handRun(agent_tab_run_change::actions);
 		// Owner look v006 ("I selected a block and it still said the line
 		// suggestion and then when i clicked away ... the suggestion text
 		// updates to block"): the selected lines are the panes' own text

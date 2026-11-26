@@ -308,7 +308,12 @@ namespace bpr::qt {
 
 		refresh_details();
 		refresh_enablement();
+		if (Members.PresentationObserver) {
+			Members.PresentationObserver(aDelivery);
+		}
 	}
+
+	void finding_queue_view::set_presentation_observer(std::function<void(const application::agent_finding_delivery&)> aObserver) { Members.PresentationObserver = std::move(aObserver); }
 
 	void finding_queue_view::select(const std::size_t aOrdinal)
 	{

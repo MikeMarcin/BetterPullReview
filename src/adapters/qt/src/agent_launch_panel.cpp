@@ -519,6 +519,13 @@ namespace bpr::qt {
 		}
 	}
 
+	void agent_launch_panel::add_change_observer(std::function<void()> aObserver)
+	{
+		if (aObserver) {
+			ChangeObservers.push_back(std::move(aObserver));
+		}
+	}
+
 	void agent_launch_panel::progressed()
 	{
 		for (const auto& observer : ProgressObservers) {
@@ -819,6 +826,9 @@ namespace bpr::qt {
 		DraftSelector->setEnabled(!Running && OfferedDraft.has_value());
 		if (ConfigurationObserver) {
 			ConfigurationObserver();
+		}
+		for (const auto& observer : ChangeObservers) {
+			observer();
 		}
 	}
 } // namespace bpr::qt

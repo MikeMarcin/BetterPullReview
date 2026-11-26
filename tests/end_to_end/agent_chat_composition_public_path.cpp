@@ -375,7 +375,7 @@ namespace {
 		}
 		std::cout << "live-claude open=" << open.toStdString() << " other-files-discussed=" << named.size() << " (" << named.join(QStringLiteral(", ")).toStdString() << ")\n";
 		std::cout << "live-claude answer-head: " << tab->turn_answer(0U).left(600).toStdString() << "\n";
-		auto* const composer = window.side_chat()->composer();
+		auto* const composer = window.agent_tab()->question_editor();
 		const auto  typed    = [&](const QString& aWords) {
 			return [&, aWords] {
 				composer->setPlainText(aWords);
@@ -1037,7 +1037,7 @@ namespace {
 			return fail(aApplication, "head-move-agent-choice");
 		}
 		const auto asked = access::agent_chat_evidence(aApplication).Observed;
-		aChat.composer()->setPlainText(QString::fromUtf8(chat_message.data(), static_cast<qsizetype>(chat_message.size())));
+		aWindow.agent_tab()->question_editor()->setPlainText(QString::fromUtf8(chat_message.data(), static_cast<qsizetype>(chat_message.size())));
 		QApplication::processEvents();
 		// The Agent tab's own Send, as the reviewer presses it.
 		aWindow.agent_tab()->ask_button()->click();
@@ -1311,7 +1311,7 @@ auto main(int argc, char** argv) -> int
 		};
 		const auto typed = [&](const QString& aWords) {
 			return [&, aWords] {
-				chat->composer()->setPlainText(aWords);
+				window.agent_tab()->question_editor()->setPlainText(aWords);
 				tab->ask_button()->click();
 			};
 		};
@@ -1516,7 +1516,7 @@ auto main(int argc, char** argv) -> int
 			})) {
 			return fail(*application, "custom-agent-history-ready", historyReady.render());
 		}
-		chat->composer()->clear();
+		window.agent_tab()->question_editor()->clear();
 		tab->ask_button()->click();
 		QApplication::processEvents();
 		if (tab->send_refusal() != core::agent_send_refusal::empty_message || tab->send_refusal_strip()->isHidden()
@@ -1575,7 +1575,7 @@ auto main(int argc, char** argv) -> int
 
 	// The gesture. Typed into the shipped composer and sent with the shipped
 	// action, on the panel the window itself placed.
-	chat->composer()->setPlainText(QString::fromUtf8(
+	window.agent_tab()->question_editor()->setPlainText(QString::fromUtf8(
 		chat_message.data(), static_cast<qsizetype>(chat_message.size())));
 	QApplication::processEvents();
 	if (custom) {
@@ -1585,7 +1585,7 @@ auto main(int argc, char** argv) -> int
 		if (!jsonlKept()) {
 			return fail(*application, "agent-choice-kept", panel->profile_selector()->currentText().toStdString());
 		}
-		chat->send_action()->trigger();
+		window.agent_tab()->ask_button()->click();
 	}
 	QApplication::processEvents();
 
@@ -2098,7 +2098,7 @@ auto main(int argc, char** argv) -> int
 				*application, "continued-selection", continuedSelection.render());
 		}
 
-		chat->composer()->setPlainText(QString::fromUtf8(
+		window.agent_tab()->question_editor()->setPlainText(QString::fromUtf8(
 			continued_message.data(),
 			static_cast<qsizetype>(continued_message.size())));
 		QApplication::processEvents();
@@ -2108,7 +2108,7 @@ auto main(int argc, char** argv) -> int
 		if (!jsonlKept()) {
 			return fail(*application, "continued-agent-choice-kept", panel->profile_selector()->currentText().toStdString());
 		}
-		chat->send_action()->trigger();
+		window.agent_tab()->ask_button()->click();
 		QApplication::processEvents();
 
 		// The composition half, checked before the answer rather than after

@@ -1211,7 +1211,7 @@ namespace {
 				};
 				auto       generation = std::uint64_t{ 0U };
 				const auto stop       = [&](const bool aWorkInTheWay) {
-					chat->composer()->setPlainText(QStringLiteral("Review this pull request"));
+					window.agent_tab()->question_editor()->setPlainText(QStringLiteral("Review this pull request"));
 					tab->ask_button()->click();
 					settle();
 					auto identity                 = application::agent_invocation_projection_identity{ };
@@ -1248,7 +1248,7 @@ namespace {
 						// wrap, and never again in a code block that pans.
 						require_drawer(*drawer, where);
 					}
-					if (const auto faults = card_faults(*tab) + placement_faults(*tab, *chat->composer()); !faults.isEmpty()) {
+					if (const auto faults = card_faults(*tab) + placement_faults(*tab, *window.agent_tab()->question_editor()); !faults.isEmpty()) {
 						failures.push_back(where + ": " + faults.join(QStringLiteral("; ")).toStdString());
 					}
 					// The same card in its three states: one title, the
@@ -1345,7 +1345,7 @@ namespace {
 					settle();
 				}
 				{
-					chat->composer()->setPlainText(QStringLiteral("Review this pull request"));
+					window.agent_tab()->question_editor()->setPlainText(QStringLiteral("Review this pull request"));
 					tab->ask_button()->click();
 					settle();
 					auto identity                 = application::agent_invocation_projection_identity{ };
@@ -1375,7 +1375,7 @@ namespace {
 						save(window, QStringLiteral("agent-stopped-card-%1-%2-%3").arg(QString::fromLatin1(aName), QString::fromLatin1(name)).arg(width));
 						require_drawer(*drawer, where);
 					}
-					if (const auto faults = card_faults(*tab) + placement_faults(*tab, *chat->composer()); !faults.isEmpty()) {
+					if (const auto faults = card_faults(*tab) + placement_faults(*tab, *window.agent_tab()->question_editor()); !faults.isEmpty()) {
 						failures.push_back(where + ": " + faults.join(QStringLiteral("; ")).toStdString());
 					}
 				};

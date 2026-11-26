@@ -186,6 +186,15 @@ themes, rendering mechanics, and event translation.
   its turn is reached by Tab where it stands. A turn's
   ending line is `core::chat_ending_words` in every chat: who, how long,
   what it cost.
+- The Agent tab holds no other widget's control and reads none
+  (RFC-BPR-0130 AC07). The window hands it values (`agent_tab_run`, the
+  session's `side_chat_projection`, the findings delivered) whenever the
+  launch panel, the side chat panel or the finding queue is told something,
+  and maps its `agent_tab_intents` to them; the question field's words are
+  the tab's own. A course that asks the Agent tab types in
+  `question_editor()` and presses `ask_button()`, never the hidden side chat
+  panel's words and Send, which no longer reach the tab. Its running turn is
+  `core::reduce_agent_live_turn`'s.
 - A card the next question waits on, or that reports the turn at the thread's
   end, stands on the question field (`agent_tab_view::dock_banner`), not at
   the head of a thread that keeps itself at its end: the card that asks which

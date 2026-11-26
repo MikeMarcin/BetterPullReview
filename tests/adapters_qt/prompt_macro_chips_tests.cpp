@@ -153,7 +153,7 @@ namespace {
 		}
 
 		auto tab() -> qt::agent_tab_view& { return *Window.agent_tab(); }
-		auto field() -> QPlainTextEdit& { return *Window.side_chat()->composer(); }
+		auto field() -> QPlainTextEdit& { return *Window.agent_tab()->question_editor(); }
 
 		void set_context(qt::agent_suggestion_context aContext)
 		{

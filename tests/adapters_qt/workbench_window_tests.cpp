@@ -15170,7 +15170,7 @@ namespace {
 		});
 		process_events();
 		agent->refresh();
-		auto* const composer = chat->composer();
+		auto* const composer = window.agent_tab()->question_editor();
 		const auto  key      = [composer](const Qt::KeyboardModifiers aModifiers, const QString& aText = QStringLiteral("\r")) {
 			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, aModifiers, aText };
 			QApplication::sendEvent(composer, &press);
@@ -15410,7 +15410,7 @@ namespace {
 				dismiss->click();
 				process_events();
 			}
-			chat->composer()->setPlainText(QStringLiteral("Review this pull request"));
+			window.agent_tab()->question_editor()->setPlainText(QStringLiteral("Review this pull request"));
 			agent->ask_button()->click();
 			process_events();
 		};
@@ -15469,13 +15469,13 @@ namespace {
 			agent->send_prompt(prompts.front()->property("agentPromptKey").toString());
 			process_events();
 			expect(sends.size() == typedBefore, "a prompt asked for by its name is not sent either");
-			chat->composer()->setPlainText(QStringLiteral("And is the shader still read?"));
+			window.agent_tab()->question_editor()->setPlainText(QStringLiteral("And is the shader still read?"));
 			agent->ask_button()->click();
 			process_events();
 			expect(sends.size() == typedBefore && agent->turn_count() == turnsBefore && agent->send_refusal_text() == QStringLiteral("Not sent. The pull request has moved on. Choose Continue or New session, then send.")
-					   && chat->composer()->toPlainText() == QStringLiteral("And is the shader still read?"),
+					   && window.agent_tab()->question_editor()->toPlainText() == QStringLiteral("And is the shader still read?"),
 				   "a question typed while the card waits is not sent and stays in the field: " + agent->send_refusal_text().toStdString());
-			chat->composer()->clear();
+			window.agent_tab()->question_editor()->clear();
 		}
 		if (const auto root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT"); !root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-pinned-conversation.png"), "PNG"), "render saved");
@@ -15570,7 +15570,7 @@ namespace {
 			expect(log->height() == qt::agent_tab_view::stopped_log_lines * line + 2 && log->verticalScrollBar()->maximum() > 0, "a long log is nine lines tall and scrolls inside the card: " + std::to_string(log->height()));
 			expect(log->horizontalScrollBar()->maximum() == log->horizontalScrollBar()->minimum() && !log->horizontalScrollBar()->isVisible() && agent->banner()->width() <= agent->width(),
 				   "a line with no space in it wraps: the card does not pan");
-			expect(agent->banner_first_button()->isVisible() && agent->banner_second_button()->isVisible() && window.side_chat()->composer()->isVisibleTo(&window), "Resend, Hide the log and the question field stay in view beside it");
+			expect(agent->banner_first_button()->isVisible() && agent->banner_second_button()->isVisible() && window.agent_tab()->question_editor()->isVisibleTo(&window), "Resend, Hide the log and the question field stay in view beside it");
 			if (const auto root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT"); !root.isEmpty()) {
 				expect(agent->grab().save(root + QStringLiteral("/agent-stopped-long-log.png"), "PNG"), "render saved");
 			}
@@ -15642,7 +15642,7 @@ namespace {
 		expect(!agent->banner_reconcile_buttons()[0]->isVisible() && agent->banner_reconcile_buttons()[1]->isVisible(), "after a rebase conflicted, Rebase is not offered again");
 
 		// The turn that moved says so, quietly, over its answer.
-		chat->composer()->setPlainText(QStringLiteral("What changed?"));
+		window.agent_tab()->question_editor()->setPlainText(QStringLiteral("What changed?"));
 		agent->ask_button()->click();
 		process_events();
 		auto identity                 = application::agent_invocation_projection_identity{ };
@@ -15695,7 +15695,7 @@ namespace {
 			agent->present_native_history(aView);
 			process_events();
 			expect(said->isVisible() && said->text() == aWords && said->toolTip() == aTip, "the session says how it goes on, naming the agent the tab asks: " + said->text().toStdString() + " / " + said->toolTip().toStdString());
-			expect(said->foregroundRole() == QPalette::PlaceholderText && inTab(*said).top() > inTab(*scroll).bottom() && inTab(*said).bottom() < inTab(*chat->composer()).top()
+			expect(said->foregroundRole() == QPalette::PlaceholderText && inTab(*said).top() > inTab(*scroll).bottom() && inTab(*said).bottom() < inTab(*window.agent_tab()->question_editor()).top()
 					   && inTab(*said).left() >= 8 && inTab(*said).right() < agent->width() - 4,
 				   "as a quiet said on the question field, under the transcript and over the field");
 			expect(headless(), "and nothing stands between the header's row and the transcript");
@@ -15782,7 +15782,7 @@ namespace {
 			   "with a review's chat Send can be pressed");
 
 		// Nothing typed: refused before anything is sent, and said.
-		chat->composer()->clear();
+		window.agent_tab()->question_editor()->clear();
 		agent->ask_button()->click();
 		process_events();
 		expect(sends.empty() && agent->send_refusal() == core::agent_send_refusal::empty_message && agent->send_refusal_strip()->isVisible()
@@ -15790,7 +15790,7 @@ namespace {
 			   "an empty send sends nothing and the composer says to type a question");
 
 		// Typed and sent: the gesture leaves, and the strip goes with it.
-		chat->composer()->setPlainText(QStringLiteral("What does the retry budget do?"));
+		window.agent_tab()->question_editor()->setPlainText(QStringLiteral("What does the retry budget do?"));
 		agent->ask_button()->click();
 		process_events();
 		expect(sends.size() == 1U && sends.back().Text == "What does the retry budget do?" && !agent->send_refusal_strip()->isVisible(), "a typed send leaves, with no refusal shown");
@@ -15801,7 +15801,7 @@ namespace {
 		expect(agent->send_refusal_strip()->isVisible() && agent->findChild<QWidget*>(QStringLiteral("agentQuestion"))->isAncestorOf(agent->send_refusal_strip())
 				   && agent->send_refusal_text() == QStringLiteral("Not sent. Fixture agent isn't allowed for this pull request's server. Choose an agent the server allows."),
 			   "a refusal the host names is said beside the composer, naming the agent");
-		expect(chat->composer()->toPlainText() == QStringLiteral("What does the retry budget do?") && agent->turn_count() == 0U, "the question stays in the field and no turn is shown");
+		expect(window.agent_tab()->question_editor()->toPlainText() == QStringLiteral("What does the retry budget do?") && agent->turn_count() == 0U, "the question stays in the field and no turn is shown");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-send-refused-light.png"), "PNG"), "render saved");
 			const auto light = QApplication::palette();
@@ -15857,7 +15857,7 @@ namespace {
 		// While it runs, a second send from the keyboard is refused and said.
 		{
 			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
-			QApplication::sendEvent(chat->composer(), &press);
+			QApplication::sendEvent(window.agent_tab()->question_editor(), &press);
 		}
 		process_events();
 		expect(agent->send_refusal() == core::agent_send_refusal::request_in_flight && sends.size() == 4U, "a send while the agent works is refused before it is sent, and said");
@@ -16175,7 +16175,7 @@ namespace {
 		identity.ApplicationSession   = core::application_session_id{ 1U };
 		identity.Session.Id           = core::agent_session_id{ 9U };
 		identity.InvocationGeneration = 1U;
-		chat->composer()->setPlainText(question);
+		window.agent_tab()->question_editor()->setPlainText(question);
 		agent->ask_button()->click();
 		process_events();
 		expect(sends.size() == 1U && sends.back().Text == question.toStdString(), "the question is sent");
@@ -16198,12 +16198,12 @@ namespace {
 			auto* const close = agent->stopped_dismiss_button();
 			expect(shown(close) && close->text() == QString{ QChar{ 0x2715 } } && close->accessibleName() == QStringLiteral("Dismiss") && close->focusPolicy() == Qt::StrongFocus,
 				   "the stop carries the ready box's close, named and reachable from the keyboard");
-			chat->composer()->setPlainText(QStringLiteral("a draft in progress"));
+			window.agent_tab()->question_editor()->setPlainText(QStringLiteral("a draft in progress"));
 			close->click();
 			process_events();
-			expect(!shown(agent->banner()) && agent->turn_count() == 1U && chat->composer()->toPlainText() == QStringLiteral("a draft in progress"),
+			expect(!shown(agent->banner()) && agent->turn_count() == 1U && window.agent_tab()->question_editor()->toPlainText() == QStringLiteral("a draft in progress"),
 				   "dismissing removes the block and nothing else: the turn and the composer stay");
-			chat->composer()->clear();
+			window.agent_tab()->question_editor()->clear();
 		}
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-failed-answer-cause-light.png"), "PNG"), "render saved");
@@ -16263,7 +16263,7 @@ namespace {
 		setup.State.AgentCheck.State = core::setup_check_state::passed;
 		window.agent_setup()->present(setup, clones, { });
 		process_events();
-		chat->composer()->setPlainText(question);
+		window.agent_tab()->question_editor()->setPlainText(question);
 		agent->ask_button()->click();
 		process_events();
 		identity.InvocationGeneration = 3U;
@@ -16415,7 +16415,7 @@ namespace {
 		panel->prefer_profile(first.Id);
 		panel->offer_profiles(both);
 		process_events();
-		expect(panel->selected_profile() == std::optional{ second.Id } && agent->run_settings_text().startsWith(QStringLiteral("Fixture agent")),
+		expect(panel->selected_profile() == std::optional{ second.Id } && window.agent_footer_widget()->picker()->full_text().startsWith(QStringLiteral("Fixture agent")),
 			   "a setup update and a re-offer keep the reviewer's agent in the pill");
 
 		const auto binding = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
@@ -16442,20 +16442,20 @@ namespace {
 		agent->refresh();
 		process_events();
 		expect(!panel->selected_profile().has_value() && panel->unavailable_agent_name() == QStringLiteral("Fixture agent"), "the removed agent is not replaced by the other");
-		expect(!agent->run_settings_button()->isHidden() && agent->run_settings_text() == QStringLiteral("Unavailable: Fixture agent"),
-			   "the pill says the chosen agent isn't available: " + agent->run_settings_text().toStdString());
-		auto* const menu    = agent->run_settings_button()->menu();
+		expect(!window.agent_footer_widget()->picker()->isHidden() && window.agent_footer_widget()->picker()->full_text() == QStringLiteral("Unavailable: Fixture agent"),
+			   "the pill says the chosen agent isn't available: " + window.agent_footer_widget()->picker()->full_text().toStdString());
+		auto* const menu    = window.agent_footer_widget()->picker()->menu();
 		const auto  actions = menu->actions();
 		expect(!actions.isEmpty() && actions.front()->text() == QStringLiteral("Fixture agent isn't available. Choose an agent:") && !actions.front()->isEnabled()
 				   && std::ranges::count_if(actions, [](const QAction* aAction) { return aAction->objectName() == QStringLiteral("agentRunSettingsAgent"); }) == 1,
 			   "its menu says so and offers the agents to choose from");
-		chat->composer()->setPlainText(QStringLiteral("What does the retry budget do?"));
+		window.agent_tab()->question_editor()->setPlainText(QStringLiteral("What does the retry budget do?"));
 		agent->ask_button()->click();
 		process_events();
 		expect(sends.empty() && agent->send_refusal() == core::agent_send_refusal::agent_unavailable && agent->send_refusal_strip()->isVisible()
 				   && agent->send_refusal_text() == QStringLiteral("Not sent. Fixture agent isn't available. Choose an agent in the agent menu, then send."),
 			   "a send to it is refused and says why: " + agent->send_refusal_text().toStdString());
-		expect(chat->composer()->toPlainText() == QStringLiteral("What does the retry budget do?"), "the question stays in the field");
+		expect(window.agent_tab()->question_editor()->toPlainText() == QStringLiteral("What does the retry budget do?"), "the question stays in the field");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-unavailable-light.png"), "PNG"), "render saved");
 			const auto light = QApplication::palette();
@@ -16481,7 +16481,7 @@ namespace {
 		// Choosing the other agent from the pill's menu ends it.
 		expect(agent->choose_agent(first.Id.value()), "another agent is chosen from the menu");
 		process_events();
-		expect(panel->selected_profile() == std::optional{ first.Id } && panel->unavailable_agent_name().isEmpty() && agent->run_settings_text().startsWith(QStringLiteral("Review agent")),
+		expect(panel->selected_profile() == std::optional{ first.Id } && panel->unavailable_agent_name().isEmpty() && window.agent_footer_widget()->picker()->full_text().startsWith(QStringLiteral("Review agent")),
 			   "the pill names the chosen agent again");
 		chat->set_dispatch({ });
 		window.hide();
@@ -16701,9 +16701,15 @@ namespace {
 		process_events();
 		agent->refresh();
 		process_events();
-		expect(agent->state() == qt::agent_tab_state::idle && !agent->empty_state()->isVisible() && agent->ask_button()->isVisible() && window.side_chat()->composer()->isVisible()
-				   && agent->isAncestorOf(window.side_chat()->composer()) && agent->isAncestorOf(window.agent_panel()->profile_selector()),
-			   "with an agent set up, the tab is the conversation with the question field, its agent in the context row");
+		expect(agent->state() == qt::agent_tab_state::idle && !agent->empty_state()->isVisible() && agent->ask_button()->isVisible() && window.agent_tab()->question_editor()->isVisible()
+				   && agent->isAncestorOf(window.agent_tab()->question_editor()),
+			   "with an agent set up, the tab is the conversation with the question field");
+		// RFC-BPR-0130 stage 5 (AC07). The tab holds no other widget's
+		// control: the panels keep their own, and the tab its words.
+		for (auto* const control : std::initializer_list<QWidget*>{ window.agent_panel()->profile_selector(), window.side_chat()->composer(), window.side_chat()->replies_list(), window.finding_queue()->findings_list() }) {
+			expect(!agent->isAncestorOf(control), "the Agent tab holds no panel's control: " + control->objectName().toStdString());
+		}
+		expect(window.agent_tab()->question_editor() != window.side_chat()->composer(), "the Agent tab's words are its own");
 		auto finding       = core::agent_finding{ };
 		finding.Provider   = core::agent_profile_id{ 1U };
 		finding.Severity   = core::defect_severity::major;
@@ -16820,7 +16826,7 @@ namespace {
 		}
 		// [[BPR-2051]], owner decision 2026-11-11 ("A + footer 1"): the agent,
 		// model and effort picker is the window footer's, not the drawer's.
-		expect(window.agent_footer_widget()->isAncestorOf(agent->run_settings_button()) && !agent->isAncestorOf(agent->run_settings_button()),
+		expect(window.agent_footer_widget()->isAncestorOf(window.agent_footer_widget()->picker()) && !agent->isAncestorOf(window.agent_footer_widget()->picker()),
 			   "the model and effort picker is in the window's footer, not the Agent tab");
 		auto observedThread = std::vector<qt::agent_thread_turn>{ };
 		agent->set_thread_observer([&observedThread](std::vector<qt::agent_thread_turn> aTurns) { observedThread = std::move(aTurns); });
@@ -16871,13 +16877,13 @@ namespace {
 			// box"). A chat answer with no finding is prose; it is the turn's
 			// answer, and the question field is cleared once the question is
 			// sent.
-			window.side_chat()->composer()->setPlainText(QStringLiteral("Does this work?"));
-			window.side_chat()->send_action()->setEnabled(true);
-			window.side_chat()->send_action()->trigger();
+			window.agent_tab()->question_editor()->setPlainText(QStringLiteral("Does this work?"));
+			window.side_chat()->present(qt::side_chat_projection{ });
+			window.agent_tab()->ask_button()->click();
 			identity.InvocationGeneration = 2U;
 			window.agent_panel()->admit(identity);
 			process_events();
-			expect(agent->turn_count() == 2U && agent->turn_question(1U) == QStringLiteral("Does this work?") && window.side_chat()->composer()->toPlainText().isEmpty(),
+			expect(agent->turn_count() == 2U && agent->turn_question(1U) == QStringLiteral("Does this work?") && window.agent_tab()->question_editor()->toPlainText().isEmpty(),
 				   "the sent question is the next turn and leaves the field empty");
 			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
 			process_events();
@@ -17078,10 +17084,10 @@ namespace {
 				return true;
 			});
 			process_events();
-			expect(!agent->run_settings_button()->isHidden() && agent->run_settings_text() == QStringLiteral("Codex · Default model")
-					   && agent->run_settings_button()->toolTip().contains(QStringLiteral("/Users/me/.local/bin/codex")),
+			expect(!window.agent_footer_widget()->picker()->isHidden() && window.agent_footer_widget()->picker()->full_text() == QStringLiteral("Codex · Default model")
+					   && window.agent_footer_widget()->picker()->toolTip().contains(QStringLiteral("/Users/me/.local/bin/codex")),
 				   "the row names the model and effort, and its tooltip the program that runs");
-			auto* const composer = window.side_chat()->composer();
+			auto* const composer = window.agent_tab()->question_editor();
 			composer->setPlainText(QStringLiteral("/effort high"));
 			agent->ask_button()->setEnabled(true);
 			agent->ask_button()->click();
@@ -17109,14 +17115,14 @@ namespace {
 				claude.Models = { { "claude-opus-5-5", QStringLiteral("Opus 5.5") }, { "claude-sonnet-5-5", QStringLiteral("Sonnet 5.5") } };
 				agent->present_run_settings({ claude });
 				process_events();
-				expect(agent->run_settings_text() == QStringLiteral("Claude Code · Sonnet 5.5"), "the chip names the chosen model with its version");
+				expect(window.agent_footer_widget()->picker()->full_text() == QStringLiteral("Claude Code · Sonnet 5.5"), "the chip names the chosen model with its version");
 				agent->present_run_settings({ settings });
 			}
 			// Owner look v006: the menu ends with Agent settings….
 			{
 				auto settingsOpened = 0;
 				agent->set_setup_dispatch([&settingsOpened] { ++settingsOpened; });
-				const auto items = agent->run_settings_button()->menu()->actions();
+				const auto items = window.agent_footer_widget()->picker()->menu()->actions();
 				expect(!items.isEmpty() && items.back()->objectName() == QStringLiteral("agentRunSettingsOpenSettings") && items.back()->text() == QStringLiteral("Agent settings…"),
 					   "the agent menu ends with Agent settings…");
 				items.back()->trigger();
@@ -17137,16 +17143,16 @@ namespace {
 				other.Effort  = "high";
 				agent->present_run_settings({ settings, other });
 				process_events();
-				emit agent->run_settings_button()->menu()->aboutToShow();
+				emit window.agent_footer_widget()->picker()->menu()->aboutToShow();
 				auto choices = QStringList{ };
-				for (auto* const item : agent->run_settings_button()->menu()->actions()) {
+				for (auto* const item : window.agent_footer_widget()->picker()->menu()->actions()) {
 					if (item->objectName() == QStringLiteral("agentRunSettingsAgent")) {
 						choices << item->text();
 					}
 				}
 				expect(choices == QStringList{ QStringLiteral("Codex"), QStringLiteral("Work Codex") }, "the chip's menu lists every added agent");
 				expect(agent->choose_agent(1102U) && window.agent_panel()->selected_profile() == std::optional{ core::agent_profile_id{ 1102U } }
-						   && agent->run_settings_text() == QStringLiteral("Work Codex · Default model · high effort"),
+						   && window.agent_footer_widget()->picker()->full_text() == QStringLiteral("Work Codex · Default model · high effort"),
 					   "choosing one switches to it in one press, and the chip says agent, model and effort");
 				expect(agent->choose_agent(1U) && window.agent_panel()->selected_profile() == std::optional{ core::agent_profile_id{ 1U } }, "and back");
 				window.agent_panel()->offer_profiles(std::vector{ profile });
@@ -17238,8 +17244,8 @@ namespace {
 						   == QStringList{ QStringLiteral("Summarize this conversation"), QStringLiteral("Is the concern raised here right?"), QStringLiteral("Draft a reply to this conversation") },
 					   "while it is attached the prompts are about the conversation");
 				composer->setPlainText(QStringLiteral("Who is right?"));
-				window.side_chat()->send_action()->setEnabled(true);
-				window.side_chat()->send_action()->trigger();
+				window.side_chat()->present(qt::side_chat_projection{ });
+				window.agent_tab()->ask_button()->click();
 				identity.InvocationGeneration = 4U;
 				window.agent_panel()->admit(identity);
 				window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
@@ -17554,7 +17560,7 @@ namespace {
 			// edit before submitting". The press reaches the prompt as a
 			// reviewer's would: a mouse press and release, or keys on it.
 			{
-				auto* const field  = window.side_chat()->composer();
+				auto* const field  = window.agent_tab()->question_editor();
 				const auto  chosen = [agent] {
 					agent->refresh_suggestions();
 					process_events();
@@ -17587,7 +17593,7 @@ namespace {
 					process_events();
 				};
 				const auto atEnd = [field] { return field->textCursor().position() == static_cast<int>(field->toPlainText().size()); };
-				window.side_chat()->send_action()->setEnabled(true);
+				window.side_chat()->present(qt::side_chat_projection{ });
 				field->clear();
 				auto* button = chosen();
 				expect(button != nullptr && button->isEnabled(), "a suggested prompt can be pressed");
@@ -17710,7 +17716,7 @@ namespace {
 		process_events();
 		window.ask_agent_action()->trigger();
 		process_events();
-		expect(window.tray_tabs()->currentIndex() == 2 && window.side_chat()->composer()->hasFocus(), "⌘I opens the Agent tab with the keyboard in the question");
+		expect(window.tray_tabs()->currentIndex() == 2 && window.agent_tab()->question_editor()->hasFocus(), "⌘I opens the Agent tab with the keyboard in the question");
 		// The conversation, its context row and its question keep the
 		// principles; the private history behind History is RFC-BPR-0023's
 		// own page, unchanged.

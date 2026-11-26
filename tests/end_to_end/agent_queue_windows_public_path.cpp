@@ -179,7 +179,7 @@ namespace {
 
 	void type_and_return(qt::workbench_window& aWindow, const QString& aText)
 	{
-		auto* const composer = aWindow.side_chat()->composer();
+		auto* const composer = aWindow.agent_tab()->question_editor();
 		composer->setPlainText(aText);
 		QKeyEvent press{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 		QApplication::sendEvent(composer, &press);

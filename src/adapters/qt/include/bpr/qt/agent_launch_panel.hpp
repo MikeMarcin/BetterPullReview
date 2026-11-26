@@ -170,6 +170,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto latest_output_line() const -> QString;
 		/// Called whenever the request's phase, output or end changes.
 		void add_progress_observer(std::function<void()> aObserver);
+		/// \brief RFC-BPR-0130 stage 5 (AC07). Told whenever what the panel
+		/// offers or enables may have changed, so another presentation of the
+		/// run (the Agent tab's) is handed what it says now.
+		void add_change_observer(std::function<void()> aObserver);
 		/// [[BPR-1753]], owner look v002. What the last request's agent
 		/// reported running: its model, and its cost when the harness said.
 		[[nodiscard]] auto last_reported_model() const -> QString { return LastModel; }
@@ -308,6 +312,7 @@ namespace bpr::qt {
 		std::optional<core::agent_cost>                    LastSessionCost;
 		phase                                              Phase = phase::idle;
 		std::vector<std::function<void()>>                 ProgressObservers;
+		std::vector<std::function<void()>>                 ChangeObservers;
 		void                                               progressed();
 		std::optional<application::agent_invocation_projection_identity>
 														ActiveInvocation;

@@ -150,9 +150,10 @@ namespace bpr::qt {
 		/// controls, so presenting never looks like a reviewer selecting.
 		bool Applying = false;
 
-		finding_queue_view_statistics                      Statistics;
-		finding_queue_intent_dispatch                      Dispatch;
-		std::optional<application::agent_finding_delivery> Shown;
+		finding_queue_view_statistics                                   Statistics;
+		finding_queue_intent_dispatch                                   Dispatch;
+		std::function<void(const application::agent_finding_delivery&)> PresentationObserver;
+		std::optional<application::agent_finding_delivery>              Shown;
 		/// Which row is detailed. Qt-local navigation, and nothing else: it
 		/// selects what is read out of the delivery already presented, and no
 		/// finding changes because a reviewer looked at it.
@@ -209,6 +210,10 @@ namespace bpr::qt {
 		/// row at it, which is what keeps an accepted refresh from moving the
 		/// reviewer somewhere they did not ask to be.
 		void present(const application::agent_finding_delivery& aDelivery);
+		/// \brief RFC-BPR-0130 stage 5 (AC07). Told each delivery once it is
+		/// presented, so the Agent tab makes its cards without reading this
+		/// view.
+		void set_presentation_observer(std::function<void(const application::agent_finding_delivery&)> aObserver);
 
 		/// \brief Details the finding at one ordinal, and emits nothing.
 		void select(std::size_t aOrdinal);

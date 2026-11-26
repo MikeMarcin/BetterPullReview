@@ -1094,7 +1094,6 @@ namespace bpr::qt {
 		// tab's source, so the Agent tab, the tour chat, Enhance and Draft the
 		// tour use one choice. Setup is a state of that footer.
 		AgentFooter = new agent_footer{ AgentTab->run_settings_source(), this };
-		AgentTab->adopt_run_settings_button(AgentFooter->picker());
 		AgentFooter->set_settings_dispatch([this] { open_settings(settings_page::agents_and_context); });
 		statusBar()->addPermanentWidget(AgentFooter, 0);
 		AgentTab->set_footer_observers(
