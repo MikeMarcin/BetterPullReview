@@ -1285,8 +1285,11 @@ auto main(int argc, char** argv) -> int
 		const auto  ask    = [&](const QString& aQuestion) {
 			const auto turns = tab->turn_count();
 			// A send before the window has lent the session the review's
-			// authority is refused and said; it is sent again.
-			auto asking = QElapsedTimer{ };
+			// authority is refused and said; it is sent again. A refusal
+			// puts the keyboard in the field, which is the course's own
+			// leftover: a person's question is sent once.
+			const auto held   = QPointer<QWidget>{ QApplication::focusWidget() };
+			auto       asking = QElapsedTimer{ };
 			asking.start();
 			while (tab->turn_count() == turns && tab->state() != qt::agent_tab_state::working && asking.elapsed() < 30000) {
 				window->agent_tab()->question_editor()->setPlainText(aQuestion);
@@ -1295,6 +1298,13 @@ auto main(int argc, char** argv) -> int
 				static_cast<void>(e2e::wait_until_plain([&] { return tab->turn_count() > turns || tab->state() == qt::agent_tab_state::working; }, std::chrono::milliseconds{ 1500 }));
 			}
 			expect(tab->turn_count() > turns || tab->state() == qt::agent_tab_state::working, "the question is sent: " + aQuestion.toStdString());
+			if (QApplication::focusWidget() != held) {
+				if (held != nullptr) {
+					held->setFocus(Qt::OtherFocusReason);
+				} else {
+					leave_no_keyboard_behind();
+				}
+			}
 		};
 
 		// ---- Comments ------------------------------------------------------

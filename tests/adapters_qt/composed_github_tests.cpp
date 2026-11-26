@@ -6493,13 +6493,13 @@ namespace {
 				   std::string{ "the Agent control is within the drawer width: " } + control_name(control));
 		}
 		// [[BPR-1753]], owner amendment 2026-10-23: the agent is chosen
-		// from the chip in the question field, so the borrowed selector is not shown.
+		// from the chip in the question field, so the launch panel's selector is not shown.
 		for (auto* const control : { static_cast<QWidget*>(window.agent_tab()->question_editor()), static_cast<QWidget*>(agent->ask_button()) }) {
 			expect(control->isVisible() && agent->isAncestorOf(control)
 					   && std::ranges::find(controls, control) != controls.end(),
 				   "the width sweep includes the question field and Ask");
 		}
-		expect(agent->isAncestorOf(window.agent_panel()->profile_selector()) && !window.agent_panel()->profile_selector()->isVisible(), "the borrowed selector stays the one choice, unseen");
+		expect(!agent->isAncestorOf(window.agent_panel()->profile_selector()) && !window.agent_panel()->profile_selector()->isVisible(), "the selector stays the launch panel's one choice, unseen and not the tab's");
 		const auto offered = [drawer](const QString& aName) -> QToolButton* {
 			for (auto* const button : drawer->findChildren<QToolButton*>()) {
 				if (button->defaultAction() != nullptr && button->defaultAction()->objectName() == aName) {

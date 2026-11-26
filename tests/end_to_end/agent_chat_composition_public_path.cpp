@@ -2098,7 +2098,10 @@ auto main(int argc, char** argv) -> int
 				*application, "continued-selection", continuedSelection.render());
 		}
 
-		window.agent_tab()->question_editor()->setPlainText(QString::fromUtf8(
+		// The continued question, through the session's own panel with the
+		// question it was asked as: the contract is the host's, not the Agent
+		// tab's (which decides a question's subject afresh at each send).
+		chat->composer()->setPlainText(QString::fromUtf8(
 			continued_message.data(),
 			static_cast<qsizetype>(continued_message.size())));
 		QApplication::processEvents();
@@ -2108,7 +2111,7 @@ auto main(int argc, char** argv) -> int
 		if (!jsonlKept()) {
 			return fail(*application, "continued-agent-choice-kept", panel->profile_selector()->currentText().toStdString());
 		}
-		window.agent_tab()->ask_button()->click();
+		chat->send_action()->trigger();
 		QApplication::processEvents();
 
 		// The composition half, checked before the answer rather than after

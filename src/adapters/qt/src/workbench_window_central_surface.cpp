@@ -1787,6 +1787,10 @@ namespace bpr::qt {
 			}
 		});
 		handRun(agent_tab_run_change::actions);
+		// The tab's words stand in the keyboard's order where the side chat
+		// panel's did while the tab borrowed them, so Tab from the field, and
+		// the keyboard leaving it when the tab hides, go where they went.
+		setTabOrder(SideChat->composer(), AgentTab->question_editor());
 		// Owner look v006 ("I selected a block and it still said the line
 		// suggestion and then when i clicked away ... the suggestion text
 		// updates to block"): the selected lines are the panes' own text
