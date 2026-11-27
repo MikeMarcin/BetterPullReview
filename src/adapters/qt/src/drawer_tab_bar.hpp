@@ -69,7 +69,7 @@ namespace bpr::qt::detail {
 		/// accessible name first in its tooltip. With no room yet (a header
 		/// not laid out) every name shows. `aRepaint` redraws the glyphs, as
 		/// after a palette change.
-		void fold(const int aRoom, const std::span<const QString> aNames, const std::span<const QString> aAbout, const std::function<QIcon(int)>& aGlyph, const bool aRepaint)
+		auto fold(const int aRoom, const std::span<const QString> aNames, const std::span<const QString> aAbout, const std::function<QIcon(int)>& aGlyph, const bool aRepaint) -> int
 		{
 			const auto tabs    = std::min({ static_cast<std::size_t>(count()), aNames.size(), aAbout.size() });
 			const auto current = currentIndex();
@@ -116,6 +116,7 @@ namespace bpr::qt::detail {
 				Announced = hint;
 				updateGeometry();
 			}
+			return widthIn(chosen);
 		}
 
 	protected:

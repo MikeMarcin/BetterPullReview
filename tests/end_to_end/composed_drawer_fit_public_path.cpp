@@ -433,6 +433,18 @@ namespace {
 				found.push_back(QStringLiteral("%1 is %2 wide, its words need %3").arg(describe(*label)).arg(label->width()).arg(label->minimumSizeHint().width()));
 			}
 		}
+		for (const auto* const bar : aSurface.findChildren<QTabBar*>(QStringLiteral("workbenchTrayTabs"))) {
+			if (!bar->isVisibleTo(&aSurface)) {
+				continue;
+			}
+			const auto offset = bar->mapTo(&aSurface, QPoint{ 0, 0 }).x();
+			for (auto index = 0; index < bar->count(); ++index) {
+				const auto tab = bar->tabRect(index);
+				if (bar->isTabVisible(index) && (!bar->rect().contains(tab) || offset + tab.left() < 0 || offset + tab.right() >= aSurface.width())) {
+					found.push_back(QStringLiteral("Right tray cuts off the %1 tab (%2..%3 in a %4-wide bar at %5)").arg(bar->accessibleTabName(index)).arg(tab.left()).arg(tab.right()).arg(bar->width()).arg(offset));
+				}
+			}
+		}
 		// A field of text is whole inside what holds it, too.
 		for (const auto* const field : aSurface.findChildren<QPlainTextEdit*>()) {
 			if (!field->isVisibleTo(&aSurface) || field->visibleRegion().isEmpty()) {

@@ -470,7 +470,7 @@ namespace bpr::qt {
 		// tab's glyph and name with the others' glyphs; glyphs only. The row
 		// takes the first that fits the header, whose tools move to their own
 		// row before any name goes.
-		tabs->fold(detail::tab_row_room(*TrayHeader), tabNames, about, [this](const int aIndex) {
+		const auto width = tabs->fold(detail::tab_row_room(*TrayHeader), tabNames, about, [this](const int aIndex) {
 			switch (aIndex) {
 			case tray_comments_tab:
 				return conversation_icon(conversation_glyph::comment, palette());
@@ -479,6 +479,9 @@ namespace bpr::qt {
 			default:
 				return drawer_icon(drawer_glyph::agent, palette());
 			} }, aRepaint);
+		// The grid must reserve the new tab width even if Qt is still
+		// caching the previous layout of the badges.
+		tabs->setMinimumWidth(width);
 	}
 
 	auto workbench_window::open_file_in_review(const QString& aPath) -> bool

@@ -1836,6 +1836,7 @@ namespace bpr::qt {
 		TrayTabs->setAccessibleDescription(QStringLiteral(
 			"Comments, Tour and Agent. Local comments and tour preparation are never sent until you choose to."));
 		configure_drawer_tabs(*TrayTabs);
+		TrayTabs->setUsesScrollButtons(false);
 		// [[BPR-1594]]. The Agent keeps its spark beside its name.
 		// [[BPR-1684]]: fit_tray_tabs gives each tab its face, glyph
 		// and tooltip for the width the row has.
