@@ -1760,8 +1760,15 @@ auto main(int argc, char** argv) -> int
 			run.hold_turns();
 			tab->banner_second_button()->click();
 			if (!canTryMove) {
-				wait([&] { return historyIn() && tab->state() == qt::agent_tab_state::idle && tab->turn_count() == 0U; }, "the revision choice opens an empty session");
-				expect(tab->ask_button()->isEnabled(), "the empty session can send at the current head");
+				// The last run's status can still be stopped after History
+				// switches. Verify what the reviewer can see and do in the
+				// fresh session before sending its first question.
+				wait([&] {
+					const auto id = tab->session_menu()->selected();
+					return historyIn() && !id.empty() && id != seeded && tab->turn_count() == 0U && tab->ask_button()->isEnabled();
+				},
+					 "the revision choice opens an empty session that can send");
+				expect(!tab->banner()->isVisibleTo(run.drawer()), "the revision card goes away before the first question: " + tab->banner_text().toStdString());
 				ask(question);
 			}
 			wait([&] { return tab->state() == qt::agent_tab_state::working && tab->turn_count() == 1U; }, "New session sends the kept message");
