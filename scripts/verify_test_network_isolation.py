@@ -151,7 +151,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_steer_unavailable_public_path": "unmeasured (registered on macOS)",
     # The pinned-session implementer's report, 2026-11-24: a send after the
     # head moved is asked under the comparison the window settled on.
-    "application_agent_chat_head_move_send_contract": "unmeasured (registered on macOS)",
+    # Build 104, Windows interactive Release: direct passes. AppContainer
+    # refuses the course's private test root before the fixture starts.
+    "application_agent_chat_head_move_send_contract": "private-test-root-refused",
     "application_tour_feedback_queue_public_path": "private-data-root-refused",
     "application_agent_queue_windows_public_path": "private-data-root-refused",
     # Build 96 AppContainer course: "update-from-target: private cold fixture root".
@@ -166,8 +168,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_tour_chat_queue_local_draft_public_path": "private-data-root-refused",
     # The composed window's right drawer at its widths: the tour chat queue
     # course's desktop and data root, registered on macOS.
-    "application_composed_drawer_fit_scale_100": "unmeasured (registered on macOS)",
-    "application_composed_drawer_fit_scale_200": "unmeasured (registered on macOS)",
+    # Build 104, Windows interactive Release: both pass directly and print
+    # "private data root refused" inside AppContainer.
+    "application_composed_drawer_fit_scale_100": "private-data-root-refused",
+    "application_composed_drawer_fit_scale_200": "private-data-root-refused",
     "application_composed_drawer_fit_cocoa": "unmeasured (registered on macOS)",
     # [[BPR-1933]]. Native Limited interactive Windows Release, source
     # a30ed6f5b, 2026-11-08 UTC: the unchanged course passes normally. The
@@ -907,7 +911,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_invocation_staleness_contract": "dos-volume-name",
     "application_agent_invocation_cleanup_retry_contract": "dos-volume-name",
     "application_agent_invocation_workspace_diagnostic_contract": "dos-volume-name",
-    "application_agent_invocation_native_pinned_contract": "unmeasured (registered on macOS)",
+    # Build 104, Windows interactive Release: direct passes. AppContainer
+    # refuses the course's private test root before the fixture starts.
+    "application_agent_invocation_native_pinned_contract": "private-test-root-refused",
     "application_epoch_persistence_github-com": "dos-volume-name",
     "application_epoch_persistence_ghes-3_18": "dos-volume-name",
     "application_composition_contract": "ninja-named-pipe",

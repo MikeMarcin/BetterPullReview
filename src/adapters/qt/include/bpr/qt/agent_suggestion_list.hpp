@@ -80,6 +80,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto more_button() const -> QPushButton*;
 		[[nodiscard]] auto more_menu() const noexcept -> QMenu* { return MoreMenu; }
 		[[nodiscard]] auto lead() const noexcept -> QLabel* { return Lead; }
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 		/// \brief The tooltip a prompt shows; `aShortened` when its chip
 		/// shows less than its whole name.
 		[[nodiscard]] static auto tooltip_of(const agent_suggestion& aPrompt, bool aShortened) -> QString;
@@ -87,6 +88,7 @@ namespace bpr::qt {
 
 	protected:
 		bool eventFilter(QObject* aWatched, QEvent* aEvent) override;
+		void resizeEvent(QResizeEvent* aEvent) override;
 		/// [[BPR-2000]]. The chips wear the agent accent of the ground.
 		void changeEvent(QEvent* aEvent) override;
 
@@ -94,6 +96,7 @@ namespace bpr::qt {
 		void choose(const QString& aKey, bool aEditFirst);
 		/// Says what each chip sends, without making it again.
 		void dress(QPushButton& aButton, const agent_suggestion& aPrompt) const;
+		void fit_chips();
 		void present_more();
 		void open_more();
 

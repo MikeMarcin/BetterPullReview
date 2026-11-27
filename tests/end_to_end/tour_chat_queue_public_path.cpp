@@ -439,7 +439,7 @@ auto main(int argc, char** argv) -> int
 			expect(shownWhileRunning, "a steered message shows in the transcript while its turn runs: " + steered_in(*chat).join(QLatin1Char('|')).toStdString() + "; " + notice());
 			capture(*chat, QStringLiteral("whole-tour-steered"));
 			// Pause queue holds what waits past the running turn's end.
-			expect(press_in(*chat, QStringLiteral("agentQueuePauseResume")), "Pause queue is offered");
+			wait([&] { return press_in(*chat, QStringLiteral("agentQueuePauseResume")); }, "Pause queue is offered");
 			wait([&] { return !running(*panel); }, "the first turn ends");
 			for (auto settle = 0; settle < 40; ++settle) {
 				QApplication::processEvents();

@@ -57,6 +57,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QFile>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -157,21 +158,23 @@ namespace {
 
 	auto press_in(qt::workbench_window& aWindow, const QString& aName, const QString& aLabel = { }) -> bool
 	{
-		auto* const list = aWindow.agent_tab()->queue_list();
-		auto* const card = aLabel.isEmpty() ? nullptr : card_of(aWindow, aLabel);
-		auto* const in   = card != nullptr ? card : static_cast<QWidget*>(list);
-		if (!aLabel.isEmpty() && card == nullptr) {
+		auto* const  list   = aWindow.agent_tab()->queue_list();
+		QPushButton* button = nullptr;
+		// The rebuilt row can enter the widget tree before Qt shows its
+		// controls. Press only the current, visible button.
+		if (!e2e::wait_until_plain([&] {
+				auto* const in = aLabel.isEmpty() ? static_cast<QWidget*>(list) : card_of(aWindow, aLabel);
+				if (in != nullptr) {
+					const auto buttons = in->findChildren<QPushButton*>(aName);
+					const auto shown   = std::ranges::find_if(buttons, [list](const QPushButton* aButton) { return aButton->isVisibleTo(list) && aButton->isEnabled(); });
+					button             = shown == buttons.end() ? nullptr : *shown;
+				}
+				return button != nullptr;
+			},
+								   e2e::default_queue_budget)) {
+			std::cerr << "agent-queue-windows: " << aName.toStdString() << " is unavailable\n";
 			return false;
 		}
-		// A row the list rebuilt waits for deletion beside its replacement:
-		// the shown one is pressed.
-		const auto buttons = in->findChildren<QPushButton*>(aName);
-		const auto shown   = std::ranges::find_if(buttons, [list](const QPushButton* aButton) { return aButton->isVisibleTo(list); });
-		if (shown == buttons.end()) {
-			std::cerr << "agent-queue-windows: " << buttons.size() << " " << aName.toStdString() << " buttons, none shown\n";
-			return false;
-		}
-		auto* const button = *shown;
 		button->click();
 		QApplication::processEvents();
 		return true;
@@ -217,7 +220,8 @@ auto main(int argc, char** argv) -> int
 		std::cerr << "private data root refused\n";
 		return EXIT_FAILURE;
 	}
-	auto search = e2e::stub_claude_search(std::filesystem::path{ data.path().toStdString() } / "stub-claude-search", stub);
+	const auto searchFolder = std::filesystem::path{ data.path().toStdString() } / "stub-claude-search";
+	auto       search       = e2e::stub_claude_search(searchFolder, stub);
 	if (!search) {
 		std::cerr << "stub claude search refused\n";
 		return EXIT_FAILURE;
@@ -232,7 +236,7 @@ auto main(int argc, char** argv) -> int
 			// The loading course is at the next push, where a second window's
 			// read takes the repository's cache while the first window's run ends.
 			options.EpochPhase            = loading ? app::detail::github_epoch_fixture_phase::reuse : app::detail::github_epoch_fixture_phase::single;
-			options.ClaudeAgentExecutable = stub;
+			options.ClaudeAgentExecutable = mode.empty() ? searchFolder / ("claude" + stub.extension().string()) : stub;
 			options.ClaudeSearch          = search;
 			// The second window reads the pull request again.
 			options.RepeatReadSessions = true;
@@ -576,10 +580,17 @@ auto main(int argc, char** argv) -> int
 		};
 		const auto path = QStringLiteral("src/engine/renderer.cpp");
 		wait([&] { return first->go_to_file_line(path, 12U, false) && first->active_document_path() == path; }, "the file opens");
+		// Keep the fixture's first answer pending until the test pauses the queue.
+		const auto holdPath = QString::fromStdString((searchFolder / "hold-turns").string());
+		{
+			QFile hold{ holdPath };
+			expect(hold.open(QIODevice::WriteOnly), "the course holds its fixture agent");
+		}
 		quick("agent-tab.explain-file", "file");
 		quick("agent-tab.explain-file", "file");
 		wait([&] { return first->agent_tab()->queue_list()->isVisible(); }, "a waiting message shows in the first window's pending list");
 		expect(press_in(*first, QStringLiteral("agentQueuePauseResume")), "Pause queue in the first window");
+		expect(QFile::remove(holdPath), "the fixture agent can finish the first answer");
 		if (!e2e::wait_until_plain(idle, e2e::extended_agent_budget)) {
 			throw std::runtime_error{ "the running ask finishes: " + first->agent_panel()->status_text().toStdString() + " / " + rows_of(*first).join(QLatin1Char('|')).toStdString() };
 		}
@@ -603,7 +614,13 @@ auto main(int argc, char** argv) -> int
 			static_cast<void>(first->agent_tab()->grab().save(root + QStringLiteral("/first-window.png")));
 			static_cast<void>(second->agent_tab()->grab().save(root + QStringLiteral("/second-window.png")));
 		}
-		auto* const field = second->agent_tab()->queue_list()->findChild<QLineEdit*>(QStringLiteral("agentQueueEditField"));
+		auto* const editingList = second->agent_tab()->queue_list();
+		QLineEdit*  field       = nullptr;
+		wait([&] {
+			field = editingList->findChild<QLineEdit*>(QStringLiteral("agentQueueEditField"));
+			return field != nullptr && field->isVisibleTo(editingList);
+		},
+			 "the editor is shown in the second window");
 		expect(field != nullptr && field->text() == QStringLiteral("First follow-up"), "edited in place in the second window");
 		field->setText(QStringLiteral("First follow-up, edited"));
 		expect(press_in(*second, QStringLiteral("agentQueueSave")), "Save in the second window");
@@ -614,13 +631,14 @@ auto main(int argc, char** argv) -> int
 		auto* const removedCard = card_of(*second, QStringLiteral("Second follow-up"));
 		auto* const firstCard   = card_of(*first, QStringLiteral("Second follow-up"));
 		expect(removedCard != nullptr && firstCard != nullptr, "both windows show the message");
-		const auto stale = QPointer<QPushButton>{ removedCard->findChild<QPushButton*>(QStringLiteral("agentQueueRemove")) };
+		const auto stale    = QPointer<QPushButton>{ removedCard->findChild<QPushButton*>(QStringLiteral("agentQueueRemove")) };
+		const auto refusals = second->agent_panel()->refusal_count();
 		firstCard->findChild<QPushButton*>(QStringLiteral("agentQueueRemove"))->click();
 		expect(!stale.isNull(), "the second window's press is still on its way");
 		stale->click();
-		QApplication::processEvents();
-		expect(second->agent_panel()->status_text().contains(QStringLiteral("Another window changed this queue first")),
-			   "the press that crossed the first window's removal is refused and says so: " + second->agent_panel()->status_text().toStdString());
+		wait([&] { return second->agent_panel()->refusal_count() > refusals; }, "the press that crossed the first window's removal is refused");
+		expect(second->agent_panel()->last_refusal().contains(QStringLiteral("Another window changed this queue first")),
+			   "the refusal names the other window's change: " + second->agent_panel()->last_refusal().toStdString());
 		wait([&] { return !rows_of(*second).contains(QStringLiteral("Second follow-up")) && rows_of(*first) == rows_of(*second); }, "removed in both windows");
 
 		// Typed in the second window, it joins the one queue.

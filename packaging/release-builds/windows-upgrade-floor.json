@@ -1,11 +1,11 @@
 {
   "schema": "bpr.windows-upgrade-floor.v1",
   "product": "BetterPullReview",
-  "marketingVersion": "0.5.3",
-  "msiProductVersion": "0.5.99",
-  "installerName": "BetterPullReview-0.5.3-build.99-windows-x64.msi",
-  "installerSHA256": "71c49def49a18c993e93eaafdf0bd84f6f436fa9cac6426875c4fcd3d64c58da",
-  "releaseTag": "0.5.3",
-  "sourceCommit": "7be880ae45bf359671915f8823ed93b55d6c5ef2",
-  "releaseId": 457466155
+  "marketingVersion": "0.5.4",
+  "msiProductVersion": "0.5.111",
+  "installerName": "BetterPullReview-0.5.4-build.111-windows-x64.msi",
+  "installerSHA256": "09d75ea41e06ea432e3a546f049e60d71cf33538162ad2ccb6a6e8f16f9bbd1a",
+  "releaseTag": "0.5.4",
+  "sourceCommit": "55662715bc3ce1600c561265a90a9a06fe61731f",
+  "releaseId": 460083354
 }
